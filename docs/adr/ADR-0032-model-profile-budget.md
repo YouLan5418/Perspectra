@@ -10,4 +10,4 @@
 
 ## 结果
 
-Phase 0 禁止模型和网络，只实现可替换 Provider 及完全无模型闭环。Harness LLM Bridge、Token 计量和 LLM Replay 必须在 Phase 3 通过独立契约测试后接入。
+Phase 3 已实现版本化 Model Profile、调用前稳定 Token 预留、失败/超时/预算耗尽降级、Harness 端口契约和本地 Model Replay。实际 Harness Bridge 仍默认禁用；无模型玩家路径不依赖任何 Provider。

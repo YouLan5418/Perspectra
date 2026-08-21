@@ -10,4 +10,4 @@ Agent 只读取其 WorldAddress、CharacterView、当前 Round 和获授权 Memo
 
 ## 结果
 
-Phase 0 提供 `AgentProvider`、`DirectorProvider`、Scripted Agent 以及 Noop/Rule/Scripted Director。非法数量、重复 Action ID 和重复 participant fail-closed；Harness LLM Bridge 留到 Phase 3。
+Phase 3 已实现 `ContextAssembler`、严格 `SubmitActionsValidator`、`HarnessAgentPort` 与默认禁用 Bridge。非法数量、重复 Action ID、越权 actor/action type、错误版本和未知字段均 fail-closed；本地 Harness 源码不进入生产 import。
