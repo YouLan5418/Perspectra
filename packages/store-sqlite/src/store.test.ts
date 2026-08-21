@@ -13,6 +13,7 @@ import {
   type WorldEventDraft,
 } from '@harness-world/contracts'
 import {
+  BranchAdministration,
   ProjectionRebuilder,
   ProjectionStore,
   RoundInbox,
@@ -434,6 +435,54 @@ describe('WorldStore and temporal projections', () => {
     raw.close()
     const corrupted = new WorldStore(path)
     expect(() => corrupted.forkBranch(parent, fixtureAddress('corrupt-child'), 1)).toThrow('fork event')
+    corrupted.close()
+  })
+
+  it('inherits manifests, audits forks, and enforces world and depth boundaries', () => {
+    const path = database('fork-policy.sqlite')
+    const root = fixtureAddress('depth-0')
+    const store = new WorldStore(path, undefined, () => 777)
+    const manifest = { address: root, name: 'fork-policy' } as const
+    const genesisEvents = [{ eventType: 'world.created', eventVersion: 1, data: { name: 'fork-policy' } }] as const
+    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+    store.activateBranch({
+      address: root,
+      manifest,
+      manifestHash,
+      genesisEvents,
+      genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
+      transactionId: brandId('transaction:fork-policy', 'TransactionId'),
+      roundId: brandId('round:fork-policy', 'InteractionRoundId'),
+      correlationId: 'fork-policy',
+    })
+    const firstChild = fixtureAddress('depth-1')
+    store.forkBranch(root, firstChild, 1)
+    expect(store.readManifest(firstChild)).toEqual({ manifest, manifestHash })
+    expect(store.readManifest(fixtureAddress('missing-manifest'))).toBeUndefined()
+    const audit = new BranchAdministration(path)
+    expect(audit.readAudit(firstChild)).toMatchObject([{ operation: 'branch.forked', operationalTimeMs: 777 }])
+    audit.close()
+
+    let parent = firstChild
+    for (let depth = 2; depth <= 8; depth += 1) {
+      const child = fixtureAddress(`depth-${depth}`)
+      store.forkBranch(parent, child, 1)
+      parent = child
+    }
+    expect(() => store.forkBranch(parent, fixtureAddress('depth-9'), 1))
+      .toThrow('depth limit 8')
+    expect(() => store.forkBranch(root, {
+      ...fixtureAddress('cross-world'),
+      worldId: brandId('world:other', 'WorldId'),
+    }, 1)).toThrow('parent tenant and world')
+    store.close()
+
+    const raw = new DatabaseSync(path)
+    raw.exec('PRAGMA foreign_keys = OFF')
+    raw.prepare(`UPDATE branches SET parent_address_key = 'missing-parent' WHERE branch_id = ?`).run(firstChild.branchId)
+    raw.close()
+    const corrupted = new WorldStore(path)
+    expect(() => corrupted.forkBranch(firstChild, fixtureAddress('corrupt-depth-child'), 0)).toThrow('unknown world branch missing-parent')
     corrupted.close()
   })
 

@@ -399,22 +399,39 @@ export class WorldStore {
 
   /** Read the compiled manifest bound to an activated branch. */
   readManifest(address: WorldAddress): { readonly manifest: WorldJsonValue; readonly manifestHash: WorldHash } | undefined {
+    return this.#readManifestByKey(worldAddressKey(address))
+  }
+
+  #readManifestByKey(addressKey: string): { readonly manifest: WorldJsonValue; readonly manifestHash: WorldHash } | undefined {
     const row = this.#db.prepare(`
       SELECT a.manifest_hash, m.manifest_json
       FROM branch_activations a JOIN world_manifests m ON m.manifest_hash = a.manifest_hash
       WHERE a.address_key = ?
-    `).get(worldAddressKey(address)) as { manifest_hash: WorldHash; manifest_json: string } | undefined
-    return row === undefined ? undefined : { manifest: parseWorldJson(row.manifest_json), manifestHash: row.manifest_hash }
+    `).get(addressKey) as { manifest_hash: WorldHash; manifest_json: string } | undefined
+    if (row !== undefined) return { manifest: parseWorldJson(row.manifest_json), manifestHash: row.manifest_hash }
+    const branch = this.#db.prepare(`SELECT parent_address_key FROM branches WHERE address_key = ?`).get(addressKey) as {
+      parent_address_key: string | null
+    } | undefined
+    return branch?.parent_address_key === null || branch === undefined ? undefined : this.#readManifestByKey(branch.parent_address_key)
   }
 
   /** Create a child branch whose effective history stops exactly at forkSeq. */
   forkBranch(parent: WorldAddress, child: WorldAddress, forkSeq: number): void {
+    if (parent.tenantId !== child.tenantId || parent.worldId !== child.worldId) {
+      throw new TypeError('child branch must remain in the parent tenant and world')
+    }
     const parentHead = this.head(parent)
     if (!Number.isSafeInteger(forkSeq) || forkSeq < 0 || forkSeq > parentHead.headSeq) {
       throw new RangeError(`forkSeq ${forkSeq} is outside parent head ${parentHead.headSeq}`)
     }
     const forkEvent = forkSeq === 0 ? undefined : this.readEvents(parent, forkSeq).find(event => event.seq === forkSeq)
     if (forkSeq !== 0 && forkEvent === undefined) throw new Error(`fork event ${forkSeq} is missing`)
+    if (this.#branchDepth(worldAddressKey(parent)) >= 8) {
+      failWorld({
+        errorCode: 'BRANCH_DEPTH_LIMIT', category: 'admin', message: 'branch depth limit 8 would be exceeded',
+        retryable: false, correlationId: `fork:${child.branchId}`, address: child,
+      })
+    }
     const childKey = worldAddressKey(child)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
@@ -429,6 +446,10 @@ export class WorldStore {
         forkEvent?.eventHash ?? 'genesis',
       )
       this.#db.prepare(`INSERT INTO branch_controls(address_key, admission_state, lifecycle_state, reason, revision) VALUES (?, 'open', 'active', NULL, 0)`).run(childKey)
+      this.#db.prepare(`
+        INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
+        VALUES (?, 'branch.forked', ?, ?, ?)
+      `).run(childKey, `fork:${child.branchId}`, worldJsonText({ parent, forkSeq }), this.operationalNow())
       this.#db.exec('COMMIT')
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -638,6 +659,20 @@ export class WorldStore {
     const row = this.#db.prepare(`SELECT head_seq, tick, event_hash FROM heads WHERE address_key = ?`).get(addressKey) as HeadRow | undefined
     if (row === undefined) throw new Error(`unknown world branch ${addressKey}`)
     return row
+  }
+
+  #branchDepth(addressKey: string): number {
+    let depth = 0
+    let current: string | null = addressKey
+    while (current !== null) {
+      const row = this.#db.prepare(`SELECT parent_address_key FROM branches WHERE address_key = ?`).get(current) as {
+        parent_address_key: string | null
+      } | undefined
+      if (row === undefined) throw new Error(`unknown world branch ${current}`)
+      current = row.parent_address_key
+      if (current !== null) depth += 1
+    }
+    return depth
   }
 
   #assertWriterLease(addressKey: string, request: CommitRoundRequest): void {
