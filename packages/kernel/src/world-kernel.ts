@@ -66,6 +66,7 @@ export class WorldKernel {
   submitPlayerInput(request: SubmitPlayerInputRequest): Promise<PlayerRoundResult> {
     if (this.#closed) return Promise.reject(new Error('WorldKernel is closed'))
     this.#validateSubmission(request)
+    this.options.store.assertAdmissionOpen(this.#manifest.address, request.correlationId)
     const binding = this.#manifest.playerBindings.find(value => value.principalId === request.principalId)
     if (binding === undefined) {
       failWorld({

@@ -163,7 +163,29 @@ CREATE TABLE outbox_delivery_receipts (
 ) STRICT;
 `
 
-export const WORLD_SCHEMA_VERSION = 5
+const WORLD_BRANCH_ADMIN_SCHEMA = `
+CREATE TABLE branch_controls (
+  address_key TEXT PRIMARY KEY,
+  admission_state TEXT NOT NULL CHECK(admission_state IN ('open', 'draining')),
+  lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active', 'archived')),
+  reason TEXT,
+  revision INTEGER NOT NULL CHECK(revision >= 0),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key)
+) STRICT;
+INSERT INTO branch_controls(address_key, admission_state, lifecycle_state, reason, revision)
+SELECT address_key, 'open', 'active', NULL, 0 FROM branches;
+CREATE TABLE branch_audit_events (
+  audit_seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  address_key TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  correlation_id TEXT NOT NULL,
+  details_json TEXT NOT NULL,
+  operational_time_ms INTEGER NOT NULL CHECK(operational_time_ms >= 0),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key)
+) STRICT;
+`
+
+export const WORLD_SCHEMA_VERSION = 6
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -171,7 +193,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 2, sql: WORLD_LEASE_SCHEMA },
     { version: 3, sql: WORLD_ACTIVATION_SCHEMA },
     { version: 4, sql: WORLD_ROUND_INBOX_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_OUTBOX_DELIVERY_SCHEMA },
+    { version: 5, sql: WORLD_OUTBOX_DELIVERY_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_BRANCH_ADMIN_SCHEMA },
   ])
 }
 
@@ -241,6 +264,7 @@ export class WorldStore {
         VALUES (?, ?, ?, ?, NULL, NULL)
       `).run(key, address.tenantId, address.worldId, address.branchId)
       this.#db.prepare(`INSERT INTO heads(address_key, head_seq, tick, event_hash) VALUES (?, 0, 0, 'genesis')`).run(key)
+      this.#db.prepare(`INSERT INTO branch_controls(address_key, admission_state, lifecycle_state, reason, revision) VALUES (?, 'open', 'active', NULL, 0)`).run(key)
       this.#db.exec('COMMIT')
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -361,6 +385,7 @@ export class WorldStore {
       `).run(request.transactionId, addressKey, activationHash, request.roundId, request.genesisEvents.length, bundleHash)
       this.#db.prepare(`INSERT INTO heads(address_key, head_seq, tick, event_hash) VALUES (?, ?, 0, ?)`)
         .run(addressKey, request.genesisEvents.length, previousHash)
+      this.#db.prepare(`INSERT INTO branch_controls(address_key, admission_state, lifecycle_state, reason, revision) VALUES (?, 'open', 'active', NULL, 0)`).run(addressKey)
       this.#db.prepare(`
         INSERT INTO branch_activations(address_key, activation_hash, manifest_hash, genesis_hash, transaction_id)
         VALUES (?, ?, ?, ?, ?)
@@ -403,6 +428,7 @@ export class WorldStore {
         forkEvent?.tick ?? 0,
         forkEvent?.eventHash ?? 'genesis',
       )
+      this.#db.prepare(`INSERT INTO branch_controls(address_key, admission_state, lifecycle_state, reason, revision) VALUES (?, 'open', 'active', NULL, 0)`).run(childKey)
       this.#db.exec('COMMIT')
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -446,6 +472,8 @@ export class WorldStore {
         this.#db.exec('COMMIT')
         return { status: 'already_committed', headSeq: replay.head_seq, tick: replay.tick, bundleHash: replay.bundle_hash }
       }
+
+      this.#assertAdmissionOpen(addressKey, request.correlationId, request.address)
 
       this.#assertWriterLease(addressKey, request)
 
@@ -597,6 +625,11 @@ export class WorldStore {
     return row === undefined ? undefined : { headSeq: row.base_head_seq, tick: row.base_tick }
   }
 
+  /** Fail closed before admitting new work to a draining or archived branch. */
+  assertAdmissionOpen(address: WorldAddress, correlationId: string): void {
+    this.#assertAdmissionOpen(worldAddressKey(address), correlationId, address)
+  }
+
   close(): void {
     this.#db.close()
   }
@@ -624,6 +657,23 @@ export class WorldStore {
         address: request.address,
         roundId: request.roundId,
         details: { suppliedFencingToken: request.writerFencingToken ?? 0 },
+      })
+    }
+  }
+
+  #assertAdmissionOpen(addressKey: string, correlationId: string, address: WorldAddress): void {
+    const row = this.#db.prepare(`
+      SELECT admission_state, lifecycle_state FROM branch_controls WHERE address_key = ?
+    `).get(addressKey) as { admission_state: 'open' | 'draining'; lifecycle_state: 'active' | 'archived' } | undefined
+    if (row === undefined) throw new Error(`unknown world branch ${addressKey}`)
+    if (row.admission_state !== 'open' || row.lifecycle_state !== 'active') {
+      failWorld({
+        errorCode: 'BRANCH_DRAINING',
+        category: 'admin',
+        message: row.lifecycle_state === 'archived' ? 'branch is archived' : 'branch admission is draining',
+        retryable: row.lifecycle_state !== 'archived',
+        correlationId,
+        address,
       })
     }
   }
