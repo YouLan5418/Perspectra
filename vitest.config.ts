@@ -6,6 +6,7 @@ const root = fileURLToPath(new URL('.', import.meta.url))
 export default defineConfig({
   resolve: {
     alias: {
+      '@harness-world/agents': `${root}packages/agents/src/index.ts`,
       '@harness-world/contracts': `${root}packages/contracts/src/index.ts`,
       '@harness-world/kernel': `${root}packages/kernel/src/index.ts`,
       '@harness-world/presentation': `${root}packages/presentation/src/index.ts`,
@@ -21,6 +22,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: [
+        'packages/agents/src/**/*.ts',
         'packages/contracts/src/**/*.ts',
         'packages/kernel/src/**/*.ts',
         'packages/presentation/src/**/*.ts',
