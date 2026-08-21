@@ -10,6 +10,7 @@ import {
   ProjectionRebuilder,
   SnapshotStore,
   WorldArchiveService,
+  WorldLogicalTransferService,
   WorldStore,
 } from '@harness-world/store-sqlite'
 
@@ -73,6 +74,15 @@ describe('Phase 5 local operations acceptance', () => {
         expect(recovered.readEvents(child)).toHaveLength(1)
         recovered.close()
       }
+
+      const logical = new WorldLogicalTransferService(worldPath)
+      const logicalPath = join(directory, 'world.dshworld')
+      const logicalHash = logical.exportAuthority(logicalPath, 'p5:logical-export')
+      const logicalTarget = join(directory, 'logical-import.sqlite')
+      expect(logical.importAuthority(logicalPath, logicalTarget, 'p5:logical-import')).toBe(logicalHash)
+      const logicalWorld = new WorldStore(logicalTarget)
+      expect(logicalWorld.readEvents(parent)[0]!.eventHash).toBe(eventHash)
+      logicalWorld.close()
 
       const rpc = new LocalJsonRpcRouter(restoredPath)
       expect(JSON.parse(await executeLocalCli(['health'], rpc))).toMatchObject({ result: { status: 'ready', branchCount: 2 } })
