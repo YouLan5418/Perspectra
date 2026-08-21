@@ -9,14 +9,14 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
-  openOwnedDatabase,
+  openMigratedDatabase,
   parseWorldJson,
   rollbackAndThrow,
   SESSION_APPLICATION_ID,
   worldJsonText,
 } from './sqlite.ts'
 
-const SESSION_SCHEMA = `
+export const SESSION_SCHEMA = `
 CREATE TABLE IF NOT EXISTS session_delivery_cursor (
   session_id TEXT PRIMARY KEY,
   last_delivery_seq INTEGER NOT NULL CHECK(last_delivery_seq >= 0)
@@ -40,6 +40,28 @@ CREATE TABLE IF NOT EXISTS session_events (
 ) STRICT;
 `
 
+const SESSION_COMPACTION_SCHEMA = `
+CREATE TABLE session_summaries (
+  session_id TEXT NOT NULL,
+  summary_id TEXT NOT NULL,
+  from_delivery_seq INTEGER NOT NULL CHECK(from_delivery_seq > 0),
+  to_delivery_seq INTEGER NOT NULL CHECK(to_delivery_seq >= from_delivery_seq),
+  content_hash TEXT NOT NULL,
+  summary_json TEXT NOT NULL,
+  PRIMARY KEY(session_id, summary_id),
+  UNIQUE(session_id, from_delivery_seq, to_delivery_seq)
+) STRICT;
+`
+
+export const SESSION_SCHEMA_VERSION = 2
+
+export function openSessionDatabase(path: string): DatabaseSync {
+  return openMigratedDatabase(path, SESSION_APPLICATION_ID, [
+    { version: 1, sql: SESSION_SCHEMA },
+    { version: SESSION_SCHEMA_VERSION, sql: SESSION_COMPACTION_SCHEMA },
+  ])
+}
+
 interface InboxRow {
   readonly delivery_id: string
   readonly payload_hash: string
@@ -49,7 +71,7 @@ export class SessionDeliveryAdapter {
   readonly #db: DatabaseSync
 
   constructor(path: string, private readonly faultInjector?: FaultInjector) {
-    this.#db = openOwnedDatabase(path, SESSION_APPLICATION_ID, SESSION_SCHEMA)
+    this.#db = openSessionDatabase(path)
   }
 
   /** Atomically claim a delivery, append its Observation, and advance the cursor. */
