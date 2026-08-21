@@ -15,8 +15,9 @@
     "test:p0": "vitest run tests/p0.integration.test.ts",
     "test:p1": "vitest run tests/p1.integration.test.ts",
     "test:p2": "vitest run tests/p2.integration.test.ts",
+    "test:p3": "vitest run tests/p3.integration.test.ts",
     "test:crash": "vitest run tests/crash.test.ts --testTimeout=30000",
-    "check": "corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test:coverage && corepack pnpm@11.7.0 test:p0 && corepack pnpm@11.7.0 test:p1 && corepack pnpm@11.7.0 test:p2 && corepack pnpm@11.7.0 test:crash"
+    "check": "corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test:coverage && corepack pnpm@11.7.0 test:p0 && corepack pnpm@11.7.0 test:p1 && corepack pnpm@11.7.0 test:p2 && corepack pnpm@11.7.0 test:p3 && corepack pnpm@11.7.0 test:crash"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.1"
