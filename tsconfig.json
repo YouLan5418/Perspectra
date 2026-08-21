@@ -18,6 +18,7 @@
     "noEmit": true,
     "paths": {
       "@harness-world/contracts": ["./packages/contracts/src/index.ts"],
+      "@harness-world/kernel": ["./packages/kernel/src/index.ts"],
       "@harness-world/runtime-cordis": ["./packages/runtime-cordis/src/index.ts"],
       "@harness-world/store-sqlite": ["./packages/store-sqlite/src/index.ts"],
       "@harness-world/simulation": ["./packages/simulation/src/index.ts"],
