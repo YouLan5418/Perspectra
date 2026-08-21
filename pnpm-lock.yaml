@@ -54,6 +54,15 @@ importers:
         specifier: workspace:*
         version: link:../store-sqlite
 
+  packages/memory:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/store-sqlite':
+        specifier: workspace:*
+        version: link:../store-sqlite
+
   packages/presentation:
     dependencies:
       '@harness-world/contracts':
