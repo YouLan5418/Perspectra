@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { SessionDeliveryAdapter, WorldStore } from '@harness-world/store-sqlite'
+import { SessionDeliveryAdapter, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
 import {
   fixtureAddress,
+  fixtureCommitRequest,
   fixtureDeliveryRequest,
   hardKillAt,
 } from '@harness-world/testkit'
@@ -50,6 +51,23 @@ describe('hard process termination recovery', () => {
     const recovered = new SessionDeliveryAdapter(path)
     expect(recovered.cursor(fixtureDeliveryRequest().sessionId)).toBe(expectedCursor)
     expect(recovered.readEvent(fixtureDeliveryRequest().sessionId, 1) !== undefined).toBe(expectedCursor === 1)
+    recovered.close()
+  })
+
+  it.each([
+    ['outbox.before-receipt-commit', false],
+    ['outbox.after-receipt-commit', true],
+  ] as const)('recovers the complete sender Receipt at %s', async (point, expectedReceipt) => {
+    const path = database(`${point}.sqlite`)
+    const setup = new WorldStore(path)
+    setup.createBranch(fixtureAddress())
+    await setup.commitRound(fixtureCommitRequest())
+    setup.close()
+    await hardKillAt(worker, ['outbox', path, point])
+    const recovered = new WorldOutbox(path)
+    const deliveryId = fixtureCommitRequest().outbox[0]!.deliveryId
+    expect(recovered.hasReceipt(deliveryId)).toBe(expectedReceipt)
+    expect(recovered.claimNext() === undefined).toBe(expectedReceipt)
     recovered.close()
   })
 })
