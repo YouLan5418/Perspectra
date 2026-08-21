@@ -144,14 +144,34 @@ CREATE TABLE round_inbox (
 ) STRICT;
 `
 
-export const WORLD_SCHEMA_VERSION = 4
+const WORLD_OUTBOX_DELIVERY_SCHEMA = `
+ALTER TABLE outbox ADD COLUMN delivery_status TEXT NOT NULL DEFAULT 'pending'
+  CHECK(delivery_status IN ('pending', 'inflight', 'delivered', 'dead_letter'));
+ALTER TABLE outbox ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0);
+ALTER TABLE outbox ADD COLUMN session_delivery_seq INTEGER CHECK(session_delivery_seq > 0);
+ALTER TABLE outbox ADD COLUMN last_error TEXT;
+CREATE TABLE outbox_session_counters (
+  session_id TEXT PRIMARY KEY,
+  next_delivery_seq INTEGER NOT NULL CHECK(next_delivery_seq >= 1)
+) STRICT;
+CREATE TABLE outbox_delivery_receipts (
+  delivery_id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  session_delivery_seq INTEGER NOT NULL,
+  payload_hash TEXT NOT NULL,
+  FOREIGN KEY(delivery_id) REFERENCES outbox(delivery_id)
+) STRICT;
+`
+
+export const WORLD_SCHEMA_VERSION = 5
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
     { version: 1, sql: WORLD_SCHEMA },
     { version: 2, sql: WORLD_LEASE_SCHEMA },
     { version: 3, sql: WORLD_ACTIVATION_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_ROUND_INBOX_SCHEMA },
+    { version: 4, sql: WORLD_ROUND_INBOX_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_OUTBOX_DELIVERY_SCHEMA },
   ])
 }
 

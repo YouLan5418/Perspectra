@@ -27,6 +27,8 @@ export type FaultPoint =
   | 'session-delivery.after-inbox-insert'
   | 'session-delivery.after-observation-append'
   | 'session-delivery.after-commit'
+  | 'outbox.before-receipt-commit'
+  | 'outbox.after-receipt-commit'
 
 export interface FaultInjector {
   /** Pause, fail, or terminate execution at a named stable point. */
