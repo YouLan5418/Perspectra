@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { SessionDeliveryAdapter, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
+import { SessionDeliveryAdapter, WorldArchiveService, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
 import {
   fixtureAddress,
   fixtureCommitRequest,
@@ -13,6 +13,7 @@ import {
 
 const directories: string[] = []
 const worker = fileURLToPath(new URL('./workers/crash-worker.ts', import.meta.url))
+const archiveWorker = fileURLToPath(new URL('./workers/archive-crash-worker.ts', import.meta.url))
 
 function database(name: string): string {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-crash-'))
@@ -68,6 +69,34 @@ describe('hard process termination recovery', () => {
     const deliveryId = fixtureCommitRequest().outbox[0]!.deliveryId
     expect(recovered.hasReceipt(deliveryId)).toBe(expectedReceipt)
     expect(recovered.claimNext() === undefined).toBe(expectedReceipt)
+    recovered.close()
+  })
+
+  it('leaves a valid backup after termination immediately following backup completion', async () => {
+    const sourcePath = database('archive-source.sqlite')
+    const targetPath = sourcePath.replace('archive-source.sqlite', 'archive-target.sqlite')
+    const setup = new WorldStore(sourcePath)
+    setup.createBranch(fixtureAddress())
+    await setup.commitRound(fixtureCommitRequest())
+    setup.close()
+    await hardKillAt(archiveWorker, ['backup', sourcePath, targetPath])
+    const recovered = new WorldStore(targetPath)
+    expect(recovered.head(fixtureAddress()).headSeq).toBe(1)
+    recovered.close()
+  })
+
+  it('leaves a valid restore after termination immediately following restore validation', async () => {
+    const sourcePath = database('restore-source.sqlite')
+    const backupPath = sourcePath.replace('restore-source.sqlite', 'restore-backup.sqlite')
+    const targetPath = sourcePath.replace('restore-source.sqlite', 'restore-target.sqlite')
+    const setup = new WorldStore(sourcePath)
+    setup.createBranch(fixtureAddress())
+    await setup.commitRound(fixtureCommitRequest())
+    setup.close()
+    const artifact = await new WorldArchiveService(sourcePath).backup(backupPath, 'crash:restore-setup')
+    await hardKillAt(archiveWorker, ['restore', backupPath, targetPath, artifact.fileHash])
+    const recovered = new WorldStore(targetPath)
+    expect(recovered.readEvents(fixtureAddress())).toHaveLength(1)
     recovered.close()
   })
 })
