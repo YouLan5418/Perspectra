@@ -1,0 +1,11 @@
+{
+  "name": "@harness-world/testkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@harness-world/contracts": "workspace:*",
+    "@harness-world/store-sqlite": "workspace:*"
+  }
+}
