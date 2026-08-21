@@ -75,6 +75,8 @@ export interface CommitRoundRequest {
   readonly events: readonly WorldEventDraft[]
   readonly outbox: readonly OutboxDraft[]
   readonly correlationId: string
+  /** Operational fencing is excluded from authoritative hashes and required once a branch has acquired a database lease. */
+  readonly writerFencingToken?: number
 }
 
 export interface CommitRoundResult {

@@ -16,11 +16,15 @@ import {
   ProjectionRebuilder,
   ProjectionStore,
   SessionDeliveryAdapter,
+  WriterLeaseService,
   WorldStore,
+  openMigratedDatabase,
   openOwnedDatabase,
   parseWorldJson,
   readPragmaInteger,
   rollbackAndThrow,
+  WORLD_APPLICATION_ID,
+  WORLD_SCHEMA_VERSION,
   worldJsonText,
 } from './index.ts'
 
@@ -109,6 +113,93 @@ describe('SQLite ownership helpers', () => {
     const original = new Error('original')
     expect(() => rollbackAndThrow(memory, original)).toThrow(original)
     memory.close()
+  })
+
+  it('applies contiguous migrations once and rejects invalid migration catalogs', () => {
+    expect(() => openMigratedDatabase(':memory:', 1234, [])).toThrow('contiguous')
+    expect(() => openMigratedDatabase(':memory:', 1234, [{ version: 2, sql: '' }])).toThrow('contiguous')
+    const path = database('migrations.sqlite')
+    const v1 = openMigratedDatabase(path, 5678, [{ version: 1, sql: 'CREATE TABLE first(id INTEGER PRIMARY KEY) STRICT;' }])
+    v1.close()
+    const v2 = openMigratedDatabase(path, 5678, [
+      { version: 1, sql: 'CREATE TABLE first(id INTEGER PRIMARY KEY) STRICT;' },
+      { version: 2, sql: 'CREATE TABLE second(id INTEGER PRIMARY KEY) STRICT;' },
+    ])
+    expect(readPragmaInteger(v2, 'user_version')).toBe(2)
+    expect(v2.prepare(`SELECT name FROM sqlite_schema WHERE name = 'second'`).get()).toBeDefined()
+    v2.close()
+    expect(() => openMigratedDatabase(path, 5678, [{ version: 1, sql: '' }])).toThrow('user_version mismatch')
+  })
+})
+
+describe('WriterLeaseService', () => {
+  it('serializes durable ownership and advances fencing tokens after expiry', () => {
+    const path = database('writer-lease.sqlite')
+    const address = fixtureAddress('lease')
+    const world = new WorldStore(path)
+    world.createBranch(address)
+    world.close()
+    let now = 1_000
+    const leases = new WriterLeaseService(path, () => now)
+    expect(() => leases.acquire(address, '')).toThrow(TypeError)
+    expect(() => leases.acquire(address, 'owner:a', 0)).toThrow(RangeError)
+    expect(() => leases.acquire(fixtureAddress('missing'), 'owner:a')).toThrow('unknown world branch')
+    const first = leases.acquire(address, 'owner:a', 100)
+    expect(first).toEqual({ ownerId: 'owner:a', fencingToken: 1, expiresAtMs: 1_100 })
+    expect(leases.acquire(address, 'owner:a', 200)).toEqual(first)
+    expect(() => leases.acquire(address, 'owner:b')).toThrow('another writer')
+    expect(leases.renew(address, 'owner:a', 1, 200)).toEqual({ ownerId: 'owner:a', fencingToken: 1, expiresAtMs: 1_200 })
+    now = 1_200
+    expect(() => leases.renew(address, 'owner:a', 1)).toThrow('expired or was fenced')
+    const second = leases.acquire(address, 'owner:b')
+    expect(second.fencingToken).toBe(2)
+    expect(leases.release(address, 'owner:a', 1)).toBe(false)
+    expect(leases.release(address, 'owner:b', 2)).toBe(true)
+    leases.close()
+
+    const raw = new DatabaseSync(path)
+    expect(readPragmaInteger(raw, 'application_id')).toBe(WORLD_APPLICATION_ID)
+    expect(readPragmaInteger(raw, 'user_version')).toBe(WORLD_SCHEMA_VERSION)
+    raw.close()
+  })
+
+  it('fences commits after a branch enters leased operation', async () => {
+    const path = database('writer-fencing.sqlite')
+    const address = fixtureAddress('fenced')
+    let now = 5_000
+    const world = new WorldStore(path, undefined, () => now)
+    world.createBranch(address)
+    const leases = new WriterLeaseService(path, () => now)
+    const lease = leases.acquire(address, 'kernel')
+    const request = fixtureCommitRequest(address)
+    await expect(world.commitRound(request)).rejects.toMatchObject({ envelope: { errorCode: 'WRITER_LEASE_LOST' } })
+    await expect(world.commitRound({ ...request, writerFencingToken: lease.fencingToken + 1 }))
+      .rejects.toMatchObject({ envelope: { errorCode: 'WRITER_LEASE_LOST' } })
+    const committed = await world.commitRound({ ...request, writerFencingToken: lease.fencingToken })
+    now = lease.expiresAtMs
+    await expect(world.commitRound({
+      ...request,
+      transactionId: brandId('transaction:expired', 'TransactionId'),
+      roundId: brandId('round:expired', 'InteractionRoundId'),
+      expectedHeadSeq: committed.headSeq,
+      expectedTick: committed.tick,
+      nextTick: committed.tick + 1,
+      writerFencingToken: lease.fencingToken,
+    })).rejects.toMatchObject({ envelope: { errorCode: 'WRITER_LEASE_LOST' } })
+    expect(leases.release(address, 'kernel', lease.fencingToken)).toBe(true)
+    await expect(world.commitRound({
+      ...request,
+      transactionId: brandId('transaction:missing-lease', 'TransactionId'),
+      roundId: brandId('round:missing-lease', 'InteractionRoundId'),
+      expectedHeadSeq: committed.headSeq,
+      expectedTick: committed.tick,
+      nextTick: committed.tick + 1,
+      writerFencingToken: lease.fencingToken,
+    })).rejects.toMatchObject({ envelope: { errorCode: 'WRITER_LEASE_LOST' } })
+    await expect(world.commitRound({ ...request, writerFencingToken: lease.fencingToken }))
+      .resolves.toEqual({ ...committed, status: 'already_committed' })
+    leases.close()
+    world.close()
   })
 })
 

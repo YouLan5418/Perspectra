@@ -12,14 +12,14 @@ import {
   type WorldHash,
 } from '@harness-world/contracts'
 import {
-  openOwnedDatabase,
+  openMigratedDatabase,
   parseWorldJson,
   rollbackAndThrow,
   WORLD_APPLICATION_ID,
   worldJsonText,
 } from './sqlite.ts'
 
-const WORLD_SCHEMA = `
+export const WORLD_SCHEMA = `
 CREATE TABLE IF NOT EXISTS branches (
   address_key TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
@@ -80,6 +80,30 @@ CREATE TABLE IF NOT EXISTS outbox (
 ) STRICT;
 `
 
+const WORLD_LEASE_SCHEMA = `
+CREATE TABLE writer_lease_counters (
+  address_key TEXT PRIMARY KEY,
+  next_fencing_token INTEGER NOT NULL CHECK(next_fencing_token >= 1),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key)
+) STRICT;
+CREATE TABLE writer_leases (
+  address_key TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  fencing_token INTEGER NOT NULL CHECK(fencing_token >= 1),
+  expires_at_ms INTEGER NOT NULL CHECK(expires_at_ms >= 0),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key)
+) STRICT;
+`
+
+export const WORLD_SCHEMA_VERSION = 2
+
+export function openWorldDatabase(path: string): DatabaseSync {
+  return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
+    { version: 1, sql: WORLD_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_LEASE_SCHEMA },
+  ])
+}
+
 interface HeadRow {
   readonly head_seq: number
   readonly tick: number
@@ -110,8 +134,12 @@ interface EventRow {
 export class WorldStore {
   readonly #db: DatabaseSync
 
-  constructor(path: string, private readonly faultInjector?: FaultInjector) {
-    this.#db = openOwnedDatabase(path, WORLD_APPLICATION_ID, WORLD_SCHEMA)
+  constructor(
+    path: string,
+    private readonly faultInjector?: FaultInjector,
+    private readonly operationalNow: () => number = Date.now,
+  ) {
+    this.#db = openWorldDatabase(path)
   }
 
   /** Create an empty root branch at seq/tick zero. */
@@ -194,6 +222,8 @@ export class WorldStore {
         this.#db.exec('COMMIT')
         return { status: 'already_committed', headSeq: replay.head_seq, tick: replay.tick, bundleHash: replay.bundle_hash }
       }
+
+      this.#assertWriterLease(addressKey, request)
 
       const head = this.#headRow(addressKey)
       if (head.head_seq !== request.expectedHeadSeq || head.tick !== request.expectedTick) {
@@ -351,6 +381,27 @@ export class WorldStore {
     const row = this.#db.prepare(`SELECT head_seq, tick, event_hash FROM heads WHERE address_key = ?`).get(addressKey) as HeadRow | undefined
     if (row === undefined) throw new Error(`unknown world branch ${addressKey}`)
     return row
+  }
+
+  #assertWriterLease(addressKey: string, request: CommitRoundRequest): void {
+    const counter = this.#db.prepare(`SELECT 1 AS present FROM writer_lease_counters WHERE address_key = ?`).get(addressKey)
+    if (counter === undefined) return
+    const lease = this.#db.prepare(`
+      SELECT fencing_token, expires_at_ms FROM writer_leases WHERE address_key = ?
+    `).get(addressKey) as { fencing_token: number; expires_at_ms: number } | undefined
+    const now = this.operationalNow()
+    if (lease === undefined || lease.expires_at_ms <= now || request.writerFencingToken !== lease.fencing_token) {
+      failWorld({
+        errorCode: 'WRITER_LEASE_LOST',
+        category: 'runtime',
+        message: 'database writer lease is missing, expired, or fenced',
+        retryable: true,
+        correlationId: request.correlationId,
+        address: request.address,
+        roundId: request.roundId,
+        details: { suppliedFencingToken: request.writerFencingToken ?? 0 },
+      })
+    }
   }
 
   #readEventsByKey(addressKey: string, asOfSeq: number): StoredWorldEvent[] {

@@ -8,6 +8,11 @@ export const SESSION_APPLICATION_ID = 0x48435753
 export const PROJECTION_APPLICATION_ID = 0x48435750
 export const SCHEMA_VERSION = 1
 
+export interface SqliteMigration {
+  readonly version: number
+  readonly sql: string
+}
+
 export function readPragmaInteger(db: DatabaseSync, name: 'application_id' | 'user_version'): number {
   const row = db.prepare(`PRAGMA ${name}`).get() as Record<string, unknown>
   const value = row[name]
@@ -17,6 +22,14 @@ export function readPragmaInteger(db: DatabaseSync, name: 'application_id' | 'us
 
 /** Open one owned SQLite database with the locked V0 durability configuration. */
 export function openOwnedDatabase(path: string, applicationId: number, schema: string): DatabaseSync {
+  return openMigratedDatabase(path, applicationId, [{ version: SCHEMA_VERSION, sql: schema }])
+}
+
+/** Open an owned database and apply a contiguous, forward-only migration sequence atomically. */
+export function openMigratedDatabase(path: string, applicationId: number, migrations: readonly SqliteMigration[]): DatabaseSync {
+  if (migrations.length === 0 || migrations.some((migration, index) => migration.version !== index + 1)) {
+    throw new TypeError('SQLite migrations must be contiguous and start at version 1')
+  }
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
   const db = new DatabaseSync(path)
   try {
@@ -29,14 +42,18 @@ export function openOwnedDatabase(path: string, applicationId: number, schema: s
     if (existingApplicationId !== 0 && existingApplicationId !== applicationId) {
       throw new Error(`SQLite application_id mismatch: expected ${applicationId}, got ${existingApplicationId}`)
     }
-    if (existingVersion !== 0 && existingVersion !== SCHEMA_VERSION) {
-      throw new Error(`SQLite user_version mismatch: expected ${SCHEMA_VERSION}, got ${existingVersion}`)
+    const targetVersion = migrations.length
+    if (existingVersion > targetVersion) {
+      throw new Error(`SQLite user_version mismatch: expected at most ${targetVersion}, got ${existingVersion}`)
     }
     db.exec('BEGIN IMMEDIATE')
     try {
-      db.exec(schema)
       db.exec(`PRAGMA application_id = ${applicationId}`)
-      db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`)
+      for (const migration of migrations) {
+        if (migration.version <= existingVersion) continue
+        db.exec(migration.sql)
+        db.exec(`PRAGMA user_version = ${migration.version}`)
+      }
       db.exec('COMMIT')
     } catch (error: unknown) {
       db.exec('ROLLBACK')
