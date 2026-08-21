@@ -1,5 +1,6 @@
 export * from './character-view.ts'
 export * from './branch-administration.ts'
+export * from './archive-service.ts'
 export * from './outbox-worker.ts'
 export * from './projection.ts'
 export * from './round-inbox.ts'
