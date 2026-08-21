@@ -1,0 +1,11 @@
+{
+  "name": "@harness-world/runtime-cordis",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@harness-world/contracts": "workspace:*"
+  }
+}
