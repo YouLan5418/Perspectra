@@ -10,4 +10,4 @@ Snapshot 是可丢弃派生加速物，不替代 WorldLog。一个 Snapshot Bund
 
 ## 结果
 
-Phase 4 已实现 Session Compaction：摘要绑定 Session、连续 delivery 范围、来源 Observation ID、World Seq 边界和 contentHash，且不删除或改写原始 Session Event。Snapshot 与 Retention 留待 Phase 5；保留策略只能删除明确可重建的派生数据。
+Phase 4 已实现 Session Compaction。Phase 5 已实现独立 Snapshot Store：每个 Bundle 的 Unit Hash 与同一 asOfSeq 绑定，损坏时 fail-closed；Retention 只把旧派生 Snapshot 标记为 retired，不删除 WorldLog、Session Event 或投递账本。

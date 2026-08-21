@@ -10,4 +10,4 @@
 
 ## 结果
 
-Phase 0 固定工具链、SQLite 配置和 Windows/Linux × Node 22.19/24 CI；不实现 Backup、Import、Restore 或 JSON-RPC。数据库只允许本地磁盘，不支持 SMB、NFS 或同步盘目录。
+Phase 5 已实现 SQLite 一致 World Backup/Restore、Canonical authority-only `.dshworld` 逻辑 Export/Import，以及无网络监听的进程内 JSON-RPC 与 stdio CLI。所有目标采用“已存在即拒绝”，恢复和导入验证 Hash、Schema、quick_check 与 Event Envelope。数据库仍只允许本地磁盘；远程监听、SMB、NFS 和同步盘目录不在 V0 范围。

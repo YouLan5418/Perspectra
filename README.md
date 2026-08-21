@@ -1,6 +1,6 @@
 # Harness / Cordis World V0
 
-> 当前状态：Phase 4 本地 Memory、认知规则与 Session Compaction，不是可供最终用户运行的世界模拟产品。项目尚未提供正式 CLI、JSON-RPC、启用的 LLM/TencentDB Bridge、备份或远程访问。
+> 当前状态：Phase 0～5 的 Windows/Node 24 本机门槛已通过。当前是可验证的 V0 内核与本机运维原型，不是已发布的最终用户产品；LLM/TencentDB Bridge 和远程访问保持禁用。
 
 这是一个独立的、事件溯源的 TURN_DRIVEN 世界模拟内核原型，用 Cordis 管理 Branch 运行时生命周期，用 Node 内置 SQLite 验证耐久原子性、幂等投递、forkSeq 时态重建和无模型确定性闭环。
 
@@ -13,7 +13,13 @@ corepack pnpm@11.7.0 install --frozen-lockfile
 corepack pnpm@11.7.0 check
 ```
 
-`check` 依次运行类型检查、Lint、逐文件 100% 覆盖率、P0～P4 集成测试和子进程硬崩溃测试。
+`check` 依次运行类型检查、Lint、逐文件 100% 覆盖率、P0～P5 集成测试和子进程硬崩溃测试。
+
+已存在 World 数据库时，可通过本机 stdio CLI 查询健康状态：
+
+```powershell
+corepack pnpm@11.7.0 worldctl -- D:\path\to\world.sqlite health
+```
 
 ## 使用基础契约
 
@@ -33,9 +39,10 @@ console.log(hash)
 | `@harness-world/agents` | ContextAssembler、submit_actions、HarnessAgentPort、预算、Director Scheduler 与 Replay |
 | `@harness-world/kernel` | WorldSpec Compiler、Tick 0 Genesis、PlayerBinding、speak/move Rulebook 与 WorldKernel |
 | `@harness-world/memory` | 本地 SQLite FTS5 Memory、source mapping、as-of 防火墙和认知规则 |
+| `@harness-world/operations` | 无网络监听的本机 CLI/JSON-RPC、Health 和固定基数 Metrics |
 | `@harness-world/presentation` | 只消费已授权 Observation 的确定性模板渲染器 |
 | `@harness-world/runtime-cordis` | BranchRuntimeSlot、Cordis Service/Listener/Dispose 隔离 |
-| `@harness-world/store-sqlite` | WorldStore、SessionDeliveryAdapter、时态 Projection |
+| `@harness-world/store-sqlite` | World/Session/Projection、Branch Barrier、Snapshot、Audit、Backup 与逻辑 Transfer |
 | `@harness-world/simulation` | Scripted Agent、三种 Director 和无模型 Round 闭环 |
 | `@harness-world/testkit` | 确定性 Fixture、FaultInjector 和硬终止 Harness |
 
@@ -57,6 +64,11 @@ console.log(hash)
 - Director Scheduler 为确定性纯逻辑，Model Replay 只读取已记录的精确 request/response Hash。
 - Local Memory 只接受当前角色、当前 Branch 且不晚于 as-of 边界的已提交来源；Summary、未来和跨 namespace 来源均 fail-closed。
 - KnowledgeRule 与 `character.reflect` 只从 CharacterView 推导 Claim；Session Compaction 保留原始事件并绑定来源范围与 Hash。
+- Branch fork 继承 Manifest、限制最大深度 8；Admission Barrier 和 archive 阻止新写入，但不物理删除历史。
+- Snapshot Unit/Bundle 同 as-of 绑定并只做派生退休；WorldLog、幂等账本和投递账本不截断。
+- SQLite Backup/Restore 保持原 Event Hash；authority-only `.dshworld` 逻辑包排除 Session、Memory、Audit 和进程状态。
+- World/Branch/Archive/Transfer 请求写 append-only sidecar Audit；Health 与固定基数 Metrics 不参与权威状态。
+- JSON-RPC 仅为进程内路由，CLI 使用 stdio；没有 TCP、Pipe、Socket 或远程监听。
 
 ## 文档
 
@@ -67,5 +79,6 @@ console.log(hash)
 - [Phase 2 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-2-report.md)
 - [Phase 3 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-3-report.md)
 - [Phase 4 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-4-report.md)
+- [Phase 5 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-5-report.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。

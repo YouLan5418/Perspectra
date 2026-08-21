@@ -10,4 +10,4 @@ Telemetry 是非权威派生信号，失败不能改变 Round。世界激活、�
 
 ## 结果
 
-Phase 0 只保留 correlationId 和稳定错误字段，不实现正式 Health/Audit Store。Phase 5 实现时高基数字段进入日志或 Trace，不进入全局指标 Label。
+Phase 5 已实现只读 Health、本机固定基数 Metrics、Branch 行政 Audit 和独立 append-only Operational Audit sidecar。World 创建/激活/fork 与 backup/restore/export/import 在动作前记录 correlationId 和低敏详情；正文、Prompt、Memory 和 Secret 不作为 Metrics Label 或审计详情。

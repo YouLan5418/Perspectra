@@ -10,4 +10,4 @@
 
 ## 结果
 
-Phase 0 只实现最小 `forkBranch` 和有效历史重建，用 future canary 验证 as-of 隔离；不提供行政 API、archive 或 Barrier。Cordis Slot 以完整 Branch 地址隔离并在最后一个 Lease 释放时 Dispose。
+Phase 5 已实现耐久 Admission Barrier、不可逆 archive 标记、fork 行政入口、同 tenant/world 约束和最大深度 8。子 Branch 递归继承父 Manifest 与 forkSeq 有效历史；future canary、损坏父链和超深分支均 fail-closed。没有 merge、rebase、cherry-pick 或物理删除。
