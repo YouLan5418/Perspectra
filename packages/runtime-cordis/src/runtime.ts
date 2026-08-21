@@ -53,7 +53,7 @@ export class BranchRuntimeSlot {
   #disposed = false
   #roundTail: Promise<void> = Promise.resolve()
 
-  private constructor(address: WorldAddress, readonly manifestHash: WorldHash, context: Context, fiber: Fiber, services: BranchServices) {
+  private constructor(readonly address: WorldAddress, readonly manifestHash: WorldHash, context: Context, fiber: Fiber, services: BranchServices) {
     this.addressKey = worldAddressKey(address)
     this.context = context
     this.#fiber = fiber

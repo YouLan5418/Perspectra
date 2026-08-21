@@ -6,6 +6,7 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "@harness-world/contracts": "workspace:*",
+    "@harness-world/runtime-cordis": "workspace:*",
     "@harness-world/store-sqlite": "workspace:*"
   }
 }

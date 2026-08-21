@@ -38,6 +38,9 @@ importers:
       '@harness-world/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@harness-world/runtime-cordis':
+        specifier: workspace:*
+        version: link:../runtime-cordis
       '@harness-world/store-sqlite':
         specifier: workspace:*
         version: link:../store-sqlite
