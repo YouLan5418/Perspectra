@@ -50,7 +50,8 @@ describe('SpeakMoveRulebook', () => {
   it('resolves speech, movement without history, and every rejection shape', () => {
     const world = compiled()
     const rulebook = new SpeakMoveRulebook()
-    expect(rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'speak', parameters: { text: 'hello' } }).status).toBe('accepted')
+    const spoken = rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'speak', parameters: { text: 'hello' } })
+    expect(spoken).toMatchObject({ status: 'accepted', events: [{ eventType: 'character.speak', data: { text: 'hello' } }] })
     expect(rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'speak', parameters: null }).status).toBe('rejected')
     expect(rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'speak', parameters: { text: '' } }).status).toBe('rejected')
     const moved = rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'move', parameters: { locationId: 'location:b' } })

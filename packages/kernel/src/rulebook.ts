@@ -43,7 +43,7 @@ export class SpeakMoveRulebook {
       if (typeof text !== 'string' || text.length === 0) return this.#reject(characterId, action.actionType, 'speak requires non-empty text')
       return {
         status: 'accepted',
-        events: [{ eventType: 'character.spoke', eventVersion: 1, data: { characterId, text } }],
+        events: [{ eventType: 'character.speak', eventVersion: 1, data: { characterId, text } }],
       }
     }
     if (action.actionType === 'move') {
