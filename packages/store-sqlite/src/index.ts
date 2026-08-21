@@ -1,4 +1,5 @@
 export * from './projection.ts'
+export * from './round-inbox.ts'
 export * from './session-delivery.ts'
 export * from './sqlite.ts'
 export * from './writer-lease.ts'

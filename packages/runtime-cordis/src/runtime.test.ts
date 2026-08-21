@@ -54,4 +54,33 @@ describe('WorldRuntimeRegistry', () => {
     expect(registry.activeSlotCount).toBe(0)
     failure.mockRestore()
   })
+
+  it('runs each branch FIFO independently and continues after one rejected job', async () => {
+    const root = new Context()
+    const registry = new WorldRuntimeRegistry(root)
+    const manifest = hashWorldJson('manifest', 1)
+    const lease = await registry.acquire(fixtureAddress('fifo'), manifest)
+    const order: string[] = []
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const first = lease.slot.enqueueRound(async () => {
+      order.push('first:start')
+      await gate
+      order.push('first:end')
+      return 1
+    })
+    const second = lease.slot.enqueueRound(async () => {
+      order.push('second')
+      return 2
+    })
+    await Promise.resolve()
+    expect(order).toEqual(['first:start'])
+    release()
+    await expect(Promise.all([first, second])).resolves.toEqual([1, 2])
+    expect(order).toEqual(['first:start', 'first:end', 'second'])
+    await expect(lease.slot.enqueueRound(async () => { throw new Error('job failed') })).rejects.toThrow('job failed')
+    await expect(lease.slot.enqueueRound(async () => 3)).resolves.toBe(3)
+    await lease.dispose()
+    await expect(lease.slot.enqueueRound(async () => 4)).rejects.toThrow('disposed')
+  })
 })

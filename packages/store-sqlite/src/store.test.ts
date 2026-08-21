@@ -15,6 +15,7 @@ import {
 import {
   ProjectionRebuilder,
   ProjectionStore,
+  RoundInbox,
   SessionDeliveryAdapter,
   WriterLeaseService,
   WorldStore,
@@ -200,6 +201,68 @@ describe('WriterLeaseService', () => {
       .resolves.toEqual({ ...committed, status: 'already_committed' })
     leases.close()
     world.close()
+  })
+})
+
+describe('RoundInbox', () => {
+  it('persists FIFO admission, retries, fencing takeover, and completion', () => {
+    const path = database('round-inbox.sqlite')
+    const address = fixtureAddress('inbox')
+    const world = new WorldStore(path)
+    world.createBranch(address)
+    world.close()
+    const inbox = new RoundInbox(path)
+    const request = {
+      address,
+      idempotencyKey: 'input:1',
+      principalId: 'principal:player',
+      input: { type: 'speak', text: 'hello' },
+      correlationId: 'inbox-test',
+    } as const
+    expect(() => inbox.enqueue({ ...request, idempotencyKey: '' }, 1)).toThrow(TypeError)
+    expect(() => inbox.enqueue({ ...request, principalId: ' padded ' }, 1)).toThrow(TypeError)
+    expect(() => inbox.enqueue(request, 0)).toThrow(RangeError)
+    expect(() => inbox.enqueue({ ...request, address: fixtureAddress('missing') }, 1)).toThrow('unknown world branch')
+    const first = inbox.enqueue(request, 1)
+    expect(first).toMatchObject({ status: 'enqueued', inboxSeq: 1 })
+    expect(inbox.enqueue(request, 1)).toEqual({ ...first, status: 'already_enqueued' })
+    expect(() => inbox.enqueue({ ...request, input: { type: 'speak', text: 'changed' } }, 1)).toThrow('different player input')
+    expect(() => inbox.enqueue({ ...request, idempotencyKey: 'input:2' }, 1)).toThrow('queue is full')
+    expect(() => inbox.claimNext(address, '', 1)).toThrow(TypeError)
+    expect(() => inbox.claimNext(address, 'kernel:a', 0)).toThrow(RangeError)
+    const claimed = inbox.claimNext(address, 'kernel:a', 1)
+    expect(claimed).toMatchObject({ inboxSeq: 1, idempotencyKey: 'input:1', input: request.input })
+    expect(inbox.claimNext(address, 'kernel:a', 1)).toEqual(claimed)
+    expect(inbox.readCompleted(address, 'input:1')).toBeUndefined()
+    expect(() => inbox.complete(address, 999, 'kernel:a', 1, { status: 'missing' })).toThrow('not owned')
+    expect(() => inbox.complete(address, 1, 'kernel:b', 1, { status: 'wrong-owner' })).toThrow('not owned')
+    const result = { status: 'committed', bundleHash: 'stable' } as const
+    const completed = inbox.complete(address, 1, 'kernel:a', 1, result)
+    expect(completed.status).toBe('completed')
+    expect(inbox.complete(address, 1, 'kernel:a', 1, result)).toEqual({ ...completed, status: 'already_completed' })
+    expect(() => inbox.complete(address, 1, 'kernel:a', 1, { status: 'different' })).toThrow('different result')
+    expect(inbox.readCompleted(address, 'input:1')).toEqual(result)
+
+    const second = inbox.enqueue({ ...request, idempotencyKey: 'input:2', input: { type: 'move', locationId: 'location:a' } }, 1)
+    expect(second.inboxSeq).toBe(2)
+    const oldClaim = inbox.claimNext(address, 'kernel:old', 1)
+    expect(oldClaim?.inboxSeq).toBe(2)
+    const takenOver = inbox.claimNext(address, 'kernel:new', 2)
+    expect(takenOver).toEqual(oldClaim)
+    inbox.complete(address, 2, 'kernel:new', 2, { status: 'rejected' })
+    expect(inbox.claimNext(address, 'kernel:new', 2)).toBeUndefined()
+    inbox.close()
+
+    const restarted = new RoundInbox(path)
+    expect(restarted.readCompleted(address, 'input:1')).toEqual(result)
+    restarted.enqueue({ ...request, idempotencyKey: 'input:corrupt' }, 1)
+    restarted.close()
+    const raw = new DatabaseSync(path)
+    raw.prepare(`UPDATE round_inbox SET input_json = 'not-json' WHERE idempotency_key = 'input:corrupt'`).run()
+    raw.close()
+    const corrupted = new RoundInbox(path)
+    expect(() => corrupted.claimNext(address, 'kernel:corrupt', 3)).toThrow(SyntaxError)
+    corrupted.close()
   })
 })
 

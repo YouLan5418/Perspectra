@@ -51,6 +51,7 @@ export class BranchRuntimeSlot {
   readonly services: BranchServices
   #fiber: Fiber
   #disposed = false
+  #roundTail: Promise<void> = Promise.resolve()
 
   private constructor(address: WorldAddress, readonly manifestHash: WorldHash, context: Context, fiber: Fiber, services: BranchServices) {
     this.addressKey = worldAddressKey(address)
@@ -88,6 +89,14 @@ export class BranchRuntimeSlot {
   emitProbe(value: string): void {
     if (this.#disposed) throw new Error('branch runtime slot is disposed')
     this.context.emit(this.context, 'world/probe', value)
+  }
+
+  /** Serialize process-local Round work without poisoning the FIFO after a failed item. */
+  enqueueRound<T>(work: () => Promise<T>): Promise<T> {
+    if (this.#disposed) return Promise.reject(new Error('branch runtime slot is disposed'))
+    const execution = this.#roundTail.then(work, work)
+    this.#roundTail = execution.then(() => undefined, () => undefined)
+    return execution
   }
 
   /** Unwind every service, listener, and effect owned by this slot. */
