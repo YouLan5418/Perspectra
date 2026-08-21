@@ -10,4 +10,4 @@ WorldEvent 原始 Envelope 永不改写；同一 eventType/eventVersion 的 Sche
 
 ## 结果
 
-Phase 0 固定 eventVersion 1，并用生产 Event Reducer 重建四类时态 Projection。Upcaster 和 Snapshot Bundle 在后续 Phase 实现，但不得访问网络、模型、Memory、时钟或随机数。
+Phase 2 在四类时态 Projection 上增加按角色裁剪的 `CharacterViewBuilder`，并在同一 asOfSeq 重建 Scene、Self Observation 与角色位置。Upcaster 和 Snapshot Bundle 仍在后续 Phase 实现；Reducer 不访问网络、模型、Memory、时钟或随机数。

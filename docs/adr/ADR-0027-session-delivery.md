@@ -10,4 +10,4 @@ World Outbox 至少一次投递，同一 Session 只处理最早未完成项。�
 
 ## 结果
 
-系统不宣称跨 WorldStore/SessionStore exactly-once。Phase 0 Adapter 已验证 COMMIT 前硬终止完全回滚、COMMIT 后硬终止可重试且不重复事件；Dead Letter 调度留到 Phase 2。
+系统不宣称跨 WorldStore/SessionStore exactly-once。Phase 2 已实现 Session 连续 delivery seq、发送端 Receipt、消费端 `appendIfAbsent`、失败重试和 Critical Dead Letter 阻塞。Session COMMIT 后结果丢失与 Receipt COMMIT 前后均有恢复测试；重复投递不重复 Observation。
