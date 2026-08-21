@@ -119,6 +119,32 @@ export interface ProjectionBundle extends WorldJsonObject {
   readonly bundleHash: WorldHash
 }
 
+export interface CharacterSceneView extends WorldJsonObject {
+  readonly sceneId: string
+  readonly value: WorldJsonValue
+  readonly sourceSeq: number
+}
+
+export interface SelfObservationView extends WorldJsonObject {
+  readonly observationId: string
+  readonly sourceSeq: number
+  readonly content: WorldJsonValue
+}
+
+export interface CharacterView extends WorldJsonObject {
+  readonly address: WorldAddress
+  readonly characterId: CharacterId
+  readonly asOfWorldSeq: number
+  readonly locationId: string | null
+  readonly scenes: readonly CharacterSceneView[]
+  readonly observations: readonly ProjectionRecord[]
+  readonly selfObservations: readonly SelfObservationView[]
+  readonly claims: readonly ProjectionRecord[]
+  readonly goals: readonly ProjectionRecord[]
+  readonly visibility: readonly ProjectionRecord[]
+  readonly bundleHash: WorldHash
+}
+
 export interface ActionRequest extends WorldJsonObject {
   readonly actionId: string
   readonly actorId: CharacterId
