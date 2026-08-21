@@ -16,7 +16,7 @@ export interface BranchControlState extends WorldJsonObject {
   readonly revision: number
 }
 
-export interface BranchAuditEvent {
+export interface BranchAuditEvent extends WorldJsonObject {
   readonly auditSeq: number
   readonly operation: string
   readonly correlationId: string
