@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@harness-world/contracts': `${root}packages/contracts/src/index.ts`,
+      '@harness-world/kernel': `${root}packages/kernel/src/index.ts`,
       '@harness-world/runtime-cordis': `${root}packages/runtime-cordis/src/index.ts`,
       '@harness-world/store-sqlite': `${root}packages/store-sqlite/src/index.ts`,
       '@harness-world/simulation': `${root}packages/simulation/src/index.ts`,
@@ -20,6 +21,7 @@ export default defineConfig({
       provider: 'v8',
       include: [
         'packages/contracts/src/**/*.ts',
+        'packages/kernel/src/**/*.ts',
         'packages/runtime-cordis/src/**/*.ts',
         'packages/store-sqlite/src/**/*.ts',
         'packages/simulation/src/**/*.ts',

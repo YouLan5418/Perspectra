@@ -33,6 +33,15 @@ importers:
 
   packages/contracts: {}
 
+  packages/kernel:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/store-sqlite':
+        specifier: workspace:*
+        version: link:../store-sqlite
+
   packages/runtime-cordis:
     dependencies:
       '@deepseek-ai/cordis':

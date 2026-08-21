@@ -8,8 +8,11 @@ import {
   type FaultInjector,
   type StoredOutboxItem,
   type StoredWorldEvent,
+  type TransactionId,
   type WorldAddress,
+  type WorldEventDraft,
   type WorldHash,
+  type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
   openMigratedDatabase,
@@ -95,13 +98,49 @@ CREATE TABLE writer_leases (
 ) STRICT;
 `
 
-export const WORLD_SCHEMA_VERSION = 2
+const WORLD_ACTIVATION_SCHEMA = `
+CREATE TABLE world_manifests (
+  manifest_hash TEXT PRIMARY KEY,
+  manifest_json TEXT NOT NULL
+) STRICT;
+CREATE TABLE branch_activations (
+  address_key TEXT PRIMARY KEY,
+  activation_hash TEXT NOT NULL,
+  manifest_hash TEXT NOT NULL,
+  genesis_hash TEXT NOT NULL,
+  transaction_id TEXT NOT NULL UNIQUE,
+  FOREIGN KEY(address_key) REFERENCES branches(address_key),
+  FOREIGN KEY(manifest_hash) REFERENCES world_manifests(manifest_hash),
+  FOREIGN KEY(transaction_id) REFERENCES round_commits(transaction_id)
+) STRICT;
+`
+
+export const WORLD_SCHEMA_VERSION = 3
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
     { version: 1, sql: WORLD_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_LEASE_SCHEMA },
+    { version: 2, sql: WORLD_LEASE_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_ACTIVATION_SCHEMA },
   ])
+}
+
+export interface ActivateBranchRequest {
+  readonly address: WorldAddress
+  readonly manifest: WorldJsonValue
+  readonly manifestHash: WorldHash
+  readonly genesisEvents: readonly WorldEventDraft[]
+  readonly genesisHash: WorldHash
+  readonly transactionId: TransactionId
+  readonly roundId: CommitRoundRequest['roundId']
+  readonly correlationId: string
+}
+
+export interface ActivateBranchResult {
+  readonly status: 'activated' | 'already_active'
+  readonly headSeq: number
+  readonly tick: 0
+  readonly bundleHash: WorldHash
 }
 
 interface HeadRow {
@@ -156,6 +195,141 @@ export class WorldStore {
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
     }
+  }
+
+  /** Atomically install one compiled manifest and its deterministic Tick 0 Genesis events. */
+  activateBranch(request: ActivateBranchRequest): ActivateBranchResult {
+    if (request.genesisEvents.length === 0) throw new TypeError('Genesis requires at least one event')
+    if (hashWorldJson('compiled-world-manifest', request.manifest) !== request.manifestHash) {
+      throw new TypeError('manifestHash does not match manifest')
+    }
+    if (hashWorldJson('world-genesis-plan', request.genesisEvents) !== request.genesisHash) {
+      throw new TypeError('genesisHash does not match Genesis events')
+    }
+    const addressKey = worldAddressKey(request.address)
+    const activationHash = hashWorldJson('world-activation-request', {
+      address: request.address,
+      manifestHash: request.manifestHash,
+      genesisHash: request.genesisHash,
+      transactionId: request.transactionId,
+      roundId: request.roundId,
+    })
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      const replay = this.#db.prepare(`
+        SELECT activation_hash, transaction_id FROM branch_activations WHERE address_key = ?
+      `).get(addressKey) as { activation_hash: WorldHash; transaction_id: string } | undefined
+      if (replay !== undefined) {
+        if (replay.activation_hash !== activationHash || replay.transaction_id !== request.transactionId) {
+          failWorld({
+            errorCode: 'IDEMPOTENCY_KEY_CONFLICT',
+            category: 'admission',
+            message: 'world branch is already active with another Genesis plan',
+            retryable: false,
+            correlationId: request.correlationId,
+            address: request.address,
+          })
+        }
+        const committed = this.#db.prepare(`
+          SELECT head_seq, bundle_hash FROM round_commits WHERE transaction_id = ?
+        `).get(request.transactionId) as { head_seq: number; bundle_hash: WorldHash }
+        this.#db.exec('COMMIT')
+        return { status: 'already_active', headSeq: committed.head_seq, tick: 0, bundleHash: committed.bundle_hash }
+      }
+      if (this.#db.prepare(`SELECT 1 AS present FROM branches WHERE address_key = ?`).get(addressKey) !== undefined) {
+        failWorld({
+          errorCode: 'IDEMPOTENCY_KEY_CONFLICT',
+          category: 'admission',
+          message: 'an unactivated branch already occupies the WorldAddress',
+          retryable: false,
+          correlationId: request.correlationId,
+          address: request.address,
+        })
+      }
+      const manifestText = worldJsonText(request.manifest)
+      const existingManifest = this.#db.prepare(`SELECT manifest_json FROM world_manifests WHERE manifest_hash = ?`)
+        .get(request.manifestHash) as { manifest_json: string } | undefined
+      if (existingManifest !== undefined && existingManifest.manifest_json !== manifestText) {
+        failWorld({
+          errorCode: 'BUNDLE_HASH_MISMATCH',
+          category: 'integrity',
+          message: 'manifest hash is bound to different bytes',
+          retryable: false,
+          correlationId: request.correlationId,
+          address: request.address,
+        })
+      }
+      this.#db.prepare(`INSERT OR IGNORE INTO world_manifests(manifest_hash, manifest_json) VALUES (?, ?)`)
+        .run(request.manifestHash, manifestText)
+      this.#db.prepare(`
+        INSERT INTO branches(address_key, tenant_id, world_id, branch_id, parent_address_key, fork_seq)
+        VALUES (?, ?, ?, ?, NULL, NULL)
+      `).run(addressKey, request.address.tenantId, request.address.worldId, request.address.branchId)
+
+      let previousHash: WorldHash | 'genesis' = 'genesis'
+      const eventHashes: WorldHash[] = []
+      for (const [eventOrdinal, draft] of request.genesisEvents.entries()) {
+        const seq = eventOrdinal + 1
+        const eventHash = hashWorldJson('world-event-envelope', {
+          address: request.address,
+          seq,
+          tick: 0,
+          eventType: draft.eventType,
+          eventVersion: draft.eventVersion,
+          data: draft.data,
+          previousHash,
+          transactionId: request.transactionId,
+          eventOrdinal,
+        })
+        this.#db.prepare(`
+          INSERT INTO events(address_key, seq, tick, event_type, event_version, data_json, previous_hash, event_hash, transaction_id, event_ordinal)
+          VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          addressKey,
+          seq,
+          draft.eventType,
+          draft.eventVersion,
+          worldJsonText(draft.data),
+          previousHash,
+          eventHash,
+          request.transactionId,
+          eventOrdinal,
+        )
+        previousHash = eventHash
+        eventHashes.push(eventHash)
+      }
+      const bundleHash = hashWorldJson('world-round-bundle', {
+        address: request.address,
+        roundId: request.roundId,
+        tick: 0,
+        eventHashes,
+        outboxHashes: [],
+      })
+      this.#db.prepare(`
+        INSERT INTO round_commits(transaction_id, address_key, request_hash, round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash)
+        VALUES (?, ?, ?, ?, 0, 0, ?, 0, ?)
+      `).run(request.transactionId, addressKey, activationHash, request.roundId, request.genesisEvents.length, bundleHash)
+      this.#db.prepare(`INSERT INTO heads(address_key, head_seq, tick, event_hash) VALUES (?, ?, 0, ?)`)
+        .run(addressKey, request.genesisEvents.length, previousHash)
+      this.#db.prepare(`
+        INSERT INTO branch_activations(address_key, activation_hash, manifest_hash, genesis_hash, transaction_id)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(addressKey, activationHash, request.manifestHash, request.genesisHash, request.transactionId)
+      this.#db.exec('COMMIT')
+      return { status: 'activated', headSeq: request.genesisEvents.length, tick: 0, bundleHash }
+    } catch (error: unknown) {
+      rollbackAndThrow(this.#db, error)
+    }
+  }
+
+  /** Read the compiled manifest bound to an activated branch. */
+  readManifest(address: WorldAddress): { readonly manifest: WorldJsonValue; readonly manifestHash: WorldHash } | undefined {
+    const row = this.#db.prepare(`
+      SELECT a.manifest_hash, m.manifest_json
+      FROM branch_activations a JOIN world_manifests m ON m.manifest_hash = a.manifest_hash
+      WHERE a.address_key = ?
+    `).get(worldAddressKey(address)) as { manifest_hash: WorldHash; manifest_json: string } | undefined
+    return row === undefined ? undefined : { manifest: parseWorldJson(row.manifest_json), manifestHash: row.manifest_hash }
   }
 
   /** Create a child branch whose effective history stops exactly at forkSeq. */

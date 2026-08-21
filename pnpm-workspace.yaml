@@ -1,5 +1,8 @@
 packages:
   - packages/*
 
+nodeLinker: hoisted
+strictDepBuilds: true
+
 allowBuilds:
   esbuild: true
