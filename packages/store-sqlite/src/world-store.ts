@@ -1,0 +1,388 @@
+import type { DatabaseSync } from 'node:sqlite'
+import {
+  failWorld,
+  hashWorldJson,
+  worldAddressKey,
+  type CommitRoundRequest,
+  type CommitRoundResult,
+  type FaultInjector,
+  type StoredOutboxItem,
+  type StoredWorldEvent,
+  type WorldAddress,
+  type WorldHash,
+} from '@harness-world/contracts'
+import {
+  openOwnedDatabase,
+  parseWorldJson,
+  rollbackAndThrow,
+  WORLD_APPLICATION_ID,
+  worldJsonText,
+} from './sqlite.ts'
+
+const WORLD_SCHEMA = `
+CREATE TABLE IF NOT EXISTS branches (
+  address_key TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  world_id TEXT NOT NULL,
+  branch_id TEXT NOT NULL,
+  parent_address_key TEXT,
+  fork_seq INTEGER,
+  UNIQUE(tenant_id, world_id, branch_id),
+  FOREIGN KEY(parent_address_key) REFERENCES branches(address_key),
+  CHECK ((parent_address_key IS NULL AND fork_seq IS NULL) OR (parent_address_key IS NOT NULL AND fork_seq >= 0))
+) STRICT;
+CREATE TABLE IF NOT EXISTS heads (
+  address_key TEXT PRIMARY KEY,
+  head_seq INTEGER NOT NULL CHECK(head_seq >= 0),
+  tick INTEGER NOT NULL CHECK(tick >= 0),
+  event_hash TEXT NOT NULL,
+  FOREIGN KEY(address_key) REFERENCES branches(address_key)
+) STRICT;
+CREATE TABLE IF NOT EXISTS round_commits (
+  transaction_id TEXT PRIMARY KEY,
+  address_key TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  round_id TEXT NOT NULL,
+  base_head_seq INTEGER NOT NULL,
+  base_tick INTEGER NOT NULL,
+  head_seq INTEGER NOT NULL,
+  tick INTEGER NOT NULL,
+  bundle_hash TEXT NOT NULL,
+  FOREIGN KEY(address_key) REFERENCES branches(address_key)
+) STRICT;
+CREATE TABLE IF NOT EXISTS events (
+  address_key TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  tick INTEGER NOT NULL,
+  event_type TEXT NOT NULL,
+  event_version INTEGER NOT NULL,
+  data_json TEXT NOT NULL,
+  previous_hash TEXT NOT NULL,
+  event_hash TEXT NOT NULL,
+  transaction_id TEXT NOT NULL,
+  event_ordinal INTEGER NOT NULL,
+  PRIMARY KEY(address_key, seq),
+  UNIQUE(transaction_id, event_ordinal),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key),
+  FOREIGN KEY(transaction_id) REFERENCES round_commits(transaction_id) DEFERRABLE INITIALLY DEFERRED
+) STRICT;
+CREATE TABLE IF NOT EXISTS outbox (
+  delivery_id TEXT PRIMARY KEY,
+  address_key TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  world_seq INTEGER NOT NULL,
+  payload_hash TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  critical INTEGER NOT NULL CHECK(critical IN (0, 1)),
+  transaction_id TEXT NOT NULL,
+  FOREIGN KEY(address_key) REFERENCES branches(address_key),
+  FOREIGN KEY(transaction_id) REFERENCES round_commits(transaction_id) DEFERRABLE INITIALLY DEFERRED
+) STRICT;
+`
+
+interface HeadRow {
+  readonly head_seq: number
+  readonly tick: number
+  readonly event_hash: WorldHash | 'genesis'
+}
+
+interface BranchRow {
+  readonly tenant_id: string
+  readonly world_id: string
+  readonly branch_id: string
+  readonly parent_address_key: string | null
+  readonly fork_seq: number | null
+}
+
+interface EventRow {
+  readonly seq: number
+  readonly tick: number
+  readonly event_type: string
+  readonly event_version: number
+  readonly data_json: string
+  readonly previous_hash: WorldHash | 'genesis'
+  readonly event_hash: WorldHash
+  readonly transaction_id: string
+  readonly event_ordinal: number
+}
+
+/** Authoritative Phase 0 World Event, Head, Tick, and Outbox store. */
+export class WorldStore {
+  readonly #db: DatabaseSync
+
+  constructor(path: string, private readonly faultInjector?: FaultInjector) {
+    this.#db = openOwnedDatabase(path, WORLD_APPLICATION_ID, WORLD_SCHEMA)
+  }
+
+  /** Create an empty root branch at seq/tick zero. */
+  createBranch(address: WorldAddress): void {
+    const key = worldAddressKey(address)
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      this.#db.prepare(`
+        INSERT INTO branches(address_key, tenant_id, world_id, branch_id, parent_address_key, fork_seq)
+        VALUES (?, ?, ?, ?, NULL, NULL)
+      `).run(key, address.tenantId, address.worldId, address.branchId)
+      this.#db.prepare(`INSERT INTO heads(address_key, head_seq, tick, event_hash) VALUES (?, 0, 0, 'genesis')`).run(key)
+      this.#db.exec('COMMIT')
+    } catch (error: unknown) {
+      rollbackAndThrow(this.#db, error)
+    }
+  }
+
+  /** Create a child branch whose effective history stops exactly at forkSeq. */
+  forkBranch(parent: WorldAddress, child: WorldAddress, forkSeq: number): void {
+    const parentHead = this.head(parent)
+    if (!Number.isSafeInteger(forkSeq) || forkSeq < 0 || forkSeq > parentHead.headSeq) {
+      throw new RangeError(`forkSeq ${forkSeq} is outside parent head ${parentHead.headSeq}`)
+    }
+    const forkEvent = forkSeq === 0 ? undefined : this.readEvents(parent, forkSeq).find(event => event.seq === forkSeq)
+    if (forkSeq !== 0 && forkEvent === undefined) throw new Error(`fork event ${forkSeq} is missing`)
+    const childKey = worldAddressKey(child)
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      this.#db.prepare(`
+        INSERT INTO branches(address_key, tenant_id, world_id, branch_id, parent_address_key, fork_seq)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(childKey, child.tenantId, child.worldId, child.branchId, worldAddressKey(parent), forkSeq)
+      this.#db.prepare(`INSERT INTO heads(address_key, head_seq, tick, event_hash) VALUES (?, ?, ?, ?)`).run(
+        childKey,
+        forkSeq,
+        forkEvent?.tick ?? 0,
+        forkEvent?.eventHash ?? 'genesis',
+      )
+      this.#db.exec('COMMIT')
+    } catch (error: unknown) {
+      rollbackAndThrow(this.#db, error)
+    }
+  }
+
+  /** Atomically commit every authoritative effect of one accepted Round. */
+  async commitRound(request: CommitRoundRequest): Promise<CommitRoundResult> {
+    if (request.events.length === 0) throw new TypeError('a committed round requires at least one event')
+    if (request.nextTick !== request.expectedTick + 1) throw new TypeError('a committed round advances exactly one tick')
+    const addressKey = worldAddressKey(request.address)
+    const requestHash = hashWorldJson('world-round-commit-request', {
+      address: request.address,
+      transactionId: request.transactionId,
+      roundId: request.roundId,
+      expectedHeadSeq: request.expectedHeadSeq,
+      expectedTick: request.expectedTick,
+      nextTick: request.nextTick,
+      events: request.events,
+      outbox: request.outbox,
+    })
+
+    this.#db.exec('BEGIN IMMEDIATE')
+    let result: CommitRoundResult
+    try {
+      const replay = this.#db.prepare(`
+        SELECT request_hash, head_seq, tick, bundle_hash FROM round_commits WHERE transaction_id = ?
+      `).get(request.transactionId) as { request_hash: WorldHash; head_seq: number; tick: number; bundle_hash: WorldHash } | undefined
+      if (replay !== undefined) {
+        if (replay.request_hash !== requestHash) {
+          failWorld({
+            errorCode: 'IDEMPOTENCY_KEY_CONFLICT',
+            category: 'admission',
+            message: 'transactionId is already bound to another Round request',
+            retryable: false,
+            correlationId: request.correlationId,
+            address: request.address,
+            roundId: request.roundId,
+          })
+        }
+        this.#db.exec('COMMIT')
+        return { status: 'already_committed', headSeq: replay.head_seq, tick: replay.tick, bundleHash: replay.bundle_hash }
+      }
+
+      const head = this.#headRow(addressKey)
+      if (head.head_seq !== request.expectedHeadSeq || head.tick !== request.expectedTick) {
+        failWorld({
+          errorCode: 'WRITER_LEASE_LOST',
+          category: 'runtime',
+          message: 'branch head changed before Round commit',
+          retryable: true,
+          correlationId: request.correlationId,
+          address: request.address,
+          roundId: request.roundId,
+          details: { actualHeadSeq: head.head_seq, actualTick: head.tick },
+        })
+      }
+
+      let previousHash = head.event_hash
+      const eventHashes: WorldHash[] = []
+      for (const [eventOrdinal, draft] of request.events.entries()) {
+        const seq = head.head_seq + eventOrdinal + 1
+        const eventHash = hashWorldJson('world-event-envelope', {
+          address: request.address,
+          seq,
+          tick: request.nextTick,
+          eventType: draft.eventType,
+          eventVersion: draft.eventVersion,
+          data: draft.data,
+          previousHash,
+          transactionId: request.transactionId,
+          eventOrdinal,
+        })
+        this.#db.prepare(`
+          INSERT INTO events(address_key, seq, tick, event_type, event_version, data_json, previous_hash, event_hash, transaction_id, event_ordinal)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          addressKey,
+          seq,
+          request.nextTick,
+          draft.eventType,
+          draft.eventVersion,
+          worldJsonText(draft.data),
+          previousHash,
+          eventHash,
+          request.transactionId,
+          eventOrdinal,
+        )
+        previousHash = eventHash
+        eventHashes.push(eventHash)
+      }
+      await this.faultInjector?.hit('store.after-event-insert')
+
+      const finalHeadSeq = head.head_seq + request.events.length
+      const outboxHashes = request.outbox.map((item) => {
+        const payloadHash = hashWorldJson('world-outbox-payload', item.payload)
+        this.#db.prepare(`
+          INSERT INTO outbox(delivery_id, address_key, session_id, world_seq, payload_hash, payload_json, critical, transaction_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          item.deliveryId,
+          addressKey,
+          item.sessionId,
+          finalHeadSeq,
+          payloadHash,
+          worldJsonText(item.payload),
+          item.critical ? 1 : 0,
+          request.transactionId,
+        )
+        return payloadHash
+      })
+      const bundleHash = hashWorldJson('world-round-bundle', {
+        address: request.address,
+        roundId: request.roundId,
+        tick: request.nextTick,
+        eventHashes,
+        outboxHashes,
+      })
+      this.#db.prepare(`
+        INSERT INTO round_commits(transaction_id, address_key, request_hash, round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        request.transactionId,
+        addressKey,
+        requestHash,
+        request.roundId,
+        request.expectedHeadSeq,
+        request.expectedTick,
+        finalHeadSeq,
+        request.nextTick,
+        bundleHash,
+      )
+      this.#db.prepare(`UPDATE heads SET head_seq = ?, tick = ?, event_hash = ? WHERE address_key = ?`).run(
+        finalHeadSeq,
+        request.nextTick,
+        previousHash,
+        addressKey,
+      )
+      await this.faultInjector?.hit('store.before-commit')
+      this.#db.exec('COMMIT')
+      result = { status: 'committed', headSeq: finalHeadSeq, tick: request.nextTick, bundleHash }
+    } catch (error: unknown) {
+      rollbackAndThrow(this.#db, error)
+    }
+    await this.faultInjector?.hit('store.after-commit')
+    return result
+  }
+
+  /** Read the branch head or fail closed for an unknown address. */
+  head(address: WorldAddress): { readonly headSeq: number; readonly tick: number; readonly eventHash: WorldHash | 'genesis' } {
+    const row = this.#headRow(worldAddressKey(address))
+    return { headSeq: row.head_seq, tick: row.tick, eventHash: row.event_hash }
+  }
+
+  /** Read effective inherited history through asOfSeq. */
+  readEvents(address: WorldAddress, asOfSeq = Number.MAX_SAFE_INTEGER): StoredWorldEvent[] {
+    return this.#readEventsByKey(worldAddressKey(address), asOfSeq)
+  }
+
+  /** Read committed Outbox items for one branch. */
+  readOutbox(address: WorldAddress): StoredOutboxItem[] {
+    const key = worldAddressKey(address)
+    const rows = this.#db.prepare(`
+      SELECT delivery_id, session_id, world_seq, payload_hash, payload_json, critical
+      FROM outbox WHERE address_key = ? ORDER BY world_seq, delivery_id
+    `).all(key) as Array<{
+      delivery_id: StoredOutboxItem['deliveryId']
+      session_id: StoredOutboxItem['sessionId']
+      world_seq: number
+      payload_hash: WorldHash
+      payload_json: string
+      critical: number
+    }>
+    return rows.map(row => ({
+      deliveryId: row.delivery_id,
+      sessionId: row.session_id,
+      address,
+      worldSeq: row.world_seq,
+      payloadHash: row.payload_hash,
+      payload: parseWorldJson(row.payload_json),
+      critical: row.critical === 1,
+    }))
+  }
+
+  /** Return the frozen base boundary used by an already committed transaction. */
+  roundBase(transactionId: CommitRoundRequest['transactionId']): { readonly headSeq: number; readonly tick: number } | undefined {
+    const row = this.#db.prepare(`
+      SELECT base_head_seq, base_tick FROM round_commits WHERE transaction_id = ?
+    `).get(transactionId) as { base_head_seq: number; base_tick: number } | undefined
+    return row === undefined ? undefined : { headSeq: row.base_head_seq, tick: row.base_tick }
+  }
+
+  close(): void {
+    this.#db.close()
+  }
+
+  #headRow(addressKey: string): HeadRow {
+    const row = this.#db.prepare(`SELECT head_seq, tick, event_hash FROM heads WHERE address_key = ?`).get(addressKey) as HeadRow | undefined
+    if (row === undefined) throw new Error(`unknown world branch ${addressKey}`)
+    return row
+  }
+
+  #readEventsByKey(addressKey: string, asOfSeq: number): StoredWorldEvent[] {
+    const branch = this.#db.prepare(`
+      SELECT tenant_id, world_id, branch_id, parent_address_key, fork_seq FROM branches WHERE address_key = ?
+    `).get(addressKey) as BranchRow | undefined
+    if (branch === undefined) throw new Error(`unknown world branch ${addressKey}`)
+    const address = {
+      tenantId: branch.tenant_id,
+      worldId: branch.world_id,
+      branchId: branch.branch_id,
+    } as WorldAddress
+    const inherited = branch.parent_address_key === null
+      ? []
+      : this.#readEventsByKey(branch.parent_address_key, Math.min(asOfSeq, branch.fork_seq as number))
+    const lowerBound = branch.fork_seq ?? 0
+    const rows = this.#db.prepare(`
+      SELECT seq, tick, event_type, event_version, data_json, previous_hash, event_hash, transaction_id, event_ordinal
+      FROM events WHERE address_key = ? AND seq > ? AND seq <= ? ORDER BY seq
+    `).all(addressKey, lowerBound, asOfSeq) as unknown as EventRow[]
+    const local = rows.map(row => ({
+      address,
+      seq: row.seq,
+      tick: row.tick,
+      eventType: row.event_type,
+      eventVersion: row.event_version,
+      data: parseWorldJson(row.data_json),
+      previousHash: row.previous_hash,
+      eventHash: row.event_hash,
+      transactionId: row.transaction_id as StoredWorldEvent['transactionId'],
+      eventOrdinal: row.event_ordinal,
+    }))
+    return [...inherited, ...local]
+  }
+}
