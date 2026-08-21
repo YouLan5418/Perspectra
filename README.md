@@ -1,6 +1,6 @@
 # Harness / Cordis World V0
 
-> 当前状态：Phase 3 Agent/Director 契约与失败隔离，不是可供最终用户运行的世界模拟产品。项目尚未提供正式 CLI、JSON-RPC、启用的 LLM Bridge、Memory、备份或远程访问。
+> 当前状态：Phase 4 本地 Memory、认知规则与 Session Compaction，不是可供最终用户运行的世界模拟产品。项目尚未提供正式 CLI、JSON-RPC、启用的 LLM/TencentDB Bridge、备份或远程访问。
 
 这是一个独立的、事件溯源的 TURN_DRIVEN 世界模拟内核原型，用 Cordis 管理 Branch 运行时生命周期，用 Node 内置 SQLite 验证耐久原子性、幂等投递、forkSeq 时态重建和无模型确定性闭环。
 
@@ -13,7 +13,7 @@ corepack pnpm@11.7.0 install --frozen-lockfile
 corepack pnpm@11.7.0 check
 ```
 
-`check` 依次运行类型检查、Lint、逐文件 100% 覆盖率、P0～P3 集成测试和子进程硬崩溃测试。
+`check` 依次运行类型检查、Lint、逐文件 100% 覆盖率、P0～P4 集成测试和子进程硬崩溃测试。
 
 ## 使用基础契约
 
@@ -32,6 +32,7 @@ console.log(hash)
 | `@harness-world/contracts` | 品牌 ID、WorldAddress、Canonical JSON、Hash、错误和 Registry |
 | `@harness-world/agents` | ContextAssembler、submit_actions、HarnessAgentPort、预算、Director Scheduler 与 Replay |
 | `@harness-world/kernel` | WorldSpec Compiler、Tick 0 Genesis、PlayerBinding、speak/move Rulebook 与 WorldKernel |
+| `@harness-world/memory` | 本地 SQLite FTS5 Memory、source mapping、as-of 防火墙和认知规则 |
 | `@harness-world/presentation` | 只消费已授权 Observation 的确定性模板渲染器 |
 | `@harness-world/runtime-cordis` | BranchRuntimeSlot、Cordis Service/Listener/Dispose 隔离 |
 | `@harness-world/store-sqlite` | WorldStore、SessionDeliveryAdapter、时态 Projection |
@@ -54,6 +55,8 @@ console.log(hash)
 - Agent Context 固定 WorldAddress/CharacterView/Capability；`submit_actions` 对 actor、action type、版本和数量严格校验。
 - Harness Bridge 默认禁用且只通过 `HarnessAgentPort` 注入；预算、失败和超时均降级为空提案，不阻塞玩家。
 - Director Scheduler 为确定性纯逻辑，Model Replay 只读取已记录的精确 request/response Hash。
+- Local Memory 只接受当前角色、当前 Branch 且不晚于 as-of 边界的已提交来源；Summary、未来和跨 namespace 来源均 fail-closed。
+- KnowledgeRule 与 `character.reflect` 只从 CharacterView 推导 Claim；Session Compaction 保留原始事件并绑定来源范围与 Hash。
 
 ## 文档
 
@@ -63,5 +66,6 @@ console.log(hash)
 - [Phase 1 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-1-report.md)
 - [Phase 2 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-2-report.md)
 - [Phase 3 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-3-report.md)
+- [Phase 4 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-4-report.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。

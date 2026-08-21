@@ -10,4 +10,4 @@ KnowledgeClaim 只能来自 Genesis/Admin Seed、确定性 KnowledgeRule 或经 
 
 ## 结果
 
-Phase 0 不实现 Memory。Phase 4 必须先实现本地 SQLite FTS5；TencentDB 在固定审阅 commit、许可证和契约测试前保持禁用。来源缺失时省略结果，不能退回未过滤内容。
+Phase 4 已实现独立 SQLite FTS5 Memory、角色/Branch namespace、source mapping、capture/recall/forget/reconcile 和 as-of 防火墙。KnowledgeRule 与 `character.reflect` 只消费 CharacterView。TencentDB 在固定审阅 commit、许可证和契约测试前保持禁用。来源缺失或变化时省略结果，不能退回未过滤内容。
