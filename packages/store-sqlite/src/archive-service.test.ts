@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, type CommitRoundRequest, type WorldAddress } from '@harness-world/contracts'
 import { WorldArchiveService } from './archive-service.ts'
+import { OperationalAuditLog } from './operational-audit.ts'
 import { WorldStore } from './world-store.ts'
 
 const directories: string[] = []
@@ -74,6 +75,11 @@ describe('WorldArchiveService', () => {
     await expect(service.backup(source, 'backup:source')).rejects.toThrow('aliases the source')
     await expect(service.backup(join(directory, 'missing', 'backup.sqlite'), 'backup:io'))
       .rejects.toThrow('backup failed')
+    const audit = new OperationalAuditLog(`${source}.audit.sqlite`)
+    expect(audit.read().map(event => event.operation)).toEqual(expect.arrayContaining([
+      'archive.backup.requested', 'archive.restore.requested', 'archive.export.requested', 'archive.import.requested',
+    ]))
+    audit.close()
   })
 
   it('fails closed for damaged databases, malformed exports, and divergent payloads', async () => {

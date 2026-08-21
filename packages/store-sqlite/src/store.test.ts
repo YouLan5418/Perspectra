@@ -14,6 +14,7 @@ import {
 } from '@harness-world/contracts'
 import {
   BranchAdministration,
+  OperationalAuditLog,
   ProjectionRebuilder,
   ProjectionStore,
   RoundInbox,
@@ -484,6 +485,11 @@ describe('WorldStore and temporal projections', () => {
     const corrupted = new WorldStore(path)
     expect(() => corrupted.forkBranch(firstChild, fixtureAddress('corrupt-depth-child'), 0)).toThrow('unknown world branch missing-parent')
     corrupted.close()
+    const operations = new OperationalAuditLog(`${path}.audit.sqlite`)
+    expect(operations.read().map(event => event.operation)).toEqual(expect.arrayContaining([
+      'world.activate.requested', 'world.branch.fork.requested',
+    ]))
+    operations.close()
   })
 
   it('materializes temporal revisions/removals and validates projection events', async () => {

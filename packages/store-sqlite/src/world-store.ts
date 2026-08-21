@@ -21,6 +21,7 @@ import {
   WORLD_APPLICATION_ID,
   worldJsonText,
 } from './sqlite.ts'
+import { OperationalAuditLog } from './operational-audit.ts'
 
 export const WORLD_SCHEMA = `
 CREATE TABLE IF NOT EXISTS branches (
@@ -245,6 +246,7 @@ interface EventRow {
 /** Authoritative Phase 0 World Event, Head, Tick, and Outbox store. */
 export class WorldStore {
   readonly #db: DatabaseSync
+  readonly #audit: OperationalAuditLog
 
   constructor(
     path: string,
@@ -252,11 +254,13 @@ export class WorldStore {
     private readonly operationalNow: () => number = Date.now,
   ) {
     this.#db = openWorldDatabase(path)
+    this.#audit = new OperationalAuditLog(`${path}.audit.sqlite`, operationalNow)
   }
 
   /** Create an empty root branch at seq/tick zero. */
   createBranch(address: WorldAddress): void {
     const key = worldAddressKey(address)
+    this.#audit.record(key, 'world.branch.create.requested', `create:${address.branchId}`, { address })
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.#db.prepare(`
@@ -281,6 +285,11 @@ export class WorldStore {
       throw new TypeError('genesisHash does not match Genesis events')
     }
     const addressKey = worldAddressKey(request.address)
+    this.#audit.record(addressKey, 'world.activate.requested', request.correlationId, {
+      manifestHash: request.manifestHash,
+      genesisHash: request.genesisHash,
+      transactionId: request.transactionId,
+    })
     const activationHash = hashWorldJson('world-activation-request', {
       address: request.address,
       manifestHash: request.manifestHash,
@@ -433,6 +442,7 @@ export class WorldStore {
       })
     }
     const childKey = worldAddressKey(child)
+    this.#audit.record(childKey, 'world.branch.fork.requested', `fork:${child.branchId}`, { parent, child, forkSeq })
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.#db.prepare(`
@@ -652,6 +662,7 @@ export class WorldStore {
   }
 
   close(): void {
+    this.#audit.close()
     this.#db.close()
   }
 

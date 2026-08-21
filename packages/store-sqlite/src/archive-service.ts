@@ -10,6 +10,7 @@ import {
 } from '@harness-world/contracts'
 import { readPragmaInteger, WORLD_APPLICATION_ID } from './sqlite.ts'
 import { openWorldDatabase, WORLD_SCHEMA_VERSION } from './world-store.ts'
+import { OperationalAuditLog } from './operational-audit.ts'
 
 export interface WorldBackupArtifact extends WorldJsonObject {
   readonly format: 'world-sqlite-backup/v1'
@@ -33,6 +34,7 @@ export class WorldArchiveService {
   constructor(private readonly sourcePath: string) {}
 
   async backup(targetPath: string, correlationId: string): Promise<WorldBackupArtifact> {
+    this.#audit('archive.backup.requested', correlationId, { targetPath })
     this.#guardNewTarget(targetPath, correlationId)
     const source = openWorldDatabase(this.sourcePath)
     try {
@@ -50,6 +52,7 @@ export class WorldArchiveService {
   }
 
   restore(backupPath: string, targetPath: string, expectedHash: WorldHash, correlationId: string): WorldBackupArtifact {
+    this.#audit('archive.restore.requested', correlationId, { backupPath, targetPath, expectedHash })
     this.#guardNewTarget(targetPath, correlationId)
     const artifact = this.#inspect(backupPath, correlationId, 'RESTORE_VALIDATION_FAILED')
     if (artifact.fileHash !== expectedHash) {
@@ -63,6 +66,7 @@ export class WorldArchiveService {
   }
 
   async exportPortable(exportPath: string, correlationId: string): Promise<WorldBackupArtifact> {
+    this.#audit('archive.export.requested', correlationId, { exportPath })
     this.#guardNewTarget(exportPath, correlationId)
     const temporary = `${exportPath}.sqlite-tmp`
     this.#guardNewTarget(temporary, correlationId)
@@ -81,6 +85,7 @@ export class WorldArchiveService {
   }
 
   importPortable(exportPath: string, targetPath: string, correlationId: string): WorldBackupArtifact {
+    this.#audit('archive.import.requested', correlationId, { exportPath, targetPath })
     this.#guardNewTarget(targetPath, correlationId)
     let envelope: PortableWorldExport
     try {
@@ -115,6 +120,15 @@ export class WorldArchiveService {
         errorCode: 'IMPORT_ID_CONFLICT', category: 'admin', message: 'archive target already exists or aliases the source',
         retryable: false, correlationId,
       })
+    }
+  }
+
+  #audit(operation: string, correlationId: string, details: WorldJsonObject): void {
+    const audit = new OperationalAuditLog(`${this.sourcePath}.audit.sqlite`)
+    try {
+      audit.record(resolve(this.sourcePath), operation, correlationId, details)
+    } finally {
+      audit.close()
     }
   }
 
