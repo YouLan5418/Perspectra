@@ -1,0 +1,38 @@
+import { fileURLToPath } from 'node:url'
+import { defineConfig } from 'vitest/config'
+
+const root = fileURLToPath(new URL('.', import.meta.url))
+
+export default defineConfig({
+  resolve: {
+    alias: {
+      '@harness-world/contracts': `${root}packages/contracts/src/index.ts`,
+      '@harness-world/runtime-cordis': `${root}packages/runtime-cordis/src/index.ts`,
+      '@harness-world/store-sqlite': `${root}packages/store-sqlite/src/index.ts`,
+      '@harness-world/simulation': `${root}packages/simulation/src/index.ts`,
+      '@harness-world/testkit': `${root}packages/testkit/src/index.ts`,
+    },
+  },
+  test: {
+    environment: 'node',
+    include: ['packages/**/*.test.ts', 'tests/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      include: [
+        'packages/contracts/src/**/*.ts',
+        'packages/runtime-cordis/src/**/*.ts',
+        'packages/store-sqlite/src/**/*.ts',
+        'packages/simulation/src/**/*.ts',
+      ],
+      exclude: ['**/*.test.ts', '**/index.ts'],
+      thresholds: {
+        perFile: true,
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
+      },
+      reporter: ['text', 'json-summary'],
+    },
+  },
+})

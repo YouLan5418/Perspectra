@@ -1,0 +1,30 @@
+{
+  "name": "@harness-world/root",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint packages tests vitest.config.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage --exclude tests/crash.test.ts",
+    "test:p0": "vitest run tests/p0.integration.test.ts",
+    "test:crash": "vitest run tests/crash.test.ts --testTimeout=30000",
+    "check": "corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test:coverage && corepack pnpm@11.7.0 test:p0 && corepack pnpm@11.7.0 test:crash"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "@vitest/coverage-v8": "4.1.8",
+    "oxlint": "1.76.0",
+    "tsx": "4.22.4",
+    "typescript": "6.0.3",
+    "vitest": "4.1.8"
+  }
+}
