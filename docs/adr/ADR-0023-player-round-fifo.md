@@ -10,4 +10,4 @@
 
 ## 结果
 
-重试依赖耐久 idempotency key；领域拒绝仍消耗已受理回合。Phase 0 的 `WorldSimulation` 固定玩家 Action 在提案 Action 之前，并验证重启后同一输入返回同一 Bundle Hash。
+重试依赖耐久 idempotency key；领域拒绝仍消耗已受理回合。Phase 1 已实现数据库 `RoundInbox`、Cordis Branch FIFO 与 `WorldKernel.submitPlayerInput`；相同输入重试不增加 Tick，领域拒绝追加 `action.rejected` 并增加一个 Tick。NPC 和 Director 提案仍留在 Phase 3。

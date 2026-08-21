@@ -10,4 +10,4 @@
 
 ## 结果
 
-Phase 0 只实现 Manifest 所需的 Canonical、Hash 和 Registry 契约，不实现 WorldSpec Compiler 或正式 Genesis。后续实现不能把 Secret、函数、脚本或任意绝对路径放入 WorldSpec。
+Phase 1 已实现严格 `WorldSpecCompiler`、稳定排序的 `CompiledWorldManifest`、`GenesisPlan` Hash 与 Tick 0 原子激活。Schema 拒绝未知字段，插件要求精确 SemVer，Manifest 不接受 Secret、函数、脚本或任意路径。
