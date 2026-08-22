@@ -1,8 +1,9 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { brandId, type CommitRoundRequest, type WorldAddress } from '@harness-world/contracts'
+import { brandId, worldAddressKey, type CommitRoundRequest, type WorldAddress } from '@harness-world/contracts'
 import { BranchAdministration } from './branch-administration.ts'
 import { RoundInbox } from './round-inbox.ts'
 import { WorldOutbox } from './outbox-worker.ts'
@@ -51,6 +52,7 @@ describe('BranchAdministration', () => {
     store.createBranch(target)
     const admin = new BranchAdministration(path, () => 1234)
     expect(admin.status(target)).toEqual({ admissionState: 'open', lifecycleState: 'active', reason: null, revision: 0 })
+    expect(() => store.assertAdmissionOpen(target, 'player:open')).not.toThrow()
     expect(admin.setAdmission(target, 'draining', 'maintenance', 'admin:drain')).toMatchObject({ admissionState: 'draining', revision: 1 })
     expect(() => store.assertAdmissionOpen(target, 'player:blocked')).toThrow('draining')
     await expect(store.commitRound(round(target))).rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING', retryable: true } })
@@ -145,6 +147,11 @@ describe('BranchAdministration', () => {
     admin.archive(archivedTarget, 'archived parent', 'admin:parent-archive')
     expect(() => store.forkBranch(archivedTarget, address('illegal-child'), 0)).toThrow('archived')
     expect(() => store.assertAdmissionOpen(archivedTarget, 'archived-admission')).toThrow('archived')
+    const inconsistentArchived = new DatabaseSync(path)
+    inconsistentArchived.prepare(`UPDATE branch_controls SET admission_state = 'open' WHERE address_key = ?`)
+      .run(worldAddressKey(archivedTarget))
+    inconsistentArchived.close()
+    expect(() => store.assertAdmissionOpen(archivedTarget, 'archived-open-admission')).toThrow('archived')
     expect(() => store.forkBranch(address('missing-parent'), address('missing-child'), 0)).toThrow('unknown world branch')
 
     outbox.close()

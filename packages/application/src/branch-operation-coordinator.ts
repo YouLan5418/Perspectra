@@ -52,7 +52,21 @@ export class BranchOperationCoordinator {
     this.administration.setAdmission(request.parent, 'draining', request.reason, `${request.correlationId}:drain`)
     const drainedRounds = await this.rounds.drainAccepted(`${request.correlationId}:rounds`)
     const forkSeq = this.store.head(request.parent).headSeq
-    this.store.forkDrainedBranch(request.parent, request.child, forkSeq)
+    try {
+      this.store.forkDrainedBranch(request.parent, request.child, forkSeq)
+    } catch (error: unknown) {
+      try {
+        this.administration.setAdmission(
+          request.parent,
+          'open',
+          `${request.reason}:fork-compensated`,
+          `${request.correlationId}:compensate-reopen`,
+        )
+      } catch (compensationError: unknown) {
+        throw new AggregateError([error, compensationError], 'fork failed and parent admission could not be reopened')
+      }
+      throw error
+    }
     const parentState = this.administration.setAdmission(
       request.parent,
       'open',

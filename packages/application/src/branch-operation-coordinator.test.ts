@@ -82,6 +82,67 @@ function enqueueAccepted(inbox: RoundInbox, world: CompiledWorldSpec, idempotenc
 }
 
 describe('BranchOperationCoordinator', () => {
+  it('reopens a drained source after fork failure but keeps it draining when Round drain fails', async () => {
+    const path = paths().world
+    const world = compiled()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(world)
+    const child = { ...world.manifest.address, branchId: brandId('branch:occupied', 'BranchId') }
+    setup.createBranch(child)
+    setup.close()
+    const runtime = coordinator(path, world)
+    const administration = new BranchAdministration(path)
+    const operations = new BranchOperationCoordinator(runtime.store, administration, runtime.rounds, {
+      drainCritical: async () => 0,
+    })
+    await expect(operations.forkAtHead({
+      parent: world.manifest.address,
+      child,
+      reason: 'occupied child',
+      correlationId: 'fork:occupied',
+    })).rejects.toThrow()
+    expect(administration.status(world.manifest.address).admissionState).toBe('open')
+    await expect(runtime.rounds.submit({
+      idempotencyKey: 'after-compensation', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'still open' } }, correlationId: 'after-compensation',
+    })).resolves.toMatchObject({ status: 'accepted' })
+
+    const failingDrain = new BranchOperationCoordinator(runtime.store, administration, {
+      drainAccepted: async () => { throw new Error('drain integrity failure') },
+      close: () => undefined,
+    }, { drainCritical: async () => 0 })
+    await expect(failingDrain.forkAtHead({
+      parent: world.manifest.address,
+      child: { ...world.manifest.address, branchId: brandId('branch:not-created', 'BranchId') },
+      reason: 'failed drain',
+      correlationId: 'fork:failed-drain',
+    })).rejects.toThrow('drain integrity failure')
+    expect(administration.status(world.manifest.address).admissionState).toBe('draining')
+    administration.setAdmission(world.manifest.address, 'open', 'prepare compensation failure', 'fork:prepare-compensation')
+    class FailingCompensationAdministration extends BranchAdministration {
+      override setAdmission(...args: Parameters<BranchAdministration['setAdmission']>) {
+        if (args[1] === 'open') throw new Error('compensation failed')
+        return super.setAdmission(...args)
+      }
+    }
+    const failingCompensation = new FailingCompensationAdministration(path)
+    const uncompensated = new BranchOperationCoordinator(runtime.store, failingCompensation, runtime.rounds, {
+      drainCritical: async () => 0,
+    })
+    await expect(uncompensated.forkAtHead({
+      parent: world.manifest.address,
+      child,
+      reason: 'force compensation failure',
+      correlationId: 'fork:compensation-failure',
+    })).rejects.toThrow('could not be reopened')
+    failingCompensation.close()
+    runtime.rounds.close()
+    runtime.inbox.close()
+    runtime.leases.close()
+    administration.close()
+    runtime.store.close()
+  })
+
   it('closes admission, drains accepted FIFO work, forks at the resulting head, and reopens the source', async () => {
     const path = paths().world
     const world = compiled()

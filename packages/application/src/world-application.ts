@@ -292,10 +292,12 @@ export class WorldApplication {
 
   async archive(address: WorldAddress, reason: string, correlationId: string): Promise<ArchiveBranchResult> {
     const branch = await this.#branch(address)
-    const result = await new BranchOperationCoordinator(branch.store.store, branch.store.administration, branch.kernel, branch.store)
-      .archive({ address, reason, correlationId })
-    await this.release(address)
-    return result
+    try {
+      return await new BranchOperationCoordinator(branch.store.store, branch.store.administration, branch.kernel, branch.store)
+        .archive({ address, reason, correlationId })
+    } finally {
+      await this.release(address)
+    }
   }
 
   async release(address: WorldAddress): Promise<void> {
