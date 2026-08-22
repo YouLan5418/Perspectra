@@ -25,3 +25,4 @@
 | [0041](ADR-0041-async-round-headless.md) | 异步 Round 受理、耐久状态与本机 Headless 循环 | Release Closure 异步协议单元 |
 | [0042](ADR-0042-stored-manifest-runtime-compatibility.md) | 存量 Manifest 的只读运行时兼容 | V1 世界原字节不变并可由当前组合根执行 |
 | [0043](ADR-0043-durable-round-recovery-driver.md) | 耐久 Round 的宿主恢复驱动 | 启动扫描、显式排空、可观测重试和 Headless 有序关闭 |
+| [0044](ADR-0044-round-authority-ledger.md) | Round 提案、行动与裁定权威账本 | 同事务 Authority、Bundle Hash 绑定、fork 与传输闭环 |
