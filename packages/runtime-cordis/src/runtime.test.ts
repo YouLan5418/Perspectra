@@ -71,7 +71,6 @@ describe('WorldRuntimeRegistry', () => {
     const leaseA2 = await registry.acquire(fixtureAddress('a'), manifest)
     const leaseB = await registry.acquire(fixtureAddress('b'), manifest)
     expect(leaseA2.slot).toBe(leaseA.slot)
-    expect(leaseA2.fencingToken).toBe(leaseA.fencingToken)
     expect(leaseB.slot).not.toBe(leaseA.slot)
     expect(leaseA.slot.services.kernel).not.toBe(leaseB.slot.services.kernel)
     expect(leaseA.slot.services.kernel.component).toBe(leaseA.slot.components.kernel)
@@ -111,6 +110,21 @@ describe('WorldRuntimeRegistry', () => {
     await expect(registry.acquire(fixtureAddress('failed'), hashWorldJson('manifest', 1))).rejects.toThrow('mount failed')
     expect(registry.activeSlotCount).toBe(0)
     failure.mockRestore()
+  })
+
+  it('reserves a reference before awaiting an already-mounted slot', async () => {
+    const root = new Context()
+    const registry = new WorldRuntimeRegistry(root, componentFactory([]))
+    const address = fixtureAddress('reservation')
+    const manifest = hashWorldJson('manifest', 1)
+    const first = await registry.acquire(address, manifest)
+    const acquiring = registry.acquire(address, manifest)
+    await first.dispose()
+    const second = await acquiring
+    expect(registry.activeSlotCount).toBe(1)
+    await expect(second.slot.enqueueRound(async () => 'still-mounted')).resolves.toBe('still-mounted')
+    await second.dispose()
+    expect(registry.activeSlotCount).toBe(0)
   })
 
   it('runs each branch FIFO independently and continues after one rejected job', async () => {

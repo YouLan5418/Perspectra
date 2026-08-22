@@ -173,20 +173,21 @@ export class BranchRuntimeSlot {
 
 export interface BranchRuntimeLease {
   readonly slot: BranchRuntimeSlot
-  readonly fencingToken: number
   dispose(): Promise<void>
 }
 
 interface SlotEntry {
   readonly slot: BranchRuntimeSlot
-  readonly fencingToken: number
+}
+
+interface SlotReservation {
+  readonly pending: Promise<SlotEntry>
   references: number
 }
 
 /** Root-scoped router that stores no world domain state inside Cordis services. */
 export class WorldRuntimeRegistry extends Service {
-  readonly #slots = new Map<string, Promise<SlotEntry>>()
-  #nextFencingToken = 1
+  readonly #slots = new Map<string, SlotReservation>()
 
   constructor(ctx: Context, private readonly factory: BranchComponentFactory) {
     super(ctx, 'worldRuntimeRegistry')
@@ -195,41 +196,39 @@ export class WorldRuntimeRegistry extends Service {
   /** Acquire or join the one active slot for an exact WorldAddress. */
   async acquire(address: WorldAddress, manifestHash: WorldHash): Promise<BranchRuntimeLease> {
     const key = worldAddressKey(address)
-    let pending = this.#slots.get(key)
-    if (pending === undefined) {
-      const fencingToken = this.#nextFencingToken
-      this.#nextFencingToken += 1
-      pending = BranchRuntimeSlot.create(this.ctx.root, address, manifestHash, this.factory)
-        .then(slot => ({ slot, fencingToken, references: 0 }))
-        .catch((error: unknown) => {
-          this.#slots.delete(key)
-          throw error
+    let reservation = this.#slots.get(key)
+    if (reservation === undefined) {
+      reservation = {
+        pending: BranchRuntimeSlot.create(this.ctx.root, address, manifestHash, this.factory).then(slot => ({ slot })),
+        references: 0,
+      }
+      this.#slots.set(key, reservation)
+    }
+    reservation.references += 1
+    let entry: SlotEntry
+    try {
+      entry = await reservation.pending
+      if (entry.slot.manifestHash !== manifestHash) {
+        failWorld({
+          errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE',
+          category: 'integrity',
+          message: 'active branch slot uses a different manifest hash',
+          retryable: false,
+          correlationId: `runtime:${key}`,
+          address,
         })
-      this.#slots.set(key, pending)
+      }
+    } catch (error: unknown) {
+      await this.#release(key, reservation)
+      throw error
     }
-    const entry = await pending
-    if (entry.slot.manifestHash !== manifestHash) {
-      failWorld({
-        errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE',
-        category: 'integrity',
-        message: 'active branch slot uses a different manifest hash',
-        retryable: false,
-        correlationId: `runtime:${key}`,
-        address,
-      })
-    }
-    entry.references += 1
     let released = false
     return {
       slot: entry.slot,
-      fencingToken: entry.fencingToken,
       dispose: async () => {
         if (released) return
         released = true
-        entry.references -= 1
-        if (entry.references !== 0) return
-        this.#slots.delete(key)
-        await entry.slot.dispose()
+        await this.#release(key, reservation)
       },
     }
   }
@@ -237,5 +236,17 @@ export class WorldRuntimeRegistry extends Service {
   /** Number of address entries, including a slot still being mounted. */
   get activeSlotCount(): number {
     return this.#slots.size
+  }
+
+  async #release(key: string, reservation: SlotReservation): Promise<void> {
+    reservation.references -= 1
+    if (reservation.references !== 0 || this.#slots.get(key) !== reservation) return
+    this.#slots.delete(key)
+    try {
+      const entry = await reservation.pending
+      await entry.slot.dispose()
+    } catch {
+      // A failed mount owns no resources after its Cordis Fiber rejects.
+    }
   }
 }
