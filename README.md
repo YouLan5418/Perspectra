@@ -95,5 +95,6 @@ console.log(hash)
 - [Phase 5 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-5-report.md)
 - [Phase 6 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-6-report.md)
 - [Phase 6 独立审查修复报告](docs/2026-08-22_Phase-6独立审查修复报告.md)
+- [异步 Round 与本机 Headless 进度报告](docs/2026-08-23_进度报告-异步Round与本机Headless-report.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。
