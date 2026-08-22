@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import {
   assertProtocolString,
+  failWorld,
+  hashWorldJson,
   WorldError,
   type AppendDeliveryRequest,
   type AppendDeliveryResult,
@@ -11,6 +13,7 @@ import {
   type SessionId,
   type WorldAddress,
   type WorldHash,
+  type WorldJsonObject,
   type WorldJsonValue,
   worldAddressKey,
 } from '@harness-world/contracts'
@@ -34,6 +37,15 @@ export interface ClaimedOutboxDelivery {
 
 export interface DeadLetterRecord extends Omit<ClaimedOutboxDelivery, 'claimOwnerId' | 'claimToken' | 'claimExpiresAtMs'> {
   readonly lastError: string
+}
+
+export interface WorldDeliveryLedgerRecord extends WorldJsonObject {
+  readonly deliveryId: DeliveryId
+  readonly sessionId: SessionId
+  readonly sessionDeliverySeq: number | null
+  readonly payloadHash: WorldHash
+  readonly status: 'pending' | 'inflight' | 'delivered' | 'dead_letter'
+  readonly receiptRecorded: boolean
 }
 
 export interface WorldOutboxOptions {
@@ -255,6 +267,51 @@ export class WorldOutbox {
       attemptCount: row.attempt_count,
       lastError: row.last_error,
     }))
+  }
+
+  deliveryLedger(address: WorldAddress, correlationId: string): WorldDeliveryLedgerRecord[] {
+    const rows = this.#db.prepare(`
+      SELECT o.delivery_id, o.session_id, o.session_delivery_seq, o.payload_hash, o.payload_json, o.delivery_status,
+        r.delivery_id AS receipt_delivery_id, r.session_id AS receipt_session_id,
+        r.session_delivery_seq AS receipt_delivery_seq, r.payload_hash AS receipt_payload_hash
+      FROM outbox o LEFT JOIN outbox_delivery_receipts r ON r.delivery_id = o.delivery_id
+      WHERE o.address_key = ? ORDER BY o.world_seq, o.delivery_id
+    `).all(worldAddressKey(address)) as Array<{
+      delivery_id: DeliveryId
+      session_id: SessionId
+      session_delivery_seq: number | null
+      payload_hash: WorldHash
+      payload_json: string
+      delivery_status: 'pending' | 'inflight' | 'delivered' | 'dead_letter'
+      receipt_delivery_id: DeliveryId | null
+      receipt_session_id: SessionId | null
+      receipt_delivery_seq: number | null
+      receipt_payload_hash: WorldHash | null
+    }>
+    return rows.map(row => {
+      const payload = parseWorldJson(row.payload_json)
+      const receiptRecorded = row.receipt_delivery_id !== null
+      const receiptMatches = row.receipt_delivery_id === row.delivery_id
+        && row.receipt_session_id === row.session_id
+        && row.receipt_delivery_seq === row.session_delivery_seq
+        && row.receipt_payload_hash === row.payload_hash
+      if (hashWorldJson('world-outbox-payload', payload) !== row.payload_hash
+        || (row.delivery_status === 'delivered' ? !receiptMatches : receiptRecorded)) {
+        failWorld({
+          errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
+          message: 'World Outbox payload or delivery receipt is divergent', retryable: false,
+          correlationId, address,
+        })
+      }
+      return {
+        deliveryId: row.delivery_id,
+        sessionId: row.session_id,
+        sessionDeliverySeq: row.session_delivery_seq,
+        payloadHash: row.payload_hash,
+        status: row.delivery_status,
+        receiptRecorded,
+      }
+    })
   }
 
   retryDeadLetter(address: WorldAddress, deliveryId: DeliveryId, correlationId: string): void {

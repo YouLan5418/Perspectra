@@ -491,6 +491,55 @@ describe('SessionDeliveryAdapter', () => {
     expect(recovered.cursor(fixtureDeliveryRequest().sessionId)).toBe(1)
     recovered.close()
   })
+
+  it('verifies reconstructable Session observation bindings and empty Session state', async () => {
+    const path = database('session-integrity.sqlite')
+    const adapter = new SessionDeliveryAdapter(path)
+    const address = fixtureAddress('session-integrity')
+    expect(adapter.verifyIntegrity(address, 'session:empty')).toMatchObject({ sessionCount: 0, deliveryCount: 0 })
+    for (const [session, delivery, payload] of [
+      ['session:integrity:a', 'delivery:integrity:a', { observation: 'a' }],
+      ['session:integrity:b', 'delivery:integrity:b', { observation: 'b' }],
+    ] as const) {
+      await adapter.appendIfAbsent({
+        sessionId: brandId(session, 'SessionId'),
+        sessionDeliverySeq: 1,
+        deliveryId: brandId(delivery, 'DeliveryId'),
+        payloadHash: hashWorldJson('world-outbox-payload', payload),
+        observationEvent: payload,
+        correlationId: delivery,
+      })
+    }
+    expect(adapter.verifyIntegrity(address, 'session:verified')).toMatchObject({
+      sessionCount: 2, deliveryCount: 2, verificationHash: expect.stringMatching(/^sha256:/),
+    })
+    adapter.close()
+  })
+
+  it.each([
+    ['missing-event', `DELETE FROM session_events`, 'sequence or Observation'],
+    ['event-hash', `UPDATE session_events SET payload_hash = 'sha256:wrong'`, 'sequence or Observation'],
+    ['payload', `UPDATE session_events SET payload_json = '{"forged":true}'`, 'payload is divergent'],
+    ['missing-cursor', `DELETE FROM session_delivery_cursor`, 'cursor or SQLite'],
+    ['cursor-value', `UPDATE session_delivery_cursor SET last_delivery_seq = 2`, 'cursor or SQLite'],
+  ] as const)('rejects %s Session reconstruction corruption', async (suffix, mutation, message) => {
+    const path = database(`session-integrity-${suffix}.sqlite`)
+    const adapter = new SessionDeliveryAdapter(path)
+    const payload = { observation: 'verified' }
+    await adapter.appendIfAbsent({
+      sessionId: brandId('session:integrity', 'SessionId'),
+      sessionDeliverySeq: 1,
+      deliveryId: brandId('delivery:integrity', 'DeliveryId'),
+      payloadHash: hashWorldJson('world-outbox-payload', payload),
+      observationEvent: payload,
+      correlationId: 'session:integrity',
+    })
+    const raw = new DatabaseSync(path)
+    raw.exec(mutation)
+    raw.close()
+    expect(() => adapter.verifyIntegrity(fixtureAddress('session-integrity'), `session:${suffix}`)).toThrow(message)
+    adapter.close()
+  })
 })
 
 describe('WorldStore and temporal projections', () => {
@@ -517,10 +566,14 @@ describe('WorldStore and temporal projections', () => {
       ],
     }
     await store.commitRound(request)
+    expect(store.verifyBranchIntegrity(address)).toMatchObject({
+      headSeq: 2, tick: 1, eventCount: 2, roundCount: 1, verificationHash: expect.stringMatching(/^sha256:/),
+    })
     const raw = new DatabaseSync(path)
     raw.exec(mutation)
     raw.close()
     expect(() => store.committedRound(address, request.transactionId)).toThrow(message)
+    expect(() => store.verifyBranchIntegrity(address)).toThrow()
     store.close()
   })
 
@@ -528,6 +581,7 @@ describe('WorldStore and temporal projections', () => {
     const store = new WorldStore(database('world.sqlite'))
     const address = fixtureAddress()
     store.createBranch(address)
+    expect(store.verifyBranchIntegrity(address)).toMatchObject({ headSeq: 0, tick: 0, eventCount: 0, roundCount: 0 })
     const baseRequest = fixtureCommitRequest(address)
     const request = { ...baseRequest, outbox: baseRequest.outbox.map(item => ({ ...item, critical: false })) }
     const committed = await store.commitRound(request)
@@ -624,6 +678,7 @@ describe('WorldStore and temporal projections', () => {
     })
     const rebuilder = new ProjectionRebuilder(store)
     const bundle = rebuilder.rebuildAt(child, forkSeq)
+    expect(store.verifyBranchIntegrity(child)).toMatchObject({ headSeq: forkSeq, eventCount: forkSeq, roundCount: 0 })
     expect(bundle.observations).toHaveLength(1)
     expect(bundle.claims.map(value => value.id)).toEqual(['claim:base'])
     expect(JSON.stringify(bundle)).not.toContain('FUTURE_CANARY')

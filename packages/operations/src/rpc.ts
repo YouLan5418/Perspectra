@@ -32,6 +32,8 @@ export interface WorldApplicationPort {
   renderSession(address: WorldAddress, sessionId: SessionId, sessionEventSeq: number, options?: { readonly locale?: 'en' | 'zh-CN' }): Promise<unknown>
   forkAtHead(parent: WorldAddress, child: WorldAddress, reason: string, correlationId: string): Promise<unknown>
   archive(address: WorldAddress, reason: string, correlationId: string): Promise<unknown>
+  quarantineExplain(address: WorldAddress): unknown
+  quarantineRecover(address: WorldAddress, correlationId: string): Promise<unknown>
   createSnapshot(address: WorldAddress, snapshotPath: string, correlationId: string): Promise<unknown>
   latestSnapshot(address: WorldAddress, snapshotPath: string): unknown | undefined
   backup(targetPath: string, correlationId: string): Promise<unknown>
@@ -191,6 +193,14 @@ export class LocalJsonRpcRouter {
       this.metrics.increment('branch_transitions')
       return worldResult(await this.#application().archive(
         addressParam(params.address), stringParam(params, 'reason'), stringParam(params, 'correlationId'),
+      ))
+    }
+    if (method === 'quarantine.explain') {
+      return worldResult(this.#application().quarantineExplain(addressParam(params.address)))
+    }
+    if (method === 'quarantine.recover') {
+      return worldResult(await this.#application().quarantineRecover(
+        addressParam(params.address), stringParam(params, 'correlationId'),
       ))
     }
     if (method === 'snapshot.create') {

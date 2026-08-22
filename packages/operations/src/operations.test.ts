@@ -4,8 +4,9 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, type WorldAddress } from '@harness-world/contracts'
+import { brandId, createErrorEnvelope, type WorldAddress } from '@harness-world/contracts'
 import {
+  BranchQuarantineService,
   SessionOutboxWorker,
   WORLD_APPLICATION_ID,
   WorldOutbox,
@@ -46,7 +47,7 @@ afterEach(() => {
 })
 
 describe('OperationsMetrics and WorldHealthService', () => {
-  it('keeps fixed-cardinality counters and reports ready, missing, mismatched, and corrupt stores', () => {
+  it('keeps fixed-cardinality counters and reports process, Branch, and capability health', async () => {
     const metrics = new OperationsMetrics()
     metrics.increment('rpc_requests', 2)
     expect(metrics.snapshot()).toMatchObject({ rpc_requests: 2, rpc_errors: 0 })
@@ -54,10 +55,51 @@ describe('OperationsMetrics and WorldHealthService', () => {
 
     const { directory, path, parent } = fixture()
     expect(new WorldHealthService(path).check()).toMatchObject({ status: 'degraded', detail: 'world database is missing' })
-    const store = new WorldStore(path)
-    store.createBranch(parent)
-    store.close()
-    expect(new WorldHealthService(path).check()).toMatchObject({ status: 'ready', schemaVersion: 9, branchCount: 1 })
+    const app = new WorldApplication({ worldPath: path, sessionPath: join(directory, 'session.sqlite') })
+    app.activateSpec({
+      schemaVersion: 1,
+      address: parent,
+      timeMode: 'TURN_DRIVEN',
+      roundQueueLimit: 4,
+      rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+      locations: [{ locationId: 'location:health', name: 'Health' }],
+      characters: [{ characterId: 'character:health', name: 'Health', locationId: 'location:health' }],
+      playerBindings: [{ principalId: 'principal:health', characterId: 'character:health', sessionId: 'session:health' }],
+      plugins: [],
+    })
+    await app.submit(parent, {
+      idempotencyKey: 'health:round', principalId: 'principal:health',
+      action: { actionType: 'speak', parameters: { text: 'health' } }, correlationId: 'health:round',
+    })
+    await app.release(parent)
+    expect(new WorldHealthService(path).check()).toMatchObject({
+      status: 'ready', schemaVersion: 9, branchCount: 1,
+      readyForRead: true, readyForWrite: true, readyForAgentCalls: true,
+      branches: [{ status: 'healthy', readyForRead: true, readyForWrite: true, readyForAgentCalls: true }],
+    })
+    const outbox = new WorldOutbox(path)
+    const deadLetter = new SessionOutboxWorker(outbox, {
+      appendIfAbsent: async () => { throw new Error('health dead letter') },
+    }, parent, 1)
+    await deadLetter.runOnce('health:dead-letter')
+    outbox.close()
+    expect(new WorldHealthService(path).check()).toMatchObject({
+      branches: [{ status: 'degraded', readyForWrite: true, readyForAgentCalls: false, criticalDeadLetterCount: 1 }],
+    })
+    const quarantine = new BranchQuarantineService(path)
+    quarantine.quarantine({
+      address: parent,
+      error: createErrorEnvelope({
+        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'health quarantine',
+        retryable: false, correlationId: 'health:quarantine', address: parent,
+      }),
+      source: 'health.test',
+    })
+    expect(new WorldHealthService(path).check()).toMatchObject({
+      branches: [{ status: 'quarantined', runtimePhase: 'quarantined', readyForWrite: false, openFailureCount: 1 }],
+    })
+    quarantine.close()
+    await app.close()
 
     const raw = new DatabaseSync(path)
     raw.exec('PRAGMA application_id = 1')
@@ -172,6 +214,10 @@ describe('LocalJsonRpcRouter', () => {
     await expect(router.handle(request('outbox.retry', {
       address: parent, deliveryId: 'delivery:missing', correlationId: 'rpc:outbox-retry',
     }))).resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
+    await expect(router.handle(request('quarantine.explain', { address: parent })))
+      .resolves.toMatchObject({ result: { runtimePhase: 'active', failures: [] } })
+    await expect(router.handle(request('quarantine.recover', { address: parent, correlationId: 'rpc:recover-illegal' })))
+      .resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
     await expect(router.handle(request('session.render', {
       address: parent, sessionId: 'session:player', sessionEventSeq: 1, locale: 'zh-CN',
     }))).resolves.toMatchObject({ result: { locale: 'zh-CN' } })

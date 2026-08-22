@@ -12,6 +12,7 @@ import {
   type WorldAddress,
   type WorldEventDraft,
   type WorldHash,
+  type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
@@ -290,6 +291,14 @@ export interface ActivateBranchRequest {
   readonly transactionId: TransactionId
   readonly roundId: CommitRoundRequest['roundId']
   readonly correlationId: string
+}
+
+export interface BranchIntegrityReport extends WorldJsonObject {
+  readonly headSeq: number
+  readonly tick: number
+  readonly eventCount: number
+  readonly roundCount: number
+  readonly verificationHash: WorldHash
 }
 
 export interface ActivateBranchResult {
@@ -893,6 +902,55 @@ export class WorldStore {
     }
   }
 
+  /** Verify the effective Event chain, Head, and every local committed Round without mutating authority. */
+  verifyBranchIntegrity(address: WorldAddress): BranchIntegrityReport {
+    const addressKey = worldAddressKey(address)
+    const head = this.head(address)
+    const events = this.readEvents(address, head.headSeq)
+    let previousHash: WorldHash | 'genesis' = 'genesis'
+    let tick = 0
+    for (const [index, event] of events.entries()) {
+      const expectedHash = hashWorldJson('world-event-envelope', {
+        address: event.address,
+        seq: event.seq,
+        tick: event.tick,
+        eventType: event.eventType,
+        eventVersion: event.eventVersion,
+        data: event.data,
+        previousHash: event.previousHash,
+        transactionId: event.transactionId,
+        eventOrdinal: event.eventOrdinal,
+      })
+      if (event.seq !== index + 1 || event.previousHash !== previousHash || event.tick < tick || event.eventHash !== expectedHash) {
+        this.#invalidBranchIntegrity(address, 'effective Event chain is divergent')
+      }
+      previousHash = event.eventHash
+      tick = event.tick
+    }
+    if (events.length !== head.headSeq || previousHash !== head.eventHash || tick !== head.tick) {
+      this.#invalidBranchIntegrity(address, 'Branch Head does not match the effective Event chain')
+    }
+    const transactions = this.#db.prepare(`
+      SELECT transaction_id FROM round_commits WHERE address_key = ? ORDER BY base_head_seq, transaction_id
+    `).all(addressKey) as Array<{ transaction_id: TransactionId }>
+    for (const transaction of transactions) this.committedRound(address, transaction.transaction_id)
+    const verified = {
+      address,
+      headSeq: head.headSeq,
+      tick: head.tick,
+      eventCount: events.length,
+      roundCount: transactions.length,
+      headEventHash: head.eventHash,
+    }
+    return {
+      headSeq: head.headSeq,
+      tick: head.tick,
+      eventCount: events.length,
+      roundCount: transactions.length,
+      verificationHash: hashWorldJson('branch-integrity-verification', verified),
+    }
+  }
+
   /** Fail closed before admitting new work to a draining or archived branch. */
   assertAdmissionOpen(address: WorldAddress, correlationId: string): void {
     this.#assertAdmissionOpen(worldAddressKey(address), correlationId, address)
@@ -916,6 +974,17 @@ export class WorldStore {
       message,
       retryable: false,
       correlationId: `committed-round:${transactionId}`,
+      address,
+    })
+  }
+
+  #invalidBranchIntegrity(address: WorldAddress, message: string): never {
+    failWorld({
+      errorCode: 'BUNDLE_HASH_MISMATCH',
+      category: 'integrity',
+      message,
+      retryable: false,
+      correlationId: `branch-integrity:${worldAddressKey(address)}`,
       address,
     })
   }

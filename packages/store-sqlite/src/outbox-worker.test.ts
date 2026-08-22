@@ -97,6 +97,52 @@ describe('SessionOutboxWorker', () => {
     outbox.close()
   })
 
+  it('verifies Outbox payload and receipt authority for recovery', async () => {
+    const path = paths('delivery-ledger')
+    await seed(path.world, [{ id: 'delivery:ledger', session: 'session:ledger', critical: true }])
+    const outbox = new WorldOutbox(path.world)
+    expect(outbox.deliveryLedger(address(), 'ledger:pending')).toMatchObject([{
+      deliveryId: 'delivery:ledger', sessionDeliverySeq: null, status: 'pending', receiptRecorded: false,
+    }])
+    const delivery = outbox.claimNext(address()) as ClaimedOutboxDelivery
+    expect(outbox.deliveryLedger(address(), 'ledger:inflight')).toMatchObject([{
+      sessionDeliverySeq: 1, status: 'inflight', receiptRecorded: false,
+    }])
+    await outbox.recordDelivered(delivery)
+    expect(outbox.deliveryLedger(address(), 'ledger:delivered')).toMatchObject([{
+      status: 'delivered', receiptRecorded: true,
+    }])
+    const raw = new DatabaseSync(path.world)
+    raw.prepare(`UPDATE outbox SET payload_json = '{"forged":true}' WHERE delivery_id = ?`).run(delivery.deliveryId)
+    raw.close()
+    expect(() => outbox.deliveryLedger(address(), 'ledger:payload-corrupt')).toThrow('payload or delivery receipt')
+    outbox.close()
+
+    const receiptPath = paths('delivery-ledger-receipt')
+    await seed(receiptPath.world, [{ id: 'delivery:receipt', session: 'session:receipt', critical: true }])
+    const receiptOutbox = new WorldOutbox(receiptPath.world)
+    const receiptDelivery = receiptOutbox.claimNext(address()) as ClaimedOutboxDelivery
+    await receiptOutbox.recordDelivered(receiptDelivery)
+    const missingReceipt = new DatabaseSync(receiptPath.world)
+    missingReceipt.prepare(`DELETE FROM outbox_delivery_receipts WHERE delivery_id = ?`).run(receiptDelivery.deliveryId)
+    missingReceipt.close()
+    expect(() => receiptOutbox.deliveryLedger(address(), 'ledger:missing-receipt')).toThrow('delivery receipt')
+    receiptOutbox.close()
+
+    const strayPath = paths('delivery-ledger-stray-receipt')
+    await seed(strayPath.world, [{ id: 'delivery:stray', session: 'session:stray', critical: true }])
+    const stray = new DatabaseSync(strayPath.world)
+    stray.prepare(`UPDATE outbox SET session_delivery_seq = 1 WHERE delivery_id = 'delivery:stray'`).run()
+    stray.prepare(`
+      INSERT INTO outbox_delivery_receipts(delivery_id, session_id, session_delivery_seq, payload_hash)
+      SELECT delivery_id, session_id, session_delivery_seq, payload_hash FROM outbox WHERE delivery_id = 'delivery:stray'
+    `).run()
+    stray.close()
+    const strayOutbox = new WorldOutbox(strayPath.world)
+    expect(() => strayOutbox.deliveryLedger(address(), 'ledger:stray-receipt')).toThrow('delivery receipt')
+    strayOutbox.close()
+  })
+
   it('blocks a Session behind a critical dead letter and resumes after explicit retry', async () => {
     const path = paths('dead-letter')
     await seed(path.world, [

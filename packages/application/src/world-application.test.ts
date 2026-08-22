@@ -5,13 +5,20 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   brandId,
+  createErrorEnvelope,
   hashWorldJson,
   type AgentProvider,
   type ProposalContext,
   type WorldAddress,
 } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
-import { SessionDeliveryAdapter, SessionOutboxWorker, WorldOutbox } from '@harness-world/store-sqlite'
+import {
+  BranchQuarantineService,
+  SessionDeliveryAdapter,
+  SessionOutboxWorker,
+  WorldOutbox,
+  WorldStore,
+} from '@harness-world/store-sqlite'
 import { WorldApplication, type WorldApplicationOptions } from './world-application.ts'
 import type { RoundParticipant } from './round-coordinator.ts'
 
@@ -217,12 +224,27 @@ describe('WorldApplication', () => {
       sessionId: brandId('session:player', 'SessionId'),
       sessionDeliverySeq: 1,
       deliveryId: brandId('delivery:occupied', 'DeliveryId'),
-      payloadHash: hashWorldJson('occupied', 1),
+      payloadHash: hashWorldJson('world-outbox-payload', { occupied: true }),
       observationEvent: { occupied: true },
       correlationId: 'occupied',
     })
     occupied.close()
     await expect(divergent.deliver(world.manifest.address, 'delivery:divergent')).rejects.toThrow('different content')
+    expect(divergent.activeBranchCount).toBe(0)
+    expect(divergent.quarantineExplain(world.manifest.address)).toMatchObject({
+      runtimePhase: 'quarantined', failures: [{ error: { errorCode: 'SESSION_DELIVERY_DIVERGED' } }],
+    })
+    await expect(divergent.quarantineRecover(world.manifest.address, 'quarantine:still-divergent'))
+      .rejects.toMatchObject({ envelope: { errorCode: 'RECOVERY_VALIDATION_FAILED' } })
+    const clearDivergence = new DatabaseSync(persistence.sessionPath)
+    clearDivergence.exec(`DELETE FROM session_events; DELETE FROM session_delivery_inbox; DELETE FROM session_delivery_cursor;`)
+    clearDivergence.close()
+    await expect(divergent.quarantineRecover(world.manifest.address, 'quarantine:recovered')).resolves.toMatchObject({
+      status: 'recovered', runtimeEpoch: 1,
+    })
+    const deadLetter = (await divergent.deadLetters(world.manifest.address))[0]!
+    await divergent.retryDeadLetter(world.manifest.address, deadLetter.deliveryId, 'quarantine:retry-delivery')
+    await expect(divergent.deliver(world.manifest.address, 'quarantine:redeliver')).resolves.toBe(1)
     await divergent.close()
 
     const retryPersistence = paths()
@@ -286,5 +308,149 @@ describe('WorldApplication', () => {
     })
     expect(app.activeBranchCount).toBe(0)
     await app.close()
+  })
+
+  it('quarantines projection and Session reconstruction invariants at the Application boundary', async () => {
+    const projectionPaths = paths()
+    const world = compiled()
+    const projectionApp = new WorldApplication(projectionPaths)
+    projectionApp.activate(world)
+    const malformed = new WorldStore(projectionPaths.worldPath)
+    const head = malformed.head(world.manifest.address)
+    await malformed.commitRound({
+      address: world.manifest.address,
+      transactionId: brandId('transaction:malformed-projection', 'TransactionId'),
+      roundId: brandId('round:malformed-projection', 'InteractionRoundId'),
+      expectedHeadSeq: head.headSeq,
+      expectedTick: head.tick,
+      nextTick: head.tick + 1,
+      events: [{ eventType: 'claim.upsert', eventVersion: 1, data: { value: true } }],
+      outbox: [],
+      correlationId: 'projection:malformed',
+    })
+    malformed.close()
+    await expect(projectionApp.characterView(
+      world.manifest.address,
+      brandId('character:player', 'CharacterId'),
+    )).rejects.toMatchObject({ envelope: { errorCode: 'PROJECTION_INVARIANT_FAILED' } })
+    expect(projectionApp.activeBranchCount).toBe(0)
+    await expect(projectionApp.quarantineRecover(world.manifest.address, 'projection:recovery'))
+      .rejects.toMatchObject({ envelope: { errorCode: 'RECOVERY_VALIDATION_FAILED' } })
+    await projectionApp.close()
+
+    const sessionPaths = paths()
+    const sessionApp = new WorldApplication(sessionPaths)
+    sessionApp.activate(world)
+    await sessionApp.submit(world.manifest.address, request('session-corruption'))
+    await sessionApp.deliver(world.manifest.address, 'session:deliver')
+    const corruptSession = new DatabaseSync(sessionPaths.sessionPath)
+    corruptSession.prepare(`UPDATE session_events SET payload_json = 'not-json'`).run()
+    corruptSession.close()
+    await expect(sessionApp.renderSession(
+      world.manifest.address,
+      brandId('session:player', 'SessionId'),
+      1,
+    )).rejects.toMatchObject({ envelope: { errorCode: 'SESSION_DELIVERY_DIVERGED' } })
+    expect(sessionApp.quarantineExplain(world.manifest.address)).toMatchObject({ runtimePhase: 'quarantined' })
+    await sessionApp.close()
+
+    const missingSessionPaths = paths()
+    const missingSessionApp = new WorldApplication(missingSessionPaths)
+    missingSessionApp.activate(world)
+    const manualQuarantine = new BranchQuarantineService(missingSessionPaths.worldPath)
+    manualQuarantine.quarantine({
+      address: world.manifest.address,
+      error: createErrorEnvelope({
+        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'missing Session recovery fixture',
+        retryable: false, correlationId: 'session:missing', address: world.manifest.address,
+      }),
+      source: 'application.test',
+    })
+    manualQuarantine.close()
+    await expect(missingSessionApp.quarantineRecover(world.manifest.address, 'session:missing-recovery'))
+      .rejects.toMatchObject({ envelope: { errorCode: 'RECOVERY_VALIDATION_FAILED' } })
+    await missingSessionApp.close()
+  })
+
+  it('validates pending, delivered, and rebound Session state before quarantine recovery', async () => {
+    const world = compiled()
+    const quarantine = (worldPath: string, address: WorldAddress, suffix: string) => {
+      const service = new BranchQuarantineService(worldPath)
+      service.quarantine({
+        address,
+        error: createErrorEnvelope({
+          errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: `recovery fixture ${suffix}`,
+          retryable: false, correlationId: `recovery:${suffix}`, address,
+        }),
+        source: 'application.recovery.test',
+      })
+      service.close()
+    }
+
+    const pendingPaths = paths()
+    const pending = new WorldApplication(pendingPaths)
+    pending.activate(world)
+    await pending.submit(world.manifest.address, request('recovery-pending'))
+    quarantine(pendingPaths.worldPath, world.manifest.address, 'pending')
+    await expect(pending.quarantineRecover(world.manifest.address, 'recovery:pending-verified'))
+      .resolves.toMatchObject({ status: 'recovered' })
+    await pending.close()
+
+    const deliveredPaths = paths()
+    const delivered = new WorldApplication(deliveredPaths)
+    delivered.activate(world)
+    await delivered.submit(world.manifest.address, request('recovery-delivered'))
+    await delivered.deliver(world.manifest.address, 'recovery:delivered')
+    await delivered.release(world.manifest.address)
+    const clearDelivered = new DatabaseSync(deliveredPaths.sessionPath)
+    clearDelivered.exec(`DELETE FROM session_events; DELETE FROM session_delivery_inbox; DELETE FROM session_delivery_cursor;`)
+    clearDelivered.close()
+    quarantine(deliveredPaths.worldPath, world.manifest.address, 'delivered-missing')
+    await expect(delivered.quarantineRecover(world.manifest.address, 'recovery:delivered-missing'))
+      .rejects.toMatchObject({ envelope: { errorCode: 'RECOVERY_VALIDATION_FAILED' } })
+    await delivered.close()
+
+    const reboundPaths = paths()
+    const rebound = new WorldApplication(reboundPaths)
+    rebound.activate(world)
+    await rebound.submit(world.manifest.address, request('recovery-rebound'))
+    await rebound.deliver(world.manifest.address, 'recovery:rebound')
+    await rebound.release(world.manifest.address)
+    const reboundOutbox = new WorldOutbox(reboundPaths.worldPath)
+    const authoritative = reboundOutbox.deliveryLedger(world.manifest.address, 'recovery:ledger')[0]!
+    reboundOutbox.close()
+    const reboundStore = new WorldStore(reboundPaths.worldPath)
+    const authoritativePayload = reboundStore.readOutbox(world.manifest.address)[0]!.payload
+    reboundStore.close()
+    const clearRebound = new DatabaseSync(reboundPaths.sessionPath)
+    clearRebound.exec(`DELETE FROM session_events; DELETE FROM session_delivery_inbox; DELETE FROM session_delivery_cursor;`)
+    clearRebound.close()
+    const reboundSession = new SessionDeliveryAdapter(reboundPaths.sessionPath)
+    await reboundSession.appendIfAbsent({
+      sessionId: brandId('session:rebound', 'SessionId'),
+      sessionDeliverySeq: 1,
+      deliveryId: authoritative.deliveryId,
+      payloadHash: authoritative.payloadHash,
+      observationEvent: authoritativePayload,
+      correlationId: 'recovery:rebound-foreign-session',
+    })
+    reboundSession.close()
+    quarantine(reboundPaths.worldPath, world.manifest.address, 'rebound')
+    await expect(rebound.quarantineRecover(world.manifest.address, 'recovery:rebound-check'))
+      .rejects.toMatchObject({ envelope: { errorCode: 'RECOVERY_VALIDATION_FAILED' } })
+    await rebound.close()
+
+    const snapshotPaths = paths()
+    const snapshotApp = new WorldApplication(snapshotPaths)
+    snapshotApp.activate(world)
+    const snapshotPath = join(snapshotPaths.worldPath, '..', 'typed-snapshot.sqlite')
+    await snapshotApp.createSnapshot(world.manifest.address, snapshotPath, 'snapshot:typed')
+    const corruptSnapshot = new DatabaseSync(snapshotPath)
+    corruptSnapshot.prepare(`UPDATE snapshot_bundles SET bundle_hash = 'sha256:wrong'`).run()
+    corruptSnapshot.close()
+    await expect(snapshotApp.createSnapshot(world.manifest.address, snapshotPath, 'snapshot:typed-retry'))
+      .rejects.toMatchObject({ envelope: { errorCode: 'BUNDLE_HASH_MISMATCH' } })
+    expect(snapshotApp.quarantineExplain(world.manifest.address)).toMatchObject({ runtimePhase: 'quarantined' })
+    await snapshotApp.close()
   })
 })

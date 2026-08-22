@@ -1,9 +1,11 @@
 import { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import {
   assertProtocolString,
   failWorld,
   hashWorldJson,
+  WorldError,
   worldAddressKey,
   type CharacterId,
   type CharacterView,
@@ -33,6 +35,7 @@ import {
 } from '@harness-world/runtime-cordis'
 import {
   BranchAdministration,
+  BranchQuarantineService,
   CharacterViewBuilder,
   type DeadLetterRecord,
   ProjectionRebuilder,
@@ -74,6 +77,7 @@ export class BranchStoreComponent {
   readonly inbox: RoundInbox
   readonly leases: WriterLeaseService
   readonly administration: BranchAdministration
+  readonly quarantine: BranchQuarantineService
   readonly outbox: WorldOutbox
   readonly session: SessionDeliveryAdapter
   readonly #worker: SessionOutboxWorker
@@ -89,6 +93,7 @@ export class BranchStoreComponent {
     this.inbox = new RoundInbox(worldPath)
     this.leases = new WriterLeaseService(worldPath)
     this.administration = new BranchAdministration(worldPath)
+    this.quarantine = new BranchQuarantineService(worldPath)
     this.outbox = new WorldOutbox(worldPath)
     this.session = new SessionDeliveryAdapter(sessionPath)
     this.#worker = new SessionOutboxWorker(this.outbox, this.session, address, maxAttempts)
@@ -115,6 +120,7 @@ export class BranchStoreComponent {
   close(): void {
     this.session.close()
     this.outbox.close()
+    this.quarantine.close()
     this.administration.close()
     this.inbox.close()
     this.leases.close()
@@ -209,26 +215,33 @@ export class WorldApplication {
   }
 
   async submit(address: WorldAddress, request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
-    return (await this.#branch(address)).kernel.submit(request)
+    return this.#integrityGuard(address, 'round.submit', branch => branch.kernel.submit(request))
   }
 
   async roundResult(address: WorldAddress, idempotencyKey: string): Promise<PlayerRoundResult | undefined> {
-    const result = (await this.#branch(address)).store.inbox.readCompleted(address, idempotencyKey)
-    return result === undefined ? undefined : parsePlayerRoundResult(result)
+    return this.#integrityGuard(address, 'round.get', branch => {
+      const result = branch.store.inbox.readCompleted(address, idempotencyKey)
+      return result === undefined ? undefined : parsePlayerRoundResult(result)
+    })
   }
 
   async head(address: WorldAddress) {
-    return (await this.#branch(address)).store.store.head(address)
+    return this.#integrityGuard(address, 'world.head', branch => branch.store.store.head(address))
   }
 
   async characterView(address: WorldAddress, characterId: CharacterId, asOfWorldSeq?: number): Promise<CharacterView> {
-    const branch = await this.#branch(address)
-    const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
-    return new CharacterViewBuilder(branch.store.store).rebuildAt(address, characterId, asOf)
+    return this.#integrityGuard(address, 'view.character', branch => this.#projectionRead(
+      address,
+      `view:${worldAddressKey(address)}:${characterId}`,
+      () => {
+        const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
+        return new CharacterViewBuilder(branch.store.store).rebuildAt(address, characterId, asOf)
+      },
+    ))
   }
 
   async deliver(address: WorldAddress, correlationId: string): Promise<number> {
-    return (await this.#branch(address)).store.drainCritical(correlationId)
+    return this.#integrityGuard(address, 'outbox.drain', branch => branch.store.drainCritical(correlationId))
   }
 
   async deadLetters(address: WorldAddress): Promise<DeadLetterRecord[]> {
@@ -245,22 +258,33 @@ export class WorldApplication {
     sessionEventSeq: number,
     presenterOptions?: PresenterOptions,
   ): Promise<PresentationResult> {
-    const branch = await this.#branch(address)
-    const event = branch.store.session.readEvent(sessionId, sessionEventSeq)
-    if (event === undefined) throw new Error(`Session event ${sessionEventSeq} is missing`)
-    return branch.director.presenter.render(event.payload, presenterOptions)
+    return this.#integrityGuard(address, 'session.render', branch => {
+      try {
+        const event = branch.store.session.readEvent(sessionId, sessionEventSeq)
+        if (event === undefined) throw new Error(`Session event ${sessionEventSeq} is missing`)
+        return branch.director.presenter.render(event.payload, presenterOptions)
+      } catch (error: unknown) {
+        if (error instanceof WorldError || (error instanceof Error && error.message.includes(' is missing'))) throw error
+        failWorld({
+          errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity',
+          message: `Session presentation source failed validation: ${String(error)}`, retryable: false,
+          correlationId: `session-render:${sessionId}:${sessionEventSeq}`, address,
+        })
+      }
+    })
   }
 
   async createSnapshot(address: WorldAddress, snapshotPath: string, correlationId: string) {
-    const branch = await this.#branch(address)
-    const head = branch.store.store.head(address)
-    const projection = new ProjectionRebuilder(branch.store.store).rebuildAt(address, head.headSeq)
-    const snapshots = new SnapshotStore(snapshotPath)
-    try {
-      return snapshots.create(address, head.headSeq, { projection }, correlationId)
-    } finally {
-      snapshots.close()
-    }
+    return this.#integrityGuard(address, 'snapshot.create', branch => this.#projectionRead(address, correlationId, () => {
+        const head = branch.store.store.head(address)
+        const projection = new ProjectionRebuilder(branch.store.store).rebuildAt(address, head.headSeq)
+        const snapshots = new SnapshotStore(snapshotPath)
+        try {
+          return snapshots.create(address, head.headSeq, { projection }, correlationId)
+        } finally {
+          snapshots.close()
+        }
+      }))
   }
 
   latestSnapshot(address: WorldAddress, snapshotPath: string) {
@@ -329,6 +353,77 @@ export class WorldApplication {
     }
   }
 
+  quarantineExplain(address: WorldAddress) {
+    this.#assertOpen()
+    const quarantine = new BranchQuarantineService(this.options.worldPath)
+    try {
+      return quarantine.explain(address)
+    } finally {
+      quarantine.close()
+    }
+  }
+
+  async quarantineRecover(address: WorldAddress, correlationId: string) {
+    this.#assertOpen()
+    await this.release(address)
+    const quarantine = new BranchQuarantineService(this.options.worldPath)
+    try {
+      return quarantine.recover(address, correlationId, () => {
+        if (!existsSync(this.options.sessionPath)) {
+          failWorld({
+            errorCode: 'RECOVERY_VALIDATION_FAILED', category: 'integrity',
+            message: 'Session database is missing during quarantine recovery', retryable: false,
+            correlationId, address,
+          })
+        }
+        const store = new WorldStore(this.options.worldPath)
+        const outbox = new WorldOutbox(this.options.worldPath)
+        const session = new SessionDeliveryAdapter(this.options.sessionPath)
+        try {
+          const world = store.verifyBranchIntegrity(address)
+          const projection = new ProjectionRebuilder(store).rebuildAt(address, world.headSeq)
+          const sessionIntegrity = session.verifyIntegrity(address, correlationId)
+          const bindings = session.deliveryBindings()
+          const byDelivery = new Map(bindings.map(binding => [binding.deliveryId, binding]))
+          const bySequence = new Map(bindings.map(binding => [`${binding.sessionId}\u001f${binding.sessionDeliverySeq}`, binding]))
+          for (const delivery of outbox.deliveryLedger(address, correlationId)) {
+            const binding = byDelivery.get(delivery.deliveryId)
+            const occupied = delivery.sessionDeliverySeq === null
+              ? undefined
+              : bySequence.get(`${delivery.sessionId}\u001f${delivery.sessionDeliverySeq}`)
+            const bindingHash = binding === undefined ? undefined : hashWorldJson('session-delivery-binding', binding)
+            const expectedBindingHash = hashWorldJson('session-delivery-binding', {
+              sessionId: delivery.sessionId,
+              sessionDeliverySeq: delivery.sessionDeliverySeq,
+              deliveryId: delivery.deliveryId,
+              payloadHash: delivery.payloadHash,
+            })
+            if ((bindingHash !== undefined && bindingHash !== expectedBindingHash)
+              || (occupied !== undefined && occupied.deliveryId !== delivery.deliveryId)
+              || (delivery.status === 'delivered' && binding === undefined)) {
+              failWorld({
+                errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity',
+                message: 'World Outbox and Session delivery bindings are divergent', retryable: false,
+                correlationId, address,
+              })
+            }
+          }
+          return {
+            worldVerificationHash: world.verificationHash,
+            projectionBundleHash: projection.bundleHash,
+            sessionVerificationHash: sessionIntegrity.verificationHash,
+          }
+        } finally {
+          session.close()
+          outbox.close()
+          store.close()
+        }
+      })
+    } finally {
+      quarantine.close()
+    }
+  }
+
   async release(address: WorldAddress): Promise<void> {
     const key = worldAddressKey(address)
     const pending = this.#branches.get(key)
@@ -351,6 +446,38 @@ export class WorldApplication {
 
   get activeBranchCount(): number {
     return this.runtimeRegistry.activeSlotCount
+  }
+
+  async #integrityGuard<T>(
+    address: WorldAddress,
+    source: string,
+    operation: (branch: MountedBranch) => T | Promise<T>,
+  ): Promise<T> {
+    const branch = await this.#branch(address)
+    try {
+      return await operation(branch)
+    } catch (error: unknown) {
+      if (!(error instanceof WorldError) || error.envelope.category !== 'integrity') throw error
+      try {
+        branch.store.quarantine.quarantine({ address, error: error.envelope, source })
+      } finally {
+        await this.release(address)
+      }
+      throw error
+    }
+  }
+
+  #projectionRead<T>(address: WorldAddress, correlationId: string, operation: () => T): T {
+    try {
+      return operation()
+    } catch (error: unknown) {
+      if (error instanceof WorldError) throw error
+      failWorld({
+        errorCode: 'PROJECTION_INVARIANT_FAILED', category: 'integrity',
+        message: `Projection rebuild failed: ${String(error)}`, retryable: false,
+        correlationId, address,
+      })
+    }
   }
 
   async #branch(address: WorldAddress): Promise<MountedBranch> {

@@ -1,11 +1,14 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
   failWorld,
+  hashWorldJson,
   type AppendDeliveryRequest,
   type AppendDeliveryResult,
   type FaultInjector,
   type SessionId,
   type WorldHash,
+  type WorldAddress,
+  type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
@@ -65,6 +68,19 @@ export function openSessionDatabase(path: string): DatabaseSync {
 interface InboxRow {
   readonly delivery_id: string
   readonly payload_hash: string
+}
+
+export interface SessionIntegrityReport extends WorldJsonObject {
+  readonly sessionCount: number
+  readonly deliveryCount: number
+  readonly verificationHash: WorldHash
+}
+
+export interface SessionDeliveryBinding extends WorldJsonObject {
+  readonly sessionId: SessionId
+  readonly sessionDeliverySeq: number
+  readonly deliveryId: string
+  readonly payloadHash: WorldHash
 }
 /** SQLite consumer-side adapter for atomic, idempotent Observation delivery. */
 export class SessionDeliveryAdapter {
@@ -163,6 +179,75 @@ export class SessionDeliveryAdapter {
     return row?.last_delivery_seq ?? 0
   }
 
+  /** Verify durable Session delivery bindings used to reconstruct model-visible observations. */
+  verifyIntegrity(address: WorldAddress, correlationId: string): SessionIntegrityReport {
+    const quickCheck = this.#db.prepare('PRAGMA quick_check').get() as { quick_check?: string }
+    const rows = this.#db.prepare(`
+      SELECT i.session_id, i.session_delivery_seq, i.delivery_id, i.payload_hash,
+        e.payload_hash AS event_payload_hash, e.payload_json
+      FROM session_delivery_inbox i
+      LEFT JOIN session_events e
+        ON e.session_id = i.session_id AND e.session_event_seq = i.session_delivery_seq
+      ORDER BY i.session_id, i.session_delivery_seq
+    `).all() as Array<{
+      session_id: SessionId
+      session_delivery_seq: number
+      delivery_id: string
+      payload_hash: WorldHash
+      event_payload_hash: WorldHash | null
+      payload_json: string | null
+    }>
+    const cursors = this.#db.prepare(`SELECT session_id, last_delivery_seq FROM session_delivery_cursor ORDER BY session_id`).all() as Array<{
+      session_id: SessionId
+      last_delivery_seq: number
+    }>
+    const expected = new Map<SessionId, number>()
+    const bindings: WorldJsonValue[] = []
+    for (const row of rows) {
+      const sequence = (expected.get(row.session_id) ?? 0) + 1
+      if (row.session_delivery_seq !== sequence || row.event_payload_hash !== row.payload_hash || row.payload_json === null) {
+        this.#integrityFailure(address, correlationId, 'Session delivery sequence or Observation binding is divergent')
+      }
+      const payload = parseWorldJson(row.payload_json)
+      if (worldJsonText(payload) !== row.payload_json || hashWorldJson('world-outbox-payload', payload) !== row.payload_hash) {
+        this.#integrityFailure(address, correlationId, 'Session Observation payload is divergent')
+      }
+      expected.set(row.session_id, sequence)
+      bindings.push({
+        sessionId: row.session_id,
+        sessionDeliverySeq: row.session_delivery_seq,
+        deliveryId: row.delivery_id,
+        payloadHash: row.payload_hash,
+      })
+    }
+    if (quickCheck.quick_check !== 'ok' || cursors.length !== expected.size
+      || cursors.some(cursor => expected.get(cursor.session_id) !== cursor.last_delivery_seq)) {
+      this.#integrityFailure(address, correlationId, 'Session cursor or SQLite integrity is divergent')
+    }
+    return {
+      sessionCount: expected.size,
+      deliveryCount: rows.length,
+      verificationHash: hashWorldJson('session-integrity-verification', { address, bindings }),
+    }
+  }
+
+  deliveryBindings(): SessionDeliveryBinding[] {
+    return (this.#db.prepare(`
+      SELECT session_id, session_delivery_seq, delivery_id, payload_hash
+      FROM session_delivery_inbox ORDER BY session_id, session_delivery_seq
+    `).all() as Array<{
+      session_id: SessionId
+      session_delivery_seq: number
+      delivery_id: string
+      payload_hash: WorldHash
+    }>).map(row => ({
+      sessionId: row.session_id,
+      sessionDeliverySeq: row.session_delivery_seq,
+      deliveryId: row.delivery_id,
+      payloadHash: row.payload_hash,
+    }))
+  }
+
   close(): void {
     this.#db.close()
   }
@@ -175,6 +260,17 @@ export class SessionDeliveryAdapter {
       retryable: false,
       correlationId: request.correlationId,
       details: { sessionId: request.sessionId, sessionDeliverySeq: request.sessionDeliverySeq },
+    })
+  }
+
+  #integrityFailure(address: WorldAddress, correlationId: string, message: string): never {
+    failWorld({
+      errorCode: 'SESSION_DELIVERY_DIVERGED',
+      category: 'integrity',
+      message,
+      retryable: false,
+      correlationId,
+      address,
     })
   }
 }
