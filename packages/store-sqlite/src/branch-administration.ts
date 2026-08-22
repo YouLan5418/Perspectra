@@ -13,6 +13,8 @@ import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 export interface BranchControlState extends WorldJsonObject {
   readonly admissionState: 'open' | 'draining'
   readonly lifecycleState: 'active' | 'archived'
+  readonly runtimePhase: 'active' | 'maintenance' | 'quarantined' | 'archived'
+  readonly runtimeEpoch: number
   readonly reason: string | null
   readonly revision: number
 }
@@ -35,24 +37,35 @@ export class BranchAdministration {
 
   status(address: WorldAddress): BranchControlState {
     const row = this.#db.prepare(`
-      SELECT admission_state, lifecycle_state, reason, revision FROM branch_controls WHERE address_key = ?
+      SELECT admission_state, lifecycle_state, runtime_phase, runtime_epoch, reason, revision
+      FROM branch_controls WHERE address_key = ?
     `).get(worldAddressKey(address)) as {
       admission_state: BranchControlState['admissionState']
       lifecycle_state: BranchControlState['lifecycleState']
+      runtime_phase: BranchControlState['runtimePhase']
+      runtime_epoch: number
       reason: string | null
       revision: number
     } | undefined
     if (row === undefined) throw new Error(`unknown world branch ${worldAddressKey(address)}`)
-    return { admissionState: row.admission_state, lifecycleState: row.lifecycle_state, reason: row.reason, revision: row.revision }
+    return {
+      admissionState: row.admission_state,
+      lifecycleState: row.lifecycle_state,
+      runtimePhase: row.runtime_phase,
+      runtimeEpoch: row.runtime_epoch,
+      reason: row.reason,
+      revision: row.revision,
+    }
   }
 
   setAdmission(address: WorldAddress, state: 'open' | 'draining', reason: string, correlationId: string): BranchControlState {
     assertProtocolString(reason, 'administrative reason')
     assertProtocolString(correlationId, 'correlationId')
     return this.#mutate(address, 'branch.admission.changed', correlationId, (current) => {
-      if (current.lifecycleState === 'archived' && state === 'open') {
+      if (current.runtimePhase !== 'active') {
         failWorld({
-          errorCode: 'BRANCH_DRAINING', category: 'admin', message: 'archived branch cannot reopen admission', retryable: false,
+          errorCode: current.runtimePhase === 'quarantined' ? 'BRANCH_QUARANTINED' : 'BRANCH_DRAINING',
+          category: 'admin', message: `branch is ${current.runtimePhase}`, retryable: false,
           correlationId, address,
         })
       }
@@ -65,7 +78,7 @@ export class BranchAdministration {
     assertProtocolString(correlationId, 'correlationId')
     return this.#mutate(address, 'branch.archived', correlationId, (current, key, now) => {
       this.#assertArchiveReady(address, key, current, correlationId, now)
-      return { ...current, lifecycleState: 'archived', reason }
+      return { ...current, lifecycleState: 'archived', runtimePhase: 'archived', reason }
     })
   }
 
@@ -107,8 +120,12 @@ export class BranchAdministration {
       const candidate = update(current, key, operationalTimeMs)
       const next = { ...candidate, revision: current.revision + 1 }
       this.#db.prepare(`
-        UPDATE branch_controls SET admission_state = ?, lifecycle_state = ?, reason = ?, revision = ? WHERE address_key = ?
-      `).run(next.admissionState, next.lifecycleState, next.reason, next.revision, key)
+        UPDATE branch_controls SET admission_state = ?, lifecycle_state = ?, runtime_phase = ?, runtime_epoch = ?,
+          reason = ?, revision = ? WHERE address_key = ?
+      `).run(
+        next.admissionState, next.lifecycleState, next.runtimePhase, next.runtimeEpoch,
+        next.reason, next.revision, key,
+      )
       this.#db.prepare(`
         INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
         VALUES (?, ?, ?, ?, ?)
@@ -131,7 +148,7 @@ export class BranchAdministration {
       SELECT 1 AS present FROM writer_leases WHERE address_key = ? AND expires_at_ms > ?
     `).get(addressKey, operationalTimeMs)
     const unfinishedRound = this.#db.prepare(`
-      SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status <> 'completed' LIMIT 1
+      SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed') LIMIT 1
     `).get(addressKey)
     const unresolvedCriticalDelivery = this.#db.prepare(`
       SELECT 1 AS present FROM outbox
@@ -139,6 +156,7 @@ export class BranchAdministration {
     `).get(addressKey)
     if (
       current.admissionState !== 'draining'
+      || current.runtimePhase !== 'active'
       || activeLease !== undefined
       || unfinishedRound !== undefined
       || unresolvedCriticalDelivery !== undefined

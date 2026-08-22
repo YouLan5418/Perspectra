@@ -82,11 +82,11 @@ describe('WorldArchiveService', () => {
     const service = new WorldArchiveService(source)
     const backupPath = join(directory, 'backup.sqlite')
     const artifact = await service.backup(backupPath, 'backup:create')
-    expect(artifact).toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 8 })
+    expect(artifact).toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 9 })
 
     const restoredPath = join(directory, 'restored.sqlite')
     expect(service.restore(backupPath, restoredPath, artifact.fileHash, 'backup:restore'))
-      .toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 8 })
+      .toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 9 })
     const restored = new WorldStore(restoredPath)
     expect(restored.head(address)).toMatchObject({ headSeq: 1, tick: 1 })
     const eventHash = restored.readEvents(address)[0]!.eventHash
@@ -118,7 +118,7 @@ describe('WorldArchiveService', () => {
     expect(await service.exportPortable(exportPath, 'export:create')).toEqual(artifact)
     const importedPath = join(directory, 'imported.sqlite')
     expect(service.importPortable(exportPath, importedPath, 'export:import'))
-      .toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 8 })
+      .toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 9 })
     const imported = new WorldStore(importedPath)
     expect(imported.readEvents(address)[0]!.eventHash).toBe(eventHash)
     imported.close()
@@ -178,7 +178,7 @@ describe('WorldArchiveService', () => {
 
     const incomplete = join(directory, 'incomplete.sqlite')
     const incompleteDb = new DatabaseSync(incomplete)
-    incompleteDb.exec('PRAGMA application_id = 0x48435757; PRAGMA user_version = 8; CREATE TABLE placeholder(id INTEGER);')
+    incompleteDb.exec('PRAGMA application_id = 0x48435757; PRAGMA user_version = 9; CREATE TABLE placeholder(id INTEGER);')
     incompleteDb.close()
     const incompleteHash = `sha256:${createHash('sha256').update(readFileSync(incomplete)).digest('hex')}` as WorldHash
     expect(() => service.restore(incomplete, join(directory, 'incomplete-restore.sqlite'), incompleteHash, 'restore:incomplete'))

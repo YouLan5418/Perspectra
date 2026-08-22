@@ -51,7 +51,14 @@ describe('BranchAdministration', () => {
     const store = new WorldStore(path)
     store.createBranch(target)
     const admin = new BranchAdministration(path, () => 1234)
-    expect(admin.status(target)).toEqual({ admissionState: 'open', lifecycleState: 'active', reason: null, revision: 0 })
+    expect(admin.status(target)).toEqual({
+      admissionState: 'open',
+      lifecycleState: 'active',
+      runtimePhase: 'active',
+      runtimeEpoch: 0,
+      reason: null,
+      revision: 0,
+    })
     expect(() => store.assertAdmissionOpen(target, 'player:open')).not.toThrow()
     expect(admin.setAdmission(target, 'draining', 'maintenance', 'admin:drain')).toMatchObject({ admissionState: 'draining', revision: 1 })
     expect(() => store.assertAdmissionOpen(target, 'player:blocked')).toThrow('draining')
@@ -64,7 +71,14 @@ describe('BranchAdministration', () => {
     expect(archived).toMatchObject({ admissionState: 'draining', lifecycleState: 'archived', revision: 4 })
     await expect(store.commitRound(round(target))).resolves.toEqual({ ...committed, status: 'already_committed' })
     await expect(store.commitRound(round(target, 'two'))).rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING', retryable: false } })
-    expect(() => admin.setAdmission(target, 'open', 'try reopen', 'admin:reopen')).toThrow('cannot reopen')
+    const inconsistent = new DatabaseSync(path)
+    inconsistent.prepare(`UPDATE branch_controls SET runtime_phase = 'active' WHERE address_key = ?`).run(worldAddressKey(target))
+    inconsistent.close()
+    await expect(store.commitRound(round(target, 'two'))).rejects.toThrow('branch is archived')
+    const restorePhase = new DatabaseSync(path)
+    restorePhase.prepare(`UPDATE branch_controls SET runtime_phase = 'archived' WHERE address_key = ?`).run(worldAddressKey(target))
+    restorePhase.close()
+    expect(() => admin.setAdmission(target, 'open', 'try reopen', 'admin:reopen')).toThrow('branch is archived')
     expect(store.readEvents(target)).toHaveLength(1)
     expect(admin.readAudit(target)).toMatchObject([
       { auditSeq: 1, operation: 'branch.admission.changed', correlationId: 'admin:drain', operationalTimeMs: 1234 },

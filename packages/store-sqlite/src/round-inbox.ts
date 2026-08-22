@@ -75,6 +75,7 @@ export class RoundInbox {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.#requireBranch(key)
+      this.#assertNotQuarantined(request.address, key, request.correlationId)
       const replay = this.#db.prepare(`
         SELECT inbox_seq, input_hash FROM round_inbox WHERE address_key = ? AND idempotency_key = ?
       `).get(key, request.idempotencyKey) as { inbox_seq: number; input_hash: WorldHash } | undefined
@@ -188,7 +189,7 @@ export class RoundInbox {
           commit_transaction_id, commit_bundle_hash
         FROM round_inbox WHERE address_key = ? AND inbox_seq = ?
       `).get(key, inboxSeq) as {
-        status: 'pending' | 'claimed' | 'completed'
+        status: 'pending' | 'claimed' | 'completed' | 'failed' | 'cancelled'
         claim_owner_id: string | null
         claim_fencing_token: number | null
         result_hash: WorldHash | null
@@ -314,7 +315,10 @@ export class RoundInbox {
   #assertAdmissionOpen(address: WorldAddress, key: string, correlationId: string): void {
     const control = this.#db.prepare(`
       SELECT admission_state, lifecycle_state FROM branch_controls WHERE address_key = ?
-    `).get(key) as { admission_state: 'open' | 'draining'; lifecycle_state: 'active' | 'archived' } | undefined
+    `).get(key) as {
+      admission_state: 'open' | 'draining'
+      lifecycle_state: 'active' | 'archived'
+    } | undefined
     if (control === undefined) throw new Error(`unknown world branch ${key}`)
     if (control.admission_state === 'open' && control.lifecycle_state === 'active') return
     failWorld({
@@ -324,6 +328,18 @@ export class RoundInbox {
       retryable: control.lifecycle_state !== 'archived',
       correlationId,
       address,
+    })
+  }
+
+  #assertNotQuarantined(address: WorldAddress, key: string, correlationId: string): void {
+    const control = this.#db.prepare(`SELECT runtime_phase FROM branch_controls WHERE address_key = ?`).get(key) as {
+      runtime_phase: 'active' | 'maintenance' | 'quarantined' | 'archived'
+    } | undefined
+    if (control?.runtime_phase !== 'quarantined' && control?.runtime_phase !== 'maintenance') return
+    failWorld({
+      errorCode: control.runtime_phase === 'quarantined' ? 'BRANCH_QUARANTINED' : 'BRANCH_DRAINING',
+      category: 'admin', message: `branch runtime phase is ${control.runtime_phase}`, retryable: false,
+      correlationId, address,
     })
   }
 

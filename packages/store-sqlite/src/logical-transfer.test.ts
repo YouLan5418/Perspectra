@@ -2,7 +2,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { brandId, hashWorldJson } from '@harness-world/contracts'
+import { brandId, createErrorEnvelope, hashWorldJson } from '@harness-world/contracts'
+import { BranchQuarantineService } from './quarantine.ts'
 import { fixtureAddress, fixtureCommitRequest } from '@harness-world/testkit'
 import { WorldLogicalTransferService } from './logical-transfer.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
@@ -25,6 +26,42 @@ afterEach(() => {
 })
 
 describe('WorldLogicalTransferService', () => {
+  it('preserves quarantine authority and rejects a forged failure ledger', () => {
+    const root = directory()
+    const source = join(root, 'source.sqlite')
+    const address = fixtureAddress('logical-quarantine')
+    const store = new WorldStore(source)
+    store.createBranch(address)
+    store.close()
+    const quarantine = new BranchQuarantineService(source, () => 42)
+    const error = createErrorEnvelope({
+      errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'logical quarantine fixture',
+      retryable: false, correlationId: 'logical:quarantine', address,
+    })
+    quarantine.quarantine({ address, error, source: 'logical-transfer.test' })
+    quarantine.close()
+
+    const service = new WorldLogicalTransferService(source)
+    const exportPath = join(root, 'quarantined.dshworld')
+    service.exportAuthority(exportPath, 'logical:quarantine-export')
+    const envelope = JSON.parse(readFileSync(exportPath, 'utf8')) as any
+    expect(envelope).toMatchObject({ format: 'dshworld-authority/v4', data: { authorityVersion: 4 } })
+    const target = join(root, 'quarantined-import.sqlite')
+    service.importAuthority(exportPath, target, 'logical:quarantine-import')
+    const imported = new BranchQuarantineService(target)
+    expect(imported.explain(address)).toMatchObject({
+      runtimePhase: 'quarantined', failures: [{ failureId: error.errorId, status: 'open' }],
+    })
+    imported.close()
+
+    envelope.data.tables.branch_failures[0].error_json = JSON.stringify({ forged: true })
+    envelope.bundleHash = hashWorldJson('logical-authority-export', envelope.data)
+    const forgedPath = join(root, 'forged-failure.dshworld')
+    writeFileSync(forgedPath, JSON.stringify(envelope))
+    expect(() => service.importAuthority(forgedPath, join(root, 'forged.sqlite'), 'logical:forged-failure'))
+      .toThrow('divergent Branch failure')
+  })
+
   it('round-trips authority tables without Session, Memory, Audit, or process state', async () => {
     const root = directory()
     const source = join(root, 'source.sqlite')

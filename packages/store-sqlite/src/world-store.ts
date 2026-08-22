@@ -200,7 +200,72 @@ CREATE UNIQUE INDEX round_inbox_commit_transaction_unique
   ON round_inbox(commit_transaction_id) WHERE commit_transaction_id IS NOT NULL;
 `
 
-export const WORLD_SCHEMA_VERSION = 8
+const WORLD_QUARANTINE_SCHEMA = `
+ALTER TABLE branch_controls ADD COLUMN runtime_phase TEXT NOT NULL DEFAULT 'active'
+  CHECK(runtime_phase IN ('active', 'maintenance', 'quarantined', 'archived'));
+ALTER TABLE branch_controls ADD COLUMN runtime_epoch INTEGER NOT NULL DEFAULT 0 CHECK(runtime_epoch >= 0);
+UPDATE branch_controls SET runtime_phase = 'archived' WHERE lifecycle_state = 'archived';
+CREATE TABLE branch_failures (
+  failure_id TEXT PRIMARY KEY,
+  address_key TEXT NOT NULL,
+  error_hash TEXT NOT NULL,
+  error_json TEXT NOT NULL,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('open', 'recovered')),
+  occurred_at_ms INTEGER NOT NULL CHECK(occurred_at_ms >= 0),
+  recovered_at_ms INTEGER,
+  recovery_correlation_id TEXT,
+  FOREIGN KEY(address_key) REFERENCES branches(address_key),
+  CHECK (
+    (status = 'open' AND recovered_at_ms IS NULL AND recovery_correlation_id IS NULL)
+    OR (status = 'recovered' AND recovered_at_ms >= occurred_at_ms AND recovery_correlation_id IS NOT NULL)
+  )
+) STRICT;
+CREATE INDEX branch_failures_address_status ON branch_failures(address_key, status, occurred_at_ms);
+ALTER TABLE round_inbox RENAME TO round_inbox_v8;
+CREATE TABLE round_inbox (
+  address_key TEXT NOT NULL,
+  inbox_seq INTEGER NOT NULL CHECK(inbox_seq >= 1),
+  idempotency_key TEXT NOT NULL,
+  input_hash TEXT NOT NULL,
+  principal_id TEXT NOT NULL,
+  input_json TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('pending', 'claimed', 'completed', 'failed', 'cancelled')),
+  claim_owner_id TEXT,
+  claim_fencing_token INTEGER,
+  result_hash TEXT,
+  result_json TEXT,
+  commit_transaction_id TEXT,
+  commit_bundle_hash TEXT,
+  PRIMARY KEY(address_key, inbox_seq),
+  UNIQUE(address_key, idempotency_key),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key),
+  CHECK (
+    (status = 'pending' AND claim_owner_id IS NULL AND claim_fencing_token IS NULL
+      AND result_hash IS NULL AND result_json IS NULL AND commit_transaction_id IS NULL AND commit_bundle_hash IS NULL)
+    OR (status = 'claimed' AND claim_owner_id IS NOT NULL AND claim_fencing_token >= 1
+      AND result_hash IS NULL AND result_json IS NULL AND commit_bundle_hash IS NULL)
+    OR (status = 'completed' AND claim_owner_id IS NOT NULL AND claim_fencing_token >= 1
+      AND result_hash IS NOT NULL AND result_json IS NOT NULL AND commit_transaction_id IS NOT NULL AND commit_bundle_hash IS NOT NULL)
+    OR (status IN ('failed', 'cancelled') AND result_hash IS NOT NULL AND result_json IS NOT NULL
+      AND commit_transaction_id IS NULL AND commit_bundle_hash IS NULL
+      AND ((claim_owner_id IS NULL AND claim_fencing_token IS NULL)
+        OR (claim_owner_id IS NOT NULL AND claim_fencing_token >= 1)))
+  )
+) STRICT;
+INSERT INTO round_inbox(
+  address_key, inbox_seq, idempotency_key, input_hash, principal_id, input_json, status,
+  claim_owner_id, claim_fencing_token, result_hash, result_json, commit_transaction_id, commit_bundle_hash
+)
+SELECT address_key, inbox_seq, idempotency_key, input_hash, principal_id, input_json, status,
+  claim_owner_id, claim_fencing_token, result_hash, result_json, commit_transaction_id, commit_bundle_hash
+FROM round_inbox_v8;
+DROP TABLE round_inbox_v8;
+CREATE UNIQUE INDEX round_inbox_commit_transaction_unique
+  ON round_inbox(commit_transaction_id) WHERE commit_transaction_id IS NOT NULL;
+`
+
+export const WORLD_SCHEMA_VERSION = 9
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -211,7 +276,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 5, sql: WORLD_OUTBOX_DELIVERY_SCHEMA },
     { version: 6, sql: WORLD_BRANCH_ADMIN_SCHEMA },
     { version: 7, sql: WORLD_OUTBOX_CLAIM_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_ROUND_COMPLETION_SCHEMA },
+    { version: 8, sql: WORLD_ROUND_COMPLETION_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_QUARANTINE_SCHEMA },
   ])
 }
 
@@ -476,13 +542,19 @@ export class WorldStore {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       const control = this.#db.prepare(`
-        SELECT admission_state, lifecycle_state FROM branch_controls WHERE address_key = ?
-      `).get(parentKey) as { admission_state: 'open' | 'draining'; lifecycle_state: 'active' | 'archived' } | undefined
+        SELECT admission_state, lifecycle_state, runtime_phase FROM branch_controls WHERE address_key = ?
+      `).get(parentKey) as {
+        admission_state: 'open' | 'draining'
+        lifecycle_state: 'active' | 'archived'
+        runtime_phase: 'active' | 'maintenance' | 'quarantined' | 'archived'
+      } | undefined
       if (control === undefined) throw new Error(`unknown world branch ${parentKey}`)
-      if (control.lifecycle_state !== 'active' || control.admission_state !== requiredAdmission) {
+      if (control.lifecycle_state !== 'active' || control.runtime_phase !== 'active' || control.admission_state !== requiredAdmission) {
         failWorld({
-          errorCode: 'BRANCH_DRAINING', category: 'admin',
-          message: control.lifecycle_state === 'archived'
+          errorCode: control.runtime_phase === 'quarantined' ? 'BRANCH_QUARANTINED' : 'BRANCH_DRAINING', category: 'admin',
+          message: control.runtime_phase === 'quarantined'
+            ? 'branch is quarantined'
+            : control.lifecycle_state === 'archived'
             ? 'branch is archived'
             : `branch fork requires admission state ${requiredAdmission}`,
           retryable: control.lifecycle_state !== 'archived',
@@ -490,7 +562,7 @@ export class WorldStore {
         })
       }
       const unfinishedRound = this.#db.prepare(`
-        SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status <> 'completed' LIMIT 1
+        SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed') LIMIT 1
       `).get(parentKey)
       if (unfinishedRound !== undefined) {
         failWorld({
@@ -885,15 +957,21 @@ export class WorldStore {
 
   #assertAdmissionOpen(addressKey: string, correlationId: string, address: WorldAddress): void {
     const row = this.#db.prepare(`
-      SELECT admission_state, lifecycle_state FROM branch_controls WHERE address_key = ?
-    `).get(addressKey) as { admission_state: 'open' | 'draining'; lifecycle_state: 'active' | 'archived' } | undefined
+      SELECT admission_state, lifecycle_state, runtime_phase FROM branch_controls WHERE address_key = ?
+    `).get(addressKey) as {
+      admission_state: 'open' | 'draining'
+      lifecycle_state: 'active' | 'archived'
+      runtime_phase: 'active' | 'maintenance' | 'quarantined' | 'archived'
+    } | undefined
     if (row === undefined) throw new Error(`unknown world branch ${addressKey}`)
-    if (row.admission_state !== 'open' || row.lifecycle_state !== 'active') {
+    if (row.admission_state !== 'open' || row.lifecycle_state !== 'active' || row.runtime_phase !== 'active') {
       failWorld({
-        errorCode: 'BRANCH_DRAINING',
+        errorCode: row.runtime_phase === 'quarantined' ? 'BRANCH_QUARANTINED' : 'BRANCH_DRAINING',
         category: 'admin',
-        message: row.lifecycle_state === 'archived' ? 'branch is archived' : 'branch admission is draining',
-        retryable: row.lifecycle_state !== 'archived',
+        message: row.runtime_phase === 'quarantined'
+          ? 'branch is quarantined'
+          : row.lifecycle_state === 'archived' ? 'branch is archived' : 'branch admission is draining',
+        retryable: row.lifecycle_state !== 'archived' && row.runtime_phase !== 'quarantined',
         correlationId,
         address,
       })
@@ -902,9 +980,24 @@ export class WorldStore {
 
   #assertCommitAdmission(addressKey: string, request: CommitRoundRequest): void {
     const row = this.#db.prepare(`
-      SELECT admission_state, lifecycle_state FROM branch_controls WHERE address_key = ?
-    `).get(addressKey) as { admission_state: 'open' | 'draining'; lifecycle_state: 'active' | 'archived' } | undefined
+      SELECT admission_state, lifecycle_state, runtime_phase FROM branch_controls WHERE address_key = ?
+    `).get(addressKey) as {
+      admission_state: 'open' | 'draining'
+      lifecycle_state: 'active' | 'archived'
+      runtime_phase: 'active' | 'maintenance' | 'quarantined' | 'archived'
+    } | undefined
     if (row === undefined) throw new Error(`unknown world branch ${addressKey}`)
+    if (row.runtime_phase !== 'active') {
+      failWorld({
+        errorCode: row.runtime_phase === 'quarantined' ? 'BRANCH_QUARANTINED' : 'BRANCH_DRAINING',
+        category: 'admin',
+        message: `branch runtime phase is ${row.runtime_phase}`,
+        retryable: false,
+        correlationId: request.correlationId,
+        address: request.address,
+        roundId: request.roundId,
+      })
+    }
     const proof = request.admissionProof
     const admitted = proof === undefined ? undefined : this.#db.prepare(`
       SELECT input_hash, commit_transaction_id FROM round_inbox

@@ -23,7 +23,7 @@ export class WriterLeaseService {
     const now = this.now()
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      this.#requireBranch(key)
+      this.#requireWritableBranch(address, key)
       this.#db.prepare(`
         INSERT INTO writer_lease_counters(address_key, next_fencing_token) VALUES (?, 1)
         ON CONFLICT(address_key) DO NOTHING
@@ -99,9 +99,19 @@ export class WriterLeaseService {
     if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) throw new RangeError('ttlMs must be a positive safe integer')
   }
 
-  #requireBranch(key: string): void {
-    if (this.#db.prepare(`SELECT 1 AS present FROM branches WHERE address_key = ?`).get(key) === undefined) {
+  #requireWritableBranch(address: WorldAddress, key: string): void {
+    const control = this.#db.prepare(`
+      SELECT runtime_phase FROM branch_controls WHERE address_key = ?
+    `).get(key) as { runtime_phase: 'active' | 'maintenance' | 'quarantined' | 'archived' } | undefined
+    if (control === undefined) {
       throw new Error(`unknown world branch ${key}`)
+    }
+    if (control.runtime_phase !== 'active') {
+      failWorld({
+        errorCode: control.runtime_phase === 'quarantined' ? 'BRANCH_QUARANTINED' : 'BRANCH_DRAINING',
+        category: 'admin', message: `branch runtime phase is ${control.runtime_phase}`, retryable: false,
+        correlationId: `lease:${key}`, address,
+      })
     }
   }
 

@@ -110,14 +110,34 @@ describe('Phase 5 local operations acceptance', () => {
       const raw = new DatabaseSync(migratedPath)
       raw.exec(`
         DROP TABLE branch_audit_events;
+        DROP TABLE branch_failures;
         DROP TABLE branch_controls;
         DROP INDEX outbox_claim_token_unique;
         ALTER TABLE outbox DROP COLUMN claim_owner_id;
         ALTER TABLE outbox DROP COLUMN claim_token;
         ALTER TABLE outbox DROP COLUMN claim_expires_at_ms;
-        DROP INDEX round_inbox_commit_transaction_unique;
-        ALTER TABLE round_inbox DROP COLUMN commit_transaction_id;
-        ALTER TABLE round_inbox DROP COLUMN commit_bundle_hash;
+        DROP TABLE round_inbox;
+        CREATE TABLE round_inbox (
+          address_key TEXT NOT NULL,
+          inbox_seq INTEGER NOT NULL CHECK(inbox_seq >= 1),
+          idempotency_key TEXT NOT NULL,
+          input_hash TEXT NOT NULL,
+          principal_id TEXT NOT NULL,
+          input_json TEXT NOT NULL,
+          status TEXT NOT NULL CHECK(status IN ('pending', 'claimed', 'completed')),
+          claim_owner_id TEXT,
+          claim_fencing_token INTEGER,
+          result_hash TEXT,
+          result_json TEXT,
+          PRIMARY KEY(address_key, inbox_seq),
+          UNIQUE(address_key, idempotency_key),
+          FOREIGN KEY(address_key) REFERENCES branches(address_key),
+          CHECK (
+            (status = 'pending' AND claim_owner_id IS NULL AND claim_fencing_token IS NULL AND result_hash IS NULL AND result_json IS NULL)
+            OR (status = 'claimed' AND claim_owner_id IS NOT NULL AND claim_fencing_token IS NOT NULL AND result_hash IS NULL AND result_json IS NULL)
+            OR (status = 'completed' AND claim_owner_id IS NOT NULL AND claim_fencing_token IS NOT NULL AND result_hash IS NOT NULL AND result_json IS NOT NULL)
+          )
+        ) STRICT;
         PRAGMA user_version = 5;
       `)
       raw.close()

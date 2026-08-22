@@ -19,7 +19,7 @@ type SqlRow = Record<string, SqlValue>
 
 const TABLES = [
   'world_manifests', 'branches', 'heads', 'round_commits', 'events', 'outbox', 'branch_activations',
-  'outbox_session_counters', 'branch_controls', 'branch_audit_events', 'round_inbox_counters', 'round_inbox',
+  'outbox_session_counters', 'branch_controls', 'branch_failures', 'branch_audit_events', 'round_inbox_counters', 'round_inbox',
 ] as const
 
 const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
@@ -31,7 +31,11 @@ const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
   outbox: ['delivery_id', 'address_key', 'session_id', 'world_seq', 'payload_hash', 'payload_json', 'critical', 'transaction_id', 'delivery_status', 'attempt_count', 'session_delivery_seq', 'last_error'],
   outbox_session_counters: ['session_id', 'next_delivery_seq'],
   branch_activations: ['address_key', 'activation_hash', 'manifest_hash', 'genesis_hash', 'transaction_id'],
-  branch_controls: ['address_key', 'admission_state', 'lifecycle_state', 'reason', 'revision'],
+  branch_controls: ['address_key', 'admission_state', 'lifecycle_state', 'runtime_phase', 'runtime_epoch', 'reason', 'revision'],
+  branch_failures: [
+    'failure_id', 'address_key', 'error_hash', 'error_json', 'source', 'status', 'occurred_at_ms',
+    'recovered_at_ms', 'recovery_correlation_id',
+  ],
   branch_audit_events: ['audit_seq', 'address_key', 'operation', 'correlation_id', 'details_json', 'operational_time_ms'],
   round_inbox_counters: ['address_key', 'next_inbox_seq'],
   round_inbox: [
@@ -41,12 +45,12 @@ const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
 }
 
 interface LogicalAuthorityData extends WorldJsonObject {
-  readonly authorityVersion: 3
+  readonly authorityVersion: 4
   readonly tables: WorldJsonObject
 }
 
 interface LogicalAuthorityEnvelope extends WorldJsonObject {
-  readonly format: 'dshworld-authority/v3'
+  readonly format: 'dshworld-authority/v4'
   readonly data: LogicalAuthorityData
   readonly bundleHash: WorldHash
 }
@@ -70,9 +74,9 @@ export class WorldLogicalTransferService {
         this.afterTableRead?.(table)
       }
       db.exec('COMMIT')
-      const data: LogicalAuthorityData = { authorityVersion: 3, tables }
+      const data: LogicalAuthorityData = { authorityVersion: 4, tables }
       const bundleHash = hashWorldJson('logical-authority-export', data)
-      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v3', data, bundleHash }
+      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v4', data, bundleHash }
       writeFileSync(targetPath, canonicalizeWorldJson(envelope), { flag: 'wx' })
       this.#audit('authority.export.completed', correlationId, { targetPath, bundleHash })
       return bundleHash
@@ -94,7 +98,7 @@ export class WorldLogicalTransferService {
     } catch (error: unknown) {
       this.#invalid('logical export is invalid', correlationId, error)
     }
-    if (envelope.format !== 'dshworld-authority/v3' || envelope.data.authorityVersion !== 3) {
+    if (envelope.format !== 'dshworld-authority/v4' || envelope.data.authorityVersion !== 4) {
       this.#invalid('logical export format is unsupported', correlationId)
     }
     const actualHash = hashWorldJson('logical-authority-export', envelope.data)
@@ -122,6 +126,7 @@ export class WorldLogicalTransferService {
       this.#validateRoundBundles(db, correlationId)
       this.#validateOutbox(db, correlationId)
       this.#validateCompletedInbox(db, correlationId)
+      this.#validateFailures(db, correlationId)
       db.exec('COMMIT')
       const provenance = { sourcePath: resolve(this.sourcePath), exportPath: resolve(exportPath), bundleHash: actualHash }
       this.#auditAt(targetPath, 'authority.import.completed', correlationId, provenance)
@@ -377,6 +382,19 @@ export class WorldLogicalTransferService {
         || resultBundleHash !== row.commit_bundle_hash
         || commit?.bundle_hash !== row.commit_bundle_hash
       ) this.#invalid('logical export contains an invalid completed Round Inbox item', correlationId)
+    }
+  }
+
+  #validateFailures(db: DatabaseSync, correlationId: string): void {
+    const rows = db.prepare(`SELECT error_hash, error_json FROM branch_failures`).all() as Array<{
+      error_hash: WorldHash
+      error_json: string
+    }>
+    for (const row of rows) {
+      const error = parseWorldJson(row.error_json)
+      if (hashWorldJson('branch-failure-envelope', error) !== row.error_hash) {
+        this.#invalid('logical export contains a divergent Branch failure', correlationId)
+      }
     }
   }
 
