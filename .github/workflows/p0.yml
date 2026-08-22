@@ -1,4 +1,4 @@
-name: Phase 0 gates
+name: V0 gates
 
 on:
   push:
@@ -21,5 +21,5 @@ jobs:
         run: corepack enable
       - name: Install dependencies
         run: corepack pnpm@11.7.0 install --frozen-lockfile
-      - name: Run Phase 0 gates
+      - name: Run V0 gates
         run: corepack pnpm@11.7.0 check
