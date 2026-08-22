@@ -16,6 +16,7 @@ import {
   type Proposal,
   type ProposalContext,
   type TransactionId,
+  type WorldAddress,
   type WorldEventDraft,
   type WorldJsonValue,
 } from '@harness-world/contracts'
@@ -113,6 +114,7 @@ export function parseClaimedPlayerAction(value: WorldJsonValue): PlayerActionInp
 /** The sole production coordinator for player, NPC, and Director actions in one durable Round. */
 export class RoundCoordinator {
   readonly #manifest: CompiledWorldManifest
+  readonly #address: WorldAddress
   readonly #participants: readonly RoundParticipant[]
   readonly #validator = new SubmitActionsValidator()
   readonly #rulebook = new SpeakMoveRulebook()
@@ -132,6 +134,7 @@ export class RoundCoordinator {
       })
     }
     this.#manifest = stored.manifest as CompiledWorldManifest
+    this.#address = options.runtimeLane.address
     this.#participants = [...options.participants].sort((left, right) =>
       roleRank[left.role] - roleRank[right.role]
       || right.priority - left.priority
@@ -144,13 +147,13 @@ export class RoundCoordinator {
       throw new TypeError('Round participant actorId must exist in the manifest')
     }
     new ModelBudgetLedger(options.modelBudgetTokens)
-    this.#lease = options.leases.acquire(this.#manifest.address, options.ownerId, options.leaseTtlMs)
+    this.#lease = options.leases.acquire(this.#address, options.ownerId, options.leaseTtlMs)
   }
 
   submit(request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
     if (this.#closed) return Promise.reject(new Error('RoundCoordinator is closed'))
     this.#validateSubmission(request)
-    this.options.store.assertAdmissionOpen(this.#manifest.address, request.correlationId)
+    this.options.store.assertAdmissionOpen(this.#address, request.correlationId)
     if (!this.#manifest.playerBindings.some(value => value.principalId === request.principalId)) {
       failWorld({
         errorCode: 'UNAUTHORIZED',
@@ -158,18 +161,18 @@ export class RoundCoordinator {
         message: 'principal has no PlayerBinding in this world',
         retryable: false,
         correlationId: request.correlationId,
-        address: this.#manifest.address,
+        address: this.#address,
       })
     }
     const queued = this.options.inbox.enqueue({
-      address: this.#manifest.address,
+      address: this.#address,
       idempotencyKey: request.idempotencyKey,
       principalId: request.principalId,
       input: request.action,
       correlationId: request.correlationId,
     }, this.#manifest.roundQueueLimit)
     return this.options.runtimeLane.enqueueRound(async () => {
-      const completed = this.options.inbox.readCompleted(this.#manifest.address, request.idempotencyKey)
+      const completed = this.options.inbox.readCompleted(this.#address, request.idempotencyKey)
       if (completed !== undefined) return parsePlayerRoundResult(completed)
       return this.#drainUntil(queued.inboxSeq, request.correlationId)
     })
@@ -178,7 +181,7 @@ export class RoundCoordinator {
   close(): void {
     if (this.#closed) return
     this.#closed = true
-    this.options.leases.release(this.#manifest.address, this.options.ownerId, this.#lease.fencingToken)
+    this.options.leases.release(this.#address, this.options.ownerId, this.#lease.fencingToken)
   }
 
   /** Finish every Round admitted before an administrative draining barrier. */
@@ -187,8 +190,8 @@ export class RoundCoordinator {
     return this.options.runtimeLane.enqueueRound(async () => {
       let drained = 0
       while (true) {
-        this.#lease = this.options.leases.acquire(this.#manifest.address, this.options.ownerId, this.options.leaseTtlMs)
-        const claimed = this.options.inbox.claimNext(this.#manifest.address, this.options.ownerId, this.#lease.fencingToken)
+        this.#lease = this.options.leases.acquire(this.#address, this.options.ownerId, this.options.leaseTtlMs)
+        const claimed = this.options.inbox.claimNext(this.#address, this.options.ownerId, this.#lease.fencingToken)
         if (claimed === undefined) return drained
         await this.#commitAndComplete(claimed, correlationId)
         drained += 1
@@ -198,8 +201,8 @@ export class RoundCoordinator {
 
   async #drainUntil(targetSeq: number, correlationId: string): Promise<PlayerRoundResult> {
     while (true) {
-      this.#lease = this.options.leases.acquire(this.#manifest.address, this.options.ownerId, this.options.leaseTtlMs)
-      const claimed = this.options.inbox.claimNext(this.#manifest.address, this.options.ownerId, this.#lease.fencingToken)
+      this.#lease = this.options.leases.acquire(this.#address, this.options.ownerId, this.options.leaseTtlMs)
+      const claimed = this.options.inbox.claimNext(this.#address, this.options.ownerId, this.#lease.fencingToken)
       if (claimed === undefined) throw new Error(`Round Inbox lost admitted item ${targetSeq}`)
       const committed = await this.#commitAndComplete(claimed, correlationId)
       if (claimed.inboxSeq === targetSeq) return committed.result
@@ -212,7 +215,7 @@ export class RoundCoordinator {
   ): Promise<{ readonly transactionId: TransactionId; readonly result: PlayerRoundResult }> {
     const committed = await this.#commitClaimed(claimed, correlationId)
     this.options.inbox.complete(
-      this.#manifest.address,
+      this.#address,
       claimed.inboxSeq,
       this.options.ownerId,
       this.#lease.fencingToken,
@@ -230,7 +233,7 @@ export class RoundCoordinator {
     if (binding === undefined) throw new Error('admitted coordinated Round lost its PlayerBinding')
     const action = parseClaimedPlayerAction(claimed.input)
     const identity = {
-      address: this.#manifest.address,
+      address: this.#address,
       inboxSeq: claimed.inboxSeq,
       idempotencyKey: claimed.idempotencyKey,
       inputHash: claimed.inputHash,
@@ -238,8 +241,8 @@ export class RoundCoordinator {
     const transactionId = brandId(deterministicId('transaction:coordinated-round', identity), 'TransactionId')
     const roundId = brandId(deterministicId('round:coordinated', identity), 'InteractionRoundId')
     const frozenBase = this.options.store.roundBase(transactionId)
-    const head = frozenBase ?? this.options.store.head(this.#manifest.address)
-    const history = this.options.store.readEvents(this.#manifest.address, head.headSeq)
+    const head = frozenBase ?? this.options.store.head(this.#address)
+    const history = this.options.store.readEvents(this.#address, head.headSeq)
     const playerAction: ActionRequest = {
       actionId: deterministicId('action:coordinated-player', { roundId, inboxSeq: claimed.inboxSeq }),
       actorId: binding.characterId,
@@ -248,7 +251,7 @@ export class RoundCoordinator {
       parameters: action.parameters,
     }
     const proposalContext: ProposalContext = {
-      address: this.#manifest.address,
+      address: this.#address,
       roundId,
       tick: head.tick + 1,
       playerAction,
@@ -317,7 +320,7 @@ export class RoundCoordinator {
     }
     events.push({ eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } })
     const commit = await this.options.store.commitRound({
-      address: this.#manifest.address,
+      address: this.#address,
       transactionId,
       roundId,
       expectedHeadSeq: head.headSeq,

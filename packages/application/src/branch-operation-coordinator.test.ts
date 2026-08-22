@@ -106,10 +106,27 @@ describe('BranchOperationCoordinator', () => {
     expect(result).toMatchObject({ drainedRounds: 1, parentState: { admissionState: 'open', lifecycleState: 'active' } })
     expect(runtime.store.head(child)).toEqual(runtime.store.head(world.manifest.address))
     expect(result.forkSeq).toBe(runtime.store.head(child).headSeq)
+    const childHead = runtime.store.head(child)
+    const childRounds = new RoundCoordinator({
+      store: runtime.store,
+      inbox: runtime.inbox,
+      leases: runtime.leases,
+      runtimeLane: { ...lane(world), address: child },
+      ownerId: 'coordinator:child',
+      participants: [],
+      modelBudgetTokens: 0,
+    })
+    await expect(childRounds.submit({
+      idempotencyKey: 'child-round', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'child continues' } }, correlationId: 'child-round',
+    })).resolves.toMatchObject({ tick: 2 })
+    expect(runtime.store.head(child).headSeq).toBeGreaterThan(childHead.headSeq)
+    expect(runtime.store.head(world.manifest.address).headSeq).toBe(childHead.headSeq)
     await expect(runtime.rounds.submit({
       idempotencyKey: 'after-fork', principalId: 'principal:player',
       action: { actionType: 'speak', parameters: { text: 'source continues' } }, correlationId: 'after-fork',
     })).resolves.toMatchObject({ tick: 2 })
+    childRounds.close()
     runtime.rounds.close()
     runtime.inbox.close()
     runtime.leases.close()

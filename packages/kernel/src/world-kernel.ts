@@ -70,6 +70,7 @@ export function parsePlayerRoundResult(value: WorldJsonValue): PlayerRoundResult
 /** Single-branch authoritative player-input pipeline; it has no Agent or model dependency. */
 export class WorldKernel {
   readonly #manifest: CompiledWorldManifest
+  readonly #address: WorldAddress
   readonly #rulebook = new SpeakMoveRulebook()
   #lease: WriterLease
   #closed = false
@@ -86,13 +87,14 @@ export class WorldKernel {
       })
     }
     this.#manifest = stored.manifest as CompiledWorldManifest
-    this.#lease = options.leases.acquire(this.#manifest.address, options.ownerId, options.leaseTtlMs)
+    this.#address = options.runtimeLane.address
+    this.#lease = options.leases.acquire(this.#address, options.ownerId, options.leaseTtlMs)
   }
 
   submitPlayerInput(request: SubmitPlayerInputRequest): Promise<PlayerRoundResult> {
     if (this.#closed) return Promise.reject(new Error('WorldKernel is closed'))
     this.#validateSubmission(request)
-    this.options.store.assertAdmissionOpen(this.#manifest.address, request.correlationId)
+    this.options.store.assertAdmissionOpen(this.#address, request.correlationId)
     const binding = this.#manifest.playerBindings.find(value => value.principalId === request.principalId)
     if (binding === undefined) {
       failWorld({
@@ -101,18 +103,18 @@ export class WorldKernel {
         message: 'principal has no PlayerBinding in this world',
         retryable: false,
         correlationId: request.correlationId,
-        address: this.#manifest.address,
+        address: this.#address,
       })
     }
     const queued = this.options.inbox.enqueue({
-      address: this.#manifest.address,
+      address: this.#address,
       idempotencyKey: request.idempotencyKey,
       principalId: request.principalId,
       input: request.action,
       correlationId: request.correlationId,
     }, this.#manifest.roundQueueLimit)
     return this.options.runtimeLane.enqueueRound(async () => {
-      const completed = this.options.inbox.readCompleted(this.#manifest.address, request.idempotencyKey)
+      const completed = this.options.inbox.readCompleted(this.#address, request.idempotencyKey)
       if (completed !== undefined) return parsePlayerRoundResult(completed)
       return this.#drainUntil(queued.inboxSeq, request.correlationId)
     })
@@ -121,17 +123,17 @@ export class WorldKernel {
   close(): void {
     if (this.#closed) return
     this.#closed = true
-    this.options.leases.release(this.#manifest.address, this.options.ownerId, this.#lease.fencingToken)
+    this.options.leases.release(this.#address, this.options.ownerId, this.#lease.fencingToken)
   }
 
   async #drainUntil(targetSeq: number, correlationId: string): Promise<PlayerRoundResult> {
     while (true) {
-      this.#lease = this.options.leases.acquire(this.#manifest.address, this.options.ownerId, this.options.leaseTtlMs)
-      const claimed = this.options.inbox.claimNext(this.#manifest.address, this.options.ownerId, this.#lease.fencingToken)
+      this.#lease = this.options.leases.acquire(this.#address, this.options.ownerId, this.options.leaseTtlMs)
+      const claimed = this.options.inbox.claimNext(this.#address, this.options.ownerId, this.#lease.fencingToken)
       if (claimed === undefined) throw new Error(`Round Inbox lost admitted item ${targetSeq}`)
       const committed = await this.#commitClaimed(claimed, correlationId)
       this.options.inbox.complete(
-        this.#manifest.address,
+        this.#address,
         claimed.inboxSeq,
         this.options.ownerId,
         this.#lease.fencingToken,
@@ -150,7 +152,7 @@ export class WorldKernel {
     if (binding === undefined) throw new Error('admitted Round lost its PlayerBinding')
     const action = claimed.input as PlayerActionInput
     const identity = {
-      address: this.#manifest.address,
+      address: this.#address,
       inboxSeq: claimed.inboxSeq,
       idempotencyKey: claimed.idempotencyKey,
       inputHash: claimed.inputHash,
@@ -160,12 +162,12 @@ export class WorldKernel {
     const deliveryId = brandId(deterministicId('delivery:player-round', identity), 'DeliveryId')
     const frozenBase = this.options.store.roundBase(transactionId)
     const head = frozenBase === undefined
-      ? this.options.store.head(this.#manifest.address)
+      ? this.options.store.head(this.#address)
       : { headSeq: frozenBase.headSeq, tick: frozenBase.tick }
-    const history = this.options.store.readEvents(this.#manifest.address, head.headSeq)
+    const history = this.options.store.readEvents(this.#address, head.headSeq)
     const resolution = this.#rulebook.resolve(this.#manifest, history, binding.characterId, action)
     const committed = await this.options.store.commitRound({
-      address: this.#manifest.address,
+      address: this.#address,
       transactionId,
       roundId,
       expectedHeadSeq: head.headSeq,
