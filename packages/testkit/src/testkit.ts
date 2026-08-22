@@ -68,6 +68,12 @@ export function fixtureCommitRequest(address = fixtureAddress()): CommitRoundReq
       payload: { value: 'delivered' },
       critical: true,
     }],
+    authority: {
+      schemaVersion: 1,
+      participants: [{ participantId: 'player', terminalStatus: 'proposed' }],
+      actions: [{ actionId: 'action:crash-fixture', parameters: { value: 'committed' } }],
+      resolutions: [{ actionId: 'action:crash-fixture', status: 'accepted' }],
+    },
     correlationId: 'crash-fixture',
   }
 }

@@ -552,6 +552,8 @@ describe('WorldStore and temporal projections', () => {
     ['outbox-seq', `UPDATE outbox SET world_seq = world_seq + 1`, 'boundaries'],
     ['event-chain', `UPDATE events SET previous_hash = 'sha256:bad-chain' WHERE event_ordinal = 1`, 'chain'],
     ['event-hash', `UPDATE events SET event_hash = 'sha256:bad-event' WHERE event_ordinal = 0`, 'event hash'],
+    ['authority-json', `UPDATE round_authority SET authority_json = '{"forged":true}'`, 'authority content'],
+    ['authority-missing', `DELETE FROM round_authority`, 'authority binding'],
     ['bundle-hash', `UPDATE round_commits SET bundle_hash = 'sha256:bad-bundle'`, 'bundle hash'],
   ] as const)('rejects %s corruption while reading a committed Round', async (suffix, mutation, message) => {
     const path = database(`committed-round-${suffix}.sqlite`)
@@ -560,6 +562,7 @@ describe('WorldStore and temporal projections', () => {
     store.createBranch(address)
     const request = {
       ...fixtureCommitRequest(address),
+      authority: { schemaVersion: 1, actions: [{ actionId: 'action:corruption-fixture' }] },
       events: [
         { eventType: 'fixture.first', eventVersion: 1, data: { ordinal: 0 } },
         { eventType: 'fixture.second', eventVersion: 1, data: { ordinal: 1 } },
@@ -583,15 +586,32 @@ describe('WorldStore and temporal projections', () => {
     store.createBranch(address)
     expect(store.verifyBranchIntegrity(address)).toMatchObject({ headSeq: 0, tick: 0, eventCount: 0, roundCount: 0 })
     const baseRequest = fixtureCommitRequest(address)
-    const request = { ...baseRequest, outbox: baseRequest.outbox.map(item => ({ ...item, critical: false })) }
+    const authority = {
+      schemaVersion: 1,
+      participants: [{ participantId: 'player', terminalStatus: 'proposed' }],
+      actions: [{ actionId: 'action:store-fixture', parameters: { text: 'hello' } }],
+      resolutions: [{ actionId: 'action:store-fixture', status: 'accepted' }],
+    } as const
+    const request = {
+      ...baseRequest,
+      outbox: baseRequest.outbox.map(item => ({ ...item, critical: false })),
+      authority,
+    }
     const committed = await store.commitRound(request)
     expect(committed).toMatchObject({ status: 'committed', headSeq: 1, tick: 1 })
     expect(store.head(address)).toMatchObject({ headSeq: 1, tick: 1 })
     expect(store.readEvents(address)).toHaveLength(1)
     expect(store.readOutbox(address)).toMatchObject([{ worldSeq: 1, critical: false, payload: { value: 'delivered' } }])
+    expect(store.readRoundAuthority(address, request.transactionId)).toMatchObject({
+      roundId: request.roundId,
+      authorityHash: expect.stringMatching(/^sha256:/),
+      authority,
+    })
     expect(store.roundBase(request.transactionId)).toEqual({ headSeq: 0, tick: 0 })
     await expect(store.commitRound(request)).resolves.toEqual({ ...committed, status: 'already_committed' })
     await expect(store.commitRound({ ...request, events: [{ ...request.events[0] as WorldEventDraft, data: { changed: true } }] }))
+      .rejects.toMatchObject({ envelope: { errorCode: 'IDEMPOTENCY_KEY_CONFLICT' } })
+    await expect(store.commitRound({ ...request, authority: { ...authority, schemaVersion: 2 } }))
       .rejects.toMatchObject({ envelope: { errorCode: 'IDEMPOTENCY_KEY_CONFLICT' } })
     store.close()
   })
@@ -656,6 +676,7 @@ describe('WorldStore and temporal projections', () => {
     const kinds = ['observation', 'claim', 'goal', 'visibility'] as const
     await store.commitRound({
       ...first,
+      authority: { schemaVersion: 1, marker: 'BASE_AUTHORITY' },
       events: kinds.map((kind, index) => ({ eventType: `${kind}.upsert`, eventVersion: 1, data: { id: `${kind}:base`, value: { index } } })),
       outbox: [],
     })
@@ -673,6 +694,7 @@ describe('WorldStore and temporal projections', () => {
       expectedHeadSeq: parentHead.headSeq,
       expectedTick: parentHead.tick,
       nextTick: parentHead.tick + 1,
+      authority: { schemaVersion: 1, marker: 'FUTURE_AUTHORITY_CANARY' },
       events: [{ eventType: 'claim.upsert', eventVersion: 1, data: { id: 'claim:FUTURE_CANARY', value: 'future' } }],
       outbox: [],
     })
@@ -682,6 +704,10 @@ describe('WorldStore and temporal projections', () => {
     expect(bundle.observations).toHaveLength(1)
     expect(bundle.claims.map(value => value.id)).toEqual(['claim:base'])
     expect(JSON.stringify(bundle)).not.toContain('FUTURE_CANARY')
+    expect(store.readRoundAuthority(child, first.transactionId)).toMatchObject({
+      authority: { marker: 'BASE_AUTHORITY' },
+    })
+    expect(store.readRoundAuthority(child, brandId('transaction:future', 'TransactionId'))).toBeUndefined()
     expect(() => store.forkBranch(parent, fixtureAddress('bad-negative'), -1)).toThrow(RangeError)
     expect(() => store.forkBranch(parent, fixtureAddress('bad-future'), 999)).toThrow(RangeError)
     store.close()

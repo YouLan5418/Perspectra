@@ -47,6 +47,8 @@ describe('hard process termination recovery', () => {
     expect(recovered.head(fixtureAddress()).headSeq).toBe(expectedHead)
     expect(recovered.readEvents(fixtureAddress())).toHaveLength(expectedHead)
     expect(recovered.readOutbox(fixtureAddress())).toHaveLength(expectedHead)
+    expect(recovered.readRoundAuthority(fixtureAddress(), fixtureCommitRequest().transactionId) !== undefined)
+      .toBe(expectedHead === 1)
     recovered.close()
   })
 

@@ -112,6 +112,9 @@ describe('Phase 5 local operations acceptance', () => {
         DROP TABLE branch_audit_events;
         DROP TABLE branch_failures;
         DROP TABLE character_runtime_availability;
+        DROP INDEX round_authority_address_round;
+        DROP TABLE round_authority;
+        ALTER TABLE round_commits DROP COLUMN authority_hash;
         DROP TABLE branch_controls;
         DROP INDEX outbox_claim_token_unique;
         ALTER TABLE outbox DROP COLUMN claim_owner_id;

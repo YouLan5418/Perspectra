@@ -82,10 +82,19 @@ export interface CommitRoundRequest {
   readonly events: readonly WorldEventDraft[]
   readonly outbox: readonly OutboxDraft[]
   readonly correlationId: string
+  /** Versioned participant/proposal/action/resolution authority committed with this Round. */
+  readonly authority?: WorldJsonObject
   /** Durable proof that this input crossed admission before a draining barrier closed. */
   readonly admissionProof?: RoundAdmissionProof
   /** Operational fencing is excluded from authoritative hashes and required once a branch has acquired a database lease. */
   readonly writerFencingToken?: number
+}
+
+export interface StoredRoundAuthority extends WorldJsonObject {
+  readonly transactionId: TransactionId
+  readonly roundId: InteractionRoundId
+  readonly authorityHash: WorldHash
+  readonly authority: WorldJsonObject
 }
 
 export interface RoundAdmissionProof extends WorldJsonObject {

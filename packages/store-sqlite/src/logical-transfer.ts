@@ -18,7 +18,7 @@ type SqlValue = string | number | null
 type SqlRow = Record<string, SqlValue>
 
 const TABLES = [
-  'world_manifests', 'branches', 'heads', 'round_commits', 'events', 'outbox', 'branch_activations',
+  'world_manifests', 'branches', 'heads', 'round_commits', 'round_authority', 'events', 'outbox', 'branch_activations',
   'outbox_session_counters', 'branch_controls', 'branch_failures', 'branch_audit_events', 'round_inbox_counters', 'round_inbox',
 ] as const
 
@@ -26,7 +26,8 @@ const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
   world_manifests: ['manifest_hash', 'manifest_json'],
   branches: ['address_key', 'tenant_id', 'world_id', 'branch_id', 'parent_address_key', 'fork_seq'],
   heads: ['address_key', 'head_seq', 'tick', 'event_hash'],
-  round_commits: ['transaction_id', 'address_key', 'request_hash', 'round_id', 'base_head_seq', 'base_tick', 'head_seq', 'tick', 'bundle_hash'],
+  round_commits: ['transaction_id', 'address_key', 'request_hash', 'round_id', 'base_head_seq', 'base_tick', 'head_seq', 'tick', 'bundle_hash', 'authority_hash'],
+  round_authority: ['transaction_id', 'address_key', 'round_id', 'authority_hash', 'authority_json'],
   events: ['address_key', 'seq', 'tick', 'event_type', 'event_version', 'data_json', 'previous_hash', 'event_hash', 'transaction_id', 'event_ordinal'],
   outbox: ['delivery_id', 'address_key', 'session_id', 'world_seq', 'payload_hash', 'payload_json', 'critical', 'transaction_id', 'delivery_status', 'attempt_count', 'session_delivery_seq', 'last_error'],
   outbox_session_counters: ['session_id', 'next_delivery_seq'],
@@ -45,13 +46,24 @@ const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
 }
 
 interface LogicalAuthorityData extends WorldJsonObject {
-  readonly authorityVersion: 4
+  readonly authorityVersion: 5
   readonly tables: WorldJsonObject
 }
 
 interface LogicalAuthorityEnvelope extends WorldJsonObject {
-  readonly format: 'dshworld-authority/v4'
+  readonly format: 'dshworld-authority/v5'
   readonly data: LogicalAuthorityData
+  readonly bundleHash: WorldHash
+}
+
+interface LegacyAuthorityData extends WorldJsonObject {
+  readonly authorityVersion: 4
+  readonly tables: WorldJsonObject
+}
+
+interface LegacyAuthorityEnvelope extends WorldJsonObject {
+  readonly format: 'dshworld-authority/v4'
+  readonly data: LegacyAuthorityData
   readonly bundleHash: WorldHash
 }
 
@@ -74,9 +86,9 @@ export class WorldLogicalTransferService {
         this.afterTableRead?.(table)
       }
       db.exec('COMMIT')
-      const data: LogicalAuthorityData = { authorityVersion: 4, tables }
+      const data: LogicalAuthorityData = { authorityVersion: 5, tables }
       const bundleHash = hashWorldJson('logical-authority-export', data)
-      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v4', data, bundleHash }
+      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v5', data, bundleHash }
       writeFileSync(targetPath, canonicalizeWorldJson(envelope), { flag: 'wx' })
       this.#audit('authority.export.completed', correlationId, { targetPath, bundleHash })
       return bundleHash
@@ -91,18 +103,22 @@ export class WorldLogicalTransferService {
   importAuthority(exportPath: string, targetPath: string, correlationId: string): WorldHash {
     this.#guardTarget(targetPath, correlationId)
     this.#audit('authority.import.requested', correlationId, { exportPath, targetPath })
-    let envelope: LogicalAuthorityEnvelope
+    let parsed: LogicalAuthorityEnvelope | LegacyAuthorityEnvelope
     try {
-      envelope = JSON.parse(readFileSync(exportPath, 'utf8')) as LogicalAuthorityEnvelope
-      canonicalizeWorldJson(envelope)
+      parsed = JSON.parse(readFileSync(exportPath, 'utf8')) as LogicalAuthorityEnvelope | LegacyAuthorityEnvelope
+      canonicalizeWorldJson(parsed)
     } catch (error: unknown) {
       this.#invalid('logical export is invalid', correlationId, error)
     }
-    if (envelope.format !== 'dshworld-authority/v4' || envelope.data.authorityVersion !== 4) {
+    if (!((parsed.format === 'dshworld-authority/v5' && parsed.data.authorityVersion === 5)
+      || (parsed.format === 'dshworld-authority/v4' && parsed.data.authorityVersion === 4))) {
       this.#invalid('logical export format is unsupported', correlationId)
     }
-    const actualHash = hashWorldJson('logical-authority-export', envelope.data)
-    if (actualHash !== envelope.bundleHash) this.#invalid('logical export hash is invalid', correlationId)
+    const actualHash = hashWorldJson('logical-authority-export', parsed.data)
+    if (actualHash !== parsed.bundleHash) this.#invalid('logical export hash is invalid', correlationId)
+    const envelope: LogicalAuthorityEnvelope = parsed.format === 'dshworld-authority/v4'
+      ? { format: 'dshworld-authority/v5', data: this.#upgradeV4(parsed.data, correlationId), bundleHash: parsed.bundleHash }
+      : parsed
     const db = openWorldDatabase(targetPath)
     try {
       db.exec('BEGIN IMMEDIATE')
@@ -140,6 +156,19 @@ export class WorldLogicalTransferService {
       throw error
     } finally {
       if (db.isOpen) db.close()
+    }
+  }
+
+  #upgradeV4(data: LegacyAuthorityData, correlationId: string): LogicalAuthorityData {
+    const commits = data.tables.round_commits
+    if (!Array.isArray(commits)) this.#invalid('logical table round_commits is missing', correlationId)
+    const upgradedCommits = commits.map((row) => {
+      if (typeof row !== 'object' || row === null || Array.isArray(row)) return row
+      return { ...row, authority_hash: null }
+    })
+    return {
+      authorityVersion: 5,
+      tables: { ...data.tables, round_commits: upgradedCommits, round_authority: [] },
     }
   }
 
@@ -260,7 +289,7 @@ export class WorldLogicalTransferService {
 
   #validateRoundBundles(db: DatabaseSync, correlationId: string): void {
     const commits = db.prepare(`
-      SELECT transaction_id, address_key, round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash
+      SELECT transaction_id, address_key, round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash, authority_hash
       FROM round_commits ORDER BY rowid
     `).all() as Array<{
       transaction_id: string
@@ -271,6 +300,7 @@ export class WorldLogicalTransferService {
       head_seq: number
       tick: number
       bundle_hash: WorldHash
+      authority_hash: WorldHash | null
     }>
     for (const commit of commits) {
       const branch = db.prepare(`SELECT tenant_id, world_id, branch_id FROM branches WHERE address_key = ?`)
@@ -288,12 +318,31 @@ export class WorldLogicalTransferService {
       if (outboxRows.some(row => row.world_seq !== commit.head_seq)) {
         this.#invalid('logical export Round Outbox boundary is inconsistent', correlationId)
       }
+      const authorityRow = db.prepare(`
+        SELECT round_id, authority_hash, authority_json FROM round_authority WHERE transaction_id = ? AND address_key = ?
+      `).get(commit.transaction_id, commit.address_key) as {
+        round_id: string
+        authority_hash: WorldHash
+        authority_json: string
+      } | undefined
+      if ((commit.authority_hash === null) !== (authorityRow === undefined)) {
+        this.#invalid('logical export Round authority presence is inconsistent', correlationId)
+      }
+      if (authorityRow !== undefined) {
+        const authority = parseWorldJson(authorityRow.authority_json)
+        if (authorityRow.round_id !== commit.round_id
+          || authorityRow.authority_hash !== commit.authority_hash
+          || hashWorldJson('world-round-authority', authority) !== authorityRow.authority_hash) {
+          this.#invalid('logical export Round authority is divergent', correlationId)
+        }
+      }
       const actual = hashWorldJson('world-round-bundle', {
         address: { tenantId: branch!.tenant_id, worldId: branch!.world_id, branchId: branch!.branch_id },
         roundId: commit.round_id,
         tick: commit.tick,
         eventHashes: eventRows.map(event => event.event_hash),
         outboxHashes: outboxRows.map(row => row.payload_hash),
+        ...(commit.authority_hash === null ? {} : { authorityHash: commit.authority_hash }),
       })
       if (actual !== commit.bundle_hash) this.#invalid('logical export contains a divergent Round bundle', correlationId)
       if (commit.tick !== 0 && commit.tick !== commit.base_tick + 1) {

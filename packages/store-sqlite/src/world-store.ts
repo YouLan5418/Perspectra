@@ -7,6 +7,7 @@ import {
   type CommitRoundResult,
   type FaultInjector,
   type StoredOutboxItem,
+  type StoredRoundAuthority,
   type StoredWorldEvent,
   type TransactionId,
   type WorldAddress,
@@ -281,7 +282,21 @@ CREATE TABLE character_runtime_availability (
 ) STRICT;
 `
 
-export const WORLD_SCHEMA_VERSION = 10
+const WORLD_ROUND_AUTHORITY_SCHEMA = `
+ALTER TABLE round_commits ADD COLUMN authority_hash TEXT;
+CREATE TABLE round_authority (
+  transaction_id TEXT PRIMARY KEY,
+  address_key TEXT NOT NULL,
+  round_id TEXT NOT NULL,
+  authority_hash TEXT NOT NULL,
+  authority_json TEXT NOT NULL,
+  FOREIGN KEY(transaction_id) REFERENCES round_commits(transaction_id) DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY(address_key) REFERENCES branches(address_key)
+) STRICT;
+CREATE INDEX round_authority_address_round ON round_authority(address_key, round_id);
+`
+
+export const WORLD_SCHEMA_VERSION = 11
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -294,7 +309,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 7, sql: WORLD_OUTBOX_CLAIM_SCHEMA },
     { version: 8, sql: WORLD_ROUND_COMPLETION_SCHEMA },
     { version: 9, sql: WORLD_QUARANTINE_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_CHARACTER_RUNTIME_SCHEMA },
+    { version: 10, sql: WORLD_CHARACTER_RUNTIME_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_ROUND_AUTHORITY_SCHEMA },
   ])
 }
 
@@ -668,6 +684,7 @@ export class WorldStore {
     const addressKey = worldAddressKey(request.address)
     const activeManifest = this.#readManifestByKey(addressKey)
     if (activeManifest !== undefined) assertManifestEvents(activeManifest.manifest, request.events)
+    const authorityHash = request.authority === undefined ? null : hashWorldJson('world-round-authority', request.authority)
     const requestHash = hashWorldJson('world-round-commit-request', {
       address: request.address,
       transactionId: request.transactionId,
@@ -677,6 +694,7 @@ export class WorldStore {
       nextTick: request.nextTick,
       events: request.events,
       outbox: request.outbox,
+      ...(authorityHash === null ? {} : { authorityHash }),
     })
 
     this.#db.exec('BEGIN IMMEDIATE')
@@ -778,10 +796,17 @@ export class WorldStore {
         tick: request.nextTick,
         eventHashes,
         outboxHashes,
+        ...(authorityHash === null ? {} : { authorityHash }),
       })
+      if (authorityHash !== null) {
+        this.#db.prepare(`
+          INSERT INTO round_authority(transaction_id, address_key, round_id, authority_hash, authority_json)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(request.transactionId, addressKey, request.roundId, authorityHash, worldJsonText(request.authority!))
+      }
       this.#db.prepare(`
-        INSERT INTO round_commits(transaction_id, address_key, request_hash, round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO round_commits(transaction_id, address_key, request_hash, round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash, authority_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         request.transactionId,
         addressKey,
@@ -792,6 +817,7 @@ export class WorldStore {
         finalHeadSeq,
         request.nextTick,
         bundleHash,
+        authorityHash,
       )
       this.#db.prepare(`UPDATE heads SET head_seq = ?, tick = ?, event_hash = ? WHERE address_key = ?`).run(
         finalHeadSeq,
@@ -867,7 +893,7 @@ export class WorldStore {
   committedRound(address: WorldAddress, transactionId: TransactionId): CommittedRoundRecord | undefined {
     const addressKey = worldAddressKey(address)
     const row = this.#db.prepare(`
-      SELECT round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash
+      SELECT round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash, authority_hash
       FROM round_commits WHERE transaction_id = ? AND address_key = ?
     `).get(transactionId, addressKey) as {
       round_id: CommitRoundRequest['roundId']
@@ -876,6 +902,7 @@ export class WorldStore {
       head_seq: number
       tick: number
       bundle_hash: WorldHash
+      authority_hash: WorldHash | null
     } | undefined
     if (row === undefined) return undefined
     const events = this.#db.prepare(`
@@ -917,12 +944,18 @@ export class WorldStore {
       eventHashes.push(eventHash)
       previousHash = eventHash
     }
+    const authority = this.#authorityRow(transactionId, address)
+    if ((row.authority_hash === null) !== (authority === undefined)
+      || (authority !== undefined && (authority.authorityHash !== row.authority_hash || authority.roundId !== row.round_id))) {
+      this.#invalidCommittedRound(address, transactionId, 'committed Round authority binding is divergent')
+    }
     const bundleHash = hashWorldJson('world-round-bundle', {
       address,
       roundId: row.round_id,
       tick: row.tick,
       eventHashes,
       outboxHashes: outbox.map(item => item.payload_hash),
+      ...(row.authority_hash === null ? {} : { authorityHash: row.authority_hash }),
     })
     if (bundleHash !== row.bundle_hash) {
       this.#invalidCommittedRound(address, transactionId, 'committed Round bundle hash is divergent')
@@ -948,6 +981,12 @@ export class WorldStore {
         eventOrdinal: event.event_ordinal,
       })),
     }
+  }
+
+  /** Read a hash-verified authority record only when its transaction is effective on this Branch. */
+  readRoundAuthority(address: WorldAddress, transactionId: TransactionId): StoredRoundAuthority | undefined {
+    if (!this.readEvents(address).some(event => event.transactionId === transactionId)) return undefined
+    return this.#authorityRow(transactionId, address)
   }
 
   /** Verify the effective Event chain, Head, and every local committed Round without mutating authority. */
@@ -1035,6 +1074,25 @@ export class WorldStore {
       correlationId: `branch-integrity:${worldAddressKey(address)}`,
       address,
     })
+  }
+
+  #authorityRow(transactionId: TransactionId, address: WorldAddress): StoredRoundAuthority | undefined {
+    const row = this.#db.prepare(`
+      SELECT round_id, authority_hash, authority_json FROM round_authority WHERE transaction_id = ?
+    `).get(transactionId) as { round_id: CommitRoundRequest['roundId']; authority_hash: WorldHash; authority_json: string } | undefined
+    if (row === undefined) return undefined
+    const authority = parseWorldJson(row.authority_json)
+    if (typeof authority !== 'object' || authority === null || Array.isArray(authority)
+      || worldJsonText(authority) !== row.authority_json
+      || hashWorldJson('world-round-authority', authority) !== row.authority_hash) {
+      this.#invalidCommittedRound(address, transactionId, 'committed Round authority content is divergent')
+    }
+    return {
+      transactionId,
+      roundId: row.round_id,
+      authorityHash: row.authority_hash,
+      authority: authority as WorldJsonObject,
+    }
   }
 
   #branchDepth(addressKey: string): number {

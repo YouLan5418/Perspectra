@@ -45,7 +45,7 @@ describe('WorldLogicalTransferService', () => {
     const exportPath = join(root, 'quarantined.dshworld')
     service.exportAuthority(exportPath, 'logical:quarantine-export')
     const envelope = JSON.parse(readFileSync(exportPath, 'utf8')) as any
-    expect(envelope).toMatchObject({ format: 'dshworld-authority/v4', data: { authorityVersion: 4 } })
+    expect(envelope).toMatchObject({ format: 'dshworld-authority/v5', data: { authorityVersion: 5 } })
     const target = join(root, 'quarantined-import.sqlite')
     service.importAuthority(exportPath, target, 'logical:quarantine-import')
     const imported = new BranchQuarantineService(target)
@@ -69,7 +69,15 @@ describe('WorldLogicalTransferService', () => {
     const child = fixtureAddress('logical-child')
     const setup = new WorldStore(source)
     setup.createBranch(parent)
-    const commitRequest = fixtureCommitRequest(parent)
+    const commitRequest = {
+      ...fixtureCommitRequest(parent),
+      authority: {
+        schemaVersion: 1,
+        participants: [{ participantId: 'player', terminalStatus: 'proposed' }],
+        actions: [{ actionId: 'action:logical', parameters: { value: 'preserved' } }],
+        resolutions: [{ actionId: 'action:logical', status: 'accepted' }],
+      },
+    }
     const committed = await setup.commitRound(commitRequest)
     setup.forkBranch(parent, child, 1)
     const eventHash = setup.readEvents(parent)[0]!.eventHash
@@ -106,6 +114,11 @@ describe('WorldLogicalTransferService', () => {
     const imported = new WorldStore(target)
     expect(imported.readEvents(parent)[0]!.eventHash).toBe(eventHash)
     expect(imported.readEvents(child)).toHaveLength(1)
+    expect(imported.readRoundAuthority(parent, commitRequest.transactionId)).toMatchObject({
+      authority: { schemaVersion: 1, actions: [{ parameters: { value: 'preserved' } }] },
+    })
+    expect(imported.readRoundAuthority(child, commitRequest.transactionId)).toMatchObject({ authorityHash: expect.any(String) })
+    expect(imported.readRoundAuthority(parent, brandId('transaction:missing', 'TransactionId'))).toBeUndefined()
     imported.close()
     const importedInbox = new RoundInbox(target)
     expect(importedInbox.readCompleted(parent, 'logical:completed')).toEqual(completedResult)
@@ -135,6 +148,20 @@ describe('WorldLogicalTransferService', () => {
     writeFileSync(tamperedInboxPath, JSON.stringify(tamperedInbox))
     expect(() => service.importAuthority(tamperedInboxPath, join(root, 'tampered-inbox.sqlite'), 'logical:inbox-tamper'))
       .toThrow('completed Round Inbox')
+    const tamperedAuthority = JSON.parse(readFileSync(exportPath, 'utf8')) as any
+    tamperedAuthority.data.tables.round_authority[0].authority_json = JSON.stringify({ forged: true })
+    tamperedAuthority.bundleHash = hashWorldJson('logical-authority-export', tamperedAuthority.data)
+    const tamperedAuthorityPath = join(root, 'tampered-authority.dshworld')
+    writeFileSync(tamperedAuthorityPath, JSON.stringify(tamperedAuthority))
+    expect(() => service.importAuthority(tamperedAuthorityPath, join(root, 'tampered-authority.sqlite'), 'logical:authority-tamper'))
+      .toThrow('Round authority is divergent')
+    const missingAuthority = JSON.parse(readFileSync(exportPath, 'utf8')) as any
+    missingAuthority.data.tables.round_authority = []
+    missingAuthority.bundleHash = hashWorldJson('logical-authority-export', missingAuthority.data)
+    const missingAuthorityPath = join(root, 'missing-authority.dshworld')
+    writeFileSync(missingAuthorityPath, JSON.stringify(missingAuthority))
+    expect(() => service.importAuthority(missingAuthorityPath, join(root, 'missing-authority.sqlite'), 'logical:authority-missing'))
+      .toThrow('authority presence is inconsistent')
     const malformedResult = JSON.parse(readFileSync(exportPath, 'utf8')) as any
     malformedResult.data.tables.round_inbox[0].result_json = JSON.stringify('not-an-object')
     malformedResult.data.tables.round_inbox[0].result_hash = hashWorldJson('player-round-result', 'not-an-object')
@@ -236,6 +263,53 @@ describe('WorldLogicalTransferService', () => {
     rejectHead('empty-tick', head => { head.tick = 1 })
   })
 
+  it('upgrades a version 4 authority export without inventing Round authority', async () => {
+    const root = directory()
+    const source = join(root, 'legacy-source.sqlite')
+    const address = fixtureAddress('legacy-v4')
+    const setup = new WorldStore(source)
+    setup.createBranch(address)
+    const { authority: omittedAuthority, ...request } = fixtureCommitRequest(address)
+    expect(omittedAuthority).toBeDefined()
+    await setup.commitRound(request)
+    setup.close()
+
+    const service = new WorldLogicalTransferService(source)
+    const currentPath = join(root, 'current.dshworld')
+    service.exportAuthority(currentPath, 'logical:v4-source')
+    const legacy = JSON.parse(readFileSync(currentPath, 'utf8')) as any
+    legacy.format = 'dshworld-authority/v4'
+    legacy.data.authorityVersion = 4
+    delete legacy.data.tables.round_authority
+    for (const commit of legacy.data.tables.round_commits) delete commit.authority_hash
+    legacy.bundleHash = hashWorldJson('logical-authority-export', legacy.data)
+    const legacyPath = join(root, 'legacy.dshworld')
+    writeFileSync(legacyPath, JSON.stringify(legacy))
+
+    const target = join(root, 'legacy-target.sqlite')
+    expect(service.importAuthority(legacyPath, target, 'logical:v4-import')).toBe(legacy.bundleHash)
+    const imported = new WorldStore(target)
+    expect(imported.committedRound(address, request.transactionId)).toMatchObject({ bundleHash: expect.any(String) })
+    expect(imported.readRoundAuthority(address, request.transactionId)).toBeUndefined()
+    imported.close()
+
+    const missingCommits = structuredClone(legacy)
+    delete missingCommits.data.tables.round_commits
+    missingCommits.bundleHash = hashWorldJson('logical-authority-export', missingCommits.data)
+    const missingPath = join(root, 'legacy-missing.dshworld')
+    writeFileSync(missingPath, JSON.stringify(missingCommits))
+    expect(() => service.importAuthority(missingPath, join(root, 'legacy-missing.sqlite'), 'logical:v4-missing'))
+      .toThrow('round_commits is missing')
+
+    const invalidRow = structuredClone(legacy)
+    invalidRow.data.tables.round_commits = [1]
+    invalidRow.bundleHash = hashWorldJson('logical-authority-export', invalidRow.data)
+    const invalidPath = join(root, 'legacy-invalid.dshworld')
+    writeFileSync(invalidPath, JSON.stringify(invalidRow))
+    expect(() => service.importAuthority(invalidPath, join(root, 'legacy-invalid.sqlite'), 'logical:v4-invalid'))
+      .toThrow('invalid row')
+  })
+
   it('rejects malformed, unsupported, missing-table, invalid-row, and divergent Event exports', async () => {
     const root = directory()
     const source = join(root, 'source.sqlite')
@@ -323,6 +397,7 @@ describe('WorldLogicalTransferService', () => {
           .filter((event: any) => event.transaction_id === commit.transaction_id)
           .map((event: any) => event.event_hash),
         outboxHashes: ['sha256:wrong-payload'],
+        authorityHash: commit.authority_hash,
       })
     }, 'normalized Outbox')
 
