@@ -4,6 +4,9 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, type CommitRoundRequest, type WorldAddress } from '@harness-world/contracts'
 import { BranchAdministration } from './branch-administration.ts'
+import { RoundInbox } from './round-inbox.ts'
+import { WorldOutbox } from './outbox-worker.ts'
+import { WriterLeaseService } from './writer-lease.ts'
 import { WorldStore } from './world-store.ts'
 
 const directories: string[] = []
@@ -53,8 +56,10 @@ describe('BranchAdministration', () => {
     await expect(store.commitRound(round(target))).rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING', retryable: true } })
     expect(admin.setAdmission(target, 'open', 'maintenance complete', 'admin:open')).toMatchObject({ admissionState: 'open', revision: 2 })
     const committed = await store.commitRound(round(target))
+    expect(() => admin.archive(target, 'too early', 'admin:early-archive')).toThrow('requires a drained admission barrier')
+    admin.setAdmission(target, 'draining', 'archive barrier', 'admin:archive-drain')
     const archived = admin.archive(target, 'story complete', 'admin:archive')
-    expect(archived).toMatchObject({ admissionState: 'draining', lifecycleState: 'archived', revision: 3 })
+    expect(archived).toMatchObject({ admissionState: 'draining', lifecycleState: 'archived', revision: 4 })
     await expect(store.commitRound(round(target))).resolves.toEqual({ ...committed, status: 'already_committed' })
     await expect(store.commitRound(round(target, 'two'))).rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING', retryable: false } })
     expect(() => admin.setAdmission(target, 'open', 'try reopen', 'admin:reopen')).toThrow('cannot reopen')
@@ -62,7 +67,8 @@ describe('BranchAdministration', () => {
     expect(admin.readAudit(target)).toMatchObject([
       { auditSeq: 1, operation: 'branch.admission.changed', correlationId: 'admin:drain', operationalTimeMs: 1234 },
       { auditSeq: 2, operation: 'branch.admission.changed' },
-      { auditSeq: 3, operation: 'branch.archived' },
+      { auditSeq: 3, operation: 'branch.admission.changed' },
+      { auditSeq: 4, operation: 'branch.archived' },
     ])
     admin.close()
     store.close()
@@ -84,6 +90,61 @@ describe('BranchAdministration', () => {
     expect(() => invalidClock.archive(target, 'invalid time', 'admin:invalid-time')).toThrow()
     expect(invalidClock.status(target).revision).toBe(0)
     invalidClock.close()
+    store.close()
+  })
+
+  it('requires quiescent writers, rounds, and critical deliveries and forbids forks from archived branches', async () => {
+    const path = database()
+    const leaseTarget = address('lease-guard')
+    const inboxTarget = address('inbox-guard')
+    const deliveryTarget = address('delivery-guard')
+    const archivedTarget = address('archived-parent')
+    const store = new WorldStore(path, undefined, () => 100)
+    for (const target of [leaseTarget, inboxTarget, deliveryTarget, archivedTarget]) store.createBranch(target)
+    const admin = new BranchAdministration(path, () => 100)
+
+    admin.setAdmission(leaseTarget, 'draining', 'lease guard', 'admin:lease-drain')
+    const leases = new WriterLeaseService(path, () => 100)
+    const lease = leases.acquire(leaseTarget, 'kernel:archive-guard', 100)
+    expect(() => admin.archive(leaseTarget, 'blocked by writer', 'admin:lease-archive')).toThrow('active writer')
+    expect(leases.release(leaseTarget, lease.ownerId, lease.fencingToken)).toBe(true)
+
+    admin.setAdmission(inboxTarget, 'draining', 'inbox guard', 'admin:inbox-drain')
+    const inbox = new RoundInbox(path, () => 100)
+    inbox.enqueue({
+      address: inboxTarget,
+      idempotencyKey: 'archive:pending',
+      principalId: 'principal:archive',
+      input: { actionType: 'wait' },
+      correlationId: 'archive:pending',
+    }, 4)
+    expect(() => admin.archive(inboxTarget, 'blocked by Round', 'admin:inbox-archive')).toThrow('unfinished Round')
+
+    await store.commitRound({
+      ...round(deliveryTarget),
+      outbox: [{
+        deliveryId: brandId('delivery:archive-guard', 'DeliveryId'),
+        sessionId: brandId('session:archive-guard', 'SessionId'),
+        payload: { kind: 'observation', text: 'must remain reconstructable' },
+        critical: true,
+      }],
+    })
+    admin.setAdmission(deliveryTarget, 'draining', 'delivery guard', 'admin:delivery-drain')
+    expect(() => admin.archive(deliveryTarget, 'blocked by Outbox', 'admin:delivery-archive')).toThrow('critical delivery')
+    const outbox = new WorldOutbox(path, undefined, { workerId: 'worker:archive', now: () => 100, createClaimToken: () => 'archive' })
+    const claimed = outbox.claimNext()
+    if (claimed === undefined) throw new Error('critical Outbox fixture is missing')
+    await outbox.recordDelivered(claimed)
+    expect(admin.archive(deliveryTarget, 'delivered', 'admin:delivery-complete')).toMatchObject({ lifecycleState: 'archived' })
+
+    admin.setAdmission(archivedTarget, 'draining', 'archive parent', 'admin:parent-drain')
+    admin.archive(archivedTarget, 'archived parent', 'admin:parent-archive')
+    expect(() => store.forkBranch(archivedTarget, address('illegal-child'), 0)).toThrow('archived')
+
+    outbox.close()
+    inbox.close()
+    leases.close()
+    admin.close()
     store.close()
   })
 })

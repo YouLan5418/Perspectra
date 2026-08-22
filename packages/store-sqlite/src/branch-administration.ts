@@ -60,12 +60,10 @@ export class BranchAdministration {
 
   archive(address: WorldAddress, reason: string, correlationId: string): BranchControlState {
     if (reason.length === 0 || correlationId.length === 0) throw new TypeError('administrative reason and correlationId are required')
-    return this.#mutate(address, 'branch.archived', correlationId, current => ({
-      ...current,
-      admissionState: 'draining',
-      lifecycleState: 'archived',
-      reason,
-    }))
+    return this.#mutate(address, 'branch.archived', correlationId, (current, key, now) => {
+      this.#assertArchiveReady(address, key, current, correlationId, now)
+      return { ...current, lifecycleState: 'archived', reason }
+    })
   }
 
   readAudit(address: WorldAddress): BranchAuditEvent[] {
@@ -96,13 +94,14 @@ export class BranchAdministration {
     address: WorldAddress,
     operation: string,
     correlationId: string,
-    update: (current: BranchControlState) => BranchControlState,
+    update: (current: BranchControlState, addressKey: string, operationalTimeMs: number) => BranchControlState,
   ): BranchControlState {
     const key = worldAddressKey(address)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
+      const operationalTimeMs = this.operationalNow()
       const current = this.status(address)
-      const candidate = update(current)
+      const candidate = update(current, key, operationalTimeMs)
       const next = { ...candidate, revision: current.revision + 1 }
       this.#db.prepare(`
         UPDATE branch_controls SET admission_state = ?, lifecycle_state = ?, reason = ?, revision = ? WHERE address_key = ?
@@ -110,11 +109,42 @@ export class BranchAdministration {
       this.#db.prepare(`
         INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
         VALUES (?, ?, ?, ?, ?)
-      `).run(key, operation, correlationId, worldJsonText({ before: current, after: next }), this.operationalNow())
+      `).run(key, operation, correlationId, worldJsonText({ before: current, after: next }), operationalTimeMs)
       this.#db.exec('COMMIT')
       return next
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
+    }
+  }
+
+  #assertArchiveReady(
+    address: WorldAddress,
+    addressKey: string,
+    current: BranchControlState,
+    correlationId: string,
+    operationalTimeMs: number,
+  ): void {
+    const activeLease = this.#db.prepare(`
+      SELECT 1 AS present FROM writer_leases WHERE address_key = ? AND expires_at_ms > ?
+    `).get(addressKey, operationalTimeMs)
+    const unfinishedRound = this.#db.prepare(`
+      SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status <> 'completed' LIMIT 1
+    `).get(addressKey)
+    const unresolvedCriticalDelivery = this.#db.prepare(`
+      SELECT 1 AS present FROM outbox
+      WHERE address_key = ? AND critical = 1 AND delivery_status <> 'delivered' LIMIT 1
+    `).get(addressKey)
+    if (
+      current.admissionState !== 'draining'
+      || activeLease !== undefined
+      || unfinishedRound !== undefined
+      || unresolvedCriticalDelivery !== undefined
+    ) {
+      failWorld({
+        errorCode: 'BRANCH_DRAINING', category: 'admin',
+        message: 'branch archive requires a drained admission barrier with no active writer, unfinished Round, or critical delivery',
+        retryable: true, correlationId, address,
+      })
     }
   }
 }

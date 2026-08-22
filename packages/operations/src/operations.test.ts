@@ -89,6 +89,8 @@ describe('LocalJsonRpcRouter', () => {
       result: expect.arrayContaining([expect.objectContaining({ operation: 'branch.admission.changed' })]),
     })
     await expect(router.handle(request('metrics.get'))).resolves.toMatchObject({ result: { branch_forks: 1, branch_transitions: 2 } })
+    await expect(router.handle(request('branch.drain', { address: parent, reason: 'archive barrier', correlationId: 'rpc:archive-drain' })))
+      .resolves.toMatchObject({ result: { admissionState: 'draining' } })
     await expect(router.handle(request('branch.archive', { address: parent, reason: 'complete', correlationId: 'rpc:archive' })))
       .resolves.toMatchObject({ result: { lifecycleState: 'archived' } })
     await expect(router.handle(request('branch.open', { address: parent, reason: 'illegal', correlationId: 'rpc:illegal' })))

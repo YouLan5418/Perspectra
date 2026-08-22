@@ -54,6 +54,7 @@ describe('Phase 5 local operations acceptance', () => {
       expect(snapshot.bundle.bundleHash).toMatch(/^sha256:/)
       snapshots.close()
       admin.setAdmission(parent, 'open', 'snapshot complete', 'p5:open')
+      admin.setAdmission(parent, 'draining', 'archive barrier', 'p5:archive-drain')
       admin.archive(parent, 'world complete', 'p5:archive')
       expect(store.readEvents(parent)[0]!.eventHash).toBe(eventHash)
       admin.close()

@@ -445,26 +445,30 @@ export class WorldStore {
     if (parent.tenantId !== child.tenantId || parent.worldId !== child.worldId) {
       throw new TypeError('child branch must remain in the parent tenant and world')
     }
-    const parentHead = this.head(parent)
-    if (!Number.isSafeInteger(forkSeq) || forkSeq < 0 || forkSeq > parentHead.headSeq) {
-      throw new RangeError(`forkSeq ${forkSeq} is outside parent head ${parentHead.headSeq}`)
-    }
-    const forkEvent = forkSeq === 0 ? undefined : this.readEvents(parent, forkSeq).find(event => event.seq === forkSeq)
-    if (forkSeq !== 0 && forkEvent === undefined) throw new Error(`fork event ${forkSeq} is missing`)
-    if (this.#branchDepth(worldAddressKey(parent)) >= 8) {
-      failWorld({
-        errorCode: 'BRANCH_DEPTH_LIMIT', category: 'admin', message: 'branch depth limit 8 would be exceeded',
-        retryable: false, correlationId: `fork:${child.branchId}`, address: child,
-      })
-    }
+    const parentKey = worldAddressKey(parent)
     const childKey = worldAddressKey(child)
     this.#audit.record(childKey, 'world.branch.fork.requested', `fork:${child.branchId}`, { parent, child, forkSeq })
     this.#db.exec('BEGIN IMMEDIATE')
     try {
+      this.#assertAdmissionOpen(parentKey, `fork:${child.branchId}`, parent)
+      const parentHead = this.#headRow(parentKey)
+      if (!Number.isSafeInteger(forkSeq) || forkSeq < 0 || forkSeq > parentHead.head_seq) {
+        throw new RangeError(`forkSeq ${forkSeq} is outside parent head ${parentHead.head_seq}`)
+      }
+      const forkEvent = forkSeq === 0
+        ? undefined
+        : this.#readEventsByKey(parentKey, forkSeq).find(event => event.seq === forkSeq)
+      if (forkSeq !== 0 && forkEvent === undefined) throw new Error(`fork event ${forkSeq} is missing`)
+      if (this.#branchDepth(parentKey) >= 8) {
+        failWorld({
+          errorCode: 'BRANCH_DEPTH_LIMIT', category: 'admin', message: 'branch depth limit 8 would be exceeded',
+          retryable: false, correlationId: `fork:${child.branchId}`, address: child,
+        })
+      }
       this.#db.prepare(`
         INSERT INTO branches(address_key, tenant_id, world_id, branch_id, parent_address_key, fork_seq)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).run(childKey, child.tenantId, child.worldId, child.branchId, worldAddressKey(parent), forkSeq)
+      `).run(childKey, child.tenantId, child.worldId, child.branchId, parentKey, forkSeq)
       this.#db.prepare(`INSERT INTO heads(address_key, head_seq, tick, event_hash) VALUES (?, ?, ?, ?)`).run(
         childKey,
         forkSeq,
