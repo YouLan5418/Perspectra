@@ -160,10 +160,9 @@ export class WorldArchiveService {
     db.exec('BEGIN IMMEDIATE')
     try {
       db.exec(`
-        UPDATE outbox SET delivery_status = 'pending', attempt_count = 0, session_delivery_seq = NULL,
+        UPDATE outbox SET delivery_status = 'pending', attempt_count = 0,
           last_error = NULL, claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL;
         DELETE FROM outbox_delivery_receipts;
-        DELETE FROM outbox_session_counters;
       `)
       db.exec('COMMIT')
     } catch (error: unknown) {

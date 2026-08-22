@@ -7,7 +7,8 @@ import { fixtureAddress, fixtureCommitRequest } from '@harness-world/testkit'
 import { WorldLogicalTransferService } from './logical-transfer.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
 import { RoundInbox } from './round-inbox.ts'
-import { WorldOutbox } from './outbox-worker.ts'
+import { SessionDeliveryAdapter } from './session-delivery.ts'
+import { SessionOutboxWorker, WorldOutbox } from './outbox-worker.ts'
 import { WriterLeaseService } from './writer-lease.ts'
 import { WorldStore } from './world-store.ts'
 
@@ -73,7 +74,16 @@ describe('WorldLogicalTransferService', () => {
     expect(importedInbox.readCompleted(parent, 'logical:completed')).toEqual(completedResult)
     importedInbox.close()
     const importedOutbox = new WorldOutbox(target)
-    expect(importedOutbox.claimNext()).toMatchObject({ deliveryId: commitRequest.outbox[0]!.deliveryId, attemptCount: 1 })
+    const rebuiltSession = new SessionDeliveryAdapter(join(root, 'rebuilt-session.sqlite'))
+    const rebuiltWorker = new SessionOutboxWorker(importedOutbox, rebuiltSession)
+    await expect(rebuiltWorker.runOnce('logical:session-rebuild')).resolves.toMatchObject({
+      status: 'delivered', deliveryId: commitRequest.outbox[0]!.deliveryId,
+    })
+    expect(rebuiltSession.cursor(commitRequest.outbox[0]!.sessionId)).toBe(1)
+    expect(rebuiltSession.readEvent(commitRequest.outbox[0]!.sessionId, 1)).toMatchObject({
+      payloadHash: hashWorldJson('world-outbox-payload', commitRequest.outbox[0]!.payload),
+    })
+    rebuiltSession.close()
     importedOutbox.close()
     const importProvenance = new OperationalAuditLog(`${target}.audit.sqlite`)
     expect(importProvenance.read()).toMatchObject([{
@@ -256,7 +266,14 @@ describe('WorldLogicalTransferService', () => {
     rejectTamper('round-tick-boundary', copy => { copy.data.tables.round_commits[0].base_tick += 2 }, 'tick boundary')
     rejectTamper('outbox-state', copy => { copy.data.tables.outbox[0].delivery_status = 'delivered' }, 'normalized Outbox')
     rejectTamper('outbox-attempt', copy => { copy.data.tables.outbox[0].attempt_count = 1 }, 'normalized Outbox')
-    rejectTamper('outbox-sequence', copy => { copy.data.tables.outbox[0].session_delivery_seq = 1 }, 'normalized Outbox')
+    rejectTamper('outbox-sequence', copy => { copy.data.tables.outbox[0].session_delivery_seq = 2 }, 'Outbox delivery sequencing')
+    rejectTamper('outbox-counter', copy => {
+      copy.data.tables.outbox[0].session_delivery_seq = 1
+      copy.data.tables.outbox_session_counters = [{
+        session_id: copy.data.tables.outbox[0].session_id,
+        next_delivery_seq: 3,
+      }]
+    }, 'Outbox delivery sequencing')
     rejectTamper('outbox-error', copy => { copy.data.tables.outbox[0].last_error = 'tampered' }, 'normalized Outbox')
     rejectTamper('outbox-payload', copy => {
       copy.data.tables.outbox[0].payload_hash = 'sha256:wrong-payload'

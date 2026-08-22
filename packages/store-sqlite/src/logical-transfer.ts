@@ -19,7 +19,7 @@ type SqlRow = Record<string, SqlValue>
 
 const TABLES = [
   'world_manifests', 'branches', 'heads', 'round_commits', 'events', 'outbox', 'branch_activations',
-  'branch_controls', 'branch_audit_events', 'round_inbox_counters', 'round_inbox',
+  'outbox_session_counters', 'branch_controls', 'branch_audit_events', 'round_inbox_counters', 'round_inbox',
 ] as const
 
 const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
@@ -29,6 +29,7 @@ const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
   round_commits: ['transaction_id', 'address_key', 'request_hash', 'round_id', 'base_head_seq', 'base_tick', 'head_seq', 'tick', 'bundle_hash'],
   events: ['address_key', 'seq', 'tick', 'event_type', 'event_version', 'data_json', 'previous_hash', 'event_hash', 'transaction_id', 'event_ordinal'],
   outbox: ['delivery_id', 'address_key', 'session_id', 'world_seq', 'payload_hash', 'payload_json', 'critical', 'transaction_id', 'delivery_status', 'attempt_count', 'session_delivery_seq', 'last_error'],
+  outbox_session_counters: ['session_id', 'next_delivery_seq'],
   branch_activations: ['address_key', 'activation_hash', 'manifest_hash', 'genesis_hash', 'transaction_id'],
   branch_controls: ['address_key', 'admission_state', 'lifecycle_state', 'reason', 'revision'],
   branch_audit_events: ['audit_seq', 'address_key', 'operation', 'correlation_id', 'details_json', 'operational_time_ms'],
@@ -40,12 +41,12 @@ const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
 }
 
 interface LogicalAuthorityData extends WorldJsonObject {
-  readonly authorityVersion: 2
+  readonly authorityVersion: 3
   readonly tables: WorldJsonObject
 }
 
 interface LogicalAuthorityEnvelope extends WorldJsonObject {
-  readonly format: 'dshworld-authority/v2'
+  readonly format: 'dshworld-authority/v3'
   readonly data: LogicalAuthorityData
   readonly bundleHash: WorldHash
 }
@@ -69,9 +70,9 @@ export class WorldLogicalTransferService {
         this.afterTableRead?.(table)
       }
       db.exec('COMMIT')
-      const data: LogicalAuthorityData = { authorityVersion: 2, tables }
+      const data: LogicalAuthorityData = { authorityVersion: 3, tables }
       const bundleHash = hashWorldJson('logical-authority-export', data)
-      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v2', data, bundleHash }
+      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v3', data, bundleHash }
       writeFileSync(targetPath, canonicalizeWorldJson(envelope), { flag: 'wx' })
       this.#audit('authority.export.completed', correlationId, { targetPath, bundleHash })
       return bundleHash
@@ -93,7 +94,7 @@ export class WorldLogicalTransferService {
     } catch (error: unknown) {
       this.#invalid('logical export is invalid', correlationId, error)
     }
-    if (envelope.format !== 'dshworld-authority/v2' || envelope.data.authorityVersion !== 2) {
+    if (envelope.format !== 'dshworld-authority/v3' || envelope.data.authorityVersion !== 3) {
       this.#invalid('logical export format is unsupported', correlationId)
     }
     const actualHash = hashWorldJson('logical-authority-export', envelope.data)
@@ -141,7 +142,7 @@ export class WorldLogicalTransferService {
     if (table === 'outbox') {
       return db.prepare(`
         SELECT delivery_id, address_key, session_id, world_seq, payload_hash, payload_json, critical, transaction_id,
-          'pending' AS delivery_status, 0 AS attempt_count, NULL AS session_delivery_seq, NULL AS last_error
+          'pending' AS delivery_status, 0 AS attempt_count, session_delivery_seq, NULL AS last_error
         FROM outbox ORDER BY rowid
       `).all() as SqlRow[]
     }
@@ -312,9 +313,37 @@ export class WorldLogicalTransferService {
         hashWorldJson('world-outbox-payload', parseWorldJson(row.payload_json)) !== row.payload_hash
         || row.delivery_status !== 'pending'
         || row.attempt_count !== 0
-        || row.session_delivery_seq !== null
         || row.last_error !== null
       ) this.#invalid('logical export contains an invalid normalized Outbox item', correlationId)
+    }
+    const sequenceDivergence = db.prepare(`
+      WITH ordered AS (
+        SELECT session_id, session_delivery_seq,
+          ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY world_seq, delivery_id) AS expected_seq,
+          MAX(CASE WHEN session_delivery_seq IS NOT NULL THEN 1 ELSE 0 END)
+            OVER (PARTITION BY session_id ORDER BY world_seq, delivery_id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS later_assigned
+        FROM outbox
+      )
+      SELECT 1 AS divergent FROM ordered
+      WHERE (session_delivery_seq IS NOT NULL AND session_delivery_seq <> expected_seq)
+        OR (session_delivery_seq IS NULL AND later_assigned = 1)
+      LIMIT 1
+    `).get()
+    const counterDivergence = db.prepare(`
+      WITH assigned AS (
+        SELECT session_id, MAX(session_delivery_seq) AS max_seq FROM outbox GROUP BY session_id
+      )
+      SELECT 1 AS divergent FROM assigned a
+      LEFT JOIN outbox_session_counters c ON c.session_id = a.session_id
+      WHERE (a.max_seq IS NULL AND c.session_id IS NOT NULL)
+        OR (a.max_seq IS NOT NULL AND (c.session_id IS NULL OR c.next_delivery_seq <> a.max_seq + 1))
+      UNION ALL
+      SELECT 1 AS divergent FROM outbox_session_counters c
+      LEFT JOIN assigned a ON a.session_id = c.session_id WHERE a.session_id IS NULL
+      LIMIT 1
+    `).get()
+    if (sequenceDivergence !== undefined || counterDivergence !== undefined) {
+      this.#invalid('logical export contains divergent Outbox delivery sequencing', correlationId)
     }
   }
 

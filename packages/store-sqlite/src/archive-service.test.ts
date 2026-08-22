@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, type CommitRoundRequest, type WorldAddress, type WorldHash } from '@harness-world/contracts'
 import { WorldArchiveService } from './archive-service.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
-import { WorldOutbox } from './outbox-worker.ts'
+import { SessionDeliveryAdapter } from './session-delivery.ts'
+import { SessionOutboxWorker, WorldOutbox } from './outbox-worker.ts'
 import { WorldStore } from './world-store.ts'
 
 const directories: string[] = []
@@ -37,12 +38,20 @@ function populate(path: string, address: WorldAddress): Promise<unknown> {
     expectedTick: 0,
     nextTick: 1,
     events: [{ eventType: 'archive.fixture', eventVersion: 1, data: { durable: true } }],
-    outbox: [{
-      deliveryId: brandId('delivery:archive', 'DeliveryId'),
-      sessionId: brandId('session:archive', 'SessionId'),
-      payload: { kind: 'observation', durable: true },
-      critical: true,
-    }],
+    outbox: [
+      {
+        deliveryId: brandId('delivery:archive:one', 'DeliveryId'),
+        sessionId: brandId('session:archive', 'SessionId'),
+        payload: { kind: 'observation', ordinal: 1 },
+        critical: true,
+      },
+      {
+        deliveryId: brandId('delivery:archive:two', 'DeliveryId'),
+        sessionId: brandId('session:archive', 'SessionId'),
+        payload: { kind: 'observation', ordinal: 2 },
+        critical: true,
+      },
+    ],
     correlationId: 'archive:populate',
   }
   return store.commitRound(request).finally(() => store.close())
@@ -56,10 +65,19 @@ describe('WorldArchiveService', () => {
   it('backs up, restores, exports, and imports an exact validated World database', async () => {
     const { directory, source, address } = fixture()
     await populate(source, address)
+    const sessionId = brandId('session:archive', 'SessionId')
+    const firstDeliveryId = brandId('delivery:archive:one', 'DeliveryId')
+    const existingSession = new SessionDeliveryAdapter(join(directory, 'existing-session.sqlite'))
     const sourceOutbox = new WorldOutbox(source, undefined, { workerId: 'worker:source', createClaimToken: () => 'source' })
-    const delivered = sourceOutbox.claimNext()
-    if (delivered === undefined) throw new Error('archive Outbox fixture is missing')
-    await sourceOutbox.recordDelivered(delivered)
+    const failedWorker = new SessionOutboxWorker(sourceOutbox, {
+      appendIfAbsent: async () => { throw new Error('transient Session failure') },
+    }, 1)
+    await expect(failedWorker.runOnce('archive:dead-letter')).resolves.toMatchObject({ status: 'dead_letter', deliveryId: firstDeliveryId })
+    sourceOutbox.retryDeadLetter(firstDeliveryId)
+    const sourceWorker = new SessionOutboxWorker(sourceOutbox, existingSession)
+    await expect(sourceWorker.runOnce('archive:retry')).resolves.toMatchObject({ status: 'delivered', deliveryId: firstDeliveryId })
+    await expect(sourceWorker.runOnce('archive:second')).resolves.toMatchObject({ status: 'delivered' })
+    expect(existingSession.cursor(sessionId)).toBe(2)
     sourceOutbox.close()
     const service = new WorldArchiveService(source)
     const backupPath = join(directory, 'backup.sqlite')
@@ -74,8 +92,21 @@ describe('WorldArchiveService', () => {
     const eventHash = restored.readEvents(address)[0]!.eventHash
     restored.close()
     const restoredOutbox = new WorldOutbox(restoredPath, undefined, { workerId: 'worker:restored', createClaimToken: () => 'restored' })
-    expect(restoredOutbox.claimNext()).toMatchObject({ deliveryId: delivered.deliveryId, attemptCount: 1 })
+    const replayStatuses: string[] = []
+    const restoredWorker = new SessionOutboxWorker(restoredOutbox, {
+      appendIfAbsent: async request => {
+        const result = await existingSession.appendIfAbsent(request)
+        replayStatuses.push(result.status)
+        return result
+      },
+    })
+    await expect(restoredWorker.runOnce('restore:existing-one')).resolves.toMatchObject({ status: 'delivered', deliveryId: firstDeliveryId })
+    await expect(restoredWorker.runOnce('restore:existing-two')).resolves.toMatchObject({ status: 'delivered' })
+    await expect(restoredWorker.runOnce('restore:existing-idle')).resolves.toEqual({ status: 'idle' })
+    expect(replayStatuses).toEqual(['already_applied', 'already_applied'])
+    expect(existingSession.cursor(sessionId)).toBe(2)
     restoredOutbox.close()
+    existingSession.close()
     const restoreProvenance = new OperationalAuditLog(`${restoredPath}.audit.sqlite`)
     expect(restoreProvenance.read()).toMatchObject([{
       operation: 'archive.restore.completed',
@@ -91,9 +122,23 @@ describe('WorldArchiveService', () => {
     const imported = new WorldStore(importedPath)
     expect(imported.readEvents(address)[0]!.eventHash).toBe(eventHash)
     imported.close()
+    const freshSession = new SessionDeliveryAdapter(join(directory, 'fresh-session.sqlite'))
     const importedOutbox = new WorldOutbox(importedPath, undefined, { workerId: 'worker:imported', createClaimToken: () => 'imported' })
-    expect(importedOutbox.claimNext()).toMatchObject({ deliveryId: delivered.deliveryId, attemptCount: 1 })
+    const rebuildStatuses: string[] = []
+    const importedWorker = new SessionOutboxWorker(importedOutbox, {
+      appendIfAbsent: async request => {
+        const result = await freshSession.appendIfAbsent(request)
+        rebuildStatuses.push(result.status)
+        return result
+      },
+    })
+    await expect(importedWorker.runOnce('import:fresh-one')).resolves.toMatchObject({ status: 'delivered', deliveryId: firstDeliveryId })
+    await expect(importedWorker.runOnce('import:fresh-two')).resolves.toMatchObject({ status: 'delivered' })
+    expect(rebuildStatuses).toEqual(['applied', 'applied'])
+    expect(freshSession.cursor(sessionId)).toBe(2)
+    expect(freshSession.readEvent(sessionId, 2)).toMatchObject({ payload: { ordinal: 2 } })
     importedOutbox.close()
+    freshSession.close()
     const importProvenance = new OperationalAuditLog(`${importedPath}.audit.sqlite`)
     expect(importProvenance.read()).toMatchObject([{
       operation: 'archive.import.completed',
