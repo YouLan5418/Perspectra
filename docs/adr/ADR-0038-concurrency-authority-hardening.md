@@ -17,8 +17,9 @@ Phase 0～5 的串行测试已通过，但独立审查证明部分实现没有�
 4. Round Inbox claim/complete 必须验证当前 Writer Lease；complete 还必须绑定已存在的 `round_commits.transaction_id`、bundle hash 和结果 hash。
 5. Memory reconcile 不接受调用方构造的 CharacterView 作为信任根。Memory Store 通过注入的可信 ViewSource 按完整地址、角色和 asOfSeq 重建，并拒绝 source 序号倒退或同序号 Hash 分叉。
 6. 逻辑 authority Export 在单一 SQLite read transaction 中生成。Import 必须验证事件链、分支锚点、Head、Round bundle 和所有引用；不完整的 Session/Outbox 运行态不得伪装成可恢复状态。
-7. fork 通过 Admission Barrier 检查后执行。子分支继承权威 Event 前缀，不复制父 Outbox/Session/Memory/Snapshot。
-8. Operational Audit 使用 requested/finalized 可调和记录和 Hash chain；Restore/Import provenance 必须写入目标端。`round_commits/events/heads` 仍是世界提交的唯一权威证明。
+7. fork 在单一写事务内检查 Admission、unfinished Round、Head、forkSeq、深度和事件锚点。子分支继承权威 Event 前缀，不复制父 Outbox/Session/Memory/Snapshot；archive 必须先清空 active Writer、unfinished Round 和 critical Outbox。
+8. Operational Audit 使用 requested/completed 可调和记录和 Hash chain；Restore/Import provenance 必须写入目标端。`round.committed` 与权威提交同事务，但 `round_commits/events/heads` 仍是世界提交的唯一权威证明。
+9. Restore/Import 不假设独立 Session 数据库与 World 数据库能跨文件原子恢复；目标 Outbox sender receipt/counter 被清除并重投递，由 Session `deliveryId` 幂等恢复模型可见记录。
 
 ## 结果
 
