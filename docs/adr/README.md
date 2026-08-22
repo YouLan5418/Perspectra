@@ -19,3 +19,4 @@
 | [0035](ADR-0035-knowledge-memory.md) | Knowledge 与 Memory | Local FTS5、as-of 防火墙与认知规则已实现 |
 | [0036](ADR-0036-admin-branch.md) | 行政 Barrier 与 Branch | Barrier、archive、深度限制与 Manifest 继承已实现 |
 | [0037](ADR-0037-operations-platform.md) | 运维接口与平台基线 | 本机 Backup/Transfer/CLI/JSON-RPC 已实现 |
+| [0038](ADR-0038-concurrency-authority-hardening.md) | 并发领取、权威来源与一致性传输加固 | 实施中：跨 Worker CAS、可信来源和传输闭环 |
