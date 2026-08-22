@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import {
   assertProtocolString,
+  WorldError,
   type AppendDeliveryRequest,
   type AppendDeliveryResult,
   type DeliveryId,
+  type ErrorEnvelope,
   type FaultInjector,
   type SessionId,
   type WorldAddress,
@@ -12,6 +14,7 @@ import {
   type WorldJsonValue,
   worldAddressKey,
 } from '@harness-world/contracts'
+import { applyBranchQuarantine, type QuarantineResult } from './quarantine.ts'
 import { openWorldDatabase } from './world-store.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 
@@ -198,6 +201,35 @@ export class WorldOutbox {
     return status === 'dead_letter' ? 'dead_letter' : 'retry_scheduled'
   }
 
+  recordIntegrityFailure(
+    delivery: ClaimedOutboxDelivery,
+    error: ErrorEnvelope,
+    source: string,
+  ): QuarantineResult {
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      const result = this.#db.prepare(`
+        UPDATE outbox SET delivery_status = 'dead_letter', last_error = ?,
+          claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
+        WHERE address_key = ? AND delivery_id = ? AND delivery_status = 'inflight' AND attempt_count = ?
+          AND claim_owner_id = ? AND claim_token = ?
+      `).run(
+        error.message,
+        worldAddressKey(delivery.address),
+        delivery.deliveryId,
+        delivery.attemptCount,
+        delivery.claimOwnerId,
+        delivery.claimToken,
+      )
+      if (result.changes !== 1) throw new Error('Outbox delivery claim is stale')
+      const quarantine = applyBranchQuarantine(this.#db, { address: delivery.address, error, source }, this.#now())
+      this.#db.exec('COMMIT')
+      return quarantine
+    } catch (caught: unknown) {
+      rollbackAndThrow(this.#db, caught)
+    }
+  }
+
   deadLetters(address: WorldAddress): DeadLetterRecord[] {
     const rows = this.#db.prepare(`
       SELECT delivery_id, session_id, session_delivery_seq, payload_hash, payload_json, critical, attempt_count, last_error
@@ -281,6 +313,10 @@ export class SessionOutboxWorker {
         correlationId,
       })
     } catch (error: unknown) {
+      if (error instanceof WorldError && error.envelope.category === 'integrity') {
+        this.outbox.recordIntegrityFailure(delivery, error.envelope, 'session-delivery')
+        throw error
+      }
       const message = error instanceof Error ? error.message : 'unknown Session delivery failure'
       const status = this.outbox.recordFailed(delivery, message, this.maxAttempts)
       return { status, deliveryId: delivery.deliveryId }

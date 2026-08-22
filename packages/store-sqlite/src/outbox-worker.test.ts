@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { brandId, type FaultPoint, type WorldAddress } from '@harness-world/contracts'
+import { brandId, createErrorEnvelope, type FaultPoint, type WorldAddress } from '@harness-world/contracts'
+import { BranchQuarantineService } from './quarantine.ts'
 import { SessionDeliveryAdapter } from './session-delivery.ts'
 import { SessionOutboxWorker, WorldOutbox, type ClaimedOutboxDelivery, type SessionDeliveryPort } from './outbox-worker.ts'
 import { WorldStore } from './world-store.ts'
@@ -140,6 +141,40 @@ describe('SessionOutboxWorker', () => {
     outbox.close()
   })
 
+  it('atomically dead-letters Session divergence and quarantines the Branch', async () => {
+    const path = paths('session-divergence')
+    await seed(path.world, [{ id: 'delivery:authoritative', session: 'session:divergent', critical: true }])
+    const session = new SessionDeliveryAdapter(path.session)
+    await session.appendIfAbsent({
+      sessionId: brandId('session:divergent', 'SessionId'),
+      sessionDeliverySeq: 1,
+      deliveryId: brandId('delivery:foreign', 'DeliveryId'),
+      payloadHash: 'sha256:foreign',
+      observationEvent: { foreign: true },
+      correlationId: 'session:foreign',
+    })
+    const outbox = new WorldOutbox(path.world, undefined, {
+      workerId: 'worker:divergence', now: () => 2_000, createClaimToken: () => 'divergence',
+    })
+    const worker = new SessionOutboxWorker(outbox, session, address())
+    await expect(worker.runOnce('session:divergence')).rejects.toMatchObject({
+      envelope: { errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity' },
+    })
+    expect(outbox.deadLetters(address())).toMatchObject([{
+      deliveryId: 'delivery:authoritative', critical: true,
+      lastError: 'the delivery sequence already contains different content',
+    }])
+    expect(outbox.claimNext(address())).toBeUndefined()
+    const quarantine = new BranchQuarantineService(path.world)
+    expect(quarantine.explain(address())).toMatchObject({
+      admissionState: 'draining', runtimePhase: 'quarantined',
+      failures: [{ source: 'session-delivery', error: { errorCode: 'SESSION_DELIVERY_DIVERGED' } }],
+    })
+    quarantine.close()
+    outbox.close()
+    session.close()
+  })
+
   it('rolls back or preserves sender receipts at the exact COMMIT boundary', async () => {
     for (const [suffix, point, receiptAfter] of [
       ['before', 'outbox.before-receipt-commit', false],
@@ -212,6 +247,10 @@ describe('SessionOutboxWorker', () => {
     expect(replacement.claimToken).not.toBe(firstClaim.claimToken)
     await secondWorker.recordDelivered(replacement)
     expect(() => firstWorker.recordFailed(firstClaim, 'late failure', 1)).toThrow('stale')
+    expect(() => firstWorker.recordIntegrityFailure(firstClaim, createErrorEnvelope({
+      errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity', message: 'late integrity result',
+      retryable: false, correlationId: 'outbox:late-integrity', address: address(),
+    }), 'session-delivery')).toThrow('stale')
     await expect(firstWorker.recordDelivered(firstClaim)).rejects.toThrow('stale')
     expect(secondWorker.hasReceipt(replacement.deliveryId)).toBe(true)
     firstWorker.close()

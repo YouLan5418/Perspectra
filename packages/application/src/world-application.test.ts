@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   brandId,
@@ -221,11 +222,26 @@ describe('WorldApplication', () => {
       correlationId: 'occupied',
     })
     occupied.close()
-    await expect(divergent.deliver(world.manifest.address, 'delivery:divergent')).rejects.toThrow('retry_scheduled')
+    await expect(divergent.deliver(world.manifest.address, 'delivery:divergent')).rejects.toThrow('different content')
     await divergent.close()
 
-    const firstWriter = new WorldApplication({ ...persistence, runtimeOwnerId: 'shared-label' })
-    const secondWriter = new WorldApplication({ ...persistence, runtimeOwnerId: 'shared-label' })
+    const retryPersistence = paths()
+    const retryable = new WorldApplication({ ...retryPersistence, outboxMaxAttempts: 2 })
+    retryable.activate(world)
+    await retryable.submit(world.manifest.address, request('delivery-retryable'))
+    const retrySession = new SessionDeliveryAdapter(retryPersistence.sessionPath)
+    retrySession.close()
+    const retryRaw = new DatabaseSync(retryPersistence.sessionPath)
+    retryRaw.prepare(`INSERT INTO session_delivery_cursor(session_id, last_delivery_seq) VALUES (?, 2)`)
+      .run('session:player')
+    retryRaw.close()
+    await expect(retryable.deliver(world.manifest.address, 'delivery:retryable')).rejects.toThrow('retry_scheduled')
+    await retryable.close()
+
+    const writerPersistence = paths()
+    const firstWriter = new WorldApplication({ ...writerPersistence, runtimeOwnerId: 'shared-label' })
+    const secondWriter = new WorldApplication({ ...writerPersistence, runtimeOwnerId: 'shared-label' })
+    firstWriter.activate(world)
     expect(await firstWriter.head(world.manifest.address)).toMatchObject({ tick: expect.any(Number) })
     await expect(secondWriter.head(world.manifest.address)).rejects.toThrow('another writer owns')
     await firstWriter.close()

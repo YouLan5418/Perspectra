@@ -53,6 +53,98 @@ export interface QuarantineRecoveryResult extends WorldJsonObject {
   readonly validationHash: WorldHash
 }
 
+interface BranchControlRow {
+  readonly admission_state: 'open' | 'draining'
+  readonly runtime_phase: 'active' | 'maintenance' | 'quarantined' | 'archived'
+  readonly runtime_epoch: number
+}
+
+function controlRow(db: DatabaseSync, key: string): BranchControlRow {
+  const row = db.prepare(`
+    SELECT admission_state, runtime_phase, runtime_epoch FROM branch_controls WHERE address_key = ?
+  `).get(key) as BranchControlRow | undefined
+  if (row === undefined) throw new Error(`unknown world branch ${key}`)
+  return row
+}
+
+/** Apply the emergency barrier inside the caller's existing SQLite transaction. */
+export function applyBranchQuarantine(
+  db: DatabaseSync,
+  request: QuarantineRequest,
+  occurredAtMs: number,
+): QuarantineResult {
+  assertProtocolString(request.source, 'quarantine source')
+  if (request.error.address !== undefined && worldAddressKey(request.error.address) !== worldAddressKey(request.address)) {
+    throw new TypeError('quarantine ErrorEnvelope address does not match the target branch')
+  }
+  const key = worldAddressKey(request.address)
+  const errorText = worldJsonText(request.error as unknown as WorldJsonValue)
+  const errorHash = hashWorldJson('branch-failure-envelope', request.error as unknown as WorldJsonValue)
+  const control = controlRow(db, key)
+  if (control.runtime_phase === 'archived') {
+    failWorld({
+      errorCode: 'BRANCH_DRAINING', category: 'admin', message: 'archived branch cannot enter quarantine',
+      retryable: false, correlationId: request.error.correlationId, address: request.address,
+    })
+  }
+  const existing = db.prepare(`
+    SELECT error_hash FROM branch_failures WHERE failure_id = ?
+  `).get(request.error.errorId) as { error_hash: WorldHash } | undefined
+  if (existing !== undefined) {
+    if (existing.error_hash !== errorHash) {
+      failWorld({
+        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
+        message: 'failureId is already bound to another ErrorEnvelope', retryable: false,
+        correlationId: request.error.correlationId, address: request.address,
+      })
+    }
+    return {
+      status: 'already_quarantined', failureId: request.error.errorId,
+      abortedRoundCount: 0, runtimeEpoch: control.runtime_epoch,
+    }
+  }
+  db.prepare(`
+    INSERT INTO branch_failures(
+      failure_id, address_key, error_hash, error_json, source, status, occurred_at_ms
+    ) VALUES (?, ?, ?, ?, ?, 'open', ?)
+  `).run(request.error.errorId, key, errorHash, errorText, request.source, occurredAtMs)
+  const rounds = db.prepare(`
+    SELECT inbox_seq FROM round_inbox
+    WHERE address_key = ? AND status IN ('pending', 'claimed') AND commit_transaction_id IS NULL
+    ORDER BY inbox_seq
+  `).all(key) as Array<{ inbox_seq: number }>
+  for (const round of rounds) {
+    const result = {
+      status: 'failed',
+      failureId: request.error.errorId,
+      errorCode: request.error.errorCode,
+    } as const
+    db.prepare(`
+      UPDATE round_inbox SET status = 'failed', result_hash = ?, result_json = ?
+      WHERE address_key = ? AND inbox_seq = ? AND status IN ('pending', 'claimed') AND commit_transaction_id IS NULL
+    `).run(hashWorldJson('round-failure-result', result), worldJsonText(result), key, round.inbox_seq)
+  }
+  db.prepare(`DELETE FROM writer_leases WHERE address_key = ?`).run(key)
+  db.prepare(`
+    UPDATE branch_controls SET admission_state = 'draining', runtime_phase = 'quarantined',
+      reason = ?, revision = revision + 1 WHERE address_key = ?
+  `).run(request.error.errorCode, key)
+  db.prepare(`
+    INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
+    VALUES (?, 'branch.quarantined', ?, ?, ?)
+  `).run(key, request.error.correlationId, worldJsonText({
+    failureId: request.error.errorId,
+    errorCode: request.error.errorCode,
+    errorHash,
+    source: request.source,
+    abortedRoundCount: rounds.length,
+  }), occurredAtMs)
+  return {
+    status: 'quarantined', failureId: request.error.errorId,
+    abortedRoundCount: rounds.length, runtimeEpoch: control.runtime_epoch,
+  }
+}
+
 /** Emergency Branch write barrier and durable integrity-failure ledger. */
 export class BranchQuarantineService {
   readonly #db: DatabaseSync
@@ -62,81 +154,11 @@ export class BranchQuarantineService {
   }
 
   quarantine(request: QuarantineRequest): QuarantineResult {
-    assertProtocolString(request.source, 'quarantine source')
-    if (request.error.address !== undefined && worldAddressKey(request.error.address) !== worldAddressKey(request.address)) {
-      throw new TypeError('quarantine ErrorEnvelope address does not match the target branch')
-    }
-    const key = worldAddressKey(request.address)
-    const errorText = worldJsonText(request.error as unknown as WorldJsonValue)
-    const errorHash = hashWorldJson('branch-failure-envelope', request.error as unknown as WorldJsonValue)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const control = this.#control(key)
-      if (control.runtime_phase === 'archived') {
-        failWorld({
-          errorCode: 'BRANCH_DRAINING', category: 'admin', message: 'archived branch cannot enter quarantine',
-          retryable: false, correlationId: request.error.correlationId, address: request.address,
-        })
-      }
-      const existing = this.#db.prepare(`
-        SELECT error_hash FROM branch_failures WHERE failure_id = ?
-      `).get(request.error.errorId) as { error_hash: WorldHash } | undefined
-      if (existing !== undefined) {
-        if (existing.error_hash !== errorHash) {
-          failWorld({
-            errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
-            message: 'failureId is already bound to another ErrorEnvelope', retryable: false,
-            correlationId: request.error.correlationId, address: request.address,
-          })
-        }
-        this.#db.exec('COMMIT')
-        return {
-          status: 'already_quarantined', failureId: request.error.errorId,
-          abortedRoundCount: 0, runtimeEpoch: control.runtime_epoch,
-        }
-      }
-      const occurredAtMs = this.now()
-      this.#db.prepare(`
-        INSERT INTO branch_failures(
-          failure_id, address_key, error_hash, error_json, source, status, occurred_at_ms
-        ) VALUES (?, ?, ?, ?, ?, 'open', ?)
-      `).run(request.error.errorId, key, errorHash, errorText, request.source, occurredAtMs)
-      const rounds = this.#db.prepare(`
-        SELECT inbox_seq FROM round_inbox
-        WHERE address_key = ? AND status IN ('pending', 'claimed') AND commit_transaction_id IS NULL
-        ORDER BY inbox_seq
-      `).all(key) as Array<{ inbox_seq: number }>
-      for (const round of rounds) {
-        const result = {
-          status: 'failed',
-          failureId: request.error.errorId,
-          errorCode: request.error.errorCode,
-        } as const
-        this.#db.prepare(`
-          UPDATE round_inbox SET status = 'failed', result_hash = ?, result_json = ?
-          WHERE address_key = ? AND inbox_seq = ? AND status IN ('pending', 'claimed') AND commit_transaction_id IS NULL
-        `).run(hashWorldJson('round-failure-result', result), worldJsonText(result), key, round.inbox_seq)
-      }
-      this.#db.prepare(`DELETE FROM writer_leases WHERE address_key = ?`).run(key)
-      this.#db.prepare(`
-        UPDATE branch_controls SET admission_state = 'draining', runtime_phase = 'quarantined',
-          reason = ?, revision = revision + 1 WHERE address_key = ?
-      `).run(request.error.errorCode, key)
-      this.#db.prepare(`
-        INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
-        VALUES (?, 'branch.quarantined', ?, ?, ?)
-      `).run(key, request.error.correlationId, worldJsonText({
-        failureId: request.error.errorId,
-        errorCode: request.error.errorCode,
-        errorHash,
-        source: request.source,
-        abortedRoundCount: rounds.length,
-      }), occurredAtMs)
+      const result = applyBranchQuarantine(this.#db, request, this.now())
       this.#db.exec('COMMIT')
-      return {
-        status: 'quarantined', failureId: request.error.errorId,
-        abortedRoundCount: rounds.length, runtimeEpoch: control.runtime_epoch,
-      }
+      return result
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
     }
@@ -253,19 +275,7 @@ export class BranchQuarantineService {
     }
   }
 
-  #control(key: string): {
-    readonly admission_state: 'open' | 'draining'
-    readonly runtime_phase: 'active' | 'maintenance' | 'quarantined' | 'archived'
-    readonly runtime_epoch: number
-  } {
-    const row = this.#db.prepare(`
-      SELECT admission_state, runtime_phase, runtime_epoch FROM branch_controls WHERE address_key = ?
-    `).get(key) as {
-      admission_state: 'open' | 'draining'
-      runtime_phase: 'active' | 'maintenance' | 'quarantined' | 'archived'
-      runtime_epoch: number
-    } | undefined
-    if (row === undefined) throw new Error(`unknown world branch ${key}`)
-    return row
+  #control(key: string): BranchControlRow {
+    return controlRow(this.#db, key)
   }
 }
