@@ -376,6 +376,22 @@ export class RoundInbox {
     }
   }
 
+  /** Discover active Branch FIFOs that need a post-restart drain. */
+  unfinishedAddresses(): WorldAddress[] {
+    return (this.#db.prepare(`
+      SELECT DISTINCT b.tenant_id, b.world_id, b.branch_id
+      FROM round_inbox i
+      JOIN branches b ON b.address_key = i.address_key
+      JOIN branch_controls c ON c.address_key = i.address_key
+      WHERE i.status IN ('pending', 'claimed') AND c.runtime_phase = 'active'
+      ORDER BY b.tenant_id, b.world_id, b.branch_id
+    `).all() as Array<{ tenant_id: string; world_id: string; branch_id: string }>).map(row => ({
+      tenantId: brandId(row.tenant_id, 'TenantId'),
+      worldId: brandId(row.world_id, 'WorldId'),
+      branchId: brandId(row.branch_id, 'BranchId'),
+    }))
+  }
+
   close(): void {
     this.#db.close()
   }

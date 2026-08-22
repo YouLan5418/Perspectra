@@ -102,6 +102,31 @@ export class BranchAdministration {
     }))
   }
 
+  recordRoundWorkerFailure(
+    address: WorldAddress,
+    correlationId: string,
+    details: WorldJsonObject,
+  ): BranchAuditEvent {
+    assertProtocolString(correlationId, 'correlationId')
+    const key = worldAddressKey(address)
+    const operationalTimeMs = this.operationalNow()
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      this.status(address)
+      const result = this.#db.prepare(`
+        INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
+        VALUES (?, 'round.worker.failed', ?, ?, ?)
+      `).run(key, correlationId, worldJsonText(details), operationalTimeMs)
+      this.#db.exec('COMMIT')
+      return {
+        auditSeq: Number(result.lastInsertRowid), operation: 'round.worker.failed', correlationId,
+        details, operationalTimeMs,
+      }
+    } catch (error: unknown) {
+      rollbackAndThrow(this.#db, error)
+    }
+  }
+
   close(): void {
     this.#db.close()
   }

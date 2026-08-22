@@ -8,11 +8,12 @@ import {
   type CharacterId,
   type DeliveryId,
   type InteractionRoundId,
+  type RuntimeAvailabilityState,
   type SessionId,
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { BranchAdministration, WorldStore } from '@harness-world/store-sqlite'
+import { BranchAdministration, RoundInbox, WorldStore } from '@harness-world/store-sqlite'
 import { WorldHealthService } from './health.ts'
 import { OperationsMetrics } from './metrics.ts'
 
@@ -36,6 +37,8 @@ export interface WorldApplicationPort {
   roundResult(address: WorldAddress, idempotencyKey: string): Promise<unknown | undefined>
   head(address: WorldAddress): Promise<unknown>
   characterView(address: WorldAddress, characterId: CharacterId, asOfWorldSeq?: number): Promise<unknown>
+  characterAvailability(address: WorldAddress, characterId: CharacterId): Promise<unknown>
+  setCharacterAvailability(address: WorldAddress, characterId: CharacterId, state: RuntimeAvailabilityState, reason: string | null): Promise<unknown>
   deliver(address: WorldAddress, correlationId: string): Promise<number>
   deadLetters(address: WorldAddress): Promise<unknown>
   retryDeadLetter(address: WorldAddress, deliveryId: DeliveryId, correlationId: string): Promise<void>
@@ -113,8 +116,9 @@ export class LocalJsonRpcRouter {
   readonly metrics = new OperationsMetrics()
   readonly #roundWorkers = new Map<string, Promise<void>>()
   readonly #roundWorkerRequests = new Map<string, { readonly address: WorldAddress; readonly correlationId: string }>()
+  #closing = false
 
-  constructor(worldPath: string, private readonly application?: WorldApplicationPort) {
+  constructor(private readonly worldPath: string, private readonly application?: WorldApplicationPort) {
     this.#store = application === undefined ? new WorldStore(worldPath) : undefined
     this.#admin = application === undefined ? new BranchAdministration(worldPath) : undefined
     this.#health = new WorldHealthService(worldPath)
@@ -140,9 +144,24 @@ export class LocalJsonRpcRouter {
   }
 
   async close(): Promise<void> {
+    this.#closing = true
     while (this.#roundWorkers.size > 0) await Promise.all(this.#roundWorkers.values())
     this.#admin?.close()
     this.#store?.close()
+  }
+
+  /** Wake every durable active FIFO after host restart; the workers retain normal fencing rules. */
+  recoverAcceptedRounds(correlationId = 'round:startup-recovery'): number {
+    assertProtocolString(correlationId, 'correlationId')
+    this.#application()
+    const inbox = new RoundInbox(this.worldPath)
+    try {
+      const addresses = inbox.unfinishedAddresses()
+      for (const address of addresses) this.#kickRoundWorker(address, correlationId)
+      return addresses.length
+    } finally {
+      inbox.close()
+    }
   }
 
   async #dispatch(method: string, params: WorldJsonObject): Promise<WorldJsonValue> {
@@ -172,6 +191,13 @@ export class LocalJsonRpcRouter {
         : { roundId: brandId(stringParam(params, 'roundId'), 'InteractionRoundId') })
       return result === undefined ? null : worldResult(result)
     }
+    if (method === 'round.process') {
+      return {
+        processed: await this.#application().processAcceptedRounds(
+          addressParam(params.address), stringParam(params, 'correlationId'),
+        ),
+      }
+    }
     if (method === 'round.cancel-queued') {
       const idempotencyKey = params.idempotencyKey
       const roundId = params.roundId
@@ -188,6 +214,23 @@ export class LocalJsonRpcRouter {
         addressParam(params.address),
         brandId(stringParam(params, 'characterId'), 'CharacterId'),
         integerParam(params, 'asOfWorldSeq', true),
+      ))
+    }
+    if (method === 'character.availability.get') {
+      return worldResult(await this.#application().characterAvailability(
+        addressParam(params.address), brandId(stringParam(params, 'characterId'), 'CharacterId'),
+      ))
+    }
+    if (method === 'character.availability.set') {
+      const state = stringParam(params, 'state')
+      if (!['provisioning', 'ready', 'session_lag', 'model_unavailable', 'budget_unavailable', 'offline', 'disabled'].includes(state)) {
+        throw new TypeError('character availability state is invalid')
+      }
+      const reason = params.reason
+      if (reason !== null && typeof reason !== 'string') throw new TypeError('reason must be a string or null')
+      return worldResult(await this.#application().setCharacterAvailability(
+        addressParam(params.address), brandId(stringParam(params, 'characterId'), 'CharacterId'),
+        state as RuntimeAvailabilityState, reason,
       ))
     }
     if (method === 'outbox.drain') {
@@ -315,8 +358,21 @@ export class LocalJsonRpcRouter {
         this.#roundWorkerRequests.delete(key)
         try {
           await this.#application().processAcceptedRounds(requested.address, `${requested.correlationId}:worker`)
-        } catch {
-          // Durable status remains queryable; a later wakeup may retry the Branch FIFO.
+        } catch (error: unknown) {
+          this.metrics.increment('round_worker_failures')
+          const details = error instanceof WorldError
+            ? { errorId: error.envelope.errorId, errorCode: error.envelope.errorCode }
+            : { errorType: typeof error, message: String(error) }
+          const audit = new BranchAdministration(this.worldPath)
+          try {
+            audit.recordRoundWorkerFailure(requested.address, `${requested.correlationId}:worker-failed`, details)
+          } finally {
+            audit.close()
+          }
+          if (error instanceof WorldError && error.envelope.retryable && !this.#closing) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+            this.#roundWorkerRequests.set(key, requested)
+          }
         }
       }
     })

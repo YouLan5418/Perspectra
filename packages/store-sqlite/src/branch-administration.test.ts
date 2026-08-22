@@ -102,10 +102,16 @@ describe('BranchAdministration', () => {
     expect(() => admin.status(address('missing'))).toThrow('unknown world branch')
     expect(() => admin.setAdmission(target, 'draining', '', 'correlation')).toThrow(TypeError)
     expect(() => admin.archive(target, 'reason', '')).toThrow(TypeError)
+    expect(admin.recordRoundWorkerFailure(target, 'worker:failure', { message: 'provider failed' })).toMatchObject({
+      operation: 'round.worker.failed', details: { message: 'provider failed' },
+    })
+    expect(() => admin.recordRoundWorkerFailure(address('missing'), 'worker:missing', {})).toThrow('unknown world branch')
+    expect(() => admin.recordRoundWorkerFailure(target, '', {})).toThrow(TypeError)
     admin.close()
 
     const invalidClock = new BranchAdministration(path, () => -1)
     expect(() => invalidClock.archive(target, 'invalid time', 'admin:invalid-time')).toThrow()
+    expect(() => invalidClock.recordRoundWorkerFailure(target, 'worker:invalid-time', {})).toThrow()
     expect(invalidClock.status(target).revision).toBe(0)
     invalidClock.close()
     store.close()
@@ -159,6 +165,7 @@ describe('BranchAdministration', () => {
 
     admin.setAdmission(archivedTarget, 'draining', 'archive parent', 'admin:parent-drain')
     admin.archive(archivedTarget, 'archived parent', 'admin:parent-archive')
+    expect(() => leases.acquire(archivedTarget, 'kernel:archived', 100)).toThrow('archived')
     expect(() => store.forkBranch(archivedTarget, address('illegal-child'), 0)).toThrow('archived')
     expect(() => store.assertAdmissionOpen(archivedTarget, 'archived-admission')).toThrow('archived')
     const inconsistentArchived = new DatabaseSync(path)

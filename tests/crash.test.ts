@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId, createErrorEnvelope } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
+import { LocalJsonRpcRouter } from '@harness-world/operations'
 import { BranchQuarantineService, SessionDeliveryAdapter, WorldArchiveService, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
 import {
   fixtureAddress,
@@ -20,6 +21,7 @@ const worker = fileURLToPath(new URL('./workers/crash-worker.ts', import.meta.ur
 const archiveWorker = fileURLToPath(new URL('./workers/archive-crash-worker.ts', import.meta.url))
 const applicationWorker = fileURLToPath(new URL('./workers/application-crash-worker.ts', import.meta.url))
 const quarantineWorker = fileURLToPath(new URL('./workers/quarantine-crash-worker.ts', import.meta.url))
+const acceptedRoundWorker = fileURLToPath(new URL('./workers/accepted-round-crash-worker.ts', import.meta.url))
 
 function database(name: string): string {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-crash-'))
@@ -243,6 +245,34 @@ describe('hard process termination recovery', () => {
       correlationId: 'p6-crash-next-round',
     })).resolves.toMatchObject({ status: 'accepted', tick: 2 })
     expect(recoveredProviderCalls).toBe(1)
+    await recovered.close()
+  })
+
+  it('startup-scans and completes a claimed Round after hard worker termination', async () => {
+    const worldPath = database('accepted-crash-world.sqlite')
+    const sessionPath = worldPath.replace('accepted-crash-world.sqlite', 'accepted-crash-session.sqlite')
+    const compiled = new WorldSpecCompiler().compile({
+      schemaVersion: 1,
+      address: { tenantId: 'tenant:accepted-crash', worldId: 'world:accepted-crash', branchId: 'branch:main' },
+      timeMode: 'TURN_DRIVEN',
+      roundQueueLimit: 4,
+      rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+      locations: [{ locationId: 'location:room', name: 'Room' }],
+      characters: [{ characterId: 'character:player', name: 'Player', locationId: 'location:room' }],
+      playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
+      plugins: [],
+    })
+    const setup = new WorldApplication({ worldPath, sessionPath })
+    setup.activate(compiled)
+    await setup.close()
+    await hardKillAt(acceptedRoundWorker, [worldPath, sessionPath])
+
+    const recovered = new WorldApplication({ worldPath, sessionPath, leaseTtlMs: 1_000 })
+    const router = new LocalJsonRpcRouter(worldPath, recovered)
+    expect(router.recoverAcceptedRounds('crash:startup-scan')).toBe(1)
+    await router.close()
+    await expect(recovered.roundStatus(compiled.manifest.address, { idempotencyKey: 'accepted-crash-round' }))
+      .resolves.toMatchObject({ status: 'committed', result: { status: 'accepted', tick: 1 } })
     await recovered.close()
   })
 })
