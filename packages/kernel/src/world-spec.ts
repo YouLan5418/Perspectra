@@ -65,6 +65,27 @@ export interface CompiledWorldSpec {
   readonly genesisHash: WorldHash
 }
 
+/**
+ * Build an execution-only V2 view over an immutable stored Manifest.
+ * Stored V1 bytes and their manifestHash remain authoritative and are never rewritten.
+ */
+export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldManifest {
+  canonicalizeWorldJson(value)
+  const root = objectAt(value, 'StoredWorldManifest')
+  if (root.schemaVersion === 1) return new WorldSpecCompiler().compile(value).manifest
+  if (root.schemaVersion !== 2) throw new TypeError('stored Manifest schemaVersion is unsupported')
+  const runtimePolicy = objectAt(root.runtimePolicy, 'StoredWorldManifest.runtimePolicy')
+  exactKeys(runtimePolicy, ['npcInitialAvailability', 'playerInitialAvailability'], 'StoredWorldManifest.runtimePolicy')
+  if (runtimePolicy.npcInitialAvailability !== 'provisioning' && runtimePolicy.npcInitialAvailability !== 'ready') {
+    throw new TypeError('stored Manifest npcInitialAvailability is invalid')
+  }
+  if (runtimePolicy.playerInitialAvailability !== 'ready') throw new TypeError('stored Manifest playerInitialAvailability is invalid')
+  arrayAt(root.locations, 'StoredWorldManifest.locations')
+  arrayAt(root.characters, 'StoredWorldManifest.characters')
+  arrayAt(root.playerBindings, 'StoredWorldManifest.playerBindings')
+  return value as CompiledWorldManifest
+}
+
 function objectAt(value: unknown, path: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError(`${path} must be an object`)
   return value as Record<string, unknown>

@@ -23,3 +23,4 @@
 | [0039](ADR-0039-application-round-composition.md) | WorldApplication、真实 Branch 组件与统一 Round 协调 | Phase 6 组合根与生产路径 |
 | [0040](ADR-0040-phase6-recovery-application-authority.md) | 非确定参与者恢复、实例权威与应用边界 | Phase 6 独立审查加固 |
 | [0041](ADR-0041-async-round-headless.md) | 异步 Round 受理、耐久状态与本机 Headless 循环 | Release Closure 异步协议单元 |
+| [0042](ADR-0042-stored-manifest-runtime-compatibility.md) | 存量 Manifest 的只读运行时兼容 | V1 世界原字节不变并可由当前组合根执行 |

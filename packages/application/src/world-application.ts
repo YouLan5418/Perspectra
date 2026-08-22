@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import {
   assertProtocolString,
+  canonicalizeWorldJson,
   failWorld,
   hashWorldJson,
   WorldError,
@@ -21,6 +22,8 @@ import {
   WorldBootstrap,
   WorldSpecCompiler,
   parsePlayerRoundResult,
+  parsePlayerActionInput,
+  runtimeManifestFromStored,
   type CompiledWorldSpec,
   type PlayerRoundResult,
 } from '@harness-world/kernel'
@@ -169,7 +172,9 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       if (participants.length > 0 && this.options.modelBudgetTokens === undefined) {
         throw new TypeError('modelBudgetTokens must be configured when Round participants are enabled')
       }
-      const manifest = store.store.readManifest(scope.address)!.manifest as CompiledWorldSpec['manifest']
+      const storedManifest = store.store.readManifest(scope.address)
+      if (storedManifest === undefined) throw new Error('branch runtime has no stored Manifest')
+      const manifest = runtimeManifestFromStored(storedManifest.manifest)
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
       store.availability.initialize(scope.address, manifest.characters.map(character => ({
         characterId: character.characterId,
@@ -234,7 +239,50 @@ export class WorldApplication {
   }
 
   async acceptRound(address: WorldAddress, request: SubmitCoordinatedRoundRequest) {
-    return this.#integrityGuard(address, 'round.accept', branch => branch.kernel.accept(request))
+    this.#assertOpen()
+    canonicalizeWorldJson(request.action)
+    for (const [name, value] of [
+      ['idempotencyKey', request.idempotencyKey],
+      ['principalId', request.principalId],
+      ['correlationId', request.correlationId],
+      ['action.actionType', request.action.actionType],
+    ] as const) assertProtocolString(value, name)
+    parsePlayerActionInput(request.action)
+    return this.#durableReadGuard(address, 'round.accept', () => {
+      const store = new WorldStore(this.options.worldPath)
+      const inbox = new RoundInbox(this.options.worldPath)
+      try {
+        const stored = store.readManifest(address)
+        if (stored === undefined) {
+          failWorld({
+            errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'integrity',
+            message: 'world branch has no active Compiled Manifest', retryable: false,
+            correlationId: request.correlationId, address,
+          })
+        }
+        const manifest = runtimeManifestFromStored(stored.manifest)
+        if (!manifest.playerBindings.some(value => value.principalId === request.principalId)) {
+          failWorld({
+            errorCode: 'UNAUTHORIZED', category: 'admission', message: 'principal has no PlayerBinding in this world',
+            retryable: false, correlationId: request.correlationId, address,
+          })
+        }
+        const queued = inbox.enqueue({
+          address, idempotencyKey: request.idempotencyKey, principalId: request.principalId,
+          input: request.action, correlationId: request.correlationId,
+        }, manifest.roundQueueLimit)
+        const durable = inbox.readStatus(address, { idempotencyKey: request.idempotencyKey })!
+        return {
+          status: durable.status,
+          roundId: queued.roundId,
+          inboxSeq: queued.inboxSeq,
+          idempotencyKey: request.idempotencyKey,
+        }
+      } finally {
+        inbox.close()
+        store.close()
+      }
+    })
   }
 
   async processAcceptedRounds(address: WorldAddress, correlationId: string): Promise<number> {
@@ -242,7 +290,14 @@ export class WorldApplication {
   }
 
   async roundStatus(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }) {
-    return this.#integrityGuard(address, 'round.get', branch => branch.store.inbox.readStatus(address, lookup))
+    return this.#durableReadGuard(address, 'round.get', () => {
+      const inbox = new RoundInbox(this.options.worldPath)
+      try {
+        return inbox.readStatus(address, lookup)
+      } finally {
+        inbox.close()
+      }
+    })
   }
 
   async cancelQueuedRound(
@@ -254,9 +309,14 @@ export class WorldApplication {
   }
 
   async roundResult(address: WorldAddress, idempotencyKey: string): Promise<PlayerRoundResult | undefined> {
-    return this.#integrityGuard(address, 'round.get', branch => {
-      const result = branch.store.inbox.readCompleted(address, idempotencyKey)
-      return result === undefined ? undefined : parsePlayerRoundResult(result)
+    return this.#durableReadGuard(address, 'round.get', () => {
+      const inbox = new RoundInbox(this.options.worldPath)
+      try {
+        const result = inbox.readCompleted(address, idempotencyKey)
+        return result === undefined ? undefined : parsePlayerRoundResult(result)
+      } finally {
+        inbox.close()
+      }
     })
   }
 
@@ -434,7 +494,15 @@ export class WorldApplication {
           const bindings = session.deliveryBindings()
           const byDelivery = new Map(bindings.map(binding => [binding.deliveryId, binding]))
           const bySequence = new Map(bindings.map(binding => [`${binding.sessionId}\u001f${binding.sessionDeliverySeq}`, binding]))
-          for (const delivery of outbox.deliveryLedger(address, correlationId)) {
+          const ledger = outbox.deliveryLedger(address, correlationId)
+          const expectedDeliveryIds = new Set<string>(ledger.map(delivery => delivery.deliveryId))
+          const storedManifest = store.readManifest(address)
+          if (storedManifest === undefined) throw new Error('recovery target has no stored Manifest')
+          const relevantSessionIds = new Set<SessionId>([
+            ...runtimeManifestFromStored(storedManifest.manifest).playerBindings.map(binding => binding.sessionId),
+            ...ledger.map(delivery => delivery.sessionId),
+          ])
+          for (const delivery of ledger) {
             const binding = byDelivery.get(delivery.deliveryId)
             const occupied = delivery.sessionDeliverySeq === null
               ? undefined
@@ -455,6 +523,13 @@ export class WorldApplication {
                 correlationId, address,
               })
             }
+          }
+          if (bindings.some(binding => relevantSessionIds.has(binding.sessionId) && !expectedDeliveryIds.has(binding.deliveryId))) {
+            failWorld({
+              errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity',
+              message: 'Session contains a delivery that is absent from the restored World Outbox', retryable: false,
+              correlationId, address,
+            })
           }
           return {
             worldVerificationHash: world.verificationHash,
@@ -509,6 +584,22 @@ export class WorldApplication {
       try {
         branch.store.quarantine.quarantine({ address, error: error.envelope, source })
       } finally {
+        await this.release(address)
+      }
+      throw error
+    }
+  }
+
+  async #durableReadGuard<T>(address: WorldAddress, source: string, operation: () => T): Promise<T> {
+    try {
+      return operation()
+    } catch (error: unknown) {
+      if (!(error instanceof WorldError) || error.envelope.category !== 'integrity') throw error
+      const quarantine = new BranchQuarantineService(this.options.worldPath)
+      try {
+        quarantine.quarantine({ address, error: error.envelope, source })
+      } finally {
+        quarantine.close()
         await this.release(address)
       }
       throw error

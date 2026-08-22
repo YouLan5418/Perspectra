@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   brandId,
   createErrorEnvelope,
+  deterministicId,
   hashWorldJson,
   type AgentProvider,
   type ProposalContext,
@@ -94,6 +95,51 @@ function request(idempotencyKey: string, text = idempotencyKey) {
 }
 
 describe('WorldApplication', () => {
+  it('mounts and executes an immutable stored V1 Manifest without reactivation', async () => {
+    const persistence = paths()
+    const address = {
+      tenantId: brandId('tenant:legacy', 'TenantId'),
+      worldId: brandId('world:legacy', 'WorldId'),
+      branchId: brandId('branch:main', 'BranchId'),
+    }
+    const manifest = {
+      schemaVersion: 1,
+      address,
+      timeMode: 'TURN_DRIVEN',
+      roundQueueLimit: 4,
+      rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+      locations: [{ locationId: 'location:legacy', name: 'Legacy Room' }],
+      characters: [{ characterId: 'character:legacy', name: 'Legacy Player', locationId: 'location:legacy' }],
+      playerBindings: [{ principalId: 'principal:legacy', characterId: 'character:legacy', sessionId: 'session:legacy' }],
+      plugins: [],
+    } as const
+    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+    const genesisEvents = [
+      { eventType: 'world.activated', eventVersion: 1, data: { manifestHash } },
+      { eventType: 'location.upsert', eventVersion: 1, data: manifest.locations[0]! },
+      { eventType: 'character.upsert', eventVersion: 1, data: manifest.characters[0]! },
+      { eventType: 'player.binding.upsert', eventVersion: 1, data: manifest.playerBindings[0]! },
+    ] as const
+    const genesisHash = hashWorldJson('world-genesis-plan', genesisEvents)
+    const identity = { address, manifestHash, genesisHash }
+    const store = new WorldStore(persistence.worldPath)
+    store.activateBranch({
+      address, manifest, manifestHash, genesisEvents, genesisHash,
+      transactionId: brandId(deterministicId('transaction:genesis', identity), 'TransactionId'),
+      roundId: brandId(deterministicId('round:genesis', identity), 'InteractionRoundId'),
+      correlationId: 'legacy:activation',
+    })
+    store.close()
+
+    const app = new WorldApplication(persistence)
+    expect(await app.head(address)).toMatchObject({ tick: 0 })
+    await expect(app.submit(address, {
+      idempotencyKey: 'legacy:round', principalId: 'principal:legacy',
+      action: { actionType: 'speak', parameters: { text: 'still alive' } }, correlationId: 'legacy:round',
+    })).resolves.toMatchObject({ status: 'accepted', tick: 1 })
+    await app.close()
+  })
+
   it('runs the real Cordis composition through Round, View, Session, fork, archive, and restart', async () => {
     const persistence = paths()
     const world = compiled()
@@ -228,6 +274,7 @@ describe('WorldApplication', () => {
     const divergent = new WorldApplication({ ...persistence, outboxMaxAttempts: 2 })
     divergent.activate(world)
     await divergent.submit(world.manifest.address, request('delivery-divergence'))
+    const aborted = await divergent.acceptRound(world.manifest.address, request('quarantine-aborted'))
     const occupied = new SessionDeliveryAdapter(persistence.sessionPath)
     await occupied.appendIfAbsent({
       sessionId: brandId('session:player', 'SessionId'),
@@ -243,6 +290,12 @@ describe('WorldApplication', () => {
     expect(divergent.quarantineExplain(world.manifest.address)).toMatchObject({
       runtimePhase: 'quarantined', failures: [{ error: { errorCode: 'SESSION_DELIVERY_DIVERGED' } }],
     })
+    await expect(divergent.roundStatus(world.manifest.address, { roundId: aborted.roundId })).resolves.toMatchObject({
+      status: 'failed', result: { errorCode: 'SESSION_DELIVERY_DIVERGED' },
+    })
+    await expect(divergent.acceptRound(world.manifest.address, request('quarantine-aborted'))).resolves.toMatchObject({
+      status: 'failed', roundId: aborted.roundId,
+    })
     await expect(divergent.quarantineRecover(world.manifest.address, 'quarantine:still-divergent'))
       .rejects.toMatchObject({ envelope: { errorCode: 'RECOVERY_VALIDATION_FAILED' } })
     const clearDivergence = new DatabaseSync(persistence.sessionPath)
@@ -251,6 +304,8 @@ describe('WorldApplication', () => {
     await expect(divergent.quarantineRecover(world.manifest.address, 'quarantine:recovered')).resolves.toMatchObject({
       status: 'recovered', runtimeEpoch: 1,
     })
+    await expect(divergent.roundStatus(world.manifest.address, { roundId: aborted.roundId })).resolves.toMatchObject({ status: 'failed' })
+    expect(divergent.quarantineExplain(world.manifest.address)).toMatchObject({ runtimePhase: 'active' })
     const deadLetter = (await divergent.deadLetters(world.manifest.address))[0]!
     await divergent.retryDeadLetter(world.manifest.address, deadLetter.deliveryId, 'quarantine:retry-delivery')
     await expect(divergent.deliver(world.manifest.address, 'quarantine:redeliver')).resolves.toBe(1)
@@ -448,6 +503,28 @@ describe('WorldApplication', () => {
     await expect(rebound.quarantineRecover(world.manifest.address, 'recovery:rebound-check'))
       .rejects.toMatchObject({ envelope: { errorCode: 'RECOVERY_VALIDATION_FAILED' } })
     await rebound.close()
+
+    const aheadPaths = paths()
+    const ahead = new WorldApplication(aheadPaths)
+    ahead.activate(world)
+    await ahead.submit(world.manifest.address, request('recovery-session-ahead'))
+    await ahead.deliver(world.manifest.address, 'recovery:session-ahead-deliver')
+    await ahead.release(world.manifest.address)
+    const aheadSession = new SessionDeliveryAdapter(aheadPaths.sessionPath)
+    const extraPayload = { source: 'future-restored-away' }
+    await aheadSession.appendIfAbsent({
+      sessionId: brandId('session:player', 'SessionId'),
+      sessionDeliverySeq: 2,
+      deliveryId: brandId('delivery:session-ahead', 'DeliveryId'),
+      payloadHash: hashWorldJson('world-outbox-payload', extraPayload),
+      observationEvent: extraPayload,
+      correlationId: 'recovery:session-ahead-fixture',
+    })
+    aheadSession.close()
+    quarantine(aheadPaths.worldPath, world.manifest.address, 'session-ahead')
+    await expect(ahead.quarantineRecover(world.manifest.address, 'recovery:session-ahead-check'))
+      .rejects.toMatchObject({ envelope: { errorCode: 'RECOVERY_VALIDATION_FAILED' } })
+    await ahead.close()
 
     const snapshotPaths = paths()
     const snapshotApp = new WorldApplication(snapshotPaths)

@@ -27,6 +27,7 @@ import {
   currentCharacterLifecycle,
   parsePlayerActionInput,
   parsePlayerRoundResult,
+  runtimeManifestFromStored,
   type CompiledWorldManifest,
   type PlayerActionInput,
   type PlayerRoundResult,
@@ -139,7 +140,7 @@ export class RoundCoordinator {
         address: options.runtimeLane.address,
       })
     }
-    this.#manifest = stored.manifest as CompiledWorldManifest
+    this.#manifest = runtimeManifestFromStored(stored.manifest)
     this.#address = options.runtimeLane.address
     this.#participants = [...options.participants].sort((left, right) =>
       roleRank[left.role] - roleRank[right.role]

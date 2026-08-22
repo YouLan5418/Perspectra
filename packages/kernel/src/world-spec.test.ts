@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, deterministicId, hashWorldJson, type WorldJsonValue } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldBootstrap } from './world-bootstrap.ts'
-import { WorldSpecCompiler, type CompiledWorldSpec } from './world-spec.ts'
+import { runtimeManifestFromStored, WorldSpecCompiler, type CompiledWorldSpec } from './world-spec.ts'
 
 const directories: string[] = []
 
@@ -82,6 +82,30 @@ function activation(compiled: CompiledWorldSpec) {
 }
 
 describe('WorldSpecCompiler and WorldBootstrap', () => {
+  it('derives a V2 runtime view from immutable stored V1 Manifest bytes', () => {
+    const legacy = spec() as unknown as WorldJsonValue
+    const runtime = runtimeManifestFromStored(legacy)
+    expect(runtime).toMatchObject({
+      schemaVersion: 2,
+      runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
+      roundQueueLimit: 8,
+    })
+    expect(hashWorldJson('compiled-world-manifest', legacy)).not.toBe(hashWorldJson('compiled-world-manifest', runtime))
+    expect(runtimeManifestFromStored(new WorldSpecCompiler().compile(specV2()).manifest)).toMatchObject({ schemaVersion: 2 })
+  })
+
+  it.each([
+    [{ schemaVersion: 3 }, 'schemaVersion'],
+    [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: null }, 'runtimePolicy'],
+    [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'offline', playerInitialAvailability: 'ready' } }, 'npcInitialAvailability'],
+    [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'offline' } }, 'playerInitialAvailability'],
+    [{ ...new WorldSpecCompiler().compile(specV2()).manifest, locations: null }, 'locations'],
+    [{ ...new WorldSpecCompiler().compile(specV2()).manifest, characters: null }, 'characters'],
+    [{ ...new WorldSpecCompiler().compile(specV2()).manifest, playerBindings: null }, 'playerBindings'],
+  ] as const)('rejects an incompatible stored Manifest %#', (manifest, message) => {
+    expect(() => runtimeManifestFromStored(manifest as unknown as WorldJsonValue)).toThrow(message)
+  })
+
   it('compiles stable sorted inputs and atomically replays Tick 0 Genesis', () => {
     const compiler = new WorldSpecCompiler()
     const compiled = compiler.compile(spec())
