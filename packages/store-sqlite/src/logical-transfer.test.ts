@@ -2,10 +2,13 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { brandId } from '@harness-world/contracts'
+import { brandId, hashWorldJson } from '@harness-world/contracts'
 import { fixtureAddress, fixtureCommitRequest } from '@harness-world/testkit'
 import { WorldLogicalTransferService } from './logical-transfer.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
+import { RoundInbox } from './round-inbox.ts'
+import { WorldOutbox } from './outbox-worker.ts'
+import { WriterLeaseService } from './writer-lease.ts'
 import { WorldStore } from './world-store.ts'
 
 const directories: string[] = []
@@ -28,10 +31,34 @@ describe('WorldLogicalTransferService', () => {
     const child = fixtureAddress('logical-child')
     const setup = new WorldStore(source)
     setup.createBranch(parent)
-    await setup.commitRound(fixtureCommitRequest(parent))
+    const commitRequest = fixtureCommitRequest(parent)
+    const committed = await setup.commitRound(commitRequest)
     setup.forkBranch(parent, child, 1)
     const eventHash = setup.readEvents(parent)[0]!.eventHash
     setup.close()
+    const leases = new WriterLeaseService(source)
+    const lease = leases.acquire(parent, 'kernel:logical')
+    const inbox = new RoundInbox(source)
+    inbox.enqueue({
+      address: parent,
+      idempotencyKey: 'logical:completed',
+      principalId: 'principal:logical',
+      input: { actionType: 'fixture' },
+      correlationId: 'logical:inbox',
+    }, 4)
+    inbox.claimNext(parent, 'kernel:logical', lease.fencingToken)
+    const completedResult = { status: 'accepted', bundleHash: committed.bundleHash }
+    inbox.complete(parent, 1, 'kernel:logical', lease.fencingToken, {
+      transactionId: commitRequest.transactionId,
+      bundleHash: committed.bundleHash,
+    }, completedResult)
+    inbox.close()
+    leases.close()
+    const sender = new WorldOutbox(source)
+    const delivery = sender.claimNext()
+    if (delivery === undefined) throw new Error('logical transfer fixture Outbox is missing')
+    await sender.recordDelivered(delivery)
+    sender.close()
 
     const service = new WorldLogicalTransferService(source)
     const exportPath = join(root, 'world.dshworld')
@@ -42,6 +69,27 @@ describe('WorldLogicalTransferService', () => {
     expect(imported.readEvents(parent)[0]!.eventHash).toBe(eventHash)
     expect(imported.readEvents(child)).toHaveLength(1)
     imported.close()
+    const importedInbox = new RoundInbox(target)
+    expect(importedInbox.readCompleted(parent, 'logical:completed')).toEqual(completedResult)
+    importedInbox.close()
+    const importedOutbox = new WorldOutbox(target)
+    expect(importedOutbox.claimNext()).toMatchObject({ deliveryId: commitRequest.outbox[0]!.deliveryId, attemptCount: 1 })
+    importedOutbox.close()
+    const tamperedInbox = JSON.parse(readFileSync(exportPath, 'utf8')) as any
+    tamperedInbox.data.tables.round_inbox[0].commit_bundle_hash = 'sha256:wrong'
+    tamperedInbox.bundleHash = hashWorldJson('logical-authority-export', tamperedInbox.data)
+    const tamperedInboxPath = join(root, 'tampered-inbox.dshworld')
+    writeFileSync(tamperedInboxPath, JSON.stringify(tamperedInbox))
+    expect(() => service.importAuthority(tamperedInboxPath, join(root, 'tampered-inbox.sqlite'), 'logical:inbox-tamper'))
+      .toThrow('completed Round Inbox')
+    const malformedResult = JSON.parse(readFileSync(exportPath, 'utf8')) as any
+    malformedResult.data.tables.round_inbox[0].result_json = JSON.stringify('not-an-object')
+    malformedResult.data.tables.round_inbox[0].result_hash = hashWorldJson('player-round-result', 'not-an-object')
+    malformedResult.bundleHash = hashWorldJson('logical-authority-export', malformedResult.data)
+    const malformedResultPath = join(root, 'malformed-result.dshworld')
+    writeFileSync(malformedResultPath, JSON.stringify(malformedResult))
+    expect(() => service.importAuthority(malformedResultPath, join(root, 'malformed-result.sqlite'), 'logical:result-shape'))
+      .toThrow('completed Round Inbox')
     expect(() => service.exportAuthority(source, 'logical:alias')).toThrow('aliases the source')
     expect(() => service.importAuthority(exportPath, target, 'logical:exists')).toThrow('already exists')
     const audit = new OperationalAuditLog(`${source}.audit.sqlite`)
@@ -51,12 +99,97 @@ describe('WorldLogicalTransferService', () => {
     audit.close()
   })
 
+  it('exports every authority table from one WAL snapshot during a concurrent commit', async () => {
+    const root = directory()
+    const source = join(root, 'source.sqlite')
+    const target = fixtureAddress('snapshot')
+    const setup = new WorldStore(source)
+    setup.createBranch(target)
+    const first = await setup.commitRound(fixtureCommitRequest(target))
+    setup.close()
+    let committedDuringExport = false
+    const service = new WorldLogicalTransferService(source, (table) => {
+      if (table !== 'branches' || committedDuringExport) return
+      committedDuringExport = true
+      const writer = new WorldStore(source)
+      void writer.commitRound({
+        ...fixtureCommitRequest(target),
+        transactionId: brandId('transaction:concurrent-export', 'TransactionId'),
+        roundId: brandId('round:concurrent-export', 'InteractionRoundId'),
+        expectedHeadSeq: first.headSeq,
+        expectedTick: first.tick,
+        nextTick: first.tick + 1,
+        events: [{ eventType: 'fixture.concurrent', eventVersion: 1, data: {} }],
+        outbox: [],
+      })
+      writer.close()
+    })
+    const exportPath = join(root, 'snapshot.dshworld')
+    service.exportAuthority(exportPath, 'logical:snapshot')
+    expect(committedDuringExport).toBe(true)
+    const importedPath = join(root, 'snapshot-import.sqlite')
+    service.importAuthority(exportPath, importedPath, 'logical:snapshot-import')
+    const imported = new WorldStore(importedPath)
+    expect(imported.head(target).headSeq).toBe(first.headSeq)
+    imported.close()
+    const sourceAfter = new WorldStore(source)
+    expect(sourceAfter.head(target).headSeq).toBe(first.headSeq + 1)
+    sourceAfter.close()
+  })
+
+  it('rolls back both in-transaction and post-commit export failures', () => {
+    const root = directory()
+    const source = join(root, 'source.sqlite')
+    const setup = new WorldStore(source)
+    setup.createBranch(fixtureAddress('export-failure'))
+    setup.close()
+
+    const interrupted = new WorldLogicalTransferService(source, table => {
+      if (table === 'events') throw new Error('interrupted export')
+    })
+    expect(() => interrupted.exportAuthority(join(root, 'interrupted.dshworld'), 'logical:interrupted'))
+      .toThrow('interrupted export')
+
+    const occupiedTarget = join(root, 'occupied-after-commit.dshworld')
+    const occupied = new WorldLogicalTransferService(source, table => {
+      if (table === 'round_inbox') writeFileSync(occupiedTarget, 'occupied')
+    })
+    expect(() => occupied.exportAuthority(occupiedTarget, 'logical:post-commit'))
+      .toThrow()
+  })
+
+  it('round-trips an empty genesis head and rejects corrupted genesis metadata', () => {
+    const root = directory()
+    const source = join(root, 'source.sqlite')
+    const setup = new WorldStore(source)
+    setup.createBranch(fixtureAddress('empty-logical'))
+    setup.close()
+    const service = new WorldLogicalTransferService(source)
+    const exportPath = join(root, 'empty.dshworld')
+    service.exportAuthority(exportPath, 'logical:empty')
+    service.importAuthority(exportPath, join(root, 'empty.sqlite'), 'logical:empty-import')
+    const envelope = JSON.parse(readFileSync(exportPath, 'utf8')) as any
+    const rejectHead = (name: string, mutate: (head: any) => void) => {
+      const copy = structuredClone(envelope)
+      mutate(copy.data.tables.heads[0])
+      copy.bundleHash = hashWorldJson('logical-authority-export', copy.data)
+      const path = join(root, `${name}.dshworld`)
+      writeFileSync(path, JSON.stringify(copy))
+      expect(() => service.importAuthority(path, join(root, `${name}.sqlite`), `logical:${name}`))
+        .toThrow('Event chain tail')
+    }
+    rejectHead('empty-hash', head => { head.event_hash = 'sha256:not-genesis' })
+    rejectHead('empty-tick', head => { head.tick = 1 })
+  })
+
   it('rejects malformed, unsupported, missing-table, invalid-row, and divergent Event exports', async () => {
     const root = directory()
     const source = join(root, 'source.sqlite')
     const setup = new WorldStore(source)
-    setup.createBranch(fixtureAddress())
-    await setup.commitRound(fixtureCommitRequest())
+    const address = fixtureAddress()
+    setup.createBranch(address)
+    await setup.commitRound(fixtureCommitRequest(address))
+    setup.forkBranch(address, fixtureAddress('logical-validation-child'), 1)
     setup.close()
     const service = new WorldLogicalTransferService(source)
     const malformed = join(root, 'malformed.dshworld')
@@ -93,5 +226,69 @@ describe('WorldLogicalTransferService', () => {
     const divergentPath = join(root, 'divergent.dshworld')
     writeFileSync(divergentPath, JSON.stringify(divergent))
     expect(() => service.importAuthority(divergentPath, join(root, 'divergent.sqlite'), 'logical:event')).toThrow('divergent Event')
+
+    const rejectTamper = (name: string, mutate: (copy: any) => void, expected: string) => {
+      const copy = structuredClone(envelope)
+      mutate(copy)
+      copy.bundleHash = hashWorldJson('logical-authority-export', copy.data)
+      const exportPath = join(root, `${name}.dshworld`)
+      writeFileSync(exportPath, JSON.stringify(copy))
+      expect(() => service.importAuthority(exportPath, join(root, `${name}.sqlite`), `logical:${name}`)).toThrow(expected)
+    }
+    rejectTamper('unknown-column', copy => { copy.data.tables.heads[0].extra = true }, 'missing or unknown columns')
+    rejectTamper('renamed-column', copy => {
+      copy.data.tables.heads[0].unexpected_tick = copy.data.tables.heads[0].tick
+      delete copy.data.tables.heads[0].tick
+    }, 'missing or unknown columns')
+    rejectTamper('head', copy => { copy.data.tables.heads[0].head_seq = 0 }, 'Head does not match')
+    rejectTamper('head-tail', copy => { copy.data.tables.heads[0].event_hash = 'sha256:wrong-tail' }, 'Event chain tail')
+    rejectTamper('head-tail-tick', copy => { copy.data.tables.heads[0].tick += 1 }, 'Event chain tail')
+    rejectTamper('round-bundle', copy => { copy.data.tables.round_commits[0].bundle_hash = 'sha256:wrong' }, 'Round bundle')
+    rejectTamper('round-event-range', copy => { copy.data.tables.round_commits[0].head_seq += 1 }, 'Round event range')
+    rejectTamper('round-outbox-boundary', copy => { copy.data.tables.outbox[0].world_seq += 1 }, 'Outbox boundary')
+    rejectTamper('round-tick-boundary', copy => { copy.data.tables.round_commits[0].base_tick += 2 }, 'tick boundary')
+    rejectTamper('outbox-state', copy => { copy.data.tables.outbox[0].delivery_status = 'delivered' }, 'normalized Outbox')
+    rejectTamper('outbox-attempt', copy => { copy.data.tables.outbox[0].attempt_count = 1 }, 'normalized Outbox')
+    rejectTamper('outbox-sequence', copy => { copy.data.tables.outbox[0].session_delivery_seq = 1 }, 'normalized Outbox')
+    rejectTamper('outbox-error', copy => { copy.data.tables.outbox[0].last_error = 'tampered' }, 'normalized Outbox')
+    rejectTamper('outbox-payload', copy => {
+      copy.data.tables.outbox[0].payload_hash = 'sha256:wrong-payload'
+      const commit = copy.data.tables.round_commits[0]
+      commit.bundle_hash = hashWorldJson('world-round-bundle', {
+        address: fixtureAddress(),
+        roundId: commit.round_id,
+        tick: commit.tick,
+        eventHashes: copy.data.tables.events
+          .filter((event: any) => event.transaction_id === commit.transaction_id)
+          .map((event: any) => event.event_hash),
+        outboxHashes: ['sha256:wrong-payload'],
+      })
+    }, 'normalized Outbox')
+
+    rejectTamper('fork-parent-world', copy => {
+      copy.data.tables.branches[1].world_id = 'world:other'
+    }, 'invalid Branch parent')
+    rejectTamper('fork-anchor', copy => {
+      copy.data.tables.branches[1].fork_seq = 999
+    }, 'invalid Branch fork anchor')
+    rejectTamper('fork-cycle', copy => {
+      copy.data.tables.branches[1].parent_address_key = copy.data.tables.branches[1].address_key
+    }, 'cyclic Branch lineage')
+
+    rejectTamper('event-chain', copy => {
+      const event = copy.data.tables.events[0]
+      event.previous_hash = 'sha256:wrong-parent'
+      event.event_hash = hashWorldJson('world-event-envelope', {
+        address: fixtureAddress(),
+        seq: event.seq,
+        tick: event.tick,
+        eventType: event.event_type,
+        eventVersion: event.event_version,
+        data: JSON.parse(event.data_json),
+        previousHash: event.previous_hash,
+        transactionId: event.transaction_id,
+        eventOrdinal: event.event_ordinal,
+      })
+    }, 'discontinuous Event chain')
   })
 })

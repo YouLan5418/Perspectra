@@ -18,7 +18,8 @@ type SqlValue = string | number | null
 type SqlRow = Record<string, SqlValue>
 
 const TABLES = [
-  'world_manifests', 'branches', 'heads', 'round_commits', 'events', 'outbox', 'branch_activations', 'branch_controls',
+  'world_manifests', 'branches', 'heads', 'round_commits', 'events', 'outbox', 'branch_activations',
+  'branch_controls', 'branch_audit_events', 'round_inbox_counters', 'round_inbox',
 ] as const
 
 const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
@@ -30,36 +31,52 @@ const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
   outbox: ['delivery_id', 'address_key', 'session_id', 'world_seq', 'payload_hash', 'payload_json', 'critical', 'transaction_id', 'delivery_status', 'attempt_count', 'session_delivery_seq', 'last_error'],
   branch_activations: ['address_key', 'activation_hash', 'manifest_hash', 'genesis_hash', 'transaction_id'],
   branch_controls: ['address_key', 'admission_state', 'lifecycle_state', 'reason', 'revision'],
+  branch_audit_events: ['audit_seq', 'address_key', 'operation', 'correlation_id', 'details_json', 'operational_time_ms'],
+  round_inbox_counters: ['address_key', 'next_inbox_seq'],
+  round_inbox: [
+    'address_key', 'inbox_seq', 'idempotency_key', 'input_hash', 'principal_id', 'input_json', 'status',
+    'claim_owner_id', 'claim_fencing_token', 'result_hash', 'result_json', 'commit_transaction_id', 'commit_bundle_hash',
+  ],
 }
 
 interface LogicalAuthorityData extends WorldJsonObject {
+  readonly authorityVersion: 2
   readonly tables: WorldJsonObject
 }
 
 interface LogicalAuthorityEnvelope extends WorldJsonObject {
-  readonly format: 'dshworld-authority/v1'
+  readonly format: 'dshworld-authority/v2'
   readonly data: LogicalAuthorityData
   readonly bundleHash: WorldHash
 }
 
-/** Authority-only logical transfer. Session, Memory, Audit, Presentation, and process state are intentionally omitted. */
+/** Authority-only logical transfer. Session, Memory, operational sidecar Audit, Presentation, and process state are omitted. */
 export class WorldLogicalTransferService {
-  constructor(private readonly sourcePath: string) {}
+  constructor(
+    private readonly sourcePath: string,
+    private readonly afterTableRead?: (table: (typeof TABLES)[number]) => void,
+  ) {}
 
   exportAuthority(targetPath: string, correlationId: string): WorldHash {
     this.#guardTarget(targetPath, correlationId)
     this.#audit('authority.export.requested', correlationId, { targetPath })
     const db = new DatabaseSync(this.sourcePath, { readOnly: true })
     try {
+      db.exec('BEGIN DEFERRED')
       const tables: Record<string, WorldJsonValue> = {}
       for (const table of TABLES) {
-        tables[table] = db.prepare(`SELECT ${COLUMNS[table].join(', ')} FROM ${table} ORDER BY rowid`).all() as SqlRow[]
+        tables[table] = this.#exportRows(db, table)
+        this.afterTableRead?.(table)
       }
-      const data: LogicalAuthorityData = { tables }
+      db.exec('COMMIT')
+      const data: LogicalAuthorityData = { authorityVersion: 2, tables }
       const bundleHash = hashWorldJson('logical-authority-export', data)
-      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v1', data, bundleHash }
+      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v2', data, bundleHash }
       writeFileSync(targetPath, canonicalizeWorldJson(envelope), { flag: 'wx' })
       return bundleHash
+    } catch (error: unknown) {
+      try { db.exec('ROLLBACK') } catch { /* a failed read may end the transaction */ }
+      throw error
     } finally {
       db.close()
     }
@@ -75,7 +92,9 @@ export class WorldLogicalTransferService {
     } catch (error: unknown) {
       this.#invalid('logical export is invalid', correlationId, error)
     }
-    if (envelope.format !== 'dshworld-authority/v1') this.#invalid('logical export format is unsupported', correlationId)
+    if (envelope.format !== 'dshworld-authority/v2' || envelope.data.authorityVersion !== 2) {
+      this.#invalid('logical export format is unsupported', correlationId)
+    }
     const actualHash = hashWorldJson('logical-authority-export', envelope.data)
     if (actualHash !== envelope.bundleHash) this.#invalid('logical export hash is invalid', correlationId)
     const db = openWorldDatabase(targetPath)
@@ -88,10 +107,19 @@ export class WorldLogicalTransferService {
         const insert = db.prepare(`INSERT INTO ${table}(${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`)
         for (const row of rows) {
           if (typeof row !== 'object' || row === null || Array.isArray(row)) this.#invalid(`logical table ${table} has an invalid row`, correlationId)
+          const rowKeys = Object.keys(row).sort()
+          const expectedKeys = [...columns].sort()
+          if (rowKeys.length !== expectedKeys.length || rowKeys.some((key, index) => key !== expectedKeys[index])) {
+            this.#invalid(`logical table ${table} row has missing or unknown columns`, correlationId)
+          }
           insert.run(...columns.map(column => (row as WorldJsonObject)[column] as SqlValue))
         }
       }
       this.#validateEvents(db, correlationId)
+      this.#validateBranchesAndHeads(db, correlationId)
+      this.#validateRoundBundles(db, correlationId)
+      this.#validateOutbox(db, correlationId)
+      this.#validateCompletedInbox(db, correlationId)
       db.exec('COMMIT')
       return actualHash
     } catch (error: unknown) {
@@ -102,6 +130,22 @@ export class WorldLogicalTransferService {
     } finally {
       if (db.isOpen) db.close()
     }
+  }
+
+  #exportRows(db: DatabaseSync, table: (typeof TABLES)[number]): SqlRow[] {
+    if (table === 'outbox') {
+      return db.prepare(`
+        SELECT delivery_id, address_key, session_id, world_seq, payload_hash, payload_json, critical, transaction_id,
+          'pending' AS delivery_status, 0 AS attempt_count, NULL AS session_delivery_seq, NULL AS last_error
+        FROM outbox ORDER BY rowid
+      `).all() as SqlRow[]
+    }
+    if (table === 'round_inbox') {
+      return db.prepare(`
+        SELECT ${COLUMNS.round_inbox.join(', ')} FROM round_inbox WHERE status = 'completed' ORDER BY rowid
+      `).all() as SqlRow[]
+    }
+    return db.prepare(`SELECT ${COLUMNS[table].join(', ')} FROM ${table} ORDER BY rowid`).all() as SqlRow[]
   }
 
   #validateEvents(db: DatabaseSync, correlationId: string): void {
@@ -136,6 +180,169 @@ export class WorldLogicalTransferService {
         eventOrdinal: row.event_ordinal,
       })
       if (actual !== row.event_hash) this.#invalid('logical export contains a divergent Event hash', correlationId)
+    }
+  }
+
+  #validateBranchesAndHeads(db: DatabaseSync, correlationId: string): void {
+    const branches = db.prepare(`
+      SELECT address_key, tenant_id, world_id, parent_address_key, fork_seq FROM branches
+    `).all() as Array<{
+      address_key: string
+      tenant_id: string
+      world_id: string
+      parent_address_key: string | null
+      fork_seq: number | null
+    }>
+    const byKey = new Map(branches.map(branch => [branch.address_key, branch]))
+    const eventAt = (addressKey: string, seq: number, seen = new Set<string>()): { event_hash: WorldHash; tick: number } | undefined => {
+      if (seen.has(addressKey)) this.#invalid('logical export contains a cyclic Branch lineage', correlationId)
+      seen.add(addressKey)
+      const local = db.prepare(`SELECT event_hash, tick FROM events WHERE address_key = ? AND seq = ?`)
+        .get(addressKey, seq) as { event_hash: WorldHash; tick: number } | undefined
+      if (local !== undefined) return local
+      const branch = byKey.get(addressKey)
+      if (branch?.parent_address_key !== null && branch?.parent_address_key !== undefined && seq <= (branch.fork_seq as number)) {
+        return eventAt(branch.parent_address_key, seq, seen)
+      }
+      return undefined
+    }
+
+    for (const branch of branches) {
+      if (branch.parent_address_key !== null) {
+        const parent = byKey.get(branch.parent_address_key)
+        if (parent === undefined || parent.tenant_id !== branch.tenant_id || parent.world_id !== branch.world_id) {
+          this.#invalid('logical export contains an invalid Branch parent', correlationId)
+        }
+        if (branch.fork_seq === null || (branch.fork_seq > 0 && eventAt(branch.parent_address_key, branch.fork_seq) === undefined)) {
+          this.#invalid('logical export contains an invalid Branch fork anchor', correlationId)
+        }
+      }
+      const lowerBound = branch.fork_seq ?? 0
+      const localEvents = db.prepare(`
+        SELECT seq, previous_hash, event_hash FROM events WHERE address_key = ? ORDER BY seq
+      `).all(branch.address_key) as Array<{ seq: number; previous_hash: string; event_hash: WorldHash }>
+      let expectedSeq = lowerBound + 1
+      let previousHash: WorldHash | 'genesis' = lowerBound === 0
+        ? 'genesis'
+        : eventAt(branch.address_key, lowerBound)!.event_hash
+      for (const event of localEvents) {
+        if (event.seq !== expectedSeq || event.previous_hash !== previousHash) {
+          this.#invalid('logical export contains a discontinuous Event chain', correlationId)
+        }
+        expectedSeq += 1
+        previousHash = event.event_hash
+      }
+      const head = db.prepare(`SELECT head_seq, tick, event_hash FROM heads WHERE address_key = ?`)
+        .get(branch.address_key) as { head_seq: number; tick: number; event_hash: string } | undefined
+      if (head === undefined || head.head_seq !== expectedSeq - 1) {
+        this.#invalid('logical export Head does not match the Event chain length', correlationId)
+      }
+      const tail = head.head_seq === 0 ? undefined : eventAt(branch.address_key, head.head_seq)
+      if (
+        (head.head_seq === 0 && (head.event_hash !== 'genesis' || head.tick !== 0))
+        || (head.head_seq > 0 && (tail!.event_hash !== head.event_hash || tail!.tick !== head.tick))
+      ) {
+        this.#invalid('logical export Head does not match the Event chain tail', correlationId)
+      }
+    }
+  }
+
+  #validateRoundBundles(db: DatabaseSync, correlationId: string): void {
+    const commits = db.prepare(`
+      SELECT transaction_id, address_key, round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash
+      FROM round_commits ORDER BY rowid
+    `).all() as Array<{
+      transaction_id: string
+      address_key: string
+      round_id: string
+      base_head_seq: number
+      base_tick: number
+      head_seq: number
+      tick: number
+      bundle_hash: WorldHash
+    }>
+    for (const commit of commits) {
+      const branch = db.prepare(`SELECT tenant_id, world_id, branch_id FROM branches WHERE address_key = ?`)
+        .get(commit.address_key) as { tenant_id: string; world_id: string; branch_id: string } | undefined
+      const eventRows = db.prepare(`
+        SELECT seq, tick, event_hash, event_ordinal FROM events WHERE transaction_id = ? ORDER BY event_ordinal
+      `).all(commit.transaction_id) as Array<{ seq: number; tick: number; event_hash: WorldHash; event_ordinal: number }>
+      if (
+        eventRows.length !== commit.head_seq - commit.base_head_seq
+        || eventRows.some((event, index) => event.event_ordinal !== index || event.seq !== commit.base_head_seq + index + 1 || event.tick !== commit.tick)
+      ) this.#invalid('logical export Round event range is inconsistent', correlationId)
+      const outboxRows = db.prepare(`
+        SELECT world_seq, payload_hash FROM outbox WHERE transaction_id = ? ORDER BY rowid
+      `).all(commit.transaction_id) as Array<{ world_seq: number; payload_hash: WorldHash }>
+      if (outboxRows.some(row => row.world_seq !== commit.head_seq)) {
+        this.#invalid('logical export Round Outbox boundary is inconsistent', correlationId)
+      }
+      const actual = hashWorldJson('world-round-bundle', {
+        address: { tenantId: branch!.tenant_id, worldId: branch!.world_id, branchId: branch!.branch_id },
+        roundId: commit.round_id,
+        tick: commit.tick,
+        eventHashes: eventRows.map(event => event.event_hash),
+        outboxHashes: outboxRows.map(row => row.payload_hash),
+      })
+      if (actual !== commit.bundle_hash) this.#invalid('logical export contains a divergent Round bundle', correlationId)
+      if (commit.tick !== 0 && commit.tick !== commit.base_tick + 1) {
+        this.#invalid('logical export Round tick boundary is inconsistent', correlationId)
+      }
+    }
+  }
+
+  #validateOutbox(db: DatabaseSync, correlationId: string): void {
+    const rows = db.prepare(`
+      SELECT payload_json, payload_hash, delivery_status, attempt_count, session_delivery_seq, last_error FROM outbox
+    `).all() as Array<{
+      payload_json: string
+      payload_hash: WorldHash
+      delivery_status: string
+      attempt_count: number
+      session_delivery_seq: number | null
+      last_error: string | null
+    }>
+    for (const row of rows) {
+      if (
+        hashWorldJson('world-outbox-payload', parseWorldJson(row.payload_json)) !== row.payload_hash
+        || row.delivery_status !== 'pending'
+        || row.attempt_count !== 0
+        || row.session_delivery_seq !== null
+        || row.last_error !== null
+      ) this.#invalid('logical export contains an invalid normalized Outbox item', correlationId)
+    }
+  }
+
+  #validateCompletedInbox(db: DatabaseSync, correlationId: string): void {
+    const rows = db.prepare(`
+      SELECT address_key, input_hash, principal_id, input_json, result_hash, result_json,
+        commit_transaction_id, commit_bundle_hash, status
+      FROM round_inbox
+    `).all() as Array<{
+      address_key: string
+      input_hash: WorldHash
+      principal_id: string
+      input_json: string
+      result_hash: WorldHash
+      result_json: string
+      commit_transaction_id: string
+      commit_bundle_hash: WorldHash
+      status: string
+    }>
+    for (const row of rows) {
+      const commit = db.prepare(`SELECT bundle_hash FROM round_commits WHERE transaction_id = ? AND address_key = ?`)
+        .get(row.commit_transaction_id, row.address_key) as { bundle_hash: WorldHash } | undefined
+      const result = parseWorldJson(row.result_json)
+      const resultBundleHash = typeof result === 'object' && result !== null && !Array.isArray(result)
+        ? (result as WorldJsonObject).bundleHash
+        : undefined
+      if (
+        row.status !== 'completed'
+        || hashWorldJson('player-round-input', { principalId: row.principal_id, input: parseWorldJson(row.input_json) }) !== row.input_hash
+        || hashWorldJson('player-round-result', result) !== row.result_hash
+        || resultBundleHash !== row.commit_bundle_hash
+        || commit?.bundle_hash !== row.commit_bundle_hash
+      ) this.#invalid('logical export contains an invalid completed Round Inbox item', correlationId)
     }
   }
 
