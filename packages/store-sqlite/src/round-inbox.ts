@@ -6,6 +6,7 @@ import {
   type WorldAddress,
   type WorldHash,
   type WorldJsonValue,
+  type TransactionId,
 } from '@harness-world/contracts'
 import { openWorldDatabase } from './world-store.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
@@ -37,6 +38,11 @@ export interface CompleteRoundResult {
   readonly resultHash: WorldHash
 }
 
+export interface RoundCommitProof {
+  readonly transactionId: TransactionId
+  readonly bundleHash: WorldHash
+}
+
 interface InboxRow {
   readonly inbox_seq: number
   readonly idempotency_key: string
@@ -45,11 +51,17 @@ interface InboxRow {
   readonly input_hash: WorldHash
 }
 
+function boundBundleHash(result: WorldJsonValue): WorldHash | undefined {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) return undefined
+  const value = (result as Record<string, WorldJsonValue>).bundleHash
+  return typeof value === 'string' ? value as WorldHash : undefined
+}
+
 /** Durable admission queue and idempotency ledger for one branch's player inputs. */
 export class RoundInbox {
   readonly #db: DatabaseSync
 
-  constructor(path: string) {
+  constructor(path: string, private readonly now: () => number = Date.now) {
     this.#db = openWorldDatabase(path)
   }
 
@@ -119,6 +131,7 @@ export class RoundInbox {
     const key = worldAddressKey(address)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
+      this.#assertCurrentLease(address, key, ownerId, fencingToken)
       const row = this.#db.prepare(`
         SELECT inbox_seq, idempotency_key, principal_id, input_json, input_hash
         FROM round_inbox
@@ -149,15 +162,28 @@ export class RoundInbox {
     inboxSeq: number,
     ownerId: string,
     fencingToken: number,
+    proof: RoundCommitProof,
     result: WorldJsonValue,
   ): CompleteRoundResult {
     const key = worldAddressKey(address)
     const resultHash = hashWorldJson('player-round-result', result)
     const resultText = worldJsonText(result)
+    if (boundBundleHash(result) !== proof.bundleHash) {
+      failWorld({
+        errorCode: 'BUNDLE_HASH_MISMATCH',
+        category: 'integrity',
+        message: 'Round result is not bound to its authoritative commit bundle',
+        retryable: false,
+        correlationId: `round-inbox:${key}:${inboxSeq}`,
+        address,
+      })
+    }
     this.#db.exec('BEGIN IMMEDIATE')
     try {
+      this.#assertCurrentLease(address, key, ownerId, fencingToken)
       const current = this.#db.prepare(`
-        SELECT status, claim_owner_id, claim_fencing_token, result_hash, result_json
+        SELECT status, claim_owner_id, claim_fencing_token, result_hash, result_json,
+          commit_transaction_id, commit_bundle_hash
         FROM round_inbox WHERE address_key = ? AND inbox_seq = ?
       `).get(key, inboxSeq) as {
         status: 'pending' | 'claimed' | 'completed'
@@ -165,9 +191,16 @@ export class RoundInbox {
         claim_fencing_token: number | null
         result_hash: WorldHash | null
         result_json: string | null
+        commit_transaction_id: string | null
+        commit_bundle_hash: WorldHash | null
       } | undefined
       if (current?.status === 'completed') {
-        if (current.result_hash !== resultHash || current.result_json !== resultText) this.#completionConflict(address, key)
+        if (
+          current.result_hash !== resultHash
+          || current.result_json !== resultText
+          || current.commit_transaction_id !== proof.transactionId
+          || current.commit_bundle_hash !== proof.bundleHash
+        ) this.#completionConflict(address, key)
         this.#db.exec('COMMIT')
         return { status: 'already_completed', resultHash }
       }
@@ -181,10 +214,24 @@ export class RoundInbox {
           address,
         })
       }
+      const commit = this.#db.prepare(`
+        SELECT bundle_hash FROM round_commits WHERE transaction_id = ? AND address_key = ?
+      `).get(proof.transactionId, key) as { bundle_hash: WorldHash } | undefined
+      if (commit?.bundle_hash !== proof.bundleHash) {
+        failWorld({
+          errorCode: 'BUNDLE_HASH_MISMATCH',
+          category: 'integrity',
+          message: 'Round completion has no matching authoritative commit proof',
+          retryable: false,
+          correlationId: `round-inbox:${key}:${inboxSeq}`,
+          address,
+        })
+      }
       this.#db.prepare(`
-        UPDATE round_inbox SET status = 'completed', result_hash = ?, result_json = ?
+        UPDATE round_inbox SET status = 'completed', result_hash = ?, result_json = ?,
+          commit_transaction_id = ?, commit_bundle_hash = ?
         WHERE address_key = ? AND inbox_seq = ?
-      `).run(resultHash, resultText, key, inboxSeq)
+      `).run(resultHash, resultText, proof.transactionId, proof.bundleHash, key, inboxSeq)
       this.#db.exec('COMMIT')
       return { status: 'completed', resultHash }
     } catch (error: unknown) {
@@ -194,10 +241,48 @@ export class RoundInbox {
 
   readCompleted(address: WorldAddress, idempotencyKey: string): WorldJsonValue | undefined {
     const row = this.#db.prepare(`
-      SELECT result_json FROM round_inbox
+      SELECT result_json, result_hash, commit_transaction_id, commit_bundle_hash FROM round_inbox
       WHERE address_key = ? AND idempotency_key = ? AND status = 'completed'
-    `).get(worldAddressKey(address), idempotencyKey) as { result_json: string } | undefined
-    return row === undefined ? undefined : parseWorldJson(row.result_json)
+    `).get(worldAddressKey(address), idempotencyKey) as {
+      result_json: string
+      result_hash: WorldHash
+      commit_transaction_id: string | null
+      commit_bundle_hash: WorldHash | null
+    } | undefined
+    if (row === undefined) return undefined
+    const result = parseWorldJson(row.result_json)
+    const resultText = worldJsonText(result)
+    const resultHash = hashWorldJson('player-round-result', result)
+    if (
+      resultText !== row.result_json
+      || resultHash !== row.result_hash
+      || boundBundleHash(result) !== row.commit_bundle_hash
+      || row.commit_transaction_id === null
+      || row.commit_bundle_hash === null
+    ) {
+      failWorld({
+        errorCode: 'BUNDLE_HASH_MISMATCH',
+        category: 'integrity',
+        message: 'completed Round result or commit proof is corrupt',
+        retryable: false,
+        correlationId: `round-inbox:${worldAddressKey(address)}:${idempotencyKey}`,
+        address,
+      })
+    }
+    const commit = this.#db.prepare(`
+      SELECT bundle_hash FROM round_commits WHERE transaction_id = ? AND address_key = ?
+    `).get(row.commit_transaction_id, worldAddressKey(address)) as { bundle_hash: WorldHash } | undefined
+    if (commit?.bundle_hash !== row.commit_bundle_hash) {
+      failWorld({
+        errorCode: 'BUNDLE_HASH_MISMATCH',
+        category: 'integrity',
+        message: 'completed Round commit proof is missing or divergent',
+        retryable: false,
+        correlationId: `round-inbox:${worldAddressKey(address)}:${idempotencyKey}`,
+        address,
+      })
+    }
+    return result
   }
 
   close(): void {
@@ -221,6 +306,27 @@ export class RoundInbox {
   #requireBranch(key: string): void {
     if (this.#db.prepare(`SELECT 1 AS present FROM branches WHERE address_key = ?`).get(key) === undefined) {
       throw new Error(`unknown world branch ${key}`)
+    }
+  }
+
+  #assertCurrentLease(address: WorldAddress, key: string, ownerId: string, fencingToken: number): void {
+    const lease = this.#db.prepare(`
+      SELECT owner_id, fencing_token, expires_at_ms FROM writer_leases WHERE address_key = ?
+    `).get(key) as { owner_id: string; fencing_token: number; expires_at_ms: number } | undefined
+    if (
+      lease === undefined
+      || lease.owner_id !== ownerId
+      || lease.fencing_token !== fencingToken
+      || lease.expires_at_ms <= this.now()
+    ) {
+      failWorld({
+        errorCode: 'WRITER_LEASE_LOST',
+        category: 'runtime',
+        message: 'Round Inbox operation is not owned by the current Writer Lease',
+        retryable: true,
+        correlationId: `round-inbox:${key}`,
+        address,
+      })
     }
   }
 

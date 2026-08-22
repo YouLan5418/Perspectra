@@ -5,6 +5,8 @@ import {
   failWorld,
   type WorldHash,
   type WorldJsonObject,
+  type WorldJsonValue,
+  type TransactionId,
 } from '@harness-world/contracts'
 import type { BranchRuntimeSlot } from '@harness-world/runtime-cordis'
 import {
@@ -39,6 +41,22 @@ export interface WorldKernelOptions {
   readonly runtimeSlot: BranchRuntimeSlot
   readonly ownerId: string
   readonly leaseTtlMs?: number
+}
+
+/** Revalidate the durable idempotency result before exposing it to a caller. */
+export function parsePlayerRoundResult(value: WorldJsonValue): PlayerRoundResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('completed Round result must be an object')
+  const result = value as Record<string, WorldJsonValue>
+  const keys = Object.keys(result).sort()
+  if (keys.join(',') !== 'bundleHash,headSeq,reason,status,tick') throw new TypeError('completed Round result has an invalid shape')
+  if (result.status !== 'accepted' && result.status !== 'rejected') throw new TypeError('completed Round status is invalid')
+  if (result.reason !== null && typeof result.reason !== 'string') throw new TypeError('completed Round reason is invalid')
+  if (!Number.isSafeInteger(result.headSeq) || (result.headSeq as number) < 0) throw new TypeError('completed Round headSeq is invalid')
+  if (!Number.isSafeInteger(result.tick) || (result.tick as number) < 0) throw new TypeError('completed Round tick is invalid')
+  if (typeof result.bundleHash !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(result.bundleHash)) {
+    throw new TypeError('completed Round bundleHash is invalid')
+  }
+  return result as unknown as PlayerRoundResult
 }
 
 /** Single-branch authoritative player-input pipeline; it has no Agent or model dependency. */
@@ -87,7 +105,7 @@ export class WorldKernel {
     }, this.#manifest.roundQueueLimit)
     return this.options.runtimeSlot.enqueueRound(async () => {
       const completed = this.options.inbox.readCompleted(this.#manifest.address, request.idempotencyKey)
-      if (completed !== undefined) return completed as PlayerRoundResult
+      if (completed !== undefined) return parsePlayerRoundResult(completed)
       return this.#drainUntil(queued.inboxSeq, request.correlationId)
     })
   }
@@ -103,19 +121,23 @@ export class WorldKernel {
       this.#lease = this.options.leases.acquire(this.#manifest.address, this.options.ownerId, this.options.leaseTtlMs)
       const claimed = this.options.inbox.claimNext(this.#manifest.address, this.options.ownerId, this.#lease.fencingToken)
       if (claimed === undefined) throw new Error(`Round Inbox lost admitted item ${targetSeq}`)
-      const result = await this.#commitClaimed(claimed, correlationId)
+      const committed = await this.#commitClaimed(claimed, correlationId)
       this.options.inbox.complete(
         this.#manifest.address,
         claimed.inboxSeq,
         this.options.ownerId,
         this.#lease.fencingToken,
-        result,
+        { transactionId: committed.transactionId, bundleHash: committed.result.bundleHash },
+        committed.result,
       )
-      if (claimed.inboxSeq === targetSeq) return result
+      if (claimed.inboxSeq === targetSeq) return committed.result
     }
   }
 
-  async #commitClaimed(claimed: ClaimedRound, correlationId: string): Promise<PlayerRoundResult> {
+  async #commitClaimed(
+    claimed: ClaimedRound,
+    correlationId: string,
+  ): Promise<{ readonly transactionId: TransactionId; readonly result: PlayerRoundResult }> {
     const binding = this.#manifest.playerBindings.find(value => value.principalId === claimed.principalId)
     if (binding === undefined) throw new Error('admitted Round lost its PlayerBinding')
     const action = claimed.input as PlayerActionInput
@@ -158,11 +180,14 @@ export class WorldKernel {
       writerFencingToken: this.#lease.fencingToken,
     })
     return {
-      status: resolution.status,
-      reason: resolution.reason ?? null,
-      headSeq: committed.headSeq,
-      tick: committed.tick,
-      bundleHash: committed.bundleHash,
+      transactionId,
+      result: {
+        status: resolution.status,
+        reason: resolution.reason ?? null,
+        headSeq: committed.headSeq,
+        tick: committed.tick,
+        bundleHash: committed.bundleHash,
+      },
     }
   }
 

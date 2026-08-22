@@ -193,7 +193,14 @@ ALTER TABLE outbox ADD COLUMN claim_expires_at_ms INTEGER CHECK(claim_expires_at
 CREATE UNIQUE INDEX outbox_claim_token_unique ON outbox(claim_token) WHERE claim_token IS NOT NULL;
 `
 
-export const WORLD_SCHEMA_VERSION = 7
+const WORLD_ROUND_COMPLETION_SCHEMA = `
+ALTER TABLE round_inbox ADD COLUMN commit_transaction_id TEXT;
+ALTER TABLE round_inbox ADD COLUMN commit_bundle_hash TEXT;
+CREATE UNIQUE INDEX round_inbox_commit_transaction_unique
+  ON round_inbox(commit_transaction_id) WHERE commit_transaction_id IS NOT NULL;
+`
+
+export const WORLD_SCHEMA_VERSION = 8
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -203,7 +210,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 4, sql: WORLD_ROUND_INBOX_SCHEMA },
     { version: 5, sql: WORLD_OUTBOX_DELIVERY_SCHEMA },
     { version: 6, sql: WORLD_BRANCH_ADMIN_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_OUTBOX_CLAIM_SCHEMA },
+    { version: 7, sql: WORLD_OUTBOX_CLAIM_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_ROUND_COMPLETION_SCHEMA },
   ])
 }
 

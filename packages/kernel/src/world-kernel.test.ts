@@ -2,13 +2,14 @@ import { Context } from '@deepseek-ai/cordis'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { hashWorldJson } from '@harness-world/contracts'
 import { WorldRuntimeRegistry } from '@harness-world/runtime-cordis'
 import { RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { SpeakMoveRulebook } from './rulebook.ts'
 import { WorldBootstrap } from './world-bootstrap.ts'
-import { WorldKernel } from './world-kernel.ts'
+import { parsePlayerRoundResult, WorldKernel } from './world-kernel.ts'
 import { WorldSpecCompiler } from './world-spec.ts'
 
 const directories: string[] = []
@@ -63,6 +64,31 @@ describe('SpeakMoveRulebook', () => {
 })
 
 describe('WorldKernel', () => {
+  it('strictly parses durable completed Round results', () => {
+    const valid = {
+      status: 'accepted',
+      reason: null,
+      headSeq: 1,
+      tick: 1,
+      bundleHash: `sha256:${'a'.repeat(64)}`,
+    } as const
+    expect(parsePlayerRoundResult(valid)).toEqual(valid)
+    for (const invalid of [
+      null,
+      [],
+      'result',
+      { ...valid, extra: true },
+      { ...valid, status: 'committed' },
+      { ...valid, reason: 1 },
+      { ...valid, headSeq: 1.5 },
+      { ...valid, headSeq: -1 },
+      { ...valid, tick: 1.5 },
+      { ...valid, tick: -1 },
+      { ...valid, bundleHash: null },
+      { ...valid, bundleHash: 'sha256:short' },
+    ]) expect(() => parsePlayerRoundResult(invalid as never)).toThrow(TypeError)
+  })
+
   it('commits authorized speak/move/rejections without an Agent and replays after restart', async () => {
     const path = database('kernel.sqlite')
     const world = compiled()
@@ -282,7 +308,11 @@ describe('WorldKernel', () => {
       idempotencyKey: 'lost:1', principalId: 'principal:player',
       action: { actionType: 'speak', parameters: { text: 'lost' } }, correlationId: 'lost',
     })
-    expect(lostInbox.claimNext(world.manifest.address, 'intruder', 999)).toBeDefined()
+    expect(() => lostInbox.claimNext(world.manifest.address, 'intruder', 999))
+      .toThrow('current Writer Lease')
+    const lostRaw = new DatabaseSync(lostPath)
+    lostRaw.prepare(`DELETE FROM round_inbox WHERE idempotency_key = 'lost:1'`).run()
+    lostRaw.close()
     await expect(lostPromise).rejects.toThrow('lost admitted item')
     lostKernel.close()
     lostInbox.close()

@@ -102,6 +102,9 @@ describe('Phase 5 local operations acceptance', () => {
         ALTER TABLE outbox DROP COLUMN claim_owner_id;
         ALTER TABLE outbox DROP COLUMN claim_token;
         ALTER TABLE outbox DROP COLUMN claim_expires_at_ms;
+        DROP INDEX round_inbox_commit_transaction_unique;
+        ALTER TABLE round_inbox DROP COLUMN commit_transaction_id;
+        ALTER TABLE round_inbox DROP COLUMN commit_bundle_hash;
         PRAGMA user_version = 5;
       `)
       raw.close()

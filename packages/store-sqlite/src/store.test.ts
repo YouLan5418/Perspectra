@@ -207,13 +207,15 @@ describe('WriterLeaseService', () => {
 })
 
 describe('RoundInbox', () => {
-  it('persists FIFO admission, retries, fencing takeover, and completion', () => {
+  it('persists FIFO admission, retries, fencing takeover, and completion', async () => {
     const path = database('round-inbox.sqlite')
     const address = fixtureAddress('inbox')
-    const world = new WorldStore(path)
+    let now = 1_000
+    const world = new WorldStore(path, undefined, () => now)
     world.createBranch(address)
-    world.close()
-    const inbox = new RoundInbox(path)
+    const inbox = new RoundInbox(path, () => now)
+    const leases = new WriterLeaseService(path, () => now)
+    const firstLease = leases.acquire(address, 'kernel:a', 100)
     const request = {
       address,
       idempotencyKey: 'input:1',
@@ -232,39 +234,99 @@ describe('RoundInbox', () => {
     expect(() => inbox.enqueue({ ...request, idempotencyKey: 'input:2' }, 1)).toThrow('queue is full')
     expect(() => inbox.claimNext(address, '', 1)).toThrow(TypeError)
     expect(() => inbox.claimNext(address, 'kernel:a', 0)).toThrow(RangeError)
-    const claimed = inbox.claimNext(address, 'kernel:a', 1)
+    const claimed = inbox.claimNext(address, 'kernel:a', firstLease.fencingToken)
     expect(claimed).toMatchObject({ inboxSeq: 1, idempotencyKey: 'input:1', input: request.input })
-    expect(inbox.claimNext(address, 'kernel:a', 1)).toEqual(claimed)
+    expect(inbox.claimNext(address, 'kernel:a', firstLease.fencingToken)).toEqual(claimed)
     expect(inbox.readCompleted(address, 'input:1')).toBeUndefined()
-    expect(() => inbox.complete(address, 999, 'kernel:a', 1, { status: 'missing' })).toThrow('not owned')
-    expect(() => inbox.complete(address, 1, 'kernel:b', 1, { status: 'wrong-owner' })).toThrow('not owned')
-    const result = { status: 'committed', bundleHash: 'stable' } as const
-    const completed = inbox.complete(address, 1, 'kernel:a', 1, result)
+    const firstCommitRequest = fixtureCommitRequest(address)
+    const firstCommit = await world.commitRound({ ...firstCommitRequest, writerFencingToken: firstLease.fencingToken })
+    const firstProof = { transactionId: firstCommitRequest.transactionId, bundleHash: firstCommit.bundleHash }
+    expect(() => inbox.complete(address, 999, 'kernel:a', firstLease.fencingToken, firstProof, {
+      status: 'missing', bundleHash: firstCommit.bundleHash,
+    })).toThrow('not owned')
+    expect(() => inbox.complete(address, 1, 'kernel:b', firstLease.fencingToken, firstProof, {
+      status: 'wrong-owner', bundleHash: firstCommit.bundleHash,
+    }))
+      .toThrow('current Writer Lease')
+    expect(() => inbox.complete(address, 1, 'kernel:a', firstLease.fencingToken, {
+      transactionId: brandId('transaction:missing-proof', 'TransactionId'),
+      bundleHash: firstCommit.bundleHash,
+    }, { status: 'missing-proof', bundleHash: firstCommit.bundleHash })).toThrow('no matching authoritative commit proof')
+    expect(() => inbox.complete(address, 1, 'kernel:a', firstLease.fencingToken, firstProof, {
+      status: 'wrong-bundle', bundleHash: 'sha256:wrong',
+    })).toThrow('not bound to its authoritative commit bundle')
+    for (const unbound of [null, [], { status: 'unbound', bundleHash: 1 }]) {
+      expect(() => inbox.complete(address, 1, 'kernel:a', firstLease.fencingToken, firstProof, unbound as never))
+        .toThrow('not bound to its authoritative commit bundle')
+    }
+    const result = { status: 'committed', bundleHash: firstCommit.bundleHash } as const
+    const completed = inbox.complete(address, 1, 'kernel:a', firstLease.fencingToken, firstProof, result)
     expect(completed.status).toBe('completed')
-    expect(inbox.complete(address, 1, 'kernel:a', 1, result)).toEqual({ ...completed, status: 'already_completed' })
-    expect(() => inbox.complete(address, 1, 'kernel:a', 1, { status: 'different' })).toThrow('different result')
+    expect(inbox.complete(address, 1, 'kernel:a', firstLease.fencingToken, firstProof, result))
+      .toEqual({ ...completed, status: 'already_completed' })
+    expect(() => inbox.complete(address, 1, 'kernel:a', firstLease.fencingToken, firstProof, {
+      status: 'different', bundleHash: firstCommit.bundleHash,
+    }))
+      .toThrow('different result')
     expect(inbox.readCompleted(address, 'input:1')).toEqual(result)
 
     const second = inbox.enqueue({ ...request, idempotencyKey: 'input:2', input: { type: 'move', locationId: 'location:a' } }, 1)
     expect(second.inboxSeq).toBe(2)
-    const oldClaim = inbox.claimNext(address, 'kernel:old', 1)
+    expect(leases.release(address, 'kernel:a', firstLease.fencingToken)).toBe(true)
+    const oldLease = leases.acquire(address, 'kernel:old', 100)
+    const oldClaim = inbox.claimNext(address, 'kernel:old', oldLease.fencingToken)
     expect(oldClaim?.inboxSeq).toBe(2)
-    const takenOver = inbox.claimNext(address, 'kernel:new', 2)
+    now = oldLease.expiresAtMs
+    const newLease = leases.acquire(address, 'kernel:new', 100)
+    expect(() => inbox.complete(address, 2, 'kernel:old', oldLease.fencingToken, firstProof, {
+      status: 'stale', bundleHash: firstCommit.bundleHash,
+    }))
+      .toThrow('current Writer Lease')
+    const takenOver = inbox.claimNext(address, 'kernel:new', newLease.fencingToken)
     expect(takenOver).toEqual(oldClaim)
-    inbox.complete(address, 2, 'kernel:new', 2, { status: 'rejected' })
-    expect(inbox.claimNext(address, 'kernel:new', 2)).toBeUndefined()
+    const secondCommitRequest = {
+      ...fixtureCommitRequest(address),
+      transactionId: brandId('transaction:round-inbox-second', 'TransactionId'),
+      roundId: brandId('round:round-inbox-second', 'InteractionRoundId'),
+      expectedHeadSeq: firstCommit.headSeq,
+      expectedTick: firstCommit.tick,
+      nextTick: firstCommit.tick + 1,
+      outbox: [],
+      writerFencingToken: newLease.fencingToken,
+    }
+    const secondCommit = await world.commitRound(secondCommitRequest)
+    const secondProof = { transactionId: secondCommitRequest.transactionId, bundleHash: secondCommit.bundleHash }
+    inbox.complete(address, 2, 'kernel:new', newLease.fencingToken, secondProof, {
+      status: 'rejected', bundleHash: secondCommit.bundleHash,
+    })
+    expect(inbox.claimNext(address, 'kernel:new', newLease.fencingToken)).toBeUndefined()
     inbox.close()
 
-    const restarted = new RoundInbox(path)
+    const restarted = new RoundInbox(path, () => now)
     expect(restarted.readCompleted(address, 'input:1')).toEqual(result)
     restarted.enqueue({ ...request, idempotencyKey: 'input:corrupt' }, 1)
     restarted.close()
     const raw = new DatabaseSync(path)
     raw.prepare(`UPDATE round_inbox SET input_json = 'not-json' WHERE idempotency_key = 'input:corrupt'`).run()
     raw.close()
-    const corrupted = new RoundInbox(path)
-    expect(() => corrupted.claimNext(address, 'kernel:corrupt', 3)).toThrow(SyntaxError)
+    const corrupted = new RoundInbox(path, () => now)
+    expect(() => corrupted.claimNext(address, 'kernel:new', newLease.fencingToken)).toThrow(SyntaxError)
     corrupted.close()
+    const corruptResult = new DatabaseSync(path)
+    corruptResult.prepare(`UPDATE round_inbox SET result_hash = 'sha256:corrupt' WHERE idempotency_key = 'input:1'`).run()
+    corruptResult.close()
+    const integrity = new RoundInbox(path, () => now)
+    expect(() => integrity.readCompleted(address, 'input:1')).toThrow('result or commit proof is corrupt')
+    integrity.close()
+    const corruptProof = new DatabaseSync(path)
+    corruptProof.prepare(`UPDATE round_commits SET bundle_hash = 'sha256:corrupt' WHERE transaction_id = ?`)
+      .run(secondCommitRequest.transactionId)
+    corruptProof.close()
+    const proofIntegrity = new RoundInbox(path, () => now)
+    expect(() => proofIntegrity.readCompleted(address, 'input:2')).toThrow('commit proof is missing or divergent')
+    proofIntegrity.close()
+    leases.close()
+    world.close()
   })
 })
 

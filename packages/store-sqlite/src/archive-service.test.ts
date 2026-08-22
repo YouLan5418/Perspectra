@@ -52,7 +52,7 @@ describe('WorldArchiveService', () => {
     const service = new WorldArchiveService(source)
     const backupPath = join(directory, 'backup.sqlite')
     const artifact = await service.backup(backupPath, 'backup:create')
-    expect(artifact).toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 7 })
+    expect(artifact).toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 8 })
 
     const restoredPath = join(directory, 'restored.sqlite')
     expect(service.restore(backupPath, restoredPath, artifact.fileHash, 'backup:restore')).toEqual(artifact)
