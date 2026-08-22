@@ -163,7 +163,6 @@ export class RoundCoordinator {
   submit(request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
     if (this.#closed) return Promise.reject(new Error('RoundCoordinator is closed'))
     this.#validateSubmission(request)
-    this.options.store.assertAdmissionOpen(this.#address, request.correlationId)
     if (!this.#manifest.playerBindings.some(value => value.principalId === request.principalId)) {
       failWorld({
         errorCode: 'UNAUTHORIZED',

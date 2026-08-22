@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { hashWorldJson } from '@harness-world/contracts'
 import { WorldRuntimeRegistry, type BranchComponentFactory } from '@harness-world/runtime-cordis'
-import { RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import { BranchAdministration, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { SpeakMoveRulebook } from './rulebook.ts'
 import { WorldBootstrap } from './world-bootstrap.ts'
 import { parsePlayerRoundResult, WorldKernel } from './world-kernel.ts'
@@ -148,6 +148,22 @@ describe('WorldKernel', () => {
       action: { actionType: 'speak', parameters: { text: 'changed' } },
       correlationId: 'conflict',
     })).toThrow('different player input')
+    const administration = new BranchAdministration(path)
+    administration.setAdmission(world.manifest.address, 'draining', 'retry proof', 'kernel:draining')
+    expect(await kernel.submitPlayerInput({
+      idempotencyKey: 'speak:1',
+      principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'hello' } },
+      correlationId: 'draining-retry',
+    })).toEqual(spoken)
+    expect(() => kernel.submitPlayerInput({
+      idempotencyKey: 'draining:new',
+      principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'new' } },
+      correlationId: 'draining-new',
+    })).toThrow('branch admission is draining')
+    administration.setAdmission(world.manifest.address, 'open', 'resume', 'kernel:open')
+    administration.close()
 
     const moved = await kernel.submitPlayerInput({
       idempotencyKey: 'move:1',

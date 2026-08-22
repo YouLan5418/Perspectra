@@ -15,7 +15,7 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { WorldBootstrap, WorldSpecCompiler, type CompiledWorldSpec, type RoundExecutionLane } from '@harness-world/kernel'
-import { RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import { BranchAdministration, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import {
   RoundCoordinator,
   compareActionOrderKey,
@@ -276,6 +276,16 @@ describe('RoundCoordinator', () => {
     expect(providerCalls).toBe(5)
     expect(await coordinator.submit(request)).toEqual(result)
     expect(providerCalls).toBe(5)
+    const administration = new BranchAdministration(path)
+    administration.setAdmission(compiled.manifest.address, 'draining', 'retry proof', 'coordinator:draining')
+    expect(await coordinator.submit(request)).toEqual(result)
+    expect(() => coordinator.submit({
+      ...request,
+      idempotencyKey: 'round:draining-new',
+      correlationId: 'coordinator:draining-new',
+    })).toThrow('branch admission is draining')
+    administration.setAdmission(compiled.manifest.address, 'open', 'resume', 'coordinator:open')
+    administration.close()
 
     const events = firstOptions.store.readEvents(compiled.manifest.address)
     const terminals = events.filter(value => value.eventType === 'round.participant-terminal').map(value => value.data)
