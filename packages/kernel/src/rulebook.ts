@@ -45,7 +45,7 @@ function currentLocation(events: readonly RulebookEvent[], characterId: string):
   return locationId
 }
 
-export interface EntityState {
+export interface EntityState extends WorldJsonObject {
   readonly entityId: string
   readonly locationId: string | null
   readonly holderId: string | null
