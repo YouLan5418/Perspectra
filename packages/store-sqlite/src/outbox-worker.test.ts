@@ -125,12 +125,18 @@ describe('SessionOutboxWorker', () => {
       const path = paths(`receipt-${suffix}`)
       const deliveryId = brandId(`delivery:${suffix}`, 'DeliveryId')
       await seed(path.world, [{ id: deliveryId, session: `session:${suffix}`, critical: true }])
-      const faulting = new WorldOutbox(path.world, { hit(hitPoint) { if (hitPoint === point) throw new Error(`fault ${suffix}`) } })
+      let now = 1_000
+      const faulting = new WorldOutbox(
+        path.world,
+        { hit(hitPoint) { if (hitPoint === point) throw new Error(`fault ${suffix}`) } },
+        { workerId: `worker:${suffix}`, claimTtlMs: 100, now: () => now },
+      )
       const delivery = faulting.claimNext() as ClaimedOutboxDelivery
       await expect(faulting.recordDelivered(delivery)).rejects.toThrow(`fault ${suffix}`)
       expect(faulting.hasReceipt(deliveryId)).toBe(receiptAfter)
       faulting.close()
-      const recovered = new WorldOutbox(path.world)
+      now = delivery.claimExpiresAtMs
+      const recovered = new WorldOutbox(path.world, undefined, { workerId: `worker:${suffix}:recovered`, now: () => now })
       expect(recovered.claimNext() === undefined).toBe(receiptAfter)
       recovered.close()
     }
@@ -140,10 +146,10 @@ describe('SessionOutboxWorker', () => {
     const path = paths('validation')
     await seed(path.world, [{ id: 'delivery:validation', session: 'session:validation', critical: false }])
     const outbox = new WorldOutbox(path.world)
-    expect(() => outbox.recordFailed(brandId('delivery:validation', 'DeliveryId'), 'bad', 0)).toThrow(RangeError)
-    expect(() => outbox.recordFailed(brandId('delivery:validation', 'DeliveryId'), 'bad', 1)).toThrow('not inflight')
     const delivery = outbox.claimNext() as ClaimedOutboxDelivery
+    expect(() => outbox.recordFailed(delivery, 'bad', 0)).toThrow(RangeError)
     await expect(outbox.recordDelivered({ ...delivery, payloadHash: 'sha256:mismatch' })).rejects.toThrow('does not match')
+    expect(outbox.recordFailed(delivery, 'retry after mismatch', 2)).toBe('retry_scheduled')
     const unknownFailure: SessionDeliveryPort = { appendIfAbsent: async () => Promise.reject('not-an-error') }
     const worker = new SessionOutboxWorker(outbox, unknownFailure, 1)
     await expect(worker.runOnce()).resolves.toEqual({ status: 'dead_letter', deliveryId: 'delivery:validation' })
@@ -158,5 +164,37 @@ describe('SessionOutboxWorker', () => {
     const corrupted = new WorldOutbox(corruptPath.world)
     expect(() => corrupted.claimNext()).toThrow(SyntaxError)
     corrupted.close()
+  })
+
+  it('leases claims and rejects stale worker completion or failure writes', async () => {
+    const path = paths('claim-lease')
+    await seed(path.world, [{ id: 'delivery:leased', session: 'session:leased', critical: true }])
+    let now = 1_000
+    let token = 0
+    const options = (workerId: string) => ({
+      workerId,
+      claimTtlMs: 100,
+      now: () => now,
+      createClaimToken: () => `${workerId}:${token += 1}`,
+    })
+    const firstWorker = new WorldOutbox(path.world, undefined, options('worker:first'))
+    const secondWorker = new WorldOutbox(path.world, undefined, options('worker:second'))
+    const firstClaim = firstWorker.claimNext() as ClaimedOutboxDelivery
+    expect(firstClaim).toMatchObject({ claimOwnerId: 'worker:first', claimExpiresAtMs: 1_100, attemptCount: 1 })
+    expect(secondWorker.claimNext()).toBeUndefined()
+
+    now = firstClaim.claimExpiresAtMs
+    const replacement = secondWorker.claimNext() as ClaimedOutboxDelivery
+    expect(replacement).toMatchObject({ claimOwnerId: 'worker:second', attemptCount: 2 })
+    expect(replacement.claimToken).not.toBe(firstClaim.claimToken)
+    await secondWorker.recordDelivered(replacement)
+    expect(() => firstWorker.recordFailed(firstClaim, 'late failure', 1)).toThrow('stale')
+    await expect(firstWorker.recordDelivered(firstClaim)).rejects.toThrow('stale')
+    expect(secondWorker.hasReceipt(replacement.deliveryId)).toBe(true)
+    firstWorker.close()
+    secondWorker.close()
+
+    expect(() => new WorldOutbox(path.world, undefined, { workerId: '' })).toThrow(TypeError)
+    expect(() => new WorldOutbox(path.world, undefined, { claimTtlMs: 0 })).toThrow(RangeError)
   })
 })

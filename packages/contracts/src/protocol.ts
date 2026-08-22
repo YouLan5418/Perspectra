@@ -32,7 +32,7 @@ export type FaultPoint =
 
 export interface FaultInjector {
   /** Pause, fail, or terminate execution at a named stable point. */
-  hit(point: FaultPoint): void | Promise<void>
+  hit(point: FaultPoint): void
 }
 
 export interface WorldEventDraft extends WorldJsonObject {

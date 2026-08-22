@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import {
   type AppendDeliveryRequest,
@@ -19,10 +20,20 @@ export interface ClaimedOutboxDelivery {
   readonly payload: WorldJsonValue
   readonly critical: boolean
   readonly attemptCount: number
+  readonly claimOwnerId: string
+  readonly claimToken: string
+  readonly claimExpiresAtMs: number
 }
 
-export interface DeadLetterRecord extends ClaimedOutboxDelivery {
+export interface DeadLetterRecord extends Omit<ClaimedOutboxDelivery, 'claimOwnerId' | 'claimToken' | 'claimExpiresAtMs'> {
   readonly lastError: string
+}
+
+export interface WorldOutboxOptions {
+  readonly workerId?: string
+  readonly claimTtlMs?: number
+  readonly now?: () => number
+  readonly createClaimToken?: () => string
 }
 
 export interface SessionDeliveryPort {
@@ -32,19 +43,35 @@ export interface SessionDeliveryPort {
 /** Sender-side durable Outbox state and Receipt owner. */
 export class WorldOutbox {
   readonly #db: DatabaseSync
+  readonly #workerId: string
+  readonly #claimTtlMs: number
+  readonly #now: () => number
+  readonly #createClaimToken: () => string
 
-  constructor(path: string, private readonly faultInjector?: FaultInjector) {
+  constructor(path: string, private readonly faultInjector?: FaultInjector, options: WorldOutboxOptions = {}) {
+    this.#workerId = options.workerId ?? `outbox-worker:${randomUUID()}`
+    this.#claimTtlMs = options.claimTtlMs ?? 30_000
+    this.#now = options.now ?? Date.now
+    this.#createClaimToken = options.createClaimToken ?? randomUUID
+    if (this.#workerId.length === 0 || this.#workerId.trim() !== this.#workerId) {
+      throw new TypeError('workerId must be a non-empty, unpadded string')
+    }
+    if (!Number.isSafeInteger(this.#claimTtlMs) || this.#claimTtlMs <= 0) {
+      throw new RangeError('claimTtlMs must be a positive safe integer')
+    }
     this.#db = openWorldDatabase(path)
   }
 
   claimNext(): ClaimedOutboxDelivery | undefined {
+    const now = this.#now()
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       const row = this.#db.prepare(`
         SELECT o.delivery_id, o.session_id, o.payload_hash, o.payload_json, o.critical,
           o.attempt_count, o.session_delivery_seq
         FROM outbox o
-        WHERE o.delivery_status IN ('pending', 'inflight')
+        WHERE (o.delivery_status = 'pending'
+          OR (o.delivery_status = 'inflight' AND (o.claim_token IS NULL OR o.claim_expires_at_ms <= ?)))
           AND NOT EXISTS (
             SELECT 1 FROM outbox earlier
             WHERE earlier.session_id = o.session_id
@@ -53,7 +80,7 @@ export class WorldOutbox {
                 OR (earlier.delivery_status = 'dead_letter' AND earlier.critical = 1))
           )
         ORDER BY o.world_seq, o.delivery_id LIMIT 1
-      `).get() as {
+      `).get(now) as {
         delivery_id: DeliveryId
         session_id: SessionId
         payload_hash: WorldHash
@@ -80,10 +107,22 @@ export class WorldOutbox {
           .run(sequence + 1, row.session_id)
       }
       const attemptCount = row.attempt_count + 1
+      const claimToken = `outbox-claim:${this.#createClaimToken()}`
+      const claimExpiresAtMs = now + this.#claimTtlMs
       this.#db.prepare(`
-        UPDATE outbox SET delivery_status = 'inflight', attempt_count = ?, session_delivery_seq = ?, last_error = NULL
-        WHERE delivery_id = ?
-      `).run(attemptCount, sequence, row.delivery_id)
+        UPDATE outbox SET delivery_status = 'inflight', attempt_count = ?, session_delivery_seq = ?, last_error = NULL,
+          claim_owner_id = ?, claim_token = ?, claim_expires_at_ms = ?
+        WHERE delivery_id = ? AND (delivery_status = 'pending'
+          OR (delivery_status = 'inflight' AND (claim_token IS NULL OR claim_expires_at_ms <= ?)))
+      `).run(
+        attemptCount,
+        sequence,
+        this.#workerId,
+        claimToken,
+        claimExpiresAtMs,
+        row.delivery_id,
+        now,
+      )
       this.#db.exec('COMMIT')
       return {
         deliveryId: row.delivery_id,
@@ -93,6 +132,9 @@ export class WorldOutbox {
         payload: parseWorldJson(row.payload_json),
         critical: row.critical === 1,
         attemptCount,
+        claimOwnerId: this.#workerId,
+        claimToken,
+        claimExpiresAtMs,
       }
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -102,33 +144,50 @@ export class WorldOutbox {
   async recordDelivered(delivery: ClaimedOutboxDelivery): Promise<void> {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
+      const result = this.#db.prepare(`
+        UPDATE outbox SET delivery_status = 'delivered', last_error = NULL,
+          claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
+        WHERE delivery_id = ? AND session_id = ? AND session_delivery_seq = ? AND payload_hash = ?
+          AND delivery_status = 'inflight' AND attempt_count = ? AND claim_owner_id = ? AND claim_token = ?
+      `).run(
+        delivery.deliveryId,
+        delivery.sessionId,
+        delivery.sessionDeliverySeq,
+        delivery.payloadHash,
+        delivery.attemptCount,
+        delivery.claimOwnerId,
+        delivery.claimToken,
+      )
+      if (result.changes !== 1) throw new Error('Outbox delivery claim is stale or does not match the claimed item')
       this.#db.prepare(`
         INSERT INTO outbox_delivery_receipts(delivery_id, session_id, session_delivery_seq, payload_hash)
         VALUES (?, ?, ?, ?)
-        ON CONFLICT(delivery_id) DO NOTHING
       `).run(delivery.deliveryId, delivery.sessionId, delivery.sessionDeliverySeq, delivery.payloadHash)
-      const result = this.#db.prepare(`
-        UPDATE outbox SET delivery_status = 'delivered', last_error = NULL
-        WHERE delivery_id = ? AND session_id = ? AND session_delivery_seq = ? AND payload_hash = ?
-      `).run(delivery.deliveryId, delivery.sessionId, delivery.sessionDeliverySeq, delivery.payloadHash)
-      if (result.changes !== 1) throw new Error('Outbox delivery receipt does not match the claimed item')
-      await this.faultInjector?.hit('outbox.before-receipt-commit')
+      this.faultInjector?.hit('outbox.before-receipt-commit')
       this.#db.exec('COMMIT')
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
     }
-    await this.faultInjector?.hit('outbox.after-receipt-commit')
+    this.faultInjector?.hit('outbox.after-receipt-commit')
   }
 
-  recordFailed(deliveryId: DeliveryId, message: string, maxAttempts: number): 'retry_scheduled' | 'dead_letter' {
+  recordFailed(delivery: ClaimedOutboxDelivery, message: string, maxAttempts: number): 'retry_scheduled' | 'dead_letter' {
     if (!Number.isSafeInteger(maxAttempts) || maxAttempts <= 0) throw new RangeError('maxAttempts must be a positive safe integer')
-    const row = this.#db.prepare(`
-      SELECT attempt_count FROM outbox WHERE delivery_id = ? AND delivery_status = 'inflight'
-    `).get(deliveryId) as { attempt_count: number } | undefined
-    if (row === undefined) throw new Error('Outbox item is not inflight')
-    const status = row.attempt_count >= maxAttempts ? 'dead_letter' : 'pending'
-    this.#db.prepare(`UPDATE outbox SET delivery_status = ?, last_error = ? WHERE delivery_id = ?`)
-      .run(status, message, deliveryId)
+    const status = delivery.attemptCount >= maxAttempts ? 'dead_letter' : 'pending'
+    const result = this.#db.prepare(`
+      UPDATE outbox SET delivery_status = ?, last_error = ?,
+        claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
+      WHERE delivery_id = ? AND delivery_status = 'inflight' AND attempt_count = ?
+        AND claim_owner_id = ? AND claim_token = ?
+    `).run(
+      status,
+      message,
+      delivery.deliveryId,
+      delivery.attemptCount,
+      delivery.claimOwnerId,
+      delivery.claimToken,
+    )
+    if (result.changes !== 1) throw new Error('Outbox delivery claim is stale')
     return status === 'dead_letter' ? 'dead_letter' : 'retry_scheduled'
   }
 
@@ -160,7 +219,9 @@ export class WorldOutbox {
 
   retryDeadLetter(deliveryId: DeliveryId): void {
     const result = this.#db.prepare(`
-      UPDATE outbox SET delivery_status = 'pending', last_error = NULL WHERE delivery_id = ? AND delivery_status = 'dead_letter'
+      UPDATE outbox SET delivery_status = 'pending', last_error = NULL,
+        claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
+      WHERE delivery_id = ? AND delivery_status = 'dead_letter'
     `).run(deliveryId)
     if (result.changes !== 1) throw new Error('Outbox item is not a dead letter')
   }
@@ -201,7 +262,7 @@ export class SessionOutboxWorker {
       })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'unknown Session delivery failure'
-      const status = this.outbox.recordFailed(delivery.deliveryId, message, this.maxAttempts)
+      const status = this.outbox.recordFailed(delivery, message, this.maxAttempts)
       return { status, deliveryId: delivery.deliveryId }
     }
     await this.outbox.recordDelivered(delivery)

@@ -65,7 +65,10 @@ describe('hard process termination recovery', () => {
     await setup.commitRound(fixtureCommitRequest())
     setup.close()
     await hardKillAt(worker, ['outbox', path, point])
-    const recovered = new WorldOutbox(path)
+    const recovered = new WorldOutbox(path, undefined, {
+      workerId: 'worker:crash-recovery',
+      now: () => Number.MAX_SAFE_INTEGER,
+    })
     const deliveryId = fixtureCommitRequest().outbox[0]!.deliveryId
     expect(recovered.hasReceipt(deliveryId)).toBe(expectedReceipt)
     expect(recovered.claimNext() === undefined).toBe(expectedReceipt)

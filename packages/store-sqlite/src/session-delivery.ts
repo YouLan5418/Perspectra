@@ -126,13 +126,13 @@ export class SessionDeliveryAdapter {
         INSERT INTO session_delivery_inbox(session_id, session_delivery_seq, delivery_id, payload_hash)
         VALUES (?, ?, ?, ?)
       `).run(request.sessionId, request.sessionDeliverySeq, request.deliveryId, request.payloadHash)
-      await this.faultInjector?.hit('session-delivery.after-inbox-insert')
+      this.faultInjector?.hit('session-delivery.after-inbox-insert')
 
       this.#db.prepare(`
         INSERT INTO session_events(session_id, session_event_seq, event_type, payload_hash, payload_json)
         VALUES (?, ?, 'world/observation', ?, ?)
       `).run(request.sessionId, request.sessionDeliverySeq, request.payloadHash, payloadText)
-      await this.faultInjector?.hit('session-delivery.after-observation-append')
+      this.faultInjector?.hit('session-delivery.after-observation-append')
 
       this.#db.prepare(`
         INSERT INTO session_delivery_cursor(session_id, last_delivery_seq) VALUES (?, ?)
@@ -142,7 +142,7 @@ export class SessionDeliveryAdapter {
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
     }
-    await this.faultInjector?.hit('session-delivery.after-commit')
+    this.faultInjector?.hit('session-delivery.after-commit')
     return { status: 'applied', cursor: request.sessionDeliverySeq }
   }
 

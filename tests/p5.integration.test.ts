@@ -95,7 +95,15 @@ describe('Phase 5 local operations acceptance', () => {
       preMigration.createBranch(address('migrated'))
       preMigration.close()
       const raw = new DatabaseSync(migratedPath)
-      raw.exec('DROP TABLE branch_audit_events; DROP TABLE branch_controls; PRAGMA user_version = 5;')
+      raw.exec(`
+        DROP TABLE branch_audit_events;
+        DROP TABLE branch_controls;
+        DROP INDEX outbox_claim_token_unique;
+        ALTER TABLE outbox DROP COLUMN claim_owner_id;
+        ALTER TABLE outbox DROP COLUMN claim_token;
+        ALTER TABLE outbox DROP COLUMN claim_expires_at_ms;
+        PRAGMA user_version = 5;
+      `)
       raw.close()
       const migrated = new WorldStore(migratedPath)
       migrated.close()

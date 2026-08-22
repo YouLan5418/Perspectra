@@ -34,10 +34,10 @@ export class ThrowingFaultInjector implements FaultInjector {
 export class IpcPauseFaultInjector implements FaultInjector {
   constructor(private readonly target: FaultPoint) {}
 
-  async hit(point: FaultPoint): Promise<void> {
+  hit(point: FaultPoint): void {
     if (point !== this.target) return
     process.send?.({ type: 'fault-reached', point })
-    await new Promise<never>(() => undefined)
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0)
   }
 }
 

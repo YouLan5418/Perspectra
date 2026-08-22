@@ -186,7 +186,14 @@ CREATE TABLE branch_audit_events (
 ) STRICT;
 `
 
-export const WORLD_SCHEMA_VERSION = 6
+const WORLD_OUTBOX_CLAIM_SCHEMA = `
+ALTER TABLE outbox ADD COLUMN claim_owner_id TEXT;
+ALTER TABLE outbox ADD COLUMN claim_token TEXT;
+ALTER TABLE outbox ADD COLUMN claim_expires_at_ms INTEGER CHECK(claim_expires_at_ms >= 0);
+CREATE UNIQUE INDEX outbox_claim_token_unique ON outbox(claim_token) WHERE claim_token IS NOT NULL;
+`
+
+export const WORLD_SCHEMA_VERSION = 7
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -195,7 +202,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 3, sql: WORLD_ACTIVATION_SCHEMA },
     { version: 4, sql: WORLD_ROUND_INBOX_SCHEMA },
     { version: 5, sql: WORLD_OUTBOX_DELIVERY_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_BRANCH_ADMIN_SCHEMA },
+    { version: 6, sql: WORLD_BRANCH_ADMIN_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_OUTBOX_CLAIM_SCHEMA },
   ])
 }
 
@@ -555,7 +563,7 @@ export class WorldStore {
         previousHash = eventHash
         eventHashes.push(eventHash)
       }
-      await this.faultInjector?.hit('store.after-event-insert')
+      this.faultInjector?.hit('store.after-event-insert')
 
       const finalHeadSeq = head.head_seq + request.events.length
       const outboxHashes = request.outbox.map((item) => {
@@ -602,13 +610,13 @@ export class WorldStore {
         previousHash,
         addressKey,
       )
-      await this.faultInjector?.hit('store.before-commit')
+      this.faultInjector?.hit('store.before-commit')
       this.#db.exec('COMMIT')
       result = { status: 'committed', headSeq: finalHeadSeq, tick: request.nextTick, bundleHash }
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
     }
-    await this.faultInjector?.hit('store.after-commit')
+    this.faultInjector?.hit('store.after-commit')
     return result
   }
 

@@ -51,7 +51,7 @@ describe('OperationsMetrics and WorldHealthService', () => {
     const store = new WorldStore(path)
     store.createBranch(parent)
     store.close()
-    expect(new WorldHealthService(path).check()).toMatchObject({ status: 'ready', schemaVersion: 6, branchCount: 1 })
+    expect(new WorldHealthService(path).check()).toMatchObject({ status: 'ready', schemaVersion: 7, branchCount: 1 })
 
     const raw = new DatabaseSync(path)
     raw.exec('PRAGMA application_id = 1')
