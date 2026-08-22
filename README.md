@@ -1,6 +1,6 @@
 # Harness / Cordis World V0
 
-> 当前状态：Phase 0～5 的 Windows/Node 24 本机门槛已通过。当前是可验证的 V0 内核与本机运维原型，不是已发布的最终用户产品；LLM/TencentDB Bridge 和远程访问保持禁用。
+> 当前状态：Phase 0～6 的 Windows/Node 24 本机门槛已通过。V0 已形成从本机协议、WorldApplication、Cordis Branch Runtime、统一 Round 到 Session/Presentation 的单一确定性路径；它仍不是已发布的最终用户产品，LLM/TencentDB Bridge 和远程访问保持禁用。
 
 这是一个独立的、事件溯源的 TURN_DRIVEN 世界模拟内核原型，用 Cordis 管理 Branch 运行时生命周期，用 Node 内置 SQLite 验证耐久原子性、幂等投递、forkSeq 时态重建和无模型确定性闭环。
 
@@ -13,7 +13,7 @@ corepack pnpm@11.7.0 install --frozen-lockfile
 corepack pnpm@11.7.0 check
 ```
 
-`check` 依次运行类型检查、Lint、逐文件 100% 覆盖率、P0～P5 集成测试和子进程硬崩溃测试。
+`check` 依次运行类型检查、Lint、逐文件 100% 覆盖率、P0～P6 集成测试和子进程硬崩溃测试。
 
 已存在 World 数据库时，可通过本机 stdio CLI 查询健康状态：
 
@@ -35,6 +35,7 @@ console.log(hash)
 
 | 包 | 责任 |
 |---|---|
+| `@harness-world/application` | WorldApplication 组合根、统一 Round、Branch 排空与真实 Runtime 组件 |
 | `@harness-world/contracts` | 品牌 ID、WorldAddress、Canonical JSON、Hash、错误和 Registry |
 | `@harness-world/agents` | ContextAssembler、submit_actions、HarnessAgentPort、预算、Director Scheduler 与 Replay |
 | `@harness-world/kernel` | WorldSpec Compiler、Tick 0 Genesis、PlayerBinding、speak/move Rulebook 与 WorldKernel |
@@ -69,6 +70,11 @@ console.log(hash)
 - SQLite Backup/Restore 保持原 Event Hash；authority-only `.dshworld` 逻辑包排除 Session、Memory、Audit 和进程状态。
 - World/Branch/Archive/Transfer 请求写 append-only sidecar Audit；Health 与固定基数 Metrics 不参与权威状态。
 - JSON-RPC 仅为进程内路由，CLI 使用 stdio；没有 TCP、Pipe、Socket 或远程监听。
+- 生产 Cordis Slot 持有真实 Store、Kernel、Agent 和 Director 组件；Branch Fiber 统一释放资源，不再以 Probe 代替生产组件。
+- 玩家、NPC Agent 与 Director 候选在同一 Round 中经过严格校验、稳定排序和逐动作重裁决，并只执行一次 WorldStore 提交。
+- Branch 行政操作先关闭 Gate，再排空已耐久受理的 FIFO，最后执行 fork/archive；新输入不能混入维护窗口。
+- `WorldApplication` 贯穿 Runtime、Outbox、Session 与 Presenter；父分支归档后子分支可继续提交，重启和幂等回放不再次调用 Provider。
+- Application JSON-RPC/CLI 覆盖激活、Round、Head、CharacterView、投递、渲染、fork/archive、Snapshot、Backup 和 Transfer；数据库 Writer 身份默认按进程实例隔离。
 
 ## 文档
 
@@ -80,5 +86,6 @@ console.log(hash)
 - [Phase 3 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-3-report.md)
 - [Phase 4 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-4-report.md)
 - [Phase 5 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-5-report.md)
+- [Phase 6 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-6-report.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。

@@ -22,3 +22,7 @@ Phase 0～5 分别证明了 Cordis 隔离、玩家 Kernel、Agent/Director、Ses
 ## 结果
 
 Phase 0 Probe 仅保留在 test fixture。生产 Branch Fiber 的 dispose 将关闭 Kernel Lease、Store/Inbox/Session worker 等 branch-owned 资源。包依赖方向保持单向，完整本机路径可以用 Scripted Provider 测试而不需要 Harness 或网络。
+
+## 实现证据
+
+Phase 6 已按本 ADR 完成。`WorldApplication` 是生产组合根，`RoundCoordinator` 是统一 InteractionRound 入口，`BranchOperationCoordinator` 负责 Gate/Drain/行政操作，Application Port 负责本机协议路由。Reference Application 与硬崩溃恢复证据记录在 [Phase 6 阶段报告](../2026-08-22_阶段报告-Harness-Cordis-World-Phase-6-report.md)。
