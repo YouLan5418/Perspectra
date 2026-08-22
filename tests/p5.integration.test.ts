@@ -56,7 +56,19 @@ describe('Phase 5 local operations acceptance', () => {
       admin.setAdmission(parent, 'open', 'snapshot complete', 'p5:open')
       admin.setAdmission(parent, 'draining', 'archive barrier', 'p5:archive-drain')
       admin.archive(parent, 'world complete', 'p5:archive')
+      await store.commitRound({
+        address: child,
+        transactionId: brandId('transaction:p5:child-after-parent-archive', 'TransactionId'),
+        roundId: brandId('round:p5:child-after-parent-archive', 'InteractionRoundId'),
+        expectedHeadSeq: 1,
+        expectedTick: 1,
+        nextTick: 2,
+        events: [{ eventType: 'goal.upsert', eventVersion: 1, data: { id: 'goal:child', value: { independent: true } } }],
+        outbox: [],
+        correlationId: 'p5:child-after-parent-archive',
+      })
       expect(store.readEvents(parent)[0]!.eventHash).toBe(eventHash)
+      expect(store.readEvents(child)).toHaveLength(2)
       admin.close()
       store.close()
 
@@ -72,7 +84,7 @@ describe('Phase 5 local operations acceptance', () => {
       for (const candidate of [restoredPath, importedPath]) {
         const recovered = new WorldStore(candidate)
         expect(recovered.readEvents(parent)[0]!.eventHash).toBe(eventHash)
-        expect(recovered.readEvents(child)).toHaveLength(1)
+        expect(recovered.readEvents(child)).toHaveLength(2)
         recovered.close()
       }
 
