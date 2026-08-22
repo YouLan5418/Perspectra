@@ -77,8 +77,15 @@ export interface CommitRoundRequest {
   readonly events: readonly WorldEventDraft[]
   readonly outbox: readonly OutboxDraft[]
   readonly correlationId: string
+  /** Durable proof that this input crossed admission before a draining barrier closed. */
+  readonly admissionProof?: RoundAdmissionProof
   /** Operational fencing is excluded from authoritative hashes and required once a branch has acquired a database lease. */
   readonly writerFencingToken?: number
+}
+
+export interface RoundAdmissionProof extends WorldJsonObject {
+  readonly inboxSeq: number
+  readonly inputHash: WorldHash
 }
 
 export interface CommitRoundResult {

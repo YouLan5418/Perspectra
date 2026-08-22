@@ -303,6 +303,7 @@ export class RoundCoordinator {
       events,
       outbox,
       correlationId,
+      admissionProof: { inboxSeq: claimed.inboxSeq, inputHash: claimed.inputHash },
       writerFencingToken: this.#lease.fencingToken,
     })
     return {

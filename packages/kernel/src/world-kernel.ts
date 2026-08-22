@@ -185,6 +185,7 @@ export class WorldKernel {
         critical: true,
       }],
       correlationId,
+      admissionProof: { inboxSeq: claimed.inboxSeq, inputHash: claimed.inputHash },
       writerFencingToken: this.#lease.fencingToken,
     })
     return {

@@ -75,12 +75,13 @@ describe('BranchAdministration', () => {
     store.close()
   })
 
-  it('validates administration input, unknown branches, and rolls back failed audit writes', () => {
+  it('validates administration input, unknown branches, and rolls back failed audit writes', async () => {
     const path = database()
     const target = address('validation')
     const store = new WorldStore(path)
     store.createBranch(target)
     expect(() => store.assertAdmissionOpen(address('missing'), 'missing')).toThrow('unknown world branch')
+    await expect(store.commitRound(round(address('missing')))).rejects.toThrow('unknown world branch')
     const admin = new BranchAdministration(path)
     expect(() => admin.status(address('missing'))).toThrow('unknown world branch')
     expect(() => admin.setAdmission(target, 'draining', '', 'correlation')).toThrow(TypeError)
@@ -148,6 +149,41 @@ describe('BranchAdministration', () => {
     inbox.close()
     leases.close()
     admin.close()
+    store.close()
+  })
+
+  it('allows only a matching durable Inbox admission to finish behind a draining gate', async () => {
+    const path = database()
+    const target = address('admitted-drain')
+    const store = new WorldStore(path, undefined, () => 100)
+    store.createBranch(target)
+    const inbox = new RoundInbox(path, () => 100)
+    const leases = new WriterLeaseService(path, () => 100)
+    const lease = leases.acquire(target, 'kernel:drain', 1_000)
+    const admitted = inbox.enqueue({
+      address: target,
+      idempotencyKey: 'admitted-before-drain',
+      principalId: 'principal:player',
+      input: { actionType: 'speak', parameters: { text: 'accepted' } },
+      correlationId: 'admitted-before-drain',
+    }, 4)
+    inbox.claimNext(target, lease.ownerId, lease.fencingToken)
+    const admin = new BranchAdministration(path, () => 100)
+    admin.setAdmission(target, 'draining', 'drain accepted work', 'admin:drain-accepted')
+    const request = {
+      ...round(target),
+      writerFencingToken: lease.fencingToken,
+      admissionProof: { inboxSeq: admitted.inboxSeq, inputHash: admitted.inputHash },
+    }
+    await expect(store.commitRound({
+      ...request,
+      transactionId: brandId('transaction:wrong-admission', 'TransactionId'),
+      admissionProof: { ...request.admissionProof, inputHash: 'sha256:wrong' },
+    })).rejects.toThrow('no matching durable admission proof')
+    await expect(store.commitRound(request)).resolves.toMatchObject({ status: 'committed', tick: 1 })
+    admin.close()
+    inbox.close()
+    leases.close()
     store.close()
   })
 })

@@ -534,7 +534,7 @@ export class WorldStore {
         return { status: 'already_committed', headSeq: replay.head_seq, tick: replay.tick, bundleHash: replay.bundle_hash }
       }
 
-      this.#assertAdmissionOpen(addressKey, request.correlationId, request.address)
+      this.#assertCommitAdmission(addressKey, request)
 
       this.#assertWriterLease(addressKey, request)
 
@@ -760,6 +760,32 @@ export class WorldStore {
         retryable: row.lifecycle_state !== 'archived',
         correlationId,
         address,
+      })
+    }
+  }
+
+  #assertCommitAdmission(addressKey: string, request: CommitRoundRequest): void {
+    const row = this.#db.prepare(`
+      SELECT admission_state, lifecycle_state FROM branch_controls WHERE address_key = ?
+    `).get(addressKey) as { admission_state: 'open' | 'draining'; lifecycle_state: 'active' | 'archived' } | undefined
+    if (row === undefined) throw new Error(`unknown world branch ${addressKey}`)
+    if (row.lifecycle_state === 'active' && row.admission_state === 'open') return
+    const proof = request.admissionProof
+    const admitted = proof === undefined ? undefined : this.#db.prepare(`
+      SELECT input_hash FROM round_inbox
+      WHERE address_key = ? AND inbox_seq = ? AND status IN ('pending', 'claimed')
+    `).get(addressKey, proof.inboxSeq) as { input_hash: WorldHash } | undefined
+    if (row.lifecycle_state !== 'active' || proof === undefined || admitted?.input_hash !== proof.inputHash) {
+      failWorld({
+        errorCode: 'BRANCH_DRAINING',
+        category: 'admin',
+        message: row.lifecycle_state === 'archived'
+          ? 'branch is archived'
+          : 'branch admission is draining and the Round has no matching durable admission proof',
+        retryable: row.lifecycle_state !== 'archived',
+        correlationId: request.correlationId,
+        address: request.address,
+        roundId: request.roundId,
       })
     }
   }
