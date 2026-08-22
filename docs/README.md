@@ -11,4 +11,5 @@
 - [Phase 5 实现与验证报告](2026-08-22_阶段报告-Harness-Cordis-World-Phase-5-report.md)
 - [Phase 6 实现与验证报告](2026-08-22_阶段报告-Harness-Cordis-World-Phase-6-report.md)
 - [V0 独立审查修复报告](2026-08-22_V0独立审查修复报告.md)
+- [Phase 6 独立审查修复报告](2026-08-22_Phase-6独立审查修复报告.md)
 - [Phase 6 架构闭合计划（已完成）](2026-08-22_实施计划-Harness-Cordis-World-Phase-6.md)

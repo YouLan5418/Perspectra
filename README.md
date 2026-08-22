@@ -1,6 +1,6 @@
 # Harness / Cordis World V0
 
-> 当前状态：Phase 0～6 的 Windows/Node 24 本机门槛已通过。V0 已形成从本机协议、WorldApplication、Cordis Branch Runtime、统一 Round 到 Session/Presentation 的单一确定性路径；它仍不是已发布的最终用户产品，LLM/TencentDB Bridge 和远程访问保持禁用。
+> 当前状态：Phase 0～6 Reference Architecture 的 Windows/Node 24 本机门槛与独立审查修订已通过。严格 V0 Release Closure 仍在进行；Quarantine、完整冻结协议、Host 配置/instance.lock、Upcaster 和跨平台发布证据尚未闭合。LLM/TencentDB Bridge 与远程访问保持禁用。
 
 这是一个独立的、事件溯源的 TURN_DRIVEN 世界模拟内核原型，用 Cordis 管理 Branch 运行时生命周期，用 Node 内置 SQLite 验证耐久原子性、幂等投递、forkSeq 时态重建和无模型确定性闭环。
 
@@ -87,5 +87,6 @@ console.log(hash)
 - [Phase 4 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-4-report.md)
 - [Phase 5 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-5-report.md)
 - [Phase 6 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-6-report.md)
+- [Phase 6 独立审查修复报告](docs/2026-08-22_Phase-6独立审查修复报告.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。

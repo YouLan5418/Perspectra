@@ -25,4 +25,4 @@ Phase 0 Probe 仅保留在 test fixture。生产 Branch Fiber 的 dispose 将关
 
 ## 实现证据
 
-Phase 6 已按本 ADR 完成。`WorldApplication` 是生产组合根，`RoundCoordinator` 是统一 InteractionRound 入口，`BranchOperationCoordinator` 负责 Gate/Drain/行政操作，Application Port 负责本机协议路由。Reference Application 与硬崩溃恢复证据记录在 [Phase 6 阶段报告](../2026-08-22_阶段报告-Harness-Cordis-World-Phase-6-report.md)。
+Phase 6 Reference Architecture 已按本 ADR 和 ADR-0040 完成审查修订。`WorldApplication` 是生产组合根，`RoundCoordinator` 是统一 InteractionRound 入口，`BranchOperationCoordinator` 负责 Gate/Drain/行政操作，Application Port 负责本机协议路由。此结论不替代严格 V0 Release Closure；证据记录在 [Phase 6 阶段报告](../2026-08-22_阶段报告-Harness-Cordis-World-Phase-6-report.md)和[独立审查修复报告](../2026-08-22_Phase-6独立审查修复报告.md)。
