@@ -6,9 +6,11 @@ import {
   type CharacterView,
   type SessionId,
   type WorldAddress,
+  type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
   WorldBootstrap,
+  WorldSpecCompiler,
   parsePlayerRoundResult,
   type CompiledWorldSpec,
   type PlayerRoundResult,
@@ -161,6 +163,10 @@ export class WorldApplication {
     } finally {
       store.close()
     }
+  }
+
+  activateSpec(input: WorldJsonValue) {
+    return this.activate(new WorldSpecCompiler().compile(input))
   }
 
   async submit(address: WorldAddress, request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {

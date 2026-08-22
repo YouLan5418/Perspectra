@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
+import { WorldApplication } from '@harness-world/application'
 import { brandId, type WorldAddress } from '@harness-world/contracts'
 import { WORLD_APPLICATION_ID, WorldStore } from '@harness-world/store-sqlite'
 import { executeLocalCli, parseLocalCli } from './cli.ts'
@@ -110,6 +111,77 @@ describe('LocalJsonRpcRouter', () => {
       .resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
     router.close()
   })
+
+  it('routes the local game protocol exclusively through WorldApplication', async () => {
+    const { directory, path, parent, child } = fixture()
+    const sessionPath = join(directory, 'session.sqlite')
+    const application = new WorldApplication({ worldPath: path, sessionPath })
+    const router = new LocalJsonRpcRouter(path, application)
+    const spec = {
+      schemaVersion: 1,
+      address: parent,
+      timeMode: 'TURN_DRIVEN',
+      roundQueueLimit: 4,
+      rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+      locations: [{ locationId: 'location:room', name: 'Room' }],
+      characters: [{ characterId: 'character:player', name: 'Player', locationId: 'location:room' }],
+      playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
+      plugins: [],
+    } as const
+    await expect(router.handle(request('world.activate', { spec }))).resolves.toMatchObject({ result: { status: 'activated' } })
+    await expect(router.handle(request('round.get', { address: parent, idempotencyKey: 'missing' }))).resolves.toMatchObject({ result: null })
+    const roundParams = {
+      address: parent,
+      idempotencyKey: 'rpc-round',
+      principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'hello from RPC' } },
+      correlationId: 'rpc:round',
+    }
+    const submitted = await router.handle(request('round.submit', roundParams))
+    expect(submitted).toMatchObject({ result: { status: 'accepted', tick: 1 } })
+    await expect(router.handle(request('round.get', { address: parent, idempotencyKey: 'rpc-round' })))
+      .resolves.toMatchObject({ result: submitted.result })
+    const head = await router.handle(request('world.head', { address: parent }))
+    expect(head).toMatchObject({ result: { tick: 1 } })
+    await expect(router.handle(request('view.character', { address: parent, characterId: 'character:player' })))
+      .resolves.toMatchObject({ result: { characterId: 'character:player', asOfWorldSeq: expect.any(Number) } })
+    await expect(router.handle(request('view.character', {
+      address: parent, characterId: 'character:player', asOfWorldSeq: (head.result as { headSeq: number }).headSeq,
+    }))).resolves.toMatchObject({ result: { characterId: 'character:player' } })
+    await expect(router.handle(request('outbox.drain', { address: parent, correlationId: 'rpc:outbox' })))
+      .resolves.toMatchObject({ result: { delivered: 1 } })
+    await expect(router.handle(request('session.render', {
+      address: parent, sessionId: 'session:player', sessionEventSeq: 1, locale: 'zh-CN',
+    }))).resolves.toMatchObject({ result: { locale: 'zh-CN' } })
+    await expect(router.handle(request('session.render', {
+      address: parent, sessionId: 'session:player', sessionEventSeq: 1,
+    }))).resolves.toMatchObject({ result: { locale: 'en' } })
+    await expect(router.handle(request('branch.fork-at-head', {
+      parent, child, reason: 'checkpoint', correlationId: 'rpc:fork-at-head',
+    }))).resolves.toMatchObject({ result: { parentState: { admissionState: 'open' } } })
+    await expect(router.handle(request('branch.archive-coordinated', {
+      address: parent, reason: 'complete', correlationId: 'rpc:archive-coordinated',
+    }))).resolves.toMatchObject({ result: { state: { lifecycleState: 'archived' } } })
+
+    for (const [method, params] of [
+      ['round.submit', { ...roundParams, principalId: 'principal:other', idempotencyKey: 'unauthorized' }],
+      ['round.submit', { ...roundParams, action: null }],
+      ['round.submit', { ...roundParams, action: [] }],
+      ['round.submit', { ...roundParams, action: { actionType: 'speak', parameters: {}, extra: true } }],
+      ['view.character', { address: child, characterId: 'character:player', asOfWorldSeq: -1 }],
+      ['view.character', { address: child, characterId: 'character:player', asOfWorldSeq: 'latest' }],
+      ['session.render', { address: child, sessionId: 'session:player', sessionEventSeq: 1, locale: 'fr' }],
+    ] as const) {
+      await expect(router.handle(request(method, params as never))).resolves.toMatchObject({ error: { errorCode: expect.any(String) } })
+    }
+    router.close()
+    await application.close()
+
+    const legacy = new LocalJsonRpcRouter(path)
+    await expect(legacy.handle(request('world.head', { address: child })))
+      .resolves.toMatchObject({ error: { message: expect.stringContaining('not configured') } })
+    legacy.close()
+  })
 })
 
 describe('worldctl grammar', () => {
@@ -121,11 +193,21 @@ describe('worldctl grammar', () => {
     expect(parseLocalCli(['branch', 'drain', 'tenant', 'world', 'branch', 'planned', 'work']).params).toMatchObject({ reason: 'planned work' })
     expect(parseLocalCli(['branch', 'open', 'tenant', 'world', 'branch', 'done']).method).toBe('branch.open')
     expect(parseLocalCli(['branch', 'archive', 'tenant', 'world', 'branch', 'complete']).method).toBe('branch.archive')
+    expect(parseLocalCli(['round', 'get', 'tenant', 'world', 'branch', 'round:1']).method).toBe('round.get')
+    expect(parseLocalCli(['round', 'submit', 'tenant', 'world', 'branch', 'principal:1', 'round:1', 'speak', '{"text":"hi"}']).params)
+      .toMatchObject({ action: { actionType: 'speak', parameters: { text: 'hi' } } })
+    expect(parseLocalCli(['world', 'head', 'tenant', 'world', 'branch']).method).toBe('world.head')
+    expect(parseLocalCli(['view', 'character', 'tenant', 'world', 'branch', 'character:1']).method).toBe('view.character')
+    expect(parseLocalCli(['view', 'character', 'tenant', 'world', 'branch', 'character:1', '2']).params).toMatchObject({ asOfWorldSeq: 2 })
+    expect(parseLocalCli(['outbox', 'drain', 'tenant', 'world', 'branch']).method).toBe('outbox.drain')
     expect(() => parseLocalCli(['unknown'])).toThrow('unknown worldctl')
     expect(() => parseLocalCli(['branch'])).toThrow('unknown worldctl')
     expect(() => parseLocalCli(['branch', 'status'])).toThrow('requires tenantId')
     expect(() => parseLocalCli(['branch', 'drain', 'tenant', 'world', 'branch'])).toThrow('requires a reason')
     expect(() => parseLocalCli(['branch', 'unknown', 'tenant', 'world', 'branch'])).toThrow('unknown branch')
+    expect(() => parseLocalCli(['round', 'get', 'tenant', 'world', 'branch'])).toThrow('idempotencyKey')
+    expect(() => parseLocalCli(['round', 'submit', 'tenant', 'world', 'branch'])).toThrow('requires principalId')
+    expect(() => parseLocalCli(['view', 'character', 'tenant', 'world', 'branch'])).toThrow('characterId')
 
     const { path, parent } = fixture()
     const store = new WorldStore(path)

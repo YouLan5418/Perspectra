@@ -86,6 +86,9 @@ importers:
 
   packages/operations:
     dependencies:
+      '@harness-world/application':
+        specifier: workspace:*
+        version: link:../application
       '@harness-world/contracts':
         specifier: workspace:*
         version: link:../contracts

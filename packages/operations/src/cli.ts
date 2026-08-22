@@ -11,6 +11,42 @@ export function parseLocalCli(argv: readonly string[]): LocalJsonRpcRequest {
   const [group, operation, tenantId, worldId, branchId, ...rest] = argv
   if (group === 'health' && operation === undefined) return { jsonrpc: '2.0', id: 'cli', method: 'health.get', params: {} }
   if (group === 'metrics' && operation === undefined) return { jsonrpc: '2.0', id: 'cli', method: 'metrics.get', params: {} }
+  if (group === 'round' && operation === 'get') {
+    const [idempotencyKey] = rest
+    if (idempotencyKey === undefined) throw new TypeError('round get requires idempotencyKey')
+    return { jsonrpc: '2.0', id: 'cli', method: 'round.get', params: { address: address(tenantId, worldId, branchId), idempotencyKey } }
+  }
+  if (group === 'round' && operation === 'submit') {
+    const [principalId, idempotencyKey, actionType, parametersJson] = rest
+    if ([principalId, idempotencyKey, actionType, parametersJson].some(value => value === undefined)) {
+      throw new TypeError('round submit requires principalId idempotencyKey actionType parametersJson')
+    }
+    const parameters = JSON.parse(parametersJson!) as WorldJsonObject
+    return {
+      jsonrpc: '2.0', id: 'cli', method: 'round.submit',
+      params: {
+        address: address(tenantId, worldId, branchId), principalId: principalId!, idempotencyKey: idempotencyKey!,
+        action: { actionType: actionType!, parameters }, correlationId: 'cli:round-submit',
+      },
+    }
+  }
+  if (group === 'world' && operation === 'head') {
+    return { jsonrpc: '2.0', id: 'cli', method: 'world.head', params: { address: address(tenantId, worldId, branchId) } }
+  }
+  if (group === 'view' && operation === 'character') {
+    const [characterId, asOf] = rest
+    if (characterId === undefined) throw new TypeError('view character requires characterId')
+    return {
+      jsonrpc: '2.0', id: 'cli', method: 'view.character',
+      params: { address: address(tenantId, worldId, branchId), characterId, ...(asOf === undefined ? {} : { asOfWorldSeq: Number(asOf) }) },
+    }
+  }
+  if (group === 'outbox' && operation === 'drain') {
+    return {
+      jsonrpc: '2.0', id: 'cli', method: 'outbox.drain',
+      params: { address: address(tenantId, worldId, branchId), correlationId: 'cli:outbox-drain' },
+    }
+  }
   if (group !== 'branch' || operation === undefined) throw new TypeError('unknown worldctl command')
   const target = address(tenantId, worldId, branchId)
   if (operation === 'status') return { jsonrpc: '2.0', id: 'cli', method: 'branch.status', params: { address: target } }
