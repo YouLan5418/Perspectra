@@ -5,6 +5,7 @@ import {
   worldAddressKey,
   type CharacterId,
   type CharacterView,
+  type DeliveryId,
   type FaultInjector,
   type SessionId,
   type WorldAddress,
@@ -31,6 +32,7 @@ import {
 import {
   BranchAdministration,
   CharacterViewBuilder,
+  type DeadLetterRecord,
   ProjectionRebuilder,
   RoundInbox,
   SessionDeliveryAdapter,
@@ -74,14 +76,20 @@ export class BranchStoreComponent {
   readonly session: SessionDeliveryAdapter
   readonly #worker: SessionOutboxWorker
 
-  constructor(worldPath: string, sessionPath: string, maxAttempts: number, faultInjector?: FaultInjector) {
+  constructor(
+    readonly address: WorldAddress,
+    worldPath: string,
+    sessionPath: string,
+    maxAttempts: number,
+    faultInjector?: FaultInjector,
+  ) {
     this.store = new WorldStore(worldPath, faultInjector)
     this.inbox = new RoundInbox(worldPath)
     this.leases = new WriterLeaseService(worldPath)
     this.administration = new BranchAdministration(worldPath)
     this.outbox = new WorldOutbox(worldPath)
     this.session = new SessionDeliveryAdapter(sessionPath)
-    this.#worker = new SessionOutboxWorker(this.outbox, this.session, maxAttempts)
+    this.#worker = new SessionOutboxWorker(this.outbox, this.session, address, maxAttempts)
   }
 
   async drainCritical(correlationId: string): Promise<number> {
@@ -92,6 +100,14 @@ export class BranchStoreComponent {
       if (result.status !== 'delivered') throw new Error(`critical Outbox drain stopped at ${result.status}`)
       delivered += 1
     }
+  }
+
+  deadLetters(): DeadLetterRecord[] {
+    return this.outbox.deadLetters(this.address)
+  }
+
+  retryDeadLetter(deliveryId: DeliveryId, correlationId: string): void {
+    this.outbox.retryDeadLetter(this.address, deliveryId, correlationId)
   }
 
   close(): void {
@@ -127,6 +143,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
     const agents = new BranchAgentComponent(participants.filter(value => value.role === 'agent'))
     const director = new BranchDirectorComponent(participants.filter(value => value.role === 'director'))
     const store = new BranchStoreComponent(
+      scope.address,
       this.options.worldPath,
       this.options.sessionPath,
       this.options.outboxMaxAttempts ?? 3,
@@ -208,6 +225,14 @@ export class WorldApplication {
 
   async deliver(address: WorldAddress, correlationId: string): Promise<number> {
     return (await this.#branch(address)).store.drainCritical(correlationId)
+  }
+
+  async deadLetters(address: WorldAddress): Promise<DeadLetterRecord[]> {
+    return (await this.#branch(address)).store.deadLetters()
+  }
+
+  async retryDeadLetter(address: WorldAddress, deliveryId: DeliveryId, correlationId: string): Promise<void> {
+    return (await this.#branch(address)).store.retryDeadLetter(deliveryId, correlationId)
   }
 
   async renderSession(

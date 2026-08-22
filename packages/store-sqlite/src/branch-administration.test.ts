@@ -138,7 +138,7 @@ describe('BranchAdministration', () => {
     admin.setAdmission(deliveryTarget, 'draining', 'delivery guard', 'admin:delivery-drain')
     expect(() => admin.archive(deliveryTarget, 'blocked by Outbox', 'admin:delivery-archive')).toThrow('critical delivery')
     const outbox = new WorldOutbox(path, undefined, { workerId: 'worker:archive', now: () => 100, createClaimToken: () => 'archive' })
-    const claimed = outbox.claimNext()
+    const claimed = outbox.claimNext(deliveryTarget)
     if (claimed === undefined) throw new Error('critical Outbox fixture is missing')
     await outbox.recordDelivered(claimed)
     expect(admin.archive(deliveryTarget, 'delivered', 'admin:delivery-complete')).toMatchObject({ lifecycleState: 'archived' })

@@ -1,6 +1,7 @@
 import { SessionDeliveryAdapter, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
 import {
   IpcPauseFaultInjector,
+  fixtureAddress,
   fixtureCommitRequest,
   fixtureDeliveryRequest,
 } from '@harness-world/testkit'
@@ -21,7 +22,7 @@ if (mode === 'world') {
   adapter.close()
 } else {
   const outbox = new WorldOutbox(databasePath, faultInjector)
-  const delivery = outbox.claimNext()
+  const delivery = outbox.claimNext(fixtureAddress())
   if (delivery === undefined) throw new Error('outbox crash fixture is missing')
   await outbox.recordDelivered(delivery)
   outbox.close()

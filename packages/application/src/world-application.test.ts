@@ -10,7 +10,7 @@ import {
   type WorldAddress,
 } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
-import { SessionDeliveryAdapter } from '@harness-world/store-sqlite'
+import { SessionDeliveryAdapter, SessionOutboxWorker, WorldOutbox } from '@harness-world/store-sqlite'
 import { WorldApplication, type WorldApplicationOptions } from './world-application.ts'
 import type { RoundParticipant } from './round-coordinator.ts'
 
@@ -236,5 +236,37 @@ describe('WorldApplication', () => {
     await closing.close()
     await expect(pending).rejects.toThrow('no active Compiled Manifest')
     expect(closing.activeBranchCount).toBe(0)
+  })
+
+  it('recovers a critical dead letter through the Application Port before archiving', async () => {
+    const persistence = paths()
+    const world = compiled()
+    const app = new WorldApplication({ ...persistence, outboxMaxAttempts: 1 })
+    app.activate(world)
+    await app.submit(world.manifest.address, request('dead-letter-round'))
+    await app.release(world.manifest.address)
+
+    const outbox = new WorldOutbox(persistence.worldPath)
+    const failed = new SessionOutboxWorker(outbox, {
+      appendIfAbsent: async () => { throw new Error('temporary Session outage') },
+    }, world.manifest.address, 1)
+    await expect(failed.runOnce('dead-letter:fixture')).resolves.toMatchObject({ status: 'dead_letter' })
+    outbox.close()
+
+    await expect(app.deadLetters(world.manifest.address)).resolves.toMatchObject([{
+      critical: true, lastError: 'temporary Session outage',
+    }])
+    await expect(app.archive(world.manifest.address, 'blocked', 'archive:blocked')).rejects.toThrow('critical delivery')
+    expect(app.activeBranchCount).toBe(0)
+
+    const [deadLetter] = await app.deadLetters(world.manifest.address)
+    if (deadLetter === undefined) throw new Error('dead-letter fixture is missing')
+    await app.retryDeadLetter(world.manifest.address, deadLetter.deliveryId, 'dead-letter:retry')
+    await expect(app.deliver(world.manifest.address, 'dead-letter:deliver')).resolves.toBe(1)
+    await expect(app.archive(world.manifest.address, 'recovered', 'archive:recovered')).resolves.toMatchObject({
+      state: { lifecycleState: 'archived' },
+    })
+    expect(app.activeBranchCount).toBe(0)
+    await app.close()
   })
 })

@@ -56,7 +56,7 @@ describe('WorldLogicalTransferService', () => {
     inbox.close()
     leases.close()
     const sender = new WorldOutbox(source)
-    const delivery = sender.claimNext()
+    const delivery = sender.claimNext(parent)
     if (delivery === undefined) throw new Error('logical transfer fixture Outbox is missing')
     await sender.recordDelivered(delivery)
     sender.close()
@@ -75,7 +75,7 @@ describe('WorldLogicalTransferService', () => {
     importedInbox.close()
     const importedOutbox = new WorldOutbox(target)
     const rebuiltSession = new SessionDeliveryAdapter(join(root, 'rebuilt-session.sqlite'))
-    const rebuiltWorker = new SessionOutboxWorker(importedOutbox, rebuiltSession)
+    const rebuiltWorker = new SessionOutboxWorker(importedOutbox, rebuiltSession, parent)
     await expect(rebuiltWorker.runOnce('logical:session-rebuild')).resolves.toMatchObject({
       status: 'delivered', deliveryId: commitRequest.outbox[0]!.deliveryId,
     })

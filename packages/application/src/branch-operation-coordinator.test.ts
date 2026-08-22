@@ -209,7 +209,7 @@ describe('BranchOperationCoordinator', () => {
       createClaimToken: () => 'branch-operation',
     })
     const session = new SessionDeliveryAdapter(path.session)
-    const worker = new SessionOutboxWorker(outbox, session)
+    const worker = new SessionOutboxWorker(outbox, session, world.manifest.address)
     const deliveries: CriticalDeliveryDrainPort = {
       async drainCritical(correlationId: string): Promise<number> {
         let count = 0

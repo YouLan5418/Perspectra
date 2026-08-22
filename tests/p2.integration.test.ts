@@ -68,7 +68,7 @@ describe('Phase 2 Observation and Session acceptance', () => {
 
       const outbox = new WorldOutbox(worldPath)
       const session = new SessionDeliveryAdapter(sessionPath)
-      const worker = new SessionOutboxWorker(outbox, session)
+      const worker = new SessionOutboxWorker(outbox, session, parent)
       await expect(worker.runOnce('p2-worker')).resolves.toEqual({ status: 'delivered', deliveryId: 'delivery:p2' })
       const delivered = session.readEvent(sessionId, 1)
       expect(delivered).toBeDefined()

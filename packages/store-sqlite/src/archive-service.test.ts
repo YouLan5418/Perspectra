@@ -71,10 +71,10 @@ describe('WorldArchiveService', () => {
     const sourceOutbox = new WorldOutbox(source, undefined, { workerId: 'worker:source', createClaimToken: () => 'source' })
     const failedWorker = new SessionOutboxWorker(sourceOutbox, {
       appendIfAbsent: async () => { throw new Error('transient Session failure') },
-    }, 1)
+    }, address, 1)
     await expect(failedWorker.runOnce('archive:dead-letter')).resolves.toMatchObject({ status: 'dead_letter', deliveryId: firstDeliveryId })
-    sourceOutbox.retryDeadLetter(firstDeliveryId)
-    const sourceWorker = new SessionOutboxWorker(sourceOutbox, existingSession)
+    sourceOutbox.retryDeadLetter(address, firstDeliveryId, 'archive:retry-requested')
+    const sourceWorker = new SessionOutboxWorker(sourceOutbox, existingSession, address)
     await expect(sourceWorker.runOnce('archive:retry')).resolves.toMatchObject({ status: 'delivered', deliveryId: firstDeliveryId })
     await expect(sourceWorker.runOnce('archive:second')).resolves.toMatchObject({ status: 'delivered' })
     expect(existingSession.cursor(sessionId)).toBe(2)
@@ -99,7 +99,7 @@ describe('WorldArchiveService', () => {
         replayStatuses.push(result.status)
         return result
       },
-    })
+    }, address)
     await expect(restoredWorker.runOnce('restore:existing-one')).resolves.toMatchObject({ status: 'delivered', deliveryId: firstDeliveryId })
     await expect(restoredWorker.runOnce('restore:existing-two')).resolves.toMatchObject({ status: 'delivered' })
     await expect(restoredWorker.runOnce('restore:existing-idle')).resolves.toEqual({ status: 'idle' })
@@ -131,7 +131,7 @@ describe('WorldArchiveService', () => {
         rebuildStatuses.push(result.status)
         return result
       },
-    })
+    }, address)
     await expect(importedWorker.runOnce('import:fresh-one')).resolves.toMatchObject({ status: 'delivered', deliveryId: firstDeliveryId })
     await expect(importedWorker.runOnce('import:fresh-two')).resolves.toMatchObject({ status: 'delivered' })
     expect(rebuildStatuses).toEqual(['applied', 'applied'])

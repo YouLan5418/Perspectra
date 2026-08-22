@@ -6,13 +6,16 @@ import {
   type DeliveryId,
   type FaultInjector,
   type SessionId,
+  type WorldAddress,
   type WorldHash,
   type WorldJsonValue,
+  worldAddressKey,
 } from '@harness-world/contracts'
 import { openWorldDatabase } from './world-store.ts'
-import { parseWorldJson, rollbackAndThrow } from './sqlite.ts'
+import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 
 export interface ClaimedOutboxDelivery {
+  readonly address: WorldAddress
   readonly deliveryId: DeliveryId
   readonly sessionId: SessionId
   readonly sessionDeliverySeq: number
@@ -62,25 +65,26 @@ export class WorldOutbox {
     this.#db = openWorldDatabase(path)
   }
 
-  claimNext(): ClaimedOutboxDelivery | undefined {
+  claimNext(address: WorldAddress): ClaimedOutboxDelivery | undefined {
     const now = this.#now()
+    const addressKey = worldAddressKey(address)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       const row = this.#db.prepare(`
         SELECT o.delivery_id, o.session_id, o.payload_hash, o.payload_json, o.critical,
           o.attempt_count, o.session_delivery_seq
         FROM outbox o
-        WHERE (o.delivery_status = 'pending'
+        WHERE o.address_key = ? AND (o.delivery_status = 'pending'
           OR (o.delivery_status = 'inflight' AND (o.claim_token IS NULL OR o.claim_expires_at_ms <= ?)))
           AND NOT EXISTS (
             SELECT 1 FROM outbox earlier
-            WHERE earlier.session_id = o.session_id
+            WHERE earlier.address_key = o.address_key AND earlier.session_id = o.session_id
               AND (earlier.world_seq < o.world_seq OR (earlier.world_seq = o.world_seq AND earlier.delivery_id < o.delivery_id))
               AND (earlier.delivery_status IN ('pending', 'inflight')
                 OR (earlier.delivery_status = 'dead_letter' AND earlier.critical = 1))
           )
         ORDER BY o.world_seq, o.delivery_id LIMIT 1
-      `).get(now) as {
+      `).get(addressKey, now) as {
         delivery_id: DeliveryId
         session_id: SessionId
         payload_hash: WorldHash
@@ -112,7 +116,7 @@ export class WorldOutbox {
       this.#db.prepare(`
         UPDATE outbox SET delivery_status = 'inflight', attempt_count = ?, session_delivery_seq = ?, last_error = NULL,
           claim_owner_id = ?, claim_token = ?, claim_expires_at_ms = ?
-        WHERE delivery_id = ? AND (delivery_status = 'pending'
+        WHERE address_key = ? AND delivery_id = ? AND (delivery_status = 'pending'
           OR (delivery_status = 'inflight' AND (claim_token IS NULL OR claim_expires_at_ms <= ?)))
       `).run(
         attemptCount,
@@ -120,11 +124,13 @@ export class WorldOutbox {
         this.#workerId,
         claimToken,
         claimExpiresAtMs,
+        addressKey,
         row.delivery_id,
         now,
       )
       this.#db.exec('COMMIT')
       return {
+        address,
         deliveryId: row.delivery_id,
         sessionId: row.session_id,
         sessionDeliverySeq: sequence,
@@ -147,9 +153,10 @@ export class WorldOutbox {
       const result = this.#db.prepare(`
         UPDATE outbox SET delivery_status = 'delivered', last_error = NULL,
           claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
-        WHERE delivery_id = ? AND session_id = ? AND session_delivery_seq = ? AND payload_hash = ?
+        WHERE address_key = ? AND delivery_id = ? AND session_id = ? AND session_delivery_seq = ? AND payload_hash = ?
           AND delivery_status = 'inflight' AND attempt_count = ? AND claim_owner_id = ? AND claim_token = ?
       `).run(
+        worldAddressKey(delivery.address),
         delivery.deliveryId,
         delivery.sessionId,
         delivery.sessionDeliverySeq,
@@ -177,11 +184,12 @@ export class WorldOutbox {
     const result = this.#db.prepare(`
       UPDATE outbox SET delivery_status = ?, last_error = ?,
         claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
-      WHERE delivery_id = ? AND delivery_status = 'inflight' AND attempt_count = ?
+      WHERE address_key = ? AND delivery_id = ? AND delivery_status = 'inflight' AND attempt_count = ?
         AND claim_owner_id = ? AND claim_token = ?
     `).run(
       status,
       message,
+      worldAddressKey(delivery.address),
       delivery.deliveryId,
       delivery.attemptCount,
       delivery.claimOwnerId,
@@ -191,11 +199,11 @@ export class WorldOutbox {
     return status === 'dead_letter' ? 'dead_letter' : 'retry_scheduled'
   }
 
-  deadLetters(): DeadLetterRecord[] {
+  deadLetters(address: WorldAddress): DeadLetterRecord[] {
     const rows = this.#db.prepare(`
       SELECT delivery_id, session_id, session_delivery_seq, payload_hash, payload_json, critical, attempt_count, last_error
-      FROM outbox WHERE delivery_status = 'dead_letter' ORDER BY world_seq, delivery_id
-    `).all() as Array<{
+      FROM outbox WHERE address_key = ? AND delivery_status = 'dead_letter' ORDER BY world_seq, delivery_id
+    `).all(worldAddressKey(address)) as Array<{
       delivery_id: DeliveryId
       session_id: SessionId
       session_delivery_seq: number
@@ -206,6 +214,7 @@ export class WorldOutbox {
       last_error: string
     }>
     return rows.map(row => ({
+      address,
       deliveryId: row.delivery_id,
       sessionId: row.session_id,
       sessionDeliverySeq: row.session_delivery_seq,
@@ -217,13 +226,24 @@ export class WorldOutbox {
     }))
   }
 
-  retryDeadLetter(deliveryId: DeliveryId): void {
-    const result = this.#db.prepare(`
-      UPDATE outbox SET delivery_status = 'pending', last_error = NULL,
-        claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
-      WHERE delivery_id = ? AND delivery_status = 'dead_letter'
-    `).run(deliveryId)
-    if (result.changes !== 1) throw new Error('Outbox item is not a dead letter')
+  retryDeadLetter(address: WorldAddress, deliveryId: DeliveryId, correlationId: string): void {
+    const addressKey = worldAddressKey(address)
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      const result = this.#db.prepare(`
+        UPDATE outbox SET delivery_status = 'pending', last_error = NULL,
+          claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
+        WHERE address_key = ? AND delivery_id = ? AND delivery_status = 'dead_letter'
+      `).run(addressKey, deliveryId)
+      if (result.changes !== 1) throw new Error('Outbox item is not a dead letter for this branch')
+      this.#db.prepare(`
+        INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
+        VALUES (?, 'outbox.dead-letter.retried', ?, ?, ?)
+      `).run(addressKey, correlationId, worldJsonText({ deliveryId }), this.#now())
+      this.#db.exec('COMMIT')
+    } catch (error: unknown) {
+      rollbackAndThrow(this.#db, error)
+    }
   }
 
   hasReceipt(deliveryId: DeliveryId): boolean {
@@ -245,11 +265,12 @@ export class SessionOutboxWorker {
   constructor(
     private readonly outbox: WorldOutbox,
     private readonly session: SessionDeliveryPort,
+    private readonly address: WorldAddress,
     private readonly maxAttempts = 3,
   ) {}
 
   async runOnce(correlationId = 'outbox-worker'): Promise<OutboxWorkerResult> {
-    const delivery = this.outbox.claimNext()
+    const delivery = this.outbox.claimNext(this.address)
     if (delivery === undefined) return { status: 'idle' }
     try {
       await this.session.appendIfAbsent({

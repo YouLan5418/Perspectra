@@ -75,7 +75,7 @@ describe('hard process termination recovery', () => {
     })
     const deliveryId = fixtureCommitRequest().outbox[0]!.deliveryId
     expect(recovered.hasReceipt(deliveryId)).toBe(expectedReceipt)
-    expect(recovered.claimNext() === undefined).toBe(expectedReceipt)
+    expect(recovered.claimNext(fixtureAddress()) === undefined).toBe(expectedReceipt)
     recovered.close()
   })
 

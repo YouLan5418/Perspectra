@@ -28,11 +28,15 @@ function address(): WorldAddress {
   }
 }
 
-async function seed(path: string, deliveries: readonly { id: string; session: string; critical: boolean }[]): Promise<void> {
+async function seed(
+  path: string,
+  deliveries: readonly { id: string; session: string; critical: boolean }[],
+  target: WorldAddress = address(),
+): Promise<void> {
   const store = new WorldStore(path)
-  store.createBranch(address())
+  store.createBranch(target)
   await store.commitRound({
-    address: address(),
+    address: target,
     transactionId: brandId(`transaction:${deliveries.map(value => value.id).join(':')}`, 'TransactionId'),
     roundId: brandId('round:outbox', 'InteractionRoundId'),
     expectedHeadSeq: 0,
@@ -51,6 +55,25 @@ async function seed(path: string, deliveries: readonly { id: string; session: st
 }
 
 describe('SessionOutboxWorker', () => {
+  it('claims, lists, retries, and completes deliveries only inside its Branch address', async () => {
+    const path = paths('branch-scope')
+    const other = { ...address(), branchId: brandId('branch:other', 'BranchId') }
+    await seed(path.world, [{ id: 'delivery:main', session: 'session:shared', critical: true }])
+    await seed(path.world, [{ id: 'delivery:other', session: 'session:shared', critical: true }], other)
+    const outbox = new WorldOutbox(path.world)
+    const failing: SessionDeliveryPort = { appendIfAbsent: async () => { throw new Error('main unavailable') } }
+    const mainWorker = new SessionOutboxWorker(outbox, failing, address(), 1)
+    await expect(mainWorker.runOnce('branch:main-failure')).resolves.toEqual({
+      status: 'dead_letter', deliveryId: 'delivery:main',
+    })
+    expect(outbox.deadLetters(other)).toEqual([])
+    expect(outbox.claimNext(other)).toMatchObject({ address: other, deliveryId: 'delivery:other' })
+    expect(outbox.deadLetters(address())).toMatchObject([{ deliveryId: 'delivery:main' }])
+    expect(() => outbox.retryDeadLetter(other, brandId('delivery:main', 'DeliveryId'), 'wrong-branch'))
+      .toThrow('for this branch')
+    outbox.close()
+  })
+
   it('delivers FIFO per Session, records receipts, and runs Sessions independently', async () => {
     const path = paths('fifo')
     await seed(path.world, [
@@ -60,7 +83,7 @@ describe('SessionOutboxWorker', () => {
     ])
     const outbox = new WorldOutbox(path.world)
     const session = new SessionDeliveryAdapter(path.session)
-    const worker = new SessionOutboxWorker(outbox, session)
+    const worker = new SessionOutboxWorker(outbox, session, address())
     await expect(worker.runOnce()).resolves.toEqual({ status: 'delivered', deliveryId: 'delivery:01' })
     await expect(worker.runOnce('second')).resolves.toEqual({ status: 'delivered', deliveryId: 'delivery:02' })
     await expect(worker.runOnce()).resolves.toEqual({ status: 'delivered', deliveryId: 'delivery:03' })
@@ -81,16 +104,16 @@ describe('SessionOutboxWorker', () => {
     ])
     const outbox = new WorldOutbox(path.world)
     const failing: SessionDeliveryPort = { appendIfAbsent: async () => { throw new Error('session offline') } }
-    const worker = new SessionOutboxWorker(outbox, failing, 1)
+    const worker = new SessionOutboxWorker(outbox, failing, address(), 1)
     await expect(worker.runOnce()).resolves.toEqual({ status: 'dead_letter', deliveryId: 'delivery:critical' })
     await expect(worker.runOnce()).resolves.toEqual({ status: 'idle' })
-    expect(outbox.deadLetters()).toMatchObject([{
+    expect(outbox.deadLetters(address())).toMatchObject([{
       deliveryId: 'delivery:critical', critical: true, attemptCount: 1, lastError: 'session offline', sessionDeliverySeq: 1,
     }])
-    expect(() => outbox.retryDeadLetter(brandId('delivery:later', 'DeliveryId'))).toThrow('not a dead letter')
-    outbox.retryDeadLetter(brandId('delivery:critical', 'DeliveryId'))
+    expect(() => outbox.retryDeadLetter(address(), brandId('delivery:later', 'DeliveryId'), 'retry:missing')).toThrow('not a dead letter')
+    outbox.retryDeadLetter(address(), brandId('delivery:critical', 'DeliveryId'), 'retry:critical')
     const session = new SessionDeliveryAdapter(path.session)
-    const recovered = new SessionOutboxWorker(outbox, session, 2)
+    const recovered = new SessionOutboxWorker(outbox, session, address(), 2)
     await expect(recovered.runOnce()).resolves.toMatchObject({ status: 'delivered', deliveryId: 'delivery:critical' })
     await expect(recovered.runOnce()).resolves.toMatchObject({ status: 'delivered', deliveryId: 'delivery:later' })
     expect(session.cursor(brandId('session:blocked', 'SessionId'))).toBe(2)
@@ -105,11 +128,11 @@ describe('SessionOutboxWorker', () => {
     const afterCommit = new SessionDeliveryAdapter(path.session, {
       hit(point: FaultPoint) { if (point === 'session-delivery.after-commit') throw new Error('caller lost COMMIT result') },
     })
-    const first = new SessionOutboxWorker(outbox, afterCommit, 2)
+    const first = new SessionOutboxWorker(outbox, afterCommit, address(), 2)
     await expect(first.runOnce()).resolves.toEqual({ status: 'retry_scheduled', deliveryId: 'delivery:ambiguous' })
     afterCommit.close()
     const recoveredSession = new SessionDeliveryAdapter(path.session)
-    const recovered = new SessionOutboxWorker(outbox, recoveredSession, 2)
+    const recovered = new SessionOutboxWorker(outbox, recoveredSession, address(), 2)
     await expect(recovered.runOnce()).resolves.toEqual({ status: 'delivered', deliveryId: 'delivery:ambiguous' })
     expect(recoveredSession.cursor(brandId('session:ambiguous', 'SessionId'))).toBe(1)
     expect(recoveredSession.readEvent(brandId('session:ambiguous', 'SessionId'), 2)).toBeUndefined()
@@ -131,13 +154,13 @@ describe('SessionOutboxWorker', () => {
         { hit(hitPoint) { if (hitPoint === point) throw new Error(`fault ${suffix}`) } },
         { workerId: `worker:${suffix}`, claimTtlMs: 100, now: () => now },
       )
-      const delivery = faulting.claimNext() as ClaimedOutboxDelivery
+      const delivery = faulting.claimNext(address()) as ClaimedOutboxDelivery
       await expect(faulting.recordDelivered(delivery)).rejects.toThrow(`fault ${suffix}`)
       expect(faulting.hasReceipt(deliveryId)).toBe(receiptAfter)
       faulting.close()
       now = delivery.claimExpiresAtMs
       const recovered = new WorldOutbox(path.world, undefined, { workerId: `worker:${suffix}:recovered`, now: () => now })
-      expect(recovered.claimNext() === undefined).toBe(receiptAfter)
+      expect(recovered.claimNext(address()) === undefined).toBe(receiptAfter)
       recovered.close()
     }
   })
@@ -146,14 +169,14 @@ describe('SessionOutboxWorker', () => {
     const path = paths('validation')
     await seed(path.world, [{ id: 'delivery:validation', session: 'session:validation', critical: false }])
     const outbox = new WorldOutbox(path.world)
-    const delivery = outbox.claimNext() as ClaimedOutboxDelivery
+    const delivery = outbox.claimNext(address()) as ClaimedOutboxDelivery
     expect(() => outbox.recordFailed(delivery, 'bad', 0)).toThrow(RangeError)
     await expect(outbox.recordDelivered({ ...delivery, payloadHash: 'sha256:mismatch' })).rejects.toThrow('does not match')
     expect(outbox.recordFailed(delivery, 'retry after mismatch', 2)).toBe('retry_scheduled')
     const unknownFailure: SessionDeliveryPort = { appendIfAbsent: async () => Promise.reject('not-an-error') }
-    const worker = new SessionOutboxWorker(outbox, unknownFailure, 1)
+    const worker = new SessionOutboxWorker(outbox, unknownFailure, address(), 1)
     await expect(worker.runOnce()).resolves.toEqual({ status: 'dead_letter', deliveryId: 'delivery:validation' })
-    expect(outbox.deadLetters()).toMatchObject([{ critical: false, lastError: 'unknown Session delivery failure' }])
+    expect(outbox.deadLetters(address())).toMatchObject([{ critical: false, lastError: 'unknown Session delivery failure' }])
     outbox.close()
 
     const corruptPath = paths('corrupt-payload')
@@ -162,7 +185,7 @@ describe('SessionOutboxWorker', () => {
     raw.prepare(`UPDATE outbox SET payload_json = 'not-json' WHERE delivery_id = 'delivery:corrupt'`).run()
     raw.close()
     const corrupted = new WorldOutbox(corruptPath.world)
-    expect(() => corrupted.claimNext()).toThrow(SyntaxError)
+    expect(() => corrupted.claimNext(address())).toThrow(SyntaxError)
     corrupted.close()
   })
 
@@ -179,12 +202,12 @@ describe('SessionOutboxWorker', () => {
     })
     const firstWorker = new WorldOutbox(path.world, undefined, options('worker:first'))
     const secondWorker = new WorldOutbox(path.world, undefined, options('worker:second'))
-    const firstClaim = firstWorker.claimNext() as ClaimedOutboxDelivery
+    const firstClaim = firstWorker.claimNext(address()) as ClaimedOutboxDelivery
     expect(firstClaim).toMatchObject({ claimOwnerId: 'worker:first', claimExpiresAtMs: 1_100, attemptCount: 1 })
-    expect(secondWorker.claimNext()).toBeUndefined()
+    expect(secondWorker.claimNext(address())).toBeUndefined()
 
     now = firstClaim.claimExpiresAtMs
-    const replacement = secondWorker.claimNext() as ClaimedOutboxDelivery
+    const replacement = secondWorker.claimNext(address()) as ClaimedOutboxDelivery
     expect(replacement).toMatchObject({ claimOwnerId: 'worker:second', attemptCount: 2 })
     expect(replacement.claimToken).not.toBe(firstClaim.claimToken)
     await secondWorker.recordDelivered(replacement)
