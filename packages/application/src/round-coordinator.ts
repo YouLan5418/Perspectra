@@ -276,6 +276,55 @@ export class RoundCoordinator {
     }
     const frozen = await this.#freezeParticipants(proposalContext, history)
     const ordered = this.#orderedActions(playerAction, frozen)
+    const contextHash = hashWorldJson('round-proposal-context', {
+      address: proposalContext.address,
+      roundId: proposalContext.roundId,
+      tick: proposalContext.tick,
+      playerAction: proposalContext.playerAction,
+      candidateHash: proposalContext.candidateHash,
+    })
+    const participants = [
+      {
+        participantId: 'player', role: 'player', actorId: binding.characterId, terminalStatus: 'proposed',
+        modelCallId: null, contextHash, profileVersion: null, budgetDecisionId: null,
+        responseHash: hashWorldJson('round-player-action-response', playerAction), proposalId: null,
+        proposalHash: hashWorldJson('round-player-proposal', { actions: [playerAction] }),
+      },
+      ...frozen.map(value => {
+        const proposalHash = hashWorldJson('round-participant-proposal', value.proposal)
+        return {
+          participantId: value.binding.participantId,
+          role: value.binding.role,
+          actorId: value.binding.actorId,
+          terminalStatus: value.status,
+          modelCallId: deterministicId('model-call:round-participant', { roundId, participantId: value.binding.participantId }),
+          contextHash,
+          profileVersion: 'agent-provider-port/v1',
+          budgetDecisionId: deterministicId('budget-decision:round-participant', { roundId, participantId: value.binding.participantId }),
+          responseHash: hashWorldJson('round-participant-response', value.proposal),
+          proposalId: deterministicId('proposal:round-participant', { roundId, participantId: value.binding.participantId, proposalHash }),
+          proposalHash,
+        }
+      }),
+    ]
+    const actions = ordered.map((item, ordinal) => ({
+      actionId: item.action.actionId,
+      participantId: item.participantId,
+      sourceRole: item.sourceRole,
+      actorId: item.action.actorId,
+      actionType: item.action.actionType,
+      actionVersion: item.action.actionVersion,
+      parameters: item.action.parameters,
+      orderKey: {
+        phase: item.sourceRole === 'player' ? 0 : 1,
+        priority: item.priority,
+        actorId: item.actorId,
+        proposalOrdinal: ordinal,
+        actionId: item.actionId,
+      },
+    }))
+    const resolutions: WorldJsonValue[] = []
+    let candidateHash = proposalContext.candidateHash
     const events: WorldEventDraft[] = frozen.map(value => ({
       eventType: 'round.participant-terminal',
       eventVersion: 1,
@@ -296,6 +345,30 @@ export class RoundCoordinator {
         item.action.actorId,
         { actionType: item.action.actionType, parameters: item.action.parameters },
       )
+      const candidateHashBefore = candidateHash
+      const ruleTraceHash = hashWorldJson('round-rule-trace', {
+        rulebook: this.#manifest.rulebook,
+        action: item.action,
+        status: resolution.status,
+        reason: resolution.reason ?? null,
+        events: resolution.events,
+      })
+      candidateHash = resolution.status === 'accepted'
+        ? hashWorldJson('round-candidate-after-resolution', {
+          candidateHashBefore, actionId: item.action.actionId, events: resolution.events, ruleTraceHash,
+        })
+        : candidateHashBefore
+      resolutions.push({
+        actionId: item.action.actionId,
+        status: resolution.status,
+        reason: resolution.reason ?? null,
+        orderKey: actions[ordinal]!.orderKey,
+        candidateHashBefore,
+        candidateHashAfter: candidateHash,
+        ruleTraceHash,
+        entropyRefs: [],
+        conflictingActionId: null,
+      })
       if (item.sourceRole === 'player') playerResolution = resolution
       events.push(...resolution.events, {
         eventType: 'action.resolved',
@@ -342,6 +415,17 @@ export class RoundCoordinator {
       nextTick: head.tick + 1,
       events,
       outbox,
+      authority: {
+        schemaVersion: 1,
+        roundId,
+        baseHeadSeq: head.headSeq,
+        baseTick: head.tick,
+        contextHash,
+        participants,
+        actions,
+        resolutions,
+        finalCandidateHash: candidateHash,
+      },
       correlationId,
       admissionProof: { inboxSeq: claimed.inboxSeq, inputHash: claimed.inputHash },
       writerFencingToken: this.#lease.fencingToken,

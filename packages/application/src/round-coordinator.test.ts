@@ -330,6 +330,25 @@ describe('RoundCoordinator', () => {
       expect.objectContaining({ participantId: 'agent:move', order: 1, accepted: true }),
       expect.objectContaining({ participantId: 'director:move', order: 2, accepted: false }),
     ])
+    const authority = firstOptions.store.readRoundAuthority(compiled.manifest.address, resolutions[0]!.transactionId)
+    expect(authority).toMatchObject({ roundId: expect.any(String), authorityHash: expect.stringMatching(/^sha256:/) })
+    const authorityData = authority!.authority as any
+    expect(authorityData.schemaVersion).toBe(1)
+    expect(authorityData.participants).toEqual(expect.arrayContaining([
+      expect.objectContaining({ participantId: 'player', terminalStatus: 'proposed', modelCallId: null }),
+      expect.objectContaining({ participantId: 'agent:move', terminalStatus: 'proposed', responseHash: expect.stringMatching(/^sha256:/) }),
+      expect.objectContaining({ participantId: 'agent:failed', terminalStatus: 'provider_failed' }),
+    ]))
+    expect(authorityData.actions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ participantId: 'player', parameters: { text: 'hello' }, orderKey: expect.objectContaining({ phase: 0 }) }),
+      expect.objectContaining({ participantId: 'agent:move', orderKey: expect.objectContaining({ phase: 1 }) }),
+      expect.objectContaining({ participantId: 'director:move', orderKey: expect.objectContaining({ phase: 1 }) }),
+    ]))
+    expect(authorityData.resolutions).toEqual([
+      expect.objectContaining({ status: 'accepted', candidateHashBefore: expect.any(String), candidateHashAfter: expect.any(String), ruleTraceHash: expect.any(String) }),
+      expect.objectContaining({ status: 'accepted' }),
+      expect.objectContaining({ status: 'rejected', candidateHashBefore: expect.any(String), candidateHashAfter: expect.any(String) }),
+    ])
     expect(firstOptions.store.readOutbox(compiled.manifest.address)).toHaveLength(3)
     const eventHashes = events.map(value => value.eventHash)
     close(firstOptions, coordinator)
@@ -339,6 +358,7 @@ describe('RoundCoordinator', () => {
     expect(await restarted.submit(request)).toEqual(result)
     expect(providerCalls).toBe(5)
     expect(restartedOptions.store.readEvents(compiled.manifest.address).map(value => value.eventHash)).toEqual(eventHashes)
+    expect(restartedOptions.store.readRoundAuthority(compiled.manifest.address, resolutions[0]!.transactionId)).toEqual(authority)
     close(restartedOptions, restarted)
   })
 
