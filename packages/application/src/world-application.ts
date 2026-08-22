@@ -24,6 +24,7 @@ import {
   parsePlayerRoundResult,
   parsePlayerActionInput,
   runtimeManifestFromStored,
+  runtimeManifestFromStoredRecord,
   type CompiledWorldSpec,
   type PlayerRoundResult,
 } from '@harness-world/kernel'
@@ -172,9 +173,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       if (participants.length > 0 && this.options.modelBudgetTokens === undefined) {
         throw new TypeError('modelBudgetTokens must be configured when Round participants are enabled')
       }
-      const storedManifest = store.store.readManifest(scope.address)
-      if (storedManifest === undefined) throw new Error('branch runtime has no stored Manifest')
-      const manifest = runtimeManifestFromStored(storedManifest.manifest)
+      const manifest = runtimeManifestFromStoredRecord(store.store.readManifest(scope.address))
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
       store.availability.initialize(scope.address, manifest.characters.map(character => ({
         characterId: character.characterId,
@@ -253,13 +252,7 @@ export class WorldApplication {
       const inbox = new RoundInbox(this.options.worldPath)
       try {
         const stored = store.readManifest(address)
-        if (stored === undefined) {
-          failWorld({
-            errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'integrity',
-            message: 'world branch has no active Compiled Manifest', retryable: false,
-            correlationId: request.correlationId, address,
-          })
-        }
+        if (stored === undefined) throw new Error('world branch has no active Compiled Manifest')
         const manifest = runtimeManifestFromStored(stored.manifest)
         if (!manifest.playerBindings.some(value => value.principalId === request.principalId)) {
           failWorld({
@@ -496,10 +489,8 @@ export class WorldApplication {
           const bySequence = new Map(bindings.map(binding => [`${binding.sessionId}\u001f${binding.sessionDeliverySeq}`, binding]))
           const ledger = outbox.deliveryLedger(address, correlationId)
           const expectedDeliveryIds = new Set<string>(ledger.map(delivery => delivery.deliveryId))
-          const storedManifest = store.readManifest(address)
-          if (storedManifest === undefined) throw new Error('recovery target has no stored Manifest')
           const relevantSessionIds = new Set<SessionId>([
-            ...runtimeManifestFromStored(storedManifest.manifest).playerBindings.map(binding => binding.sessionId),
+            ...runtimeManifestFromStoredRecord(store.readManifest(address)).playerBindings.map(binding => binding.sessionId),
             ...ledger.map(delivery => delivery.sessionId),
           ])
           for (const delivery of ledger) {

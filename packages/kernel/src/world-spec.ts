@@ -86,6 +86,13 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   return value as CompiledWorldManifest
 }
 
+export function runtimeManifestFromStoredRecord(
+  record: { readonly manifest: WorldJsonValue } | undefined,
+): CompiledWorldManifest {
+  if (record === undefined) throw new Error('branch runtime has no stored Manifest')
+  return runtimeManifestFromStored(record.manifest)
+}
+
 function objectAt(value: unknown, path: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError(`${path} must be an object`)
   return value as Record<string, unknown>

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, deterministicId, hashWorldJson, type WorldJsonValue } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldBootstrap } from './world-bootstrap.ts'
-import { runtimeManifestFromStored, WorldSpecCompiler, type CompiledWorldSpec } from './world-spec.ts'
+import { runtimeManifestFromStored, runtimeManifestFromStoredRecord, WorldSpecCompiler, type CompiledWorldSpec } from './world-spec.ts'
 
 const directories: string[] = []
 
@@ -92,6 +92,8 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     })
     expect(hashWorldJson('compiled-world-manifest', legacy)).not.toBe(hashWorldJson('compiled-world-manifest', runtime))
     expect(runtimeManifestFromStored(new WorldSpecCompiler().compile(specV2()).manifest)).toMatchObject({ schemaVersion: 2 })
+    expect(runtimeManifestFromStoredRecord({ manifest: legacy })).toMatchObject({ schemaVersion: 2 })
+    expect(() => runtimeManifestFromStoredRecord(undefined)).toThrow('no stored Manifest')
   })
 
   it.each([

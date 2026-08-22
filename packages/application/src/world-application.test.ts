@@ -340,6 +340,11 @@ describe('WorldApplication', () => {
     await closing.close()
     await expect(pending).rejects.toThrow('no active Compiled Manifest')
     expect(closing.activeBranchCount).toBe(0)
+
+    const missingManifest = new WorldApplication(paths())
+    await expect(missingManifest.acceptRound(world.manifest.address, request('missing-manifest')))
+      .rejects.toThrow('no active Compiled Manifest')
+    await missingManifest.close()
   })
 
   it('recovers a critical dead letter through the Application Port before archiving', async () => {
@@ -434,6 +439,20 @@ describe('WorldApplication', () => {
     await expect(missingSessionApp.quarantineRecover(world.manifest.address, 'session:missing-recovery'))
       .rejects.toMatchObject({ envelope: { errorCode: 'RECOVERY_VALIDATION_FAILED' } })
     await missingSessionApp.close()
+
+    const roundPaths = paths()
+    const roundApp = new WorldApplication(roundPaths)
+    roundApp.activate(world)
+    await roundApp.submit(world.manifest.address, request('round-status-corruption'))
+    await roundApp.release(world.manifest.address)
+    const corruptRound = new DatabaseSync(roundPaths.worldPath)
+    corruptRound.prepare(`UPDATE round_inbox SET result_hash = 'sha256:wrong' WHERE idempotency_key = ?`)
+      .run('round-status-corruption')
+    corruptRound.close()
+    await expect(roundApp.roundStatus(world.manifest.address, { idempotencyKey: 'round-status-corruption' }))
+      .rejects.toMatchObject({ envelope: { errorCode: 'BUNDLE_HASH_MISMATCH' } })
+    expect(roundApp.quarantineExplain(world.manifest.address)).toMatchObject({ runtimePhase: 'quarantined' })
+    await roundApp.close()
   })
 
   it('validates pending, delivered, and rebound Session state before quarantine recovery', async () => {
