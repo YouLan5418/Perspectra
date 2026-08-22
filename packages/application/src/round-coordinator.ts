@@ -23,6 +23,7 @@ import {
 } from '@harness-world/contracts'
 import {
   SpeakMoveRulebook,
+  parsePlayerActionInput,
   parsePlayerRoundResult,
   type CompiledWorldManifest,
   type PlayerActionInput,
@@ -102,16 +103,7 @@ export function compareActionOrderKey(left: ActionOrderKey, right: ActionOrderKe
   return left.actionId.localeCompare(right.actionId)
 }
 
-/** Revalidate a durable Round Inbox payload before it reaches the Rulebook. */
-export function parseClaimedPlayerAction(value: WorldJsonValue): PlayerActionInput {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('claimed player action must be an object')
-  const action = value as Record<string, WorldJsonValue>
-  const keys = Object.keys(action).sort()
-  if (keys.join(',') !== 'actionType,parameters' || typeof action.actionType !== 'string') {
-    throw new TypeError('claimed player action has an invalid shape')
-  }
-  return { actionType: action.actionType, parameters: action.parameters! }
-}
+export const parseClaimedPlayerAction = parsePlayerActionInput
 
 /** The sole production coordinator for player, NPC, and Director actions in one durable Round. */
 export class RoundCoordinator {

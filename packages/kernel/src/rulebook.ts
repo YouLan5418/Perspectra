@@ -6,6 +6,17 @@ export interface PlayerActionInput extends WorldJsonObject {
   readonly parameters: WorldJsonValue
 }
 
+/** Revalidate a durable Inbox payload before it reaches any deterministic Rulebook. */
+export function parsePlayerActionInput(value: WorldJsonValue): PlayerActionInput {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('claimed player action must be an object')
+  const action = value as Record<string, WorldJsonValue>
+  const keys = Object.keys(action).sort()
+  if (keys.join(',') !== 'actionType,parameters' || typeof action.actionType !== 'string') {
+    throw new TypeError('claimed player action has an invalid shape')
+  }
+  return { actionType: action.actionType, parameters: action.parameters! }
+}
+
 export interface RulebookResolution {
   readonly status: 'accepted' | 'rejected'
   readonly events: readonly WorldEventDraft[]

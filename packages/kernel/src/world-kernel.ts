@@ -18,7 +18,7 @@ import {
   type ClaimedRound,
   type WriterLease,
 } from '@harness-world/store-sqlite'
-import { SpeakMoveRulebook, type PlayerActionInput } from './rulebook.ts'
+import { parsePlayerActionInput, SpeakMoveRulebook, type PlayerActionInput } from './rulebook.ts'
 import type { CompiledWorldManifest } from './world-spec.ts'
 
 export interface SubmitPlayerInputRequest {
@@ -150,7 +150,7 @@ export class WorldKernel {
   ): Promise<{ readonly transactionId: TransactionId; readonly result: PlayerRoundResult }> {
     const binding = this.#manifest.playerBindings.find(value => value.principalId === claimed.principalId)
     if (binding === undefined) throw new Error('admitted Round lost its PlayerBinding')
-    const action = claimed.input as PlayerActionInput
+    const action = parsePlayerActionInput(claimed.input)
     const identity = {
       address: this.#address,
       inboxSeq: claimed.inboxSeq,
