@@ -96,6 +96,12 @@ describe('BranchQuarantineService', () => {
     expect((raw.prepare(`SELECT COUNT(*) AS count FROM round_inbox WHERE status = 'failed'`).get() as { count: number }).count).toBe(2)
     expect((raw.prepare(`SELECT COUNT(*) AS count FROM writer_leases`).get() as { count: number }).count).toBe(0)
     raw.close()
+    expect(inbox.readStatus(address, { idempotencyKey: 'round:claimed' })).toMatchObject({
+      status: 'failed', result: { failureId: error.errorId, errorCode: 'BUNDLE_HASH_MISMATCH' },
+    })
+    expect(inbox.readStatus(address, { idempotencyKey: 'round:pending' })).toMatchObject({
+      status: 'failed', result: { failureId: error.errorId, errorCode: 'BUNDLE_HASH_MISMATCH' },
+    })
     expect(administration.readAudit(address)).toEqual(expect.arrayContaining([
       expect.objectContaining({ operation: 'branch.quarantined' }),
     ]))
@@ -146,9 +152,48 @@ describe('BranchQuarantineService', () => {
     expect(() => quarantine.recover(address, 'recover:illegal', () => ({}))).toThrow('requires a quarantined branch')
     const administration = new BranchAdministration(path)
     expect(administration.status(address)).toMatchObject({ admissionState: 'open', runtimePhase: 'active' })
+    expect(quarantine.quarantine({ address, error: integrityError(address), source: 'projection.rebuild' })).toMatchObject({
+      status: 'quarantined',
+    })
+    expect(quarantine.explain(address)).toMatchObject({
+      runtimePhase: 'quarantined', failures: [{ status: 'open' }, { status: 'recovered' }],
+    })
     administration.close()
 
     quarantine.close()
+    store.close()
+  })
+
+  it('restores the pre-quarantine admission intent and supports legacy maintenance without an audit hint', () => {
+    const { path, address } = fixture()
+    const store = new WorldStore(path)
+    store.createBranch(address)
+    const administration = new BranchAdministration(path)
+    administration.setAdmission(address, 'draining', 'planned drain', 'drain:planned')
+    const quarantine = new BranchQuarantineService(path)
+    quarantine.quarantine({ address, error: integrityError(address), source: 'draining:failure' })
+    quarantine.recover(address, 'draining:recover', () => ({ verified: true }))
+    expect(administration.status(address)).toMatchObject({ admissionState: 'draining', runtimePhase: 'active' })
+
+    const legacy = { ...address, branchId: brandId('branch:legacy-maintenance', 'BranchId') }
+    store.createBranch(legacy)
+    const raw = new DatabaseSync(path)
+    raw.prepare(`UPDATE branch_controls SET runtime_phase = 'maintenance' WHERE address_key = ?`)
+      .run(worldAddressKey(legacy))
+    raw.close()
+    quarantine.quarantine({
+      address: legacy,
+      error: createErrorEnvelope({
+        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'legacy maintenance failure',
+        retryable: false, correlationId: 'legacy:maintenance', address: legacy,
+      }),
+      source: 'legacy:maintenance',
+    })
+    quarantine.recover(legacy, 'legacy:recover', () => ({ verified: true }))
+    expect(administration.status(legacy)).toMatchObject({ admissionState: 'open', runtimePhase: 'active' })
+
+    quarantine.close()
+    administration.close()
     store.close()
   })
 

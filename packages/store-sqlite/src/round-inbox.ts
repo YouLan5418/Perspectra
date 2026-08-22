@@ -107,7 +107,6 @@ export class RoundInbox {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.#requireBranch(key)
-      this.#assertNotQuarantined(request.address, key, request.correlationId)
       const replay = this.#db.prepare(`
         SELECT inbox_seq, input_hash FROM round_inbox WHERE address_key = ? AND idempotency_key = ?
       `).get(key, request.idempotencyKey) as { inbox_seq: number; input_hash: WorldHash } | undefined
@@ -128,6 +127,7 @@ export class RoundInbox {
           roundId: coordinatedRoundId(request.address, replay.inbox_seq, request.idempotencyKey, inputHash),
         }
       }
+      this.#assertNotQuarantined(request.address, key, request.correlationId)
       this.#assertAdmissionOpen(request.address, key, request.correlationId)
       const queued = this.#db.prepare(`
         SELECT COUNT(*) AS count FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed')
