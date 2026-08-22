@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { WorldApplication } from '@harness-world/application'
+import { WorldSpecCompiler } from '@harness-world/kernel'
 import { SessionDeliveryAdapter, WorldArchiveService, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
 import {
   fixtureAddress,
@@ -14,6 +16,7 @@ import {
 const directories: string[] = []
 const worker = fileURLToPath(new URL('./workers/crash-worker.ts', import.meta.url))
 const archiveWorker = fileURLToPath(new URL('./workers/archive-crash-worker.ts', import.meta.url))
+const applicationWorker = fileURLToPath(new URL('./workers/application-crash-worker.ts', import.meta.url))
 
 function database(name: string): string {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-crash-'))
@@ -101,5 +104,37 @@ describe('hard process termination recovery', () => {
     const recovered = new WorldStore(targetPath)
     expect(recovered.readEvents(fixtureAddress())).toHaveLength(1)
     recovered.close()
+  })
+
+  it('recovers a committed application Round whose Inbox completion was interrupted by hard termination', async () => {
+    const worldPath = database('application-world.sqlite')
+    const sessionPath = worldPath.replace('application-world.sqlite', 'application-session.sqlite')
+    const compiled = new WorldSpecCompiler().compile({
+      schemaVersion: 1,
+      address: { tenantId: 'tenant:p6-crash', worldId: 'world:p6-crash', branchId: 'branch:main' },
+      timeMode: 'TURN_DRIVEN',
+      roundQueueLimit: 4,
+      rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+      locations: [{ locationId: 'location:room', name: 'Room' }],
+      characters: [{ characterId: 'character:player', name: 'Player', locationId: 'location:room' }],
+      playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
+      plugins: [],
+    })
+    const setup = new WorldApplication({ worldPath, sessionPath, runtimeOwnerId: 'application:p6-crash' })
+    setup.activate(compiled)
+    await setup.close()
+    await hardKillAt(applicationWorker, [worldPath, sessionPath, 'store.after-commit'])
+
+    const recovered = new WorldApplication({ worldPath, sessionPath, runtimeOwnerId: 'application:p6-crash' })
+    const result = await recovered.submit(compiled.manifest.address, {
+      idempotencyKey: 'p6-crash-round',
+      principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'durable across hard kill' } },
+      correlationId: 'p6-crash-recovery',
+    })
+    expect(result).toMatchObject({ status: 'accepted', tick: 1 })
+    expect(await recovered.roundResult(compiled.manifest.address, 'p6-crash-round')).toEqual(result)
+    expect(await recovered.deliver(compiled.manifest.address, 'p6-crash-delivery')).toBe(1)
+    await recovered.close()
   })
 })
