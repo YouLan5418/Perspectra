@@ -27,6 +27,14 @@ corepack pnpm@11.7.0 worldctl -- D:\path\to\world.sqlite health
 corepack pnpm@11.7.0 worldhost -- D:\path\to\world.sqlite D:\path\to\session.sqlite
 ```
 
+运行无模型的悬疑 Demo 固定开场（再次执行会从同一 SQLite 幂等恢复）：
+
+```powershell
+corepack pnpm@11.7.0 demo:mystery -- D:\path\to\mystery-world.sqlite D:\path\to\mystery-session.sqlite
+```
+
+命令只输出玩家可见视图和公开物品状态；Bob 的私有凶手 Claim 不会出现在终端结果中。
+
 ## 使用基础契约
 
 ```typescript
