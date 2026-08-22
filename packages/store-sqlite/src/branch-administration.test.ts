@@ -111,7 +111,6 @@ describe('BranchAdministration', () => {
     expect(() => admin.archive(leaseTarget, 'blocked by writer', 'admin:lease-archive')).toThrow('active writer')
     expect(leases.release(leaseTarget, lease.ownerId, lease.fencingToken)).toBe(true)
 
-    admin.setAdmission(inboxTarget, 'draining', 'inbox guard', 'admin:inbox-drain')
     const inbox = new RoundInbox(path, () => 100)
     inbox.enqueue({
       address: inboxTarget,
@@ -120,6 +119,7 @@ describe('BranchAdministration', () => {
       input: { actionType: 'wait' },
       correlationId: 'archive:pending',
     }, 4)
+    admin.setAdmission(inboxTarget, 'draining', 'inbox guard', 'admin:inbox-drain')
     expect(() => admin.archive(inboxTarget, 'blocked by Round', 'admin:inbox-archive')).toThrow('unfinished Round')
     admin.setAdmission(inboxTarget, 'open', 'test fork guard', 'admin:inbox-open')
     expect(() => store.forkBranch(inboxTarget, address('pending-round-child'), 0)).toThrow('pending or claimed Round')

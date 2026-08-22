@@ -91,6 +91,7 @@ export class RoundInbox {
         this.#db.exec('COMMIT')
         return { status: 'already_enqueued', inboxSeq: replay.inbox_seq, inputHash }
       }
+      this.#assertAdmissionOpen(request.address, key, request.correlationId)
       const queued = this.#db.prepare(`
         SELECT COUNT(*) AS count FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed')
       `).get(key) as { count: number }
@@ -307,6 +308,22 @@ export class RoundInbox {
     if (this.#db.prepare(`SELECT 1 AS present FROM branches WHERE address_key = ?`).get(key) === undefined) {
       throw new Error(`unknown world branch ${key}`)
     }
+  }
+
+  #assertAdmissionOpen(address: WorldAddress, key: string, correlationId: string): void {
+    const control = this.#db.prepare(`
+      SELECT admission_state, lifecycle_state FROM branch_controls WHERE address_key = ?
+    `).get(key) as { admission_state: 'open' | 'draining'; lifecycle_state: 'active' | 'archived' } | undefined
+    if (control === undefined) throw new Error(`unknown world branch ${key}`)
+    if (control.admission_state === 'open' && control.lifecycle_state === 'active') return
+    failWorld({
+      errorCode: 'BRANCH_DRAINING',
+      category: 'admin',
+      message: control.lifecycle_state === 'archived' ? 'branch is archived' : 'branch admission is draining',
+      retryable: control.lifecycle_state !== 'archived',
+      correlationId,
+      address,
+    })
   }
 
   #assertCurrentLease(address: WorldAddress, key: string, ownerId: string, fencingToken: number): void {

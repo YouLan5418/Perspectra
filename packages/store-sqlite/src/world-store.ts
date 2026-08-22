@@ -796,12 +796,56 @@ export class WorldStore {
       SELECT admission_state, lifecycle_state FROM branch_controls WHERE address_key = ?
     `).get(addressKey) as { admission_state: 'open' | 'draining'; lifecycle_state: 'active' | 'archived' } | undefined
     if (row === undefined) throw new Error(`unknown world branch ${addressKey}`)
-    if (row.lifecycle_state === 'active' && row.admission_state === 'open') return
     const proof = request.admissionProof
     const admitted = proof === undefined ? undefined : this.#db.prepare(`
-      SELECT input_hash FROM round_inbox
+      SELECT input_hash, commit_transaction_id FROM round_inbox
       WHERE address_key = ? AND inbox_seq = ? AND status IN ('pending', 'claimed')
-    `).get(addressKey, proof.inboxSeq) as { input_hash: WorldHash } | undefined
+    `).get(addressKey, proof.inboxSeq) as {
+      input_hash: WorldHash
+      commit_transaction_id: string | null
+    } | undefined
+    if (proof !== undefined && admitted?.input_hash === proof.inputHash) {
+      if (admitted.commit_transaction_id !== null && admitted.commit_transaction_id !== request.transactionId) {
+        failWorld({
+          errorCode: 'IDEMPOTENCY_KEY_CONFLICT',
+          category: 'admission',
+          message: 'durable Round admission is already bound to another transaction',
+          retryable: false,
+          correlationId: request.correlationId,
+          address: request.address,
+          roundId: request.roundId,
+        })
+      }
+      const bound = this.#db.prepare(`
+        UPDATE round_inbox SET commit_transaction_id = ?
+        WHERE address_key = ? AND inbox_seq = ? AND input_hash = ?
+          AND status IN ('pending', 'claimed')
+          AND (commit_transaction_id IS NULL OR commit_transaction_id = ?)
+      `).run(request.transactionId, addressKey, proof.inboxSeq, proof.inputHash, request.transactionId)
+      if (bound.changes !== 1) {
+        failWorld({
+          errorCode: 'IDEMPOTENCY_KEY_CONFLICT',
+          category: 'admission',
+          message: 'durable Round admission could not be bound to this transaction',
+          retryable: false,
+          correlationId: request.correlationId,
+          address: request.address,
+          roundId: request.roundId,
+        })
+      }
+    }
+    if (row.lifecycle_state === 'active' && row.admission_state === 'open') {
+      if (proof === undefined || admitted?.input_hash === proof.inputHash) return
+      failWorld({
+        errorCode: 'IDEMPOTENCY_KEY_CONFLICT',
+        category: 'admission',
+        message: 'Round commit has no matching durable admission proof',
+        retryable: false,
+        correlationId: request.correlationId,
+        address: request.address,
+        roundId: request.roundId,
+      })
+    }
     if (row.lifecycle_state !== 'active' || proof === undefined || admitted?.input_hash !== proof.inputHash) {
       failWorld({
         errorCode: 'BRANCH_DRAINING',

@@ -232,6 +232,13 @@ describe('RoundInbox', () => {
     expect(inbox.enqueue(request, 1)).toEqual({ ...first, status: 'already_enqueued' })
     expect(() => inbox.enqueue({ ...request, input: { type: 'speak', text: 'changed' } }, 1)).toThrow('different player input')
     expect(() => inbox.enqueue({ ...request, idempotencyKey: 'input:2' }, 1)).toThrow('queue is full')
+    const administration = new BranchAdministration(path)
+    administration.setAdmission(address, 'draining', 'maintenance', 'inbox-draining')
+    expect(inbox.enqueue(request, 1)).toEqual({ ...first, status: 'already_enqueued' })
+    expect(() => inbox.enqueue({ ...request, idempotencyKey: 'input:draining' }, 2))
+      .toThrow('branch admission is draining')
+    administration.setAdmission(address, 'open', 'resume', 'inbox-open')
+    administration.close()
     expect(() => inbox.claimNext(address, '', 1)).toThrow(TypeError)
     expect(() => inbox.claimNext(address, 'kernel:a', 0)).toThrow(RangeError)
     const claimed = inbox.claimNext(address, 'kernel:a', firstLease.fencingToken)
@@ -299,6 +306,37 @@ describe('RoundInbox', () => {
     inbox.complete(address, 2, 'kernel:new', newLease.fencingToken, secondProof, {
       status: 'rejected', bundleHash: secondCommit.bundleHash,
     })
+    const proofReuse = inbox.enqueue({
+      ...request,
+      idempotencyKey: 'input:proof-reuse',
+      input: { type: 'speak', text: 'proof reuse' },
+    }, 1)
+    const proofClaim = inbox.claimNext(address, 'kernel:new', newLease.fencingToken)
+    expect(proofClaim?.inboxSeq).toBe(proofReuse.inboxSeq)
+    const proofCommitRequest = {
+      ...fixtureCommitRequest(address),
+      transactionId: brandId('transaction:proof-owner', 'TransactionId'),
+      roundId: brandId('round:proof-owner', 'InteractionRoundId'),
+      expectedHeadSeq: secondCommit.headSeq,
+      expectedTick: secondCommit.tick,
+      nextTick: secondCommit.tick + 1,
+      outbox: [],
+      admissionProof: { inboxSeq: proofReuse.inboxSeq, inputHash: proofReuse.inputHash },
+      writerFencingToken: newLease.fencingToken,
+    }
+    const proofCommit = await world.commitRound(proofCommitRequest)
+    await expect(world.commitRound({
+      ...proofCommitRequest,
+      transactionId: brandId('transaction:proof-reused', 'TransactionId'),
+      roundId: brandId('round:proof-reused', 'InteractionRoundId'),
+      expectedHeadSeq: proofCommit.headSeq,
+      expectedTick: proofCommit.tick,
+      nextTick: proofCommit.tick + 1,
+    })).rejects.toMatchObject({ envelope: { errorCode: 'IDEMPOTENCY_KEY_CONFLICT' } })
+    inbox.complete(address, proofReuse.inboxSeq, 'kernel:new', newLease.fencingToken, {
+      transactionId: proofCommitRequest.transactionId,
+      bundleHash: proofCommit.bundleHash,
+    }, { status: 'accepted', bundleHash: proofCommit.bundleHash })
     expect(inbox.claimNext(address, 'kernel:new', newLease.fencingToken)).toBeUndefined()
     inbox.close()
 
