@@ -15,6 +15,7 @@ const application = new WorldApplication({
   worldPath,
   sessionPath,
   runtimeOwnerId: 'application:p6-crash',
+  leaseTtlMs: 2_000,
   modelBudgetTokens: 10,
   participants: () => [{
     participantId: 'agent:p6-crash',

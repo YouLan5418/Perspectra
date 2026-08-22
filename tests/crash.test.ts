@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
@@ -139,6 +140,7 @@ describe('hard process termination recovery', () => {
       worldPath,
       sessionPath,
       runtimeOwnerId: 'application:p6-crash',
+      leaseTtlMs: 2_000,
       modelBudgetTokens: 10,
       participants: () => [{
         participantId: 'agent:p6-crash',
@@ -165,12 +167,21 @@ describe('hard process termination recovery', () => {
         },
       }],
     })
-    const result = await recovered.submit(compiled.manifest.address, {
+    const recoveryRequest = {
       idempotencyKey: 'p6-crash-round',
       principalId: 'principal:player',
       action: { actionType: 'speak', parameters: { text: 'durable across hard kill' } },
       correlationId: 'p6-crash-recovery',
+    } as const
+    await expect(recovered.submit(compiled.manifest.address, recoveryRequest)).rejects.toMatchObject({
+      envelope: { errorCode: 'WORLDSTORE_BUSY' },
     })
+    const leaseDatabase = new DatabaseSync(worldPath, { readOnly: true })
+    const activeLease = leaseDatabase.prepare(`SELECT expires_at_ms FROM writer_leases`).get() as { expires_at_ms: number }
+    leaseDatabase.close()
+    expect(activeLease.expires_at_ms).toBeGreaterThan(Date.now())
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, activeLease.expires_at_ms - Date.now() + 20)))
+    const result = await recovered.submit(compiled.manifest.address, recoveryRequest)
     expect(result).toMatchObject({ status: 'accepted', tick: 1 })
     expect(recoveredProviderCalls).toBe(0)
     expect(await recovered.roundResult(compiled.manifest.address, 'p6-crash-round')).toEqual(result)

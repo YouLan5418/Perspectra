@@ -1,7 +1,9 @@
 import { Context } from '@deepseek-ai/cordis'
 import { randomUUID } from 'node:crypto'
 import {
+  assertProtocolString,
   failWorld,
+  hashWorldJson,
   worldAddressKey,
   type CharacterId,
   type CharacterView,
@@ -135,7 +137,9 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
   readonly #runtimeOwnerId: string
 
   constructor(private readonly options: WorldApplicationOptions) {
-    this.#runtimeOwnerId = options.runtimeOwnerId ?? `application:${randomUUID()}`
+    const label = options.runtimeOwnerId ?? 'application'
+    assertProtocolString(label, 'runtimeOwnerId diagnostic label')
+    this.#runtimeOwnerId = `${label}:instance:${randomUUID()}`
   }
 
   create(scope: BranchExecutionLane) {
@@ -158,7 +162,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         inbox: store.inbox,
         leases: store.leases,
         runtimeLane: scope,
-        ownerId: `${this.#runtimeOwnerId}:${worldAddressKey(scope.address)}`,
+        ownerId: `${this.#runtimeOwnerId}:branch:${hashWorldJson('writer-owner-address', scope.address)}`,
         participants: [...agents.participants, ...director.participants],
         modelBudgetTokens: this.options.modelBudgetTokens ?? 0,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
