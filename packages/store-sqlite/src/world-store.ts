@@ -442,6 +442,20 @@ export class WorldStore {
 
   /** Create a child branch whose effective history stops exactly at forkSeq. */
   forkBranch(parent: WorldAddress, child: WorldAddress, forkSeq: number): void {
+    this.#forkBranch(parent, child, forkSeq, 'open')
+  }
+
+  /** Fork an active source while its administrative gate is durably draining. */
+  forkDrainedBranch(parent: WorldAddress, child: WorldAddress, forkSeq: number): void {
+    this.#forkBranch(parent, child, forkSeq, 'draining')
+  }
+
+  #forkBranch(
+    parent: WorldAddress,
+    child: WorldAddress,
+    forkSeq: number,
+    requiredAdmission: 'open' | 'draining',
+  ): void {
     if (parent.tenantId !== child.tenantId || parent.worldId !== child.worldId) {
       throw new TypeError('child branch must remain in the parent tenant and world')
     }
@@ -450,7 +464,20 @@ export class WorldStore {
     this.#audit.record(childKey, 'world.branch.fork.requested', `fork:${child.branchId}`, { parent, child, forkSeq })
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      this.#assertAdmissionOpen(parentKey, `fork:${child.branchId}`, parent)
+      const control = this.#db.prepare(`
+        SELECT admission_state, lifecycle_state FROM branch_controls WHERE address_key = ?
+      `).get(parentKey) as { admission_state: 'open' | 'draining'; lifecycle_state: 'active' | 'archived' } | undefined
+      if (control === undefined) throw new Error(`unknown world branch ${parentKey}`)
+      if (control.lifecycle_state !== 'active' || control.admission_state !== requiredAdmission) {
+        failWorld({
+          errorCode: 'BRANCH_DRAINING', category: 'admin',
+          message: control.lifecycle_state === 'archived'
+            ? 'branch is archived'
+            : `branch fork requires admission state ${requiredAdmission}`,
+          retryable: control.lifecycle_state !== 'archived',
+          correlationId: `fork:${child.branchId}`, address: parent,
+        })
+      }
       const unfinishedRound = this.#db.prepare(`
         SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status <> 'completed' LIMIT 1
       `).get(parentKey)

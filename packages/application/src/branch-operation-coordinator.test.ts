@@ -1,0 +1,170 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { brandId } from '@harness-world/contracts'
+import { WorldBootstrap, WorldSpecCompiler, type CompiledWorldSpec, type RoundExecutionLane } from '@harness-world/kernel'
+import {
+  BranchAdministration,
+  RoundInbox,
+  SessionDeliveryAdapter,
+  SessionOutboxWorker,
+  WorldOutbox,
+  WorldStore,
+  WriterLeaseService,
+} from '@harness-world/store-sqlite'
+import { BranchOperationCoordinator, type CriticalDeliveryDrainPort } from './branch-operation-coordinator.ts'
+import { RoundCoordinator } from './round-coordinator.ts'
+
+const directories: string[] = []
+
+function paths(): { world: string; session: string } {
+  const directory = mkdtempSync(join(tmpdir(), 'hcw-branch-operation-'))
+  directories.push(directory)
+  return { world: join(directory, 'world.sqlite'), session: join(directory, 'session.sqlite') }
+}
+
+afterEach(() => {
+  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
+})
+
+function compiled(): CompiledWorldSpec {
+  return new WorldSpecCompiler().compile({
+    schemaVersion: 1,
+    address: { tenantId: 'tenant:operations', worldId: 'world:operations', branchId: 'branch:main' },
+    timeMode: 'TURN_DRIVEN',
+    roundQueueLimit: 8,
+    rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+    locations: [{ locationId: 'location:room', name: 'Room' }],
+    characters: [{ characterId: 'character:player', name: 'Player', locationId: 'location:room' }],
+    playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
+    plugins: [],
+  })
+}
+
+function lane(world: CompiledWorldSpec): RoundExecutionLane {
+  let tail: Promise<void> = Promise.resolve()
+  return {
+    address: world.manifest.address,
+    manifestHash: world.manifestHash,
+    enqueueRound<T>(work: () => Promise<T>): Promise<T> {
+      const result = tail.then(work, work)
+      tail = result.then(() => undefined, () => undefined)
+      return result
+    },
+  }
+}
+
+function coordinator(path: string, world: CompiledWorldSpec) {
+  const store = new WorldStore(path)
+  const inbox = new RoundInbox(path)
+  const leases = new WriterLeaseService(path)
+  const rounds = new RoundCoordinator({
+    store,
+    inbox,
+    leases,
+    runtimeLane: lane(world),
+    ownerId: 'coordinator:operations',
+    participants: [],
+    modelBudgetTokens: 0,
+  })
+  return { store, inbox, leases, rounds }
+}
+
+function enqueueAccepted(inbox: RoundInbox, world: CompiledWorldSpec, idempotencyKey: string): void {
+  inbox.enqueue({
+    address: world.manifest.address,
+    idempotencyKey,
+    principalId: 'principal:player',
+    input: { actionType: 'speak', parameters: { text: idempotencyKey } },
+    correlationId: idempotencyKey,
+  }, 8)
+}
+
+describe('BranchOperationCoordinator', () => {
+  it('closes admission, drains accepted FIFO work, forks at the resulting head, and reopens the source', async () => {
+    const path = paths().world
+    const world = compiled()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(world)
+    setup.close()
+    const runtime = coordinator(path, world)
+    enqueueAccepted(runtime.inbox, world, 'accepted-before-fork')
+    const administration = new BranchAdministration(path)
+    const operations = new BranchOperationCoordinator(runtime.store, administration, runtime.rounds, {
+      drainCritical: async () => 0,
+    })
+    const child = { ...world.manifest.address, branchId: brandId('branch:child', 'BranchId') }
+    expect(() => runtime.store.forkDrainedBranch(world.manifest.address, child, runtime.store.head(world.manifest.address).headSeq))
+      .toThrow('requires admission state draining')
+    const result = await operations.forkAtHead({
+      parent: world.manifest.address,
+      child,
+      reason: 'create checkpoint branch',
+      correlationId: 'operation:fork',
+    })
+    expect(result).toMatchObject({ drainedRounds: 1, parentState: { admissionState: 'open', lifecycleState: 'active' } })
+    expect(runtime.store.head(child)).toEqual(runtime.store.head(world.manifest.address))
+    expect(result.forkSeq).toBe(runtime.store.head(child).headSeq)
+    await expect(runtime.rounds.submit({
+      idempotencyKey: 'after-fork', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'source continues' } }, correlationId: 'after-fork',
+    })).resolves.toMatchObject({ tick: 2 })
+    runtime.rounds.close()
+    runtime.inbox.close()
+    runtime.leases.close()
+    administration.close()
+    runtime.store.close()
+  })
+
+  it('drains Round and critical Outbox work, releases the writer, then archives irreversibly', async () => {
+    const path = paths()
+    const world = compiled()
+    const setup = new WorldStore(path.world)
+    new WorldBootstrap(setup).activate(world)
+    setup.close()
+    const runtime = coordinator(path.world, world)
+    enqueueAccepted(runtime.inbox, world, 'accepted-before-archive')
+    const administration = new BranchAdministration(path.world)
+    const outbox = new WorldOutbox(path.world, undefined, {
+      workerId: 'worker:branch-operation',
+      createClaimToken: () => 'branch-operation',
+    })
+    const session = new SessionDeliveryAdapter(path.session)
+    const worker = new SessionOutboxWorker(outbox, session)
+    const deliveries: CriticalDeliveryDrainPort = {
+      async drainCritical(correlationId: string): Promise<number> {
+        let count = 0
+        while (true) {
+          const result = await worker.runOnce(correlationId)
+          if (result.status === 'idle') return count
+          if (result.status !== 'delivered') throw new Error(`critical delivery ended as ${result.status}`)
+          count += 1
+        }
+      },
+    }
+    const operations = new BranchOperationCoordinator(runtime.store, administration, runtime.rounds, deliveries)
+    const result = await operations.archive({
+      address: world.manifest.address,
+      reason: 'story complete',
+      correlationId: 'operation:archive',
+    })
+    expect(result).toMatchObject({
+      drainedRounds: 1,
+      drainedDeliveries: 1,
+      state: { admissionState: 'draining', lifecycleState: 'archived' },
+    })
+    expect(session.cursor(brandId('session:player', 'SessionId'))).toBe(1)
+    await expect(runtime.rounds.drainAccepted('after-archive')).rejects.toThrow('closed')
+    await expect(runtime.rounds.submit({
+      idempotencyKey: 'after-archive', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'blocked' } }, correlationId: 'after-archive',
+    })).rejects.toThrow('closed')
+    outbox.close()
+    session.close()
+    runtime.inbox.close()
+    runtime.leases.close()
+    administration.close()
+    runtime.store.close()
+  })
+})

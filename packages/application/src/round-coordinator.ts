@@ -181,22 +181,45 @@ export class RoundCoordinator {
     this.options.leases.release(this.#manifest.address, this.options.ownerId, this.#lease.fencingToken)
   }
 
+  /** Finish every Round admitted before an administrative draining barrier. */
+  drainAccepted(correlationId: string): Promise<number> {
+    if (this.#closed) return Promise.reject(new Error('RoundCoordinator is closed'))
+    return this.options.runtimeLane.enqueueRound(async () => {
+      let drained = 0
+      while (true) {
+        this.#lease = this.options.leases.acquire(this.#manifest.address, this.options.ownerId, this.options.leaseTtlMs)
+        const claimed = this.options.inbox.claimNext(this.#manifest.address, this.options.ownerId, this.#lease.fencingToken)
+        if (claimed === undefined) return drained
+        await this.#commitAndComplete(claimed, correlationId)
+        drained += 1
+      }
+    })
+  }
+
   async #drainUntil(targetSeq: number, correlationId: string): Promise<PlayerRoundResult> {
     while (true) {
       this.#lease = this.options.leases.acquire(this.#manifest.address, this.options.ownerId, this.options.leaseTtlMs)
       const claimed = this.options.inbox.claimNext(this.#manifest.address, this.options.ownerId, this.#lease.fencingToken)
       if (claimed === undefined) throw new Error(`Round Inbox lost admitted item ${targetSeq}`)
-      const committed = await this.#commitClaimed(claimed, correlationId)
-      this.options.inbox.complete(
-        this.#manifest.address,
-        claimed.inboxSeq,
-        this.options.ownerId,
-        this.#lease.fencingToken,
-        { transactionId: committed.transactionId, bundleHash: committed.result.bundleHash },
-        committed.result,
-      )
+      const committed = await this.#commitAndComplete(claimed, correlationId)
       if (claimed.inboxSeq === targetSeq) return committed.result
     }
+  }
+
+  async #commitAndComplete(
+    claimed: ClaimedRound,
+    correlationId: string,
+  ): Promise<{ readonly transactionId: TransactionId; readonly result: PlayerRoundResult }> {
+    const committed = await this.#commitClaimed(claimed, correlationId)
+    this.options.inbox.complete(
+      this.#manifest.address,
+      claimed.inboxSeq,
+      this.options.ownerId,
+      this.#lease.fencingToken,
+      { transactionId: committed.transactionId, bundleHash: committed.result.bundleHash },
+      committed.result,
+    )
+    return committed
   }
 
   async #commitClaimed(

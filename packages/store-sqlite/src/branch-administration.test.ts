@@ -144,6 +144,8 @@ describe('BranchAdministration', () => {
     admin.setAdmission(archivedTarget, 'draining', 'archive parent', 'admin:parent-drain')
     admin.archive(archivedTarget, 'archived parent', 'admin:parent-archive')
     expect(() => store.forkBranch(archivedTarget, address('illegal-child'), 0)).toThrow('archived')
+    expect(() => store.assertAdmissionOpen(archivedTarget, 'archived-admission')).toThrow('archived')
+    expect(() => store.forkBranch(address('missing-parent'), address('missing-child'), 0)).toThrow('unknown world branch')
 
     outbox.close()
     inbox.close()
