@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, createErrorEnvelope, type FaultPoint, type WorldAddress } from '@harness-world/contracts'
+import { ThrowingFaultInjector } from '@harness-world/testkit'
 import { BranchQuarantineService } from './quarantine.ts'
 import { SessionDeliveryAdapter } from './session-delivery.ts'
 import { SessionOutboxWorker, WorldOutbox, type ClaimedOutboxDelivery, type SessionDeliveryPort } from './outbox-worker.ts'
@@ -219,6 +220,28 @@ describe('SessionOutboxWorker', () => {
     quarantine.close()
     outbox.close()
     session.close()
+  })
+
+  it.each([
+    ['quarantine.before-commit', 'inflight', 'active'],
+    ['quarantine.after-commit', 'dead_letter', 'quarantined'],
+  ] as const)('preserves atomic Outbox quarantine state at %s', async (point, deliveryStatus, runtimePhase) => {
+    const path = paths(`outbox-quarantine-${point}`)
+    await seed(path.world, [{ id: `delivery:${point}`, session: `session:${point}`, critical: true }])
+    const outbox = new WorldOutbox(path.world, new ThrowingFaultInjector(point), {
+      workerId: `worker:${point}`, now: () => 5_000, createClaimToken: () => point,
+    })
+    const delivery = outbox.claimNext(address()) as ClaimedOutboxDelivery
+    const error = createErrorEnvelope({
+      errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity', message: `failure ${point}`,
+      retryable: false, correlationId: `fault:${point}`, address: address(),
+    })
+    expect(() => outbox.recordIntegrityFailure(delivery, error, 'fault:test')).toThrow(`simulated fault at ${point}`)
+    const raw = new DatabaseSync(path.world, { readOnly: true })
+    expect((raw.prepare(`SELECT delivery_status FROM outbox`).get() as { delivery_status: string }).delivery_status).toBe(deliveryStatus)
+    expect((raw.prepare(`SELECT runtime_phase FROM branch_controls`).get() as { runtime_phase: string }).runtime_phase).toBe(runtimePhase)
+    raw.close()
+    outbox.close()
   })
 
   it('rolls back or preserves sender receipts at the exact COMMIT boundary', async () => {

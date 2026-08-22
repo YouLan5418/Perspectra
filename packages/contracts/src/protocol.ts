@@ -29,6 +29,11 @@ export type FaultPoint =
   | 'session-delivery.after-commit'
   | 'outbox.before-receipt-commit'
   | 'outbox.after-receipt-commit'
+  | 'quarantine.before-commit'
+  | 'quarantine.after-commit'
+  | 'quarantine-recovery.after-maintenance-commit'
+  | 'quarantine-recovery.before-commit'
+  | 'quarantine-recovery.after-commit'
 
 export interface FaultInjector {
   /** Pause, fail, or terminate execution at a named stable point. */

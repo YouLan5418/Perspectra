@@ -5,9 +5,9 @@ import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId } from '@harness-world/contracts'
+import { brandId, createErrorEnvelope } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
-import { SessionDeliveryAdapter, WorldArchiveService, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
+import { BranchQuarantineService, SessionDeliveryAdapter, WorldArchiveService, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
 import {
   fixtureAddress,
   fixtureCommitRequest,
@@ -19,6 +19,7 @@ const directories: string[] = []
 const worker = fileURLToPath(new URL('./workers/crash-worker.ts', import.meta.url))
 const archiveWorker = fileURLToPath(new URL('./workers/archive-crash-worker.ts', import.meta.url))
 const applicationWorker = fileURLToPath(new URL('./workers/application-crash-worker.ts', import.meta.url))
+const quarantineWorker = fileURLToPath(new URL('./workers/quarantine-crash-worker.ts', import.meta.url))
 
 function database(name: string): string {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-crash-'))
@@ -77,6 +78,52 @@ describe('hard process termination recovery', () => {
     const deliveryId = fixtureCommitRequest().outbox[0]!.deliveryId
     expect(recovered.hasReceipt(deliveryId)).toBe(expectedReceipt)
     expect(recovered.claimNext(fixtureAddress()) === undefined).toBe(expectedReceipt)
+    recovered.close()
+  })
+
+  it.each([
+    ['quarantine.before-commit', 'active', 0],
+    ['quarantine.after-commit', 'quarantined', 1],
+  ] as const)('recovers an atomic Branch barrier at %s', async (point, runtimePhase, failureCount) => {
+    const path = database(`${point}.sqlite`)
+    const setup = new WorldStore(path)
+    setup.createBranch(fixtureAddress())
+    setup.close()
+    await hardKillAt(quarantineWorker, ['quarantine', path, point])
+    const recovered = new BranchQuarantineService(path)
+    expect(recovered.explain(fixtureAddress())).toMatchObject({ runtimePhase })
+    expect(recovered.explain(fixtureAddress()).failures).toHaveLength(failureCount)
+    recovered.close()
+  })
+
+  it.each([
+    ['quarantine-recovery.after-maintenance-commit', 'maintenance'],
+    ['quarantine-recovery.before-commit', 'maintenance'],
+    ['quarantine-recovery.after-commit', 'active'],
+  ] as const)('recovers or resumes controlled Branch recovery at %s', async (point, runtimePhase) => {
+    const path = database(`${point}.sqlite`)
+    const address = fixtureAddress()
+    const store = new WorldStore(path)
+    store.createBranch(address)
+    store.close()
+    const setup = new BranchQuarantineService(path)
+    setup.quarantine({
+      address,
+      error: createErrorEnvelope({
+        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'hard-crash recovery fixture',
+        retryable: false, correlationId: 'crash:recovery-setup', address,
+      }),
+      source: 'crash.test',
+    })
+    setup.close()
+    await hardKillAt(quarantineWorker, ['recover', path, point])
+    const recovered = new BranchQuarantineService(path)
+    expect(recovered.explain(address)).toMatchObject({ runtimePhase })
+    if (runtimePhase === 'maintenance') {
+      expect(recovered.recover(address, 'crash:recovery-resume', () => ({ verified: true })))
+        .toMatchObject({ status: 'recovered', runtimeEpoch: 1 })
+    }
+    expect(recovered.explain(address)).toMatchObject({ runtimePhase: 'active', failures: [{ status: 'recovered' }] })
     recovered.close()
   })
 

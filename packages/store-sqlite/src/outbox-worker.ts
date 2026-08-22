@@ -235,7 +235,9 @@ export class WorldOutbox {
       )
       if (result.changes !== 1) throw new Error('Outbox delivery claim is stale')
       const quarantine = applyBranchQuarantine(this.#db, { address: delivery.address, error, source }, this.#now())
+      this.faultInjector?.hit('quarantine.before-commit')
       this.#db.exec('COMMIT')
+      this.faultInjector?.hit('quarantine.after-commit')
       return quarantine
     } catch (caught: unknown) {
       rollbackAndThrow(this.#db, caught)

@@ -8,6 +8,7 @@ import {
   WorldError,
   worldAddressKey,
   type ErrorEnvelope,
+  type FaultInjector,
   type WorldAddress,
   type WorldHash,
   type WorldJsonObject,
@@ -149,7 +150,11 @@ export function applyBranchQuarantine(
 export class BranchQuarantineService {
   readonly #db: DatabaseSync
 
-  constructor(path: string, private readonly now: () => number = Date.now) {
+  constructor(
+    path: string,
+    private readonly now: () => number = Date.now,
+    private readonly faultInjector?: FaultInjector,
+  ) {
     this.#db = openWorldDatabase(path)
   }
 
@@ -157,7 +162,9 @@ export class BranchQuarantineService {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       const result = applyBranchQuarantine(this.#db, request, this.now())
+      this.faultInjector?.hit('quarantine.before-commit')
       this.#db.exec('COMMIT')
+      this.faultInjector?.hit('quarantine.after-commit')
       return result
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -236,7 +243,9 @@ export class BranchQuarantineService {
         INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
         VALUES (?, 'branch.quarantine.recovered', ?, ?, ?)
       `).run(key, correlationId, worldJsonText({ validationHash, nextRuntimeEpoch: control.runtime_epoch + 1 }), recoveredAtMs)
+      this.faultInjector?.hit('quarantine-recovery.before-commit')
       this.#db.exec('COMMIT')
+      this.faultInjector?.hit('quarantine-recovery.after-commit')
       return { status: 'recovered', runtimeEpoch: control.runtime_epoch + 1, validationHash }
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -258,7 +267,8 @@ export class BranchQuarantineService {
           correlationId, address,
         })
       }
-      if (control.runtime_phase === 'quarantined') {
+      const entered = control.runtime_phase === 'quarantined'
+      if (entered) {
         const operationalTimeMs = this.now()
         this.#db.prepare(`
           UPDATE branch_controls SET runtime_phase = 'maintenance', reason = 'quarantine recovery',
@@ -270,6 +280,7 @@ export class BranchQuarantineService {
         `).run(key, correlationId, worldJsonText({ runtimeEpoch: control.runtime_epoch }), operationalTimeMs)
       }
       this.#db.exec('COMMIT')
+      if (entered) this.faultInjector?.hit('quarantine-recovery.after-maintenance-commit')
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
     }

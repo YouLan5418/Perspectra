@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, createErrorEnvelope, WorldError, worldAddressKey, type WorldAddress } from '@harness-world/contracts'
+import { ThrowingFaultInjector } from '@harness-world/testkit'
 import { BranchAdministration } from './branch-administration.ts'
 import { BranchQuarantineService } from './quarantine.ts'
 import { RoundInbox } from './round-inbox.ts'
@@ -213,6 +214,44 @@ describe('BranchQuarantineService', () => {
     })).toThrow('branch left maintenance')
     raw.close()
     quarantine.close()
+    store.close()
+  })
+
+  it.each([
+    ['quarantine.before-commit', 'active', 0],
+    ['quarantine.after-commit', 'quarantined', 1],
+  ] as const)('preserves atomic quarantine state at %s', (point, phase, failureCount) => {
+    const { path, address } = fixture()
+    const store = new WorldStore(path)
+    store.createBranch(address)
+    const faulting = new BranchQuarantineService(path, () => 3_000, new ThrowingFaultInjector(point))
+    expect(() => faulting.quarantine({ address, error: integrityError(address), source: 'fault:test' }))
+      .toThrow(`simulated fault at ${point}`)
+    expect(faulting.explain(address)).toMatchObject({ runtimePhase: phase })
+    expect(faulting.explain(address).failures).toHaveLength(failureCount)
+    faulting.close()
+    store.close()
+  })
+
+  it.each([
+    ['quarantine-recovery.after-maintenance-commit', 'maintenance', 'open'],
+    ['quarantine-recovery.before-commit', 'maintenance', 'open'],
+    ['quarantine-recovery.after-commit', 'active', 'recovered'],
+  ] as const)('preserves resumable recovery state at %s', (point, phase, failureStatus) => {
+    const { path, address } = fixture()
+    const store = new WorldStore(path)
+    store.createBranch(address)
+    const setup = new BranchQuarantineService(path)
+    setup.quarantine({ address, error: integrityError(address), source: 'fault:recovery-setup' })
+    setup.close()
+    const faulting = new BranchQuarantineService(path, () => 9_000_000_000_000_000, new ThrowingFaultInjector(point))
+    expect(() => faulting.recover(address, `fault:${point}`, () => ({ verified: true })))
+      .toThrow(`simulated fault at ${point}`)
+    expect(faulting.explain(address)).toMatchObject({
+      runtimePhase: phase,
+      failures: [{ status: failureStatus }],
+    })
+    faulting.close()
     store.close()
   })
 })
