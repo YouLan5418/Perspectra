@@ -1,9 +1,11 @@
 import { Context } from '@deepseek-ai/cordis'
+import { randomUUID } from 'node:crypto'
 import {
   failWorld,
   worldAddressKey,
   type CharacterId,
   type CharacterView,
+  type FaultInjector,
   type SessionId,
   type WorldAddress,
   type WorldJsonValue,
@@ -57,6 +59,8 @@ export interface WorldApplicationOptions {
   readonly participants?: (address: WorldAddress) => readonly RoundParticipant[]
   readonly modelBudgetTokens?: number
   readonly outboxMaxAttempts?: number
+  readonly runtimeOwnerId?: string
+  readonly faultInjector?: FaultInjector
 }
 
 /** Real branch-owned Store aggregate; all handles close with its Cordis Fiber. */
@@ -69,8 +73,8 @@ export class BranchStoreComponent {
   readonly session: SessionDeliveryAdapter
   readonly #worker: SessionOutboxWorker
 
-  constructor(worldPath: string, sessionPath: string, maxAttempts: number) {
-    this.store = new WorldStore(worldPath)
+  constructor(worldPath: string, sessionPath: string, maxAttempts: number, faultInjector?: FaultInjector) {
+    this.store = new WorldStore(worldPath, faultInjector)
     this.inbox = new RoundInbox(worldPath)
     this.leases = new WriterLeaseService(worldPath)
     this.administration = new BranchAdministration(worldPath)
@@ -111,7 +115,11 @@ export class BranchDirectorComponent {
 
 /** Application-owned factory that mounts real stateful components into each Cordis Branch Slot. */
 export class WorldBranchComponentFactory implements BranchComponentFactory {
-  constructor(private readonly options: WorldApplicationOptions) {}
+  readonly #runtimeOwnerId: string
+
+  constructor(private readonly options: WorldApplicationOptions) {
+    this.#runtimeOwnerId = options.runtimeOwnerId ?? `application:${randomUUID()}`
+  }
 
   create(scope: BranchExecutionLane) {
     const participants = this.options.participants?.(scope.address) ?? []
@@ -121,6 +129,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       this.options.worldPath,
       this.options.sessionPath,
       this.options.outboxMaxAttempts ?? 3,
+      this.options.faultInjector,
     )
     try {
       const kernel = new RoundCoordinator({
@@ -128,7 +137,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         inbox: store.inbox,
         leases: store.leases,
         runtimeLane: scope,
-        ownerId: `coordinator:${worldAddressKey(scope.address)}`,
+        ownerId: `${this.#runtimeOwnerId}:${worldAddressKey(scope.address)}`,
         participants: [...agents.participants, ...director.participants],
         modelBudgetTokens: this.options.modelBudgetTokens ?? 0,
       })

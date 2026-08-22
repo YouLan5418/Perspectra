@@ -210,6 +210,13 @@ describe('WorldApplication', () => {
     await expect(divergent.deliver(world.manifest.address, 'delivery:divergent')).rejects.toThrow('retry_scheduled')
     await divergent.close()
 
+    const firstWriter = new WorldApplication(persistence)
+    const secondWriter = new WorldApplication(persistence)
+    expect(await firstWriter.head(world.manifest.address)).toMatchObject({ tick: expect.any(Number) })
+    await expect(secondWriter.head(world.manifest.address)).rejects.toThrow('another writer owns')
+    await firstWriter.close()
+    await secondWriter.close()
+
     const closing = new WorldApplication(paths())
     const pending = closing.head(world.manifest.address)
     await closing.close()
