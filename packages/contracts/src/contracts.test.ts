@@ -69,6 +69,9 @@ describe('identifiers, errors, and registries', () => {
     expect(worldAddressKey(address)).toBe('tenant\u001fworld\u001fmain')
     expect(() => brandId('', 'TenantId')).toThrow()
     expect(() => brandId(' padded ', 'TenantId')).toThrow()
+    expect(() => brandId('tenant\u001fworld', 'TenantId')).toThrow('control characters')
+    expect(() => brandId('line\nbreak', 'WorldId')).toThrow('control characters')
+    expect(() => brandId('delete\u007f', 'BranchId')).toThrow('control characters')
   })
 
   it('creates stable error envelopes and typed errors', () => {

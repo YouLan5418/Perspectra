@@ -15,5 +15,11 @@ export function brandId<Name extends string>(value: string, name: Name): Branded
   if (value.length === 0 || value.trim() !== value) {
     throw new TypeError(`${name} must be a non-empty, unpadded string`)
   }
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = value.charCodeAt(index)
+    if (codeUnit <= 0x1f || codeUnit === 0x7f) {
+      throw new TypeError(`${name} must not contain ASCII control characters`)
+    }
+  }
   return value as BrandedId<Name>
 }
