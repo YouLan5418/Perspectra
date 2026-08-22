@@ -28,6 +28,14 @@ export interface WorldApplicationPort {
   renderSession(address: WorldAddress, sessionId: SessionId, sessionEventSeq: number, options?: { readonly locale?: 'en' | 'zh-CN' }): Promise<unknown>
   forkAtHead(parent: WorldAddress, child: WorldAddress, reason: string, correlationId: string): Promise<unknown>
   archive(address: WorldAddress, reason: string, correlationId: string): Promise<unknown>
+  createSnapshot(address: WorldAddress, snapshotPath: string, correlationId: string): Promise<unknown>
+  latestSnapshot(address: WorldAddress, snapshotPath: string): unknown | undefined
+  backup(targetPath: string, correlationId: string): Promise<unknown>
+  restore(backupPath: string, targetPath: string, expectedHash: string, correlationId: string): unknown
+  exportPortable(exportPath: string, correlationId: string): Promise<unknown>
+  importPortable(exportPath: string, targetPath: string, correlationId: string): unknown
+  exportAuthority(targetPath: string, correlationId: string): unknown
+  importAuthority(exportPath: string, targetPath: string, correlationId: string): unknown
   close(): Promise<void>
 }
 
@@ -168,6 +176,41 @@ export class LocalJsonRpcRouter {
       this.metrics.increment('branch_transitions')
       return worldResult(await this.#application().archive(
         addressParam(params.address), stringParam(params, 'reason'), stringParam(params, 'correlationId'),
+      ))
+    }
+    if (method === 'snapshot.create') {
+      return worldResult(await this.#application().createSnapshot(
+        addressParam(params.address), stringParam(params, 'snapshotPath'), stringParam(params, 'correlationId'),
+      ))
+    }
+    if (method === 'snapshot.latest') {
+      return worldResult(this.#application().latestSnapshot(
+        addressParam(params.address), stringParam(params, 'snapshotPath'),
+      ) ?? null)
+    }
+    if (method === 'backup.create') {
+      return worldResult(await this.#application().backup(stringParam(params, 'targetPath'), stringParam(params, 'correlationId')))
+    }
+    if (method === 'backup.restore') {
+      return worldResult(this.#application().restore(
+        stringParam(params, 'backupPath'), stringParam(params, 'targetPath'),
+        stringParam(params, 'expectedHash'), stringParam(params, 'correlationId'),
+      ))
+    }
+    if (method === 'transfer.export-portable') {
+      return worldResult(await this.#application().exportPortable(stringParam(params, 'exportPath'), stringParam(params, 'correlationId')))
+    }
+    if (method === 'transfer.import-portable') {
+      return worldResult(this.#application().importPortable(
+        stringParam(params, 'exportPath'), stringParam(params, 'targetPath'), stringParam(params, 'correlationId'),
+      ))
+    }
+    if (method === 'transfer.export-authority') {
+      return worldResult(this.#application().exportAuthority(stringParam(params, 'targetPath'), stringParam(params, 'correlationId')))
+    }
+    if (method === 'transfer.import-authority') {
+      return worldResult(this.#application().importAuthority(
+        stringParam(params, 'exportPath'), stringParam(params, 'targetPath'), stringParam(params, 'correlationId'),
       ))
     }
     if (method === 'health.get') return this.#health.check()

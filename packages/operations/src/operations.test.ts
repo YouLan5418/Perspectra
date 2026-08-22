@@ -156,6 +156,42 @@ describe('LocalJsonRpcRouter', () => {
     await expect(router.handle(request('session.render', {
       address: parent, sessionId: 'session:player', sessionEventSeq: 1,
     }))).resolves.toMatchObject({ result: { locale: 'en' } })
+    const snapshotPath = join(directory, 'snapshot.sqlite')
+    await expect(router.handle(request('snapshot.latest', { address: parent, snapshotPath })))
+      .resolves.toMatchObject({ result: null })
+    const snapshot = await router.handle(request('snapshot.create', {
+      address: parent, snapshotPath, correlationId: 'rpc:snapshot',
+    }))
+    expect(snapshot).toMatchObject({ result: { status: 'created', bundle: { asOfSeq: expect.any(Number) } } })
+    await expect(router.handle(request('snapshot.latest', { address: parent, snapshotPath })))
+      .resolves.toMatchObject({ result: (snapshot.result as { bundle: unknown }).bundle })
+
+    const backupPath = join(directory, 'world.backup.sqlite')
+    const backup = await router.handle(request('backup.create', { targetPath: backupPath, correlationId: 'rpc:backup' }))
+    expect(backup).toMatchObject({ result: { format: 'world-sqlite-backup/v1', fileHash: expect.any(String) } })
+    await expect(router.handle(request('backup.restore', {
+      backupPath,
+      targetPath: join(directory, 'restored.sqlite'),
+      expectedHash: (backup.result as { fileHash: string }).fileHash,
+      correlationId: 'rpc:restore',
+    }))).resolves.toMatchObject({ result: { format: 'world-sqlite-backup/v1' } })
+
+    const portablePath = join(directory, 'world.portable.json')
+    await expect(router.handle(request('transfer.export-portable', { exportPath: portablePath, correlationId: 'rpc:portable-export' })))
+      .resolves.toMatchObject({ result: { format: 'world-sqlite-backup/v1' } })
+    await expect(router.handle(request('transfer.import-portable', {
+      exportPath: portablePath, targetPath: join(directory, 'portable-import.sqlite'), correlationId: 'rpc:portable-import',
+    }))).resolves.toMatchObject({ result: { format: 'world-sqlite-backup/v1' } })
+
+    const authorityPath = join(directory, 'world.authority.json')
+    const authority = await router.handle(request('transfer.export-authority', {
+      targetPath: authorityPath, correlationId: 'rpc:authority-export',
+    }))
+    expect(authority).toMatchObject({ result: expect.stringMatching(/^sha256:/) })
+    const importedAuthority = await router.handle(request('transfer.import-authority', {
+      exportPath: authorityPath, targetPath: join(directory, 'authority-import.sqlite'), correlationId: 'rpc:authority-import',
+    }))
+    expect(importedAuthority.result).toBe(authority.result)
     await expect(router.handle(request('branch.fork-at-head', {
       parent, child, reason: 'checkpoint', correlationId: 'rpc:fork-at-head',
     }))).resolves.toMatchObject({ result: { parentState: { admissionState: 'open' } } })
@@ -200,6 +236,11 @@ describe('worldctl grammar', () => {
     expect(parseLocalCli(['view', 'character', 'tenant', 'world', 'branch', 'character:1']).method).toBe('view.character')
     expect(parseLocalCli(['view', 'character', 'tenant', 'world', 'branch', 'character:1', '2']).params).toMatchObject({ asOfWorldSeq: 2 })
     expect(parseLocalCli(['outbox', 'drain', 'tenant', 'world', 'branch']).method).toBe('outbox.drain')
+    expect(parseLocalCli(['snapshot', 'create', 'tenant', 'world', 'branch', 'snapshot.sqlite']).method).toBe('snapshot.create')
+    expect(parseLocalCli(['snapshot', 'latest', 'tenant', 'world', 'branch', 'snapshot.sqlite']).method).toBe('snapshot.latest')
+    expect(parseLocalCli(['backup', 'create', 'backup.sqlite']).method).toBe('backup.create')
+    expect(parseLocalCli(['transfer', 'export-portable', 'world.json']).params).toMatchObject({ exportPath: 'world.json' })
+    expect(parseLocalCli(['transfer', 'export-authority', 'world.json']).params).toMatchObject({ targetPath: 'world.json' })
     expect(() => parseLocalCli(['unknown'])).toThrow('unknown worldctl')
     expect(() => parseLocalCli(['branch'])).toThrow('unknown worldctl')
     expect(() => parseLocalCli(['branch', 'status'])).toThrow('requires tenantId')
@@ -208,6 +249,9 @@ describe('worldctl grammar', () => {
     expect(() => parseLocalCli(['round', 'get', 'tenant', 'world', 'branch'])).toThrow('idempotencyKey')
     expect(() => parseLocalCli(['round', 'submit', 'tenant', 'world', 'branch'])).toThrow('requires principalId')
     expect(() => parseLocalCli(['view', 'character', 'tenant', 'world', 'branch'])).toThrow('characterId')
+    expect(() => parseLocalCli(['snapshot', 'create', 'tenant', 'world', 'branch'])).toThrow('snapshotPath')
+    expect(() => parseLocalCli(['backup', 'create'])).toThrow('targetPath')
+    expect(() => parseLocalCli(['transfer', 'export-portable'])).toThrow('targetPath')
 
     const { path, parent } = fixture()
     const store = new WorldStore(path)

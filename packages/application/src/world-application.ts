@@ -29,9 +29,13 @@ import {
 import {
   BranchAdministration,
   CharacterViewBuilder,
+  ProjectionRebuilder,
   RoundInbox,
   SessionDeliveryAdapter,
   SessionOutboxWorker,
+  SnapshotStore,
+  WorldArchiveService,
+  WorldLogicalTransferService,
   WorldOutbox,
   WorldStore,
   WriterLeaseService,
@@ -202,6 +206,63 @@ export class WorldApplication {
     const event = branch.store.session.readEvent(sessionId, sessionEventSeq)
     if (event === undefined) throw new Error(`Session event ${sessionEventSeq} is missing`)
     return branch.director.presenter.render(event.payload, presenterOptions)
+  }
+
+  async createSnapshot(address: WorldAddress, snapshotPath: string, correlationId: string) {
+    const branch = await this.#branch(address)
+    const head = branch.store.store.head(address)
+    const projection = new ProjectionRebuilder(branch.store.store).rebuildAt(address, head.headSeq)
+    const snapshots = new SnapshotStore(snapshotPath)
+    try {
+      return snapshots.create(address, head.headSeq, { projection }, correlationId)
+    } finally {
+      snapshots.close()
+    }
+  }
+
+  latestSnapshot(address: WorldAddress, snapshotPath: string) {
+    this.#assertOpen()
+    const snapshots = new SnapshotStore(snapshotPath)
+    try {
+      return snapshots.latest(address)
+    } finally {
+      snapshots.close()
+    }
+  }
+
+  backup(targetPath: string, correlationId: string) {
+    this.#assertOpen()
+    return new WorldArchiveService(this.options.worldPath).backup(targetPath, correlationId)
+  }
+
+  restore(backupPath: string, targetPath: string, expectedHash: string, correlationId: string) {
+    this.#assertOpen()
+    return new WorldArchiveService(this.options.worldPath).restore(
+      backupPath,
+      targetPath,
+      expectedHash as `sha256:${string}`,
+      correlationId,
+    )
+  }
+
+  exportPortable(exportPath: string, correlationId: string) {
+    this.#assertOpen()
+    return new WorldArchiveService(this.options.worldPath).exportPortable(exportPath, correlationId)
+  }
+
+  importPortable(exportPath: string, targetPath: string, correlationId: string) {
+    this.#assertOpen()
+    return new WorldArchiveService(this.options.worldPath).importPortable(exportPath, targetPath, correlationId)
+  }
+
+  exportAuthority(targetPath: string, correlationId: string) {
+    this.#assertOpen()
+    return new WorldLogicalTransferService(this.options.worldPath).exportAuthority(targetPath, correlationId)
+  }
+
+  importAuthority(exportPath: string, targetPath: string, correlationId: string) {
+    this.#assertOpen()
+    return new WorldLogicalTransferService(this.options.worldPath).importAuthority(exportPath, targetPath, correlationId)
   }
 
   async forkAtHead(

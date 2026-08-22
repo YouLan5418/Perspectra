@@ -47,6 +47,29 @@ export function parseLocalCli(argv: readonly string[]): LocalJsonRpcRequest {
       params: { address: address(tenantId, worldId, branchId), correlationId: 'cli:outbox-drain' },
     }
   }
+  if (group === 'snapshot' && (operation === 'create' || operation === 'latest')) {
+    const [snapshotPath] = rest
+    if (snapshotPath === undefined) throw new TypeError(`snapshot ${operation} requires snapshotPath`)
+    return {
+      jsonrpc: '2.0', id: 'cli', method: `snapshot.${operation}`,
+      params: {
+        address: address(tenantId, worldId, branchId), snapshotPath,
+        ...(operation === 'create' ? { correlationId: 'cli:snapshot-create' } : {}),
+      },
+    }
+  }
+  if (group === 'backup' && operation === 'create') {
+    if (tenantId === undefined) throw new TypeError('backup create requires targetPath')
+    return { jsonrpc: '2.0', id: 'cli', method: 'backup.create', params: { targetPath: tenantId, correlationId: 'cli:backup-create' } }
+  }
+  if (group === 'transfer' && (operation === 'export-portable' || operation === 'export-authority')) {
+    if (tenantId === undefined) throw new TypeError(`transfer ${operation} requires targetPath`)
+    const pathName = operation === 'export-portable' ? 'exportPath' : 'targetPath'
+    return {
+      jsonrpc: '2.0', id: 'cli', method: `transfer.${operation}`,
+      params: { [pathName]: tenantId, correlationId: `cli:transfer-${operation}` },
+    }
+  }
   if (group !== 'branch' || operation === undefined) throw new TypeError('unknown worldctl command')
   const target = address(tenantId, worldId, branchId)
   if (operation === 'status') return { jsonrpc: '2.0', id: 'cli', method: 'branch.status', params: { address: target } }
