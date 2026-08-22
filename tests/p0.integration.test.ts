@@ -5,7 +5,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterAll, describe, expect, it } from 'vitest'
 import { brandId, canonicalizeWorldJson, hashWorldJson } from '@harness-world/contracts'
 import { WorldRuntimeRegistry } from '@harness-world/runtime-cordis'
-import { NoopDirectorProvider, WorldSimulation } from '@harness-world/simulation'
+import { WorldSimulation } from '@harness-world/simulation'
 import { ProjectionRebuilder, SessionDeliveryAdapter, WorldStore } from '@harness-world/store-sqlite'
 import { fixtureAddress, fixtureDeliveryRequest } from '@harness-world/testkit'
 
@@ -42,7 +42,6 @@ describe('Phase 0 acceptance path', () => {
       address,
       playerCharacterId: brandId('character:player', 'CharacterId'),
       playerSessionId: brandId('session:player', 'SessionId'),
-      directors: [new NoopDirectorProvider()],
     })
     const round = await simulation.submitPlayerMessage({ idempotencyKey: 'integration', text: 'hello' })
     const forkSeq = round.commit.headSeq
@@ -59,7 +58,6 @@ describe('Phase 0 acceptance path', () => {
       address,
       playerCharacterId: brandId('character:player', 'CharacterId'),
       playerSessionId: brandId('session:player', 'SessionId'),
-      directors: [new NoopDirectorProvider()],
     }).submitPlayerMessage({ idempotencyKey: 'integration', text: 'hello' })
     expect(replay.commit.bundleHash).toBe(committedHash)
     expect(replay.commit.status).toBe('already_committed')

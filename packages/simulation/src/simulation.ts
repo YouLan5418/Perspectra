@@ -17,15 +17,41 @@ import {
   type WorldEventDraft,
   type WorldJsonValue,
 } from '@harness-world/contracts'
+import { SubmitActionsValidator } from '@harness-world/agents'
 import type { WorldStore } from '@harness-world/store-sqlite'
+
+export interface SimulationParticipantBinding {
+  readonly participantId: string
+  readonly actorId: CharacterId
+  readonly allowedActionTypes: readonly string[]
+  readonly provider: AgentProvider | DirectorProvider
+}
+
+export interface SimulationActionResolution {
+  readonly status: 'accepted' | 'rejected'
+  readonly events: readonly WorldEventDraft[]
+  readonly reason?: string
+}
+
+export interface SimulationRulebook {
+  resolve(action: ActionRequest, context: ProposalContext): SimulationActionResolution
+}
+
+/** Safe default for the prototype: Provider output is visible as a rejected proposal, never as a world fact. */
+export class RejectingSimulationRulebook implements SimulationRulebook {
+  resolve(): SimulationActionResolution {
+    return { status: 'rejected', events: [], reason: 'no authoritative Simulation Rulebook is configured' }
+  }
+}
 
 export interface SimulationOptions {
   readonly store: WorldStore
   readonly address: WorldAddress
   readonly playerCharacterId: CharacterId
   readonly playerSessionId: SessionId
-  readonly agents?: readonly AgentProvider[]
-  readonly directors?: readonly DirectorProvider[]
+  readonly agents?: readonly SimulationParticipantBinding[]
+  readonly directors?: readonly SimulationParticipantBinding[]
+  readonly rulebook?: SimulationRulebook
 }
 
 export interface SubmitPlayerMessageRequest {
@@ -40,28 +66,26 @@ export interface SimulationRoundResult {
   readonly commit: CommitRoundResult
 }
 
-function assertProposal(proposal: Proposal): void {
-  if (proposal.actions.length > 2) throw new Error(`participant ${proposal.participantId} exceeded the two-action limit`)
-  const ids = new Set(proposal.actions.map(action => action.actionId))
-  if (ids.size !== proposal.actions.length) throw new Error(`participant ${proposal.participantId} repeated an action id`)
-}
-
 /** Minimal deterministic TURN_DRIVEN pipeline used by the Phase 0 no-model gate. */
 export class WorldSimulation {
   readonly #store: WorldStore
   readonly #address: WorldAddress
   readonly #playerCharacterId: CharacterId
   readonly #playerSessionId: SessionId
-  readonly #agents: readonly AgentProvider[]
-  readonly #directors: readonly DirectorProvider[]
+  readonly #participants: readonly SimulationParticipantBinding[]
+  readonly #rulebook: SimulationRulebook
+  readonly #validator = new SubmitActionsValidator()
 
   constructor(options: SimulationOptions) {
     this.#store = options.store
     this.#address = options.address
     this.#playerCharacterId = options.playerCharacterId
     this.#playerSessionId = options.playerSessionId
-    this.#agents = options.agents ?? []
-    this.#directors = options.directors ?? []
+    this.#participants = [...options.agents ?? [], ...options.directors ?? []]
+    if (new Set(this.#participants.map(value => value.participantId)).size !== this.#participants.length) {
+      throw new TypeError('Simulation participantId values must be unique')
+    }
+    this.#rulebook = options.rulebook ?? new RejectingSimulationRulebook()
   }
 
   /** Accept one exact player message and advance the branch by one Round/Tick. */
@@ -90,33 +114,49 @@ export class WorldSimulation {
     }
 
     const proposals: Proposal[] = []
-    for (const provider of [...this.#agents, ...this.#directors]) {
-      const candidate = await provider.propose(context)
-      assertProposal(candidate)
-      if (proposals.some(value => value.participantId === candidate.participantId)) {
-        throw new Error(`duplicate participant ${candidate.participantId}`)
-      }
-      proposals.push(candidate)
+    for (const binding of this.#participants) {
+      const candidate = await binding.provider.propose(context)
+      proposals.push(this.#validator.validate({ schemaVersion: 1, ...candidate }, {
+        participantId: binding.participantId,
+        actorId: binding.actorId,
+        allowedActionTypes: binding.allowedActionTypes,
+        maxActions: 2,
+        correlationId: `simulation:${roundId}:${binding.participantId}`,
+      }))
     }
     const actions = [playerAction, ...proposals.flatMap(value => value.actions)]
     const events: WorldEventDraft[] = []
     const outbox: OutboxDraft[] = []
     for (const [ordinal, action] of actions.entries()) {
-      events.push({
-        eventType: action.actionType === 'character.speak' ? 'character.spoke' : 'character.acted',
-        eventVersion: 1,
-        data: { actionId: action.actionId, actorId: action.actorId, actionType: action.actionType, parameters: action.parameters },
-      })
+      const isPlayerAction = ordinal === 0
+      const resolution: SimulationActionResolution = isPlayerAction
+        ? {
+            status: 'accepted' as const,
+            events: [{
+              eventType: 'character.spoke',
+              eventVersion: 1,
+              data: { actionId: action.actionId, actorId: action.actorId, actionType: action.actionType, parameters: action.parameters },
+            }],
+          }
+        : this.#rulebook.resolve(action, context)
+      events.push(...resolution.events)
       events.push({
         eventType: 'action.resolved',
         eventVersion: 1,
-        data: { actionId: action.actionId, accepted: true, order: ordinal },
+        data: {
+          actionId: action.actionId,
+          accepted: resolution.status === 'accepted',
+          order: ordinal,
+          reason: resolution.reason ?? null,
+        },
       })
       const observationId = deterministicId('observation', { roundId, actionId: action.actionId })
       const observationValue: WorldJsonValue = {
         observerId: this.#playerCharacterId,
         actionId: action.actionId,
-        content: action.actionType === 'character.speak' ? action.parameters : { actionType: action.actionType },
+        content: isPlayerAction
+          ? action.parameters
+          : { actionType: action.actionType, status: resolution.status, reason: resolution.reason ?? null },
       }
       events.push({
         eventType: 'observation.upsert',

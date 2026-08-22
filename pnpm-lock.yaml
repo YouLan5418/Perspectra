@@ -89,6 +89,9 @@ importers:
 
   packages/simulation:
     dependencies:
+      '@harness-world/agents':
+        specifier: workspace:*
+        version: link:../agents
       '@harness-world/contracts':
         specifier: workspace:*
         version: link:../contracts

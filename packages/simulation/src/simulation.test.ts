@@ -6,6 +6,7 @@ import {
   brandId,
   deterministicId,
   type AgentProvider,
+  type WorldEventDraft,
 } from '@harness-world/contracts'
 import { ProjectionRebuilder, WorldStore } from '@harness-world/store-sqlite'
 import { fixtureAddress } from '@harness-world/testkit'
@@ -15,6 +16,9 @@ import {
   ScriptedAgentProvider,
   ScriptedDirectorProvider,
   WorldSimulation,
+  type SimulationActionResolution,
+  type SimulationParticipantBinding,
+  type SimulationRulebook,
 } from './index.ts'
 
 const directories: string[] = []
@@ -27,7 +31,42 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
-function simulation(store: WorldStore, agents: readonly AgentProvider[] = [], directors = [new NoopDirectorProvider()]) {
+class FixtureRulebook implements SimulationRulebook {
+  resolve(action: Parameters<SimulationRulebook['resolve']>[0]): SimulationActionResolution {
+    const events: WorldEventDraft[] = action.actionType === 'character.observe'
+      ? []
+      : [{
+          eventType: 'character.acted',
+          eventVersion: 1,
+          data: { actionId: action.actionId, actorId: action.actorId, actionType: action.actionType, parameters: action.parameters },
+        }]
+    return action.actionType === 'character.observe'
+      ? { status: 'rejected', events, reason: 'fixture rule rejected observation' }
+      : { status: 'accepted', events }
+  }
+}
+
+function bind(
+  provider: AgentProvider,
+  actorId: string,
+  allowedActionTypes: readonly string[],
+  participantId?: string,
+): SimulationParticipantBinding {
+  return {
+    participantId: participantId ?? ('participantId' in provider && typeof provider.participantId === 'string'
+      ? provider.participantId
+      : 'agent:anonymous'),
+    actorId: brandId(actorId, 'CharacterId'),
+    allowedActionTypes,
+    provider,
+  }
+}
+
+function simulation(
+  store: WorldStore,
+  agents: readonly SimulationParticipantBinding[] = [],
+  directors: readonly SimulationParticipantBinding[] = [],
+) {
   return new WorldSimulation({
     store,
     address: fixtureAddress(),
@@ -35,6 +74,7 @@ function simulation(store: WorldStore, agents: readonly AgentProvider[] = [], di
     playerSessionId: brandId('session:player', 'SessionId'),
     agents,
     directors,
+    rulebook: new FixtureRulebook(),
   })
 }
 
@@ -56,17 +96,28 @@ describe('no-model simulation', () => {
       actionVersion: 1,
       parameters: {},
     }])
-    const first = await simulation(store, [agent], [new NoopDirectorProvider(), director]).submitPlayerMessage({
+    const first = await simulation(store, [bind(agent, 'character:npc', ['character.wave'])], [
+      bind(new NoopDirectorProvider(), 'character:noop', []),
+      bind(director, 'character:guard', ['character.observe']),
+    ]).submitPlayerMessage({
       idempotencyKey: 'message-1',
       text: '原样保留',
     })
     expect(first.actions.map(value => value.actionType)).toEqual(['character.speak', 'character.wave', 'character.observe'])
+    expect(store.readEvents(address).filter(value => value.eventType === 'action.resolved').map(value => value.data)).toMatchObject([
+      { accepted: true },
+      { accepted: true },
+      { accepted: false, reason: 'fixture rule rejected observation' },
+    ])
     expect(store.readEvents(address)[0]?.data).toMatchObject({ parameters: { text: '原样保留' } })
     const firstHash = first.commit.bundleHash
     store.close()
 
     const restarted = new WorldStore(path)
-    const replay = await simulation(restarted, [agent], [new NoopDirectorProvider(), director]).submitPlayerMessage({
+    const replay = await simulation(restarted, [bind(agent, 'character:npc', ['character.wave'])], [
+      bind(new NoopDirectorProvider(), 'character:noop', []),
+      bind(director, 'character:guard', ['character.observe']),
+    ]).submitPlayerMessage({
       idempotencyKey: 'message-1',
       text: '原样保留',
     })
@@ -88,7 +139,8 @@ describe('no-model simulation', () => {
         parameters: {},
       }],
     })
-    const result = await simulation(store, [], [scripted]).submitPlayerMessage({ idempotencyKey: 'scripted', text: 'hello' })
+    const result = await simulation(store, [], [bind(scripted, 'character:scripted', ['character.nod'])])
+      .submitPlayerMessage({ idempotencyKey: 'scripted', text: 'hello' })
     expect(result.actions).toHaveLength(2)
     expect((await scripted.propose({
       address: fixtureAddress(),
@@ -112,7 +164,8 @@ describe('no-model simulation', () => {
       actionVersion: 1,
       parameters: {},
     })))
-    await expect(simulation(store, [tooMany]).submitPlayerMessage({ idempotencyKey: 'many', text: 'hello' })).rejects.toThrow('more than two')
+    await expect(simulation(store, [bind(tooMany, 'character:many', ['test'])]).submitPlayerMessage({ idempotencyKey: 'many', text: 'hello' }))
+      .rejects.toThrow('more than two')
 
     const repeated: AgentProvider = {
       async propose() {
@@ -126,7 +179,8 @@ describe('no-model simulation', () => {
         return { participantId: 'agent:repeat', actions: [action, action] }
       },
     }
-    await expect(simulation(store, [repeated]).submitPlayerMessage({ idempotencyKey: 'repeat', text: 'hello' })).rejects.toThrow('repeated')
+    await expect(simulation(store, [bind(repeated, 'character:npc', ['test'], 'agent:repeat')]).submitPlayerMessage({ idempotencyKey: 'repeat', text: 'hello' }))
+      .rejects.toThrow('unique')
 
     const unbounded: AgentProvider = {
       async propose() {
@@ -142,13 +196,51 @@ describe('no-model simulation', () => {
         }
       },
     }
-    await expect(simulation(store, [unbounded]).submitPlayerMessage({ idempotencyKey: 'unbounded', text: 'hello' }))
-      .rejects.toThrow('two-action limit')
+    await expect(simulation(store, [bind(unbounded, 'character:unique:0', ['test'], 'agent:unbounded')]).submitPlayerMessage({ idempotencyKey: 'unbounded', text: 'hello' }))
+      .rejects.toThrow('maxActions')
 
-    const duplicateA = new ScriptedAgentProvider('same-participant', () => [])
-    const duplicateB = new ScriptedAgentProvider('same-participant', () => [])
-    await expect(simulation(store, [duplicateA, duplicateB]).submitPlayerMessage({ idempotencyKey: 'duplicate', text: 'hello' }))
-      .rejects.toThrow('duplicate participant')
+    const duplicateA = bind(new ScriptedAgentProvider('same-participant', () => []), 'character:a', [])
+    const duplicateB = bind(new ScriptedAgentProvider('same-participant', () => []), 'character:b', [])
+    expect(() => simulation(store, [duplicateA, duplicateB])).toThrow('must be unique')
+
+    const forgedActor: AgentProvider = {
+      async propose() {
+        return {
+          participantId: 'agent:forged',
+          actions: [{
+            actionId: 'action:forged',
+            actorId: brandId('character:victim', 'CharacterId'),
+            actionType: 'character.wave',
+            actionVersion: 1,
+            parameters: {},
+          }],
+        }
+      },
+    }
+    await expect(simulation(store, [{
+      participantId: 'agent:forged',
+      actorId: brandId('character:authorized', 'CharacterId'),
+      allowedActionTypes: ['character.wave'],
+      provider: forgedActor,
+    }]).submitPlayerMessage({ idempotencyKey: 'forged', text: 'hello' })).rejects.toThrow('actorId is not authorized')
+    expect(store.readEvents(fixtureAddress())).toHaveLength(0)
+
+    const safe = new ScriptedAgentProvider('agent:safe', () => [{
+      actorId: brandId('character:safe', 'CharacterId'),
+      actionType: 'character.wave',
+      actionVersion: 1,
+      parameters: {},
+    }])
+    const defaultRejected = await new WorldSimulation({
+      store,
+      address: fixtureAddress(),
+      playerCharacterId: brandId('character:player', 'CharacterId'),
+      playerSessionId: brandId('session:player', 'SessionId'),
+      agents: [bind(safe, 'character:safe', ['character.wave'])],
+    }).submitPlayerMessage({ idempotencyKey: 'default-reject', text: 'hello' })
+    const providerResolution = store.readEvents(fixtureAddress())
+      .find(value => value.eventType === 'action.resolved' && (value.data as { actionId?: string }).actionId === defaultRejected.actions[1]?.actionId)
+    expect(providerResolution?.data).toMatchObject({ accepted: false, reason: 'no authoritative Simulation Rulebook is configured' })
     const noProviders = new WorldSimulation({
       store,
       address: fixtureAddress(),
