@@ -162,7 +162,7 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
       { ...spec(), rulebook: null },
       { ...spec(), rulebook: { ...spec().rulebook, extra: true } },
       { ...spec(), rulebook: { rulebookId: 'other', version: 1 } },
-      { ...spec(), rulebook: { rulebookId: 'builtin:speak-move', version: 2 } },
+      { ...spec(), rulebook: { rulebookId: 'builtin:speak-move', version: 3 } },
       { ...spec(), locations: {} },
       { ...spec(), locations: [] },
       { ...spec(), locations: [null] },
@@ -218,6 +218,15 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
       'world.lifecycle-changed',
     ])
     expect(new WorldSpecCompiler().compile(structuredClone(specV2()))).toEqual(compiled)
+
+    const investigation = new WorldSpecCompiler().compile({
+      ...specV2(),
+      rulebook: { rulebookId: 'builtin:speak-move', version: 2 },
+    })
+    expect(investigation.manifest.registries.actions.definitions.map(value => value.name)).toContain('take')
+    expect(investigation.manifest.registries.events.definitions.map(value => value.name)).toContain('entity.taken')
+    expect(investigation.manifest.registries.rules.definitions.map(value => value.name)).toEqual(['builtin:speak-move/v2'])
+    expect(investigation.manifestHash).not.toBe(compiled.manifestHash)
   })
 
   it('rejects malformed complete V2 authoring fields and reference graphs', () => {

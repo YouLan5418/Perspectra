@@ -45,6 +45,30 @@ function currentLocation(events: readonly RulebookEvent[], characterId: string):
   return locationId
 }
 
+export interface EntityState {
+  readonly entityId: string
+  readonly locationId: string | null
+  readonly holderId: string | null
+  readonly kind: string
+}
+
+/** Rebuild one entity's authoritative location/holder state from the exact Event prefix. */
+export function currentEntityState(events: readonly RulebookEvent[], entityId: string): EntityState | undefined {
+  let state: EntityState | undefined
+  for (const event of events) {
+    const data = object(event.data)
+    if (data?.entityId !== entityId) continue
+    if (event.eventType === 'entity.upsert'
+      && typeof data.locationId === 'string' && typeof data.kind === 'string') {
+      state = { entityId, locationId: data.locationId, holderId: null, kind: data.kind }
+    }
+    if (event.eventType === 'entity.taken' && state !== undefined && typeof data.characterId === 'string') {
+      state = { ...state, locationId: null, holderId: data.characterId }
+    }
+  }
+  return state
+}
+
 export function currentCharacterLifecycle(events: readonly RulebookEvent[], characterId: string): 'active' | 'incapacitated' | 'dead' | 'departed' | undefined {
   let state: 'active' | 'incapacitated' | 'dead' | 'departed' | undefined
   for (const event of events) {
@@ -90,6 +114,25 @@ export class SpeakMoveRulebook {
           eventType: 'character.moved',
           eventVersion: 1,
           data: { characterId, fromLocationId: from ?? null, toLocationId: target },
+        }],
+      }
+    }
+    if (action.actionType === 'take' && manifest.rulebook.version === 2) {
+      const entityId = parameters?.entityId
+      if (typeof entityId !== 'string' || !manifest.entities.some(entity => entity.entityId === entityId)) {
+        return this.#reject(characterId, action.actionType, 'take requires a manifest entityId')
+      }
+      const entity = currentEntityState(events, entityId)
+      const characterLocation = currentLocation(events, characterId)
+      if (entity === undefined || entity.holderId !== null || entity.locationId !== characterLocation) {
+        return this.#reject(characterId, action.actionType, 'ITEM_NOT_AVAILABLE')
+      }
+      return {
+        status: 'accepted',
+        events: [{
+          eventType: 'entity.taken',
+          eventVersion: 1,
+          data: { entityId, characterId, fromLocationId: entity.locationId },
         }],
       }
     }

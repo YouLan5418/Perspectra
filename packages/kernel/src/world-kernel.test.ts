@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { hashWorldJson } from '@harness-world/contracts'
 import { WorldRuntimeRegistry, type BranchComponentFactory } from '@harness-world/runtime-cordis'
 import { BranchAdministration, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { SpeakMoveRulebook } from './rulebook.ts'
+import { currentEntityState, SpeakMoveRulebook } from './rulebook.ts'
 import { WorldBootstrap } from './world-bootstrap.ts'
 import { parsePlayerRoundResult, WorldKernel } from './world-kernel.ts'
 import { WorldSpecCompiler } from './world-spec.ts'
@@ -75,6 +75,53 @@ describe('SpeakMoveRulebook', () => {
         status: 'rejected', reason: `character lifecycle ${lifecycleState} cannot act`,
       })
     }
+  })
+
+  it('takes an available manifest entity once under Rulebook v2', () => {
+    const base = compiled().manifest
+    const manifest = {
+      ...base,
+      rulebook: { rulebookId: 'builtin:speak-move' as const, version: 2 as const },
+      entities: [{ entityId: 'entity:key', locationId: 'location:a', kind: 'key' }],
+    }
+    const rulebook = new SpeakMoveRulebook()
+    const history = [
+      { eventType: 'character.created', data: { characterId: 'character:player', locationId: 'location:a' } },
+      { eventType: 'entity.upsert', data: { entityId: 'entity:key', locationId: 'location:a', kind: 'key' } },
+    ]
+    expect(currentEntityState(history, 'entity:missing')).toBeUndefined()
+    expect(currentEntityState(history, 'entity:key')).toEqual({
+      entityId: 'entity:key', locationId: 'location:a', holderId: null, kind: 'key',
+    })
+    const taken = rulebook.resolve(manifest, history, 'character:player', {
+      actionType: 'take', parameters: { entityId: 'entity:key' },
+    })
+    expect(taken).toMatchObject({
+      status: 'accepted',
+      events: [{ eventType: 'entity.taken', data: { entityId: 'entity:key', characterId: 'character:player' } }],
+    })
+    const after = [...history, ...taken.events]
+    expect(currentEntityState(after, 'entity:key')).toEqual({
+      entityId: 'entity:key', locationId: null, holderId: 'character:player', kind: 'key',
+    })
+    expect(rulebook.resolve(manifest, after, 'character:player', {
+      actionType: 'take', parameters: { entityId: 'entity:key' },
+    })).toMatchObject({ status: 'rejected', reason: 'ITEM_NOT_AVAILABLE' })
+    expect(rulebook.resolve(manifest, history, 'character:player', {
+      actionType: 'take', parameters: { entityId: 'entity:missing' },
+    })).toMatchObject({ status: 'rejected', reason: 'take requires a manifest entityId' })
+    expect(rulebook.resolve(manifest, history, 'character:player', {
+      actionType: 'take', parameters: null,
+    })).toMatchObject({ status: 'rejected', reason: 'take requires a manifest entityId' })
+    expect(rulebook.resolve(base, history, 'character:player', {
+      actionType: 'take', parameters: { entityId: 'entity:key' },
+    })).toMatchObject({ status: 'rejected', reason: 'action type is not afforded by the V0 Rulebook' })
+    expect(rulebook.resolve(manifest, [
+      ...history,
+      { eventType: 'character.moved', data: { characterId: 'character:player', toLocationId: 'location:b' } },
+    ], 'character:player', {
+      actionType: 'take', parameters: { entityId: 'entity:key' },
+    })).toMatchObject({ status: 'rejected', reason: 'ITEM_NOT_AVAILABLE' })
   })
 })
 

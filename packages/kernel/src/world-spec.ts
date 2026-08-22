@@ -45,7 +45,7 @@ export interface CompiledWorldManifest extends WorldJsonObject {
   readonly timeMode: 'TURN_DRIVEN'
   readonly roundQueueLimit: number
   readonly runtimePolicy: RuntimePolicy
-  readonly rulebook: { readonly rulebookId: 'builtin:speak-move'; readonly version: 1 }
+  readonly rulebook: { readonly rulebookId: 'builtin:speak-move'; readonly version: 1 | 2 }
   readonly registries: ManifestRegistries
   readonly locations: readonly LocationSpec[]
   readonly entities: readonly EntitySpec[]
@@ -132,18 +132,20 @@ function registry(kind: string, names: readonly string[]): FrozenRegistry {
   return { definitions, registryHash: hashWorldJson(`compiled-${kind}-registry`, definitions) }
 }
 
-function registries(): ManifestRegistries {
+function registries(rulebookVersion: 1 | 2): ManifestRegistries {
+  const investigationEvents = rulebookVersion === 2 ? ['entity.taken'] : []
+  const investigationActions = rulebookVersion === 2 ? ['take'] : []
   return {
     events: registry('event', [
       'action.rejected', 'action.resolved', 'character.created', 'character.lifecycle-changed', 'character.moved',
       'character.speak', 'claim.remove', 'claim.upsert', 'entity.upsert', 'goal.remove', 'goal.upsert', 'location.upsert',
       'observation.remove', 'observation.upsert', 'player.binding.upsert', 'round.participant-terminal', 'scene.remove',
       'scene.upsert', 'visibility.remove', 'visibility.upsert', 'world.created',
-      'world.lifecycle-changed', 'world.manifest-locked', 'world.tick-advanced',
+      'world.lifecycle-changed', 'world.manifest-locked', 'world.tick-advanced', ...investigationEvents,
     ]),
-    actions: registry('action', ['move', 'speak']),
+    actions: registry('action', ['move', 'speak', ...investigationActions]),
     projections: registry('projection', ['character', 'claim', 'goal', 'observation', 'scene', 'visibility']),
-    rules: registry('rule', ['builtin:speak-move']),
+    rules: registry('rule', [rulebookVersion === 1 ? 'builtin:speak-move' : 'builtin:speak-move/v2']),
   }
 }
 
@@ -209,7 +211,11 @@ export class WorldSpecCompiler {
 
     const rulebookValue = objectAt(root.rulebook, 'WorldSpec.rulebook')
     exactKeys(rulebookValue, ['rulebookId', 'version'], 'WorldSpec.rulebook')
-    if (rulebookValue.rulebookId !== 'builtin:speak-move' || rulebookValue.version !== 1) throw new TypeError('WorldSpec.rulebook must select builtin:speak-move version 1')
+    if (rulebookValue.rulebookId !== 'builtin:speak-move'
+      || (rulebookValue.version !== 1 && rulebookValue.version !== 2)) {
+      throw new TypeError('WorldSpec.rulebook must select builtin:speak-move version 1 or 2')
+    }
+    const rulebookVersion = rulebookValue.version as 1 | 2
 
     const locations = arrayAt(root.locations, 'WorldSpec.locations').map((entry, index): LocationSpec => {
       const value = objectAt(entry, `locations[${index}]`); exactKeys(value, ['locationId', 'name'], `locations[${index}]`)
@@ -265,10 +271,10 @@ export class WorldSpecCompiler {
       return { pluginId: textAt(value.pluginId, 'pluginId'), version }
     }).sort((a, b) => a.pluginId.localeCompare(b.pluginId)); unique(plugins.map(v => v.pluginId), 'WorldSpec.plugins')
 
-    const normalizedSpec = { schemaVersion: 2 as const, address, metadata, timeMode: 'TURN_DRIVEN' as const, roundQueueLimit: root.roundQueueLimit as number, runtimePolicy, rulebook: { rulebookId: 'builtin:speak-move' as const, version: 1 as const }, locations, entities, characters, scenes, goals, claims, observations, playerBindings, plugins }
+    const normalizedSpec = { schemaVersion: 2 as const, address, metadata, timeMode: 'TURN_DRIVEN' as const, roundQueueLimit: root.roundQueueLimit as number, runtimePolicy, rulebook: { rulebookId: 'builtin:speak-move' as const, version: rulebookVersion }, locations, entities, characters, scenes, goals, claims, observations, playerBindings, plugins }
     const specHash = hashWorldJson('world-spec-v2', normalizedSpec)
     const genesisPlanHash = hashWorldJson('world-genesis-semantic-plan-v1', { address, locations, entities, characters, scenes, goals, claims, observations, playerBindings, lifecycle: 'active' })
-    const manifest: CompiledWorldManifest = { ...normalizedSpec, specHash, genesisPlanHash, canonicalVersion: 'world-json/v1', hashVersion: 'sha256/v1', registries: registries() }
+    const manifest: CompiledWorldManifest = { ...normalizedSpec, specHash, genesisPlanHash, canonicalVersion: 'world-json/v1', hashVersion: 'sha256/v1', registries: registries(rulebookVersion) }
     const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
     const genesisEvents: readonly WorldEventDraft[] = [
       { eventType: 'world.created', eventVersion: 1, data: { specHash } },
