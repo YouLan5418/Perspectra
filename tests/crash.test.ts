@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
+import { brandId } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
 import { SessionDeliveryAdapter, WorldArchiveService, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
 import {
@@ -116,7 +117,10 @@ describe('hard process termination recovery', () => {
       roundQueueLimit: 4,
       rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
       locations: [{ locationId: 'location:room', name: 'Room' }],
-      characters: [{ characterId: 'character:player', name: 'Player', locationId: 'location:room' }],
+      characters: [
+        { characterId: 'character:player', name: 'Player', locationId: 'location:room' },
+        { characterId: 'character:npc', name: 'NPC', locationId: 'location:room' },
+      ],
       playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
       plugins: [],
     })
@@ -125,7 +129,42 @@ describe('hard process termination recovery', () => {
     await setup.close()
     await hardKillAt(applicationWorker, [worldPath, sessionPath, 'store.after-commit'])
 
-    const recovered = new WorldApplication({ worldPath, sessionPath, runtimeOwnerId: 'application:p6-crash' })
+    const committedStore = new WorldStore(worldPath)
+    const committedHashes = committedStore.readEvents(compiled.manifest.address).map(event => event.eventHash)
+    expect(committedStore.readEvents(compiled.manifest.address)
+      .some(event => JSON.stringify(event.data).includes('provider output A before hard kill'))).toBe(true)
+    committedStore.close()
+    let recoveredProviderCalls = 0
+    const recovered = new WorldApplication({
+      worldPath,
+      sessionPath,
+      runtimeOwnerId: 'application:p6-crash',
+      modelBudgetTokens: 10,
+      participants: () => [{
+        participantId: 'agent:p6-crash',
+        role: 'agent',
+        actorId: brandId('character:npc', 'CharacterId'),
+        allowedActionTypes: ['speak'],
+        priority: 1,
+        estimatedTokens: 1,
+        timeoutMs: 100,
+        provider: {
+          propose: async context => {
+            recoveredProviderCalls += 1
+            return {
+              participantId: 'agent:p6-crash',
+              actions: [{
+                actionId: `action:recovered:${context.roundId}`,
+                actorId: brandId('character:npc', 'CharacterId'),
+                actionType: 'speak',
+                actionVersion: 1,
+                parameters: { text: 'provider output B after restart' },
+              }],
+            }
+          },
+        },
+      }],
+    })
     const result = await recovered.submit(compiled.manifest.address, {
       idempotencyKey: 'p6-crash-round',
       principalId: 'principal:player',
@@ -133,8 +172,19 @@ describe('hard process termination recovery', () => {
       correlationId: 'p6-crash-recovery',
     })
     expect(result).toMatchObject({ status: 'accepted', tick: 1 })
+    expect(recoveredProviderCalls).toBe(0)
     expect(await recovered.roundResult(compiled.manifest.address, 'p6-crash-round')).toEqual(result)
-    expect(await recovered.deliver(compiled.manifest.address, 'p6-crash-delivery')).toBe(1)
+    const verifiedStore = new WorldStore(worldPath)
+    expect(verifiedStore.readEvents(compiled.manifest.address).map(event => event.eventHash)).toEqual(committedHashes)
+    verifiedStore.close()
+    expect(await recovered.deliver(compiled.manifest.address, 'p6-crash-delivery')).toBe(2)
+    await expect(recovered.submit(compiled.manifest.address, {
+      idempotencyKey: 'p6-crash-next-round',
+      principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'FIFO continues after recovery' } },
+      correlationId: 'p6-crash-next-round',
+    })).resolves.toMatchObject({ status: 'accepted', tick: 2 })
+    expect(recoveredProviderCalls).toBe(1)
     await recovered.close()
   })
 })

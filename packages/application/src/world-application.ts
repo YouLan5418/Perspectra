@@ -60,6 +60,7 @@ export interface WorldApplicationOptions {
   readonly modelBudgetTokens?: number
   readonly outboxMaxAttempts?: number
   readonly runtimeOwnerId?: string
+  readonly leaseTtlMs?: number
   readonly faultInjector?: FaultInjector
 }
 
@@ -132,6 +133,9 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       this.options.faultInjector,
     )
     try {
+      if (participants.length > 0 && this.options.modelBudgetTokens === undefined) {
+        throw new TypeError('modelBudgetTokens must be configured when Round participants are enabled')
+      }
       const kernel = new RoundCoordinator({
         store: store.store,
         inbox: store.inbox,
@@ -140,6 +144,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         ownerId: `${this.#runtimeOwnerId}:${worldAddressKey(scope.address)}`,
         participants: [...agents.participants, ...director.participants],
         modelBudgetTokens: this.options.modelBudgetTokens ?? 0,
+        ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
       })
       return { kernel, store, agents, director }
     } catch (error: unknown) {

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   brandId,
   hashWorldJson,
+  worldAddressKey,
   type CommitRoundRequest,
   type FaultInjector,
   type FaultPoint,
@@ -214,6 +215,31 @@ describe('RoundInbox', () => {
     const world = new WorldStore(path, undefined, () => now)
     world.createBranch(address)
     const inbox = new RoundInbox(path, () => now)
+    const missingControlAddress = fixtureAddress('missing-control')
+    world.createBranch(missingControlAddress)
+    const rawControl = new DatabaseSync(path)
+    rawControl.prepare(`DELETE FROM branch_controls WHERE address_key = ?`).run(worldAddressKey(missingControlAddress))
+    rawControl.close()
+    expect(() => inbox.enqueue({
+      address: missingControlAddress,
+      idempotencyKey: 'missing-control',
+      principalId: 'principal:player',
+      input: { type: 'speak' },
+      correlationId: 'missing-control',
+    }, 1)).toThrow('unknown world branch')
+    const archivedAddress = fixtureAddress('archived-inbox')
+    world.createBranch(archivedAddress)
+    const archivedAdmin = new BranchAdministration(path, () => now)
+    archivedAdmin.setAdmission(archivedAddress, 'draining', 'archive fixture', 'archive-fixture-drain')
+    archivedAdmin.archive(archivedAddress, 'archive fixture', 'archive-fixture')
+    expect(() => inbox.enqueue({
+      address: archivedAddress,
+      idempotencyKey: 'archived',
+      principalId: 'principal:player',
+      input: { type: 'speak' },
+      correlationId: 'archived',
+    }, 1)).toThrow('branch is archived')
+    archivedAdmin.close()
     const leases = new WriterLeaseService(path, () => now)
     const firstLease = leases.acquire(address, 'kernel:a', 100)
     const request = {
@@ -337,6 +363,49 @@ describe('RoundInbox', () => {
       transactionId: proofCommitRequest.transactionId,
       bundleHash: proofCommit.bundleHash,
     }, { status: 'accepted', bundleHash: proofCommit.bundleHash })
+    const blocked = inbox.enqueue({
+      ...request,
+      idempotencyKey: 'input:blocked-bind',
+      input: { type: 'speak', text: 'blocked bind' },
+    }, 1)
+    inbox.claimNext(address, 'kernel:new', newLease.fencingToken)
+    const trigger = new DatabaseSync(path)
+    trigger.exec(`
+      CREATE TRIGGER block_round_admission_bind
+      BEFORE UPDATE OF commit_transaction_id ON round_inbox
+      WHEN NEW.idempotency_key = 'input:blocked-bind'
+      BEGIN SELECT RAISE(IGNORE); END;
+    `)
+    trigger.close()
+    const blockedRequest = {
+      ...fixtureCommitRequest(address),
+      transactionId: brandId('transaction:blocked-bind', 'TransactionId'),
+      roundId: brandId('round:blocked-bind', 'InteractionRoundId'),
+      expectedHeadSeq: proofCommit.headSeq,
+      expectedTick: proofCommit.tick,
+      nextTick: proofCommit.tick + 1,
+      outbox: [],
+      admissionProof: { inboxSeq: blocked.inboxSeq, inputHash: blocked.inputHash },
+      writerFencingToken: newLease.fencingToken,
+    }
+    await expect(world.commitRound(blockedRequest)).rejects.toThrow('could not be bound')
+    const dropTrigger = new DatabaseSync(path)
+    dropTrigger.exec(`DROP TRIGGER block_round_admission_bind`)
+    dropTrigger.close()
+    const blockedCommit = await world.commitRound(blockedRequest)
+    inbox.complete(address, blocked.inboxSeq, 'kernel:new', newLease.fencingToken, {
+      transactionId: blockedRequest.transactionId,
+      bundleHash: blockedCommit.bundleHash,
+    }, { status: 'accepted', bundleHash: blockedCommit.bundleHash })
+    await expect(world.commitRound({
+      ...blockedRequest,
+      transactionId: brandId('transaction:invalid-proof', 'TransactionId'),
+      roundId: brandId('round:invalid-proof', 'InteractionRoundId'),
+      expectedHeadSeq: blockedCommit.headSeq,
+      expectedTick: blockedCommit.tick,
+      nextTick: blockedCommit.tick + 1,
+      admissionProof: { inboxSeq: 999, inputHash: blocked.inputHash },
+    })).rejects.toThrow('no matching durable admission proof')
     expect(inbox.claimNext(address, 'kernel:new', newLease.fencingToken)).toBeUndefined()
     inbox.close()
 
@@ -425,6 +494,36 @@ describe('SessionDeliveryAdapter', () => {
 })
 
 describe('WorldStore and temporal projections', () => {
+  it.each([
+    ['empty-events', `DELETE FROM events`, 'boundaries'],
+    ['missing-event', `DELETE FROM events WHERE event_ordinal = 1`, 'boundaries'],
+    ['event-seq', `UPDATE events SET seq = seq + 10 WHERE event_ordinal = 0`, 'boundaries'],
+    ['event-tick', `UPDATE events SET tick = tick + 1 WHERE event_ordinal = 0`, 'boundaries'],
+    ['event-ordinal', `UPDATE events SET event_ordinal = 5 WHERE event_ordinal = 1`, 'boundaries'],
+    ['outbox-seq', `UPDATE outbox SET world_seq = world_seq + 1`, 'boundaries'],
+    ['event-chain', `UPDATE events SET previous_hash = 'sha256:bad-chain' WHERE event_ordinal = 1`, 'chain'],
+    ['event-hash', `UPDATE events SET event_hash = 'sha256:bad-event' WHERE event_ordinal = 0`, 'event hash'],
+    ['bundle-hash', `UPDATE round_commits SET bundle_hash = 'sha256:bad-bundle'`, 'bundle hash'],
+  ] as const)('rejects %s corruption while reading a committed Round', async (suffix, mutation, message) => {
+    const path = database(`committed-round-${suffix}.sqlite`)
+    const address = fixtureAddress(`committed-${suffix}`)
+    const store = new WorldStore(path)
+    store.createBranch(address)
+    const request = {
+      ...fixtureCommitRequest(address),
+      events: [
+        { eventType: 'fixture.first', eventVersion: 1, data: { ordinal: 0 } },
+        { eventType: 'fixture.second', eventVersion: 1, data: { ordinal: 1 } },
+      ],
+    }
+    await store.commitRound(request)
+    const raw = new DatabaseSync(path)
+    raw.exec(mutation)
+    raw.close()
+    expect(() => store.committedRound(address, request.transactionId)).toThrow(message)
+    store.close()
+  })
+
   it('commits Event/Tick/Head/Outbox atomically and replays idempotently', async () => {
     const store = new WorldStore(database('world.sqlite'))
     const address = fixtureAddress()

@@ -35,6 +35,7 @@ import {
   WriterLeaseService,
   type ClaimedRound,
   type WriterLease,
+  type CommittedRoundRecord,
 } from '@harness-world/store-sqlite'
 
 export type RoundParticipantRole = 'agent' | 'director'
@@ -118,6 +119,7 @@ export class RoundCoordinator {
   readonly #participants: readonly RoundParticipant[]
   readonly #validator = new SubmitActionsValidator()
   readonly #rulebook = new SpeakMoveRulebook()
+  readonly #leaseTtlMs: number
   #lease: WriterLease
   #closed = false
 
@@ -146,8 +148,16 @@ export class RoundCoordinator {
     if (this.#participants.some(value => !characterIds.has(value.actorId))) {
       throw new TypeError('Round participant actorId must exist in the manifest')
     }
+    this.#leaseTtlMs = options.leaseTtlMs ?? 30_000
+    if (!Number.isSafeInteger(this.#leaseTtlMs) || this.#leaseTtlMs <= 0) {
+      throw new RangeError('leaseTtlMs must be a positive safe integer')
+    }
+    if (this.#participants.some(value => !Number.isSafeInteger(value.timeoutMs) || value.timeoutMs <= 0
+      || value.timeoutMs + Math.max(100, Math.ceil(value.timeoutMs / 10)) >= this.#leaseTtlMs)) {
+      throw new RangeError('every participant timeoutMs plus renewal margin must be shorter than leaseTtlMs')
+    }
     new ModelBudgetLedger(options.modelBudgetTokens)
-    this.#lease = options.leases.acquire(this.#address, options.ownerId, options.leaseTtlMs)
+    this.#lease = options.leases.acquire(this.#address, options.ownerId, this.#leaseTtlMs)
   }
 
   submit(request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
@@ -190,7 +200,7 @@ export class RoundCoordinator {
     return this.options.runtimeLane.enqueueRound(async () => {
       let drained = 0
       while (true) {
-        this.#lease = this.options.leases.acquire(this.#address, this.options.ownerId, this.options.leaseTtlMs)
+        this.#refreshLease()
         const claimed = this.options.inbox.claimNext(this.#address, this.options.ownerId, this.#lease.fencingToken)
         if (claimed === undefined) return drained
         await this.#commitAndComplete(claimed, correlationId)
@@ -201,7 +211,7 @@ export class RoundCoordinator {
 
   async #drainUntil(targetSeq: number, correlationId: string): Promise<PlayerRoundResult> {
     while (true) {
-      this.#lease = this.options.leases.acquire(this.#address, this.options.ownerId, this.options.leaseTtlMs)
+      this.#refreshLease()
       const claimed = this.options.inbox.claimNext(this.#address, this.options.ownerId, this.#lease.fencingToken)
       if (claimed === undefined) throw new Error(`Round Inbox lost admitted item ${targetSeq}`)
       const committed = await this.#commitAndComplete(claimed, correlationId)
@@ -214,6 +224,7 @@ export class RoundCoordinator {
     correlationId: string,
   ): Promise<{ readonly transactionId: TransactionId; readonly result: PlayerRoundResult }> {
     const committed = await this.#commitClaimed(claimed, correlationId)
+    this.#renewLease()
     this.options.inbox.complete(
       this.#address,
       claimed.inboxSeq,
@@ -240,9 +251,6 @@ export class RoundCoordinator {
     }
     const transactionId = brandId(deterministicId('transaction:coordinated-round', identity), 'TransactionId')
     const roundId = brandId(deterministicId('round:coordinated', identity), 'InteractionRoundId')
-    const frozenBase = this.options.store.roundBase(transactionId)
-    const head = frozenBase ?? this.options.store.head(this.#address)
-    const history = this.options.store.readEvents(this.#address, head.headSeq)
     const playerAction: ActionRequest = {
       actionId: deterministicId('action:coordinated-player', { roundId, inboxSeq: claimed.inboxSeq }),
       actorId: binding.characterId,
@@ -250,6 +258,12 @@ export class RoundCoordinator {
       actionVersion: 1,
       parameters: action.parameters,
     }
+    const committed = this.options.store.committedRound(this.#address, transactionId)
+    if (committed !== undefined) {
+      return { transactionId, result: this.#committedPlayerResult(committed, roundId, playerAction) }
+    }
+    const head = this.options.store.head(this.#address)
+    const history = this.options.store.readEvents(this.#address, head.headSeq)
     const proposalContext: ProposalContext = {
       address: this.#address,
       roundId,
@@ -319,6 +333,7 @@ export class RoundCoordinator {
       })
     }
     events.push({ eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } })
+    this.#renewLease()
     const commit = await this.options.store.commitRound({
       address: this.#address,
       transactionId,
@@ -349,6 +364,7 @@ export class RoundCoordinator {
     const actionIds = new Set<string>([context.playerAction.actionId])
     const runner = new SafeAgentRunner(new ModelBudgetLedger(this.options.modelBudgetTokens))
     for (const binding of this.#participants) {
+      this.#renewLease()
       const run = await runner.propose(
         `provider:${context.roundId}:${binding.participantId}`,
         binding.estimatedTokens,
@@ -357,6 +373,7 @@ export class RoundCoordinator {
         binding.provider,
         context,
       )
+      this.#renewLease()
       if (run.status === 'fallback') {
         frozen.push({ binding, status: run.failure!, proposal: run.proposal })
         continue
@@ -384,6 +401,78 @@ export class RoundCoordinator {
       }
     }
     return frozen
+  }
+
+  #committedPlayerResult(
+    committed: CommittedRoundRecord,
+    expectedRoundId: string,
+    expectedPlayerAction: ActionRequest,
+  ): PlayerRoundResult {
+    if (committed.roundId !== expectedRoundId) {
+      failWorld({
+        errorCode: 'BUNDLE_HASH_MISMATCH',
+        category: 'integrity',
+        message: 'committed coordinated Round is bound to an unexpected roundId',
+        retryable: false,
+        correlationId: `coordinator:${committed.transactionId}`,
+        address: this.#address,
+      })
+    }
+    const playerResolutions = committed.events.filter((event) => {
+      if (event.eventType !== 'action.resolved' || event.eventVersion !== 1
+        || typeof event.data !== 'object' || event.data === null || Array.isArray(event.data)) return false
+      const data = event.data as Record<string, WorldJsonValue>
+      return data.roundId === expectedRoundId
+        && data.actionId === expectedPlayerAction.actionId
+        && data.participantId === 'player'
+        && data.actorId === expectedPlayerAction.actorId
+        && data.actionType === expectedPlayerAction.actionType
+        && data.sourceRole === 'player'
+        && data.order === 0
+    })
+    if (playerResolutions.length !== 1) {
+      failWorld({
+        errorCode: 'BUNDLE_HASH_MISMATCH',
+        category: 'integrity',
+        message: 'committed coordinated Round has no unique player Resolution',
+        retryable: false,
+        correlationId: `coordinator:${committed.transactionId}`,
+        address: this.#address,
+      })
+    }
+    const resolution = playerResolutions[0]!.data as Record<string, WorldJsonValue>
+    if (typeof resolution.accepted !== 'boolean'
+      || (resolution.reason !== null && typeof resolution.reason !== 'string')) {
+      failWorld({
+        errorCode: 'BUNDLE_HASH_MISMATCH',
+        category: 'integrity',
+        message: 'committed player Resolution has an invalid durable shape',
+        retryable: false,
+        correlationId: `coordinator:${committed.transactionId}`,
+        address: this.#address,
+      })
+    }
+    return parsePlayerRoundResult({
+      status: resolution.accepted ? 'accepted' : 'rejected',
+      reason: resolution.reason,
+      headSeq: committed.headSeq,
+      tick: committed.tick,
+      bundleHash: committed.bundleHash,
+    })
+  }
+
+  #refreshLease(): void {
+    this.#lease = this.options.leases.acquire(this.#address, this.options.ownerId, this.#leaseTtlMs)
+    this.#renewLease()
+  }
+
+  #renewLease(): void {
+    this.#lease = this.options.leases.renew(
+      this.#address,
+      this.options.ownerId,
+      this.#lease.fencingToken,
+      this.#leaseTtlMs,
+    )
   }
 
   #orderedActions(playerAction: ActionRequest, frozen: readonly FrozenParticipant[]): OrderedAction[] {

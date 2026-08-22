@@ -15,6 +15,28 @@ const application = new WorldApplication({
   worldPath,
   sessionPath,
   runtimeOwnerId: 'application:p6-crash',
+  modelBudgetTokens: 10,
+  participants: () => [{
+    participantId: 'agent:p6-crash',
+    role: 'agent',
+    actorId: brandId('character:npc', 'CharacterId'),
+    allowedActionTypes: ['speak'],
+    priority: 1,
+    estimatedTokens: 1,
+    timeoutMs: 100,
+    provider: {
+      propose: async context => ({
+        participantId: 'agent:p6-crash',
+        actions: [{
+          actionId: `action:worker:${context.roundId}`,
+          actorId: brandId('character:npc', 'CharacterId'),
+          actionType: 'speak',
+          actionVersion: 1,
+          parameters: { text: 'provider output A before hard kill' },
+        }],
+      }),
+    },
+  }],
   faultInjector: new IpcPauseFaultInjector(faultPoint as FaultPoint),
 })
 await application.submit(address, {

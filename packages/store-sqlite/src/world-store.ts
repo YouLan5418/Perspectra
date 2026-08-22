@@ -233,6 +233,17 @@ export interface ActivateBranchResult {
   readonly bundleHash: WorldHash
 }
 
+export interface CommittedRoundRecord {
+  readonly transactionId: TransactionId
+  readonly roundId: CommitRoundRequest['roundId']
+  readonly baseHeadSeq: number
+  readonly baseTick: number
+  readonly headSeq: number
+  readonly tick: number
+  readonly bundleHash: WorldHash
+  readonly events: readonly StoredWorldEvent[]
+}
+
 interface HeadRow {
   readonly head_seq: number
   readonly tick: number
@@ -723,6 +734,93 @@ export class WorldStore {
     return row === undefined ? undefined : { headSeq: row.base_head_seq, tick: row.base_tick }
   }
 
+  /** Read the authoritative outcome of one transaction without recomputing Provider proposals. */
+  committedRound(address: WorldAddress, transactionId: TransactionId): CommittedRoundRecord | undefined {
+    const addressKey = worldAddressKey(address)
+    const row = this.#db.prepare(`
+      SELECT round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash
+      FROM round_commits WHERE transaction_id = ? AND address_key = ?
+    `).get(transactionId, addressKey) as {
+      round_id: CommitRoundRequest['roundId']
+      base_head_seq: number
+      base_tick: number
+      head_seq: number
+      tick: number
+      bundle_hash: WorldHash
+    } | undefined
+    if (row === undefined) return undefined
+    const events = this.#db.prepare(`
+      SELECT seq, tick, event_type, event_version, data_json, previous_hash, event_hash, transaction_id, event_ordinal
+      FROM events WHERE address_key = ? AND transaction_id = ? ORDER BY event_ordinal
+    `).all(addressKey, transactionId) as unknown as EventRow[]
+    const outbox = this.#db.prepare(`
+      SELECT world_seq, payload_hash FROM outbox WHERE address_key = ? AND transaction_id = ? ORDER BY rowid
+    `).all(addressKey, transactionId) as Array<{ world_seq: number; payload_hash: WorldHash }>
+    if (events.length === 0
+      || events.length !== row.head_seq - row.base_head_seq
+      || events.some((event, index) => event.seq !== row.base_head_seq + index + 1
+        || event.tick !== row.tick
+        || event.event_ordinal !== index)
+      || outbox.some(item => item.world_seq !== row.head_seq)) {
+      this.#invalidCommittedRound(address, transactionId, 'committed Round boundaries are inconsistent')
+    }
+    let previousHash = events[0]!.previous_hash
+    const eventHashes: WorldHash[] = []
+    for (const event of events) {
+      if (event.previous_hash !== previousHash) {
+        this.#invalidCommittedRound(address, transactionId, 'committed Round event chain is discontinuous')
+      }
+      const data = parseWorldJson(event.data_json)
+      const eventHash = hashWorldJson('world-event-envelope', {
+        address,
+        seq: event.seq,
+        tick: event.tick,
+        eventType: event.event_type,
+        eventVersion: event.event_version,
+        data,
+        previousHash: event.previous_hash,
+        transactionId,
+        eventOrdinal: event.event_ordinal,
+      })
+      if (event.event_hash !== eventHash) {
+        this.#invalidCommittedRound(address, transactionId, 'committed Round event hash is divergent')
+      }
+      eventHashes.push(eventHash)
+      previousHash = eventHash
+    }
+    const bundleHash = hashWorldJson('world-round-bundle', {
+      address,
+      roundId: row.round_id,
+      tick: row.tick,
+      eventHashes,
+      outboxHashes: outbox.map(item => item.payload_hash),
+    })
+    if (bundleHash !== row.bundle_hash) {
+      this.#invalidCommittedRound(address, transactionId, 'committed Round bundle hash is divergent')
+    }
+    return {
+      transactionId,
+      roundId: row.round_id,
+      baseHeadSeq: row.base_head_seq,
+      baseTick: row.base_tick,
+      headSeq: row.head_seq,
+      tick: row.tick,
+      bundleHash: row.bundle_hash,
+      events: events.map(event => ({
+        address,
+        seq: event.seq,
+        tick: event.tick,
+        eventType: event.event_type,
+        eventVersion: event.event_version,
+        data: parseWorldJson(event.data_json),
+        previousHash: event.previous_hash,
+        eventHash: event.event_hash,
+        transactionId: event.transaction_id as TransactionId,
+        eventOrdinal: event.event_ordinal,
+      })),
+    }
+  }
+
   /** Fail closed before admitting new work to a draining or archived branch. */
   assertAdmissionOpen(address: WorldAddress, correlationId: string): void {
     this.#assertAdmissionOpen(worldAddressKey(address), correlationId, address)
@@ -737,6 +835,17 @@ export class WorldStore {
     const row = this.#db.prepare(`SELECT head_seq, tick, event_hash FROM heads WHERE address_key = ?`).get(addressKey) as HeadRow | undefined
     if (row === undefined) throw new Error(`unknown world branch ${addressKey}`)
     return row
+  }
+
+  #invalidCommittedRound(address: WorldAddress, transactionId: TransactionId, message: string): never {
+    failWorld({
+      errorCode: 'BUNDLE_HASH_MISMATCH',
+      category: 'integrity',
+      message,
+      retryable: false,
+      correlationId: `committed-round:${transactionId}`,
+      address,
+    })
   }
 
   #branchDepth(addressKey: string): number {

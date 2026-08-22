@@ -184,6 +184,8 @@ describe('WorldApplication', () => {
 
     const invalidActor = new WorldApplication({
       ...persistence,
+      modelBudgetTokens: 1,
+      leaseTtlMs: 1_000,
       participants: () => [{
         participantId: 'agent:invalid', role: 'agent', actorId: brandId('character:missing', 'CharacterId'),
         allowedActionTypes: ['speak'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
@@ -193,6 +195,18 @@ describe('WorldApplication', () => {
     await expect(invalidActor.head(world.manifest.address)).rejects.toThrow('must exist in the manifest')
     expect(invalidActor.activeBranchCount).toBe(0)
     await invalidActor.close()
+
+    const missingBudget = new WorldApplication({
+      ...persistence,
+      participants: () => [{
+        participantId: 'agent:budget', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
+        allowedActionTypes: ['speak'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+        provider: { propose: async () => ({ participantId: 'agent:budget', actions: [] }) },
+      }],
+    })
+    await expect(missingBudget.head(world.manifest.address)).rejects.toThrow('modelBudgetTokens must be configured')
+    expect(missingBudget.activeBranchCount).toBe(0)
+    await missingBudget.close()
 
     const divergent = new WorldApplication({ ...persistence, outboxMaxAttempts: 2 })
     divergent.activate(world)

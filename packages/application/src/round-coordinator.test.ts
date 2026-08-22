@@ -5,8 +5,11 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   brandId,
+  deterministicId,
   hashWorldJson,
   type AgentProvider,
+  type FaultInjector,
+  type FaultPoint,
   type Proposal,
   type ProposalContext,
   type WorldJsonValue,
@@ -23,6 +26,16 @@ import {
 } from './round-coordinator.ts'
 
 const directories: string[] = []
+
+class ThrowAfterCommitOnce implements FaultInjector {
+  #fired = false
+
+  hit(point: FaultPoint): void {
+    if (point !== 'store.after-commit' || this.#fired) return
+    this.#fired = true
+    throw new Error('simulated failure after committed coordinated Round')
+  }
+}
 
 function database(name: string): string {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-round-coordinator-'))
@@ -107,10 +120,16 @@ function options(
   compiled: CompiledWorldSpec,
   participants: readonly RoundParticipant[] = [],
   modelBudgetTokens = 100,
+  configuration: {
+    readonly now?: () => number
+    readonly leaseTtlMs?: number
+    readonly faultInjector?: FaultInjector
+  } = {},
 ): RoundCoordinatorOptions & { store: WorldStore; inbox: RoundInbox; leases: WriterLeaseService } {
-  const store = new WorldStore(path)
-  const inbox = new RoundInbox(path)
-  const leases = new WriterLeaseService(path)
+  const now = configuration.now ?? Date.now
+  const store = new WorldStore(path, configuration.faultInjector, now)
+  const inbox = new RoundInbox(path, now)
+  const leases = new WriterLeaseService(path, now)
   return {
     store,
     inbox,
@@ -119,6 +138,7 @@ function options(
     ownerId: 'coordinator:test',
     participants,
     modelBudgetTokens,
+    ...(configuration.leaseTtlMs === undefined ? {} : { leaseTtlMs: configuration.leaseTtlMs }),
   }
 }
 
@@ -127,6 +147,80 @@ function close(optionsValue: ReturnType<typeof options>, coordinator?: RoundCoor
   optionsValue.inbox.close()
   optionsValue.leases.close()
   optionsValue.store.close()
+}
+
+async function installCommittedRecoveryFixture(
+  path: string,
+  compiled: CompiledWorldSpec,
+  suffix: string,
+  mutation: 'round_id' | 'missing_player' | 'invalid_result' | 'invalid_reason' | 'rejected',
+) {
+  const request = {
+    idempotencyKey: `round:malformed:${suffix}`,
+    principalId: 'principal:player',
+    action: { actionType: 'speak', parameters: { text: suffix } },
+    correlationId: `malformed:${suffix}`,
+  } as const
+  const inbox = new RoundInbox(path)
+  const queued = inbox.enqueue({
+    address: compiled.manifest.address,
+    idempotencyKey: request.idempotencyKey,
+    principalId: request.principalId,
+    input: request.action,
+    correlationId: request.correlationId,
+  }, compiled.manifest.roundQueueLimit)
+  const leases = new WriterLeaseService(path)
+  const lease = leases.acquire(compiled.manifest.address, 'fixture:malformed')
+  inbox.claimNext(compiled.manifest.address, lease.ownerId, lease.fencingToken)
+  const identity = {
+    address: compiled.manifest.address,
+    inboxSeq: queued.inboxSeq,
+    idempotencyKey: request.idempotencyKey,
+    inputHash: queued.inputHash,
+  }
+  const transactionId = brandId(deterministicId('transaction:coordinated-round', identity), 'TransactionId')
+  const expectedRoundId = brandId(deterministicId('round:coordinated', identity), 'InteractionRoundId')
+  const committedRoundId = mutation === 'round_id'
+    ? brandId(`round:wrong:${suffix}`, 'InteractionRoundId')
+    : expectedRoundId
+  const playerActionId = deterministicId('action:coordinated-player', {
+    roundId: expectedRoundId,
+    inboxSeq: queued.inboxSeq,
+  })
+  const store = new WorldStore(path)
+  const head = store.head(compiled.manifest.address)
+  await store.commitRound({
+    address: compiled.manifest.address,
+    transactionId,
+    roundId: committedRoundId,
+    expectedHeadSeq: head.headSeq,
+    expectedTick: head.tick,
+    nextTick: head.tick + 1,
+    events: [{
+      eventType: 'action.resolved',
+      eventVersion: 1,
+      data: {
+        roundId: expectedRoundId,
+        actionId: playerActionId,
+        participantId: 'player',
+        actorId: 'character:player',
+        actionType: 'speak',
+        sourceRole: mutation === 'missing_player' ? 'agent' : 'player',
+        order: 0,
+        accepted: mutation === 'invalid_result' ? 'yes' : mutation !== 'rejected',
+        reason: mutation === 'invalid_reason' ? 1 : mutation === 'rejected' ? 'denied' : null,
+      },
+    }],
+    outbox: [],
+    correlationId: request.correlationId,
+    admissionProof: { inboxSeq: queued.inboxSeq, inputHash: queued.inputHash },
+    writerFencingToken: lease.fencingToken,
+  })
+  leases.release(compiled.manifest.address, lease.ownerId, lease.fencingToken)
+  store.close()
+  leases.close()
+  inbox.close()
+  return request
 }
 
 describe('RoundCoordinator', () => {
@@ -211,6 +305,109 @@ describe('RoundCoordinator', () => {
     close(restartedOptions, restarted)
   })
 
+  it('completes a committed Inbox item without recalling a non-deterministic participant', async () => {
+    const path = database('committed-recovery.sqlite')
+    const compiled = world()
+    const bootstrap = new WorldStore(path)
+    new WorldBootstrap(bootstrap).activate(compiled)
+    bootstrap.close()
+    let providerCalls = 0
+    const nonDeterministic = participant('agent:variable', 'agent', 1, provider(() => {
+      providerCalls += 1
+      return actionProposal('agent:variable', `action:variable:${providerCalls}`, 'speak', { text: `variant ${providerCalls}` })
+    }))
+    const request = {
+      idempotencyKey: 'round:committed-recovery',
+      principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'survive commit window' } },
+      correlationId: 'committed-recovery',
+    } as const
+    const interruptedOptions = options(path, compiled, [nonDeterministic], 10, {
+      faultInjector: new ThrowAfterCommitOnce(),
+    })
+    const interrupted = new RoundCoordinator(interruptedOptions)
+    await expect(interrupted.submit(request)).rejects.toThrow('after committed coordinated Round')
+    expect(providerCalls).toBe(1)
+    expect(interruptedOptions.store.head(compiled.manifest.address).tick).toBe(1)
+    close(interruptedOptions, interrupted)
+
+    const recoveredOptions = options(path, compiled, [nonDeterministic], 10)
+    const recovered = new RoundCoordinator(recoveredOptions)
+    const result = await recovered.submit(request)
+    expect(result).toMatchObject({ status: 'accepted', tick: 1 })
+    expect(providerCalls).toBe(1)
+    expect(recoveredOptions.inbox.readCompleted(compiled.manifest.address, request.idempotencyKey)).toEqual(result)
+    const audit = new DatabaseSync(path)
+    expect((audit.prepare(`SELECT COUNT(*) AS count FROM branch_audit_events WHERE operation = 'round.committed'`)
+      .get() as { count: number }).count).toBe(1)
+    audit.close()
+    close(recoveredOptions, recovered)
+  })
+
+  it('renews the Writer Lease across cumulative participant latency and rejects unsafe timeout configuration', async () => {
+    const path = database('lease-renewal.sqlite')
+    const compiled = world()
+    let now = 1_000
+    const bootstrap = new WorldStore(path, undefined, () => now)
+    new WorldBootstrap(bootstrap).activate(compiled)
+    bootstrap.close()
+    const delayed = (participantId: string) => ({
+      ...participant(participantId, 'agent', 1, provider(() => {
+        now += 300
+        return actionProposal(participantId, `action:${participantId}`, 'speak', { text: participantId })
+      })),
+      timeoutMs: 400,
+    })
+    const participants = [
+      delayed('agent:slow-a'), delayed('agent:slow-b'), delayed('agent:slow-c'), delayed('agent:slow-d'),
+    ]
+    const unsafeOptions = options(path, compiled, participants, 10, { now: () => now, leaseTtlMs: 500 })
+    expect(() => new RoundCoordinator(unsafeOptions)).toThrow('renewal margin')
+    close(unsafeOptions)
+
+    const safeOptions = options(path, compiled, participants, 10, { now: () => now, leaseTtlMs: 1_000 })
+    const coordinator = new RoundCoordinator(safeOptions)
+    await expect(coordinator.submit({
+      idempotencyKey: 'round:lease-renewal',
+      principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'renew' } },
+      correlationId: 'lease-renewal',
+    })).resolves.toMatchObject({ status: 'accepted', tick: 1 })
+    expect(now).toBe(2_200)
+    close(safeOptions, coordinator)
+  })
+
+  it.each([
+    ['round_id', 'unexpected roundId'],
+    ['missing_player', 'no unique player Resolution'],
+    ['invalid_result', 'invalid durable shape'],
+    ['invalid_reason', 'invalid durable shape'],
+  ] as const)('fails closed when committed recovery has %s corruption', async (mutation, message) => {
+    const path = database(`malformed-${mutation}.sqlite`)
+    const compiled = world()
+    const bootstrap = new WorldStore(path)
+    new WorldBootstrap(bootstrap).activate(compiled)
+    bootstrap.close()
+    const request = await installCommittedRecoveryFixture(path, compiled, mutation, mutation)
+    const recoveryOptions = options(path, compiled)
+    const coordinator = new RoundCoordinator(recoveryOptions)
+    await expect(coordinator.submit(request)).rejects.toThrow(message)
+    close(recoveryOptions, coordinator)
+  })
+
+  it('restores a durable rejected player result without recomputing the Round', async () => {
+    const path = database('committed-rejected.sqlite')
+    const compiled = world()
+    const bootstrap = new WorldStore(path)
+    new WorldBootstrap(bootstrap).activate(compiled)
+    bootstrap.close()
+    const request = await installCommittedRecoveryFixture(path, compiled, 'rejected', 'rejected')
+    const recoveryOptions = options(path, compiled)
+    const coordinator = new RoundCoordinator(recoveryOptions)
+    await expect(coordinator.submit(request)).resolves.toMatchObject({ status: 'rejected', reason: 'denied', tick: 1 })
+    close(recoveryOptions, coordinator)
+  })
+
   it('fails closed at construction, admission, durable input, and unexpected validator boundaries', async () => {
     const compiled = world()
     const missingPath = database('missing.sqlite')
@@ -230,6 +427,10 @@ describe('RoundCoordinator', () => {
     const duplicateOptions = options(path, compiled, [duplicate, duplicate])
     expect(() => new RoundCoordinator(duplicateOptions)).toThrow('unique')
     close(duplicateOptions)
+
+    const invalidLeaseOptions = options(path, compiled, [], 100, { leaseTtlMs: 0 })
+    expect(() => new RoundCoordinator(invalidLeaseOptions)).toThrow('positive safe integer')
+    close(invalidLeaseOptions)
 
     const unknown = { ...duplicate, participantId: 'participant:unknown', actorId: brandId('character:missing', 'CharacterId') }
     const unknownOptions = options(path, compiled, [unknown])
