@@ -39,10 +39,23 @@ function currentLocation(events: readonly RulebookEvent[], characterId: string):
   for (const event of events) {
     const data = object(event.data)
     if (data?.characterId !== characterId) continue
-    if (event.eventType === 'character.upsert' && typeof data.locationId === 'string') locationId = data.locationId
+    if ((event.eventType === 'character.upsert' || event.eventType === 'character.created') && typeof data.locationId === 'string') locationId = data.locationId
     if (event.eventType === 'character.moved' && typeof data.toLocationId === 'string') locationId = data.toLocationId
   }
   return locationId
+}
+
+export function currentCharacterLifecycle(events: readonly RulebookEvent[], characterId: string): 'active' | 'incapacitated' | 'dead' | 'departed' | undefined {
+  let state: 'active' | 'incapacitated' | 'dead' | 'departed' | undefined
+  for (const event of events) {
+    const data = object(event.data)
+    if (data?.characterId !== characterId) continue
+    if (event.eventType === 'character.upsert' || event.eventType === 'character.created') state ??= 'active'
+    if (event.eventType === 'character.lifecycle-changed'
+      && (data.lifecycleState === 'active' || data.lifecycleState === 'incapacitated'
+        || data.lifecycleState === 'dead' || data.lifecycleState === 'departed')) state = data.lifecycleState
+  }
+  return state
 }
 
 /** Deterministic V0 Rulebook for player speech and movement. */
@@ -53,6 +66,8 @@ export class SpeakMoveRulebook {
     characterId: string,
     action: PlayerActionInput,
   ): RulebookResolution {
+    const lifecycle = currentCharacterLifecycle(events, characterId)
+    if (lifecycle !== 'active') return this.#reject(characterId, action.actionType, `character lifecycle ${lifecycle ?? 'missing'} cannot act`)
     const parameters = object(action.parameters)
     if (action.actionType === 'speak') {
       const text = parameters?.text

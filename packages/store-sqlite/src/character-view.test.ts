@@ -71,6 +71,7 @@ describe('CharacterViewBuilder', () => {
     const forkSeq = store.head(parent).headSeq
     store.forkBranch(parent, child, forkSeq)
     await commit(store, parent, 'future', [
+      { eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: characterA, lifecycleState: 'dead' } },
       { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:future', value: { observerId: characterA, content: 'FUTURE_CANARY' } } },
       { eventType: 'claim.upsert', eventVersion: 1, data: { id: 'claim:future', value: { characterId: characterB, proposition: 'B_FUTURE' } } },
       { eventType: 'scene.remove', eventVersion: 1, data: { sceneId: 'scene:a' } },
@@ -78,6 +79,7 @@ describe('CharacterViewBuilder', () => {
 
     const builder = new CharacterViewBuilder(store)
     const viewA = builder.rebuildAt(child, characterA, forkSeq)
+    expect(viewA.lifecycleState).toBe('active')
     expect(viewA.locationId).toBe('location:b')
     expect(viewA.scenes.map(scene => scene.sceneId)).toEqual(['scene:a', 'scene:shared'])
     expect(viewA.observations.map(record => record.id)).toEqual(['observation:a'])
@@ -103,10 +105,30 @@ describe('CharacterViewBuilder', () => {
     expect(viewB.bundleHash).not.toBe(viewA.bundleHash)
 
     const parentNow = builder.rebuildAt(parent, characterA, store.head(parent).headSeq)
+    expect(parentNow.lifecycleState).toBe('dead')
     expect(JSON.stringify(parentNow)).toContain('FUTURE_CANARY')
     expect(parentNow.scenes.map(scene => scene.sceneId)).toEqual(['scene:shared'])
     expect(() => builder.rebuildAt(parent, characterA, -1)).toThrow(RangeError)
     expect(() => builder.rebuildAt(parent, characterA, store.head(parent).headSeq + 1)).toThrow('later than the branch head')
+    store.close()
+  })
+
+  it('replays every lifecycle state and retains the character after death, revival, and departure', async () => {
+    const store = new WorldStore(database('lifecycle.sqlite'))
+    const target = address('lifecycle')
+    const character = brandId('character:lifecycle', 'CharacterId')
+    store.createBranch(target)
+    await commit(store, target, 'lifecycle', [
+      { eventType: 'character.created', eventVersion: 1, data: { characterId: character, locationId: 'location:home', lifecycleState: 'active' } },
+      { eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: character, lifecycleState: 'incapacitated' } },
+      { eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: character, lifecycleState: 'dead' } },
+      { eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: character, lifecycleState: 'active', transition: 'revived' } },
+      { eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: character, lifecycleState: 'departed' } },
+    ])
+    const builder = new CharacterViewBuilder(store)
+    expect([1, 2, 3, 4, 5].map(seq => builder.rebuildAt(target, character, seq).lifecycleState))
+      .toEqual(['active', 'incapacitated', 'dead', 'active', 'departed'])
+    expect(builder.rebuildAt(target, character, 5).locationId).toBe('location:home')
     store.close()
   })
 
@@ -138,6 +160,10 @@ describe('CharacterViewBuilder', () => {
     const view = new CharacterViewBuilder(store).rebuildAt(worldAddress, character, store.head(worldAddress).headSeq)
     expect(view.locationId).toBeNull()
     expect(view.selfObservations).toEqual([])
+    const missing = address('missing-character')
+    store.createBranch(missing)
+    await commit(store, missing, 'missing-character', [{ eventType: 'ignored', eventVersion: 1, data: null }])
+    expect(() => new CharacterViewBuilder(store).rebuildAt(missing, character, 1)).toThrow('no creation event')
     store.close()
   })
 })

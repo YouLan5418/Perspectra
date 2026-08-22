@@ -17,6 +17,7 @@ function view(observations: ProjectionRecord[], claims: ProjectionRecord[] = [])
     },
     characterId,
     asOfWorldSeq: 1,
+    lifecycleState: 'active' as const,
     locationId: 'location:room',
     scenes: [], observations, selfObservations: [], claims, goals: [], visibility: [],
   }

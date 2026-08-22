@@ -1,6 +1,7 @@
 import {
   hashWorldJson,
   type CharacterId,
+  type CharacterLifecycleState,
   type CharacterSceneView,
   type CharacterView,
   type ProjectionRecord,
@@ -50,14 +51,23 @@ function visibleScene(scene: CharacterSceneView, characterId: CharacterId, visib
 
 function selfState(events: readonly StoredWorldEvent[], characterId: CharacterId): {
   readonly locationId: string | null
+  readonly lifecycleState: CharacterLifecycleState
   readonly observations: SelfObservationView[]
 } {
   let locationId: string | null = null
+  let lifecycleState: CharacterLifecycleState | undefined
   const observations: SelfObservationView[] = []
   for (const event of events) {
     const data = object(event.data)
+    const projected = data?.value === undefined ? undefined : object(data.value)
+    const projectedOwner = projected?.characterId ?? projected?.observerId
+    // Pre-lifecycle V0 fixtures are upcast as active without rewriting their stored event bytes.
+    if (data?.characterId === characterId || projectedOwner === characterId) lifecycleState ??= 'active'
     if (data?.characterId !== characterId) continue
-    if (event.eventType === 'character.upsert' && typeof data.locationId === 'string') locationId = data.locationId
+    if ((event.eventType === 'character.upsert' || event.eventType === 'character.created') && typeof data.locationId === 'string') locationId = data.locationId
+    if (event.eventType === 'character.lifecycle-changed'
+      && (data.lifecycleState === 'active' || data.lifecycleState === 'incapacitated'
+        || data.lifecycleState === 'dead' || data.lifecycleState === 'departed')) lifecycleState = data.lifecycleState
     if (event.eventType === 'character.moved' && typeof data.toLocationId === 'string') {
       locationId = data.toLocationId
       observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: 'move', locationId } })
@@ -69,7 +79,8 @@ function selfState(events: readonly StoredWorldEvent[], characterId: CharacterId
       observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: data.actionType, status: 'rejected' } })
     }
   }
-  return { locationId, observations }
+  if (lifecycleState === undefined) throw new Error(`character ${characterId} has no creation event at the requested prefix`)
+  return { locationId, lifecycleState, observations }
 }
 
 /** Builds the model-visible, character-scoped view from one exact event prefix. */
@@ -94,6 +105,7 @@ export class CharacterViewBuilder {
       address,
       characterId,
       asOfWorldSeq,
+      lifecycleState: self.lifecycleState,
       locationId: self.locationId,
       scenes,
       observations,

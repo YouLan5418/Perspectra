@@ -145,10 +145,30 @@ export interface SelfObservationView extends WorldJsonObject {
   readonly content: WorldJsonValue
 }
 
+export type CharacterLifecycleState = 'active' | 'incapacitated' | 'dead' | 'departed'
+export type RuntimeAvailabilityState =
+  | 'provisioning'
+  | 'ready'
+  | 'session_lag'
+  | 'model_unavailable'
+  | 'budget_unavailable'
+  | 'offline'
+  | 'disabled'
+
+export interface CharacterRuntimeAvailability extends WorldJsonObject {
+  readonly address: WorldAddress
+  readonly characterId: CharacterId
+  readonly state: RuntimeAvailabilityState
+  readonly reason: string | null
+  readonly changedAtMs: number
+}
+
 export interface CharacterView extends WorldJsonObject {
   readonly address: WorldAddress
   readonly characterId: CharacterId
   readonly asOfWorldSeq: number
+  /** Authoritative domain fact reconstructed from the event prefix. */
+  readonly lifecycleState: CharacterLifecycleState
   readonly locationId: string | null
   readonly scenes: readonly CharacterSceneView[]
   readonly observations: readonly ProjectionRecord[]

@@ -23,6 +23,7 @@ import {
 } from '@harness-world/contracts'
 import {
   SpeakMoveRulebook,
+  currentCharacterLifecycle,
   parsePlayerActionInput,
   parsePlayerRoundResult,
   type CompiledWorldManifest,
@@ -33,6 +34,7 @@ import {
 } from '@harness-world/kernel'
 import {
   RoundInbox,
+  CharacterRuntimeAvailabilityService,
   WorldStore,
   WriterLeaseService,
   type ClaimedRound,
@@ -41,7 +43,7 @@ import {
 } from '@harness-world/store-sqlite'
 
 export type RoundParticipantRole = 'agent' | 'director'
-export type ParticipantTerminalStatus = 'proposed' | 'provider_failed' | 'budget_exhausted' | 'schema_invalid'
+export type ParticipantTerminalStatus = 'proposed' | 'provider_failed' | 'budget_exhausted' | 'schema_invalid' | 'lifecycle_ineligible' | 'runtime_unavailable'
 
 export interface RoundParticipant {
   readonly participantId: string
@@ -58,6 +60,7 @@ export interface RoundCoordinatorOptions {
   readonly store: WorldStore
   readonly inbox: RoundInbox
   readonly leases: WriterLeaseService
+  readonly availability: CharacterRuntimeAvailabilityService
   readonly runtimeLane: RoundExecutionLane
   readonly ownerId: string
   readonly participants: readonly RoundParticipant[]
@@ -267,7 +270,7 @@ export class RoundCoordinator {
         playerAction,
       }),
     }
-    const frozen = await this.#freezeParticipants(proposalContext)
+    const frozen = await this.#freezeParticipants(proposalContext, history)
     const ordered = this.#orderedActions(playerAction, frozen)
     const events: WorldEventDraft[] = frozen.map(value => ({
       eventType: 'round.participant-terminal',
@@ -351,11 +354,19 @@ export class RoundCoordinator {
     }
   }
 
-  async #freezeParticipants(context: ProposalContext): Promise<FrozenParticipant[]> {
+  async #freezeParticipants(context: ProposalContext, history: readonly { readonly eventType: string; readonly data: WorldJsonValue }[]): Promise<FrozenParticipant[]> {
     const frozen: FrozenParticipant[] = []
     const actionIds = new Set<string>([context.playerAction.actionId])
     const runner = new SafeAgentRunner(new ModelBudgetLedger(this.options.modelBudgetTokens))
     for (const binding of this.#participants) {
+      if (currentCharacterLifecycle(history, binding.actorId) !== 'active') {
+        frozen.push({ binding, status: 'lifecycle_ineligible', proposal: { participantId: binding.participantId, actions: [] } })
+        continue
+      }
+      if (this.options.availability.get(this.#address, binding.actorId)?.state !== 'ready') {
+        frozen.push({ binding, status: 'runtime_unavailable', proposal: { participantId: binding.participantId, actions: [] } })
+        continue
+      }
       this.#renewLease()
       const run = await runner.propose(
         `provider:${context.roundId}:${binding.participantId}`,

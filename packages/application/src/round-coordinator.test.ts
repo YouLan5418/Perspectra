@@ -15,7 +15,7 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { WorldBootstrap, WorldSpecCompiler, type CompiledWorldSpec, type RoundExecutionLane } from '@harness-world/kernel'
-import { BranchAdministration, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import { BranchAdministration, CharacterRuntimeAvailabilityService, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import {
   RoundCoordinator,
   compareActionOrderKey,
@@ -125,15 +125,20 @@ function options(
     readonly leaseTtlMs?: number
     readonly faultInjector?: FaultInjector
   } = {},
-): RoundCoordinatorOptions & { store: WorldStore; inbox: RoundInbox; leases: WriterLeaseService } {
+): RoundCoordinatorOptions & { store: WorldStore; inbox: RoundInbox; leases: WriterLeaseService; availability: CharacterRuntimeAvailabilityService } {
   const now = configuration.now ?? Date.now
   const store = new WorldStore(path, configuration.faultInjector, now)
   const inbox = new RoundInbox(path, now)
   const leases = new WriterLeaseService(path, now)
+  const availability = new CharacterRuntimeAvailabilityService(path, now)
+  if (store.readManifest(compiled.manifest.address) !== undefined) {
+    availability.initialize(compiled.manifest.address, compiled.manifest.characters.map(value => ({ characterId: value.characterId, state: 'ready' })))
+  }
   return {
     store,
     inbox,
     leases,
+    availability,
     runtimeLane: lane(compiled),
     ownerId: 'coordinator:test',
     participants,
@@ -145,6 +150,7 @@ function options(
 function close(optionsValue: ReturnType<typeof options>, coordinator?: RoundCoordinator): void {
   coordinator?.close()
   optionsValue.inbox.close()
+  optionsValue.availability.close()
   optionsValue.leases.close()
   optionsValue.store.close()
 }
@@ -313,6 +319,57 @@ describe('RoundCoordinator', () => {
     expect(providerCalls).toBe(5)
     expect(restartedOptions.store.readEvents(compiled.manifest.address).map(value => value.eventHash)).toEqual(eventHashes)
     close(restartedOptions, restarted)
+  })
+
+  it('records deterministic absence without calling providers for unavailable or non-active NPCs', async () => {
+    let calls = 0
+    const npc = participant('agent:eligibility', 'agent', 1, provider(() => {
+      calls += 1
+      return actionProposal('agent:eligibility', 'action:eligibility', 'speak', { text: 'must not run' })
+    }))
+
+    const runtimePath = database('runtime-unavailable.sqlite')
+    const compiled = world()
+    const runtimeSetup = new WorldStore(runtimePath)
+    new WorldBootstrap(runtimeSetup).activate(compiled)
+    runtimeSetup.close()
+    const runtimeOptions = options(runtimePath, compiled, [npc])
+    runtimeOptions.availability.set(compiled.manifest.address, npc.actorId, 'offline', 'provider disconnected')
+    const runtimeCoordinator = new RoundCoordinator(runtimeOptions)
+    await runtimeCoordinator.submit({
+      idempotencyKey: 'runtime-unavailable', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'turn' } }, correlationId: 'runtime-unavailable',
+    })
+    expect(calls).toBe(0)
+    expect(runtimeOptions.store.readEvents(compiled.manifest.address).some(event =>
+      event.eventType === 'round.participant-terminal'
+      && JSON.stringify(event.data).includes('runtime_unavailable'))).toBe(true)
+    close(runtimeOptions, runtimeCoordinator)
+
+    const lifecyclePath = database('lifecycle-ineligible.sqlite')
+    const lifecycleSetup = new WorldStore(lifecyclePath)
+    new WorldBootstrap(lifecycleSetup).activate(compiled)
+    const head = lifecycleSetup.head(compiled.manifest.address)
+    await lifecycleSetup.commitRound({
+      address: compiled.manifest.address,
+      transactionId: brandId('transaction:npc-dead', 'TransactionId'),
+      roundId: brandId('round:npc-dead', 'InteractionRoundId'),
+      expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
+      events: [{ eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: npc.actorId, lifecycleState: 'dead' } }],
+      outbox: [], correlationId: 'npc-dead',
+    })
+    lifecycleSetup.close()
+    const lifecycleOptions = options(lifecyclePath, compiled, [npc])
+    const lifecycleCoordinator = new RoundCoordinator(lifecycleOptions)
+    await lifecycleCoordinator.submit({
+      idempotencyKey: 'lifecycle-ineligible', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'turn' } }, correlationId: 'lifecycle-ineligible',
+    })
+    expect(calls).toBe(0)
+    expect(lifecycleOptions.store.readEvents(compiled.manifest.address).some(event =>
+      event.eventType === 'round.participant-terminal'
+      && JSON.stringify(event.data).includes('lifecycle_ineligible'))).toBe(true)
+    close(lifecycleOptions, lifecycleCoordinator)
   })
 
   it('completes a committed Inbox item without recalling a non-deterministic participant', async () => {

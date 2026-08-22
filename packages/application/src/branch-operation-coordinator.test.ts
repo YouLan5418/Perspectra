@@ -6,6 +6,7 @@ import { brandId } from '@harness-world/contracts'
 import { WorldBootstrap, WorldSpecCompiler, type CompiledWorldSpec, type RoundExecutionLane } from '@harness-world/kernel'
 import {
   BranchAdministration,
+  CharacterRuntimeAvailabilityService,
   RoundInbox,
   SessionDeliveryAdapter,
   SessionOutboxWorker,
@@ -59,16 +60,19 @@ function coordinator(path: string, world: CompiledWorldSpec) {
   const store = new WorldStore(path)
   const inbox = new RoundInbox(path)
   const leases = new WriterLeaseService(path)
+  const availability = new CharacterRuntimeAvailabilityService(path)
+  availability.initialize(world.manifest.address, world.manifest.characters.map(value => ({ characterId: value.characterId, state: 'ready' })))
   const rounds = new RoundCoordinator({
     store,
     inbox,
     leases,
+    availability,
     runtimeLane: lane(world),
     ownerId: 'coordinator:operations',
     participants: [],
     modelBudgetTokens: 0,
   })
-  return { store, inbox, leases, rounds }
+  return { store, inbox, leases, availability, rounds }
 }
 
 function enqueueAccepted(inbox: RoundInbox, world: CompiledWorldSpec, idempotencyKey: string): void {
@@ -138,6 +142,7 @@ describe('BranchOperationCoordinator', () => {
     failingCompensation.close()
     runtime.rounds.close()
     runtime.inbox.close()
+    runtime.availability.close()
     runtime.leases.close()
     administration.close()
     runtime.store.close()
@@ -172,6 +177,7 @@ describe('BranchOperationCoordinator', () => {
       store: runtime.store,
       inbox: runtime.inbox,
       leases: runtime.leases,
+      availability: runtime.availability,
       runtimeLane: { ...lane(world), address: child },
       ownerId: 'coordinator:child',
       participants: [],
@@ -190,6 +196,7 @@ describe('BranchOperationCoordinator', () => {
     childRounds.close()
     runtime.rounds.close()
     runtime.inbox.close()
+    runtime.availability.close()
     runtime.leases.close()
     administration.close()
     runtime.store.close()
@@ -241,6 +248,7 @@ describe('BranchOperationCoordinator', () => {
     outbox.close()
     session.close()
     runtime.inbox.close()
+    runtime.availability.close()
     runtime.leases.close()
     administration.close()
     runtime.store.close()

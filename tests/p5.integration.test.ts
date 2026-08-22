@@ -111,6 +111,7 @@ describe('Phase 5 local operations acceptance', () => {
       raw.exec(`
         DROP TABLE branch_audit_events;
         DROP TABLE branch_failures;
+        DROP TABLE character_runtime_availability;
         DROP TABLE branch_controls;
         DROP INDEX outbox_claim_token_unique;
         ALTER TABLE outbox DROP COLUMN claim_owner_id;

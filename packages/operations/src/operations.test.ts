@@ -7,6 +7,7 @@ import { WorldApplication } from '@harness-world/application'
 import { brandId, createErrorEnvelope, type WorldAddress } from '@harness-world/contracts'
 import {
   BranchQuarantineService,
+  CharacterRuntimeAvailabilityService,
   SessionOutboxWorker,
   WORLD_APPLICATION_ID,
   WorldOutbox,
@@ -73,10 +74,18 @@ describe('OperationsMetrics and WorldHealthService', () => {
     })
     await app.release(parent)
     expect(new WorldHealthService(path).check()).toMatchObject({
-      status: 'ready', schemaVersion: 9, branchCount: 1,
+      status: 'ready', schemaVersion: 10, branchCount: 1,
       readyForRead: true, readyForWrite: true, readyForAgentCalls: true,
-      branches: [{ status: 'healthy', readyForRead: true, readyForWrite: true, readyForAgentCalls: true }],
+      branches: [{ status: 'healthy', readyForRead: true, readyForWrite: true, readyForAgentCalls: true,
+        unavailableCharacterCount: 0, characterAvailability: [{ characterId: 'character:health', state: 'ready' }] }],
     })
+    const runtimeAvailability = new CharacterRuntimeAvailabilityService(path)
+    runtimeAvailability.set(parent, brandId('character:health', 'CharacterId'), 'offline', 'health test')
+    expect(new WorldHealthService(path).check()).toMatchObject({
+      branches: [{ status: 'degraded', readyForAgentCalls: false, unavailableCharacterCount: 1 }],
+    })
+    runtimeAvailability.set(parent, brandId('character:health', 'CharacterId'), 'ready', null)
+    runtimeAvailability.close()
     const outbox = new WorldOutbox(path)
     const deadLetter = new SessionOutboxWorker(outbox, {
       appendIfAbsent: async () => { throw new Error('health dead letter') },

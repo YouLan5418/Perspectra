@@ -8,6 +8,7 @@ import {
   WorldError,
   worldAddressKey,
   type CharacterId,
+  type RuntimeAvailabilityState,
   type CharacterView,
   type DeliveryId,
   type FaultInjector,
@@ -36,6 +37,7 @@ import {
 import {
   BranchAdministration,
   BranchQuarantineService,
+  CharacterRuntimeAvailabilityService,
   CharacterViewBuilder,
   type DeadLetterRecord,
   ProjectionRebuilder,
@@ -78,6 +80,7 @@ export class BranchStoreComponent {
   readonly leases: WriterLeaseService
   readonly administration: BranchAdministration
   readonly quarantine: BranchQuarantineService
+  readonly availability: CharacterRuntimeAvailabilityService
   readonly outbox: WorldOutbox
   readonly session: SessionDeliveryAdapter
   readonly #worker: SessionOutboxWorker
@@ -94,6 +97,7 @@ export class BranchStoreComponent {
     this.leases = new WriterLeaseService(worldPath)
     this.administration = new BranchAdministration(worldPath)
     this.quarantine = new BranchQuarantineService(worldPath)
+    this.availability = new CharacterRuntimeAvailabilityService(worldPath)
     this.outbox = new WorldOutbox(worldPath)
     this.session = new SessionDeliveryAdapter(sessionPath)
     this.#worker = new SessionOutboxWorker(this.outbox, this.session, address, maxAttempts)
@@ -120,6 +124,7 @@ export class BranchStoreComponent {
   close(): void {
     this.session.close()
     this.outbox.close()
+    this.availability.close()
     this.quarantine.close()
     this.administration.close()
     this.inbox.close()
@@ -163,10 +168,19 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       if (participants.length > 0 && this.options.modelBudgetTokens === undefined) {
         throw new TypeError('modelBudgetTokens must be configured when Round participants are enabled')
       }
+      const manifest = store.store.readManifest(scope.address)!.manifest as CompiledWorldSpec['manifest']
+      const players = new Set(manifest.playerBindings.map(value => value.characterId))
+      store.availability.initialize(scope.address, manifest.characters.map(character => ({
+        characterId: character.characterId,
+        state: players.has(character.characterId)
+          ? manifest.runtimePolicy.playerInitialAvailability
+          : manifest.runtimePolicy.npcInitialAvailability,
+      })))
       const kernel = new RoundCoordinator({
         store: store.store,
         inbox: store.inbox,
         leases: store.leases,
+        availability: store.availability,
         runtimeLane: scope,
         ownerId: `${this.#runtimeOwnerId}:branch:${hashWorldJson('writer-owner-address', scope.address)}`,
         participants: [...agents.participants, ...director.participants],
@@ -238,6 +252,19 @@ export class WorldApplication {
         return new CharacterViewBuilder(branch.store.store).rebuildAt(address, characterId, asOf)
       },
     ))
+  }
+
+  async characterAvailability(address: WorldAddress, characterId: CharacterId) {
+    return (await this.#branch(address)).store.availability.get(address, characterId)
+  }
+
+  async setCharacterAvailability(
+    address: WorldAddress,
+    characterId: CharacterId,
+    state: RuntimeAvailabilityState,
+    reason: string | null,
+  ) {
+    return (await this.#branch(address)).store.availability.set(address, characterId, state, reason)
   }
 
   async deliver(address: WorldAddress, correlationId: string): Promise<number> {

@@ -54,15 +54,27 @@ describe('SpeakMoveRulebook', () => {
   it('resolves speech, movement without history, and every rejection shape', () => {
     const world = compiled()
     const rulebook = new SpeakMoveRulebook()
-    const spoken = rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'speak', parameters: { text: 'hello' } })
+    const history = [{ eventType: 'character.created', data: { characterId: 'character:player', locationId: 'location:a' } }]
+    const spoken = rulebook.resolve(world.manifest, history, 'character:player', { actionType: 'speak', parameters: { text: 'hello' } })
     expect(spoken).toMatchObject({ status: 'accepted', events: [{ eventType: 'character.speak', data: { text: 'hello' } }] })
-    expect(rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'speak', parameters: null }).status).toBe('rejected')
-    expect(rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'speak', parameters: { text: '' } }).status).toBe('rejected')
-    const moved = rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'move', parameters: { locationId: 'location:b' } })
-    expect(moved.events[0]?.data).toMatchObject({ fromLocationId: null, toLocationId: 'location:b' })
-    expect(rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'move', parameters: [] }).status).toBe('rejected')
-    expect(rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'move', parameters: { locationId: 1 } }).status).toBe('rejected')
-    expect(rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'wait', parameters: {} }).status).toBe('rejected')
+    expect(rulebook.resolve(world.manifest, history, 'character:player', { actionType: 'speak', parameters: null }).status).toBe('rejected')
+    expect(rulebook.resolve(world.manifest, history, 'character:player', { actionType: 'speak', parameters: { text: '' } }).status).toBe('rejected')
+    const moved = rulebook.resolve(world.manifest, history, 'character:player', { actionType: 'move', parameters: { locationId: 'location:b' } })
+    expect(moved.events[0]?.data).toMatchObject({ fromLocationId: 'location:a', toLocationId: 'location:b' })
+    expect(rulebook.resolve(world.manifest, [{ eventType: 'character.created', data: { characterId: 'character:player' } }], 'character:player', {
+      actionType: 'move', parameters: { locationId: 'location:b' },
+    }).events[0]?.data).toMatchObject({ fromLocationId: null })
+    expect(rulebook.resolve(world.manifest, history, 'character:player', { actionType: 'move', parameters: [] }).status).toBe('rejected')
+    expect(rulebook.resolve(world.manifest, history, 'character:player', { actionType: 'move', parameters: { locationId: 1 } }).status).toBe('rejected')
+    expect(rulebook.resolve(world.manifest, history, 'character:player', { actionType: 'wait', parameters: {} }).status).toBe('rejected')
+    expect(rulebook.resolve(world.manifest, [], 'character:player', { actionType: 'speak', parameters: { text: 'no actor' } }).status).toBe('rejected')
+    for (const lifecycleState of ['incapacitated', 'dead', 'departed'] as const) {
+      expect(rulebook.resolve(world.manifest, [...history, {
+        eventType: 'character.lifecycle-changed', data: { characterId: 'character:player', lifecycleState },
+      }], 'character:player', { actionType: 'speak', parameters: { text: 'blocked' } })).toMatchObject({
+        status: 'rejected', reason: `character lifecycle ${lifecycleState} cannot act`,
+      })
+    }
   })
 })
 

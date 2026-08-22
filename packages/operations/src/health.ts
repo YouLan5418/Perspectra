@@ -17,6 +17,13 @@ export interface BranchHealthReport extends WorldJsonObject {
   readonly readyForAgentCalls: boolean
   readonly openFailureCount: number
   readonly criticalDeadLetterCount: number
+  readonly unavailableCharacterCount: number
+  readonly characterAvailability: readonly {
+    readonly characterId: string
+    readonly state: string
+    readonly reason: string | null
+    readonly changedAtMs: number
+  }[]
   readonly headSeq: number
   readonly tick: number
 }
@@ -79,20 +86,30 @@ export class WorldHealthService {
           open_failures: number
           critical_dead_letters: number
         }>
+        const availabilityQuery = db.prepare(`
+          SELECT character_id, state, reason, changed_at_ms FROM character_runtime_availability
+          WHERE address_key = ? ORDER BY character_id
+        `)
         const branches = rows.map(row => {
+          const address = {
+            tenantId: brandId(row.tenant_id, 'TenantId'),
+            worldId: brandId(row.world_id, 'WorldId'),
+            branchId: brandId(row.branch_id, 'BranchId'),
+          }
+          const characterAvailability = availabilityQuery.all(`${row.tenant_id}\u001f${row.world_id}\u001f${row.branch_id}`) as unknown as Array<{
+            character_id: string; state: string; reason: string | null; changed_at_ms: number
+          }>
+          const unavailableCharacterCount = characterAvailability.filter(value => value.state !== 'ready').length
           const readyForWrite = row.admission_state === 'open'
             && row.lifecycle_state === 'active'
             && row.runtime_phase === 'active'
-          const readyForAgentCalls = readyForWrite && row.activated === 1 && row.critical_dead_letters === 0
+          const readyForAgentCalls = readyForWrite && row.activated === 1
+            && row.critical_dead_letters === 0 && unavailableCharacterCount === 0
           const status = row.runtime_phase === 'quarantined'
             ? 'quarantined'
             : readyForWrite && readyForAgentCalls && row.open_failures === 0 ? 'healthy' : 'degraded'
           return {
-            address: {
-              tenantId: brandId(row.tenant_id, 'TenantId'),
-              worldId: brandId(row.world_id, 'WorldId'),
-              branchId: brandId(row.branch_id, 'BranchId'),
-            },
+            address,
             status,
             runtimePhase: row.runtime_phase,
             runtimeEpoch: row.runtime_epoch,
@@ -101,6 +118,10 @@ export class WorldHealthService {
             readyForAgentCalls,
             openFailureCount: row.open_failures,
             criticalDeadLetterCount: row.critical_dead_letters,
+            unavailableCharacterCount,
+            characterAvailability: characterAvailability.map(value => ({
+              characterId: value.character_id, state: value.state, reason: value.reason, changedAtMs: value.changed_at_ms,
+            })),
             headSeq: row.head_seq,
             tick: row.tick,
           } satisfies BranchHealthReport

@@ -266,7 +266,22 @@ CREATE UNIQUE INDEX round_inbox_commit_transaction_unique
   ON round_inbox(commit_transaction_id) WHERE commit_transaction_id IS NOT NULL;
 `
 
-export const WORLD_SCHEMA_VERSION = 9
+const WORLD_CHARACTER_RUNTIME_SCHEMA = `
+CREATE TABLE character_runtime_availability (
+  address_key TEXT NOT NULL,
+  character_id TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN (
+    'provisioning', 'ready', 'session_lag', 'model_unavailable', 'budget_unavailable', 'offline', 'disabled'
+  )),
+  reason TEXT,
+  changed_at_ms INTEGER NOT NULL CHECK(changed_at_ms >= 0),
+  revision INTEGER NOT NULL CHECK(revision >= 0),
+  PRIMARY KEY(address_key, character_id),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key)
+) STRICT;
+`
+
+export const WORLD_SCHEMA_VERSION = 10
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -278,7 +293,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 6, sql: WORLD_BRANCH_ADMIN_SCHEMA },
     { version: 7, sql: WORLD_OUTBOX_CLAIM_SCHEMA },
     { version: 8, sql: WORLD_ROUND_COMPLETION_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_QUARANTINE_SCHEMA },
+    { version: 9, sql: WORLD_QUARANTINE_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_CHARACTER_RUNTIME_SCHEMA },
   ])
 }
 
@@ -345,6 +361,35 @@ interface EventRow {
   readonly event_ordinal: number
 }
 
+function assertManifestEvents(manifest: WorldJsonValue, events: readonly WorldEventDraft[]): void {
+  if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) return
+  const root = manifest as WorldJsonObject
+  if (root.schemaVersion !== 2) return
+  const registries = root.registries
+  if (typeof registries !== 'object' || registries === null || Array.isArray(registries)) throw new TypeError('compiled manifest registries are malformed')
+  const eventRegistry = (registries as WorldJsonObject).events
+  if (typeof eventRegistry !== 'object' || eventRegistry === null || Array.isArray(eventRegistry)) {
+    throw new TypeError('compiled manifest Event Registry is malformed')
+  }
+  const eventRegistryObject = eventRegistry as WorldJsonObject
+  if (!Array.isArray(eventRegistryObject.definitions)) throw new TypeError('compiled manifest Event Registry is malformed')
+  const allowed = new Set((eventRegistryObject.definitions as readonly WorldJsonValue[]).map((entry) => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      throw new TypeError('compiled manifest Event Registry definition is malformed')
+    }
+    const definition = entry as WorldJsonObject
+    if (typeof definition.name !== 'string' || !Number.isSafeInteger(definition.version) || (definition.version as number) <= 0) {
+      throw new TypeError('compiled manifest Event Registry definition is malformed')
+    }
+    return `${definition.name}\u001f${definition.version}`
+  }))
+  for (const event of events) {
+    if (!allowed.has(`${event.eventType}\u001f${event.eventVersion}`)) {
+      throw new TypeError(`event ${event.eventType}@${event.eventVersion} is not locked by the Compiled Manifest`)
+    }
+  }
+}
+
 /** Authoritative Phase 0 World Event, Head, Tick, and Outbox store. */
 export class WorldStore {
   readonly #db: DatabaseSync
@@ -386,6 +431,7 @@ export class WorldStore {
     if (hashWorldJson('world-genesis-plan', request.genesisEvents) !== request.genesisHash) {
       throw new TypeError('genesisHash does not match Genesis events')
     }
+    assertManifestEvents(request.manifest, request.genesisEvents)
     const addressKey = worldAddressKey(request.address)
     this.#audit.record(addressKey, 'world.activate.requested', request.correlationId, {
       manifestHash: request.manifestHash,
@@ -620,6 +666,8 @@ export class WorldStore {
     if (request.events.length === 0) throw new TypeError('a committed round requires at least one event')
     if (request.nextTick !== request.expectedTick + 1) throw new TypeError('a committed round advances exactly one tick')
     const addressKey = worldAddressKey(request.address)
+    const activeManifest = this.#readManifestByKey(addressKey)
+    if (activeManifest !== undefined) assertManifestEvents(activeManifest.manifest, request.events)
     const requestHash = hashWorldJson('world-round-commit-request', {
       address: request.address,
       transactionId: request.transactionId,

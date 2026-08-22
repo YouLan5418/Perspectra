@@ -1,4 +1,5 @@
 export * from './character-view.ts'
+export * from './character-runtime.ts'
 export * from './branch-administration.ts'
 export * from './archive-service.ts'
 export * from './outbox-worker.ts'

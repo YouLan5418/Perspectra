@@ -51,6 +51,7 @@ function characterView(): CharacterView {
     address: address(),
     characterId,
     asOfWorldSeq: 1,
+    lifecycleState: 'active' as const,
     locationId: 'location:room',
     scenes: [],
     observations: [],

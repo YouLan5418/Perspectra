@@ -46,6 +46,27 @@ function spec() {
   }
 }
 
+function specV2() {
+  return {
+    schemaVersion: 2,
+    address: { tenantId: 'tenant:spec', worldId: 'world:spec', branchId: 'branch:main' },
+    metadata: { title: 'Specification World', description: 'complete frozen contract' },
+    timeMode: 'TURN_DRIVEN',
+    roundQueueLimit: 8,
+    runtimePolicy: { npcInitialAvailability: 'provisioning', playerInitialAvailability: 'ready' },
+    rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+    locations: [{ locationId: 'location:a', name: 'Alpha' }],
+    entities: [{ entityId: 'entity:key', locationId: 'location:a', kind: 'key' }],
+    characters: [{ characterId: 'character:a', name: 'Alpha', locationId: 'location:a' }],
+    scenes: [{ sceneId: 'scene:a', participantIds: ['character:a'] }],
+    goals: [{ goalId: 'goal:a', characterId: 'character:a', value: { intent: 'explore' } }],
+    claims: [{ claimId: 'claim:a', characterId: 'character:a', value: { proposition: 'key exists' } }],
+    observations: [{ observationId: 'observation:a', observerId: 'character:a', value: { content: 'a key' } }],
+    playerBindings: [{ principalId: 'principal:a', characterId: 'character:a', sessionId: 'session:a' }],
+    plugins: [{ pluginId: 'plugin:a', version: '1.0.0' }],
+  }
+}
+
 function activation(compiled: CompiledWorldSpec) {
   const identity = { address: compiled.manifest.address, manifestHash: compiled.manifestHash, genesisHash: compiled.genesisHash }
   return {
@@ -68,7 +89,18 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     expect(compiled.manifest.characters.map(value => value.characterId)).toEqual(['character:a', 'character:b'])
     expect(compiled.manifest.playerBindings.map(value => value.principalId)).toEqual(['principal:a', 'principal:b'])
     expect(compiled.manifest.plugins.map(value => value.pluginId)).toEqual(['plugin:a', 'plugin:z'])
-    expect(compiled.genesisEvents[0]).toMatchObject({ eventType: 'world.activated' })
+    expect(compiled.genesisEvents.map(event => event.eventType)).toEqual([
+      'world.created', 'world.manifest-locked', 'location.upsert', 'location.upsert',
+      'character.created', 'character.created', 'player.binding.upsert', 'player.binding.upsert',
+      'world.lifecycle-changed',
+    ])
+    expect(compiled.manifest).toMatchObject({
+      schemaVersion: 2,
+      canonicalVersion: 'world-json/v1',
+      hashVersion: 'sha256/v1',
+      specHash: expect.stringMatching(/^sha256:/),
+      genesisPlanHash: expect.stringMatching(/^sha256:/),
+    })
 
     const path = database('bootstrap.sqlite')
     const store = new WorldStore(path)
@@ -139,6 +171,70 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     for (const value of invalid) expect(() => compiler.compile(value)).toThrow(TypeError)
   })
 
+  it('compiles the complete V2 manifest, registries, and ordered Genesis seed plan', () => {
+    const compiled = new WorldSpecCompiler().compile(specV2())
+    expect(compiled.manifest).toMatchObject({
+      metadata: specV2().metadata,
+      runtimePolicy: specV2().runtimePolicy,
+      entities: specV2().entities,
+      scenes: specV2().scenes,
+      goals: specV2().goals,
+      claims: specV2().claims,
+      observations: specV2().observations,
+    })
+    expect([
+      compiled.manifest.registries.events, compiled.manifest.registries.actions,
+      compiled.manifest.registries.projections, compiled.manifest.registries.rules,
+    ].every(value => value.registryHash.startsWith('sha256:'))).toBe(true)
+    expect(compiled.genesisEvents.map(event => event.eventType)).toEqual([
+      'world.created', 'world.manifest-locked', 'location.upsert', 'entity.upsert', 'character.created',
+      'scene.upsert', 'goal.upsert', 'claim.upsert', 'observation.upsert', 'player.binding.upsert',
+      'world.lifecycle-changed',
+    ])
+    expect(new WorldSpecCompiler().compile(structuredClone(specV2()))).toEqual(compiled)
+  })
+
+  it('rejects malformed complete V2 authoring fields and reference graphs', () => {
+    const compiler = new WorldSpecCompiler()
+    const base = specV2()
+    const invalid: unknown[] = [
+      { ...base, schemaVersion: 3 },
+      { ...base, metadata: null },
+      { ...base, metadata: { ...base.metadata, extra: true } },
+      { ...base, metadata: { title: '', description: '' } },
+      { ...base, metadata: { title: 'ok', description: 1 } },
+      { ...base, runtimePolicy: null },
+      { ...base, runtimePolicy: { ...base.runtimePolicy, extra: true } },
+      { ...base, runtimePolicy: { ...base.runtimePolicy, npcInitialAvailability: 'offline' } },
+      { ...base, runtimePolicy: { ...base.runtimePolicy, playerInitialAvailability: 'provisioning' } },
+      { ...base, entities: {} },
+      { ...base, entities: [null] },
+      { ...base, entities: [{ ...base.entities[0]!, extra: true }] },
+      { ...base, entities: [{ ...base.entities[0]!, entityId: '' }] },
+      { ...base, entities: [{ ...base.entities[0]!, locationId: 'missing' }] },
+      { ...base, entities: [{ ...base.entities[0]!, kind: '' }] },
+      { ...base, entities: [base.entities[0]!, base.entities[0]!] },
+      { ...base, goals: {} },
+      { ...base, goals: [null] },
+      { ...base, goals: [{ ...base.goals[0]!, extra: true }] },
+      { ...base, goals: [{ ...base.goals[0]!, characterId: 'missing' }] },
+      { ...base, goals: [{ ...base.goals[0]!, goalId: '' }] },
+      { ...base, goals: [base.goals[0]!, base.goals[0]!] },
+      { ...base, claims: [base.claims[0]!, base.claims[0]!] },
+      { ...base, observations: [base.observations[0]!, base.observations[0]!] },
+      { ...base, scenes: {} },
+      { ...base, scenes: [null] },
+      { ...base, scenes: [{ ...base.scenes[0]!, extra: true }] },
+      { ...base, scenes: [{ ...base.scenes[0]!, participantIds: {} }] },
+      { ...base, scenes: [{ ...base.scenes[0]!, participantIds: [''] }] },
+      { ...base, scenes: [{ ...base.scenes[0]!, participantIds: ['character:a', 'character:a'] }] },
+      { ...base, scenes: [{ ...base.scenes[0]!, participantIds: ['missing'] }] },
+      { ...base, scenes: [{ ...base.scenes[0]!, sceneId: '' }] },
+      { ...base, scenes: [base.scenes[0]!, base.scenes[0]!] },
+    ]
+    for (const value of invalid) expect(() => compiler.compile(value)).toThrow(TypeError)
+  })
+
   it('fails closed on conflicting or corrupted activation inputs', () => {
     const compiler = new WorldSpecCompiler()
     const compiled = compiler.compile(spec())
@@ -168,6 +264,59 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     const collision = new WorldStore(collisionPath)
     expect(() => collision.activateBranch(activation(compiled))).toThrow('different bytes')
     collision.close()
+  })
+
+  it('enforces the frozen Event Registry at activation and every later commit', async () => {
+    const compiled = new WorldSpecCompiler().compile(specV2())
+    for (const [index, manifest] of ([null, [], { schemaVersion: 1 }] as const).entries()) {
+      const legacyStore = new WorldStore(database(`registry-legacy-${index}.sqlite`))
+      const genesisEvents = [{ eventType: 'legacy.genesis', eventVersion: 1, data: null }]
+      expect(legacyStore.activateBranch({
+        ...activation(compiled), manifest, manifestHash: hashWorldJson('compiled-world-manifest', manifest),
+        genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
+        transactionId: brandId(`transaction:legacy:${index}`, 'TransactionId'),
+        roundId: brandId(`round:legacy:${index}`, 'InteractionRoundId'),
+      }).status).toBe('activated')
+      legacyStore.close()
+    }
+    const invalidManifests: WorldJsonValue[] = [
+      { ...compiled.manifest, registries: null },
+      { ...compiled.manifest, registries: { ...compiled.manifest.registries, events: null } },
+      { ...compiled.manifest, registries: { ...compiled.manifest.registries, events: { definitions: null, registryHash: compiled.manifest.registries.events.registryHash } } },
+      { ...compiled.manifest, registries: { ...compiled.manifest.registries, events: { definitions: [null], registryHash: compiled.manifest.registries.events.registryHash } } },
+      { ...compiled.manifest, registries: { ...compiled.manifest.registries, events: { definitions: [{ name: 1, version: 1 }], registryHash: compiled.manifest.registries.events.registryHash } } },
+      { ...compiled.manifest, registries: { ...compiled.manifest.registries, events: { definitions: [{ name: 'world.created', version: 0 }], registryHash: compiled.manifest.registries.events.registryHash } } },
+    ]
+    for (const [index, manifest] of invalidManifests.entries()) {
+      const store = new WorldStore(database(`registry-malformed-${index}.sqlite`))
+      expect(() => store.activateBranch({ ...activation(compiled), manifest, manifestHash: hashWorldJson('compiled-world-manifest', manifest) }))
+        .toThrow(/malformed/i)
+      store.close()
+    }
+
+    const unknownGenesis = [{ ...compiled.genesisEvents[0]!, eventType: 'world.unknown' }, ...compiled.genesisEvents.slice(1)]
+    const activationStore = new WorldStore(database('registry-unknown-genesis.sqlite'))
+    expect(() => activationStore.activateBranch({
+      ...activation(compiled), genesisEvents: unknownGenesis, genesisHash: hashWorldJson('world-genesis-plan', unknownGenesis),
+    })).toThrow('not locked')
+    activationStore.close()
+
+    const store = new WorldStore(database('registry-round.sqlite'))
+    new WorldBootstrap(store).activate(compiled)
+    for (const event of [
+      { eventType: 'world.unknown', eventVersion: 1, data: null },
+      { eventType: 'character.speak', eventVersion: 2, data: null },
+    ]) {
+      const head = store.head(compiled.manifest.address)
+      await expect(store.commitRound({
+        address: compiled.manifest.address,
+        transactionId: brandId(`transaction:${event.eventType}:${event.eventVersion}`, 'TransactionId'),
+        roundId: brandId(`round:${event.eventType}:${event.eventVersion}`, 'InteractionRoundId'),
+        expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
+        events: [event], outbox: [], correlationId: 'registry-round',
+      })).rejects.toThrow('not locked')
+    }
+    store.close()
   })
 
   it('rejects values outside World JSON before interpreting fields', () => {
