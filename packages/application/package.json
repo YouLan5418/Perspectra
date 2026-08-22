@@ -1,0 +1,13 @@
+{
+  "name": "@harness-world/application",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@harness-world/agents": "workspace:*",
+    "@harness-world/contracts": "workspace:*",
+    "@harness-world/kernel": "workspace:*",
+    "@harness-world/store-sqlite": "workspace:*"
+  }
+}

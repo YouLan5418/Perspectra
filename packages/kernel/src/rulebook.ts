@@ -1,4 +1,4 @@
-import type { StoredWorldEvent, WorldEventDraft, WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
+import type { WorldEventDraft, WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
 import type { CompiledWorldManifest } from './world-spec.ts'
 
 export interface PlayerActionInput extends WorldJsonObject {
@@ -18,7 +18,12 @@ function object(value: WorldJsonValue): Record<string, WorldJsonValue> | undefin
     : undefined
 }
 
-function currentLocation(events: readonly StoredWorldEvent[], characterId: string): string | undefined {
+export interface RulebookEvent {
+  readonly eventType: string
+  readonly data: WorldJsonValue
+}
+
+function currentLocation(events: readonly RulebookEvent[], characterId: string): string | undefined {
   let locationId: string | undefined
   for (const event of events) {
     const data = object(event.data)
@@ -33,7 +38,7 @@ function currentLocation(events: readonly StoredWorldEvent[], characterId: strin
 export class SpeakMoveRulebook {
   resolve(
     manifest: CompiledWorldManifest,
-    events: readonly StoredWorldEvent[],
+    events: readonly RulebookEvent[],
     characterId: string,
     action: PlayerActionInput,
   ): RulebookResolution {

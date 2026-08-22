@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@harness-world/agents': `${root}packages/agents/src/index.ts`,
+      '@harness-world/application': `${root}packages/application/src/index.ts`,
       '@harness-world/contracts': `${root}packages/contracts/src/index.ts`,
       '@harness-world/kernel': `${root}packages/kernel/src/index.ts`,
       '@harness-world/memory': `${root}packages/memory/src/index.ts`,
@@ -25,6 +26,7 @@ export default defineConfig({
       provider: 'v8',
       include: [
         'packages/agents/src/**/*.ts',
+        'packages/application/src/**/*.ts',
         'packages/contracts/src/**/*.ts',
         'packages/kernel/src/**/*.ts',
         'packages/memory/src/**/*.ts',

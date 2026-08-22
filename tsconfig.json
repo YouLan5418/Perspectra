@@ -18,6 +18,7 @@
     "noEmit": true,
     "paths": {
       "@harness-world/agents": ["./packages/agents/src/index.ts"],
+      "@harness-world/application": ["./packages/application/src/index.ts"],
       "@harness-world/contracts": ["./packages/contracts/src/index.ts"],
       "@harness-world/kernel": ["./packages/kernel/src/index.ts"],
       "@harness-world/memory": ["./packages/memory/src/index.ts"],
