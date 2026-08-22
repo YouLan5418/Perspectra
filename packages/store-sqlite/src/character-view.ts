@@ -78,6 +78,8 @@ export class CharacterViewBuilder {
 
   rebuildAt(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number): CharacterView {
     if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
+    const head = this.worldStore.head(address)
+    if (asOfWorldSeq > head.headSeq) throw new RangeError('asOfWorldSeq cannot be later than the branch head')
     const events = this.worldStore.readEvents(address, asOfWorldSeq)
     const projections = new ProjectionRebuilder(this.worldStore).rebuildAt(address, asOfWorldSeq)
     const observations = projections.observations.filter(record => owned(record, characterId, 'observerId'))

@@ -106,6 +106,7 @@ describe('CharacterViewBuilder', () => {
     expect(JSON.stringify(parentNow)).toContain('FUTURE_CANARY')
     expect(parentNow.scenes.map(scene => scene.sceneId)).toEqual(['scene:shared'])
     expect(() => builder.rebuildAt(parent, characterA, -1)).toThrow(RangeError)
+    expect(() => builder.rebuildAt(parent, characterA, store.head(parent).headSeq + 1)).toThrow('later than the branch head')
     store.close()
   })
 

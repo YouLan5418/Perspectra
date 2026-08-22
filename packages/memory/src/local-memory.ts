@@ -10,7 +10,14 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { openOwnedDatabase, parseWorldJson, rollbackAndThrow, worldJsonText } from '@harness-world/store-sqlite'
+import {
+  CharacterViewBuilder,
+  openMigratedDatabase,
+  parseWorldJson,
+  rollbackAndThrow,
+  type WorldStore,
+  worldJsonText,
+} from '@harness-world/store-sqlite'
 
 const MEMORY_APPLICATION_ID = 0x4843574c
 const MEMORY_SCHEMA = `
@@ -45,6 +52,16 @@ CREATE TABLE memory_sources (
 CREATE VIRTUAL TABLE memory_fts USING fts5(namespace_key UNINDEXED, memory_id UNINDEXED, text_value);
 `
 
+const MEMORY_RECONCILE_SCHEMA = `
+CREATE TABLE memory_namespace_watermarks (
+  namespace_key TEXT PRIMARY KEY,
+  as_of_seq INTEGER NOT NULL CHECK(as_of_seq >= 0),
+  bundle_hash TEXT NOT NULL
+) STRICT;
+`
+
+export const MEMORY_SCHEMA_VERSION = 2
+
 export const TENCENTDB_MEMORY_ENABLED = false
 
 export type MemorySourceKind = 'observation' | 'claim' | 'summary'
@@ -75,6 +92,13 @@ export interface RecalledMemory extends WorldJsonObject {
   readonly captureHash: WorldHash
 }
 
+export interface ReconcileMemoryRequest {
+  readonly address: WorldAddress
+  readonly characterId: CharacterId
+  readonly asOfWorldSeq: number
+  readonly correlationId: string
+}
+
 function namespace(address: WorldAddress, characterId: CharacterId): string {
   return `${worldAddressKey(address)}\u001f${characterId}`
 }
@@ -86,12 +110,21 @@ function sourceHash(kind: 'observation' | 'claim', record: CharacterView['observ
 /** Local FTS5 memory with mandatory character/branch namespace and source closure checks. */
 export class LocalMemoryStore {
   readonly #db: DatabaseSync
+  readonly #viewBuilder: CharacterViewBuilder
 
-  constructor(path: string) {
-    this.#db = openOwnedDatabase(path, MEMORY_APPLICATION_ID, MEMORY_SCHEMA)
+  constructor(path: string, worldStore: WorldStore) {
+    this.#db = openMigratedDatabase(path, MEMORY_APPLICATION_ID, [
+      { version: 1, sql: MEMORY_SCHEMA },
+      { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_RECONCILE_SCHEMA },
+    ])
+    this.#viewBuilder = new CharacterViewBuilder(worldStore)
   }
 
-  reconcile(view: CharacterView): number {
+  reconcile(request: ReconcileMemoryRequest): number {
+    if (!Number.isSafeInteger(request.asOfWorldSeq) || request.asOfWorldSeq < 0) {
+      throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
+    }
+    const view = this.#viewBuilder.rebuildAt(request.address, request.characterId, request.asOfWorldSeq)
     const key = namespace(view.address, view.characterId)
     const sources = [
       ...view.observations.map(record => ({ kind: 'observation' as const, record })),
@@ -99,14 +132,53 @@ export class LocalMemoryStore {
     ]
     this.#db.exec('BEGIN IMMEDIATE')
     try {
+      const watermark = this.#db.prepare(`
+        SELECT as_of_seq, bundle_hash FROM memory_namespace_watermarks WHERE namespace_key = ?
+      `).get(key) as { as_of_seq: number; bundle_hash: WorldHash } | undefined
+      if (watermark !== undefined && watermark.as_of_seq > request.asOfWorldSeq) {
+        this.#unverifiedReconcile(request, 'Memory reconciliation cannot move a namespace backward')
+      }
+      if (watermark?.as_of_seq === request.asOfWorldSeq && watermark.bundle_hash !== view.bundleHash) {
+        this.#unverifiedReconcile(request, 'Memory reconciliation diverged at the same asOfWorldSeq')
+      }
+      const currentMappings = this.#db.prepare(`
+        SELECT source_kind, source_id, source_seq, source_hash
+        FROM memory_source_mappings WHERE namespace_key = ?
+      `).all(key) as Array<{
+        source_kind: 'observation' | 'claim'
+        source_id: string
+        source_seq: number
+        source_hash: WorldHash
+      }>
+      const sourceKeys = new Set(sources.map(source => `${source.kind}\u001f${source.record.id}`))
+      for (const current of currentMappings) {
+        if (!sourceKeys.has(`${current.source_kind}\u001f${current.source_id}`)) {
+          this.#db.prepare(`
+            DELETE FROM memory_source_mappings
+            WHERE namespace_key = ? AND source_kind = ? AND source_id = ?
+          `).run(key, current.source_kind, current.source_id)
+        }
+      }
       for (const source of sources) {
+        const hash = sourceHash(source.kind, source.record)
+        const current = currentMappings.find(value => value.source_kind === source.kind && value.source_id === source.record.id)
+        if (current !== undefined && current.source_seq > source.record.sourceSeq) {
+          this.#unverifiedReconcile(request, 'Memory source sequence cannot move backward')
+        }
+        if (current?.source_seq === source.record.sourceSeq && current.source_hash !== hash) {
+          this.#unverifiedReconcile(request, 'Memory source hash diverged at the same sequence')
+        }
         this.#db.prepare(`
           INSERT INTO memory_source_mappings(namespace_key, source_kind, source_id, source_seq, source_hash)
           VALUES (?, ?, ?, ?, ?)
           ON CONFLICT(namespace_key, source_kind, source_id) DO UPDATE SET
             source_seq = excluded.source_seq, source_hash = excluded.source_hash
-        `).run(key, source.kind, source.record.id, source.record.sourceSeq, sourceHash(source.kind, source.record))
+        `).run(key, source.kind, source.record.id, source.record.sourceSeq, hash)
       }
+      this.#db.prepare(`
+        INSERT INTO memory_namespace_watermarks(namespace_key, as_of_seq, bundle_hash) VALUES (?, ?, ?)
+        ON CONFLICT(namespace_key) DO UPDATE SET as_of_seq = excluded.as_of_seq, bundle_hash = excluded.bundle_hash
+      `).run(key, request.asOfWorldSeq, view.bundleHash)
       this.#db.exec('COMMIT')
       return sources.length
     } catch (error: unknown) {
@@ -223,6 +295,17 @@ export class LocalMemoryStore {
   }
 
   #unverified(request: CaptureMemoryRequest, message: string): never {
+    failWorld({
+      errorCode: 'MEMORY_SOURCE_UNVERIFIED',
+      category: 'integrity',
+      message,
+      retryable: false,
+      correlationId: request.correlationId,
+      address: request.address,
+    })
+  }
+
+  #unverifiedReconcile(request: ReconcileMemoryRequest, message: string): never {
     failWorld({
       errorCode: 'MEMORY_SOURCE_UNVERIFIED',
       category: 'integrity',
