@@ -431,6 +431,9 @@ describe('WorldStore and temporal projections', () => {
     const recovered = new WorldStore(path)
     expect(recovered.head(fixtureAddress()).headSeq).toBe(0)
     expect(recovered.readOutbox(fixtureAddress())).toEqual([])
+    const audit = new BranchAdministration(path)
+    expect(audit.readAudit(fixtureAddress())).toEqual([])
+    audit.close()
     recovered.close()
   })
 
@@ -444,6 +447,12 @@ describe('WorldStore and temporal projections', () => {
     failing.close()
     const recovered = new WorldStore(path)
     expect(recovered.head(fixtureAddress()).headSeq).toBe(1)
+    const audit = new BranchAdministration(path)
+    expect(audit.readAudit(fixtureAddress())).toMatchObject([{
+      operation: 'round.committed',
+      details: { transactionId: fixtureCommitRequest().transactionId, headSeq: 1, tick: 1 },
+    }])
+    audit.close()
     recovered.close()
   })
 

@@ -8,7 +8,7 @@ import {
   type WorldHash,
   type WorldJsonObject,
 } from '@harness-world/contracts'
-import { readPragmaInteger, WORLD_APPLICATION_ID } from './sqlite.ts'
+import { readPragmaInteger, rollbackAndThrow, WORLD_APPLICATION_ID } from './sqlite.ts'
 import { openWorldDatabase, WORLD_SCHEMA_VERSION } from './world-store.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
 
@@ -39,7 +39,9 @@ export class WorldArchiveService {
     const source = openWorldDatabase(this.sourcePath)
     try {
       await backup(source, targetPath)
-      return this.#inspect(targetPath, correlationId, 'BACKUP_INVALID')
+      const artifact = this.#inspect(targetPath, correlationId, 'BACKUP_INVALID')
+      this.#audit('archive.backup.completed', correlationId, { targetPath, artifact })
+      return artifact
     } catch (error: unknown) {
       rmSync(targetPath, { force: true })
       failWorld({
@@ -62,7 +64,15 @@ export class WorldArchiveService {
       })
     }
     writeFileSync(targetPath, readFileSync(backupPath), { flag: 'wx' })
-    return this.#inspect(targetPath, correlationId, 'RESTORE_VALIDATION_FAILED')
+    this.#prepareRecoveryTarget(targetPath)
+    const restored = this.#inspect(targetPath, correlationId, 'RESTORE_VALIDATION_FAILED')
+    const provenance = {
+      sourcePath: resolve(this.sourcePath), backupPath: resolve(backupPath), expectedHash,
+      recoveryMode: 'redeliver-outbox', artifact: restored,
+    }
+    this.#auditAt(targetPath, 'archive.restore.completed', correlationId, provenance)
+    this.#audit('archive.restore.completed', correlationId, { targetPath, artifact: restored })
+    return restored
   }
 
   async exportPortable(exportPath: string, correlationId: string): Promise<WorldBackupArtifact> {
@@ -78,6 +88,7 @@ export class WorldArchiveService {
         sqliteBase64: readFileSync(temporary).toString('base64'),
       }
       writeFileSync(exportPath, canonicalizeWorldJson(envelope), { flag: 'wx' })
+      this.#audit('archive.export.completed', correlationId, { exportPath, artifact })
       return artifact
     } finally {
       rmSync(temporary, { force: true })
@@ -111,7 +122,15 @@ export class WorldArchiveService {
       })
     }
     writeFileSync(targetPath, bytes, { flag: 'wx' })
-    return this.#inspect(targetPath, correlationId, 'BACKUP_INVALID')
+    this.#prepareRecoveryTarget(targetPath)
+    const imported = this.#inspect(targetPath, correlationId, 'BACKUP_INVALID')
+    const provenance = {
+      sourcePath: resolve(this.sourcePath), exportPath: resolve(exportPath),
+      recoveryMode: 'redeliver-outbox', artifact: imported,
+    }
+    this.#auditAt(targetPath, 'archive.import.completed', correlationId, provenance)
+    this.#audit('archive.import.completed', correlationId, { targetPath, artifact: imported })
+    return imported
   }
 
   #guardNewTarget(targetPath: string, correlationId: string): void {
@@ -124,11 +143,33 @@ export class WorldArchiveService {
   }
 
   #audit(operation: string, correlationId: string, details: WorldJsonObject): void {
-    const audit = new OperationalAuditLog(`${this.sourcePath}.audit.sqlite`)
+    this.#auditAt(this.sourcePath, operation, correlationId, details)
+  }
+
+  #auditAt(databasePath: string, operation: string, correlationId: string, details: WorldJsonObject): void {
+    const audit = new OperationalAuditLog(`${databasePath}.audit.sqlite`)
     try {
-      audit.record(resolve(this.sourcePath), operation, correlationId, details)
+      audit.record(resolve(databasePath), operation, correlationId, details)
     } finally {
       audit.close()
+    }
+  }
+
+  #prepareRecoveryTarget(path: string): void {
+    const db = openWorldDatabase(path)
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      db.exec(`
+        UPDATE outbox SET delivery_status = 'pending', attempt_count = 0, session_delivery_seq = NULL,
+          last_error = NULL, claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL;
+        DELETE FROM outbox_delivery_receipts;
+        DELETE FROM outbox_session_counters;
+      `)
+      db.exec('COMMIT')
+    } catch (error: unknown) {
+      rollbackAndThrow(db, error)
+    } finally {
+      db.close()
     }
   }
 

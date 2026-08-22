@@ -622,6 +622,16 @@ export class WorldStore {
         previousHash,
         addressKey,
       )
+      this.#db.prepare(`
+        INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
+        VALUES (?, 'round.committed', ?, ?, ?)
+      `).run(addressKey, request.correlationId, worldJsonText({
+        transactionId: request.transactionId,
+        roundId: request.roundId,
+        bundleHash,
+        headSeq: finalHeadSeq,
+        tick: request.nextTick,
+      }), this.operationalNow())
       this.faultInjector?.hit('store.before-commit')
       this.#db.exec('COMMIT')
       result = { status: 'committed', headSeq: finalHeadSeq, tick: request.nextTick, bundleHash }

@@ -67,8 +67,9 @@ describe('BranchAdministration', () => {
     expect(admin.readAudit(target)).toMatchObject([
       { auditSeq: 1, operation: 'branch.admission.changed', correlationId: 'admin:drain', operationalTimeMs: 1234 },
       { auditSeq: 2, operation: 'branch.admission.changed' },
-      { auditSeq: 3, operation: 'branch.admission.changed' },
-      { auditSeq: 4, operation: 'branch.archived' },
+      { auditSeq: 3, operation: 'round.committed', correlationId: 'admin:one' },
+      { auditSeq: 4, operation: 'branch.admission.changed' },
+      { auditSeq: 5, operation: 'branch.archived' },
     ])
     admin.close()
     store.close()

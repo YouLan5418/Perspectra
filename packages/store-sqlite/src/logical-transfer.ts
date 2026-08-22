@@ -73,6 +73,7 @@ export class WorldLogicalTransferService {
       const bundleHash = hashWorldJson('logical-authority-export', data)
       const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v2', data, bundleHash }
       writeFileSync(targetPath, canonicalizeWorldJson(envelope), { flag: 'wx' })
+      this.#audit('authority.export.completed', correlationId, { targetPath, bundleHash })
       return bundleHash
     } catch (error: unknown) {
       try { db.exec('ROLLBACK') } catch { /* a failed read may end the transaction */ }
@@ -121,11 +122,15 @@ export class WorldLogicalTransferService {
       this.#validateOutbox(db, correlationId)
       this.#validateCompletedInbox(db, correlationId)
       db.exec('COMMIT')
+      const provenance = { sourcePath: resolve(this.sourcePath), exportPath: resolve(exportPath), bundleHash: actualHash }
+      this.#auditAt(targetPath, 'authority.import.completed', correlationId, provenance)
+      this.#audit('authority.import.completed', correlationId, { targetPath, bundleHash: actualHash })
       return actualHash
     } catch (error: unknown) {
       try { db.exec('ROLLBACK') } catch { /* validation may fail after SQLite ended the transaction */ }
       db.close()
       for (const suffix of ['', '-wal', '-shm']) rmSync(`${targetPath}${suffix}`, { force: true })
+      for (const suffix of ['', '-wal', '-shm']) rmSync(`${targetPath}.audit.sqlite${suffix}`, { force: true })
       throw error
     } finally {
       if (db.isOpen) db.close()
@@ -363,9 +368,13 @@ export class WorldLogicalTransferService {
   }
 
   #audit(operation: string, correlationId: string, details: WorldJsonObject): void {
-    const audit = new OperationalAuditLog(`${this.sourcePath}.audit.sqlite`)
+    this.#auditAt(this.sourcePath, operation, correlationId, details)
+  }
+
+  #auditAt(databasePath: string, operation: string, correlationId: string, details: WorldJsonObject): void {
+    const audit = new OperationalAuditLog(`${databasePath}.audit.sqlite`)
     try {
-      audit.record(resolve(this.sourcePath), operation, correlationId, details)
+      audit.record(resolve(databasePath), operation, correlationId, details)
     } finally {
       audit.close()
     }

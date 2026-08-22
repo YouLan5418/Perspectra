@@ -75,6 +75,12 @@ describe('WorldLogicalTransferService', () => {
     const importedOutbox = new WorldOutbox(target)
     expect(importedOutbox.claimNext()).toMatchObject({ deliveryId: commitRequest.outbox[0]!.deliveryId, attemptCount: 1 })
     importedOutbox.close()
+    const importProvenance = new OperationalAuditLog(`${target}.audit.sqlite`)
+    expect(importProvenance.read()).toMatchObject([{
+      operation: 'authority.import.completed',
+      details: { exportPath: expect.stringContaining('world.dshworld'), bundleHash },
+    }])
+    importProvenance.close()
     const tamperedInbox = JSON.parse(readFileSync(exportPath, 'utf8')) as any
     tamperedInbox.data.tables.round_inbox[0].commit_bundle_hash = 'sha256:wrong'
     tamperedInbox.bundleHash = hashWorldJson('logical-authority-export', tamperedInbox.data)
@@ -94,7 +100,8 @@ describe('WorldLogicalTransferService', () => {
     expect(() => service.importAuthority(exportPath, target, 'logical:exists')).toThrow('already exists')
     const audit = new OperationalAuditLog(`${source}.audit.sqlite`)
     expect(audit.read().map(event => event.operation)).toEqual(expect.arrayContaining([
-      'authority.export.requested', 'authority.import.requested',
+      'authority.export.requested', 'authority.export.completed',
+      'authority.import.requested', 'authority.import.completed',
     ]))
     audit.close()
   })
