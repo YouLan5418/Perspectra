@@ -44,13 +44,13 @@ console.log(hash)
 | `@harness-world/application` | WorldApplication 组合根、统一 Round、Branch 排空与真实 Runtime 组件 |
 | `@harness-world/contracts` | 品牌 ID、WorldAddress、Canonical JSON、Hash、错误和 Registry |
 | `@harness-world/agents` | ContextAssembler、submit_actions、HarnessAgentPort、预算、Director Scheduler 与 Replay |
-| `@harness-world/kernel` | WorldSpec Compiler、Tick 0 Genesis、PlayerBinding、speak/move Rulebook 与 WorldKernel |
+| `@harness-world/kernel` | WorldSpec Compiler、Tick 0 Genesis、PlayerBinding、版本化 speak/move/take Rulebook 与 WorldKernel |
 | `@harness-world/memory` | 本地 SQLite FTS5 Memory、source mapping、as-of 防火墙和认知规则 |
 | `@harness-world/operations` | 无网络监听的本机 CLI/JSON-RPC、Health 和固定基数 Metrics |
 | `@harness-world/presentation` | 只消费已授权 Observation 的确定性模板渲染器 |
 | `@harness-world/runtime-cordis` | BranchRuntimeSlot、Cordis Service/Listener/Dispose 隔离 |
 | `@harness-world/store-sqlite` | World/Session/Projection、Branch Barrier、Snapshot、Audit、Backup 与逻辑 Transfer |
-| `@harness-world/simulation` | Scripted Agent、三种 Director 和无模型 Round 闭环 |
+| `@harness-world/simulation` | Scripted Agent、三种 Director、无模型 Round 闭环与三角色悬疑 Scenario |
 | `@harness-world/testkit` | 确定性 Fixture、FaultInjector 和硬终止 Harness |
 
 ## 已验证行为
@@ -79,6 +79,7 @@ console.log(hash)
 - JSON-RPC 同时支持进程内路由与 newline-delimited stdio Headless 循环；CLI 的 `--wait` 只轮询耐久状态，没有 TCP、Pipe、Socket 或远程监听。
 - 生产 Cordis Slot 持有真实 Store、Kernel、Agent 和 Director 组件；Branch Fiber 统一释放资源，不再以 Probe 代替生产组件。
 - 玩家、NPC Agent 与 Director 候选在同一 Round 中经过严格校验、稳定排序和逐动作重裁决，并只执行一次 WorldStore 提交。
+- 三角色悬疑 Scenario 已冻结私有初始知识和差异化观察；Bob 通过 `take` Proposal 取得钥匙，重启后 Event、Authority 与 CharacterView Hash 保持不变。
 - Branch 行政操作先关闭 Gate，再排空已耐久受理的 FIFO，最后执行 fork/archive；新输入不能混入维护窗口。
 - `WorldApplication` 贯穿 Runtime、Outbox、Session 与 Presenter；父分支归档后子分支可继续提交，重启和幂等回放不再次调用 Provider。
 - Application JSON-RPC/CLI 覆盖激活、Round、Head、CharacterView、投递、渲染、fork/archive、Snapshot、Backup 和 Transfer；数据库 Writer 身份默认按进程实例隔离。
@@ -96,5 +97,6 @@ console.log(hash)
 - [Phase 6 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-6-report.md)
 - [Phase 6 独立审查修复报告](docs/2026-08-22_Phase-6独立审查修复报告.md)
 - [异步 Round 与本机 Headless 进度报告](docs/2026-08-23_进度报告-异步Round与本机Headless-report.md)
+- [三角色悬疑 Demo 首个可执行切片](docs/2026-08-23_进度报告-三角色悬疑Demo首个可执行切片.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。
