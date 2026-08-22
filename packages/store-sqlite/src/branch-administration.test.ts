@@ -120,6 +120,8 @@ describe('BranchAdministration', () => {
       correlationId: 'archive:pending',
     }, 4)
     expect(() => admin.archive(inboxTarget, 'blocked by Round', 'admin:inbox-archive')).toThrow('unfinished Round')
+    admin.setAdmission(inboxTarget, 'open', 'test fork guard', 'admin:inbox-open')
+    expect(() => store.forkBranch(inboxTarget, address('pending-round-child'), 0)).toThrow('pending or claimed Round')
 
     await store.commitRound({
       ...round(deliveryTarget),

@@ -451,6 +451,16 @@ export class WorldStore {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.#assertAdmissionOpen(parentKey, `fork:${child.branchId}`, parent)
+      const unfinishedRound = this.#db.prepare(`
+        SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status <> 'completed' LIMIT 1
+      `).get(parentKey)
+      if (unfinishedRound !== undefined) {
+        failWorld({
+          errorCode: 'BRANCH_DRAINING', category: 'admin',
+          message: 'branch fork requires no pending or claimed Round', retryable: true,
+          correlationId: `fork:${child.branchId}`, address: parent,
+        })
+      }
       const parentHead = this.#headRow(parentKey)
       if (!Number.isSafeInteger(forkSeq) || forkSeq < 0 || forkSeq > parentHead.head_seq) {
         throw new RangeError(`forkSeq ${forkSeq} is outside parent head ${parentHead.head_seq}`)
