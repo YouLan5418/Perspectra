@@ -55,7 +55,7 @@ function componentFactory(
       const agents = new TestComponent(ownerKey, 'agents')
       const director = { ownerKey }
       created.push(kernel, store, agents)
-      scope.context.on('phase6/probe', value => kernel.records.push(value))
+      scope.onEvent('phase6/probe', value => kernel.records.push(value))
       return { kernel, store, agents, director }
     },
   }
@@ -76,8 +76,8 @@ describe('WorldRuntimeRegistry', () => {
     expect(leaseA.slot.services.kernel.component).toBe(leaseA.slot.components.kernel)
     expect(registry.activeSlotCount).toBe(2)
 
-    leaseA.slot.context.emit(leaseA.slot.context, 'phase6/probe', 'a-only')
-    leaseB.slot.context.emit(leaseB.slot.context, 'phase6/probe', 'b-only')
+    leaseA.slot.emitEvent('phase6/probe', 'a-only')
+    leaseB.slot.emitEvent('phase6/probe', 'b-only')
     expect((leaseA.slot.components.kernel as TestComponent).records).toEqual(['a-only'])
     expect((leaseB.slot.components.kernel as TestComponent).records).toEqual(['b-only'])
 
@@ -87,7 +87,7 @@ describe('WorldRuntimeRegistry', () => {
     await leaseA2.dispose()
     expect(registry.activeSlotCount).toBe(1)
     const beforeDisposedEmit = (leaseA.slot.components.kernel as TestComponent).records.slice()
-    leaseA.slot.context.emit(leaseA.slot.context, 'phase6/probe', 'disposed')
+    leaseA.slot.emitEvent('phase6/probe', 'disposed')
     expect((leaseA.slot.components.kernel as TestComponent).records).toEqual(beforeDisposedEmit)
     expect((leaseA.slot.components.kernel as TestComponent).lifecycle).toBe('disposed')
     expect((leaseA.slot.components.store as CloseComponent).lifecycle).toBe('closed')

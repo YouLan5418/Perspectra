@@ -8,6 +8,11 @@ import {
 
 const branchScope = Symbol('harness-world.branch-scope')
 
+interface ScopedCordisEvents {
+  on(name: string | symbol, listener: (...args: any[]) => any): () => void
+  emit(thisArg: unknown, name: string | symbol, ...args: any[]): void
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     worldRuntimeRegistry: WorldRuntimeRegistry
@@ -38,8 +43,9 @@ export interface BranchRuntimeComponents {
 export interface BranchExecutionLane {
   readonly address: WorldAddress
   readonly manifestHash: WorldHash
-  readonly context: Context
   enqueueRound<T>(work: () => Promise<T>): Promise<T>
+  onEvent(name: string | symbol, listener: (...args: any[]) => any): () => void
+  emitEvent(name: string | symbol, ...args: any[]): void
 }
 
 export interface BranchComponentFactory {
@@ -65,14 +71,26 @@ class SerialRoundLane implements BranchExecutionLane {
   constructor(
     readonly address: WorldAddress,
     readonly manifestHash: WorldHash,
-    readonly context: Context,
+    private context: Context,
   ) {}
+
+  bindContext(context: Context): void {
+    this.context = context
+  }
 
   enqueueRound<T>(work: () => Promise<T>): Promise<T> {
     if (this.#disposed) return Promise.reject(new Error('branch runtime slot is disposed'))
     const execution = this.#roundTail.then(work, work)
     this.#roundTail = execution.then(() => undefined, () => undefined)
     return execution
+  }
+
+  onEvent(name: string | symbol, listener: (...args: any[]) => any): () => void {
+    return (this.context as unknown as ScopedCordisEvents).on(name, listener)
+  }
+
+  emitEvent(name: string | symbol, ...args: any[]): void {
+    (this.context as unknown as ScopedCordisEvents).emit(this.context, name, ...args)
   }
 
   dispose(): void {
@@ -90,7 +108,6 @@ export interface BranchServices {
 /** One isolated Cordis child context for an active world branch. */
 export class BranchRuntimeSlot {
   readonly addressKey: string
-  readonly context: Context
   readonly services: BranchServices
   readonly components: BranchRuntimeComponents
   #fiber: Fiber
@@ -107,7 +124,6 @@ export class BranchRuntimeSlot {
     components: BranchRuntimeComponents,
   ) {
     this.addressKey = worldAddressKey(address)
-    this.context = context
     this.#fiber = fiber
     this.#lane = lane
     this.services = services
@@ -135,12 +151,8 @@ export class BranchRuntimeSlot {
     let services!: BranchServices
     let components!: BranchRuntimeComponents
     const fiber = context.plugin(function branchRuntimePlugin(ctx) {
-      components = factory.create({
-        address,
-        manifestHash,
-        context: ctx,
-        enqueueRound: work => lane.enqueueRound(work),
-      })
+      lane.bindContext(ctx)
+      components = factory.create(lane)
       const kernel = new BranchComponentService(ctx, 'worldKernel', addressKey, components.kernel)
       const store = new BranchComponentService(ctx, 'worldStore', addressKey, components.store)
       const agents = new BranchComponentService(ctx, 'worldAgents', addressKey, components.agents)
@@ -160,6 +172,11 @@ export class BranchRuntimeSlot {
   /** Serialize process-local Round work without poisoning the FIFO after a failed item. */
   enqueueRound<T>(work: () => Promise<T>): Promise<T> {
     return this.#lane.enqueueRound(work)
+  }
+
+  /** Emit only through the branch-scoped Cordis dispatch identity. */
+  emitEvent(name: string | symbol, ...args: any[]): void {
+    this.#lane.emitEvent(name, ...args)
   }
 
   /** Unwind every service, listener, and effect owned by this slot. */
