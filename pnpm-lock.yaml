@@ -116,9 +116,15 @@ importers:
       '@harness-world/agents':
         specifier: workspace:*
         version: link:../agents
+      '@harness-world/application':
+        specifier: workspace:*
+        version: link:../application
       '@harness-world/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@harness-world/kernel':
+        specifier: workspace:*
+        version: link:../kernel
       '@harness-world/store-sqlite':
         specifier: workspace:*
         version: link:../store-sqlite
