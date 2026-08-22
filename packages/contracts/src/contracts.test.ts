@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   VersionedRegistry,
   WorldError,
+  assertProtocolString,
   brandId,
   canonicalizeWorldJson,
   createErrorEnvelope,
@@ -72,6 +73,8 @@ describe('identifiers, errors, and registries', () => {
     expect(() => brandId('tenant\u001fworld', 'TenantId')).toThrow('control characters')
     expect(() => brandId('line\nbreak', 'WorldId')).toThrow('control characters')
     expect(() => brandId('delete\u007f', 'BranchId')).toThrow('control characters')
+    expect(assertProtocolString('关联:正常', 'correlationId')).toBe('关联:正常')
+    expect(() => assertProtocolString('round\u0000hidden', 'idempotencyKey')).toThrow('control characters')
   })
 
   it('creates stable error envelopes and typed errors', () => {

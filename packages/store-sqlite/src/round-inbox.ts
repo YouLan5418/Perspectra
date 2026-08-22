@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
+  assertProtocolString,
   failWorld,
   hashWorldJson,
   worldAddressKey,
@@ -301,7 +302,7 @@ export class RoundInbox {
   }
 
   #validateText(value: string, name: string): void {
-    if (value.length === 0 || value.trim() !== value) throw new TypeError(`${name} must be a non-empty, unpadded string`)
+    assertProtocolString(value, name)
   }
 
   #requireBranch(key: string): void {

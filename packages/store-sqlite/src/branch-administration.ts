@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
+  assertProtocolString,
   failWorld,
   worldAddressKey,
   type WorldAddress,
@@ -46,7 +47,8 @@ export class BranchAdministration {
   }
 
   setAdmission(address: WorldAddress, state: 'open' | 'draining', reason: string, correlationId: string): BranchControlState {
-    if (reason.length === 0 || correlationId.length === 0) throw new TypeError('administrative reason and correlationId are required')
+    assertProtocolString(reason, 'administrative reason')
+    assertProtocolString(correlationId, 'correlationId')
     return this.#mutate(address, 'branch.admission.changed', correlationId, (current) => {
       if (current.lifecycleState === 'archived' && state === 'open') {
         failWorld({
@@ -59,7 +61,8 @@ export class BranchAdministration {
   }
 
   archive(address: WorldAddress, reason: string, correlationId: string): BranchControlState {
-    if (reason.length === 0 || correlationId.length === 0) throw new TypeError('administrative reason and correlationId are required')
+    assertProtocolString(reason, 'administrative reason')
+    assertProtocolString(correlationId, 'correlationId')
     return this.#mutate(address, 'branch.archived', correlationId, (current, key, now) => {
       this.#assertArchiveReady(address, key, current, correlationId, now)
       return { ...current, lifecycleState: 'archived', reason }

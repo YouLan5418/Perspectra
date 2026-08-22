@@ -115,6 +115,12 @@ describe('WorldKernel', () => {
       correlationId: 'invalid',
     })).toThrow(TypeError)
     expect(() => kernel.submitPlayerInput({
+      idempotencyKey: 'invalid-principal-type',
+      principalId: 1 as never,
+      action: { actionType: 'speak', parameters: { text: 'no' } },
+      correlationId: 'invalid',
+    })).toThrow('principalId must be a string')
+    expect(() => kernel.submitPlayerInput({
       idempotencyKey: 'invalid-action-shape',
       principalId: 'principal:player',
       action: { actionType: 'speak', parameters: {}, extra: true } as never,

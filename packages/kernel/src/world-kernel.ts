@@ -1,4 +1,5 @@
 import {
+  assertProtocolString,
   brandId,
   canonicalizeWorldJson,
   deterministicId,
@@ -209,9 +210,8 @@ export class WorldKernel {
       ['correlationId', request.correlationId],
       ['action.actionType', request.action.actionType],
     ] as const) {
-      if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) {
-        throw new TypeError(`${name} must be a non-empty, unpadded string`)
-      }
+      if (typeof value !== 'string') throw new TypeError(`${name} must be a string`)
+      assertProtocolString(value, name)
     }
     const actionKeys = Object.keys(request.action).sort()
     if (actionKeys.length !== 2 || actionKeys[0] !== 'actionType' || actionKeys[1] !== 'parameters') {

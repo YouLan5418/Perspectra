@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import {
+  assertProtocolString,
   type AppendDeliveryRequest,
   type AppendDeliveryResult,
   type DeliveryId,
@@ -56,9 +57,7 @@ export class WorldOutbox {
     this.#claimTtlMs = options.claimTtlMs ?? 30_000
     this.#now = options.now ?? Date.now
     this.#createClaimToken = options.createClaimToken ?? randomUUID
-    if (this.#workerId.length === 0 || this.#workerId.trim() !== this.#workerId) {
-      throw new TypeError('workerId must be a non-empty, unpadded string')
-    }
+    assertProtocolString(this.#workerId, 'workerId')
     if (!Number.isSafeInteger(this.#claimTtlMs) || this.#claimTtlMs <= 0) {
       throw new RangeError('claimTtlMs must be a positive safe integer')
     }

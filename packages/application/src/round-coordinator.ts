@@ -4,6 +4,7 @@ import {
   SafeAgentRunner,
 } from '@harness-world/agents'
 import {
+  assertProtocolString,
   brandId,
   canonicalizeWorldJson,
   deterministicId,
@@ -506,7 +507,7 @@ export class RoundCoordinator {
       ['correlationId', request.correlationId],
       ['action.actionType', request.action.actionType],
     ] as const) {
-      if (value.length === 0 || value.trim() !== value) throw new TypeError(`${name} must be a non-empty, unpadded string`)
+      assertProtocolString(value, name)
     }
     const keys = Object.keys(request.action).sort()
     if (keys.join(',') !== 'actionType,parameters') throw new TypeError('action must contain exactly actionType and parameters')

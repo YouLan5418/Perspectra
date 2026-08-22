@@ -12,6 +12,11 @@ export type SessionId = BrandedId<'SessionId'>
 
 /** Validate and brand an opaque identifier at a parser or storage boundary. */
 export function brandId<Name extends string>(value: string, name: Name): BrandedId<Name> {
+  return assertProtocolString(value, name) as BrandedId<Name>
+}
+
+/** Validate protocol routing, idempotency, audit, and authority strings without restricting Unicode text content. */
+export function assertProtocolString(value: string, name: string): string {
   if (value.length === 0 || value.trim() !== value) {
     throw new TypeError(`${name} must be a non-empty, unpadded string`)
   }
@@ -21,5 +26,5 @@ export function brandId<Name extends string>(value: string, name: Name): Branded
       throw new TypeError(`${name} must not contain ASCII control characters`)
     }
   }
-  return value as BrandedId<Name>
+  return value
 }

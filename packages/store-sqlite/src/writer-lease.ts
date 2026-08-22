@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { failWorld, worldAddressKey, type WorldAddress } from '@harness-world/contracts'
+import { assertProtocolString, failWorld, worldAddressKey, type WorldAddress } from '@harness-world/contracts'
 import { openWorldDatabase } from './world-store.ts'
 import { rollbackAndThrow } from './sqlite.ts'
 
@@ -95,7 +95,7 @@ export class WriterLeaseService {
   }
 
   #validate(ownerId: string, ttlMs: number): void {
-    if (ownerId.length === 0 || ownerId.trim() !== ownerId) throw new TypeError('ownerId must be a non-empty, unpadded string')
+    assertProtocolString(ownerId, 'ownerId')
     if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) throw new RangeError('ttlMs must be a positive safe integer')
   }
 
