@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { hashWorldJson } from '@harness-world/contracts'
-import { WorldRuntimeRegistry } from '@harness-world/runtime-cordis'
+import { WorldRuntimeRegistry, type BranchComponentFactory } from '@harness-world/runtime-cordis'
 import { RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { SpeakMoveRulebook } from './rulebook.ts'
 import { WorldBootstrap } from './world-bootstrap.ts'
@@ -42,7 +42,10 @@ function compiled() {
 }
 
 async function runtimeFor(manifestHash: ReturnType<typeof hashWorldJson>) {
-  const registry = new WorldRuntimeRegistry(new Context())
+  const factory: BranchComponentFactory = {
+    create: () => ({ kernel: {}, store: {}, agents: {}, director: {} }),
+  }
+  const registry = new WorldRuntimeRegistry(new Context(), factory)
   const lease = await registry.acquire(compiled().manifest.address, manifestHash)
   return { registry, lease }
 }
@@ -97,7 +100,7 @@ describe('WorldKernel', () => {
     const runtime = await runtimeFor(world.manifestHash)
     const inbox = new RoundInbox(path)
     const leases = new WriterLeaseService(path)
-    const kernel = new WorldKernel({ store, inbox, leases, runtimeSlot: runtime.lease.slot, ownerId: 'kernel:first' })
+    const kernel = new WorldKernel({ store, inbox, leases, runtimeLane: runtime.lease.slot, ownerId: 'kernel:first' })
     const genesis = store.head(world.manifest.address)
     expect(() => kernel.submitPlayerInput({
       idempotencyKey: 'unauthorized',
@@ -196,7 +199,7 @@ describe('WorldKernel', () => {
       store: restartedStore,
       inbox: restartedInbox,
       leases: restartedLeases,
-      runtimeSlot: restartedRuntime.lease.slot,
+      runtimeLane: restartedRuntime.lease.slot,
       ownerId: 'kernel:second',
     })
     expect(await restarted.submitPlayerInput({
@@ -223,7 +226,7 @@ describe('WorldKernel', () => {
     const faultingStore = new WorldStore(path, { hit(point) { if (point === 'store.after-commit') throw new Error('after commit') } })
     const inbox = new RoundInbox(path)
     const leases = new WriterLeaseService(path)
-    const kernel = new WorldKernel({ store: faultingStore, inbox, leases, runtimeSlot: runtime.lease.slot, ownerId: 'kernel:fault' })
+    const kernel = new WorldKernel({ store: faultingStore, inbox, leases, runtimeLane: runtime.lease.slot, ownerId: 'kernel:fault' })
     const request = {
       idempotencyKey: 'recover:1',
       principalId: 'principal:player',
@@ -246,7 +249,7 @@ describe('WorldKernel', () => {
       store: recoveredStore,
       inbox: recoveredInbox,
       leases: recoveredLeases,
-      runtimeSlot: recoveredRuntime.lease.slot,
+      runtimeLane: recoveredRuntime.lease.slot,
       ownerId: 'kernel:recovered',
     })
     const result = await recovered.submitPlayerInput(request)
@@ -271,7 +274,7 @@ describe('WorldKernel', () => {
       store: missingStore,
       inbox: missingInbox,
       leases: missingLeases,
-      runtimeSlot: missingRuntime.lease.slot,
+      runtimeLane: missingRuntime.lease.slot,
       ownerId: 'kernel:missing',
     })).toThrow('not active')
     missingInbox.close()
@@ -289,7 +292,7 @@ describe('WorldKernel', () => {
       store: mismatchStore,
       inbox: mismatchInbox,
       leases: mismatchLeases,
-      runtimeSlot: mismatchRuntime.lease.slot,
+      runtimeLane: mismatchRuntime.lease.slot,
       ownerId: 'kernel:mismatch',
     })).toThrow('not active')
     mismatchInbox.close()
@@ -303,7 +306,7 @@ describe('WorldKernel', () => {
     const lostRuntime = await runtimeFor(world.manifestHash)
     const lostInbox = new RoundInbox(lostPath)
     const lostLeases = new WriterLeaseService(lostPath)
-    const lostKernel = new WorldKernel({ store: lostStore, inbox: lostInbox, leases: lostLeases, runtimeSlot: lostRuntime.lease.slot, ownerId: 'kernel:lost' })
+    const lostKernel = new WorldKernel({ store: lostStore, inbox: lostInbox, leases: lostLeases, runtimeLane: lostRuntime.lease.slot, ownerId: 'kernel:lost' })
     const lostPromise = lostKernel.submitPlayerInput({
       idempotencyKey: 'lost:1', principalId: 'principal:player',
       action: { actionType: 'speak', parameters: { text: 'lost' } }, correlationId: 'lost',
@@ -326,7 +329,7 @@ describe('WorldKernel', () => {
     const corruptRuntime = await runtimeFor(world.manifestHash)
     const corruptInbox = new RoundInbox(corruptPath)
     const corruptLeases = new WriterLeaseService(corruptPath)
-    const corruptKernel = new WorldKernel({ store: corruptStore, inbox: corruptInbox, leases: corruptLeases, runtimeSlot: corruptRuntime.lease.slot, ownerId: 'kernel:corrupt' })
+    const corruptKernel = new WorldKernel({ store: corruptStore, inbox: corruptInbox, leases: corruptLeases, runtimeLane: corruptRuntime.lease.slot, ownerId: 'kernel:corrupt' })
     corruptInbox.enqueue({
       address: world.manifest.address,
       idempotencyKey: 'corrupt:1',

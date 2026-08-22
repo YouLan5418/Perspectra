@@ -11,37 +11,80 @@ const branchScope = Symbol('harness-world.branch-scope')
 declare module '@deepseek-ai/cordis' {
   interface Context {
     worldRuntimeRegistry: WorldRuntimeRegistry
-    worldKernel: BranchProbeService
-    worldStore: BranchProbeService
-    worldAgents: BranchProbeService
-    worldDirector: BranchProbeService
-  }
-
-  interface Events {
-    /** @mode emit */
-    'world/probe'(value: string): void
+    worldKernel: BranchComponentService
+    worldStore: BranchComponentService
+    worldAgents: BranchComponentService
+    worldDirector: BranchComponentService
   }
 }
 
-/** P0 stateful service used to prove Cordis service and effect isolation. */
-export class BranchProbeService extends Service {
-  readonly records: string[] = []
+export type BranchOwnedComponent = object
 
-  constructor(ctx: Context, name: 'worldKernel' | 'worldStore' | 'worldAgents' | 'worldDirector', readonly ownerKey: string) {
+function hasDisposer(component: BranchOwnedComponent): component is { dispose(): void | Promise<void> } {
+  return 'dispose' in component && typeof component.dispose === 'function'
+}
+
+function hasCloser(component: BranchOwnedComponent): component is { close(): void | Promise<void> } {
+  return 'close' in component && typeof component.close === 'function'
+}
+
+export interface BranchRuntimeComponents {
+  readonly kernel: BranchOwnedComponent
+  readonly store: BranchOwnedComponent
+  readonly agents: BranchOwnedComponent
+  readonly director: BranchOwnedComponent
+}
+
+export interface BranchExecutionLane {
+  readonly address: WorldAddress
+  readonly manifestHash: WorldHash
+  readonly context: Context
+  enqueueRound<T>(work: () => Promise<T>): Promise<T>
+}
+
+export interface BranchComponentFactory {
+  create(scope: BranchExecutionLane): BranchRuntimeComponents
+}
+
+/** Cordis-owned service handle around one real branch component. */
+export class BranchComponentService extends Service {
+  constructor(
+    ctx: Context,
+    name: 'worldKernel' | 'worldStore' | 'worldAgents' | 'worldDirector',
+    readonly ownerKey: string,
+    readonly component: BranchOwnedComponent,
+  ) {
     super(ctx, name)
   }
+}
 
-  /** Record a branch-local probe delivery. */
-  record(value: string): void {
-    this.records.push(value)
+class SerialRoundLane implements BranchExecutionLane {
+  #disposed = false
+  #roundTail: Promise<void> = Promise.resolve()
+
+  constructor(
+    readonly address: WorldAddress,
+    readonly manifestHash: WorldHash,
+    readonly context: Context,
+  ) {}
+
+  enqueueRound<T>(work: () => Promise<T>): Promise<T> {
+    if (this.#disposed) return Promise.reject(new Error('branch runtime slot is disposed'))
+    const execution = this.#roundTail.then(work, work)
+    this.#roundTail = execution.then(() => undefined, () => undefined)
+    return execution
+  }
+
+  dispose(): void {
+    this.#disposed = true
   }
 }
 
 export interface BranchServices {
-  readonly kernel: BranchProbeService
-  readonly store: BranchProbeService
-  readonly agents: BranchProbeService
-  readonly director: BranchProbeService
+  readonly kernel: BranchComponentService
+  readonly store: BranchComponentService
+  readonly agents: BranchComponentService
+  readonly director: BranchComponentService
 }
 
 /** One isolated Cordis child context for an active world branch. */
@@ -49,19 +92,35 @@ export class BranchRuntimeSlot {
   readonly addressKey: string
   readonly context: Context
   readonly services: BranchServices
+  readonly components: BranchRuntimeComponents
   #fiber: Fiber
   #disposed = false
-  #roundTail: Promise<void> = Promise.resolve()
+  readonly #lane: SerialRoundLane
 
-  private constructor(readonly address: WorldAddress, readonly manifestHash: WorldHash, context: Context, fiber: Fiber, services: BranchServices) {
+  private constructor(
+    readonly address: WorldAddress,
+    readonly manifestHash: WorldHash,
+    context: Context,
+    fiber: Fiber,
+    lane: SerialRoundLane,
+    services: BranchServices,
+    components: BranchRuntimeComponents,
+  ) {
     this.addressKey = worldAddressKey(address)
     this.context = context
     this.#fiber = fiber
+    this.#lane = lane
     this.services = services
+    this.components = components
   }
 
-  /** Mount the four branch-owned services below isolated Cordis labels. */
-  static async create(root: Context, address: WorldAddress, manifestHash: WorldHash): Promise<BranchRuntimeSlot> {
+  /** Mount four injected branch-owned components below isolated Cordis labels. */
+  static async create(
+    root: Context,
+    address: WorldAddress,
+    manifestHash: WorldHash,
+    factory: BranchComponentFactory,
+  ): Promise<BranchRuntimeSlot> {
     const addressKey = worldAddressKey(address)
     const scopeLabel = Symbol(addressKey)
     let context = root
@@ -72,37 +131,42 @@ export class BranchRuntimeSlot {
       [branchScope]: scopeLabel,
       [Context.filter]: (listenerContext: Context) => Reflect.get(listenerContext, branchScope) === scopeLabel,
     })
+    const lane = new SerialRoundLane(address, manifestHash, context)
     let services!: BranchServices
+    let components!: BranchRuntimeComponents
     const fiber = context.plugin(function branchRuntimePlugin(ctx) {
-      const kernel = new BranchProbeService(ctx, 'worldKernel', addressKey)
-      const store = new BranchProbeService(ctx, 'worldStore', addressKey)
-      const agents = new BranchProbeService(ctx, 'worldAgents', addressKey)
-      const director = new BranchProbeService(ctx, 'worldDirector', addressKey)
+      components = factory.create({
+        address,
+        manifestHash,
+        context: ctx,
+        enqueueRound: work => lane.enqueueRound(work),
+      })
+      const kernel = new BranchComponentService(ctx, 'worldKernel', addressKey, components.kernel)
+      const store = new BranchComponentService(ctx, 'worldStore', addressKey, components.store)
+      const agents = new BranchComponentService(ctx, 'worldAgents', addressKey, components.agents)
+      const director = new BranchComponentService(ctx, 'worldDirector', addressKey, components.director)
       services = { kernel, store, agents, director }
-      ctx.on('world/probe', value => kernel.record(value))
+      ctx.effect(() => async () => {
+        for (const component of [components.kernel, components.director, components.agents, components.store]) {
+          if (hasDisposer(component)) await component.dispose()
+          else if (hasCloser(component)) await component.close()
+        }
+      }, `world-runtime:${addressKey}`)
     })
     await fiber
-    return new BranchRuntimeSlot(address, manifestHash, context, fiber, services)
-  }
-
-  /** Emit through the branch context so Cordis applies its listener filter. */
-  emitProbe(value: string): void {
-    if (this.#disposed) throw new Error('branch runtime slot is disposed')
-    this.context.emit(this.context, 'world/probe', value)
+    return new BranchRuntimeSlot(address, manifestHash, context, fiber, lane, services, components)
   }
 
   /** Serialize process-local Round work without poisoning the FIFO after a failed item. */
   enqueueRound<T>(work: () => Promise<T>): Promise<T> {
-    if (this.#disposed) return Promise.reject(new Error('branch runtime slot is disposed'))
-    const execution = this.#roundTail.then(work, work)
-    this.#roundTail = execution.then(() => undefined, () => undefined)
-    return execution
+    return this.#lane.enqueueRound(work)
   }
 
   /** Unwind every service, listener, and effect owned by this slot. */
   async dispose(): Promise<void> {
     if (this.#disposed) return
     this.#disposed = true
+    this.#lane.dispose()
     await this.#fiber.dispose()
   }
 }
@@ -124,7 +188,7 @@ export class WorldRuntimeRegistry extends Service {
   readonly #slots = new Map<string, Promise<SlotEntry>>()
   #nextFencingToken = 1
 
-  constructor(ctx: Context) {
+  constructor(ctx: Context, private readonly factory: BranchComponentFactory) {
     super(ctx, 'worldRuntimeRegistry')
   }
 
@@ -135,7 +199,7 @@ export class WorldRuntimeRegistry extends Service {
     if (pending === undefined) {
       const fencingToken = this.#nextFencingToken
       this.#nextFencingToken += 1
-      pending = BranchRuntimeSlot.create(this.ctx.root, address, manifestHash)
+      pending = BranchRuntimeSlot.create(this.ctx.root, address, manifestHash, this.factory)
         .then(slot => ({ slot, fencingToken, references: 0 }))
         .catch((error: unknown) => {
           this.#slots.delete(key)

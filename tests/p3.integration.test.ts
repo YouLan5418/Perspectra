@@ -27,11 +27,13 @@ describe('Phase 3 provider failure containment acceptance', () => {
       })
       const store = new WorldStore(path)
       new WorldBootstrap(store).activate(compiled)
-      const registry = new WorldRuntimeRegistry(new Context())
+      const registry = new WorldRuntimeRegistry(new Context(), {
+        create: () => ({ kernel: {}, store: {}, agents: {}, director: {} }),
+      })
       const runtime = await registry.acquire(compiled.manifest.address, compiled.manifestHash)
       const inbox = new RoundInbox(path)
       const leases = new WriterLeaseService(path)
-      const kernel = new WorldKernel({ store, inbox, leases, runtimeSlot: runtime.slot, ownerId: 'kernel:p3' })
+      const kernel = new WorldKernel({ store, inbox, leases, runtimeLane: runtime.slot, ownerId: 'kernel:p3' })
       const context = {
         address: compiled.manifest.address,
         roundId: brandId('round:provider', 'InteractionRoundId'),

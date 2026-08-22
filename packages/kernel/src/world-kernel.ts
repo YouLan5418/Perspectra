@@ -3,12 +3,13 @@ import {
   canonicalizeWorldJson,
   deterministicId,
   failWorld,
+  worldAddressKey,
+  type WorldAddress,
   type WorldHash,
   type WorldJsonObject,
   type WorldJsonValue,
   type TransactionId,
 } from '@harness-world/contracts'
-import type { BranchRuntimeSlot } from '@harness-world/runtime-cordis'
 import {
   RoundInbox,
   WorldStore,
@@ -38,9 +39,16 @@ export interface WorldKernelOptions {
   readonly store: WorldStore
   readonly inbox: RoundInbox
   readonly leases: WriterLeaseService
-  readonly runtimeSlot: BranchRuntimeSlot
+  readonly runtimeLane: RoundExecutionLane
   readonly ownerId: string
   readonly leaseTtlMs?: number
+}
+
+/** Minimal execution capability required by the authoritative Kernel. */
+export interface RoundExecutionLane {
+  readonly address: WorldAddress
+  readonly manifestHash: WorldHash
+  enqueueRound<T>(work: () => Promise<T>): Promise<T>
 }
 
 /** Revalidate the durable idempotency result before exposing it to a caller. */
@@ -67,14 +75,14 @@ export class WorldKernel {
   #closed = false
 
   constructor(private readonly options: WorldKernelOptions) {
-    const stored = options.store.readManifest(options.runtimeSlot.address)
-    if (stored === undefined || stored.manifestHash !== options.runtimeSlot.manifestHash) {
+    const stored = options.store.readManifest(options.runtimeLane.address)
+    if (stored === undefined || stored.manifestHash !== options.runtimeLane.manifestHash) {
       failWorld({
         errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE',
         category: 'integrity',
         message: 'runtime slot manifest is not active in WorldStore',
         retryable: false,
-        correlationId: `kernel:${options.runtimeSlot.addressKey}`,
+        correlationId: `kernel:${worldAddressKey(options.runtimeLane.address)}`,
       })
     }
     this.#manifest = stored.manifest as CompiledWorldManifest
@@ -103,7 +111,7 @@ export class WorldKernel {
       input: request.action,
       correlationId: request.correlationId,
     }, this.#manifest.roundQueueLimit)
-    return this.options.runtimeSlot.enqueueRound(async () => {
+    return this.options.runtimeLane.enqueueRound(async () => {
       const completed = this.options.inbox.readCompleted(this.#manifest.address, request.idempotencyKey)
       if (completed !== undefined) return parsePlayerRoundResult(completed)
       return this.#drainUntil(queued.inboxSeq, request.correlationId)

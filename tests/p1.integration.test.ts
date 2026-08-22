@@ -32,11 +32,13 @@ describe('Phase 1 no-Agent acceptance', () => {
     try {
       const store = new WorldStore(path)
       const genesis = new WorldBootstrap(store).activate(compiled)
-      const registry = new WorldRuntimeRegistry(new Context())
+      const registry = new WorldRuntimeRegistry(new Context(), {
+        create: () => ({ kernel: {}, store: {}, agents: {}, director: {} }),
+      })
       const runtime = await registry.acquire(compiled.manifest.address, compiled.manifestHash)
       const inbox = new RoundInbox(path)
       const leases = new WriterLeaseService(path)
-      const kernel = new WorldKernel({ store, inbox, leases, runtimeSlot: runtime.slot, ownerId: 'kernel:p1:first' })
+      const kernel = new WorldKernel({ store, inbox, leases, runtimeLane: runtime.slot, ownerId: 'kernel:p1:first' })
       const committed = await kernel.submitPlayerInput(request)
       expect(await kernel.submitPlayerInput(request)).toEqual(committed)
       const eventHashes = store.readEvents(compiled.manifest.address).map(event => event.eventHash)
@@ -59,7 +61,9 @@ describe('Phase 1 no-Agent acceptance', () => {
         playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
         plugins: [],
       }))).toEqual({ ...genesis, status: 'already_active' })
-      const restartedRegistry = new WorldRuntimeRegistry(new Context())
+      const restartedRegistry = new WorldRuntimeRegistry(new Context(), {
+        create: () => ({ kernel: {}, store: {}, agents: {}, director: {} }),
+      })
       const restartedRuntime = await restartedRegistry.acquire(compiled.manifest.address, compiled.manifestHash)
       const restartedInbox = new RoundInbox(path)
       const restartedLeases = new WriterLeaseService(path)
@@ -67,7 +71,7 @@ describe('Phase 1 no-Agent acceptance', () => {
         store: restartedStore,
         inbox: restartedInbox,
         leases: restartedLeases,
-        runtimeSlot: restartedRuntime.slot,
+        runtimeLane: restartedRuntime.slot,
         ownerId: 'kernel:p1:restart',
       })
       expect(await restartedKernel.submitPlayerInput(request)).toEqual(committed)

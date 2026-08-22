@@ -1,7 +1,38 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { WorldError, brandId, hashWorldJson, type WorldAddress } from '@harness-world/contracts'
-import { BranchRuntimeSlot, WorldRuntimeRegistry } from './runtime.ts'
+import {
+  BranchRuntimeSlot,
+  WorldRuntimeRegistry,
+  type BranchComponentFactory,
+  type BranchExecutionLane,
+} from './runtime.ts'
+
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /** @mode emit */
+    'phase6/probe'(value: string): void
+  }
+}
+
+class TestComponent {
+  readonly records: string[] = []
+  lifecycle: 'active' | 'closed' | 'disposed' = 'active'
+
+  constructor(readonly ownerKey: string, readonly kind: string) {}
+
+  dispose(): void {
+    this.lifecycle = 'disposed'
+  }
+}
+
+class CloseComponent {
+  lifecycle: 'active' | 'closed' = 'active'
+
+  close(): void {
+    this.lifecycle = 'closed'
+  }
+}
 
 function fixtureAddress(branch = 'main'): WorldAddress {
   return {
@@ -11,10 +42,30 @@ function fixtureAddress(branch = 'main'): WorldAddress {
   }
 }
 
+function componentFactory(
+  created: Array<TestComponent | CloseComponent>,
+  scopes: BranchExecutionLane[] = [],
+): BranchComponentFactory {
+  return {
+    create(scope: BranchExecutionLane) {
+      scopes.push(scope)
+      const ownerKey = scope.address.branchId
+      const kernel = new TestComponent(ownerKey, 'kernel')
+      const store = new CloseComponent()
+      const agents = new TestComponent(ownerKey, 'agents')
+      const director = { ownerKey }
+      created.push(kernel, store, agents)
+      scope.context.on('phase6/probe', value => kernel.records.push(value))
+      return { kernel, store, agents, director }
+    },
+  }
+}
+
 describe('WorldRuntimeRegistry', () => {
-  it('isolates services, listeners, effects, and disposal by branch', async () => {
+  it('isolates injected components, listeners, services, effects, and disposal by branch', async () => {
     const root = new Context()
-    const registry = new WorldRuntimeRegistry(root)
+    const created: Array<TestComponent | CloseComponent> = []
+    const registry = new WorldRuntimeRegistry(root, componentFactory(created))
     const manifest = hashWorldJson('manifest', { version: 1 })
     const leaseA = await registry.acquire(fixtureAddress('a'), manifest)
     const leaseA2 = await registry.acquire(fixtureAddress('a'), manifest)
@@ -23,27 +74,34 @@ describe('WorldRuntimeRegistry', () => {
     expect(leaseA2.fencingToken).toBe(leaseA.fencingToken)
     expect(leaseB.slot).not.toBe(leaseA.slot)
     expect(leaseA.slot.services.kernel).not.toBe(leaseB.slot.services.kernel)
+    expect(leaseA.slot.services.kernel.component).toBe(leaseA.slot.components.kernel)
     expect(registry.activeSlotCount).toBe(2)
 
-    leaseA.slot.emitProbe('a-only')
-    leaseB.slot.emitProbe('b-only')
-    expect(leaseA.slot.services.kernel.records).toEqual(['a-only'])
-    expect(leaseB.slot.services.kernel.records).toEqual(['b-only'])
+    leaseA.slot.context.emit(leaseA.slot.context, 'phase6/probe', 'a-only')
+    leaseB.slot.context.emit(leaseB.slot.context, 'phase6/probe', 'b-only')
+    expect((leaseA.slot.components.kernel as TestComponent).records).toEqual(['a-only'])
+    expect((leaseB.slot.components.kernel as TestComponent).records).toEqual(['b-only'])
 
     await leaseA.dispose()
     await leaseA.dispose()
     expect(registry.activeSlotCount).toBe(2)
     await leaseA2.dispose()
     expect(registry.activeSlotCount).toBe(1)
-    expect(() => leaseA.slot.emitProbe('disposed')).toThrow('disposed')
+    const beforeDisposedEmit = (leaseA.slot.components.kernel as TestComponent).records.slice()
+    leaseA.slot.context.emit(leaseA.slot.context, 'phase6/probe', 'disposed')
+    expect((leaseA.slot.components.kernel as TestComponent).records).toEqual(beforeDisposedEmit)
+    expect((leaseA.slot.components.kernel as TestComponent).lifecycle).toBe('disposed')
+    expect((leaseA.slot.components.store as CloseComponent).lifecycle).toBe('closed')
+    expect((leaseA.slot.components.agents as TestComponent).lifecycle).toBe('disposed')
     await leaseA.slot.dispose()
     await leaseB.dispose()
     expect(registry.activeSlotCount).toBe(0)
+    expect(created.every(component => component.lifecycle !== 'active')).toBe(true)
   })
 
   it('rejects a manifest mismatch and removes failed mounts', async () => {
     const root = new Context()
-    const registry = new WorldRuntimeRegistry(root)
+    const registry = new WorldRuntimeRegistry(root, componentFactory([]))
     const address = fixtureAddress('manifest')
     const lease = await registry.acquire(address, hashWorldJson('manifest', 1))
     await expect(registry.acquire(address, hashWorldJson('manifest', 2))).rejects.toBeInstanceOf(WorldError)
@@ -57,13 +115,14 @@ describe('WorldRuntimeRegistry', () => {
 
   it('runs each branch FIFO independently and continues after one rejected job', async () => {
     const root = new Context()
-    const registry = new WorldRuntimeRegistry(root)
+    const scopes: BranchExecutionLane[] = []
+    const registry = new WorldRuntimeRegistry(root, componentFactory([], scopes))
     const manifest = hashWorldJson('manifest', 1)
     const lease = await registry.acquire(fixtureAddress('fifo'), manifest)
     const order: string[] = []
     let release!: () => void
     const gate = new Promise<void>((resolve) => { release = resolve })
-    const first = lease.slot.enqueueRound(async () => {
+    const first = scopes[0]!.enqueueRound(async () => {
       order.push('first:start')
       await gate
       order.push('first:end')

@@ -15,13 +15,14 @@ afterAll(() => rmSync(directory, { recursive: true, force: true }))
 describe('Phase 0 acceptance path', () => {
   it('passes the six prototype contracts without a model or network', async () => {
     const root = new Context()
-    const registry = new WorldRuntimeRegistry(root)
+    const registry = new WorldRuntimeRegistry(root, {
+      create: scope => ({ kernel: { address: scope.address }, store: {}, agents: {}, director: {} }),
+    })
     const manifestHash = hashWorldJson('manifest', { version: 1 })
     const branchA = await registry.acquire(fixtureAddress('integration-a'), manifestHash)
     const branchB = await registry.acquire(fixtureAddress('integration-b'), manifestHash)
-    branchA.slot.emitProbe('a')
-    expect(branchA.slot.services.kernel.records).toEqual(['a'])
-    expect(branchB.slot.services.kernel.records).toEqual([])
+    expect(branchA.slot.services.kernel.component).toBe(branchA.slot.components.kernel)
+    expect(branchA.slot.components.kernel).not.toBe(branchB.slot.components.kernel)
     await branchA.dispose()
     await branchB.dispose()
 
