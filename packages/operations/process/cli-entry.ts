@@ -6,5 +6,5 @@ const router = new LocalJsonRpcRouter(worldPath)
 try {
   process.stdout.write(await executeLocalCli(command, router))
 } finally {
-  router.close()
+  await router.close()
 }

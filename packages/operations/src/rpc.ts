@@ -7,6 +7,7 @@ import {
   type WorldAddress,
   type CharacterId,
   type DeliveryId,
+  type InteractionRoundId,
   type SessionId,
   type WorldJsonObject,
   type WorldJsonValue,
@@ -23,6 +24,15 @@ export interface WorldApplicationPort {
     readonly action: { readonly actionType: string; readonly parameters: WorldJsonValue }
     readonly correlationId: string
   }): Promise<unknown>
+  acceptRound(address: WorldAddress, request: {
+    readonly idempotencyKey: string
+    readonly principalId: string
+    readonly action: { readonly actionType: string; readonly parameters: WorldJsonValue }
+    readonly correlationId: string
+  }): Promise<unknown>
+  processAcceptedRounds(address: WorldAddress, correlationId: string): Promise<number>
+  roundStatus(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }): Promise<unknown | undefined>
+  cancelQueuedRound(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }, correlationId: string): Promise<unknown>
   roundResult(address: WorldAddress, idempotencyKey: string): Promise<unknown | undefined>
   head(address: WorldAddress): Promise<unknown>
   characterView(address: WorldAddress, characterId: CharacterId, asOfWorldSeq?: number): Promise<unknown>
@@ -101,6 +111,8 @@ export class LocalJsonRpcRouter {
   readonly #admin: BranchAdministration | undefined
   readonly #health: WorldHealthService
   readonly metrics = new OperationsMetrics()
+  readonly #roundWorkers = new Map<string, Promise<void>>()
+  readonly #roundWorkerRequests = new Map<string, { readonly address: WorldAddress; readonly correlationId: string }>()
 
   constructor(worldPath: string, private readonly application?: WorldApplicationPort) {
     this.#store = application === undefined ? new WorldStore(worldPath) : undefined
@@ -127,7 +139,8 @@ export class LocalJsonRpcRouter {
     return this.#errorResponse(id, error)
   }
 
-  close(): void {
+  async close(): Promise<void> {
+    while (this.#roundWorkers.size > 0) await Promise.all(this.#roundWorkers.values())
     this.#admin?.close()
     this.#store?.close()
   }
@@ -138,16 +151,36 @@ export class LocalJsonRpcRouter {
       const action = objectParam(params, 'action')
       const actionKeys = Object.keys(action).sort()
       if (actionKeys.join(',') !== 'actionType,parameters') throw new TypeError('action has invalid fields')
-      return worldResult(await this.#application().submit(addressParam(params.address), {
+      const address = addressParam(params.address)
+      const accepted = await this.#application().acceptRound(address, {
         idempotencyKey: stringParam(params, 'idempotencyKey'),
         principalId: stringParam(params, 'principalId'),
         action: { actionType: stringParam(action, 'actionType'), parameters: action.parameters! },
         correlationId: stringParam(params, 'correlationId'),
-      }))
+      })
+      if ((accepted as { readonly status?: string }).status === 'queued' || (accepted as { readonly status?: string }).status === 'processing') {
+        this.#kickRoundWorker(address, stringParam(params, 'correlationId'))
+      }
+      return worldResult(accepted)
     }
     if (method === 'round.get') {
-      const result = await this.#application().roundResult(addressParam(params.address), stringParam(params, 'idempotencyKey'))
+      const idempotencyKey = params.idempotencyKey
+      const roundId = params.roundId
+      if ((typeof idempotencyKey === 'string') === (typeof roundId === 'string')) throw new TypeError('round.get requires exactly one idempotencyKey or roundId')
+      const result = await this.#application().roundStatus(addressParam(params.address), typeof idempotencyKey === 'string'
+        ? { idempotencyKey: stringParam(params, 'idempotencyKey') }
+        : { roundId: brandId(stringParam(params, 'roundId'), 'InteractionRoundId') })
       return result === undefined ? null : worldResult(result)
+    }
+    if (method === 'round.cancel-queued') {
+      const idempotencyKey = params.idempotencyKey
+      const roundId = params.roundId
+      if ((typeof idempotencyKey === 'string') === (typeof roundId === 'string')) throw new TypeError('round.cancel-queued requires exactly one idempotencyKey or roundId')
+      return worldResult(await this.#application().cancelQueuedRound(
+        addressParam(params.address),
+        typeof idempotencyKey === 'string' ? { idempotencyKey: stringParam(params, 'idempotencyKey') } : { roundId: brandId(stringParam(params, 'roundId'), 'InteractionRoundId') },
+        stringParam(params, 'correlationId'),
+      ))
     }
     if (method === 'world.head') return worldResult(await this.#application().head(addressParam(params.address)))
     if (method === 'view.character') {
@@ -266,6 +299,28 @@ export class LocalJsonRpcRouter {
   #application(): WorldApplicationPort {
     if (this.application === undefined) throw new Error('WorldApplication Port is not configured')
     return this.application
+  }
+
+  #kickRoundWorker(address: WorldAddress, correlationId: string): void {
+    const key = `${address.tenantId}\u001f${address.worldId}\u001f${address.branchId}`
+    this.#roundWorkerRequests.set(key, { address, correlationId })
+    if (this.#roundWorkers.has(key)) return
+    const worker = Promise.resolve().then(async () => {
+      while (true) {
+        const requested = this.#roundWorkerRequests.get(key)
+        if (requested === undefined) {
+          this.#roundWorkers.delete(key)
+          return
+        }
+        this.#roundWorkerRequests.delete(key)
+        try {
+          await this.#application().processAcceptedRounds(requested.address, `${requested.correlationId}:worker`)
+        } catch {
+          // Durable status remains queryable; a later wakeup may retry the Branch FIFO.
+        }
+      }
+    })
+    this.#roundWorkers.set(key, worker)
   }
 
   #legacyAdmin(): BranchAdministration {

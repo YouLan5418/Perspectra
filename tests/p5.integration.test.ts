@@ -101,7 +101,7 @@ describe('Phase 5 local operations acceptance', () => {
       expect(JSON.parse(await executeLocalCli(['health'], rpc))).toMatchObject({ result: { status: 'ready', branchCount: 2 } })
       await expect(rpc.handle({ jsonrpc: '2.0', id: 'p5:status', method: 'branch.status', params: { address: parent } }))
         .resolves.toMatchObject({ result: { lifecycleState: 'archived' } })
-      rpc.close()
+      await rpc.close()
 
       const migratedPath = join(directory, 'migrated.sqlite')
       const preMigration = new WorldStore(migratedPath)

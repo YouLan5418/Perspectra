@@ -165,7 +165,7 @@ describe('LocalJsonRpcRouter', () => {
       .resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
     await expect(router.handle(request('branch.fork', { parent, child, forkSeq: 'zero' })))
       .resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
-    router.close()
+    await router.close()
   })
 
   it('routes the local game protocol exclusively through WorldApplication', async () => {
@@ -194,9 +194,37 @@ describe('LocalJsonRpcRouter', () => {
       correlationId: 'rpc:round',
     }
     const submitted = await router.handle(request('round.submit', roundParams))
-    expect(submitted).toMatchObject({ result: { status: 'accepted', tick: 1 } })
-    await expect(router.handle(request('round.get', { address: parent, idempotencyKey: 'rpc-round' })))
-      .resolves.toMatchObject({ result: submitted.result })
+    expect(submitted).toMatchObject({ result: { status: 'queued', roundId: expect.any(String), inboxSeq: 1 } })
+    await application.processAcceptedRounds(parent, 'rpc:test-await-worker')
+    await expect(router.handle(request('round.get', { address: parent, roundId: (submitted.result as { roundId: string }).roundId })))
+      .resolves.toMatchObject({ result: { status: 'committed', result: { status: 'accepted', tick: 1 } } })
+    const cancelAccepted = await application.acceptRound(parent, {
+      idempotencyKey: 'rpc-cancel', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'cancel' } }, correlationId: 'rpc-cancel',
+    })
+    await expect(router.handle(request('round.cancel-queued', {
+      address: parent, roundId: cancelAccepted.roundId, correlationId: 'rpc-cancel',
+    }))).resolves.toMatchObject({ result: { status: 'cancelled' } })
+    const cancelByKey = await application.acceptRound(parent, {
+      idempotencyKey: 'rpc-cancel-key', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'cancel by key' } }, correlationId: 'rpc-cancel-key',
+    })
+    expect(cancelByKey.status).toBe('queued')
+    await expect(router.handle(request('round.cancel-queued', {
+      address: parent, idempotencyKey: 'rpc-cancel-key', correlationId: 'rpc-cancel-key',
+    }))).resolves.toMatchObject({ result: { status: 'cancelled' } })
+    await expect(router.handle(request('round.submit', {
+      address: parent, idempotencyKey: 'rpc-cancel-key', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'cancel by key' } }, correlationId: 'rpc-cancel-key-replay',
+    }))).resolves.toMatchObject({ result: { status: 'cancelled' } })
+    for (const params of [
+      { address: parent },
+      { address: parent, idempotencyKey: 'rpc-round', roundId: cancelAccepted.roundId },
+    ]) {
+      await expect(router.handle(request('round.get', params))).resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
+      await expect(router.handle(request('round.cancel-queued', { ...params, correlationId: 'invalid-selector' })))
+        .resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
+    }
     const head = await router.handle(request('world.head', { address: parent }))
     expect(head).toMatchObject({ result: { tick: 1 } })
     await expect(router.handle(request('view.character', { address: parent, characterId: 'character:player' })))
@@ -290,6 +318,7 @@ describe('LocalJsonRpcRouter', () => {
       ['round.submit', { ...roundParams, action: null }],
       ['round.submit', { ...roundParams, action: [] }],
       ['round.submit', { ...roundParams, action: { actionType: 'speak', parameters: {}, extra: true } }],
+      ['round.submit', { ...roundParams, correlationId: 1 }],
       ['round.get', { address: child, idempotencyKey: 1 }],
       ['view.character', { address: child, characterId: 'character:player', asOfWorldSeq: -1 }],
       ['view.character', { address: child, characterId: 'character:player', asOfWorldSeq: 'latest' }],
@@ -297,13 +326,13 @@ describe('LocalJsonRpcRouter', () => {
     ] as const) {
       await expect(router.handle(request(method, params as never))).resolves.toMatchObject({ error: { errorCode: expect.any(String) } })
     }
-    router.close()
+    await router.close()
     await application.close()
 
     const legacy = new LocalJsonRpcRouter(path)
     await expect(legacy.handle(request('world.head', { address: child })))
       .resolves.toMatchObject({ error: { message: expect.stringContaining('not configured') } })
-    legacy.close()
+    await legacy.close()
   })
 })
 
@@ -357,7 +386,129 @@ describe('worldctl grammar', () => {
     await expect(executeLocalCli(['health'], router, { busyRetryTimeoutMs: -1 })).rejects.toThrow('busyRetryTimeoutMs')
     await expect(executeLocalCli(['health'], router, { busyRetryDelayMs: 0 })).rejects.toThrow('busyRetryDelayMs')
     expect(router.metrics.snapshot()).toMatchObject({ rpc_requests: 2, rpc_errors: 1 })
-    router.close()
+    await router.close()
+  })
+
+  it('implements --wait only as client-side round.get polling', async () => {
+    const { directory, path, parent } = fixture()
+    const application = new WorldApplication({ worldPath: path, sessionPath: join(directory, 'wait-session.sqlite') })
+    application.activateSpec({
+      schemaVersion: 1, address: parent, timeMode: 'TURN_DRIVEN', roundQueueLimit: 4,
+      rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+      locations: [{ locationId: 'location:wait', name: 'Wait' }],
+      characters: [{ characterId: 'character:wait', name: 'Wait', locationId: 'location:wait' }],
+      playerBindings: [{ principalId: 'principal:wait', characterId: 'character:wait', sessionId: 'session:wait' }],
+      plugins: [],
+    })
+    const router = new LocalJsonRpcRouter(path, application)
+    const line = await executeLocalCli([
+      'round', 'submit', parent.tenantId, parent.worldId, parent.branchId,
+      'principal:wait', 'round:wait', 'speak', '{"text":"wait"}', '--wait',
+    ], router)
+    expect(JSON.parse(line)).toMatchObject({ result: { status: 'committed', result: { status: 'accepted', tick: 1 } } })
+    await expect(executeLocalCli(['health'], router, { roundWaitTimeoutMs: -1 })).rejects.toThrow('roundWaitTimeoutMs')
+    await expect(executeLocalCli(['health'], router, { roundWaitDelayMs: 0 })).rejects.toThrow('roundWaitDelayMs')
+    await router.close()
+    await application.close()
+  })
+
+  it('fails closed when --wait has no round identity or reaches its deadline', async () => {
+    const noIdentity = {
+      handle: async () => ({ jsonrpc: '2.0', id: 'cli', result: { status: 'queued' } }),
+      invalidRequest: () => { throw new Error('unexpected parse failure') },
+    } as unknown as LocalJsonRpcRouter
+    await expect(executeLocalCli([
+      'round', 'submit', 'tenant', 'world', 'branch', 'principal', 'key', 'speak', '{}', '--wait',
+    ], noIdentity)).rejects.toThrow('no roundId')
+
+    let clock = 0
+    let polls = 0
+    const neverCompletes = {
+      handle: async (rpcRequest: LocalJsonRpcRequest): Promise<LocalJsonRpcResponse> => {
+        if (rpcRequest.method === 'round.submit') {
+          return { jsonrpc: '2.0', id: rpcRequest.id, result: { status: 'queued', roundId: 'round:waiting' } }
+        }
+        polls += 1
+        return { jsonrpc: '2.0', id: rpcRequest.id, result: { status: polls === 1 ? 'processing' : 'queued' } }
+      },
+      invalidRequest: () => { throw new Error('unexpected parse failure') },
+    } as unknown as LocalJsonRpcRouter
+    await expect(executeLocalCli([
+      'round', 'submit', 'tenant', 'world', 'branch', 'principal', 'key', 'speak', '{}', '--wait',
+    ], neverCompletes, {
+      roundWaitTimeoutMs: 1,
+      roundWaitDelayMs: 1,
+      now: () => clock,
+      wait: async delay => { clock += delay },
+    })).rejects.toThrow('timed out')
+    expect(polls).toBe(2)
+
+    const missingStatus = {
+      handle: async (rpcRequest: LocalJsonRpcRequest): Promise<LocalJsonRpcResponse> => rpcRequest.method === 'round.submit'
+        ? { jsonrpc: '2.0', id: rpcRequest.id, result: { status: 'queued', roundId: 'round:missing' } }
+        : { jsonrpc: '2.0', id: rpcRequest.id, result: null },
+      invalidRequest: () => { throw new Error('unexpected parse failure') },
+    } as unknown as LocalJsonRpcRouter
+    await expect(executeLocalCli([
+      'round', 'submit', 'tenant', 'world', 'branch', 'principal', 'key', 'speak', '{}', '--wait',
+    ], missingStatus)).resolves.toContain('"result":null')
+  })
+
+  it('deduplicates concurrent local Round workers and contains worker failures', async () => {
+    const { directory, path, parent } = fixture()
+    let releaseWorker!: () => void
+    let workerCalls = 0
+    class DeferredWorldApplication extends WorldApplication {
+      override processAcceptedRounds(): Promise<number> {
+        workerCalls += 1
+        if (workerCalls > 1) return Promise.resolve(0)
+        return new Promise(resolve => { releaseWorker = () => resolve(0) })
+      }
+    }
+    const application = new DeferredWorldApplication({ worldPath: path, sessionPath: join(directory, 'deferred-session.sqlite') })
+    application.activateSpec({
+      schemaVersion: 1, address: parent, timeMode: 'TURN_DRIVEN', roundQueueLimit: 4,
+      rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+      locations: [{ locationId: 'location:worker', name: 'Worker' }],
+      characters: [{ characterId: 'character:worker', name: 'Worker', locationId: 'location:worker' }],
+      playerBindings: [{ principalId: 'principal:worker', characterId: 'character:worker', sessionId: 'session:worker' }],
+      plugins: [],
+    })
+    const router = new LocalJsonRpcRouter(path, application)
+    const base = {
+      address: parent, principalId: 'principal:worker', action: { actionType: 'speak', parameters: {} },
+    }
+    await router.handle(request('round.submit', { ...base, idempotencyKey: 'worker:one', correlationId: 'worker:one' }))
+    await router.handle(request('round.submit', { ...base, idempotencyKey: 'worker:two', correlationId: 'worker:two' }))
+    releaseWorker()
+    await router.close()
+    expect(workerCalls).toBe(2)
+    await application.close()
+
+    const failedFixture = fixture()
+    class FailingWorldApplication extends WorldApplication {
+      override async processAcceptedRounds(): Promise<number> {
+        throw new Error('contained worker failure')
+      }
+    }
+    const failing = new FailingWorldApplication({
+      worldPath: failedFixture.path, sessionPath: join(failedFixture.directory, 'failed-session.sqlite'),
+    })
+    failing.activateSpec({
+      schemaVersion: 1, address: failedFixture.parent, timeMode: 'TURN_DRIVEN', roundQueueLimit: 4,
+      rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+      locations: [{ locationId: 'location:failed', name: 'Failed' }],
+      characters: [{ characterId: 'character:failed', name: 'Failed', locationId: 'location:failed' }],
+      playerBindings: [{ principalId: 'principal:failed', characterId: 'character:failed', sessionId: 'session:failed' }],
+      plugins: [],
+    })
+    const failingRouter = new LocalJsonRpcRouter(failedFixture.path, failing)
+    await expect(failingRouter.handle(request('round.submit', {
+      address: failedFixture.parent, idempotencyKey: 'worker:failed', principalId: 'principal:failed',
+      action: { actionType: 'speak', parameters: {} }, correlationId: 'worker:failed',
+    }))).resolves.toMatchObject({ result: { status: 'queued' } })
+    await failingRouter.close()
+    await failing.close()
   })
 
   it('retries a busy writer only within the configured CLI deadline', async () => {

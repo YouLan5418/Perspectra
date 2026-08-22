@@ -72,9 +72,12 @@ describe('Phase 6 reference application acceptance', () => {
       const cliPrefix = ['tenant:p6', 'world:p6', 'branch:main'] as const
       const firstResponse = JSON.parse(await executeLocalCli([
         'round', 'submit', ...cliPrefix, 'principal:player', 'p6:first', 'speak', '{"text":"initial fact"}',
-      ], router)) as { result: Awaited<ReturnType<WorldApplication['submit']>> }
-      const first = firstResponse.result
-      expect(first).toMatchObject({ tick: 1, status: 'accepted' })
+      ], router)) as { result: { roundId: string; status: string } }
+      expect(firstResponse.result).toMatchObject({ status: 'queued', roundId: expect.any(String) })
+      await application.processAcceptedRounds(compiled.manifest.address, 'p6:await-first')
+      expect(await application.roundStatus(compiled.manifest.address, {
+        roundId: brandId(firstResponse.result.roundId, 'InteractionRoundId'),
+      })).toMatchObject({ status: 'committed', result: { tick: 1, status: 'accepted' } })
       expect(JSON.parse(await executeLocalCli(['outbox', 'drain', ...cliPrefix], router)))
         .toMatchObject({ result: { delivered: 3 } })
       const child = { ...compiled.manifest.address, branchId: brandId('branch:child', 'BranchId') }
@@ -96,22 +99,22 @@ describe('Phase 6 reference application acceptance', () => {
       ))).not.toContain('FUTURE_CANARY')
       expect(await application.deliver(child, 'p6:child-delivery')).toBe(3)
       const callsBeforeRestart = calls.value
-      router.close()
+      await router.close()
       await application.close()
 
       const restarted = new WorldApplication(options)
       const restartedRouter = new LocalJsonRpcRouter(worldPath, restarted)
       expect(JSON.parse(await executeLocalCli([
         'round', 'get', 'tenant:p6', 'world:p6', 'branch:child', 'p6:child',
-      ], restartedRouter))).toMatchObject({ result: childResult })
+      ], restartedRouter))).toMatchObject({ result: { status: 'committed', result: childResult } })
       expect(JSON.parse(await executeLocalCli([
         'round', 'submit', 'tenant:p6', 'world:p6', 'branch:child', 'principal:player', 'p6:child', 'speak',
         '{"text":"child survives parent archive"}',
-      ], restartedRouter))).toMatchObject({ result: childResult })
+      ], restartedRouter))).toMatchObject({ result: { status: 'committed' } })
       expect(calls.value).toBe(callsBeforeRestart)
       expect((await restarted.renderSession(child, brandId('session:player', 'SessionId'), 1)).presentationHash)
         .toMatch(/^sha256:/)
-      restartedRouter.close()
+      await restartedRouter.close()
       await restarted.close()
     } finally {
       rmSync(directory, { recursive: true, force: true })

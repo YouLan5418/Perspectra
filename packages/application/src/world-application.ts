@@ -9,6 +9,7 @@ import {
   worldAddressKey,
   type CharacterId,
   type RuntimeAvailabilityState,
+  type InteractionRoundId,
   type CharacterView,
   type DeliveryId,
   type FaultInjector,
@@ -230,6 +231,26 @@ export class WorldApplication {
 
   async submit(address: WorldAddress, request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
     return this.#integrityGuard(address, 'round.submit', branch => branch.kernel.submit(request))
+  }
+
+  async acceptRound(address: WorldAddress, request: SubmitCoordinatedRoundRequest) {
+    return this.#integrityGuard(address, 'round.accept', branch => branch.kernel.accept(request))
+  }
+
+  async processAcceptedRounds(address: WorldAddress, correlationId: string): Promise<number> {
+    return this.#integrityGuard(address, 'round.process', branch => branch.kernel.drainAccepted(correlationId))
+  }
+
+  async roundStatus(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }) {
+    return this.#integrityGuard(address, 'round.get', branch => branch.store.inbox.readStatus(address, lookup))
+  }
+
+  async cancelQueuedRound(
+    address: WorldAddress,
+    lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId },
+    correlationId: string,
+  ) {
+    return this.#integrityGuard(address, 'round.cancel-queued', branch => branch.store.inbox.cancelQueued(address, lookup, correlationId))
   }
 
   async roundResult(address: WorldAddress, idempotencyKey: string): Promise<PlayerRoundResult | undefined> {

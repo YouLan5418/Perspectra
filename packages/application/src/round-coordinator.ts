@@ -13,6 +13,7 @@ import {
   type ActionRequest,
   type AgentProvider,
   type CharacterId,
+  type InteractionRoundId,
   type OutboxDraft,
   type Proposal,
   type ProposalContext,
@@ -73,6 +74,13 @@ export interface SubmitCoordinatedRoundRequest {
   readonly principalId: string
   readonly action: PlayerActionInput
   readonly correlationId: string
+}
+
+export interface RoundAcceptedResult {
+  readonly status: 'queued' | 'processing' | 'committed' | 'failed' | 'cancelled'
+  readonly roundId: InteractionRoundId
+  readonly inboxSeq: number
+  readonly idempotencyKey: string
 }
 
 interface FrozenParticipant {
@@ -158,29 +166,24 @@ export class RoundCoordinator {
 
   submit(request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
     if (this.#closed) return Promise.reject(new Error('RoundCoordinator is closed'))
-    this.#validateSubmission(request)
-    if (!this.#manifest.playerBindings.some(value => value.principalId === request.principalId)) {
-      failWorld({
-        errorCode: 'UNAUTHORIZED',
-        category: 'admission',
-        message: 'principal has no PlayerBinding in this world',
-        retryable: false,
-        correlationId: request.correlationId,
-        address: this.#address,
-      })
-    }
-    const queued = this.options.inbox.enqueue({
-      address: this.#address,
-      idempotencyKey: request.idempotencyKey,
-      principalId: request.principalId,
-      input: request.action,
-      correlationId: request.correlationId,
-    }, this.#manifest.roundQueueLimit)
+    const queued = this.#enqueue(request)
     return this.options.runtimeLane.enqueueRound(async () => {
       const completed = this.options.inbox.readCompleted(this.#address, request.idempotencyKey)
       if (completed !== undefined) return parsePlayerRoundResult(completed)
       return this.#drainUntil(queued.inboxSeq, request.correlationId)
     })
+  }
+
+  accept(request: SubmitCoordinatedRoundRequest): RoundAcceptedResult {
+    if (this.#closed) throw new Error('RoundCoordinator is closed')
+    const queued = this.#enqueue(request)
+    const durable = this.options.inbox.readStatus(this.#address, { idempotencyKey: request.idempotencyKey })!
+    return {
+      status: durable.status,
+      roundId: queued.roundId,
+      inboxSeq: queued.inboxSeq,
+      idempotencyKey: request.idempotencyKey,
+    }
   }
 
   close(): void {
@@ -352,6 +355,20 @@ export class RoundCoordinator {
         bundleHash: commit.bundleHash,
       },
     }
+  }
+
+  #enqueue(request: SubmitCoordinatedRoundRequest) {
+    this.#validateSubmission(request)
+    if (!this.#manifest.playerBindings.some(value => value.principalId === request.principalId)) {
+      failWorld({
+        errorCode: 'UNAUTHORIZED', category: 'admission', message: 'principal has no PlayerBinding in this world',
+        retryable: false, correlationId: request.correlationId, address: this.#address,
+      })
+    }
+    return this.options.inbox.enqueue({
+      address: this.#address, idempotencyKey: request.idempotencyKey, principalId: request.principalId,
+      input: request.action, correlationId: request.correlationId,
+    }, this.#manifest.roundQueueLimit)
   }
 
   async #freezeParticipants(context: ProposalContext, history: readonly { readonly eventType: string; readonly data: WorldJsonValue }[]): Promise<FrozenParticipant[]> {

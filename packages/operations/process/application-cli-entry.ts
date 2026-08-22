@@ -10,6 +10,6 @@ const router = new LocalJsonRpcRouter(worldPath, application)
 try {
   process.stdout.write(await executeLocalCli(command, router, { busyRetryTimeoutMs: 6_000, busyRetryDelayMs: 100 }))
 } finally {
-  router.close()
+  await router.close()
   await application.close()
 }

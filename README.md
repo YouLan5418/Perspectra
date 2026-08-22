@@ -1,6 +1,6 @@
 # Harness / Cordis World V0
 
-> 当前状态：Phase 0～6 Reference Architecture 的 Windows/Node 24 本机门槛与独立审查修订已通过。严格 V0 Release Closure 仍在进行；Quarantine、完整冻结协议、Host 配置/instance.lock、Upcaster 和跨平台发布证据尚未闭合。LLM/TencentDB Bridge 与远程访问保持禁用。
+> 当前状态：Phase 0～6 Reference Architecture 的 Windows/Node 24 本机门槛与独立审查修订已通过。严格 V0 Release Closure 仍在进行；异步 Round 本机协议已闭合，冻结方法面、通知、Host 配置/instance.lock 和跨平台发布证据尚未闭合。LLM/TencentDB Bridge 与远程访问保持禁用。
 
 这是一个独立的、事件溯源的 TURN_DRIVEN 世界模拟内核原型，用 Cordis 管理 Branch 运行时生命周期，用 Node 内置 SQLite 验证耐久原子性、幂等投递、forkSeq 时态重建和无模型确定性闭环。
 
@@ -19,6 +19,12 @@ corepack pnpm@11.7.0 check
 
 ```powershell
 corepack pnpm@11.7.0 worldctl -- D:\path\to\world.sqlite health
+```
+
+需要长驻本机进程时，可启动 newline-delimited JSON-RPC stdio Host；它不会开启任何网络监听：
+
+```powershell
+corepack pnpm@11.7.0 worldhost -- D:\path\to\world.sqlite D:\path\to\session.sqlite
 ```
 
 ## 使用基础契约
@@ -69,7 +75,8 @@ console.log(hash)
 - Snapshot Unit/Bundle 同 as-of 绑定并只做派生退休；WorldLog、幂等账本和投递账本不截断。
 - SQLite Backup/Restore 保持原 Event Hash；authority-only `.dshworld` 逻辑包排除 Session、Memory、Audit 和进程状态。
 - World/Branch/Archive/Transfer 请求写 append-only sidecar Audit；Health 与固定基数 Metrics 不参与权威状态。
-- JSON-RPC 仅为进程内路由，CLI 使用 stdio；没有 TCP、Pipe、Socket 或远程监听。
+- `round.submit` 只完成耐久受理并返回稳定 `roundId`；`round.get` 查询 queued/processing/committed/failed/cancelled，queued 取消使用事务 CAS。
+- JSON-RPC 同时支持进程内路由与 newline-delimited stdio Headless 循环；CLI 的 `--wait` 只轮询耐久状态，没有 TCP、Pipe、Socket 或远程监听。
 - 生产 Cordis Slot 持有真实 Store、Kernel、Agent 和 Director 组件；Branch Fiber 统一释放资源，不再以 Probe 代替生产组件。
 - 玩家、NPC Agent 与 Director 候选在同一 Round 中经过严格校验、稳定排序和逐动作重裁决，并只执行一次 WorldStore 提交。
 - Branch 行政操作先关闭 Gate，再排空已耐久受理的 FIFO，最后执行 fork/archive；新输入不能混入维护窗口。

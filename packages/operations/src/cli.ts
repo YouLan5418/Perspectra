@@ -4,6 +4,8 @@ import type { LocalJsonRpcRequest, LocalJsonRpcResponse, LocalJsonRpcRouter } fr
 export interface LocalCliExecutionOptions {
   readonly busyRetryTimeoutMs?: number
   readonly busyRetryDelayMs?: number
+  readonly roundWaitTimeoutMs?: number
+  readonly roundWaitDelayMs?: number
   readonly now?: () => number
   readonly wait?: (delayMs: number) => Promise<void>
 }
@@ -112,14 +114,18 @@ export async function executeLocalCli(
 ): Promise<string> {
   let request: LocalJsonRpcRequest
   try {
-    request = parseLocalCli(argv)
+    request = parseLocalCli(argv.filter(value => value !== '--wait'))
   } catch (error: unknown) {
     return responseLine(router.invalidRequest('cli', error))
   }
   const timeoutMs = options.busyRetryTimeoutMs ?? 0
   const delayMs = options.busyRetryDelayMs ?? 100
+  const roundWaitTimeoutMs = options.roundWaitTimeoutMs ?? 30_000
+  const roundWaitDelayMs = options.roundWaitDelayMs ?? 25
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0) throw new RangeError('busyRetryTimeoutMs must be a non-negative safe integer')
   if (!Number.isSafeInteger(delayMs) || delayMs <= 0) throw new RangeError('busyRetryDelayMs must be a positive safe integer')
+  if (!Number.isSafeInteger(roundWaitTimeoutMs) || roundWaitTimeoutMs < 0) throw new RangeError('roundWaitTimeoutMs must be a non-negative safe integer')
+  if (!Number.isSafeInteger(roundWaitDelayMs) || roundWaitDelayMs <= 0) throw new RangeError('roundWaitDelayMs must be a positive safe integer')
   const now = options.now ?? Date.now
   const wait = options.wait ?? (delay => new Promise(resolve => setTimeout(resolve, delay)))
   const deadline = now() + timeoutMs
@@ -128,6 +134,27 @@ export async function executeLocalCli(
     response = await router.handle(request)
     if (!isWriterBusy(response) || now() >= deadline) break
     await wait(Math.min(delayMs, deadline - now()))
+  }
+  if (argv.includes('--wait') && request.method === 'round.submit' && response.error === undefined) {
+    const result = response.result as WorldJsonObject
+    const roundId = result.roundId
+    if (typeof roundId !== 'string') throw new Error('round.submit response has no roundId')
+    const waitDeadline = now() + roundWaitTimeoutMs
+    while (true) {
+      const polled = await router.handle({
+        jsonrpc: '2.0', id: request.id, method: 'round.get',
+        params: { address: request.params.address!, roundId },
+      })
+      const polledResult = polled.result
+      const pollStatus = typeof polledResult === 'object' && polledResult !== null && !Array.isArray(polledResult)
+        ? (polledResult as WorldJsonObject).status : undefined
+      if (pollStatus !== 'queued' && pollStatus !== 'processing') {
+        response = polled
+        break
+      }
+      if (now() >= waitDeadline) throw new Error('round --wait timed out')
+      await wait(Math.min(roundWaitDelayMs, waitDeadline - now()))
+    }
   }
   return responseLine(response)
 }

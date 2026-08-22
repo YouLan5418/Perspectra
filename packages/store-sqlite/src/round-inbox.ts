@@ -1,6 +1,8 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
   assertProtocolString,
+  brandId,
+  deterministicId,
   failWorld,
   hashWorldJson,
   worldAddressKey,
@@ -8,6 +10,7 @@ import {
   type WorldHash,
   type WorldJsonValue,
   type TransactionId,
+  type InteractionRoundId,
 } from '@harness-world/contracts'
 import { openWorldDatabase } from './world-store.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
@@ -24,6 +27,20 @@ export interface EnqueueRoundResult {
   readonly status: 'enqueued' | 'already_enqueued'
   readonly inboxSeq: number
   readonly inputHash: WorldHash
+  readonly roundId: InteractionRoundId
+}
+
+export interface RoundLookup {
+  readonly idempotencyKey?: string
+  readonly roundId?: InteractionRoundId
+}
+
+export interface DurableRoundStatus {
+  readonly status: 'queued' | 'processing' | 'committed' | 'failed' | 'cancelled'
+  readonly inboxSeq: number
+  readonly idempotencyKey: string
+  readonly roundId: InteractionRoundId
+  readonly result: WorldJsonValue | null
 }
 
 export interface ClaimedRound {
@@ -50,6 +67,21 @@ interface InboxRow {
   readonly principal_id: string
   readonly input_json: string
   readonly input_hash: WorldHash
+}
+
+interface StatusRow extends InboxRow {
+  readonly status: 'pending' | 'claimed' | 'completed' | 'failed' | 'cancelled'
+  readonly result_json: string | null
+  readonly result_hash: WorldHash | null
+}
+
+export function coordinatedRoundId(
+  address: WorldAddress,
+  inboxSeq: number,
+  idempotencyKey: string,
+  inputHash: WorldHash,
+): InteractionRoundId {
+  return brandId(deterministicId('round:coordinated', { address, inboxSeq, idempotencyKey, inputHash }), 'InteractionRoundId')
 }
 
 function boundBundleHash(result: WorldJsonValue): WorldHash | undefined {
@@ -91,7 +123,10 @@ export class RoundInbox {
           })
         }
         this.#db.exec('COMMIT')
-        return { status: 'already_enqueued', inboxSeq: replay.inbox_seq, inputHash }
+        return {
+          status: 'already_enqueued', inboxSeq: replay.inbox_seq, inputHash,
+          roundId: coordinatedRoundId(request.address, replay.inbox_seq, request.idempotencyKey, inputHash),
+        }
       }
       this.#assertAdmissionOpen(request.address, key, request.correlationId)
       const queued = this.#db.prepare(`
@@ -122,7 +157,10 @@ export class RoundInbox {
         VALUES (?, ?, ?, ?, ?, ?, 'pending')
       `).run(key, inboxSeq, request.idempotencyKey, inputHash, request.principalId, worldJsonText(request.input))
       this.#db.exec('COMMIT')
-      return { status: 'enqueued', inboxSeq, inputHash }
+      return {
+        status: 'enqueued', inboxSeq, inputHash,
+        roundId: coordinatedRoundId(request.address, inboxSeq, request.idempotencyKey, inputHash),
+      }
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
     }
@@ -288,6 +326,56 @@ export class RoundInbox {
     return result
   }
 
+  readStatus(address: WorldAddress, lookup: RoundLookup): DurableRoundStatus | undefined {
+    const row = this.#findStatusRow(address, lookup)
+    if (row === undefined) return undefined
+    const result = row.result_json === null ? null : parseWorldJson(row.result_json)
+    if (result !== null && hashWorldJson('player-round-result', result) !== row.result_hash) {
+      failWorld({
+        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'Round status result is corrupt',
+        retryable: false, correlationId: `round-status:${worldAddressKey(address)}:${row.inbox_seq}`, address,
+      })
+    }
+    const status = row.status === 'pending' ? 'queued' : row.status === 'claimed' ? 'processing' : row.status === 'completed' ? 'committed' : row.status
+    return {
+      status, inboxSeq: row.inbox_seq, idempotencyKey: row.idempotency_key,
+      roundId: coordinatedRoundId(address, row.inbox_seq, row.idempotency_key, row.input_hash), result,
+    }
+  }
+
+  cancelQueued(address: WorldAddress, lookup: RoundLookup, correlationId: string): DurableRoundStatus {
+    const key = worldAddressKey(address)
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      const row = this.#findStatusRow(address, lookup)
+      if (row === undefined) throw new Error('unknown Round')
+      if (row.status === 'cancelled') {
+        this.#db.exec('COMMIT')
+        return this.readStatus(address, { idempotencyKey: row.idempotency_key })!
+      }
+      if (row.status !== 'pending') {
+        failWorld({
+          errorCode: 'ROUND_NOT_CANCELLABLE', category: 'admission', message: 'only a queued Round can be cancelled',
+          retryable: false, correlationId, address,
+          roundId: coordinatedRoundId(address, row.inbox_seq, row.idempotency_key, row.input_hash),
+        })
+      }
+      const result = { status: 'cancelled', reason: 'cancelled_before_claim' } as const
+      this.#db.prepare(`
+        UPDATE round_inbox SET status = 'cancelled', result_hash = ?, result_json = ?
+        WHERE address_key = ? AND inbox_seq = ? AND status = 'pending'
+      `).run(hashWorldJson('player-round-result', result), worldJsonText(result), key, row.inbox_seq)
+      this.#db.prepare(`
+        INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
+        VALUES (?, 'round.cancelled', ?, ?, ?)
+      `).run(key, correlationId, worldJsonText({ inboxSeq: row.inbox_seq, idempotencyKey: row.idempotency_key }), this.now())
+      this.#db.exec('COMMIT')
+      return this.readStatus(address, { idempotencyKey: row.idempotency_key })!
+    } catch (error: unknown) {
+      rollbackAndThrow(this.#db, error)
+    }
+  }
+
   close(): void {
     this.#db.close()
   }
@@ -300,6 +388,19 @@ export class RoundInbox {
       input: parseWorldJson(row.input_json),
       inputHash: row.input_hash,
     }
+  }
+
+  #findStatusRow(address: WorldAddress, lookup: RoundLookup): StatusRow | undefined {
+    if ((lookup.idempotencyKey === undefined) === (lookup.roundId === undefined)) throw new TypeError('Round lookup requires exactly one selector')
+    const rows = this.#db.prepare(`
+      SELECT inbox_seq, idempotency_key, principal_id, input_json, input_hash, status, result_json, result_hash
+      FROM round_inbox WHERE address_key = ? ORDER BY inbox_seq
+    `).all(worldAddressKey(address)) as unknown as StatusRow[]
+    if (lookup.idempotencyKey !== undefined) {
+      this.#validateText(lookup.idempotencyKey, 'idempotencyKey')
+      return rows.find(row => row.idempotency_key === lookup.idempotencyKey)
+    }
+    return rows.find(row => coordinatedRoundId(address, row.inbox_seq, row.idempotency_key, row.input_hash) === lookup.roundId)
   }
 
   #validateText(value: string, name: string): void {

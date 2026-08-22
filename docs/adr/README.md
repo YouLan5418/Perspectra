@@ -22,3 +22,4 @@
 | [0038](ADR-0038-concurrency-authority-hardening.md) | 并发领取、权威来源与一致性传输加固 | 已实现跨 Worker CAS、可信来源和传输闭环 |
 | [0039](ADR-0039-application-round-composition.md) | WorldApplication、真实 Branch 组件与统一 Round 协调 | Phase 6 组合根与生产路径 |
 | [0040](ADR-0040-phase6-recovery-application-authority.md) | 非确定参与者恢复、实例权威与应用边界 | Phase 6 独立审查加固 |
+| [0041](ADR-0041-async-round-headless.md) | 异步 Round 受理、耐久状态与本机 Headless 循环 | Release Closure 异步协议单元 |

@@ -230,6 +230,26 @@ async function installCommittedRecoveryFixture(
 }
 
 describe('RoundCoordinator', () => {
+  it('reports a durably claimed Round as processing without executing it again', () => {
+    const compiled = world()
+    const path = database('accepted-processing.sqlite')
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const coordinatorOptions = options(path, compiled)
+    const coordinator = new RoundCoordinator(coordinatorOptions)
+    const request = {
+      idempotencyKey: 'round:accepted-processing', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'queued' } }, correlationId: 'accepted-processing',
+    } as const
+    expect(coordinator.accept(request)).toMatchObject({ status: 'queued', inboxSeq: 1 })
+    const lease = coordinatorOptions.leases.acquire(compiled.manifest.address, coordinatorOptions.ownerId)
+    expect(coordinatorOptions.inbox.claimNext(compiled.manifest.address, lease.ownerId, lease.fencingToken))
+      .toMatchObject({ inboxSeq: 1 })
+    expect(coordinator.accept(request)).toMatchObject({ status: 'processing', inboxSeq: 1 })
+    close(coordinatorOptions, coordinator)
+  })
+
   it('validates durable actions and compares every stable ActionOrderKey field', () => {
     expect(parseClaimedPlayerAction({ actionType: 'speak', parameters: {} })).toEqual({ actionType: 'speak', parameters: {} })
     for (const invalid of [null, [], 'action', { actionType: 1, parameters: {} }, { actionType: 'speak' }]) {
@@ -282,6 +302,7 @@ describe('RoundCoordinator', () => {
     expect(providerCalls).toBe(5)
     expect(await coordinator.submit(request)).toEqual(result)
     expect(providerCalls).toBe(5)
+    expect(coordinator.accept(request)).toMatchObject({ status: 'committed', idempotencyKey: 'round:one' })
     const administration = new BranchAdministration(path)
     administration.setAdmission(compiled.manifest.address, 'draining', 'retry proof', 'coordinator:draining')
     expect(await coordinator.submit(request)).toEqual(result)
@@ -520,6 +541,10 @@ describe('RoundCoordinator', () => {
     })).toThrow('exactly')
     normal.close()
     normal.close()
+    expect(() => normal.accept({
+      idempotencyKey: 'closed-accept', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: {} }, correlationId: 'closed-accept',
+    })).toThrow('closed')
     await expect(normal.submit({
       idempotencyKey: 'closed', principalId: 'principal:player',
       action: { actionType: 'speak', parameters: {} }, correlationId: 'closed',
