@@ -1,5 +1,12 @@
 import { canonicalizeWorldJson, type WorldJsonObject } from '@harness-world/contracts'
-import type { LocalJsonRpcRequest, LocalJsonRpcRouter } from './rpc.ts'
+import type { LocalJsonRpcRequest, LocalJsonRpcResponse, LocalJsonRpcRouter } from './rpc.ts'
+
+export interface LocalCliExecutionOptions {
+  readonly busyRetryTimeoutMs?: number
+  readonly busyRetryDelayMs?: number
+  readonly now?: () => number
+  readonly wait?: (delayMs: number) => Promise<void>
+}
 
 function address(tenantId: string | undefined, worldId: string | undefined, branchId: string | undefined): WorldJsonObject {
   if (tenantId === undefined || worldId === undefined || branchId === undefined) throw new TypeError('branch command requires tenantId worldId branchId')
@@ -41,10 +48,23 @@ export function parseLocalCli(argv: readonly string[]): LocalJsonRpcRequest {
       params: { address: address(tenantId, worldId, branchId), characterId, ...(asOf === undefined ? {} : { asOfWorldSeq: Number(asOf) }) },
     }
   }
-  if (group === 'outbox' && operation === 'drain') {
+  if (group === 'outbox' && (operation === 'drain' || operation === 'list')) {
     return {
-      jsonrpc: '2.0', id: 'cli', method: 'outbox.drain',
-      params: { address: address(tenantId, worldId, branchId), correlationId: 'cli:outbox-drain' },
+      jsonrpc: '2.0', id: 'cli', method: `outbox.${operation}`,
+      params: {
+        address: address(tenantId, worldId, branchId),
+        ...(operation === 'drain' ? { correlationId: 'cli:outbox-drain' } : {}),
+      },
+    }
+  }
+  if (group === 'outbox' && operation === 'retry') {
+    const [deliveryId] = rest
+    if (deliveryId === undefined) throw new TypeError('outbox retry requires deliveryId')
+    return {
+      jsonrpc: '2.0', id: 'cli', method: 'outbox.retry',
+      params: {
+        address: address(tenantId, worldId, branchId), deliveryId, correlationId: 'cli:outbox-retry',
+      },
     }
   }
   if (group === 'snapshot' && (operation === 'create' || operation === 'latest')) {
@@ -78,14 +98,45 @@ export function parseLocalCli(argv: readonly string[]): LocalJsonRpcRequest {
     const reason = rest.join(' ').trim()
     if (reason.length === 0) throw new TypeError(`${operation} requires a reason`)
     return {
-      jsonrpc: '2.0', id: 'cli', method: `branch.${operation}`,
+      jsonrpc: '2.0', id: 'cli', method: operation === 'archive' ? 'branch.archive-coordinated' : `branch.${operation}`,
       params: { address: target, reason, correlationId: `cli:${operation}` },
     }
   }
   throw new TypeError(`unknown branch operation ${operation}`)
 }
 
-export async function executeLocalCli(argv: readonly string[], router: LocalJsonRpcRouter): Promise<string> {
-  const response = await router.handle(parseLocalCli(argv))
+export async function executeLocalCli(
+  argv: readonly string[],
+  router: LocalJsonRpcRouter,
+  options: LocalCliExecutionOptions = {},
+): Promise<string> {
+  let request: LocalJsonRpcRequest
+  try {
+    request = parseLocalCli(argv)
+  } catch (error: unknown) {
+    return responseLine(router.invalidRequest('cli', error))
+  }
+  const timeoutMs = options.busyRetryTimeoutMs ?? 0
+  const delayMs = options.busyRetryDelayMs ?? 100
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0) throw new RangeError('busyRetryTimeoutMs must be a non-negative safe integer')
+  if (!Number.isSafeInteger(delayMs) || delayMs <= 0) throw new RangeError('busyRetryDelayMs must be a positive safe integer')
+  const now = options.now ?? Date.now
+  const wait = options.wait ?? (delay => new Promise(resolve => setTimeout(resolve, delay)))
+  const deadline = now() + timeoutMs
+  let response: LocalJsonRpcResponse
+  while (true) {
+    response = await router.handle(request)
+    if (!isWriterBusy(response) || now() >= deadline) break
+    await wait(Math.min(delayMs, deadline - now()))
+  }
+  return responseLine(response)
+}
+
+function isWriterBusy(response: LocalJsonRpcResponse): boolean {
+  return typeof response.error === 'object' && response.error !== null && !Array.isArray(response.error)
+    && (response.error as WorldJsonObject).errorCode === 'WORLDSTORE_BUSY'
+}
+
+function responseLine(response: LocalJsonRpcResponse): string {
   return `${Buffer.from(canonicalizeWorldJson(response)).toString('utf8')}\n`
 }

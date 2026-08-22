@@ -5,11 +5,16 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId, type WorldAddress } from '@harness-world/contracts'
-import { WORLD_APPLICATION_ID, WorldStore } from '@harness-world/store-sqlite'
+import {
+  SessionOutboxWorker,
+  WORLD_APPLICATION_ID,
+  WorldOutbox,
+  WorldStore,
+} from '@harness-world/store-sqlite'
 import { executeLocalCli, parseLocalCli } from './cli.ts'
 import { WorldHealthService } from './health.ts'
 import { OperationsMetrics } from './metrics.ts'
-import { LocalJsonRpcRouter, type LocalJsonRpcRequest } from './rpc.ts'
+import { LocalJsonRpcRouter, type LocalJsonRpcRequest, type LocalJsonRpcResponse } from './rpc.ts'
 
 const directories: string[] = []
 
@@ -148,8 +153,25 @@ describe('LocalJsonRpcRouter', () => {
     await expect(router.handle(request('view.character', {
       address: parent, characterId: 'character:player', asOfWorldSeq: (head.result as { headSeq: number }).headSeq,
     }))).resolves.toMatchObject({ result: { characterId: 'character:player' } })
+    const fixtureOutbox = new WorldOutbox(path)
+    const failingWorker = new SessionOutboxWorker(fixtureOutbox, {
+      appendIfAbsent: async () => { throw new Error('RPC recovery fixture') },
+    }, parent, 1)
+    await expect(failingWorker.runOnce('rpc:dead-letter-fixture')).resolves.toMatchObject({ status: 'dead_letter' })
+    fixtureOutbox.close()
+    const listed = await router.handle(request('outbox.list', { address: parent }))
+    expect(listed).toMatchObject({ result: [{ deliveryId: expect.any(String), lastError: 'RPC recovery fixture' }] })
+    const deliveryId = (listed.result as Array<{ deliveryId: string }>)[0]!.deliveryId
+    await expect(router.handle(request('outbox.retry', {
+      address: parent, deliveryId, correlationId: 'rpc:outbox-retry',
+    }))).resolves.toMatchObject({ result: { status: 'retry_scheduled' } })
     await expect(router.handle(request('outbox.drain', { address: parent, correlationId: 'rpc:outbox' })))
       .resolves.toMatchObject({ result: { delivered: 1 } })
+    await expect(router.handle(request('outbox.list', { address: parent })))
+      .resolves.toMatchObject({ result: [] })
+    await expect(router.handle(request('outbox.retry', {
+      address: parent, deliveryId: 'delivery:missing', correlationId: 'rpc:outbox-retry',
+    }))).resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
     await expect(router.handle(request('session.render', {
       address: parent, sessionId: 'session:player', sessionEventSeq: 1, locale: 'zh-CN',
     }))).resolves.toMatchObject({ result: { locale: 'zh-CN' } })
@@ -192,6 +214,15 @@ describe('LocalJsonRpcRouter', () => {
       exportPath: authorityPath, targetPath: join(directory, 'authority-import.sqlite'), correlationId: 'rpc:authority-import',
     }))
     expect(importedAuthority.result).toBe(authority.result)
+    await expect(router.handle(request('branch.status', { address: parent }))).resolves.toMatchObject({
+      error: { message: expect.stringContaining('disabled when WorldApplication is configured') },
+    })
+    await expect(router.handle(request('branch.fork', { parent, child, forkSeq: 0 }))).resolves.toMatchObject({
+      error: { message: expect.stringContaining('disabled when WorldApplication is configured') },
+    })
+    await expect(router.handle(request('branch.archive', {
+      address: parent, reason: 'unsafe legacy route', correlationId: 'rpc:unsafe-archive',
+    }))).resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
     await expect(router.handle(request('branch.fork-at-head', {
       parent, child, reason: 'checkpoint', correlationId: 'rpc:fork-at-head',
     }))).resolves.toMatchObject({ result: { parentState: { admissionState: 'open' } } })
@@ -204,6 +235,7 @@ describe('LocalJsonRpcRouter', () => {
       ['round.submit', { ...roundParams, action: null }],
       ['round.submit', { ...roundParams, action: [] }],
       ['round.submit', { ...roundParams, action: { actionType: 'speak', parameters: {}, extra: true } }],
+      ['round.get', { address: child, idempotencyKey: 1 }],
       ['view.character', { address: child, characterId: 'character:player', asOfWorldSeq: -1 }],
       ['view.character', { address: child, characterId: 'character:player', asOfWorldSeq: 'latest' }],
       ['session.render', { address: child, sessionId: 'session:player', sessionEventSeq: 1, locale: 'fr' }],
@@ -228,7 +260,7 @@ describe('worldctl grammar', () => {
     expect(parseLocalCli(['branch', 'audit', 'tenant', 'world', 'branch']).method).toBe('audit.list')
     expect(parseLocalCli(['branch', 'drain', 'tenant', 'world', 'branch', 'planned', 'work']).params).toMatchObject({ reason: 'planned work' })
     expect(parseLocalCli(['branch', 'open', 'tenant', 'world', 'branch', 'done']).method).toBe('branch.open')
-    expect(parseLocalCli(['branch', 'archive', 'tenant', 'world', 'branch', 'complete']).method).toBe('branch.archive')
+    expect(parseLocalCli(['branch', 'archive', 'tenant', 'world', 'branch', 'complete']).method).toBe('branch.archive-coordinated')
     expect(parseLocalCli(['round', 'get', 'tenant', 'world', 'branch', 'round:1']).method).toBe('round.get')
     expect(parseLocalCli(['round', 'submit', 'tenant', 'world', 'branch', 'principal:1', 'round:1', 'speak', '{"text":"hi"}']).params)
       .toMatchObject({ action: { actionType: 'speak', parameters: { text: 'hi' } } })
@@ -236,6 +268,8 @@ describe('worldctl grammar', () => {
     expect(parseLocalCli(['view', 'character', 'tenant', 'world', 'branch', 'character:1']).method).toBe('view.character')
     expect(parseLocalCli(['view', 'character', 'tenant', 'world', 'branch', 'character:1', '2']).params).toMatchObject({ asOfWorldSeq: 2 })
     expect(parseLocalCli(['outbox', 'drain', 'tenant', 'world', 'branch']).method).toBe('outbox.drain')
+    expect(parseLocalCli(['outbox', 'list', 'tenant', 'world', 'branch']).method).toBe('outbox.list')
+    expect(parseLocalCli(['outbox', 'retry', 'tenant', 'world', 'branch', 'delivery:1']).method).toBe('outbox.retry')
     expect(parseLocalCli(['snapshot', 'create', 'tenant', 'world', 'branch', 'snapshot.sqlite']).method).toBe('snapshot.create')
     expect(parseLocalCli(['snapshot', 'latest', 'tenant', 'world', 'branch', 'snapshot.sqlite']).method).toBe('snapshot.latest')
     expect(parseLocalCli(['backup', 'create', 'backup.sqlite']).method).toBe('backup.create')
@@ -249,6 +283,7 @@ describe('worldctl grammar', () => {
     expect(() => parseLocalCli(['round', 'get', 'tenant', 'world', 'branch'])).toThrow('idempotencyKey')
     expect(() => parseLocalCli(['round', 'submit', 'tenant', 'world', 'branch'])).toThrow('requires principalId')
     expect(() => parseLocalCli(['view', 'character', 'tenant', 'world', 'branch'])).toThrow('characterId')
+    expect(() => parseLocalCli(['outbox', 'retry', 'tenant', 'world', 'branch'])).toThrow('deliveryId')
     expect(() => parseLocalCli(['snapshot', 'create', 'tenant', 'world', 'branch'])).toThrow('snapshotPath')
     expect(() => parseLocalCli(['backup', 'create'])).toThrow('targetPath')
     expect(() => parseLocalCli(['transfer', 'export-portable'])).toThrow('targetPath')
@@ -261,6 +296,48 @@ describe('worldctl grammar', () => {
     const line = await executeLocalCli(['health'], router)
     expect(line.endsWith('\n')).toBe(true)
     expect(JSON.parse(line)).toMatchObject({ jsonrpc: '2.0', result: { status: 'ready' } })
+    expect(JSON.parse(await executeLocalCli(['unknown'], router))).toMatchObject({
+      error: { errorCode: 'INVALID_REQUEST', message: expect.stringContaining('unknown worldctl command') },
+    })
+    await expect(executeLocalCli(['health'], router, { busyRetryTimeoutMs: -1 })).rejects.toThrow('busyRetryTimeoutMs')
+    await expect(executeLocalCli(['health'], router, { busyRetryDelayMs: 0 })).rejects.toThrow('busyRetryDelayMs')
+    expect(router.metrics.snapshot()).toMatchObject({ rpc_requests: 2, rpc_errors: 1 })
     router.close()
+  })
+
+  it('retries a busy writer only within the configured CLI deadline', async () => {
+    let calls = 0
+    let clock = 0
+    const response = (busy: boolean): LocalJsonRpcResponse => busy
+      ? { jsonrpc: '2.0', id: 'cli', error: { errorCode: 'WORLDSTORE_BUSY' } }
+      : { jsonrpc: '2.0', id: 'cli', result: { status: 'ready' } }
+    const retrying = {
+      handle: async () => response(calls++ === 0),
+      invalidRequest: () => { throw new Error('unexpected parse failure') },
+    } as unknown as LocalJsonRpcRouter
+    const line = await executeLocalCli(['health'], retrying, {
+      busyRetryTimeoutMs: 10,
+      busyRetryDelayMs: 4,
+      now: () => clock,
+      wait: async delay => { clock += delay },
+    })
+    expect(JSON.parse(line)).toMatchObject({ result: { status: 'ready' } })
+    expect(calls).toBe(2)
+
+    const exhausted = {
+      handle: async () => response(true),
+      invalidRequest: () => { throw new Error('unexpected parse failure') },
+    } as unknown as LocalJsonRpcRouter
+    expect(JSON.parse(await executeLocalCli(['health'], exhausted))).toMatchObject({
+      error: { errorCode: 'WORLDSTORE_BUSY' },
+    })
+
+    calls = 0
+    const defaultWait = {
+      handle: async () => response(calls++ === 0),
+      invalidRequest: () => { throw new Error('unexpected parse failure') },
+    } as unknown as LocalJsonRpcRouter
+    await expect(executeLocalCli(['health'], defaultWait, { busyRetryTimeoutMs: 5, busyRetryDelayMs: 1 }))
+      .resolves.toContain('"status":"ready"')
   })
 })

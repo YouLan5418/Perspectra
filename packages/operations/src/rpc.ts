@@ -1,10 +1,12 @@
 import {
+  assertProtocolString,
   brandId,
   canonicalizeWorldJson,
   createErrorEnvelope,
   WorldError,
   type WorldAddress,
   type CharacterId,
+  type DeliveryId,
   type SessionId,
   type WorldJsonObject,
   type WorldJsonValue,
@@ -25,6 +27,8 @@ export interface WorldApplicationPort {
   head(address: WorldAddress): Promise<unknown>
   characterView(address: WorldAddress, characterId: CharacterId, asOfWorldSeq?: number): Promise<unknown>
   deliver(address: WorldAddress, correlationId: string): Promise<number>
+  deadLetters(address: WorldAddress): Promise<unknown>
+  retryDeadLetter(address: WorldAddress, deliveryId: DeliveryId, correlationId: string): Promise<void>
   renderSession(address: WorldAddress, sessionId: SessionId, sessionEventSeq: number, options?: { readonly locale?: 'en' | 'zh-CN' }): Promise<unknown>
   forkAtHead(parent: WorldAddress, child: WorldAddress, reason: string, correlationId: string): Promise<unknown>
   archive(address: WorldAddress, reason: string, correlationId: string): Promise<unknown>
@@ -55,8 +59,8 @@ export interface LocalJsonRpcResponse extends WorldJsonObject {
 
 function stringParam(params: WorldJsonObject, name: string): string {
   const value = params[name]
-  if (typeof value !== 'string' || value.length === 0) throw new TypeError(`${name} must be a non-empty string`)
-  return value
+  if (typeof value !== 'string') throw new TypeError(`${name} must be a string`)
+  return assertProtocolString(value, name)
 }
 
 function addressParam(value: WorldJsonValue | undefined, name = 'address'): WorldAddress {
@@ -91,14 +95,14 @@ function worldResult(value: unknown): WorldJsonValue {
 
 /** In-process JSON-RPC 2.0 router. It intentionally owns no socket or remote listener. */
 export class LocalJsonRpcRouter {
-  readonly #store: WorldStore
-  readonly #admin: BranchAdministration
+  readonly #store: WorldStore | undefined
+  readonly #admin: BranchAdministration | undefined
   readonly #health: WorldHealthService
   readonly metrics = new OperationsMetrics()
 
   constructor(worldPath: string, private readonly application?: WorldApplicationPort) {
-    this.#store = new WorldStore(worldPath)
-    this.#admin = new BranchAdministration(worldPath)
+    this.#store = application === undefined ? new WorldStore(worldPath) : undefined
+    this.#admin = application === undefined ? new BranchAdministration(worldPath) : undefined
     this.#health = new WorldHealthService(worldPath)
   }
 
@@ -112,18 +116,18 @@ export class LocalJsonRpcRouter {
       const result = await this.#dispatch(request.method, request.params)
       return { jsonrpc: '2.0', id: request.id, result }
     } catch (error: unknown) {
-      this.metrics.increment('rpc_errors')
-      const envelope = error instanceof WorldError ? error.envelope : createErrorEnvelope({
-        errorCode: 'INVALID_REQUEST', category: 'admin', message: String(error), retryable: false,
-        correlationId: `rpc:${String(request.id)}`,
-      })
-      return { jsonrpc: '2.0', id: request.id, error: envelope as unknown as WorldJsonValue }
+      return this.#errorResponse(request.id, error)
     }
   }
 
+  invalidRequest(id: string | number | null, error: unknown): LocalJsonRpcResponse {
+    this.metrics.increment('rpc_requests')
+    return this.#errorResponse(id, error)
+  }
+
   close(): void {
-    this.#admin.close()
-    this.#store.close()
+    this.#admin?.close()
+    this.#store?.close()
   }
 
   async #dispatch(method: string, params: WorldJsonObject): Promise<WorldJsonValue> {
@@ -153,6 +157,17 @@ export class LocalJsonRpcRouter {
     }
     if (method === 'outbox.drain') {
       return { delivered: await this.#application().deliver(addressParam(params.address), stringParam(params, 'correlationId')) }
+    }
+    if (method === 'outbox.list') {
+      return worldResult(await this.#application().deadLetters(addressParam(params.address)))
+    }
+    if (method === 'outbox.retry') {
+      await this.#application().retryDeadLetter(
+        addressParam(params.address),
+        brandId(stringParam(params, 'deliveryId'), 'DeliveryId'),
+        stringParam(params, 'correlationId'),
+      )
+      return { status: 'retry_scheduled' }
     }
     if (method === 'session.render') {
       const locale = params.locale
@@ -215,31 +230,50 @@ export class LocalJsonRpcRouter {
     }
     if (method === 'health.get') return this.#health.check()
     if (method === 'metrics.get') return this.metrics.snapshot()
-    if (method === 'branch.status') return this.#admin.status(addressParam(params.address))
+    if (method === 'branch.status') return this.#legacyAdmin().status(addressParam(params.address))
     if (method === 'branch.drain' || method === 'branch.open') {
       this.metrics.increment('branch_transitions')
-      return this.#admin.setAdmission(
+      return this.#legacyAdmin().setAdmission(
         addressParam(params.address), method === 'branch.drain' ? 'draining' : 'open',
         stringParam(params, 'reason'), stringParam(params, 'correlationId'),
       )
     }
     if (method === 'branch.archive') {
       this.metrics.increment('branch_transitions')
-      return this.#admin.archive(addressParam(params.address), stringParam(params, 'reason'), stringParam(params, 'correlationId'))
+      return this.#legacyAdmin().archive(addressParam(params.address), stringParam(params, 'reason'), stringParam(params, 'correlationId'))
     }
     if (method === 'branch.fork') {
       const forkSeq = params.forkSeq
       if (typeof forkSeq !== 'number') throw new TypeError('forkSeq must be a number')
-      this.#store.forkBranch(addressParam(params.parent, 'parent'), addressParam(params.child, 'child'), forkSeq)
+      this.#legacyStore().forkBranch(addressParam(params.parent, 'parent'), addressParam(params.child, 'child'), forkSeq)
       this.metrics.increment('branch_forks')
       return { status: 'forked', forkSeq }
     }
-    if (method === 'audit.list') return this.#admin.readAudit(addressParam(params.address))
+    if (method === 'audit.list') return this.#legacyAdmin().readAudit(addressParam(params.address))
     throw new TypeError(`unknown local RPC method ${method}`)
   }
 
   #application(): WorldApplicationPort {
     if (this.application === undefined) throw new Error('WorldApplication Port is not configured')
     return this.application
+  }
+
+  #legacyAdmin(): BranchAdministration {
+    if (this.#admin === undefined) throw new Error('legacy Store administration is disabled when WorldApplication is configured')
+    return this.#admin
+  }
+
+  #legacyStore(): WorldStore {
+    if (this.#store === undefined) throw new Error('legacy Store administration is disabled when WorldApplication is configured')
+    return this.#store
+  }
+
+  #errorResponse(id: string | number | null, error: unknown): LocalJsonRpcResponse {
+    this.metrics.increment('rpc_errors')
+    const envelope = error instanceof WorldError ? error.envelope : createErrorEnvelope({
+      errorCode: 'INVALID_REQUEST', category: 'admin', message: String(error), retryable: false,
+      correlationId: `rpc:${String(id)}`,
+    })
+    return { jsonrpc: '2.0', id, error: envelope as unknown as WorldJsonValue }
   }
 }

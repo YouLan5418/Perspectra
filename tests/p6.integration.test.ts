@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId, type AgentProvider, type ProposalContext } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
+import { LocalJsonRpcRouter, executeLocalCli } from '@harness-world/operations'
 
 describe('Phase 6 reference application acceptance', () => {
   it('keeps one deterministic production path across providers, fork, parent archive, Session, and restart', async () => {
@@ -67,14 +68,25 @@ describe('Phase 6 reference application acceptance', () => {
     try {
       const application = new WorldApplication(options)
       application.activate(compiled)
-      const first = await application.submit(compiled.manifest.address, request('p6:first', 'initial fact'))
+      const router = new LocalJsonRpcRouter(worldPath, application)
+      const cliPrefix = ['tenant:p6', 'world:p6', 'branch:main'] as const
+      const firstResponse = JSON.parse(await executeLocalCli([
+        'round', 'submit', ...cliPrefix, 'principal:player', 'p6:first', 'speak', '{"text":"initial fact"}',
+      ], router)) as { result: Awaited<ReturnType<WorldApplication['submit']>> }
+      const first = firstResponse.result
       expect(first).toMatchObject({ tick: 1, status: 'accepted' })
-      expect(await application.deliver(compiled.manifest.address, 'p6:first-delivery')).toBe(3)
+      expect(JSON.parse(await executeLocalCli(['outbox', 'drain', ...cliPrefix], router)))
+        .toMatchObject({ result: { delivered: 3 } })
       const child = { ...compiled.manifest.address, branchId: brandId('branch:child', 'BranchId') }
-      await application.forkAtHead(compiled.manifest.address, child, 'reference fork', 'p6:fork')
+      await expect(router.handle({
+        jsonrpc: '2.0', id: 'p6:fork', method: 'branch.fork-at-head',
+        params: { parent: compiled.manifest.address, child, reason: 'reference fork', correlationId: 'p6:fork' },
+      })).resolves.toMatchObject({ result: { forkSeq: expect.any(Number) } })
       await application.submit(compiled.manifest.address, request('p6:parent-future', 'FUTURE_CANARY'))
       await application.deliver(compiled.manifest.address, 'p6:future-delivery')
-      await application.archive(compiled.manifest.address, 'parent complete', 'p6:archive-parent')
+      expect(JSON.parse(await executeLocalCli([
+        'branch', 'archive', ...cliPrefix, 'parent', 'complete',
+      ], router))).toMatchObject({ result: { state: { lifecycleState: 'archived' } } })
 
       const childResult = await application.submit(child, request('p6:child', 'child survives parent archive'))
       expect(childResult.tick).toBe(2)
@@ -84,14 +96,22 @@ describe('Phase 6 reference application acceptance', () => {
       ))).not.toContain('FUTURE_CANARY')
       expect(await application.deliver(child, 'p6:child-delivery')).toBe(3)
       const callsBeforeRestart = calls.value
+      router.close()
       await application.close()
 
       const restarted = new WorldApplication(options)
-      expect(await restarted.roundResult(child, 'p6:child')).toEqual(childResult)
-      expect(await restarted.submit(child, request('p6:child', 'child survives parent archive'))).toEqual(childResult)
+      const restartedRouter = new LocalJsonRpcRouter(worldPath, restarted)
+      expect(JSON.parse(await executeLocalCli([
+        'round', 'get', 'tenant:p6', 'world:p6', 'branch:child', 'p6:child',
+      ], restartedRouter))).toMatchObject({ result: childResult })
+      expect(JSON.parse(await executeLocalCli([
+        'round', 'submit', 'tenant:p6', 'world:p6', 'branch:child', 'principal:player', 'p6:child', 'speak',
+        '{"text":"child survives parent archive"}',
+      ], restartedRouter))).toMatchObject({ result: childResult })
       expect(calls.value).toBe(callsBeforeRestart)
       expect((await restarted.renderSession(child, brandId('session:player', 'SessionId'), 1)).presentationHash)
         .toMatch(/^sha256:/)
+      restartedRouter.close()
       await restarted.close()
     } finally {
       rmSync(directory, { recursive: true, force: true })
