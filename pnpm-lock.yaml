@@ -42,6 +42,9 @@ importers:
 
   packages/application:
     dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.1
+        version: 4.0.1
       '@harness-world/agents':
         specifier: workspace:*
         version: link:../agents
@@ -51,6 +54,12 @@ importers:
       '@harness-world/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@harness-world/presentation':
+        specifier: workspace:*
+        version: link:../presentation
+      '@harness-world/runtime-cordis':
+        specifier: workspace:*
+        version: link:../runtime-cordis
       '@harness-world/store-sqlite':
         specifier: workspace:*
         version: link:../store-sqlite

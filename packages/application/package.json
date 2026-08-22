@@ -5,9 +5,12 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
     "@harness-world/agents": "workspace:*",
     "@harness-world/contracts": "workspace:*",
     "@harness-world/kernel": "workspace:*",
+    "@harness-world/presentation": "workspace:*",
+    "@harness-world/runtime-cordis": "workspace:*",
     "@harness-world/store-sqlite": "workspace:*"
   }
 }
