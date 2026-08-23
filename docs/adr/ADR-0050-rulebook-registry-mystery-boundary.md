@@ -33,3 +33,13 @@ v3/v4 Manifest、Registry、Genesis 和已提交 Event 已是冻结权威，不�
 - 通用 `WorldApplication` 挂载 v4 返回 `RULEBOOK_NOT_REGISTERED` 且不取得 Writer Lease。
 - 搬迁前后 Golden 全等。
 - v3/v4 存量世界覆盖提交、fork 后继续提交、archive、quarantine recovery。
+
+## 生命周期兼容矩阵
+
+| 世界/组合根 | 新激活 | 挂载与提交 | fork 子分支 | archive | quarantine recover |
+|---|---:|---:|---:|---:|---:|
+| v3 / 悬疑组合根 | 拒绝 | 允许 | 允许 | 允许 | 允许 |
+| v4 / 悬疑组合根 | 允许 | 允许 | 允许 | 允许 | 允许 |
+| v3 或 v4 / 通用组合根 | 不适用或拒绝 | `RULEBOOK_NOT_REGISTERED` | 不取得 Writer Lease | 不取得 Writer Lease | 不取得 Writer Lease |
+
+v3 禁止项按 `builtin:speak-move@3` 精确匹配，不占用其他创作者将来可能使用的版本号。`WorldApplication` 与低层 `WorldBootstrap` 都执行同一新激活屏障；测试中的存量 v3 数据由冻结的低层历史 Fixture 构造，不通过当前激活入口绕过该决定。

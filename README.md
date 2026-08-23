@@ -41,7 +41,7 @@ corepack pnpm@11.7.0 demo:mystery D:\path\to\mystery-world.sqlite D:\path\to\mys
 corepack pnpm@11.7.0 demo:mystery:turn D:\path\to\mystery-world.sqlite D:\path\to\mystery-session.sqlite turn:inspect "检查一下书桌"
 ```
 
-每轮都必须提供唯一幂等键；未知或歧义输入返回 `clarification_required`，不会猜测或提交世界事实。
+每轮都必须提供唯一幂等键；未知或歧义输入返回 `clarification_required`，不会猜测或提交世界事实。该结果会独立耐久并审计，但不会创建 Round 或推进 Tick。
 
 也可以在同一进程、同一 mounted world 中连续输入普通对白、通用命令或调查语法：
 
@@ -119,6 +119,7 @@ console.log(hash)
 - 新 Demo 的 Scene 调度从耐久 Projection 决断；Cognitive Memory v2 按角色、Branch 和 as-of capture Observation/Claim/Goal 并绑定每参与者 Authority。
 - 普通对白、通用命令与调查语法可以在同一个连续 shell 中交错；clarification 不创建 Round。
 - 六种降级 Drill 均验证玩家 Tick 前进、terminal/Audit/Metric/Health、零调用重放和恢复后的重新参与。
+- 非悬疑社交参考切片只使用 Core v2、Scene、Cognitive Memory 与通用文本输入，证明横向能力不依赖调查规则。
 
 ## 文档
 
