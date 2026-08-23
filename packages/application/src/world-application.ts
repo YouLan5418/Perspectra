@@ -29,6 +29,7 @@ import {
   parsePlayerActionInput,
   runtimeManifestFromStored,
   runtimeManifestFromStoredRecord,
+  type CompiledWorldManifest,
   type CompiledWorldSpec,
   type PlayerActionInput,
   type PlayerRoundResult,
@@ -100,6 +101,32 @@ export interface SubmitTextRequest {
 export type SubmitTextResult =
   | Extract<PlayerInputInterpretation, { readonly status: 'clarification_required' }>
   | { readonly status: 'submitted'; readonly action: PlayerActionInput; readonly result: PlayerRoundResult }
+
+function validateApplicationManifest(
+  manifest: CompiledWorldManifest,
+  address: WorldAddress,
+  correlationId: string,
+  memoryPath: string | undefined,
+): { readonly sceneEnabled: boolean; readonly contextEnabled: boolean } {
+  const scenePolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:scene-decision')
+  const contextPolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:agent-context')
+  const unsupported = scenePolicy !== undefined && scenePolicy.version !== '1.0.0'
+    ? `unsupported Scene decision policy ${scenePolicy.version}`
+    : contextPolicy !== undefined && contextPolicy.version !== '2.0.0'
+    ? `unsupported Agent Context policy ${contextPolicy.version}`
+    : contextPolicy !== undefined && scenePolicy === undefined
+    ? 'Agent Context v2 requires Scene decision v1'
+    : contextPolicy !== undefined && memoryPath === undefined
+    ? 'memoryPath must be configured for Agent Context v2'
+    : undefined
+  if (unsupported !== undefined) {
+    failWorld({
+      errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime', message: unsupported, retryable: false,
+      correlationId, address,
+    })
+  }
+  return { sceneEnabled: scenePolicy !== undefined, contextEnabled: contextPolicy !== undefined }
+}
 
 /** Real branch-owned Store aggregate; all handles close with its Cordis Fiber. */
 export class BranchStoreComponent {
@@ -206,26 +233,10 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         throw new TypeError('modelBudgetTokens must be configured when Round participants are enabled')
       }
       const manifest = runtimeManifestFromStoredRecord(store.store.readManifest(scope.address))
-      const scenePolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:scene-decision')
-      const contextPolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:agent-context')
-      if (scenePolicy !== undefined && scenePolicy.version !== '1.0.0') {
-        failWorld({
-          errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
-          message: `unsupported Scene decision policy ${scenePolicy.version}`, retryable: false,
-          correlationId: `scene-policy:${worldAddressKey(scope.address)}`, address: scope.address,
-        })
-      }
-      if (contextPolicy !== undefined && contextPolicy.version !== '2.0.0') {
-        failWorld({
-          errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
-          message: `unsupported Agent Context policy ${contextPolicy.version}`, retryable: false,
-          correlationId: `agent-context-policy:${worldAddressKey(scope.address)}`, address: scope.address,
-        })
-      }
-      if (contextPolicy !== undefined && this.options.memoryPath === undefined) {
-        throw new TypeError('memoryPath must be configured for Agent Context v2')
-      }
-      cognitiveMemory = contextPolicy === undefined
+      const policies = validateApplicationManifest(
+        manifest, scope.address, `manifest-runtime:${worldAddressKey(scope.address)}`, this.options.memoryPath,
+      )
+      cognitiveMemory = !policies.contextEnabled
         ? undefined
         : new CognitiveMemoryService(this.options.memoryPath!, store.store, this.options.faultInjector)
       const agents = new BranchAgentComponent(participants.filter(value => value.role === 'agent'), cognitiveMemory)
@@ -247,7 +258,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         participants: [...agents.participants, ...director.participants],
         modelBudgetTokens: this.options.modelBudgetTokens ?? 0,
         rulebooks: this.options.rulebooks,
-        ...(scenePolicy === undefined ? {} : { sceneDecision: new SceneDecisionService(store.store, store.availability) }),
+        ...(!policies.sceneEnabled ? {} : { sceneDecision: new SceneDecisionService(store.store, store.availability) }),
         ...(cognitiveMemory === undefined ? {} : { cognitiveMemory }),
         runtimeMetrics: this.options.runtimeMetrics,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
@@ -297,7 +308,9 @@ export class WorldApplication {
         `activate:${worldAddressKey(compiled.manifest.address)}`,
         compiled.manifest.address,
       )
-      if (compiled.manifest.rulebook.version === 3 && store.readManifest(compiled.manifest.address) === undefined) {
+      if (compiled.manifest.rulebook.rulebookId === 'builtin:speak-move'
+        && compiled.manifest.rulebook.version === 3
+        && store.readManifest(compiled.manifest.address) === undefined) {
         failWorld({
           errorCode: 'INVALID_REQUEST', category: 'admission',
           message: 'Rulebook v3 is historical-only and cannot activate a new world', retryable: false,
@@ -306,6 +319,10 @@ export class WorldApplication {
           details: { rulebookId: compiled.manifest.rulebook.rulebookId, version: 3 },
         })
       }
+      validateApplicationManifest(
+        compiled.manifest, compiled.manifest.address,
+        `activate:${worldAddressKey(compiled.manifest.address)}`, this.options.memoryPath,
+      )
       return new WorldBootstrap(store).activate(compiled)
     } finally {
       store.close()
@@ -383,6 +400,12 @@ export class WorldApplication {
         const stored = store.readManifest(address)
         if (stored === undefined) throw new Error('world branch has no active Compiled Manifest')
         const manifest = runtimeManifestFromStored(stored.manifest)
+        this.#rulebooks.resolve(
+          manifest.rulebook.rulebookId,
+          manifest.rulebook.version,
+          request.correlationId,
+          address,
+        )
         if (!manifest.playerBindings.some(value => value.principalId === request.principalId)) {
           failWorld({
             errorCode: 'UNAUTHORIZED', category: 'admission', message: 'principal has no PlayerBinding in this world',

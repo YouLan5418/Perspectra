@@ -12,7 +12,7 @@ import {
   type ProposalContext,
   type WorldAddress,
 } from '@harness-world/contracts'
-import { WorldSpecCompiler } from '@harness-world/kernel'
+import { RulebookRegistry, WorldSpecCompiler } from '@harness-world/kernel'
 import {
   BranchQuarantineService,
   SessionDeliveryAdapter,
@@ -95,6 +95,32 @@ function request(idempotencyKey: string, text = idempotencyKey) {
 }
 
 describe('WorldApplication', () => {
+  it('validates Rulebook availability before durable acceptance and rejects invalid runtime plugin composition at activation', async () => {
+    const persistence = paths()
+    const world = compiled()
+    const creator = new WorldApplication(persistence)
+    creator.activate(world)
+    await creator.close()
+
+    const withoutResolver = new WorldApplication({ ...persistence, rulebooks: new RulebookRegistry() })
+    await expect(withoutResolver.acceptRound(world.manifest.address, request('unregistered-before-inbox')))
+      .rejects.toThrow('not registered')
+    expect(await withoutResolver.roundStatus(world.manifest.address, { idempotencyKey: 'unregistered-before-inbox' }))
+      .toBeUndefined()
+    await withoutResolver.close()
+
+    const invalidPlugins = {
+      ...world,
+      manifest: {
+        ...world.manifest,
+        plugins: [{ pluginId: 'builtin:agent-context', version: '2.0.0' }],
+      },
+    }
+    const validator = new WorldApplication({ ...paths(), memoryPath: join(tmpdir(), 'unused-memory.sqlite') })
+    expect(() => validator.activate(invalidPlugins)).toThrow('requires Scene decision')
+    await validator.close()
+  })
+
   it('mounts and executes an immutable stored V1 Manifest without reactivation', async () => {
     const persistence = paths()
     const address = {

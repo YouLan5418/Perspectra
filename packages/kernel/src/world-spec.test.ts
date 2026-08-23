@@ -146,6 +146,15 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     restarted.close()
   })
 
+  it('prevents the generic bootstrap from creating a new historical v3 world', () => {
+    const historical = new WorldSpecCompiler().compile({
+      ...spec(), rulebook: { rulebookId: 'builtin:speak-move', version: 3 },
+    })
+    const store = new WorldStore(database('historical-v3.sqlite'))
+    expect(() => new WorldBootstrap(store).activate(historical)).toThrow('historical-only')
+    store.close()
+  })
+
   it('rejects malformed specs at every strict boundary', () => {
     const compiler = new WorldSpecCompiler()
     const invalid: unknown[] = [

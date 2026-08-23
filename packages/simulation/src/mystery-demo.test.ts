@@ -7,6 +7,7 @@ import {
   brandId,
   canonicalizeWorldJson,
   createErrorEnvelope,
+  deterministicId,
   failWorld,
   hashWorldJson,
   WorldError,
@@ -67,7 +68,7 @@ describe('three-role mystery Demo', () => {
     }
   })
 
-  it('rejects an unsupported versioned Scene policy at mount', async () => {
+  it('rejects an unsupported versioned Scene policy at activation', async () => {
     const storage = paths()
     const application = new WorldApplication({ ...storage, rulebooks: createMysteryRulebookRegistry() })
     const input = createMysteryDemoSpec() as unknown as Record<string, WorldJsonValue>
@@ -78,8 +79,7 @@ describe('three-role mystery Demo', () => {
     ]
     const compiled = new WorldSpecCompiler().compile(input)
     try {
-      application.activate(compiled)
-      await expect(application.head(compiled.manifest.address)).rejects.toThrowError(expect.objectContaining<Partial<WorldError>>({
+      expect(() => application.activate(compiled)).toThrowError(expect.objectContaining<Partial<WorldError>>({
         envelope: expect.objectContaining({ errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE' }),
       }))
     } finally {
@@ -102,8 +102,7 @@ describe('three-role mystery Demo', () => {
     ]
     const unsupportedCompiled = new WorldSpecCompiler().compile(unsupportedInput)
     try {
-      unsupported.activate(unsupportedCompiled)
-      await expect(unsupported.head(unsupportedCompiled.manifest.address)).rejects.toThrowError(expect.objectContaining<Partial<WorldError>>({
+      expect(() => unsupported.activate(unsupportedCompiled)).toThrowError(expect.objectContaining<Partial<WorldError>>({
         envelope: expect.objectContaining({ errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE' }),
       }))
     } finally {
@@ -114,8 +113,7 @@ describe('three-role mystery Demo', () => {
     const missing = new WorldApplication({ ...missingStorage, rulebooks: createMysteryRulebookRegistry() })
     try {
       const compiled = compileMysteryDemo()
-      missing.activate(compiled)
-      await expect(missing.head(compiled.manifest.address)).rejects.toThrow('memoryPath')
+      expect(() => missing.activate(compiled)).toThrow('memoryPath')
     } finally {
       await missing.close()
     }
@@ -233,7 +231,21 @@ describe('three-role mystery Demo', () => {
     if (version === 3) {
       const bootstrapStore = new WorldStore(storage.worldPath)
       try {
-        new WorldBootstrap(bootstrapStore).activate(compiled)
+        const identity = {
+          address: compiled.manifest.address,
+          manifestHash: compiled.manifestHash,
+          genesisHash: compiled.genesisHash,
+        }
+        bootstrapStore.activateBranch({
+          address: compiled.manifest.address,
+          manifest: compiled.manifest,
+          manifestHash: compiled.manifestHash,
+          genesisEvents: compiled.genesisEvents,
+          genesisHash: compiled.genesisHash,
+          transactionId: brandId(deterministicId('transaction:genesis', identity), 'TransactionId'),
+          roundId: brandId(deterministicId('round:genesis', identity), 'InteractionRoundId'),
+          correlationId: 'legacy-v3-frozen-fixture',
+        })
       } finally {
         bootstrapStore.close()
       }
