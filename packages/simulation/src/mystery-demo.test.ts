@@ -221,6 +221,45 @@ describe('three-role mystery Demo', () => {
     }
   })
 
+  it('freezes ask, present, and culprit-resolution bytes for both legacy investigation versions', () => {
+    const compiled = compileLegacyMysteryDemo()
+    const resolver = new MysteryRulebookResolver()
+    const expected = {
+      3: [
+        { actionType: 'ask', canonical: '{"events":[{"data":{"characterId":"character:player","targetCharacterId":"character:bob","topicId":"entity:study-desk"},"eventType":"character.asked","eventVersion":1},{"data":{"id":"observation:investigation-rule:e8538963132be22de72762e7","value":{"content":{"actionType":"ask","targetCharacterId":"character:bob","topicId":"entity:study-desk"},"observerId":"character:player","source":"rulebook:investigation/v3"}},"eventType":"observation.upsert","eventVersion":1}],"status":"accepted"}', hash: 'sha256:43686d94731269aa6136bb08fc66536b56ce4bb1caf98c7737b3b6b49866d6b9' },
+        { actionType: 'present_evidence', canonical: '{"events":[{"data":{"characterId":"character:player","evidenceId":"evidence:key-moved","targetCharacterId":"character:detective"},"eventType":"evidence.presented","eventVersion":1},{"data":{"id":"observation:investigation-rule:64aa2a73e3b7a60bbf7e72f6","value":{"content":{"actionType":"present_evidence","evidenceId":"evidence:key-moved","targetCharacterId":"character:detective"},"observerId":"character:player","source":"rulebook:investigation/v3"}},"eventType":"observation.upsert","eventVersion":1}],"status":"accepted"}', hash: 'sha256:aeef283c2d7e463f2d4fd1bac5356dce663b2cc4c6feca216c81da549376cf51' },
+        { actionType: 'accuse', canonical: '{"events":[{"data":{"characterId":"character:player","evidenceIds":["evidence:key-moved"],"outcome":"correct","suspectId":"character:bob"},"eventType":"investigation.accusation-resolved","eventVersion":1},{"data":{"culpritId":"character:bob","resolvedBy":"character:player"},"eventType":"investigation.case-closed","eventVersion":1},{"data":{"id":"observation:investigation-rule:193ac801625dc4c0f02c2e3f","value":{"content":{"actionType":"accuse","evidenceIds":["evidence:key-moved"],"outcome":"correct","suspectId":"character:bob"},"observerId":"character:player","source":"rulebook:investigation/v3"}},"eventType":"observation.upsert","eventVersion":1}],"status":"accepted"}', hash: 'sha256:249279f48e4d55a1db755322a4d8fa40101401df10fcdee0884bf852a948e5ee' },
+      ],
+      4: [
+        { actionType: 'ask', canonical: '{"events":[{"data":{"characterId":"character:player","targetCharacterId":"character:bob","topicId":"entity:study-desk"},"eventType":"character.asked","eventVersion":1},{"data":{"id":"observation:investigation-rule:e8538963132be22de72762e7","value":{"content":{"actionType":"ask","targetCharacterId":"character:bob","topicId":"entity:study-desk"},"observerId":"character:player","source":"rulebook:investigation/v4"}},"eventType":"observation.upsert","eventVersion":1}],"status":"accepted"}', hash: 'sha256:ac19993c0b58f6eddaa8e839c7eeb6300c7d6e9977e89081b9cc58300790df6d' },
+        { actionType: 'present_evidence', canonical: '{"events":[{"data":{"characterId":"character:player","evidenceId":"evidence:inspection:entity:study-desk","targetCharacterId":"character:detective"},"eventType":"evidence.presented","eventVersion":1},{"data":{"id":"observation:investigation-rule:e2e4589583e5289baeaca809","value":{"content":{"actionType":"present_evidence","evidenceId":"evidence:inspection:entity:study-desk","targetCharacterId":"character:detective"},"observerId":"character:player","source":"rulebook:investigation/v4"}},"eventType":"observation.upsert","eventVersion":1}],"status":"accepted"}', hash: 'sha256:7a87315f703d21f86354ddbb1bf598d7a607f244d683b9dc47349ed390e032f3' },
+        { actionType: 'accuse', canonical: '{"events":[{"data":{"characterId":"character:player","evidenceIds":["evidence:inspection:entity:study-desk"],"outcome":"correct","suspectId":"character:bob"},"eventType":"investigation.accusation-resolved","eventVersion":1},{"data":{"culpritId":"character:bob","resolvedBy":"character:player"},"eventType":"investigation.case-closed","eventVersion":1},{"data":{"id":"observation:investigation-rule:277454bc177eaf84e4455d7d","value":{"content":{"actionType":"accuse","evidenceIds":["evidence:inspection:entity:study-desk"],"outcome":"correct","suspectId":"character:bob"},"observerId":"character:player","source":"rulebook:investigation/v4"}},"eventType":"observation.upsert","eventVersion":1}],"status":"accepted"}', hash: 'sha256:6f5d4587950816fbdd2d8efec3e76bffb6c11b124a758c189740615b67e389e7' },
+      ],
+    } as const
+    for (const version of [3, 4] as const) {
+      const manifest = { ...compiled.manifest, rulebook: { ...compiled.manifest.rulebook, version } }
+      let history = compiled.genesisEvents.map(event => ({ eventType: event.eventType, data: event.data }))
+      const evidenceId = version === 3 ? 'evidence:key-moved' : 'evidence:inspection:entity:study-desk'
+      const inspected = resolver.resolve({
+        manifest, events: history, characterId: MYSTERY_DEMO_IDS.player,
+        action: { actionType: 'inspect', parameters: { entityId: MYSTERY_DEMO_IDS.desk } },
+      })
+      history = [...history, ...inspected.events.map(event => ({ eventType: event.eventType, data: event.data }))]
+      const actions = [
+        { actionType: 'ask', parameters: { targetCharacterId: MYSTERY_DEMO_IDS.bob, topicId: MYSTERY_DEMO_IDS.desk } },
+        { actionType: 'present_evidence', parameters: { evidenceId, targetCharacterId: MYSTERY_DEMO_IDS.detective } },
+        { actionType: 'accuse', parameters: { suspectId: MYSTERY_DEMO_IDS.bob, evidenceIds: [evidenceId] } },
+      ] as const
+      for (const [index, action] of actions.entries()) {
+        const resolution = resolver.resolve({ manifest, events: history, characterId: MYSTERY_DEMO_IDS.player, action })
+        const worldJson = resolution as unknown as WorldJsonValue
+        expect(Buffer.from(canonicalizeWorldJson(worldJson)).toString('utf8')).toBe(expected[version][index]!.canonical)
+        expect(hashWorldJson('golden-rulebook-resolution', worldJson)).toBe(expected[version][index]!.hash)
+        history = [...history, ...resolution.events.map(event => ({ eventType: event.eventType, data: event.data }))]
+      }
+    }
+  })
+
   it.each([3, 4] as const)('keeps an existing v%s world operational through submit, fork, archive, and quarantine recovery', async version => {
     const storage = paths()
     const input = createLegacyMysteryDemoSpec() as unknown as Record<string, WorldJsonValue>
