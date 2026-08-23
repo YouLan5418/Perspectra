@@ -6,16 +6,19 @@ import { WorldApplication } from '@harness-world/application'
 import {
   brandId,
   canonicalizeWorldJson,
+  createErrorEnvelope,
   failWorld,
   hashWorldJson,
   WorldError,
   type FaultInjector,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { WorldSpecCompiler } from '@harness-world/kernel'
+import { WorldBootstrap, WorldSpecCompiler } from '@harness-world/kernel'
+import { BranchQuarantineService, WorldStore } from '@harness-world/store-sqlite'
 import {
   compileMysteryDemo,
   compileLegacyMysteryDemo,
+  createLegacyMysteryDemoSpec,
   createMysteryIntentCatalog,
   createMysteryDemoSpec,
   MYSTERY_DEMO_IDS,
@@ -216,6 +219,81 @@ describe('three-role mystery Demo', () => {
       ])
     } finally {
       await scenario.close()
+    }
+  })
+
+  it.each([3, 4] as const)('keeps an existing v%s world operational through submit, fork, archive, and quarantine recovery', async version => {
+    const storage = paths()
+    const input = createLegacyMysteryDemoSpec() as unknown as Record<string, WorldJsonValue>
+    input.address = {
+      tenantId: 'tenant:mystery-demo', worldId: `world:legacy-lifecycle-v${version}`, branchId: 'branch:main',
+    }
+    input.rulebook = { rulebookId: 'builtin:speak-move', version }
+    const compiled = new WorldSpecCompiler().compile(input)
+    if (version === 3) {
+      const bootstrapStore = new WorldStore(storage.worldPath)
+      try {
+        new WorldBootstrap(bootstrapStore).activate(compiled)
+      } finally {
+        bootstrapStore.close()
+      }
+    }
+    const application = new WorldApplication({ ...storage, rulebooks: createMysteryRulebookRegistry() })
+    const parent = compiled.manifest.address
+    const child = { ...parent, branchId: brandId(`branch:legacy-v${version}-child`, 'BranchId') }
+    try {
+      if (version === 4) application.activate(compiled)
+      await expect(application.submit(parent, {
+        idempotencyKey: `legacy-v${version}:inspect`, principalId: 'principal:mystery-player',
+        action: { actionType: 'inspect', parameters: { entityId: MYSTERY_DEMO_IDS.desk } },
+        correlationId: `legacy-v${version}:inspect`,
+      })).resolves.toMatchObject({ status: 'accepted', tick: 1 })
+      await application.deliver(parent, `legacy-v${version}:deliver-parent`)
+      await application.release(parent)
+      const quarantine = new BranchQuarantineService(storage.worldPath)
+      try {
+        quarantine.quarantine({
+          address: parent,
+          error: createErrorEnvelope({
+            errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'legacy lifecycle drill',
+            retryable: false, correlationId: `legacy-v${version}:quarantine`, address: parent,
+          }),
+          source: 'mystery-legacy-lifecycle.test',
+        })
+      } finally {
+        quarantine.close()
+      }
+      await expect(application.quarantineRecover(parent, `legacy-v${version}:recover`))
+        .resolves.toMatchObject({ status: 'recovered' })
+      await expect(application.submit(parent, {
+        idempotencyKey: `legacy-v${version}:after-recovery`, principalId: 'principal:mystery-player',
+        action: { actionType: 'speak', parameters: { text: '恢复后继续调查。' } },
+        correlationId: `legacy-v${version}:after-recovery`,
+      })).resolves.toMatchObject({ status: 'accepted', tick: 2 })
+      await application.deliver(parent, `legacy-v${version}:deliver-recovered-parent`)
+      await expect(application.forkAtHead(parent, child, 'legacy lifecycle fixture', `legacy-v${version}:fork`))
+        .resolves.toMatchObject({ forkSeq: expect.any(Number) })
+      await expect(application.submit(child, {
+        idempotencyKey: `legacy-v${version}:child-ask`, principalId: 'principal:mystery-player',
+        action: {
+          actionType: 'ask',
+          parameters: { targetCharacterId: MYSTERY_DEMO_IDS.bob, topicId: MYSTERY_DEMO_IDS.desk },
+        },
+        correlationId: `legacy-v${version}:child-ask`,
+      })).resolves.toMatchObject({ status: 'accepted', tick: 3 })
+      await application.deliver(child, `legacy-v${version}:deliver-child`)
+      await expect(application.archive(child, 'legacy lifecycle complete', `legacy-v${version}:archive`))
+        .resolves.toMatchObject({ state: { lifecycleState: 'archived' } })
+    } finally {
+      await application.close()
+    }
+
+    const generic = new WorldApplication(storage)
+    try {
+      await expect(generic.head(parent)).rejects.toMatchObject({ envelope: { errorCode: 'RULEBOOK_NOT_REGISTERED' } })
+      expect(generic.activeBranchCount).toBe(0)
+    } finally {
+      await generic.close()
     }
   })
 
