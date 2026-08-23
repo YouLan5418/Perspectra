@@ -34,7 +34,7 @@ import {
 
 export const MYSTERY_DEMO_IDS = {
   tenantId: 'tenant:mystery-demo',
-  worldId: 'world:ashgrove-murder-v3',
+  worldId: 'world:ashgrove-murder-v4',
   branchId: 'branch:main',
   player: 'character:player',
   alice: 'character:alice',
@@ -81,8 +81,7 @@ export function createMysteryDemoSpec(): WorldJsonObject {
     scenes: [{
       sceneId: MYSTERY_DEMO_IDS.scene,
       participantIds: [
-        MYSTERY_DEMO_IDS.player, MYSTERY_DEMO_IDS.alice,
-        MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective,
+        MYSTERY_DEMO_IDS.player, MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective,
       ],
     }],
     goals: [
@@ -147,12 +146,39 @@ export function createMysteryDemoSpec(): WorldJsonObject {
     playerBindings: [{
       principalId: 'principal:mystery-player', characterId: MYSTERY_DEMO_IDS.player, sessionId: 'session:mystery-player',
     }],
+    plugins: [
+      { pluginId: 'builtin:agent-context', version: '2.0.0' },
+      { pluginId: 'builtin:scene-decision', version: '1.0.0' },
+    ],
+  }
+}
+
+/** Byte-compatible authoring input for worlds activated before ADR-0050. */
+export function createLegacyMysteryDemoSpec(): WorldJsonObject {
+  return {
+    ...createMysteryDemoSpec(),
+    address: {
+      tenantId: MYSTERY_DEMO_IDS.tenantId,
+      worldId: 'world:ashgrove-murder-v3',
+      branchId: MYSTERY_DEMO_IDS.branchId,
+    },
+    scenes: [{
+      sceneId: MYSTERY_DEMO_IDS.scene,
+      participantIds: [
+        MYSTERY_DEMO_IDS.player, MYSTERY_DEMO_IDS.alice,
+        MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective,
+      ],
+    }],
     plugins: [],
   }
 }
 
 export function compileMysteryDemo(): CompiledWorldSpec {
   return new WorldSpecCompiler().compile(createMysteryDemoSpec())
+}
+
+export function compileLegacyMysteryDemo(): CompiledWorldSpec {
+  return new WorldSpecCompiler().compile(createLegacyMysteryDemoSpec())
 }
 
 export function createMysteryIntentCatalog(compiled: CompiledWorldSpec): InvestigationIntentCatalog {
@@ -183,6 +209,7 @@ export function createMysteryIntentCatalog(compiled: CompiledWorldSpec): Investi
 export interface MysteryDemoScenarioOptions {
   readonly worldPath: string
   readonly sessionPath: string
+  readonly compatibility?: 'legacy-v4'
 }
 
 export interface MysteryDemoSnapshot {
@@ -215,13 +242,15 @@ export function requireMysterySnapshotValue<T>(value: T | undefined, label: stri
 
 /** Scripted Scenario Runner for the first deterministic mystery turn. */
 export class MysteryDemoScenario {
-  readonly compiled = compileMysteryDemo()
+  readonly compiled: CompiledWorldSpec
   readonly #application: WorldApplication
-  readonly #intent = new DeterministicInvestigationIntentParser(createMysteryIntentCatalog(this.compiled))
+  readonly #intent: DeterministicInvestigationIntentParser
   #bobProviderCalls = 0
   #directorProviderCalls = 0
 
   constructor(private readonly options: MysteryDemoScenarioOptions) {
+    this.compiled = options.compatibility === 'legacy-v4' ? compileLegacyMysteryDemo() : compileMysteryDemo()
+    this.#intent = new DeterministicInvestigationIntentParser(createMysteryIntentCatalog(this.compiled))
     this.#application = new WorldApplication({
       ...options,
       runtimeOwnerId: 'mystery-demo',
@@ -312,7 +341,29 @@ export class MysteryDemoScenario {
   }
 
   #participants(): readonly RoundParticipant[] {
+    const directorProvider = {
+      propose: async (context: Parameters<RoundParticipant['provider']['propose']>[0]) => {
+        this.#directorProviderCalls += 1
+        if (context.playerAction.actionType === 'present_evidence') {
+          return {
+            participantId: 'director:detective-observer',
+            actions: [{
+              actionId: deterministicId('action:mystery-detective-evidence', { roundId: context.roundId }),
+              actorId: brandId(MYSTERY_DEMO_IDS.detective, 'CharacterId'),
+              actionType: 'speak', actionVersion: 1, parameters: { text: '这处痕迹说明钥匙最近被人移动过。' },
+            }],
+          }
+        }
+        return { participantId: 'director:detective-observer', actions: [] }
+      },
+    }
     return [
+      ...(this.options.compatibility === 'legacy-v4' ? [] : [{
+        participantId: 'agent:alice-scene-gate', role: 'agent' as const,
+        actorId: brandId(MYSTERY_DEMO_IDS.alice, 'CharacterId'),
+        allowedActionTypes: ['speak'], priority: 50, estimatedTokens: 1, timeoutMs: 100,
+        provider: directorProvider,
+      }]),
       {
         participantId: 'agent:bob', role: 'agent', actorId: brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId'),
         allowedActionTypes: ['take', 'speak'], priority: 100, estimatedTokens: 1, timeoutMs: 100,
@@ -347,22 +398,7 @@ export class MysteryDemoScenario {
       {
         participantId: 'director:detective-observer', role: 'director', actorId: brandId(MYSTERY_DEMO_IDS.detective, 'CharacterId'),
         allowedActionTypes: ['speak'], priority: 10, estimatedTokens: 1, timeoutMs: 100,
-        provider: {
-          propose: async (context) => {
-            this.#directorProviderCalls += 1
-            if (context.playerAction.actionType === 'present_evidence') {
-              return {
-                participantId: 'director:detective-observer',
-                actions: [{
-                  actionId: deterministicId('action:mystery-detective-evidence', { roundId: context.roundId }),
-                  actorId: brandId(MYSTERY_DEMO_IDS.detective, 'CharacterId'),
-                  actionType: 'speak', actionVersion: 1, parameters: { text: '这处痕迹说明钥匙最近被人移动过。' },
-                }],
-              }
-            }
-            return { participantId: 'director:detective-observer', actions: [] }
-          },
-        },
+        provider: directorProvider,
       },
     ]
   }

@@ -7,6 +7,7 @@ import { brandId, canonicalizeWorldJson, hashWorldJson, WorldError, type WorldJs
 import { WorldSpecCompiler } from '@harness-world/kernel'
 import {
   compileMysteryDemo,
+  compileLegacyMysteryDemo,
   createMysteryIntentCatalog,
   createMysteryDemoSpec,
   MYSTERY_DEMO_IDS,
@@ -55,8 +56,28 @@ describe('three-role mystery Demo', () => {
     }
   })
 
+  it('rejects an unsupported versioned Scene policy at mount', async () => {
+    const storage = paths()
+    const application = new WorldApplication({ ...storage, rulebooks: createMysteryRulebookRegistry() })
+    const input = createMysteryDemoSpec() as unknown as Record<string, WorldJsonValue>
+    input.address = { tenantId: 'tenant:mystery-demo', worldId: 'world:bad-scene-policy', branchId: 'branch:main' }
+    input.plugins = [
+      { pluginId: 'builtin:agent-context', version: '2.0.0' },
+      { pluginId: 'builtin:scene-decision', version: '9.0.0' },
+    ]
+    const compiled = new WorldSpecCompiler().compile(input)
+    try {
+      application.activate(compiled)
+      await expect(application.head(compiled.manifest.address)).rejects.toThrowError(expect.objectContaining<Partial<WorldError>>({
+        envelope: expect.objectContaining({ errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE' }),
+      }))
+    } finally {
+      await application.close()
+    }
+  })
+
   it('freezes the pre-extraction v3/v4 resolver and complete v4 opening authority', async () => {
-    const compiled = compileMysteryDemo()
+    const compiled = compileLegacyMysteryDemo()
     expect(createMysteryRulebookRegistry().resolve('builtin:speak-move', 4, 'golden:affordances').affordances({
       manifest: compiled.manifest,
       events: [],
@@ -89,7 +110,7 @@ describe('three-role mystery Demo', () => {
     }
 
     const storage = paths()
-    const scenario = new MysteryDemoScenario(storage)
+    const scenario = new MysteryDemoScenario({ ...storage, compatibility: 'legacy-v4' })
     try {
       const result = await scenario.runOpeningTurn()
       const snapshot = await scenario.snapshot()
@@ -202,7 +223,8 @@ describe('three-role mystery Demo', () => {
       expect(JSON.stringify(genesis.views.player)).not.toContain('is_culprit')
       expect(JSON.stringify(genesis.views.bob)).toContain('is_culprit')
       expect(JSON.stringify(genesis.views.detective)).toContain('may_be_involved')
-      expect(genesis.views.alice.scenes.map(value => value.sceneId)).toEqual([MYSTERY_DEMO_IDS.scene])
+      expect(genesis.views.alice.scenes).toEqual([])
+      expect(genesis.views.bob.scenes.map(value => value.sceneId)).toEqual([MYSTERY_DEMO_IDS.scene])
       expect(new Set([
         genesis.views.alice.observations[0]?.value,
         genesis.views.bob.observations[0]?.value,
@@ -216,6 +238,10 @@ describe('three-role mystery Demo', () => {
       expect(committed.entity).toEqual({
         entityId: MYSTERY_DEMO_IDS.key, locationId: null, holderId: MYSTERY_DEMO_IDS.bob, kind: 'key',
       })
+      expect(JSON.stringify(committed.views.player)).toContain('"actionType":"take"')
+      expect(JSON.stringify(committed.views.bob)).toContain('"actionType":"take"')
+      expect(JSON.stringify(committed.views.detective)).toContain('"actionType":"take"')
+      expect(JSON.stringify(committed.views.alice)).not.toContain('"actionType":"take"')
       expect(committed.authority?.authority).toMatchObject({
         participants: expect.arrayContaining([
           expect.objectContaining({ participantId: 'player' }),

@@ -71,6 +71,7 @@ import {
   type RoundParticipant,
   type SubmitCoordinatedRoundRequest,
 } from './round-coordinator.ts'
+import { SceneDecisionService } from './scene-decision.ts'
 
 export interface WorldApplicationOptions {
   readonly worldPath: string
@@ -180,6 +181,14 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         throw new TypeError('modelBudgetTokens must be configured when Round participants are enabled')
       }
       const manifest = runtimeManifestFromStoredRecord(store.store.readManifest(scope.address))
+      const scenePolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:scene-decision')
+      if (scenePolicy !== undefined && scenePolicy.version !== '1.0.0') {
+        failWorld({
+          errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
+          message: `unsupported Scene decision policy ${scenePolicy.version}`, retryable: false,
+          correlationId: `scene-policy:${worldAddressKey(scope.address)}`, address: scope.address,
+        })
+      }
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
       store.availability.initialize(scope.address, manifest.characters.map(character => ({
         characterId: character.characterId,
@@ -197,6 +206,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         participants: [...agents.participants, ...director.participants],
         modelBudgetTokens: this.options.modelBudgetTokens ?? 0,
         rulebooks: this.options.rulebooks,
+        ...(scenePolicy === undefined ? {} : { sceneDecision: new SceneDecisionService(store.store, store.availability) }),
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
       })
       return { kernel, store, agents, director }

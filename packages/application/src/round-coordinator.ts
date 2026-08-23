@@ -45,6 +45,7 @@ import {
   type WriterLease,
   type CommittedRoundRecord,
 } from '@harness-world/store-sqlite'
+import type { SceneDecisionService } from './scene-decision.ts'
 
 export type RoundParticipantRole = 'agent' | 'director'
 export type ParticipantTerminalStatus = 'proposed' | 'provider_failed' | 'budget_exhausted' | 'schema_invalid' | 'lifecycle_ineligible' | 'runtime_unavailable'
@@ -71,6 +72,7 @@ export interface RoundCoordinatorOptions {
   readonly modelBudgetTokens: number
   readonly leaseTtlMs?: number
   readonly rulebooks?: RulebookRegistry
+  readonly sceneDecision?: SceneDecisionService
 }
 
 export interface SubmitCoordinatedRoundRequest {
@@ -274,6 +276,9 @@ export class RoundCoordinator {
     }
     const head = this.options.store.head(this.#address)
     const history = this.options.store.readEvents(this.#address, head.headSeq)
+    const sceneDecision = this.options.sceneDecision?.decideFromEvents(
+      this.#address, binding.characterId, history, head.headSeq,
+    )
     const proposalContext: ProposalContext = {
       address: this.#address,
       roundId,
@@ -285,7 +290,11 @@ export class RoundCoordinator {
         playerAction,
       }),
     }
-    const frozen = await this.#freezeParticipants(proposalContext, history)
+    const frozen = await this.#freezeParticipants(
+      proposalContext,
+      history,
+      sceneDecision?.schedulableCharacterIds,
+    )
     const ordered = this.#orderedActions(playerAction, frozen)
     const contextHash = hashWorldJson('round-proposal-context', {
       address: proposalContext.address,
@@ -400,28 +409,37 @@ export class RoundCoordinator {
           reason: resolution.reason ?? null,
         },
       })
-      const observationId = deterministicId('observation:coordinated-round', { roundId, actionId: item.action.actionId })
       const publicSpeech = this.#manifest.rulebook.version >= 4
         ? resolution.events.find(event => event.eventType === 'character.speak')
         : undefined
-      const observation = {
-        observerId: binding.characterId,
-        actionId: item.action.actionId,
-        content: {
-          actionType: item.action.actionType,
-          actorId: item.action.actorId,
-          status: resolution.status,
-          reason: resolution.reason ?? null,
-          ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
-        },
+      const observerIds = this.options.sceneDecision?.decideFromEvents(
+        this.#address, binding.characterId, [...history, ...events], head.headSeq,
+      ).visibleResultCharacterIds ?? [binding.characterId]
+      for (const observerId of observerIds) {
+        const observationId = this.options.sceneDecision === undefined
+          ? deterministicId('observation:coordinated-round', { roundId, actionId: item.action.actionId })
+          : deterministicId('observation:scene-result', { roundId, actionId: item.action.actionId, observerId })
+        const observation = {
+          observerId,
+          actionId: item.action.actionId,
+          content: {
+            actionType: item.action.actionType,
+            actorId: item.action.actorId,
+            status: resolution.status,
+            reason: resolution.reason ?? null,
+            ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
+          },
+        }
+        events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id: observationId, value: observation } })
+        if (observerId === binding.characterId) {
+          outbox.push({
+            deliveryId: brandId(deterministicId('delivery:coordinated-round', { roundId, observationId }), 'DeliveryId'),
+            sessionId: binding.sessionId,
+            payload: { observationId, value: observation },
+            critical: true,
+          })
+        }
       }
-      events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id: observationId, value: observation } })
-      outbox.push({
-        deliveryId: brandId(deterministicId('delivery:coordinated-round', { roundId, observationId }), 'DeliveryId'),
-        sessionId: binding.sessionId,
-        payload: { observationId, value: observation },
-        critical: true,
-      })
     }
     events.push({ eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } })
     this.#renewLease()
@@ -475,11 +493,16 @@ export class RoundCoordinator {
     }, this.#manifest.roundQueueLimit)
   }
 
-  async #freezeParticipants(context: ProposalContext, history: readonly { readonly eventType: string; readonly data: WorldJsonValue }[]): Promise<FrozenParticipant[]> {
+  async #freezeParticipants(
+    context: ProposalContext,
+    history: readonly { readonly eventType: string; readonly data: WorldJsonValue }[],
+    schedulableCharacterIds?: readonly CharacterId[],
+  ): Promise<FrozenParticipant[]> {
     const frozen: FrozenParticipant[] = []
     const actionIds = new Set<string>([context.playerAction.actionId])
     const runner = new SafeAgentRunner(new ModelBudgetLedger(this.options.modelBudgetTokens))
     for (const binding of this.#participants) {
+      if (schedulableCharacterIds !== undefined && !schedulableCharacterIds.includes(binding.actorId)) continue
       if (currentCharacterLifecycle(history, binding.actorId) !== 'active') {
         frozen.push({ binding, status: 'lifecycle_ineligible', proposal: { participantId: binding.participantId, actions: [] } })
         continue
