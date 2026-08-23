@@ -77,6 +77,7 @@ export class CognitiveMemoryService {
       for (const [kind, records] of [
         ['observation', view.observations],
         ['claim', view.claims],
+        ['goal', view.goals],
       ] as const) {
         for (const record of records) {
           const source = memorySourceRef(kind, record)

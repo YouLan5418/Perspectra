@@ -23,7 +23,7 @@ const MEMORY_APPLICATION_ID = 0x4843574c
 const MEMORY_SCHEMA = `
 CREATE TABLE memory_source_mappings (
   namespace_key TEXT NOT NULL,
-  source_kind TEXT NOT NULL CHECK(source_kind IN ('observation', 'claim')),
+  source_kind TEXT NOT NULL CHECK(source_kind IN ('observation', 'claim', 'goal')),
   source_id TEXT NOT NULL,
   source_seq INTEGER NOT NULL CHECK(source_seq >= 0),
   source_hash TEXT NOT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE memory_entries (
 CREATE TABLE memory_sources (
   namespace_key TEXT NOT NULL,
   memory_id TEXT NOT NULL,
-  source_kind TEXT NOT NULL CHECK(source_kind IN ('observation', 'claim')),
+  source_kind TEXT NOT NULL CHECK(source_kind IN ('observation', 'claim', 'goal')),
   source_id TEXT NOT NULL,
   source_seq INTEGER NOT NULL,
   source_hash TEXT NOT NULL,
@@ -72,11 +72,38 @@ CREATE TABLE cognitive_jobs (
 ) STRICT;
 `
 
-export const MEMORY_SCHEMA_VERSION = 3
+const MEMORY_GOAL_SOURCE_SCHEMA = `
+ALTER TABLE memory_source_mappings RENAME TO memory_source_mappings_v3;
+CREATE TABLE memory_source_mappings (
+  namespace_key TEXT NOT NULL,
+  source_kind TEXT NOT NULL CHECK(source_kind IN ('observation', 'claim', 'goal')),
+  source_id TEXT NOT NULL,
+  source_seq INTEGER NOT NULL CHECK(source_seq >= 0),
+  source_hash TEXT NOT NULL,
+  PRIMARY KEY(namespace_key, source_kind, source_id)
+) STRICT;
+INSERT INTO memory_source_mappings SELECT * FROM memory_source_mappings_v3;
+DROP TABLE memory_source_mappings_v3;
+ALTER TABLE memory_sources RENAME TO memory_sources_v3;
+CREATE TABLE memory_sources (
+  namespace_key TEXT NOT NULL,
+  memory_id TEXT NOT NULL,
+  source_kind TEXT NOT NULL CHECK(source_kind IN ('observation', 'claim', 'goal')),
+  source_id TEXT NOT NULL,
+  source_seq INTEGER NOT NULL,
+  source_hash TEXT NOT NULL,
+  PRIMARY KEY(namespace_key, memory_id, source_kind, source_id),
+  FOREIGN KEY(namespace_key, memory_id) REFERENCES memory_entries(namespace_key, memory_id)
+) STRICT;
+INSERT INTO memory_sources SELECT * FROM memory_sources_v3;
+DROP TABLE memory_sources_v3;
+`
+
+export const MEMORY_SCHEMA_VERSION = 4
 
 export const TENCENTDB_MEMORY_ENABLED = false
 
-export type MemorySourceKind = 'observation' | 'claim' | 'summary'
+export type MemorySourceKind = 'observation' | 'claim' | 'goal' | 'summary'
 
 export interface MemorySourceRef extends WorldJsonObject {
   readonly sourceKind: MemorySourceKind
@@ -115,12 +142,12 @@ function namespace(address: WorldAddress, characterId: CharacterId): string {
   return `${worldAddressKey(address)}\u001f${characterId}`
 }
 
-function sourceHash(kind: 'observation' | 'claim', record: CharacterView['observations'][number]): WorldHash {
+function sourceHash(kind: 'observation' | 'claim' | 'goal', record: CharacterView['observations'][number]): WorldHash {
   return hashWorldJson(`memory-source/${kind}`, record)
 }
 
 export function memorySourceRef(
-  kind: 'observation' | 'claim',
+  kind: 'observation' | 'claim' | 'goal',
   record: CharacterView['observations'][number],
 ): MemorySourceRef {
   return { sourceKind: kind, sourceId: record.id, sourceSeq: record.sourceSeq, sourceHash: sourceHash(kind, record) }
@@ -143,7 +170,8 @@ export class LocalMemoryStore {
     this.#db = openMigratedDatabase(path, MEMORY_APPLICATION_ID, [
       { version: 1, sql: MEMORY_SCHEMA },
       { version: 2, sql: MEMORY_RECONCILE_SCHEMA },
-      { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_COGNITIVE_JOB_SCHEMA },
+      { version: 3, sql: MEMORY_COGNITIVE_JOB_SCHEMA },
+      { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_GOAL_SOURCE_SCHEMA },
     ])
     this.#viewBuilder = new CharacterViewBuilder(worldStore)
   }
@@ -157,6 +185,7 @@ export class LocalMemoryStore {
     const sources = [
       ...view.observations.map(record => ({ kind: 'observation' as const, record })),
       ...view.claims.map(record => ({ kind: 'claim' as const, record })),
+      ...view.goals.map(record => ({ kind: 'goal' as const, record })),
     ]
     this.#db.exec('BEGIN IMMEDIATE')
     try {
@@ -173,7 +202,7 @@ export class LocalMemoryStore {
         SELECT source_kind, source_id, source_seq, source_hash
         FROM memory_source_mappings WHERE namespace_key = ?
       `).all(key) as Array<{
-        source_kind: 'observation' | 'claim'
+        source_kind: 'observation' | 'claim' | 'goal'
         source_id: string
         source_seq: number
         source_hash: WorldHash

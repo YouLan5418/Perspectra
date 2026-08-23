@@ -46,6 +46,10 @@ function claim(id: string, characterId: CharacterId, proposition = `claim:${id}`
   return { eventType: 'claim.upsert', eventVersion: 1, data: { id, value: { characterId, proposition } } }
 }
 
+function goal(id: string, characterId: CharacterId, intent = `goal:${id}`): WorldEventDraft {
+  return { eventType: 'goal.upsert', eventVersion: 1, data: { id, value: { characterId, intent } } }
+}
+
 async function commit(store: WorldStore, target: WorldAddress, suffix: string, events: readonly WorldEventDraft[]): Promise<void> {
   const head = store.head(target)
   await store.commitRound({
@@ -71,7 +75,7 @@ function reconcile(memory: LocalMemoryStore, view: CharacterView): number {
 }
 
 function ref(value: ProjectionRecord): MemorySourceRef {
-  const sourceKind = value.kind as 'observation' | 'claim'
+  const sourceKind = value.kind as 'observation' | 'claim' | 'goal'
   return {
     sourceKind,
     sourceId: value.id,
@@ -81,6 +85,25 @@ function ref(value: ProjectionRecord): MemorySourceRef {
 }
 
 describe('LocalMemoryStore', () => {
+  it('reconciles and captures committed Goal sources under the same as-of firewall', async () => {
+    const path = paths()
+    const world = new WorldStore(path.world)
+    world.createBranch(address())
+    await commit(world, address(), 'goal', [goal('goal:investigate', characterA, 'pursue the clue')])
+    const view = new CharacterViewBuilder(world).rebuildAt(address(), characterA, 1)
+    const memory = new LocalMemoryStore(path.memory, world)
+    expect(reconcile(memory, view)).toBe(1)
+    const source = memorySourceRef('goal', view.goals[0]!)
+    expect(source).toEqual(ref(view.goals[0]!))
+    expect(memory.capture({
+      address: address(), characterId: characterA, memoryId: 'memory:goal', text: 'pursue the clue',
+      metadata: { kind: 'goal', source }, sources: [source], asOfWorldSeq: 1, correlationId: 'memory:goal',
+    })).toBe('captured')
+    expect(memory.recall(address(), characterA, 'pursue', 1)).toHaveLength(1)
+    memory.close()
+    world.close()
+  })
+
   it('captures and recalls only sources rebuilt from the authoritative WorldStore', async () => {
     expect(TENCENTDB_MEMORY_ENABLED).toBe(false)
     const path = paths()
