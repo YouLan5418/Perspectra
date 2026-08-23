@@ -43,6 +43,16 @@ function naturalTokens(text: string): string[] {
   return command.split(/\s+/u)
 }
 
+/** Whether the input explicitly selects the Demo-owned investigation grammar. */
+export function isExplicitInvestigationIntent(text: string): boolean {
+  assertProtocolString(text, 'player text')
+  const verb = normalized(naturalTokens(text)[0]!)
+  return verb === 'inspect' || verb === '检查'
+    || verb === 'ask' || verb === '询问' || verb === '问'
+    || verb === 'present' || verb === 'present_evidence' || verb === '出示'
+    || verb === 'accuse' || verb === '指控'
+}
+
 /** Deterministic, no-model adapter from a deliberately narrow text grammar to candidate domain Actions. */
 export class DeterministicInvestigationIntentParser {
   constructor(private readonly catalog: InvestigationIntentCatalog) {

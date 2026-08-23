@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { MYSTERY_DEMO_IDS } from './mystery-demo.ts'
-import { executeMysteryDemoCli, executeMysteryTurnCli } from './mystery-demo-cli.ts'
+import { executeMysteryDemoCli, executeMysteryShellCli, executeMysteryTurnCli } from './mystery-demo-cli.ts'
 
 const directories: string[] = []
 
@@ -62,7 +62,7 @@ describe('mystery Demo CLI', () => {
       ...storage, 'turn:unknown', '检查柜子',
     ])) as any
     expect(clarification).toMatchObject({
-      demo: 'ashgrove-murder/v3', status: 'clarification_required', reason: 'inspection target is unknown',
+      demo: 'ashgrove-murder/v4', status: 'clarification_required', reason: 'inspection target is unknown',
     })
     expect(JSON.parse(await executeMysteryTurnCli([
       ...storage, 'turn:future-evidence', '/present', '钥匙痕迹', 'Bob',
@@ -72,7 +72,7 @@ describe('mystery Demo CLI', () => {
     const firstText = await executeMysteryTurnCli([...storage, 'turn:inspect', '检查一下书桌'])
     const first = JSON.parse(firstText) as any
     expect(first).toMatchObject({
-      demo: 'ashgrove-murder/v3', execution: 'executed', status: 'submitted',
+      demo: 'ashgrove-murder/v4', execution: 'executed', status: 'submitted',
       action: { actionType: 'inspect' }, result: { status: 'accepted', tick: 2 },
       investigation: { status: 'open' }, playerView: { characterId: MYSTERY_DEMO_IDS.player },
     })
@@ -85,5 +85,40 @@ describe('mystery Demo CLI', () => {
       execution: 'durable_replay', result: first.result, delivered: 0,
       playerView: { bundleHash: first.playerView.bundleHash },
     })
+    const generic = JSON.parse(await executeMysteryTurnCli([...storage, 'turn:generic', '这不是调查指令，只是普通对白。'])) as any
+    expect(generic).toMatchObject({
+      demo: 'ashgrove-murder/v4', status: 'submitted', action: { actionType: 'speak' },
+      result: { status: 'accepted', tick: 3 },
+    })
+    const explicit = JSON.parse(await executeMysteryTurnCli([
+      ...storage, 'turn:generic-act', '/act', 'move', '{"locationId":"location:drawing-room"}',
+    ])) as any
+    expect(explicit).toMatchObject({
+      status: 'submitted', action: { actionType: 'move' }, result: { status: 'accepted', tick: 4 },
+    })
+  })
+
+  it('streams multiple generic and clarification inputs through one persistent mounted world', async () => {
+    async function* lines() {
+      yield '晚上好。'
+      yield ''
+      yield '/move location:drawing-room'
+      yield ':quit'
+      yield 'ignored'
+    }
+    await expect(executeMysteryShellCli([], lines())).rejects.toThrow('usage')
+    const output = (await executeMysteryShellCli(paths(), lines())).map(value => JSON.parse(value) as any)
+    expect(output).toHaveLength(3)
+    expect(output[0]).toMatchObject({
+      status: 'submitted', action: { actionType: 'speak' }, result: { tick: 1 },
+    })
+    expect(output[1]).toEqual({
+      demo: 'ashgrove-murder/v4', status: 'clarification_required',
+      reason: 'player text must be non-empty', candidates: [],
+    })
+    expect(output[2]).toMatchObject({
+      status: 'submitted', action: { actionType: 'move' }, result: { tick: 2 },
+    })
+    expect(JSON.stringify(output)).not.toContain('is_culprit')
   })
 })

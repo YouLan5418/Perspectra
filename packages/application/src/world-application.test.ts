@@ -584,4 +584,47 @@ describe('WorldApplication', () => {
     expect(snapshotApp.quarantineExplain(world.manifest.address)).toMatchObject({ runtimePhase: 'quarantined' })
     await snapshotApp.close()
   })
+
+  it('submits generic text through current affordances and leaves clarifications outside the Round log', async () => {
+    const persistence = paths()
+    const world = compiled()
+    const app = new WorldApplication(persistence)
+    app.activate(world)
+
+    const spoken = await app.submitText(world.manifest.address, {
+      text: '这是一段普通角色对白。', idempotencyKey: 'text:speak',
+      principalId: 'principal:player', correlationId: 'text:speak',
+    })
+    expect(spoken).toMatchObject({
+      status: 'submitted', action: { actionType: 'speak' }, result: { status: 'accepted', tick: 1 },
+    })
+    const moved = await app.submitText(world.manifest.address, {
+      text: '/move location:b', idempotencyKey: 'text:move',
+      principalId: 'principal:player', correlationId: 'text:move',
+    })
+    expect(moved).toMatchObject({ status: 'submitted', result: { status: 'accepted', tick: 2 } })
+    const explicit = await app.submitText(world.manifest.address, {
+      text: '/act speak {"text":"显式动作。"}', idempotencyKey: 'text:act',
+      principalId: 'principal:player', correlationId: 'text:act',
+    })
+    expect(explicit).toMatchObject({ status: 'submitted', result: { status: 'accepted', tick: 3 } })
+
+    const before = await app.head(world.manifest.address)
+    await expect(app.submitText(world.manifest.address, {
+      text: '/take entity:missing', idempotencyKey: 'text:not-afforded',
+      principalId: 'principal:player', correlationId: 'text:not-afforded',
+    })).resolves.toMatchObject({ status: 'clarification_required', reason: 'action is not currently afforded' })
+    expect(await app.head(world.manifest.address)).toEqual(before)
+    expect(await app.roundStatus(world.manifest.address, { idempotencyKey: 'text:not-afforded' })).toBeUndefined()
+
+    await expect(app.submitText(world.manifest.address, {
+      text: 'unauthorized', idempotencyKey: 'text:unauthorized',
+      principalId: 'principal:other', correlationId: 'text:unauthorized',
+    })).rejects.toMatchObject({ envelope: { errorCode: 'UNAUTHORIZED' } })
+    await expect(app.submitText(world.manifest.address, {
+      text: ' padded ', idempotencyKey: 'text:padded',
+      principalId: 'principal:player', correlationId: 'text:padded',
+    })).rejects.toThrow('unpadded')
+    await app.close()
+  })
 })

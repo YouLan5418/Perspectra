@@ -20,6 +20,7 @@ import {
   type PlayerRoundResult,
 } from '@harness-world/kernel'
 import {
+  isExplicitInvestigationIntent,
   DeterministicInvestigationIntentParser,
   type InvestigationIntentCatalog,
   type InvestigationIntentResult,
@@ -284,6 +285,14 @@ export class MysteryDemoScenario {
   async submitPlayerText(text: string, idempotencyKey: string): Promise<MysteryPlayerTurn> {
     this.activate()
     const address = this.compiled.manifest.address
+    if (!isExplicitInvestigationIntent(text)) {
+      return this.#application.submitText(address, {
+        text,
+        idempotencyKey,
+        principalId: 'principal:mystery-player',
+        correlationId: `mystery-demo:${idempotencyKey}`,
+      })
+    }
     const head = await this.#application.head(address)
     const investigation = currentInvestigationState(await this.#application.eventHistory(address, head.headSeq))
     const evidenceIds = investigation.evidence

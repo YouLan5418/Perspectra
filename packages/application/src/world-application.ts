@@ -30,6 +30,7 @@ import {
   runtimeManifestFromStored,
   runtimeManifestFromStoredRecord,
   type CompiledWorldSpec,
+  type PlayerActionInput,
   type PlayerRoundResult,
   type RulebookRegistry,
 } from '@harness-world/kernel'
@@ -67,6 +68,7 @@ import {
   type ArchiveBranchResult,
   type ForkAtHeadResult,
 } from './branch-operation-coordinator.ts'
+import { PlayerInputInterpreter, type PlayerInputInterpretation } from './player-input.ts'
 import {
   RoundCoordinator,
   type RoundParticipant,
@@ -86,6 +88,17 @@ export interface WorldApplicationOptions {
   readonly rulebooks?: RulebookRegistry
   readonly memoryPath?: string
 }
+
+export interface SubmitTextRequest {
+  readonly text: string
+  readonly idempotencyKey: string
+  readonly principalId: string
+  readonly correlationId: string
+}
+
+export type SubmitTextResult =
+  | Extract<PlayerInputInterpretation, { readonly status: 'clarification_required' }>
+  | { readonly status: 'submitted'; readonly action: PlayerActionInput; readonly result: PlayerRoundResult }
 
 /** Real branch-owned Store aggregate; all handles close with its Cordis Fiber. */
 export class BranchStoreComponent {
@@ -295,6 +308,52 @@ export class WorldApplication {
 
   async submit(address: WorldAddress, request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
     return this.#integrityGuard(address, 'round.submit', branch => branch.kernel.submit(request))
+  }
+
+  async submitText(address: WorldAddress, request: SubmitTextRequest): Promise<SubmitTextResult> {
+    this.#assertOpen()
+    for (const [name, value] of [
+      ['text', request.text],
+      ['idempotencyKey', request.idempotencyKey],
+      ['principalId', request.principalId],
+      ['correlationId', request.correlationId],
+    ] as const) assertProtocolString(value, name)
+    const interpretation = await this.#durableReadGuard(address, 'round.interpret', () => {
+      const store = new WorldStore(this.options.worldPath)
+      try {
+        const manifest = runtimeManifestFromStoredRecord(store.readManifest(address))
+        const binding = manifest.playerBindings.find(value => value.principalId === request.principalId)
+        if (binding === undefined) {
+          failWorld({
+            errorCode: 'UNAUTHORIZED', category: 'admission',
+            message: 'principal has no PlayerBinding in this world', retryable: false,
+            correlationId: request.correlationId, address,
+          })
+        }
+        const resolver = this.#rulebooks.resolve(
+          manifest.rulebook.rulebookId,
+          manifest.rulebook.version,
+          request.correlationId,
+          address,
+        )
+        const events = store.readEvents(address)
+        return new PlayerInputInterpreter().interpret(request.text, resolver.affordances({
+          manifest,
+          events,
+          characterId: binding.characterId,
+        }))
+      } finally {
+        store.close()
+      }
+    })
+    if (interpretation.status === 'clarification_required') return interpretation
+    const result = await this.submit(address, {
+      idempotencyKey: request.idempotencyKey,
+      principalId: request.principalId,
+      correlationId: request.correlationId,
+      action: interpretation.action,
+    })
+    return { status: 'submitted', action: interpretation.action, result }
   }
 
   async acceptRound(address: WorldAddress, request: SubmitCoordinatedRoundRequest) {

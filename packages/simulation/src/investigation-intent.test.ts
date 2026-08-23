@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { DeterministicInvestigationIntentParser, type InvestigationIntentCatalog } from './investigation-intent.ts'
+import {
+  DeterministicInvestigationIntentParser,
+  isExplicitInvestigationIntent,
+  type InvestigationIntentCatalog,
+} from './investigation-intent.ts'
 
 function catalog(): InvestigationIntentCatalog {
   return {
@@ -25,6 +29,17 @@ const authorization = {
 } as const
 
 describe('DeterministicInvestigationIntentParser', () => {
+  it('recognizes only explicit Demo-owned investigation syntax', () => {
+    for (const text of ['检查书桌', '/inspect desk', '询问Bob关于钥匙', '/ask Bob key', '向Bob出示线索',
+      '/present evidence Bob', '/present_evidence evidence Bob', '指控Bob：线索', '/accuse Bob evidence']) {
+      expect(isExplicitInvestigationIntent(text)).toBe(true)
+    }
+    for (const text of ['普通对白', '/move location:hall', '/take entity:key', '/act wave {}', '/speak hello']) {
+      expect(isExplicitInvestigationIntent(text)).toBe(false)
+    }
+    expect(() => isExplicitInvestigationIntent(' padded ')).toThrow('unpadded')
+  })
+
   it('validates its stable alias catalog', () => {
     expect(() => new DeterministicInvestigationIntentParser({
       ...catalog(), characters: [{ id: 'character:bob', aliases: ['Bob'] }, { id: 'character:bob', aliases: ['鲍勃'] }],
