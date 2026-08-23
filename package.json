@@ -26,6 +26,7 @@
     "demo:mystery": "tsx packages/simulation/process/mystery-demo-entry.ts",
     "demo:mystery:turn": "tsx packages/simulation/process/mystery-turn-entry.ts",
     "demo:mystery:shell": "tsx packages/simulation/process/mystery-shell-entry.ts",
+    "demo:mystery:drill": "tsx packages/simulation/process/mystery-drill-entry.ts",
     "check": "corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test:coverage && corepack pnpm@11.7.0 test:p0 && corepack pnpm@11.7.0 test:p1 && corepack pnpm@11.7.0 test:p2 && corepack pnpm@11.7.0 test:p3 && corepack pnpm@11.7.0 test:p4 && corepack pnpm@11.7.0 test:p5 && corepack pnpm@11.7.0 test:p6 && corepack pnpm@11.7.0 test:crash"
   },
   "dependencies": {

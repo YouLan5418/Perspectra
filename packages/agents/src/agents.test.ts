@@ -185,7 +185,7 @@ describe('Harness port, budget, and failure containment', () => {
     await expect(runner.propose('call:deadline', 2, 0, 'participant:agent', success, context))
       .resolves.toMatchObject({ status: 'fallback', failure: 'provider_failed' })
     await expect(runner.propose('call:timeout', 2, 5, 'participant:agent', never, context))
-      .resolves.toMatchObject({ status: 'fallback', failure: 'provider_failed' })
+      .resolves.toMatchObject({ status: 'fallback', failure: 'provider_timeout' })
     const exhausted = new SafeAgentRunner(new ModelBudgetLedger(0))
     await expect(exhausted.propose('call:budget', 1, 100, 'participant:agent', success, context))
       .resolves.toMatchObject({ status: 'fallback', failure: 'budget_exhausted' })

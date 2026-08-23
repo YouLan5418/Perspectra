@@ -75,6 +75,7 @@ import {
   type SubmitCoordinatedRoundRequest,
 } from './round-coordinator.ts'
 import { SceneDecisionService } from './scene-decision.ts'
+import { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
 
 export interface WorldApplicationOptions {
   readonly worldPath: string
@@ -126,7 +127,7 @@ export class BranchStoreComponent {
     this.quarantine = new BranchQuarantineService(worldPath)
     this.availability = new CharacterRuntimeAvailabilityService(worldPath)
     this.outbox = new WorldOutbox(worldPath)
-    this.session = new SessionDeliveryAdapter(sessionPath)
+    this.session = new SessionDeliveryAdapter(sessionPath, faultInjector)
     this.#worker = new SessionOutboxWorker(this.outbox, this.session, address, maxAttempts)
   }
 
@@ -181,7 +182,10 @@ export class BranchDirectorComponent {
 export class WorldBranchComponentFactory implements BranchComponentFactory {
   readonly #runtimeOwnerId: string
 
-  constructor(private readonly options: WorldApplicationOptions & { readonly rulebooks: RulebookRegistry }) {
+  constructor(private readonly options: WorldApplicationOptions & {
+    readonly rulebooks: RulebookRegistry
+    readonly runtimeMetrics: ApplicationRuntimeMetrics
+  }) {
     const label = options.runtimeOwnerId ?? 'application'
     assertProtocolString(label, 'runtimeOwnerId diagnostic label')
     this.#runtimeOwnerId = `${label}:instance:${randomUUID()}`
@@ -223,7 +227,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       }
       cognitiveMemory = contextPolicy === undefined
         ? undefined
-        : new CognitiveMemoryService(this.options.memoryPath!, store.store)
+        : new CognitiveMemoryService(this.options.memoryPath!, store.store, this.options.faultInjector)
       const agents = new BranchAgentComponent(participants.filter(value => value.role === 'agent'), cognitiveMemory)
       const director = new BranchDirectorComponent(participants.filter(value => value.role === 'director'))
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
@@ -245,6 +249,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         rulebooks: this.options.rulebooks,
         ...(scenePolicy === undefined ? {} : { sceneDecision: new SceneDecisionService(store.store, store.availability) }),
         ...(cognitiveMemory === undefined ? {} : { cognitiveMemory }),
+        runtimeMetrics: this.options.runtimeMetrics,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
       })
       return { kernel, store, agents, director }
@@ -270,11 +275,16 @@ export class WorldApplication {
   readonly #branches = new Map<string, Promise<MountedBranch>>()
   readonly #rulebooks: RulebookRegistry
   readonly runtimeRegistry: WorldRuntimeRegistry
+  readonly runtimeMetrics = new ApplicationRuntimeMetrics()
   #closed = false
 
   constructor(private readonly options: WorldApplicationOptions) {
     this.#rulebooks = options.rulebooks ?? createCoreRulebookRegistry()
-    this.runtimeRegistry = new WorldRuntimeRegistry(this.#root, new WorldBranchComponentFactory({ ...options, rulebooks: this.#rulebooks }))
+    this.runtimeRegistry = new WorldRuntimeRegistry(this.#root, new WorldBranchComponentFactory({
+      ...options,
+      rulebooks: this.#rulebooks,
+      runtimeMetrics: this.runtimeMetrics,
+    }))
   }
 
   activate(compiled: CompiledWorldSpec) {
@@ -516,7 +526,12 @@ export class WorldApplication {
   }
 
   async deliver(address: WorldAddress, correlationId: string): Promise<number> {
-    return this.#integrityGuard(address, 'outbox.drain', branch => branch.store.drainCritical(correlationId))
+    try {
+      return await this.#integrityGuard(address, 'outbox.drain', branch => branch.store.drainCritical(correlationId))
+    } catch (error: unknown) {
+      this.runtimeMetrics.recordSessionDeliveryFailure()
+      throw error
+    }
   }
 
   async deadLetters(address: WorldAddress): Promise<DeadLetterRecord[]> {

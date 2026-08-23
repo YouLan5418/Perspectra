@@ -5,6 +5,9 @@ import {
 import {
   brandId,
   deterministicId,
+  type DeliveryId,
+  type FaultInjector,
+  type RuntimeAvailabilityState,
   type CharacterId,
   type CharacterView,
   type StoredRoundAuthority,
@@ -213,6 +216,10 @@ export interface MysteryDemoScenarioOptions {
   readonly sessionPath: string
   readonly memoryPath?: string
   readonly compatibility?: 'legacy-v4'
+  readonly providerProfile?: 'agent-failure' | 'agent-timeout' | 'director-fallback'
+  readonly modelBudgetTokens?: number
+  readonly outboxMaxAttempts?: number
+  readonly faultInjector?: FaultInjector
 }
 
 export interface MysteryDemoSnapshot {
@@ -250,6 +257,8 @@ export class MysteryDemoScenario {
   readonly #intent: DeterministicInvestigationIntentParser
   #bobProviderCalls = 0
   #directorProviderCalls = 0
+  #bobFailureUsed = false
+  #directorFailureUsed = false
 
   constructor(private readonly options: MysteryDemoScenarioOptions) {
     this.compiled = options.compatibility === 'legacy-v4' ? compileLegacyMysteryDemo() : compileMysteryDemo()
@@ -257,7 +266,9 @@ export class MysteryDemoScenario {
     this.#application = new WorldApplication({
       ...options,
       runtimeOwnerId: 'mystery-demo',
-      modelBudgetTokens: 4,
+      modelBudgetTokens: options.modelBudgetTokens ?? 4,
+      ...(options.outboxMaxAttempts === undefined ? {} : { outboxMaxAttempts: options.outboxMaxAttempts }),
+      ...(options.faultInjector === undefined ? {} : { faultInjector: options.faultInjector }),
       memoryPath: options.memoryPath ?? `${options.worldPath}.memory.sqlite`,
       rulebooks: createMysteryRulebookRegistry(),
       participants: () => this.#participants(),
@@ -266,6 +277,10 @@ export class MysteryDemoScenario {
 
   get providerCalls(): { readonly bob: number; readonly director: number } {
     return { bob: this.#bobProviderCalls, director: this.#directorProviderCalls }
+  }
+
+  get runtimeMetrics(): WorldJsonObject {
+    return this.#application.runtimeMetrics.snapshot()
   }
 
   activate() {
@@ -319,6 +334,23 @@ export class MysteryDemoScenario {
     return this.#application.deliver(this.compiled.manifest.address, 'mystery-demo:deliver')
   }
 
+  async setAvailability(characterId: string, state: RuntimeAvailabilityState, reason: string | null) {
+    return this.#application.setCharacterAvailability(
+      this.compiled.manifest.address,
+      brandId(characterId, 'CharacterId'),
+      state,
+      reason,
+    )
+  }
+
+  async deadLetters() {
+    return this.#application.deadLetters(this.compiled.manifest.address)
+  }
+
+  async retryDeadLetter(deliveryId: DeliveryId): Promise<void> {
+    return this.#application.retryDeadLetter(this.compiled.manifest.address, deliveryId, `mystery-demo:retry:${deliveryId}`)
+  }
+
   async recall(characterId: string, query: string, asOfWorldSeq?: number): Promise<RecalledMemory[]> {
     this.activate()
     return this.#application.recallMemory(
@@ -366,6 +398,10 @@ export class MysteryDemoScenario {
     const directorProvider = {
       propose: async (context: Parameters<RoundParticipant['provider']['propose']>[0]) => {
         this.#directorProviderCalls += 1
+        if (this.options.providerProfile === 'director-fallback' && !this.#directorFailureUsed) {
+          this.#directorFailureUsed = true
+          throw new Error('Demo drill Director failure')
+        }
         if (context.playerAction.actionType === 'present_evidence') {
           return {
             participantId: 'director:detective-observer',
@@ -388,10 +424,19 @@ export class MysteryDemoScenario {
       }]),
       {
         participantId: 'agent:bob', role: 'agent', actorId: brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId'),
-        allowedActionTypes: ['take', 'speak'], priority: 100, estimatedTokens: 1, timeoutMs: 100,
+        allowedActionTypes: ['take', 'speak'], priority: 100, estimatedTokens: 1,
+        timeoutMs: this.options.providerProfile === 'agent-timeout' ? 5 : 100,
         provider: {
           propose: async (context) => {
             this.#bobProviderCalls += 1
+            if (this.options.providerProfile === 'agent-failure' && !this.#bobFailureUsed) {
+              this.#bobFailureUsed = true
+              throw new Error('Demo drill Agent failure')
+            }
+            if (this.options.providerProfile === 'agent-timeout' && !this.#bobFailureUsed) {
+              this.#bobFailureUsed = true
+              return new Promise(() => undefined)
+            }
             const parameters = context.playerAction.parameters as Record<string, unknown>
             if (context.playerAction.actionType === 'ask' && parameters.targetCharacterId === MYSTERY_DEMO_IDS.bob) {
               return {

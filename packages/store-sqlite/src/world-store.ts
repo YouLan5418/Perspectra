@@ -832,8 +832,10 @@ export class WorldStore {
         transactionId: request.transactionId,
         roundId: request.roundId,
         bundleHash,
+        authorityHash,
         headSeq: finalHeadSeq,
         tick: request.nextTick,
+        ...request.operationalSummary,
       }), this.operationalNow())
       this.faultInjector?.hit('store.before-commit')
       this.#db.exec('COMMIT')

@@ -3,7 +3,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, canonicalizeWorldJson, hashWorldJson, WorldError, type WorldJsonValue } from '@harness-world/contracts'
+import {
+  brandId,
+  canonicalizeWorldJson,
+  failWorld,
+  hashWorldJson,
+  WorldError,
+  type FaultInjector,
+  type WorldJsonValue,
+} from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
 import {
   compileMysteryDemo,
@@ -446,6 +454,36 @@ describe('three-role mystery Demo', () => {
       expect(await application.recallMemory(child, bob, '共同前缀')).toHaveLength(1)
     } finally {
       await application.close()
+    }
+  })
+
+  it('degrades runtime Memory faults but preserves the quarantine boundary for integrity faults', async () => {
+    const injector = (category: 'provider' | 'integrity'): FaultInjector => ({
+      hit(point) {
+        if (point !== 'memory.before-catchup') return
+        failWorld({
+          errorCode: category === 'integrity' ? 'BUNDLE_HASH_MISMATCH' : 'MODEL_PROVIDER_FAILED',
+          category,
+          message: `${category} memory fixture`,
+          retryable: category !== 'integrity',
+          correlationId: `memory:${category}`,
+        })
+      },
+    })
+    const degraded = new MysteryDemoScenario({ ...paths(), faultInjector: injector('provider') })
+    try {
+      await expect(degraded.submitPlayerText('普通对白', 'memory:provider-fault')).resolves.toMatchObject({
+        status: 'submitted', result: { status: 'accepted', tick: 1 },
+      })
+    } finally {
+      await degraded.close()
+    }
+    const quarantined = new MysteryDemoScenario({ ...paths(), faultInjector: injector('integrity') })
+    try {
+      await expect(quarantined.submitPlayerText('普通对白', 'memory:integrity-fault'))
+        .rejects.toMatchObject({ envelope: { errorCode: 'BUNDLE_HASH_MISMATCH' } })
+    } finally {
+      await quarantined.close()
     }
   })
 })

@@ -107,8 +107,10 @@ export class ModelBudgetLedger {
 export interface SafeProposalResult {
   readonly status: 'proposed' | 'fallback'
   readonly proposal: Proposal
-  readonly failure?: 'budget_exhausted' | 'provider_failed'
+  readonly failure?: 'budget_exhausted' | 'provider_failed' | 'provider_timeout'
 }
+
+class ProviderTimeout extends Error {}
 
 /** Failure-contained provider runner; it always yields a proposal envelope. */
 export class SafeAgentRunner {
@@ -128,14 +130,17 @@ export class SafeAgentRunner {
     try {
       if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) throw new RangeError('timeoutMs must be a positive safe integer')
       const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('provider timeout')), timeoutMs)
+        timer = setTimeout(() => reject(new ProviderTimeout('provider timeout')), timeoutMs)
       })
       const proposal = await Promise.race([provider.propose(context), timeout])
       this.budget.settle(callId, estimatedTokens)
       return { status: 'proposed', proposal }
-    } catch {
+    } catch (error: unknown) {
       this.budget.settle(callId, 0)
-      return { status: 'fallback', proposal: { participantId, actions: [] }, failure: 'provider_failed' }
+      return {
+        status: 'fallback', proposal: { participantId, actions: [] },
+        failure: error instanceof ProviderTimeout ? 'provider_timeout' : 'provider_failed',
+      }
     } finally {
       if (timer !== undefined) clearTimeout(timer)
     }

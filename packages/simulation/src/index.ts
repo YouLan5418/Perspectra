@@ -1,6 +1,7 @@
 export * from './investigation-intent.ts'
 export * from './mystery-demo.ts'
 export * from './mystery-demo-cli.ts'
+export * from './mystery-drill.ts'
 export * from './mystery-rulebooks.ts'
 export * from './providers.ts'
 export * from './simulation.ts'

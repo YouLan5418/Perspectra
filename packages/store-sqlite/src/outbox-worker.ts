@@ -195,22 +195,40 @@ export class WorldOutbox {
   recordFailed(delivery: ClaimedOutboxDelivery, message: string, maxAttempts: number): 'retry_scheduled' | 'dead_letter' {
     if (!Number.isSafeInteger(maxAttempts) || maxAttempts <= 0) throw new RangeError('maxAttempts must be a positive safe integer')
     const status = delivery.attemptCount >= maxAttempts ? 'dead_letter' : 'pending'
-    const result = this.#db.prepare(`
-      UPDATE outbox SET delivery_status = ?, last_error = ?,
-        claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
-      WHERE address_key = ? AND delivery_id = ? AND delivery_status = 'inflight' AND attempt_count = ?
-        AND claim_owner_id = ? AND claim_token = ?
-    `).run(
-      status,
-      message,
-      worldAddressKey(delivery.address),
-      delivery.deliveryId,
-      delivery.attemptCount,
-      delivery.claimOwnerId,
-      delivery.claimToken,
-    )
-    if (result.changes !== 1) throw new Error('Outbox delivery claim is stale')
-    return status === 'dead_letter' ? 'dead_letter' : 'retry_scheduled'
+    const addressKey = worldAddressKey(delivery.address)
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      const result = this.#db.prepare(`
+        UPDATE outbox SET delivery_status = ?, last_error = ?,
+          claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
+        WHERE address_key = ? AND delivery_id = ? AND delivery_status = 'inflight' AND attempt_count = ?
+          AND claim_owner_id = ? AND claim_token = ?
+      `).run(
+        status,
+        message,
+        addressKey,
+        delivery.deliveryId,
+        delivery.attemptCount,
+        delivery.claimOwnerId,
+        delivery.claimToken,
+      )
+      if (result.changes !== 1) throw new Error('Outbox delivery claim is stale')
+      if (status === 'dead_letter') {
+        this.#db.prepare(`
+          INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
+          VALUES (?, 'outbox.dead-lettered', ?, ?, ?)
+        `).run(
+          addressKey,
+          `outbox:${delivery.deliveryId}`,
+          worldJsonText({ deliveryId: delivery.deliveryId, sessionId: delivery.sessionId, attemptCount: delivery.attemptCount, message }),
+          this.#now(),
+        )
+      }
+      this.#db.exec('COMMIT')
+      return status === 'dead_letter' ? 'dead_letter' : 'retry_scheduled'
+    } catch (error: unknown) {
+      rollbackAndThrow(this.#db, error)
+    }
   }
 
   recordIntegrityFailure(

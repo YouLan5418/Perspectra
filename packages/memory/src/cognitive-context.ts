@@ -5,6 +5,7 @@ import {
   type ActionRequest,
   type CharacterId,
   type CharacterView,
+  type FaultInjector,
   type InteractionRoundId,
   type ProposalContext,
   type WorldAddress,
@@ -56,7 +57,7 @@ export class CognitiveMemoryService {
   readonly #memory: LocalMemoryStore
   readonly #views: CharacterViewBuilder
 
-  constructor(path: string, worldStore: WorldStore) {
+  constructor(path: string, worldStore: WorldStore, private readonly faultInjector?: FaultInjector) {
     this.#memory = new LocalMemoryStore(path, worldStore)
     this.#views = new CharacterViewBuilder(worldStore)
   }
@@ -70,6 +71,7 @@ export class CognitiveMemoryService {
   catchUp(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number, correlationId: string): CharacterView {
     this.#memory.enqueueCognitiveJob(address, characterId, asOfWorldSeq)
     try {
+      this.faultInjector?.hit('memory.before-catchup')
       this.#memory.reconcile({ address, characterId, asOfWorldSeq, correlationId })
       const view = this.#views.rebuildAt(address, characterId, asOfWorldSeq)
       for (const [kind, records] of [

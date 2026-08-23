@@ -34,6 +34,7 @@ export type FaultPoint =
   | 'quarantine-recovery.after-maintenance-commit'
   | 'quarantine-recovery.before-commit'
   | 'quarantine-recovery.after-commit'
+  | 'memory.before-catchup'
 
 export interface FaultInjector {
   /** Pause, fail, or terminate execution at a named stable point. */
@@ -84,6 +85,8 @@ export interface CommitRoundRequest {
   readonly correlationId: string
   /** Versioned participant/proposal/action/resolution authority committed with this Round. */
   readonly authority?: WorldJsonObject
+  /** Non-authoritative audit detail written atomically with commit and excluded from all authority hashes. */
+  readonly operationalSummary?: WorldJsonObject
   /** Durable proof that this input crossed admission before a draining barrier closed. */
   readonly admissionProof?: RoundAdmissionProof
   /** Operational fencing is excluded from authoritative hashes and required once a branch has acquired a database lease. */

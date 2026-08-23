@@ -131,6 +131,9 @@ importers:
       '@harness-world/memory':
         specifier: workspace:*
         version: link:../memory
+      '@harness-world/operations':
+        specifier: workspace:*
+        version: link:../operations
       '@harness-world/store-sqlite':
         specifier: workspace:*
         version: link:../store-sqlite

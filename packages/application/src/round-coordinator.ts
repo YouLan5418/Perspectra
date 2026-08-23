@@ -10,6 +10,7 @@ import {
   deterministicId,
   failWorld,
   hashWorldJson,
+  WorldError,
   type ActionRequest,
   type AgentProvider,
   type CharacterId,
@@ -47,9 +48,10 @@ import {
 } from '@harness-world/store-sqlite'
 import { type CognitiveMemoryService, type CognitiveProposalContext, type MemorySourceRef } from '@harness-world/memory'
 import type { SceneDecision, SceneDecisionService } from './scene-decision.ts'
+import type { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
 
 export type RoundParticipantRole = 'agent' | 'director'
-export type ParticipantTerminalStatus = 'proposed' | 'provider_failed' | 'budget_exhausted' | 'schema_invalid' | 'lifecycle_ineligible' | 'runtime_unavailable'
+export type ParticipantTerminalStatus = 'proposed' | 'provider_failed' | 'provider_timeout' | 'budget_exhausted' | 'schema_invalid' | 'lifecycle_ineligible' | 'runtime_unavailable'
 
 export interface RoundParticipant {
   readonly participantId: string
@@ -75,6 +77,7 @@ export interface RoundCoordinatorOptions {
   readonly rulebooks?: RulebookRegistry
   readonly sceneDecision?: SceneDecisionService
   readonly cognitiveMemory?: CognitiveMemoryService
+  readonly runtimeMetrics?: ApplicationRuntimeMetrics
 }
 
 export interface SubmitCoordinatedRoundRequest {
@@ -99,6 +102,10 @@ interface FrozenParticipant {
     readonly contextHash: ReturnType<typeof hashWorldJson>
     readonly memorySourceRefs: readonly MemorySourceRef[]
     readonly recallResultHash: ReturnType<typeof hashWorldJson>
+  }
+  readonly availabilityTransition?: {
+    readonly state: 'session_lag' | 'model_unavailable' | 'budget_unavailable'
+    readonly reason: string
   }
 }
 
@@ -476,10 +483,28 @@ export class RoundCoordinator {
         resolutions,
         finalCandidateHash: candidateHash,
       },
+      operationalSummary: {
+        participantTerminals: frozen.map(value => ({
+          participantId: value.binding.participantId,
+          role: value.binding.role,
+          terminalStatus: value.status,
+        })),
+      },
       correlationId,
       admissionProof: { inboxSeq: claimed.inboxSeq, inputHash: claimed.inputHash },
       writerFencingToken: this.#lease.fencingToken,
     })
+    for (const participant of frozen) {
+      if (participant.status !== 'proposed') this.options.runtimeMetrics?.recordParticipant(participant.status)
+      if (participant.availabilityTransition !== undefined) {
+        this.options.availability.set(
+          this.#address,
+          participant.binding.actorId,
+          participant.availabilityTransition.state,
+          participant.availabilityTransition.reason,
+        )
+      }
+    }
     this.options.cognitiveMemory?.enqueue(
       this.#address,
       [...new Set(ordered.map(item => item.action.actorId).concat(sceneDecision!.observerIds))],
@@ -534,24 +559,36 @@ export class RoundCoordinator {
       let providerContext: ProposalContext | CognitiveProposalContext = context
       let cognitive: FrozenParticipant['cognitive']
       if (this.options.cognitiveMemory !== undefined) {
-        const prepared = this.options.cognitiveMemory.prepare({
-          address: this.#address,
-          roundId: context.roundId,
-          tick: context.tick,
-          participantId: binding.participantId,
-          characterId: binding.actorId,
-          asOfWorldSeq,
-          playerAction: context.playerAction,
-          candidateHash: context.candidateHash,
-          allowedActionTypes: binding.allowedActionTypes,
-          sceneDecision: sceneDecision!,
-          correlationId: `cognitive:${context.roundId}:${binding.participantId}`,
-        })
-        providerContext = prepared
-        cognitive = {
-          contextHash: prepared.contextHash,
-          memorySourceRefs: prepared.memorySourceRefs,
-          recallResultHash: prepared.recallResultHash,
+        try {
+          const prepared = this.options.cognitiveMemory.prepare({
+            address: this.#address,
+            roundId: context.roundId,
+            tick: context.tick,
+            participantId: binding.participantId,
+            characterId: binding.actorId,
+            asOfWorldSeq,
+            playerAction: context.playerAction,
+            candidateHash: context.candidateHash,
+            allowedActionTypes: binding.allowedActionTypes,
+            sceneDecision: sceneDecision!,
+            correlationId: `cognitive:${context.roundId}:${binding.participantId}`,
+          })
+          providerContext = prepared
+          cognitive = {
+            contextHash: prepared.contextHash,
+            memorySourceRefs: prepared.memorySourceRefs,
+            recallResultHash: prepared.recallResultHash,
+          }
+        } catch (error: unknown) {
+          if (error instanceof WorldError && error.envelope.category === 'integrity') throw error
+          frozen.push(this.#frozen(
+            binding,
+            'runtime_unavailable',
+            { participantId: binding.participantId, actions: [] },
+            undefined,
+            { state: 'session_lag', reason: `Cognitive Memory catch-up failed: ${String(error)}` },
+          ))
+          continue
         }
       }
       this.#renewLease()
@@ -565,7 +602,16 @@ export class RoundCoordinator {
       )
       this.#renewLease()
       if (run.status === 'fallback') {
-        frozen.push(this.#frozen(binding, run.failure!, run.proposal, cognitive))
+        const failure = run.failure!
+        frozen.push(this.#frozen(
+          binding,
+          failure,
+          run.proposal,
+          cognitive,
+          failure === 'budget_exhausted'
+            ? { state: 'budget_unavailable', reason: 'model budget was exhausted' }
+            : { state: 'model_unavailable', reason: failure === 'provider_timeout' ? 'provider timed out' : 'provider failed' },
+        ))
         continue
       }
       try {
@@ -581,13 +627,19 @@ export class RoundCoordinator {
           correlationId: `coordinator:${context.roundId}:${binding.participantId}`,
         })
         if (proposal.actions.some(action => actionIds.has(action.actionId))) {
-          frozen.push(this.#frozen(binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive))
+          frozen.push(this.#frozen(
+            binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive,
+            { state: 'model_unavailable', reason: 'provider returned a divergent action schema' },
+          ))
           continue
         }
         for (const action of proposal.actions) actionIds.add(action.actionId)
         frozen.push(this.#frozen(binding, 'proposed', proposal, cognitive))
       } catch {
-        frozen.push(this.#frozen(binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive))
+        frozen.push(this.#frozen(
+          binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive,
+          { state: 'model_unavailable', reason: 'provider returned an invalid action schema' },
+        ))
       }
     }
     return frozen
@@ -598,8 +650,13 @@ export class RoundCoordinator {
     status: ParticipantTerminalStatus,
     proposal: Proposal,
     cognitive?: FrozenParticipant['cognitive'],
+    availabilityTransition?: FrozenParticipant['availabilityTransition'],
   ): FrozenParticipant {
-    return { binding, status, proposal, ...(cognitive === undefined ? {} : { cognitive }) }
+    return {
+      binding, status, proposal,
+      ...(cognitive === undefined ? {} : { cognitive }),
+      ...(availabilityTransition === undefined ? {} : { availabilityTransition }),
+    }
   }
 
   #committedPlayerResult(
