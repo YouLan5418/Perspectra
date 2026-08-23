@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   executeMysteryDrillCli,
@@ -41,9 +42,18 @@ const degradedStatus = {
   'memory-catchup-failure': 'runtime_unavailable',
 } as const
 
+const degradedReason = {
+  'agent-failure': 'provider failed',
+  'agent-timeout': 'provider timed out',
+  'budget-exhausted': 'model budget was exhausted',
+  'director-fallback': 'provider failed',
+  'memory-catchup-failure': 'Cognitive Memory catch-up failed',
+} as const
+
 describe('Mystery degradation drills', () => {
   it.each(Object.keys(expected) as MysteryDrillMode[])('%s commits, reports degradation, replays, and recovers', async mode => {
-    const output = await runMysteryDrill({ mode, ...paths() }) as any
+    const storage = paths()
+    const output = await runMysteryDrill({ mode, ...storage }) as any
     expect(output).toMatchObject({
       mode,
       initial: {
@@ -72,7 +82,39 @@ describe('Mystery degradation drills', () => {
       expect(output.initial.metrics).toMatchObject({ sessionDeliveryFailures: 1 })
     } else {
       expect(output.initial.metrics.participantTerminals[degradedStatus[mode]]).toBeGreaterThan(0)
+      expect(output.initial.health.characterAvailability).toEqual(expect.arrayContaining([
+        expect.objectContaining({ reason: expect.stringContaining(degradedReason[mode]) }),
+      ]))
     }
+    const world = new DatabaseSync(storage.worldPath, { readOnly: true })
+    const authorityRow = world.prepare(`SELECT authority_json FROM round_authority ORDER BY rowid LIMIT 1`).get() as {
+      authority_json: string
+    }
+    const authority = JSON.parse(authorityRow.authority_json) as any
+    const failedParticipants = new Map(
+      authority.participants
+        .filter((participant: any) => participant.role !== 'player' && participant.terminalStatus !== 'proposed')
+        .map((participant: any) => [participant.participantId, participant.actorId]),
+    )
+    expect(authority.actions.filter((action: any) => failedParticipants.has(action.participantId))).toEqual([])
+    const observations = world.prepare(`
+      SELECT data_json FROM events WHERE tick = 1 AND event_type = 'observation.upsert'
+    `).all().map((row: any) => JSON.parse(row.data_json))
+    expect(observations.filter((data: any) => [...failedParticipants.values()].includes(data.value?.content?.actorId))).toEqual([])
+    world.close()
+
+    const memory = new DatabaseSync(`${storage.worldPath}.memory.sqlite`, { readOnly: true })
+    const unverified = memory.prepare(`
+      SELECT COUNT(*) AS count
+      FROM memory_sources s
+      LEFT JOIN memory_source_mappings m
+        ON m.namespace_key = s.namespace_key AND m.source_kind = s.source_kind AND m.source_id = s.source_id
+      WHERE m.source_id IS NULL OR m.source_seq != s.source_seq OR m.source_hash != s.source_hash
+    `).get() as { count: number }
+    const memoryText = memory.prepare(`SELECT text_value FROM memory_entries`).all()
+    expect(unverified.count).toBe(0)
+    expect(JSON.stringify(memoryText)).not.toMatch(/provider failed|provider timed out|budget was exhausted|catch-up failure/u)
+    memory.close()
     expect(JSON.stringify(output)).not.toContain('is_culprit')
     expect(JSON.stringify(output)).not.toContain('memoryRecall')
   })
