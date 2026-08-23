@@ -34,8 +34,11 @@ describe('three-role mystery Demo', () => {
     expect(second).toEqual(first)
     expect(first.manifest).toMatchObject({
       metadata: { title: '灰林宅邸疑案' },
-      rulebook: { rulebookId: 'builtin:speak-move', version: 2 },
-      entities: [{ entityId: MYSTERY_DEMO_IDS.key, locationId: 'location:study' }],
+      rulebook: { rulebookId: 'builtin:speak-move', version: 3 },
+      entities: expect.arrayContaining([
+        expect.objectContaining({ entityId: MYSTERY_DEMO_IDS.key, locationId: 'location:study' }),
+        expect.objectContaining({ entityId: MYSTERY_DEMO_IDS.desk, locationId: 'location:study' }),
+      ]),
       characters: expect.arrayContaining([
         expect.objectContaining({ characterId: MYSTERY_DEMO_IDS.alice }),
         expect.objectContaining({ characterId: MYSTERY_DEMO_IDS.bob }),
@@ -109,6 +112,58 @@ describe('three-role mystery Demo', () => {
       }
     } finally {
       await first.close()
+    }
+  })
+
+  it('runs a multi-Turn investigation from natural language through evidence and a correct accusation', async () => {
+    const storage = paths()
+    const first = new MysteryDemoScenario(storage)
+    await first.runOpeningTurn()
+    const asked = await first.submitPlayerText('询问鲍勃关于钥匙', 'mystery-demo:ask-bob')
+    expect(asked).toMatchObject({ status: 'submitted', action: { actionType: 'ask' }, result: { status: 'accepted', tick: 2 } })
+    const beforeClarification = await first.snapshot()
+    expect(await first.submitPlayerText('检查柜子', 'mystery-demo:unknown-target')).toMatchObject({
+      status: 'clarification_required', reason: 'inspection target is unknown',
+    })
+    expect((await first.snapshot()).eventHashes).toEqual(beforeClarification.eventHashes)
+    const inspected = await first.submitPlayerText('检查一下书桌', 'mystery-demo:inspect-desk')
+    expect(inspected).toMatchObject({ status: 'submitted', action: { actionType: 'inspect' }, result: { status: 'accepted', tick: 3 } })
+    const premature = await first.submitPlayerText('指控鲍勃：钥匙痕迹', 'mystery-demo:premature-accusation')
+    expect(premature).toMatchObject({ status: 'submitted', result: { status: 'rejected', reason: 'EVIDENCE_NOT_PRESENTED', tick: 4 } })
+    const presented = await first.submitPlayerText('向侦探出示钥匙痕迹', 'mystery-demo:present-key-trace')
+    expect(presented).toMatchObject({ status: 'submitted', action: { actionType: 'present_evidence' }, result: { status: 'accepted', tick: 5 } })
+    const incorrect = await first.submitPlayerText('指控爱丽丝：钥匙痕迹', 'mystery-demo:accuse-alice')
+    expect(incorrect).toMatchObject({ status: 'submitted', result: { status: 'accepted', tick: 6 } })
+    expect((await first.snapshot()).investigation.status).toBe('open')
+    const correct = await first.submitPlayerText('指控鲍勃：钥匙痕迹', 'mystery-demo:accuse-bob')
+    expect(correct).toMatchObject({ status: 'submitted', result: { status: 'accepted', tick: 7 } })
+    expect(first.providerCalls).toEqual({ bob: 7, director: 7 })
+    const solved = await first.snapshot()
+    expect(solved.investigation).toMatchObject({
+      status: 'solved', culpritId: MYSTERY_DEMO_IDS.bob,
+      evidence: [{
+        evidenceId: MYSTERY_DEMO_IDS.keyMovedEvidence,
+        discoveredBy: [MYSTERY_DEMO_IDS.player],
+        presentedBy: [MYSTERY_DEMO_IDS.player],
+      }],
+    })
+    expect(JSON.stringify(solved.views.player)).toContain(MYSTERY_DEMO_IDS.keyMovedEvidence)
+    expect(JSON.stringify(solved.views.player)).not.toContain('is_culprit')
+    expect(solved.authority?.authority).toMatchObject({
+      actions: expect.arrayContaining([expect.objectContaining({ actionType: 'accuse', participantId: 'player' })]),
+    })
+    expect(await first.deliver()).toBe(10)
+    const hashes = solved.eventHashes
+    await first.close()
+
+    const restarted = new MysteryDemoScenario(storage)
+    try {
+      expect(await restarted.submitPlayerText('指控鲍勃：钥匙痕迹', 'mystery-demo:accuse-bob')).toEqual(correct)
+      expect(restarted.providerCalls).toEqual({ bob: 0, director: 0 })
+      expect((await restarted.snapshot()).eventHashes).toEqual(hashes)
+      expect(await restarted.deliver()).toBe(0)
+    } finally {
+      await restarted.close()
     }
   })
 })

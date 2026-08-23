@@ -13,21 +13,29 @@ import {
 } from '@harness-world/contracts'
 import {
   currentEntityState,
+  currentInvestigationState,
   WorldSpecCompiler,
   type CompiledWorldSpec,
   type EntityState,
+  type InvestigationState,
   type PlayerRoundResult,
 } from '@harness-world/kernel'
+import {
+  DeterministicInvestigationIntentParser,
+  type InvestigationIntentResult,
+} from './investigation-intent.ts'
 
 export const MYSTERY_DEMO_IDS = {
   tenantId: 'tenant:mystery-demo',
-  worldId: 'world:ashgrove-murder',
+  worldId: 'world:ashgrove-murder-v2',
   branchId: 'branch:main',
   player: 'character:player',
   alice: 'character:alice',
   bob: 'character:bob',
   detective: 'character:detective',
   key: 'entity:study-key',
+  desk: 'entity:study-desk',
+  keyMovedEvidence: 'evidence:key-moved',
   scene: 'scene:study-investigation',
 } as const
 
@@ -47,12 +55,15 @@ export function createMysteryDemoSpec(): WorldJsonObject {
     timeMode: 'TURN_DRIVEN',
     roundQueueLimit: 8,
     runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
-    rulebook: { rulebookId: 'builtin:speak-move', version: 2 },
+    rulebook: { rulebookId: 'builtin:speak-move', version: 3 },
     locations: [
       { locationId: 'location:drawing-room', name: '会客厅' },
       { locationId: 'location:study', name: '书房' },
     ],
-    entities: [{ entityId: MYSTERY_DEMO_IDS.key, locationId: 'location:study', kind: 'key' }],
+    entities: [
+      { entityId: MYSTERY_DEMO_IDS.key, locationId: 'location:study', kind: 'key' },
+      { entityId: MYSTERY_DEMO_IDS.desk, locationId: 'location:study', kind: 'key-moved' },
+    ],
     characters: [
       { characterId: MYSTERY_DEMO_IDS.player, name: '调查参与者', locationId: 'location:study' },
       { characterId: MYSTERY_DEMO_IDS.alice, name: 'Alice', locationId: 'location:study' },
@@ -145,10 +156,19 @@ export interface MysteryDemoSnapshot {
   readonly headSeq: number
   readonly tick: number
   readonly entity: EntityState
+  readonly investigation: InvestigationState
   readonly views: Readonly<Record<'player' | 'alice' | 'bob' | 'detective', CharacterView>>
   readonly eventHashes: readonly WorldHash[]
   readonly authority: StoredRoundAuthority | null
 }
+
+export type MysteryPlayerTurn =
+  | Extract<InvestigationIntentResult, { readonly status: 'clarification_required' }>
+  | {
+    readonly status: 'submitted'
+    readonly action: Extract<InvestigationIntentResult, { readonly status: 'resolved' }>['action']
+    readonly result: PlayerRoundResult
+  }
 
 /** Fail closed when an author/debug snapshot cannot bind expected authority state. */
 export function requireMysterySnapshotValue<T>(value: T | undefined, label: string): T {
@@ -160,6 +180,20 @@ export function requireMysterySnapshotValue<T>(value: T | undefined, label: stri
 export class MysteryDemoScenario {
   readonly compiled = compileMysteryDemo()
   readonly #application: WorldApplication
+  readonly #intent = new DeterministicInvestigationIntentParser({
+    characters: [
+      { id: MYSTERY_DEMO_IDS.alice, aliases: ['Alice', '爱丽丝'] },
+      { id: MYSTERY_DEMO_IDS.bob, aliases: ['Bob', '鲍勃'] },
+      { id: MYSTERY_DEMO_IDS.detective, aliases: ['侦探', 'Detective'] },
+    ],
+    entities: [
+      { id: MYSTERY_DEMO_IDS.key, aliases: ['钥匙', '黄铜钥匙', 'key'] },
+      { id: MYSTERY_DEMO_IDS.desk, aliases: ['书桌', '桌子', 'desk'] },
+    ],
+    evidence: [
+      { id: MYSTERY_DEMO_IDS.keyMovedEvidence, aliases: ['钥匙痕迹', '钥匙移动痕迹', 'key-trace'] },
+    ],
+  })
   #bobProviderCalls = 0
   #directorProviderCalls = 0
 
@@ -190,6 +224,25 @@ export class MysteryDemoScenario {
     })
   }
 
+  async submitPlayerText(text: string, idempotencyKey: string): Promise<MysteryPlayerTurn> {
+    this.activate()
+    const address = this.compiled.manifest.address
+    const head = await this.#application.head(address)
+    const investigation = currentInvestigationState(await this.#application.eventHistory(address, head.headSeq))
+    const evidenceIds = investigation.evidence
+      .filter(value => value.discoveredBy.includes(MYSTERY_DEMO_IDS.player))
+      .map(value => value.evidenceId)
+    const intent = this.#intent.parse(text, { evidenceIds })
+    if (intent.status === 'clarification_required') return intent
+    const result = await this.#application.submit(this.compiled.manifest.address, {
+      idempotencyKey,
+      principalId: 'principal:mystery-player',
+      action: intent.action,
+      correlationId: `mystery-demo:${idempotencyKey}`,
+    })
+    return { status: 'submitted', action: intent.action, result }
+  }
+
   async deliver(): Promise<number> {
     return this.#application.deliver(this.compiled.manifest.address, 'mystery-demo:deliver')
   }
@@ -205,17 +258,18 @@ export class MysteryDemoScenario {
       this.#application.characterView(address, character(MYSTERY_DEMO_IDS.detective), head.headSeq),
     ])
     const events = await this.#application.eventHistory(address, head.headSeq)
-    const taken = [...events].reverse().find(event => event.eventType === 'entity.taken')
-    const authority = taken === undefined
+    const resolved = [...events].reverse().find(event => event.eventType === 'action.resolved')
+    const authority = resolved === undefined
       ? null
       : requireMysterySnapshotValue(
-        await this.#application.roundAuthority(address, taken.transactionId),
-        `Round Authority ${taken.transactionId}`,
+        await this.#application.roundAuthority(address, resolved.transactionId),
+        `Round Authority ${resolved.transactionId}`,
       )
     return {
       headSeq: head.headSeq,
       tick: head.tick,
       entity: requireMysterySnapshotValue(currentEntityState(events, MYSTERY_DEMO_IDS.key), `entity ${MYSTERY_DEMO_IDS.key}`),
+      investigation: currentInvestigationState(events),
       views: { player, alice, bob, detective },
       eventHashes: events.map(event => event.eventHash),
       authority,
@@ -230,10 +284,24 @@ export class MysteryDemoScenario {
     return [
       {
         participantId: 'agent:bob', role: 'agent', actorId: brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId'),
-        allowedActionTypes: ['take'], priority: 100, estimatedTokens: 1, timeoutMs: 100,
+        allowedActionTypes: ['take', 'speak'], priority: 100, estimatedTokens: 1, timeoutMs: 100,
         provider: {
           propose: async (context) => {
             this.#bobProviderCalls += 1
+            const parameters = context.playerAction.parameters as Record<string, unknown>
+            if (context.playerAction.actionType === 'ask' && parameters.targetCharacterId === MYSTERY_DEMO_IDS.bob) {
+              return {
+                participantId: 'agent:bob',
+                actions: [{
+                  actionId: deterministicId('action:mystery-bob-denial', { roundId: context.roundId }),
+                  actorId: brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId'),
+                  actionType: 'speak', actionVersion: 1, parameters: { text: '我没碰过那把钥匙。' },
+                }],
+              }
+            }
+            if (context.playerAction.actionType !== 'speak' || parameters.text !== '我们从书房开始调查。') {
+              return { participantId: 'agent:bob', actions: [] }
+            }
             return {
               participantId: 'agent:bob',
               actions: [{
@@ -247,10 +315,20 @@ export class MysteryDemoScenario {
       },
       {
         participantId: 'director:detective-observer', role: 'director', actorId: brandId(MYSTERY_DEMO_IDS.detective, 'CharacterId'),
-        allowedActionTypes: [], priority: 10, estimatedTokens: 1, timeoutMs: 100,
+        allowedActionTypes: ['speak'], priority: 10, estimatedTokens: 1, timeoutMs: 100,
         provider: {
-          propose: async () => {
+          propose: async (context) => {
             this.#directorProviderCalls += 1
+            if (context.playerAction.actionType === 'present_evidence') {
+              return {
+                participantId: 'director:detective-observer',
+                actions: [{
+                  actionId: deterministicId('action:mystery-detective-evidence', { roundId: context.roundId }),
+                  actorId: brandId(MYSTERY_DEMO_IDS.detective, 'CharacterId'),
+                  actionType: 'speak', actionVersion: 1, parameters: { text: '这处痕迹说明钥匙最近被人移动过。' },
+                }],
+              }
+            }
             return { participantId: 'director:detective-observer', actions: [] }
           },
         },
