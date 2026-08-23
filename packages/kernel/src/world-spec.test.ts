@@ -162,7 +162,7 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
       { ...spec(), rulebook: null },
       { ...spec(), rulebook: { ...spec().rulebook, extra: true } },
       { ...spec(), rulebook: { rulebookId: 'other', version: 1 } },
-      { ...spec(), rulebook: { rulebookId: 'builtin:speak-move', version: 3 } },
+      { ...spec(), rulebook: { rulebookId: 'builtin:speak-move', version: 4 } },
       { ...spec(), locations: {} },
       { ...spec(), locations: [] },
       { ...spec(), locations: [null] },
@@ -227,6 +227,20 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     expect(investigation.manifest.registries.events.definitions.map(value => value.name)).toContain('entity.taken')
     expect(investigation.manifest.registries.rules.definitions.map(value => value.name)).toEqual(['builtin:speak-move/v2'])
     expect(investigation.manifestHash).not.toBe(compiled.manifestHash)
+
+    const narrative = new WorldSpecCompiler().compile({
+      ...specV2(),
+      rulebook: { rulebookId: 'builtin:speak-move', version: 3 },
+    })
+    expect(narrative.manifest.registries.actions.definitions.map(value => value.name)).toEqual([
+      'accuse', 'ask', 'inspect', 'move', 'present_evidence', 'speak', 'take',
+    ])
+    expect(narrative.manifest.registries.events.definitions.map(value => value.name)).toEqual(expect.arrayContaining([
+      'character.asked', 'entity.inspected', 'evidence.presented',
+      'investigation.accusation-resolved', 'investigation.case-closed',
+    ]))
+    expect(narrative.manifest.registries.rules.definitions.map(value => value.name)).toEqual(['builtin:speak-move/v3'])
+    expect(narrative.manifestHash).not.toBe(investigation.manifestHash)
   })
 
   it('rejects malformed complete V2 authoring fields and reference graphs', () => {
