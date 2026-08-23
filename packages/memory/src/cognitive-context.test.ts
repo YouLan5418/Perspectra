@@ -4,11 +4,12 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   brandId,
+  failWorld,
   hashWorldJson,
   type WorldAddress,
   type WorldEventDraft,
 } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
+import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from './cognitive-context.ts'
 
 const directories: string[] = []
@@ -28,7 +29,9 @@ function address(): WorldAddress {
 async function fixture() {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-cognitive-context-'))
   directories.push(directory)
-  const world = new WorldStore(join(directory, 'world.sqlite'))
+  const worldPath = join(directory, 'world.sqlite')
+  const memoryPath = join(directory, 'memory.sqlite')
+  const world = new WorldStore(worldPath)
   world.createBranch(address())
   const alice = brandId('character:alice', 'CharacterId')
   const bob = brandId('character:bob', 'CharacterId')
@@ -49,10 +52,11 @@ async function fixture() {
     nextTick: 1,
     events,
     outbox: [],
+    cognitiveJobs: [{ characterId: alice }],
     correlationId: 'cognitive:fixture',
   })
-  const memory = new CognitiveMemoryService(join(directory, 'memory.sqlite'), world)
-  return { world, memory, alice, bob }
+  const memory = new CognitiveMemoryService(memoryPath, world)
+  return { world, memory, alice, bob, worldPath, memoryPath }
 }
 
 describe('CognitiveMemoryService', () => {
@@ -116,6 +120,31 @@ describe('CognitiveMemoryService', () => {
       correlationId: 'prepare:string',
     }).memoryRecall).toHaveLength(1)
     memory.close()
+    world.close()
+  })
+
+  it('records and rethrows an integrity failure from the durable cognitive worker', async () => {
+    const { world, memory, alice, worldPath, memoryPath } = await fixture()
+    memory.close()
+    const leases = new WriterLeaseService(worldPath)
+    const lease = leases.acquire(address(), 'cognitive:integrity-worker')
+    const integrity = new CognitiveMemoryService(memoryPath, world, {
+      hit(point) {
+        if (point !== 'memory.before-catchup') return
+        failWorld({
+          errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'integrity worker fixture',
+          retryable: false, correlationId: 'cognitive:integrity-worker', address: address(),
+        })
+      },
+    })
+    expect(() => integrity.processPending(
+      address(), 'cognitive:integrity-worker', lease.fencingToken, () => undefined,
+    )).toThrowError(expect.objectContaining({ envelope: expect.objectContaining({ category: 'integrity' }) }))
+    expect(world.readCognitiveJobs(address(), true)).toMatchObject([{
+      characterId: alice, status: 'failed', attemptCount: 1,
+    }])
+    integrity.close()
+    leases.close()
     world.close()
   })
 })

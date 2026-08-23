@@ -15,7 +15,7 @@ import {
   type FaultInjector,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { WorldBootstrap, WorldSpecCompiler } from '@harness-world/kernel'
+import { WorldSpecCompiler } from '@harness-world/kernel'
 import { BranchQuarantineService, WorldStore } from '@harness-world/store-sqlite'
 import {
   compileMysteryDemo,
@@ -619,6 +619,55 @@ describe('three-role mystery Demo', () => {
       recovered.close()
     } finally {
       await restarted.close()
+    }
+  })
+
+  it('closes a partial mount when a pending cognitive job fails integrity verification', async () => {
+    const storage = paths()
+    const scenario = new MysteryDemoScenario(storage)
+    await scenario.runOpeningTurn()
+    await scenario.close()
+    const raw = new DatabaseSync(storage.worldPath)
+    raw.prepare(`UPDATE world_cognitive_jobs SET status = 'pending', job_hash = 'sha256:forged'`).run()
+    raw.close()
+
+    const application = new WorldApplication({
+      ...storage,
+      memoryPath: `${storage.worldPath}.memory.sqlite`,
+      rulebooks: createMysteryRulebookRegistry(),
+    })
+    try {
+      await expect(application.head(compileMysteryDemo().manifest.address))
+        .rejects.toMatchObject({ envelope: { errorCode: 'BUNDLE_HASH_MISMATCH' } })
+      expect(application.activeBranchCount).toBe(0)
+    } finally {
+      await application.close()
+    }
+  })
+
+  it('requires the configured Memory store before recovering a Context v2 branch', async () => {
+    const storage = paths()
+    const scenario = new MysteryDemoScenario(storage)
+    await scenario.runOpeningTurn()
+    await scenario.close()
+    const compiled = compileMysteryDemo()
+    const quarantine = new BranchQuarantineService(storage.worldPath)
+    quarantine.quarantine({
+      address: compiled.manifest.address,
+      error: createErrorEnvelope({
+        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'missing Memory recovery fixture',
+        retryable: false, correlationId: 'memory:missing-recovery', address: compiled.manifest.address,
+      }),
+      source: 'mystery-demo.test',
+    })
+    quarantine.close()
+
+    const application = new WorldApplication({ ...storage, rulebooks: createMysteryRulebookRegistry() })
+    try {
+      await expect(application.quarantineRecover(compiled.manifest.address, 'memory:missing-recovery'))
+        .rejects.toMatchObject({ envelope: { errorCode: 'RECOVERY_VALIDATION_FAILED' } })
+    } finally {
+      await application.close()
     }
   })
 

@@ -703,6 +703,13 @@ describe('RoundCoordinator', () => {
     expect(() => new RoundCoordinator(invalidLeaseOptions)).toThrow('positive safe integer')
     close(invalidLeaseOptions)
 
+    const missingSceneOptions = options(path, compiled)
+    expect(() => new RoundCoordinator({
+      ...missingSceneOptions,
+      cognitiveMemory: {} as never,
+    })).toThrow('requires an authoritative Scene decision service')
+    close(missingSceneOptions)
+
     const unknown = { ...duplicate, participantId: 'participant:unknown', actorId: brandId('character:missing', 'CharacterId') }
     const unknownOptions = options(path, compiled, [unknown])
     expect(() => new RoundCoordinator(unknownOptions)).toThrow('manifest')

@@ -641,6 +641,9 @@ describe('WorldStore and temporal projections', () => {
     const leases = new WriterLeaseService(path)
     const lease = leases.acquire(address, 'cognitive-worker')
     expect(() => store.recordCognitiveJobResult(
+      address, 'job:missing', 'cognitive-worker', lease.fencingToken, 'completed', null, 'worker:missing',
+    )).toThrow('missing')
+    expect(() => store.recordCognitiveJobResult(
       address, pending[0]!.jobId, 'wrong-owner', lease.fencingToken, 'completed', null, 'worker:wrong',
     )).toThrow('lost its database writer lease')
     store.recordCognitiveJobResult(
@@ -663,6 +666,35 @@ describe('WorldStore and temporal projections', () => {
     const divergent = new WorldStore(path)
     expect(() => divergent.readCognitiveJobs(address, true)).toThrow('job hash is divergent')
     divergent.close()
+  })
+
+  it('stores clarification replay, conflict, audit, and divergent hashes fail-closed', () => {
+    const path = database('world-clarification.sqlite')
+    const address = fixtureAddress('clarification')
+    const store = new WorldStore(path)
+    store.createBranch(address)
+    const input = { text: '/unknown' }
+    const result = { status: 'clarification_required', reason: 'unknown command' }
+    expect(store.recordClarification(address, 'clarification:1', input, result, 'clarification:first')).toEqual(result)
+    expect(store.recordClarification(address, 'clarification:1', input, result, 'clarification:replay')).toEqual(result)
+    expect(() => store.recordClarification(
+      address, 'clarification:1', { text: '/different' }, result, 'clarification:conflict',
+    )).toThrowError(expect.objectContaining({ envelope: expect.objectContaining({ errorCode: 'IDEMPOTENCY_KEY_CONFLICT' }) }))
+    const administration = new BranchAdministration(path)
+    expect(administration.readAudit(address)).toMatchObject([{
+      operation: 'round.clarified', correlationId: 'clarification:first',
+    }])
+    administration.close()
+
+    const raw = new DatabaseSync(path)
+    raw.prepare(`UPDATE round_clarifications SET result_hash = 'sha256:forged' WHERE idempotency_key = ?`)
+      .run('clarification:1')
+    raw.close()
+    expect(() => store.recordClarification(address, 'clarification:1', input, result, 'clarification:divergent-record'))
+      .toThrowError(expect.objectContaining({ envelope: expect.objectContaining({ errorCode: 'BUNDLE_HASH_MISMATCH' }) }))
+    expect(() => store.readClarification(address, 'clarification:1'))
+      .toThrowError(expect.objectContaining({ envelope: expect.objectContaining({ errorCode: 'BUNDLE_HASH_MISMATCH' }) }))
+    store.close()
   })
 
   it('validates branch heads, tick movement, and request content', async () => {

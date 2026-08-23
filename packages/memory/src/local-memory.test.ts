@@ -85,6 +85,19 @@ function ref(value: ProjectionRecord): MemorySourceRef {
 }
 
 describe('LocalMemoryStore', () => {
+  it('rolls back a derived namespace reset when its local schema is damaged', () => {
+    const path = paths()
+    const world = new WorldStore(path.world)
+    world.createBranch(address())
+    const memory = new LocalMemoryStore(path.memory, world)
+    const damaged = new DatabaseSync(path.memory)
+    damaged.exec('DROP TABLE memory_fts')
+    damaged.close()
+    expect(() => memory.resetNamespace(address(), characterA)).toThrow()
+    memory.close()
+    world.close()
+  })
+
   it('reconciles and captures committed Goal sources under the same as-of firewall', async () => {
     const path = paths()
     const world = new WorldStore(path.world)
