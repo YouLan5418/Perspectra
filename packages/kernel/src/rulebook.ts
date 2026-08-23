@@ -58,11 +58,17 @@ export function currentEntityState(events: readonly RulebookEvent[], entityId: s
   for (const event of events) {
     const data = object(event.data)
     if (data?.entityId !== entityId) continue
-    if (event.eventType === 'entity.upsert'
-      && typeof data.locationId === 'string' && typeof data.kind === 'string') {
+    if (event.eventType === 'entity.upsert') {
+      if (typeof data.locationId !== 'string' || typeof data.kind !== 'string') {
+        throw new TypeError(`entity.upsert for ${entityId} is malformed`)
+      }
       state = { entityId, locationId: data.locationId, holderId: null, kind: data.kind }
     }
-    if (event.eventType === 'entity.taken' && state !== undefined && typeof data.characterId === 'string') {
+    if (event.eventType === 'entity.taken') {
+      if (state === undefined || typeof data.characterId !== 'string' || typeof data.fromLocationId !== 'string'
+        || state.holderId !== null || state.locationId !== data.fromLocationId) {
+        throw new TypeError(`entity.taken for ${entityId} violates the entity event prefix`)
+      }
       state = { ...state, locationId: null, holderId: data.characterId }
     }
   }

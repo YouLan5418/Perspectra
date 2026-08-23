@@ -104,6 +104,19 @@ describe('SpeakMoveRulebook', () => {
     expect(currentEntityState(after, 'entity:key')).toEqual({
       entityId: 'entity:key', locationId: null, holderId: 'character:player', kind: 'key',
     })
+    expect(() => currentEntityState([
+      { eventType: 'entity.upsert', data: { entityId: 'entity:key', locationId: null, kind: 'key' } },
+    ], 'entity:key')).toThrow('malformed')
+    expect(() => currentEntityState([
+      { eventType: 'entity.taken', data: { entityId: 'entity:key', characterId: 'character:player', fromLocationId: 'location:a' } },
+    ], 'entity:key')).toThrow('violates')
+    expect(() => currentEntityState([...history, {
+      eventType: 'entity.taken', data: { entityId: 'entity:key', characterId: 1, fromLocationId: 'location:a' },
+    }], 'entity:key')).toThrow('violates')
+    expect(() => currentEntityState([...history, {
+      eventType: 'entity.taken', data: { entityId: 'entity:key', characterId: 'character:player', fromLocationId: 'location:b' },
+    }], 'entity:key')).toThrow('violates')
+    expect(() => currentEntityState([...after, ...taken.events], 'entity:key')).toThrow('violates')
     expect(rulebook.resolve(manifest, after, 'character:player', {
       actionType: 'take', parameters: { entityId: 'entity:key' },
     })).toMatchObject({ status: 'rejected', reason: 'ITEM_NOT_AVAILABLE' })
