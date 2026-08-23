@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId, canonicalizeWorldJson, hashWorldJson, WorldError, type WorldJsonValue } from '@harness-world/contracts'
-import { SpeakMoveRulebook, WorldSpecCompiler } from '@harness-world/kernel'
+import { WorldSpecCompiler } from '@harness-world/kernel'
 import {
   compileMysteryDemo,
   createMysteryIntentCatalog,
@@ -13,7 +13,7 @@ import {
   MysteryDemoScenario,
   requireMysterySnapshotValue,
 } from './mystery-demo.ts'
-import { createMysteryRulebookRegistry } from './mystery-rulebooks.ts'
+import { createMysteryRulebookRegistry, MysteryRulebookResolver } from './mystery-rulebooks.ts'
 
 const directories: string[] = []
 
@@ -65,7 +65,7 @@ describe('three-role mystery Demo', () => {
       'speak', 'move', 'take', 'inspect', 'ask', 'present_evidence', 'accuse',
     ])
     const history = compiled.genesisEvents.map(event => ({ eventType: event.eventType, data: event.data }))
-    const resolver = new SpeakMoveRulebook()
+    const resolver = new MysteryRulebookResolver()
     const expected = {
       3: {
         canonical: '{"events":[{"data":{"characterId":"character:player","entityId":"entity:study-desk","evidenceId":"evidence:key-moved"},"eventType":"entity.inspected","eventVersion":1},{"data":{"id":"observation:investigation-rule:ae6fb03457048d92328fbd3e","value":{"content":{"actionType":"inspect","entityId":"entity:study-desk","evidenceId":"evidence:key-moved"},"observerId":"character:player","source":"rulebook:investigation/v3"}},"eventType":"observation.upsert","eventVersion":1}],"status":"accepted"}',
@@ -77,12 +77,12 @@ describe('three-role mystery Demo', () => {
       },
     } as const
     for (const version of [3, 4] as const) {
-      const resolution = resolver.resolve(
-        { ...compiled.manifest, rulebook: { ...compiled.manifest.rulebook, version } },
-        history,
-        MYSTERY_DEMO_IDS.player,
-        { actionType: 'inspect', parameters: { entityId: MYSTERY_DEMO_IDS.desk } },
-      )
+      const resolution = resolver.resolve({
+        manifest: { ...compiled.manifest, rulebook: { ...compiled.manifest.rulebook, version } },
+        events: history,
+        characterId: MYSTERY_DEMO_IDS.player,
+        action: { actionType: 'inspect', parameters: { entityId: MYSTERY_DEMO_IDS.desk } },
+      })
       const worldJson = resolution as unknown as WorldJsonValue
       expect(Buffer.from(canonicalizeWorldJson(worldJson)).toString('utf8')).toBe(expected[version].canonical)
       expect(hashWorldJson('golden-rulebook-resolution', worldJson)).toBe(expected[version].hash)

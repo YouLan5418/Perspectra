@@ -9,17 +9,28 @@ import { WorldRuntimeRegistry, type BranchComponentFactory } from '@harness-worl
 import { BranchAdministration, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import {
   currentEntityState,
+  SpeakMoveRulebook as CoreRulebook,
+} from './rulebook.ts'
+import {
   currentInvestigationState,
   inspectionEvidenceId,
   investigationViewForCharacter,
-  SpeakMoveRulebook,
-} from './rulebook.ts'
+  MysteryRulebookResolver,
+} from '../../simulation/src/mystery-rulebooks.ts'
 import { createCoreRulebookRegistry, RulebookRegistry } from './rulebook-registry.ts'
 import { WorldBootstrap } from './world-bootstrap.ts'
 import { parsePlayerRoundResult, WorldKernel } from './world-kernel.ts'
 import { WorldSpecCompiler } from './world-spec.ts'
 
 const directories: string[] = []
+
+class SpeakMoveRulebook {
+  readonly #resolver = new MysteryRulebookResolver()
+
+  resolve(manifest: Parameters<CoreRulebook['resolve']>[0], events: Parameters<CoreRulebook['resolve']>[1], characterId: string, action: Parameters<CoreRulebook['resolve']>[3]) {
+    return this.#resolver.resolve({ manifest, events, characterId, action })
+  }
+}
 
 function database(name: string): string {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-world-kernel-'))

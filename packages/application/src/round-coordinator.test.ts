@@ -16,14 +16,12 @@ import {
 } from '@harness-world/contracts'
 import {
   currentEntityState,
-  createCoreRulebookRegistry,
-  inspectionEvidenceId,
-  SpeakMoveRulebook,
   WorldBootstrap,
   WorldSpecCompiler,
   type CompiledWorldSpec,
   type RoundExecutionLane,
 } from '@harness-world/kernel'
+import { createMysteryRulebookRegistry, inspectionEvidenceId } from '../../simulation/src/mystery-rulebooks.ts'
 import { BranchAdministration, CharacterRuntimeAvailabilityService, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import {
   RoundCoordinator,
@@ -506,12 +504,7 @@ describe('RoundCoordinator', () => {
       })),
     }
     const baseOptions = options(path, compiled, [participant])
-    const rulebooks = createCoreRulebookRegistry()
-    const legacy = new SpeakMoveRulebook()
-    rulebooks.register('builtin:speak-move', 4, {
-      resolve: context => legacy.resolve(context.manifest, context.events, context.characterId, context.action),
-      affordances: () => [{ actionType: 'inspect', actionVersion: 1 }],
-    })
+    const rulebooks = createMysteryRulebookRegistry()
     const coordinatorOptions = { ...baseOptions, rulebooks }
     const coordinator = new RoundCoordinator(coordinatorOptions)
     await coordinator.submit({
