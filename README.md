@@ -30,10 +30,18 @@ corepack pnpm@11.7.0 worldhost -- D:\path\to\world.sqlite D:\path\to\session.sql
 运行无模型的悬疑 Demo 固定开场（再次执行会从同一 SQLite 幂等恢复）：
 
 ```powershell
-corepack pnpm@11.7.0 demo:mystery -- D:\path\to\mystery-world.sqlite D:\path\to\mystery-session.sqlite
+corepack pnpm@11.7.0 demo:mystery D:\path\to\mystery-world.sqlite D:\path\to\mystery-session.sqlite
 ```
 
 命令只输出玩家可见视图和公开物品状态；Bob 的私有凶手 Claim 不会出现在终端结果中。
+
+固定开场后，可以用同一数据库逐轮提交自然语言或显式调查命令：
+
+```powershell
+corepack pnpm@11.7.0 demo:mystery:turn D:\path\to\mystery-world.sqlite D:\path\to\mystery-session.sqlite turn:inspect "检查一下书桌"
+```
+
+每轮都必须提供唯一幂等键；未知或歧义输入返回 `clarification_required`，不会猜测或提交世界事实。
 
 ## 使用基础契约
 
@@ -106,5 +114,6 @@ console.log(hash)
 - [Phase 6 独立审查修复报告](docs/2026-08-22_Phase-6独立审查修复报告.md)
 - [异步 Round 与本机 Headless 进度报告](docs/2026-08-23_进度报告-异步Round与本机Headless-report.md)
 - [三角色悬疑 Demo 首个可执行切片](docs/2026-08-23_进度报告-三角色悬疑Demo首个可执行切片.md)
+- [悬疑 Demo Phase 2：多轮调查与真相揭露闭环](docs/2026-08-23_阶段报告-悬疑Demo-Phase-2.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。

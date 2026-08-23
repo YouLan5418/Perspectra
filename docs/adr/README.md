@@ -29,3 +29,4 @@
 | [0045](ADR-0045-investigation-entity-rule.md) | 调查物品的版本化取得规则 | Rulebook v2 的 take/entity.taken 与竞争重裁决 |
 | [0046](ADR-0046-round-authority-reconstructible-order.md) | Round Authority 的可重算顺序与本地调用身份 | Proposal 原序、真实 roleRank 与外部记录缺席语义 |
 | [0047](ADR-0047-principal-scoped-character-view.md) | 玩家 CharacterView 的 PrincipalBinding 授权 | RPC/CLI 只允许读取绑定角色，作者调试能力不外露 |
+| [0048](ADR-0048-hybrid-investigation-actions.md) | 混合文本输入与版本化调查 Action | Rulebook v3、证据能力过滤和多轮结案闭环 |
