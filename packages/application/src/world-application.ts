@@ -351,6 +351,18 @@ export class WorldApplication {
       ['principalId', request.principalId],
       ['correlationId', request.correlationId],
     ] as const) assertProtocolString(value, name)
+    const clarificationInput = { principalId: request.principalId, text: request.text }
+    const clarificationStore = new WorldStore(this.options.worldPath)
+    try {
+      const replay = clarificationStore.readClarification(
+        address, request.idempotencyKey, clarificationInput, request.correlationId,
+      )
+      if (replay !== undefined) {
+        return replay as Extract<PlayerInputInterpretation, { readonly status: 'clarification_required' }>
+      }
+    } finally {
+      clarificationStore.close()
+    }
     const interpretation = await this.#durableReadGuard(address, 'round.interpret', () => {
       const store = new WorldStore(this.options.worldPath)
       try {
@@ -379,7 +391,20 @@ export class WorldApplication {
         store.close()
       }
     })
-    if (interpretation.status === 'clarification_required') return interpretation
+    if (interpretation.status === 'clarification_required') {
+      const store = new WorldStore(this.options.worldPath)
+      try {
+        return store.recordClarification(
+          address,
+          request.idempotencyKey,
+          clarificationInput,
+          interpretation,
+          request.correlationId,
+        ) as Extract<PlayerInputInterpretation, { readonly status: 'clarification_required' }>
+      } finally {
+        store.close()
+      }
+    }
     const result = await this.submit(address, {
       idempotencyKey: request.idempotencyKey,
       principalId: request.principalId,

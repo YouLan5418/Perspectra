@@ -317,7 +317,22 @@ CREATE INDEX world_cognitive_jobs_pending
   ON world_cognitive_jobs(address_key, status, as_of_seq, character_id);
 `
 
-export const WORLD_SCHEMA_VERSION = 12
+const WORLD_CLARIFICATION_SCHEMA = `
+CREATE TABLE round_clarifications (
+  address_key TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  input_hash TEXT NOT NULL,
+  input_json TEXT NOT NULL,
+  result_hash TEXT NOT NULL,
+  result_json TEXT NOT NULL,
+  correlation_id TEXT NOT NULL,
+  operational_time_ms INTEGER NOT NULL CHECK(operational_time_ms >= 0),
+  PRIMARY KEY(address_key, idempotency_key),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key)
+) STRICT;
+`
+
+export const WORLD_SCHEMA_VERSION = 13
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -332,7 +347,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 9, sql: WORLD_QUARANTINE_SCHEMA },
     { version: 10, sql: WORLD_CHARACTER_RUNTIME_SCHEMA },
     { version: 11, sql: WORLD_ROUND_AUTHORITY_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_COGNITIVE_JOB_SCHEMA },
+    { version: 12, sql: WORLD_COGNITIVE_JOB_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_CLARIFICATION_SCHEMA },
   ])
 }
 
@@ -1014,6 +1030,97 @@ export class WorldStore {
     } catch (caught: unknown) {
       rollbackAndThrow(this.#db, caught)
     }
+  }
+
+  /** Persist a no-Round admission clarification and its audit record idempotently. */
+  recordClarification(
+    address: WorldAddress,
+    idempotencyKey: string,
+    input: WorldJsonValue,
+    result: WorldJsonValue,
+    correlationId: string,
+  ): WorldJsonValue {
+    const addressKey = worldAddressKey(address)
+    const inputHash = hashWorldJson('round-clarification-input', input)
+    const resultHash = hashWorldJson('round-clarification-result', result)
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      const existing = this.#db.prepare(`
+        SELECT input_hash, result_hash, result_json FROM round_clarifications
+        WHERE address_key = ? AND idempotency_key = ?
+      `).get(addressKey, idempotencyKey) as {
+        input_hash: WorldHash
+        result_hash: WorldHash
+        result_json: string
+      } | undefined
+      if (existing !== undefined) {
+        if (existing.input_hash !== inputHash) {
+          failWorld({
+            errorCode: 'IDEMPOTENCY_KEY_CONFLICT', category: 'admission',
+            message: 'clarification idempotencyKey is already bound to another input', retryable: false,
+            correlationId, address,
+          })
+        }
+        const stored = parseWorldJson(existing.result_json)
+        if (existing.result_hash !== hashWorldJson('round-clarification-result', stored)) {
+          failWorld({
+            errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
+            message: 'durable clarification result hash is divergent', retryable: false,
+            correlationId, address,
+          })
+        }
+        this.#db.exec('COMMIT')
+        return stored
+      }
+      const now = this.operationalNow()
+      this.#db.prepare(`
+        INSERT INTO round_clarifications(
+          address_key, idempotency_key, input_hash, input_json, result_hash, result_json, correlation_id, operational_time_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        addressKey, idempotencyKey, inputHash, worldJsonText(input), resultHash, worldJsonText(result), correlationId, now,
+      )
+      this.#db.prepare(`
+        INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
+        VALUES (?, 'round.clarified', ?, ?, ?)
+      `).run(addressKey, correlationId, worldJsonText({ idempotencyKey, inputHash, resultHash }), now)
+      this.#db.exec('COMMIT')
+      return result
+    } catch (error: unknown) {
+      rollbackAndThrow(this.#db, error)
+    }
+  }
+
+  readClarification(
+    address: WorldAddress,
+    idempotencyKey: string,
+    input?: WorldJsonValue,
+    correlationId = `clarification:${idempotencyKey}`,
+  ): WorldJsonValue | undefined {
+    const row = this.#db.prepare(`
+      SELECT input_hash, result_hash, result_json FROM round_clarifications WHERE address_key = ? AND idempotency_key = ?
+    `).get(worldAddressKey(address), idempotencyKey) as {
+      input_hash: WorldHash
+      result_hash: WorldHash
+      result_json: string
+    } | undefined
+    if (row === undefined) return undefined
+    if (input !== undefined && row.input_hash !== hashWorldJson('round-clarification-input', input)) {
+      failWorld({
+        errorCode: 'IDEMPOTENCY_KEY_CONFLICT', category: 'admission',
+        message: 'clarification idempotencyKey is already bound to another input', retryable: false,
+        correlationId, address,
+      })
+    }
+    const result = parseWorldJson(row.result_json)
+    if (row.result_hash !== hashWorldJson('round-clarification-result', result)) {
+      failWorld({
+        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
+        message: 'durable clarification result hash is divergent', retryable: false,
+        correlationId, address,
+      })
+    }
+    return result
   }
 
   /** Return the frozen base boundary used by an already committed transaction. */

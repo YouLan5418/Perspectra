@@ -14,6 +14,7 @@ import {
 } from '@harness-world/contracts'
 import { RulebookRegistry, WorldSpecCompiler } from '@harness-world/kernel'
 import {
+  BranchAdministration,
   BranchQuarantineService,
   SessionDeliveryAdapter,
   SessionOutboxWorker,
@@ -611,7 +612,7 @@ describe('WorldApplication', () => {
     await snapshotApp.close()
   })
 
-  it('submits generic text through current affordances and leaves clarifications outside the Round log', async () => {
+  it('submits generic text and durably audits clarifications outside the Round log', async () => {
     const persistence = paths()
     const world = compiled()
     const app = new WorldApplication(persistence)
@@ -636,12 +637,26 @@ describe('WorldApplication', () => {
     expect(explicit).toMatchObject({ status: 'submitted', result: { status: 'accepted', tick: 3 } })
 
     const before = await app.head(world.manifest.address)
-    await expect(app.submitText(world.manifest.address, {
+    const clarificationRequest = {
       text: '/take entity:missing', idempotencyKey: 'text:not-afforded',
       principalId: 'principal:player', correlationId: 'text:not-afforded',
-    })).resolves.toMatchObject({ status: 'clarification_required', reason: 'action is not currently afforded' })
+    } as const
+    const clarification = await app.submitText(world.manifest.address, clarificationRequest)
+    expect(clarification).toMatchObject({ status: 'clarification_required', reason: 'action is not currently afforded' })
+    expect(await app.submitText(world.manifest.address, clarificationRequest)).toEqual(clarification)
     expect(await app.head(world.manifest.address)).toEqual(before)
     expect(await app.roundStatus(world.manifest.address, { idempotencyKey: 'text:not-afforded' })).toBeUndefined()
+    const store = new WorldStore(persistence.worldPath)
+    expect(store.readClarification(world.manifest.address, 'text:not-afforded')).toEqual(clarification)
+    store.close()
+    const audit = new BranchAdministration(persistence.worldPath)
+    expect(audit.readAudit(world.manifest.address)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ operation: 'round.clarified' }),
+    ]))
+    audit.close()
+    await expect(app.submitText(world.manifest.address, {
+      ...clarificationRequest, text: '同键换成普通对白。', correlationId: 'text:not-afforded:changed',
+    })).rejects.toMatchObject({ envelope: { errorCode: 'IDEMPOTENCY_KEY_CONFLICT' } })
 
     await expect(app.submitText(world.manifest.address, {
       text: 'unauthorized', idempotencyKey: 'text:unauthorized',
