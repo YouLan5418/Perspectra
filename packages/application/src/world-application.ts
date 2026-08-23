@@ -33,6 +33,7 @@ import {
   type PlayerRoundResult,
   type RulebookRegistry,
 } from '@harness-world/kernel'
+import { CognitiveMemoryService, type RecalledMemory } from '@harness-world/memory'
 import {
   DeterministicPresenter,
   type PresentationResult,
@@ -83,6 +84,7 @@ export interface WorldApplicationOptions {
   readonly leaseTtlMs?: number
   readonly faultInjector?: FaultInjector
   readonly rulebooks?: RulebookRegistry
+  readonly memoryPath?: string
 }
 
 /** Real branch-owned Store aggregate; all handles close with its Cordis Fiber. */
@@ -146,7 +148,14 @@ export class BranchStoreComponent {
 }
 
 export class BranchAgentComponent {
-  constructor(readonly participants: readonly RoundParticipant[]) {}
+  constructor(
+    readonly participants: readonly RoundParticipant[],
+    readonly cognitiveMemory?: CognitiveMemoryService,
+  ) {}
+
+  close(): void {
+    this.cognitiveMemory?.close()
+  }
 }
 
 export class BranchDirectorComponent {
@@ -167,8 +176,6 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
 
   create(scope: BranchExecutionLane) {
     const participants = this.options.participants?.(scope.address) ?? []
-    const agents = new BranchAgentComponent(participants.filter(value => value.role === 'agent'))
-    const director = new BranchDirectorComponent(participants.filter(value => value.role === 'director'))
     const store = new BranchStoreComponent(
       scope.address,
       this.options.worldPath,
@@ -176,12 +183,14 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       this.options.outboxMaxAttempts ?? 3,
       this.options.faultInjector,
     )
+    let cognitiveMemory: CognitiveMemoryService | undefined
     try {
       if (participants.length > 0 && this.options.modelBudgetTokens === undefined) {
         throw new TypeError('modelBudgetTokens must be configured when Round participants are enabled')
       }
       const manifest = runtimeManifestFromStoredRecord(store.store.readManifest(scope.address))
       const scenePolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:scene-decision')
+      const contextPolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:agent-context')
       if (scenePolicy !== undefined && scenePolicy.version !== '1.0.0') {
         failWorld({
           errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
@@ -189,6 +198,21 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
           correlationId: `scene-policy:${worldAddressKey(scope.address)}`, address: scope.address,
         })
       }
+      if (contextPolicy !== undefined && contextPolicy.version !== '2.0.0') {
+        failWorld({
+          errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
+          message: `unsupported Agent Context policy ${contextPolicy.version}`, retryable: false,
+          correlationId: `agent-context-policy:${worldAddressKey(scope.address)}`, address: scope.address,
+        })
+      }
+      if (contextPolicy !== undefined && this.options.memoryPath === undefined) {
+        throw new TypeError('memoryPath must be configured for Agent Context v2')
+      }
+      cognitiveMemory = contextPolicy === undefined
+        ? undefined
+        : new CognitiveMemoryService(this.options.memoryPath!, store.store)
+      const agents = new BranchAgentComponent(participants.filter(value => value.role === 'agent'), cognitiveMemory)
+      const director = new BranchDirectorComponent(participants.filter(value => value.role === 'director'))
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
       store.availability.initialize(scope.address, manifest.characters.map(character => ({
         characterId: character.characterId,
@@ -207,10 +231,12 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         modelBudgetTokens: this.options.modelBudgetTokens ?? 0,
         rulebooks: this.options.rulebooks,
         ...(scenePolicy === undefined ? {} : { sceneDecision: new SceneDecisionService(store.store, store.availability) }),
+        ...(cognitiveMemory === undefined ? {} : { cognitiveMemory }),
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
       })
       return { kernel, store, agents, director }
     } catch (error: unknown) {
+      cognitiveMemory?.close()
       store.close()
       throw error
     }
@@ -370,6 +396,26 @@ export class WorldApplication {
         return new CharacterViewBuilder(branch.store.store).rebuildAt(address, characterId, asOf)
       },
     ))
+  }
+
+  async recallMemory(
+    address: WorldAddress,
+    characterId: CharacterId,
+    query: string,
+    asOfWorldSeq?: number,
+  ): Promise<RecalledMemory[]> {
+    return this.#integrityGuard(address, 'memory.recall', branch => {
+      const memory = branch.agents.cognitiveMemory
+      if (memory === undefined) {
+        failWorld({
+          errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
+          message: 'Cognitive Memory is not enabled by this Manifest', retryable: false,
+          correlationId: `memory-recall:${characterId}`, address,
+        })
+      }
+      const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
+      return memory.recall(address, characterId, query, asOf)
+    })
   }
 
   /** Player-facing view access: a principal may read only the Character bound to it by the frozen Manifest. */

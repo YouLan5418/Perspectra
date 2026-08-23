@@ -76,6 +76,56 @@ describe('three-role mystery Demo', () => {
     }
   })
 
+  it('validates Agent Context v2 configuration and keeps legacy Memory disabled', async () => {
+    const unsupportedStorage = paths()
+    const unsupported = new WorldApplication({
+      ...unsupportedStorage,
+      memoryPath: `${unsupportedStorage.worldPath}.memory.sqlite`,
+      rulebooks: createMysteryRulebookRegistry(),
+    })
+    const unsupportedInput = createMysteryDemoSpec() as unknown as Record<string, WorldJsonValue>
+    unsupportedInput.address = { tenantId: 'tenant:mystery-demo', worldId: 'world:bad-context-policy', branchId: 'branch:main' }
+    unsupportedInput.plugins = [
+      { pluginId: 'builtin:agent-context', version: '9.0.0' },
+      { pluginId: 'builtin:scene-decision', version: '1.0.0' },
+    ]
+    const unsupportedCompiled = new WorldSpecCompiler().compile(unsupportedInput)
+    try {
+      unsupported.activate(unsupportedCompiled)
+      await expect(unsupported.head(unsupportedCompiled.manifest.address)).rejects.toThrowError(expect.objectContaining<Partial<WorldError>>({
+        envelope: expect.objectContaining({ errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE' }),
+      }))
+    } finally {
+      await unsupported.close()
+    }
+
+    const missingStorage = paths()
+    const missing = new WorldApplication({ ...missingStorage, rulebooks: createMysteryRulebookRegistry() })
+    try {
+      const compiled = compileMysteryDemo()
+      missing.activate(compiled)
+      await expect(missing.head(compiled.manifest.address)).rejects.toThrow('memoryPath')
+    } finally {
+      await missing.close()
+    }
+
+    const legacyStorage = paths()
+    const legacy = new WorldApplication({ ...legacyStorage, rulebooks: createMysteryRulebookRegistry() })
+    const legacyCompiled = compileLegacyMysteryDemo()
+    try {
+      legacy.activate(legacyCompiled)
+      await expect(legacy.recallMemory(
+        legacyCompiled.manifest.address,
+        brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId'),
+        'is_culprit',
+      )).rejects.toThrowError(expect.objectContaining<Partial<WorldError>>({
+        envelope: expect.objectContaining({ errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE' }),
+      }))
+    } finally {
+      await legacy.close()
+    }
+  })
+
   it('freezes the pre-extraction v3/v4 resolver and complete v4 opening authority', async () => {
     const compiled = compileLegacyMysteryDemo()
     expect(createMysteryRulebookRegistry().resolve('builtin:speak-move', 4, 'golden:affordances').affordances({
@@ -225,6 +275,10 @@ describe('three-role mystery Demo', () => {
       expect(JSON.stringify(genesis.views.detective)).toContain('may_be_involved')
       expect(genesis.views.alice.scenes).toEqual([])
       expect(genesis.views.bob.scenes.map(value => value.sceneId)).toEqual([MYSTERY_DEMO_IDS.scene])
+      expect(await first.recall(MYSTERY_DEMO_IDS.bob, 'is_culprit')).toHaveLength(1)
+      expect(await first.recall(MYSTERY_DEMO_IDS.alice, 'is_culprit', genesis.headSeq)).toEqual([])
+      expect(await first.recall(MYSTERY_DEMO_IDS.detective, 'may_be_involved')).toHaveLength(1)
+      expect(await first.recall(MYSTERY_DEMO_IDS.player, 'is_culprit')).toEqual([])
       expect(new Set([
         genesis.views.alice.observations[0]?.value,
         genesis.views.bob.observations[0]?.value,
@@ -255,6 +309,11 @@ describe('three-role mystery Demo', () => {
           expect.objectContaining({ status: 'accepted' }),
         ]),
       })
+      const authorityParticipants = (committed.authority?.authority.participants ?? []) as Array<Record<string, unknown>>
+      const bobAuthority = authorityParticipants.find(value => value.participantId === 'agent:bob')!
+      const directorAuthority = authorityParticipants.find(value => value.participantId === 'director:detective-observer')!
+      expect(bobAuthority).toMatchObject({ memorySourceRefs: [], recallResultHash: expect.stringMatching(/^sha256:/u) })
+      expect(bobAuthority.contextHash).not.toBe(directorAuthority.contextHash)
       expect(JSON.stringify(committed.authority)).not.toContain('agent:alice')
       expect(await first.deliver()).toBe(2)
       const eventHashes = committed.eventHashes
@@ -356,6 +415,37 @@ describe('three-role mystery Demo', () => {
       })
     } finally {
       await restarted.close()
+    }
+  })
+
+  it('keeps Cognitive Memory isolated across a fork and its parent future', async () => {
+    const storage = paths()
+    const application = new WorldApplication({
+      ...storage,
+      memoryPath: `${storage.worldPath}.memory.sqlite`,
+      rulebooks: createMysteryRulebookRegistry(),
+    })
+    const compiled = compileMysteryDemo()
+    const parent = compiled.manifest.address
+    const child = { ...parent, branchId: brandId('branch:memory-child', 'BranchId') }
+    const bob = brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId')
+    try {
+      application.activate(compiled)
+      await application.submit(parent, {
+        idempotencyKey: 'memory:before-fork', principalId: 'principal:mystery-player',
+        action: { actionType: 'speak', parameters: { text: '共同前缀' } }, correlationId: 'memory:before-fork',
+      })
+      await application.deliver(parent, 'memory:deliver-before-fork')
+      await application.forkAtHead(parent, child, 'memory isolation', 'memory:fork')
+      await application.submit(parent, {
+        idempotencyKey: 'memory:future', principalId: 'principal:mystery-player',
+        action: { actionType: 'speak', parameters: { text: 'FUTURE_CANARY' } }, correlationId: 'memory:future',
+      })
+      expect(await application.recallMemory(parent, bob, 'FUTURE_CANARY')).toHaveLength(1)
+      expect(await application.recallMemory(child, bob, 'FUTURE_CANARY')).toEqual([])
+      expect(await application.recallMemory(child, bob, '共同前缀')).toHaveLength(1)
+    } finally {
+      await application.close()
     }
   })
 })

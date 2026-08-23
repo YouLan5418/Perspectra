@@ -60,7 +60,19 @@ CREATE TABLE memory_namespace_watermarks (
 ) STRICT;
 `
 
-export const MEMORY_SCHEMA_VERSION = 2
+const MEMORY_COGNITIVE_JOB_SCHEMA = `
+CREATE TABLE cognitive_jobs (
+  namespace_key TEXT NOT NULL,
+  as_of_seq INTEGER NOT NULL CHECK(as_of_seq >= 0),
+  job_hash TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('pending', 'completed', 'failed')),
+  attempt_count INTEGER NOT NULL CHECK(attempt_count >= 0),
+  last_error TEXT,
+  PRIMARY KEY(namespace_key, as_of_seq)
+) STRICT;
+`
+
+export const MEMORY_SCHEMA_VERSION = 3
 
 export const TENCENTDB_MEMORY_ENABLED = false
 
@@ -107,6 +119,21 @@ function sourceHash(kind: 'observation' | 'claim', record: CharacterView['observ
   return hashWorldJson(`memory-source/${kind}`, record)
 }
 
+export function memorySourceRef(
+  kind: 'observation' | 'claim',
+  record: CharacterView['observations'][number],
+): MemorySourceRef {
+  return { sourceKind: kind, sourceId: record.id, sourceSeq: record.sourceSeq, sourceHash: sourceHash(kind, record) }
+}
+
+export interface CognitiveJobRecord extends WorldJsonObject {
+  readonly asOfWorldSeq: number
+  readonly status: 'pending' | 'completed' | 'failed'
+  readonly attemptCount: number
+  readonly lastError: string | null
+  readonly jobHash: WorldHash
+}
+
 /** Local FTS5 memory with mandatory character/branch namespace and source closure checks. */
 export class LocalMemoryStore {
   readonly #db: DatabaseSync
@@ -115,7 +142,8 @@ export class LocalMemoryStore {
   constructor(path: string, worldStore: WorldStore) {
     this.#db = openMigratedDatabase(path, MEMORY_APPLICATION_ID, [
       { version: 1, sql: MEMORY_SCHEMA },
-      { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_RECONCILE_SCHEMA },
+      { version: 2, sql: MEMORY_RECONCILE_SCHEMA },
+      { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_COGNITIVE_JOB_SCHEMA },
     ])
     this.#viewBuilder = new CharacterViewBuilder(worldStore)
   }
@@ -281,6 +309,51 @@ export class LocalMemoryStore {
       WHERE namespace_key = ? AND memory_id = ? AND source_max_seq <= ?
     `).run(atWorldSeq, namespace(address, characterId), memoryId, atWorldSeq)
     if (result.changes !== 1) throw new Error('Memory cannot be forgotten before its sources exist or it is missing')
+  }
+
+  enqueueCognitiveJob(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number): 'enqueued' | 'already_enqueued' {
+    const key = namespace(address, characterId)
+    const jobHash = hashWorldJson('cognitive-memory-job', { address, characterId, asOfWorldSeq })
+    const result = this.#db.prepare(`
+      INSERT OR IGNORE INTO cognitive_jobs(namespace_key, as_of_seq, job_hash, status, attempt_count, last_error)
+      VALUES (?, ?, ?, 'pending', 0, NULL)
+    `).run(key, asOfWorldSeq, jobHash)
+    return result.changes === 1 ? 'enqueued' : 'already_enqueued'
+  }
+
+  recordCognitiveJobResult(
+    address: WorldAddress,
+    characterId: CharacterId,
+    asOfWorldSeq: number,
+    status: 'completed' | 'failed',
+    error: string | null,
+  ): void {
+    const result = this.#db.prepare(`
+      UPDATE cognitive_jobs
+      SET status = ?, attempt_count = attempt_count + 1, last_error = ?
+      WHERE namespace_key = ? AND as_of_seq = ?
+    `).run(status, error, namespace(address, characterId), asOfWorldSeq)
+    if (result.changes !== 1) throw new Error('cognitive job is missing')
+  }
+
+  cognitiveJob(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number): CognitiveJobRecord | undefined {
+    const row = this.#db.prepare(`
+      SELECT as_of_seq, status, attempt_count, last_error, job_hash
+      FROM cognitive_jobs WHERE namespace_key = ? AND as_of_seq = ?
+    `).get(namespace(address, characterId), asOfWorldSeq) as {
+      as_of_seq: number
+      status: CognitiveJobRecord['status']
+      attempt_count: number
+      last_error: string | null
+      job_hash: WorldHash
+    } | undefined
+    return row === undefined ? undefined : {
+      asOfWorldSeq: row.as_of_seq,
+      status: row.status,
+      attemptCount: row.attempt_count,
+      lastError: row.last_error,
+      jobHash: row.job_hash,
+    }
   }
 
   close(): void {

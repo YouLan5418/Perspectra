@@ -9,6 +9,7 @@
     "@harness-world/agents": "workspace:*",
     "@harness-world/contracts": "workspace:*",
     "@harness-world/kernel": "workspace:*",
+    "@harness-world/memory": "workspace:*",
     "@harness-world/presentation": "workspace:*",
     "@harness-world/runtime-cordis": "workspace:*",
     "@harness-world/store-sqlite": "workspace:*"

@@ -54,6 +54,9 @@ importers:
       '@harness-world/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@harness-world/memory':
+        specifier: workspace:*
+        version: link:../memory
       '@harness-world/presentation':
         specifier: workspace:*
         version: link:../presentation
@@ -125,6 +128,9 @@ importers:
       '@harness-world/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@harness-world/memory':
+        specifier: workspace:*
+        version: link:../memory
       '@harness-world/store-sqlite':
         specifier: workspace:*
         version: link:../store-sqlite

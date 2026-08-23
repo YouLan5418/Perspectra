@@ -45,7 +45,8 @@ import {
   type WriterLease,
   type CommittedRoundRecord,
 } from '@harness-world/store-sqlite'
-import type { SceneDecisionService } from './scene-decision.ts'
+import { type CognitiveMemoryService, type CognitiveProposalContext, type MemorySourceRef } from '@harness-world/memory'
+import type { SceneDecision, SceneDecisionService } from './scene-decision.ts'
 
 export type RoundParticipantRole = 'agent' | 'director'
 export type ParticipantTerminalStatus = 'proposed' | 'provider_failed' | 'budget_exhausted' | 'schema_invalid' | 'lifecycle_ineligible' | 'runtime_unavailable'
@@ -73,6 +74,7 @@ export interface RoundCoordinatorOptions {
   readonly leaseTtlMs?: number
   readonly rulebooks?: RulebookRegistry
   readonly sceneDecision?: SceneDecisionService
+  readonly cognitiveMemory?: CognitiveMemoryService
 }
 
 export interface SubmitCoordinatedRoundRequest {
@@ -93,6 +95,11 @@ interface FrozenParticipant {
   readonly binding: RoundParticipant
   readonly status: ParticipantTerminalStatus
   readonly proposal: Proposal
+  readonly cognitive?: {
+    readonly contextHash: ReturnType<typeof hashWorldJson>
+    readonly memorySourceRefs: readonly MemorySourceRef[]
+    readonly recallResultHash: ReturnType<typeof hashWorldJson>
+  }
 }
 
 export interface ActionOrderKey {
@@ -294,6 +301,8 @@ export class RoundCoordinator {
       proposalContext,
       history,
       sceneDecision?.schedulableCharacterIds,
+      sceneDecision,
+      head.headSeq,
     )
     const ordered = this.#orderedActions(playerAction, frozen)
     const contextHash = hashWorldJson('round-proposal-context', {
@@ -319,7 +328,7 @@ export class RoundCoordinator {
           actorId: value.binding.actorId,
           terminalStatus: value.status,
           providerInvocationId: deterministicId('provider-invocation:round-participant', { roundId, participantId: value.binding.participantId }),
-          contextHash,
+          contextHash: value.cognitive?.contextHash ?? contextHash,
           profileVersion: 'agent-provider-port/v1',
           budgetEvaluationId: deterministicId('budget-evaluation:round-participant', { roundId, participantId: value.binding.participantId }),
           modelReplayRecordHash: null,
@@ -327,6 +336,10 @@ export class RoundCoordinator {
           responseHash: hashWorldJson('round-participant-response', value.proposal),
           proposalId: deterministicId('proposal:round-participant', { roundId, participantId: value.binding.participantId, proposalHash }),
           proposalHash,
+          ...(value.cognitive === undefined ? {} : {
+            memorySourceRefs: value.cognitive.memorySourceRefs,
+            recallResultHash: value.cognitive.recallResultHash,
+          }),
         }
       }),
     ]
@@ -467,6 +480,11 @@ export class RoundCoordinator {
       admissionProof: { inboxSeq: claimed.inboxSeq, inputHash: claimed.inputHash },
       writerFencingToken: this.#lease.fencingToken,
     })
+    this.options.cognitiveMemory?.enqueue(
+      this.#address,
+      [...new Set(ordered.map(item => item.action.actorId).concat(sceneDecision!.observerIds))],
+      commit.headSeq,
+    )
     return {
       transactionId,
       result: {
@@ -497,6 +515,8 @@ export class RoundCoordinator {
     context: ProposalContext,
     history: readonly { readonly eventType: string; readonly data: WorldJsonValue }[],
     schedulableCharacterIds?: readonly CharacterId[],
+    sceneDecision?: SceneDecision,
+    asOfWorldSeq = 0,
   ): Promise<FrozenParticipant[]> {
     const frozen: FrozenParticipant[] = []
     const actionIds = new Set<string>([context.playerAction.actionId])
@@ -511,6 +531,29 @@ export class RoundCoordinator {
         frozen.push({ binding, status: 'runtime_unavailable', proposal: { participantId: binding.participantId, actions: [] } })
         continue
       }
+      let providerContext: ProposalContext | CognitiveProposalContext = context
+      let cognitive: FrozenParticipant['cognitive']
+      if (this.options.cognitiveMemory !== undefined) {
+        const prepared = this.options.cognitiveMemory.prepare({
+          address: this.#address,
+          roundId: context.roundId,
+          tick: context.tick,
+          participantId: binding.participantId,
+          characterId: binding.actorId,
+          asOfWorldSeq,
+          playerAction: context.playerAction,
+          candidateHash: context.candidateHash,
+          allowedActionTypes: binding.allowedActionTypes,
+          sceneDecision: sceneDecision!,
+          correlationId: `cognitive:${context.roundId}:${binding.participantId}`,
+        })
+        providerContext = prepared
+        cognitive = {
+          contextHash: prepared.contextHash,
+          memorySourceRefs: prepared.memorySourceRefs,
+          recallResultHash: prepared.recallResultHash,
+        }
+      }
       this.#renewLease()
       const run = await runner.propose(
         `provider:${context.roundId}:${binding.participantId}`,
@@ -518,11 +561,11 @@ export class RoundCoordinator {
         binding.timeoutMs,
         binding.participantId,
         binding.provider,
-        context,
+        providerContext,
       )
       this.#renewLease()
       if (run.status === 'fallback') {
-        frozen.push({ binding, status: run.failure!, proposal: run.proposal })
+        frozen.push(this.#frozen(binding, run.failure!, run.proposal, cognitive))
         continue
       }
       try {
@@ -538,16 +581,25 @@ export class RoundCoordinator {
           correlationId: `coordinator:${context.roundId}:${binding.participantId}`,
         })
         if (proposal.actions.some(action => actionIds.has(action.actionId))) {
-          frozen.push({ binding, status: 'schema_invalid', proposal: { participantId: binding.participantId, actions: [] } })
+          frozen.push(this.#frozen(binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive))
           continue
         }
         for (const action of proposal.actions) actionIds.add(action.actionId)
-        frozen.push({ binding, status: 'proposed', proposal })
+        frozen.push(this.#frozen(binding, 'proposed', proposal, cognitive))
       } catch {
-        frozen.push({ binding, status: 'schema_invalid', proposal: { participantId: binding.participantId, actions: [] } })
+        frozen.push(this.#frozen(binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive))
       }
     }
     return frozen
+  }
+
+  #frozen(
+    binding: RoundParticipant,
+    status: ParticipantTerminalStatus,
+    proposal: Proposal,
+    cognitive?: FrozenParticipant['cognitive'],
+  ): FrozenParticipant {
+    return { binding, status, proposal, ...(cognitive === undefined ? {} : { cognitive }) }
   }
 
   #committedPlayerResult(

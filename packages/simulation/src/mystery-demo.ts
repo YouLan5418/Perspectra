@@ -11,6 +11,7 @@ import {
   type WorldHash,
   type WorldJsonObject,
 } from '@harness-world/contracts'
+import type { RecalledMemory } from '@harness-world/memory'
 import {
   currentEntityState,
   WorldSpecCompiler,
@@ -209,6 +210,7 @@ export function createMysteryIntentCatalog(compiled: CompiledWorldSpec): Investi
 export interface MysteryDemoScenarioOptions {
   readonly worldPath: string
   readonly sessionPath: string
+  readonly memoryPath?: string
   readonly compatibility?: 'legacy-v4'
 }
 
@@ -255,6 +257,7 @@ export class MysteryDemoScenario {
       ...options,
       runtimeOwnerId: 'mystery-demo',
       modelBudgetTokens: 4,
+      memoryPath: options.memoryPath ?? `${options.worldPath}.memory.sqlite`,
       rulebooks: createMysteryRulebookRegistry(),
       participants: () => this.#participants(),
     })
@@ -305,6 +308,16 @@ export class MysteryDemoScenario {
 
   async deliver(): Promise<number> {
     return this.#application.deliver(this.compiled.manifest.address, 'mystery-demo:deliver')
+  }
+
+  async recall(characterId: string, query: string, asOfWorldSeq?: number): Promise<RecalledMemory[]> {
+    this.activate()
+    return this.#application.recallMemory(
+      this.compiled.manifest.address,
+      brandId(characterId, 'CharacterId'),
+      query,
+      asOfWorldSeq,
+    )
   }
 
   async snapshot(): Promise<MysteryDemoSnapshot> {

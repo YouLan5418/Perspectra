@@ -13,7 +13,7 @@ import {
   type WorldEventDraft,
 } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { LocalMemoryStore, TENCENTDB_MEMORY_ENABLED, type MemorySourceRef } from './local-memory.ts'
+import { LocalMemoryStore, memorySourceRef, TENCENTDB_MEMORY_ENABLED, type MemorySourceRef } from './local-memory.ts'
 
 const directories: string[] = []
 
@@ -91,6 +91,17 @@ describe('LocalMemoryStore', () => {
     const current = builder.rebuildAt(address(), characterA, 2)
     const memory = new LocalMemoryStore(path.memory, world)
     expect(reconcile(memory, current)).toBe(2)
+    expect(memorySourceRef('observation', current.observations[0]!)).toEqual(ref(current.observations[0]!))
+    expect(memory.cognitiveJob(address(), characterA, 2)).toBeUndefined()
+    expect(memory.enqueueCognitiveJob(address(), characterA, 2)).toBe('enqueued')
+    expect(memory.enqueueCognitiveJob(address(), characterA, 2)).toBe('already_enqueued')
+    memory.recordCognitiveJobResult(address(), characterA, 2, 'completed', null)
+    expect(memory.cognitiveJob(address(), characterA, 2)).toMatchObject({
+      asOfWorldSeq: 2, status: 'completed', attemptCount: 1, lastError: null,
+    })
+    memory.recordCognitiveJobResult(address(), characterA, 2, 'failed', 'retry')
+    expect(memory.cognitiveJob(address(), characterA, 2)).toMatchObject({ status: 'failed', attemptCount: 2, lastError: 'retry' })
+    expect(() => memory.recordCognitiveJobResult(address(), characterA, 99, 'completed', null)).toThrow('missing')
     const request = {
       address: current.address,
       characterId: characterA,
