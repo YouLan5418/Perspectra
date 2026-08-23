@@ -29,7 +29,7 @@ describe('mystery Demo CLI', () => {
     const firstText = await executeMysteryDemoCli(storage)
     const first = JSON.parse(firstText) as any
     expect(first).toMatchObject({
-      demo: 'ashgrove-murder/v2',
+      demo: 'ashgrove-murder/v3',
       execution: 'executed',
       result: { status: 'accepted', tick: 1 },
       delivered: 2,
@@ -56,12 +56,13 @@ describe('mystery Demo CLI', () => {
       await expect(executeMysteryTurnCli(args)).rejects.toThrow('usage')
     }
     const storage = paths()
+    await expect(executeMysteryTurnCli([...storage, 'turn:missing-world', '检查钥匙'])).rejects.toThrow('existing Demo')
     await executeMysteryDemoCli(storage)
     const clarification = JSON.parse(await executeMysteryTurnCli([
       ...storage, 'turn:unknown', '检查柜子',
     ])) as any
     expect(clarification).toMatchObject({
-      demo: 'ashgrove-murder/v2', status: 'clarification_required', reason: 'inspection target is unknown',
+      demo: 'ashgrove-murder/v3', status: 'clarification_required', reason: 'inspection target is unknown',
     })
     expect(JSON.parse(await executeMysteryTurnCli([
       ...storage, 'turn:future-evidence', '/present', '钥匙痕迹', 'Bob',
@@ -71,12 +72,14 @@ describe('mystery Demo CLI', () => {
     const firstText = await executeMysteryTurnCli([...storage, 'turn:inspect', '检查一下书桌'])
     const first = JSON.parse(firstText) as any
     expect(first).toMatchObject({
-      demo: 'ashgrove-murder/v2', execution: 'executed', status: 'submitted',
+      demo: 'ashgrove-murder/v3', execution: 'executed', status: 'submitted',
       action: { actionType: 'inspect' }, result: { status: 'accepted', tick: 2 },
       investigation: { status: 'open' }, playerView: { characterId: MYSTERY_DEMO_IDS.player },
     })
     expect(firstText).not.toContain('is_culprit')
     expect(firstText).not.toContain('may_be_involved')
+    expect(firstText).not.toContain('discoveredBy')
+    expect(firstText).not.toContain('presentedBy')
     const replay = JSON.parse(await executeMysteryTurnCli([...storage, 'turn:inspect', '检查一下书桌'])) as any
     expect(replay).toMatchObject({
       execution: 'durable_replay', result: first.result, delivered: 0,

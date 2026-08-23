@@ -13,6 +13,8 @@ export interface InvestigationIntentCatalog {
 }
 
 export interface InvestigationIntentAuthorization {
+  readonly characterIds: readonly string[]
+  readonly entityIds: readonly string[]
   readonly evidenceIds: readonly string[]
 }
 
@@ -36,7 +38,7 @@ function naturalTokens(text: string): string[] {
   const present = /^向\s*(.+?)\s*出示\s*(.+)$/u.exec(text)
   if (present !== null) return ['present', present[2]!, present[1]!]
   const accuse = /^指控\s*(.+?)[，,：:]\s*(.+)$/u.exec(text)
-  if (accuse !== null) return ['accuse', accuse[1]!, accuse[2]!]
+  if (accuse !== null) return ['accuse', accuse[1]!, ...accuse[2]!.split(/[、，,\s]+/u)]
   const command = text.startsWith('/') ? text.slice(1) : text
   return command.split(/\s+/u)
 }
@@ -58,9 +60,9 @@ export class DeterministicInvestigationIntentParser {
 
   parse(text: string, authorization?: InvestigationIntentAuthorization): InvestigationIntentResult {
     assertProtocolString(text, 'player text')
-    const evidenceCatalog = authorization === undefined
-      ? this.catalog.evidence
-      : this.#authorizedEvidence(authorization.evidenceIds)
+    const characters = this.#authorizedReferences(authorization?.characterIds ?? [], this.catalog.characters, 'characterIds')
+    const entities = this.#authorizedReferences(authorization?.entityIds ?? [], this.catalog.entities, 'entityIds')
+    const evidenceCatalog = this.#authorizedReferences(authorization?.evidenceIds ?? [], this.catalog.evidence, 'evidenceIds')
     const tokens = naturalTokens(text)
     const verb = normalized(tokens[0]!)
     if (verb === 'say' || verb === 'speak' || verb === '说') {
@@ -68,17 +70,17 @@ export class DeterministicInvestigationIntentParser {
       return { status: 'resolved', action: { actionType: 'speak', parameters: { text: tokens.slice(1).join(' ') } } }
     }
     if (verb === 'inspect' || verb === '检查') {
-      if (tokens.length !== 2) return this.#clarify('inspect requires exactly one target', this.catalog.entities.map(value => value.id))
-      const entity = this.#resolve(tokens[1]!, this.catalog.entities, 'inspection target')
+      if (tokens.length !== 2) return this.#clarify('inspect requires exactly one target', entities.map(value => value.id))
+      const entity = this.#resolve(tokens[1]!, entities, 'inspection target')
       return entity.status === 'resolved'
         ? { status: 'resolved', action: { actionType: 'inspect', parameters: { entityId: entity.id } } }
         : entity
     }
     if (verb === 'ask' || verb === '询问' || verb === '问') {
-      if (tokens.length !== 3) return this.#clarify('ask requires one character and one topic', this.catalog.characters.map(value => value.id))
-      const character = this.#resolve(tokens[1]!, this.catalog.characters, 'question target')
+      if (tokens.length !== 3) return this.#clarify('ask requires one character and one topic', characters.map(value => value.id))
+      const character = this.#resolve(tokens[1]!, characters, 'question target')
       if (character.status !== 'resolved') return character
-      const topic = this.#resolve(tokens[2]!, [...this.catalog.entities, ...evidenceCatalog], 'question topic')
+      const topic = this.#resolve(tokens[2]!, [...entities, ...evidenceCatalog], 'question topic')
       return topic.status === 'resolved'
         ? { status: 'resolved', action: { actionType: 'ask', parameters: { targetCharacterId: character.id, topicId: topic.id } } }
         : topic
@@ -87,14 +89,14 @@ export class DeterministicInvestigationIntentParser {
       if (tokens.length !== 3) return this.#clarify('present requires one evidence and one character', evidenceCatalog.map(value => value.id))
       const evidence = this.#resolve(tokens[1]!, evidenceCatalog, 'evidence')
       if (evidence.status !== 'resolved') return evidence
-      const character = this.#resolve(tokens[2]!, this.catalog.characters, 'evidence target')
+      const character = this.#resolve(tokens[2]!, characters, 'evidence target')
       return character.status === 'resolved'
         ? { status: 'resolved', action: { actionType: 'present_evidence', parameters: { evidenceId: evidence.id, targetCharacterId: character.id } } }
         : character
     }
     if (verb === 'accuse' || verb === '指控') {
       if (tokens.length < 3) return this.#clarify('accuse requires one suspect and at least one evidence', evidenceCatalog.map(value => value.id))
-      const suspect = this.#resolve(tokens[1]!, this.catalog.characters, 'suspect')
+      const suspect = this.#resolve(tokens[1]!, characters, 'suspect')
       if (suspect.status !== 'resolved') return suspect
       const evidenceIds: string[] = []
       for (const token of tokens.slice(2)) {
@@ -108,12 +110,14 @@ export class DeterministicInvestigationIntentParser {
     return this.#clarify('unsupported player intent', ['speak', 'inspect', 'ask', 'present_evidence', 'accuse'])
   }
 
-  #authorizedEvidence(evidenceIds: readonly string[]): readonly IntentReference[] {
-    if (new Set(evidenceIds).size !== evidenceIds.length) throw new TypeError('authorized evidenceIds must be unique')
-    const requested = new Set(evidenceIds)
-    const known = new Set(this.catalog.evidence.map(value => value.id))
-    if (evidenceIds.some(evidenceId => !known.has(evidenceId))) throw new TypeError('authorized evidenceId is absent from the intent catalog')
-    return this.catalog.evidence.filter(value => requested.has(value.id))
+  #authorizedReferences(
+    ids: readonly string[],
+    catalog: readonly IntentReference[],
+    label: string,
+  ): readonly IntentReference[] {
+    if (new Set(ids).size !== ids.length) throw new TypeError(`authorized ${label} must be unique`)
+    const requested = new Set(ids)
+    return catalog.filter(value => requested.has(value.id))
   }
 
   #resolve(token: string, references: readonly IntentReference[], label: string): ResolvedReference {

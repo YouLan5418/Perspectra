@@ -14,7 +14,10 @@ import {
 import {
   currentEntityState,
   currentInvestigationState,
+  inspectionEvidenceId,
+  investigationViewForCharacter,
   WorldSpecCompiler,
+  type CharacterInvestigationView,
   type CompiledWorldSpec,
   type EntityState,
   type InvestigationState,
@@ -22,12 +25,13 @@ import {
 } from '@harness-world/kernel'
 import {
   DeterministicInvestigationIntentParser,
+  type InvestigationIntentCatalog,
   type InvestigationIntentResult,
 } from './investigation-intent.ts'
 
 export const MYSTERY_DEMO_IDS = {
   tenantId: 'tenant:mystery-demo',
-  worldId: 'world:ashgrove-murder-v2',
+  worldId: 'world:ashgrove-murder-v3',
   branchId: 'branch:main',
   player: 'character:player',
   alice: 'character:alice',
@@ -35,7 +39,8 @@ export const MYSTERY_DEMO_IDS = {
   detective: 'character:detective',
   key: 'entity:study-key',
   desk: 'entity:study-desk',
-  keyMovedEvidence: 'evidence:key-moved',
+  keyEvidence: inspectionEvidenceId('entity:study-key'),
+  keyMovedEvidence: inspectionEvidenceId('entity:study-desk'),
   scene: 'scene:study-investigation',
 } as const
 
@@ -55,7 +60,7 @@ export function createMysteryDemoSpec(): WorldJsonObject {
     timeMode: 'TURN_DRIVEN',
     roundQueueLimit: 8,
     runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
-    rulebook: { rulebookId: 'builtin:speak-move', version: 3 },
+    rulebook: { rulebookId: 'builtin:speak-move', version: 4 },
     locations: [
       { locationId: 'location:drawing-room', name: '会客厅' },
       { locationId: 'location:study', name: '书房' },
@@ -147,6 +152,31 @@ export function compileMysteryDemo(): CompiledWorldSpec {
   return new WorldSpecCompiler().compile(createMysteryDemoSpec())
 }
 
+export function createMysteryIntentCatalog(compiled: CompiledWorldSpec): InvestigationIntentCatalog {
+  const aliases = new Map<string, readonly string[]>([
+    [MYSTERY_DEMO_IDS.alice, ['Alice', '爱丽丝']],
+    [MYSTERY_DEMO_IDS.bob, ['Bob', '鲍勃']],
+    [MYSTERY_DEMO_IDS.detective, ['侦探', 'Detective']],
+    [MYSTERY_DEMO_IDS.key, ['钥匙', '黄铜钥匙', 'key']],
+    [MYSTERY_DEMO_IDS.desk, ['书桌', '桌子', 'desk']],
+  ])
+  const evidenceAliases = new Map<string, readonly string[]>([
+    [MYSTERY_DEMO_IDS.keyEvidence, ['钥匙本身', '钥匙观察', 'key-evidence']],
+    [MYSTERY_DEMO_IDS.keyMovedEvidence, ['钥匙痕迹', '钥匙移动痕迹', 'key-trace']],
+  ])
+  return {
+    characters: compiled.manifest.characters
+      .filter(value => value.characterId !== MYSTERY_DEMO_IDS.player)
+      .map(value => ({ id: value.characterId, aliases: aliases.get(value.characterId) ?? [value.name] })),
+    entities: compiled.manifest.entities
+      .map(value => ({ id: value.entityId, aliases: aliases.get(value.entityId) ?? [value.entityId] })),
+    evidence: compiled.manifest.entities.map(value => {
+      const id = inspectionEvidenceId(value.entityId)
+      return { id, aliases: evidenceAliases.get(id) ?? [id] }
+    }),
+  }
+}
+
 export interface MysteryDemoScenarioOptions {
   readonly worldPath: string
   readonly sessionPath: string
@@ -160,6 +190,10 @@ export interface MysteryDemoSnapshot {
   readonly views: Readonly<Record<'player' | 'alice' | 'bob' | 'detective', CharacterView>>
   readonly eventHashes: readonly WorldHash[]
   readonly authority: StoredRoundAuthority | null
+}
+
+export function mysteryPlayerInvestigation(snapshot: MysteryDemoSnapshot): CharacterInvestigationView {
+  return investigationViewForCharacter(snapshot.investigation, MYSTERY_DEMO_IDS.player)
 }
 
 export type MysteryPlayerTurn =
@@ -180,20 +214,7 @@ export function requireMysterySnapshotValue<T>(value: T | undefined, label: stri
 export class MysteryDemoScenario {
   readonly compiled = compileMysteryDemo()
   readonly #application: WorldApplication
-  readonly #intent = new DeterministicInvestigationIntentParser({
-    characters: [
-      { id: MYSTERY_DEMO_IDS.alice, aliases: ['Alice', '爱丽丝'] },
-      { id: MYSTERY_DEMO_IDS.bob, aliases: ['Bob', '鲍勃'] },
-      { id: MYSTERY_DEMO_IDS.detective, aliases: ['侦探', 'Detective'] },
-    ],
-    entities: [
-      { id: MYSTERY_DEMO_IDS.key, aliases: ['钥匙', '黄铜钥匙', 'key'] },
-      { id: MYSTERY_DEMO_IDS.desk, aliases: ['书桌', '桌子', 'desk'] },
-    ],
-    evidence: [
-      { id: MYSTERY_DEMO_IDS.keyMovedEvidence, aliases: ['钥匙痕迹', '钥匙移动痕迹', 'key-trace'] },
-    ],
-  })
+  readonly #intent = new DeterministicInvestigationIntentParser(createMysteryIntentCatalog(this.compiled))
   #bobProviderCalls = 0
   #directorProviderCalls = 0
 
@@ -232,7 +253,13 @@ export class MysteryDemoScenario {
     const evidenceIds = investigation.evidence
       .filter(value => value.discoveredBy.includes(MYSTERY_DEMO_IDS.player))
       .map(value => value.evidenceId)
-    const intent = this.#intent.parse(text, { evidenceIds })
+    const intent = this.#intent.parse(text, {
+      characterIds: this.compiled.manifest.characters
+        .map(value => value.characterId)
+        .filter(value => value !== MYSTERY_DEMO_IDS.player),
+      entityIds: this.compiled.manifest.entities.map(value => value.entityId),
+      evidenceIds,
+    })
     if (intent.status === 'clarification_required') return intent
     const result = await this.#application.submit(this.compiled.manifest.address, {
       idempotencyKey,
