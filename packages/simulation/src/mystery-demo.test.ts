@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { brandId, canonicalizeWorldJson, hashWorldJson } from '@harness-world/contracts'
-import { SpeakMoveRulebook } from '@harness-world/kernel'
+import { WorldApplication } from '@harness-world/application'
+import { brandId, canonicalizeWorldJson, hashWorldJson, WorldError, type WorldJsonValue } from '@harness-world/contracts'
+import { SpeakMoveRulebook, WorldSpecCompiler } from '@harness-world/kernel'
 import {
   compileMysteryDemo,
   createMysteryIntentCatalog,
@@ -12,6 +13,7 @@ import {
   MysteryDemoScenario,
   requireMysterySnapshotValue,
 } from './mystery-demo.ts'
+import { createMysteryRulebookRegistry } from './mystery-rulebooks.ts'
 
 const directories: string[] = []
 
@@ -26,8 +28,42 @@ afterEach(() => {
 })
 
 describe('three-role mystery Demo', () => {
+  it('requires explicit mystery registration before activating a v4 world', async () => {
+    const application = new WorldApplication(paths())
+    try {
+      expect(() => application.activate(compileMysteryDemo())).toThrowError(expect.objectContaining<Partial<WorldError>>({
+        envelope: expect.objectContaining({ errorCode: 'RULEBOOK_NOT_REGISTERED', retryable: false }),
+      }))
+      expect(application.activeBranchCount).toBe(0)
+    } finally {
+      await application.close()
+    }
+  })
+
+  it('rejects new v3 activation even in the mystery composition', async () => {
+    const storage = paths()
+    const application = new WorldApplication({ ...storage, rulebooks: createMysteryRulebookRegistry() })
+    const input = createMysteryDemoSpec() as unknown as Record<string, WorldJsonValue>
+    input.address = { tenantId: 'tenant:mystery-demo', worldId: 'world:historical-v3', branchId: 'branch:main' }
+    input.rulebook = { rulebookId: 'builtin:speak-move', version: 3 }
+    try {
+      expect(() => application.activate(new WorldSpecCompiler().compile(input))).toThrowError(expect.objectContaining<Partial<WorldError>>({
+        envelope: expect.objectContaining({ errorCode: 'INVALID_REQUEST', details: expect.objectContaining({ version: 3 }) }),
+      }))
+    } finally {
+      await application.close()
+    }
+  })
+
   it('freezes the pre-extraction v3/v4 resolver and complete v4 opening authority', async () => {
     const compiled = compileMysteryDemo()
+    expect(createMysteryRulebookRegistry().resolve('builtin:speak-move', 4, 'golden:affordances').affordances({
+      manifest: compiled.manifest,
+      events: [],
+      characterId: MYSTERY_DEMO_IDS.player,
+    }).map(value => value.actionType)).toEqual([
+      'speak', 'move', 'take', 'inspect', 'ask', 'present_evidence', 'accuse',
+    ])
     const history = compiled.genesisEvents.map(event => ({ eventType: event.eventType, data: event.data }))
     const resolver = new SpeakMoveRulebook()
     const expected = {
@@ -47,8 +83,9 @@ describe('three-role mystery Demo', () => {
         MYSTERY_DEMO_IDS.player,
         { actionType: 'inspect', parameters: { entityId: MYSTERY_DEMO_IDS.desk } },
       )
-      expect(Buffer.from(canonicalizeWorldJson(resolution)).toString('utf8')).toBe(expected[version].canonical)
-      expect(hashWorldJson('golden-rulebook-resolution', resolution)).toBe(expected[version].hash)
+      const worldJson = resolution as unknown as WorldJsonValue
+      expect(Buffer.from(canonicalizeWorldJson(worldJson)).toString('utf8')).toBe(expected[version].canonical)
+      expect(hashWorldJson('golden-rulebook-resolution', worldJson)).toBe(expected[version].hash)
     }
 
     const storage = paths()

@@ -31,3 +31,4 @@
 | [0047](ADR-0047-principal-scoped-character-view.md) | 玩家 CharacterView 的 PrincipalBinding 授权 | RPC/CLI 只允许读取绑定角色，作者调试能力不外露 |
 | [0048](ADR-0048-hybrid-investigation-actions.md) | 混合文本输入与版本化调查 Action | Rulebook v3、证据能力过滤和多轮结案闭环 |
 | [0049](ADR-0049-investigation-v4-trust-boundaries.md) | 调查 v4 的证据身份与作者真相边界 | Manifest 派生目录、作者种子、终局屏障与玩家可见对白 |
+| [0050](ADR-0050-rulebook-registry-mystery-boundary.md) | Rulebook 注册与悬疑试金石边界 | Core 仅含通用规则，调查 Resolver 由 Demo 显式注册且 Golden 全等 |

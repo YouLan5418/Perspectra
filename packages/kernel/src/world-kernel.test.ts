@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { brandId, hashWorldJson } from '@harness-world/contracts'
+import { brandId, hashWorldJson, WorldError } from '@harness-world/contracts'
 import { WorldRuntimeRegistry, type BranchComponentFactory } from '@harness-world/runtime-cordis'
 import { BranchAdministration, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import {
@@ -14,6 +14,7 @@ import {
   investigationViewForCharacter,
   SpeakMoveRulebook,
 } from './rulebook.ts'
+import { createCoreRulebookRegistry, RulebookRegistry } from './rulebook-registry.ts'
 import { WorldBootstrap } from './world-bootstrap.ts'
 import { parsePlayerRoundResult, WorldKernel } from './world-kernel.ts'
 import { WorldSpecCompiler } from './world-spec.ts'
@@ -57,6 +58,37 @@ async function runtimeFor(manifestHash: ReturnType<typeof hashWorldJson>) {
 }
 
 describe('SpeakMoveRulebook', () => {
+  it('resolves exact core versions and fails closed without fallback', () => {
+    const world = compiled()
+    const registry = createCoreRulebookRegistry()
+    const v1 = registry.resolve('builtin:speak-move', 1, 'registry:v1')
+    const context = {
+      manifest: world.manifest,
+      events: [{ eventType: 'character.created', data: { characterId: 'character:player', locationId: 'location:a' } }],
+      characterId: 'character:player',
+    }
+    expect(v1.affordances(context)).toEqual([
+      { actionType: 'speak', actionVersion: 1 },
+      { actionType: 'move', actionVersion: 1 },
+    ])
+    expect(v1.resolve({ ...context, action: { actionType: 'speak', parameters: { text: 'registered' } } }).status).toBe('accepted')
+    const v2 = registry.resolve('builtin:speak-move', 2, 'registry:v2')
+    expect(v2.affordances({ ...context, manifest: { ...world.manifest, rulebook: { ...world.manifest.rulebook, version: 2 } } }))
+      .toContainEqual({ actionType: 'take', actionVersion: 1 })
+    expect(() => registry.resolve('builtin:speak-move', 3, 'registry:missing', world.manifest.address))
+      .toThrowError(expect.objectContaining<Partial<WorldError>>({ envelope: expect.objectContaining({
+        errorCode: 'RULEBOOK_NOT_REGISTERED', retryable: false,
+        details: { rulebookId: 'builtin:speak-move', version: 3 },
+      }) }))
+    expect(() => registry.resolve('builtin:speak-move', 3, 'registry:missing-no-address')).toThrow(WorldError)
+    const custom = new RulebookRegistry()
+    custom.register('custom:fixture', 1, v1)
+    expect(custom.resolve('custom:fixture', 1, 'registry:custom')).toBe(v1)
+    expect(() => custom.register('custom:fixture', 1, v1)).toThrow('duplicate')
+    expect(() => custom.register('', 1, v1)).toThrow(TypeError)
+    expect(() => custom.register('custom:bad', 0, v1)).toThrow(TypeError)
+  })
+
   it('resolves speech, movement without history, and every rejection shape', () => {
     const world = compiled()
     const rulebook = new SpeakMoveRulebook()

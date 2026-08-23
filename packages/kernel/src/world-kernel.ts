@@ -18,7 +18,8 @@ import {
   type ClaimedRound,
   type WriterLease,
 } from '@harness-world/store-sqlite'
-import { parsePlayerActionInput, SpeakMoveRulebook, type PlayerActionInput } from './rulebook.ts'
+import { parsePlayerActionInput, type PlayerActionInput } from './rulebook.ts'
+import { createCoreRulebookRegistry, type RulebookRegistry, type RulebookResolver } from './rulebook-registry.ts'
 import type { CompiledWorldManifest } from './world-spec.ts'
 
 export interface SubmitPlayerInputRequest {
@@ -43,6 +44,7 @@ export interface WorldKernelOptions {
   readonly runtimeLane: RoundExecutionLane
   readonly ownerId: string
   readonly leaseTtlMs?: number
+  readonly rulebooks?: RulebookRegistry
 }
 
 /** Minimal execution capability required by the authoritative Kernel. */
@@ -72,7 +74,7 @@ export function parsePlayerRoundResult(value: WorldJsonValue): PlayerRoundResult
 export class WorldKernel {
   readonly #manifest: CompiledWorldManifest
   readonly #address: WorldAddress
-  readonly #rulebook = new SpeakMoveRulebook()
+  readonly #rulebook: RulebookResolver
   #lease: WriterLease
   #closed = false
 
@@ -89,6 +91,12 @@ export class WorldKernel {
     }
     this.#manifest = stored.manifest as CompiledWorldManifest
     this.#address = options.runtimeLane.address
+    this.#rulebook = (options.rulebooks ?? createCoreRulebookRegistry()).resolve(
+      this.#manifest.rulebook.rulebookId,
+      this.#manifest.rulebook.version,
+      `kernel:${worldAddressKey(this.#address)}`,
+      this.#address,
+    )
     this.#lease = options.leases.acquire(this.#address, options.ownerId, options.leaseTtlMs)
   }
 
@@ -165,7 +173,7 @@ export class WorldKernel {
       ? this.options.store.head(this.#address)
       : { headSeq: frozenBase.headSeq, tick: frozenBase.tick }
     const history = this.options.store.readEvents(this.#address, head.headSeq)
-    const resolution = this.#rulebook.resolve(this.#manifest, history, binding.characterId, action)
+    const resolution = this.#rulebook.resolve({ manifest: this.#manifest, events: history, characterId: binding.characterId, action })
     const committed = await this.options.store.commitRound({
       address: this.#address,
       transactionId,

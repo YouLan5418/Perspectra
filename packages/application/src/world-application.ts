@@ -24,12 +24,14 @@ import {
 import {
   WorldBootstrap,
   WorldSpecCompiler,
+  createCoreRulebookRegistry,
   parsePlayerRoundResult,
   parsePlayerActionInput,
   runtimeManifestFromStored,
   runtimeManifestFromStoredRecord,
   type CompiledWorldSpec,
   type PlayerRoundResult,
+  type RulebookRegistry,
 } from '@harness-world/kernel'
 import {
   DeterministicPresenter,
@@ -79,6 +81,7 @@ export interface WorldApplicationOptions {
   readonly runtimeOwnerId?: string
   readonly leaseTtlMs?: number
   readonly faultInjector?: FaultInjector
+  readonly rulebooks?: RulebookRegistry
 }
 
 /** Real branch-owned Store aggregate; all handles close with its Cordis Fiber. */
@@ -155,7 +158,7 @@ export class BranchDirectorComponent {
 export class WorldBranchComponentFactory implements BranchComponentFactory {
   readonly #runtimeOwnerId: string
 
-  constructor(private readonly options: WorldApplicationOptions) {
+  constructor(private readonly options: WorldApplicationOptions & { readonly rulebooks: RulebookRegistry }) {
     const label = options.runtimeOwnerId ?? 'application'
     assertProtocolString(label, 'runtimeOwnerId diagnostic label')
     this.#runtimeOwnerId = `${label}:instance:${randomUUID()}`
@@ -193,6 +196,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         ownerId: `${this.#runtimeOwnerId}:branch:${hashWorldJson('writer-owner-address', scope.address)}`,
         participants: [...agents.participants, ...director.participants],
         modelBudgetTokens: this.options.modelBudgetTokens ?? 0,
+        rulebooks: this.options.rulebooks,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
       })
       return { kernel, store, agents, director }
@@ -215,17 +219,34 @@ interface MountedBranch {
 export class WorldApplication {
   readonly #root = new Context()
   readonly #branches = new Map<string, Promise<MountedBranch>>()
+  readonly #rulebooks: RulebookRegistry
   readonly runtimeRegistry: WorldRuntimeRegistry
   #closed = false
 
   constructor(private readonly options: WorldApplicationOptions) {
-    this.runtimeRegistry = new WorldRuntimeRegistry(this.#root, new WorldBranchComponentFactory(options))
+    this.#rulebooks = options.rulebooks ?? createCoreRulebookRegistry()
+    this.runtimeRegistry = new WorldRuntimeRegistry(this.#root, new WorldBranchComponentFactory({ ...options, rulebooks: this.#rulebooks }))
   }
 
   activate(compiled: CompiledWorldSpec) {
     this.#assertOpen()
     const store = new WorldStore(this.options.worldPath)
     try {
+      this.#rulebooks.resolve(
+        compiled.manifest.rulebook.rulebookId,
+        compiled.manifest.rulebook.version,
+        `activate:${worldAddressKey(compiled.manifest.address)}`,
+        compiled.manifest.address,
+      )
+      if (compiled.manifest.rulebook.version === 3 && store.readManifest(compiled.manifest.address) === undefined) {
+        failWorld({
+          errorCode: 'INVALID_REQUEST', category: 'admission',
+          message: 'Rulebook v3 is historical-only and cannot activate a new world', retryable: false,
+          correlationId: `activate:${worldAddressKey(compiled.manifest.address)}`,
+          address: compiled.manifest.address,
+          details: { rulebookId: compiled.manifest.rulebook.rulebookId, version: 3 },
+        })
+      }
       return new WorldBootstrap(store).activate(compiled)
     } finally {
       store.close()

@@ -28,6 +28,7 @@ import {
   type InvestigationIntentCatalog,
   type InvestigationIntentResult,
 } from './investigation-intent.ts'
+import { createMysteryRulebookRegistry } from './mystery-rulebooks.ts'
 
 export const MYSTERY_DEMO_IDS = {
   tenantId: 'tenant:mystery-demo',
@@ -223,6 +224,7 @@ export class MysteryDemoScenario {
       ...options,
       runtimeOwnerId: 'mystery-demo',
       modelBudgetTokens: 4,
+      rulebooks: createMysteryRulebookRegistry(),
       participants: () => this.#participants(),
     })
   }

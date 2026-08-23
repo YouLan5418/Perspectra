@@ -23,7 +23,7 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
-  SpeakMoveRulebook,
+  createCoreRulebookRegistry,
   currentCharacterLifecycle,
   parsePlayerActionInput,
   parsePlayerRoundResult,
@@ -33,6 +33,8 @@ import {
   type PlayerRoundResult,
   type RoundExecutionLane,
   type RulebookResolution,
+  type RulebookRegistry,
+  type RulebookResolver,
 } from '@harness-world/kernel'
 import {
   RoundInbox,
@@ -68,6 +70,7 @@ export interface RoundCoordinatorOptions {
   readonly participants: readonly RoundParticipant[]
   readonly modelBudgetTokens: number
   readonly leaseTtlMs?: number
+  readonly rulebooks?: RulebookRegistry
 }
 
 export interface SubmitCoordinatedRoundRequest {
@@ -125,7 +128,7 @@ export class RoundCoordinator {
   readonly #address: WorldAddress
   readonly #participants: readonly RoundParticipant[]
   readonly #validator = new SubmitActionsValidator()
-  readonly #rulebook = new SpeakMoveRulebook()
+  readonly #rulebook: RulebookResolver
   readonly #leaseTtlMs: number
   #lease: WriterLease
   #closed = false
@@ -144,6 +147,12 @@ export class RoundCoordinator {
     }
     this.#manifest = runtimeManifestFromStored(stored.manifest)
     this.#address = options.runtimeLane.address
+    this.#rulebook = (options.rulebooks ?? createCoreRulebookRegistry()).resolve(
+      this.#manifest.rulebook.rulebookId,
+      this.#manifest.rulebook.version,
+      `coordinator:${options.ownerId}`,
+      this.#address,
+    )
     this.#participants = [...options.participants].sort((left, right) =>
       roleRank[left.role] - roleRank[right.role]
       || right.priority - left.priority
@@ -345,12 +354,12 @@ export class RoundCoordinator {
     const outbox: OutboxDraft[] = []
     let playerResolution: RulebookResolution | undefined
     for (const [ordinal, item] of ordered.entries()) {
-      const resolution = this.#rulebook.resolve(
-        this.#manifest,
-        [...history, ...events],
-        item.action.actorId,
-        { actionType: item.action.actionType, parameters: item.action.parameters },
-      )
+      const resolution = this.#rulebook.resolve({
+        manifest: this.#manifest,
+        events: [...history, ...events],
+        characterId: item.action.actorId,
+        action: { actionType: item.action.actionType, parameters: item.action.parameters },
+      })
       const candidateHashBefore = candidateHash
       const ruleTraceHash = hashWorldJson('round-rule-trace', {
         rulebook: this.#manifest.rulebook,

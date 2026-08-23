@@ -16,7 +16,9 @@ import {
 } from '@harness-world/contracts'
 import {
   currentEntityState,
+  createCoreRulebookRegistry,
   inspectionEvidenceId,
+  SpeakMoveRulebook,
   WorldBootstrap,
   WorldSpecCompiler,
   type CompiledWorldSpec,
@@ -503,7 +505,14 @@ describe('RoundCoordinator', () => {
         })),
       })),
     }
-    const coordinatorOptions = options(path, compiled, [participant])
+    const baseOptions = options(path, compiled, [participant])
+    const rulebooks = createCoreRulebookRegistry()
+    const legacy = new SpeakMoveRulebook()
+    rulebooks.register('builtin:speak-move', 4, {
+      resolve: context => legacy.resolve(context.manifest, context.events, context.characterId, context.action),
+      affordances: () => [{ actionType: 'inspect', actionVersion: 1 }],
+    })
+    const coordinatorOptions = { ...baseOptions, rulebooks }
     const coordinator = new RoundCoordinator(coordinatorOptions)
     await coordinator.submit({
       idempotencyKey: 'round:inspect-competition', principalId: 'principal:player',
