@@ -231,11 +231,17 @@ describe('LocalJsonRpcRouter', () => {
     }
     const head = await router.handle(request('world.head', { address: parent }))
     expect(head).toMatchObject({ result: { tick: 1 } })
-    await expect(router.handle(request('view.character', { address: parent, characterId: 'character:player' })))
+    await expect(router.handle(request('view.character', {
+      address: parent, principalId: 'principal:player', characterId: 'character:player',
+    })))
       .resolves.toMatchObject({ result: { characterId: 'character:player', asOfWorldSeq: expect.any(Number) } })
     await expect(router.handle(request('view.character', {
-      address: parent, characterId: 'character:player', asOfWorldSeq: (head.result as { headSeq: number }).headSeq,
+      address: parent, principalId: 'principal:player', characterId: 'character:player',
+      asOfWorldSeq: (head.result as { headSeq: number }).headSeq,
     }))).resolves.toMatchObject({ result: { characterId: 'character:player' } })
+    await expect(router.handle(request('view.character', {
+      address: parent, principalId: 'principal:player', characterId: 'character:npc',
+    }))).resolves.toMatchObject({ error: { errorCode: 'UNAUTHORIZED' } })
     await expect(router.handle(request('character.availability.get', {
       address: parent, characterId: 'character:player',
     }))).resolves.toMatchObject({ result: { state: 'ready' } })
@@ -346,8 +352,8 @@ describe('LocalJsonRpcRouter', () => {
       ['round.submit', { ...roundParams, action: { actionType: 'speak', parameters: {}, extra: true } }],
       ['round.submit', { ...roundParams, correlationId: 1 }],
       ['round.get', { address: child, idempotencyKey: 1 }],
-      ['view.character', { address: child, characterId: 'character:player', asOfWorldSeq: -1 }],
-      ['view.character', { address: child, characterId: 'character:player', asOfWorldSeq: 'latest' }],
+      ['view.character', { address: child, principalId: 'principal:player', characterId: 'character:player', asOfWorldSeq: -1 }],
+      ['view.character', { address: child, principalId: 'principal:player', characterId: 'character:player', asOfWorldSeq: 'latest' }],
       ['session.render', { address: child, sessionId: 'session:player', sessionEventSeq: 1, locale: 'fr' }],
     ] as const) {
       await expect(router.handle(request(method, params as never))).resolves.toMatchObject({ error: { errorCode: expect.any(String) } })
@@ -375,8 +381,9 @@ describe('worldctl grammar', () => {
     expect(parseLocalCli(['round', 'submit', 'tenant', 'world', 'branch', 'principal:1', 'round:1', 'speak', '{"text":"hi"}']).params)
       .toMatchObject({ action: { actionType: 'speak', parameters: { text: 'hi' } } })
     expect(parseLocalCli(['world', 'head', 'tenant', 'world', 'branch']).method).toBe('world.head')
-    expect(parseLocalCli(['view', 'character', 'tenant', 'world', 'branch', 'character:1']).method).toBe('view.character')
-    expect(parseLocalCli(['view', 'character', 'tenant', 'world', 'branch', 'character:1', '2']).params).toMatchObject({ asOfWorldSeq: 2 })
+    expect(parseLocalCli(['view', 'character', 'tenant', 'world', 'branch', 'principal:1', 'character:1']).method).toBe('view.character')
+    expect(parseLocalCli(['view', 'character', 'tenant', 'world', 'branch', 'principal:1', 'character:1', '2']).params)
+      .toMatchObject({ principalId: 'principal:1', characterId: 'character:1', asOfWorldSeq: 2 })
     expect(parseLocalCli(['outbox', 'drain', 'tenant', 'world', 'branch']).method).toBe('outbox.drain')
     expect(parseLocalCli(['outbox', 'list', 'tenant', 'world', 'branch']).method).toBe('outbox.list')
     expect(parseLocalCli(['outbox', 'retry', 'tenant', 'world', 'branch', 'delivery:1']).method).toBe('outbox.retry')
@@ -392,7 +399,7 @@ describe('worldctl grammar', () => {
     expect(() => parseLocalCli(['branch', 'unknown', 'tenant', 'world', 'branch'])).toThrow('unknown branch')
     expect(() => parseLocalCli(['round', 'get', 'tenant', 'world', 'branch'])).toThrow('idempotencyKey')
     expect(() => parseLocalCli(['round', 'submit', 'tenant', 'world', 'branch'])).toThrow('requires principalId')
-    expect(() => parseLocalCli(['view', 'character', 'tenant', 'world', 'branch'])).toThrow('characterId')
+    expect(() => parseLocalCli(['view', 'character', 'tenant', 'world', 'branch'])).toThrow('principalId characterId')
     expect(() => parseLocalCli(['outbox', 'retry', 'tenant', 'world', 'branch'])).toThrow('deliveryId')
     expect(() => parseLocalCli(['snapshot', 'create', 'tenant', 'world', 'branch'])).toThrow('snapshotPath')
     expect(() => parseLocalCli(['backup', 'create'])).toThrow('targetPath')

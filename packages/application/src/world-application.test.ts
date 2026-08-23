@@ -169,6 +169,16 @@ describe('WorldApplication', () => {
     expect(calls.value).toBe(2)
     expect(await app.roundResult(world.manifest.address, 'parent-round')).toEqual(parentResult)
     const parentHead = await app.head(world.manifest.address)
+    const history = await app.eventHistory(world.manifest.address, parentHead.headSeq)
+    const roundTransactionId = history.find(event => event.eventType === 'action.resolved')!.transactionId
+    expect(await app.roundAuthority(world.manifest.address, roundTransactionId)).toMatchObject({
+      transactionId: roundTransactionId,
+      authorityHash: expect.stringMatching(/^sha256:/),
+    })
+    expect(await app.roundAuthority(
+      world.manifest.address,
+      brandId('transaction:missing', 'TransactionId'),
+    )).toBeUndefined()
     const view = await app.characterView(world.manifest.address, brandId('character:player', 'CharacterId'))
     expect(view.asOfWorldSeq).toBe(parentHead.headSeq)
     expect(view.observations).toHaveLength(3)
@@ -177,6 +187,22 @@ describe('WorldApplication', () => {
       brandId('character:player', 'CharacterId'),
       parentHead.headSeq,
     )).bundleHash).toBe(view.bundleHash)
+    expect((await app.characterViewForPrincipal(
+      world.manifest.address,
+      'principal:player',
+      brandId('character:player', 'CharacterId'),
+      parentHead.headSeq,
+    )).bundleHash).toBe(view.bundleHash)
+    await expect(app.characterViewForPrincipal(
+      world.manifest.address,
+      'principal:player',
+      brandId('character:npc', 'CharacterId'),
+    )).rejects.toMatchObject({ envelope: { errorCode: 'UNAUTHORIZED' } })
+    await expect(app.characterViewForPrincipal(
+      world.manifest.address,
+      ' padded ',
+      brandId('character:player', 'CharacterId'),
+    )).rejects.toThrow('principalId')
     expect(await app.deliver(world.manifest.address, 'deliver:parent')).toBe(3)
     const presentation = await app.renderSession(
       world.manifest.address,

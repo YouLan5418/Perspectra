@@ -15,6 +15,9 @@ import {
   type DeliveryId,
   type FaultInjector,
   type SessionId,
+  type StoredRoundAuthority,
+  type StoredWorldEvent,
+  type TransactionId,
   type WorldAddress,
   type WorldJsonValue,
 } from '@harness-world/contracts'
@@ -317,6 +320,16 @@ export class WorldApplication {
     return this.#integrityGuard(address, 'world.head', branch => branch.store.store.head(address))
   }
 
+  /** Integrity-checked authority history for local authoring/debug composition; not exposed by the player RPC surface. */
+  async eventHistory(address: WorldAddress, asOfWorldSeq?: number): Promise<StoredWorldEvent[]> {
+    return this.#integrityGuard(address, 'world.events', branch => branch.store.store.readEvents(address, asOfWorldSeq))
+  }
+
+  /** Read the immutable Round Authority bound to a committed transaction. */
+  async roundAuthority(address: WorldAddress, transactionId: TransactionId): Promise<StoredRoundAuthority | undefined> {
+    return this.#integrityGuard(address, 'round.authority', branch => branch.store.store.readRoundAuthority(address, transactionId))
+  }
+
   async characterView(address: WorldAddress, characterId: CharacterId, asOfWorldSeq?: number): Promise<CharacterView> {
     return this.#integrityGuard(address, 'view.character', branch => this.#projectionRead(
       address,
@@ -326,6 +339,31 @@ export class WorldApplication {
         return new CharacterViewBuilder(branch.store.store).rebuildAt(address, characterId, asOf)
       },
     ))
+  }
+
+  /** Player-facing view access: a principal may read only the Character bound to it by the frozen Manifest. */
+  async characterViewForPrincipal(
+    address: WorldAddress,
+    principalId: string,
+    characterId: CharacterId,
+    asOfWorldSeq?: number,
+  ): Promise<CharacterView> {
+    assertProtocolString(principalId, 'principalId')
+    return this.#integrityGuard(address, 'view.character', branch => {
+      const manifest = runtimeManifestFromStoredRecord(branch.store.store.readManifest(address))
+      if (!manifest.playerBindings.some(binding =>
+        binding.principalId === principalId && binding.characterId === characterId)) {
+        failWorld({
+          errorCode: 'UNAUTHORIZED', category: 'admission',
+          message: 'principal is not bound to the requested CharacterView', retryable: false,
+          correlationId: `view:${principalId}:${characterId}`, address,
+        })
+      }
+      return this.#projectionRead(address, `view:${worldAddressKey(address)}:${characterId}`, () => {
+        const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
+        return new CharacterViewBuilder(branch.store.store).rebuildAt(address, characterId, asOf)
+      })
+    })
   }
 
   async characterAvailability(address: WorldAddress, characterId: CharacterId) {

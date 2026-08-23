@@ -30,6 +30,7 @@ describe('mystery Demo CLI', () => {
     const first = JSON.parse(firstText) as any
     expect(first).toMatchObject({
       demo: 'ashgrove-murder/v1',
+      execution: 'executed',
       result: { status: 'accepted', tick: 1 },
       delivered: 2,
       providerCalls: { bob: 1, director: 1 },
@@ -41,6 +42,7 @@ describe('mystery Demo CLI', () => {
 
     const replay = JSON.parse(await executeMysteryDemoCli(storage)) as any
     expect(replay).toMatchObject({
+      execution: 'durable_replay',
       result: first.result,
       delivered: 0,
       providerCalls: { bob: 0, director: 0 },

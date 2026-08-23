@@ -43,11 +43,14 @@ export function parseLocalCli(argv: readonly string[]): LocalJsonRpcRequest {
     return { jsonrpc: '2.0', id: 'cli', method: 'world.head', params: { address: address(tenantId, worldId, branchId) } }
   }
   if (group === 'view' && operation === 'character') {
-    const [characterId, asOf] = rest
-    if (characterId === undefined) throw new TypeError('view character requires characterId')
+    const [principalId, characterId, asOf] = rest
+    if (principalId === undefined || characterId === undefined) throw new TypeError('view character requires principalId characterId')
     return {
       jsonrpc: '2.0', id: 'cli', method: 'view.character',
-      params: { address: address(tenantId, worldId, branchId), characterId, ...(asOf === undefined ? {} : { asOfWorldSeq: Number(asOf) }) },
+      params: {
+        address: address(tenantId, worldId, branchId), principalId, characterId,
+        ...(asOf === undefined ? {} : { asOfWorldSeq: Number(asOf) }),
+      },
     }
   }
   if (group === 'outbox' && (operation === 'drain' || operation === 'list')) {

@@ -18,7 +18,6 @@ import {
   type EntityState,
   type PlayerRoundResult,
 } from '@harness-world/kernel'
-import { WorldStore } from '@harness-world/store-sqlite'
 
 export const MYSTERY_DEMO_IDS = {
   tenantId: 'tenant:mystery-demo',
@@ -145,10 +144,16 @@ export interface MysteryDemoScenarioOptions {
 export interface MysteryDemoSnapshot {
   readonly headSeq: number
   readonly tick: number
-  readonly entity: EntityState | null
+  readonly entity: EntityState
   readonly views: Readonly<Record<'player' | 'alice' | 'bob' | 'detective', CharacterView>>
   readonly eventHashes: readonly WorldHash[]
   readonly authority: StoredRoundAuthority | null
+}
+
+/** Fail closed when an author/debug snapshot cannot bind expected authority state. */
+export function requireMysterySnapshotValue<T>(value: T | undefined, label: string): T {
+  if (value === undefined) throw new Error(`Mystery Demo snapshot is missing ${label}`)
+  return value
 }
 
 /** Scripted Scenario Runner for the first deterministic mystery turn. */
@@ -199,20 +204,21 @@ export class MysteryDemoScenario {
       this.#application.characterView(address, character(MYSTERY_DEMO_IDS.bob), head.headSeq),
       this.#application.characterView(address, character(MYSTERY_DEMO_IDS.detective), head.headSeq),
     ])
-    const store = new WorldStore(this.options.worldPath)
-    try {
-      const events = store.readEvents(address, head.headSeq)
-      const taken = [...events].reverse().find(event => event.eventType === 'entity.taken')
-      return {
-        headSeq: head.headSeq,
-        tick: head.tick,
-        entity: currentEntityState(events, MYSTERY_DEMO_IDS.key)!,
-        views: { player, alice, bob, detective },
-        eventHashes: events.map(event => event.eventHash),
-        authority: taken === undefined ? null : store.readRoundAuthority(address, taken.transactionId)!,
-      }
-    } finally {
-      store.close()
+    const events = await this.#application.eventHistory(address, head.headSeq)
+    const taken = [...events].reverse().find(event => event.eventType === 'entity.taken')
+    const authority = taken === undefined
+      ? null
+      : requireMysterySnapshotValue(
+        await this.#application.roundAuthority(address, taken.transactionId),
+        `Round Authority ${taken.transactionId}`,
+      )
+    return {
+      headSeq: head.headSeq,
+      tick: head.tick,
+      entity: requireMysterySnapshotValue(currentEntityState(events, MYSTERY_DEMO_IDS.key), `entity ${MYSTERY_DEMO_IDS.key}`),
+      views: { player, alice, bob, detective },
+      eventHashes: events.map(event => event.eventHash),
+      authority,
     }
   }
 

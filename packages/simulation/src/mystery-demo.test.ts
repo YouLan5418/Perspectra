@@ -7,6 +7,7 @@ import {
   createMysteryDemoSpec,
   MYSTERY_DEMO_IDS,
   MysteryDemoScenario,
+  requireMysterySnapshotValue,
 } from './mystery-demo.ts'
 
 const directories: string[] = []
@@ -22,6 +23,11 @@ afterEach(() => {
 })
 
 describe('three-role mystery Demo', () => {
+  it('fails closed when an expected snapshot binding is absent', () => {
+    expect(requireMysterySnapshotValue('present', 'fixture')).toBe('present')
+    expect(() => requireMysterySnapshotValue(undefined, 'fixture')).toThrow('missing fixture')
+  })
+
   it('compiles one stable TURN_DRIVEN world with private knowledge and distinct observations', () => {
     const first = compileMysteryDemo()
     const second = compileMysteryDemo()

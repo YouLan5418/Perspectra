@@ -36,7 +36,7 @@ export interface WorldApplicationPort {
   cancelQueuedRound(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }, correlationId: string): Promise<unknown>
   roundResult(address: WorldAddress, idempotencyKey: string): Promise<unknown | undefined>
   head(address: WorldAddress): Promise<unknown>
-  characterView(address: WorldAddress, characterId: CharacterId, asOfWorldSeq?: number): Promise<unknown>
+  characterViewForPrincipal(address: WorldAddress, principalId: string, characterId: CharacterId, asOfWorldSeq?: number): Promise<unknown>
   characterAvailability(address: WorldAddress, characterId: CharacterId): Promise<unknown>
   setCharacterAvailability(address: WorldAddress, characterId: CharacterId, state: RuntimeAvailabilityState, reason: string | null): Promise<unknown>
   deliver(address: WorldAddress, correlationId: string): Promise<number>
@@ -210,8 +210,9 @@ export class LocalJsonRpcRouter {
     }
     if (method === 'world.head') return worldResult(await this.#application().head(addressParam(params.address)))
     if (method === 'view.character') {
-      return worldResult(await this.#application().characterView(
+      return worldResult(await this.#application().characterViewForPrincipal(
         addressParam(params.address),
+        stringParam(params, 'principalId'),
         brandId(stringParam(params, 'characterId'), 'CharacterId'),
         integerParam(params, 'asOfWorldSeq', true),
       ))

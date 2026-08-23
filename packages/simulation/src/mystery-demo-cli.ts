@@ -11,11 +11,13 @@ export async function executeMysteryDemoCli(args: readonly string[]): Promise<st
     const result = await demo.runOpeningTurn()
     const delivered = await demo.deliver()
     const snapshot = await demo.snapshot()
+    const providerCalls = demo.providerCalls
     const output = {
       demo: 'ashgrove-murder/v1',
+      execution: providerCalls.bob === 0 && providerCalls.director === 0 ? 'durable_replay' : 'executed',
       result,
       delivered,
-      providerCalls: demo.providerCalls,
+      providerCalls,
       head: { headSeq: snapshot.headSeq, tick: snapshot.tick },
       entity: snapshot.entity,
       playerView: snapshot.views.player,
