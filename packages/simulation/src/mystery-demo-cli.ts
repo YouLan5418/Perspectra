@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { canonicalizeWorldJson } from '@harness-world/contracts'
 import { mysteryPlayerInvestigation, MysteryDemoScenario } from './mystery-demo.ts'
 
@@ -83,10 +84,8 @@ export async function* streamMysteryShellCli(
   const demo = new MysteryDemoScenario({ worldPath: args[0]!, sessionPath: args[1]! })
   try {
     demo.activate()
-    let turn = 0
     for await (const line of lines) {
       if (line === ':quit') break
-      turn += 1
       if (line.length === 0) {
         yield json({
           demo: 'ashgrove-murder/v4', status: 'clarification_required',
@@ -94,7 +93,7 @@ export async function* streamMysteryShellCli(
         })
         continue
       }
-      yield await executeScenarioTurn(demo, line, `mystery-shell:${turn}`)
+      yield await executeScenarioTurn(demo, line, `mystery-shell:${randomUUID()}`)
     }
   } finally {
     await demo.close()

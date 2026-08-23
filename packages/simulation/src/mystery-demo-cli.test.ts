@@ -121,4 +121,13 @@ describe('mystery Demo CLI', () => {
     })
     expect(JSON.stringify(output)).not.toContain('is_culprit')
   })
+
+  it('continues the same persistent world after restarting the shell process', async () => {
+    const storage = paths()
+    async function* one(text: string) { yield text }
+    const first = (await executeMysteryShellCli(storage, one('第一段对白。'))).map(value => JSON.parse(value) as any)
+    const restarted = (await executeMysteryShellCli(storage, one('重启后的第二段对白。'))).map(value => JSON.parse(value) as any)
+    expect(first[0]).toMatchObject({ status: 'submitted', result: { tick: 1 } })
+    expect(restarted[0]).toMatchObject({ status: 'submitted', result: { tick: 2 } })
+  })
 })
