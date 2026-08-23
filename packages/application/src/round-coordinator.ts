@@ -392,6 +392,9 @@ export class RoundCoordinator {
         },
       })
       const observationId = deterministicId('observation:coordinated-round', { roundId, actionId: item.action.actionId })
+      const publicSpeech = this.#manifest.rulebook.version >= 4
+        ? resolution.events.find(event => event.eventType === 'character.speak')
+        : undefined
       const observation = {
         observerId: binding.characterId,
         actionId: item.action.actionId,
@@ -400,6 +403,7 @@ export class RoundCoordinator {
           actorId: item.action.actorId,
           status: resolution.status,
           reason: resolution.reason ?? null,
+          ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
         },
       }
       events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id: observationId, value: observation } })

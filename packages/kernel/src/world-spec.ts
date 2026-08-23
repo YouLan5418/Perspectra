@@ -45,7 +45,7 @@ export interface CompiledWorldManifest extends WorldJsonObject {
   readonly timeMode: 'TURN_DRIVEN'
   readonly roundQueueLimit: number
   readonly runtimePolicy: RuntimePolicy
-  readonly rulebook: { readonly rulebookId: 'builtin:speak-move'; readonly version: 1 | 2 | 3 }
+  readonly rulebook: { readonly rulebookId: 'builtin:speak-move'; readonly version: 1 | 2 | 3 | 4 }
   readonly registries: ManifestRegistries
   readonly locations: readonly LocationSpec[]
   readonly entities: readonly EntitySpec[]
@@ -132,13 +132,14 @@ function registry(kind: string, names: readonly string[]): FrozenRegistry {
   return { definitions, registryHash: hashWorldJson(`compiled-${kind}-registry`, definitions) }
 }
 
-function registries(rulebookVersion: 1 | 2 | 3): ManifestRegistries {
+function registries(rulebookVersion: 1 | 2 | 3 | 4): ManifestRegistries {
   const entityEvents = rulebookVersion >= 2 ? ['entity.taken'] : []
   const entityActions = rulebookVersion >= 2 ? ['take'] : []
-  const investigationEvents = rulebookVersion === 3
+  const investigationEvents = rulebookVersion >= 3
     ? ['character.asked', 'entity.inspected', 'evidence.presented', 'investigation.accusation-resolved', 'investigation.case-closed']
     : []
-  const investigationActions = rulebookVersion === 3 ? ['accuse', 'ask', 'inspect', 'present_evidence'] : []
+  const authorEvents = rulebookVersion >= 4 ? ['investigation.culprit-seeded'] : []
+  const investigationActions = rulebookVersion >= 3 ? ['accuse', 'ask', 'inspect', 'present_evidence'] : []
   return {
     events: registry('event', [
       'action.rejected', 'action.resolved', 'character.created', 'character.lifecycle-changed', 'character.moved',
@@ -146,6 +147,7 @@ function registries(rulebookVersion: 1 | 2 | 3): ManifestRegistries {
       'observation.remove', 'observation.upsert', 'player.binding.upsert', 'round.participant-terminal', 'scene.remove',
       'scene.upsert', 'visibility.remove', 'visibility.upsert', 'world.created',
       'world.lifecycle-changed', 'world.manifest-locked', 'world.tick-advanced', ...entityEvents, ...investigationEvents,
+      ...authorEvents,
     ]),
     actions: registry('action', ['move', 'speak', ...entityActions, ...investigationActions]),
     projections: registry('projection', ['character', 'claim', 'goal', 'observation', 'scene', 'visibility']),
@@ -216,10 +218,11 @@ export class WorldSpecCompiler {
     const rulebookValue = objectAt(root.rulebook, 'WorldSpec.rulebook')
     exactKeys(rulebookValue, ['rulebookId', 'version'], 'WorldSpec.rulebook')
     if (rulebookValue.rulebookId !== 'builtin:speak-move'
-      || (rulebookValue.version !== 1 && rulebookValue.version !== 2 && rulebookValue.version !== 3)) {
-      throw new TypeError('WorldSpec.rulebook must select builtin:speak-move version 1, 2, or 3')
+      || (rulebookValue.version !== 1 && rulebookValue.version !== 2
+        && rulebookValue.version !== 3 && rulebookValue.version !== 4)) {
+      throw new TypeError('WorldSpec.rulebook must select builtin:speak-move version 1, 2, 3, or 4')
     }
-    const rulebookVersion = rulebookValue.version as 1 | 2 | 3
+    const rulebookVersion = rulebookValue.version as 1 | 2 | 3 | 4
 
     const locations = arrayAt(root.locations, 'WorldSpec.locations').map((entry, index): LocationSpec => {
       const value = objectAt(entry, `locations[${index}]`); exactKeys(value, ['locationId', 'name'], `locations[${index}]`)
@@ -289,6 +292,21 @@ export class WorldSpecCompiler {
       ...scenes.map(value => ({ eventType: 'scene.upsert', eventVersion: 1, data: { sceneId: value.sceneId, value: { participantIds: value.participantIds } } })),
       ...goals.map(value => ({ eventType: 'goal.upsert', eventVersion: 1, data: { id: value.goalId, value: { characterId: value.characterId, seed: value.value } } })),
       ...claims.map(value => ({ eventType: 'claim.upsert', eventVersion: 1, data: { id: value.claimId, value: { characterId: value.characterId, seed: value.value } } })),
+      ...(rulebookVersion >= 4 ? claims.flatMap(value => {
+        const seed = typeof value.value === 'object' && value.value !== null && !Array.isArray(value.value)
+          ? value.value as Record<string, unknown>
+          : undefined
+        const proposition = typeof seed?.proposition === 'object' && seed.proposition !== null && !Array.isArray(seed.proposition)
+          ? seed.proposition as Record<string, unknown>
+          : undefined
+        return seed?.source === 'author-secret' && proposition?.subject === value.characterId
+          && proposition.predicate === 'is_culprit' && proposition.object === true
+          ? [{
+            eventType: 'investigation.culprit-seeded', eventVersion: 1,
+            data: { culpritId: value.characterId, sourceClaimId: value.claimId },
+          }]
+          : []
+      }) : []),
       ...observations.map(value => ({ eventType: 'observation.upsert', eventVersion: 1, data: { id: value.observationId, value: { observerId: value.observerId, seed: value.value } } })),
       ...playerBindings.map(value => ({ eventType: 'player.binding.upsert', eventVersion: 1, data: value })),
       { eventType: 'world.lifecycle-changed', eventVersion: 1, data: { lifecycleState: 'active' } },

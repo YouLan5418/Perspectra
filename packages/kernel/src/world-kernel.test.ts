@@ -7,7 +7,13 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, hashWorldJson } from '@harness-world/contracts'
 import { WorldRuntimeRegistry, type BranchComponentFactory } from '@harness-world/runtime-cordis'
 import { BranchAdministration, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { currentEntityState, currentInvestigationState, SpeakMoveRulebook } from './rulebook.ts'
+import {
+  currentEntityState,
+  currentInvestigationState,
+  inspectionEvidenceId,
+  investigationViewForCharacter,
+  SpeakMoveRulebook,
+} from './rulebook.ts'
 import { WorldBootstrap } from './world-bootstrap.ts'
 import { parsePlayerRoundResult, WorldKernel } from './world-kernel.ts'
 import { WorldSpecCompiler } from './world-spec.ts'
@@ -275,6 +281,76 @@ describe('SpeakMoveRulebook', () => {
     expect(rulebook.resolve(manifest, solved, 'character:player', {
       actionType: 'accuse', parameters: { suspectId: 'character:bob', evidenceIds: ['evidence:key-moved'] },
     })).toMatchObject({ status: 'rejected', reason: 'CASE_ALREADY_CLOSED' })
+  })
+
+  it('uses author-only culprit seeds, entity evidence IDs, and a terminal v4 case barrier', () => {
+    expect(() => inspectionEvidenceId('')).toThrow('entityId')
+    const manifest = {
+      ...compiled().manifest,
+      rulebook: { rulebookId: 'builtin:speak-move' as const, version: 4 as const },
+      entities: [
+        { entityId: 'entity:first', locationId: 'location:a', kind: 'trace' },
+        { entityId: 'entity:second', locationId: 'location:a', kind: 'trace' },
+      ],
+      characters: [
+        { characterId: brandId('character:player', 'CharacterId'), name: 'Player', locationId: 'location:a' },
+        { characterId: brandId('character:alice', 'CharacterId'), name: 'Alice', locationId: 'location:a' },
+        { characterId: brandId('character:bob', 'CharacterId'), name: 'Bob', locationId: 'location:a' },
+      ],
+    }
+    const base = [
+      { eventType: 'character.created', data: { characterId: 'character:player', locationId: 'location:a' } },
+      { eventType: 'character.created', data: { characterId: 'character:alice', locationId: 'location:a' } },
+      { eventType: 'character.created', data: { characterId: 'character:bob', locationId: 'location:a' } },
+      { eventType: 'entity.upsert', data: { entityId: 'entity:first', locationId: 'location:a', kind: 'trace' } },
+      { eventType: 'entity.upsert', data: { entityId: 'entity:second', locationId: 'location:a', kind: 'trace' } },
+      { eventType: 'claim.upsert', data: { id: 'claim:forged', value: { seed: { proposition: {
+        subject: 'character:alice', predicate: 'is_culprit', object: true,
+      } } } } },
+      { eventType: 'investigation.culprit-seeded', data: { culpritId: 'character:bob', sourceClaimId: 'claim:author' } },
+    ]
+    const rulebook = new SpeakMoveRulebook()
+    const inspected = rulebook.resolve(manifest, base, 'character:player', {
+      actionType: 'inspect', parameters: { entityId: 'entity:first' },
+    })
+    const evidenceId = inspectionEvidenceId('entity:first')
+    expect(inspected).toMatchObject({
+      status: 'accepted', events: [{ data: { evidenceId } }, { data: { value: { source: 'rulebook:investigation/v4' } } }],
+    })
+    expect(inspectionEvidenceId('entity:second')).not.toBe(evidenceId)
+    const afterInspect = [...base, ...inspected.events]
+    const presented = rulebook.resolve(manifest, afterInspect, 'character:player', {
+      actionType: 'present_evidence', parameters: { evidenceId, targetCharacterId: 'character:bob' },
+    })
+    const afterPresented = [...afterInspect, ...presented.events]
+    expect(investigationViewForCharacter(currentInvestigationState(afterPresented), 'character:player')).toEqual({
+      status: 'open', culpritId: null, evidence: [{ evidenceId, presented: true }],
+    })
+    expect(investigationViewForCharacter(currentInvestigationState(afterPresented), 'character:bob').evidence).toEqual([])
+    const forged = rulebook.resolve(manifest, afterPresented, 'character:player', {
+      actionType: 'accuse', parameters: { suspectId: 'character:alice', evidenceIds: [evidenceId] },
+    })
+    expect(forged).toMatchObject({
+      status: 'accepted',
+      events: expect.arrayContaining([expect.objectContaining({ data: expect.objectContaining({ outcome: 'incorrect' }) })]),
+    })
+    const correct = rulebook.resolve(manifest, afterPresented, 'character:player', {
+      actionType: 'accuse', parameters: { suspectId: 'character:bob', evidenceIds: [evidenceId] },
+    })
+    expect(correct.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ eventType: 'investigation.case-closed' }),
+    ]))
+    const solved = [...afterPresented, ...correct.events]
+    for (const actionType of ['inspect', 'ask', 'present_evidence', 'accuse']) {
+      expect(rulebook.resolve(manifest, solved, 'character:player', { actionType, parameters: {} }))
+        .toMatchObject({ status: 'rejected', reason: 'CASE_ALREADY_CLOSED' })
+    }
+    expect(() => rulebook.resolve(manifest, [
+      ...afterPresented,
+      { eventType: 'investigation.culprit-seeded', data: {} },
+    ], 'character:player', {
+      actionType: 'accuse', parameters: { suspectId: 'character:bob', evidenceIds: [evidenceId] },
+    })).toThrow('culprit-seeded is malformed')
   })
 
   it('fails closed on divergent investigation event prefixes', () => {

@@ -64,6 +64,23 @@ export interface InvestigationState extends WorldJsonObject {
   readonly evidence: readonly InvestigationEvidenceState[]
 }
 
+export interface CharacterInvestigationEvidence extends WorldJsonObject {
+  readonly evidenceId: string
+  readonly presented: boolean
+}
+
+export interface CharacterInvestigationView extends WorldJsonObject {
+  readonly status: 'open' | 'solved'
+  readonly culpritId: string | null
+  readonly evidence: readonly CharacterInvestigationEvidence[]
+}
+
+/** Stable v4 evidence identity: entity identity, never the non-unique author-facing kind. */
+export function inspectionEvidenceId(entityId: string): string {
+  if (entityId.length === 0) throw new TypeError('inspection evidence requires entityId')
+  return `evidence:inspection:${entityId}`
+}
+
 /** Rebuild investigation knowledge and terminal case state from one exact Event prefix. */
 export function currentInvestigationState(events: readonly RulebookEvent[]): InvestigationState {
   const evidence = new Map<string, { discoveredBy: Set<string>; presentedBy: Set<string> }>()
@@ -105,6 +122,20 @@ export function currentInvestigationState(events: readonly RulebookEvent[]): Inv
   }
 }
 
+/** Remove every other character's discovery/presentation ledger from a character-facing query. */
+export function investigationViewForCharacter(
+  state: InvestigationState,
+  characterId: string,
+): CharacterInvestigationView {
+  return {
+    status: state.status,
+    culpritId: state.culpritId,
+    evidence: state.evidence
+      .filter(value => value.discoveredBy.includes(characterId))
+      .map(value => ({ evidenceId: value.evidenceId, presented: value.presentedBy.includes(characterId) })),
+  }
+}
+
 /** Rebuild one entity's authoritative location/holder state from the exact Event prefix. */
 export function currentEntityState(events: readonly RulebookEvent[], entityId: string): EntityState | undefined {
   let state: EntityState | undefined
@@ -141,13 +172,13 @@ export function currentCharacterLifecycle(events: readonly RulebookEvent[], char
   return state
 }
 
-function observation(characterId: string, actionType: string, content: WorldJsonObject): WorldEventDraft {
+function observation(characterId: string, actionType: string, content: WorldJsonObject, rulebookVersion: number): WorldEventDraft {
   return {
     eventType: 'observation.upsert',
     eventVersion: 1,
     data: {
       id: deterministicId('observation:investigation-rule', { characterId, actionType, content }),
-      value: { observerId: characterId, source: 'rulebook:investigation/v3', content },
+      value: { observerId: characterId, source: `rulebook:investigation/v${rulebookVersion}`, content },
     },
   }
 }
@@ -182,6 +213,19 @@ function culpritClaims(events: readonly RulebookEvent[]): Set<string> {
     .map(value => value.subject as string))
 }
 
+function seededCulprits(events: readonly RulebookEvent[]): Set<string> {
+  const culprits = new Set<string>()
+  for (const event of events) {
+    if (event.eventType !== 'investigation.culprit-seeded') continue
+    const data = object(event.data)
+    if (typeof data?.culpritId !== 'string' || typeof data.sourceClaimId !== 'string') {
+      throw new TypeError('investigation.culprit-seeded is malformed')
+    }
+    culprits.add(data.culpritId)
+  }
+  return culprits
+}
+
 /** Deterministic V0 Rulebook for movement, speech, and versioned investigation actions. */
 export class SpeakMoveRulebook {
   resolve(
@@ -193,6 +237,12 @@ export class SpeakMoveRulebook {
     const lifecycle = currentCharacterLifecycle(events, characterId)
     if (lifecycle !== 'active') return this.#reject(characterId, action.actionType, `character lifecycle ${lifecycle ?? 'missing'} cannot act`)
     const parameters = object(action.parameters)
+    const investigationAction = action.actionType === 'inspect' || action.actionType === 'ask'
+      || action.actionType === 'present_evidence' || action.actionType === 'accuse'
+    if (manifest.rulebook.version >= 4 && investigationAction
+      && currentInvestigationState(events).status === 'solved') {
+      return this.#reject(characterId, action.actionType, 'CASE_ALREADY_CLOSED')
+    }
     if (action.actionType === 'speak') {
       const text = parameters?.text
       if (typeof text !== 'string' || text.length === 0) return this.#reject(characterId, action.actionType, 'speak requires non-empty text')
@@ -236,7 +286,7 @@ export class SpeakMoveRulebook {
         }],
       }
     }
-    if (manifest.rulebook.version === 3 && action.actionType === 'inspect') {
+    if (manifest.rulebook.version >= 3 && action.actionType === 'inspect') {
       const entityId = parameters?.entityId
       if (typeof entityId !== 'string' || !manifest.entities.some(entity => entity.entityId === entityId)) {
         return this.#reject(characterId, action.actionType, 'inspect requires a manifest entityId')
@@ -246,7 +296,9 @@ export class SpeakMoveRulebook {
       if (entity === undefined || (entity.locationId !== characterLocation && entity.holderId !== characterId)) {
         return this.#reject(characterId, action.actionType, 'INSPECTION_TARGET_NOT_AVAILABLE')
       }
-      const evidenceId = `evidence:${entity.kind}`
+      const evidenceId = manifest.rulebook.version >= 4
+        ? inspectionEvidenceId(entityId)
+        : `evidence:${entity.kind}`
       const investigation = currentInvestigationState(events)
       if (investigation.evidence.some(value => value.evidenceId === evidenceId && value.discoveredBy.includes(characterId))) {
         return this.#reject(characterId, action.actionType, 'ALREADY_INSPECTED')
@@ -256,11 +308,11 @@ export class SpeakMoveRulebook {
         status: 'accepted',
         events: [
           { eventType: 'entity.inspected', eventVersion: 1, data: { entityId, characterId, evidenceId } },
-          observation(characterId, action.actionType, content),
+          observation(characterId, action.actionType, content, manifest.rulebook.version),
         ],
       }
     }
-    if (manifest.rulebook.version === 3 && action.actionType === 'ask') {
+    if (manifest.rulebook.version >= 3 && action.actionType === 'ask') {
       const targetCharacterId = parameters?.targetCharacterId
       const topicId = parameters?.topicId
       if (typeof targetCharacterId !== 'string' || targetCharacterId === characterId || !characterExists(manifest, targetCharacterId)) {
@@ -273,11 +325,11 @@ export class SpeakMoveRulebook {
         status: 'accepted',
         events: [
           { eventType: 'character.asked', eventVersion: 1, data: { characterId, targetCharacterId, topicId } },
-          observation(characterId, action.actionType, content),
+          observation(characterId, action.actionType, content, manifest.rulebook.version),
         ],
       }
     }
-    if (manifest.rulebook.version === 3 && action.actionType === 'present_evidence') {
+    if (manifest.rulebook.version >= 3 && action.actionType === 'present_evidence') {
       const evidenceId = parameters?.evidenceId
       const targetCharacterId = parameters?.targetCharacterId
       if (typeof evidenceId !== 'string') return this.#reject(characterId, action.actionType, 'present_evidence requires evidenceId')
@@ -294,11 +346,11 @@ export class SpeakMoveRulebook {
         status: 'accepted',
         events: [
           { eventType: 'evidence.presented', eventVersion: 1, data: { characterId, evidenceId, targetCharacterId } },
-          observation(characterId, action.actionType, content),
+          observation(characterId, action.actionType, content, manifest.rulebook.version),
         ],
       }
     }
-    if (manifest.rulebook.version === 3 && action.actionType === 'accuse') {
+    if (manifest.rulebook.version >= 3 && action.actionType === 'accuse') {
       const suspectId = parameters?.suspectId
       const evidenceIds = parameters?.evidenceIds
       if (typeof suspectId !== 'string' || suspectId === characterId || !characterExists(manifest, suspectId)) {
@@ -315,7 +367,9 @@ export class SpeakMoveRulebook {
       if (!(evidenceIds as string[]).every(evidenceId => presented.has(evidenceId))) {
         return this.#reject(characterId, action.actionType, 'EVIDENCE_NOT_PRESENTED')
       }
-      const outcome = culpritClaims(events).has(suspectId) ? 'correct' : 'incorrect'
+      const outcome = (manifest.rulebook.version >= 4 ? seededCulprits(events) : culpritClaims(events)).has(suspectId)
+        ? 'correct'
+        : 'incorrect'
       const content = { actionType: 'accuse', suspectId, evidenceIds: evidenceIds as string[], outcome }
       return {
         status: 'accepted',
@@ -324,7 +378,7 @@ export class SpeakMoveRulebook {
           ...(outcome === 'correct'
             ? [{ eventType: 'investigation.case-closed', eventVersion: 1, data: { culpritId: suspectId, resolvedBy: characterId } }]
             : []),
-          observation(characterId, action.actionType, content),
+          observation(characterId, action.actionType, content, manifest.rulebook.version),
         ],
       }
     }

@@ -162,7 +162,7 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
       { ...spec(), rulebook: null },
       { ...spec(), rulebook: { ...spec().rulebook, extra: true } },
       { ...spec(), rulebook: { rulebookId: 'other', version: 1 } },
-      { ...spec(), rulebook: { rulebookId: 'builtin:speak-move', version: 4 } },
+      { ...spec(), rulebook: { rulebookId: 'builtin:speak-move', version: 5 } },
       { ...spec(), locations: {} },
       { ...spec(), locations: [] },
       { ...spec(), locations: [null] },
@@ -241,6 +241,32 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     ]))
     expect(narrative.manifest.registries.rules.definitions.map(value => value.name)).toEqual(['builtin:speak-move/v3'])
     expect(narrative.manifestHash).not.toBe(investigation.manifestHash)
+
+    const secureNarrative = new WorldSpecCompiler().compile({
+      ...specV2(),
+      rulebook: { rulebookId: 'builtin:speak-move', version: 4 },
+      claims: [
+        {
+          claimId: 'claim:culprit', characterId: 'character:a',
+          value: {
+            source: 'author-secret',
+            proposition: { subject: 'character:a', predicate: 'is_culprit', object: true },
+          },
+        },
+        { claimId: 'claim:primitive', characterId: 'character:a', value: 'not a culprit seed' },
+      ],
+    })
+    expect(secureNarrative.manifest.registries.events.definitions.map(value => value.name))
+      .toContain('investigation.culprit-seeded')
+    expect(secureNarrative.manifest.registries.rules.definitions.map(value => value.name))
+      .toEqual(['builtin:speak-move/v4'])
+    expect(secureNarrative.genesisEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        eventType: 'investigation.culprit-seeded',
+        data: { culpritId: 'character:a', sourceClaimId: 'claim:culprit' },
+      }),
+    ]))
+    expect(secureNarrative.manifestHash).not.toBe(narrative.manifestHash)
   })
 
   it('rejects malformed complete V2 authoring fields and reference graphs', () => {
