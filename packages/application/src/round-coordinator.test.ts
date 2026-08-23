@@ -14,7 +14,7 @@ import {
   type ProposalContext,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { WorldBootstrap, WorldSpecCompiler, type CompiledWorldSpec, type RoundExecutionLane } from '@harness-world/kernel'
+import { currentEntityState, WorldBootstrap, WorldSpecCompiler, type CompiledWorldSpec, type RoundExecutionLane } from '@harness-world/kernel'
 import { BranchAdministration, CharacterRuntimeAvailabilityService, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import {
   RoundCoordinator,
@@ -62,6 +62,28 @@ function world(): CompiledWorldSpec {
       { characterId: 'character:player', name: 'Player', locationId: 'location:a' },
       { characterId: 'character:npc', name: 'NPC', locationId: 'location:a' },
     ],
+    playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
+    plugins: [],
+  })
+}
+
+function investigationWorld(): CompiledWorldSpec {
+  return new WorldSpecCompiler().compile({
+    schemaVersion: 2,
+    address: { tenantId: 'tenant:coordinator', worldId: 'world:take-competition', branchId: 'branch:main' },
+    metadata: { title: 'Take competition', description: '' },
+    timeMode: 'TURN_DRIVEN',
+    roundQueueLimit: 8,
+    runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
+    rulebook: { rulebookId: 'builtin:speak-move', version: 2 },
+    locations: [{ locationId: 'location:a', name: 'Alpha' }],
+    entities: [{ entityId: 'entity:key', locationId: 'location:a', kind: 'key' }],
+    characters: [
+      { characterId: 'character:player', name: 'Player', locationId: 'location:a' },
+      { characterId: 'character:fast', name: 'Fast', locationId: 'location:a' },
+      { characterId: 'character:slow', name: 'Slow', locationId: 'location:a' },
+    ],
+    scenes: [], goals: [], claims: [], observations: [],
     playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
     plugins: [],
   })
@@ -333,16 +355,21 @@ describe('RoundCoordinator', () => {
     const authority = firstOptions.store.readRoundAuthority(compiled.manifest.address, resolutions[0]!.transactionId)
     expect(authority).toMatchObject({ roundId: expect.any(String), authorityHash: expect.stringMatching(/^sha256:/) })
     const authorityData = authority!.authority as any
-    expect(authorityData.schemaVersion).toBe(1)
+    expect(authorityData.schemaVersion).toBe(2)
     expect(authorityData.participants).toEqual(expect.arrayContaining([
-      expect.objectContaining({ participantId: 'player', terminalStatus: 'proposed', modelCallId: null }),
-      expect.objectContaining({ participantId: 'agent:move', terminalStatus: 'proposed', responseHash: expect.stringMatching(/^sha256:/) }),
+      expect.objectContaining({ participantId: 'player', terminalStatus: 'proposed', providerInvocationId: null }),
+      expect.objectContaining({
+        participantId: 'agent:move', terminalStatus: 'proposed',
+        providerInvocationId: expect.any(String), budgetEvaluationId: expect.any(String),
+        modelReplayRecordHash: null, budgetReservationRecordHash: null,
+        responseHash: expect.stringMatching(/^sha256:/),
+      }),
       expect.objectContaining({ participantId: 'agent:failed', terminalStatus: 'provider_failed' }),
     ]))
     expect(authorityData.actions).toEqual(expect.arrayContaining([
-      expect.objectContaining({ participantId: 'player', parameters: { text: 'hello' }, orderKey: expect.objectContaining({ phase: 0 }) }),
-      expect.objectContaining({ participantId: 'agent:move', orderKey: expect.objectContaining({ phase: 1 }) }),
-      expect.objectContaining({ participantId: 'director:move', orderKey: expect.objectContaining({ phase: 1 }) }),
+      expect.objectContaining({ participantId: 'player', proposalOrdinal: 0, parameters: { text: 'hello' }, orderKey: expect.objectContaining({ phase: 0, roleRank: 0 }) }),
+      expect.objectContaining({ participantId: 'agent:move', proposalOrdinal: 0, orderKey: expect.objectContaining({ phase: 1, roleRank: 1 }) }),
+      expect.objectContaining({ participantId: 'director:move', proposalOrdinal: 0, orderKey: expect.objectContaining({ phase: 1, roleRank: 2 }) }),
     ]))
     expect(authorityData.resolutions).toEqual([
       expect.objectContaining({ status: 'accepted', candidateHashBefore: expect.any(String), candidateHashAfter: expect.any(String), ruleTraceHash: expect.any(String) }),
@@ -360,6 +387,95 @@ describe('RoundCoordinator', () => {
     expect(restartedOptions.store.readEvents(compiled.manifest.address).map(value => value.eventHash)).toEqual(eventHashes)
     expect(restartedOptions.store.readRoundAuthority(compiled.manifest.address, resolutions[0]!.transactionId)).toEqual(authority)
     close(restartedOptions, restarted)
+  })
+
+  it('preserves proposal-local action order while recording the distinct global resolution order', async () => {
+    const path = database('multi-action-authority.sqlite')
+    const compiled = world()
+    const bootstrap = new WorldStore(path)
+    new WorldBootstrap(bootstrap).activate(compiled)
+    bootstrap.close()
+    const multiAction = participant('agent:multi', 'agent', 1, provider(() => ({
+      participantId: 'agent:multi',
+      actions: [
+        {
+          actionId: 'action:z', actorId: brandId('character:npc', 'CharacterId'),
+          actionType: 'speak', actionVersion: 1, parameters: { text: 'first proposed' },
+        },
+        {
+          actionId: 'action:a', actorId: brandId('character:npc', 'CharacterId'),
+          actionType: 'speak', actionVersion: 1, parameters: { text: 'second proposed' },
+        },
+      ],
+    })))
+    const coordinatorOptions = options(path, compiled, [multiAction])
+    const coordinator = new RoundCoordinator(coordinatorOptions)
+    await coordinator.submit({
+      idempotencyKey: 'round:multi-action', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'begin' } }, correlationId: 'multi-action',
+    })
+    const transactionId = coordinatorOptions.store.readEvents(compiled.manifest.address)
+      .find(value => value.eventType === 'action.resolved')!.transactionId
+    const authority = coordinatorOptions.store.readRoundAuthority(compiled.manifest.address, transactionId)!.authority as any
+    const participantRecord = authority.participants.find((value: any) => value.participantId === 'agent:multi')
+    const actions = authority.actions.filter((value: any) => value.participantId === 'agent:multi')
+    expect(actions.map((value: any) => value.actionId)).toEqual(['action:a', 'action:z'])
+    expect(actions.map((value: any) => value.proposalOrdinal)).toEqual([1, 0])
+    const reconstructedProposal = {
+      participantId: 'agent:multi',
+      actions: [...actions]
+        .sort((left: any, right: any) => left.proposalOrdinal - right.proposalOrdinal)
+        .map((value: any) => ({
+          actionId: value.actionId,
+          actorId: value.actorId,
+          actionType: value.actionType,
+          actionVersion: value.actionVersion,
+          parameters: value.parameters,
+        })),
+    }
+    expect(hashWorldJson('round-participant-proposal', reconstructedProposal)).toBe(participantRecord.proposalHash)
+    close(coordinatorOptions, coordinator)
+  })
+
+  it('re-resolves two same-Round take actions against the accepted prefix', async () => {
+    const path = database('take-competition.sqlite')
+    const compiled = investigationWorld()
+    const bootstrap = new WorldStore(path)
+    new WorldBootstrap(bootstrap).activate(compiled)
+    bootstrap.close()
+    const takeParticipant = (participantId: string, actorId: string, priority: number): RoundParticipant => ({
+      participantId,
+      role: 'agent',
+      actorId: brandId(actorId, 'CharacterId'),
+      allowedActionTypes: ['take'], priority, estimatedTokens: 1, timeoutMs: 100,
+      provider: provider(() => ({
+        participantId,
+        actions: [{
+          actionId: `action:${participantId}:take`, actorId: brandId(actorId, 'CharacterId'),
+          actionType: 'take', actionVersion: 1, parameters: { entityId: 'entity:key' },
+        }],
+      })),
+    })
+    const coordinatorOptions = options(path, compiled, [
+      takeParticipant('agent:slow', 'character:slow', 1),
+      takeParticipant('agent:fast', 'character:fast', 2),
+    ])
+    const coordinator = new RoundCoordinator(coordinatorOptions)
+    await coordinator.submit({
+      idempotencyKey: 'round:take-competition', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'take it' } }, correlationId: 'take-competition',
+    })
+    const events = coordinatorOptions.store.readEvents(compiled.manifest.address)
+    expect(currentEntityState(events, 'entity:key')).toEqual({
+      entityId: 'entity:key', kind: 'key', locationId: null, holderId: 'character:fast',
+    })
+    expect(events.filter(value => value.eventType === 'entity.taken')).toHaveLength(1)
+    expect(events.filter(value => value.eventType === 'action.resolved').map(value => value.data)).toEqual([
+      expect.objectContaining({ participantId: 'player', accepted: true, order: 0 }),
+      expect.objectContaining({ participantId: 'agent:fast', accepted: true, order: 1 }),
+      expect.objectContaining({ participantId: 'agent:slow', accepted: false, reason: 'ITEM_NOT_AVAILABLE', order: 2 }),
+    ])
+    close(coordinatorOptions, coordinator)
   })
 
   it('records deterministic absence without calling providers for unavailable or non-active NPCs', async () => {

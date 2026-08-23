@@ -100,6 +100,8 @@ export interface ActionOrderKey {
 interface OrderedAction extends ActionOrderKey {
   readonly action: ActionRequest
   readonly participantId: string
+  /** Position in the participant's validated Proposal before global resolution ordering. */
+  readonly proposalOrdinal: number
 }
 
 const roleRank = { player: 0, agent: 1, director: 2 } as const
@@ -286,7 +288,8 @@ export class RoundCoordinator {
     const participants = [
       {
         participantId: 'player', role: 'player', actorId: binding.characterId, terminalStatus: 'proposed',
-        modelCallId: null, contextHash, profileVersion: null, budgetDecisionId: null,
+        providerInvocationId: null, contextHash, profileVersion: null, budgetEvaluationId: null,
+        modelReplayRecordHash: null, budgetReservationRecordHash: null,
         responseHash: hashWorldJson('round-player-action-response', playerAction), proposalId: null,
         proposalHash: hashWorldJson('round-player-proposal', { actions: [playerAction] }),
       },
@@ -297,17 +300,19 @@ export class RoundCoordinator {
           role: value.binding.role,
           actorId: value.binding.actorId,
           terminalStatus: value.status,
-          modelCallId: deterministicId('model-call:round-participant', { roundId, participantId: value.binding.participantId }),
+          providerInvocationId: deterministicId('provider-invocation:round-participant', { roundId, participantId: value.binding.participantId }),
           contextHash,
           profileVersion: 'agent-provider-port/v1',
-          budgetDecisionId: deterministicId('budget-decision:round-participant', { roundId, participantId: value.binding.participantId }),
+          budgetEvaluationId: deterministicId('budget-evaluation:round-participant', { roundId, participantId: value.binding.participantId }),
+          modelReplayRecordHash: null,
+          budgetReservationRecordHash: null,
           responseHash: hashWorldJson('round-participant-response', value.proposal),
           proposalId: deterministicId('proposal:round-participant', { roundId, participantId: value.binding.participantId, proposalHash }),
           proposalHash,
         }
       }),
     ]
-    const actions = ordered.map((item, ordinal) => ({
+    const actions = ordered.map(item => ({
       actionId: item.action.actionId,
       participantId: item.participantId,
       sourceRole: item.sourceRole,
@@ -315,11 +320,12 @@ export class RoundCoordinator {
       actionType: item.action.actionType,
       actionVersion: item.action.actionVersion,
       parameters: item.action.parameters,
+      proposalOrdinal: item.proposalOrdinal,
       orderKey: {
         phase: item.sourceRole === 'player' ? 0 : 1,
+        roleRank: roleRank[item.sourceRole],
         priority: item.priority,
         actorId: item.actorId,
-        proposalOrdinal: ordinal,
         actionId: item.actionId,
       },
     }))
@@ -416,7 +422,7 @@ export class RoundCoordinator {
       events,
       outbox,
       authority: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         roundId,
         baseHeadSeq: head.headSeq,
         baseTick: head.tick,
@@ -588,9 +594,10 @@ export class RoundCoordinator {
       priority: Number.MAX_SAFE_INTEGER,
       actorId: playerAction.actorId,
       actionId: playerAction.actionId,
+      proposalOrdinal: 0,
     }]
     for (const participant of frozen) {
-      for (const action of participant.proposal.actions) {
+      for (const [proposalOrdinal, action] of participant.proposal.actions.entries()) {
         actions.push({
           action,
           sourceRole: participant.binding.role,
@@ -598,6 +605,7 @@ export class RoundCoordinator {
           priority: participant.binding.priority,
           actorId: action.actorId,
           actionId: action.actionId,
+          proposalOrdinal,
         })
       }
     }
