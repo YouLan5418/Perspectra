@@ -32,3 +32,4 @@
 | [0048](ADR-0048-hybrid-investigation-actions.md) | 混合文本输入与版本化调查 Action | Rulebook v3、证据能力过滤和多轮结案闭环 |
 | [0049](ADR-0049-investigation-v4-trust-boundaries.md) | 调查 v4 的证据身份与作者真相边界 | Manifest 派生目录、作者种子、终局屏障与玩家可见对白 |
 | [0050](ADR-0050-rulebook-registry-mystery-boundary.md) | Rulebook 注册与悬疑试金石边界 | Core 仅含通用规则，调查 Resolver 由 Demo 显式注册且 Golden 全等 |
+| [0051](ADR-0051-demo-cognition-scene-interaction-degradation.md) | Demo 的认知、Scene、通用交互与降级闭环 | 四项文档欠账进入正式 Application 路径并由悬疑场景验收 |

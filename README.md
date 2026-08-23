@@ -43,6 +43,22 @@ corepack pnpm@11.7.0 demo:mystery:turn D:\path\to\mystery-world.sqlite D:\path\t
 
 每轮都必须提供唯一幂等键；未知或歧义输入返回 `clarification_required`，不会猜测或提交世界事实。
 
+也可以在同一进程、同一 mounted world 中连续输入普通对白、通用命令或调查语法：
+
+```powershell
+corepack pnpm@11.7.0 demo:mystery:shell D:\path\to\mystery-world.sqlite D:\path\to\mystery-session.sqlite
+```
+
+悬疑只是一项架构试金石。调查 Resolver 位于 Demo 组合根，通用 Kernel 只内建 `speak/move/take`；普通文本通过正式 `WorldApplication.submitText` 进入同一 Inbox、Validator、Rulebook 和 Authority 管线。
+
+六种本机降级演练可用全新数据库路径运行，例如：
+
+```powershell
+corepack pnpm@11.7.0 demo:mystery:drill agent-timeout D:\path\to\drill-world.sqlite D:\path\to\drill-session.sqlite
+```
+
+可选模式为 `agent-failure`、`agent-timeout`、`budget-exhausted`、`director-fallback`、`memory-catchup-failure` 和 `session-dead-letter`。输出只含玩家结果、terminal、Health、Audit/Metric 摘要与恢复步骤。
+
 ## 使用基础契约
 
 ```typescript
@@ -60,13 +76,13 @@ console.log(hash)
 | `@harness-world/application` | WorldApplication 组合根、统一 Round、Branch 排空与真实 Runtime 组件 |
 | `@harness-world/contracts` | 品牌 ID、WorldAddress、Canonical JSON、Hash、错误和 Registry |
 | `@harness-world/agents` | ContextAssembler、submit_actions、HarnessAgentPort、预算、Director Scheduler 与 Replay |
-| `@harness-world/kernel` | WorldSpec Compiler、Tick 0 Genesis、PlayerBinding、版本化 speak/move/take Rulebook 与 WorldKernel |
+| `@harness-world/kernel` | WorldSpec Compiler、Tick 0 Genesis、PlayerBinding、通用 Rulebook Registry/Resolver 与 WorldKernel |
 | `@harness-world/memory` | 本地 SQLite FTS5 Memory、source mapping、as-of 防火墙和认知规则 |
 | `@harness-world/operations` | 无网络监听的本机 CLI/JSON-RPC、Health 和固定基数 Metrics |
 | `@harness-world/presentation` | 只消费已授权 Observation 的确定性模板渲染器 |
 | `@harness-world/runtime-cordis` | BranchRuntimeSlot、Cordis Service/Listener/Dispose 隔离 |
 | `@harness-world/store-sqlite` | World/Session/Projection、Branch Barrier、Snapshot、Audit、Backup 与逻辑 Transfer |
-| `@harness-world/simulation` | Scripted Agent、三种 Director、无模型 Round 闭环与三角色悬疑 Scenario |
+| `@harness-world/simulation` | Scripted Agent、三种 Director、无模型 Round 闭环、Demo-owned 调查 Resolver 与三角色悬疑 Scenario |
 | `@harness-world/testkit` | 确定性 Fixture、FaultInjector 和硬终止 Harness |
 
 ## 已验证行为
@@ -99,6 +115,10 @@ console.log(hash)
 - Branch 行政操作先关闭 Gate，再排空已耐久受理的 FIFO，最后执行 fork/archive；新输入不能混入维护窗口。
 - `WorldApplication` 贯穿 Runtime、Outbox、Session 与 Presenter；父分支归档后子分支可继续提交，重启和幂等回放不再次调用 Provider。
 - Application JSON-RPC/CLI 覆盖激活、Round、Head、CharacterView、投递、渲染、fork/archive、Snapshot、Backup 和 Transfer；数据库 Writer 身份默认按进程实例隔离。
+- Rulebook 采用精确版本注册；Core 只注册通用 v1/v2，悬疑 v3/v4 只由 Demo 组合根显式加载，旧世界 Golden 与生命周期保持兼容。
+- 新 Demo 的 Scene 调度从耐久 Projection 决断；Cognitive Memory v2 按角色、Branch 和 as-of capture Observation/Claim/Goal 并绑定每参与者 Authority。
+- 普通对白、通用命令与调查语法可以在同一个连续 shell 中交错；clarification 不创建 Round。
+- 六种降级 Drill 均验证玩家 Tick 前进、terminal/Audit/Metric/Health、零调用重放和恢复后的重新参与。
 
 ## 文档
 
@@ -115,5 +135,6 @@ console.log(hash)
 - [异步 Round 与本机 Headless 进度报告](docs/2026-08-23_进度报告-异步Round与本机Headless-report.md)
 - [三角色悬疑 Demo 首个可执行切片](docs/2026-08-23_进度报告-三角色悬疑Demo首个可执行切片.md)
 - [悬疑 Demo Phase 2：多轮调查与真相揭露闭环](docs/2026-08-23_阶段报告-悬疑Demo-Phase-2.md)
+- [悬疑 Demo 架构纠偏与四项欠账闭环](docs/2026-08-23_阶段报告-悬疑Demo架构纠偏与四项欠账闭环.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。
