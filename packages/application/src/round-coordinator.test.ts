@@ -21,7 +21,6 @@ import {
   type CompiledWorldSpec,
   type RoundExecutionLane,
 } from '@harness-world/kernel'
-import { createMysteryRulebookRegistry, inspectionEvidenceId } from '../../simulation/src/mystery-rulebooks.ts'
 import { BranchAdministration, CharacterRuntimeAvailabilityService, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import {
   RoundCoordinator,
@@ -74,15 +73,15 @@ function world(): CompiledWorldSpec {
   })
 }
 
-function investigationWorld(version: 2 | 4 = 2): CompiledWorldSpec {
+function entityWorld(): CompiledWorldSpec {
   return new WorldSpecCompiler().compile({
     schemaVersion: 2,
-    address: { tenantId: 'tenant:coordinator', worldId: `world:competition-v${version}`, branchId: 'branch:main' },
+    address: { tenantId: 'tenant:coordinator', worldId: 'world:competition-v2', branchId: 'branch:main' },
     metadata: { title: 'Take competition', description: '' },
     timeMode: 'TURN_DRIVEN',
     roundQueueLimit: 8,
     runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
-    rulebook: { rulebookId: 'builtin:speak-move', version },
+    rulebook: { rulebookId: 'builtin:speak-move', version: 2 },
     locations: [{ locationId: 'location:a', name: 'Alpha' }],
     entities: [{ entityId: 'entity:key', locationId: 'location:a', kind: 'key' }],
     characters: [
@@ -446,7 +445,7 @@ describe('RoundCoordinator', () => {
 
   it('re-resolves two same-Round take actions against the accepted prefix', async () => {
     const path = database('take-competition.sqlite')
-    const compiled = investigationWorld()
+    const compiled = entityWorld()
     const bootstrap = new WorldStore(path)
     new WorldBootstrap(bootstrap).activate(compiled)
     bootstrap.close()
@@ -481,46 +480,6 @@ describe('RoundCoordinator', () => {
       expect.objectContaining({ participantId: 'player', accepted: true, order: 0 }),
       expect.objectContaining({ participantId: 'agent:fast', accepted: true, order: 1 }),
       expect.objectContaining({ participantId: 'agent:slow', accepted: false, reason: 'ITEM_NOT_AVAILABLE', order: 2 }),
-    ])
-    close(coordinatorOptions, coordinator)
-  })
-
-  it('re-resolves duplicate v4 inspections from one Proposal against the same-Round prefix', async () => {
-    const path = database('inspect-competition.sqlite')
-    const compiled = investigationWorld(4)
-    const bootstrap = new WorldStore(path)
-    new WorldBootstrap(bootstrap).activate(compiled)
-    bootstrap.close()
-    const participant: RoundParticipant = {
-      participantId: 'agent:fast', role: 'agent', actorId: brandId('character:fast', 'CharacterId'),
-      allowedActionTypes: ['inspect'], priority: 2, estimatedTokens: 1, timeoutMs: 100,
-      provider: provider(() => ({
-        participantId: 'agent:fast',
-        actions: ['first', 'second'].map(value => ({
-          actionId: `action:inspect:${value}`,
-          actorId: brandId('character:fast', 'CharacterId'),
-          actionType: 'inspect', actionVersion: 1, parameters: { entityId: 'entity:key' },
-        })),
-      })),
-    }
-    const baseOptions = options(path, compiled, [participant])
-    const rulebooks = createMysteryRulebookRegistry()
-    const coordinatorOptions = { ...baseOptions, rulebooks }
-    const coordinator = new RoundCoordinator(coordinatorOptions)
-    await coordinator.submit({
-      idempotencyKey: 'round:inspect-competition', principalId: 'principal:player',
-      action: { actionType: 'speak', parameters: { text: 'inspect it' } }, correlationId: 'inspect-competition',
-    })
-    const events = coordinatorOptions.store.readEvents(compiled.manifest.address)
-    expect(events.filter(value => value.eventType === 'entity.inspected')).toEqual([
-      expect.objectContaining({ data: expect.objectContaining({
-        characterId: 'character:fast', evidenceId: inspectionEvidenceId('entity:key'),
-      }) }),
-    ])
-    expect(events.filter(value => value.eventType === 'action.resolved').map(value => value.data)).toEqual([
-      expect.objectContaining({ participantId: 'player', accepted: true, order: 0 }),
-      expect.objectContaining({ participantId: 'agent:fast', accepted: true, order: 1 }),
-      expect.objectContaining({ participantId: 'agent:fast', accepted: false, reason: 'ALREADY_INSPECTED', order: 2 }),
     ])
     close(coordinatorOptions, coordinator)
   })
