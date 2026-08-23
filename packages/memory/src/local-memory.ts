@@ -176,11 +176,11 @@ export class LocalMemoryStore {
     this.#viewBuilder = new CharacterViewBuilder(worldStore)
   }
 
-  reconcile(request: ReconcileMemoryRequest): number {
+  reconcile(request: ReconcileMemoryRequest, heartbeat?: () => void): number {
     if (!Number.isSafeInteger(request.asOfWorldSeq) || request.asOfWorldSeq < 0) {
       throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
     }
-    const view = this.#viewBuilder.rebuildAt(request.address, request.characterId, request.asOfWorldSeq)
+    const view = this.#viewBuilder.rebuildAt(request.address, request.characterId, request.asOfWorldSeq, heartbeat)
     const key = namespace(view.address, view.characterId)
     const sources = [
       ...view.observations.map(record => ({ kind: 'observation' as const, record })),
@@ -208,7 +208,8 @@ export class LocalMemoryStore {
         source_hash: WorldHash
       }>
       const sourceKeys = new Set(sources.map(source => `${source.kind}\u001f${source.record.id}`))
-      for (const current of currentMappings) {
+      for (const [index, current] of currentMappings.entries()) {
+        if (index % 128 === 0) heartbeat?.()
         if (!sourceKeys.has(`${current.source_kind}\u001f${current.source_id}`)) {
           this.#db.prepare(`
             DELETE FROM memory_source_mappings
@@ -216,7 +217,8 @@ export class LocalMemoryStore {
           `).run(key, current.source_kind, current.source_id)
         }
       }
-      for (const source of sources) {
+      for (const [index, source] of sources.entries()) {
+        if (index % 128 === 0) heartbeat?.()
         const hash = sourceHash(source.kind, source.record)
         const current = currentMappings.find(value => value.source_kind === source.kind && value.source_id === source.record.id)
         if (current !== undefined && current.source_seq > source.record.sourceSeq) {
@@ -237,6 +239,7 @@ export class LocalMemoryStore {
         ON CONFLICT(namespace_key) DO UPDATE SET as_of_seq = excluded.as_of_seq, bundle_hash = excluded.bundle_hash
       `).run(key, request.asOfWorldSeq, view.bundleHash)
       this.#db.exec('COMMIT')
+      heartbeat?.()
       return sources.length
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -382,6 +385,23 @@ export class LocalMemoryStore {
       attemptCount: row.attempt_count,
       lastError: row.last_error,
       jobHash: row.job_hash,
+    }
+  }
+
+  /** Delete one derived namespace so it can be rebuilt exclusively from the verified World prefix. */
+  resetNamespace(address: WorldAddress, characterId: CharacterId): void {
+    const key = namespace(address, characterId)
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      this.#db.prepare(`DELETE FROM memory_fts WHERE namespace_key = ?`).run(key)
+      this.#db.prepare(`DELETE FROM memory_sources WHERE namespace_key = ?`).run(key)
+      this.#db.prepare(`DELETE FROM memory_entries WHERE namespace_key = ?`).run(key)
+      this.#db.prepare(`DELETE FROM memory_source_mappings WHERE namespace_key = ?`).run(key)
+      this.#db.prepare(`DELETE FROM memory_namespace_watermarks WHERE namespace_key = ?`).run(key)
+      this.#db.prepare(`DELETE FROM cognitive_jobs WHERE namespace_key = ?`).run(key)
+      this.#db.exec('COMMIT')
+    } catch (error: unknown) {
+      rollbackAndThrow(this.#db, error)
     }
   }
 

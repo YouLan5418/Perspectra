@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import {
@@ -542,6 +543,69 @@ describe('three-role mystery Demo', () => {
       expect(await application.recallMemory(parent, bob, 'FUTURE_CANARY')).toHaveLength(1)
       expect(await application.recallMemory(child, bob, 'FUTURE_CANARY')).toEqual([])
       expect(await application.recallMemory(child, bob, '共同前缀')).toHaveLength(1)
+    } finally {
+      await application.close()
+    }
+  })
+
+  it('recovers committed cognitive jobs after a process stops before Memory catch-up', async () => {
+    const storage = paths()
+    const first = new MysteryDemoScenario({
+      ...storage,
+      faultInjector: {
+        hit(point) {
+          if (point === 'memory.before-catchup') throw new Error('simulated Memory worker outage')
+        },
+      },
+    })
+    let committed
+    try {
+      committed = await first.submitPlayerText('这轮事实必须先提交。', 'memory:restart-worker')
+      expect(committed).toMatchObject({ status: 'submitted', result: { tick: 1 } })
+    } finally {
+      await first.close()
+    }
+    const before = new WorldStore(storage.worldPath)
+    expect(before.readCognitiveJobs(compileMysteryDemo().manifest.address)).not.toHaveLength(0)
+    expect(before.readCognitiveJobs(compileMysteryDemo().manifest.address).every(job => job.status === 'failed')).toBe(true)
+    before.close()
+
+    const restarted = new MysteryDemoScenario(storage)
+    try {
+      expect(await restarted.submitPlayerText('这轮事实必须先提交。', 'memory:restart-worker')).toEqual(committed)
+      expect(restarted.providerCalls).toEqual({ bob: 0, director: 0 })
+      const recovered = new WorldStore(storage.worldPath)
+      expect(recovered.readCognitiveJobs(compileMysteryDemo().manifest.address)).toEqual([])
+      expect(recovered.readCognitiveJobs(compileMysteryDemo().manifest.address, true).every(job => job.status === 'completed')).toBe(true)
+      recovered.close()
+    } finally {
+      await restarted.close()
+    }
+  })
+
+  it('repairs a divergent derived Memory namespace during quarantine recovery', async () => {
+    const storage = paths()
+    const memoryPath = `${storage.worldPath}.memory.sqlite`
+    const scenario = new MysteryDemoScenario({ ...storage, memoryPath })
+    await scenario.runOpeningTurn()
+    await scenario.close()
+
+    const raw = new DatabaseSync(memoryPath)
+    raw.prepare(`UPDATE memory_source_mappings SET source_hash = 'sha256:forged'`).run()
+    raw.close()
+
+    const application = new WorldApplication({
+      ...storage, memoryPath, rulebooks: createMysteryRulebookRegistry(),
+    })
+    const compiled = compileMysteryDemo()
+    const bob = brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId')
+    try {
+      await expect(application.recallMemory(compiled.manifest.address, bob, 'is_culprit'))
+        .rejects.toMatchObject({ envelope: { errorCode: 'MEMORY_SOURCE_UNVERIFIED' } })
+      expect(application.quarantineExplain(compiled.manifest.address)).toMatchObject({ runtimePhase: 'quarantined' })
+      await expect(application.quarantineRecover(compiled.manifest.address, 'memory:repair'))
+        .resolves.toMatchObject({ status: 'recovered', validationHash: expect.stringMatching(/^sha256:/) })
+      expect(await application.recallMemory(compiled.manifest.address, bob, 'is_culprit')).toHaveLength(1)
     } finally {
       await application.close()
     }

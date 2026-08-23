@@ -263,6 +263,12 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         runtimeMetrics: this.options.runtimeMetrics,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
       })
+      try {
+        kernel.processCognitiveJobs()
+      } catch (error: unknown) {
+        kernel.close()
+        throw error
+      }
       return { kernel, store, agents, director }
     } catch (error: unknown) {
       cognitiveMemory?.close()
@@ -695,6 +701,26 @@ export class WorldApplication {
         try {
           const world = store.verifyBranchIntegrity(address)
           const projection = new ProjectionRebuilder(store).rebuildAt(address, world.headSeq)
+          const manifest = runtimeManifestFromStoredRecord(store.readManifest(address))
+          const contextPolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:agent-context')
+          let memoryVerificationHash
+          if (contextPolicy !== undefined) {
+            if (this.options.memoryPath === undefined) {
+              failWorld({
+                errorCode: 'RECOVERY_VALIDATION_FAILED', category: 'integrity',
+                message: 'Memory database path is missing during quarantine recovery', retryable: false,
+                correlationId, address,
+              })
+            }
+            const memory = new CognitiveMemoryService(this.options.memoryPath, store, this.options.faultInjector)
+            try {
+              memoryVerificationHash = memory.rebuildBranch(
+                address, manifest.characters.map(character => character.characterId), world.headSeq, correlationId,
+              )
+            } finally {
+              memory.close()
+            }
+          }
           const sessionIntegrity = session.verifyIntegrity(address, correlationId)
           const bindings = session.deliveryBindings()
           const byDelivery = new Map(bindings.map(binding => [binding.deliveryId, binding]))
@@ -702,7 +728,7 @@ export class WorldApplication {
           const ledger = outbox.deliveryLedger(address, correlationId)
           const expectedDeliveryIds = new Set<string>(ledger.map(delivery => delivery.deliveryId))
           const relevantSessionIds = new Set<SessionId>([
-            ...runtimeManifestFromStoredRecord(store.readManifest(address)).playerBindings.map(binding => binding.sessionId),
+            ...manifest.playerBindings.map(binding => binding.sessionId),
             ...ledger.map(delivery => delivery.sessionId),
           ])
           for (const delivery of ledger) {
@@ -738,6 +764,7 @@ export class WorldApplication {
             worldVerificationHash: world.verificationHash,
             projectionBundleHash: projection.bundleHash,
             sessionVerificationHash: sessionIntegrity.verificationHash,
+            ...(memoryVerificationHash === undefined ? {} : { memoryVerificationHash }),
           }
         } finally {
           session.close()

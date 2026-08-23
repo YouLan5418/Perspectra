@@ -50,6 +50,7 @@ export interface PrepareCognitiveContextRequest {
   readonly allowedActionTypes: readonly string[]
   readonly sceneDecision: WorldJsonValue
   readonly correlationId: string
+  readonly heartbeat?: () => void
 }
 
 /** Durable per-character Memory catch-up and stable agent Context v2 assembly. */
@@ -57,7 +58,7 @@ export class CognitiveMemoryService {
   readonly #memory: LocalMemoryStore
   readonly #views: CharacterViewBuilder
 
-  constructor(path: string, worldStore: WorldStore, private readonly faultInjector?: FaultInjector) {
+  constructor(path: string, private readonly worldStore: WorldStore, private readonly faultInjector?: FaultInjector) {
     this.#memory = new LocalMemoryStore(path, worldStore)
     this.#views = new CharacterViewBuilder(worldStore)
   }
@@ -68,18 +69,26 @@ export class CognitiveMemoryService {
     }
   }
 
-  catchUp(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number, correlationId: string): CharacterView {
+  catchUp(
+    address: WorldAddress,
+    characterId: CharacterId,
+    asOfWorldSeq: number,
+    correlationId: string,
+    heartbeat?: () => void,
+  ): CharacterView {
     this.#memory.enqueueCognitiveJob(address, characterId, asOfWorldSeq)
     try {
+      heartbeat?.()
       this.faultInjector?.hit('memory.before-catchup')
-      this.#memory.reconcile({ address, characterId, asOfWorldSeq, correlationId })
-      const view = this.#views.rebuildAt(address, characterId, asOfWorldSeq)
+      this.#memory.reconcile({ address, characterId, asOfWorldSeq, correlationId }, heartbeat)
+      const view = this.#views.rebuildAt(address, characterId, asOfWorldSeq, heartbeat)
       for (const [kind, records] of [
         ['observation', view.observations],
         ['claim', view.claims],
         ['goal', view.goals],
       ] as const) {
         for (const record of records) {
+          heartbeat?.()
           const source = memorySourceRef(kind, record)
           this.#memory.capture({
             address,
@@ -94,6 +103,7 @@ export class CognitiveMemoryService {
         }
       }
       this.#memory.recordCognitiveJobResult(address, characterId, asOfWorldSeq, 'completed', null)
+      heartbeat?.()
       return view
     } catch (error: unknown) {
       this.#memory.recordCognitiveJobResult(address, characterId, asOfWorldSeq, 'failed', String(error))
@@ -104,6 +114,7 @@ export class CognitiveMemoryService {
   prepare(request: PrepareCognitiveContextRequest): CognitiveProposalContext {
     const characterView = this.catchUp(
       request.address, request.characterId, request.asOfWorldSeq, request.correlationId,
+      request.heartbeat,
     )
     const query = recallQuery(request.playerAction.parameters)
     const memoryRecall = this.#memory.recall(request.address, request.characterId, query, request.asOfWorldSeq)
@@ -134,6 +145,50 @@ export class CognitiveMemoryService {
   recall(address: WorldAddress, characterId: CharacterId, query: string, asOfWorldSeq: number): RecalledMemory[] {
     this.catchUp(address, characterId, asOfWorldSeq, `memory-recall:${characterId}:${asOfWorldSeq}`)
     return this.#memory.recall(address, characterId, query, asOfWorldSeq)
+  }
+
+  /** Consume World-transaction jobs idempotently; a crash before the receipt simply repeats derived work. */
+  processPending(
+    address: WorldAddress,
+    ownerId: string,
+    fencingToken: number,
+    heartbeat: () => void,
+  ): { readonly completed: number; readonly failed: readonly { readonly characterId: CharacterId; readonly error: string }[] } {
+    let completed = 0
+    const failed: Array<{ characterId: CharacterId; error: string }> = []
+    for (const job of this.worldStore.readCognitiveJobs(address)) {
+      try {
+        this.catchUp(address, job.characterId, job.asOfWorldSeq, `cognitive-job:${job.jobId}`, heartbeat)
+        heartbeat()
+        this.worldStore.recordCognitiveJobResult(
+          address, job.jobId, ownerId, fencingToken, 'completed', null, `cognitive-job:${job.jobId}`,
+        )
+        completed += 1
+      } catch (error: unknown) {
+        const message = String(error)
+        this.worldStore.recordCognitiveJobResult(
+          address, job.jobId, ownerId, fencingToken, 'failed', message, `cognitive-job:${job.jobId}`,
+        )
+        failed.push({ characterId: job.characterId, error: message })
+        if (error instanceof Error && 'envelope' in error
+          && (error as { envelope?: { category?: string } }).envelope?.category === 'integrity') throw error
+      }
+    }
+    return { completed, failed }
+  }
+
+  /** Repair derived Memory during quarantine Maintenance from a verified World prefix. */
+  rebuildBranch(
+    address: WorldAddress,
+    characterIds: readonly CharacterId[],
+    asOfWorldSeq: number,
+    correlationId: string,
+  ): WorldHash {
+    const views = [...new Set(characterIds)].sort().map(characterId => {
+      this.#memory.resetNamespace(address, characterId)
+      return this.catchUp(address, characterId, asOfWorldSeq, `${correlationId}:${characterId}`).bundleHash
+    })
+    return hashWorldJson('cognitive-memory-branch-rebuild', { address, asOfWorldSeq, views })
   }
 
   job(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number) {

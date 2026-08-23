@@ -616,6 +616,55 @@ describe('WorldStore and temporal projections', () => {
     store.close()
   })
 
+  it('commits cognitive work with the Round and fences its idempotent worker receipt', async () => {
+    const path = database('world-cognitive-job.sqlite')
+    const address = fixtureAddress('cognitive-job')
+    const characterId = brandId('character:cognitive-worker', 'CharacterId')
+    const interrupted = new WorldStore(path, new ThrowingFaultInjector('store.before-commit'))
+    interrupted.createBranch(address)
+    const request = { ...fixtureCommitRequest(address), outbox: [], cognitiveJobs: [{ characterId }] }
+    await expect(interrupted.commitRound(request)).rejects.toThrow('store.before-commit')
+    expect(interrupted.readCognitiveJobs(address, true)).toEqual([])
+    interrupted.close()
+
+    const store = new WorldStore(path)
+    await expect(store.commitRound(request)).resolves.toMatchObject({ status: 'committed' })
+    await expect(store.commitRound(request)).resolves.toMatchObject({ status: 'already_committed' })
+    await expect(store.commitRound({ ...request, cognitiveJobs: [{ characterId }, { characterId }] }))
+      .rejects.toThrow('must be unique')
+    const pending = store.readCognitiveJobs(address)
+    expect(pending).toMatchObject([{
+      characterId, asOfWorldSeq: 1, status: 'pending', attemptCount: 0, lastError: null,
+      jobHash: expect.stringMatching(/^sha256:/),
+    }])
+
+    const leases = new WriterLeaseService(path)
+    const lease = leases.acquire(address, 'cognitive-worker')
+    expect(() => store.recordCognitiveJobResult(
+      address, pending[0]!.jobId, 'wrong-owner', lease.fencingToken, 'completed', null, 'worker:wrong',
+    )).toThrow('lost its database writer lease')
+    store.recordCognitiveJobResult(
+      address, pending[0]!.jobId, 'cognitive-worker', lease.fencingToken, 'completed', null, 'worker:complete',
+    )
+    store.recordCognitiveJobResult(
+      address, pending[0]!.jobId, 'cognitive-worker', lease.fencingToken, 'completed', null, 'worker:replay',
+    )
+    expect(store.readCognitiveJobs(address)).toEqual([])
+    expect(store.readCognitiveJobs(address, true)[0]).toMatchObject({ status: 'completed', attemptCount: 1 })
+    expect(() => store.recordCognitiveJobResult(
+      address, pending[0]!.jobId, 'cognitive-worker', lease.fencingToken, 'failed', 'late', 'worker:late',
+    )).toThrow('cannot regress')
+    leases.close()
+    store.close()
+
+    const raw = new DatabaseSync(path)
+    raw.prepare(`UPDATE world_cognitive_jobs SET job_hash = 'sha256:forged'`).run()
+    raw.close()
+    const divergent = new WorldStore(path)
+    expect(() => divergent.readCognitiveJobs(address, true)).toThrow('job hash is divergent')
+    divergent.close()
+  })
+
   it('validates branch heads, tick movement, and request content', async () => {
     const store = new WorldStore(database('world-errors.sqlite'))
     const address = fixtureAddress()

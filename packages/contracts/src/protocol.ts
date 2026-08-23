@@ -67,6 +67,23 @@ export interface OutboxDraft extends WorldJsonObject {
   readonly critical: boolean
 }
 
+/** Derived-state work requested atomically by an authoritative World commit. */
+export interface CognitiveJobDraft extends WorldJsonObject {
+  readonly characterId: CharacterId
+}
+
+export interface StoredCognitiveJob extends WorldJsonObject {
+  readonly jobId: string
+  readonly address: WorldAddress
+  readonly transactionId: TransactionId
+  readonly characterId: CharacterId
+  readonly asOfWorldSeq: number
+  readonly status: 'pending' | 'completed' | 'failed'
+  readonly attemptCount: number
+  readonly lastError: string | null
+  readonly jobHash: WorldHash
+}
+
 export interface StoredOutboxItem extends OutboxDraft {
   readonly address: WorldAddress
   readonly worldSeq: number
@@ -82,6 +99,8 @@ export interface CommitRoundRequest {
   readonly nextTick: number
   readonly events: readonly WorldEventDraft[]
   readonly outbox: readonly OutboxDraft[]
+  /** Non-authoritative derived-state work inserted in the same World transaction. */
+  readonly cognitiveJobs?: readonly CognitiveJobDraft[]
   readonly correlationId: string
   /** Versioned participant/proposal/action/resolution authority committed with this Round. */
   readonly authority?: WorldJsonObject

@@ -68,6 +68,7 @@ export function fixtureCommitRequest(address = fixtureAddress()): CommitRoundReq
       payload: { value: 'delivered' },
       critical: true,
     }],
+    cognitiveJobs: [{ characterId: brandId('character:crash-fixture', 'CharacterId') }],
     authority: {
       schemaVersion: 1,
       participants: [{ participantId: 'player', terminalStatus: 'proposed' }],

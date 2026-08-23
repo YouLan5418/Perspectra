@@ -22,9 +22,10 @@ function owned(record: ProjectionRecord, characterId: CharacterId, ownerKey: 'ob
   return object(record.value)?.[ownerKey] === characterId
 }
 
-function sceneChanges(events: readonly StoredWorldEvent[]): Map<string, CharacterSceneView> {
+function sceneChanges(events: readonly StoredWorldEvent[], heartbeat?: () => void): Map<string, CharacterSceneView> {
   const scenes = new Map<string, CharacterSceneView>()
-  for (const event of events) {
+  for (const [index, event] of events.entries()) {
+    if (index % 128 === 0) heartbeat?.()
     if (event.eventType !== 'scene.upsert' && event.eventType !== 'scene.remove') continue
     const data = object(event.data)
     if (data === undefined || typeof data.sceneId !== 'string') throw new Error(`${event.eventType} requires sceneId`)
@@ -49,7 +50,7 @@ function visibleScene(scene: CharacterSceneView, characterId: CharacterId, visib
   return explicit === undefined || object(explicit.value)?.visible === true
 }
 
-function selfState(events: readonly StoredWorldEvent[], characterId: CharacterId): {
+function selfState(events: readonly StoredWorldEvent[], characterId: CharacterId, heartbeat?: () => void): {
   readonly locationId: string | null
   readonly lifecycleState: CharacterLifecycleState
   readonly observations: SelfObservationView[]
@@ -57,7 +58,8 @@ function selfState(events: readonly StoredWorldEvent[], characterId: CharacterId
   let locationId: string | null = null
   let lifecycleState: CharacterLifecycleState | undefined
   const observations: SelfObservationView[] = []
-  for (const event of events) {
+  for (const [index, event] of events.entries()) {
+    if (index % 128 === 0) heartbeat?.()
     const data = object(event.data)
     const projected = data?.value === undefined ? undefined : object(data.value)
     const projectedOwner = projected?.characterId ?? projected?.observerId
@@ -87,20 +89,21 @@ function selfState(events: readonly StoredWorldEvent[], characterId: CharacterId
 export class CharacterViewBuilder {
   constructor(private readonly worldStore: WorldStore) {}
 
-  rebuildAt(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number): CharacterView {
+  rebuildAt(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number, heartbeat?: () => void): CharacterView {
     if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
     const head = this.worldStore.head(address)
     if (asOfWorldSeq > head.headSeq) throw new RangeError('asOfWorldSeq cannot be later than the branch head')
     const events = this.worldStore.readEvents(address, asOfWorldSeq)
-    const projections = new ProjectionRebuilder(this.worldStore).rebuildAt(address, asOfWorldSeq)
+    heartbeat?.()
+    const projections = new ProjectionRebuilder(this.worldStore).rebuildAt(address, asOfWorldSeq, heartbeat)
     const observations = projections.observations.filter(record => owned(record, characterId, 'observerId'))
     const claims = projections.claims.filter(record => owned(record, characterId, 'characterId'))
     const goals = projections.goals.filter(record => owned(record, characterId, 'characterId'))
     const visibility = projections.visibility.filter(record => owned(record, characterId, 'observerId'))
-    const scenes = [...sceneChanges(events).values()]
+    const scenes = [...sceneChanges(events, heartbeat).values()]
       .filter(scene => visibleScene(scene, characterId, visibility))
       .sort((left, right) => left.sceneId.localeCompare(right.sceneId))
-    const self = selfState(events, characterId)
+    const self = selfState(events, characterId, heartbeat)
     const base = {
       address,
       characterId,

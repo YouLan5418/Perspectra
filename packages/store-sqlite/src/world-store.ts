@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
+  deterministicId,
   failWorld,
   hashWorldJson,
   worldAddressKey,
@@ -7,6 +8,7 @@ import {
   type CommitRoundResult,
   type FaultInjector,
   type StoredOutboxItem,
+  type StoredCognitiveJob,
   type StoredRoundAuthority,
   type StoredWorldEvent,
   type TransactionId,
@@ -296,7 +298,26 @@ CREATE TABLE round_authority (
 CREATE INDEX round_authority_address_round ON round_authority(address_key, round_id);
 `
 
-export const WORLD_SCHEMA_VERSION = 11
+const WORLD_COGNITIVE_JOB_SCHEMA = `
+CREATE TABLE world_cognitive_jobs (
+  job_id TEXT PRIMARY KEY,
+  address_key TEXT NOT NULL,
+  transaction_id TEXT NOT NULL,
+  character_id TEXT NOT NULL,
+  as_of_seq INTEGER NOT NULL CHECK(as_of_seq >= 0),
+  status TEXT NOT NULL CHECK(status IN ('pending', 'completed', 'failed')),
+  attempt_count INTEGER NOT NULL CHECK(attempt_count >= 0),
+  last_error TEXT,
+  job_hash TEXT NOT NULL,
+  UNIQUE(address_key, transaction_id, character_id),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key),
+  FOREIGN KEY(transaction_id) REFERENCES round_commits(transaction_id)
+) STRICT;
+CREATE INDEX world_cognitive_jobs_pending
+  ON world_cognitive_jobs(address_key, status, as_of_seq, character_id);
+`
+
+export const WORLD_SCHEMA_VERSION = 12
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -310,7 +331,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 8, sql: WORLD_ROUND_COMPLETION_SCHEMA },
     { version: 9, sql: WORLD_QUARANTINE_SCHEMA },
     { version: 10, sql: WORLD_CHARACTER_RUNTIME_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_ROUND_AUTHORITY_SCHEMA },
+    { version: 11, sql: WORLD_ROUND_AUTHORITY_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_COGNITIVE_JOB_SCHEMA },
   ])
 }
 
@@ -682,6 +704,10 @@ export class WorldStore {
     if (request.events.length === 0) throw new TypeError('a committed round requires at least one event')
     if (request.nextTick !== request.expectedTick + 1) throw new TypeError('a committed round advances exactly one tick')
     const addressKey = worldAddressKey(request.address)
+    const cognitiveJobs = [...(request.cognitiveJobs ?? [])].sort((left, right) => left.characterId.localeCompare(right.characterId))
+    if (new Set(cognitiveJobs.map(job => job.characterId)).size !== cognitiveJobs.length) {
+      throw new TypeError('cognitive job characterId values must be unique within one Round')
+    }
     const activeManifest = this.#readManifestByKey(addressKey)
     if (activeManifest !== undefined) assertManifestEvents(activeManifest.manifest, request.events)
     const authorityHash = request.authority === undefined ? null : hashWorldJson('world-round-authority', request.authority)
@@ -694,6 +720,7 @@ export class WorldStore {
       nextTick: request.nextTick,
       events: request.events,
       outbox: request.outbox,
+      ...(cognitiveJobs.length === 0 ? {} : { cognitiveJobs }),
       ...(authorityHash === null ? {} : { authorityHash }),
     })
 
@@ -819,6 +846,21 @@ export class WorldStore {
         bundleHash,
         authorityHash,
       )
+      for (const job of cognitiveJobs) {
+        const identity = {
+          address: request.address,
+          transactionId: request.transactionId,
+          characterId: job.characterId,
+          asOfWorldSeq: finalHeadSeq,
+        }
+        const jobId = deterministicId('world-cognitive-job-id', identity)
+        const jobHash = hashWorldJson('world-cognitive-job', { jobId, ...identity })
+        this.#db.prepare(`
+          INSERT INTO world_cognitive_jobs(
+            job_id, address_key, transaction_id, character_id, as_of_seq, status, attempt_count, last_error, job_hash
+          ) VALUES (?, ?, ?, ?, ?, 'pending', 0, NULL, ?)
+        `).run(jobId, addressKey, request.transactionId, job.characterId, finalHeadSeq, jobHash)
+      }
       this.#db.prepare(`UPDATE heads SET head_seq = ?, tick = ?, event_hash = ? WHERE address_key = ?`).run(
         finalHeadSeq,
         request.nextTick,
@@ -881,6 +923,97 @@ export class WorldStore {
       payload: parseWorldJson(row.payload_json),
       critical: row.critical === 1,
     }))
+  }
+
+  /** Read hash-verified derived-state jobs created by committed local Rounds. */
+  readCognitiveJobs(address: WorldAddress, includeCompleted = false): StoredCognitiveJob[] {
+    const addressKey = worldAddressKey(address)
+    const rows = this.#db.prepare(`
+      SELECT job_id, transaction_id, character_id, as_of_seq, status, attempt_count, last_error, job_hash
+      FROM world_cognitive_jobs
+      WHERE address_key = ? ${includeCompleted ? '' : "AND status != 'completed'"}
+      ORDER BY as_of_seq, character_id, job_id
+    `).all(addressKey) as Array<{
+      job_id: string
+      transaction_id: TransactionId
+      character_id: StoredCognitiveJob['characterId']
+      as_of_seq: number
+      status: StoredCognitiveJob['status']
+      attempt_count: number
+      last_error: string | null
+      job_hash: WorldHash
+    }>
+    return rows.map(row => {
+      const expected = hashWorldJson('world-cognitive-job', {
+        jobId: row.job_id,
+        address,
+        transactionId: row.transaction_id,
+        characterId: row.character_id,
+        asOfWorldSeq: row.as_of_seq,
+      })
+      if (expected !== row.job_hash) {
+        failWorld({
+          errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
+          message: 'World cognitive job hash is divergent', retryable: false,
+          correlationId: `cognitive-job:${row.job_id}`, address,
+        })
+      }
+      return {
+        jobId: row.job_id,
+        address,
+        transactionId: row.transaction_id,
+        characterId: row.character_id,
+        asOfWorldSeq: row.as_of_seq,
+        status: row.status,
+        attemptCount: row.attempt_count,
+        lastError: row.last_error,
+        jobHash: row.job_hash,
+      }
+    })
+  }
+
+  /** Fence and record one idempotent cross-database cognitive worker attempt. */
+  recordCognitiveJobResult(
+    address: WorldAddress,
+    jobId: string,
+    ownerId: string,
+    fencingToken: number,
+    status: 'completed' | 'failed',
+    error: string | null,
+    correlationId: string,
+  ): void {
+    const addressKey = worldAddressKey(address)
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      const lease = this.#db.prepare(`
+        SELECT owner_id, fencing_token, expires_at_ms FROM writer_leases WHERE address_key = ?
+      `).get(addressKey) as { owner_id: string; fencing_token: number; expires_at_ms: number } | undefined
+      if (lease === undefined || lease.owner_id !== ownerId || lease.fencing_token !== fencingToken
+        || lease.expires_at_ms <= this.operationalNow()) {
+        failWorld({
+          errorCode: 'WRITER_LEASE_LOST', category: 'runtime',
+          message: 'cognitive worker lost its database writer lease', retryable: true,
+          correlationId, address, details: { suppliedFencingToken: fencingToken },
+        })
+      }
+      const current = this.#db.prepare(`
+        SELECT status FROM world_cognitive_jobs WHERE address_key = ? AND job_id = ?
+      `).get(addressKey, jobId) as { status: StoredCognitiveJob['status'] } | undefined
+      if (current === undefined) throw new Error('World cognitive job is missing')
+      if (current.status === 'completed') {
+        if (status !== 'completed') throw new Error('completed cognitive job cannot regress')
+        this.#db.exec('COMMIT')
+        return
+      }
+      this.#db.prepare(`
+        UPDATE world_cognitive_jobs
+        SET status = ?, attempt_count = attempt_count + 1, last_error = ?
+        WHERE address_key = ? AND job_id = ?
+      `).run(status, error, addressKey, jobId)
+      this.#db.exec('COMMIT')
+    } catch (caught: unknown) {
+      rollbackAndThrow(this.#db, caught)
+    }
   }
 
   /** Return the frozen base boundary used by an already committed transaction. */

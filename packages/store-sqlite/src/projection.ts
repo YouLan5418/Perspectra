@@ -111,9 +111,10 @@ export class ProjectionRebuilder {
   constructor(private readonly worldStore: WorldStore) {}
 
   /** Rebuild Observation, Claim, Goal, and Visibility exactly as of forkSeq. */
-  rebuildAt(address: WorldAddress, forkSeq: number): ProjectionBundle {
+  rebuildAt(address: WorldAddress, forkSeq: number, heartbeat?: () => void): ProjectionBundle {
     const state = emptyState()
-    for (const event of this.worldStore.readEvents(address, forkSeq)) {
+    for (const [index, event] of this.worldStore.readEvents(address, forkSeq).entries()) {
+      if (index % 128 === 0) heartbeat?.()
       const change = projectionOperation(event)
       if (change === undefined) continue
       if (change.operation === 'remove') {
@@ -122,6 +123,7 @@ export class ProjectionRebuilder {
         state[change.kind].set(change.id, { kind: change.kind, id: change.id, value: change.value as WorldJsonValue, sourceSeq: event.seq })
       }
     }
+    heartbeat?.()
     const sorted = (kind: ProjectionKind): ProjectionRecord[] => [...state[kind].keys()].sort().map(id => state[kind].get(id) as ProjectionRecord)
     const observations = sorted('observation')
     const claims = sorted('claim')

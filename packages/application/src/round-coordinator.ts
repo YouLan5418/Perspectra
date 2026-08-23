@@ -180,6 +180,9 @@ export class RoundCoordinator {
     if (this.#participants.some(value => !characterIds.has(value.actorId))) {
       throw new TypeError('Round participant actorId must exist in the manifest')
     }
+    if (options.cognitiveMemory !== undefined && options.sceneDecision === undefined) {
+      throw new TypeError('Cognitive Memory requires an authoritative Scene decision service')
+    }
     this.#leaseTtlMs = options.leaseTtlMs ?? 30_000
     if (!Number.isSafeInteger(this.#leaseTtlMs) || this.#leaseTtlMs <= 0) {
       throw new RangeError('leaseTtlMs must be a positive safe integer')
@@ -190,6 +193,27 @@ export class RoundCoordinator {
     }
     new ModelBudgetLedger(options.modelBudgetTokens)
     this.#lease = options.leases.acquire(this.#address, options.ownerId, this.#leaseTtlMs)
+  }
+
+  /** Drain durable post-commit cognitive work under the current database Writer Lease. */
+  processCognitiveJobs(): { readonly completed: number; readonly failed: number } {
+    if (this.options.cognitiveMemory === undefined) return { completed: 0, failed: 0 }
+    this.#refreshLease()
+    const result = this.options.cognitiveMemory.processPending(
+      this.#address,
+      this.options.ownerId,
+      this.#lease.fencingToken,
+      () => this.#renewLease(),
+    )
+    for (const failure of result.failed) {
+      this.options.availability.set(
+        this.#address,
+        failure.characterId,
+        'session_lag',
+        `Cognitive Memory worker failed: ${failure.error}`,
+      )
+    }
+    return { completed: result.completed, failed: result.failed.length }
   }
 
   submit(request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
@@ -462,6 +486,9 @@ export class RoundCoordinator {
       }
     }
     events.push({ eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } })
+    const cognitiveCharacterIds = this.options.cognitiveMemory === undefined
+      ? []
+      : [...new Set(ordered.map(item => item.action.actorId).concat(sceneDecision!.observerIds))].sort()
     this.#renewLease()
     const commit = await this.options.store.commitRound({
       address: this.#address,
@@ -472,6 +499,9 @@ export class RoundCoordinator {
       nextTick: head.tick + 1,
       events,
       outbox,
+      ...(cognitiveCharacterIds.length === 0
+        ? {}
+        : { cognitiveJobs: cognitiveCharacterIds.map(characterId => ({ characterId })) }),
       authority: {
         schemaVersion: 2,
         roundId,
@@ -505,11 +535,7 @@ export class RoundCoordinator {
         )
       }
     }
-    this.options.cognitiveMemory?.enqueue(
-      this.#address,
-      [...new Set(ordered.map(item => item.action.actorId).concat(sceneDecision!.observerIds))],
-      commit.headSeq,
-    )
+    this.processCognitiveJobs()
     return {
       transactionId,
       result: {
@@ -560,6 +586,7 @@ export class RoundCoordinator {
       let cognitive: FrozenParticipant['cognitive']
       if (this.options.cognitiveMemory !== undefined) {
         try {
+          this.#renewLease()
           const prepared = this.options.cognitiveMemory.prepare({
             address: this.#address,
             roundId: context.roundId,
@@ -572,6 +599,7 @@ export class RoundCoordinator {
             allowedActionTypes: binding.allowedActionTypes,
             sceneDecision: sceneDecision!,
             correlationId: `cognitive:${context.roundId}:${binding.participantId}`,
+            heartbeat: () => this.#renewLease(),
           })
           providerContext = prepared
           cognitive = {
