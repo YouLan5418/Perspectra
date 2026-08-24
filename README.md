@@ -141,5 +141,6 @@ console.log(hash)
 - [悬疑 Demo 架构纠偏与四项欠账闭环](docs/2026-08-23_阶段报告-悬疑Demo架构纠偏与四项欠账闭环.md)
 - [V0 本机运行与恢复手册](docs/V0-LOCAL-RUNBOOK.md)
 - [V0 Release Closure 报告](docs/2026-08-24_V0-Release-Closure-report.md)
+- [下一阶段：通用内容与真实运行验证](docs/2026-08-24_下一阶段计划-通用内容与真实运行验证.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。
