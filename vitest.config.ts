@@ -22,6 +22,10 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['packages/**/*.test.ts', 'tests/**/*.test.ts'],
+    // Windows CI runs the SQLite integration suites substantially slower under
+    // V8 coverage. Keep correctness deadlines inside the tests themselves and
+    // give the test runner an explicit cross-platform wall-clock budget.
+    testTimeout: 20_000,
     coverage: {
       provider: 'v8',
       include: [
