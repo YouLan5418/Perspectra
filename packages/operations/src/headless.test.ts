@@ -22,6 +22,38 @@ describe('runHeadlessJsonRpc', () => {
     ])
   })
 
+  it('serializes ephemeral notifications on the same stdout stream', async () => {
+    const input = new PassThrough()
+    const output = new PassThrough()
+    let text = ''
+    let listener: ((notification: {
+      jsonrpc: '2.0'
+      method: 'health.changed'
+      params: { healthHash: string }
+    }) => void) | undefined
+    let unsubscribed = false
+    output.on('data', chunk => { text += chunk.toString() })
+    const router: HeadlessRouter = {
+      subscribeNotifications(callback) {
+        listener = callback as typeof listener
+        return () => { unsubscribed = true }
+      },
+      async handle(request) {
+        listener?.({ jsonrpc: '2.0', method: 'health.changed', params: { healthHash: 'sha256:fixture' } })
+        return { jsonrpc: '2.0', id: request.id, result: { ok: true } }
+      },
+      invalidRequest: (id, error) => ({ jsonrpc: '2.0', id, error: { message: String(error) } }),
+    }
+    const running = runHeadlessJsonRpc(input, output, router)
+    input.end('{"jsonrpc":"2.0","id":1,"method":"health.get","params":{}}\n')
+    expect(await running).toBe(1)
+    expect(text.trim().split('\n').map(line => JSON.parse(line))).toEqual([
+      { jsonrpc: '2.0', method: 'health.changed', params: { healthHash: 'sha256:fixture' } },
+      { jsonrpc: '2.0', id: 1, result: { ok: true } },
+    ])
+    expect(unsubscribed).toBe(true)
+  })
+
   it('honors output backpressure and stops cleanly when aborted', async () => {
     let text = ''
     const output = new Writable({
@@ -68,5 +100,19 @@ describe('runHeadlessJsonRpc', () => {
     const synchronous = runHeadlessJsonRpc(synchronousInput, synchronousOutput, router)
     synchronousInput.end('{"jsonrpc":"2.0","id":2,"method":"health.get","params":{}}\n')
     await expect(synchronous).rejects.toThrow('EPIPE sync')
+
+    const notificationOutput = new Writable({
+      write(_chunk, _encoding, callback) { callback(new Error('EPIPE notification')) },
+    })
+    const notificationRouter: HeadlessRouter = {
+      subscribeNotifications(listener) {
+        listener({ jsonrpc: '2.0', method: 'health.changed', params: {} })
+        return () => undefined
+      },
+      handle: router.handle,
+      invalidRequest: router.invalidRequest,
+    }
+    await expect(runHeadlessJsonRpc(new PassThrough(), notificationOutput, notificationRouter))
+      .rejects.toThrow('EPIPE notification')
   })
 })

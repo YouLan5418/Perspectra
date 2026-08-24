@@ -3,6 +3,7 @@ import {
   brandId,
   canonicalizeWorldJson,
   createErrorEnvelope,
+  hashWorldJson,
   WorldError,
   type WorldAddress,
   type CharacterId,
@@ -18,7 +19,10 @@ import { WorldHealthService } from './health.ts'
 import { OperationsMetrics } from './metrics.ts'
 
 export interface WorldApplicationPort {
+  compileSpec(input: WorldJsonValue): unknown
   activateSpec(input: WorldJsonValue): unknown
+  listWorlds(): unknown
+  getWorld(address: WorldAddress): unknown
   submit(address: WorldAddress, request: {
     readonly idempotencyKey: string
     readonly principalId: string
@@ -53,6 +57,7 @@ export interface WorldApplicationPort {
   quarantineRecover(address: WorldAddress, correlationId: string): Promise<unknown>
   createSnapshot(address: WorldAddress, snapshotPath: string, correlationId: string): Promise<unknown>
   latestSnapshot(address: WorldAddress, snapshotPath: string): unknown | undefined
+  listSnapshots(address: WorldAddress, snapshotPath: string): unknown
   backup(targetPath: string, correlationId: string): Promise<unknown>
   restore(backupPath: string, targetPath: string, expectedHash: string, correlationId: string): unknown
   exportPortable(exportPath: string, correlationId: string): Promise<unknown>
@@ -74,6 +79,19 @@ export interface LocalJsonRpcResponse extends WorldJsonObject {
   readonly id: string | number | null
   readonly result?: WorldJsonValue
   readonly error?: WorldJsonValue
+}
+
+export type LocalNotificationMethod =
+  | 'round.committed'
+  | 'presentation.ready'
+  | 'health.changed'
+  | 'outbox.dead-lettered'
+  | 'branch.quarantined'
+
+export interface LocalJsonRpcNotification extends WorldJsonObject {
+  readonly jsonrpc: '2.0'
+  readonly method: LocalNotificationMethod
+  readonly params: WorldJsonObject
 }
 
 function stringParam(params: WorldJsonObject, name: string): string {
@@ -120,6 +138,8 @@ export class LocalJsonRpcRouter {
   readonly metrics = new OperationsMetrics()
   readonly #roundWorkers = new Map<string, Promise<void>>()
   readonly #roundWorkerRequests = new Map<string, { readonly address: WorldAddress; readonly correlationId: string }>()
+  readonly #notificationListeners = new Set<(notification: LocalJsonRpcNotification) => void>()
+  #lastHealthHash: string | undefined
   #closing = false
 
   constructor(private readonly worldPath: string, private readonly application?: WorldApplicationPort) {
@@ -147,6 +167,11 @@ export class LocalJsonRpcRouter {
     return this.#errorResponse(id, error)
   }
 
+  subscribeNotifications(listener: (notification: LocalJsonRpcNotification) => void): () => void {
+    this.#notificationListeners.add(listener)
+    return () => { this.#notificationListeners.delete(listener) }
+  }
+
   async close(): Promise<void> {
     this.#closing = true
     while (this.#roundWorkers.size > 0) await Promise.all(this.#roundWorkers.values())
@@ -169,7 +194,11 @@ export class LocalJsonRpcRouter {
   }
 
   async #dispatch(method: string, params: WorldJsonObject): Promise<WorldJsonValue> {
+    if (method === 'world.compile') return worldResult(this.#application().compileSpec(params.spec as WorldJsonValue))
     if (method === 'world.activate') return worldResult(this.#application().activateSpec(params.spec as WorldJsonValue))
+    if (method === 'world.list') return worldResult(this.#application().listWorlds())
+    if (method === 'world.get') return worldResult(this.#application().getWorld(addressParam(params.address)))
+    if (method === 'branch.get') return worldResult(this.#application().getWorld(addressParam(params.address)))
     if (method === 'round.submit') {
       const action = objectParam(params, 'action')
       const actionKeys = Object.keys(action).sort()
@@ -196,11 +225,11 @@ export class LocalJsonRpcRouter {
       return result === undefined ? null : worldResult(result)
     }
     if (method === 'round.process') {
-      return {
-        processed: await this.#application().processAcceptedRounds(
-          addressParam(params.address), stringParam(params, 'correlationId'),
-        ),
-      }
+      const address = addressParam(params.address)
+      const correlationId = stringParam(params, 'correlationId')
+      const processed = await this.#application().processAcceptedRounds(address, correlationId)
+      if (processed > 0) this.#notify('round.committed', { address, processed, correlationId })
+      return { processed }
     }
     if (method === 'round.cancel-queued') {
       const idempotencyKey = params.idempotencyKey
@@ -213,7 +242,7 @@ export class LocalJsonRpcRouter {
       ))
     }
     if (method === 'world.head') return worldResult(await this.#application().head(addressParam(params.address)))
-    if (method === 'view.character') {
+    if (method === 'view.character' || method === 'character.view') {
       return worldResult(await this.#application().characterViewForPrincipal(
         addressParam(params.address),
         stringParam(params, 'principalId'),
@@ -242,7 +271,12 @@ export class LocalJsonRpcRouter {
       return { delivered: await this.#application().deliver(addressParam(params.address), stringParam(params, 'correlationId')) }
     }
     if (method === 'outbox.list') {
-      return worldResult(await this.#application().deadLetters(addressParam(params.address)))
+      const address = addressParam(params.address)
+      const result = await this.#application().deadLetters(address)
+      if (Array.isArray(result) && result.length > 0) {
+        this.#notify('outbox.dead-lettered', { address, count: result.length })
+      }
+      return worldResult(result)
     }
     if (method === 'outbox.retry') {
       await this.#application().retryDeadLetter(
@@ -256,12 +290,17 @@ export class LocalJsonRpcRouter {
       const locale = params.locale
       if (locale !== undefined && locale !== 'en' && locale !== 'zh-CN') throw new TypeError('locale is unsupported')
       const options: { readonly locale: 'en' | 'zh-CN' } | undefined = locale === undefined ? undefined : { locale }
-      return worldResult(await this.#application().renderSession(
-        addressParam(params.address),
-        brandId(stringParam(params, 'sessionId'), 'SessionId'),
-        integerParam(params, 'sessionEventSeq')!,
+      const address = addressParam(params.address)
+      const sessionId = brandId(stringParam(params, 'sessionId'), 'SessionId')
+      const sessionEventSeq = integerParam(params, 'sessionEventSeq')!
+      const rendered = await this.#application().renderSession(
+        address,
+        sessionId,
+        sessionEventSeq,
         options,
-      ))
+      )
+      this.#notify('presentation.ready', { address, sessionId, sessionEventSeq })
+      return worldResult(rendered)
     }
     if (method === 'branch.fork-at-head') {
       this.metrics.increment('branch_forks')
@@ -289,7 +328,13 @@ export class LocalJsonRpcRouter {
       ))
     }
     if (method === 'quarantine.explain') {
-      return worldResult(this.#application().quarantineExplain(addressParam(params.address)))
+      const address = addressParam(params.address)
+      const result = this.#application().quarantineExplain(address)
+      if (typeof result === 'object' && result !== null && !Array.isArray(result)
+        && (result as { runtimePhase?: string }).runtimePhase === 'quarantined') {
+        this.#notify('branch.quarantined', { address })
+      }
+      return worldResult(result)
     }
     if (method === 'quarantine.recover') {
       return worldResult(await this.#application().quarantineRecover(
@@ -306,10 +351,26 @@ export class LocalJsonRpcRouter {
         addressParam(params.address), stringParam(params, 'snapshotPath'),
       ) ?? null)
     }
+    if (method === 'snapshot.list') {
+      return worldResult(this.#application().listSnapshots(
+        addressParam(params.address), stringParam(params, 'snapshotPath'),
+      ))
+    }
     if (method === 'backup.create') {
       return worldResult(await this.#application().backup(stringParam(params, 'targetPath'), stringParam(params, 'correlationId')))
     }
+    if (method === 'backup') {
+      return worldResult(await this.#application().backup(
+        stringParam(params, 'targetPath'), stringParam(params, 'correlationId'),
+      ))
+    }
     if (method === 'backup.restore') {
+      return worldResult(this.#application().restore(
+        stringParam(params, 'backupPath'), stringParam(params, 'targetPath'),
+        stringParam(params, 'expectedHash'), stringParam(params, 'correlationId'),
+      ))
+    }
+    if (method === 'restore') {
       return worldResult(this.#application().restore(
         stringParam(params, 'backupPath'), stringParam(params, 'targetPath'),
         stringParam(params, 'expectedHash'), stringParam(params, 'correlationId'),
@@ -318,7 +379,17 @@ export class LocalJsonRpcRouter {
     if (method === 'transfer.export-portable') {
       return worldResult(await this.#application().exportPortable(stringParam(params, 'exportPath'), stringParam(params, 'correlationId')))
     }
+    if (method === 'world.export') {
+      return worldResult(await this.#application().exportPortable(
+        stringParam(params, 'exportPath'), stringParam(params, 'correlationId'),
+      ))
+    }
     if (method === 'transfer.import-portable') {
+      return worldResult(this.#application().importPortable(
+        stringParam(params, 'exportPath'), stringParam(params, 'targetPath'), stringParam(params, 'correlationId'),
+      ))
+    }
+    if (method === 'world.import') {
       return worldResult(this.#application().importPortable(
         stringParam(params, 'exportPath'), stringParam(params, 'targetPath'), stringParam(params, 'correlationId'),
       ))
@@ -331,7 +402,15 @@ export class LocalJsonRpcRouter {
         stringParam(params, 'exportPath'), stringParam(params, 'targetPath'), stringParam(params, 'correlationId'),
       ))
     }
-    if (method === 'health.get') return this.#health.check()
+    if (method === 'health.get') {
+      const health = this.#health.check()
+      const healthHash = hashWorldJson('local-health-notification', health)
+      if (healthHash !== this.#lastHealthHash) {
+        this.#lastHealthHash = healthHash
+        this.#notify('health.changed', { healthHash, health })
+      }
+      return health
+    }
     if (method === 'metrics.get') return this.metrics.snapshot()
     if (method === 'branch.status') {
       const address = addressParam(params.address)
@@ -355,9 +434,21 @@ export class LocalJsonRpcRouter {
     }
     if (method === 'branch.archive') {
       this.metrics.increment('branch_transitions')
+      if (this.application !== undefined) {
+        return worldResult(await this.application.archive(
+          addressParam(params.address), stringParam(params, 'reason'), stringParam(params, 'correlationId'),
+        ))
+      }
       return this.#legacyAdmin().archive(addressParam(params.address), stringParam(params, 'reason'), stringParam(params, 'correlationId'))
     }
     if (method === 'branch.fork') {
+      if (this.application !== undefined) {
+        this.metrics.increment('branch_forks')
+        return worldResult(await this.application.forkAtHead(
+          addressParam(params.parent, 'parent'), addressParam(params.child, 'child'),
+          stringParam(params, 'reason'), stringParam(params, 'correlationId'),
+        ))
+      }
       const forkSeq = params.forkSeq
       if (typeof forkSeq !== 'number') throw new TypeError('forkSeq must be a number')
       this.#legacyStore().forkBranch(addressParam(params.parent, 'parent'), addressParam(params.child, 'child'), forkSeq)
@@ -389,7 +480,12 @@ export class LocalJsonRpcRouter {
         }
         this.#roundWorkerRequests.delete(key)
         try {
-          await this.#application().processAcceptedRounds(requested.address, `${requested.correlationId}:worker`)
+          const processed = await this.#application().processAcceptedRounds(requested.address, `${requested.correlationId}:worker`)
+          if (processed > 0) {
+            this.#notify('round.committed', {
+              address: requested.address, processed, correlationId: requested.correlationId,
+            })
+          }
         } catch (error: unknown) {
           this.metrics.increment('round_worker_failures')
           const details = error instanceof WorldError
@@ -412,13 +508,22 @@ export class LocalJsonRpcRouter {
   }
 
   #legacyAdmin(): BranchAdministration {
-    if (this.#admin === undefined) throw new Error('legacy Store administration is disabled when WorldApplication is configured')
-    return this.#admin
+    return this.#admin!
+  }
+
+  #notify(method: LocalNotificationMethod, params: WorldJsonObject): void {
+    const notification: LocalJsonRpcNotification = { jsonrpc: '2.0', method, params }
+    for (const listener of this.#notificationListeners) {
+      try {
+        listener(notification)
+      } catch {
+        // Notifications are ephemeral hints. A broken subscriber must not change an authoritative result.
+      }
+    }
   }
 
   #legacyStore(): WorldStore {
-    if (this.#store === undefined) throw new Error('legacy Store administration is disabled when WorldApplication is configured')
-    return this.#store
+    return this.#store!
   }
 
   #errorResponse(id: string | number | null, error: unknown): LocalJsonRpcResponse {

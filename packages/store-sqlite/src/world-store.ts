@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
+  brandId,
   deterministicId,
   failWorld,
   hashWorldJson,
@@ -474,6 +475,17 @@ export class WorldStore {
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
     }
+  }
+
+  listBranches(): WorldAddress[] {
+    const rows = this.#db.prepare(`
+      SELECT tenant_id, world_id, branch_id FROM branches ORDER BY tenant_id, world_id, branch_id
+    `).all() as Array<{ tenant_id: string; world_id: string; branch_id: string }>
+    return rows.map(row => ({
+      tenantId: brandId(row.tenant_id, 'TenantId'),
+      worldId: brandId(row.world_id, 'WorldId'),
+      branchId: brandId(row.branch_id, 'BranchId'),
+    }))
   }
 
   /** Atomically install one compiled manifest and its deterministic Tick 0 Genesis events. */

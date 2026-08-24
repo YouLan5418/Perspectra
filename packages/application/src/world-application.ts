@@ -339,6 +339,49 @@ export class WorldApplication {
     return this.activate(new WorldSpecCompiler().compile(input))
   }
 
+  compileSpec(input: WorldJsonValue) {
+    this.#assertOpen()
+    return new WorldSpecCompiler().compile(input)
+  }
+
+  listWorlds() {
+    this.#assertOpen()
+    const store = new WorldStore(this.options.worldPath)
+    try {
+      const worlds = new Map<string, { tenantId: WorldAddress['tenantId']; worldId: WorldAddress['worldId']; branchCount: number }>()
+      for (const address of store.listBranches()) {
+        const key = `${address.tenantId}\u001f${address.worldId}`
+        const current = worlds.get(key)
+        worlds.set(key, current === undefined
+          ? { tenantId: address.tenantId, worldId: address.worldId, branchCount: 1 }
+          : { ...current, branchCount: current.branchCount + 1 })
+      }
+      return [...worlds.values()]
+    } finally {
+      store.close()
+    }
+  }
+
+  getWorld(address: WorldAddress) {
+    this.#assertOpen()
+    const store = new WorldStore(this.options.worldPath)
+    const administration = new BranchAdministration(this.options.worldPath)
+    try {
+      const manifest = store.readManifest(address)
+      if (manifest === undefined) throw new Error('world branch has no active Compiled Manifest')
+      return {
+        address,
+        manifest: manifest.manifest,
+        manifestHash: manifest.manifestHash,
+        head: store.head(address),
+        control: administration.status(address),
+      }
+    } finally {
+      administration.close()
+      store.close()
+    }
+  }
+
   async submit(address: WorldAddress, request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
     return this.#integrityGuard(address, 'round.submit', branch => branch.kernel.submit(request))
   }
@@ -636,6 +679,16 @@ export class WorldApplication {
     const snapshots = new SnapshotStore(snapshotPath)
     try {
       return snapshots.latest(address)
+    } finally {
+      snapshots.close()
+    }
+  }
+
+  listSnapshots(address: WorldAddress, snapshotPath: string) {
+    this.#assertOpen()
+    const snapshots = new SnapshotStore(snapshotPath)
+    try {
+      return snapshots.list(address)
     } finally {
       snapshots.close()
     }

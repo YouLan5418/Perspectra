@@ -104,6 +104,13 @@ export class SnapshotStore {
     return row === undefined ? undefined : this.read(address, row.snapshot_id)
   }
 
+  list(address: WorldAddress): SnapshotBundle[] {
+    const rows = this.#db.prepare(`
+      SELECT snapshot_id FROM snapshot_bundles WHERE address_key = ? ORDER BY as_of_seq, snapshot_id
+    `).all(worldAddressKey(address)) as Array<{ snapshot_id: string }>
+    return rows.map(row => this.read(address, row.snapshot_id))
+  }
+
   read(address: WorldAddress, snapshotId: string): SnapshotBundle {
     return this.#read(address, snapshotId)
   }

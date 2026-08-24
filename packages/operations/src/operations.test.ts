@@ -177,6 +177,9 @@ describe('LocalJsonRpcRouter', () => {
     const sessionPath = join(directory, 'session.sqlite')
     const application = new WorldApplication({ worldPath: path, sessionPath })
     const router = new LocalJsonRpcRouter(path, application)
+    const notifications: Array<{ method: string }> = []
+    const unsubscribeBrokenNotifications = router.subscribeNotifications(() => { throw new Error('subscriber failed') })
+    const unsubscribeNotifications = router.subscribeNotifications(notification => { notifications.push(notification) })
     const spec = {
       schemaVersion: 1,
       address: parent,
@@ -188,7 +191,24 @@ describe('LocalJsonRpcRouter', () => {
       playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
       plugins: [],
     } as const
+    await expect(router.handle(request('world.compile', { spec }))).resolves.toMatchObject({
+      result: { manifest: { schemaVersion: 2 }, manifestHash: expect.stringMatching(/^sha256:/) },
+    })
+    await expect(router.handle(request('world.list'))).resolves.toMatchObject({ result: [] })
+    await expect(router.handle(request('world.get', { address: child })))
+      .resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
     await expect(router.handle(request('world.activate', { spec }))).resolves.toMatchObject({ result: { status: 'activated' } })
+    await expect(router.handle(request('health.get'))).resolves.toMatchObject({ result: { status: 'ready' } })
+    await expect(router.handle(request('health.get'))).resolves.toMatchObject({ result: { status: 'ready' } })
+    await expect(router.handle(request('world.list'))).resolves.toMatchObject({
+      result: [{ tenantId: parent.tenantId, worldId: parent.worldId, branchCount: 1 }],
+    })
+    await expect(router.handle(request('world.get', { address: parent }))).resolves.toMatchObject({
+      result: { address: parent, manifestHash: expect.stringMatching(/^sha256:/), head: { tick: 0 } },
+    })
+    await expect(router.handle(request('branch.get', { address: parent }))).resolves.toMatchObject({
+      result: { address: parent, control: { runtimePhase: 'active' } },
+    })
     await expect(router.handle(request('branch.status', { address: parent })))
       .resolves.toMatchObject({ result: { runtimePhase: 'active', admissionState: 'open' } })
     await expect(router.handle(request('branch.drain', {
@@ -252,6 +272,9 @@ describe('LocalJsonRpcRouter', () => {
       address: parent, principalId: 'principal:player', characterId: 'character:player',
     })))
       .resolves.toMatchObject({ result: { characterId: 'character:player', asOfWorldSeq: expect.any(Number) } })
+    await expect(router.handle(request('character.view', {
+      address: parent, principalId: 'principal:player', characterId: 'character:player',
+    }))).resolves.toMatchObject({ result: { characterId: 'character:player' } })
     await expect(router.handle(request('view.character', {
       address: parent, principalId: 'principal:player', characterId: 'character:player',
       asOfWorldSeq: (head.result as { headSeq: number }).headSeq,
@@ -281,6 +304,9 @@ describe('LocalJsonRpcRouter', () => {
     await expect(router.handle(request('round.process', {
       address: parent, correlationId: 'rpc:explicit-process',
     }))).resolves.toMatchObject({ result: { processed: 1 } })
+    await expect(router.handle(request('round.process', {
+      address: parent, correlationId: 'rpc:explicit-process-empty',
+    }))).resolves.toMatchObject({ result: { processed: 0 } })
     const fixtureOutbox = new WorldOutbox(path)
     const failingWorker = new SessionOutboxWorker(fixtureOutbox, {
       appendIfAbsent: async () => { throw new Error('RPC recovery fixture') },
@@ -319,6 +345,8 @@ describe('LocalJsonRpcRouter', () => {
     expect(snapshot).toMatchObject({ result: { status: 'created', bundle: { asOfSeq: expect.any(Number) } } })
     await expect(router.handle(request('snapshot.latest', { address: parent, snapshotPath })))
       .resolves.toMatchObject({ result: (snapshot.result as { bundle: unknown }).bundle })
+    await expect(router.handle(request('snapshot.list', { address: parent, snapshotPath })))
+      .resolves.toMatchObject({ result: [(snapshot.result as { bundle: unknown }).bundle] })
 
     const backupPath = join(directory, 'world.backup.sqlite')
     const backup = await router.handle(request('backup.create', { targetPath: backupPath, correlationId: 'rpc:backup' }))
@@ -329,12 +357,31 @@ describe('LocalJsonRpcRouter', () => {
       expectedHash: (backup.result as { fileHash: string }).fileHash,
       correlationId: 'rpc:restore',
     }))).resolves.toMatchObject({ result: { format: 'world-sqlite-backup/v1' } })
+    const canonicalBackupPath = join(directory, 'canonical.backup.sqlite')
+    const canonicalBackup = await router.handle(request('backup', {
+      targetPath: canonicalBackupPath, correlationId: 'rpc:canonical-backup',
+    }))
+    await expect(router.handle(request('restore', {
+      backupPath: canonicalBackupPath,
+      targetPath: join(directory, 'canonical-restored.sqlite'),
+      expectedHash: (canonicalBackup.result as { fileHash: string }).fileHash,
+      correlationId: 'rpc:canonical-restore',
+    }))).resolves.toMatchObject({ result: { format: 'world-sqlite-backup/v1' } })
 
     const portablePath = join(directory, 'world.portable.json')
     await expect(router.handle(request('transfer.export-portable', { exportPath: portablePath, correlationId: 'rpc:portable-export' })))
       .resolves.toMatchObject({ result: { format: 'world-sqlite-backup/v1' } })
     await expect(router.handle(request('transfer.import-portable', {
       exportPath: portablePath, targetPath: join(directory, 'portable-import.sqlite'), correlationId: 'rpc:portable-import',
+    }))).resolves.toMatchObject({ result: { format: 'world-sqlite-backup/v1' } })
+    const canonicalPortablePath = join(directory, 'canonical.portable.sqlite')
+    await expect(router.handle(request('world.export', {
+      exportPath: canonicalPortablePath, correlationId: 'rpc:canonical-export',
+    }))).resolves.toMatchObject({ result: { format: 'world-sqlite-backup/v1' } })
+    await expect(router.handle(request('world.import', {
+      exportPath: canonicalPortablePath,
+      targetPath: join(directory, 'canonical-portable-import.sqlite'),
+      correlationId: 'rpc:canonical-import',
     }))).resolves.toMatchObject({ result: { format: 'world-sqlite-backup/v1' } })
 
     const authorityPath = join(directory, 'world.authority.json')
@@ -349,18 +396,27 @@ describe('LocalJsonRpcRouter', () => {
     await expect(router.handle(request('branch.status', { address: parent }))).resolves.toMatchObject({
       result: { runtimePhase: 'active', admissionState: 'open' },
     })
-    await expect(router.handle(request('branch.fork', { parent, child, forkSeq: 0 }))).resolves.toMatchObject({
-      error: { message: expect.stringContaining('disabled when WorldApplication is configured') },
-    })
+    const canonicalChild = { ...child, branchId: brandId('branch:canonical-child', 'BranchId') }
+    await expect(router.handle(request('branch.fork', {
+      parent, child: canonicalChild, reason: 'canonical checkpoint', correlationId: 'rpc:canonical-fork',
+    }))).resolves.toMatchObject({ result: { parentState: { admissionState: 'open' } } })
     await expect(router.handle(request('branch.archive', {
-      address: parent, reason: 'unsafe legacy route', correlationId: 'rpc:unsafe-archive',
-    }))).resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
+      address: canonicalChild, reason: 'canonical complete', correlationId: 'rpc:canonical-archive',
+    }))).resolves.toMatchObject({ result: { state: { lifecycleState: 'archived' } } })
     await expect(router.handle(request('branch.fork-at-head', {
       parent, child, reason: 'checkpoint', correlationId: 'rpc:fork-at-head',
     }))).resolves.toMatchObject({ result: { parentState: { admissionState: 'open' } } })
+    await expect(router.handle(request('world.list'))).resolves.toMatchObject({
+      result: [{ tenantId: parent.tenantId, worldId: parent.worldId, branchCount: 3 }],
+    })
     await expect(router.handle(request('branch.archive-coordinated', {
       address: parent, reason: 'complete', correlationId: 'rpc:archive-coordinated',
     }))).resolves.toMatchObject({ result: { state: { lifecycleState: 'archived' } } })
+    expect(notifications.map(value => value.method)).toEqual(expect.arrayContaining([
+      'health.changed', 'round.committed', 'outbox.dead-lettered', 'presentation.ready',
+    ]))
+    unsubscribeBrokenNotifications()
+    unsubscribeNotifications()
 
     for (const [method, params] of [
       ['round.submit', { ...roundParams, principalId: 'principal:other', idempotencyKey: 'unauthorized' }],
@@ -470,6 +526,37 @@ describe('worldctl grammar', () => {
     await application.close()
   })
 
+  it('emits branch.quarantined only as an ephemeral query-recoverable notification', async () => {
+    const { directory, path, parent } = fixture()
+    const application = new WorldApplication({ worldPath: path, sessionPath: join(directory, 'session.sqlite') })
+    application.activateSpec({
+      schemaVersion: 1, address: parent, timeMode: 'TURN_DRIVEN', roundQueueLimit: 4,
+      rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+      locations: [{ locationId: 'location:q', name: 'Q' }],
+      characters: [{ characterId: 'character:q', name: 'Q', locationId: 'location:q' }],
+      playerBindings: [{ principalId: 'principal:q', characterId: 'character:q', sessionId: 'session:q' }],
+      plugins: [],
+    })
+    const router = new LocalJsonRpcRouter(path, application)
+    const notifications: string[] = []
+    router.subscribeNotifications(notification => { notifications.push(notification.method) })
+    const quarantine = new BranchQuarantineService(path)
+    quarantine.quarantine({
+      address: parent,
+      error: createErrorEnvelope({
+        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'notification fixture',
+        retryable: false, correlationId: 'notification:quarantine', address: parent,
+      }),
+      source: 'operations.notification.test',
+    })
+    quarantine.close()
+    await expect(router.handle(request('quarantine.explain', { address: parent })))
+      .resolves.toMatchObject({ result: { runtimePhase: 'quarantined' } })
+    expect(notifications).toEqual(['branch.quarantined'])
+    await router.close()
+    await application.close()
+  })
+
   it('fails closed when --wait has no round identity or reaches its deadline', async () => {
     const noIdentity = {
       handle: async () => ({ jsonrpc: '2.0', id: 'cli', result: { status: 'queued' } }),
@@ -565,6 +652,23 @@ describe('worldctl grammar', () => {
     await router.close()
     expect(workerCalls).toBe(2)
     await application.close()
+
+    const directFixture = fixture()
+    class DirectProcessWorldApplication extends WorldApplication {
+      override processAcceptedRounds(): Promise<number> { return Promise.resolve(1) }
+    }
+    const directApplication = new DirectProcessWorldApplication({
+      worldPath: directFixture.path, sessionPath: join(directFixture.directory, 'direct-session.sqlite'),
+    })
+    const directRouter = new LocalJsonRpcRouter(directFixture.path, directApplication)
+    const directNotifications: string[] = []
+    directRouter.subscribeNotifications(notification => { directNotifications.push(notification.method) })
+    await expect(directRouter.handle(request('round.process', {
+      address: directFixture.parent, correlationId: 'round:direct-process',
+    }))).resolves.toMatchObject({ result: { processed: 1 } })
+    expect(directNotifications).toContain('round.committed')
+    await directRouter.close()
+    await directApplication.close()
 
     const failedFixture = fixture()
     class FailingWorldApplication extends WorldApplication {
