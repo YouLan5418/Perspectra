@@ -73,6 +73,52 @@ export class BranchAdministration {
     })
   }
 
+  enterMaintenance(address: WorldAddress, reason: string, correlationId: string): BranchControlState {
+    assertProtocolString(reason, 'administrative reason')
+    assertProtocolString(correlationId, 'correlationId')
+    return this.#mutate(address, 'maintenance.entered', correlationId, (current, key, now) => {
+      const activeLease = this.#db.prepare(`
+        SELECT 1 AS present FROM writer_leases WHERE address_key = ? AND expires_at_ms > ?
+      `).get(key, now)
+      const unfinishedRound = this.#db.prepare(`
+        SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed') LIMIT 1
+      `).get(key)
+      if (current.runtimePhase !== 'active' || current.lifecycleState !== 'active'
+        || current.admissionState !== 'draining' || activeLease !== undefined || unfinishedRound !== undefined) {
+        failWorld({
+          errorCode: 'BRANCH_DRAINING', category: 'admin',
+          message: 'maintenance requires a drained active branch with no active writer or unfinished Round',
+          retryable: true, correlationId, address,
+        })
+      }
+      return { ...current, runtimePhase: 'maintenance', reason }
+    })
+  }
+
+  exitMaintenance(address: WorldAddress, reason: string, correlationId: string): BranchControlState {
+    assertProtocolString(reason, 'administrative reason')
+    assertProtocolString(correlationId, 'correlationId')
+    return this.#mutate(address, 'maintenance.exited', correlationId, (current, key, now) => {
+      const activeLease = this.#db.prepare(`
+        SELECT 1 AS present FROM writer_leases WHERE address_key = ? AND expires_at_ms > ?
+      `).get(key, now)
+      if (current.runtimePhase !== 'maintenance' || current.lifecycleState !== 'active' || activeLease !== undefined) {
+        failWorld({
+          errorCode: 'BRANCH_DRAINING', category: 'admin',
+          message: 'only an offline maintenance branch can return to active service',
+          retryable: true, correlationId, address,
+        })
+      }
+      return {
+        ...current,
+        admissionState: 'open',
+        runtimePhase: 'active',
+        runtimeEpoch: current.runtimeEpoch + 1,
+        reason,
+      }
+    })
+  }
+
   archive(address: WorldAddress, reason: string, correlationId: string): BranchControlState {
     assertProtocolString(reason, 'administrative reason')
     assertProtocolString(correlationId, 'correlationId')

@@ -117,6 +117,37 @@ describe('BranchAdministration', () => {
     store.close()
   })
 
+  it('enters maintenance only after drain and fencing, then reopens with a new runtime epoch', () => {
+    const path = database()
+    const target = address('maintenance')
+    const store = new WorldStore(path, undefined, () => 100)
+    store.createBranch(target)
+    const admin = new BranchAdministration(path, () => 100)
+    expect(() => admin.enterMaintenance(target, 'upgrade', 'maintenance:early')).toThrow('requires a drained active branch')
+    admin.setAdmission(target, 'draining', 'upgrade', 'maintenance:drain')
+    const leases = new WriterLeaseService(path, () => 100)
+    const lease = leases.acquire(target, 'maintenance:writer', 1_000)
+    expect(() => admin.enterMaintenance(target, 'upgrade', 'maintenance:writer-active')).toThrow('active writer')
+    expect(leases.release(target, lease.ownerId, lease.fencingToken)).toBe(true)
+    expect(admin.enterMaintenance(target, 'upgrade', 'maintenance:enter')).toMatchObject({
+      admissionState: 'draining', runtimePhase: 'maintenance', runtimeEpoch: 0,
+    })
+    expect(() => store.assertAdmissionOpen(target, 'maintenance:blocked')).toThrow('draining')
+    expect(() => admin.enterMaintenance(target, 'again', 'maintenance:again')).toThrow('requires a drained active branch')
+    expect(admin.exitMaintenance(target, 'upgrade complete', 'maintenance:exit')).toMatchObject({
+      admissionState: 'open', runtimePhase: 'active', runtimeEpoch: 1,
+    })
+    expect(() => admin.exitMaintenance(target, 'again', 'maintenance:exit-again')).toThrow('only an offline maintenance branch')
+    expect(admin.readAudit(target).map(value => value.operation)).toEqual([
+      'branch.admission.changed', 'maintenance.entered', 'maintenance.exited',
+    ])
+    expect(() => admin.enterMaintenance(target, '', 'maintenance:invalid')).toThrow(TypeError)
+    expect(() => admin.exitMaintenance(target, 'reason', '')).toThrow(TypeError)
+    leases.close()
+    admin.close()
+    store.close()
+  })
+
   it('requires quiescent writers, rounds, and critical deliveries and forbids forks from archived branches', async () => {
     const path = database()
     const leaseTarget = address('lease-guard')

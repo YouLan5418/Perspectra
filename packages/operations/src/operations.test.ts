@@ -189,6 +189,23 @@ describe('LocalJsonRpcRouter', () => {
       plugins: [],
     } as const
     await expect(router.handle(request('world.activate', { spec }))).resolves.toMatchObject({ result: { status: 'activated' } })
+    await expect(router.handle(request('branch.status', { address: parent })))
+      .resolves.toMatchObject({ result: { runtimePhase: 'active', admissionState: 'open' } })
+    await expect(router.handle(request('branch.drain', {
+      address: parent, reason: 'coordinated maintenance', correlationId: 'rpc:maintenance-enter',
+    }))).resolves.toMatchObject({ result: { state: { runtimePhase: 'maintenance' } } })
+    await expect(router.handle(request('audit.list', { address: parent }))).resolves.toMatchObject({
+      result: expect.arrayContaining([expect.objectContaining({ operation: 'maintenance.entered' })]),
+    })
+    await expect(router.handle(request('branch.open', {
+      address: parent, reason: 'maintenance complete', correlationId: 'rpc:maintenance-exit',
+    }))).resolves.toMatchObject({ result: { runtimePhase: 'active', runtimeEpoch: 1 } })
+    await expect(router.handle(request('maintenance.enter', {
+      address: parent, reason: 'canonical maintenance', correlationId: 'rpc:canonical-maintenance-enter',
+    }))).resolves.toMatchObject({ result: { state: { runtimePhase: 'maintenance' } } })
+    await expect(router.handle(request('maintenance.exit', {
+      address: parent, reason: 'canonical maintenance complete', correlationId: 'rpc:canonical-maintenance-exit',
+    }))).resolves.toMatchObject({ result: { runtimePhase: 'active', runtimeEpoch: 2 } })
     await expect(router.handle(request('round.get', { address: parent, idempotencyKey: 'missing' }))).resolves.toMatchObject({ result: null })
     const roundParams = {
       address: parent,
@@ -330,7 +347,7 @@ describe('LocalJsonRpcRouter', () => {
     }))
     expect(importedAuthority.result).toBe(authority.result)
     await expect(router.handle(request('branch.status', { address: parent }))).resolves.toMatchObject({
-      error: { message: expect.stringContaining('disabled when WorldApplication is configured') },
+      result: { runtimePhase: 'active', admissionState: 'open' },
     })
     await expect(router.handle(request('branch.fork', { parent, child, forkSeq: 0 }))).resolves.toMatchObject({
       error: { message: expect.stringContaining('disabled when WorldApplication is configured') },

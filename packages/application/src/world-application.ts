@@ -697,6 +697,53 @@ export class WorldApplication {
     }
   }
 
+  branchStatus(address: WorldAddress) {
+    this.#assertOpen()
+    const administration = new BranchAdministration(this.options.worldPath)
+    try {
+      return administration.status(address)
+    } finally {
+      administration.close()
+    }
+  }
+
+  branchAudit(address: WorldAddress) {
+    this.#assertOpen()
+    const administration = new BranchAdministration(this.options.worldPath)
+    try {
+      return administration.readAudit(address)
+    } finally {
+      administration.close()
+    }
+  }
+
+  async enterMaintenance(address: WorldAddress, reason: string, correlationId: string) {
+    const branch = await this.#branch(address)
+    branch.store.administration.setAdmission(address, 'draining', reason, `${correlationId}:drain`)
+    const drainedRounds = await branch.kernel.drainAccepted(`${correlationId}:rounds`)
+    await this.release(address)
+    const administration = new BranchAdministration(this.options.worldPath)
+    try {
+      return {
+        drainedRounds,
+        state: administration.enterMaintenance(address, reason, `${correlationId}:enter`),
+      }
+    } finally {
+      administration.close()
+    }
+  }
+
+  async exitMaintenance(address: WorldAddress, reason: string, correlationId: string) {
+    this.#assertOpen()
+    await this.release(address)
+    const administration = new BranchAdministration(this.options.worldPath)
+    try {
+      return administration.exitMaintenance(address, reason, `${correlationId}:exit`)
+    } finally {
+      administration.close()
+    }
+  }
+
   quarantineExplain(address: WorldAddress) {
     this.#assertOpen()
     const quarantine = new BranchQuarantineService(this.options.worldPath)

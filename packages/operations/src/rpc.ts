@@ -45,6 +45,10 @@ export interface WorldApplicationPort {
   renderSession(address: WorldAddress, sessionId: SessionId, sessionEventSeq: number, options?: { readonly locale?: 'en' | 'zh-CN' }): Promise<unknown>
   forkAtHead(parent: WorldAddress, child: WorldAddress, reason: string, correlationId: string): Promise<unknown>
   archive(address: WorldAddress, reason: string, correlationId: string): Promise<unknown>
+  branchStatus(address: WorldAddress): unknown
+  branchAudit(address: WorldAddress): unknown
+  enterMaintenance(address: WorldAddress, reason: string, correlationId: string): Promise<unknown>
+  exitMaintenance(address: WorldAddress, reason: string, correlationId: string): Promise<unknown>
   quarantineExplain(address: WorldAddress): unknown
   quarantineRecover(address: WorldAddress, correlationId: string): Promise<unknown>
   createSnapshot(address: WorldAddress, snapshotPath: string, correlationId: string): Promise<unknown>
@@ -272,6 +276,18 @@ export class LocalJsonRpcRouter {
         addressParam(params.address), stringParam(params, 'reason'), stringParam(params, 'correlationId'),
       ))
     }
+    if (method === 'maintenance.enter') {
+      this.metrics.increment('branch_transitions')
+      return worldResult(await this.#application().enterMaintenance(
+        addressParam(params.address), stringParam(params, 'reason'), stringParam(params, 'correlationId'),
+      ))
+    }
+    if (method === 'maintenance.exit') {
+      this.metrics.increment('branch_transitions')
+      return worldResult(await this.#application().exitMaintenance(
+        addressParam(params.address), stringParam(params, 'reason'), stringParam(params, 'correlationId'),
+      ))
+    }
     if (method === 'quarantine.explain') {
       return worldResult(this.#application().quarantineExplain(addressParam(params.address)))
     }
@@ -317,9 +333,21 @@ export class LocalJsonRpcRouter {
     }
     if (method === 'health.get') return this.#health.check()
     if (method === 'metrics.get') return this.metrics.snapshot()
-    if (method === 'branch.status') return this.#legacyAdmin().status(addressParam(params.address))
+    if (method === 'branch.status') {
+      const address = addressParam(params.address)
+      return worldResult(this.application === undefined ? this.#legacyAdmin().status(address) : this.application.branchStatus(address))
+    }
     if (method === 'branch.drain' || method === 'branch.open') {
       this.metrics.increment('branch_transitions')
+      if (this.application !== undefined) {
+        return worldResult(await (method === 'branch.drain'
+          ? this.application.enterMaintenance(
+              addressParam(params.address), stringParam(params, 'reason'), stringParam(params, 'correlationId'),
+            )
+          : this.application.exitMaintenance(
+              addressParam(params.address), stringParam(params, 'reason'), stringParam(params, 'correlationId'),
+            )))
+      }
       return this.#legacyAdmin().setAdmission(
         addressParam(params.address), method === 'branch.drain' ? 'draining' : 'open',
         stringParam(params, 'reason'), stringParam(params, 'correlationId'),
@@ -336,7 +364,10 @@ export class LocalJsonRpcRouter {
       this.metrics.increment('branch_forks')
       return { status: 'forked', forkSeq }
     }
-    if (method === 'audit.list') return this.#legacyAdmin().readAudit(addressParam(params.address))
+    if (method === 'audit.list') {
+      const address = addressParam(params.address)
+      return worldResult(this.application === undefined ? this.#legacyAdmin().readAudit(address) : this.application.branchAudit(address))
+    }
     throw new TypeError(`unknown local RPC method ${method}`)
   }
 
