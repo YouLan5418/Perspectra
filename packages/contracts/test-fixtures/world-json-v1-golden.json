@@ -1,0 +1,34 @@
+{
+  "fixtureVersion": 1,
+  "canonicalVersion": "world-json/v1",
+  "cases": [
+    {
+      "name": "ordering-unicode",
+      "kind": "golden:world-json/v1",
+      "value": { "z": "é", "a": ["😀", "é"], "n": 9007199254740991 },
+      "expectedUtf8Hex": "7b2261223a5b22f09f9880222c22c3a9225d2c226e223a393030373139393235343734303939312c227a223a2265cc81227d",
+      "expectedHash": "sha256:d454ce1140e030ba2e7e88001dbe13a3fed2ae69887cd0b2a3a467053bfe00d3"
+    },
+    {
+      "name": "utf16-key-order",
+      "kind": "golden:world-json/v1",
+      "value": { "": "bmp", "𐀀": "astral" },
+      "expectedUtf8Hex": "7b22f0908080223a2261737472616c222c22ee8080223a22626d70227d",
+      "expectedHash": "sha256:e508d77701504e81c4d5880f073c6e395143b1e5be82b3550cea81325d3303ac"
+    },
+    {
+      "name": "domain-isolation-a",
+      "kind": "golden:domain:a",
+      "value": { "value": "same" },
+      "expectedUtf8Hex": "7b2276616c7565223a2273616d65227d",
+      "expectedHash": "sha256:ce0b225c21b83245831a4443e1e184bb1dd70bcb2f510c2d1f496b9d34be4892"
+    },
+    {
+      "name": "domain-isolation-b",
+      "kind": "golden:domain:b",
+      "value": { "value": "same" },
+      "expectedUtf8Hex": "7b2276616c7565223a2273616d65227d",
+      "expectedHash": "sha256:479f33cb1f20fd329caced69ef40d5004c8bd7f95b64c4d03d0c0dc1c0ed4683"
+    }
+  ]
+}

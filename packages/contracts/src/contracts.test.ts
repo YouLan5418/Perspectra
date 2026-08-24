@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import golden from '../test-fixtures/world-json-v1-golden.json' with { type: 'json' }
 import {
   VersionedRegistry,
   WorldError,
@@ -14,6 +15,15 @@ import {
 } from './index.ts'
 
 describe('world-json/v1', () => {
+  it('matches the versioned cross-platform byte and domain hash fixture', () => {
+    expect(golden).toMatchObject({ fixtureVersion: 1, canonicalVersion: 'world-json/v1' })
+    for (const fixture of golden.cases) {
+      expect(Buffer.from(canonicalizeWorldJson(fixture.value as WorldJsonValue)).toString('hex'), fixture.name)
+        .toBe(fixture.expectedUtf8Hex)
+      expect(hashWorldJson(fixture.kind, fixture.value as WorldJsonValue), fixture.name).toBe(fixture.expectedHash)
+    }
+  })
+
   it('canonicalizes supported values without Unicode normalization', () => {
     const nullPrototype = Object.assign(Object.create(null) as Record<string, WorldJsonValue>, { z: 2, a: 1 })
     expect(Buffer.from(canonicalizeWorldJson({ é: 'é', arr: [true, false, null, 1, '😀'], a: 'e\u0301', object: nullPrototype })).toString())
