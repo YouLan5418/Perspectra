@@ -74,16 +74,27 @@ corepack pnpm@11.7.0 check
 
 冻结规格曾描述多数据库 backup manifest。ADR-0038 已以可证明的恢复模型替代：只对 World DB 做 SQLite 一致备份，保留 Outbox delivery 序号并以消费端幂等重建 Session；Memory 作为派生状态重建。实现和报告均不得把独立数据库描述成共享事务或原子快照。
 
+## 外部发布证据
+
+- 私有远程：`https://github.com/YouLan5418/harness-cordis-world-v0.git`
+- 候选提交：`4475447bf830c15319ac9bf2cb97e632490e651a`
+- GitHub Actions：[`V0 gates` run 32733385963](https://github.com/YouLan5418/harness-cordis-world-v0/actions/runs/32733385963)
+- 结果：Windows/Ubuntu × Node 22.19/24 四格全部通过；每格均从 checkout 执行 `pnpm install --frozen-lockfile` 与完整 `pnpm check`。
+
+| 平台 | Node | 结果 | 用时 |
+| --- | --- | --- | --- |
+| Windows | 24.x | success | 3m28s |
+| Windows | 22.19.0 | success | 3m32s |
+| Ubuntu | 24.x | success | 1m05s |
+| Ubuntu | 22.19.0 | success | 1m17s |
+
+首轮 run 32731552222 暴露 Windows V8 coverage 下 SQLite 集成测试超过 Vitest 默认 5 秒的问题。提交 `4475447` 仅将跨平台测试运行器墙钟预算显式固定为 20 秒；领域超时、故障注入、断言和覆盖率门槛均未放宽。第二轮四格全绿同时关闭了本机无法独立证明的 clean-install 门槛。
+
 ## 未闭合外部门槛
 
-以下事项需要用户授权或 GitHub 外部状态，本轮未执行：
-
-1. 尚未创建或配置 GitHub 私有远程；没有 push。
-2. `.github/workflows/p0.yml` 已配置 Windows/Ubuntu × Node 22.19/24，但四格未实际运行；尚无 run URL/commit SHA。
-3. 尚未创建 `v0.1.0` Tag 或 GitHub Release。
-4. 本机版本切换后的 `pnpm install --frozen-lockfile --offline` 在 Windows package link 收尾阶段持续不终止；现有依赖树下正式 `pnpm check` 完整通过，但这不能作为 clean-install 证据。必须由四格 CI 的 clean install 关闭。
-5. 工作树中保留了本轮开始前已有的用户未跟踪内容 `.workbuddy/` 与 `docs/2026-08-24_独立代码审查报告.md`；Release 提交未包含或删除它们。
+1. 尚未创建 `v0.1.0` Tag 或 GitHub Release；Tag 必须指向包含本报告证据的最终全绿提交。
+2. 工作树中保留了本轮开始前已有的用户未跟踪内容 `.workbuddy/` 与 `docs/2026-08-24_独立代码审查报告.md`，以及 IDE 生成的 `.idea/`；Release 提交未包含或删除它们。
 
 ## 发布建议
 
-下一次由用户确认后：创建私有 GitHub 远程 → push 当前候选 → 等待四格 CI 全绿 → 保存证据 → 确认工作树/commit → 创建并推送 `v0.1.0` Tag。任何一格失败都不得打 Tag。
+提交本报告证据并确认最终提交的四格 CI 全绿后，由用户确认是否创建并推送 `v0.1.0` Tag。任何一格失败都不得打 Tag。
