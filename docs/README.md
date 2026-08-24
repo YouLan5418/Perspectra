@@ -14,3 +14,5 @@
 - [Phase 6 独立审查修复报告](2026-08-22_Phase-6独立审查修复报告.md)
 - [Phase 6 架构闭合计划（已完成）](2026-08-22_实施计划-Harness-Cordis-World-Phase-6.md)
 - [悬疑 Demo 架构纠偏与四项欠账闭环](2026-08-23_阶段报告-悬疑Demo架构纠偏与四项欠账闭环.md)
+- [V0 本机运行与恢复手册](V0-LOCAL-RUNBOOK.md)
+- [V0 Release Closure 报告](2026-08-24_V0-Release-Closure-report.md)

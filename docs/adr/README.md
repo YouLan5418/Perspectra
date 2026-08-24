@@ -34,3 +34,4 @@
 | [0050](ADR-0050-rulebook-registry-mystery-boundary.md) | Rulebook 注册与悬疑试金石边界 | Core 仅含通用规则，调查 Resolver 由 Demo 显式注册且 Golden 全等 |
 | [0051](ADR-0051-demo-cognition-scene-interaction-degradation.md) | Demo 的认知、Scene、通用交互与降级闭环 | 四项文档欠账进入正式 Application 路径并由悬疑场景验收 |
 | [0052](ADR-0052-durable-cognitive-work-and-clarification.md) | 耐久认知工作与非 Round 受理记录 | World 事务内 cognitive job、fenced worker 与可审计 clarification |
+| [0053](ADR-0053-private-v0-local-release-boundary.md) | 私有源码 V0 的本机发布边界 | 0.1.0、stdio、Host 所有权、Outbox 退避与外部证据边界 |

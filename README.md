@@ -1,6 +1,6 @@
 # Harness / Cordis World V0
 
-> 当前状态：Phase 0～6 Reference Architecture 的 Windows/Node 24 本机门槛与独立审查修订已通过。严格 V0 Release Closure 仍在进行；异步 Round 本机协议已闭合，冻结方法面、通知、Host 配置/instance.lock 和跨平台发布证据尚未闭合。LLM/TencentDB Bridge 与远程访问保持禁用。
+> 当前状态：私有源码 V0 `0.1.0` 的 Windows/Node 24 本机 Release Closure 已通过。GitHub 远程、Windows/Ubuntu × Node 22.19/24 CI 实跑和 `v0.1.0` Tag 尚未处理。Harness/TencentDB Bridge 与远程访问保持禁用。
 
 这是一个独立的、事件溯源的 TURN_DRIVEN 世界模拟内核原型，用 Cordis 管理 Branch 运行时生命周期，用 Node 内置 SQLite 验证耐久原子性、幂等投递、forkSeq 时态重建和无模型确定性闭环。
 
@@ -24,8 +24,10 @@ corepack pnpm@11.7.0 worldctl -- D:\path\to\world.sqlite health
 需要长驻本机进程时，可启动 newline-delimited JSON-RPC stdio Host；它不会开启任何网络监听：
 
 ```powershell
-corepack pnpm@11.7.0 worldhost -- D:\path\to\world.sqlite D:\path\to\session.sqlite
+corepack pnpm@11.7.0 worldhost -- --config D:\path\to\world-host.yml
 ```
+
+配置优先级为 CLI > 环境变量 > YAML > 默认值；也可继续使用兼容入口 `worldhost <world.sqlite> <session.sqlite>`。Host 使用 `instance.lock` 与数据库 Writer Lease 共同阻止多实例误写，详情见[本机运行与恢复手册](docs/V0-LOCAL-RUNBOOK.md)。
 
 运行无模型的悬疑 Demo 固定开场（再次执行会从同一 SQLite 幂等恢复）：
 
@@ -137,5 +139,7 @@ console.log(hash)
 - [三角色悬疑 Demo 首个可执行切片](docs/2026-08-23_进度报告-三角色悬疑Demo首个可执行切片.md)
 - [悬疑 Demo Phase 2：多轮调查与真相揭露闭环](docs/2026-08-23_阶段报告-悬疑Demo-Phase-2.md)
 - [悬疑 Demo 架构纠偏与四项欠账闭环](docs/2026-08-23_阶段报告-悬疑Demo架构纠偏与四项欠账闭环.md)
+- [V0 本机运行与恢复手册](docs/V0-LOCAL-RUNBOOK.md)
+- [V0 Release Closure 报告](docs/2026-08-24_V0-Release-Closure-report.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。
