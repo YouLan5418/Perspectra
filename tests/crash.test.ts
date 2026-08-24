@@ -1,13 +1,13 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId, createErrorEnvelope } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
-import { LocalJsonRpcRouter } from '@harness-world/operations'
+import { LocalJsonRpcRouter, WorldHostInstanceLock } from '@harness-world/operations'
 import { BranchQuarantineService, SessionDeliveryAdapter, WorldArchiveService, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
 import {
   fixtureAddress,
@@ -22,6 +22,7 @@ const archiveWorker = fileURLToPath(new URL('./workers/archive-crash-worker.ts',
 const applicationWorker = fileURLToPath(new URL('./workers/application-crash-worker.ts', import.meta.url))
 const quarantineWorker = fileURLToPath(new URL('./workers/quarantine-crash-worker.ts', import.meta.url))
 const acceptedRoundWorker = fileURLToPath(new URL('./workers/accepted-round-crash-worker.ts', import.meta.url))
+const instanceLockWorker = fileURLToPath(new URL('./workers/instance-lock-crash-worker.ts', import.meta.url))
 
 function database(name: string): string {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-crash-'))
@@ -33,6 +34,15 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 describe('hard process termination recovery', () => {
+  it('recovers an instance lock only after its owner process is hard-killed', async () => {
+    const worldPath = database('instance-lock-world.sqlite')
+    const lockPath = join(dirname(worldPath), 'instance.lock')
+    await hardKillAt(instanceLockWorker, [lockPath, worldPath])
+    const recovered = WorldHostInstanceLock.acquire(lockPath, worldPath)
+    expect(recovered.record.pid).toBe(process.pid)
+    recovered.release()
+  })
+
   it.each([
     ['store.after-event-insert', 0],
     ['store.before-commit', 0],

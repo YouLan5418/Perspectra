@@ -41,7 +41,6 @@ describe('process entrypoints', () => {
     const entries = [
       'packages/operations/process/application-cli-entry.ts',
       'packages/operations/process/cli-entry.ts',
-      'packages/operations/process/headless-entry.ts',
       'packages/simulation/process/mystery-demo-entry.ts',
       'packages/simulation/process/mystery-drill-entry.ts',
       'packages/simulation/process/mystery-turn-entry.ts',
@@ -51,6 +50,9 @@ describe('process entrypoints', () => {
       expect(result.code).not.toBe(0)
       expect(result.stderr).not.toBe('')
     }
+    const host = await run('packages/operations/process/headless-entry.ts', ['--unknown', 'value'])
+    expect(host.code).not.toBe(0)
+    expect(host.stderr).toContain('unknown worldhost option')
     const shell = await run('packages/simulation/process/mystery-shell-entry.ts', [], 'hello\n')
     expect(shell.code).not.toBe(0)
     expect(shell.stderr).not.toBe('')
