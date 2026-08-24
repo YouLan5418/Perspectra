@@ -1,6 +1,6 @@
 # Harness / Cordis World V0
 
-> 当前状态：私有源码 V0 `0.1.0` 的 Windows/Node 24 本机 Release Closure 已通过。GitHub 远程、Windows/Ubuntu × Node 22.19/24 CI 实跑和 `v0.1.0` Tag 尚未处理。Harness/TencentDB Bridge 与远程访问保持禁用。
+> 当前状态：私有源码 V0 `0.1.0` 已完成本机 Release Closure，并以 `v0.1.0` Tag 冻结。Windows/Ubuntu × Node 22.19/24 GitHub CI 已全部通过。未发布 npm 或 GitHub Release；Harness/TencentDB Bridge 与远程访问保持禁用。
 
 这是一个独立的、事件溯源的 TURN_DRIVEN 世界模拟内核原型，用 Cordis 管理 Branch 运行时生命周期，用 Node 内置 SQLite 验证耐久原子性、幂等投递、forkSeq 时态重建和无模型确定性闭环。
 

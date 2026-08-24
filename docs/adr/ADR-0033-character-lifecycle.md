@@ -10,4 +10,4 @@
 
 ## 结果
 
-Phase 0 的最小模拟不实现完整生命周期状态机。Phase 1 以后 Rulebook 决定领域状态，运行时服务只报告可用性，二者不得相互伪装。
+当前 V0 已将领域生命周期写入版本化 Event、CharacterView 与 Rulebook 行动资格判断；死亡、失能和离场不会删除历史。`CharacterRuntimeAvailabilityService` 独立保存 provisioning、ready 与各类降级状态，Scene 调度、Agent eligibility 和 Health 消费该状态，但它不进入 World Event 或世界 Hash。两类状态不得相互伪装。

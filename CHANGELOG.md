@@ -2,7 +2,7 @@
 
 ## 0.1.0 - 2026-08-24
 
-首个私有源码 V0 候选版本。
+首个私有源码 V0 基线版本。
 
 ### 核心能力
 
@@ -25,6 +25,8 @@
 - Harness Bridge、TencentDB Memory、远程监听与 npm 发布默认禁用。
 - 不支持 Branch merge/rebase/cherry-pick、物理删除、REALTIME_DAEMON 或 FRACTAL 时间。
 
-### 外部门槛
+### 发布证据
 
-GitHub 远程、Windows/Ubuntu × Node 22.19/24 CI 实跑和 `v0.1.0` Tag 尚未创建；详见 Release Closure 报告。
+- 私有 GitHub 远程已建立。
+- Windows/Ubuntu × Node 22.19/24 clean install 与完整 `pnpm check` 全部通过。
+- annotated Tag `v0.1.0` 已推送并固定最终全绿提交；未创建 GitHub Release 或发布 npm。

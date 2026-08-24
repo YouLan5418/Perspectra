@@ -6,7 +6,7 @@
 - 本机环境：Windows，Node 24.14.1，pnpm 11.7.0
 - 协议：stdio only
 - 可选集成：Harness/TencentDB 禁用
-- 判定：**本机 Release Closure 通过；外部发布门槛未完成**
+- 判定：**私有源码 V0 Release Closure 完成**
 
 ## 本轮闭合
 
@@ -77,24 +77,25 @@ corepack pnpm@11.7.0 check
 ## 外部发布证据
 
 - 私有远程：`https://github.com/YouLan5418/harness-cordis-world-v0.git`
-- 候选提交：`4475447bf830c15319ac9bf2cb97e632490e651a`
-- GitHub Actions：[`V0 gates` run 32733385963](https://github.com/YouLan5418/harness-cordis-world-v0/actions/runs/32733385963)
+- 最终提交：`e490d4ce91af2ca4273828f2824504d4a8615e6d`
+- GitHub Actions：[`V0 gates` run 32733885160](https://github.com/YouLan5418/harness-cordis-world-v0/actions/runs/32733885160)
 - 结果：Windows/Ubuntu × Node 22.19/24 四格全部通过；每格均从 checkout 执行 `pnpm install --frozen-lockfile` 与完整 `pnpm check`。
+- annotated Tag：`v0.1.0`，远端解引用后精确指向最终提交。
 
 | 平台 | Node | 结果 | 用时 |
 | --- | --- | --- | --- |
-| Windows | 24.x | success | 3m28s |
-| Windows | 22.19.0 | success | 3m32s |
-| Ubuntu | 24.x | success | 1m05s |
-| Ubuntu | 22.19.0 | success | 1m17s |
+| Windows | 24.x | success | 3m00s |
+| Windows | 22.19.0 | success | 3m02s |
+| Ubuntu | 24.x | success | 1m03s |
+| Ubuntu | 22.19.0 | success | 2m07s |
 
 首轮 run 32731552222 暴露 Windows V8 coverage 下 SQLite 集成测试超过 Vitest 默认 5 秒的问题。提交 `4475447` 仅将跨平台测试运行器墙钟预算显式固定为 20 秒；领域超时、故障注入、断言和覆盖率门槛均未放宽。第二轮四格全绿同时关闭了本机无法独立证明的 clean-install 门槛。
 
-## 未闭合外部门槛
+## 发布边界外事项
 
-1. 尚未创建 `v0.1.0` Tag 或 GitHub Release；Tag 必须指向包含本报告证据的最终全绿提交。
-2. 工作树中保留了本轮开始前已有的用户未跟踪内容 `.workbuddy/` 与 `docs/2026-08-24_独立代码审查报告.md`，以及 IDE 生成的 `.idea/`；Release 提交未包含或删除它们。
+1. 没有创建 GitHub Release 或发布 npm；私有源码 V0 的冻结交付不要求这两项。
+2. 工作树中保留了本轮开始前已有的用户未跟踪内容 `.workbuddy/` 与 `docs/2026-08-24_独立代码审查报告.md`，以及 IDE 生成的 `.idea/`；它们未包含在 `v0.1.0` 中。
 
 ## 发布建议
 
-提交本报告证据并确认最终提交的四格 CI 全绿后，由用户确认是否创建并推送 `v0.1.0` Tag。任何一格失败都不得打 Tag。
+`v0.1.0` 已作为私有源码 V0 基线冻结。后续创作者能力、真实 Harness Provider、更多非悬疑 World 和用户界面应进入新版本计划，不回写或重解释该 Tag。
