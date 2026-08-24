@@ -224,7 +224,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       scope.address,
       this.options.worldPath,
       this.options.sessionPath,
-      this.options.outboxMaxAttempts ?? 3,
+      this.options.outboxMaxAttempts ?? 12,
       this.options.faultInjector,
     )
     let cognitiveMemory: CognitiveMemoryService | undefined

@@ -161,6 +161,7 @@ export class WorldArchiveService {
     try {
       db.exec(`
         UPDATE outbox SET delivery_status = 'pending', attempt_count = 0,
+          first_attempt_at_ms = NULL, next_attempt_at_ms = 0,
           last_error = NULL, claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL;
         DELETE FROM outbox_delivery_receipts;
       `)

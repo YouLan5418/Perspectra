@@ -333,7 +333,13 @@ CREATE TABLE round_clarifications (
 ) STRICT;
 `
 
-export const WORLD_SCHEMA_VERSION = 13
+const WORLD_OUTBOX_RETRY_SCHEMA = `
+ALTER TABLE outbox ADD COLUMN first_attempt_at_ms INTEGER CHECK(first_attempt_at_ms >= 0);
+ALTER TABLE outbox ADD COLUMN next_attempt_at_ms INTEGER NOT NULL DEFAULT 0 CHECK(next_attempt_at_ms >= 0);
+CREATE INDEX outbox_retry_schedule ON outbox(address_key, delivery_status, next_attempt_at_ms, world_seq);
+`
+
+export const WORLD_SCHEMA_VERSION = 14
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -349,7 +355,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 10, sql: WORLD_CHARACTER_RUNTIME_SCHEMA },
     { version: 11, sql: WORLD_ROUND_AUTHORITY_SCHEMA },
     { version: 12, sql: WORLD_COGNITIVE_JOB_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_CLARIFICATION_SCHEMA },
+    { version: 13, sql: WORLD_CLARIFICATION_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_OUTBOX_RETRY_SCHEMA },
   ])
 }
 

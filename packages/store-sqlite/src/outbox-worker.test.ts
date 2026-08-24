@@ -172,19 +172,46 @@ describe('SessionOutboxWorker', () => {
   it('retries consumer commit ambiguity without duplicating a Session Observation', async () => {
     const path = paths('consumer-ambiguity')
     await seed(path.world, [{ id: 'delivery:ambiguous', session: 'session:ambiguous', critical: true }])
-    const outbox = new WorldOutbox(path.world)
+    let now = 1_000
+    const outbox = new WorldOutbox(path.world, undefined, { now: () => now })
     const afterCommit = new SessionDeliveryAdapter(path.session, {
       hit(point: FaultPoint) { if (point === 'session-delivery.after-commit') throw new Error('caller lost COMMIT result') },
     })
     const first = new SessionOutboxWorker(outbox, afterCommit, address(), 2)
     await expect(first.runOnce()).resolves.toEqual({ status: 'retry_scheduled', deliveryId: 'delivery:ambiguous' })
     afterCommit.close()
+    now = 2_000
     const recoveredSession = new SessionDeliveryAdapter(path.session)
     const recovered = new SessionOutboxWorker(outbox, recoveredSession, address(), 2)
     await expect(recovered.runOnce()).resolves.toEqual({ status: 'delivered', deliveryId: 'delivery:ambiguous' })
     expect(recoveredSession.cursor(brandId('session:ambiguous', 'SessionId'))).toBe(1)
     expect(recoveredSession.readEvent(brandId('session:ambiguous', 'SessionId'), 2)).toBeUndefined()
     recoveredSession.close()
+    outbox.close()
+  })
+
+  it('persists the bounded retry schedule and enforces max attempts and max age', async () => {
+    const path = paths('retry-schedule')
+    await seed(path.world, [{ id: 'delivery:backoff', session: 'session:backoff', critical: false }])
+    let now = 10_000
+    const outbox = new WorldOutbox(path.world, undefined, {
+      now: () => now, workerId: 'worker:backoff', createClaimToken: () => String(now),
+    })
+    for (const delay of [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000]) {
+      const claimed = outbox.claimNext(address()) as ClaimedOutboxDelivery
+      expect(outbox.recordFailed(claimed, 'temporary', 12)).toBe('retry_scheduled')
+      expect(outbox.claimNext(address())).toBeUndefined()
+      now += delay - 1
+      expect(outbox.claimNext(address())).toBeUndefined()
+      now += 1
+    }
+    const final = outbox.claimNext(address()) as ClaimedOutboxDelivery
+    expect(outbox.recordFailed(final, 'attempts exhausted', 8)).toBe('dead_letter')
+    outbox.retryDeadLetter(address(), final.deliveryId, 'retry:manual-reset')
+    const reset = outbox.claimNext(address()) as ClaimedOutboxDelivery
+    expect(reset).toMatchObject({ attemptCount: 1, firstAttemptAtMs: now })
+    expect(() => outbox.recordFailed(reset, 'invalid age', 12, 0)).toThrow(RangeError)
+    expect(outbox.recordFailed(reset, 'age exhausted', 12, 500)).toBe('dead_letter')
     outbox.close()
   })
 
@@ -272,11 +299,13 @@ describe('SessionOutboxWorker', () => {
   it('validates sender state and records retryable unknown failures', async () => {
     const path = paths('validation')
     await seed(path.world, [{ id: 'delivery:validation', session: 'session:validation', critical: false }])
-    const outbox = new WorldOutbox(path.world)
+    let now = 1_000
+    const outbox = new WorldOutbox(path.world, undefined, { now: () => now })
     const delivery = outbox.claimNext(address()) as ClaimedOutboxDelivery
     expect(() => outbox.recordFailed(delivery, 'bad', 0)).toThrow(RangeError)
     await expect(outbox.recordDelivered({ ...delivery, payloadHash: 'sha256:mismatch' })).rejects.toThrow('does not match')
     expect(outbox.recordFailed(delivery, 'retry after mismatch', 2)).toBe('retry_scheduled')
+    now = 2_000
     const unknownFailure: SessionDeliveryPort = { appendIfAbsent: async () => Promise.reject('not-an-error') }
     const worker = new SessionOutboxWorker(outbox, unknownFailure, address(), 1)
     await expect(worker.runOnce()).resolves.toEqual({ status: 'dead_letter', deliveryId: 'delivery:validation' })

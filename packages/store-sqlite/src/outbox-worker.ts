@@ -30,6 +30,7 @@ export interface ClaimedOutboxDelivery {
   readonly payload: WorldJsonValue
   readonly critical: boolean
   readonly attemptCount: number
+  readonly firstAttemptAtMs: number
   readonly claimOwnerId: string
   readonly claimToken: string
   readonly claimExpiresAtMs: number
@@ -86,9 +87,9 @@ export class WorldOutbox {
     try {
       const row = this.#db.prepare(`
         SELECT o.delivery_id, o.session_id, o.payload_hash, o.payload_json, o.critical,
-          o.attempt_count, o.session_delivery_seq
+          o.attempt_count, o.session_delivery_seq, o.first_attempt_at_ms
         FROM outbox o
-        WHERE o.address_key = ? AND (o.delivery_status = 'pending'
+        WHERE o.address_key = ? AND ((o.delivery_status = 'pending' AND o.next_attempt_at_ms <= ?)
           OR (o.delivery_status = 'inflight' AND (o.claim_token IS NULL OR o.claim_expires_at_ms <= ?)))
           AND NOT EXISTS (
             SELECT 1 FROM outbox earlier
@@ -98,7 +99,7 @@ export class WorldOutbox {
                 OR (earlier.delivery_status = 'dead_letter' AND earlier.critical = 1))
           )
         ORDER BY o.world_seq, o.delivery_id LIMIT 1
-      `).get(addressKey, now) as {
+      `).get(addressKey, now, now) as {
         delivery_id: DeliveryId
         session_id: SessionId
         payload_hash: WorldHash
@@ -106,6 +107,7 @@ export class WorldOutbox {
         critical: number
         attempt_count: number
         session_delivery_seq: number | null
+        first_attempt_at_ms: number | null
       } | undefined
       if (row === undefined) {
         this.#db.exec('COMMIT')
@@ -125,21 +127,25 @@ export class WorldOutbox {
           .run(sequence + 1, row.session_id)
       }
       const attemptCount = row.attempt_count + 1
+      const firstAttemptAtMs = row.first_attempt_at_ms ?? now
       const claimToken = `outbox-claim:${this.#createClaimToken()}`
       const claimExpiresAtMs = now + this.#claimTtlMs
       this.#db.prepare(`
-        UPDATE outbox SET delivery_status = 'inflight', attempt_count = ?, session_delivery_seq = ?, last_error = NULL,
+        UPDATE outbox SET delivery_status = 'inflight', attempt_count = ?, first_attempt_at_ms = ?,
+          session_delivery_seq = ?, last_error = NULL,
           claim_owner_id = ?, claim_token = ?, claim_expires_at_ms = ?
-        WHERE address_key = ? AND delivery_id = ? AND (delivery_status = 'pending'
+        WHERE address_key = ? AND delivery_id = ? AND ((delivery_status = 'pending' AND next_attempt_at_ms <= ?)
           OR (delivery_status = 'inflight' AND (claim_token IS NULL OR claim_expires_at_ms <= ?)))
       `).run(
         attemptCount,
+        firstAttemptAtMs,
         sequence,
         this.#workerId,
         claimToken,
         claimExpiresAtMs,
         addressKey,
         row.delivery_id,
+        now,
         now,
       )
       this.#db.exec('COMMIT')
@@ -152,6 +158,7 @@ export class WorldOutbox {
         payload: parseWorldJson(row.payload_json),
         critical: row.critical === 1,
         attemptCount,
+        firstAttemptAtMs,
         claimOwnerId: this.#workerId,
         claimToken,
         claimExpiresAtMs,
@@ -165,7 +172,7 @@ export class WorldOutbox {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       const result = this.#db.prepare(`
-        UPDATE outbox SET delivery_status = 'delivered', last_error = NULL,
+        UPDATE outbox SET delivery_status = 'delivered', last_error = NULL, next_attempt_at_ms = 0,
           claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
         WHERE address_key = ? AND delivery_id = ? AND session_id = ? AND session_delivery_seq = ? AND payload_hash = ?
           AND delivery_status = 'inflight' AND attempt_count = ? AND claim_owner_id = ? AND claim_token = ?
@@ -192,20 +199,34 @@ export class WorldOutbox {
     this.faultInjector?.hit('outbox.after-receipt-commit')
   }
 
-  recordFailed(delivery: ClaimedOutboxDelivery, message: string, maxAttempts: number): 'retry_scheduled' | 'dead_letter' {
+  recordFailed(
+    delivery: ClaimedOutboxDelivery,
+    message: string,
+    maxAttempts: number,
+    maxAgeMs = 600_000,
+  ): 'retry_scheduled' | 'dead_letter' {
     if (!Number.isSafeInteger(maxAttempts) || maxAttempts <= 0) throw new RangeError('maxAttempts must be a positive safe integer')
-    const status = delivery.attemptCount >= maxAttempts ? 'dead_letter' : 'pending'
+    if (!Number.isSafeInteger(maxAgeMs) || maxAgeMs <= 0) throw new RangeError('maxAgeMs must be a positive safe integer')
+    const now = this.#now()
+    const delays = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000] as const
+    const retryDelayMs = delays[Math.min(delivery.attemptCount - 1, delays.length - 1)]!
+    const exhausted = delivery.attemptCount >= maxAttempts
+      || now >= delivery.firstAttemptAtMs + maxAgeMs
+      || now + retryDelayMs > delivery.firstAttemptAtMs + maxAgeMs
+    const status = exhausted ? 'dead_letter' : 'pending'
+    const nextAttemptAtMs = status === 'pending' ? now + retryDelayMs : 0
     const addressKey = worldAddressKey(delivery.address)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       const result = this.#db.prepare(`
-        UPDATE outbox SET delivery_status = ?, last_error = ?,
+        UPDATE outbox SET delivery_status = ?, last_error = ?, next_attempt_at_ms = ?,
           claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
         WHERE address_key = ? AND delivery_id = ? AND delivery_status = 'inflight' AND attempt_count = ?
           AND claim_owner_id = ? AND claim_token = ?
       `).run(
         status,
         message,
+        nextAttemptAtMs,
         addressKey,
         delivery.deliveryId,
         delivery.attemptCount,
@@ -221,7 +242,7 @@ export class WorldOutbox {
           addressKey,
           `outbox:${delivery.deliveryId}`,
           worldJsonText({ deliveryId: delivery.deliveryId, sessionId: delivery.sessionId, attemptCount: delivery.attemptCount, message }),
-          this.#now(),
+          now,
         )
       }
       this.#db.exec('COMMIT')
@@ -239,7 +260,7 @@ export class WorldOutbox {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       const result = this.#db.prepare(`
-        UPDATE outbox SET delivery_status = 'dead_letter', last_error = ?,
+        UPDATE outbox SET delivery_status = 'dead_letter', last_error = ?, next_attempt_at_ms = 0,
           claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
         WHERE address_key = ? AND delivery_id = ? AND delivery_status = 'inflight' AND attempt_count = ?
           AND claim_owner_id = ? AND claim_token = ?
@@ -264,7 +285,8 @@ export class WorldOutbox {
 
   deadLetters(address: WorldAddress): DeadLetterRecord[] {
     const rows = this.#db.prepare(`
-      SELECT delivery_id, session_id, session_delivery_seq, payload_hash, payload_json, critical, attempt_count, last_error
+      SELECT delivery_id, session_id, session_delivery_seq, payload_hash, payload_json, critical, attempt_count,
+        first_attempt_at_ms, last_error
       FROM outbox WHERE address_key = ? AND delivery_status = 'dead_letter' ORDER BY world_seq, delivery_id
     `).all(worldAddressKey(address)) as Array<{
       delivery_id: DeliveryId
@@ -274,6 +296,7 @@ export class WorldOutbox {
       payload_json: string
       critical: number
       attempt_count: number
+      first_attempt_at_ms: number
       last_error: string
     }>
     return rows.map(row => ({
@@ -285,6 +308,7 @@ export class WorldOutbox {
       payload: parseWorldJson(row.payload_json),
       critical: row.critical === 1,
       attemptCount: row.attempt_count,
+      firstAttemptAtMs: row.first_attempt_at_ms,
       lastError: row.last_error,
     }))
   }
@@ -339,7 +363,8 @@ export class WorldOutbox {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       const result = this.#db.prepare(`
-        UPDATE outbox SET delivery_status = 'pending', last_error = NULL,
+        UPDATE outbox SET delivery_status = 'pending', attempt_count = 0, first_attempt_at_ms = NULL,
+          next_attempt_at_ms = 0, last_error = NULL,
           claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
         WHERE address_key = ? AND delivery_id = ? AND delivery_status = 'dead_letter'
       `).run(addressKey, deliveryId)
@@ -374,7 +399,8 @@ export class SessionOutboxWorker {
     private readonly outbox: WorldOutbox,
     private readonly session: SessionDeliveryPort,
     private readonly address: WorldAddress,
-    private readonly maxAttempts = 3,
+    private readonly maxAttempts = 12,
+    private readonly maxAgeMs = 600_000,
   ) {}
 
   async runOnce(correlationId = 'outbox-worker'): Promise<OutboxWorkerResult> {
@@ -395,7 +421,7 @@ export class SessionOutboxWorker {
         throw error
       }
       const message = error instanceof Error ? error.message : 'unknown Session delivery failure'
-      const status = this.outbox.recordFailed(delivery, message, this.maxAttempts)
+      const status = this.outbox.recordFailed(delivery, message, this.maxAttempts, this.maxAgeMs)
       return { status, deliveryId: delivery.deliveryId }
     }
     await this.outbox.recordDelivered(delivery)
