@@ -156,7 +156,7 @@ describe('WorldPackCompiler', () => {
     expect(compiled.manifest).toMatchObject({
       schemaVersion: 3,
       metadata: { title: 'Tavern', description: 'A social room' },
-      runtimePolicy: { npcInitialAvailability: 'provisioning', playerInitialAvailability: 'ready' },
+      runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
       rulebook: { rulebookId: 'builtin:speak-move', version: 2 },
       contentPack: { packId: 'pack:tavern', packVersion: '1.0.0', packHash: pack.packHash },
       playerBindings: [{ principalId: 'principal:player', characterId: 'character:alice', sessionId: 'session:player' }],
@@ -262,6 +262,68 @@ describe('WorldPackCompiler', () => {
       expect(forked.getWorld(child).manifestHash).toBe(compiled.manifestHash)
     } finally {
       await forked.close()
+    }
+  })
+
+  it('marks Pack NPCs ready so explicitly configured participants can join a Round', async () => {
+    const root = await temporaryRoot(); await writePack(root)
+    const compiler = new WorldPackCompiler()
+    const pack = await compiler.compile(root)
+    const address = {
+      tenantId: brandId('tenant:pack-participant', 'TenantId'),
+      worldId: brandId('world:pack-participant', 'WorldId'),
+      branchId: brandId('branch:main', 'BranchId'),
+    }
+    const bob = brandId('character:bob', 'CharacterId')
+    const compiled = compiler.adaptToWorldSpec(pack, {
+      address,
+      principalId: 'principal:player',
+      sessionId: brandId('session:player', 'SessionId'),
+    })
+    let providerCalls = 0
+    const application = new WorldApplication({
+      worldPath: join(root, 'participant-world.sqlite'),
+      sessionPath: join(root, 'participant-session.sqlite'),
+      memoryPath: join(root, 'participant-memory.sqlite'),
+      modelBudgetTokens: 4,
+      participants: () => [{
+        participantId: 'agent:bob',
+        role: 'agent',
+        actorId: bob,
+        allowedActionTypes: ['speak'],
+        priority: 1,
+        estimatedTokens: 1,
+        timeoutMs: 100,
+        provider: {
+          async propose() {
+            providerCalls += 1
+            return {
+              participantId: 'agent:bob',
+              actions: [{
+                actionId: 'action:bob:reply',
+                actorId: bob,
+                actionType: 'speak',
+                actionVersion: 1,
+                parameters: { text: 'Welcome to the tavern.' },
+              }],
+            }
+          },
+        },
+      }],
+    })
+    try {
+      application.activate(compiled)
+      expect((await application.submitText(address, {
+        text: 'Good evening.',
+        idempotencyKey: 'pack-participant:turn-1',
+        principalId: 'principal:player',
+        correlationId: 'pack-participant:turn-1',
+      })).status).toBe('submitted')
+      expect(providerCalls).toBe(1)
+      expect(JSON.stringify(await application.eventHistory(address))).toContain('Welcome to the tavern.')
+      expect(await application.characterAvailability(address, bob)).toMatchObject({ state: 'ready' })
+    } finally {
+      await application.close()
     }
   })
 

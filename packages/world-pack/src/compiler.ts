@@ -355,7 +355,7 @@ export class WorldPackCompiler {
       address: options.address,
       metadata: { title: pack.content.world.title, description: pack.content.world.description },
       timeMode: 'TURN_DRIVEN', roundQueueLimit: pack.content.world.roundQueueLimit,
-      runtimePolicy: { npcInitialAvailability: 'provisioning', playerInitialAvailability: 'ready' },
+      runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
       rulebook: pack.content.world.coreProfiles.rulebook,
       locations: pack.content.locations,
       entities: [],
