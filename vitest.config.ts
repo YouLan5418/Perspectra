@@ -17,6 +17,7 @@ export default defineConfig({
       '@harness-world/store-sqlite': `${root}packages/store-sqlite/src/index.ts`,
       '@harness-world/simulation': `${root}packages/simulation/src/index.ts`,
       '@harness-world/testkit': `${root}packages/testkit/src/index.ts`,
+      '@harness-world/world-pack': `${root}packages/world-pack/src/index.ts`,
     },
   },
   test: {
@@ -39,6 +40,7 @@ export default defineConfig({
         'packages/runtime-cordis/src/**/*.ts',
         'packages/store-sqlite/src/**/*.ts',
         'packages/simulation/src/**/*.ts',
+        'packages/world-pack/src/**/*.ts',
       ],
       exclude: ['**/*.test.ts', '**/index.ts'],
       thresholds: {

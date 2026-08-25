@@ -153,6 +153,12 @@ importers:
         specifier: workspace:*
         version: link:../store-sqlite
 
+  packages/world-pack:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
 packages:
 
   '@babel/helper-string-parser@7.29.7':
