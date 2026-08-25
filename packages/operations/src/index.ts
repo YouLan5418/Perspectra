@@ -1,4 +1,5 @@
 export * from './cli.ts'
+export * from './chat.ts'
 export * from './health.ts'
 export * from './headless.ts'
 export * from './host-config.ts'

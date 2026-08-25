@@ -98,6 +98,12 @@ export interface SubmitTextRequest {
   readonly correlationId: string
 }
 
+export interface PlayerChatScope {
+  readonly address: WorldAddress
+  readonly principalId: string
+  readonly characterId: CharacterId
+}
+
 export type SubmitTextResult =
   | Extract<PlayerInputInterpretation, { readonly status: 'clarification_required' }>
   | { readonly status: 'submitted'; readonly action: PlayerActionInput; readonly result: PlayerRoundResult }
@@ -357,6 +363,26 @@ export class WorldApplication {
           : { ...current, branchCount: current.branchCount + 1 })
       }
       return [...worlds.values()]
+    } finally {
+      store.close()
+    }
+  }
+
+  /** Discover player-safe chat bindings without exposing full Manifests or NPC views. */
+  listPlayerChatScopes(): PlayerChatScope[] {
+    this.#assertOpen()
+    const store = new WorldStore(this.options.worldPath)
+    try {
+      return store.listBranches().flatMap(address => {
+        const record = store.readManifest(address)
+        if (record === undefined) return []
+        const manifest = runtimeManifestFromStored(record.manifest)
+        return manifest.playerBindings.map(binding => ({
+          address,
+          principalId: binding.principalId,
+          characterId: binding.characterId,
+        }))
+      })
     } finally {
       store.close()
     }
