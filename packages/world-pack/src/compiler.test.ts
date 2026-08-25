@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, canonicalizeWorldJson, type WorldJsonValue } from '@harness-world/contracts'
+import { WorldApplication } from '@harness-world/application'
+import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import {
   WorldPackCompiler,
   assertCompatiblePackVersion,
@@ -125,7 +127,7 @@ describe('strict World JSON source grammar', () => {
 })
 
 describe('WorldPackCompiler', () => {
-  it('compiles stable canonical bytes, normalized Markdown and a topology WorldSpec', async () => {
+  it('compiles stable canonical bytes, normalized Markdown and a content-bound WorldSpec', async () => {
     const root = await temporaryRoot(); await writePack(root)
     const compiler = new WorldPackCompiler()
     const pack = await compiler.compile(root)
@@ -152,14 +154,115 @@ describe('WorldPackCompiler', () => {
       principalId: 'principal:player', sessionId: brandId('session:player', 'SessionId'),
     })
     expect(compiled.manifest).toMatchObject({
+      schemaVersion: 3,
       metadata: { title: 'Tavern', description: 'A social room' },
       runtimePolicy: { npcInitialAvailability: 'provisioning', playerInitialAvailability: 'ready' },
       rulebook: { rulebookId: 'builtin:speak-move', version: 2 },
+      contentPack: { packId: 'pack:tavern', packVersion: '1.0.0', packHash: pack.packHash },
       playerBindings: [{ principalId: 'principal:player', characterId: 'character:alice', sessionId: 'session:player' }],
     })
+    expect(compiled.manifest.claims).toHaveLength(2)
+    expect(compiled.manifest.goals).toHaveLength(1)
+    expect(compiled.manifest.observations).toHaveLength(1)
     expect(compiled.manifest.plugins.map(value => value.pluginId)).toEqual([
       'builtin:agent-context', 'builtin:deterministic-presentation', 'builtin:scene-decision',
     ])
+  })
+
+  it('activates Pack cognition through Genesis and preserves isolation across restart and fork', async () => {
+    const root = await temporaryRoot(); await writePack(root)
+    const characterDocument = structuredClone(sourceDocuments['characters.json']) as {
+      characters: Array<Record<string, WorldJsonValue>>
+    }
+    characterDocument.characters[1] = { ...characterDocument.characters[1]!, lifecycle: 'departed' }
+    await writeJson(root, 'characters.json', characterDocument as unknown as WorldJsonValue)
+    const compiler = new WorldPackCompiler()
+    const pack = await compiler.compile(root)
+    const parent = {
+      tenantId: brandId('tenant:pack-runtime', 'TenantId'),
+      worldId: brandId('world:pack-runtime', 'WorldId'),
+      branchId: brandId('branch:main', 'BranchId'),
+    }
+    const child = { ...parent, branchId: brandId('branch:fork', 'BranchId') }
+    const compiled = compiler.adaptToWorldSpec(pack, {
+      address: parent,
+      principalId: 'principal:player',
+      sessionId: brandId('session:player', 'SessionId'),
+    })
+    expect(compiled.genesisEvents.map(event => event.eventType)).toContain('character.lifecycle-changed')
+    const worldPath = join(root, 'runtime-world.sqlite')
+    const sessionPath = join(root, 'runtime-session.sqlite')
+    const memoryPath = join(root, 'runtime-memory.sqlite')
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+
+    const first = new WorldApplication({ worldPath, sessionPath, memoryPath })
+    try {
+      expect(first.activate(compiled).status).toBe('activated')
+      const bobView = await first.characterView(parent, bob)
+      const aliceView = await first.characterView(parent, alice)
+      expect(bobView.lifecycleState).toBe('departed')
+      expect(JSON.stringify(bobView.claims)).toContain('Bob owns the cellar')
+      expect(JSON.stringify(aliceView.claims)).not.toContain('Bob owns the cellar')
+      expect(JSON.stringify(await first.recallMemory(parent, bob, 'cellar'))).toContain('Bob owns the cellar')
+      expect(await first.recallMemory(parent, alice, 'cellar')).toEqual([])
+    } finally {
+      await first.close()
+    }
+
+    const restarted = new WorldApplication({ worldPath, sessionPath, memoryPath })
+    let forkSeq: number
+    try {
+      expect(restarted.activate(compiled).status).toBe('already_active')
+      forkSeq = (await restarted.head(parent)).headSeq
+      expect((await restarted.characterView(parent, bob)).bundleHash)
+        .toBe((await restarted.characterView(parent, bob, forkSeq)).bundleHash)
+      expect(JSON.stringify(await restarted.recallMemory(parent, bob, 'cellar', forkSeq)))
+        .toContain('Bob owns the cellar')
+    } finally {
+      await restarted.close()
+    }
+
+    const store = new WorldStore(worldPath)
+    const leases = new WriterLeaseService(worldPath)
+    try {
+      store.forkBranch(parent, child, forkSeq!)
+      const lease = leases.acquire(parent, 'world-pack-future-writer')
+      const head = store.head(parent)
+      await store.commitRound({
+        address: parent,
+        transactionId: brandId('transaction:pack-future', 'TransactionId'),
+        roundId: brandId('round:pack-future', 'InteractionRoundId'),
+        expectedHeadSeq: head.headSeq,
+        expectedTick: head.tick,
+        nextTick: head.tick + 1,
+        events: [
+          {
+            eventType: 'claim.upsert', eventVersion: 1,
+            data: { id: 'claim:future', value: { characterId: bob, proposition: 'FUTURE_CANARY' } },
+          },
+          { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1 } },
+        ],
+        outbox: [],
+        cognitiveJobs: [{ characterId: bob }],
+        correlationId: 'world-pack-future',
+        writerFencingToken: lease.fencingToken,
+      })
+      leases.release(parent, 'world-pack-future-writer', lease.fencingToken)
+    } finally {
+      leases.close()
+      store.close()
+    }
+
+    const forked = new WorldApplication({ worldPath, sessionPath, memoryPath })
+    try {
+      expect(JSON.stringify(await forked.recallMemory(parent, bob, 'FUTURE_CANARY'))).toContain('FUTURE_CANARY')
+      expect(await forked.recallMemory(child, bob, 'FUTURE_CANARY')).toEqual([])
+      expect(JSON.stringify((await forked.characterView(child, bob)).claims)).not.toContain('FUTURE_CANARY')
+      expect(forked.getWorld(child).manifestHash).toBe(compiled.manifestHash)
+    } finally {
+      await forked.close()
+    }
   })
 
   it('is independent of source list order and CRLF/LF choice', async () => {

@@ -96,8 +96,40 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     expect(() => runtimeManifestFromStoredRecord(undefined)).toThrow('no stored Manifest')
   })
 
+  it('accepts a content-bound V3 Manifest without rewriting its stored bytes', () => {
+    const v2 = new WorldSpecCompiler().compile(specV2()).manifest
+    const contentPack = {
+      schemaVersion: 1 as const,
+      packId: 'pack:test',
+      packVersion: '1.0.0',
+      packHash: hashWorldJson('pack:test', null),
+      compiler: {
+        id: 'compiler:test', version: '0.1.0', contractVersion: 'compiler/v1',
+        canonicalJsonVersion: 'world-json/v1', limitsProfile: 'limits/v1',
+      },
+      pluginLocks: [],
+      presentation: { profileId: 'presentation:test' },
+      initialFacts: [],
+    }
+    const v3 = { ...v2, schemaVersion: 3 as const, contentPack }
+    expect(runtimeManifestFromStored(v3)).toBe(v3)
+    for (const [manifest, message] of [
+      [{ ...v3, contentPack: null }, 'contentPack'],
+      [{ ...v3, contentPack: { ...contentPack, schemaVersion: 2 } }, 'schemaVersion'],
+      [{ ...v3, contentPack: { ...contentPack, packId: '' } }, 'packId'],
+      [{ ...v3, contentPack: { ...contentPack, packVersion: '' } }, 'packVersion'],
+      [{ ...v3, contentPack: { ...contentPack, packHash: '' } }, 'packHash'],
+      [{ ...v3, contentPack: { ...contentPack, compiler: null } }, 'compiler'],
+      [{ ...v3, contentPack: { ...contentPack, pluginLocks: null } }, 'pluginLocks'],
+      [{ ...v3, contentPack: { ...contentPack, initialFacts: null } }, 'initialFacts'],
+      [{ ...v3, contentPack: { ...contentPack, extra: true } }, 'missing or unknown'],
+    ] as const) {
+      expect(() => runtimeManifestFromStored(manifest as unknown as WorldJsonValue)).toThrow(message)
+    }
+  })
+
   it.each([
-    [{ schemaVersion: 3 }, 'schemaVersion'],
+    [{ schemaVersion: 4 }, 'schemaVersion'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: null }, 'runtimePolicy'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'offline', playerInitialAvailability: 'ready' } }, 'npcInitialAvailability'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'offline' } }, 'playerInitialAvailability'],

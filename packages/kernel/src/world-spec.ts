@@ -35,7 +35,7 @@ export interface ManifestRegistries extends WorldJsonObject {
 }
 
 export interface CompiledWorldManifest extends WorldJsonObject {
-  readonly schemaVersion: 2
+  readonly schemaVersion: 2 | 3
   readonly address: WorldAddress
   readonly specHash: WorldHash
   readonly genesisPlanHash: WorldHash
@@ -56,6 +56,51 @@ export interface CompiledWorldManifest extends WorldJsonObject {
   readonly observations: readonly ObservationSpec[]
   readonly playerBindings: readonly PlayerBindingSpec[]
   readonly plugins: readonly PluginSpec[]
+  readonly contentPack?: ContentPackManifestBinding
+}
+
+export interface ContentPackCompilerIdentity extends WorldJsonObject {
+  readonly id: string
+  readonly version: string
+  readonly contractVersion: string
+  readonly canonicalJsonVersion: string
+  readonly limitsProfile: string
+}
+
+export interface ContentPackPluginLock extends WorldJsonObject {
+  readonly kind: string
+  readonly id: string
+  readonly version: string
+  readonly pluginHash: WorldHash
+}
+
+export interface ContentPackManifestBinding extends WorldJsonObject {
+  readonly schemaVersion: 1
+  readonly packId: string
+  readonly packVersion: string
+  readonly packHash: WorldHash
+  readonly compiler: ContentPackCompilerIdentity
+  readonly pluginLocks: readonly ContentPackPluginLock[]
+  readonly presentation: WorldJsonValue
+  readonly initialFacts: readonly WorldJsonValue[]
+}
+
+export interface ContentPackCharacterSpec extends CharacterSpec {
+  readonly pronouns: string
+  readonly lifecycle: 'active' | 'incapacitated' | 'dead' | 'departed'
+  readonly portrayal: WorldJsonValue
+}
+
+export interface CompiledWorldManifestV2 extends CompiledWorldManifest {
+  readonly schemaVersion: 2
+  readonly contentPack?: never
+}
+
+/** V3 only adds immutable content-pack provenance; all execution fields retain V2 semantics. */
+export interface CompiledWorldManifestV3 extends CompiledWorldManifest {
+  readonly schemaVersion: 3
+  readonly characters: readonly ContentPackCharacterSpec[]
+  readonly contentPack: ContentPackManifestBinding
 }
 
 export interface CompiledWorldSpec {
@@ -73,7 +118,7 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   canonicalizeWorldJson(value)
   const root = objectAt(value, 'StoredWorldManifest')
   if (root.schemaVersion === 1) return new WorldSpecCompiler().compile(value).manifest
-  if (root.schemaVersion !== 2) throw new TypeError('stored Manifest schemaVersion is unsupported')
+  if (root.schemaVersion !== 2 && root.schemaVersion !== 3) throw new TypeError('stored Manifest schemaVersion is unsupported')
   const runtimePolicy = objectAt(root.runtimePolicy, 'StoredWorldManifest.runtimePolicy')
   exactKeys(runtimePolicy, ['npcInitialAvailability', 'playerInitialAvailability'], 'StoredWorldManifest.runtimePolicy')
   if (runtimePolicy.npcInitialAvailability !== 'provisioning' && runtimePolicy.npcInitialAvailability !== 'ready') {
@@ -83,6 +128,19 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   arrayAt(root.locations, 'StoredWorldManifest.locations')
   arrayAt(root.characters, 'StoredWorldManifest.characters')
   arrayAt(root.playerBindings, 'StoredWorldManifest.playerBindings')
+  if (root.schemaVersion === 3) {
+    const contentPack = objectAt(root.contentPack, 'StoredWorldManifest.contentPack')
+    exactKeys(contentPack, [
+      'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'presentation', 'initialFacts',
+    ], 'StoredWorldManifest.contentPack')
+    if (contentPack.schemaVersion !== 1) throw new TypeError('stored Manifest contentPack schemaVersion is unsupported')
+    textAt(contentPack.packId, 'StoredWorldManifest.contentPack.packId')
+    textAt(contentPack.packVersion, 'StoredWorldManifest.contentPack.packVersion')
+    textAt(contentPack.packHash, 'StoredWorldManifest.contentPack.packHash')
+    objectAt(contentPack.compiler, 'StoredWorldManifest.contentPack.compiler')
+    arrayAt(contentPack.pluginLocks, 'StoredWorldManifest.contentPack.pluginLocks')
+    arrayAt(contentPack.initialFacts, 'StoredWorldManifest.contentPack.initialFacts')
+  }
   return value as CompiledWorldManifest
 }
 
@@ -281,7 +339,7 @@ export class WorldSpecCompiler {
     const normalizedSpec = { schemaVersion: 2 as const, address, metadata, timeMode: 'TURN_DRIVEN' as const, roundQueueLimit: root.roundQueueLimit as number, runtimePolicy, rulebook: { rulebookId: 'builtin:speak-move' as const, version: rulebookVersion }, locations, entities, characters, scenes, goals, claims, observations, playerBindings, plugins }
     const specHash = hashWorldJson('world-spec-v2', normalizedSpec)
     const genesisPlanHash = hashWorldJson('world-genesis-semantic-plan-v1', { address, locations, entities, characters, scenes, goals, claims, observations, playerBindings, lifecycle: 'active' })
-    const manifest: CompiledWorldManifest = { ...normalizedSpec, specHash, genesisPlanHash, canonicalVersion: 'world-json/v1', hashVersion: 'sha256/v1', registries: registries(rulebookVersion) }
+    const manifest: CompiledWorldManifestV2 = { ...normalizedSpec, specHash, genesisPlanHash, canonicalVersion: 'world-json/v1', hashVersion: 'sha256/v1', registries: registries(rulebookVersion) }
     const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
     const genesisEvents: readonly WorldEventDraft[] = [
       { eventType: 'world.created', eventVersion: 1, data: { specHash } },

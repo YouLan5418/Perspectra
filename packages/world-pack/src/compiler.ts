@@ -3,12 +3,20 @@ import { lstat, readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import {
   canonicalizeWorldJson,
+  deterministicId,
   hashWorldJson,
   type WorldHash,
+  type WorldEventDraft,
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { WorldSpecCompiler, type CompiledWorldSpec } from '@harness-world/kernel'
+import {
+  WorldSpecCompiler,
+  type CompiledWorldManifestV3,
+  type CompiledWorldSpec,
+  type ContentPackCharacterSpec,
+  type ContentPackManifestBinding,
+} from '@harness-world/kernel'
 import {
   PHASE7_CORE_PROFILES,
   WORLD_PACK_COMPILED_SCHEMA_VERSION,
@@ -73,6 +81,36 @@ function rawHash(bytes: Uint8Array): WorldHash {
 
 function packHash(unsigned: UnsignedCompiledWorldPack): WorldHash {
   return hashWorldJson('compiled-world-pack/v1', unsigned)
+}
+
+function cognitiveSourceRef(
+  pack: CompiledWorldPack,
+  sourceType: 'character-observation' | 'character-claim' | 'character-goal' | 'initial-fact',
+  sourceId: string,
+  characterId: string,
+): WorldJsonObject {
+  return {
+    kind: 'world-pack-source/v1',
+    packId: pack.packId,
+    packVersion: pack.packVersion,
+    packHash: pack.packHash,
+    sourceType,
+    sourceId,
+    characterId,
+  }
+}
+
+function contentPackBinding(pack: CompiledWorldPack): ContentPackManifestBinding {
+  return {
+    schemaVersion: 1,
+    packId: pack.packId,
+    packVersion: pack.packVersion,
+    packHash: pack.packHash,
+    compiler: pack.compiler,
+    pluginLocks: pack.pluginLocks,
+    presentation: pack.content.presentation,
+    initialFacts: pack.content.world.initialFacts,
+  }
 }
 
 function normalizedSourcePath(value: string, manifestFile: string): string {
@@ -273,7 +311,46 @@ export class WorldPackCompiler {
   adaptToWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
     const pack = verifyCompiledWorldPack(packInput)
     const player = pack.content.playerSlots[0]!
-    return new WorldSpecCompiler().compile({
+    const observations = pack.content.characters.flatMap(character => character.initialObservations.map(item => ({
+      observationId: item.observationId,
+      observerId: character.characterId,
+      value: {
+        content: item.value,
+        sourceRefs: [cognitiveSourceRef(pack, 'character-observation', item.observationId, character.characterId)],
+      },
+    })))
+    const claims = [
+      ...pack.content.characters.flatMap(character => character.initialClaims.map(item => ({
+        claimId: item.claimId,
+        characterId: character.characterId,
+        value: {
+          proposition: item.value,
+          sourceRefs: [cognitiveSourceRef(pack, 'character-claim', item.claimId, character.characterId)],
+        },
+      }))),
+      ...pack.content.world.initialFacts.flatMap(fact => fact.initialAudience.map(characterId => ({
+        claimId: deterministicId('world-pack-initial-fact-claim/v1', {
+          packHash: pack.packHash, factId: fact.factId, characterId,
+        }),
+        characterId,
+        value: {
+          proposition: fact.proposition,
+          sourceRefs: [cognitiveSourceRef(pack, 'initial-fact', fact.factId, characterId)],
+        },
+      }))),
+    ]
+    const goals = pack.content.characters.flatMap(character => character.initialGoals.map(item => ({
+      goalId: item.goalId,
+      characterId: character.characterId,
+      value: {
+        goal: item.value,
+        status: 'active',
+        priorityPermille: item.priorityPermille,
+        visibility: item.visibility,
+        sourceRefs: [cognitiveSourceRef(pack, 'character-goal', item.goalId, character.characterId)],
+      },
+    })))
+    const base = new WorldSpecCompiler().compile({
       schemaVersion: 2,
       address: options.address,
       metadata: { title: pack.content.world.title, description: pack.content.world.description },
@@ -284,7 +361,7 @@ export class WorldPackCompiler {
       entities: [],
       characters: pack.content.characters.map(value => ({ characterId: value.characterId, name: value.displayName, locationId: value.initialLocationId })),
       scenes: pack.content.scenes,
-      goals: [], claims: [], observations: [],
+      goals, claims, observations,
       playerBindings: [{ principalId: options.principalId, characterId: player.characterId, sessionId: options.sessionId }],
       plugins: [
         pack.content.world.coreProfiles.sceneDecision,
@@ -292,6 +369,61 @@ export class WorldPackCompiler {
         { pluginId: pack.content.world.coreProfiles.presentation.profileId, version: pack.content.world.coreProfiles.presentation.version },
       ],
     })
+    const characters: readonly ContentPackCharacterSpec[] = pack.content.characters.map(character => ({
+      characterId: character.characterId,
+      name: character.displayName,
+      locationId: character.initialLocationId,
+      pronouns: character.pronouns,
+      lifecycle: character.lifecycle,
+      portrayal: character.portrayal,
+    }))
+    const contentPack = contentPackBinding(pack)
+    const specHash = hashWorldJson('world-pack-runtime-spec/v1', {
+      baseSpecHash: base.manifest.specHash,
+      contentPack,
+      characters,
+    })
+    const genesisPlanHash = hashWorldJson('world-pack-genesis-semantic-plan/v1', {
+      baseGenesisPlanHash: base.manifest.genesisPlanHash,
+      packHash: pack.packHash,
+      lifecycles: characters.map(character => ({ characterId: character.characterId, lifecycle: character.lifecycle })),
+    })
+    const manifest: CompiledWorldManifestV3 = {
+      ...base.manifest,
+      schemaVersion: 3,
+      specHash,
+      genesisPlanHash,
+      characters,
+      contentPack,
+    }
+    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+    const lifecycleByCharacter = new Map<string, ContentPackCharacterSpec['lifecycle']>(
+      characters.map(character => [character.characterId, character.lifecycle]),
+    )
+    const genesisEvents: readonly WorldEventDraft[] = base.genesisEvents.flatMap(event => {
+      if (event.eventType === 'world.created') {
+        return [{ ...event, data: { specHash } }]
+      }
+      if (event.eventType === 'world.manifest-locked') {
+        return [{ ...event, data: { manifestHash, genesisPlanHash } }]
+      }
+      if (event.eventType !== 'character.created') return [event]
+      const characterId = (event.data as WorldJsonObject).characterId as string
+      const lifecycle = lifecycleByCharacter.get(characterId)!
+      return lifecycle === 'active'
+        ? [event]
+        : [event, {
+          eventType: 'character.lifecycle-changed',
+          eventVersion: 1,
+          data: { characterId, lifecycleState: lifecycle, transition: 'world-pack-genesis' },
+        }]
+    })
+    return {
+      manifest,
+      manifestHash,
+      genesisEvents,
+      genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
+    }
   }
 }
 

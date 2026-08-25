@@ -41,3 +41,4 @@
 | [0057](ADR-0057-creator-extension-runtime-author.md) | 创作者 Action 扩展、插件锁与 Runtime Author | Phase 9 实现；Phase 7 Pack 只允许现有 Core profile |
 | [0058](ADR-0058-player-slot-control-observer.md) | PlayerSlot、Agent Controller 与角色限域 Observer | Phase 10 实现；Phase 7 玩家保持 manual |
 | [0059](ADR-0059-agent-participation-memory-provider.md) | Agent 参与调度、Memory Profile 与真实 Provider | Phase 7 复用 Local Memory；完整调度与真实 Provider 分配到 Phase 10～11 |
+| [0060](ADR-0060-content-pack-manifest-provenance.md) | 内容包 Manifest 来源绑定与 Genesis 接入 | 旧 Manifest 不变；Pack 世界用 v3 锁定来源并通过既有认知事件激活 |

@@ -10,6 +10,8 @@
 
 > Phase 7 只证明“无需修改 Kernel，即可用通用 Pack 创建并持续运行一个具有独立角色知识与 Memory 的非悬疑酒馆世界”。架构总纲中的 Scene v2、动态复杂心理、CharacterTemplate、Runtime Author、Agent 接管玩家和真实 Harness Provider 均不属于本阶段完成门槛。
 
+> 兼容补充：ADR-0060 发现既有 Manifest v2 无法耐久证明 Pack 来源，因此只允许增加通用 Manifest v3 来源绑定和既有 Genesis 认知事件适配；“无需修改 Kernel”继续约束题材玩法、规则和第二事实源不得进入 Kernel。旧 v1/v2 Manifest 与 Hash 不变。
+
 ## 1. 完成定义
 
 Phase 7 完成时，一个创作者必须能够：
