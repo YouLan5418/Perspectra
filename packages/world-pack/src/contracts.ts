@@ -218,3 +218,26 @@ export interface WorldPackRuntimeOptions {
   readonly principalId: string
   readonly sessionId: SessionId
 }
+
+export interface WorldPackInspection extends WorldJsonObject {
+  readonly packId: WorldPackId
+  readonly packVersion: string
+  readonly packHash: WorldHash
+  readonly title: string
+  readonly characterCount: number
+  readonly locationCount: number
+  readonly entityCount: number
+  readonly assertionCount: number
+  readonly pluginLocks: readonly WorldPackPluginLock[]
+}
+
+export interface WorldPackTestReport extends WorldJsonObject {
+  readonly status: 'passed'
+  readonly packId: WorldPackId
+  readonly packVersion: string
+  readonly packHash: WorldHash
+  readonly manifestHash: WorldHash
+  readonly genesisHash: WorldHash
+  readonly assertionPlanHash: WorldHash
+  readonly assertionIds: readonly string[]
+}

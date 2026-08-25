@@ -158,6 +158,9 @@ importers:
 
   packages/world-pack:
     dependencies:
+      '@harness-world/application':
+        specifier: workspace:*
+        version: link:../application
       '@harness-world/contracts':
         specifier: workspace:*
         version: link:../contracts

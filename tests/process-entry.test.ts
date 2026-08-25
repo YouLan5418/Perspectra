@@ -41,6 +41,7 @@ describe('process entrypoints', () => {
     const entries = [
       'packages/operations/process/application-cli-entry.ts',
       'packages/operations/process/cli-entry.ts',
+      'packages/world-pack/process/cli-entry.ts',
       'packages/simulation/process/mystery-demo-entry.ts',
       'packages/simulation/process/mystery-drill-entry.ts',
       'packages/simulation/process/mystery-turn-entry.ts',
