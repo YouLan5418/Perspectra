@@ -129,6 +129,8 @@ Phase 7 沿用总纲的路径、Unicode、文件数和大小限制。文件无�
 
 Phase 7 allowlist 只包含已有 Core Rulebook、当前 Scene Decision、现有 Agent Context/Memory 路径和确定性 Presentation。Pack 可引用这些精确 id/version/hash，但不能声明新插件。
 
+Phase 7 的版本轴彼此独立：项目候选为 `0.2.0`，World Pack Compiler 实现从 `0.1.0` 起步，source schema 为 `worldpack-source/v1`，compiled envelope 为 `worldpack/v1`，Pack 作者自行维护 `packVersion`。实现不得从项目版本推导其余版本字段。
+
 ### 4.3 诊断
 
 所有 Compiler 诊断包含：
@@ -213,6 +215,8 @@ worldpack activate <worldpack.json> --data-dir <dir>
 worldappctl chat --data-dir <dir>
 ```
 
+`worldappctl` 需要新增显式子命令 dispatcher，但必须保留现有 `worldappctl <world.sqlite> <session.sqlite> <command>` 位置参数入口作为兼容 adapter。首参数匹配已注册新子命令时走新 dispatcher，否则完整转交旧解析器；歧义和缺参使用 canonical `ErrorEnvelope`，不能静默改变旧命令含义。本阶段不宣布旧入口 deprecated。
+
 ## 8. 酒馆社交参考 Pack
 
 酒馆 Pack 至少包含：
@@ -273,7 +277,7 @@ Phase 7 使用总纲中的 `PACK_SOURCE_INVALID`、`PACK_REFERENCE_INVALID`、`P
    - commit/restart/fork/future-canary 测试。
 4. P7.4 `feat(interaction): add generic persistent world shell`
    - 通用文本/move/take、clarification、连续 stdio shell；
-   - Principal view 和无旁路测试。
+   - 新子命令 dispatcher、旧位置参数 adapter、Principal view 和无旁路测试。
 5. P7.5 `feat(content): add deterministic tavern social pack`
    - 酒馆 source、acceptance assertions、Scripted/Rule providers；
    - 多轮、重启、fork、Memory/Scene E2E。

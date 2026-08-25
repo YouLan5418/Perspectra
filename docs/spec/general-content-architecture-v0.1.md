@@ -157,7 +157,7 @@ my-world/
   "packHash": "sha256:...",
   "compiler": {
     "id": "harness-world-pack-compiler",
-    "version": "0.2.0",
+    "version": "0.1.0",
     "contractVersion": "worldpack-compiler/v1",
     "canonicalJsonVersion": "world-json/v1",
     "limitsProfile": "worldpack-limits/v1"
@@ -168,6 +168,8 @@ my-world/
   "acceptanceAssertions": []
 }
 ```
+
+`compiler.version` 是编译器实现制品自己的 SemVer，初始版本线为 `0.1.0`；它不从项目候选版本、Pack 版本、World schema 或 Manifest epoch 派生。`contractVersion` 才标识编译输入/输出协议。编译器实现升级但产物字节不变时可只改变实现版本；任何契约或 canonical bytes 变化必须同时升级对应 contract/canonical version 并提供兼容矩阵。
 
 `packId + packVersion` 只用于人类管理；`packHash` 才是内容身份。同一 `packId + packVersion` 对应不同 `packHash` 必须返回 `PACK_VERSION_DIVERGED`。激活后的世界只读取 compiled envelope 和 Manifest，不再读取 source 目录。
 
@@ -224,7 +226,7 @@ Secret 的作者语法由一条权威命题和 `initialAudience` 组成。Compil
 }
 ```
 
-`stance` 固定为 `believed | suspected | denied`，confidence 为 0～1000 整数。需要参与 Rulebook 的 proposition 必须使用注册 predicate；自由叙事命题只能进入 portrayal 或不可裁定的叙述字段。
+Claim 保留版本化 `stance` 字段和 0～1000 的 `confidencePermille` 表示能力，但 Kernel 不解释某个 stance token 的心理学含义。示例中的 `believed | suspected | denied` 是 Phase 8 cognition vocabulary 的候选值，不是本总纲冻结的 Core 枚举；Phase 8 必须选择精确 vocabulary id/version/hash 后才能进入 Schema。需要参与 Rulebook 的 proposition 必须使用注册 predicate；自由叙事命题只能进入 portrayal 或不可裁定的叙述字段。
 
 ### 6.3 Goal、Affect 与 InnerTension
 
@@ -244,7 +246,7 @@ CharacterGoal 是角色主观状态，不是外部事实证明：
 }
 ```
 
-状态固定为 `active | blocked | completed | abandoned | failed`；awareness 为 `conscious | partially_conscious | unrecognized`。父 Goal 只用于组织，不自动传播状态、分解任务或调用规划器。Goal 的确定性完成或受控作者完成都必须有来源；完成一个 Goal 不改变其他角色的 Claim。
+Goal 生命周期状态固定为 `active | blocked | completed | abandoned | failed`。`awareness` 是版本化 cognition vocabulary 的字段；示例中的 `conscious | partially_conscious | unrecognized` 只表达预期能力，不在 Phase 8 规格落地前冻结为 Core 枚举。父 Goal 只用于组织，不自动传播状态、分解任务或调用规划器。Goal 的确定性完成或受控作者完成都必须有来源；完成一个 Goal 不改变其他角色的 Claim。
 
 情绪由稳定的 `affectStyle`、事件化的当前 Affect 和结构化 InnerTension 组成。多个 Affect 可同时存在且无需归一化：
 
@@ -275,7 +277,7 @@ CharacterGoal 是角色主观状态，不是外部事实证明：
 
 InnerTension 进入 Context，但不是 Rulebook 权威输入，除非一个精确注册的题材插件显式声明它。内部情绪与外显行为分离：其他角色只能通过获授权 Observation 得知表达，不能读取 Affect。`unrecognized` 的心理状态可被 Agent 作为角色刻画上下文使用，但不能伪装成角色自知的 Claim。
 
-Kernel 只冻结结构，不定义通用心理学本体。Pack 选择精确版本的 affect vocabulary 与可选 policy；`TURN_DRIVEN` 下 Affect 只由 Tick、Event 或注册 policy 更新，不依赖真实时钟衰减。
+Kernel 只冻结字段形状、来源引用、整数强度和“必须引用精确 vocabulary”的机制，不内建通用心理学词汇或解释。本文示例中的 stance、awareness 和 affectType token 均为非规范示例；Phase 8 必须以独立实施规格确定版本化 cognition/affect vocabulary，Pack 再锁定其 id/version/hash。`TURN_DRIVEN` 下 Affect 只由 Tick、Event 或注册 policy 更新，不依赖真实时钟衰减。
 
 ### 6.4 唯一角色与角色模板
 
@@ -509,15 +511,17 @@ interface AuthorCommandService {
 
 每个 Phase 继续按“契约与 Store → 领域行为 → 集成/故障测试 → 文档证据”拆分最小提交：
 
-| Phase | 只回答的核心问题 | 主要范围 | 明确推迟 |
-|---|---|---|---|
-| 7 | 不改 Kernel 能否做出非悬疑酒馆世界 | 最小 Pack v1、最小 Character、现有 Scene policy、通用连续交互、酒馆 Pack、角色 Memory 隔离 | Scene v2、复杂心理运行策略、第三方插件、Agent 接管、真实 Provider |
-| 8 | 多 Scene 与复杂主观状态是否仍可重建 | Scene v2、旅途 Pack、Goal/Affect/InnerTension 动态策略、Objective | Runtime Author、Player Agent Controller、真实 Provider |
-| 9 | 创作者能否安全扩展题材与运行内容 | CharacterTemplate、受信任插件锁、Action alias、PresentationProfile、Runtime Author | 不受信任插件沙箱、真实 Provider |
-| 10 | Agent 能否安全接管玩家角色 | PlayerSlot 扩展、Control/Observer ledger、`core:wait@1`、participation policy | 后台 autoplay、多玩家 |
-| 11 | 真实模型能否服从既有权威边界 | Context v2 完整 profile、Memory L1、Harness Bridge、真实 Provider replay/degradation | TencentDB、LLM Narrator、远程服务 |
+| Phase | 候选版本 | 只回答的核心问题 | 主要范围 | 明确推迟 |
+|---|---|---|---|---|
+| 7 | `0.2.0` | 不改 Kernel 能否做出非悬疑酒馆世界 | 最小 Pack v1、最小 Character、现有 Scene policy、通用连续交互、酒馆 Pack、角色 Memory 隔离 | Scene v2、复杂心理运行策略、第三方插件、Agent 接管、真实 Provider |
+| 8 | `0.3.0` | 多 Scene 与复杂主观状态是否仍可重建 | Scene v2、旅途 Pack、Goal/Affect/InnerTension 动态策略、Objective | Runtime Author、Player Agent Controller、真实 Provider |
+| 9 | `0.4.0` | 创作者能否安全扩展题材与运行内容 | CharacterTemplate、受信任插件锁、Action alias、PresentationProfile、Runtime Author | 不受信任插件沙箱、真实 Provider |
+| 10 | `0.5.0` | Agent 能否安全接管玩家角色 | PlayerSlot 扩展、Control/Observer ledger、`core:wait@1`、participation policy | 后台 autoplay、多玩家 |
+| 11 | `0.6.0` | 真实模型能否服从既有权威边界 | Context v2 完整 profile、Memory L1、Harness Bridge、真实 Provider replay/degradation | TencentDB、LLM Narrator、远程服务 |
 
 各 Phase 只以自己的正式实施规格作为完成清单；后续 ADR 已 Accepted 不等于前一 Phase 必须提前实现。
+
+每个 Phase 默认产生一个新的 minor 候选；同一 Phase 的兼容缺陷修复使用 patch 版本。项目候选版本不决定 Pack 作者维护的 `packVersion`，也不决定 Compiler、source schema、compiled envelope、Manifest、Registry、Context 或 vocabulary 的版本；这些轴必须在 compiled envelope/Manifest 中分别记录并独立升级。
 
 任何单元无法保持原子性、Hash、as-of、权限或确定性时停止该单元；不相关且不依赖该阻塞的单元可继续。
 

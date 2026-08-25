@@ -20,6 +20,7 @@
 6. 复杂心理由稳定 `affectStyle`、多个并存的事件化 Affect 和结构化 InnerTension 表达。强度不归一化；内部状态与外显 Observation 分离。
 7. Kernel 冻结结构但不冻结通用心理词汇。Pack 选择版本化 affect vocabulary/policy；TURN_DRIVEN 下变化只由 Tick、Event 或注册 policy 驱动。
 8. CharacterDefinition 可为 unique 或 template。每个模板实例拥有独立身份、认知、Memory、Session、Scene、lifecycle 和 availability；参数只能使用预编译 Schema/variant。
+9. `stance`、`awareness` 和 `affectType` 的具体 token 不属于 Kernel Core 枚举。总纲中的值是非规范示例；Phase 8 必须以精确 cognition/affect vocabulary id、version 和 hash 冻结实际词汇后才能实现。
 
 ## 后果
 

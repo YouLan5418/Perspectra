@@ -18,6 +18,7 @@ V0 的 WorldSpec 能证明 Manifest/Genesis 的确定性，但不足以承载多
 5. Pack 身份为 `packId + packVersion + packHash`。同 id/version 异 hash 返回 `PACK_VERSION_DIVERGED`；激活锁定 compiler contract、canonical version、limits profile、plugin hashes、Manifest 和 Genesis。
 6. active World 永不重读 source 目录。preview/test 创建临时 World；production 内容更新创建新 World。Phase 7 不支持继承、热更新、fork 换 Pack 或迁移。
 7. Pack 是不受信任数据，插件代码由 Host 安装、审核和 allowlist。`authorOnly` 只是运行时可见性，不是加密。
+8. Compiler implementation SemVer、compiler contract、source schema、compiled envelope、Pack、World/Manifest 和项目候选版本是独立版本轴。Compiler 实现从 `0.1.0` 起步，不从 Phase 7 的 `0.2.0` 或 Pack 版本推导。
 
 ## 后果
 
