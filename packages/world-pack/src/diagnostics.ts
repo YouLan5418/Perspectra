@@ -6,6 +6,7 @@ export type WorldPackDiagnosticCode =
   | 'PACK_REFERENCE_INVALID'
   | 'PACK_PROFILE_NOT_ALLOWED'
   | 'PACK_LIMIT_EXCEEDED'
+  | 'PACK_VERSION_DIVERGED'
 
 export interface WorldPackDiagnostic {
   readonly severity: WorldPackDiagnosticSeverity

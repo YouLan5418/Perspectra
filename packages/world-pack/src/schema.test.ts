@@ -87,7 +87,7 @@ function pluginLocks() {
     { kind: 'scene-decision', id: 'builtin:scene-decision', version: '1.0.0' },
     { kind: 'agent-context', id: 'builtin:agent-context', version: '2.0.0' },
     { kind: 'presentation', id: 'builtin:deterministic-presentation', version: '1.0.0' },
-  ]
+  ].map(identity => ({ ...identity, pluginHash: hashWorldJson('world-pack-core-plugin-lock/v1', identity) }))
 }
 
 function compiled(): WorldJsonValue {
@@ -181,7 +181,7 @@ describe('World Pack Phase 7 contracts', () => {
     expect(value.assets[0]?.size).toBe(12)
     expect(canonicalizeWorldJson(value).byteLength).toBeGreaterThan(100)
     expect(hashWorldJson('world-pack-contract-golden/v1', value)).toBe(
-      'sha256:2503238b09588560ac4d2db741e0c5c8eed6e0aceb0287eb2e1a2c00e979f23b',
+      'sha256:d84f8566df15e7992a341299201960fe930ba9b3ab1d41f288eda434c6bc024c',
     )
   })
 
@@ -292,8 +292,9 @@ describe('World Pack Phase 7 contracts', () => {
     [() => parseCompiledWorldPack({ ...compiled() as object, compiler: { ...(compiled() as CompiledWorldPack).compiler, version: '0.2.0' } }), 'PACK_SOURCE_INVALID'],
     [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: pluginLocks().slice(0, 3) }), 'PACK_PROFILE_NOT_ALLOWED'],
     [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [...pluginLocks(), pluginLocks()[0]] }), 'PACK_DUPLICATE_ID'],
-    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [{ kind: 'other', id: 'x', version: '1.0.0' }, ...pluginLocks().slice(1) ] }), 'PACK_PROFILE_NOT_ALLOWED'],
-    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [{ kind: 'rulebook', id: 'other', version: '2' }, ...pluginLocks().slice(1) ] }), 'PACK_PROFILE_NOT_ALLOWED'],
+    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [{ ...pluginLocks()[0], kind: 'other', id: 'x' }, ...pluginLocks().slice(1) ] }), 'PACK_PROFILE_NOT_ALLOWED'],
+    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [{ ...pluginLocks()[0], id: 'other' }, ...pluginLocks().slice(1) ] }), 'PACK_PROFILE_NOT_ALLOWED'],
+    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [{ ...pluginLocks()[0], pluginHash: ZERO_HASH }, ...pluginLocks().slice(1) ] }), 'PACK_PROFILE_NOT_ALLOWED'],
     [() => parseCompiledWorldPack({ ...compiled() as object, content: { ...(compiled() as CompiledWorldPack).content, extra: true } }), 'PACK_UNKNOWN_FIELD'],
     [() => parseCompiledWorldPack({ ...compiled() as object, content: { ...(compiled() as CompiledWorldPack).content, markdown: [
       { path: 'same.md', text: 'a', contentHash: ZERO_HASH }, { path: 'same.md', text: 'b', contentHash: ZERO_HASH },

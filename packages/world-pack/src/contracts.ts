@@ -1,6 +1,8 @@
 import type {
   BrandedId,
   CharacterId,
+  SessionId,
+  WorldAddress,
   WorldHash,
   WorldJsonObject,
   WorldJsonValue,
@@ -15,6 +17,10 @@ export const WORLD_PACK_COMPILER_ID = 'harness-world-pack-compiler' as const
 export const WORLD_PACK_COMPILER_VERSION = '0.1.0' as const
 export const WORLD_PACK_COMPILER_CONTRACT_VERSION = 'worldpack-compiler/v1' as const
 export const WORLD_PACK_LIMITS_PROFILE = 'worldpack-limits/v1' as const
+
+export interface WorldPackCompileOptions {
+  readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE
+}
 
 export interface WorldPackRulebookProfile extends WorldJsonObject {
   readonly rulebookId: 'builtin:speak-move'
@@ -174,6 +180,7 @@ export interface WorldPackPluginLock extends WorldJsonObject {
   readonly kind: 'rulebook' | 'scene-decision' | 'agent-context' | 'presentation'
   readonly id: string
   readonly version: string
+  readonly pluginHash: WorldHash
 }
 export interface WorldPackCompilerIdentity extends WorldJsonObject {
   readonly id: typeof WORLD_PACK_COMPILER_ID
@@ -192,4 +199,10 @@ export interface CompiledWorldPack extends WorldJsonObject {
   readonly content: WorldPackCompiledContent
   readonly assets: readonly WorldPackAssetLock[]
   readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
+}
+
+export interface WorldPackRuntimeOptions {
+  readonly address: WorldAddress
+  readonly principalId: string
+  readonly sessionId: SessionId
 }

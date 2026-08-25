@@ -158,6 +158,9 @@ importers:
       '@harness-world/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@harness-world/kernel':
+        specifier: workspace:*
+        version: link:../kernel
 
 packages:
 

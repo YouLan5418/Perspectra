@@ -5,6 +5,7 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
-    "@harness-world/contracts": "workspace:*"
+    "@harness-world/contracts": "workspace:*",
+    "@harness-world/kernel": "workspace:*"
   }
 }

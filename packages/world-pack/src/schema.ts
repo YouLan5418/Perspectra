@@ -2,6 +2,7 @@ import {
   assertProtocolString,
   brandId,
   canonicalizeWorldJson,
+  hashWorldJson,
   type BrandedId,
   type WorldHash,
   type WorldJsonValue,
@@ -419,13 +420,19 @@ function pluginLocksAt(value: unknown, file: string, at: string): WorldPackPlugi
     ['presentation', ['builtin:deterministic-presentation', '1.0.0']],
   ])
   const locks = arrayAt(value, file, at).map((entry, index): WorldPackPluginLock => {
-    const itemAt = `${at}/${index}`; const item = objectAt(entry, file, itemAt); exactKeys(item, ['kind', 'id', 'version'], [], file, itemAt)
+    const itemAt = `${at}/${index}`; const item = objectAt(entry, file, itemAt); exactKeys(item, ['kind', 'id', 'version', 'pluginHash'], [], file, itemAt)
     const kind = textAt(item.kind, file, `${itemAt}/kind`)
     const expected = allowed.get(kind)
     if (expected === undefined || item.id !== expected[0] || String(item.version) !== expected[1]) {
       failWorldPackContract('PACK_PROFILE_NOT_ALLOWED', file, itemAt, 'is not an exact Phase 7 plugin lock')
     }
-    return { kind: kind as WorldPackPluginLock['kind'], id: textAt(item.id, file, `${itemAt}/id`), version: textAt(item.version, file, `${itemAt}/version`) }
+    const id = textAt(item.id, file, `${itemAt}/id`)
+    const version = textAt(item.version, file, `${itemAt}/version`)
+    const pluginHash = hashAt(item.pluginHash, file, `${itemAt}/pluginHash`)
+    if (pluginHash !== hashWorldJson('world-pack-core-plugin-lock/v1', { kind, id, version })) {
+      failWorldPackContract('PACK_PROFILE_NOT_ALLOWED', file, `${itemAt}/pluginHash`, 'does not match the locked Core plugin contract')
+    }
+    return { kind: kind as WorldPackPluginLock['kind'], id, version, pluginHash }
   })
   unique(locks.map(lock => lock.kind), file, at)
   if (locks.length !== allowed.size) failWorldPackContract('PACK_PROFILE_NOT_ALLOWED', file, at, 'must lock every Phase 7 Core profile')
@@ -490,6 +497,7 @@ export function parseCompiledWorldPack(input: unknown, file = 'worldpack.json'):
 }
 
 /** Convert a contract diagnostic into the stable world error code used by compiler and CLI boundaries. */
-export function worldPackErrorCode(code: WorldPackDiagnosticCode): 'PACK_SOURCE_INVALID' | 'PACK_REFERENCE_INVALID' {
-  return code === 'PACK_REFERENCE_INVALID' ? 'PACK_REFERENCE_INVALID' : 'PACK_SOURCE_INVALID'
+export function worldPackErrorCode(code: WorldPackDiagnosticCode): 'PACK_SOURCE_INVALID' | 'PACK_REFERENCE_INVALID' | 'PACK_VERSION_DIVERGED' {
+  if (code === 'PACK_REFERENCE_INVALID' || code === 'PACK_VERSION_DIVERGED') return code
+  return 'PACK_SOURCE_INVALID'
 }
