@@ -453,7 +453,7 @@ export class RoundCoordinator {
           reason: resolution.reason ?? null,
         },
       })
-      const publicSpeech = this.#manifest.rulebook.version >= 4
+      const publicSpeech = (this.#manifest.rulebook.version >= 4 || this.#manifest.schemaVersion === 3)
         ? resolution.events.find(event => event.eventType === 'character.speak')
         : undefined
       const observerIds = this.options.sceneDecision?.decideFromEvents(

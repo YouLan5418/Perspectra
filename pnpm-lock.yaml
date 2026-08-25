@@ -137,6 +137,9 @@ importers:
       '@harness-world/store-sqlite':
         specifier: workspace:*
         version: link:../store-sqlite
+      '@harness-world/world-pack':
+        specifier: workspace:*
+        version: link:../world-pack
 
   packages/store-sqlite:
     dependencies:

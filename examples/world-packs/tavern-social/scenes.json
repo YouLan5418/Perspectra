@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "worldpack-scenes/v1",
+  "scenes": [
+    {
+      "sceneId": "scene:tavern-evening",
+      "participantIds": ["character:visitor", "character:alice", "character:bob"]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "worldpack-entities/v1",
+  "entities": [
+    {
+      "entityId": "entity:brass-token",
+      "locationId": "location:tavern-hall",
+      "kind": "token"
+    }
+  ]
+}

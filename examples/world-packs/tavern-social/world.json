@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "worldpack-world/v1",
+  "title": "渡鸦酒馆",
+  "description": "一个没有谜题或强制结局的开放式社交世界。",
+  "timeMode": "TURN_DRIVEN",
+  "roundQueueLimit": 16,
+  "initialFacts": [
+    {
+      "factId": "fact:bob-hidden-medallion",
+      "proposition": {
+        "statement": "一枚旧徽章藏在地窖石墙后面。",
+        "memoryKey": "hidden-medallion"
+      },
+      "initialAudience": ["character:bob"]
+    }
+  ]
+}

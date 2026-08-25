@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "worldpack-assertions/v1",
+  "assertions": [
+    {
+      "assertionId": "assertion:bob-secret-hidden-from-visitor",
+      "assertionType": "view-and-memory.exclude",
+      "parameters": {
+        "characterId": "character:visitor",
+        "query": "hidden-medallion",
+        "factId": "fact:bob-hidden-medallion"
+      }
+    },
+    {
+      "assertionId": "assertion:bob-secret-hidden-from-alice",
+      "assertionType": "view-and-memory.exclude",
+      "parameters": {
+        "characterId": "character:alice",
+        "query": "hidden-medallion",
+        "factId": "fact:bob-hidden-medallion"
+      }
+    },
+    {
+      "assertionId": "assertion:alice-mistake-is-character-scoped",
+      "assertionType": "claim.character-scoped",
+      "parameters": {
+        "characterId": "character:alice",
+        "claimId": "claim:alice-wine-delivered"
+      }
+    },
+    {
+      "assertionId": "assertion:reported-speech-does-not-entail",
+      "assertionType": "reported-speech.does-not-entail",
+      "parameters": {
+        "observerId": "character:alice",
+        "speakerId": "character:bob",
+        "statement": "今晚地窖门保持锁着。"
+      }
+    },
+    {
+      "assertionId": "assertion:recall-differs-by-character",
+      "assertionType": "memory.recall-differs",
+      "parameters": {
+        "characterIds": ["character:visitor", "character:alice", "character:bob"]
+      }
+    },
+    {
+      "assertionId": "assertion:scene-departure-unschedules",
+      "assertionType": "scene.departure-unschedules",
+      "parameters": { "characterId": "character:alice" }
+    },
+    {
+      "assertionId": "assertion:replay-stable",
+      "assertionType": "round.replay-stable",
+      "parameters": { "idempotencyKey": "tavern:turn:1" }
+    },
+    {
+      "assertionId": "assertion:fork-future-isolated",
+      "assertionType": "fork.future-memory-excluded",
+      "parameters": { "query": "FUTURE_CANARY" }
+    }
+  ]
+}

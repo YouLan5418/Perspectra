@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "worldpack-characters/v1",
+  "characters": [
+    {
+      "characterId": "character:visitor",
+      "displayName": "旅人",
+      "pronouns": "他们",
+      "initialLocationId": "location:tavern-hall",
+      "portrayal": {
+        "summary": "刚刚踏入酒馆的外乡旅人。",
+        "speakingStyle": "由玩家决定。",
+        "backgroundTextRef": "text/opening.zh-CN.md"
+      },
+      "initialObservations": [
+        {
+          "observationId": "observation:visitor-arrival",
+          "value": { "text": "旅人第一次走进渡鸦酒馆。" }
+        }
+      ],
+      "initialGoals": [
+        {
+          "goalId": "goal:visitor-meet-locals",
+          "value": { "objective": "认识酒馆里的当地人。" },
+          "priorityPermille": 600,
+          "visibility": "private"
+        }
+      ]
+    },
+    {
+      "characterId": "character:alice",
+      "displayName": "Alice",
+      "pronouns": "她",
+      "initialLocationId": "location:tavern-hall",
+      "portrayal": {
+        "summary": "负责记账的酒馆侍者。",
+        "speakingStyle": "礼貌、简短，偶尔会把传闻当成事实。",
+        "backgroundTextRef": "text/opening.zh-CN.md"
+      },
+      "initialObservations": [
+        {
+          "observationId": "observation:alice-cart-rumor",
+          "value": { "text": "Alice 在清晨听见后院传来车轮声。" }
+        }
+      ],
+      "initialClaims": [
+        {
+          "claimId": "claim:alice-wine-delivered",
+          "value": {
+            "proposition": "Alice 相信运酒车已经把橡木桶送到了后院。",
+            "epistemicStatus": "mistaken"
+          }
+        }
+      ],
+      "initialGoals": [
+        {
+          "goalId": "goal:alice-finish-ledger",
+          "value": { "objective": "在打烊前核对完今天的账本。" },
+          "priorityPermille": 700,
+          "visibility": "private"
+        }
+      ]
+    },
+    {
+      "characterId": "character:bob",
+      "displayName": "Bob",
+      "pronouns": "他",
+      "initialLocationId": "location:tavern-hall",
+      "portrayal": {
+        "summary": "沉稳的酒馆老板，知道建筑里不少旧事。",
+        "speakingStyle": "直接、克制，不主动泄露私事。",
+        "backgroundTextRef": "text/opening.zh-CN.md"
+      },
+      "initialObservations": [
+        {
+          "observationId": "observation:bob-cellar-check",
+          "value": { "text": "Bob 在开门前检查过地窖门锁。" }
+        }
+      ],
+      "initialGoals": [
+        {
+          "goalId": "goal:bob-keep-order",
+          "value": { "objective": "让今晚的酒馆保持平静。" },
+          "priorityPermille": 800,
+          "visibility": "private"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    { "locationId": "location:tavern-hall", "name": "酒馆主厅" },
+    { "locationId": "location:courtyard", "name": "后院" }
+  ]
+}

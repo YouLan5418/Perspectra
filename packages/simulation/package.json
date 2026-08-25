@@ -11,6 +11,7 @@
     "@harness-world/kernel": "workspace:*",
     "@harness-world/memory": "workspace:*",
     "@harness-world/operations": "workspace:*",
-    "@harness-world/store-sqlite": "workspace:*"
+    "@harness-world/store-sqlite": "workspace:*",
+    "@harness-world/world-pack": "workspace:*"
   }
 }

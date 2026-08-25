@@ -1,0 +1,15 @@
+{
+  "sourceSchemaVersion": "worldpack-source/v1",
+  "packId": "pack:tavern-social",
+  "packVersion": "1.0.0",
+  "worldFile": "world.json",
+  "characterFiles": ["characters.json"],
+  "locationFiles": ["locations.json"],
+  "entityFiles": ["entities.json"],
+  "sceneFiles": ["scenes.json"],
+  "playerSlotFiles": ["player-slots.json"],
+  "presentationFiles": ["presentation.json"],
+  "markdownFiles": ["text/opening.zh-CN.md"],
+  "assetFiles": [],
+  "assertionFiles": ["assertions/cognition-isolation.json"]
+}
