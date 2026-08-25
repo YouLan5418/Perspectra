@@ -4,7 +4,7 @@
 - 日期：2026-08-25
 - Extends：ADR-0033、ADR-0035
 - Supersedes：旧决策说明中把 Goal 与关系收窄为简单 value 的 V0 裁剪
-- 上位契约：[Phase 7 实施规格 §6](../spec/phase-7-implementation-v0.1.md#6-角色秘密关系与复杂心理)
+- 上位契约：[通用内容架构总纲 §6](../spec/general-content-architecture-v0.1.md#6-角色秘密关系与复杂心理)
 
 ## 背景
 

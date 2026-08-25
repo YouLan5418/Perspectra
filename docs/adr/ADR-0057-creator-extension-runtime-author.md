@@ -3,7 +3,7 @@
 - 状态：Accepted
 - 日期：2026-08-25
 - Extends：ADR-0026、ADR-0030、ADR-0034、ADR-0050
-- 上位契约：[Phase 7 实施规格 §9](../spec/phase-7-implementation-v0.1.md#9-action插件与创作者扩展)、[§11](../spec/phase-7-implementation-v0.1.md#11-runtime-author)
+- 上位契约：[通用内容架构总纲 §9](../spec/general-content-architecture-v0.1.md#9-action插件与创作者扩展)、[§11](../spec/general-content-architecture-v0.1.md#11-runtime-author)
 
 ## 背景
 

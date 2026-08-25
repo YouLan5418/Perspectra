@@ -4,7 +4,7 @@
 - 日期：2026-08-25
 - Extends：ADR-0023、ADR-0030、ADR-0039、ADR-0041、ADR-0047
 - Supersedes：新 Pack 中“玩家角色只能由人类直接提交 Action”的隐含限制；manual 仍为默认
-- 上位契约：[Phase 7 实施规格 §7](../spec/phase-7-implementation-v0.1.md#7-playerslotcontroller-与-observer)
+- 上位契约：[通用内容架构总纲 §7](../spec/general-content-architecture-v0.1.md#7-playerslotcontroller-与-observer)
 
 ## 背景
 

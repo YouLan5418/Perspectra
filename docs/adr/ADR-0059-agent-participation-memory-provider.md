@@ -3,7 +3,7 @@
 - 状态：Accepted
 - 日期：2026-08-25
 - Extends：ADR-0024、ADR-0032、ADR-0033、ADR-0035、ADR-0051、ADR-0052
-- 上位契约：[Phase 7 实施规格 §12](../spec/phase-7-implementation-v0.1.md#12-agent-参与memory-与真实-provider)
+- 上位契约：[通用内容架构总纲 §12](../spec/general-content-architecture-v0.1.md#12-agent-参与memory-与真实-provider)
 
 ## 背景
 

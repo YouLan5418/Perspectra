@@ -16,5 +16,6 @@
 - [悬疑 Demo 架构纠偏与四项欠账闭环](2026-08-23_阶段报告-悬疑Demo架构纠偏与四项欠账闭环.md)
 - [V0 本机运行与恢复手册](V0-LOCAL-RUNBOOK.md)
 - [V0 Release Closure 报告](2026-08-24_V0-Release-Closure-report.md)
-- [Phase 7 正式实施规格：通用内容与真实运行验证](spec/phase-7-implementation-v0.1.md)
+- [通用内容与真实运行架构总纲（Phase 7～11）](spec/general-content-architecture-v0.1.md)
+- [Phase 7 正式实施规格：最小通用内容闭环](spec/phase-7-implementation-v0.2.md)
 - [Phase 7 范围形成计划（已由正式规格收敛）](2026-08-24_下一阶段计划-通用内容与真实运行验证.md)

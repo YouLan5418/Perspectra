@@ -4,7 +4,7 @@
 - 日期：2026-08-25
 - Extends：ADR-0033、ADR-0051
 - Supersedes：ADR-0051 中新 Manifest 全局唯一 active Scene 的限制；存量 Scene policy v1 保持原义
-- 上位契约：[Phase 7 实施规格 §8](../spec/phase-7-implementation-v0.1.md#8-scene目标与可见性)、[§10](../spec/phase-7-implementation-v0.1.md#10-presentation-与内容边界)
+- 上位契约：[通用内容架构总纲 §8](../spec/general-content-architecture-v0.1.md#8-scene目标与可见性)、[§10](../spec/general-content-architecture-v0.1.md#10-presentation-与内容边界)
 
 ## 背景
 

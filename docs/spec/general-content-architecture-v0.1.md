@@ -1,33 +1,33 @@
-# Harness / Cordis World Phase 7 实施规格：通用内容与真实运行验证
+# Harness / Cordis World 通用内容与真实运行架构总纲
 
-- 状态：Accepted design target
-- 规格版本：`phase7/v0.1`
+- 状态：Accepted architecture target；不是单一 Phase 的交付清单
+- 规格版本：`general-content-architecture/v0.1`
 - 日期：2026-08-25
-- 目标候选版本：`0.2.0`
+- 覆盖阶段：Phase 7～11
 - 兼容基线：私有源码 [`v0.1.0`](../../CHANGELOG.md)
 - 前置规格：[V0.2 冻结实施规格](implementation-v0.2.md)
-- 前置计划：[下一阶段计划：通用内容与真实运行验证](../2026-08-24_下一阶段计划-通用内容与真实运行验证.md)
+- 首个交付规格：[Phase 7 实施规格：最小通用内容闭环](phase-7-implementation-v0.2.md)
 - 对应 ADR：[ADR-0054](../adr/ADR-0054-world-pack-source-compiler-versioning.md)～[ADR-0059](../adr/ADR-0059-agent-participation-memory-provider.md)
 
-> 本文冻结 Phase 7 的实施边界，不表示这些能力已经完成。`v0.1.0` Tag、既有 v1～v4 Manifest、Event、Authority 和 Golden Hash 均不可移动、重解释或回写。Phase 7 只有在本文验收矩阵全部通过后，才可作为 `0.2.0` 候选。
+> 本文冻结 Phase 7～11 的长期架构方向，不表示这些能力需要在一个 Phase 内完成，也不表示任何一项已经实现。`v0.1.0` Tag、既有 v1～v4 Manifest、Event、Authority 和 Golden Hash 均不可移动、重解释或回写。每个 Phase 只按自己的实施规格验收。
 
 ## 1. 文档定位与优先级
 
-Phase 7 将 V0 已验证的世界事实、角色认知、分支、恢复与本机运行边界，扩展成可由创作者定义多题材内容的通用运行时。悬疑 Demo 继续作为高强度回归试金石，但不再定义产品方向；酒馆社交与旅途同行成为新的非悬疑参考世界。
+本总纲把 V0 已验证的世界事实、角色认知、分支、恢复与本机运行边界，逐步扩展成可由创作者定义多题材内容的通用运行时。悬疑 Demo 继续作为高强度回归试金石，但不再定义产品方向；酒馆社交与旅途同行将在不同 Phase 进入参考矩阵。
 
-Phase 7 内部冲突按以下顺序处理：
+后续 Phase 内部冲突按以下顺序处理：
 
 1. Accepted ADR；
 2. 本规格；
 3. V0.2 冻结实施规格中未被新 ADR supersede 的条款；
-4. 2026-08-24 Phase 7 计划；
+4. 各 Phase 的实施规格与 2026-08-24 范围形成计划；
 5. 阶段报告与讨论记录。
 
 发现实现必须改变 Accepted ADR、Canonical/Hash、世界事实权威、as-of、权限或事务原子性时，必须停止对应单元并新增 superseding ADR。不得修改旧 ADR 来制造表面一致。
 
 ## 2. 目标、完成定义与非目标
 
-Phase 7 必须证明：
+总体路线必须逐步证明：
 
 1. 创作者不修改 Kernel、Store 或 Application，即可定义角色、地点、Scene、主观认知、目标、情绪、呈现和受控扩展引用；
 2. 同一运行时可承载开放式社交、旅途探索和悬疑回归，题材语义不会渗回 Kernel；
@@ -35,7 +35,7 @@ Phase 7 必须证明：
 4. 真实 Harness Provider 即使失败、重启或重放，也只能提交 Proposal，不能直接写世界事实；
 5. Local Memory、Scene 决断、连续交互和降级恢复成为正式应用路径，而不是 Demo 内的旁路。
 
-以下不属于 Phase 7：
+以下不属于本总纲覆盖的 Phase 7～11：
 
 - GUI、Web、远程监听、多用户、认证、计费、素材市场或插件市场；
 - 酒馆角色卡格式兼容、World Pack 继承、运行中热更新或跨世界角色迁移；
@@ -47,7 +47,7 @@ Phase 7 必须证明：
 
 ## 3. 不得放宽的系统不变量
 
-| 不变量 | Phase 7 要求 |
+| 不变量 | 总体架构要求 |
 |---|---|
 | 世界事实 | 只有已提交 World Event Log 是权威；Pack、Memory、Presentation、模型响应和作者文本都不是事实源 |
 | 模型权限 | Agent、Director 和未来 Narrator 只产生 Proposal；全部 Action 仍经过 Validator、Capability、Rulebook 和 Resolution |
@@ -57,12 +57,12 @@ Phase 7 必须证明：
 | 内容信任 | Pack 是不受信任数据，不是代码；不得包含 Secret、系统权限、可执行脚本、网络端点或外部路径 |
 | 重放 | 已提交 Round 重放 Authority/Replay，不重新解释输入、不重新召回 Memory、不重新调用模型 |
 | 版本 | 激活锁定 Pack、Manifest、Genesis、插件、Context、Scene、Presentation 与 Compiler 版本和 Hash |
-| 时间 | Phase 7 仍默认 `TURN_DRIVEN`；无用户或获授权 Author/Controller 触发时世界不推进 |
-| 发布 | `v0.1.0` 保持原义；Phase 7 失败不能通过更新旧 Golden 或移动 Tag 绕过 |
+| 时间 | 总体路线仍默认 `TURN_DRIVEN`；无用户或获授权 Author/Controller 触发时世界不推进 |
+| 发布 | `v0.1.0` 保持原义；任何后续 Phase 失败都不能通过更新旧 Golden 或移动 Tag 绕过 |
 
 ## 4. 运行架构与所有权
 
-Phase 7 的数据流固定为：
+总体架构的数据流固定为：
 
 ```text
 World Pack source directory
@@ -285,7 +285,7 @@ CharacterDefinition 可标记 `instantiation: unique | template`。unique 在同
 
 ## 7. PlayerSlot、Controller 与 Observer
 
-PlayerSlot 将用户 Principal 与玩家 Character 分离。Pack 可以提供多个候选 Slot，但单个 Phase 7 World 激活时只能绑定一个本机玩家 Principal。
+PlayerSlot 将用户 Principal 与玩家 Character 分离。Pack 可以提供多个候选 Slot，但本架构覆盖的单个 World 激活时只能绑定一个本机玩家 Principal。
 
 PlayerSlot 支持：固定主角、受限自定义主角和 blank-slate 玩家。允许自定义显示名、称谓、外观、portrayal、自我概念、预编译背景 variant 和初始主观 Goal；不允许自定义 capability、初始物品、位置、Secret、系统提示或 model profile。自由背景文本只属于 portrayal/self-concept，不成为世界事实。
 
@@ -300,7 +300,7 @@ ObserverBinding(address, principalId, characterId, controlEpoch)
 
 在 `manual` 模式，Principal 提交文本或命令。在 `agent_controlled` 模式，人类成为同一角色的 Observer，只能发送 `/continue`、`/continue N`、`/pause`、`/status`、`/view`、`/health`、`/take-control` 和 `/stop`。Observer 只能读取该角色获授权的 CharacterView、Presentation、self state 和运行健康；不能读取其他角色私有视图、作者真相、Raw Store、Director 状态、私有 Memory、原始模型 Prompt/Response 或 chain-of-thought，也不能切换镜头到 NPC。
 
-每次 `/continue` 只触发一个耐久 Round 和一个 Tick：先由玩家角色 Agent 提案，再按冻结的 Scene/participation 策略调度 NPC 与 Director。`/continue N` 串行执行最多 N 轮，任一失败、quarantine、pause、terminal case 或健康屏障立即停止。Phase 7 不提供后台 autoplay。
+每次 `/continue` 只触发一个耐久 Round 和一个 Tick：先由玩家角色 Agent 提案，再按冻结的 Scene/participation 策略调度 NPC 与 Director。`/continue N` 串行执行最多 N 轮，任一失败、quarantine、pause、terminal case 或健康屏障立即停止。本架构不提供后台 autoplay。
 
 新增通用 `core:wait@1` 作为玩家角色 Agent abstain、timeout、failure、预算耗尽或非法输出时的确定性回退。它提交一个无世界状态变化的合法 Action Resolution，推进该 Round 的 Tick，准确记录参与者 terminal 和 Health；不得伪造对白、Observation、Proposal 或 Memory。
 
@@ -337,7 +337,7 @@ Scene transition 只使用精确注册、确定性的 condition/trigger type。T
 | PlayerObjective | Player UI | 否 | 是 |
 | AcceptanceAssertion | Testkit | 否 | 永不进入运行时世界 |
 
-ScenarioObjective 可省略，开放式酒馆可以没有“胜利条件”。其状态为 `inactive | active | blocked | completed | failed | cancelled`，只能由注册确定性 policy 或受控 AuthorCommand 改变，并带证据来源。Objective 完成不能直接突变其他世界状态；如需结束 Scene，必须生成独立 Scene transition。Phase 7 不实现自动剧情规划和任务分解。
+ScenarioObjective 可省略，开放式酒馆可以没有“胜利条件”。其状态为 `inactive | active | blocked | completed | failed | cancelled`，只能由注册确定性 policy 或受控 AuthorCommand 改变，并带证据来源。Objective 完成不能直接突变其他世界状态；如需结束 Scene，必须生成独立 Scene transition。本架构不实现自动剧情规划和任务分解。
 
 ## 9. Action、插件与创作者扩展
 
@@ -345,7 +345,7 @@ ScenarioObjective 可省略，开放式酒馆可以没有“胜利条件”。�
 
 新增硬语义必须由受信任插件完整提供：Schema、Validator、Capability、Affordance、Resolver、Event Registry、Reducer、Observation policy 和 Presentation input schema。Pack 只引用精确 plugin id、SemVer 和 registry hash；Host allowlist 必须显式允许。缺失、版本漂移或 hash 分歧返回 `PLUGIN_NOT_REGISTERED`/`REGISTRY_HASH_MISMATCH`，禁止最近版本回退和自动下载。
 
-Phase 7 不提供通用 guard/effect DSL、宏、任意 Event 名称或任意 JSON effect。插件代码由 Host 安装和审核，Pack 仍是不受信任数据。
+本架构不提供通用 guard/effect DSL、宏、任意 Event 名称或任意 JSON effect。插件代码由 Host 安装和审核，Pack 仍是不受信任数据。
 
 通用 `PlayerInputInterpreter` 规则保持：普通非空文本产生 `speak`；`/move <locationId>`、`/take <entityId>` 产生通用 Action；`/act <actionType> <canonical-json>` 只允许当前 Affordance 中注册的 Action。未知命令、缺参和歧义返回耐久 clarification，不建立 Round、不推进 Tick。题材 Interpreter 只能优先解析明确题材语法，其余输入回落通用解释器。
 
@@ -360,7 +360,7 @@ Creator 可定义版本化 `PresentationProfile`：确定性模板、Scene overr
 - `character_limited`：仅指定角色自我界面；
 - `author_preview`：独立能力，仅创作测试入口可用，生产玩家/Observer 不可用。
 
-Phase 7 Presenter 是纯确定性组件，不调用 LLM。保留未来 `NarrativeProviderPort`，但不得在本阶段启用。
+本架构覆盖期内 Presenter 是纯确定性组件，不调用 LLM。保留未来 `NarrativeProviderPort`，但不得在 Phase 7～11 启用。
 
 内容治理只做结构、资源、权限和安全限制，不做主题或价值观语义审核。Pack 可声明 `contentDescriptor`、warnings 和 tags，Host 可安装默认 Noop 的 policy hook。运行时必须转义终端 ANSI/控制字符和不安全 Markdown；`authorOnly` 是可见性边界，不是加密。API key、Secret、endpoint 和真实用户数据不得写入 Pack。
 
@@ -390,7 +390,7 @@ Runtime Author 可从未来 Round 起提升或降低 participation，必须耐�
 
 初始知识必须编译为 Observation、Claim、Goal 或 Affect，禁止 Pack 直接写 Memory row。Creator 只选择逻辑 Memory Profile：recall 上限、salience、attention topics、Goal/Affect bias、L1 summary policy 和频率。
 
-L0 是带精确 source refs 的原始获授权记忆，强制启用且不可因“遗忘”删除世界来源。L1 是来源链接的派生摘要，可关闭；Phase 7 默认只允许 deterministic/scripted summary。若未来用模型生成 L1，必须保存 context/request/response/result hash 并支持 replay。L2/L3 自动抽象不在 Phase 7。
+L0 是带精确 source refs 的原始获授权记忆，强制启用且不可因“遗忘”删除世界来源。L1 是来源链接的派生摘要，可关闭；本架构覆盖期默认只允许 deterministic/scripted summary。若未来用模型生成 L1，必须保存 context/request/response/result hash 并支持 replay。L2/L3 自动抽象不在 Phase 7～11。
 
 Memory profile 不能改变 namespace、角色/Branch 隔离、as-of 防火墙、source mapping 或“summary 不能创造新事实”。Forget 只移除可重建派生项，不删除 World source。Provider 调用前必须保证该角色 Memory 水位不落后于所需 as-of Head，否则该参与者以 `memory_catchup_failed` 降级，玩家 Round 仍可提交。
 
@@ -421,7 +421,7 @@ Creator 只选择 logical model profile；Host 映射实际 provider、model、�
 
 ## 13. 创作者与本机交互工作流
 
-Phase 7 先提供 CLI 和可复用 API，未来 GUI 只能调用同一 Compiler/Application Port：
+本架构先提供 CLI 和可复用 API，未来 GUI 只能调用同一 Compiler/Application Port：
 
 ```text
 worldpack init --profile minimal|social|advanced <dir>
@@ -441,7 +441,7 @@ worldpack activate <worldpack.json> --data-dir <dir>
 
 ## 14. 参考内容与验收主题
 
-Phase 7 至少维护三个参考 Pack：
+总体路线最终至少维护三个参考 Pack：
 
 | Pack | 用途 | 禁止依赖 |
 |---|---|---|
@@ -455,7 +455,7 @@ Phase 7 至少维护三个参考 Pack：
 
 ## 15. API 与错误目录
 
-Phase 7 首批公共接口：
+总体路线首批公共接口：
 
 ```typescript
 interface WorldPackCompiler {
@@ -501,27 +501,27 @@ interface AuthorCommandService {
 
 旧 v1～v4 Manifest、悬疑 Event、Resolution、Authority、Registry 和 Hash 保持逐字节不变。v3/v4 的 Rulebook 生命周期继续服从 ADR-0050。旧 Scene policy v1 与 Context v1 仍按历史语义挂载，不自动升级到多 Scene、复杂 Affect 或 Context v2。
 
-Phase 7 不支持运行中 World 换 Pack。Pack source 变更后必须产生新 `packHash`；preview/test 使用临时 World，production update 创建新 World。`worldpack diff` 只分类：presentation-only、content-compatible、genesis-changing、registry/plugin-changing、unsupported；它不执行迁移。
+本架构不支持运行中 World 换 Pack。Pack source 变更后必须产生新 `packHash`；preview/test 使用临时 World，production update 创建新 World。`worldpack diff` 只分类：presentation-only、content-compatible、genesis-changing、registry/plugin-changing、unsupported；它不执行迁移。
 
-未来若需要维护窗口内 Manifest epoch migration，必须另立 ADR，保留旧 Event 原字节、定义 Upcaster 和恢复矩阵。Phase 7 不允许通过 fork 替换 Pack，也不允许 pack inheritance。
+未来若需要维护窗口内 Manifest epoch migration，必须另立 ADR，保留旧 Event 原字节、定义 Upcaster 和恢复矩阵。本架构不允许通过 fork 替换 Pack，也不允许 pack inheritance。
 
-## 17. 实施单元与提交顺序
+## 17. 阶段拆分与实施顺序
 
-每个单元按“契约与 Store → 领域行为 → 集成/故障测试 → 文档证据”独立提交：
+每个 Phase 继续按“契约与 Store → 领域行为 → 集成/故障测试 → 文档证据”拆分最小提交：
 
-1. P7.1：World Pack source/envelope Schema、路径安全、Compiler diagnostics、packHash 和 Golden；
-2. P7.2：CharacterDefinition、Secret/Claim/Goal/Affect/InnerTension、unique/template 和默认值物化；
-3. P7.3：Scene policy v2、Objective、Visibility、Projection 与 quarantine invariant；
-4. P7.4：Plugin lock、Action alias、PresentationProfile、AuthorCommand 与 capability；
-5. P7.5：PlayerSlot、Control/Observer ledger、`core:wait@1` 和 agent-controlled Round；
-6. P7.6：Participation policy、Context v2、Memory L0/L1 profile 与 durable catch-up；
-7. P7.7：CLI author workflow、连续 stdio shell、酒馆与旅途 Pack；
-8. P7.8：默认关闭的 Harness Bridge、真实 Provider contract/replay/degradation；
-9. P7.9：全量兼容、hard-crash、跨平台矩阵与 Phase 7 closure 报告。
+| Phase | 只回答的核心问题 | 主要范围 | 明确推迟 |
+|---|---|---|---|
+| 7 | 不改 Kernel 能否做出非悬疑酒馆世界 | 最小 Pack v1、最小 Character、现有 Scene policy、通用连续交互、酒馆 Pack、角色 Memory 隔离 | Scene v2、复杂心理运行策略、第三方插件、Agent 接管、真实 Provider |
+| 8 | 多 Scene 与复杂主观状态是否仍可重建 | Scene v2、旅途 Pack、Goal/Affect/InnerTension 动态策略、Objective | Runtime Author、Player Agent Controller、真实 Provider |
+| 9 | 创作者能否安全扩展题材与运行内容 | CharacterTemplate、受信任插件锁、Action alias、PresentationProfile、Runtime Author | 不受信任插件沙箱、真实 Provider |
+| 10 | Agent 能否安全接管玩家角色 | PlayerSlot 扩展、Control/Observer ledger、`core:wait@1`、participation policy | 后台 autoplay、多玩家 |
+| 11 | 真实模型能否服从既有权威边界 | Context v2 完整 profile、Memory L1、Harness Bridge、真实 Provider replay/degradation | TencentDB、LLM Narrator、远程服务 |
+
+各 Phase 只以自己的正式实施规格作为完成清单；后续 ADR 已 Accepted 不等于前一 Phase 必须提前实现。
 
 任何单元无法保持原子性、Hash、as-of、权限或确定性时停止该单元；不相关且不依赖该阻塞的单元可继续。
 
-## 18. 测试与发布门槛
+## 18. 总体测试与发布门槛
 
 ### 18.1 Compiler 与内容
 
@@ -557,7 +557,7 @@ Phase 7 不支持运行中 World 换 Pack。Pack source 变更后必须产生新
 - 酒馆和旅途各完成多轮、重启、fork、Memory、Scene、Presentation 和 stdio E2E；
 - 所有生产文件逐文件 statements/branches/functions/lines 100%；
 - Windows/Ubuntu × Node 22.19/24 clean install 和 `corepack pnpm@11.7.0 check` 全绿；
-- 完成 requirement→test evidence、兼容表、创作者 runbook 和 clean worktree 后，才可提议 `0.2.0` Tag；Tag、Release 和推送仍需用户授权。
+- 每个 Phase 完成自身 requirement→test evidence、兼容表、runbook 和 clean worktree 后，才可提议对应候选版本；Tag、Release 和推送仍需用户授权。
 
 ## 19. Evidence → Finding → Path
 
@@ -584,6 +584,6 @@ Phase 7 不支持运行中 World 换 Pack。Pack source 变更后必须产生新
 
 ## 20. 收敛结论
 
-Phase 7 的产品方向是“可信、可重放、可由创作者定义的多角色世界运行时”，不是悬疑游戏内核，也不是任意脚本平台。创作者获得足够宽的角色、心理、关系、Scene、目标、呈现和受控扩展空间；Kernel 继续只负责版本化契约、权威裁定、权限、事务、重放和恢复。
+总体产品方向是“可信、可重放、可由创作者定义的多角色世界运行时”，不是悬疑游戏内核，也不是任意脚本平台。创作者最终获得足够宽的角色、心理、关系、Scene、目标、呈现和受控扩展空间；Kernel 继续只负责版本化契约、权威裁定、权限、事务、重放和恢复。
 
-本规格与 ADR-0054～0059 共同构成 Phase 7 的正式实施基线。后续代码和阶段报告必须逐项引用本规格的实施单元与测试门槛。
+本总纲与 ADR-0054～0059 共同构成 Phase 7～11 的长期架构基线。Phase 7 的实际完成边界以独立的最小通用内容闭环规格为准，后续 Phase 也必须各自新增窄范围实施规格。
