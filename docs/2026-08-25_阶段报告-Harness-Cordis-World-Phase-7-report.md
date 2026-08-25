@@ -7,7 +7,7 @@
 - 本机环境：Windows，Node 24.14.1，pnpm 11.7.0
 - 协议：stdio only
 - 可选集成：Harness/TencentDB 禁用
-- 判定：**本地候选门槛通过；GitHub 四格 CI 与 Tag 待完成**
+- 判定：**本地门槛与 GitHub 四格 CI 通过；`v0.2.0` Tag 待创建**
 
 ## 结论
 
@@ -65,7 +65,7 @@ corepack pnpm@11.7.0 check
 
 | 版本轴 | Phase 7 值 | 兼容策略 |
 |---|---|---|
-| 项目源码 | `0.2.0` candidate | `v0.1.0` Tag 不移动；本地候选未发布 |
+| 项目源码 | `0.2.0` candidate | `v0.1.0` Tag 不移动；远端候选尚未 Tag |
 | Pack source | `worldpack-source/v1` | 严格数据目录，不接受脚本或未知字段 |
 | compiled envelope | `worldpack/v1` | 激活后只读制品，不回读 source |
 | Compiler 实现 | `0.1.0` | 与项目、Pack 作者版本独立 |
@@ -91,8 +91,15 @@ corepack pnpm@11.7.0 check
 
 独立审查后的契约收口、能力解耦和诊断加固见 [Phase 7 独立审查修复报告](2026-08-25_Phase-7独立审查修复报告.md) 与 [ADR-0063](adr/ADR-0063-pack-runtime-capability-and-v1-closure.md)。
 
-## 外部门槛与发布边界
+## CI 证据与发布边界
 
-本报告只证明 Windows/Node 24.14.1 本机门槛。当前新增提交尚未推送，因此还没有 `0.2.0` 对应的 Windows/Ubuntu × Node 22.19/24 clean-install CI 证据，也没有创建 `v0.2.0` Tag。完成顺序必须是：推送当前提交 → 等待 GitHub 四格全绿 → 复核目标 SHA → 经用户确认创建 annotated Tag。
+提交 `8bcc6c1` 已推送至 `main`。GitHub Actions `V0 gates` Run `#6` 于 2026-08-25 通过，总耗时 3 分 55 秒，四组 clean-install + `pnpm check` 均成功：
+
+- Windows latest × Node 22.19.0；
+- Windows latest × Node 24.x；
+- Ubuntu latest × Node 22.19.0；
+- Ubuntu latest × Node 24.x。
+
+证据由仓库 Actions 页面和用户提供的成功截图确认。写入本段的纯文档提交仍需推送并再次通过同一矩阵；随后复核最终 SHA，再经用户确认创建 annotated Tag `v0.2.0`。
 
 Phase 7 没有实现 Scene v2、动态 Affect/InnerTension、创作者插件、Runtime Author、Agent 接管玩家、Observer 或真实 Harness Provider。这些继续按总纲进入 Phase 8～11，不能用空接口提前声称完成。

@@ -19,7 +19,7 @@ Phase 7 私有源码候选：最小通用内容闭环。
 - World Pack Compiler 实现版本仍为 `0.1.0`；它与项目 `0.2.0`、Pack 作者版本及 Schema 版本相互独立。
 - `worldpack-source/v1` 与 `worldpack/v1` 的必填字段在本候选中收口；Tag 后新增必填字段必须升级格式版本。
 - Phase 7 不包含 Scene v2、动态 Affect/InnerTension、创作者插件、Agent 接管玩家或真实 Harness Provider。
-- 当前只形成本地候选；GitHub 四格 CI 与 `v0.2.0` Tag 必须在推送后另行完成。
+- 审查修复提交 `8bcc6c1` 的 GitHub Windows/Ubuntu × Node 22.19/24 四格 CI 已通过；`v0.2.0` Tag 尚未创建。
 
 ## 0.1.0 - 2026-08-24
 
