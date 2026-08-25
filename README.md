@@ -1,6 +1,6 @@
 # Harness / Cordis World V0
 
-> 当前状态：私有源码 V0 `0.1.0` 已完成本机 Release Closure，并以 `v0.1.0` Tag 冻结。Windows/Ubuntu × Node 22.19/24 GitHub CI 已全部通过。未发布 npm 或 GitHub Release；Harness/TencentDB Bridge 与远程访问保持禁用。
+> 当前状态：私有源码 V0 `v0.1.0` 保持冻结；Phase 7 `0.2.0` 本地候选已形成最小通用内容闭环。`0.2.0` 的 GitHub 四格 CI 与 Tag 尚待推送后完成。未发布 npm 或 GitHub Release；Harness/TencentDB Bridge 与远程访问保持禁用。
 
 这是一个独立的、事件溯源的 TURN_DRIVEN 世界模拟内核原型，用 Cordis 管理 Branch 运行时生命周期，用 Node 内置 SQLite 验证耐久原子性、幂等投递、forkSeq 时态重建和无模型确定性闭环。
 
@@ -61,6 +61,20 @@ corepack pnpm@11.7.0 demo:mystery:drill agent-timeout D:\path\to\drill-world.sql
 
 可选模式为 `agent-failure`、`agent-timeout`、`budget-exhausted`、`director-fallback`、`memory-catchup-failure` 和 `session-dead-letter`。输出只含玩家结果、terminal、Health、Audit/Metric 摘要与恢复步骤。
 
+## 创建一个非悬疑世界
+
+以下命令会生成一个可编辑的酒馆社交 Pack，编译成不可变制品，激活到独立数据目录，再进入持续对话：
+
+```powershell
+corepack pnpm@11.7.0 worldpack init --profile social D:\worlds\my-tavern
+corepack pnpm@11.7.0 worldpack validate D:\worlds\my-tavern
+corepack pnpm@11.7.0 worldpack compile D:\worlds\my-tavern --out D:\worlds\my-tavern.worldpack.json
+corepack pnpm@11.7.0 worldpack activate D:\worlds\my-tavern.worldpack.json --data-dir D:\worlds\my-tavern-data
+corepack pnpm@11.7.0 worldappctl chat --data-dir D:\worlds\my-tavern-data
+```
+
+Pack 是严格数据而不是脚本。创作者可以修改角色、地点、物品、初始认知、Scene 和呈现文本，但不能由 Pack 注入代码、网络端点、任意事件或系统权限。完整说明见[创作者运行手册](docs/PHASE7-CREATOR-RUNBOOK.md)。
+
 ## 使用基础契约
 
 ```typescript
@@ -86,6 +100,7 @@ console.log(hash)
 | `@harness-world/store-sqlite` | World/Session/Projection、Branch Barrier、Snapshot、Audit、Backup 与逻辑 Transfer |
 | `@harness-world/simulation` | Scripted Agent、三种 Director、无模型 Round 闭环、Demo-owned 调查 Resolver 与三角色悬疑 Scenario |
 | `@harness-world/testkit` | 确定性 Fixture、FaultInjector 和硬终止 Harness |
+| `@harness-world/world-pack` | 严格内容来源、确定性编译、制品检查与本机创作者工作流 |
 
 ## 已验证行为
 
@@ -142,5 +157,7 @@ console.log(hash)
 - [V0 本机运行与恢复手册](docs/V0-LOCAL-RUNBOOK.md)
 - [V0 Release Closure 报告](docs/2026-08-24_V0-Release-Closure-report.md)
 - [下一阶段：通用内容与真实运行验证](docs/2026-08-24_下一阶段计划-通用内容与真实运行验证.md)
+- [Phase 7 创作者运行手册](docs/PHASE7-CREATOR-RUNBOOK.md)
+- [Phase 7 最小通用内容闭环报告](docs/2026-08-25_阶段报告-Harness-Cordis-World-Phase-7-report.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。

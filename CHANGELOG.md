@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.0 - Unreleased
+
+Phase 7 私有源码候选：最小通用内容闭环。
+
+### 新增
+
+- `worldpack-source/v1` 严格来源目录、确定性 Compiler、不可变 `worldpack/v1` envelope 与内容来源 Hash。
+- 通用实体、角色初始 Observation/Claim/Goal、秘密受众展开以及 Genesis/Memory 正式接入。
+- 不依赖调查规则的酒馆社交参考 Pack，覆盖私密认知、错误认知、传闻、Scene 离场、重启和 fork 隔离。
+- `worldpack init/validate/compile/inspect/test/activate` 本机创作者工作流。
+- `worldappctl chat --data-dir <dir>` 持久连续交互入口，普通文本和 Core `move/take` 仍经过正式权威管线。
+
+### 兼容与边界
+
+- `v0.1.0` Tag、既有 Manifest/Event/Authority/Golden 和悬疑 v3/v4 语义保持不变。
+- World Pack Compiler 实现版本仍为 `0.1.0`；它与项目 `0.2.0`、Pack 作者版本及 Schema 版本相互独立。
+- Phase 7 不包含 Scene v2、动态 Affect/InnerTension、创作者插件、Agent 接管玩家或真实 Harness Provider。
+- 当前只形成本地候选；GitHub 四格 CI 与 `v0.2.0` Tag 必须在推送后另行完成。
+
 ## 0.1.0 - 2026-08-24
 
 首个私有源码 V0 基线版本。
