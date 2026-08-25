@@ -35,3 +35,9 @@
 | [0051](ADR-0051-demo-cognition-scene-interaction-degradation.md) | Demo 的认知、Scene、通用交互与降级闭环 | 四项文档欠账进入正式 Application 路径并由悬疑场景验收 |
 | [0052](ADR-0052-durable-cognitive-work-and-clarification.md) | 耐久认知工作与非 Round 受理记录 | World 事务内 cognitive job、fenced worker 与可审计 clarification |
 | [0053](ADR-0053-private-v0-local-release-boundary.md) | 私有源码 V0 的本机发布边界 | 0.1.0、stdio、Host 所有权、Outbox 退避与外部证据边界 |
+| [0054](ADR-0054-world-pack-source-compiler-versioning.md) | World Pack 来源、编译、信任与版本 | 显式来源目录编译为不可变 envelope，Pack 数据与 Host 插件代码分离 |
+| [0055](ADR-0055-character-cognition-affect-goal.md) | 角色认知、关系、Goal 与复杂心理 | Secret/false belief/Goal/Affect/Tension 事件化且按角色隔离 |
+| [0056](ADR-0056-scene-objective-presentation.md) | Scene v2、Objective 分类与确定性呈现 | 多 active Scene 不重叠、目标类型分离、Presenter 只读授权输入 |
+| [0057](ADR-0057-creator-extension-runtime-author.md) | 创作者 Action 扩展、插件锁与 Runtime Author | 受信任插件完整语义、Pack 无脚本、AuthorCommand 受能力与审计约束 |
+| [0058](ADR-0058-player-slot-control-observer.md) | PlayerSlot、Agent Controller 与角色限域 Observer | manual/agent-controlled、controlEpoch、每次 continue 一 Tick 与 core:wait |
+| [0059](ADR-0059-agent-participation-memory-provider.md) | Agent 参与调度、Memory Profile 与真实 Provider | 参与者冻结、L0/L1 边界、Context v2 与默认关闭的 Harness Bridge |
