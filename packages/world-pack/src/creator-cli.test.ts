@@ -3,9 +3,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  createErrorEnvelope,
+  WorldError,
+} from '@harness-world/contracts'
+import {
   executeWorldPackCli,
   parseWorldPackCliInvocation,
+  worldPackCliErrorEnvelope,
 } from './creator-cli.ts'
+import { failWorldPackContract } from './diagnostics.ts'
 
 const roots: string[] = []
 
@@ -61,7 +67,7 @@ describe('World Pack creator CLI', () => {
       command: 'validate', status: 'valid', packId: 'pack:minimal-world', packVersion: '1.0.0',
     })
     const test = parsed(await executeWorldPackCli(['test', source]))
-    expect(test).toMatchObject({ command: 'test', report: { status: 'passed', assertionIds: [] } })
+    expect(test).toMatchObject({ command: 'test', report: { status: 'compiled', assertionsExecuted: 0, assertionIds: [] } })
     expect(parsed(await executeWorldPackCli(['compile', source, '--out', artifact]))).toMatchObject({
       command: 'compile', status: 'compiled', outputPath: artifact,
     })
@@ -77,6 +83,14 @@ describe('World Pack creator CLI', () => {
       command: 'activate', status: 'already_active', dataDirectory: runtime,
     })
     expect((await readFile(join(runtime, 'data', 'world.sqlite'))).byteLength).toBeGreaterThan(0)
+
+    await writeFile(join(source, 'world.json'), JSON.stringify({
+      schemaVersion: 'worldpack-world/v1', title: 'Changed without a Pack version bump',
+    }))
+    const divergentArtifact = join(root, 'dist', 'divergent.worldpack.json')
+    await executeWorldPackCli(['compile', source, '--out', divergentArtifact])
+    await expect(executeWorldPackCli(['activate', divergentArtifact, '--data-dir', runtime]))
+      .rejects.toMatchObject({ envelope: { errorCode: 'PACK_VERSION_DIVERGED' } })
   })
 
   it('scaffolds and validates the frozen social reference Pack', async () => {
@@ -90,7 +104,7 @@ describe('World Pack creator CLI', () => {
       packHash: 'sha256:515dd41a737d28139548364eefe3c7211c94a0f3a8b43bead4950a32f2f12c6d',
     })
     expect(parsed(await executeWorldPackCli(['test', source]))).toMatchObject({
-      command: 'test', report: { status: 'passed', assertionIds: [
+      command: 'test', report: { status: 'compiled', assertionsExecuted: 0, assertionIds: [
         'assertion:alice-mistake-is-character-scoped',
         'assertion:bob-secret-hidden-from-alice',
         'assertion:bob-secret-hidden-from-visitor',
@@ -119,5 +133,44 @@ describe('World Pack creator CLI', () => {
     document.content.world.title = 'Tampered'
     await writeFile(artifact, JSON.stringify(document))
     await expect(executeWorldPackCli(['inspect', artifact])).rejects.toThrow('does not match the compiled envelope content')
+  })
+
+  it('normalizes contract, world, usage and unexpected errors without leaking internals', () => {
+    let contract: unknown
+    try {
+      failWorldPackContract(
+        'PACK_REFERENCE_INVALID', 'characters.json', '/0', 'missing location', 'declare the location first',
+      )
+    } catch (error: unknown) {
+      contract = error
+    }
+    expect(worldPackCliErrorEnvelope(contract, ['validate'])).toMatchObject({
+      schemaVersion: 1, errorCode: 'PACK_REFERENCE_INVALID', category: 'admission',
+      message: 'missing location', correlationId: 'worldpack:validate',
+      details: { diagnostics: [{
+        file: 'characters.json', jsonPointer: '/0', suggestion: 'declare the location first',
+      }] },
+    })
+    let contractWithoutSuggestion: unknown
+    try {
+      failWorldPackContract('PACK_SOURCE_INVALID', 'world.json', '', 'invalid source')
+    } catch (error: unknown) {
+      contractWithoutSuggestion = error
+    }
+    expect(worldPackCliErrorEnvelope(contractWithoutSuggestion, ['validate'])).toMatchObject({
+      details: { diagnostics: [{ message: 'invalid source' }] },
+    })
+
+    const envelope = createErrorEnvelope({
+      errorCode: 'PACK_VERSION_DIVERGED', category: 'admission', message: 'version conflict',
+      retryable: false, correlationId: 'worldpack:activate',
+    })
+    expect(worldPackCliErrorEnvelope(new WorldError(envelope), ['activate'])).toBe(envelope)
+    expect(worldPackCliErrorEnvelope(new TypeError('usage detail'), [])).toMatchObject({
+      errorCode: 'INVALID_REQUEST', message: 'usage detail', correlationId: 'worldpack:unknown',
+    })
+    expect(worldPackCliErrorEnvelope(new Error('D:\\private\\internal.sqlite'), ['activate'])).toMatchObject({
+      errorCode: 'INVALID_REQUEST', message: 'worldpack command failed',
+    })
   })
 })

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId } from '@harness-world/contracts'
+import { brandId, createErrorEnvelope, WorldError } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import {
   parseWorldApplicationCliInvocation,
@@ -127,8 +127,16 @@ describe('persistent player chat', () => {
       worldId: brandId('world:mock', 'WorldId'),
       branchId: brandId('branch:mock', 'BranchId'),
     }
+    let submissions = 0
     const application: PersistentChatApplication = {
-      submitText: async () => { throw new Error('provider detail') },
+      submitText: async () => {
+        submissions += 1
+        if (submissions === 1) throw new WorldError(createErrorEnvelope({
+          errorCode: 'WORLDSTORE_BUSY', category: 'persistence', message: 'writer is busy',
+          retryable: true, correlationId: 'submit:durable', address,
+        }))
+        throw new Error('D:\\private\\provider-detail')
+      },
       characterViewForPrincipal: async () => ({}) as never,
       roundStatus: async () => undefined,
     }
@@ -138,12 +146,14 @@ describe('persistent player chat', () => {
     const running = runPersistentWorldChat(input, output, application, {
       address, principalId: 'principal:mock', characterId: brandId('character:mock', 'CharacterId'),
     })
-    input.end('.health\n.round missing\nhello\n.exit\n')
-    expect(await running).toBe(4)
+    input.end('.health\n.round missing\nhello\nhello again\n.exit\n')
+    expect(await running).toBe(5)
     const lines = result.read()
     expect(lines[0]).toEqual({ status: 'unavailable' })
     expect(lines[1]).toBeNull()
-    expect(lines[2]).toMatchObject({ errorCode: 'INVALID_REQUEST', message: 'Error: provider detail' })
-    expect(lines[3]).toMatchObject({ command: 'exit' })
+    expect(lines[2]).toMatchObject({ errorCode: 'WORLDSTORE_BUSY', message: 'writer is busy', correlationId: 'submit:durable' })
+    expect(lines[3]).toMatchObject({ errorCode: 'INVALID_REQUEST', message: 'chat command failed' })
+    expect(JSON.stringify(lines[3])).not.toContain('private')
+    expect(lines[4]).toMatchObject({ command: 'exit' })
   })
 })

@@ -7,6 +7,8 @@ export type WorldPackDiagnosticCode =
   | 'PACK_PROFILE_NOT_ALLOWED'
   | 'PACK_LIMIT_EXCEEDED'
   | 'PACK_VERSION_DIVERGED'
+  | 'PLUGIN_NOT_REGISTERED'
+  | 'REGISTRY_HASH_MISMATCH'
 
 export interface WorldPackDiagnostic {
   readonly severity: WorldPackDiagnosticSeverity

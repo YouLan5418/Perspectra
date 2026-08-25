@@ -110,6 +110,7 @@ function contentPackBinding(pack: CompiledWorldPack): ContentPackManifestBinding
     packHash: pack.packHash,
     compiler: pack.compiler,
     pluginLocks: pack.pluginLocks,
+    runtimeCapabilities: { publicSpeechObservationVersion: 1 },
     presentation: pack.content.presentation,
     initialFacts: pack.content.world.initialFacts,
   }
@@ -419,7 +420,10 @@ export class WorldPackCompiler {
       }
       if (event.eventType !== 'character.created') return [event]
       const characterId = (event.data as WorldJsonObject).characterId as string
-      const lifecycle = lifecycleByCharacter.get(characterId)!
+      const lifecycle = lifecycleByCharacter.get(characterId)
+      if (lifecycle === undefined) {
+        failWorldPackContract('PACK_REFERENCE_INVALID', 'worldpack.json', '/content/characters', `Genesis references unknown Character ${characterId}`)
+      }
       return lifecycle === 'active'
         ? [event]
         : [event, {
@@ -443,15 +447,6 @@ export function verifyCompiledWorldPack(input: unknown): CompiledWorldPack {
   const { packHash: claimedHash, ...unsigned } = pack
   if (packHash(unsigned) !== claimedHash) failWorldPackContract('PACK_SOURCE_INVALID', 'worldpack.json', '/packHash', 'does not match the compiled envelope content')
   return pack
-}
-
-/** Enforce immutable human-version identity before storing or activating a replacement candidate. */
-export function assertCompatiblePackVersion(existingInput: unknown, candidateInput: unknown): void {
-  const existing = verifyCompiledWorldPack(existingInput)
-  const candidate = verifyCompiledWorldPack(candidateInput)
-  if (existing.packId === candidate.packId && existing.packVersion === candidate.packVersion && existing.packHash !== candidate.packHash) {
-    failWorldPackContract('PACK_VERSION_DIVERGED', 'worldpack.json', '/packHash', 'same packId and packVersion resolve to different packHash values')
-  }
 }
 
 /** Canonical bytes suitable for writing as the immutable worldpack.json artifact. */

@@ -58,7 +58,8 @@ export class WorldPackTestRunner {
     })
     const assertionIds = pack.acceptanceAssertions.map(assertion => assertion.assertionId)
     return {
-      status: 'passed',
+      status: 'compiled',
+      assertionsExecuted: 0,
       packId: pack.packId,
       packVersion: pack.packVersion,
       packHash: pack.packHash,

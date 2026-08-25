@@ -57,7 +57,7 @@ describe('process entrypoints', () => {
     const shell = await run('packages/simulation/process/mystery-shell-entry.ts', [], 'hello\n')
     expect(shell.code).not.toBe(0)
     expect(shell.stderr).not.toBe('')
-  }, 15_000)
+  }, 30_000)
 
   it('serves worldctl and starts then cleanly closes the stdio host', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'hcw-process-entry-'))

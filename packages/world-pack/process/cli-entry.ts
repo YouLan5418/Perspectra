@@ -1,9 +1,10 @@
-import { executeWorldPackCli } from '../src/index.ts'
+import { canonicalizeWorldJson, type WorldJsonValue } from '@harness-world/contracts'
+import { executeWorldPackCli, worldPackCliErrorEnvelope } from '../src/index.ts'
 
 try {
   process.stdout.write(await executeWorldPackCli(process.argv.slice(2)))
 } catch (error: unknown) {
-  const message = error instanceof Error ? error.message : String(error)
-  process.stderr.write(`${JSON.stringify({ errorCode: 'PACK_SOURCE_INVALID', category: 'contract', message, retryable: false })}\n`)
+  const envelope = worldPackCliErrorEnvelope(error, process.argv.slice(2))
+  process.stderr.write(`${Buffer.from(canonicalizeWorldJson(envelope as unknown as WorldJsonValue)).toString('utf8')}\n`)
   process.exitCode = 1
 }

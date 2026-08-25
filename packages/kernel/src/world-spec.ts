@@ -74,6 +74,10 @@ export interface ContentPackPluginLock extends WorldJsonObject {
   readonly pluginHash: WorldHash
 }
 
+export interface ContentPackRuntimeCapabilities extends WorldJsonObject {
+  readonly publicSpeechObservationVersion: 1
+}
+
 export interface ContentPackManifestBinding extends WorldJsonObject {
   readonly schemaVersion: 1
   readonly packId: string
@@ -81,6 +85,7 @@ export interface ContentPackManifestBinding extends WorldJsonObject {
   readonly packHash: WorldHash
   readonly compiler: ContentPackCompilerIdentity
   readonly pluginLocks: readonly ContentPackPluginLock[]
+  readonly runtimeCapabilities: ContentPackRuntimeCapabilities
   readonly presentation: WorldJsonValue
   readonly initialFacts: readonly WorldJsonValue[]
 }
@@ -131,15 +136,50 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   if (root.schemaVersion === 3) {
     const contentPack = objectAt(root.contentPack, 'StoredWorldManifest.contentPack')
     exactKeys(contentPack, [
-      'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'presentation', 'initialFacts',
+      'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'runtimeCapabilities', 'presentation', 'initialFacts',
     ], 'StoredWorldManifest.contentPack')
     if (contentPack.schemaVersion !== 1) throw new TypeError('stored Manifest contentPack schemaVersion is unsupported')
     textAt(contentPack.packId, 'StoredWorldManifest.contentPack.packId')
     textAt(contentPack.packVersion, 'StoredWorldManifest.contentPack.packVersion')
-    textAt(contentPack.packHash, 'StoredWorldManifest.contentPack.packHash')
-    objectAt(contentPack.compiler, 'StoredWorldManifest.contentPack.compiler')
-    arrayAt(contentPack.pluginLocks, 'StoredWorldManifest.contentPack.pluginLocks')
-    arrayAt(contentPack.initialFacts, 'StoredWorldManifest.contentPack.initialFacts')
+    hashAt(contentPack.packHash, 'StoredWorldManifest.contentPack.packHash')
+    const compiler = objectAt(contentPack.compiler, 'StoredWorldManifest.contentPack.compiler')
+    exactKeys(compiler, ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'], 'StoredWorldManifest.contentPack.compiler')
+    for (const field of ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'] as const) {
+      textAt(compiler[field], `StoredWorldManifest.contentPack.compiler.${field}`)
+    }
+    if (compiler.canonicalJsonVersion !== 'world-json/v1') throw new TypeError('stored Manifest contentPack compiler canonicalJsonVersion is unsupported')
+    const locks = arrayAt(contentPack.pluginLocks, 'StoredWorldManifest.contentPack.pluginLocks').map((value, index) => {
+      const path = `StoredWorldManifest.contentPack.pluginLocks[${index}]`
+      const lock = objectAt(value, path)
+      exactKeys(lock, ['kind', 'id', 'version', 'pluginHash'], path)
+      return {
+        kind: textAt(lock.kind, `${path}.kind`),
+        id: textAt(lock.id, `${path}.id`),
+        version: textAt(lock.version, `${path}.version`),
+        pluginHash: hashAt(lock.pluginHash, `${path}.pluginHash`),
+      }
+    })
+    unique(locks.map(lock => lock.kind), 'StoredWorldManifest.contentPack.pluginLocks')
+    const capabilities = objectAt(contentPack.runtimeCapabilities, 'StoredWorldManifest.contentPack.runtimeCapabilities')
+    exactKeys(capabilities, ['publicSpeechObservationVersion'], 'StoredWorldManifest.contentPack.runtimeCapabilities')
+    if (capabilities.publicSpeechObservationVersion !== 1) throw new TypeError('stored Manifest publicSpeechObservationVersion is unsupported')
+    const presentation = objectAt(contentPack.presentation, 'StoredWorldManifest.contentPack.presentation')
+    exactKeys(presentation, ['schemaVersion', 'locale', 'style'], 'StoredWorldManifest.contentPack.presentation')
+    if (presentation.schemaVersion !== 'worldpack-presentation/v1') throw new TypeError('stored Manifest presentation schemaVersion is unsupported')
+    if (presentation.locale !== 'en' && presentation.locale !== 'zh-CN') throw new TypeError('stored Manifest presentation locale is unsupported')
+    if (presentation.style !== 'plain') throw new TypeError('stored Manifest presentation style is unsupported')
+    const facts = arrayAt(contentPack.initialFacts, 'StoredWorldManifest.contentPack.initialFacts')
+    const factIds = facts.map((value, index) => {
+      const path = `StoredWorldManifest.contentPack.initialFacts[${index}]`
+      const fact = objectAt(value, path)
+      exactKeys(fact, ['factId', 'proposition', 'initialAudience'], path)
+      const audience = arrayAt(fact.initialAudience, `${path}.initialAudience`).map((entry, audienceIndex) => (
+        textAt(entry, `${path}.initialAudience[${audienceIndex}]`)
+      ))
+      unique(audience, `${path}.initialAudience`)
+      return textAt(fact.factId, `${path}.factId`)
+    })
+    unique(factIds, 'StoredWorldManifest.contentPack.initialFacts')
   }
   return value as CompiledWorldManifest
 }
@@ -165,6 +205,12 @@ function exactKeys(value: Record<string, unknown>, keys: readonly string[], path
 function textAt(value: unknown, path: string): string {
   if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) throw new TypeError(`${path} must be a non-empty, unpadded string`)
   return value
+}
+
+function hashAt(value: unknown, path: string): WorldHash {
+  const hash = textAt(value, path)
+  if (!/^sha256:[0-9a-f]{64}$/u.test(hash)) throw new TypeError(`${path} must be a lowercase SHA-256 WorldHash`)
+  return hash as WorldHash
 }
 
 function stringAt(value: unknown, path: string): string {

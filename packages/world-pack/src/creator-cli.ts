@@ -6,7 +6,10 @@ import { WorldApplication } from '@harness-world/application'
 import {
   brandId,
   canonicalizeWorldJson,
+  createErrorEnvelope,
   deterministicId,
+  WorldError,
+  type ErrorEnvelope,
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
@@ -14,6 +17,8 @@ import {
   WorldPackCompiler,
   canonicalWorldPackBytes,
 } from './compiler.ts'
+import { WorldPackContractError } from './diagnostics.ts'
+import { worldPackErrorCode } from './schema.ts'
 import {
   WorldPackInspector,
   WorldPackTestRunner,
@@ -169,4 +174,28 @@ export async function executeWorldPackCli(args: readonly string[]): Promise<stri
     return output({ command: 'test', report: await new WorldPackTestRunner().run(invocation.sourceDirectory) })
   }
   return output(await activate(invocation.compiledPackPath, invocation.dataDirectory))
+}
+
+/** Normalize creator-facing failures to the same canonical ErrorEnvelope used by other local entrypoints. */
+export function worldPackCliErrorEnvelope(error: unknown, args: readonly string[]): ErrorEnvelope {
+  if (error instanceof WorldError) return error.envelope
+  const correlationId = `worldpack:${args[0] ?? 'unknown'}`
+  if (error instanceof WorldPackContractError) {
+    const diagnostic = error.diagnostics[0]
+    const diagnostics: readonly WorldJsonObject[] = error.diagnostics.map(item => ({
+      severity: item.severity, code: item.code, file: item.file,
+      jsonPointer: item.jsonPointer, message: item.message,
+      ...(item.suggestion === undefined ? {} : { suggestion: item.suggestion }),
+    }))
+    return createErrorEnvelope({
+      errorCode: worldPackErrorCode(diagnostic.code), category: 'admission',
+      message: diagnostic.message, retryable: false, correlationId,
+      details: { diagnostics },
+    })
+  }
+  return createErrorEnvelope({
+    errorCode: 'INVALID_REQUEST', category: 'admission',
+    message: error instanceof TypeError ? error.message : 'worldpack command failed',
+    retryable: false, correlationId,
+  })
 }

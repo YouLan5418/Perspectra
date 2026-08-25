@@ -78,6 +78,28 @@ import {
 import { SceneDecisionService } from './scene-decision.ts'
 import { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
 
+function assertCompatibleContentPackVersion(
+  existing: { readonly manifest: WorldJsonValue } | undefined,
+  candidate: CompiledWorldManifest,
+): void {
+  if (existing === undefined || candidate.contentPack === undefined) return
+  const stored = runtimeManifestFromStored(existing.manifest).contentPack
+  if (stored === undefined || stored.packId !== candidate.contentPack.packId
+    || stored.packVersion !== candidate.contentPack.packVersion
+    || stored.packHash === candidate.contentPack.packHash) return
+  failWorld({
+    errorCode: 'PACK_VERSION_DIVERGED', category: 'admission',
+    message: 'same packId and packVersion resolve to different packHash values', retryable: false,
+    correlationId: `activate:${worldAddressKey(candidate.address)}`, address: candidate.address,
+    details: {
+      packId: candidate.contentPack.packId,
+      packVersion: candidate.contentPack.packVersion,
+      existingPackHash: stored.packHash,
+      candidatePackHash: candidate.contentPack.packHash,
+    },
+  })
+}
+
 export interface WorldApplicationOptions {
   readonly worldPath: string
   readonly sessionPath: string
@@ -314,6 +336,7 @@ export class WorldApplication {
     this.#assertOpen()
     const store = new WorldStore(this.options.worldPath)
     try {
+      assertCompatibleContentPackVersion(store.readManifest(compiled.manifest.address), compiled.manifest)
       this.#rulebooks.resolve(
         compiled.manifest.rulebook.rulebookId,
         compiled.manifest.rulebook.version,

@@ -2,13 +2,13 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { brandId, canonicalizeWorldJson, type WorldJsonValue } from '@harness-world/contracts'
 import { WorldApplication } from '@harness-world/application'
+import { WorldSpecCompiler } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import {
   WorldPackCompiler,
-  assertCompatiblePackVersion,
   canonicalWorldPackBytes,
   verifyCompiledWorldPack,
 } from './compiler.ts'
@@ -331,6 +331,30 @@ describe('WorldPackCompiler', () => {
     }
   })
 
+  it('fails closed if the base Genesis plan references a Character absent from Pack content', async () => {
+    const root = await temporaryRoot(); await writePack(root)
+    const compiler = new WorldPackCompiler()
+    const pack = await compiler.compile(root)
+    const original = WorldSpecCompiler.prototype.compile
+    const spy = vi.spyOn(WorldSpecCompiler.prototype, 'compile').mockImplementation(function (this: WorldSpecCompiler, input) {
+      const compiled = original.call(this, input)
+      return {
+        ...compiled,
+        genesisEvents: compiled.genesisEvents.map(event => event.eventType !== 'character.created'
+          ? event
+          : { ...event, data: { ...(event.data as object), characterId: 'character:not-in-pack' } }),
+      }
+    })
+    try {
+      expect(() => compiler.adaptToWorldSpec(pack, {
+        address: { tenantId: brandId('tenant:invalid-genesis', 'TenantId'), worldId: brandId('world:invalid-genesis', 'WorldId'), branchId: brandId('branch:main', 'BranchId') },
+        principalId: 'principal:player', sessionId: brandId('session:player', 'SessionId'),
+      })).toThrow('Genesis references unknown Character')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('is independent of source list order and CRLF/LF choice', async () => {
     const first = await temporaryRoot(); const second = await temporaryRoot()
     await writeSplitPack(first, false, 'Bob\r\nkeeps a secret.\r\n')
@@ -341,13 +365,10 @@ describe('WorldPackCompiler', () => {
     expect(canonicalWorldPackBytes(left)).toEqual(canonicalWorldPackBytes(right))
   })
 
-  it('detects immutable envelope and human-version divergence', async () => {
-    const first = await temporaryRoot(); const second = await temporaryRoot()
-    await writePack(first); await writePack(second)
-    await writeJson(second, 'world.json', { ...sourceDocuments['world.json'] as object, title: 'Changed Tavern' } as WorldJsonValue)
-    const compiler = new WorldPackCompiler(); const left = await compiler.compile(first); const right = await compiler.compile(second)
-    expect(() => assertCompatiblePackVersion(left, left)).not.toThrow()
-    expect(() => assertCompatiblePackVersion(left, right)).toThrow(WorldPackContractError)
+  it('detects immutable envelope content divergence', async () => {
+    const first = await temporaryRoot()
+    await writePack(first)
+    const left = await new WorldPackCompiler().compile(first)
     expect(() => verifyCompiledWorldPack({ ...left, content: { ...left.content, world: { ...left.content.world, title: 'tampered' } } })).toThrow(WorldPackContractError)
   })
 

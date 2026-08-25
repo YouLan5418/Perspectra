@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
 import { canonicalizeWorldJson, hashWorldJson, type WorldJsonValue } from '@harness-world/contracts'
 import {
   PHASE7_CORE_PROFILES,
@@ -25,6 +26,11 @@ import {
 } from './index.ts'
 
 const ZERO_HASH = `sha256:${'0'.repeat(64)}` as const
+const WELCOME_HASH = `sha256:${createHash('sha256').update('Welcome\n').digest('hex')}` as const
+
+function rawTextHash(text: string) {
+  return `sha256:${createHash('sha256').update(text).digest('hex')}`
+}
 
 function manifest() {
   return {
@@ -109,7 +115,7 @@ function compiled(): WorldJsonValue {
       characters: parseWorldPackCharactersSource(characters()).characters, scenes: parseWorldPackScenesSource(scenes()).scenes,
       playerSlots: parseWorldPackPlayerSlotsSource(slots()).playerSlots,
       presentation: parseWorldPackPresentationSource(presentation()),
-      markdown: [{ path: 'text/opening.md', text: 'Welcome\n', contentHash: ZERO_HASH }],
+      markdown: [{ path: 'text/opening.md', text: 'Welcome\n', contentHash: WELCOME_HASH }],
     },
     assets: [{ path: 'assets/map.png', contentHash: ZERO_HASH, size: 12 }],
     acceptanceAssertions: parseWorldPackAssertionsSource(assertions()).assertions,
@@ -188,7 +194,7 @@ describe('World Pack Phase 7 contracts', () => {
     expect(value.assets[0]?.size).toBe(12)
     expect(canonicalizeWorldJson(value).byteLength).toBeGreaterThan(100)
     expect(hashWorldJson('world-pack-contract-golden/v1', value)).toBe(
-      'sha256:50fa7943040ca8e4eb3f9eede15eda404a0a26250b9a1091a4597f378cbc62b4',
+      'sha256:e99920fb9871639a0c4841ccc31f0a175b155700dfb29f9c4fe341779461bf71',
     )
   })
 
@@ -200,6 +206,9 @@ describe('World Pack Phase 7 contracts', () => {
     }] })
     expect(error.message).toBe('world.json/characters: too many')
     expect(worldPackErrorCode('PACK_REFERENCE_INVALID')).toBe('PACK_REFERENCE_INVALID')
+    expect(worldPackErrorCode('PACK_VERSION_DIVERGED')).toBe('PACK_VERSION_DIVERGED')
+    expect(worldPackErrorCode('PLUGIN_NOT_REGISTERED')).toBe('PLUGIN_NOT_REGISTERED')
+    expect(worldPackErrorCode('REGISTRY_HASH_MISMATCH')).toBe('REGISTRY_HASH_MISMATCH')
     expect(worldPackErrorCode('PACK_UNKNOWN_FIELD')).toBe('PACK_SOURCE_INVALID')
   })
 
@@ -301,15 +310,18 @@ describe('World Pack Phase 7 contracts', () => {
     [() => parseCompiledWorldPack({ ...compiled() as object, packVersion: 'latest' }), 'PACK_SOURCE_INVALID'],
     [() => parseCompiledWorldPack({ ...compiled() as object, packHash: 'sha256:ABC' }), 'PACK_SOURCE_INVALID'],
     [() => parseCompiledWorldPack({ ...compiled() as object, compiler: { ...(compiled() as CompiledWorldPack).compiler, version: '0.2.0' } }), 'PACK_SOURCE_INVALID'],
-    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: pluginLocks().slice(0, 3) }), 'PACK_PROFILE_NOT_ALLOWED'],
+    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: pluginLocks().slice(0, 3) }), 'PLUGIN_NOT_REGISTERED'],
     [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [...pluginLocks(), pluginLocks()[0]] }), 'PACK_DUPLICATE_ID'],
-    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [{ ...pluginLocks()[0], kind: 'other', id: 'x' }, ...pluginLocks().slice(1) ] }), 'PACK_PROFILE_NOT_ALLOWED'],
-    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [{ ...pluginLocks()[0], id: 'other' }, ...pluginLocks().slice(1) ] }), 'PACK_PROFILE_NOT_ALLOWED'],
-    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [{ ...pluginLocks()[0], pluginHash: ZERO_HASH }, ...pluginLocks().slice(1) ] }), 'PACK_PROFILE_NOT_ALLOWED'],
+    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [{ ...pluginLocks()[0], kind: 'other', id: 'x' }, ...pluginLocks().slice(1) ] }), 'PLUGIN_NOT_REGISTERED'],
+    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [{ ...pluginLocks()[0], id: 'other' }, ...pluginLocks().slice(1) ] }), 'PLUGIN_NOT_REGISTERED'],
+    [() => parseCompiledWorldPack({ ...compiled() as object, pluginLocks: [{ ...pluginLocks()[0], pluginHash: ZERO_HASH }, ...pluginLocks().slice(1) ] }), 'REGISTRY_HASH_MISMATCH'],
     [() => parseCompiledWorldPack({ ...compiled() as object, content: { ...(compiled() as CompiledWorldPack).content, extra: true } }), 'PACK_UNKNOWN_FIELD'],
     [() => parseCompiledWorldPack({ ...compiled() as object, content: { ...(compiled() as CompiledWorldPack).content, markdown: [
-      { path: 'same.md', text: 'a', contentHash: ZERO_HASH }, { path: 'same.md', text: 'b', contentHash: ZERO_HASH },
+      { path: 'same.md', text: 'a', contentHash: rawTextHash('a') }, { path: 'same.md', text: 'b', contentHash: rawTextHash('b') },
     ] } }), 'PACK_DUPLICATE_ID'],
+    [() => parseCompiledWorldPack({ ...compiled() as object, content: { ...(compiled() as CompiledWorldPack).content, markdown: [
+      { path: 'text/opening.md', text: 'Changed', contentHash: WELCOME_HASH },
+    ] } }), 'PACK_SOURCE_INVALID'],
     [() => parseCompiledWorldPack({ ...compiled() as object, assets: [
       { path: 'same.png', contentHash: ZERO_HASH, size: 1 }, { path: 'same.png', contentHash: ZERO_HASH, size: 2 },
     ] }), 'PACK_DUPLICATE_ID'],

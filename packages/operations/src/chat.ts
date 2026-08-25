@@ -1,4 +1,4 @@
-import { createErrorEnvelope, canonicalizeWorldJson, type CharacterId, type WorldAddress, type WorldJsonValue } from '@harness-world/contracts'
+import { createErrorEnvelope, canonicalizeWorldJson, WorldError, type CharacterId, type WorldAddress, type WorldJsonValue } from '@harness-world/contracts'
 import type { PlayerChatScope, SubmitTextResult, WorldApplication } from '@harness-world/application'
 import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
@@ -82,6 +82,7 @@ export async function runPersistentWorldChat(
         handled += 1
         continue
       }
+      let errorCorrelationId = `chat:command:${ordinal}`
       try {
         let result: WorldJsonValue
         if (text === '.view') {
@@ -92,12 +93,14 @@ export async function runPersistentWorldChat(
           result = options.health?.() ?? { status: 'unavailable' }
         } else if (text.startsWith('.round ')) {
           const idempotencyKey = text.slice('.round '.length)
+          errorCorrelationId = `chat:round:${idempotencyKey}`
           result = (await application.roundStatus(scope.address, { idempotencyKey }) ?? null) as WorldJsonValue
         } else if (text.startsWith('.')) {
           result = { status: 'clarification_required', reason: 'unknown shell command', candidates: ['.view', '.health', '.round', '.pause', '.exit'] }
         } else {
           ordinal += 1
           const idempotencyKey = makeKey(ordinal, text)
+          errorCorrelationId = `chat:${idempotencyKey}`
           const submitted: SubmitTextResult = await application.submitText(scope.address, {
             text,
             idempotencyKey,
@@ -108,10 +111,11 @@ export async function runPersistentWorldChat(
         }
         output.write(line(result))
       } catch (error: unknown) {
-        output.write(line(createErrorEnvelope({
-          errorCode: 'INVALID_REQUEST', category: 'admin', message: String(error), retryable: false,
-          correlationId: `chat:${ordinal}`,
-        }) as unknown as WorldJsonValue))
+        const envelope = error instanceof WorldError ? error.envelope : createErrorEnvelope({
+          errorCode: 'INVALID_REQUEST', category: 'admin', message: 'chat command failed', retryable: false,
+          correlationId: errorCorrelationId,
+        })
+        output.write(line(envelope as unknown as WorldJsonValue))
       }
       handled += 1
     }

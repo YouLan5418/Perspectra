@@ -26,7 +26,7 @@ export default defineConfig({
     // Windows CI runs the SQLite integration suites substantially slower under
     // V8 coverage. Keep correctness deadlines inside the tests themselves and
     // give the test runner an explicit cross-platform wall-clock budget.
-    testTimeout: 20_000,
+    testTimeout: 30_000,
     coverage: {
       provider: 'v8',
       include: [

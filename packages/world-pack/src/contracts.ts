@@ -232,7 +232,8 @@ export interface WorldPackInspection extends WorldJsonObject {
 }
 
 export interface WorldPackTestReport extends WorldJsonObject {
-  readonly status: 'passed'
+  readonly status: 'compiled'
+  readonly assertionsExecuted: 0
   readonly packId: WorldPackId
   readonly packVersion: string
   readonly packHash: WorldHash

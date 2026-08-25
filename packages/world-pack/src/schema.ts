@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import {
   assertProtocolString,
   brandId,
@@ -445,18 +446,18 @@ function pluginLocksAt(value: unknown, file: string, at: string): WorldPackPlugi
     const kind = textAt(item.kind, file, `${itemAt}/kind`)
     const expected = allowed.get(kind)
     if (expected === undefined || item.id !== expected[0] || String(item.version) !== expected[1]) {
-      failWorldPackContract('PACK_PROFILE_NOT_ALLOWED', file, itemAt, 'is not an exact Phase 7 plugin lock')
+      failWorldPackContract('PLUGIN_NOT_REGISTERED', file, itemAt, 'is not an installed exact Phase 7 plugin lock')
     }
     const id = textAt(item.id, file, `${itemAt}/id`)
     const version = textAt(item.version, file, `${itemAt}/version`)
     const pluginHash = hashAt(item.pluginHash, file, `${itemAt}/pluginHash`)
     if (pluginHash !== hashWorldJson('world-pack-core-plugin-lock/v1', { kind, id, version })) {
-      failWorldPackContract('PACK_PROFILE_NOT_ALLOWED', file, `${itemAt}/pluginHash`, 'does not match the locked Core plugin contract')
+      failWorldPackContract('REGISTRY_HASH_MISMATCH', file, `${itemAt}/pluginHash`, 'does not match the locked Core plugin contract')
     }
     return { kind: kind as WorldPackPluginLock['kind'], id, version, pluginHash }
   })
   unique(locks.map(lock => lock.kind), file, at)
-  if (locks.length !== allowed.size) failWorldPackContract('PACK_PROFILE_NOT_ALLOWED', file, at, 'must lock every Phase 7 Core profile')
+  if (locks.length !== allowed.size) failWorldPackContract('PLUGIN_NOT_REGISTERED', file, at, 'must lock every Phase 7 Core profile')
   return locks
 }
 
@@ -466,7 +467,10 @@ function markdownAt(value: unknown, file: string, at: string): WorldPackMarkdown
   if (new TextEncoder().encode(text).byteLength > MAX_MARKDOWN_BYTES) {
     failWorldPackContract('PACK_LIMIT_EXCEEDED', file, `${at}/text`, `exceeds the ${MAX_MARKDOWN_BYTES}-byte Markdown limit`)
   }
-  return { path: textAt(item.path, file, `${at}/path`), text, contentHash: hashAt(item.contentHash, file, `${at}/contentHash`) }
+  const contentHash = hashAt(item.contentHash, file, `${at}/contentHash`)
+  const actualHash = `sha256:${createHash('sha256').update(new TextEncoder().encode(text)).digest('hex')}`
+  if (contentHash !== actualHash) failWorldPackContract('PACK_SOURCE_INVALID', file, `${at}/contentHash`, 'does not match the Markdown text bytes')
+  return { path: textAt(item.path, file, `${at}/path`), text, contentHash }
 }
 
 function assetAt(value: unknown, file: string, at: string): WorldPackAssetLock {
@@ -519,7 +523,8 @@ export function parseCompiledWorldPack(input: unknown, file = 'worldpack.json'):
 }
 
 /** Convert a contract diagnostic into the stable world error code used by compiler and CLI boundaries. */
-export function worldPackErrorCode(code: WorldPackDiagnosticCode): 'PACK_SOURCE_INVALID' | 'PACK_REFERENCE_INVALID' | 'PACK_VERSION_DIVERGED' {
-  if (code === 'PACK_REFERENCE_INVALID' || code === 'PACK_VERSION_DIVERGED') return code
+export function worldPackErrorCode(code: WorldPackDiagnosticCode): 'PACK_SOURCE_INVALID' | 'PACK_REFERENCE_INVALID' | 'PACK_VERSION_DIVERGED' | 'PLUGIN_NOT_REGISTERED' | 'REGISTRY_HASH_MISMATCH' {
+  if (code === 'PACK_REFERENCE_INVALID' || code === 'PACK_VERSION_DIVERGED'
+    || code === 'PLUGIN_NOT_REGISTERED' || code === 'REGISTRY_HASH_MISMATCH') return code
   return 'PACK_SOURCE_INVALID'
 }
