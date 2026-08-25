@@ -44,3 +44,4 @@
 | [0060](ADR-0060-content-pack-manifest-provenance.md) | 内容包 Manifest 来源绑定与 Genesis 接入 | 旧 Manifest 不变；Pack 世界用 v3 锁定来源并通过既有认知事件激活 |
 | [0061](ADR-0061-world-pack-entity-source-closure.md) | World Pack 通用实体来源闭环 | 实体由显式来源文件编译并继续交给 Core take 裁定 |
 | [0062](ADR-0062-pack-public-speech-observation.md) | Pack 公开对白进入角色观察与 Memory | Manifest v3 的同 Scene 角色可记住公开原话但不自动获得真值 Claim |
+| [0063](ADR-0063-pack-runtime-capability-and-v1-closure.md) | Pack 运行能力与 v1 格式收口 | 行为能力不再借用 Schema 版本；冻结 Pack v1 与创作者错误契约 |

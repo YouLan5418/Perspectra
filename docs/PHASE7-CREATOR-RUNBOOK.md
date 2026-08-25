@@ -44,7 +44,7 @@ corepack pnpm@11.7.0 worldpack compile D:\worlds\my-tavern --out D:\worlds\my-ta
 corepack pnpm@11.7.0 worldpack inspect D:\worlds\my-tavern.worldpack.json
 ```
 
-`validate` 检查严格 JSON、Unicode、路径、大小限制、重复 ID、引用和 allowlist。`test` 执行确定性编译/WorldSpec 适配，并固定 acceptance plan 的 ID 与 Hash；仓库参考酒馆的多轮运行断言由 `pnpm check` 中的正式 Testkit E2E 执行。`compile` 生成 Canonical、内容寻址的不可变 `worldpack/v1` 制品；`inspect` 只读取制品，不回看来源目录。
+`validate` 检查严格 JSON、Unicode、路径、大小限制、重复 ID、引用和 allowlist。`test` 执行确定性编译/WorldSpec 适配，并以 `status: "compiled"`、`assertionsExecuted: 0` 如实说明它只固定 acceptance plan 的 ID 与 Hash；仓库参考酒馆的多轮运行断言由 `pnpm check` 中的正式 Testkit E2E 执行。`compile` 生成 Canonical、内容寻址的不可变 `worldpack/v1` 制品；`inspect` 只读取制品，不回看来源目录。
 
 同一个 `packId + packVersion` 修改内容后会得到不同 `packHash`。创作者应同时提升自己的 `packVersion`，不要覆盖已经用于激活世界的制品。
 
@@ -80,7 +80,7 @@ corepack pnpm@11.7.0 worldappctl chat --data-dir D:\worlds\my-tavern-data
 
 ## 6. 诊断与恢复
 
-来源错误会返回 `PACK_SOURCE_INVALID`、`PACK_REFERENCE_INVALID`、`PACK_DUPLICATE_ID`、`PACK_LIMIT_EXCEEDED` 等确定性诊断。不要通过删除 Hash、放宽 Schema 或手改数据库绕过错误。
+来源错误会返回 Canonical `ErrorEnvelope`，并保留 `PACK_SOURCE_INVALID`、`PACK_REFERENCE_INVALID`、`PACK_DUPLICATE_ID`、`PACK_LIMIT_EXCEEDED`、`PLUGIN_NOT_REGISTERED`、`REGISTRY_HASH_MISMATCH` 等确定性诊断。同一 id/version 的 Pack 内容发生变化时返回 `PACK_VERSION_DIVERGED`。不要通过删除 Hash、放宽 Schema 或手改数据库绕过错误。
 
 运行时若出现 `BUNDLE_HASH_MISMATCH`、`SESSION_DELIVERY_DIVERGED` 或 quarantine，应停止写入并按[V0 本机运行与恢复手册](V0-LOCAL-RUNBOOK.md)处理。编辑来源后应编译新制品并激活到新的数据目录；Phase 7 不支持运行中替换 Pack。
 

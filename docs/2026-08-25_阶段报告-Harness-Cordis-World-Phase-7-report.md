@@ -55,7 +55,7 @@ corepack pnpm@11.7.0 check
 |---|---|
 | TypeScript strict typecheck | 通过 |
 | Oxlint | 通过 |
-| 覆盖测试 | 50 files，427 tests 通过 |
+| 覆盖测试 | 50 files，430 tests 通过 |
 | statements / branches / functions / lines | 100% / 100% / 100% / 100% |
 | P0～P6 integration | 全部通过 |
 | hard crash matrix | 18 tests 通过 |
@@ -88,6 +88,8 @@ corepack pnpm@11.7.0 check
 | `d66e057` | 无调查依赖的酒馆社交参考 Pack |
 | `7d760a5` | 本机创作者 CLI、Inspector 与 Test Runner |
 | `9ea52a0` | 全部私有 workspace 统一为 `0.2.0` 候选 |
+
+独立审查后的契约收口、能力解耦和诊断加固见 [Phase 7 独立审查修复报告](2026-08-25_Phase-7独立审查修复报告.md) 与 [ADR-0063](adr/ADR-0063-pack-runtime-capability-and-v1-closure.md)。
 
 ## 外部门槛与发布边界
 
