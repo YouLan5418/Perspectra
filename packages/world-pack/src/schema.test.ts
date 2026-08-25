@@ -13,6 +13,7 @@ import {
   parseCompiledWorldPack,
   parseWorldPackAssertionsSource,
   parseWorldPackCharactersSource,
+  parseWorldPackEntitiesSource,
   parseWorldPackLocationsSource,
   parseWorldPackPlayerSlotsSource,
   parseWorldPackPresentationSource,
@@ -28,7 +29,7 @@ const ZERO_HASH = `sha256:${'0'.repeat(64)}` as const
 function manifest() {
   return {
     sourceSchemaVersion: 'worldpack-source/v1', packId: 'pack:tavern', packVersion: '1.0.0', worldFile: 'world.json',
-    characterFiles: ['characters.json'], locationFiles: ['locations.json'], sceneFiles: ['scenes.json'],
+    characterFiles: ['characters.json'], locationFiles: ['locations.json'], entityFiles: ['entities.json'], sceneFiles: ['scenes.json'],
     playerSlotFiles: ['player-slots.json'], presentationFiles: ['presentation.json'], markdownFiles: [], assetFiles: [],
     assertionFiles: ['assertions.json'],
   }
@@ -40,6 +41,10 @@ function world() {
 
 function locations() {
   return { schemaVersion: 'worldpack-locations/v1', locations: [{ locationId: 'location:tavern', name: 'Tavern' }] }
+}
+
+function entities() {
+  return { schemaVersion: 'worldpack-entities/v1', entities: [{ entityId: 'entity:mug', locationId: 'location:tavern', kind: 'mug' }] }
 }
 
 function characters() {
@@ -100,6 +105,7 @@ function compiled(): WorldJsonValue {
     pluginLocks: pluginLocks(),
     content: {
       world: parseWorldPackWorldSource(world()), locations: parseWorldPackLocationsSource(locations()).locations,
+      entities: parseWorldPackEntitiesSource(entities()).entities,
       characters: parseWorldPackCharactersSource(characters()).characters, scenes: parseWorldPackScenesSource(scenes()).scenes,
       playerSlots: parseWorldPackPlayerSlotsSource(slots()).playerSlots,
       presentation: parseWorldPackPresentationSource(presentation()),
@@ -146,6 +152,7 @@ describe('World Pack Phase 7 contracts', () => {
     expect(explicitWorld).toMatchObject({ description: 'Open social world', roundQueueLimit: 16 })
     expect(explicitWorld.initialFacts[0]).toEqual({ factId: 'fact:cellar', proposition: { door: 'locked' }, initialAudience: ['character:bob'] })
     expect(parseWorldPackLocationsSource(locations())).toEqual(locations())
+    expect(parseWorldPackEntitiesSource(entities())).toEqual(entities())
     expect(parseWorldPackScenesSource(scenes())).toEqual(scenes())
     expect(parseWorldPackAssertionsSource(assertions())).toEqual(assertions())
     expect(parseWorldPackCharactersSource(richCharacters()).characters[0]).toMatchObject({
@@ -181,7 +188,7 @@ describe('World Pack Phase 7 contracts', () => {
     expect(value.assets[0]?.size).toBe(12)
     expect(canonicalizeWorldJson(value).byteLength).toBeGreaterThan(100)
     expect(hashWorldJson('world-pack-contract-golden/v1', value)).toBe(
-      'sha256:d84f8566df15e7992a341299201960fe930ba9b3ab1d41f288eda434c6bc024c',
+      'sha256:50fa7943040ca8e4eb3f9eede15eda404a0a26250b9a1091a4597f378cbc62b4',
     )
   })
 
@@ -248,6 +255,10 @@ describe('World Pack Phase 7 contracts', () => {
     [() => parseWorldPackLocationsSource({ ...locations(), locations: [null] }), 'PACK_SOURCE_INVALID'],
     [() => parseWorldPackLocationsSource({ ...locations(), locations: [{ ...locations().locations[0], extra: true }] }), 'PACK_UNKNOWN_FIELD'],
     [() => parseWorldPackLocationsSource({ ...locations(), locations: Array.from({ length: 513 }, (_, index) => ({ locationId: `location:${index}`, name: `${index}` })) }), 'PACK_LIMIT_EXCEEDED'],
+    [() => parseWorldPackEntitiesSource({ ...entities(), schemaVersion: 'bad' }), 'PACK_SOURCE_INVALID'],
+    [() => parseWorldPackEntitiesSource({ ...entities(), entities: [entities().entities[0], entities().entities[0]] }), 'PACK_DUPLICATE_ID'],
+    [() => parseWorldPackEntitiesSource({ ...entities(), entities: [{ ...entities().entities[0], extra: true }] }), 'PACK_UNKNOWN_FIELD'],
+    [() => parseWorldPackEntitiesSource({ ...entities(), entities: Array.from({ length: 513 }, (_, index) => ({ entityId: `entity:${index}`, locationId: 'location:tavern', kind: 'item' })) }), 'PACK_LIMIT_EXCEEDED'],
     [() => parseWorldPackCharactersSource({ ...characters(), schemaVersion: 'bad' }), 'PACK_SOURCE_INVALID'],
     [() => parseWorldPackCharactersSource({ ...characters(), characters: [] }), 'PACK_SOURCE_INVALID'],
     [() => parseWorldPackCharactersSource({ ...characters(), characters: [characters().characters[0], characters().characters[0]] }), 'PACK_DUPLICATE_ID'],

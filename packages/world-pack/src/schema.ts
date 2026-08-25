@@ -23,6 +23,8 @@ import {
   type WorldPackCharactersSource,
   type WorldPackCompiledContent,
   type WorldPackCoreProfiles,
+  type WorldPackEntitiesSource,
+  type WorldPackEntitySource,
   type WorldPackId,
   type WorldPackInitialClaimSource,
   type WorldPackInitialFactSource,
@@ -54,6 +56,7 @@ const MAX_MARKDOWN_BYTES = 256 * KIBIBYTE
 const MAX_ASSET_BYTES = 8 * MEBIBYTE
 const MAX_CHARACTERS = 256
 const MAX_LOCATIONS = 512
+const MAX_ENTITIES = 512
 
 function pointer(base: string, field: string | number): string {
   const token = String(field).replaceAll('~', '~0').replaceAll('/', '~1')
@@ -215,7 +218,7 @@ function parseFact(value: unknown, file: string, at: string): WorldPackInitialFa
 export function parseWorldPackSourceManifest(input: unknown, file = 'worldpack.source.json'): WorldPackSourceManifest {
   const root = sourceDocument(input, file)
   const listFields = [
-    'characterFiles', 'locationFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles',
+    'characterFiles', 'locationFiles', 'entityFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles',
     'markdownFiles', 'assetFiles', 'assertionFiles',
   ] as const
   exactKeys(root, ['sourceSchemaVersion', 'packId', 'packVersion', 'worldFile', ...listFields], [], file, '')
@@ -242,6 +245,7 @@ export function parseWorldPackSourceManifest(input: unknown, file = 'worldpack.s
     worldFile,
     characterFiles: lists.characterFiles,
     locationFiles: lists.locationFiles,
+    entityFiles: lists.entityFiles,
     sceneFiles: lists.sceneFiles,
     playerSlotFiles: lists.playerSlotFiles,
     presentationFiles: lists.presentationFiles,
@@ -286,6 +290,23 @@ export function parseWorldPackLocationsSource(input: unknown, file = 'locations.
   if (locations.length > MAX_LOCATIONS) failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/locations', `must contain at most ${MAX_LOCATIONS} locations`)
   nonEmpty(locations, file, '/locations'); unique(locations.map(value => value.locationId), file, '/locations')
   return { schemaVersion: 'worldpack-locations/v1', locations }
+}
+
+export function parseWorldPackEntitiesSource(input: unknown, file = 'entities.json'): WorldPackEntitiesSource {
+  const root = sourceDocument(input, file); exactKeys(root, ['schemaVersion', 'entities'], [], file, '')
+  if (root.schemaVersion !== 'worldpack-entities/v1') failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', 'must be worldpack-entities/v1')
+  const entities = arrayAt(root.entities, file, '/entities').map((entry, index): WorldPackEntitySource => {
+    const at = `/entities/${index}`; const value = objectAt(entry, file, at)
+    exactKeys(value, ['entityId', 'locationId', 'kind'], [], file, at)
+    return {
+      entityId: textAt(value.entityId, file, `${at}/entityId`),
+      locationId: textAt(value.locationId, file, `${at}/locationId`),
+      kind: textAt(value.kind, file, `${at}/kind`),
+    }
+  })
+  if (entities.length > MAX_ENTITIES) failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/entities', `must contain at most ${MAX_ENTITIES} entities`)
+  unique(entities.map(value => value.entityId), file, '/entities')
+  return { schemaVersion: 'worldpack-entities/v1', entities }
 }
 
 function parseObservation(value: unknown, file: string, at: string): WorldPackInitialObservationSource {
@@ -468,10 +489,11 @@ export function parseCompiledWorldPack(input: unknown, file = 'worldpack.json'):
     || compiler.limitsProfile !== WORLD_PACK_LIMITS_PROFILE) {
     failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiler', 'does not identify the Phase 7 compiler contract')
   }
-  const content = objectAt(root.content, file, '/content'); exactKeys(content, ['world', 'locations', 'characters', 'scenes', 'playerSlots', 'presentation', 'markdown'], [], file, '/content')
+  const content = objectAt(root.content, file, '/content'); exactKeys(content, ['world', 'locations', 'entities', 'characters', 'scenes', 'playerSlots', 'presentation', 'markdown'], [], file, '/content')
   const parsedContent: WorldPackCompiledContent = {
     world: parseWorldPackWorldSource(content.world, `${file}#/content/world`),
     locations: parseWorldPackLocationsSource({ schemaVersion: 'worldpack-locations/v1', locations: content.locations }, `${file}#/content/locations`).locations,
+    entities: parseWorldPackEntitiesSource({ schemaVersion: 'worldpack-entities/v1', entities: content.entities }, `${file}#/content/entities`).entities,
     characters: parseWorldPackCharactersSource({ schemaVersion: 'worldpack-characters/v1', characters: content.characters }, `${file}#/content/characters`).characters,
     scenes: parseWorldPackScenesSource({ schemaVersion: 'worldpack-scenes/v1', scenes: content.scenes }, `${file}#/content/scenes`).scenes,
     playerSlots: parseWorldPackPlayerSlotsSource({ schemaVersion: 'worldpack-player-slots/v1', playerSlots: content.playerSlots }, `${file}#/content/playerSlots`).playerSlots,

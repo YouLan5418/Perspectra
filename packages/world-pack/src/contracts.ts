@@ -55,6 +55,7 @@ export interface WorldPackSourceManifest extends WorldJsonObject {
   readonly worldFile: string
   readonly characterFiles: readonly string[]
   readonly locationFiles: readonly string[]
+  readonly entityFiles: readonly string[]
   readonly sceneFiles: readonly string[]
   readonly playerSlotFiles: readonly string[]
   readonly presentationFiles: readonly string[]
@@ -85,6 +86,16 @@ export interface WorldPackLocationSource extends WorldJsonObject {
 export interface WorldPackLocationsSource extends WorldJsonObject {
   readonly schemaVersion: 'worldpack-locations/v1'
   readonly locations: readonly WorldPackLocationSource[]
+}
+
+export interface WorldPackEntitySource extends WorldJsonObject {
+  readonly entityId: string
+  readonly locationId: string
+  readonly kind: string
+}
+export interface WorldPackEntitiesSource extends WorldJsonObject {
+  readonly schemaVersion: 'worldpack-entities/v1'
+  readonly entities: readonly WorldPackEntitySource[]
 }
 
 export interface WorldPackPortrayalSource extends WorldJsonObject {
@@ -165,6 +176,7 @@ export interface WorldPackMarkdownContent extends WorldJsonObject {
 export interface WorldPackCompiledContent extends WorldJsonObject {
   readonly world: WorldPackWorldSource
   readonly locations: readonly WorldPackLocationSource[]
+  readonly entities: readonly WorldPackEntitySource[]
   readonly characters: readonly WorldPackCharacterSource[]
   readonly scenes: readonly WorldPackSceneSource[]
   readonly playerSlots: readonly WorldPackPlayerSlotSource[]

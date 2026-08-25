@@ -30,6 +30,7 @@ import {
   type WorldPackCharacterSource,
   type WorldPackCompiledContent,
   type WorldPackCompileOptions,
+  type WorldPackEntitySource,
   type WorldPackLocationSource,
   type WorldPackMarkdownContent,
   type WorldPackPlayerSlotSource,
@@ -43,6 +44,7 @@ import {
   parseCompiledWorldPack,
   parseWorldPackAssertionsSource,
   parseWorldPackCharactersSource,
+  parseWorldPackEntitiesSource,
   parseWorldPackLocationsSource,
   parseWorldPackPlayerSlotsSource,
   parseWorldPackPresentationSource,
@@ -171,7 +173,7 @@ async function loadJson(root: string, sourcePath: string, manifestFile: string, 
 }
 
 function allDeclaredFiles(manifest: WorldPackSourceManifest): readonly string[] {
-  return [manifest.worldFile, ...manifest.characterFiles, ...manifest.locationFiles, ...manifest.sceneFiles,
+  return [manifest.worldFile, ...manifest.characterFiles, ...manifest.locationFiles, ...manifest.entityFiles, ...manifest.sceneFiles,
     ...manifest.playerSlotFiles, ...manifest.presentationFiles, ...manifest.markdownFiles, ...manifest.assetFiles,
     ...manifest.assertionFiles]
 }
@@ -195,6 +197,9 @@ function validateReferences(content: WorldPackCompiledContent): void {
     if (character.portrayal.backgroundTextRef !== null && !markdown.has(character.portrayal.backgroundTextRef)) {
       failWorldPackContract('PACK_REFERENCE_INVALID', 'characters', '', `character ${character.characterId} references unknown Markdown ${character.portrayal.backgroundTextRef}`)
     }
+  }
+  for (const entity of content.entities) {
+    if (!locations.has(entity.locationId)) failWorldPackContract('PACK_REFERENCE_INVALID', 'entities', '', `entity ${entity.entityId} references unknown location ${entity.locationId}`)
   }
   const scene = content.scenes[0]!
   if (scene.participantIds.some(value => !characters.has(value))) failWorldPackContract('PACK_REFERENCE_INVALID', 'scenes', '', 'Scene references an unknown Character')
@@ -244,6 +249,8 @@ export class WorldPackCompiler {
     const world = parseWorldPackWorldSource(await loadJson(root, manifest.worldFile, manifestFile, budget), manifest.worldFile)
     const locations: WorldPackLocationSource[] = []
     for (const file of [...manifest.locationFiles].sort(compareText)) locations.push(...parseWorldPackLocationsSource(await loadJson(root, file, manifestFile, budget), file).locations)
+    const entities: WorldPackEntitySource[] = []
+    for (const file of [...manifest.entityFiles].sort(compareText)) entities.push(...parseWorldPackEntitiesSource(await loadJson(root, file, manifestFile, budget), file).entities)
     const characters: WorldPackCharacterSource[] = []
     for (const file of [...manifest.characterFiles].sort(compareText)) characters.push(...parseWorldPackCharactersSource(await loadJson(root, file, manifestFile, budget), file).characters)
     const scenes: WorldPackSceneSource[] = []
@@ -270,9 +277,11 @@ export class WorldPackCompiler {
     for (const file of [...manifest.assertionFiles].sort(compareText)) acceptanceAssertions.push(...parseWorldPackAssertionsSource(await loadJson(root, file, manifestFile, budget), file).assertions)
 
     locations.sort((left, right) => compareText(left.locationId, right.locationId))
+    entities.sort((left, right) => compareText(left.entityId, right.entityId))
     characters.sort((left, right) => compareText(left.characterId, right.characterId))
     acceptanceAssertions.sort((left, right) => compareText(left.assertionId, right.assertionId))
     uniqueAcross(locations.map(value => value.locationId), 'locations', '')
+    uniqueAcross(entities.map(value => value.entityId), 'entities', '')
     uniqueAcross(characters.map(value => value.characterId), 'characters', '')
     uniqueAcross(scenes.map(value => value.sceneId), 'scenes', '')
     uniqueAcross(playerSlots.map(value => value.slotId), 'player-slots', '')
@@ -285,6 +294,7 @@ export class WorldPackCompiler {
     const content: WorldPackCompiledContent = {
       world,
       locations,
+      entities,
       characters,
       scenes,
       playerSlots,
@@ -358,7 +368,7 @@ export class WorldPackCompiler {
       runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
       rulebook: pack.content.world.coreProfiles.rulebook,
       locations: pack.content.locations,
-      entities: [],
+      entities: pack.content.entities,
       characters: pack.content.characters.map(value => ({ characterId: value.characterId, name: value.displayName, locationId: value.initialLocationId })),
       scenes: pack.content.scenes,
       goals, claims, observations,

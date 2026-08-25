@@ -30,7 +30,7 @@ afterEach(async () => {
 function manifest(overrides: Record<string, unknown> = {}): WorldJsonValue {
   return {
     sourceSchemaVersion: 'worldpack-source/v1', packId: 'pack:tavern', packVersion: '1.0.0',
-    worldFile: 'world.json', characterFiles: ['characters.json'], locationFiles: ['locations.json'],
+    worldFile: 'world.json', characterFiles: ['characters.json'], locationFiles: ['locations.json'], entityFiles: ['entities.json'],
     sceneFiles: ['scenes.json'], playerSlotFiles: ['player-slots.json'], presentationFiles: ['presentation.json'],
     markdownFiles: ['text/bob.md'], assetFiles: ['assets/map.bin'], assertionFiles: ['assertions.json'],
     ...overrides,
@@ -44,6 +44,9 @@ const sourceDocuments: Record<string, WorldJsonValue> = {
   },
   'locations.json': { schemaVersion: 'worldpack-locations/v1', locations: [
     { locationId: 'location:yard', name: 'Yard' }, { locationId: 'location:tavern', name: 'Tavern' },
+  ] },
+  'entities.json': { schemaVersion: 'worldpack-entities/v1', entities: [
+    { entityId: 'entity:mug', locationId: 'location:tavern', kind: 'mug' },
   ] },
   'characters.json': {
     schemaVersion: 'worldpack-characters/v1',
@@ -140,12 +143,12 @@ describe('WorldPackCompiler', () => {
       contentHash: 'sha256:b0a6460afb83ef07ddeddcdd0cb0b1c796729a69ffc5079790c19c9a17935fbf',
     }])
     expect(pack.assets).toEqual([{ path: 'assets/map.bin', contentHash: 'sha256:3d1f57c984978ef98a18378c8166c1cb8ede02c03eeb6aee7e2f121dfeee3e56', size: 4 }])
-    expect(pack.packHash).toBe('sha256:edf5247e4a5f70658bc7255384cf012df53b68874a8fef83c0ee0610414da230')
+    expect(pack.packHash).toBe('sha256:9f64a1428bebd5e7bd005dffb0315e46c912b772be55f99bd8b04b72c44af381')
     const canonicalBytes = canonicalWorldPackBytes(pack)
     expect(canonicalBytes).toEqual(canonicalizeWorldJson(pack))
-    expect(canonicalBytes.byteLength).toBe(3307)
+    expect(canonicalBytes.byteLength).toBe(3390)
     expect(createHash('sha256').update(canonicalBytes).digest('hex')).toBe(
-      '9e7346c6d3e5b609e0d48b00046ce00b8da6589aa57059eeaa28ddd8f586d8a6',
+      'e060b076dc05d1eafa78f0a13781637f2261a6fd84eb5c4d212c0c63655407c9',
     )
     expect(verifyCompiledWorldPack(pack)).toEqual(pack)
 
@@ -160,6 +163,7 @@ describe('WorldPackCompiler', () => {
       rulebook: { rulebookId: 'builtin:speak-move', version: 2 },
       contentPack: { packId: 'pack:tavern', packVersion: '1.0.0', packHash: pack.packHash },
       playerBindings: [{ principalId: 'principal:player', characterId: 'character:alice', sessionId: 'session:player' }],
+      entities: [{ entityId: 'entity:mug', locationId: 'location:tavern', kind: 'mug' }],
     })
     expect(compiled.manifest.claims).toHaveLength(2)
     expect(compiled.manifest.goals).toHaveLength(1)
@@ -405,6 +409,7 @@ describe('WorldPackCompiler', () => {
   it.each([
     ['unknown location', (value: Record<string, WorldJsonValue>) => ({ ...value, characters: [{ characterId: 'character:alice', displayName: 'Alice', initialLocationId: 'location:missing' }] }), 'characters.json'],
     ['unknown Markdown', (value: Record<string, WorldJsonValue>) => ({ ...value, characters: [{ characterId: 'character:alice', displayName: 'Alice', initialLocationId: 'location:tavern', portrayal: { backgroundTextRef: 'text/missing.md' } }] }), 'characters.json'],
+    ['unknown entity location', (value: Record<string, WorldJsonValue>) => ({ ...value, entities: [{ entityId: 'entity:mug', locationId: 'location:missing', kind: 'mug' }] }), 'entities.json'],
     ['unknown Scene Character', (value: Record<string, WorldJsonValue>) => ({ ...value, scenes: [{ sceneId: 'scene:tavern', participantIds: ['character:missing'] }] }), 'scenes.json'],
     ['unknown Player Character', (value: Record<string, WorldJsonValue>) => ({ ...value, playerSlots: [{ slotId: 'slot:player', characterId: 'character:missing' }] }), 'player-slots.json'],
     ['player outside Scene', (value: Record<string, WorldJsonValue>) => ({ ...value, scenes: [{ sceneId: 'scene:tavern', participantIds: ['character:bob'] }] }), 'scenes.json'],
@@ -419,6 +424,9 @@ describe('WorldPackCompiler', () => {
     const duplicate = await temporaryRoot(); await writePack(duplicate, manifest({ characterFiles: ['characters.json', 'characters-copy.json'] }))
     await writeJson(duplicate, 'characters-copy.json', sourceDocuments['characters.json']!)
     await rejected(() => new WorldPackCompiler().compile(duplicate), 'PACK_DUPLICATE_ID')
+    const duplicateEntity = await temporaryRoot(); await writePack(duplicateEntity, manifest({ entityFiles: ['entities.json', 'entities-copy.json'] }))
+    await writeJson(duplicateEntity, 'entities-copy.json', sourceDocuments['entities.json']!)
+    await rejected(() => new WorldPackCompiler().compile(duplicateEntity), 'PACK_DUPLICATE_ID')
     const presentations = await temporaryRoot(); await writePack(presentations, manifest({ presentationFiles: ['presentation.json', 'presentation-copy.json'] }))
     await writeJson(presentations, 'presentation-copy.json', sourceDocuments['presentation.json']!)
     await rejected(() => new WorldPackCompiler().compile(presentations), 'PACK_SOURCE_INVALID')

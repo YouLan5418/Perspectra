@@ -84,6 +84,7 @@ tavern-social/
 ├── world.json
 ├── characters.json
 ├── locations.json
+├── entities.json
 ├── scenes.json
 ├── player-slots.json
 ├── presentation.json
@@ -103,6 +104,7 @@ tavern-social/
   "worldFile": "world.json",
   "characterFiles": ["characters.json"],
   "locationFiles": ["locations.json"],
+  "entityFiles": ["entities.json"],
   "sceneFiles": ["scenes.json"],
   "playerSlotFiles": ["player-slots.json"],
   "presentationFiles": ["presentation.json"],
