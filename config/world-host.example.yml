@@ -1,6 +1,6 @@
 # Flat YAML only. Relative paths resolve from the process working directory.
-dataDirectory: D:\HarnessCordisWorld
-worldPath: D:\HarnessCordisWorld\data\world.sqlite
-sessionPath: D:\HarnessCordisWorld\data\session.sqlite
-memoryPath: D:\HarnessCordisWorld\data\memory.sqlite
+dataDirectory: ./.harness-world
+worldPath: ./.harness-world/data/world.sqlite
+sessionPath: ./.harness-world/data/session.sqlite
+memoryPath: ./.harness-world/data/memory.sqlite
 leaseTtlMs: 5000
