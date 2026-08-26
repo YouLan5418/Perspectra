@@ -9,6 +9,16 @@ export type InteractionRoundId = BrandedId<'InteractionRoundId'>
 export type TransactionId = BrandedId<'TransactionId'>
 export type DeliveryId = BrandedId<'DeliveryId'>
 export type SessionId = BrandedId<'SessionId'>
+export type SubjectiveClaimId = BrandedId<'SubjectiveClaimId'>
+export type CharacterGoalId = BrandedId<'CharacterGoalId'>
+export type RelationshipAttitudeId = BrandedId<'RelationshipAttitudeId'>
+export type AffectEpisodeId = BrandedId<'AffectEpisodeId'>
+export type InnerTensionId = BrandedId<'InnerTensionId'>
+export type CommitmentId = BrandedId<'CommitmentId'>
+export type OpenLoopId = BrandedId<'OpenLoopId'>
+export type ContinuityCheckpointId = BrandedId<'ContinuityCheckpointId'>
+export type ContextReceiptId = BrandedId<'ContextReceiptId'>
+export type ProviderCallId = BrandedId<'ProviderCallId'>
 
 /** Validate and brand an opaque identifier at a parser or storage boundary. */
 export function brandId<Name extends string>(value: string, name: Name): BrandedId<Name> {
