@@ -1,15 +1,32 @@
 import { createHash } from 'node:crypto'
 import {
+  AFFECT_DURATIONS,
+  AFFECT_EXPRESSION_MODES,
+  AFFECT_STATUSES,
+  AFFECT_TYPES,
+  AWARENESS_LEVELS,
+  CLAIM_STANCES,
+  COMMITMENT_ORIGINS,
+  COMMITMENT_STATUSES,
+  GOAL_OBJECTIVE_KINDS,
+  GOAL_STATUSES,
+  OPEN_LOOP_KINDS,
+  OPEN_LOOP_STATUSES,
   assertProtocolString,
   brandId,
   canonicalizeWorldJson,
   hashWorldJson,
+  RELATIONSHIP_STATUSES,
+  RELATIONSHIP_TYPES,
+  TENSION_POLE_TENDENCIES,
+  TENSION_STATUSES,
   type BrandedId,
   type WorldHash,
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
   PHASE7_CORE_PROFILES,
+  WORLD_PACK_COGNITION_SCHEMA_VERSION_V2,
   WORLD_PACK_COMPILED_SCHEMA_VERSION,
   WORLD_PACK_COMPILER_CONTRACT_VERSION,
   WORLD_PACK_COMPILER_ID,
@@ -19,10 +36,15 @@ import {
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
   type CompiledWorldPack,
   type WorldPackAcceptanceAssertion,
+  type WorldPackAffectSourceV2,
   type WorldPackAssertionsSource,
   type WorldPackAssetLock,
   type WorldPackCharacterSource,
   type WorldPackCharactersSource,
+  type WorldPackCharacterCognitionSourceV2,
+  type WorldPackClaimSourceV2,
+  type WorldPackCognitionSourceV2,
+  type WorldPackCommitmentSourceV2,
   type WorldPackCompiledContent,
   type WorldPackCoreProfiles,
   type WorldPackEntitiesSource,
@@ -32,6 +54,8 @@ import {
   type WorldPackInitialFactSource,
   type WorldPackInitialGoalSource,
   type WorldPackInitialObservationSource,
+  type WorldPackGoalSourceV2,
+  type WorldPackInnerTensionSourceV2,
   type WorldPackLocationSource,
   type WorldPackLocationsSource,
   type WorldPackMarkdownContent,
@@ -39,11 +63,14 @@ import {
   type WorldPackPlayerSlotsSource,
   type WorldPackPluginLock,
   type WorldPackPresentationSource,
+  type WorldPackOpenLoopSourceV2,
+  type WorldPackRelationshipSourceV2,
   type WorldPackSceneSource,
   type WorldPackScenesSource,
   type WorldPackSlotId,
   type WorldPackSourceManifest,
   type WorldPackSourceManifestV2,
+  type WorldPackTensionPoleSourceV2,
   type WorldPackWorldSource,
 } from './contracts.ts'
 import { failWorldPackContract, type WorldPackDiagnosticCode } from './diagnostics.ts'
@@ -60,6 +87,7 @@ const MAX_ASSET_BYTES = 8 * MEBIBYTE
 const MAX_CHARACTERS = 256
 const MAX_LOCATIONS = 512
 const MAX_ENTITIES = 512
+const MAX_COGNITION_RECORDS_PER_KIND = 512
 
 function pointer(base: string, field: string | number): string {
   const token = String(field).replaceAll('~', '~0').replaceAll('/', '~1')
@@ -129,6 +157,35 @@ function integerAt(value: unknown, file: string, at: string, minimum: number, ma
     failWorldPackContract('PACK_SOURCE_INVALID', file, at, `must be a safe integer from ${minimum} through ${maximum}`)
   }
   return value as number
+}
+
+function literalAt<const Value extends string>(
+  value: unknown,
+  allowed: readonly Value[],
+  file: string,
+  at: string,
+): Value {
+  const normalized = textAt(value, file, at)
+  if (!allowed.includes(normalized as Value)) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, at, `must be one of: ${allowed.join(', ')}`)
+  }
+  return normalized as Value
+}
+
+function optionalArrayAt(value: unknown, file: string, at: string): readonly unknown[] {
+  if (value === undefined) return []
+  return arrayAt(value, file, at)
+}
+
+function optionalTextArrayAt(value: unknown, file: string, at: string): readonly string[] {
+  const result = optionalArrayAt(value, file, at).map((entry, index) => textAt(entry, file, pointer(at, index)))
+  unique(result, file, at)
+  return result
+}
+
+function optionalNullableTextAt(value: unknown, file: string, at: string): string | null {
+  if (value === undefined || value === null) return null
+  return textAt(value, file, at)
 }
 
 function semverAt(value: unknown, file: string, at: string): string {
@@ -300,6 +357,192 @@ export function parseWorldPackSourceManifestV2(input: unknown, file = 'worldpack
     assetFiles: lists.assetFiles,
     assertionFiles: lists.assertionFiles,
   }
+}
+
+function cognitionArray(value: unknown, file: string, at: string): readonly unknown[] {
+  const entries = optionalArrayAt(value, file, at)
+  if (entries.length > MAX_COGNITION_RECORDS_PER_KIND) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, at, `must contain at most ${MAX_COGNITION_RECORDS_PER_KIND} records`)
+  }
+  return entries
+}
+
+function basisKeysAt(record: Record<string, unknown>, file: string, at: string): readonly string[] {
+  return optionalTextArrayAt(record.basisKeys, file, pointer(at, 'basisKeys'))
+}
+
+function parseCognitionClaim(value: unknown, file: string, at: string): WorldPackClaimSourceV2 {
+  const record = objectAt(value, file, at)
+  exactKeys(record, ['key', 'proposition', 'stance', 'confidencePermille'], ['saliencePermille', 'awareness', 'status', 'basisKeys'], file, at)
+  return {
+    key: textAt(record.key, file, pointer(at, 'key')),
+    proposition: record.proposition as WorldJsonValue,
+    stance: literalAt(record.stance, CLAIM_STANCES, file, pointer(at, 'stance')),
+    confidencePermille: integerAt(record.confidencePermille, file, pointer(at, 'confidencePermille'), 0, 1000),
+    saliencePermille: integerAt(record.saliencePermille ?? 500, file, pointer(at, 'saliencePermille'), 0, 1000),
+    awareness: literalAt(record.awareness ?? 'conscious', AWARENESS_LEVELS, file, pointer(at, 'awareness')),
+    status: literalAt(record.status ?? 'active', ['active'], file, pointer(at, 'status')),
+    basisKeys: basisKeysAt(record, file, at),
+  }
+}
+
+function parseCognitionGoal(value: unknown, file: string, at: string): WorldPackGoalSourceV2 {
+  const record = objectAt(value, file, at)
+  exactKeys(record, ['key', 'objective'], ['priorityPermille', 'awareness', 'status', 'parentGoalKey', 'targetKeys', 'blockerKeys', 'basisKeys'], file, at)
+  const objectiveAt = pointer(at, 'objective')
+  const objective = objectAt(record.objective, file, objectiveAt)
+  exactKeys(objective, ['kind', 'value'], [], file, objectiveAt)
+  return {
+    key: textAt(record.key, file, pointer(at, 'key')),
+    objective: {
+      kind: literalAt(objective.kind, GOAL_OBJECTIVE_KINDS, file, pointer(objectiveAt, 'kind')),
+      value: objective.value as WorldJsonValue,
+    },
+    priorityPermille: integerAt(record.priorityPermille ?? 500, file, pointer(at, 'priorityPermille'), 0, 1000),
+    awareness: literalAt(record.awareness ?? 'conscious', AWARENESS_LEVELS, file, pointer(at, 'awareness')),
+    status: literalAt(record.status ?? 'active', GOAL_STATUSES, file, pointer(at, 'status')),
+    parentGoalKey: optionalNullableTextAt(record.parentGoalKey, file, pointer(at, 'parentGoalKey')),
+    targetKeys: optionalTextArrayAt(record.targetKeys, file, pointer(at, 'targetKeys')),
+    blockerKeys: optionalTextArrayAt(record.blockerKeys, file, pointer(at, 'blockerKeys')),
+    basisKeys: basisKeysAt(record, file, at),
+  }
+}
+
+function parseCognitionRelationship(value: unknown, file: string, at: string): WorldPackRelationshipSourceV2 {
+  const record = objectAt(value, file, at)
+  exactKeys(record, ['key', 'target', 'type', 'facet', 'intensityPermille'], ['confidencePermille', 'awareness', 'status', 'basisKeys'], file, at)
+  return {
+    key: textAt(record.key, file, pointer(at, 'key')),
+    target: idAt(record.target, file, pointer(at, 'target'), 'CharacterId'),
+    type: literalAt(record.type, RELATIONSHIP_TYPES, file, pointer(at, 'type')),
+    facet: textAt(record.facet, file, pointer(at, 'facet')),
+    intensityPermille: integerAt(record.intensityPermille, file, pointer(at, 'intensityPermille'), 0, 1000),
+    confidencePermille: integerAt(record.confidencePermille ?? 500, file, pointer(at, 'confidencePermille'), 0, 1000),
+    awareness: literalAt(record.awareness ?? 'conscious', AWARENESS_LEVELS, file, pointer(at, 'awareness')),
+    status: literalAt(record.status ?? 'active', RELATIONSHIP_STATUSES, file, pointer(at, 'status')),
+    basisKeys: basisKeysAt(record, file, at),
+  }
+}
+
+function parseCognitionAffect(value: unknown, file: string, at: string): WorldPackAffectSourceV2 {
+  const record = objectAt(value, file, at)
+  exactKeys(record, ['key', 'type', 'intensityPermille', 'cause'], ['targetKey', 'awareness', 'expressionMode', 'duration', 'status', 'basisKeys'], file, at)
+  return {
+    key: textAt(record.key, file, pointer(at, 'key')),
+    type: literalAt(record.type, AFFECT_TYPES, file, pointer(at, 'type')),
+    intensityPermille: integerAt(record.intensityPermille, file, pointer(at, 'intensityPermille'), 0, 1000),
+    cause: record.cause as WorldJsonValue,
+    targetKey: optionalNullableTextAt(record.targetKey, file, pointer(at, 'targetKey')),
+    awareness: literalAt(record.awareness ?? 'conscious', AWARENESS_LEVELS, file, pointer(at, 'awareness')),
+    expressionMode: literalAt(record.expressionMode ?? 'restrained', AFFECT_EXPRESSION_MODES, file, pointer(at, 'expressionMode')),
+    duration: literalAt(record.duration ?? 'short_lived', AFFECT_DURATIONS, file, pointer(at, 'duration')),
+    status: literalAt(record.status ?? 'active', AFFECT_STATUSES, file, pointer(at, 'status')),
+    basisKeys: basisKeysAt(record, file, at),
+  }
+}
+
+function parseTensionPole(value: unknown, file: string, at: string): WorldPackTensionPoleSourceV2 {
+  const record = objectAt(value, file, at)
+  exactKeys(record, ['key', 'tendency', 'impulseText', 'strengthPermille', 'awareness'], ['basisKeys'], file, at)
+  return {
+    key: textAt(record.key, file, pointer(at, 'key')),
+    tendency: literalAt(record.tendency, TENSION_POLE_TENDENCIES, file, pointer(at, 'tendency')),
+    impulseText: textAt(record.impulseText, file, pointer(at, 'impulseText')),
+    strengthPermille: integerAt(record.strengthPermille, file, pointer(at, 'strengthPermille'), 0, 1000),
+    awareness: literalAt(record.awareness, AWARENESS_LEVELS, file, pointer(at, 'awareness')),
+    basisKeys: basisKeysAt(record, file, at),
+  }
+}
+
+function parseCognitionTension(value: unknown, file: string, at: string): WorldPackInnerTensionSourceV2 {
+  const record = objectAt(value, file, at)
+  exactKeys(record, ['key', 'title', 'pressurePermille', 'poles'], ['awareness', 'status', 'basisKeys'], file, at)
+  const polesAt = pointer(at, 'poles')
+  const rawPoles = arrayAt(record.poles, file, polesAt)
+  if (rawPoles.length < 2 || rawPoles.length > 4) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, polesAt, 'must contain from 2 through 4 poles')
+  }
+  const poles = rawPoles.map((pole, index) => parseTensionPole(pole, file, pointer(polesAt, index)))
+  unique(poles.map(pole => pole.key), file, polesAt)
+  return {
+    key: textAt(record.key, file, pointer(at, 'key')),
+    title: textAt(record.title, file, pointer(at, 'title')),
+    pressurePermille: integerAt(record.pressurePermille, file, pointer(at, 'pressurePermille'), 0, 1000),
+    awareness: literalAt(record.awareness ?? 'conscious', AWARENESS_LEVELS, file, pointer(at, 'awareness')),
+    status: literalAt(record.status ?? 'active', TENSION_STATUSES, file, pointer(at, 'status')),
+    poles,
+    basisKeys: basisKeysAt(record, file, at),
+  }
+}
+
+function parseCognitionCommitment(value: unknown, file: string, at: string): WorldPackCommitmentSourceV2 {
+  const record = objectAt(value, file, at)
+  exactKeys(record, ['key', 'content', 'origin'], ['saliencePermille', 'awareness', 'status', 'basisKeys'], file, at)
+  return {
+    key: textAt(record.key, file, pointer(at, 'key')),
+    content: record.content as WorldJsonValue,
+    origin: literalAt(record.origin, COMMITMENT_ORIGINS, file, pointer(at, 'origin')),
+    saliencePermille: integerAt(record.saliencePermille ?? 500, file, pointer(at, 'saliencePermille'), 0, 1000),
+    awareness: literalAt(record.awareness ?? 'conscious', ['conscious', 'partially_conscious'], file, pointer(at, 'awareness')),
+    status: literalAt(record.status ?? 'active', COMMITMENT_STATUSES, file, pointer(at, 'status')),
+    basisKeys: basisKeysAt(record, file, at),
+  }
+}
+
+function parseCognitionOpenLoop(value: unknown, file: string, at: string): WorldPackOpenLoopSourceV2 {
+  const record = objectAt(value, file, at)
+  exactKeys(record, ['key', 'kind', 'summary'], ['saliencePermille', 'status', 'basisKeys'], file, at)
+  return {
+    key: textAt(record.key, file, pointer(at, 'key')),
+    kind: literalAt(record.kind, OPEN_LOOP_KINDS, file, pointer(at, 'kind')),
+    summary: textAt(record.summary, file, pointer(at, 'summary')),
+    saliencePermille: integerAt(record.saliencePermille ?? 500, file, pointer(at, 'saliencePermille'), 0, 1000),
+    status: literalAt(record.status ?? 'open', OPEN_LOOP_STATUSES, file, pointer(at, 'status')),
+    basisKeys: basisKeysAt(record, file, at),
+  }
+}
+
+function parseCharacterCognition(value: unknown, file: string, at: string): WorldPackCharacterCognitionSourceV2 {
+  const record = objectAt(value, file, at)
+  exactKeys(record, ['characterId'], ['claims', 'goals', 'relationships', 'affects', 'innerTensions', 'commitments', 'openLoops'], file, at)
+  const parseRecords = <Result>(field: string, parse: (entry: unknown, entryFile: string, entryAt: string) => Result): readonly Result[] => {
+    const fieldAt = pointer(at, field)
+    return cognitionArray(record[field], file, fieldAt).map((entry, index) => parse(entry, file, pointer(fieldAt, index)))
+  }
+  const claims = parseRecords('claims', parseCognitionClaim)
+  const goals = parseRecords('goals', parseCognitionGoal)
+  const relationships = parseRecords('relationships', parseCognitionRelationship)
+  const affects = parseRecords('affects', parseCognitionAffect)
+  const innerTensions = parseRecords('innerTensions', parseCognitionTension)
+  const commitments = parseRecords('commitments', parseCognitionCommitment)
+  const openLoops = parseRecords('openLoops', parseCognitionOpenLoop)
+  unique([...claims, ...goals, ...relationships, ...affects, ...innerTensions, ...commitments, ...openLoops].map(entry => entry.key), file, at)
+  return {
+    characterId: idAt(record.characterId, file, pointer(at, 'characterId'), 'CharacterId'),
+    claims,
+    goals,
+    relationships,
+    affects,
+    innerTensions,
+    commitments,
+    openLoops,
+  }
+}
+
+/** Parse and materialize safe defaults for a Phase 8 cognition source file. */
+export function parseWorldPackCognitionSourceV2(input: unknown, file = 'cognition.json'): WorldPackCognitionSourceV2 {
+  const document = sourceDocument(input, file)
+  exactKeys(document, ['schemaVersion', 'characters'], [], file, '')
+  if (document.schemaVersion !== WORLD_PACK_COGNITION_SCHEMA_VERSION_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must equal ${WORLD_PACK_COGNITION_SCHEMA_VERSION_V2}`)
+  }
+  const rawCharacters = arrayAt(document.characters, file, '/characters')
+  if (rawCharacters.length > MAX_CHARACTERS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/characters', `must contain at most ${MAX_CHARACTERS} characters`)
+  }
+  const characters = rawCharacters.map((entry, index) => parseCharacterCognition(entry, file, `/characters/${index}`))
+  unique(characters.map(entry => entry.characterId), file, '/characters')
+  return { schemaVersion: WORLD_PACK_COGNITION_SCHEMA_VERSION_V2, characters }
 }
 
 /** Parse and default the Phase 7 world-level content contract. */

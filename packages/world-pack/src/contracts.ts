@@ -1,7 +1,23 @@
 import type {
+  AffectDuration,
+  AffectExpressionMode,
+  AffectStatus,
+  AffectType,
+  AwarenessLevel,
   BrandedId,
   CharacterId,
+  ClaimStance,
+  CommitmentOrigin,
+  CommitmentStatus,
+  GoalObjectiveKind,
+  GoalStatus,
+  OpenLoopKind,
+  OpenLoopStatus,
+  RelationshipStatus,
+  RelationshipType,
   SessionId,
+  TensionPoleTendency,
+  TensionStatus,
   WorldAddress,
   WorldHash,
   WorldJsonObject,
@@ -86,6 +102,100 @@ export interface WorldPackSourceManifestV2 extends WorldJsonObject {
   readonly markdownFiles: readonly string[]
   readonly assetFiles: readonly string[]
   readonly assertionFiles: readonly string[]
+}
+
+export const WORLD_PACK_COGNITION_SCHEMA_VERSION_V2 = 'worldpack-cognition/v2' as const
+
+export interface WorldPackCognitionBasisSource extends WorldJsonObject {
+  readonly basisKeys: readonly string[]
+}
+export interface WorldPackClaimSourceV2 extends WorldPackCognitionBasisSource {
+  readonly key: string
+  readonly proposition: WorldJsonValue
+  readonly stance: ClaimStance
+  readonly confidencePermille: number
+  readonly saliencePermille: number
+  readonly awareness: AwarenessLevel
+  readonly status: 'active'
+}
+export interface WorldPackGoalObjectiveSourceV2 extends WorldJsonObject {
+  readonly kind: GoalObjectiveKind
+  readonly value: WorldJsonValue
+}
+export interface WorldPackGoalSourceV2 extends WorldPackCognitionBasisSource {
+  readonly key: string
+  readonly objective: WorldPackGoalObjectiveSourceV2
+  readonly priorityPermille: number
+  readonly awareness: AwarenessLevel
+  readonly status: GoalStatus
+  readonly parentGoalKey: string | null
+  readonly targetKeys: readonly string[]
+  readonly blockerKeys: readonly string[]
+}
+export interface WorldPackRelationshipSourceV2 extends WorldPackCognitionBasisSource {
+  readonly key: string
+  readonly target: CharacterId
+  readonly type: RelationshipType
+  readonly facet: string
+  readonly intensityPermille: number
+  readonly confidencePermille: number
+  readonly awareness: AwarenessLevel
+  readonly status: RelationshipStatus
+}
+export interface WorldPackAffectSourceV2 extends WorldPackCognitionBasisSource {
+  readonly key: string
+  readonly type: AffectType
+  readonly intensityPermille: number
+  readonly cause: WorldJsonValue
+  readonly targetKey: string | null
+  readonly awareness: AwarenessLevel
+  readonly expressionMode: AffectExpressionMode
+  readonly duration: AffectDuration
+  readonly status: AffectStatus
+}
+export interface WorldPackTensionPoleSourceV2 extends WorldPackCognitionBasisSource {
+  readonly key: string
+  readonly tendency: TensionPoleTendency
+  readonly impulseText: string
+  readonly strengthPermille: number
+  readonly awareness: AwarenessLevel
+}
+export interface WorldPackInnerTensionSourceV2 extends WorldPackCognitionBasisSource {
+  readonly key: string
+  readonly title: string
+  readonly pressurePermille: number
+  readonly awareness: AwarenessLevel
+  readonly status: TensionStatus
+  readonly poles: readonly WorldPackTensionPoleSourceV2[]
+}
+export interface WorldPackCommitmentSourceV2 extends WorldPackCognitionBasisSource {
+  readonly key: string
+  readonly content: WorldJsonValue
+  readonly origin: CommitmentOrigin
+  readonly saliencePermille: number
+  readonly awareness: Exclude<AwarenessLevel, 'unrecognized'>
+  readonly status: CommitmentStatus
+}
+export interface WorldPackOpenLoopSourceV2 extends WorldPackCognitionBasisSource {
+  readonly key: string
+  readonly kind: OpenLoopKind
+  readonly summary: string
+  readonly saliencePermille: number
+  readonly status: OpenLoopStatus
+}
+export interface WorldPackCharacterCognitionSourceV2 extends WorldJsonObject {
+  readonly characterId: CharacterId
+  readonly claims: readonly WorldPackClaimSourceV2[]
+  readonly goals: readonly WorldPackGoalSourceV2[]
+  readonly relationships: readonly WorldPackRelationshipSourceV2[]
+  readonly affects: readonly WorldPackAffectSourceV2[]
+  readonly innerTensions: readonly WorldPackInnerTensionSourceV2[]
+  readonly commitments: readonly WorldPackCommitmentSourceV2[]
+  readonly openLoops: readonly WorldPackOpenLoopSourceV2[]
+}
+export interface WorldPackCognitionSourceV2 extends WorldJsonObject {
+  readonly schemaVersion: typeof WORLD_PACK_COGNITION_SCHEMA_VERSION_V2
+  readonly characters: readonly WorldPackCharacterCognitionSourceV2[]
 }
 
 export interface WorldPackInitialFactSource extends WorldJsonObject {
