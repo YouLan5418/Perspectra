@@ -7,7 +7,7 @@
 - 本机环境：Windows，Node 24.14.1，pnpm 11.7.0
 - 协议：stdio only
 - 可选集成：Harness/TencentDB 禁用
-- 判定：**本地门槛与 GitHub 四格 CI 通过；`v0.2.0` Tag 待创建**
+- 判定：**本地门槛与 GitHub 四格 CI 通过；annotated Tag `v0.2.0` 已创建**
 
 ## 结论
 
@@ -100,6 +100,6 @@ corepack pnpm@11.7.0 check
 - Ubuntu latest × Node 22.19.0；
 - Ubuntu latest × Node 24.x。
 
-证据由仓库 Actions 页面和用户提供的成功截图确认。写入本段的纯文档提交仍需推送并再次通过同一矩阵；随后复核最终 SHA，再经用户确认创建 annotated Tag `v0.2.0`。
+证据由仓库 Actions 页面和用户提供的成功截图确认。用户授权后，annotated Tag `v0.2.0` 已于 2026-08-25 创建并指向提交 `08c9a5f`；该 Tag 不再移动。
 
 Phase 7 没有实现 Scene v2、动态 Affect/InnerTension、创作者插件、Runtime Author、Agent 接管玩家、Observer 或真实 Harness Provider。这些继续按总纲进入 Phase 8～11，不能用空接口提前声称完成。

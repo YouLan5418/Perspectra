@@ -7,7 +7,7 @@
 - 目标候选版本：`0.3.0`
 - 架构总纲：[通用内容与真实运行架构总纲](general-content-architecture-v0.1.md)
 - 前置规格：[Phase 7 最小通用内容闭环](phase-7-implementation-v0.2.md)
-- 主要 ADR：[ADR-0064](../adr/ADR-0064-context-v2-cache-provider-boundary.md)～[ADR-0067](../adr/ADR-0067-cognitive-memory-worldpack-v2.md)
+- 主要 ADR：[ADR-0064](../adr/ADR-0064-context-v2-cache-provider-boundary.md)～[ADR-0068](../adr/ADR-0068-phase8-context-summary-signal-quality-closure.md)
 
 > 实施警告：本文冻结 Phase 8 的实现边界，但不表示这些能力已经完成。Phase 8 继续使用本地 Scripted/Rule/Noop Provider，不接入真实 API Key、HTTPS Provider 或 Harness 内部接口。任何实现若需要放宽 World Event 权威、Canonical/Hash、as-of、角色权限、SQLite 原子性或重放不变量，必须停止对应单元并新增 superseding ADR。
 
@@ -70,7 +70,7 @@ Phase 8 只回答：
 Phase 8 的解释优先级为：
 
 ```text
-Accepted ADR-0064～0067
+Accepted ADR-0064～0068
 → 本规格
 → ADR-0054～0059 与通用内容总纲中未被 supersede 的条款
 → Phase 7 规格
@@ -94,6 +94,7 @@ Accepted ADR-0064～0067
 | submit tool | `submit_actions/v2` |
 | Scene Decision | `scene-decision/v2` |
 | Cognitive Memory | `cognitive-memory/v2` |
+| Provider quality policy | `provider-quality/v1` |
 | cognition vocabulary | `cognition-basic/v1` |
 | relationship vocabulary | `relationship-basic/v1` |
 | affect vocabulary | `affect-basic/v1` |
@@ -102,6 +103,8 @@ Accepted ADR-0064～0067
 每个 vocabulary、Profile、Renderer、Tool Schema 和 Registry 都必须在 Manifest 中记录 id、version 和 registry hash。项目版本不得替代任何契约版本。
 
 v1 Pack 继续编译为原 compiled v1/Manifest v3 行为；不能通过当前 Compiler 自动获得 Context v2。v2 Pack 必须新建世界，不支持把已激活 v1 Pack 原地升级为 v2。
+
+Phase 7 Claim 的 `epistemicStatus` 与 Phase 8 Claim 的 `stance` 保持为两个独立版本词汇，禁止自动 upcast 或语义映射。`mistaken` 只允许作为 Author/Test 将主观 Claim 与权威事实比较后的外部判定，不进入角色 Context，也不自动转换为 believed、suspected、doubted 或 denied。
 
 ## 4. Round 与认知数据流
 
@@ -310,6 +313,8 @@ Reflection 只能修改 actor 自己的 Claim、Goal、Relationship、Affect、I
 
 Reflection Batch 原子接受或拒绝；无效 Reflection 不阻止同一 Proposal 中合法的外部 Action。非法模型输出属于不可信 Proposal 失败，不自动 quarantine；WorldStore/source mapping/hash 本身分歧才属于完整性故障。
 
+Provider 质量按 Manifest 锁定的 `provider-quality/v1` 维护耐久连续失败计数。这里的 eligible Tick 指该角色按 Scene、参与策略和非质量类 Runtime Availability 本应被调度的 Tick。连续三次非法 Reflection Batch 后只暂停该参与者的 Reflection 能力四个 eligible Tick，外部 Action 能力继续运行；窗口结束允许一次 Reflection probe，合法 Batch 清零计数。连续三次整个 Provider 响应非法时，参与者进入 `provider_output_invalid` degraded 状态，按 1、2、4、8 eligible Tick 封顶退避 probe；合法完整响应恢复 ready。该路径写入 terminal status、Audit 和 Metric，但不 quarantine 世界。
+
 ### 6.3 幅度和容量
 
 默认 standard Reflection Profile：
@@ -322,6 +327,8 @@ Reflection Batch 原子接受或拒绝；无效 Reflection 不阻止同一 Propo
 - active 状态不能超过所选 Context Profile 的容量。
 
 创作者只能选择完整注册 Profile，不在 Pack 中覆写内部阈值。
+
+Reflection Profile 限制本轮允许发生的变化，Context Profile 限制接受后的最终 active 状态。Validator 必须先在不可变事件前缀上计算整个 Batch 的最终候选，再同时检查 operation 数、单轮幅度、awareness、文本和目标 Profile 容量；任何一项失败都拒绝整个 Batch，禁止先部分应用或事后裁剪到容量以内。
 
 ### 6.4 Cognitive Policy
 
@@ -423,6 +430,8 @@ Recall 必须产生 `RecallReceipt`，记录 plan/query/result hash、watermark�
 
 L1 只允许确定性提取式 Summary：同角色、同 Branch、明确 source range、保存全部来源 Hash、不引入新命题、不做 summary-of-summary、不再次捕获、不删除 L0。Agent 没有任意 forget 工具；Retention 只改变派生召回资格，World Source 永久保留。
 
+L1 是 Phase 8 唯一的确定性经历摘要算法。Checkpoint 只能引用已经验证的 L1 Summary identity、source range 和 Hash，不能另行生成第二套经历摘要；目标水位没有可用 L1 时只记录来源范围和 Hash，不临时合成自由文本。
+
 ## 10. CharacterControllerContext v2
 
 ### 10.1 权威来源白名单
@@ -462,6 +471,15 @@ System/Developer 只包含 Host 和 Controller Contract。World、Pack、Portray
 
 `CharacterContextBundle + PromptRenderer + ModelProfile = ProviderRequest`。`contextHash` 表示语义上选中了什么，`providerRequestHash` 表示具体 Provider 的精确消息、Tool、模型和采样布局。两者不能混用。
 
+| 成员 | `contextHash` | `providerRequestHash` |
+|---|---:|---:|
+| 预算后实际选中的 Segment 语义、稳定顺序、规范化值、版本和 source refs | 是 | 通过 `contextHash` 绑定 |
+| 精确消息 role/UTF-8 bytes、Renderer、Tool Schema | 否 | 是 |
+| Provider、Model、采样参数、Provider 可见分区值 | 否 | 是 |
+| API credential、传输 timeout、trace/request id、cache hit、网络重试和计费回执 | 否 | 否 |
+
+Golden 必须用独立 mutation matrix 钉死边界：语义值、source/order 变化必须改变两者；仅 Renderer、Tool Schema、Model、采样或 Provider 可见分区变化只改变 `providerRequestHash`；credential、timeout、追踪 ID 和缓存结果变化不得改变任一 Hash。
+
 ### 10.3 Current Self State
 
 Self State 包含当前 Claims、Goals、RelationshipAttitudes、Affects、InnerTensions、Commitments、OpenLoops 和 Runtime Availability，并分成：
@@ -469,11 +487,11 @@ Self State 包含当前 Claims、Goals、RelationshipAttitudes、Affects、Inner
 - consciousState：角色可明确意识到的内容；
 - latentGuidance：仅供角色控制器塑造行为的结构化潜在倾向。
 
-latentGuidance 不能包含角色无权知道的世界秘密，也不进入未来 ObserverView。它可以影响表现，但不能自动公开或成为客观事实。
+latentGuidance 只允许包含该角色自己的 unrecognized Goal、RelationshipAttitude、Affect 和 InnerTension 的结构化字段。它不能包含 Claim、Memory/Observation 原文、作者秘密、其他角色状态或从无权来源派生的标签，也不进入 Player/Observer/Director Context、Explain 安全面或其他角色 ProviderRequest。它可以影响该角色的表现，但不能自动公开或成为客观事实。
 
 ### 10.4 Continuity Checkpoint 与 Tail
 
-Checkpoint 是来源范围、Hash 和版本化的派生连续性基线，包含持续 Claim/Goal/Relationship/Affect/Tension/Commitment/OpenLoop 和确定性经历摘要。它不是世界事实；旧 Checkpoint 在新版本原子提交前继续有效。
+Checkpoint 是来源范围、Hash 和版本化的派生连续性基线，包含持续 Claim/Goal/Relationship/Affect/Tension/Commitment/OpenLoop，并按 identity/hash 引用已验证 L1 Summary。它不运行独立摘要算法，也不是世界事实；没有可用 L1 时只保存来源范围和 Hash。旧 Checkpoint 在新版本原子提交前继续有效。
 
 重建只发生在 Round 边界，并由 Tail Block 数、规范化字节、Profile/版本变化、maintenance 或 fork 条件确定，不因每次心理变化重建。Fork 只继承 `asOfSeq <= forkSeq` 的 Checkpoint，否则在子 Branch 的 forkSeq 重建。
 
@@ -488,6 +506,8 @@ Recent Tail 按完整 InteractionBlock 追加，不截断问题/回答、承诺/
 ## 11. DirectorPlanningContext v1
 
 Director 每次只绑定一个 focal active Scene，不拥有全世界聊天历史或角色 Memory。它可以看到世界公开信息、该 Scene 中 public/director_visible 内容和粗粒度 Dramatic Signals，例如 scene_stalled、open_loop_high_priority、conflict_pressure_high、participant_unavailable。
+
+Dramatic Signal 只能从 focal Scene 的 public Event/Observation、明确 `director_visible` 来源、运行时 Health/Availability，或显式标记为 director-visible 的结构化认知项派生。权限过滤必须先于候选建立、计数、聚合和阈值判断；`character_private`、latentGuidance、raw Memory 与 author_only 来源不能通过数量、布尔值、缺席提示或压力等级间接进入 Director Context。
 
 Director 不能看到 raw private Claim/Affect/Tension、其他 Scene、author_only 或 integrity_only 内容。每轮最多调用一次稳定工具 `submit_director_plan`，只允许：
 
@@ -505,7 +525,7 @@ Phase 8 冻结三个逻辑 Context Profile：
 | 最大规范化请求体 | 32 KiB | 96 KiB | 192 KiB |
 | Recent InteractionBlock | 4 | 10 | 20 |
 | Recall 结果 | 6 | 16 | 32 |
-| Checkpoint 活跃摘要项 | 12 | 32 | 64 |
+| Checkpoint 活跃认知项 | 12 | 32 | 64 |
 | Scene 可见角色/实体 | 16 | 48 | 96 |
 | Active Claim | 8 | 16 | 32 |
 | Active Goal | 4 | 8 | 16 |
@@ -524,7 +544,7 @@ standard 为默认。Profile 不改变权限；deep 只包含更多已授权内�
 3. 近期：完整 InteractionBlock、Scene 次要细节；
 4. 长期：Recall 和低相关历史摘要。
 
-Model Profile 由 Host 控制 provider/model/context window/output reserve/safety reserve/token counter/renderer/tool schema/timeout/sampling/cache/user-id policy；Pack 只能选择 logical profile。渲染后使用精确 Token Counter 或注册保守上界再次验证。必需内容或输出预留超限时参与者降级，不截断 JSON 或请求 Provider 自己报错。
+Model Profile 由 Host 控制 provider/model/context window/output reserve/safety reserve/token counter/renderer/tool schema/timeout/sampling/cache/`providerUserPartitionPolicyId`；Pack 只能选择 logical profile。`providerUserPartitionPolicyId` 表示 Provider 侧稳定、伪名化的业务 Principal 分区策略，不得直接使用 NPC/Character ID 充当外部用户身份。渲染后使用精确 Token Counter 或注册保守上界再次验证。必需内容或输出预留超限时参与者降级，不截断 JSON 或请求 Provider 自己报错。
 
 Context Profile 与 Model Profile 不兼容时返回 `MODEL_PROFILE_INCOMPATIBLE`，不静默降档。Phase 8 Scripted Provider 使用固定测试 Counter；真实模型 Counter 留到 Phase 11。
 
@@ -554,7 +574,7 @@ Phase 8 不创建未被 Scripted Provider 使用的 CredentialResolver/HTTPS Ada
 
 ### 14.1 来源目录
 
-正式入口继续沿用现有 `worldpack.source.json`，讨论中的 `pack.json` 只是概念简称。建议 v2 目录为：
+正式入口继续沿用现有 `worldpack.source.json`。v2 目录为：
 
 ```text
 travel-companions/
@@ -720,12 +740,24 @@ Checkpoint/Memory/Context 派生库损坏可由 World 前缀重建；发现跨�
 12. P8.12 `docs: close phase 8 evidence`
     - 创作者说明、requirement→test、CI 证据、阶段报告和 0.3.0 候选说明。
 
+复杂度按三道门收敛，但不合并上述最小提交：
+
+| 门 | 包含单元 | 独立完成条件 |
+|---|---|---|
+| 8A：权威结构 | P8.2～P8.5 | 契约、Pack v2、时态认知与 Scene 在 restart/fork/as-of/Hash 下独立成立 |
+| 8B：可重建输入 | P8.6～P8.7 | Memory、L1/Checkpoint、Context、双 Hash 与缓存隔离独立成立 |
+| 8C：行为闭环 | P8.8～P8.11 | Reflection、Provider 质量/崩溃、旅途 Fixture 与全兼容矩阵成立 |
+
+不得在 8A 未稳定时并行接入 Memory/Context，也不得在 8B 未通过精确重建和泄漏 canary 时接入 Provider 行为。P8.12 只负责已通过三道门后的证据收口。
+
 ## 19. 测试与验收门槛
 
 ### 19.1 精确 Golden 与隔离
 
 - Character Context、Director Context、Checkpoint、Tail、Recall、Receipt、ProviderRequest 和 Explain 使用精确跨平台 UTF-8 bytes/hash Golden；
 - secret、latent、director、future、other-world、other-branch、other-character canary 不得出现在未授权 ProviderRequest bytes；
+- latentGuidance 的跨角色/Observer/Director/provider bytes canary，以及 private Signal 的 count/boolean/pressure/absence canary 全部为零泄漏；
+- 双 Hash mutation matrix 独立改变语义、source/order、Renderer、Tool Schema、Model/采样、Provider 分区、credential、timeout、trace id 和 cache hit，结果符合 §10.2；
 - Context test oracle 不复用生产 Assembler 的选择/Hash 助手构造 expected；
 - old v1 Pack、Manifest v1～v3、Context v1、Scene policy v1、悬疑 Rulebook v3/v4 Golden 全等。
 
@@ -734,6 +766,7 @@ Checkpoint/Memory/Context 派生库损坏可由 World 前缀重建；发现跨�
 - 同一角色同一 proposition 只有一个 active Claim；错误 Claim 不成为世界事实；
 - 并存 trust/distrust、多个 Affect、2～4 Pole Tension、Goal/Commitment/OpenLoop 生命周期可重建；
 - Reflection 越权、超幅、跨角色、future source 和部分 Batch 全部拒绝；
+- Reflection 在最终候选上同时满足单轮 Profile 与 Context Profile；连续非法 Batch 和完整非法响应达到阈值后按确定性窗口/退避 probe 并可恢复；
 - 分场、合流、离场、零 focal Scene、不可见动作、同轮 Scene 变化和 fork as-of 全覆盖；
 - 同一角色多个 active Scene 触发 quarantine；
 - 新心理状态不影响同轮已冻结 Proposal，只从下一轮进入 Context。
@@ -746,6 +779,7 @@ Checkpoint/Memory/Context 派生库损坏可由 World 前缀重建；发现跨�
 - shared Host/World prefix、Character branch、Tail append、Checkpoint 单次失效和 profile 分支的最长公共前缀符合 Golden；
 - compact/standard/deep 预算稳定，必需内容超限不调用 Provider；
 - provider before-dispatch、after-dispatch、after-response、before-world-commit 硬终止恢复符合调用次数和世界 at-most-once；
+- “雨夜同行”六轮 Fixture 锁定输入、角色提案和稳定归并顺序；刻意改变独立 Provider 完成顺序不改变 Resolution/Authority Hash；
 - 同键重放 Provider 调用为零，完成顺序变化不改变 Resolution/Authority Hash。
 
 ### 19.4 发布
@@ -783,7 +817,7 @@ Checkpoint/Memory/Context 派生库损坏可由 World 前缀重建；发现跨�
 | V0.2 冻结规格、ADR-0023～0053 | WorldLog、提案、事务、as-of、Memory 来源和本机运行边界已实现并受测试保护 |
 | Phase 7 规格、ADR-0054～0063 与 `v0.2.0` | 创作者仅改内容即可运行非悬疑酒馆，Pack v1、认知隔离和通用交互成立 |
 | 通用内容总纲 | Phase 8 应承接多 Scene、复杂主观状态和旅途参考内容，但不得提前实现 Provider/控制/插件 |
-| 本轮上下文讨论 | 已逐项确认来源白名单、缓存布局、Checkpoint、Recall、Director、预算、Reflection、词汇和 Provider 边界 |
+| 本轮上下文讨论与独立审查 | 已逐项确认来源白名单、缓存布局、Checkpoint/L1 唯一摘要、双 Hash、latentGuidance、Director Signal、预算、Reflection、词汇和 Provider 质量边界 |
 
 ### 21.2 Findings
 
