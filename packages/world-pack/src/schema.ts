@@ -16,6 +16,7 @@ import {
   WORLD_PACK_COMPILER_VERSION,
   WORLD_PACK_LIMITS_PROFILE,
   WORLD_PACK_SOURCE_SCHEMA_VERSION,
+  WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
   type CompiledWorldPack,
   type WorldPackAcceptanceAssertion,
   type WorldPackAssertionsSource,
@@ -42,6 +43,7 @@ import {
   type WorldPackScenesSource,
   type WorldPackSlotId,
   type WorldPackSourceManifest,
+  type WorldPackSourceManifestV2,
   type WorldPackWorldSource,
 } from './contracts.ts'
 import { failWorldPackContract, type WorldPackDiagnosticCode } from './diagnostics.ts'
@@ -250,6 +252,50 @@ export function parseWorldPackSourceManifest(input: unknown, file = 'worldpack.s
     sceneFiles: lists.sceneFiles,
     playerSlotFiles: lists.playerSlotFiles,
     presentationFiles: lists.presentationFiles,
+    markdownFiles: lists.markdownFiles,
+    assetFiles: lists.assetFiles,
+    assertionFiles: lists.assertionFiles,
+  }
+}
+
+/** Parse the explicit Phase 8 file manifest without enabling compilation or implicit v1 upcast. */
+export function parseWorldPackSourceManifestV2(input: unknown, file = 'worldpack.source.json'): WorldPackSourceManifestV2 {
+  const root = sourceDocument(input, file)
+  const listFields = [
+    'characterFiles', 'locationFiles', 'entityFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles',
+    'cognitionFiles', 'memoryFiles', 'documentFiles', 'markdownFiles', 'assetFiles', 'assertionFiles',
+  ] as const
+  exactKeys(root, ['sourceSchemaVersion', 'packId', 'packVersion', 'worldFile', ...listFields], [], file, '')
+  if (root.sourceSchemaVersion !== WORLD_PACK_SOURCE_SCHEMA_VERSION_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/sourceSchemaVersion', `must be ${WORLD_PACK_SOURCE_SCHEMA_VERSION_V2}`)
+  }
+  const lists = Object.fromEntries(listFields.map(field => [
+    field,
+    arrayAt(root[field], file, `/${field}`).map((entry, index) => textAt(entry, file, `/${field}/${index}`)),
+  ])) as Record<(typeof listFields)[number], string[]>
+  for (const field of ['characterFiles', 'locationFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles'] as const) {
+    nonEmpty(lists[field], file, `/${field}`)
+  }
+  const worldFile = textAt(root.worldFile, file, '/worldFile')
+  const explicitFiles = [worldFile, ...listFields.flatMap(field => lists[field])]
+  if (explicitFiles.length > MAX_EXPLICIT_FILES) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '', `must list at most ${MAX_EXPLICIT_FILES} files`)
+  }
+  unique(explicitFiles, file, '')
+  return {
+    sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
+    packId: idAt(root.packId, file, '/packId', 'WorldPackId') as WorldPackId,
+    packVersion: semverAt(root.packVersion, file, '/packVersion'),
+    worldFile,
+    characterFiles: lists.characterFiles,
+    locationFiles: lists.locationFiles,
+    entityFiles: lists.entityFiles,
+    sceneFiles: lists.sceneFiles,
+    playerSlotFiles: lists.playerSlotFiles,
+    presentationFiles: lists.presentationFiles,
+    cognitionFiles: lists.cognitionFiles,
+    memoryFiles: lists.memoryFiles,
+    documentFiles: lists.documentFiles,
     markdownFiles: lists.markdownFiles,
     assetFiles: lists.assetFiles,
     assertionFiles: lists.assertionFiles,

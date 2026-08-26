@@ -9,6 +9,11 @@ import {
   WORLD_PACK_COMPILER_VERSION,
   WORLD_PACK_LIMITS_PROFILE,
   WORLD_PACK_SOURCE_SCHEMA_VERSION,
+  WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
+  WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
+  WORLD_PACK_COMPILER_CONTRACT_VERSION_V2,
+  WORLD_PACK_COMPILER_VERSION_V2,
+  WORLD_PACK_LIMITS_PROFILE_V2,
   WorldPackContractError,
   failWorldPackContract,
   parseCompiledWorldPack,
@@ -20,6 +25,7 @@ import {
   parseWorldPackPresentationSource,
   parseWorldPackScenesSource,
   parseWorldPackSourceManifest,
+  parseWorldPackSourceManifestV2,
   parseWorldPackWorldSource,
   worldPackErrorCode,
   type CompiledWorldPack,
@@ -38,6 +44,15 @@ function manifest() {
     characterFiles: ['characters.json'], locationFiles: ['locations.json'], entityFiles: ['entities.json'], sceneFiles: ['scenes.json'],
     playerSlotFiles: ['player-slots.json'], presentationFiles: ['presentation.json'], markdownFiles: [], assetFiles: [],
     assertionFiles: ['assertions.json'],
+  }
+}
+
+function manifestV2() {
+  return {
+    sourceSchemaVersion: 'worldpack-source/v2', packId: 'pack:journey', packVersion: '1.0.0', worldFile: 'world.json',
+    characterFiles: ['characters.json'], locationFiles: ['locations.json'], entityFiles: ['entities.json'], sceneFiles: ['scenes.json'],
+    playerSlotFiles: ['player-slots.json'], presentationFiles: ['presentation.json'], cognitionFiles: ['cognition.json'],
+    memoryFiles: ['memory.json'], documentFiles: ['documents.json'], markdownFiles: [], assetFiles: [], assertionFiles: [],
   }
 }
 
@@ -196,6 +211,31 @@ describe('World Pack Phase 7 contracts', () => {
     expect(hashWorldJson('world-pack-contract-golden/v1', value)).toBe(
       'sha256:e99920fb9871639a0c4841ccc31f0a175b155700dfb29f9c4fe341779461bf71',
     )
+  })
+
+  it('freezes the explicit v2 source and compiler version axes without changing v1', () => {
+    const parsed = parseWorldPackSourceManifestV2(manifestV2())
+    expect(parsed).toEqual(manifestV2())
+    expect(WORLD_PACK_SOURCE_SCHEMA_VERSION).toBe('worldpack-source/v1')
+    expect(WORLD_PACK_SOURCE_SCHEMA_VERSION_V2).toBe('worldpack-source/v2')
+    expect(WORLD_PACK_COMPILED_SCHEMA_VERSION_V2).toBe('worldpack/v2')
+    expect(WORLD_PACK_COMPILER_CONTRACT_VERSION_V2).toBe('worldpack-compiler/v2')
+    expect(WORLD_PACK_COMPILER_VERSION_V2).toBe('0.2.0')
+    expect(WORLD_PACK_LIMITS_PROFILE_V2).toBe('worldpack-limits/v2')
+    expect(hashWorldJson('world-pack-source-manifest/v2', parsed))
+      .toBe('sha256:5561bfa31eac6f62c7a1bac603d854930788a61c8d8da1dfbd59b81e784b61b9')
+  })
+
+  it.each([
+    [manifest(), 'PACK_SOURCE_INVALID'],
+    [{ ...manifestV2(), sourceSchemaVersion: 'worldpack-source/v1' }, 'PACK_SOURCE_INVALID'],
+    [(({ cognitionFiles: _removed, ...value }) => value)(manifestV2()), 'PACK_SOURCE_INVALID'],
+    [{ ...manifestV2(), documentFiles: {} }, 'PACK_SOURCE_INVALID'],
+    [{ ...manifestV2(), characterFiles: [] }, 'PACK_SOURCE_INVALID'],
+    [{ ...manifestV2(), cognitionFiles: ['same.json'], memoryFiles: ['same.json'] }, 'PACK_DUPLICATE_ID'],
+    [{ ...manifestV2(), markdownFiles: Array.from({ length: 503 }, (_, index) => `text/${index}.md`) }, 'PACK_LIMIT_EXCEEDED'],
+  ])('rejects malformed v2 source manifests %#', (value, code) => {
+    expect(contractError(() => parseWorldPackSourceManifestV2(value)).diagnostics[0].code).toBe(code)
   })
 
   it('carries structured diagnostics and maps compiler error categories', () => {

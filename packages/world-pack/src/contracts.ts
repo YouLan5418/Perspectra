@@ -17,6 +17,11 @@ export const WORLD_PACK_COMPILER_ID = 'harness-world-pack-compiler' as const
 export const WORLD_PACK_COMPILER_VERSION = '0.1.0' as const
 export const WORLD_PACK_COMPILER_CONTRACT_VERSION = 'worldpack-compiler/v1' as const
 export const WORLD_PACK_LIMITS_PROFILE = 'worldpack-limits/v1' as const
+export const WORLD_PACK_SOURCE_SCHEMA_VERSION_V2 = 'worldpack-source/v2' as const
+export const WORLD_PACK_COMPILED_SCHEMA_VERSION_V2 = 'worldpack/v2' as const
+export const WORLD_PACK_COMPILER_VERSION_V2 = '0.2.0' as const
+export const WORLD_PACK_COMPILER_CONTRACT_VERSION_V2 = 'worldpack-compiler/v2' as const
+export const WORLD_PACK_LIMITS_PROFILE_V2 = 'worldpack-limits/v2' as const
 
 export interface WorldPackCompileOptions {
   readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE
@@ -59,6 +64,25 @@ export interface WorldPackSourceManifest extends WorldJsonObject {
   readonly sceneFiles: readonly string[]
   readonly playerSlotFiles: readonly string[]
   readonly presentationFiles: readonly string[]
+  readonly markdownFiles: readonly string[]
+  readonly assetFiles: readonly string[]
+  readonly assertionFiles: readonly string[]
+}
+
+export interface WorldPackSourceManifestV2 extends WorldJsonObject {
+  readonly sourceSchemaVersion: typeof WORLD_PACK_SOURCE_SCHEMA_VERSION_V2
+  readonly packId: WorldPackId
+  readonly packVersion: string
+  readonly worldFile: string
+  readonly characterFiles: readonly string[]
+  readonly locationFiles: readonly string[]
+  readonly entityFiles: readonly string[]
+  readonly sceneFiles: readonly string[]
+  readonly playerSlotFiles: readonly string[]
+  readonly presentationFiles: readonly string[]
+  readonly cognitionFiles: readonly string[]
+  readonly memoryFiles: readonly string[]
+  readonly documentFiles: readonly string[]
   readonly markdownFiles: readonly string[]
   readonly assetFiles: readonly string[]
   readonly assertionFiles: readonly string[]
