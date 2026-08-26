@@ -627,6 +627,8 @@ public | director_visible | character_private | author_only
 
 ### 14.4 编译结果
 
+Character、Cognition Observation、Scene、Memory 与 Document 的精确作者字段、枚举配对和安全默认由 [ADR-0069](../adr/ADR-0069-worldpack-v2-source-file-shapes.md) 补齐；它只澄清本文已要求的 v2 输入面，不扩展 Phase 8 范围。跨文件引用、basis cycle、初始 active Scene 单归属和 Document audience/usage 配对必须在生成 packHash 前 fail-closed。
+
 v2 source 编译为 compiled `worldpack/v2` 和 Manifest v4，锁定全部 vocabulary、Context、Scene、Memory、Policy、Renderer 和 Profile registry hash。旧 v1 格式不增加字段、不改变 expected bytes。`worldpack test` 必须实际使用临时 SQLite 与正式 Application 路径运行 assertions，不能无条件返回 passed。
 
 ## 15. “雨夜同行”参考 Pack
