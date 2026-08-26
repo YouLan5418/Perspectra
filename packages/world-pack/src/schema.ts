@@ -26,12 +26,23 @@ import {
 } from '@harness-world/contracts'
 import {
   PHASE7_CORE_PROFILES,
+  WORLD_PACK_CHARACTER_LIFECYCLES_V2,
+  WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V2,
   WORLD_PACK_COGNITION_SCHEMA_VERSION_V2,
   WORLD_PACK_COMPILED_SCHEMA_VERSION,
   WORLD_PACK_COMPILER_CONTRACT_VERSION,
   WORLD_PACK_COMPILER_ID,
   WORLD_PACK_COMPILER_VERSION,
   WORLD_PACK_LIMITS_PROFILE,
+  WORLD_PACK_CONTROLLER_CLASSES_V2,
+  WORLD_PACK_DOCUMENT_AUDIENCES_V2,
+  WORLD_PACK_DOCUMENT_USAGES_V2,
+  WORLD_PACK_DOCUMENTS_SCHEMA_VERSION_V2,
+  WORLD_PACK_INITIAL_OBSERVATION_EPISTEMIC_KINDS_V2,
+  WORLD_PACK_MEMORY_PROFILES_V2,
+  WORLD_PACK_MEMORY_SCHEMA_VERSION_V2,
+  WORLD_PACK_SCENE_LIFECYCLES_V2,
+  WORLD_PACK_SCENES_SCHEMA_VERSION_V2,
   WORLD_PACK_SOURCE_SCHEMA_VERSION,
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
   type CompiledWorldPack,
@@ -40,6 +51,8 @@ import {
   type WorldPackAssertionsSource,
   type WorldPackAssetLock,
   type WorldPackCharacterSource,
+  type WorldPackCharacterSourceV2,
+  type WorldPackCharactersSourceV2,
   type WorldPackCharactersSource,
   type WorldPackCharacterCognitionSourceV2,
   type WorldPackClaimSourceV2,
@@ -49,16 +62,20 @@ import {
   type WorldPackCoreProfiles,
   type WorldPackEntitiesSource,
   type WorldPackEntitySource,
+  type WorldPackDocumentsSourceV2,
+  type WorldPackDocumentSourceV2,
   type WorldPackId,
   type WorldPackInitialClaimSource,
   type WorldPackInitialFactSource,
   type WorldPackInitialGoalSource,
   type WorldPackInitialObservationSource,
+  type WorldPackInitialObservationSourceV2,
   type WorldPackGoalSourceV2,
   type WorldPackInnerTensionSourceV2,
   type WorldPackLocationSource,
   type WorldPackLocationsSource,
   type WorldPackMarkdownContent,
+  type WorldPackMemorySourceV2,
   type WorldPackPlayerSlotSource,
   type WorldPackPlayerSlotsSource,
   type WorldPackPluginLock,
@@ -66,6 +83,8 @@ import {
   type WorldPackOpenLoopSourceV2,
   type WorldPackRelationshipSourceV2,
   type WorldPackSceneSource,
+  type WorldPackSceneSourceV2,
+  type WorldPackScenesSourceV2,
   type WorldPackScenesSource,
   type WorldPackSlotId,
   type WorldPackSourceManifest,
@@ -88,6 +107,8 @@ const MAX_CHARACTERS = 256
 const MAX_LOCATIONS = 512
 const MAX_ENTITIES = 512
 const MAX_COGNITION_RECORDS_PER_KIND = 512
+const MAX_PORTRAYAL_TERMS = 128
+const MAX_DOCUMENTS = 512
 
 function pointer(base: string, field: string | number): string {
   const token = String(field).replaceAll('~', '~0').replaceAll('/', '~1')
@@ -146,6 +167,11 @@ function textAt(value: unknown, file: string, at: string): string {
   } catch (error) {
     failWorldPackContract('PACK_SOURCE_INVALID', file, at, String(error))
   }
+}
+
+function textOrEmptyAt(value: unknown, file: string, at: string): string {
+  if (value === '') return ''
+  return textAt(value, file, at)
 }
 
 function idAt<Name extends string>(value: unknown, file: string, at: string, name: Name): BrandedId<Name> {
@@ -371,6 +397,87 @@ function basisKeysAt(record: Record<string, unknown>, file: string, at: string):
   return optionalTextArrayAt(record.basisKeys, file, pointer(at, 'basisKeys'))
 }
 
+function parsePortrayalTerms(value: unknown, file: string, at: string): readonly { key: string, text: string }[] {
+  const entries = optionalArrayAt(value, file, at)
+  if (entries.length > MAX_PORTRAYAL_TERMS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, at, `must contain at most ${MAX_PORTRAYAL_TERMS} terms`)
+  }
+  const terms = entries.map((entry, index) => {
+    const entryAt = pointer(at, index)
+    const term = objectAt(entry, file, entryAt)
+    exactKeys(term, ['key', 'text'], [], file, entryAt)
+    return { key: textAt(term.key, file, pointer(entryAt, 'key')), text: textAt(term.text, file, pointer(entryAt, 'text')) }
+  })
+  unique(terms.map(term => term.key), file, at)
+  return terms
+}
+
+function parsePortrayalV2(value: unknown, file: string, at: string): WorldPackCharacterSourceV2['portrayal'] {
+  if (value === undefined || value === null) return null
+  const portrayal = objectAt(value, file, at)
+  exactKeys(portrayal, [], ['summary', 'speakingStyle', 'backgroundTextRef', 'drives', 'principles'], file, at)
+  return {
+    summary: textOrEmptyAt(portrayal.summary ?? '', file, pointer(at, 'summary')),
+    speakingStyle: textOrEmptyAt(portrayal.speakingStyle ?? '', file, pointer(at, 'speakingStyle')),
+    backgroundTextRef: optionalNullableTextAt(portrayal.backgroundTextRef, file, pointer(at, 'backgroundTextRef')),
+    drives: parsePortrayalTerms(portrayal.drives, file, pointer(at, 'drives')),
+    principles: parsePortrayalTerms(portrayal.principles, file, pointer(at, 'principles')),
+  }
+}
+
+function parseCharacterV2(value: unknown, file: string, at: string): WorldPackCharacterSourceV2 {
+  const character = objectAt(value, file, at)
+  exactKeys(
+    character,
+    ['characterId', 'displayName', 'controllerClass'],
+    ['pronouns', 'initialLocationId', 'lifecycle', 'portrayal'],
+    file,
+    at,
+  )
+  return {
+    characterId: idAt(character.characterId, file, pointer(at, 'characterId'), 'CharacterId'),
+    displayName: textAt(character.displayName, file, pointer(at, 'displayName')),
+    controllerClass: literalAt(character.controllerClass, WORLD_PACK_CONTROLLER_CLASSES_V2, file, pointer(at, 'controllerClass')),
+    pronouns: textOrEmptyAt(character.pronouns ?? '', file, pointer(at, 'pronouns')),
+    initialLocationId: optionalNullableTextAt(character.initialLocationId, file, pointer(at, 'initialLocationId')),
+    lifecycle: literalAt(character.lifecycle ?? 'active', WORLD_PACK_CHARACTER_LIFECYCLES_V2, file, pointer(at, 'lifecycle')),
+    portrayal: parsePortrayalV2(character.portrayal, file, pointer(at, 'portrayal')),
+  }
+}
+
+/** Parse and materialize safe defaults for Phase 8 character definitions. */
+export function parseWorldPackCharactersSourceV2(input: unknown, file = 'characters.json'): WorldPackCharactersSourceV2 {
+  const document = sourceDocument(input, file)
+  exactKeys(document, ['schemaVersion', 'characters'], [], file, '')
+  if (document.schemaVersion !== WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must equal ${WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V2}`)
+  }
+  const rawCharacters = arrayAt(document.characters, file, '/characters')
+  if (rawCharacters.length > MAX_CHARACTERS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/characters', `must contain at most ${MAX_CHARACTERS} characters`)
+  }
+  const characters = rawCharacters.map((entry, index) => parseCharacterV2(entry, file, `/characters/${index}`))
+  unique(characters.map(entry => entry.characterId), file, '/characters')
+  return { schemaVersion: WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V2, characters }
+}
+
+function parseCognitionObservation(value: unknown, file: string, at: string): WorldPackInitialObservationSourceV2 {
+  const record = objectAt(value, file, at)
+  exactKeys(record, ['key', 'content', 'epistemicKind'], ['saliencePermille', 'basisKeys'], file, at)
+  return {
+    key: textAt(record.key, file, pointer(at, 'key')),
+    content: record.content as WorldJsonValue,
+    epistemicKind: literalAt(
+      record.epistemicKind,
+      WORLD_PACK_INITIAL_OBSERVATION_EPISTEMIC_KINDS_V2,
+      file,
+      pointer(at, 'epistemicKind'),
+    ),
+    saliencePermille: integerAt(record.saliencePermille ?? 500, file, pointer(at, 'saliencePermille'), 0, 1000),
+    basisKeys: basisKeysAt(record, file, at),
+  }
+}
+
 function parseCognitionClaim(value: unknown, file: string, at: string): WorldPackClaimSourceV2 {
   const record = objectAt(value, file, at)
   exactKeys(record, ['key', 'proposition', 'stance', 'confidencePermille'], ['saliencePermille', 'awareness', 'status', 'basisKeys'], file, at)
@@ -504,11 +611,12 @@ function parseCognitionOpenLoop(value: unknown, file: string, at: string): World
 
 function parseCharacterCognition(value: unknown, file: string, at: string): WorldPackCharacterCognitionSourceV2 {
   const record = objectAt(value, file, at)
-  exactKeys(record, ['characterId'], ['claims', 'goals', 'relationships', 'affects', 'innerTensions', 'commitments', 'openLoops'], file, at)
+  exactKeys(record, ['characterId'], ['observations', 'claims', 'goals', 'relationships', 'affects', 'innerTensions', 'commitments', 'openLoops'], file, at)
   const parseRecords = <Result>(field: string, parse: (entry: unknown, entryFile: string, entryAt: string) => Result): readonly Result[] => {
     const fieldAt = pointer(at, field)
     return cognitionArray(record[field], file, fieldAt).map((entry, index) => parse(entry, file, pointer(fieldAt, index)))
   }
+  const observations = parseRecords('observations', parseCognitionObservation)
   const claims = parseRecords('claims', parseCognitionClaim)
   const goals = parseRecords('goals', parseCognitionGoal)
   const relationships = parseRecords('relationships', parseCognitionRelationship)
@@ -516,9 +624,10 @@ function parseCharacterCognition(value: unknown, file: string, at: string): Worl
   const innerTensions = parseRecords('innerTensions', parseCognitionTension)
   const commitments = parseRecords('commitments', parseCognitionCommitment)
   const openLoops = parseRecords('openLoops', parseCognitionOpenLoop)
-  unique([...claims, ...goals, ...relationships, ...affects, ...innerTensions, ...commitments, ...openLoops].map(entry => entry.key), file, at)
+  unique([observations, claims, goals, relationships, affects, innerTensions, commitments, openLoops].flat().map(entry => entry.key), file, at)
   return {
     characterId: idAt(record.characterId, file, pointer(at, 'characterId'), 'CharacterId'),
+    observations,
     claims,
     goals,
     relationships,
@@ -543,6 +652,110 @@ export function parseWorldPackCognitionSourceV2(input: unknown, file = 'cognitio
   const characters = rawCharacters.map((entry, index) => parseCharacterCognition(entry, file, `/characters/${index}`))
   unique(characters.map(entry => entry.characterId), file, '/characters')
   return { schemaVersion: WORLD_PACK_COGNITION_SCHEMA_VERSION_V2, characters }
+}
+
+function parseSceneV2(value: unknown, file: string, at: string): WorldPackSceneSourceV2 {
+  const scene = objectAt(value, file, at)
+  exactKeys(scene, ['sceneId', 'lifecycle', 'participantIds'], ['locationId'], file, at)
+  const participantIds = arrayAt(scene.participantIds, file, pointer(at, 'participantIds'))
+    .map((entry, index) => idAt(entry, file, pointer(pointer(at, 'participantIds'), index), 'CharacterId'))
+  unique(participantIds, file, pointer(at, 'participantIds'))
+  const lifecycle = literalAt(scene.lifecycle, WORLD_PACK_SCENE_LIFECYCLES_V2, file, pointer(at, 'lifecycle'))
+  if (lifecycle === 'active' && participantIds.length === 0) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, pointer(at, 'participantIds'), 'must not be empty for an active Scene')
+  }
+  return {
+    sceneId: textAt(scene.sceneId, file, pointer(at, 'sceneId')),
+    lifecycle,
+    locationId: optionalNullableTextAt(scene.locationId, file, pointer(at, 'locationId')),
+    participantIds,
+  }
+}
+
+/** Parse initial Phase 8 Scene lifecycle and membership declarations. */
+export function parseWorldPackScenesSourceV2(input: unknown, file = 'scenes.json'): WorldPackScenesSourceV2 {
+  const document = sourceDocument(input, file)
+  exactKeys(document, ['schemaVersion', 'scenes'], [], file, '')
+  if (document.schemaVersion !== WORLD_PACK_SCENES_SCHEMA_VERSION_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must equal ${WORLD_PACK_SCENES_SCHEMA_VERSION_V2}`)
+  }
+  const rawScenes = arrayAt(document.scenes, file, '/scenes')
+  if (rawScenes.length > MAX_LOCATIONS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/scenes', `must contain at most ${MAX_LOCATIONS} scenes`)
+  }
+  const scenes = rawScenes.map((entry, index) => parseSceneV2(entry, file, `/scenes/${index}`))
+  unique(scenes.map(entry => entry.sceneId), file, '/scenes')
+  return { schemaVersion: WORLD_PACK_SCENES_SCHEMA_VERSION_V2, scenes }
+}
+
+/** Parse logical per-character Memory profiles; this function never accepts Memory rows. */
+export function parseWorldPackMemorySourceV2(input: unknown, file = 'memory.json'): WorldPackMemorySourceV2 {
+  const document = sourceDocument(input, file)
+  exactKeys(document, ['schemaVersion', 'characters'], [], file, '')
+  if (document.schemaVersion !== WORLD_PACK_MEMORY_SCHEMA_VERSION_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must equal ${WORLD_PACK_MEMORY_SCHEMA_VERSION_V2}`)
+  }
+  const rawCharacters = arrayAt(document.characters, file, '/characters')
+  if (rawCharacters.length > MAX_CHARACTERS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/characters', `must contain at most ${MAX_CHARACTERS} characters`)
+  }
+  const characters = rawCharacters.map((entry, index) => {
+    const at = `/characters/${index}`
+    const character = objectAt(entry, file, at)
+    exactKeys(character, ['characterId', 'profile'], ['attentionTopics'], file, at)
+    return {
+      characterId: idAt(character.characterId, file, pointer(at, 'characterId'), 'CharacterId'),
+      profile: literalAt(character.profile, WORLD_PACK_MEMORY_PROFILES_V2, file, pointer(at, 'profile')),
+      attentionTopics: optionalTextArrayAt(character.attentionTopics, file, pointer(at, 'attentionTopics')),
+    }
+  })
+  unique(characters.map(entry => entry.characterId), file, '/characters')
+  return { schemaVersion: WORLD_PACK_MEMORY_SCHEMA_VERSION_V2, characters }
+}
+
+function parseDocumentV2(value: unknown, file: string, at: string): WorldPackDocumentSourceV2 {
+  const document = objectAt(value, file, at)
+  exactKeys(document, ['documentId', 'contentRef', 'usage', 'audience'], ['characterIds'], file, at)
+  const usage = literalAt(document.usage, WORLD_PACK_DOCUMENT_USAGES_V2, file, pointer(at, 'usage'))
+  const audience = literalAt(document.audience, WORLD_PACK_DOCUMENT_AUDIENCES_V2, file, pointer(at, 'audience'))
+  const characterIds = optionalArrayAt(document.characterIds, file, pointer(at, 'characterIds'))
+    .map((entry, index) => idAt(entry, file, pointer(pointer(at, 'characterIds'), index), 'CharacterId'))
+  unique(characterIds, file, pointer(at, 'characterIds'))
+  if (audience === 'character_private' && characterIds.length === 0) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, pointer(at, 'characterIds'), 'must not be empty for character_private audience')
+  }
+  if (audience !== 'character_private' && characterIds.length !== 0) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, pointer(at, 'characterIds'), 'must be empty unless audience is character_private')
+  }
+  if ((usage === 'portrayal' || usage === 'memory_seed') && audience !== 'character_private') {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, pointer(at, 'audience'), `${usage} usage requires character_private audience`)
+  }
+  if (usage === 'author_note' && audience !== 'author_only') {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, pointer(at, 'audience'), 'author_note usage requires author_only audience')
+  }
+  return {
+    documentId: textAt(document.documentId, file, pointer(at, 'documentId')),
+    contentRef: textAt(document.contentRef, file, pointer(at, 'contentRef')),
+    usage,
+    audience,
+    characterIds,
+  }
+}
+
+/** Parse document metadata without interpreting referenced free text as instructions. */
+export function parseWorldPackDocumentsSourceV2(input: unknown, file = 'documents.json'): WorldPackDocumentsSourceV2 {
+  const root = sourceDocument(input, file)
+  exactKeys(root, ['schemaVersion', 'documents'], [], file, '')
+  if (root.schemaVersion !== WORLD_PACK_DOCUMENTS_SCHEMA_VERSION_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must equal ${WORLD_PACK_DOCUMENTS_SCHEMA_VERSION_V2}`)
+  }
+  const rawDocuments = arrayAt(root.documents, file, '/documents')
+  if (rawDocuments.length > MAX_DOCUMENTS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/documents', `must contain at most ${MAX_DOCUMENTS} documents`)
+  }
+  const documents = rawDocuments.map((entry, index) => parseDocumentV2(entry, file, `/documents/${index}`))
+  unique(documents.map(entry => entry.documentId), file, '/documents')
+  return { schemaVersion: WORLD_PACK_DOCUMENTS_SCHEMA_VERSION_V2, documents }
 }
 
 /** Parse and default the Phase 7 world-level content contract. */

@@ -10,6 +10,7 @@ function minimalCognition() {
     schemaVersion: 'worldpack-cognition/v2',
     characters: [{
       characterId: 'character:alice',
+      observations: [{ key: 'observation:arrival', content: { text: 'Bob arrived late' }, epistemicKind: 'direct_observation' }],
       claims: [{ key: 'claim:late', proposition: { predicate: 'bob_late' }, stance: 'believed', confidencePermille: 800 }],
       goals: [{ key: 'goal:continue', objective: { kind: 'narrative', value: 'Continue the journey' } }],
       relationships: [{ key: 'relationship:bob-honesty', target: 'character:bob', type: 'distrust', facet: 'honesty', intensityPermille: 650 }],
@@ -33,6 +34,7 @@ function explicitCognition() {
     ...value,
     characters: [{
       ...value.characters[0],
+      observations: [{ ...value.characters[0]!.observations[0], saliencePermille: 900, basisKeys: ['observation:clock'] }],
       claims: [{ ...value.characters[0]!.claims[0], saliencePermille: 900, awareness: 'partially_conscious', status: 'active', basisKeys: ['observation:arrival'] }],
       goals: [{
         ...value.characters[0]!.goals[0], priorityPermille: 750, awareness: 'unrecognized', status: 'blocked',
@@ -81,6 +83,7 @@ describe('World Pack v2 cognition source', () => {
   it('materializes every safe default without inventing omitted cognition', () => {
     const parsed = parseWorldPackCognitionSourceV2(minimalCognition())
     expect(parsed.characters[0]).toMatchObject({
+      observations: [{ saliencePermille: 500, basisKeys: [] }],
       claims: [{ saliencePermille: 500, awareness: 'conscious', status: 'active', basisKeys: [] }],
       goals: [{ priorityPermille: 500, awareness: 'conscious', status: 'active', parentGoalKey: null, targetKeys: [], blockerKeys: [], basisKeys: [] }],
       relationships: [{ confidencePermille: 500, awareness: 'conscious', status: 'active', basisKeys: [] }],
@@ -93,11 +96,11 @@ describe('World Pack v2 cognition source', () => {
       .toEqual({
         schemaVersion: 'worldpack-cognition/v2',
         characters: [{
-          characterId: 'character:empty', claims: [], goals: [], relationships: [], affects: [], innerTensions: [], commitments: [], openLoops: [],
+          characterId: 'character:empty', observations: [], claims: [], goals: [], relationships: [], affects: [], innerTensions: [], commitments: [], openLoops: [],
         }],
       })
     expect(hashWorldJson('world-pack-cognition-source/v2', parsed)).toBe(
-      'sha256:52511c8c4b6f9ff613cd4d118e9425a23ed12739ec14316d576cb1c0481f76d6',
+      'sha256:093fa8f99a29e54819899e39bacfb1c9efdc73f56f57a37bff5d2619069ec88e',
     )
   })
 
@@ -108,6 +111,16 @@ describe('World Pack v2 cognition source', () => {
     withNulls.characters[0]!.goals[0]!.parentGoalKey = null as unknown as string
     withNulls.characters[0]!.affects[0]!.targetKey = null as unknown as string
     expect(parseWorldPackCognitionSourceV2(withNulls).characters[0]?.goals[0]?.parentGoalKey).toBeNull()
+  })
+
+  it.each([
+    [mutate(character => { delete character.observations[0].content }), 'PACK_SOURCE_INVALID'],
+    [mutate(character => { character.observations[0].extra = true }), 'PACK_UNKNOWN_FIELD'],
+    [mutate(character => { character.observations[0].epistemicKind = 'derived_summary' }), 'PACK_SOURCE_INVALID'],
+    [mutate(character => { character.observations[0].saliencePermille = 1001 }), 'PACK_SOURCE_INVALID'],
+    [mutate(character => { character.observations[0].basisKeys = {} }), 'PACK_SOURCE_INVALID'],
+  ])('rejects invalid Observation sources %#', (value, code) => {
+    expect(errorOf(value).diagnostics[0].code).toBe(code)
   })
 
   it.each([

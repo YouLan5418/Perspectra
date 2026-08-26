@@ -105,6 +105,59 @@ export interface WorldPackSourceManifestV2 extends WorldJsonObject {
 }
 
 export const WORLD_PACK_COGNITION_SCHEMA_VERSION_V2 = 'worldpack-cognition/v2' as const
+export const WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V2 = 'worldpack-characters/v2' as const
+export const WORLD_PACK_SCENES_SCHEMA_VERSION_V2 = 'worldpack-scenes/v2' as const
+export const WORLD_PACK_MEMORY_SCHEMA_VERSION_V2 = 'worldpack-memory/v2' as const
+export const WORLD_PACK_DOCUMENTS_SCHEMA_VERSION_V2 = 'worldpack-documents/v2' as const
+
+export const WORLD_PACK_CONTROLLER_CLASSES_V2 = Object.freeze(['manual', 'scripted'] as const)
+export type WorldPackControllerClassV2 = typeof WORLD_PACK_CONTROLLER_CLASSES_V2[number]
+export const WORLD_PACK_CHARACTER_LIFECYCLES_V2 = Object.freeze(['active', 'incapacitated', 'dead', 'departed'] as const)
+export type WorldPackCharacterLifecycleV2 = typeof WORLD_PACK_CHARACTER_LIFECYCLES_V2[number]
+export const WORLD_PACK_SCENE_LIFECYCLES_V2 = Object.freeze(['created', 'active', 'closed'] as const)
+export type WorldPackSceneLifecycleV2 = typeof WORLD_PACK_SCENE_LIFECYCLES_V2[number]
+export const WORLD_PACK_MEMORY_PROFILES_V2 = Object.freeze(['compact', 'standard', 'deep'] as const)
+export type WorldPackMemoryProfileV2 = typeof WORLD_PACK_MEMORY_PROFILES_V2[number]
+export const WORLD_PACK_DOCUMENT_USAGES_V2 = Object.freeze(['world_context', 'portrayal', 'memory_seed', 'author_note'] as const)
+export type WorldPackDocumentUsageV2 = typeof WORLD_PACK_DOCUMENT_USAGES_V2[number]
+export const WORLD_PACK_DOCUMENT_AUDIENCES_V2 = Object.freeze(['public', 'director_visible', 'character_private', 'author_only'] as const)
+export type WorldPackDocumentAudienceV2 = typeof WORLD_PACK_DOCUMENT_AUDIENCES_V2[number]
+export const WORLD_PACK_INITIAL_OBSERVATION_EPISTEMIC_KINDS_V2 = Object.freeze([
+  'direct_observation', 'observed_action', 'reported_speech', 'subjective_inference', 'self_intention',
+] as const)
+export type WorldPackInitialObservationEpistemicKindV2 = typeof WORLD_PACK_INITIAL_OBSERVATION_EPISTEMIC_KINDS_V2[number]
+
+export interface WorldPackPortrayalTermSourceV2 extends WorldJsonObject {
+  readonly key: string
+  readonly text: string
+}
+export interface WorldPackPortrayalSourceV2 extends WorldJsonObject {
+  readonly summary: string
+  readonly speakingStyle: string
+  readonly backgroundTextRef: string | null
+  readonly drives: readonly WorldPackPortrayalTermSourceV2[]
+  readonly principles: readonly WorldPackPortrayalTermSourceV2[]
+}
+export interface WorldPackCharacterSourceV2 extends WorldJsonObject {
+  readonly characterId: CharacterId
+  readonly displayName: string
+  readonly controllerClass: WorldPackControllerClassV2
+  readonly pronouns: string
+  readonly initialLocationId: string | null
+  readonly lifecycle: WorldPackCharacterLifecycleV2
+  readonly portrayal: WorldPackPortrayalSourceV2 | null
+}
+export interface WorldPackCharactersSourceV2 extends WorldJsonObject {
+  readonly schemaVersion: typeof WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V2
+  readonly characters: readonly WorldPackCharacterSourceV2[]
+}
+
+export interface WorldPackInitialObservationSourceV2 extends WorldPackCognitionBasisSource {
+  readonly key: string
+  readonly content: WorldJsonValue
+  readonly epistemicKind: WorldPackInitialObservationEpistemicKindV2
+  readonly saliencePermille: number
+}
 
 export interface WorldPackCognitionBasisSource extends WorldJsonObject {
   readonly basisKeys: readonly string[]
@@ -185,6 +238,7 @@ export interface WorldPackOpenLoopSourceV2 extends WorldPackCognitionBasisSource
 }
 export interface WorldPackCharacterCognitionSourceV2 extends WorldJsonObject {
   readonly characterId: CharacterId
+  readonly observations: readonly WorldPackInitialObservationSourceV2[]
   readonly claims: readonly WorldPackClaimSourceV2[]
   readonly goals: readonly WorldPackGoalSourceV2[]
   readonly relationships: readonly WorldPackRelationshipSourceV2[]
@@ -196,6 +250,37 @@ export interface WorldPackCharacterCognitionSourceV2 extends WorldJsonObject {
 export interface WorldPackCognitionSourceV2 extends WorldJsonObject {
   readonly schemaVersion: typeof WORLD_PACK_COGNITION_SCHEMA_VERSION_V2
   readonly characters: readonly WorldPackCharacterCognitionSourceV2[]
+}
+
+export interface WorldPackSceneSourceV2 extends WorldJsonObject {
+  readonly sceneId: string
+  readonly lifecycle: WorldPackSceneLifecycleV2
+  readonly locationId: string | null
+  readonly participantIds: readonly CharacterId[]
+}
+export interface WorldPackScenesSourceV2 extends WorldJsonObject {
+  readonly schemaVersion: typeof WORLD_PACK_SCENES_SCHEMA_VERSION_V2
+  readonly scenes: readonly WorldPackSceneSourceV2[]
+}
+export interface WorldPackCharacterMemorySourceV2 extends WorldJsonObject {
+  readonly characterId: CharacterId
+  readonly profile: WorldPackMemoryProfileV2
+  readonly attentionTopics: readonly string[]
+}
+export interface WorldPackMemorySourceV2 extends WorldJsonObject {
+  readonly schemaVersion: typeof WORLD_PACK_MEMORY_SCHEMA_VERSION_V2
+  readonly characters: readonly WorldPackCharacterMemorySourceV2[]
+}
+export interface WorldPackDocumentSourceV2 extends WorldJsonObject {
+  readonly documentId: string
+  readonly contentRef: string
+  readonly usage: WorldPackDocumentUsageV2
+  readonly audience: WorldPackDocumentAudienceV2
+  readonly characterIds: readonly CharacterId[]
+}
+export interface WorldPackDocumentsSourceV2 extends WorldJsonObject {
+  readonly schemaVersion: typeof WORLD_PACK_DOCUMENTS_SCHEMA_VERSION_V2
+  readonly documents: readonly WorldPackDocumentSourceV2[]
 }
 
 export interface WorldPackInitialFactSource extends WorldJsonObject {
