@@ -45,3 +45,7 @@
 | [0061](ADR-0061-world-pack-entity-source-closure.md) | World Pack 通用实体来源闭环 | 实体由显式来源文件编译并继续交给 Core take 裁定 |
 | [0062](ADR-0062-pack-public-speech-observation.md) | Pack 公开对白进入角色观察与 Memory | Manifest v3 的同 Scene 角色可记住公开原话但不自动获得真值 Claim |
 | [0063](ADR-0063-pack-runtime-capability-and-v1-closure.md) | Pack 运行能力与 v1 格式收口 | 行为能力不再借用 Schema 版本；冻结 Pack v1 与创作者错误契约 |
+| [0064](ADR-0064-context-v2-cache-provider-boundary.md) | Context v2、前缀缓存与 Provider 调用边界 | Phase 8 前移可重建 Context/Renderer/Receipt；真实网络仍留 Phase 11 |
+| [0065](ADR-0065-cognition-v1-reflection-policy.md) | Basic v1 主观状态、Reflection 与确定性心理策略 | 冻结关系/情绪/冲突/目标/承诺词汇和来源化认知变化 |
+| [0066](ADR-0066-scene-v2-director-observation.md) | Scene v2、动作时刻观察与限域 Director | 多 Scene、零或一 focal Scene、逐动作可见性与防全知泄漏 |
+| [0067](ADR-0067-cognitive-memory-worldpack-v2.md) | Cognitive Memory v2、World Pack v2 与旅途试金石 | v1 字节冻结；v2 来源、水位、Recall 和“雨夜同行”验收 |
