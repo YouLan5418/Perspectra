@@ -16,6 +16,8 @@ import {
   brandId,
   canonicalizeWorldJson,
   hashWorldJson,
+  PHASE8_REGISTRY_LOCKS,
+  PHASE8_VOCABULARY_LOCKS,
   RELATIONSHIP_STATUSES,
   RELATIONSHIP_TYPES,
   TENSION_POLE_TENDENCIES,
@@ -26,14 +28,19 @@ import {
 } from '@harness-world/contracts'
 import {
   PHASE7_CORE_PROFILES,
+  PHASE8_CORE_PROFILES,
   WORLD_PACK_CHARACTER_LIFECYCLES_V2,
   WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V2,
   WORLD_PACK_COGNITION_SCHEMA_VERSION_V2,
   WORLD_PACK_COMPILED_SCHEMA_VERSION,
+  WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
   WORLD_PACK_COMPILER_CONTRACT_VERSION,
+  WORLD_PACK_COMPILER_CONTRACT_VERSION_V2,
   WORLD_PACK_COMPILER_ID,
   WORLD_PACK_COMPILER_VERSION,
+  WORLD_PACK_COMPILER_VERSION_V2,
   WORLD_PACK_LIMITS_PROFILE,
+  WORLD_PACK_LIMITS_PROFILE_V2,
   WORLD_PACK_CONTROLLER_CLASSES_V2,
   WORLD_PACK_DOCUMENT_AUDIENCES_V2,
   WORLD_PACK_DOCUMENT_USAGES_V2,
@@ -46,6 +53,7 @@ import {
   WORLD_PACK_SOURCE_SCHEMA_VERSION,
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
   type CompiledWorldPack,
+  type CompiledWorldPackV2,
   type WorldPackAcceptanceAssertion,
   type WorldPackAffectSourceV2,
   type WorldPackAssertionsSource,
@@ -59,6 +67,7 @@ import {
   type WorldPackCognitionSourceV2,
   type WorldPackCommitmentSourceV2,
   type WorldPackCompiledContent,
+  type WorldPackCompiledContentV2,
   type WorldPackCoreProfiles,
   type WorldPackEntitiesSource,
   type WorldPackEntitySource,
@@ -250,8 +259,16 @@ function copyCoreProfiles(): WorldPackCoreProfiles {
   }
 }
 
-function profileAt(value: unknown, file: string, at: string): WorldPackCoreProfiles {
-  if (value === undefined) return copyCoreProfiles()
+function copyPhase8CoreProfiles(): WorldPackCoreProfiles {
+  return {
+    rulebook: { ...PHASE8_CORE_PROFILES.rulebook },
+    sceneDecision: { ...PHASE8_CORE_PROFILES.sceneDecision },
+    agentContext: { ...PHASE8_CORE_PROFILES.agentContext },
+    presentation: { ...PHASE8_CORE_PROFILES.presentation },
+  }
+}
+
+function profileShapeAt(value: unknown, file: string, at: string): WorldPackCoreProfiles {
   const profiles = objectAt(value, file, at)
   exactKeys(profiles, ['rulebook', 'sceneDecision', 'agentContext', 'presentation'], [], file, at)
   const rulebook = objectAt(profiles.rulebook, file, pointer(at, 'rulebook'))
@@ -262,7 +279,7 @@ function profileAt(value: unknown, file: string, at: string): WorldPackCoreProfi
   exactKeys(context, ['pluginId', 'version'], [], file, pointer(at, 'agentContext'))
   const presentation = objectAt(profiles.presentation, file, pointer(at, 'presentation'))
   exactKeys(presentation, ['profileId', 'version'], [], file, pointer(at, 'presentation'))
-  const normalized: WorldPackCoreProfiles = {
+  return {
     rulebook: {
       rulebookId: textAt(rulebook.rulebookId, file, `${at}/rulebook/rulebookId`) as 'builtin:speak-move',
       version: integerAt(rulebook.version, file, `${at}/rulebook/version`, 1, Number.MAX_SAFE_INTEGER) as 2,
@@ -280,8 +297,22 @@ function profileAt(value: unknown, file: string, at: string): WorldPackCoreProfi
       version: semverAt(presentation.version, file, `${at}/presentation/version`) as '1.0.0',
     },
   }
+}
+
+function profileAt(value: unknown, file: string, at: string): WorldPackCoreProfiles {
+  if (value === undefined) return copyCoreProfiles()
+  const normalized = profileShapeAt(value, file, at)
   if (JSON.stringify(normalized) !== JSON.stringify(PHASE7_CORE_PROFILES)) {
     failWorldPackContract('PACK_PROFILE_NOT_ALLOWED', file, at, 'must select the exact Phase 7 Core profiles')
+  }
+  return normalized
+}
+
+function phase8ProfileAt(value: unknown, file: string, at: string): WorldPackCoreProfiles {
+  if (value === undefined) return copyPhase8CoreProfiles()
+  const normalized = profileShapeAt(value, file, at)
+  if (JSON.stringify(normalized) !== JSON.stringify(PHASE8_CORE_PROFILES)) {
+    failWorldPackContract('PACK_PROFILE_NOT_ALLOWED', file, at, 'must select the exact Phase 8 Core profiles')
   }
   return normalized
 }
@@ -781,6 +812,29 @@ export function parseWorldPackWorldSource(input: unknown, file = 'world.json'): 
   }
 }
 
+/** Parse the Phase 8 world source while keeping the v1 file shape and selecting only Phase 8 Core profiles. */
+export function parseWorldPackWorldSourceV2(input: unknown, file = 'world.json'): WorldPackWorldSource {
+  const root = sourceDocument(input, file)
+  exactKeys(root, ['schemaVersion', 'title'], ['description', 'timeMode', 'roundQueueLimit', 'coreProfiles', 'initialFacts'], file, '')
+  if (root.schemaVersion !== 'worldpack-world/v1') {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', 'must be worldpack-world/v1')
+  }
+  const facts = root.initialFacts === undefined ? [] : arrayAt(root.initialFacts, file, '/initialFacts')
+    .map((entry, index) => parseFact(entry, file, `/initialFacts/${index}`))
+  unique(facts.map(value => value.factId), file, '/initialFacts')
+  const timeMode = root.timeMode ?? 'TURN_DRIVEN'
+  if (timeMode !== 'TURN_DRIVEN') failWorldPackContract('PACK_SOURCE_INVALID', file, '/timeMode', 'must be TURN_DRIVEN')
+  return {
+    schemaVersion: 'worldpack-world/v1',
+    title: textAt(root.title, file, '/title'),
+    description: root.description === undefined ? '' : stringAt(root.description, file, '/description'),
+    timeMode,
+    roundQueueLimit: root.roundQueueLimit === undefined ? 8 : integerAt(root.roundQueueLimit, file, '/roundQueueLimit', 1, 1024),
+    coreProfiles: phase8ProfileAt(root.coreProfiles, file, '/coreProfiles'),
+    initialFacts: facts,
+  }
+}
+
 export function parseWorldPackLocationsSource(input: unknown, file = 'locations.json'): WorldPackLocationsSource {
   const root = sourceDocument(input, file)
   exactKeys(root, ['schemaVersion', 'locations'], [], file, '')
@@ -936,19 +990,25 @@ export function parseWorldPackAssertionsSource(input: unknown, file = 'assertion
   return { schemaVersion: 'worldpack-assertions/v1', assertions }
 }
 
-function pluginLocksAt(value: unknown, file: string, at: string): WorldPackPluginLock[] {
+function pluginLocksAt(
+  value: unknown,
+  file: string,
+  at: string,
+  profiles = PHASE7_CORE_PROFILES,
+  phaseLabel = 'Phase 7',
+): WorldPackPluginLock[] {
   const allowed = new Map<string, readonly [string, string]>([
-    ['rulebook', ['builtin:speak-move', '2']],
-    ['scene-decision', ['builtin:scene-decision', '1.0.0']],
-    ['agent-context', ['builtin:agent-context', '2.0.0']],
-    ['presentation', ['builtin:deterministic-presentation', '1.0.0']],
+    ['rulebook', [profiles.rulebook.rulebookId, String(profiles.rulebook.version)]],
+    ['scene-decision', [profiles.sceneDecision.pluginId, profiles.sceneDecision.version]],
+    ['agent-context', [profiles.agentContext.pluginId, profiles.agentContext.version]],
+    ['presentation', [profiles.presentation.profileId, profiles.presentation.version]],
   ])
   const locks = arrayAt(value, file, at).map((entry, index): WorldPackPluginLock => {
     const itemAt = `${at}/${index}`; const item = objectAt(entry, file, itemAt); exactKeys(item, ['kind', 'id', 'version', 'pluginHash'], [], file, itemAt)
     const kind = textAt(item.kind, file, `${itemAt}/kind`)
     const expected = allowed.get(kind)
     if (expected === undefined || item.id !== expected[0] || String(item.version) !== expected[1]) {
-      failWorldPackContract('PLUGIN_NOT_REGISTERED', file, itemAt, 'is not an installed exact Phase 7 plugin lock')
+      failWorldPackContract('PLUGIN_NOT_REGISTERED', file, itemAt, `is not an installed exact ${phaseLabel} plugin lock`)
     }
     const id = textAt(item.id, file, `${itemAt}/id`)
     const version = textAt(item.version, file, `${itemAt}/version`)
@@ -959,7 +1019,7 @@ function pluginLocksAt(value: unknown, file: string, at: string): WorldPackPlugi
     return { kind: kind as WorldPackPluginLock['kind'], id, version, pluginHash }
   })
   unique(locks.map(lock => lock.kind), file, at)
-  if (locks.length !== allowed.size) failWorldPackContract('PLUGIN_NOT_REGISTERED', file, at, 'must lock every Phase 7 Core profile')
+  if (locks.length !== allowed.size) failWorldPackContract('PLUGIN_NOT_REGISTERED', file, at, `must lock every ${phaseLabel} Core profile`)
   return locks
 }
 
@@ -1021,6 +1081,84 @@ export function parseCompiledWorldPack(input: unknown, file = 'worldpack.json'):
       contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION, canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE,
     },
     pluginLocks: pluginLocksAt(root.pluginLocks, file, '/pluginLocks'), content: parsedContent, assets, acceptanceAssertions,
+  }
+}
+
+function exactPhase8LocksAt(
+  value: unknown,
+  expected: WorldJsonValue,
+  domain: string,
+  file: string,
+  at: string,
+): void {
+  arrayAt(value, file, at)
+  if (hashWorldJson(domain, value as WorldJsonValue) !== hashWorldJson(domain, expected)) {
+    failWorldPackContract('REGISTRY_HASH_MISMATCH', file, at, 'does not match the exact Phase 8 lock set')
+  }
+}
+
+/** Validate one compiled v2 envelope and every immutable Phase 8 registry lock. */
+export function parseCompiledWorldPackV2(input: unknown, file = 'worldpack.json'): CompiledWorldPackV2 {
+  const root = sourceDocument(input, file, MAX_COMPILED_BYTES)
+  exactKeys(root, [
+    'compiledSchemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
+    'registryLocks', 'content', 'assets', 'acceptanceAssertions',
+  ], [], file, '')
+  if (root.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiledSchemaVersion', `must be ${WORLD_PACK_COMPILED_SCHEMA_VERSION_V2}`)
+  }
+  const compiler = objectAt(root.compiler, file, '/compiler')
+  exactKeys(compiler, ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'], [], file, '/compiler')
+  if (compiler.id !== WORLD_PACK_COMPILER_ID || compiler.version !== WORLD_PACK_COMPILER_VERSION_V2
+    || compiler.contractVersion !== WORLD_PACK_COMPILER_CONTRACT_VERSION_V2 || compiler.canonicalJsonVersion !== 'world-json/v1'
+    || compiler.limitsProfile !== WORLD_PACK_LIMITS_PROFILE_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiler', 'does not identify the Phase 8 compiler contract')
+  }
+  const content = objectAt(root.content, file, '/content')
+  exactKeys(content, [
+    'world', 'locations', 'entities', 'characters', 'scenes', 'playerSlots', 'cognition', 'memory', 'documents',
+    'presentation', 'markdown',
+  ], [], file, '/content')
+  const parsedContent: WorldPackCompiledContentV2 = {
+    world: parseWorldPackWorldSourceV2(content.world, `${file}#/content/world`),
+    locations: parseWorldPackLocationsSource({ schemaVersion: 'worldpack-locations/v1', locations: content.locations }, `${file}#/content/locations`).locations,
+    entities: parseWorldPackEntitiesSource({ schemaVersion: 'worldpack-entities/v1', entities: content.entities }, `${file}#/content/entities`).entities,
+    characters: parseWorldPackCharactersSourceV2({ schemaVersion: WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V2, characters: content.characters }, `${file}#/content/characters`).characters,
+    scenes: parseWorldPackScenesSourceV2({ schemaVersion: WORLD_PACK_SCENES_SCHEMA_VERSION_V2, scenes: content.scenes }, `${file}#/content/scenes`).scenes,
+    playerSlots: parseWorldPackPlayerSlotsSource({ schemaVersion: 'worldpack-player-slots/v1', playerSlots: content.playerSlots }, `${file}#/content/playerSlots`).playerSlots,
+    cognition: parseWorldPackCognitionSourceV2({ schemaVersion: WORLD_PACK_COGNITION_SCHEMA_VERSION_V2, characters: content.cognition }, `${file}#/content/cognition`).characters,
+    memory: parseWorldPackMemorySourceV2({ schemaVersion: WORLD_PACK_MEMORY_SCHEMA_VERSION_V2, characters: content.memory }, `${file}#/content/memory`).characters,
+    documents: parseWorldPackDocumentsSourceV2({ schemaVersion: WORLD_PACK_DOCUMENTS_SCHEMA_VERSION_V2, documents: content.documents }, `${file}#/content/documents`).documents,
+    presentation: parseWorldPackPresentationSource(content.presentation, `${file}#/content/presentation`),
+    markdown: arrayAt(content.markdown, file, '/content/markdown').map((entry, index) => markdownAt(entry, file, `/content/markdown/${index}`)),
+  }
+  unique(parsedContent.markdown.map(value => value.path), file, '/content/markdown')
+  const assets = arrayAt(root.assets, file, '/assets').map((entry, index) => assetAt(entry, file, `/assets/${index}`))
+  unique(assets.map(value => value.path), file, '/assets')
+  const acceptanceAssertions = arrayAt(root.acceptanceAssertions, file, '/acceptanceAssertions')
+    .map((entry, index) => parseAssertion(entry, file, `/acceptanceAssertions/${index}`))
+  unique(acceptanceAssertions.map(value => value.assertionId), file, '/acceptanceAssertions')
+  const pluginLocks = pluginLocksAt(root.pluginLocks, file, '/pluginLocks', PHASE8_CORE_PROFILES, 'Phase 8')
+  exactPhase8LocksAt(root.vocabularyLocks, PHASE8_VOCABULARY_LOCKS, 'phase8-vocabulary-lock-set/v1', file, '/vocabularyLocks')
+  exactPhase8LocksAt(root.registryLocks, PHASE8_REGISTRY_LOCKS, 'phase8-registry-lock-set/v1', file, '/registryLocks')
+  return {
+    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
+    packId: idAt(root.packId, file, '/packId', 'WorldPackId') as WorldPackId,
+    packVersion: semverAt(root.packVersion, file, '/packVersion'),
+    packHash: hashAt(root.packHash, file, '/packHash'),
+    compiler: {
+      id: WORLD_PACK_COMPILER_ID,
+      version: WORLD_PACK_COMPILER_VERSION_V2,
+      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V2,
+      canonicalJsonVersion: 'world-json/v1',
+      limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
+    },
+    pluginLocks,
+    vocabularyLocks: PHASE8_VOCABULARY_LOCKS,
+    registryLocks: PHASE8_REGISTRY_LOCKS,
+    content: parsedContent,
+    assets,
+    acceptanceAssertions,
   }
 }
 

@@ -13,11 +13,13 @@ import type {
   GoalStatus,
   OpenLoopKind,
   OpenLoopStatus,
+  Phase8RegistryLock,
   RelationshipStatus,
   RelationshipType,
   SessionId,
   TensionPoleTendency,
   TensionStatus,
+  VocabularyLock,
   WorldAddress,
   WorldHash,
   WorldJsonObject,
@@ -42,6 +44,9 @@ export const WORLD_PACK_LIMITS_PROFILE_V2 = 'worldpack-limits/v2' as const
 export interface WorldPackCompileOptions {
   readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE
 }
+export interface WorldPackCompileOptionsV2 {
+  readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE_V2
+}
 
 export interface WorldPackRulebookProfile extends WorldJsonObject {
   readonly rulebookId: 'builtin:speak-move'
@@ -65,6 +70,13 @@ export interface WorldPackCoreProfiles extends WorldJsonObject {
 export const PHASE7_CORE_PROFILES: WorldPackCoreProfiles = Object.freeze({
   rulebook: Object.freeze({ rulebookId: 'builtin:speak-move', version: 2 }),
   sceneDecision: Object.freeze({ pluginId: 'builtin:scene-decision', version: '1.0.0' }),
+  agentContext: Object.freeze({ pluginId: 'builtin:agent-context', version: '2.0.0' }),
+  presentation: Object.freeze({ profileId: 'builtin:deterministic-presentation', version: '1.0.0' }),
+})
+
+export const PHASE8_CORE_PROFILES: WorldPackCoreProfiles = Object.freeze({
+  rulebook: Object.freeze({ rulebookId: 'builtin:speak-move', version: 2 }),
+  sceneDecision: Object.freeze({ pluginId: 'builtin:scene-decision', version: '2.0.0' }),
   agentContext: Object.freeze({ pluginId: 'builtin:agent-context', version: '2.0.0' }),
   presentation: Object.freeze({ profileId: 'builtin:deterministic-presentation', version: '1.0.0' }),
 })
@@ -428,6 +440,40 @@ export interface CompiledWorldPack extends WorldJsonObject {
   readonly compiler: WorldPackCompilerIdentity
   readonly pluginLocks: readonly WorldPackPluginLock[]
   readonly content: WorldPackCompiledContent
+  readonly assets: readonly WorldPackAssetLock[]
+  readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
+}
+
+export interface WorldPackCompilerIdentityV2 extends WorldJsonObject {
+  readonly id: typeof WORLD_PACK_COMPILER_ID
+  readonly version: typeof WORLD_PACK_COMPILER_VERSION_V2
+  readonly contractVersion: typeof WORLD_PACK_COMPILER_CONTRACT_VERSION_V2
+  readonly canonicalJsonVersion: 'world-json/v1'
+  readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE_V2
+}
+export interface WorldPackCompiledContentV2 extends WorldJsonObject {
+  readonly world: WorldPackWorldSource
+  readonly locations: readonly WorldPackLocationSource[]
+  readonly entities: readonly WorldPackEntitySource[]
+  readonly characters: readonly WorldPackCharacterSourceV2[]
+  readonly scenes: readonly WorldPackSceneSourceV2[]
+  readonly playerSlots: readonly WorldPackPlayerSlotSource[]
+  readonly cognition: readonly WorldPackCharacterCognitionSourceV2[]
+  readonly memory: readonly WorldPackCharacterMemorySourceV2[]
+  readonly documents: readonly WorldPackDocumentSourceV2[]
+  readonly presentation: WorldPackPresentationSource
+  readonly markdown: readonly WorldPackMarkdownContent[]
+}
+export interface CompiledWorldPackV2 extends WorldJsonObject {
+  readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION_V2
+  readonly packId: WorldPackId
+  readonly packVersion: string
+  readonly packHash: WorldHash
+  readonly compiler: WorldPackCompilerIdentityV2
+  readonly pluginLocks: readonly WorldPackPluginLock[]
+  readonly vocabularyLocks: readonly VocabularyLock[]
+  readonly registryLocks: readonly Phase8RegistryLock[]
+  readonly content: WorldPackCompiledContentV2
   readonly assets: readonly WorldPackAssetLock[]
   readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
 }
