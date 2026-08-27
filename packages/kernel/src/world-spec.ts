@@ -338,6 +338,25 @@ function registries(rulebookVersion: 1 | 2 | 3 | 4): ManifestRegistries {
   }
 }
 
+/** Frozen execution registries for explicit Manifest V4 worlds; legacy compiler output is unchanged. */
+export function phase8ManifestRegistries(): ManifestRegistries {
+  const core = registries(2)
+  return {
+    events: registry('event', [
+      ...core.events.definitions.map(value => value.name),
+      'affect-episode.upsert', 'character-goal.upsert', 'character.reflect', 'commitment.upsert',
+      'inner-tension.upsert', 'open-loop.upsert', 'relationship-attitude.upsert', 'subjective-claim.upsert',
+    ]),
+    actions: core.actions,
+    projections: registry('projection', [
+      ...core.projections.definitions.map(value => value.name),
+      'affect-episode', 'character-goal', 'commitment', 'inner-tension', 'open-loop',
+      'relationship-attitude', 'subjective-claim',
+    ]),
+    rules: core.rules,
+  }
+}
+
 /** Pure compatibility upcast. It never mutates or re-hashes an already stored event. */
 export function upcastWorldSpecV1(input: Record<string, unknown>): Record<string, unknown> {
   exactKeys(input, ['schemaVersion', 'address', 'timeMode', 'roundQueueLimit', 'rulebook', 'locations', 'characters', 'playerBindings', 'plugins'], 'WorldSpecV1')

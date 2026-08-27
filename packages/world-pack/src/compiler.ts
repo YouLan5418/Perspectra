@@ -14,11 +14,16 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
+  phase8ManifestRegistries,
   WorldSpecCompiler,
+  type CompiledWorldManifestV4,
   type CompiledWorldManifestV3,
   type CompiledWorldSpec,
   type ContentPackCharacterSpec,
+  type ContentPackCharacterSpecV2,
   type ContentPackManifestBinding,
+  type ContentPackManifestBindingV2,
+  type SceneSpecV2,
 } from '@harness-world/kernel'
 import {
   PHASE7_CORE_PROFILES,
@@ -507,11 +512,9 @@ function validateCognitionGraph(entry: WorldPackCharacterCognitionSourceV2, char
   ].map(value => value.key)
   uniqueAcross(cognitionKeys, 'cognition', '')
   if (character.portrayal !== null) {
-    uniqueAcross(
-      [...character.portrayal.drives, ...character.portrayal.principles].map(value => value.key),
-      'characters',
-      '',
-    )
+    const portrayalKeys = [...character.portrayal.drives, ...character.portrayal.principles].map(value => value.key)
+    uniqueAcross(portrayalKeys, 'characters', '')
+    uniqueAcross([...cognitionKeys, ...portrayalKeys], 'cognition', '')
   }
   const dependencies = cognitionDependencies(entry)
   const portrayalKeys = new Set(character.portrayal === null
@@ -649,6 +652,213 @@ function validateV2References(content: WorldPackCompiledContentV2): void {
   }
 }
 
+type CognitionSeedKind = 'observation' | 'claim' | 'goal' | 'relationship' | 'affect' | 'tension' | 'commitment' | 'open-loop'
+
+interface CognitionSeed {
+  readonly kind: CognitionSeedKind
+  readonly eventType: string
+  readonly key: string
+  readonly value: WorldJsonObject
+  readonly basisKeys: readonly string[]
+}
+
+const COGNITION_EVENT_TYPES: Readonly<Record<CognitionSeedKind, string>> = Object.freeze({
+  observation: 'observation.upsert',
+  claim: 'subjective-claim.upsert',
+  goal: 'character-goal.upsert',
+  relationship: 'relationship-attitude.upsert',
+  affect: 'affect-episode.upsert',
+  tension: 'inner-tension.upsert',
+  commitment: 'commitment.upsert',
+  'open-loop': 'open-loop.upsert',
+})
+
+function phase8CognitionId(pack: CompiledWorldPackV2, characterId: string, kind: CognitionSeedKind | 'portrayal', key: string): string {
+  return deterministicId(`world-pack-${kind}-id/v2`, { packHash: pack.packHash, characterId, key })
+}
+
+function phase8Source(pack: CompiledWorldPackV2, characterId: string, kind: CognitionSeedKind | 'portrayal' | 'fact' | 'document', key: string): WorldJsonObject {
+  const source = { sourceKind: `worldpack-${kind}/v2`, sourceId: deterministicId('world-pack-genesis-source/v2', {
+    packHash: pack.packHash, characterId, kind, key,
+  }) }
+  return { ...source, sourceHash: hashWorldJson('world-pack-genesis-source/v2', source) }
+}
+
+function cognitionSeeds(entry: WorldPackCharacterCognitionSourceV2): readonly CognitionSeed[] {
+  const convert = (kind: CognitionSeedKind, values: readonly WorldJsonObject[]): CognitionSeed[] => values.map(value => {
+    const { key, basisKeys, ...state } = value
+    const dependencies = [
+      ...(basisKeys as readonly string[]),
+      ...(kind === 'goal' && state.parentGoalKey !== null ? [state.parentGoalKey as string] : []),
+      ...(kind === 'tension'
+        ? (state.poles as readonly WorldJsonObject[]).flatMap(pole => pole.basisKeys as readonly string[])
+        : []),
+    ]
+    return {
+      kind,
+      eventType: COGNITION_EVENT_TYPES[kind],
+      key: key as string,
+      value: state,
+      basisKeys: [...new Set(dependencies)].sort(compareText),
+    }
+  })
+  const values = [
+    ...convert('observation', entry.observations),
+    ...convert('claim', entry.claims),
+    ...convert('goal', entry.goals),
+    ...convert('relationship', entry.relationships),
+    ...convert('affect', entry.affects),
+    ...convert('tension', entry.innerTensions),
+    ...convert('commitment', entry.commitments),
+    ...convert('open-loop', entry.openLoops),
+  ]
+  const byKey = new Map(values.map(value => [value.key, value]))
+  const remaining = new Map(values.map(value => [value.key, value.basisKeys.filter(key => byKey.has(key)).length]))
+  const dependents = new Map<string, string[]>()
+  for (const value of values) {
+    for (const basisKey of value.basisKeys) {
+      if (!byKey.has(basisKey)) continue
+      const targets = dependents.get(basisKey) ?? []
+      targets.push(value.key)
+      dependents.set(basisKey, targets)
+    }
+  }
+  const ready = [...remaining].filter(([, count]) => count === 0).map(([key]) => key).sort(compareText)
+  const ordered: CognitionSeed[] = []
+  while (ready.length > 0) {
+    const key = ready.shift()!
+    ordered.push(byKey.get(key)!)
+    for (const target of dependents.get(key) ?? []) {
+      const count = remaining.get(target)! - 1
+      remaining.set(target, count)
+      if (count === 0) {
+        ready.push(target)
+        ready.sort(compareText)
+      }
+    }
+  }
+  return ordered
+}
+
+function contentPackBindingV2(pack: CompiledWorldPackV2): ContentPackManifestBindingV2 {
+  return {
+    schemaVersion: 2,
+    packId: pack.packId,
+    packVersion: pack.packVersion,
+    packHash: pack.packHash,
+    compiler: pack.compiler,
+    pluginLocks: pack.pluginLocks,
+    vocabularyLocks: pack.vocabularyLocks,
+    registryLocks: pack.registryLocks,
+    runtimeCapabilities: {
+      publicSpeechObservationVersion: 1,
+      cognitionProjectionVersion: 1,
+      sceneDecisionVersion: 2,
+      cognitiveMemoryVersion: 2,
+      agentContextVersion: 2,
+    },
+    presentation: pack.content.presentation,
+    initialFacts: pack.content.world.initialFacts,
+    memory: pack.content.memory,
+    documents: pack.content.documents,
+    markdown: pack.content.markdown,
+  }
+}
+
+function phase8GenesisCognition(pack: CompiledWorldPackV2): readonly WorldEventDraft[] {
+  const events: WorldEventDraft[] = []
+  for (const entry of pack.content.cognition) {
+    const character = pack.content.characters.find(value => value.characterId === entry.characterId)!
+    const seeds = cognitionSeeds(entry)
+    const sourceByKey = new Map<string, WorldJsonObject>()
+    const idByKey = new Map<string, string>()
+    for (const seed of seeds) {
+      sourceByKey.set(seed.key, phase8Source(pack, entry.characterId, seed.kind, seed.key))
+      idByKey.set(seed.key, phase8CognitionId(pack, entry.characterId, seed.kind, seed.key))
+    }
+    for (const portrayal of character.portrayal === null
+      ? []
+      : [...character.portrayal.drives, ...character.portrayal.principles]) {
+      sourceByKey.set(portrayal.key, phase8Source(pack, entry.characterId, 'portrayal', portrayal.key))
+      idByKey.set(portrayal.key, phase8CognitionId(pack, entry.characterId, 'portrayal', portrayal.key))
+    }
+    for (const seed of seeds) {
+      const id = idByKey.get(seed.key)!
+      const basisRefs = seed.basisKeys.map(key => sourceByKey.get(key)!)
+      const replace = (value: unknown): unknown => typeof value === 'string' && idByKey.has(value) ? idByKey.get(value)! : value
+      const state: WorldJsonObject = seed.kind === 'goal'
+        ? {
+            ...seed.value,
+            parentGoalKey: replace(seed.value.parentGoalKey) as WorldJsonValue,
+            targetKeys: (seed.value.targetKeys as readonly WorldJsonValue[]).map(replace) as readonly WorldJsonValue[],
+            blockerKeys: (seed.value.blockerKeys as readonly WorldJsonValue[]).map(replace) as readonly WorldJsonValue[],
+          }
+        : seed.kind === 'affect'
+          ? {
+              ...seed.value,
+              cause: typeof seed.value.cause === 'object' && seed.value.cause !== null && !Array.isArray(seed.value.cause)
+                ? { ...seed.value.cause as WorldJsonObject, key: replace((seed.value.cause as WorldJsonObject).key) as WorldJsonValue }
+                : seed.value.cause!,
+              targetKey: replace(seed.value.targetKey) as WorldJsonValue,
+            }
+          : seed.kind === 'tension'
+            ? {
+                ...seed.value,
+                poles: (seed.value.poles as readonly WorldJsonObject[]).map(pole => {
+                  const { basisKeys, ...poleState } = pole
+                  return {
+                    ...poleState,
+                    key: deterministicId('world-pack-tension-pole-id/v2', {
+                      packHash: pack.packHash, characterId: entry.characterId, tensionId: id, key: pole.key as string,
+                    }),
+                    basisRefs: (basisKeys as readonly string[]).map(key => sourceByKey.get(key)!),
+                  }
+                }),
+              }
+          : seed.value
+      const value = { ...state, basisRefs, source: sourceByKey.get(seed.key)! }
+      events.push(seed.kind === 'observation'
+        ? { eventType: seed.eventType, eventVersion: 1, data: { id, value: { ...value, observerId: entry.characterId } } }
+        : { eventType: seed.eventType, eventVersion: 1, data: { id, characterId: entry.characterId, value } })
+    }
+  }
+  for (const fact of pack.content.world.initialFacts) {
+    for (const characterId of fact.initialAudience) {
+      const id = deterministicId('world-pack-initial-fact-claim/v2', { packHash: pack.packHash, factId: fact.factId, characterId })
+      events.push({
+        eventType: 'subjective-claim.upsert', eventVersion: 1,
+        data: {
+          id, characterId,
+          value: {
+            proposition: fact.proposition, stance: 'believed', confidencePermille: 1000, saliencePermille: 500,
+            awareness: 'conscious', status: 'active', basisRefs: [],
+            source: phase8Source(pack, characterId, 'fact', fact.factId),
+          },
+        },
+      })
+    }
+  }
+  const markdown = new Map(pack.content.markdown.map(value => [value.path, value]))
+  for (const document of pack.content.documents.filter(value => value.usage === 'memory_seed')) {
+    for (const characterId of document.characterIds) {
+      const id = deterministicId('world-pack-document-observation/v2', { packHash: pack.packHash, documentId: document.documentId, characterId })
+      events.push({
+        eventType: 'observation.upsert', eventVersion: 1,
+        data: {
+          id,
+          value: {
+            observerId: characterId,
+            content: markdown.get(document.contentRef)!.text,
+            epistemicKind: 'direct_observation', saliencePermille: 500, basisRefs: [],
+            source: phase8Source(pack, characterId, 'document', document.documentId),
+          },
+        },
+      })
+    }
+  }
+  return events
+}
+
 /** Deterministic compiler for explicit Phase 8 sources. It does not activate or upcast v1 Packs. */
 export class WorldPackCompilerV2 {
   async compile(
@@ -762,6 +972,84 @@ export class WorldPackCompilerV2 {
       acceptanceAssertions,
     }
     return { ...unsigned, packHash: packHashV2(unsigned) }
+  }
+
+  /** Bind an explicit compiled v2 Pack to a new Manifest V4 world and deterministic Tick 0 Genesis. */
+  adaptToWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
+    const pack = verifyCompiledWorldPackV2(packInput)
+    const player = pack.content.playerSlots[0]!
+    const characters: readonly ContentPackCharacterSpecV2[] = pack.content.characters.map(character => ({
+      characterId: character.characterId,
+      name: character.displayName,
+      locationId: character.initialLocationId,
+      controllerClass: character.controllerClass,
+      pronouns: character.pronouns,
+      lifecycle: character.lifecycle,
+      portrayal: character.portrayal,
+    }))
+    const scenes: readonly SceneSpecV2[] = pack.content.scenes.map(scene => ({ ...scene }))
+    const contentPack = contentPackBindingV2(pack)
+    const normalizedRuntime = {
+      schemaVersion: 4 as const,
+      address: options.address,
+      metadata: { title: pack.content.world.title, description: pack.content.world.description },
+      timeMode: 'TURN_DRIVEN' as const,
+      roundQueueLimit: pack.content.world.roundQueueLimit,
+      runtimePolicy: { npcInitialAvailability: 'ready' as const, playerInitialAvailability: 'ready' as const },
+      rulebook: pack.content.world.coreProfiles.rulebook,
+      registries: phase8ManifestRegistries(),
+      locations: pack.content.locations,
+      entities: pack.content.entities,
+      characters,
+      scenes,
+      goals: [], claims: [], observations: [],
+      playerBindings: [{ principalId: options.principalId, characterId: player.characterId, sessionId: options.sessionId }],
+      plugins: [
+        pack.content.world.coreProfiles.sceneDecision,
+        pack.content.world.coreProfiles.agentContext,
+        { pluginId: pack.content.world.coreProfiles.presentation.profileId, version: pack.content.world.coreProfiles.presentation.version },
+      ],
+      contentPack,
+    }
+    const specHash = hashWorldJson('world-pack-runtime-spec/v2', normalizedRuntime)
+    const genesisPlanHash = hashWorldJson('world-pack-genesis-semantic-plan/v2', {
+      address: options.address,
+      packHash: pack.packHash,
+      characters,
+      scenes,
+      cognition: pack.content.cognition,
+      initialFacts: pack.content.world.initialFacts,
+      memorySeedDocuments: pack.content.documents.filter(value => value.usage === 'memory_seed'),
+    })
+    const manifest: CompiledWorldManifestV4 = {
+      ...normalizedRuntime,
+      specHash,
+      genesisPlanHash,
+      canonicalVersion: 'world-json/v1',
+      hashVersion: 'sha256/v1',
+    }
+    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+    const genesisEvents: readonly WorldEventDraft[] = [
+      { eventType: 'world.created', eventVersion: 1, data: { specHash } },
+      { eventType: 'world.manifest-locked', eventVersion: 1, data: { manifestHash, genesisPlanHash } },
+      ...pack.content.locations.map(value => ({ eventType: 'location.upsert', eventVersion: 1, data: value })),
+      ...pack.content.entities.map(value => ({ eventType: 'entity.upsert', eventVersion: 1, data: value })),
+      ...characters.flatMap(value => [
+        { eventType: 'character.created', eventVersion: 1, data: { ...value, lifecycleState: 'active' } },
+        ...(value.lifecycle === 'active' ? [] : [{
+          eventType: 'character.lifecycle-changed', eventVersion: 1,
+          data: { characterId: value.characterId, lifecycleState: value.lifecycle, transition: 'world-pack-genesis/v2' },
+        }]),
+      ]),
+      ...scenes.map(value => ({
+        eventType: 'scene.upsert', eventVersion: 1,
+        data: { sceneId: value.sceneId, value: { lifecycle: value.lifecycle, locationId: value.locationId, participantIds: value.participantIds } },
+      })),
+      ...phase8GenesisCognition(pack),
+      { eventType: 'player.binding.upsert', eventVersion: 1, data: normalizedRuntime.playerBindings[0]! },
+      { eventType: 'world.lifecycle-changed', eventVersion: 1, data: { lifecycleState: 'active' } },
+    ]
+    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
   }
 }
 

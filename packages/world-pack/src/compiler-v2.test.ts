@@ -2,7 +2,15 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { canonicalizeWorldJson, PHASE8_REGISTRY_LOCKS, PHASE8_VOCABULARY_LOCKS, type WorldJsonValue } from '@harness-world/contracts'
+import {
+  brandId,
+  canonicalizeWorldJson,
+  PHASE8_REGISTRY_LOCKS,
+  PHASE8_VOCABULARY_LOCKS,
+  type WorldJsonValue,
+} from '@harness-world/contracts'
+import { runtimeManifestFromStored, WorldBootstrap } from '@harness-world/kernel'
+import { WorldStore } from '@harness-world/store-sqlite'
 import {
   WorldPackCompilerV2,
   canonicalWorldPackBytesV2,
@@ -186,6 +194,96 @@ describe('WorldPackCompilerV2', () => {
     expect(canonicalWorldPackBytesV2(first)).toEqual(canonicalizeWorldJson(first))
   })
 
+  it('adapts compiled v2 content into a restart-safe Manifest V4 and deterministic Genesis', async () => {
+    const root = await temporaryRoot(); await writePack(root)
+    const compiler = new WorldPackCompilerV2()
+    const pack = await compiler.compile(root)
+    const options = {
+      address: {
+        tenantId: brandId('tenant:phase8', 'TenantId'),
+        worldId: brandId('world:rain-road', 'WorldId'),
+        branchId: brandId('branch:main', 'BranchId'),
+      },
+      principalId: 'principal:player',
+      sessionId: brandId('session:player', 'SessionId'),
+    }
+    const first = compiler.adaptToWorldSpec(pack, options)
+    const second = compiler.adaptToWorldSpec(structuredClone(pack), options)
+    expect(second).toEqual(first)
+    expect(first.manifest).toMatchObject({
+      schemaVersion: 4,
+      runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
+      contentPack: {
+        schemaVersion: 2,
+        packHash: pack.packHash,
+        vocabularyLocks: PHASE8_VOCABULARY_LOCKS,
+        registryLocks: PHASE8_REGISTRY_LOCKS,
+        runtimeCapabilities: {
+          cognitionProjectionVersion: 1, sceneDecisionVersion: 2, cognitiveMemoryVersion: 2, agentContextVersion: 2,
+        },
+      },
+    })
+    expect(runtimeManifestFromStored(first.manifest)).toBe(first.manifest)
+    expect(first.genesisEvents.map(value => value.eventType)).toEqual(expect.arrayContaining([
+      'subjective-claim.upsert', 'character-goal.upsert', 'relationship-attitude.upsert',
+      'affect-episode.upsert', 'inner-tension.upsert', 'commitment.upsert', 'open-loop.upsert',
+    ]))
+    const aliceEvents = first.genesisEvents.filter(event => {
+      const data = event.data as Record<string, unknown>
+      return data.characterId === 'character:alice'
+        || (typeof data.value === 'object' && data.value !== null
+          && (data.value as Record<string, unknown>).observerId === 'character:alice')
+    })
+    expect(JSON.stringify(aliceEvents)).not.toContain('claim:irresponsible')
+    expect(first.manifestHash).toBe('sha256:87f543e8f059e1b59b7c427cfc159b68a3433130c939101e8df21ab7492c6ac6')
+    expect(first.genesisHash).toBe('sha256:39fcdb5e99cfefef686e86f39c05c4d086bf064aedb8daac2316bc6bdefd6aa3')
+
+    const store = new WorldStore(join(root, 'phase8.sqlite'))
+    const bootstrap = new WorldBootstrap(store)
+    const activated = bootstrap.activate(first)
+    expect(bootstrap.activate(first)).toEqual({ ...activated, status: 'already_active' })
+    store.close()
+    const restarted = new WorldStore(join(root, 'phase8.sqlite'))
+    expect(runtimeManifestFromStored(restarted.readManifest(options.address)!.manifest)).toMatchObject({ schemaVersion: 4 })
+    expect(restarted.verifyBranchIntegrity(options.address).headSeq).toBe(first.genesisEvents.length)
+    restarted.close()
+  })
+
+  it('materializes memory-seed Documents as observations and non-active lifecycle transitions', async () => {
+    const root = await temporaryRoot(); await writePack(root)
+    const documents = structuredClone(sourceDocuments['documents.json']) as Record<string, unknown>
+    records(documents, 'documents').push({
+      documentId: 'document:memory', contentRef: 'text/alice.md', usage: 'memory_seed',
+      audience: 'character_private', characterIds: ['character:alice'],
+    })
+    await writeJson(root, 'documents.json', documents as WorldJsonValue)
+    const characters = structuredClone(sourceDocuments['characters.json']) as Record<string, unknown>
+    records(characters, 'characters')[2]!.lifecycle = 'departed'
+    await writeJson(root, 'characters.json', characters as WorldJsonValue)
+    const cognition = structuredClone(sourceDocuments['cognition.json']) as Record<string, unknown>
+    records(records(cognition, 'characters')[0]!, 'affects')[0]!.cause = 'the delayed departure'
+    await writeJson(root, 'cognition.json', cognition as WorldJsonValue)
+    const compiler = new WorldPackCompilerV2()
+    const pack = await compiler.compile(root)
+    const compiled = compiler.adaptToWorldSpec(pack, {
+      address: {
+        tenantId: brandId('tenant:phase8', 'TenantId'), worldId: brandId('world:documents', 'WorldId'),
+        branchId: brandId('branch:main', 'BranchId'),
+      },
+      principalId: 'principal:player', sessionId: brandId('session:player', 'SessionId'),
+    })
+    expect(compiled.genesisEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        eventType: 'character.lifecycle-changed',
+        data: expect.objectContaining({ characterId: 'character:bob', lifecycleState: 'departed' }),
+      }),
+      expect.objectContaining({
+        eventType: 'observation.upsert',
+        data: expect.objectContaining({ value: expect.objectContaining({ observerId: 'character:alice', content: 'Alice keeps the group moving.\n' }) }),
+      }),
+    ]))
+  })
+
   it('rejects altered hashes, registries, compiler identity and compiled references', async () => {
     const root = await temporaryRoot(); await writePack(root)
     const pack = await new WorldPackCompilerV2().compile(root)
@@ -289,6 +387,10 @@ describe('WorldPackCompilerV2', () => {
     await compileChanged('characters.json', value => {
       const portrayal = records(value, 'characters')[1]!.portrayal as Record<string, unknown>
       portrayal.principles = [{ key: 'drive:arrive', text: 'Duplicate across portrayal kinds' }]
+    }, 'PACK_DUPLICATE_ID')
+    await compileChanged('characters.json', value => {
+      const portrayal = records(value, 'characters')[1]!.portrayal as Record<string, unknown>
+      portrayal.principles = [{ key: 'claim:irresponsible', text: 'Ambiguous with cognition' }]
     }, 'PACK_DUPLICATE_ID')
   })
 
