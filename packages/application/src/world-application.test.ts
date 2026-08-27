@@ -12,7 +12,7 @@ import {
   type ProposalContext,
   type WorldAddress,
 } from '@harness-world/contracts'
-import { RulebookRegistry, WorldSpecCompiler } from '@harness-world/kernel'
+import { phase8ManifestRegistries, RulebookRegistry, WorldSpecCompiler, type CompiledWorldSpec } from '@harness-world/kernel'
 import {
   BranchAdministration,
   BranchQuarantineService,
@@ -56,6 +56,44 @@ function compiled() {
   })
 }
 
+function overlappingSceneWorld(): CompiledWorldSpec {
+  const base = new WorldSpecCompiler().compile({
+    schemaVersion: 2,
+    address: { tenantId: 'tenant:application', worldId: 'world:scene-overlap', branchId: 'branch:main' },
+    metadata: { title: 'Overlap', description: '' }, timeMode: 'TURN_DRIVEN', roundQueueLimit: 8,
+    runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
+    rulebook: { rulebookId: 'builtin:speak-move', version: 2 },
+    locations: [{ locationId: 'location:a', name: 'Alpha' }], entities: [],
+    characters: [{ characterId: 'character:player', name: 'Player', locationId: 'location:a' }],
+    scenes: [
+      { sceneId: 'scene:a', participantIds: ['character:player'] },
+      { sceneId: 'scene:b', participantIds: ['character:player'] },
+    ],
+    goals: [], claims: [], observations: [],
+    playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
+    plugins: [],
+  })
+  const manifest = {
+    ...base.manifest,
+    registries: phase8ManifestRegistries(),
+    plugins: [{ pluginId: 'builtin:scene-decision', version: '2.0.0' }],
+    contentPack: { runtimeCapabilities: { publicSpeechObservationVersion: 1, sceneDecisionVersion: 2 } },
+  } as unknown as CompiledWorldSpec['manifest']
+  const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+  const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.manifest-locked'
+    ? { ...event, data: { ...event.data as Record<string, unknown>, manifestHash } }
+    : event.eventType === 'scene.upsert'
+    ? {
+        ...event,
+        data: {
+          ...(event.data as Record<string, unknown>),
+          value: { lifecycle: 'active', locationId: 'location:a', participantIds: ['character:player'] },
+        },
+      }
+    : event)
+  return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
+}
+
 function participants(calls: { value: number }): (address: WorldAddress) => readonly RoundParticipant[] {
   const provider = (participantId: string, text: string): AgentProvider => ({
     async propose(context: ProposalContext) {
@@ -96,6 +134,21 @@ function request(idempotencyKey: string, text = idempotencyKey) {
 }
 
 describe('WorldApplication', () => {
+  it('quarantines a Scene Decision v2 membership overlap before any Round can commit', async () => {
+    const persistence = paths()
+    const world = overlappingSceneWorld()
+    const application = new WorldApplication(persistence)
+    application.activate(world)
+    await expect(application.submit(world.manifest.address, request('scene-overlap'))).rejects.toMatchObject({
+      envelope: { errorCode: 'SCENE_MEMBERSHIP_INVARIANT' },
+    })
+    expect(application.quarantineExplain(world.manifest.address)).toMatchObject({
+      runtimePhase: 'quarantined',
+      failures: [expect.objectContaining({ error: expect.objectContaining({ errorCode: 'SCENE_MEMBERSHIP_INVARIANT' }) })],
+    })
+    await application.close()
+  })
+
   it('validates Rulebook availability before durable acceptance and rejects invalid runtime plugin composition at activation', async () => {
     const persistence = paths()
     const world = compiled()
@@ -119,6 +172,33 @@ describe('WorldApplication', () => {
     }
     const validator = new WorldApplication({ ...paths(), memoryPath: join(tmpdir(), 'unused-memory.sqlite') })
     expect(() => validator.activate(invalidPlugins)).toThrow('requires Scene decision')
+    const phase8Capability = { runtimeCapabilities: { sceneDecisionVersion: 2 } }
+    const mismatchedPhase8 = {
+      ...world,
+      manifest: {
+        ...world.manifest,
+        plugins: [{ pluginId: 'builtin:scene-decision', version: '1.0.0' }],
+        contentPack: phase8Capability,
+      },
+    }
+    expect(() => validator.activate(mismatchedPhase8 as never)).toThrow('does not match runtime capability')
+    const mismatchedLegacy = {
+      ...world,
+      manifest: {
+        ...world.manifest,
+        plugins: [{ pluginId: 'builtin:scene-decision', version: '2.0.0' }],
+      },
+    }
+    expect(() => validator.activate(mismatchedLegacy as never)).toThrow('does not match runtime capability')
+    const phase8PolicyAccepted = {
+      ...world,
+      manifest: {
+        ...world.manifest,
+        plugins: [{ pluginId: 'builtin:scene-decision', version: '2.0.0' }],
+        contentPack: phase8Capability,
+      },
+    }
+    expect(() => validator.activate(phase8PolicyAccepted as never)).toThrow('manifestHash does not match manifest')
     await validator.close()
   })
 

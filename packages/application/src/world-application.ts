@@ -135,15 +135,22 @@ function validateApplicationManifest(
   address: WorldAddress,
   correlationId: string,
   memoryPath: string | undefined,
-): { readonly sceneEnabled: boolean; readonly contextEnabled: boolean } {
+): { readonly sceneVersion?: 1 | 2; readonly contextEnabled: boolean } {
   const scenePolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:scene-decision')
   const contextPolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:agent-context')
-  const unsupported = scenePolicy !== undefined && scenePolicy.version !== '1.0.0'
+  const requiredSceneVersion = manifest.contentPack?.runtimeCapabilities.sceneDecisionVersion === 2 ? 2 : 1
+  const sceneVersion = scenePolicy === undefined ? undefined
+    : scenePolicy.version === '1.0.0' ? 1
+    : scenePolicy.version === '2.0.0' ? 2
+    : undefined
+  const unsupported = scenePolicy !== undefined && sceneVersion === undefined
     ? `unsupported Scene decision policy ${scenePolicy.version}`
+    : scenePolicy !== undefined && sceneVersion !== requiredSceneVersion
+    ? `Scene decision policy ${scenePolicy.version} does not match runtime capability version ${requiredSceneVersion}`
     : contextPolicy !== undefined && contextPolicy.version !== '2.0.0'
     ? `unsupported Agent Context policy ${contextPolicy.version}`
     : contextPolicy !== undefined && scenePolicy === undefined
-    ? 'Agent Context v2 requires Scene decision v1'
+    ? 'Agent Context v2 requires Scene decision policy selection'
     : contextPolicy !== undefined && memoryPath === undefined
     ? 'memoryPath must be configured for Agent Context v2'
     : undefined
@@ -153,7 +160,7 @@ function validateApplicationManifest(
       correlationId, address,
     })
   }
-  return { sceneEnabled: scenePolicy !== undefined, contextEnabled: contextPolicy !== undefined }
+  return { ...(sceneVersion === undefined ? {} : { sceneVersion }), contextEnabled: contextPolicy !== undefined }
 }
 
 /** Real branch-owned Store aggregate; all handles close with its Cordis Fiber. */
@@ -286,7 +293,9 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         participants: [...agents.participants, ...director.participants],
         modelBudgetTokens: this.options.modelBudgetTokens ?? 0,
         rulebooks: this.options.rulebooks,
-        ...(!policies.sceneEnabled ? {} : { sceneDecision: new SceneDecisionService(store.store, store.availability) }),
+        ...(policies.sceneVersion === undefined ? {} : {
+          sceneDecision: new SceneDecisionService(store.store, store.availability, policies.sceneVersion),
+        }),
         ...(cognitiveMemory === undefined ? {} : { cognitiveMemory }),
         runtimeMetrics: this.options.runtimeMetrics,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),

@@ -10,7 +10,8 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { runtimeManifestFromStored, WorldBootstrap } from '@harness-world/kernel'
-import { CognitionProjectionRebuilder, WorldStore } from '@harness-world/store-sqlite'
+import { SceneDecisionService, WorldApplication } from '@harness-world/application'
+import { CharacterRuntimeAvailabilityService, CognitionProjectionRebuilder, WorldStore } from '@harness-world/store-sqlite'
 import {
   WorldPackCompilerV2,
   canonicalWorldPackBytesV2,
@@ -235,8 +236,8 @@ describe('WorldPackCompilerV2', () => {
           && (data.value as Record<string, unknown>).observerId === 'character:alice')
     })
     expect(JSON.stringify(aliceEvents)).not.toContain('claim:irresponsible')
-    expect(first.manifestHash).toBe('sha256:87f543e8f059e1b59b7c427cfc159b68a3433130c939101e8df21ab7492c6ac6')
-    expect(first.genesisHash).toBe('sha256:39fcdb5e99cfefef686e86f39c05c4d086bf064aedb8daac2316bc6bdefd6aa3')
+    expect(first.manifestHash).toBe('sha256:c1b69474620182da8ec2c5a18f5a07de68014c2ea1eb61477d79fcbc800d7baf')
+    expect(first.genesisHash).toBe('sha256:d3ef8996d3df35791c68de01fa01f44c598cd67de114495a1fc8c564497c40a1')
 
     const store = new WorldStore(join(root, 'phase8.sqlite'))
     const bootstrap = new WorldBootstrap(store)
@@ -261,11 +262,50 @@ describe('WorldPackCompilerV2', () => {
     expect(cognition.rebuildCharacterAt(childAddress, brandId('character:alice', 'CharacterId'), activated.headSeq).bundleHash)
       .not.toBe(alice.bundleHash)
     expect(runtimeManifestFromStored(store.readManifest(childAddress)!.manifest)).toMatchObject({ schemaVersion: 4 })
+    const availability = new CharacterRuntimeAvailabilityService(join(root, 'phase8.sqlite'))
+    availability.initialize(options.address, first.manifest.characters.map(character => ({
+      characterId: character.characterId, state: 'ready' as const,
+    })))
+    const scenes = new SceneDecisionService(store, availability, 2)
+    expect(scenes.decide(options.address, brandId('character:player', 'CharacterId'), activated.headSeq).sceneId).toBe('scene:road')
+    const head = store.head(options.address)
+    await store.commitRound({
+      address: options.address,
+      transactionId: brandId('transaction:scene-future', 'TransactionId'),
+      roundId: brandId('round:scene-future', 'InteractionRoundId'),
+      expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
+      events: [{
+        eventType: 'scene.member_left', eventVersion: 1,
+        data: { sceneId: 'scene:road', characterId: 'character:player' },
+      }],
+      outbox: [], correlationId: 'scene-future',
+    })
+    expect(scenes.decide(options.address, brandId('character:player', 'CharacterId'), store.head(options.address).headSeq).sceneId).toBeNull()
+    expect(scenes.decide(childAddress, brandId('character:player', 'CharacterId'), activated.headSeq).sceneId).toBe('scene:road')
+    availability.close()
     store.close()
     const restarted = new WorldStore(join(root, 'phase8.sqlite'))
     expect(runtimeManifestFromStored(restarted.readManifest(options.address)!.manifest)).toMatchObject({ schemaVersion: 4 })
-    expect(restarted.verifyBranchIntegrity(options.address).headSeq).toBe(first.genesisEvents.length)
+    expect(restarted.verifyBranchIntegrity(options.address).headSeq).toBe(first.genesisEvents.length + 1)
+    const restartedAvailability = new CharacterRuntimeAvailabilityService(join(root, 'phase8.sqlite'))
+    const restartedScenes = new SceneDecisionService(restarted, restartedAvailability, 2)
+    expect(restartedScenes.decide(options.address, brandId('character:player', 'CharacterId'), first.genesisEvents.length + 1).sceneId).toBeNull()
+    expect(restartedScenes.decide(childAddress, brandId('character:player', 'CharacterId'), activated.headSeq).sceneId).toBe('scene:road')
+    restartedAvailability.close()
     restarted.close()
+
+    const application = new WorldApplication({
+      worldPath: join(root, 'application-world.sqlite'),
+      sessionPath: join(root, 'application-session.sqlite'),
+      memoryPath: join(root, 'application-memory.sqlite'),
+    })
+    application.activate(first)
+    await expect(application.submit(options.address, {
+      idempotencyKey: 'phase8-scene-mount', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'The road remains open.' } },
+      correlationId: 'phase8-scene-mount',
+    })).resolves.toMatchObject({ status: 'accepted', tick: 1 })
+    await application.close()
   })
 
   it('materializes memory-seed Documents as observations and non-active lifecycle transitions', async () => {

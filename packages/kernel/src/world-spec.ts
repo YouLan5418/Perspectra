@@ -346,6 +346,7 @@ export function phase8ManifestRegistries(): ManifestRegistries {
       ...core.events.definitions.map(value => value.name),
       'affect-episode.upsert', 'character-goal.upsert', 'character.reflect', 'commitment.upsert',
       'inner-tension.upsert', 'open-loop.upsert', 'relationship-attitude.upsert', 'subjective-claim.upsert',
+      'scene.activated', 'scene.closed', 'scene.created', 'scene.member_joined', 'scene.member_left',
     ]),
     actions: core.actions,
     projections: registry('projection', [

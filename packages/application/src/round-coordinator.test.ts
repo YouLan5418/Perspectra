@@ -16,6 +16,8 @@ import {
 } from '@harness-world/contracts'
 import {
   currentEntityState,
+  phase8ManifestRegistries,
+  RulebookRegistry,
   WorldBootstrap,
   WorldSpecCompiler,
   type CompiledWorldSpec,
@@ -30,6 +32,7 @@ import {
   type RoundCoordinatorOptions,
   type RoundParticipant,
 } from './round-coordinator.ts'
+import { SceneDecisionService } from './scene-decision.ts'
 
 const directories: string[] = []
 
@@ -93,6 +96,54 @@ function entityWorld(): CompiledWorldSpec {
     playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
     plugins: [],
   })
+}
+
+function phase8SceneWorld(): CompiledWorldSpec {
+  const base = new WorldSpecCompiler().compile({
+    schemaVersion: 2,
+    address: { tenantId: 'tenant:coordinator', worldId: 'world:scene-v2', branchId: 'branch:main' },
+    metadata: { title: 'Scene v2', description: '' }, timeMode: 'TURN_DRIVEN', roundQueueLimit: 8,
+    runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
+    rulebook: { rulebookId: 'builtin:speak-move', version: 2 },
+    locations: [{ locationId: 'location:a', name: 'Alpha' }], entities: [],
+    characters: [
+      { characterId: 'character:player', name: 'Player', locationId: 'location:a' },
+      { characterId: 'character:npc', name: 'NPC', locationId: 'location:a' },
+      { characterId: 'character:witness', name: 'Witness', locationId: 'location:a' },
+      { characterId: 'character:other', name: 'Other', locationId: 'location:a' },
+    ],
+    scenes: [{
+      sceneId: 'scene:a',
+      participantIds: ['character:player', 'character:npc', 'character:witness', 'character:other'],
+    }],
+    goals: [], claims: [], observations: [],
+    playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
+    plugins: [],
+  })
+  const manifest = {
+    ...base.manifest,
+    registries: phase8ManifestRegistries(),
+    contentPack: { runtimeCapabilities: { publicSpeechObservationVersion: 1 } },
+  } as unknown as CompiledWorldSpec['manifest']
+  const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+  const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.manifest-locked'
+    ? { ...event, data: { ...event.data as Record<string, WorldJsonValue>, manifestHash } }
+    : event.eventType === 'scene.upsert'
+    ? {
+        ...event,
+        data: {
+          sceneId: 'scene:a',
+          value: {
+            lifecycle: 'active', locationId: 'location:a',
+            participantIds: ['character:player', 'character:npc', 'character:witness', 'character:other'],
+          },
+        },
+      }
+    : event)
+  return {
+    manifest, manifestHash, genesisEvents,
+    genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
+  }
 }
 
 function lane(compiled: CompiledWorldSpec): RoundExecutionLane {
@@ -258,6 +309,60 @@ async function installCommittedRecoveryFixture(
 }
 
 describe('RoundCoordinator', () => {
+  it('freezes Scene v2 participants but recomputes full and redacted observations at each action prefix', async () => {
+    const path = database('scene-v2.sqlite')
+    const compiled = phase8SceneWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const registry = new RulebookRegistry()
+    registry.register('builtin:speak-move', 2, {
+      resolve(context) {
+        const player = context.characterId === 'character:player'
+        return {
+          status: 'accepted',
+          events: [
+            { eventType: 'character.speak', eventVersion: 1, data: { characterId: context.characterId, text: player ? 'leave now' : 'private reply' } },
+            ...(player ? [{
+              eventType: 'scene.member_left', eventVersion: 1,
+              data: { sceneId: 'scene:a', characterId: 'character:witness' },
+            }] : []),
+          ],
+          ...(player ? {} : { observationScope: { scope: 'private' as const, recipientIds: ['character:player'] } }),
+        }
+      },
+      affordances: () => [{ actionType: 'speak', actionVersion: 1 }],
+    })
+    const configured = options(path, compiled, [
+      participant('agent:npc', 'agent', 1, provider(context => actionProposal(
+        'agent:npc', `action:npc:${context.roundId}`, 'speak', { text: 'private reply' },
+      ))),
+    ])
+    const coordinator = new RoundCoordinator({
+      ...configured,
+      rulebooks: registry,
+      sceneDecision: new SceneDecisionService(configured.store, configured.availability, 2),
+    })
+    await expect(coordinator.submit({
+      idempotencyKey: 'scene-prefix', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'leave now' } }, correlationId: 'scene-prefix',
+    })).resolves.toMatchObject({ status: 'accepted' })
+    const observations = configured.store.readEvents(compiled.manifest.address)
+      .filter(event => event.eventType === 'observation.upsert')
+      .map(event => (event.data as Record<string, WorldJsonValue>).value as Record<string, WorldJsonValue>)
+    const forCharacter = (characterId: string) => observations.filter(value => value.observerId === characterId)
+    close(configured, coordinator)
+    expect(forCharacter('character:witness')).toHaveLength(1)
+    expect(forCharacter('character:player')).toHaveLength(2)
+    expect(forCharacter('character:npc')).toHaveLength(2)
+    expect(forCharacter('character:other')).toHaveLength(2)
+    expect(forCharacter('character:other')[1]).toMatchObject({
+      content: { actionType: 'private_interaction', contentVisibility: 'occurrence_only' },
+    })
+    expect(JSON.stringify(forCharacter('character:other')[1])).not.toContain('private reply')
+    expect(JSON.stringify(forCharacter('character:player')[1])).toContain('private reply')
+  })
+
   it('reports a durably claimed Round as processing without executing it again', () => {
     const compiled = world()
     const path = database('accepted-processing.sqlite')

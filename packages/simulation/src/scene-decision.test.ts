@@ -30,6 +30,28 @@ function fixture() {
   return { compiled, store, availability, service }
 }
 
+function phase8Events(): readonly RulebookEvent[] {
+  return [
+    { eventType: 'character.created', data: { characterId: MYSTERY_DEMO_IDS.player, locationId: 'location:road' } },
+    { eventType: 'character.created', data: { characterId: MYSTERY_DEMO_IDS.bob, locationId: 'location:road' } },
+    { eventType: 'character.created', data: { characterId: MYSTERY_DEMO_IDS.detective, locationId: 'location:road' } },
+    {
+      eventType: 'scene.upsert',
+      data: {
+        sceneId: 'scene:road',
+        value: {
+          lifecycle: 'active', locationId: 'location:road',
+          participantIds: [MYSTERY_DEMO_IDS.player, MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective],
+        },
+      },
+    },
+    {
+      eventType: 'scene.upsert',
+      data: { sceneId: 'scene:station', value: { lifecycle: 'created', locationId: 'location:station', participantIds: [] } },
+    },
+  ]
+}
+
 describe('SceneDecisionService', () => {
   it('selects one active Scene and filters lifecycle, location, visibility, and availability', () => {
     const { compiled, store, availability, service } = fixture()
@@ -72,12 +94,123 @@ describe('SceneDecisionService', () => {
     }])).toThrow('exactly one')
     for (const event of [
       { eventType: 'scene.upsert', data: { value: { participantIds: [] } } },
+      { eventType: 'scene.upsert', data: { sceneId: 'scene:missing-value' } },
       { eventType: 'scene.upsert', data: { sceneId: 'scene:bad', value: { participantIds: [1] } } },
       { eventType: 'visibility.upsert', data: { value: {} } },
       { eventType: 'visibility.upsert', data: { id: 'visibility:bad', value: { observerId: 1, sceneId: 'scene:x', visible: 'yes' } } },
       { eventType: 'visibility.remove', data: {} },
     ] as readonly { readonly eventType: string; readonly data: WorldJsonValue }[]) {
       expect(() => decide([...base, event])).toThrow(TypeError)
+    }
+    availability.close()
+    store.close()
+  })
+
+  it('rebuilds Scene Decision v2 lifecycle, zero-focal state, and same-prefix membership changes', () => {
+    const { compiled, store, availability } = fixture()
+    const service = new SceneDecisionService(store, availability, 2)
+    const player = brandId(MYSTERY_DEMO_IDS.player, 'CharacterId')
+    const bob = brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId')
+    const base = phase8Events()
+    expect(service.decideFromEvents(compiled.manifest.address, player, base, 5)).toMatchObject({
+      schemaVersion: 'scene-decision/v2', sceneId: 'scene:road',
+      memberIds: [MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective, MYSTERY_DEMO_IDS.player],
+      observerIds: [MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective, MYSTERY_DEMO_IDS.player],
+      schedulableCharacterIds: [MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective],
+      directorEligible: true, asOfSeq: 5, decisionHash: expect.stringMatching(/^sha256:/),
+    })
+
+    const transferred: RulebookEvent[] = [
+      ...base,
+      { eventType: 'scene.member_left', data: { sceneId: 'scene:road', characterId: MYSTERY_DEMO_IDS.player } },
+      { eventType: 'scene.member_left', data: { sceneId: 'scene:road', characterId: MYSTERY_DEMO_IDS.bob } },
+      { eventType: 'scene.member_joined', data: { sceneId: 'scene:station', characterId: MYSTERY_DEMO_IDS.bob } },
+      { eventType: 'character.moved', data: { characterId: MYSTERY_DEMO_IDS.bob, toLocationId: 'location:station' } },
+      { eventType: 'scene.activated', data: { sceneId: 'scene:station' } },
+    ]
+    expect(service.decideFromEvents(compiled.manifest.address, player, transferred, 10)).toMatchObject({
+      sceneId: null, memberIds: [], observerIds: [], schedulableCharacterIds: [], directorEligible: false,
+    })
+    expect(service.decideFromEvents(compiled.manifest.address, bob, transferred, 10)).toMatchObject({
+      sceneId: 'scene:station', memberIds: [MYSTERY_DEMO_IDS.bob], observerIds: [MYSTERY_DEMO_IDS.bob],
+    })
+    const completedLifecycle: RulebookEvent[] = [
+      ...base,
+      { eventType: 'scene.created', data: { sceneId: 'scene:temporary', locationId: null } },
+      { eventType: 'scene.member_joined', data: { sceneId: 'scene:temporary', characterId: 'character:temporary' } },
+      { eventType: 'scene.activated', data: { sceneId: 'scene:temporary' } },
+      { eventType: 'scene.closed', data: { sceneId: 'scene:temporary' } },
+    ]
+    expect(service.decideFromEvents(compiled.manifest.address, player, completedLifecycle, 9).sceneId).toBe('scene:road')
+
+    const overlap = [...base, {
+      eventType: 'scene.upsert',
+      data: { sceneId: 'scene:overlap', value: { lifecycle: 'active', locationId: null, participantIds: [MYSTERY_DEMO_IDS.bob] } },
+    }]
+    expect(() => service.decideFromEvents(compiled.manifest.address, player, overlap, 6)).toThrowError(
+      expect.objectContaining<Partial<WorldError>>({ envelope: expect.objectContaining({ errorCode: 'SCENE_MEMBERSHIP_INVARIANT' }) }),
+    )
+    for (const event of [
+      { eventType: 'scene.remove', data: { sceneId: 'scene:road' } },
+      { eventType: 'scene.closed', data: { sceneId: 'scene:station' } },
+      { eventType: 'scene.activated', data: { sceneId: 'scene:road' } },
+      { eventType: 'scene.member_joined', data: { sceneId: 'scene:road', characterId: MYSTERY_DEMO_IDS.player } },
+      { eventType: 'scene.member_left', data: { sceneId: 'scene:road', characterId: 'character:absent' } },
+      { eventType: 'scene.member_left', data: { sceneId: 'scene:road' } },
+      { eventType: 'scene.created', data: { sceneId: 'scene:road', locationId: null } },
+      { eventType: 'scene.created', data: { sceneId: 'scene:new', locationId: 1 } },
+      { eventType: 'scene.activated', data: { sceneId: 'scene:absent' } },
+      { eventType: 'scene.upsert', data: { sceneId: 'scene:bad', value: { participantIds: [] } } },
+      { eventType: 'scene.upsert', data: { sceneId: 'scene:bad', value: { lifecycle: 'active', locationId: null, participantIds: ['x', 'x'] } } },
+      { eventType: 'scene.upsert', data: { sceneId: 'scene:road', value: { lifecycle: 'active', locationId: null, participantIds: [] } } },
+    ] as readonly RulebookEvent[]) {
+      expect(() => service.decideFromEvents(compiled.manifest.address, player, [...base, event], 6)).toThrowError(
+        expect.objectContaining<Partial<WorldError>>({ envelope: expect.objectContaining({ errorCode: 'PROJECTION_INVARIANT_FAILED' }) }),
+      )
+    }
+    expect(service.decideFromEvents(compiled.manifest.address, player, [
+      ...base, { eventType: 'scene.policy_recorded', data: { sceneId: 'scene:road' } },
+    ], 6).sceneId).toBe('scene:road')
+    availability.close()
+    store.close()
+  })
+
+  it('narrows full and occurrence-only action audiences without leaking private content', () => {
+    const { compiled, store, availability } = fixture()
+    const service = new SceneDecisionService(store, availability, 2)
+    const legacy = new SceneDecisionService(store, availability)
+    const player = brandId(MYSTERY_DEMO_IDS.player, 'CharacterId')
+    const bob = brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId')
+    const detective = brandId(MYSTERY_DEMO_IDS.detective, 'CharacterId')
+    const base = phase8Events()
+    expect(service.audienceForAction(compiled.manifest.address, player, base, 5)).toEqual({
+      fullContentCharacterIds: [bob, detective, player], occurrenceOnlyCharacterIds: [],
+    })
+    expect(service.audienceForAction(compiled.manifest.address, player, base, 5, { scope: 'self' })).toEqual({
+      fullContentCharacterIds: [player], occurrenceOnlyCharacterIds: [],
+    })
+    expect(service.audienceForAction(compiled.manifest.address, player, base, 5, { scope: 'direct', recipientIds: [bob] })).toEqual({
+      fullContentCharacterIds: [bob, player], occurrenceOnlyCharacterIds: [],
+    })
+    expect(service.audienceForAction(compiled.manifest.address, player, base, 5, { scope: 'private', recipientIds: [bob] })).toEqual({
+      fullContentCharacterIds: [bob, player], occurrenceOnlyCharacterIds: [detective],
+    })
+    const hidden = [...base, {
+      eventType: 'visibility.upsert',
+      data: { id: 'visibility:detective', value: { observerId: detective, sceneId: 'scene:road', visible: false } },
+    }]
+    expect(service.audienceForAction(compiled.manifest.address, player, hidden, 6, { scope: 'private', recipientIds: [bob] }))
+      .toEqual({ fullContentCharacterIds: [bob, player], occurrenceOnlyCharacterIds: [] })
+    expect(() => legacy.audienceForAction(compiled.manifest.address, player, base, 5)).toThrow(TypeError)
+    for (const policy of [
+      { scope: 'direct' },
+      { scope: 'private', recipientIds: [] },
+      { scope: 'self', recipientIds: [bob] },
+      { scope: 'scene_public', recipientIds: [bob] },
+      { scope: 'direct', recipientIds: [bob, bob] },
+      { scope: 'direct', recipientIds: [1] },
+    ] as unknown as Parameters<SceneDecisionService['audienceForAction']>[4][]) {
+      expect(() => service.audienceForAction(compiled.manifest.address, player, base, 5, policy)).toThrow(TypeError)
     }
     availability.close()
     store.close()

@@ -21,6 +21,11 @@ export interface RulebookResolution {
   readonly status: 'accepted' | 'rejected'
   readonly events: readonly WorldEventDraft[]
   readonly reason?: string
+  /** Maximum audience granted by the Rulebook; Scene policy may only narrow it. */
+  readonly observationScope?: {
+    readonly scope: 'scene_public' | 'direct' | 'private' | 'self'
+    readonly recipientIds?: readonly string[]
+  }
 }
 
 export function worldJsonObject(value: WorldJsonValue): Record<string, WorldJsonValue> | undefined {

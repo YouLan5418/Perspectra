@@ -407,12 +407,27 @@ export class RoundCoordinator {
     const outbox: OutboxDraft[] = []
     let playerResolution: RulebookResolution | undefined
     for (const [ordinal, item] of ordered.entries()) {
+      const actionPrefix = [...history, ...events]
       const resolution = this.#rulebook.resolve({
         manifest: this.#manifest,
-        events: [...history, ...events],
+        events: actionPrefix,
         characterId: item.action.actorId,
         action: { actionType: item.action.actionType, parameters: item.action.parameters },
       })
+      const phase8Audience = this.options.sceneDecision?.version === 2
+        ? this.options.sceneDecision.audienceForAction(
+          this.#address,
+          item.action.actorId,
+          actionPrefix,
+          head.headSeq + events.length,
+          {
+            scope: resolution.observationScope?.scope ?? 'scene_public',
+            ...(resolution.observationScope?.recipientIds === undefined ? {} : {
+              recipientIds: resolution.observationScope.recipientIds.map(value => brandId(value, 'CharacterId')),
+            }),
+          },
+        )
+        : undefined
       const candidateHashBefore = candidateHash
       const ruleTraceHash = hashWorldJson('round-rule-trace', {
         rulebook: this.#manifest.rulebook,
@@ -420,6 +435,9 @@ export class RoundCoordinator {
         status: resolution.status,
         reason: resolution.reason ?? null,
         events: resolution.events,
+        ...(this.options.sceneDecision?.version !== 2 ? {} : {
+          observationScope: resolution.observationScope ?? { scope: 'scene_public' },
+        }),
       })
       candidateHash = resolution.status === 'accepted'
         ? hashWorldJson('round-candidate-after-resolution', {
@@ -457,9 +475,12 @@ export class RoundCoordinator {
         || this.#manifest.contentPack?.runtimeCapabilities.publicSpeechObservationVersion === 1)
         ? resolution.events.find(event => event.eventType === 'character.speak')
         : undefined
-      const observerIds = this.options.sceneDecision?.decideFromEvents(
-        this.#address, binding.characterId, [...history, ...events], head.headSeq,
-      ).visibleResultCharacterIds ?? [binding.characterId]
+      const occurrenceOnly = new Set(phase8Audience?.occurrenceOnlyCharacterIds ?? [])
+      const observerIds = phase8Audience === undefined
+        ? this.options.sceneDecision?.decideFromEvents(
+          this.#address, binding.characterId, [...history, ...events], head.headSeq,
+        ).visibleResultCharacterIds ?? [binding.characterId]
+        : [...phase8Audience.fullContentCharacterIds, ...phase8Audience.occurrenceOnlyCharacterIds]
       for (const observerId of observerIds) {
         const observationId = this.options.sceneDecision === undefined
           ? deterministicId('observation:coordinated-round', { roundId, actionId: item.action.actionId })
@@ -467,7 +488,13 @@ export class RoundCoordinator {
         const observation = {
           observerId,
           actionId: item.action.actionId,
-          content: {
+          content: occurrenceOnly.has(observerId) ? {
+            actionType: 'private_interaction',
+            actorId: item.action.actorId,
+            status: resolution.status,
+            reason: resolution.reason ?? null,
+            contentVisibility: 'occurrence_only',
+          } : {
             actionType: item.action.actionType,
             actorId: item.action.actorId,
             status: resolution.status,
