@@ -2,8 +2,12 @@ import {
   brandId,
   canonicalizeWorldJson,
   hashWorldJson,
+  PHASE8_REGISTRY_LOCKS,
+  PHASE8_VOCABULARY_LOCKS,
   type CharacterId,
+  type Phase8RegistryLock,
   type SessionId,
+  type VocabularyLock,
   type WorldAddress,
   type WorldEventDraft,
   type WorldHash,
@@ -13,7 +17,7 @@ import {
 
 export interface LocationSpec extends WorldJsonObject { readonly locationId: string; readonly name: string }
 export interface EntitySpec extends WorldJsonObject { readonly entityId: string; readonly locationId: string; readonly kind: string }
-export interface CharacterSpec extends WorldJsonObject { readonly characterId: CharacterId; readonly name: string; readonly locationId: string }
+export interface CharacterSpec extends WorldJsonObject { readonly characterId: CharacterId; readonly name: string; readonly locationId: string | null }
 export interface PlayerBindingSpec extends WorldJsonObject { readonly principalId: string; readonly characterId: CharacterId; readonly sessionId: SessionId }
 export interface PluginSpec extends WorldJsonObject { readonly pluginId: string; readonly version: string }
 export interface SceneSpec extends WorldJsonObject { readonly sceneId: string; readonly participantIds: readonly CharacterId[] }
@@ -35,7 +39,7 @@ export interface ManifestRegistries extends WorldJsonObject {
 }
 
 export interface CompiledWorldManifest extends WorldJsonObject {
-  readonly schemaVersion: 2 | 3
+  readonly schemaVersion: 2 | 3 | 4
   readonly address: WorldAddress
   readonly specHash: WorldHash
   readonly genesisPlanHash: WorldHash
@@ -56,7 +60,7 @@ export interface CompiledWorldManifest extends WorldJsonObject {
   readonly observations: readonly ObservationSpec[]
   readonly playerBindings: readonly PlayerBindingSpec[]
   readonly plugins: readonly PluginSpec[]
-  readonly contentPack?: ContentPackManifestBinding
+  readonly contentPack?: ContentPackManifestBinding | ContentPackManifestBindingV2
 }
 
 export interface ContentPackCompilerIdentity extends WorldJsonObject {
@@ -78,6 +82,13 @@ export interface ContentPackRuntimeCapabilities extends WorldJsonObject {
   readonly publicSpeechObservationVersion: 1
 }
 
+export interface ContentPackRuntimeCapabilitiesV2 extends ContentPackRuntimeCapabilities {
+  readonly cognitionProjectionVersion: 1
+  readonly sceneDecisionVersion: 2
+  readonly cognitiveMemoryVersion: 2
+  readonly agentContextVersion: 2
+}
+
 export interface ContentPackManifestBinding extends WorldJsonObject {
   readonly schemaVersion: 1
   readonly packId: string
@@ -90,10 +101,39 @@ export interface ContentPackManifestBinding extends WorldJsonObject {
   readonly initialFacts: readonly WorldJsonValue[]
 }
 
+export interface ContentPackManifestBindingV2 extends WorldJsonObject {
+  readonly schemaVersion: 2
+  readonly packId: string
+  readonly packVersion: string
+  readonly packHash: WorldHash
+  readonly compiler: ContentPackCompilerIdentity
+  readonly pluginLocks: readonly ContentPackPluginLock[]
+  readonly vocabularyLocks: readonly VocabularyLock[]
+  readonly registryLocks: readonly Phase8RegistryLock[]
+  readonly runtimeCapabilities: ContentPackRuntimeCapabilitiesV2
+  readonly presentation: WorldJsonValue
+  readonly initialFacts: readonly WorldJsonValue[]
+  readonly memory: readonly WorldJsonValue[]
+  readonly documents: readonly WorldJsonValue[]
+  readonly markdown: readonly WorldJsonValue[]
+}
+
 export interface ContentPackCharacterSpec extends CharacterSpec {
   readonly pronouns: string
   readonly lifecycle: 'active' | 'incapacitated' | 'dead' | 'departed'
   readonly portrayal: WorldJsonValue
+}
+
+export interface ContentPackCharacterSpecV2 extends CharacterSpec {
+  readonly controllerClass: 'manual' | 'scripted' | 'rule' | 'noop'
+  readonly pronouns: string
+  readonly lifecycle: 'active' | 'incapacitated' | 'dead' | 'departed'
+  readonly portrayal: WorldJsonValue | null
+}
+
+export interface SceneSpecV2 extends SceneSpec {
+  readonly lifecycle: 'created' | 'active' | 'closed'
+  readonly locationId: string | null
 }
 
 export interface CompiledWorldManifestV2 extends CompiledWorldManifest {
@@ -106,6 +146,14 @@ export interface CompiledWorldManifestV3 extends CompiledWorldManifest {
   readonly schemaVersion: 3
   readonly characters: readonly ContentPackCharacterSpec[]
   readonly contentPack: ContentPackManifestBinding
+}
+
+/** V4 is enabled only by explicit compiled worldpack/v2 content and locks all Phase 8 contracts. */
+export interface CompiledWorldManifestV4 extends CompiledWorldManifest {
+  readonly schemaVersion: 4
+  readonly characters: readonly ContentPackCharacterSpecV2[]
+  readonly scenes: readonly SceneSpecV2[]
+  readonly contentPack: ContentPackManifestBindingV2
 }
 
 export interface CompiledWorldSpec {
@@ -123,7 +171,7 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   canonicalizeWorldJson(value)
   const root = objectAt(value, 'StoredWorldManifest')
   if (root.schemaVersion === 1) return new WorldSpecCompiler().compile(value).manifest
-  if (root.schemaVersion !== 2 && root.schemaVersion !== 3) throw new TypeError('stored Manifest schemaVersion is unsupported')
+  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4) throw new TypeError('stored Manifest schemaVersion is unsupported')
   const runtimePolicy = objectAt(root.runtimePolicy, 'StoredWorldManifest.runtimePolicy')
   exactKeys(runtimePolicy, ['npcInitialAvailability', 'playerInitialAvailability'], 'StoredWorldManifest.runtimePolicy')
   if (runtimePolicy.npcInitialAvailability !== 'provisioning' && runtimePolicy.npcInitialAvailability !== 'ready') {
@@ -133,12 +181,19 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   arrayAt(root.locations, 'StoredWorldManifest.locations')
   arrayAt(root.characters, 'StoredWorldManifest.characters')
   arrayAt(root.playerBindings, 'StoredWorldManifest.playerBindings')
-  if (root.schemaVersion === 3) {
+  if (root.schemaVersion === 3 || root.schemaVersion === 4) {
     const contentPack = objectAt(root.contentPack, 'StoredWorldManifest.contentPack')
-    exactKeys(contentPack, [
-      'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'runtimeCapabilities', 'presentation', 'initialFacts',
-    ], 'StoredWorldManifest.contentPack')
-    if (contentPack.schemaVersion !== 1) throw new TypeError('stored Manifest contentPack schemaVersion is unsupported')
+    const v4 = root.schemaVersion === 4
+    exactKeys(contentPack, v4
+      ? [
+          'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
+          'registryLocks', 'runtimeCapabilities', 'presentation', 'initialFacts', 'memory', 'documents', 'markdown',
+        ]
+      : [
+          'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'runtimeCapabilities',
+          'presentation', 'initialFacts',
+        ], 'StoredWorldManifest.contentPack')
+    if (contentPack.schemaVersion !== (v4 ? 2 : 1)) throw new TypeError('stored Manifest contentPack schemaVersion is unsupported')
     textAt(contentPack.packId, 'StoredWorldManifest.contentPack.packId')
     textAt(contentPack.packVersion, 'StoredWorldManifest.contentPack.packVersion')
     hashAt(contentPack.packHash, 'StoredWorldManifest.contentPack.packHash')
@@ -161,8 +216,14 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
     })
     unique(locks.map(lock => lock.kind), 'StoredWorldManifest.contentPack.pluginLocks')
     const capabilities = objectAt(contentPack.runtimeCapabilities, 'StoredWorldManifest.contentPack.runtimeCapabilities')
-    exactKeys(capabilities, ['publicSpeechObservationVersion'], 'StoredWorldManifest.contentPack.runtimeCapabilities')
+    exactKeys(capabilities, v4
+      ? ['publicSpeechObservationVersion', 'cognitionProjectionVersion', 'sceneDecisionVersion', 'cognitiveMemoryVersion', 'agentContextVersion']
+      : ['publicSpeechObservationVersion'], 'StoredWorldManifest.contentPack.runtimeCapabilities')
     if (capabilities.publicSpeechObservationVersion !== 1) throw new TypeError('stored Manifest publicSpeechObservationVersion is unsupported')
+    if (v4 && (capabilities.cognitionProjectionVersion !== 1 || capabilities.sceneDecisionVersion !== 2
+      || capabilities.cognitiveMemoryVersion !== 2 || capabilities.agentContextVersion !== 2)) {
+      throw new TypeError('stored Manifest Phase 8 runtime capability is unsupported')
+    }
     const presentation = objectAt(contentPack.presentation, 'StoredWorldManifest.contentPack.presentation')
     exactKeys(presentation, ['schemaVersion', 'locale', 'style'], 'StoredWorldManifest.contentPack.presentation')
     if (presentation.schemaVersion !== 'worldpack-presentation/v1') throw new TypeError('stored Manifest presentation schemaVersion is unsupported')
@@ -180,6 +241,13 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
       return textAt(fact.factId, `${path}.factId`)
     })
     unique(factIds, 'StoredWorldManifest.contentPack.initialFacts')
+    if (v4) {
+      exactLockedArray(contentPack.vocabularyLocks, PHASE8_VOCABULARY_LOCKS, 'StoredWorldManifest.contentPack.vocabularyLocks')
+      exactLockedArray(contentPack.registryLocks, PHASE8_REGISTRY_LOCKS, 'StoredWorldManifest.contentPack.registryLocks')
+      arrayAt(contentPack.memory, 'StoredWorldManifest.contentPack.memory')
+      arrayAt(contentPack.documents, 'StoredWorldManifest.contentPack.documents')
+      arrayAt(contentPack.markdown, 'StoredWorldManifest.contentPack.markdown')
+    }
   }
   return value as CompiledWorldManifest
 }
@@ -225,6 +293,17 @@ function arrayAt(value: unknown, path: string): readonly unknown[] {
 
 function unique(values: readonly string[], path: string): void {
   if (new Set(values).size !== values.length) throw new TypeError(`${path} contains duplicate identifiers`)
+}
+
+function exactLockedArray(value: unknown, expected: WorldJsonValue, path: string): void {
+  const actual = arrayAt(value, path)
+  if (!canonicalBytesEqual(actual as WorldJsonValue, expected)) throw new TypeError(`${path} does not match the installed Phase 8 registry`)
+}
+
+function canonicalBytesEqual(left: WorldJsonValue, right: WorldJsonValue): boolean {
+  const leftBytes = canonicalizeWorldJson(left)
+  const rightBytes = canonicalizeWorldJson(right)
+  return leftBytes.length === rightBytes.length && leftBytes.every((byte, index) => byte === rightBytes[index])
 }
 
 function definition(name: string): RegistryDefinition {

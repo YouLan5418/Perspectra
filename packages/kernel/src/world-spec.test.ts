@@ -3,7 +3,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { brandId, deterministicId, hashWorldJson, type WorldJsonValue } from '@harness-world/contracts'
+import {
+  brandId,
+  deterministicId,
+  hashWorldJson,
+  PHASE8_REGISTRY_LOCKS,
+  PHASE8_VOCABULARY_LOCKS,
+  type WorldJsonValue,
+} from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldBootstrap } from './world-bootstrap.ts'
 import { runtimeManifestFromStored, runtimeManifestFromStoredRecord, WorldSpecCompiler, type CompiledWorldSpec } from './world-spec.ts'
@@ -159,8 +166,64 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     }
   })
 
+  it('accepts only an exactly locked Phase 8 Manifest V4', () => {
+    const v2 = new WorldSpecCompiler().compile(specV2()).manifest
+    const contentPack = {
+      schemaVersion: 2 as const,
+      packId: 'pack:phase8',
+      packVersion: '2.0.0',
+      packHash: hashWorldJson('pack:phase8', null),
+      compiler: {
+        id: 'compiler:world-pack', version: '0.2.0', contractVersion: 'worldpack-compiler/v2',
+        canonicalJsonVersion: 'world-json/v1', limitsProfile: 'worldpack-limits/v2',
+      },
+      pluginLocks: [{
+        kind: 'agent-context', id: 'builtin:agent-context', version: '2.0.0',
+        pluginHash: hashWorldJson('plugin:phase8', null),
+      }],
+      vocabularyLocks: PHASE8_VOCABULARY_LOCKS,
+      registryLocks: PHASE8_REGISTRY_LOCKS,
+      runtimeCapabilities: {
+        publicSpeechObservationVersion: 1 as const,
+        cognitionProjectionVersion: 1 as const,
+        sceneDecisionVersion: 2 as const,
+        cognitiveMemoryVersion: 2 as const,
+        agentContextVersion: 2 as const,
+      },
+      presentation: { schemaVersion: 'worldpack-presentation/v1', locale: 'zh-CN', style: 'plain' },
+      initialFacts: [], memory: [], documents: [], markdown: [],
+    }
+    const v4 = { ...v2, schemaVersion: 4 as const, contentPack }
+    expect(runtimeManifestFromStored(v4)).toBe(v4)
+
+    const invalid: readonly (readonly [WorldJsonValue, string])[] = [
+      [{ ...v4, contentPack: { ...contentPack, schemaVersion: 1 } }, 'schemaVersion'],
+      [{ ...v4, contentPack: { ...contentPack, extra: true } }, 'missing or unknown'],
+      [{ ...v4, contentPack: { ...contentPack, vocabularyLocks: null } }, 'vocabularyLocks'],
+      [{ ...v4, contentPack: { ...contentPack, vocabularyLocks: PHASE8_VOCABULARY_LOCKS.slice(1) } }, 'does not match'],
+      [{ ...v4, contentPack: {
+        ...contentPack,
+        vocabularyLocks: PHASE8_VOCABULARY_LOCKS.map((lock, index) => index === 0
+          ? { ...lock, vocabularyHash: hashWorldJson('changed', null) }
+          : lock),
+      } }, 'does not match'],
+      [{ ...v4, contentPack: { ...contentPack, registryLocks: PHASE8_REGISTRY_LOCKS.slice(1) } }, 'does not match'],
+      [{ ...v4, contentPack: { ...contentPack, memory: null } }, 'memory'],
+      [{ ...v4, contentPack: { ...contentPack, documents: null } }, 'documents'],
+      [{ ...v4, contentPack: { ...contentPack, markdown: null } }, 'markdown'],
+      ...(['cognitionProjectionVersion', 'sceneDecisionVersion', 'cognitiveMemoryVersion', 'agentContextVersion'] as const).map(field => ([{
+        ...v4,
+        contentPack: {
+          ...contentPack,
+          runtimeCapabilities: { ...contentPack.runtimeCapabilities, [field]: 99 },
+        },
+      } as WorldJsonValue, 'runtime capability'] as const)),
+    ]
+    for (const [manifest, message] of invalid) expect(() => runtimeManifestFromStored(manifest)).toThrow(message)
+  })
+
   it.each([
-    [{ schemaVersion: 4 }, 'schemaVersion'],
+    [{ schemaVersion: 5 }, 'schemaVersion'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: null }, 'runtimePolicy'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'offline', playerInitialAvailability: 'ready' } }, 'npcInitialAvailability'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'offline' } }, 'playerInitialAvailability'],
