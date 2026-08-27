@@ -1,4 +1,5 @@
 export * from './cognition.ts'
+export * from './cognition-projection.ts'
 export * from './context-v2.ts'
 export * from './errors.ts'
 export * from './ids.ts'

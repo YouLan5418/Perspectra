@@ -10,7 +10,7 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { runtimeManifestFromStored, WorldBootstrap } from '@harness-world/kernel'
-import { WorldStore } from '@harness-world/store-sqlite'
+import { CognitionProjectionRebuilder, WorldStore } from '@harness-world/store-sqlite'
 import {
   WorldPackCompilerV2,
   canonicalWorldPackBytesV2,
@@ -242,6 +242,25 @@ describe('WorldPackCompilerV2', () => {
     const bootstrap = new WorldBootstrap(store)
     const activated = bootstrap.activate(first)
     expect(bootstrap.activate(first)).toEqual({ ...activated, status: 'already_active' })
+    const cognition = new CognitionProjectionRebuilder(store)
+    const alice = cognition.rebuildCharacterAt(options.address, brandId('character:alice', 'CharacterId'), activated.headSeq)
+    const bob = cognition.rebuildCharacterAt(options.address, brandId('character:bob', 'CharacterId'), activated.headSeq)
+    expect(alice).toMatchObject({
+      claims: expect.arrayContaining([expect.objectContaining({ characterId: 'character:alice' })]),
+      goals: expect.arrayContaining([expect.objectContaining({ characterId: 'character:alice' })]),
+      relationships: [expect.objectContaining({ characterId: 'character:alice' })],
+      affects: [expect.objectContaining({ characterId: 'character:alice' })],
+      innerTensions: [expect.objectContaining({ characterId: 'character:alice' })],
+      commitments: [expect.objectContaining({ characterId: 'character:alice' })],
+      openLoops: [expect.objectContaining({ characterId: 'character:alice' })],
+    })
+    expect(bob.claims).toEqual([])
+    expect(JSON.stringify(bob)).not.toContain('Bob is irresponsible')
+    const childAddress = { ...options.address, branchId: brandId('branch:child', 'BranchId') }
+    store.forkBranch(options.address, childAddress, activated.headSeq)
+    expect(cognition.rebuildCharacterAt(childAddress, brandId('character:alice', 'CharacterId'), activated.headSeq).bundleHash)
+      .not.toBe(alice.bundleHash)
+    expect(runtimeManifestFromStored(store.readManifest(childAddress)!.manifest)).toMatchObject({ schemaVersion: 4 })
     store.close()
     const restarted = new WorldStore(join(root, 'phase8.sqlite'))
     expect(runtimeManifestFromStored(restarted.readManifest(options.address)!.manifest)).toMatchObject({ schemaVersion: 4 })
