@@ -180,6 +180,8 @@ describe('Harness port, budget, and failure containment', () => {
     const runner = new SafeAgentRunner(budget)
     await expect(runner.propose('call:success', 2, 100, 'participant:agent', success, context))
       .resolves.toMatchObject({ status: 'proposed' })
+    await expect(runner.invoke('call:raw', 2, 100, success, context))
+      .resolves.toEqual({ status: 'proposed', output: { participantId: 'participant:agent', actions: [] } })
     await expect(runner.propose('call:failure', 2, 100, 'participant:agent', failure, context))
       .resolves.toEqual({ status: 'fallback', proposal: { participantId: 'participant:agent', actions: [] }, failure: 'provider_failed' })
     await expect(runner.propose('call:deadline', 2, 0, 'participant:agent', success, context))
@@ -189,6 +191,8 @@ describe('Harness port, budget, and failure containment', () => {
     const exhausted = new SafeAgentRunner(new ModelBudgetLedger(0))
     await expect(exhausted.propose('call:budget', 1, 100, 'participant:agent', success, context))
       .resolves.toMatchObject({ status: 'fallback', failure: 'budget_exhausted' })
+    await expect(exhausted.invoke('call:raw-budget', 1, 100, success, context))
+      .resolves.toEqual({ status: 'fallback', failure: 'budget_exhausted' })
   })
 })
 

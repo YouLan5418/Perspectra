@@ -110,6 +110,10 @@ export interface SafeProposalResult {
   readonly failure?: 'budget_exhausted' | 'provider_failed' | 'provider_timeout'
 }
 
+export type SafeProviderResult<Output extends WorldJsonObject> =
+  | { readonly status: 'proposed'; readonly output: Output }
+  | { readonly status: 'fallback'; readonly failure: 'budget_exhausted' | 'provider_failed' | 'provider_timeout' }
+
 class ProviderTimeout extends Error {}
 
 /** Failure-contained provider runner; it always yields a proposal envelope. */
@@ -124,21 +128,34 @@ export class SafeAgentRunner {
     provider: AgentProvider,
     context: ProposalContext,
   ): Promise<SafeProposalResult> {
+    const result = await this.invoke(callId, estimatedTokens, timeoutMs, provider, context)
+    return result.status === 'proposed'
+      ? { status: 'proposed', proposal: result.output }
+      : { status: 'fallback', proposal: { participantId, actions: [] }, failure: result.failure }
+  }
+
+  async invoke<Output extends WorldJsonObject>(
+    callId: string,
+    estimatedTokens: number,
+    timeoutMs: number,
+    provider: { propose(context: ProposalContext): Promise<Output> },
+    context: ProposalContext,
+  ): Promise<SafeProviderResult<Output>> {
     const reservation = this.budget.reserve(callId, estimatedTokens)
-    if (reservation === undefined) return { status: 'fallback', proposal: { participantId, actions: [] }, failure: 'budget_exhausted' }
+    if (reservation === undefined) return { status: 'fallback', failure: 'budget_exhausted' }
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) throw new RangeError('timeoutMs must be a positive safe integer')
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new ProviderTimeout('provider timeout')), timeoutMs)
       })
-      const proposal = await Promise.race([provider.propose(context), timeout])
+      const output = await Promise.race([provider.propose(context), timeout])
       this.budget.settle(callId, estimatedTokens)
-      return { status: 'proposed', proposal }
+      return { status: 'proposed', output }
     } catch (error: unknown) {
       this.budget.settle(callId, 0)
       return {
-        status: 'fallback', proposal: { participantId, actions: [] },
+        status: 'fallback',
         failure: error instanceof ProviderTimeout ? 'provider_timeout' : 'provider_failed',
       }
     } finally {

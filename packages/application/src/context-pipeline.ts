@@ -20,6 +20,7 @@ import {
   type CharacterId,
   type ContextProfileId,
   type ContextReceipt,
+  type CharacterCognitionView,
   type ContextSourceRef,
   type ProposalContext,
   type WorldHash,
@@ -49,6 +50,8 @@ export interface PreparedPhase8Participant {
   readonly receipt: ContextReceipt
   readonly memorySourceRefs: readonly MemorySourceRef[]
   readonly recallResultHash: WorldHash
+  /** Present only for Character participants; it is the exact immutable prefix used by Reflection validation. */
+  readonly cognition?: CharacterCognitionView
 }
 
 export interface Phase8ContextPipelineOptions {
@@ -250,7 +253,7 @@ export class Phase8ContextPipeline {
       includedSourceRefs: assembly.includedSourceRefs, exclusions: assembly.exclusions,
       contextHash: assembly.bundle.contextHash, providerRequestHash: rendered.providerRequestHash,
     })
-    return this.#result(context, binding, receipt, rendered.exactRequest, prepared.memorySourceRefs, prepared.recallResultHash)
+    return this.#result(context, binding, receipt, rendered.exactRequest, prepared.memorySourceRefs, prepared.recallResultHash, cognition)
   }
 
   #prepareDirector(
@@ -314,6 +317,7 @@ export class Phase8ContextPipeline {
     exactProviderRequest: ExactProviderRequest,
     memorySourceRefs: readonly MemorySourceRef[],
     recallResultHash: WorldHash,
+    cognition?: CharacterCognitionView,
   ): PreparedPhase8Participant {
     return {
       providerContext: {
@@ -322,6 +326,7 @@ export class Phase8ContextPipeline {
         providerRequestHash: receipt.providerRequestHash, exactProviderRequest,
       },
       receipt, memorySourceRefs, recallResultHash,
+      ...(cognition === undefined ? {} : { cognition }),
     }
   }
 }

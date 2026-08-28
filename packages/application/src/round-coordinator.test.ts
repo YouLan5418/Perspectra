@@ -4,15 +4,22 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  createContextReceipt,
+} from '@harness-world/agents'
+import {
   brandId,
   deterministicId,
   failWorld,
   hashWorldJson,
+  PHASE8_REGISTRY_LOCKS,
+  PHASE8_VOCABULARY_LOCKS,
   type AgentProvider,
   type FaultInjector,
   type FaultPoint,
   type Proposal,
   type ProposalContext,
+  type SubmitActionsV2,
+  type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
@@ -24,7 +31,7 @@ import {
   type CompiledWorldSpec,
   type RoundExecutionLane,
 } from '@harness-world/kernel'
-import { BranchAdministration, CharacterRuntimeAvailabilityService, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import { BranchAdministration, CharacterRuntimeAvailabilityService, CognitionProjectionRebuilder, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import {
   RoundCoordinator,
   compareActionOrderKey,
@@ -145,6 +152,34 @@ function phase8SceneWorld(): CompiledWorldSpec {
     manifest, manifestHash, genesisEvents,
     genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
   }
+}
+
+function phase8ReflectionWorld(): CompiledWorldSpec {
+  const base = phase8SceneWorld()
+  const manifest = {
+    ...base.manifest,
+    schemaVersion: 4 as const,
+    contentPack: {
+      schemaVersion: 2 as const, packId: 'pack:reflection-test', packVersion: '1.0.0',
+      packHash: hashWorldJson('pack', { id: 'reflection-test' }),
+      compiler: {
+        id: 'test-compiler', version: '1.0.0', contractVersion: 'worldpack/v2',
+        canonicalJsonVersion: 'world-json/v1', limitsProfile: 'worldpack-limits/v2',
+      },
+      pluginLocks: [], vocabularyLocks: PHASE8_VOCABULARY_LOCKS, registryLocks: PHASE8_REGISTRY_LOCKS,
+      runtimeCapabilities: {
+        publicSpeechObservationVersion: 1 as const, cognitionProjectionVersion: 1 as const,
+        sceneDecisionVersion: 2 as const, cognitiveMemoryVersion: 2 as const, agentContextVersion: 2 as const,
+      },
+      presentation: { schemaVersion: 'worldpack-presentation/v1', locale: 'en', style: 'plain' },
+      initialFacts: [], memory: [], documents: [], markdown: [],
+    },
+  }
+  const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+  const genesisEvents = base.genesisEvents.map(value => value.eventType === 'world.manifest-locked'
+    ? { ...value, data: { ...(value.data as WorldJsonObject), manifestHash } }
+    : value)
+  return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
 }
 
 function lane(compiled: CompiledWorldSpec): RoundExecutionLane {
@@ -703,6 +738,144 @@ describe('RoundCoordinator', () => {
     expect(authority.participants.find((value: any) => value.participantId === npc.participantId)).toMatchObject({
       contextReceiptId: 'receipt:phase8', providerRequestHash: hashWorldJson('provider', { phase8: true }),
     })
+    close(configured, coordinator)
+  })
+
+  it('commits accepted Reflection after external observations and keeps rejected Reflection separate from legal actions', async () => {
+    const path = database('phase8-reflection.sqlite')
+    const compiled = phase8ReflectionWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    let call = 0
+    let includeCognition = true
+    let currentBasis = {
+      sourceKind: 'world_event', sourceId: 'event:0', sourceSeq: 0,
+      sourceHash: hashWorldJson('placeholder', {}),
+    }
+    const npc: RoundParticipant = {
+      participantId: 'agent:reflection', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
+      allowedActionTypes: ['speak', 'move'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+      provider: {
+        async propose() {
+          call += 1
+          const validBasis = call === 1
+            ? currentBasis
+            : { ...currentBasis, sourceId: 'event:forbidden' }
+          const reflection: SubmitActionsV2['reflection'] = {
+            operations: [{
+              operationId: `operation:${call}`, kind: 'subjective-claim', recordId: `claim:reflection:${call}`,
+              expectedStateHash: null, basisRefs: [validBasis],
+              value: {
+                proposition: `Alice believes turn ${call}`, stance: 'believed', confidencePermille: 500,
+                saliencePermille: 500, awareness: 'conscious', status: 'active',
+              },
+            }],
+          }
+          return call === 1
+            ? { schemaVersion: 2 as const, decision: 'abstain' as const, actions: [], reflection }
+            : {
+                schemaVersion: 2 as const, decision: 'act' as const,
+                actions: [{
+                  actionId: 'action:npc:second', actorId: npc.actorId, actionType: 'speak', actionVersion: 1,
+                  parameters: { text: 'The legal action still happens' },
+                }],
+                reflection,
+              }
+        },
+      },
+    }
+    const configured = options(path, compiled, [npc])
+    const sceneDecision = {
+      decideFromEvents: (_address: unknown, player: typeof npc.actorId, _events: unknown, asOfSeq: number) => ({
+        sceneId: 'scene:a', observerIds: [player, npc.actorId], schedulableCharacterIds: [npc.actorId],
+        visibleResultCharacterIds: [player, npc.actorId], asOfSeq,
+      }),
+    } as never
+    const contextPipeline = {
+      prepare: (
+        binding: RoundParticipant,
+        context: ProposalContext,
+        history: ReturnType<WorldStore['readEvents']>,
+        _decision: unknown,
+        asOfWorldSeq: number,
+        heartbeat: () => void,
+      ) => {
+        heartbeat()
+        const last = history.at(-1)!
+        currentBasis = {
+          sourceKind: 'world_event', sourceId: `event:${last.seq}`, sourceSeq: last.seq, sourceHash: last.eventHash,
+        }
+        const cognition = new CognitionProjectionRebuilder(configured.store)
+          .rebuildCharacterAt(context.address, binding.actorId, asOfWorldSeq)
+        const receipt = createContextReceipt({
+          address: context.address, roundId: context.roundId, participantKind: 'character', participantId: binding.participantId,
+          subjectCharacterId: binding.actorId, controllerId: `provider:${binding.participantId}`, controllerEpoch: 1,
+          baseHeadSeq: asOfWorldSeq, asOfWorldSeq, tick: context.tick, manifestHash: compiled.manifestHash,
+          contextProfileId: 'standard', contextProfileHash: hashWorldJson('profile', { id: 'standard' }),
+          versionLocks: {
+            contextSchema: 'character-controller/v2', contextReceiptSchema: 'context-receipt/v1', sceneDecisionSchema: 'scene-decision/v2',
+            memorySchema: 'cognitive-memory/v2', checkpointSchema: 'continuity-checkpoint/v1', rendererSchema: 'structured-prompt-renderer/v1',
+          },
+          componentHashes: {
+            characterViewHash: cognition.bundleHash, sceneDecisionHash: hashWorldJson('scene', { asOfWorldSeq }), checkpointHash: null,
+            tailHash: hashWorldJson('tail', {}), recallHash: hashWorldJson('recall', {}), affordanceHash: hashWorldJson('affordance', {}),
+          },
+          includedSourceRefs: [currentBasis], exclusions: [], contextHash: hashWorldJson('context', { candidateHash: context.candidateHash, asOfWorldSeq }),
+          providerRequestHash: hashWorldJson('provider', { candidateHash: context.candidateHash, asOfWorldSeq }),
+        })
+        return {
+          providerContext: {
+            ...context, agentContextVersion: 2, participantId: binding.participantId,
+            contextReceiptId: receipt.receiptId, contextHash: receipt.contextHash, providerRequestHash: receipt.providerRequestHash,
+            exactProviderRequest: { schemaVersion: 'structured-provider-request/v1', model: 'scripted', messages: [], tools: {}, sampling: {}, user: 'opaque' },
+          },
+          receipt, ...(includeCognition ? { cognition } : {}),
+          memorySourceRefs: [], recallResultHash: hashWorldJson('recall', {}),
+        }
+      },
+    } as never
+    const cognitiveMemory = {
+      processPending: () => ({ completed: 0, failed: [] }),
+    } as never
+    const coordinator = new RoundCoordinator({ ...configured, sceneDecision, contextPipeline, cognitiveMemory })
+    await coordinator.submit({
+      idempotencyKey: 'reflection:first', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'first' } }, correlationId: 'reflection:first',
+    })
+    const firstEvents = configured.store.readEvents(compiled.manifest.address)
+    const reflected = firstEvents.find(value => value.eventType === 'character.reflect')!
+    const firstTransactionEvents = firstEvents.filter(value => value.transactionId === reflected.transactionId)
+    expect(reflected.seq).toBeGreaterThan(Math.max(...firstTransactionEvents.filter(value => value.eventType === 'observation.upsert').map(value => value.seq)))
+    expect(reflected.seq).toBeLessThan(firstTransactionEvents.find(value => value.eventType === 'world.tick-advanced')!.seq)
+    expect(new CognitionProjectionRebuilder(configured.store).rebuildCharacterAt(
+      compiled.manifest.address, npc.actorId, configured.store.head(compiled.manifest.address).headSeq,
+    ).claims).toMatchObject([{ id: 'claim:reflection:1' }])
+    const firstAuthority = configured.store.readRoundAuthority(compiled.manifest.address, reflected.transactionId)!.authority as any
+    expect(firstAuthority.participants.find((value: any) => value.participantId === npc.participantId).cognitivePolicyReceipt)
+      .toMatchObject({ status: 'accepted', reasonCode: 'accepted' })
+
+    await coordinator.submit({
+      idempotencyKey: 'reflection:second', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'second' } }, correlationId: 'reflection:second',
+    })
+    const allEvents = configured.store.readEvents(compiled.manifest.address)
+    expect(allEvents.filter(value => value.eventType === 'character.reflect')).toHaveLength(1)
+    const npcSpeech = allEvents.find(value => value.eventType === 'character.speak'
+      && (value.data as WorldJsonObject).characterId === npc.actorId
+      && (value.data as WorldJsonObject).text === 'The legal action still happens')!
+    const secondAuthority = configured.store.readRoundAuthority(compiled.manifest.address, npcSpeech.transactionId)!.authority as any
+    expect(secondAuthority.participants.find((value: any) => value.participantId === npc.participantId).cognitivePolicyReceipt)
+      .toMatchObject({ status: 'rejected', reasonCode: 'source_forbidden' })
+
+    includeCognition = false
+    await coordinator.submit({
+      idempotencyKey: 'reflection:missing-prefix', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'third' } }, correlationId: 'reflection:missing-prefix',
+    })
+    const thirdEvents = configured.store.readEvents(compiled.manifest.address)
+    expect(thirdEvents.filter(value => value.eventType === 'character.reflect')).toHaveLength(1)
+    expect(call).toBe(3)
     close(configured, coordinator)
   })
 

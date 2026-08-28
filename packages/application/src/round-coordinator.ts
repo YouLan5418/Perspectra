@@ -1,5 +1,6 @@
 import {
   SubmitActionsValidator,
+  ReflectionPolicyValidator,
   ModelBudgetLedger,
   SafeAgentRunner,
 } from '@harness-world/agents'
@@ -12,7 +13,9 @@ import {
   hashWorldJson,
   WorldError,
   type ActionRequest,
-  type AgentProvider,
+  type CharacterCognitionView,
+  type ContextReceipt,
+  type SubmitActionsV2,
   type CharacterId,
   type InteractionRoundId,
   type OutboxDraft,
@@ -62,7 +65,7 @@ export interface RoundParticipant {
   readonly priority: number
   readonly estimatedTokens: number
   readonly timeoutMs: number
-  readonly provider: AgentProvider
+  readonly provider: { propose(context: ProposalContext): Promise<Proposal | SubmitActionsV2> }
 }
 
 export interface RoundCoordinatorOptions {
@@ -106,7 +109,10 @@ interface FrozenParticipant {
     readonly recallResultHash: ReturnType<typeof hashWorldJson>
     readonly contextReceiptId?: string
     readonly providerRequestHash?: ReturnType<typeof hashWorldJson>
+    readonly receipt?: ContextReceipt
+    readonly cognition?: CharacterCognitionView
   }
+  readonly reflection?: ReturnType<ReflectionPolicyValidator['evaluate']>
   readonly availabilityTransition?: {
     readonly state: 'session_lag' | 'model_unavailable' | 'budget_unavailable'
     readonly reason: string
@@ -148,6 +154,7 @@ export class RoundCoordinator {
   readonly #address: WorldAddress
   readonly #participants: readonly RoundParticipant[]
   readonly #validator = new SubmitActionsValidator()
+  readonly #reflection = new ReflectionPolicyValidator()
   readonly #rulebook: RulebookResolver
   readonly #leaseTtlMs: number
   #lease: WriterLease
@@ -379,6 +386,7 @@ export class RoundCoordinator {
               providerRequestHash: value.cognitive.providerRequestHash!,
             }),
           }),
+          ...(value.reflection === undefined ? {} : { cognitivePolicyReceipt: value.reflection.receipt }),
         }
       }),
     ]
@@ -520,10 +528,21 @@ export class RoundCoordinator {
         }
       }
     }
+    for (const participant of frozen) {
+      if (participant.reflection?.status === 'accepted' && participant.reflection.receipt.operationHashes.length > 0) {
+        events.push(participant.reflection.event!)
+      }
+    }
     events.push({ eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } })
-    const cognitiveCharacterIds = this.options.cognitiveMemory === undefined
-      ? []
-      : [...new Set(ordered.map(item => item.action.actorId).concat(sceneDecision!.observerIds))].sort()
+    const cognitiveCharacters = new Set<CharacterId>()
+    if (this.options.cognitiveMemory !== undefined) {
+      for (const item of ordered) cognitiveCharacters.add(item.action.actorId)
+      for (const observerId of sceneDecision!.observerIds) cognitiveCharacters.add(observerId)
+      for (const participant of frozen) {
+        if (participant.reflection?.status === 'accepted') cognitiveCharacters.add(participant.binding.actorId)
+      }
+    }
+    const cognitiveCharacterIds = [...cognitiveCharacters].sort()
     this.#renewLease()
     const commit = await this.options.store.commitRound({
       address: this.#address,
@@ -633,6 +652,8 @@ export class RoundCoordinator {
             recallResultHash: prepared.recallResultHash,
             contextReceiptId: prepared.receipt.receiptId,
             providerRequestHash: prepared.receipt.providerRequestHash,
+            receipt: prepared.receipt,
+            ...(prepared.cognition === undefined ? {} : { cognition: prepared.cognition }),
           }
         } catch (error: unknown) {
           if (error instanceof WorldError && error.envelope.category === 'integrity') throw error
@@ -678,11 +699,10 @@ export class RoundCoordinator {
         }
       }
       this.#renewLease()
-      const run = await runner.propose(
+      const run = await runner.invoke(
         `provider:${context.roundId}:${binding.participantId}`,
         binding.estimatedTokens,
         binding.timeoutMs,
-        binding.participantId,
         binding.provider,
         providerContext,
       )
@@ -692,7 +712,7 @@ export class RoundCoordinator {
         frozen.push(this.#frozen(
           binding,
           failure,
-          run.proposal,
+          { participantId: binding.participantId, actions: [] },
           cognitive,
           failure === 'budget_exhausted'
             ? { state: 'budget_unavailable', reason: 'model budget was exhausted' }
@@ -701,17 +721,36 @@ export class RoundCoordinator {
         continue
       }
       try {
-        const proposal = this.#validator.validate({
-          schemaVersion: 1,
-          participantId: run.proposal.participantId,
-          actions: run.proposal.actions,
-        }, {
+        const authorization = {
           participantId: binding.participantId,
           actorId: binding.actorId,
           allowedActionTypes: binding.allowedActionTypes,
           maxActions: 2,
           correlationId: `coordinator:${context.roundId}:${binding.participantId}`,
-        })
+        }
+        let proposal: Proposal
+        let reflection: FrozenParticipant['reflection']
+        if (this.#manifest.schemaVersion === 4 && binding.role === 'agent') {
+          const validated = this.#validator.validateV2(run.output, { ...authorization, maxReflectionOperations: 4 })
+          proposal = validated.proposal
+          if (validated.reflectionOperations !== undefined) {
+            if (cognitive?.receipt === undefined || cognitive.cognition === undefined) {
+              throw new TypeError('Phase 8 Reflection requires the exact Character Context prefix')
+            }
+            reflection = this.#reflection.evaluate({
+              participantId: binding.participantId, actorId: binding.actorId,
+              contextReceipt: cognitive.receipt, cognition: cognitive.cognition,
+              contextProfileId: cognitive.receipt.contextProfileId,
+              operations: validated.reflectionOperations,
+              correlationId: `reflection:${context.roundId}:${binding.participantId}`,
+            })
+          }
+        } else {
+          const legacy = run.output as Proposal
+          proposal = this.#validator.validate({
+            schemaVersion: 1, participantId: legacy.participantId, actions: legacy.actions,
+          }, authorization)
+        }
         if (proposal.actions.some(action => actionIds.has(action.actionId))) {
           frozen.push(this.#frozen(
             binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive,
@@ -720,7 +759,7 @@ export class RoundCoordinator {
           continue
         }
         for (const action of proposal.actions) actionIds.add(action.actionId)
-        frozen.push(this.#frozen(binding, 'proposed', proposal, cognitive))
+        frozen.push(this.#frozen(binding, 'proposed', proposal, cognitive, undefined, reflection))
       } catch {
         frozen.push(this.#frozen(
           binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive,
@@ -737,11 +776,13 @@ export class RoundCoordinator {
     proposal: Proposal,
     cognitive?: FrozenParticipant['cognitive'],
     availabilityTransition?: FrozenParticipant['availabilityTransition'],
+    reflection?: FrozenParticipant['reflection'],
   ): FrozenParticipant {
     return {
       binding, status, proposal,
       ...(cognitive === undefined ? {} : { cognitive }),
       ...(availabilityTransition === undefined ? {} : { availabilityTransition }),
+      ...(reflection === undefined ? {} : { reflection }),
     }
   }
 
