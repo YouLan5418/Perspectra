@@ -2,7 +2,9 @@ import {
   SubmitActionsValidator,
   ReflectionPolicyValidator,
   ModelBudgetLedger,
+  ProviderCallStore,
   SafeAgentRunner,
+  type ProviderCallRecord,
 } from '@harness-world/agents'
 import {
   assertProtocolString,
@@ -24,6 +26,7 @@ import {
   type TransactionId,
   type WorldAddress,
   type WorldEventDraft,
+  type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
@@ -82,6 +85,7 @@ export interface RoundCoordinatorOptions {
   readonly sceneDecision?: SceneDecisionService
   readonly cognitiveMemory?: CognitiveMemoryService
   readonly contextPipeline?: Phase8ContextPipeline
+  readonly providerCalls?: ProviderCallStore
   readonly runtimeMetrics?: ApplicationRuntimeMetrics
 }
 
@@ -113,6 +117,7 @@ interface FrozenParticipant {
     readonly cognition?: CharacterCognitionView
   }
   readonly reflection?: ReturnType<ReflectionPolicyValidator['evaluate']>
+  readonly providerCall?: ProviderCallRecord
   readonly availabilityTransition?: {
     readonly state: 'session_lag' | 'model_unavailable' | 'budget_unavailable'
     readonly reason: string
@@ -134,6 +139,35 @@ interface OrderedAction extends ActionOrderKey {
 }
 
 const roleRank = { player: 0, agent: 1, director: 2 } as const
+type ProviderInvocationFailure = 'budget_exhausted' | 'provider_failed' | 'provider_timeout'
+
+const terminalForFailure = {
+  budget_exhausted: 'budget_exhausted',
+  provider_failed: 'provider_rejected',
+  provider_timeout: 'timed_out_ambiguous',
+} as const
+
+const participantFailureForCallState: Partial<Record<ProviderCallRecord['state'], ParticipantTerminalStatus>> = {
+  failed_before_dispatch: 'provider_failed', provider_rejected: 'provider_failed',
+  timed_out_ambiguous: 'provider_timeout', invalid_response: 'schema_invalid',
+  budget_exhausted: 'budget_exhausted', discarded_after_quarantine: 'provider_failed',
+}
+
+const availabilityForFailure: Record<ProviderInvocationFailure | 'schema_invalid', FrozenParticipant['availabilityTransition']> = {
+  budget_exhausted: { state: 'budget_unavailable', reason: 'model budget was exhausted' },
+  provider_failed: { state: 'model_unavailable', reason: 'provider failed' },
+  provider_timeout: { state: 'model_unavailable', reason: 'provider timed out' },
+  schema_invalid: { state: 'model_unavailable', reason: 'provider returned an invalid action schema' },
+}
+
+const availabilityForTerminalCallState: Partial<Record<ProviderCallRecord['state'], FrozenParticipant['availabilityTransition']>> = {
+  failed_before_dispatch: availabilityForFailure.provider_failed,
+  provider_rejected: availabilityForFailure.provider_failed,
+  timed_out_ambiguous: { state: 'model_unavailable', reason: 'provider result is ambiguous' },
+  invalid_response: availabilityForFailure.schema_invalid,
+  budget_exhausted: availabilityForFailure.budget_exhausted,
+  discarded_after_quarantine: availabilityForFailure.provider_failed,
+}
 
 /** Compare the frozen ActionOrderKey tuple without consulting mutable world state. */
 export function compareActionOrderKey(left: ActionOrderKey, right: ActionOrderKey): number {
@@ -193,6 +227,10 @@ export class RoundCoordinator {
     }
     if (options.cognitiveMemory !== undefined && options.sceneDecision === undefined) {
       throw new TypeError('Cognitive Memory requires an authoritative Scene decision service')
+    }
+    if (this.#manifest.schemaVersion === 4 && options.contextPipeline !== undefined
+      && this.#participants.length > 0 && options.providerCalls === undefined) {
+      throw new TypeError('Phase 8 participants require the durable Provider call boundary')
     }
     this.#leaseTtlMs = options.leaseTtlMs ?? 30_000
     if (!Number.isSafeInteger(this.#leaseTtlMs) || this.#leaseTtlMs <= 0) {
@@ -321,6 +359,7 @@ export class RoundCoordinator {
     }
     const committed = this.options.store.committedRound(this.#address, transactionId)
     if (committed !== undefined) {
+      this.reconcileCommittedProviderCalls(transactionId)
       return { transactionId, result: this.#committedPlayerResult(committed, roundId, playerAction) }
     }
     const head = this.options.store.head(this.#address)
@@ -369,13 +408,16 @@ export class RoundCoordinator {
           role: value.binding.role,
           actorId: value.binding.actorId,
           terminalStatus: value.status,
-          providerInvocationId: deterministicId('provider-invocation:round-participant', { roundId, participantId: value.binding.participantId }),
+          providerInvocationId: value.providerCall?.modelCallId
+            ?? deterministicId('provider-invocation:round-participant', { roundId, participantId: value.binding.participantId }),
           contextHash: value.cognitive?.contextHash ?? contextHash,
           profileVersion: 'agent-provider-port/v1',
           budgetEvaluationId: deterministicId('budget-evaluation:round-participant', { roundId, participantId: value.binding.participantId }),
-          modelReplayRecordHash: null,
+          modelReplayRecordHash: value.providerCall === undefined
+            ? null
+            : hashWorldJson('provider-call-record/v1', value.providerCall),
           budgetReservationRecordHash: null,
-          responseHash: hashWorldJson('round-participant-response', value.proposal),
+          responseHash: value.providerCall?.responseHash ?? hashWorldJson('round-participant-response', value.proposal),
           proposalId: deterministicId('proposal:round-participant', { roundId, participantId: value.binding.participantId, proposalHash }),
           proposalHash,
           ...(value.cognitive === undefined ? {} : {
@@ -387,6 +429,7 @@ export class RoundCoordinator {
             }),
           }),
           ...(value.reflection === undefined ? {} : { cognitivePolicyReceipt: value.reflection.receipt }),
+          ...(value.providerCall === undefined ? {} : { providerCallState: value.providerCall.state }),
         }
       }),
     ]
@@ -543,6 +586,18 @@ export class RoundCoordinator {
       }
     }
     const cognitiveCharacterIds = [...cognitiveCharacters].sort()
+    const authority = {
+      schemaVersion: 2,
+      roundId,
+      baseHeadSeq: head.headSeq,
+      baseTick: head.tick,
+      contextHash,
+      participants,
+      actions,
+      resolutions,
+      finalCandidateHash: candidateHash,
+    } as const
+    const authorityHash = hashWorldJson('world-round-authority', authority)
     this.#renewLease()
     const commit = await this.options.store.commitRound({
       address: this.#address,
@@ -556,17 +611,7 @@ export class RoundCoordinator {
       ...(cognitiveCharacterIds.length === 0
         ? {}
         : { cognitiveJobs: cognitiveCharacterIds.map(characterId => ({ characterId })) }),
-      authority: {
-        schemaVersion: 2,
-        roundId,
-        baseHeadSeq: head.headSeq,
-        baseTick: head.tick,
-        contextHash,
-        participants,
-        actions,
-        resolutions,
-        finalCandidateHash: candidateHash,
-      },
+      authority,
       operationalSummary: {
         participantTerminals: frozen.map(value => ({
           participantId: value.binding.participantId,
@@ -578,6 +623,13 @@ export class RoundCoordinator {
       admissionProof: { inboxSeq: claimed.inboxSeq, inputHash: claimed.inputHash },
       writerFencingToken: this.#lease.fencingToken,
     })
+    if (this.options.providerCalls !== undefined) {
+      for (const participant of frozen) {
+        if (participant.providerCall?.state === 'validated') {
+          this.options.providerCalls.markCommitted(participant.providerCall.modelCallId, transactionId, authorityHash)
+        }
+      }
+    }
     for (const participant of frozen) {
       if (participant.status !== 'proposed') this.options.runtimeMetrics?.recordParticipant(participant.status)
       if (participant.availabilityTransition !== undefined) {
@@ -699,26 +751,62 @@ export class RoundCoordinator {
         }
       }
       this.#renewLease()
-      const run = await runner.invoke(
-        `provider:${context.roundId}:${binding.participantId}`,
-        binding.estimatedTokens,
-        binding.timeoutMs,
-        binding.provider,
-        providerContext,
-      )
-      this.#renewLease()
-      if (run.status === 'fallback') {
-        const failure = run.failure!
+      let providerCall = cognitive?.receipt === undefined || this.options.providerCalls === undefined
+        ? undefined
+        : this.options.providerCalls.prepare(cognitive.receipt)
+      let providerOutput: Proposal | SubmitActionsV2 | undefined
+      if (providerCall?.state === 'dispatch_started') {
+        providerCall = this.options.providerCalls!.markTerminal(providerCall.modelCallId, 'timed_out_ambiguous', {
+          reason: 'provider dispatch had no durable terminal result',
+        })
+      } else if (providerCall?.state === 'response_received') {
+        providerOutput = providerCall.response as Proposal | SubmitActionsV2
+      } else if (providerCall?.state === 'validated') {
+        providerOutput = providerCall.proposal as Proposal | SubmitActionsV2
+      }
+      if (providerCall !== undefined && !['prepared', 'response_received', 'validated'].includes(providerCall.state)) {
+        const failure = participantFailureForCallState[providerCall.state]!
         frozen.push(this.#frozen(
-          binding,
-          failure,
-          { participantId: binding.participantId, actions: [] },
-          cognitive,
-          failure === 'budget_exhausted'
-            ? { state: 'budget_unavailable', reason: 'model budget was exhausted' }
-            : { state: 'model_unavailable', reason: failure === 'provider_timeout' ? 'provider timed out' : 'provider failed' },
+          binding, failure, { participantId: binding.participantId, actions: [] }, cognitive,
+          availabilityForTerminalCallState[providerCall.state]!,
+          undefined, providerCall,
         ))
         continue
+      }
+      if (providerOutput === undefined) {
+        const run = await runner.invoke(
+          `provider:${context.roundId}:${binding.participantId}`,
+          binding.estimatedTokens,
+          binding.timeoutMs,
+          binding.provider,
+          providerContext,
+          providerCall === undefined ? undefined : () => {
+            providerCall = this.options.providerCalls!.markDispatchStarted(providerCall!.modelCallId)
+          },
+        )
+        this.#renewLease()
+        if (run.status === 'fallback') {
+          const failure = run.failure!
+          if (providerCall !== undefined) {
+            providerCall = this.options.providerCalls!.markTerminal(
+              providerCall.modelCallId,
+              terminalForFailure[failure],
+              { reason: failure },
+            )
+          }
+          frozen.push(this.#frozen(
+            binding, failure, { participantId: binding.participantId, actions: [] }, cognitive,
+            availabilityForFailure[failure],
+            undefined, providerCall,
+          ))
+          continue
+        }
+        providerOutput = run.output
+        if (providerCall !== undefined) {
+          providerCall = this.options.providerCalls!.recordResponse(providerCall.modelCallId, providerOutput, {
+            provider: 'scripted', requestId: null, usage: null, cache: null,
+          })
+        }
       }
       try {
         const authorization = {
@@ -731,7 +819,7 @@ export class RoundCoordinator {
         let proposal: Proposal
         let reflection: FrozenParticipant['reflection']
         if (this.#manifest.schemaVersion === 4 && binding.role === 'agent') {
-          const validated = this.#validator.validateV2(run.output, { ...authorization, maxReflectionOperations: 4 })
+          const validated = this.#validator.validateV2(providerOutput, { ...authorization, maxReflectionOperations: 4 })
           proposal = validated.proposal
           if (validated.reflectionOperations !== undefined) {
             if (cognitive?.receipt === undefined || cognitive.cognition === undefined) {
@@ -746,24 +834,46 @@ export class RoundCoordinator {
             })
           }
         } else {
-          const legacy = run.output as Proposal
+          const legacy = providerOutput as Proposal
           proposal = this.#validator.validate({
             schemaVersion: 1, participantId: legacy.participantId, actions: legacy.actions,
           }, authorization)
         }
         if (proposal.actions.some(action => actionIds.has(action.actionId))) {
+          if (providerCall?.state === 'response_received') {
+            providerCall = this.options.providerCalls!.markTerminal(providerCall.modelCallId, 'invalid_response', {
+              reason: 'provider reused an actionId already frozen in the Round',
+            })
+          }
           frozen.push(this.#frozen(
             binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive,
             { state: 'model_unavailable', reason: 'provider returned a divergent action schema' },
+            undefined, providerCall,
           ))
           continue
         }
         for (const action of proposal.actions) actionIds.add(action.actionId)
-        frozen.push(this.#frozen(binding, 'proposed', proposal, cognitive, undefined, reflection))
-      } catch {
+        if (providerCall !== undefined) {
+          providerCall = this.options.providerCalls!.markValidated(providerCall.modelCallId, providerOutput)
+        }
+        frozen.push(this.#frozen(binding, 'proposed', proposal, cognitive, undefined, reflection, providerCall))
+      } catch (error: unknown) {
+        if (providerCall?.state === 'validated') {
+          failWorld({
+            errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
+            message: 'durably validated Provider output no longer validates', retryable: false,
+            correlationId: `provider-call:${providerCall.modelCallId}`, address: this.#address, roundId: context.roundId,
+          })
+        }
+        if (providerCall?.state === 'response_received') {
+          providerCall = this.options.providerCalls!.markTerminal(providerCall.modelCallId, 'invalid_response', {
+            reason: String(error),
+          })
+        }
         frozen.push(this.#frozen(
           binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive,
           { state: 'model_unavailable', reason: 'provider returned an invalid action schema' },
+          undefined, providerCall,
         ))
       }
     }
@@ -777,12 +887,26 @@ export class RoundCoordinator {
     cognitive?: FrozenParticipant['cognitive'],
     availabilityTransition?: FrozenParticipant['availabilityTransition'],
     reflection?: FrozenParticipant['reflection'],
+    providerCall?: ProviderCallRecord,
   ): FrozenParticipant {
     return {
       binding, status, proposal,
       ...(cognitive === undefined ? {} : { cognitive }),
       ...(availabilityTransition === undefined ? {} : { availabilityTransition }),
       ...(reflection === undefined ? {} : { reflection }),
+      ...(providerCall === undefined ? {} : { providerCall }),
+    }
+  }
+
+  /** Complete the derivation-side call marker after a world commit won a crash race. */
+  reconcileCommittedProviderCalls(transactionId: TransactionId): void {
+    if (this.options.providerCalls === undefined) return
+    const authority = this.options.store.readRoundAuthority(this.#address, transactionId)!
+    for (const participant of authority.authority.participants as readonly WorldJsonObject[]) {
+      if (participant.providerCallState !== 'validated' || typeof participant.providerInvocationId !== 'string') continue
+      const stored = this.options.providerCalls.read(participant.providerInvocationId)
+      if (stored === undefined) continue
+      this.options.providerCalls.markCommitted(stored.modelCallId, transactionId, authority.authorityHash)
     }
   }
 

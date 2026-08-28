@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   createContextReceipt,
+  ProviderCallStore,
 } from '@harness-world/agents'
 import {
   brandId,
@@ -16,6 +17,7 @@ import {
   type AgentProvider,
   type FaultInjector,
   type FaultPoint,
+  type InteractionRoundId,
   type Proposal,
   type ProposalContext,
   type SubmitActionsV2,
@@ -240,12 +242,13 @@ function options(
     readonly leaseTtlMs?: number
     readonly faultInjector?: FaultInjector
   } = {},
-): RoundCoordinatorOptions & { store: WorldStore; inbox: RoundInbox; leases: WriterLeaseService; availability: CharacterRuntimeAvailabilityService } {
+): RoundCoordinatorOptions & { store: WorldStore; inbox: RoundInbox; leases: WriterLeaseService; availability: CharacterRuntimeAvailabilityService; providerCalls?: ProviderCallStore } {
   const now = configuration.now ?? Date.now
   const store = new WorldStore(path, configuration.faultInjector, now)
   const inbox = new RoundInbox(path, now)
   const leases = new WriterLeaseService(path, now)
   const availability = new CharacterRuntimeAvailabilityService(path, now)
+  const providerCalls = compiled.manifest.schemaVersion === 4 ? new ProviderCallStore(`${path}.context.sqlite`) : undefined
   if (store.readManifest(compiled.manifest.address) !== undefined) {
     availability.initialize(compiled.manifest.address, compiled.manifest.characters.map(value => ({ characterId: value.characterId, state: 'ready' })))
   }
@@ -258,6 +261,7 @@ function options(
     ownerId: 'coordinator:test',
     participants,
     modelBudgetTokens,
+    ...(providerCalls === undefined ? {} : { providerCalls }),
     ...(configuration.leaseTtlMs === undefined ? {} : { leaseTtlMs: configuration.leaseTtlMs }),
   }
 }
@@ -266,6 +270,7 @@ function close(optionsValue: ReturnType<typeof options>, coordinator?: RoundCoor
   coordinator?.close()
   optionsValue.inbox.close()
   optionsValue.availability.close()
+  optionsValue.providerCalls?.close()
   optionsValue.leases.close()
   optionsValue.store.close()
 }
@@ -757,7 +762,7 @@ describe('RoundCoordinator', () => {
       participantId: 'agent:reflection', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
       allowedActionTypes: ['speak', 'move'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
       provider: {
-        async propose() {
+        async propose(context) {
           call += 1
           const validBasis = call === 1
             ? currentBasis
@@ -777,7 +782,8 @@ describe('RoundCoordinator', () => {
             : {
                 schemaVersion: 2 as const, decision: 'act' as const,
                 actions: [{
-                  actionId: 'action:npc:second', actorId: npc.actorId, actionType: 'speak', actionVersion: 1,
+                  actionId: call === 4 ? context.playerAction.actionId : 'action:npc:second',
+                  actorId: npc.actorId, actionType: 'speak', actionVersion: 1,
                   parameters: { text: 'The legal action still happens' },
                 }],
                 reflection,
@@ -852,8 +858,19 @@ describe('RoundCoordinator', () => {
       compiled.manifest.address, npc.actorId, configured.store.head(compiled.manifest.address).headSeq,
     ).claims).toMatchObject([{ id: 'claim:reflection:1' }])
     const firstAuthority = configured.store.readRoundAuthority(compiled.manifest.address, reflected.transactionId)!.authority as any
-    expect(firstAuthority.participants.find((value: any) => value.participantId === npc.participantId).cognitivePolicyReceipt)
+    const firstParticipant = firstAuthority.participants.find((value: any) => value.participantId === npc.participantId)
+    expect(firstParticipant.cognitivePolicyReceipt)
       .toMatchObject({ status: 'accepted', reasonCode: 'accepted' })
+    expect(configured.providerCalls!.read(firstParticipant.providerInvocationId)).toMatchObject({
+      state: 'committed', transactionId: reflected.transactionId,
+    })
+    const providerDatabase = new DatabaseSync(`${path}.context.sqlite`)
+    providerDatabase.prepare(`
+      UPDATE provider_calls SET state = 'validated', transaction_id = NULL, authority_hash = NULL
+      WHERE model_call_id = ?
+    `).run(firstParticipant.providerInvocationId)
+    coordinator.reconcileCommittedProviderCalls(reflected.transactionId)
+    expect(configured.providerCalls!.read(firstParticipant.providerInvocationId)).toMatchObject({ state: 'committed' })
 
     await coordinator.submit({
       idempotencyKey: 'reflection:second', principalId: 'principal:player',
@@ -865,8 +882,10 @@ describe('RoundCoordinator', () => {
       && (value.data as WorldJsonObject).characterId === npc.actorId
       && (value.data as WorldJsonObject).text === 'The legal action still happens')!
     const secondAuthority = configured.store.readRoundAuthority(compiled.manifest.address, npcSpeech.transactionId)!.authority as any
-    expect(secondAuthority.participants.find((value: any) => value.participantId === npc.participantId).cognitivePolicyReceipt)
+    const secondParticipant = secondAuthority.participants.find((value: any) => value.participantId === npc.participantId)
+    expect(secondParticipant.cognitivePolicyReceipt)
       .toMatchObject({ status: 'rejected', reasonCode: 'source_forbidden' })
+    expect(configured.providerCalls!.read(secondParticipant.providerInvocationId)).toMatchObject({ state: 'committed' })
 
     includeCognition = false
     await coordinator.submit({
@@ -875,8 +894,143 @@ describe('RoundCoordinator', () => {
     })
     const thirdEvents = configured.store.readEvents(compiled.manifest.address)
     expect(thirdEvents.filter(value => value.eventType === 'character.reflect')).toHaveLength(1)
-    expect(call).toBe(3)
+    const thirdTransaction = thirdEvents.filter(value => value.eventType === 'round.participant-terminal').at(-1)!.transactionId
+    const thirdAuthority = configured.store.readRoundAuthority(compiled.manifest.address, thirdTransaction)!.authority as any
+    const thirdParticipant = thirdAuthority.participants.find((value: any) => value.participantId === npc.participantId)
+    expect(configured.providerCalls!.read(thirdParticipant.providerInvocationId)).toMatchObject({ state: 'invalid_response' })
+
+    includeCognition = true
+    configured.availability.set(compiled.manifest.address, npc.actorId, 'ready', null)
+    await coordinator.submit({
+      idempotencyKey: 'reflection:duplicate-action', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'fourth' } }, correlationId: 'reflection:duplicate-action',
+    })
+    const fourthEvents = configured.store.readEvents(compiled.manifest.address)
+    const fourthTransaction = fourthEvents.filter(value => value.eventType === 'round.participant-terminal').at(-1)!.transactionId
+    const fourthAuthority = configured.store.readRoundAuthority(compiled.manifest.address, fourthTransaction)!.authority as any
+    const fourthParticipant = fourthAuthority.participants.find((value: any) => value.participantId === npc.participantId)
+    expect(configured.providerCalls!.read(fourthParticipant.providerInvocationId)).toMatchObject({ state: 'invalid_response' })
+    providerDatabase.prepare('DELETE FROM provider_calls WHERE model_call_id = ?').run(firstParticipant.providerInvocationId)
+    coordinator.reconcileCommittedProviderCalls(reflected.transactionId)
+    providerDatabase.close()
+    expect(call).toBe(4)
     close(configured, coordinator)
+  })
+
+  it.each(['prepared_budget', 'dispatch_started', 'response_received', 'validated'] as const)(
+    'recovers Provider call state %s without redispatch', async recoveredState => {
+    const path = database(`phase8-provider-${recoveredState}.sqlite`)
+    const compiled = phase8ReflectionWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    let calls = 0
+    const npc: RoundParticipant = {
+      participantId: 'agent:ambiguous', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
+      allowedActionTypes: ['speak'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+      provider: { async propose() { calls += 1; return { schemaVersion: 2, decision: 'abstain', actions: [] } } },
+    }
+    const configured = options(path, compiled, [npc], recoveredState === 'prepared_budget' ? 0 : 100)
+    const sceneDecision = {
+      decideFromEvents: (_address: unknown, player: typeof npc.actorId, _events: unknown, asOfSeq: number) => ({
+        sceneId: 'scene:a', observerIds: [player, npc.actorId], schedulableCharacterIds: [npc.actorId],
+        visibleResultCharacterIds: [player, npc.actorId], asOfSeq,
+      }),
+    } as never
+    const makeReceipt = (roundId: InteractionRoundId, tick: number) => {
+      const head = configured.store.head(compiled.manifest.address)
+      const cognition = new CognitionProjectionRebuilder(configured.store)
+        .rebuildCharacterAt(compiled.manifest.address, npc.actorId, head.headSeq)
+      const contextHash = hashWorldJson('ambiguous-context', { roundId, tick })
+      const providerRequestHash = hashWorldJson('ambiguous-provider', { roundId, tick })
+      return {
+        cognition,
+        receipt: createContextReceipt({
+          address: compiled.manifest.address, roundId, participantKind: 'character',
+          participantId: npc.participantId, subjectCharacterId: npc.actorId,
+          controllerId: `provider:${npc.participantId}`, controllerEpoch: 1,
+          baseHeadSeq: head.headSeq, asOfWorldSeq: head.headSeq, tick, manifestHash: compiled.manifestHash,
+          contextProfileId: 'standard', contextProfileHash: hashWorldJson('profile', { id: 'standard' }),
+          versionLocks: {
+            contextSchema: 'character-controller/v2', contextReceiptSchema: 'context-receipt/v1', sceneDecisionSchema: 'scene-decision/v2',
+            memorySchema: 'cognitive-memory/v2', checkpointSchema: 'continuity-checkpoint/v1', rendererSchema: 'structured-prompt-renderer/v1',
+          },
+          componentHashes: {
+            characterViewHash: cognition.bundleHash, sceneDecisionHash: hashWorldJson('scene', { head: head.headSeq }), checkpointHash: null,
+            tailHash: hashWorldJson('tail', {}), recallHash: hashWorldJson('recall', {}), affordanceHash: hashWorldJson('affordance', {}),
+          },
+          includedSourceRefs: [], exclusions: [], contextHash, providerRequestHash,
+        }),
+      }
+    }
+    const contextPipeline = {
+      prepare: (binding: RoundParticipant, context: ProposalContext) => {
+        const prepared = makeReceipt(context.roundId, context.tick)
+        return {
+          providerContext: {
+            ...context, agentContextVersion: 2, participantId: binding.participantId,
+            contextReceiptId: prepared.receipt.receiptId, contextHash: prepared.receipt.contextHash,
+            providerRequestHash: prepared.receipt.providerRequestHash,
+            exactProviderRequest: { schemaVersion: 'structured-provider-request/v1', model: 'scripted', messages: [], tools: {}, sampling: {}, user: 'opaque' },
+          },
+          ...prepared, memorySourceRefs: [], recallResultHash: hashWorldJson('recall', {}),
+        }
+      },
+    } as never
+    const coordinator = new RoundCoordinator({ ...configured, sceneDecision, contextPipeline })
+    const accepted = coordinator.accept({
+      idempotencyKey: 'provider:ambiguous', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'continue safely' } }, correlationId: 'provider:ambiguous',
+    })
+    const prepared = configured.providerCalls!.prepare(makeReceipt(accepted.roundId, 1).receipt)
+    if (recoveredState !== 'prepared_budget') configured.providerCalls!.markDispatchStarted(prepared.modelCallId)
+    const rawResponse = recoveredState === 'validated'
+      ? { schemaVersion: 2, decision: 'abstain', actions: [{}] }
+      : { schemaVersion: 2, decision: 'abstain', actions: [] }
+    if (recoveredState === 'response_received' || recoveredState === 'validated') {
+      configured.providerCalls!.recordResponse(prepared.modelCallId, rawResponse, { provider: 'scripted' })
+    }
+    if (recoveredState === 'validated') configured.providerCalls!.markValidated(prepared.modelCallId, rawResponse)
+    if (recoveredState === 'validated') {
+      await expect(coordinator.drainAccepted('provider:validated-divergence')).rejects.toThrow('no longer validates')
+      expect(calls).toBe(0)
+      expect(configured.providerCalls!.read(prepared.modelCallId)).toMatchObject({ state: 'validated' })
+      close(configured, coordinator)
+      return
+    }
+    await coordinator.drainAccepted('provider:ambiguous:recovery')
+    expect(calls).toBe(0)
+    expect(configured.providerCalls!.read(prepared.modelCallId)).toMatchObject({
+      state: recoveredState === 'prepared_budget' ? 'budget_exhausted'
+        : recoveredState === 'dispatch_started' ? 'timed_out_ambiguous' : 'committed',
+    })
+    const authority = configured.store.readRoundAuthority(
+      compiled.manifest.address,
+      configured.store.readEvents(compiled.manifest.address).at(-1)!.transactionId,
+    )!.authority as any
+    expect(authority.participants.find((value: any) => value.participantId === npc.participantId))
+      .toMatchObject(recoveredState === 'prepared_budget'
+        ? { terminalStatus: 'budget_exhausted', providerCallState: 'budget_exhausted' }
+        : recoveredState === 'dispatch_started'
+          ? { terminalStatus: 'provider_timeout', providerCallState: 'timed_out_ambiguous' }
+          : { terminalStatus: 'proposed', providerCallState: 'validated' })
+    close(configured, coordinator)
+  })
+
+  it('requires the durable Provider boundary for Phase 8 participants', () => {
+    const path = database('phase8-provider-required.sqlite')
+    const compiled = phase8ReflectionWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const npc = participant('agent:required', 'agent', 1, provider(() => ({
+      participantId: 'agent:required', actions: [],
+    })))
+    const configured = options(path, compiled, [npc])
+    expect(() => new RoundCoordinator({
+      ...configured, contextPipeline: {} as never, providerCalls: undefined,
+    } as never)).toThrow('durable Provider call boundary')
+    close(configured)
   })
 
   it('degrades ordinary Phase 8 Context failures but propagates integrity failures', async () => {
@@ -1064,6 +1218,7 @@ describe('RoundCoordinator', () => {
 
     const normalOptions = options(path, compiled)
     const normal = new RoundCoordinator(normalOptions)
+    normal.reconcileCommittedProviderCalls(brandId('transaction:absent', 'TransactionId'))
     expect(() => normal.submit({
       idempotencyKey: '', principalId: 'principal:player',
       action: { actionType: 'speak', parameters: {} }, correlationId: 'invalid',

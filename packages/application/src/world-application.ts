@@ -36,7 +36,7 @@ import {
   type RulebookRegistry,
 } from '@harness-world/kernel'
 import { CognitiveMemoryService, type RecalledMemory } from '@harness-world/memory'
-import { ContextReceiptStore, ContinuityCheckpointService } from '@harness-world/agents'
+import { ContextReceiptStore, ContinuityCheckpointService, ProviderCallStore } from '@harness-world/agents'
 import {
   DeterministicPresenter,
   type PresentationResult,
@@ -237,10 +237,12 @@ export class BranchAgentComponent {
     readonly participants: readonly RoundParticipant[],
     readonly cognitiveMemory?: CognitiveMemoryService,
     readonly contextPipeline?: Phase8ContextPipeline,
+    readonly providerCalls?: ProviderCallStore,
   ) {}
 
   close(): void {
     this.contextPipeline?.close()
+    this.providerCalls?.close()
     this.cognitiveMemory?.close()
   }
 }
@@ -277,6 +279,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
     )
     let cognitiveMemory: CognitiveMemoryService | undefined
     let contextPipeline: Phase8ContextPipeline | undefined
+    let providerCalls: ProviderCallStore | undefined
     try {
       if (participants.length > 0 && this.options.modelBudgetTokens === undefined) {
         throw new TypeError('modelBudgetTokens must be configured when Round participants are enabled')
@@ -298,9 +301,10 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
             `context-pipeline:${worldAddressKey(scope.address)}`, scope.address,
           ),
         })
+        providerCalls = new ProviderCallStore(this.#contextPath!)
       }
       const agents = new BranchAgentComponent(
-        participants.filter(value => value.role === 'agent'), cognitiveMemory, contextPipeline,
+        participants.filter(value => value.role === 'agent'), cognitiveMemory, contextPipeline, providerCalls,
       )
       const director = new BranchDirectorComponent(participants.filter(value => value.role === 'director'))
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
@@ -325,6 +329,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         }),
         ...(cognitiveMemory === undefined ? {} : { cognitiveMemory }),
         ...(contextPipeline === undefined ? {} : { contextPipeline }),
+        ...(providerCalls === undefined ? {} : { providerCalls }),
         runtimeMetrics: this.options.runtimeMetrics,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
       })
@@ -337,6 +342,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       return { kernel, store, agents, director }
     } catch (error: unknown) {
       contextPipeline?.close()
+      providerCalls?.close()
       cognitiveMemory?.close()
       store.close()
       throw error
