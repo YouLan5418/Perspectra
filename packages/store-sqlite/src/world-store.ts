@@ -7,6 +7,7 @@ import {
   worldAddressKey,
   type CommitRoundRequest,
   type CommitRoundResult,
+  type CognitiveJobDraft,
   type FaultInjector,
   type StoredOutboxItem,
   type StoredCognitiveJob,
@@ -368,6 +369,7 @@ export interface ActivateBranchRequest {
   readonly genesisHash: WorldHash
   readonly transactionId: TransactionId
   readonly roundId: CommitRoundRequest['roundId']
+  readonly cognitiveJobs?: readonly CognitiveJobDraft[]
   readonly correlationId: string
 }
 
@@ -505,6 +507,10 @@ export class WorldStore {
       throw new TypeError('genesisHash does not match Genesis events')
     }
     assertManifestEvents(request.manifest, request.genesisEvents)
+    const cognitiveJobs = [...(request.cognitiveJobs ?? [])].sort((left, right) => left.characterId.localeCompare(right.characterId))
+    if (new Set(cognitiveJobs.map(job => job.characterId)).size !== cognitiveJobs.length) {
+      throw new TypeError('Genesis cognitive job characterId values must be unique')
+    }
     const addressKey = worldAddressKey(request.address)
     this.#audit.record(addressKey, 'world.activate.requested', request.correlationId, {
       manifestHash: request.manifestHash,
@@ -517,6 +523,7 @@ export class WorldStore {
       genesisHash: request.genesisHash,
       transactionId: request.transactionId,
       roundId: request.roundId,
+      ...(cognitiveJobs.length === 0 ? {} : { cognitiveJobs }),
     })
     this.#db.exec('BEGIN IMMEDIATE')
     try {
@@ -613,6 +620,21 @@ export class WorldStore {
         INSERT INTO round_commits(transaction_id, address_key, request_hash, round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash)
         VALUES (?, ?, ?, ?, 0, 0, ?, 0, ?)
       `).run(request.transactionId, addressKey, activationHash, request.roundId, request.genesisEvents.length, bundleHash)
+      for (const job of cognitiveJobs) {
+        const identity = {
+          address: request.address,
+          transactionId: request.transactionId,
+          characterId: job.characterId,
+          asOfWorldSeq: request.genesisEvents.length,
+        }
+        const jobId = deterministicId('world-cognitive-job-id', identity)
+        const jobHash = hashWorldJson('world-cognitive-job', { jobId, ...identity })
+        this.#db.prepare(`
+          INSERT INTO world_cognitive_jobs(
+            job_id, address_key, transaction_id, character_id, as_of_seq, status, attempt_count, last_error, job_hash
+          ) VALUES (?, ?, ?, ?, ?, 'pending', 0, NULL, ?)
+        `).run(jobId, addressKey, request.transactionId, job.characterId, request.genesisEvents.length, jobHash)
+      }
       this.#db.prepare(`INSERT INTO heads(address_key, head_seq, tick, event_hash) VALUES (?, ?, 0, ?)`)
         .run(addressKey, request.genesisEvents.length, previousHash)
       this.#db.prepare(`INSERT INTO branch_controls(address_key, admission_state, lifecycle_state, reason, revision) VALUES (?, 'open', 'active', NULL, 0)`).run(addressKey)

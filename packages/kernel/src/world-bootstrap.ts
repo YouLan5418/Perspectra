@@ -26,6 +26,9 @@ export class WorldBootstrap {
       genesisHash: compiled.genesisHash,
       transactionId: brandId(deterministicId('transaction:genesis', identity), 'TransactionId'),
       roundId: brandId(deterministicId('round:genesis', identity), 'InteractionRoundId'),
+      ...(compiled.manifest.schemaVersion === 4
+        ? { cognitiveJobs: compiled.manifest.characters.map(character => ({ characterId: character.characterId })) }
+        : {}),
       correlationId,
     })
   }

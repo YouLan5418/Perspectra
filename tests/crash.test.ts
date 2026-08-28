@@ -7,8 +7,16 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId, createErrorEnvelope } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
+import { CognitiveMemoryService } from '@harness-world/memory'
 import { LocalJsonRpcRouter, WorldHostInstanceLock } from '@harness-world/operations'
-import { BranchQuarantineService, SessionDeliveryAdapter, WorldArchiveService, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
+import {
+  BranchQuarantineService,
+  SessionDeliveryAdapter,
+  WorldArchiveService,
+  WorldOutbox,
+  WorldStore,
+  WriterLeaseService,
+} from '@harness-world/store-sqlite'
 import {
   fixtureAddress,
   fixtureCommitRequest,
@@ -23,6 +31,7 @@ const applicationWorker = fileURLToPath(new URL('./workers/application-crash-wor
 const quarantineWorker = fileURLToPath(new URL('./workers/quarantine-crash-worker.ts', import.meta.url))
 const acceptedRoundWorker = fileURLToPath(new URL('./workers/accepted-round-crash-worker.ts', import.meta.url))
 const instanceLockWorker = fileURLToPath(new URL('./workers/instance-lock-crash-worker.ts', import.meta.url))
+const memoryV2Worker = fileURLToPath(new URL('./workers/memory-v2-crash-worker.ts', import.meta.url))
 
 function database(name: string): string {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-crash-'))
@@ -61,6 +70,58 @@ describe('hard process termination recovery', () => {
     expect(recovered.readRoundAuthority(fixtureAddress(), fixtureCommitRequest().transactionId) !== undefined)
       .toBe(expectedHead === 1)
     recovered.close()
+  })
+
+  it('reuses committed Cognitive Memory after termination before the World job receipt', async () => {
+    const worldPath = database('memory-v2-world.sqlite')
+    const memoryPath = worldPath.replace('memory-v2-world.sqlite', 'memory-v2.sqlite')
+    const setup = new WorldStore(worldPath)
+    setup.createBranch(fixtureAddress())
+    await setup.commitRound({
+      ...fixtureCommitRequest(),
+      events: [
+        {
+          eventType: 'character.created', eventVersion: 1,
+          data: { characterId: 'character:crash-fixture', locationId: 'location:crash-fixture' },
+        },
+        {
+          eventType: 'observation.upsert', eventVersion: 1,
+          data: {
+            id: 'observation:crash-fixture',
+            value: { observerId: 'character:crash-fixture', content: 'durable crash memory' },
+          },
+        },
+      ],
+    })
+    setup.close()
+
+    await hardKillAt(memoryV2Worker, [worldPath, memoryPath])
+
+    const recoveredWorld = new WorldStore(worldPath)
+    const recoveredLeases = new WriterLeaseService(worldPath)
+    const lease = recoveredLeases.acquire(fixtureAddress(), 'memory:v2-crash-worker', 10_000)
+    const recoveredMemory = new CognitiveMemoryService(memoryPath, recoveredWorld, undefined, 2)
+    const before = recoveredMemory.watermark(
+      fixtureAddress(), brandId('character:crash-fixture', 'CharacterId'),
+    )
+    expect(before).toMatchObject({ verifiedThroughSeq: 2, capturedThroughSeq: 2, memoryEpoch: 1 })
+    expect(recoveredWorld.readCognitiveJobs(fixtureAddress(), true)[0]).toMatchObject({
+      status: 'pending', attemptCount: 0,
+    })
+
+    expect(recoveredMemory.processPending(
+      fixtureAddress(), 'memory:v2-crash-worker', lease.fencingToken,
+      () => { recoveredLeases.renew(fixtureAddress(), 'memory:v2-crash-worker', lease.fencingToken, 10_000) },
+    )).toEqual({ completed: 1, failed: [] })
+    expect(recoveredMemory.watermark(
+      fixtureAddress(), brandId('character:crash-fixture', 'CharacterId'),
+    )).toEqual(before)
+    expect(recoveredWorld.readCognitiveJobs(fixtureAddress(), true)[0]).toMatchObject({
+      status: 'completed', attemptCount: 1,
+    })
+    recoveredMemory.close()
+    recoveredLeases.close()
+    recoveredWorld.close()
   })
 
   it.each([

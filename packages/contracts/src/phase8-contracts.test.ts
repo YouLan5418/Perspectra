@@ -11,6 +11,8 @@ import {
   DIRECTOR_DIRECTIVE_TYPES,
   DRAMATIC_SIGNAL_TYPES,
   GOAL_OBJECTIVE_KINDS,
+  COGNITIVE_EPISTEMIC_KINDS,
+  COGNITIVE_MEMORY_KINDS,
   GOAL_STATUSES,
   OPEN_LOOP_KINDS,
   OPEN_LOOP_STATUSES,
@@ -167,6 +169,11 @@ describe('Phase 8 Basic v1 vocabularies', () => {
       'choice_made', 'integrated', 'external_condition_changed', 'source_state_resolved', 'superseded',
     ])
     expect(GOAL_OBJECTIVE_KINDS).toEqual(['registered', 'narrative'])
+    expect(COGNITIVE_MEMORY_KINDS).toEqual(['episodic', 'communication', 'belief', 'intention'])
+    expect(COGNITIVE_EPISTEMIC_KINDS).toEqual([
+      'direct_observation', 'observed_action', 'reported_speech',
+      'subjective_inference', 'self_intention', 'derived_summary',
+    ])
     expect(GOAL_STATUSES).toEqual(['active', 'blocked', 'completed', 'abandoned', 'failed'])
     expect(COMMITMENT_ORIGINS).toEqual(['promise', 'agreement', 'accepted_request', 'duty', 'self_commitment'])
     expect(COMMITMENT_STATUSES).toEqual(['active', 'fulfilled', 'breached', 'released', 'renounced'])

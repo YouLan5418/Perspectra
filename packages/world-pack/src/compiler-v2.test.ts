@@ -5,13 +5,14 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   brandId,
   canonicalizeWorldJson,
+  createErrorEnvelope,
   PHASE8_REGISTRY_LOCKS,
   PHASE8_VOCABULARY_LOCKS,
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { runtimeManifestFromStored, WorldBootstrap } from '@harness-world/kernel'
 import { SceneDecisionService, WorldApplication } from '@harness-world/application'
-import { CharacterRuntimeAvailabilityService, CognitionProjectionRebuilder, WorldStore } from '@harness-world/store-sqlite'
+import { BranchQuarantineService, CharacterRuntimeAvailabilityService, CognitionProjectionRebuilder, WorldStore } from '@harness-world/store-sqlite'
 import {
   WorldPackCompilerV2,
   canonicalWorldPackBytesV2,
@@ -305,7 +306,35 @@ describe('WorldPackCompilerV2', () => {
       action: { actionType: 'speak', parameters: { text: 'The road remains open.' } },
       correlationId: 'phase8-scene-mount',
     })).resolves.toMatchObject({ status: 'accepted', tick: 1 })
+    expect(await application.recallMemory(
+      options.address, brandId('character:alice', 'CharacterId'), 'irresponsible',
+    )).toMatchObject([{
+      metadata: { kind: 'belief', epistemicKind: 'subjective_inference' },
+    }])
     await application.close()
+    const memoryJobs = new WorldStore(join(root, 'application-world.sqlite'))
+    expect(memoryJobs.readCognitiveJobs(options.address, true)).toHaveLength(6)
+    expect(memoryJobs.readCognitiveJobs(options.address, true).every(job => job.status === 'completed')).toBe(true)
+    memoryJobs.close()
+    const quarantine = new BranchQuarantineService(join(root, 'application-world.sqlite'))
+    quarantine.quarantine({
+      address: options.address,
+      error: createErrorEnvelope({
+        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'phase8 recovery fixture',
+        retryable: false, correlationId: 'phase8-recovery', address: options.address,
+      }),
+      source: 'phase8-memory-v2-test',
+    })
+    quarantine.close()
+    const recovering = new WorldApplication({
+      worldPath: join(root, 'application-world.sqlite'),
+      sessionPath: join(root, 'application-session.sqlite'),
+      memoryPath: join(root, 'application-memory.sqlite'),
+    })
+    await expect(recovering.quarantineRecover(options.address, 'phase8-memory-v2-recover')).resolves.toMatchObject({
+      status: 'recovered',
+    })
+    await recovering.close()
   })
 
   it('materializes memory-seed Documents as observations and non-active lifecycle transitions', async () => {

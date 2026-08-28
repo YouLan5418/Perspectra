@@ -272,6 +272,37 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     restarted.close()
   })
 
+  it('atomically enqueues one Genesis cognitive job per Manifest v4 character', () => {
+    const compiled = new WorldSpecCompiler().compile(spec())
+    const manifest = { ...compiled.manifest, schemaVersion: 4 as const }
+    const phase8 = {
+      ...compiled,
+      manifest: manifest as unknown as CompiledWorldSpec['manifest'],
+      manifestHash: hashWorldJson('compiled-world-manifest', manifest),
+    }
+    const store = new WorldStore(database('bootstrap-v4-jobs.sqlite'))
+    const bootstrap = new WorldBootstrap(store)
+    const activated = bootstrap.activate(phase8)
+    expect(store.readCognitiveJobs(phase8.manifest.address)).toMatchObject([
+      { characterId: 'character:a', asOfWorldSeq: phase8.genesisEvents.length, status: 'pending' },
+      { characterId: 'character:b', asOfWorldSeq: phase8.genesisEvents.length, status: 'pending' },
+    ])
+    expect(bootstrap.activate(phase8)).toEqual({ ...activated, status: 'already_active' })
+    expect(store.readCognitiveJobs(phase8.manifest.address)).toHaveLength(2)
+    expect(() => store.activateBranch({
+      address: phase8.manifest.address, manifest: phase8.manifest, manifestHash: phase8.manifestHash,
+      genesisEvents: phase8.genesisEvents, genesisHash: phase8.genesisHash,
+      transactionId: brandId('transaction:duplicate-genesis-jobs', 'TransactionId'),
+      roundId: brandId('round:duplicate-genesis-jobs', 'InteractionRoundId'),
+      cognitiveJobs: [
+        { characterId: phase8.manifest.characters[0]!.characterId },
+        { characterId: phase8.manifest.characters[0]!.characterId },
+      ],
+      correlationId: 'duplicate-genesis-jobs',
+    })).toThrow('must be unique')
+    store.close()
+  })
+
   it('prevents the generic bootstrap from creating a new historical v3 world', () => {
     const historical = new WorldSpecCompiler().compile({
       ...spec(), rulebook: { rulebookId: 'builtin:speak-move', version: 3 },

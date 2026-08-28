@@ -135,7 +135,7 @@ function validateApplicationManifest(
   address: WorldAddress,
   correlationId: string,
   memoryPath: string | undefined,
-): { readonly sceneVersion?: 1 | 2; readonly contextEnabled: boolean } {
+): { readonly sceneVersion?: 1 | 2; readonly contextEnabled: boolean; readonly memoryVersion: 1 | 2 } {
   const scenePolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:scene-decision')
   const contextPolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:agent-context')
   const requiredSceneVersion = manifest.contentPack?.runtimeCapabilities.sceneDecisionVersion === 2 ? 2 : 1
@@ -160,7 +160,9 @@ function validateApplicationManifest(
       correlationId, address,
     })
   }
-  return { ...(sceneVersion === undefined ? {} : { sceneVersion }), contextEnabled: contextPolicy !== undefined }
+  const contextEnabled = contextPolicy !== undefined
+  const memoryVersion = manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? 2 as const : 1 as const
+  return { ...(sceneVersion === undefined ? {} : { sceneVersion }), contextEnabled, memoryVersion }
 }
 
 /** Real branch-owned Store aggregate; all handles close with its Cordis Fiber. */
@@ -273,7 +275,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       )
       cognitiveMemory = !policies.contextEnabled
         ? undefined
-        : new CognitiveMemoryService(this.options.memoryPath!, store.store, this.options.faultInjector)
+        : new CognitiveMemoryService(this.options.memoryPath!, store.store, this.options.faultInjector, policies.memoryVersion)
       const agents = new BranchAgentComponent(participants.filter(value => value.role === 'agent'), cognitiveMemory)
       const director = new BranchDirectorComponent(participants.filter(value => value.role === 'director'))
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
@@ -895,7 +897,8 @@ export class WorldApplication {
                 correlationId, address,
               })
             }
-            const memory = new CognitiveMemoryService(this.options.memoryPath, store, this.options.faultInjector)
+            const memoryVersion = manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? 2 : 1
+            const memory = new CognitiveMemoryService(this.options.memoryPath, store, this.options.faultInjector, memoryVersion)
             try {
               memoryVerificationHash = memory.rebuildBranch(
                 address, manifest.characters.map(character => character.characterId), world.headSeq, correlationId,
