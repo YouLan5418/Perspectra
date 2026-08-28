@@ -16,6 +16,8 @@ import {
   TENSION_POLE_TENDENCIES,
   TENSION_RESOLUTION_KINDS,
   TENSION_STATUSES,
+  COGNITION_PROJECTION_KINDS,
+  hashCognitionRecordState,
   hashWorldJson,
   type CharacterCognitionView,
   type CharacterId,
@@ -201,14 +203,15 @@ function actualSource(event: StoredWorldEvent): ContextSourceRef {
   }
 }
 
-function apply(state: CognitionState, event: StoredWorldEvent): void {
-  const kind = EVENT_KIND.get(event.eventType)
-  if (kind === undefined) return
-  const path = `${event.eventType}@${event.seq}`
-  const data = object(event.data, path)
-  const id = text(data.id, `${path}.id`)
-  const characterId = text(data.characterId, `${path}.characterId`) as CharacterId
-  const value = object(data.value, `${path}.value`)
+function applyRecord(
+  state: CognitionState,
+  event: StoredWorldEvent,
+  kind: CognitionProjectionKind,
+  id: string,
+  characterId: CharacterId,
+  value: WorldJsonObject,
+  path: string,
+): void {
   validateValue(kind, value, `${path}.value`)
   const versions = state[kind].get(id) ?? []
   const previous = versions.at(-1)
@@ -218,6 +221,70 @@ function apply(state: CognitionState, event: StoredWorldEvent): void {
   }
   versions.push({ kind, id, characterId, value, validFromSeq: event.seq, validToSeq: null, sourceRef: actualSource(event) })
   state[kind].set(id, versions)
+}
+
+function applyReflection(state: CognitionState, event: StoredWorldEvent): void {
+  const path = `character.reflect@${event.seq}`
+  const data = object(event.data, path)
+  const actorId = text(data.actorId, `${path}.actorId`) as CharacterId
+  const contextReceiptId = text(data.contextReceiptId, `${path}.contextReceiptId`)
+  const policyReceiptHash = text(data.policyReceiptHash, `${path}.policyReceiptHash`)
+  if (!/^sha256:[0-9a-f]{64}$/u.test(policyReceiptHash)) throw new Error(`${path}.policyReceiptHash must be a lowercase SHA-256 WorldHash`)
+  if (!Array.isArray(data.operations)) throw new Error(`${path}.operations must be an array`)
+  const operationIds = new Set<string>()
+  const recordKeys = new Set<string>()
+  for (const [index, entry] of data.operations.entries()) {
+    const operationPath = `${path}.operations[${index}]`
+    const operation = object(entry, operationPath)
+    const operationId = text(operation.operationId, `${operationPath}.operationId`)
+    const kind = text(operation.kind, `${operationPath}.kind`) as CognitionProjectionKind
+    if (!(COGNITION_PROJECTION_KINDS as readonly string[]).includes(kind)) throw new Error(`${operationPath}.kind is unsupported`)
+    const id = text(operation.recordId, `${operationPath}.recordId`)
+    const recordKey = `${kind}\u001f${id}`
+    if (operationIds.has(operationId) || recordKeys.has(recordKey)) throw new Error(`${path}.operations contain duplicate identities`)
+    operationIds.add(operationId)
+    recordKeys.add(recordKey)
+    const expectedStateHash = operation.expectedStateHash
+    if (expectedStateHash !== null && (typeof expectedStateHash !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(expectedStateHash))) {
+      throw new Error(`${operationPath}.expectedStateHash must be null or a lowercase SHA-256 WorldHash`)
+    }
+    if (!Array.isArray(operation.basisRefs)) throw new Error(`${operationPath}.basisRefs must be an array`)
+    operation.basisRefs.forEach((basis, basisIndex) => source(basis, `${operationPath}.basisRefs[${basisIndex}]`))
+    const value = object(operation.value, `${operationPath}.value`)
+    if (hashWorldJson('reflection-basis-refs/v1', operation.basisRefs as WorldJsonValue)
+      !== hashWorldJson('reflection-basis-refs/v1', value.basisRefs as WorldJsonValue)) {
+      throw new Error(`${operationPath}.basisRefs diverge from value.basisRefs`)
+    }
+    const reflectionSource = object(value.source, `${operationPath}.value.source`)
+    source(reflectionSource, `${operationPath}.value.source`)
+    if (reflectionSource.sourceKind !== 'context_receipt' || reflectionSource.sourceId !== contextReceiptId
+      || typeof reflectionSource.sourceSeq !== 'number' || reflectionSource.sourceSeq >= event.seq) {
+      throw new Error(`${operationPath}.value.source is not bound to the prior Context receipt`)
+    }
+    const versions = state[kind].get(id) ?? []
+    const previous = versions.at(-1)
+    const actualStateHash = previous === undefined
+      ? null
+      : hashCognitionRecordState(kind, id, previous.characterId, previous.value)
+    if (actualStateHash !== expectedStateHash) throw new Error(`${operationPath}.expectedStateHash diverges from the event prefix`)
+    if (previous !== undefined && previous.characterId !== actorId) throw new Error(`${operationPath} cannot change another character's cognition`)
+    applyRecord(state, event, kind, id, actorId, value, operationPath)
+  }
+}
+
+function apply(state: CognitionState, event: StoredWorldEvent): void {
+  if (event.eventType === 'character.reflect') {
+    applyReflection(state, event)
+    return
+  }
+  const kind = EVENT_KIND.get(event.eventType)
+  if (kind === undefined) return
+  const path = `${event.eventType}@${event.seq}`
+  const data = object(event.data, path)
+  const id = text(data.id, `${path}.id`)
+  const characterId = text(data.characterId, `${path}.characterId`) as CharacterId
+  const value = object(data.value, `${path}.value`)
+  applyRecord(state, event, kind, id, characterId, value, path)
 }
 
 function orderedHistory(state: CognitionState): CognitionProjectionRecord[] {

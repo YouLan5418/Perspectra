@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   brandId,
+  hashCognitionRecordState,
   hashWorldJson,
   type WorldAddress,
   type WorldEventDraft,
@@ -91,6 +92,30 @@ function seven(characterId: string): readonly WorldEventDraft[] {
   ]
 }
 
+function reflectionOperation(overrides: WorldJsonObject = {}): WorldJsonObject {
+  const basisRef = { ...source('reflection-basis'), sourceSeq: 1 }
+  return {
+    operationId: 'operation:claim', kind: 'subjective-claim', recordId: 'claim:road',
+    expectedStateHash: hashCognitionRecordState('subjective-claim', 'claim:road', brandId('character:alice', 'CharacterId'), fixtures.claim),
+    basisRefs: [basisRef],
+    value: {
+      ...fixtures.claim, stance: 'doubted', basisRefs: [basisRef],
+      source: { sourceKind: 'context_receipt', sourceId: 'receipt:alice', sourceSeq: 1, sourceHash: hashWorldJson('receipt', { id: 'alice' }) },
+    },
+    ...overrides,
+  }
+}
+
+function reflectionEvent(operations: readonly WorldJsonObject[], overrides: WorldJsonObject = {}): WorldEventDraft {
+  return {
+    eventType: 'character.reflect', eventVersion: 1,
+    data: {
+      actorId: 'character:alice', contextReceiptId: 'receipt:alice',
+      policyReceiptHash: hashWorldJson('policy-receipt', { actor: 'alice' }), operations, ...overrides,
+    },
+  }
+}
+
 async function rejected(suffix: string, draft: WorldEventDraft, message: string): Promise<void> {
   const store = new WorldStore(database(`${suffix}.sqlite`))
   const target = address('main', suffix)
@@ -173,6 +198,77 @@ describe('CognitionProjectionRebuilder', () => {
     ])
     expect(() => new CognitionProjectionRebuilder(duplicate).rebuildAt(duplicateAddress, 2)).toThrow('multiple active Claims')
     duplicate.close()
+  })
+
+  it('replays a character.reflect batch and rechecks the optimistic event prefix', async () => {
+    const store = new WorldStore(database('reflection.sqlite'))
+    const target = address('main', 'reflection')
+    store.createBranch(target)
+    const relationshipBasis = { ...source('relationship-reflection'), sourceSeq: 1 }
+    await commit(store, target, 'reflection', [
+      event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+      reflectionEvent([
+        reflectionOperation(),
+        reflectionOperation({
+          operationId: 'operation:relationship', kind: 'relationship-attitude', recordId: 'relationship:new', expectedStateHash: null,
+          basisRefs: [relationshipBasis],
+          value: {
+            ...fixtures.relationship, intensityPermille: 200, basisRefs: [relationshipBasis],
+            source: { sourceKind: 'context_receipt', sourceId: 'receipt:alice', sourceSeq: 1, sourceHash: hashWorldJson('receipt', { id: 'alice' }) },
+          },
+        }),
+      ]),
+    ])
+    const rebuilder = new CognitionProjectionRebuilder(store)
+    const bundle = rebuilder.rebuildAt(target, 2)
+    expect((bundle.claims[0]!.value as WorldJsonObject).stance).toBe('doubted')
+    expect(bundle.relationships).toMatchObject([{ id: 'relationship:new', characterId: 'character:alice' }])
+    const claimHistory = rebuilder.historyAt(target, 2).filter(value => value.id === 'claim:road')
+    expect(claimHistory.map(value => [value.validFromSeq, value.validToSeq])).toEqual([[1, 2], [2, null]])
+    store.close()
+  })
+
+  it('fails closed on malformed or divergent character.reflect authority', async () => {
+    const basisRef = (reflectionOperation().basisRefs as readonly WorldJsonObject[])[0]!
+    const value = reflectionOperation().value as WorldJsonObject
+    const otherClaim = event('subjective-claim.upsert', 'claim:road', 'character:bob', fixtures.claim)
+    const invalid: readonly (readonly [string, readonly WorldEventDraft[], string])[] = [
+      ['reflect-data', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), { eventType: 'character.reflect', eventVersion: 1, data: null }], 'must be an object'],
+      ['reflect-actor', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation()], { actorId: '' })], 'actorId'],
+      ['reflect-receipt', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation()], { contextReceiptId: '' })], 'contextReceiptId'],
+      ['reflect-policy', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation()], { policyReceiptHash: 'bad' })], 'policyReceiptHash'],
+      ['reflect-array', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([] , { operations: null })], 'operations'],
+      ['reflect-operation', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([null as never])], 'must be an object'],
+      ['reflect-operation-id', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ operationId: '' })])], 'operationId'],
+      ['reflect-kind', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ kind: 'world-fact' })])], 'unsupported'],
+      ['reflect-record', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ recordId: '' })])], 'recordId'],
+      ['reflect-expected', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ expectedStateHash: 'bad' })])], 'expectedStateHash'],
+      ['reflect-basis-array', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ basisRefs: null })])], 'basisRefs'],
+      ['reflect-basis-source', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ basisRefs: [null] })])], 'must be an object'],
+      ['reflect-basis-diverged', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ basisRefs: [{ ...basisRef, sourceId: 'other' }] })])], 'diverge'],
+      ['reflect-source-object', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ value: { ...value, source: null } })])], 'must be an object'],
+      ['reflect-source-kind', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ value: { ...value, source: { ...(value.source as WorldJsonObject), sourceKind: 'world_event' } } })])], 'prior Context'],
+      ['reflect-source-id', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ value: { ...value, source: { ...(value.source as WorldJsonObject), sourceId: 'receipt:other' } } })])], 'prior Context'],
+      ['reflect-source-seq', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ value: { ...value, source: { ...(value.source as WorldJsonObject), sourceSeq: 2 } } })])], 'prior Context'],
+      ['reflect-stale', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ expectedStateHash: null })])], 'event prefix'],
+      ['reflect-owner', [otherClaim, reflectionEvent([reflectionOperation({
+        expectedStateHash: hashCognitionRecordState('subjective-claim', 'claim:road', brandId('character:bob', 'CharacterId'), fixtures.claim),
+      })])], 'another character'],
+      ['reflect-duplicate-operation', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([
+        reflectionOperation(), reflectionOperation({ recordId: 'claim:other', expectedStateHash: null }),
+      ])], 'duplicate identities'],
+      ['reflect-duplicate-record', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([
+        reflectionOperation(), reflectionOperation({ operationId: 'operation:other' }),
+      ])], 'duplicate identities'],
+    ]
+    for (const [suffix, events, message] of invalid) {
+      const store = new WorldStore(database(`${suffix}.sqlite`))
+      const target = address('main', suffix)
+      store.createBranch(target)
+      await commit(store, target, suffix, events)
+      expect(() => new CognitionProjectionRebuilder(store).rebuildAt(target, events.length)).toThrow(message)
+      store.close()
+    }
   })
 
   it('rejects malformed common envelopes and every unsupported cognition vocabulary', async () => {
