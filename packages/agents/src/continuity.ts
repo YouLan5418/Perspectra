@@ -144,7 +144,7 @@ export class ContinuityCheckpointService {
     this.#db = new DatabaseSync(path)
     this.#db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;')
     const version = (this.#db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
-    if (version !== 0 && version !== 1 && version !== 2) {
+    if (version !== 0 && version !== 1 && version !== 2 && version !== 3) {
       this.#db.close()
       throw new Error(`unsupported Context derivation schema version ${version}`)
     }
