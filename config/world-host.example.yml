@@ -3,4 +3,5 @@ dataDirectory: ./.harness-world
 worldPath: ./.harness-world/data/world.sqlite
 sessionPath: ./.harness-world/data/session.sqlite
 memoryPath: ./.harness-world/data/memory.sqlite
+contextPath: ./.harness-world/data/context.sqlite
 leaseTtlMs: 5000

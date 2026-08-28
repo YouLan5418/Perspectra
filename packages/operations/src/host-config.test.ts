@@ -54,11 +54,13 @@ describe('worldhost configuration', () => {
       'worldPath: yaml-world.sqlite',
       'sessionPath: yaml-session.sqlite',
       'memoryPath: yaml-memory.sqlite',
+      'contextPath: yaml-context.sqlite',
       'leaseTtlMs: 9000',
     ].join('\n'))
     const config = resolveWorldHostConfig([
       '--config', configPath,
       '--world-path', 'cli-world.sqlite',
+      '--context-path', 'nested/cli-context.sqlite',
       '--lease-ttl-ms', '7000',
     ], {
       cwd: root,
@@ -71,13 +73,14 @@ describe('worldhost configuration', () => {
       worldPath: join(root, 'cli-world.sqlite'),
       sessionPath: join(root, 'env-session.sqlite'),
       memoryPath: join(root, 'yaml-memory.sqlite'),
+      contextPath: join(root, 'nested', 'cli-context.sqlite'),
       leaseTtlMs: 7000,
       configPath,
     })
     ensureWorldHostLayout(config)
     for (const path of [
       join(config.dataDirectory, 'backups'), join(config.dataDirectory, 'exports'), config.logDirectory,
-      join(root, 'yaml-root'),
+      join(root, 'yaml-root'), join(root, 'nested'),
     ]) expect(existsSync(path)).toBe(true)
   })
 
@@ -89,6 +92,7 @@ describe('worldhost configuration', () => {
     })
     expect(windows.dataDirectory).toBe(join(root, 'local', 'HarnessCordisWorld'))
     expect(windows.worldPath).toBe(join(windows.dataDirectory, 'data', 'world.sqlite'))
+    expect(windows.contextPath).toBe(join(windows.dataDirectory, 'data', 'context.sqlite'))
     const fallbackWindows = resolveWorldHostConfig([], {
       cwd: root, platform: 'win32', homeDirectory: join(root, 'fallback-home'), env: {},
     })
@@ -116,12 +120,14 @@ describe('worldhost configuration', () => {
         HCW_WORLD_PATH: 'env-world.sqlite',
         HCW_SESSION_PATH: 'env-session.sqlite',
         HCW_MEMORY_PATH: 'env-memory.sqlite',
+        HCW_CONTEXT_PATH: 'env-context.sqlite',
       },
     })
     expect(environment).toMatchObject({
       dataDirectory: join(root, 'env-root'),
       worldPath: join(root, 'env-world.sqlite'),
       memoryPath: join(root, 'env-memory.sqlite'),
+      contextPath: join(root, 'env-context.sqlite'),
     })
   })
 

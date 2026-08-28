@@ -18,6 +18,7 @@ export interface WorldHostConfig {
   readonly worldPath: string
   readonly sessionPath: string
   readonly memoryPath: string
+  readonly contextPath: string
   readonly configPath: string
   readonly lockPath: string
   readonly backupDirectory: string
@@ -33,13 +34,14 @@ export interface ResolveWorldHostConfigOptions {
   readonly homeDirectory?: string
 }
 
-type RawHostConfig = Partial<Record<'dataDirectory' | 'worldPath' | 'sessionPath' | 'memoryPath' | 'leaseTtlMs', string>>
+type RawHostConfig = Partial<Record<'dataDirectory' | 'worldPath' | 'sessionPath' | 'memoryPath' | 'contextPath' | 'leaseTtlMs', string>>
 
 const CLI_KEYS = new Map([
   ['--data-dir', 'dataDirectory'],
   ['--world-path', 'worldPath'],
   ['--session-path', 'sessionPath'],
   ['--memory-path', 'memoryPath'],
+  ['--context-path', 'contextPath'],
   ['--lease-ttl-ms', 'leaseTtlMs'],
 ] as const)
 
@@ -77,7 +79,7 @@ function parseFlatYaml(text: string): RawHostConfig {
     const match = /^([A-Za-z][A-Za-z0-9]*):\s*(.*?)\s*$/u.exec(trimmed)
     if (match === null) throw new TypeError(`world-host.yml line ${index + 1} is invalid`)
     const key = match[1] as keyof RawHostConfig
-    if (!['dataDirectory', 'worldPath', 'sessionPath', 'memoryPath', 'leaseTtlMs'].includes(key)) {
+    if (!['dataDirectory', 'worldPath', 'sessionPath', 'memoryPath', 'contextPath', 'leaseTtlMs'].includes(key)) {
       throw new TypeError(`world-host.yml key ${key} is unsupported`)
     }
     const rawValue = match[2]!
@@ -125,6 +127,7 @@ export function resolveWorldHostConfig(
     ...(env.HCW_WORLD_PATH === undefined ? {} : { worldPath: env.HCW_WORLD_PATH }),
     ...(env.HCW_SESSION_PATH === undefined ? {} : { sessionPath: env.HCW_SESSION_PATH }),
     ...(env.HCW_MEMORY_PATH === undefined ? {} : { memoryPath: env.HCW_MEMORY_PATH }),
+    ...(env.HCW_CONTEXT_PATH === undefined ? {} : { contextPath: env.HCW_CONTEXT_PATH }),
     ...(env.HCW_LEASE_TTL_MS === undefined ? {} : { leaseTtlMs: env.HCW_LEASE_TTL_MS }),
   }
   const merged = { ...yaml, ...environment, ...cli.values }
@@ -135,6 +138,7 @@ export function resolveWorldHostConfig(
     worldPath: absolute(cwd, merged.worldPath ?? join(dataPath, 'world.sqlite')),
     sessionPath: absolute(cwd, merged.sessionPath ?? join(dataPath, 'session.sqlite')),
     memoryPath: absolute(cwd, merged.memoryPath ?? join(dataPath, 'memory.sqlite')),
+    contextPath: absolute(cwd, merged.contextPath ?? join(dataPath, 'context.sqlite')),
     configPath,
     lockPath: join(dataDirectory, 'instance.lock'),
     backupDirectory: join(dataDirectory, 'backups'),
@@ -146,7 +150,7 @@ export function resolveWorldHostConfig(
 
 export function ensureWorldHostLayout(config: WorldHostConfig): void {
   for (const path of [
-    dirname(config.worldPath), dirname(config.sessionPath), dirname(config.memoryPath),
+    dirname(config.worldPath), dirname(config.sessionPath), dirname(config.memoryPath), dirname(config.contextPath),
     dirname(config.configPath), config.backupDirectory, config.exportDirectory, config.logDirectory,
   ]) mkdirSync(path, { recursive: true })
 }

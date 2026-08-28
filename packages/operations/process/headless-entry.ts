@@ -15,6 +15,7 @@ try {
     worldPath: config.worldPath,
     sessionPath: config.sessionPath,
     memoryPath: config.memoryPath,
+    contextPath: config.contextPath,
     leaseTtlMs: config.leaseTtlMs,
     runtimeOwnerId: lock.record.writerOwnerPrefix,
   })
