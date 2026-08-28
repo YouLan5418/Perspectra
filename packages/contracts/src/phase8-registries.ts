@@ -34,6 +34,24 @@ export interface Phase8ContextProfile extends WorldJsonObject {
   readonly openLoops: number
 }
 
+export interface Phase8ReflectionProfile extends WorldJsonObject {
+  readonly profileId: 'standard'
+  readonly maximumOperations: 4
+  readonly maximumNewActivePerKind: 2
+  readonly maximumMagnitudeChangePermille: 200
+  readonly maximumNarrativeBytesPerOperation: number
+  readonly maximumNarrativeBytesPerBatch: number
+}
+
+export const PHASE8_REFLECTION_PROFILE: Phase8ReflectionProfile = Object.freeze({
+  profileId: 'standard',
+  maximumOperations: 4,
+  maximumNewActivePerKind: 2,
+  maximumMagnitudeChangePermille: 200,
+  maximumNarrativeBytesPerOperation: 4 * 1024,
+  maximumNarrativeBytesPerBatch: 16 * 1024,
+})
+
 export const PHASE8_CONTEXT_PROFILES: readonly Phase8ContextProfile[] = Object.freeze([
   Object.freeze({
     profileId: 'compact', maximumRequestBytes: 32 * 1024, recentInteractionBlocks: 4, recallResults: 6,
@@ -79,6 +97,7 @@ export const PHASE8_REGISTRIES: readonly Phase8RegistryManifest[] = Object.freez
   ]),
   registry('cognitive-policy-registry/v1', [
     member('cognitive-policy', '1.0.0', { schemaVersion: 'cognitive-policy/v1' }),
+    member('reflection-policy:standard', '1.0.0', PHASE8_REFLECTION_PROFILE),
     member('provider-quality', '1.0.0', {
       schemaVersion: 'provider-quality/v1', invalidReflectionThreshold: 3, reflectionPauseEligibleTicks: 4,
       invalidResponseThreshold: 3, probeBackoffEligibleTicks: [1, 2, 4, 8],

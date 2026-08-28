@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { hashWorldJson } from './world-json.ts'
 import {
   PHASE8_CONTEXT_PROFILES,
+  PHASE8_REFLECTION_PROFILE,
   PHASE8_REGISTRIES,
   PHASE8_REGISTRY_LOCKS,
   PHASE8_REGISTRY_SET_HASH,
@@ -23,6 +24,15 @@ describe('Phase 8 runtime registries', () => {
     })
   })
 
+  it('freezes the standard Reflection policy limits', () => {
+    expect(PHASE8_REFLECTION_PROFILE).toEqual({
+      profileId: 'standard', maximumOperations: 4, maximumNewActivePerKind: 2,
+      maximumMagnitudeChangePermille: 200, maximumNarrativeBytesPerOperation: 4096,
+      maximumNarrativeBytesPerBatch: 16384,
+    })
+    expect(Object.isFrozen(PHASE8_REFLECTION_PROFILE)).toBe(true)
+  })
+
   it('locks every Phase 8 runtime registry with domain-separated hashes', () => {
     expect(PHASE8_REGISTRIES.map(registry => registry.registryId)).toEqual([
       'context-registry/v1', 'scene-registry/v1', 'memory-registry/v1', 'cognitive-policy-registry/v1',
@@ -38,7 +48,7 @@ describe('Phase 8 runtime registries', () => {
         registryHash: hashWorldJson('phase8-registry/v1', registry),
       })
     }
-    expect(PHASE8_REGISTRY_SET_HASH).toBe('sha256:a4f5ec543dbddb3d76c24a7c781c78b9b64f2ca5ae5849aafb4ed4853e3b57dc')
+    expect(PHASE8_REGISTRY_SET_HASH).toBe('sha256:a810b8d50789bcc664b62ba78d855690929c2ea1f4846e70ca8f20512eb0f0a1')
   })
 
   it('keeps all registry structures deeply immutable at their public boundaries', () => {
