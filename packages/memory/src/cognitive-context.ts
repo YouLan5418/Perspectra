@@ -41,6 +41,8 @@ export interface CognitiveProposalContext extends ProposalContext, WorldJsonObje
   readonly recallResultHash: WorldHash
   readonly capability: { readonly actorId: CharacterId; readonly allowedActionTypes: readonly string[] }
   readonly contextHash: WorldHash
+  readonly recallPlan?: RecallQueryPlan
+  readonly recall?: CognitiveRecallResult
 }
 
 export interface PrepareCognitiveContextRequest {
@@ -172,14 +174,15 @@ export class CognitiveMemoryService {
       request.heartbeat,
     )
     const query = recallQuery(request.playerAction.parameters)
-    const v2Recall = this.version === 2 ? this.#memory.recallV2({
+    const v2Plan: RecallQueryPlan | undefined = this.version === 2 ? {
       schemaVersion: 'recall-query-plan/v1',
       planId: deterministicId('round-recall-plan/v1', {
         address: request.address, roundId: request.roundId, participantId: request.participantId,
       }),
       address: request.address, characterId: request.characterId, asOfWorldSeq: request.asOfWorldSeq,
       query, limit: 10, rankingAlgorithm: 'fts5-bm25-stable/v1',
-    }) : undefined
+    } : undefined
+    const v2Recall = v2Plan === undefined ? undefined : this.#memory.recallV2(v2Plan)
     const memoryRecall = v2Recall === undefined
       ? this.#memory.recall(request.address, request.characterId, query, request.asOfWorldSeq)
       : v2Recall.memories.map(memory => ({
@@ -211,6 +214,7 @@ export class CognitiveMemoryService {
       memorySourceRefs,
       recallResultHash,
       capability,
+      ...(v2Plan === undefined || v2Recall === undefined ? {} : { recallPlan: v2Plan, recall: v2Recall }),
     }
     return { ...base, contextHash: hashWorldJson('agent-context-envelope/v2', base) }
   }
