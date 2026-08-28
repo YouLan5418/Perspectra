@@ -492,7 +492,6 @@ export class RoundCoordinator {
             actionType: 'private_interaction',
             actorId: item.action.actorId,
             status: resolution.status,
-            reason: resolution.reason ?? null,
             contentVisibility: 'occurrence_only',
           } : {
             actionType: item.action.actionType,

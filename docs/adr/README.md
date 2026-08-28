@@ -51,3 +51,4 @@
 | [0067](ADR-0067-cognitive-memory-worldpack-v2.md) | Cognitive Memory v2、World Pack v2 与旅途试金石 | v1 字节冻结；v2 来源、水位、Recall 和“雨夜同行”验收 |
 | [0068](ADR-0068-phase8-context-summary-signal-quality-closure.md) | Phase 8 摘要、上下文 Hash、信号与 Provider 质量边界 | L1 唯一摘要、双 Hash 成员、私密信号防火墙与确定性质量降级 |
 | [0069](ADR-0069-worldpack-v2-source-file-shapes.md) | World Pack v2 作者源文件形状 | Character、Cognition、Scene、Memory 与 Document 的精确输入形状 |
+| [0070](ADR-0070-phase8a-cognition-scene-visibility-closure.md) | Phase 8A 认知词汇与 Scene 观察范围收口 | Goal objective 读取校验、direct/private 旁观语义与 occurrence-only 脱敏 |

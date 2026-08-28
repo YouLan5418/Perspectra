@@ -200,6 +200,7 @@ describe('CognitionProjectionRebuilder', () => {
       ['claim-awareness', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { awareness: 'unrecognized' })), 'vocabulary'],
       ['claim-status', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { status: 'resolved' })), 'active'],
       ['goal-objective', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { objective: null })), 'objective'],
+      ['goal-objective-kind', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { objective: { kind: 'quest', value: 'Reach the station' } })), 'objective.kind'],
       ['goal-priority', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { priorityPermille: 'high' })), 'safe integer'],
       ['goal-awareness', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { awareness: 'hidden' })), 'vocabulary'],
       ['goal-status', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { status: 'paused' })), 'vocabulary'],

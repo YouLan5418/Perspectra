@@ -321,6 +321,7 @@ describe('RoundCoordinator', () => {
         const player = context.characterId === 'character:player'
         return {
           status: 'accepted',
+          ...(player ? {} : { reason: 'PRIVATE_REASON_CANARY' }),
           events: [
             { eventType: 'character.speak', eventVersion: 1, data: { characterId: context.characterId, text: player ? 'leave now' : 'private reply' } },
             ...(player ? [{
@@ -360,7 +361,10 @@ describe('RoundCoordinator', () => {
       content: { actionType: 'private_interaction', contentVisibility: 'occurrence_only' },
     })
     expect(JSON.stringify(forCharacter('character:other')[1])).not.toContain('private reply')
+    expect(JSON.stringify(forCharacter('character:other')[1])).not.toContain('PRIVATE_REASON_CANARY')
+    expect(forCharacter('character:other')[1]!.content).not.toHaveProperty('reason')
     expect(JSON.stringify(forCharacter('character:player')[1])).toContain('private reply')
+    expect(JSON.stringify(forCharacter('character:player')[1])).toContain('PRIVATE_REASON_CANARY')
   })
 
   it('reports a durably claimed Round as processing without executing it again', () => {

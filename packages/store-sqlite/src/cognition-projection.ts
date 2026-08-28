@@ -7,6 +7,7 @@ import {
   CLAIM_STANCES,
   COMMITMENT_ORIGINS,
   COMMITMENT_STATUSES,
+  GOAL_OBJECTIVE_KINDS,
   GOAL_STATUSES,
   OPEN_LOOP_KINDS,
   OPEN_LOOP_STATUSES,
@@ -100,7 +101,8 @@ function validateClaim(value: WorldJsonObject, path: string): void {
 }
 
 function validateGoal(value: WorldJsonObject, path: string): void {
-  object(value.objective, `${path}.objective`)
+  const objective = object(value.objective, `${path}.objective`)
+  literal(objective.kind, GOAL_OBJECTIVE_KINDS, `${path}.objective.kind`)
   permille(value.priorityPermille, `${path}.priorityPermille`)
   literal(value.awareness, AWARENESS_LEVELS, `${path}.awareness`)
   literal(value.status, GOAL_STATUSES, `${path}.status`)
