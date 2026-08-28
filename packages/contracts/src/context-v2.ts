@@ -1,7 +1,9 @@
 import type {
   CharacterId,
+  ContinuityCheckpointId,
   ContextReceiptId,
   InteractionRoundId,
+  TransactionId,
 } from './ids.ts'
 import { assertProtocolString } from './ids.ts'
 import type { WorldAddress } from './protocol.ts'
@@ -77,6 +79,71 @@ export interface CharacterContextHashInput extends WorldJsonObject {
 
 export interface CharacterContextBundle extends CharacterContextHashInput {
   readonly contextHash: WorldHash
+}
+
+export interface CheckpointCognitionEntry extends WorldJsonObject {
+  readonly kind: string
+  readonly id: string
+  readonly value: WorldJsonValue
+  readonly sourceRef: ContextSourceRef
+}
+
+export interface CheckpointSummaryRef extends WorldJsonObject {
+  readonly summaryId: string
+  readonly sourceStartSeq: number
+  readonly sourceEndSeq: number
+  readonly summaryHash: WorldHash
+}
+
+export interface CharacterContinuityCheckpointInput extends WorldJsonObject {
+  readonly schemaVersion: 'continuity-checkpoint/v1'
+  readonly checkpointId: ContinuityCheckpointId
+  readonly address: WorldAddress
+  readonly characterId: CharacterId
+  readonly asOfWorldSeq: number
+  readonly memoryEpoch: number
+  readonly sourceStartSeq: number
+  readonly sourceEndSeq: number
+  readonly activeCognition: readonly CheckpointCognitionEntry[]
+  readonly summaryRefs: readonly CheckpointSummaryRef[]
+}
+
+export interface CharacterContinuityCheckpoint extends CharacterContinuityCheckpointInput {
+  readonly checkpointHash: WorldHash
+}
+
+export interface InteractionObservation extends WorldJsonObject {
+  readonly observationId: string
+  readonly content: WorldJsonValue
+  readonly sourceRef: ContextSourceRef
+}
+
+export interface InteractionBlockInput extends WorldJsonObject {
+  readonly schemaVersion: 'interaction-block/v1'
+  readonly transactionId: TransactionId
+  readonly roundId: InteractionRoundId
+  readonly startSeq: number
+  readonly endSeq: number
+  readonly tick: number
+  readonly observations: readonly InteractionObservation[]
+  readonly authorityHash: WorldHash | null
+}
+
+export interface InteractionBlock extends InteractionBlockInput {
+  readonly blockHash: WorldHash
+}
+
+export interface InteractionTailInput extends WorldJsonObject {
+  readonly schemaVersion: 'interaction-tail/v1'
+  readonly address: WorldAddress
+  readonly characterId: CharacterId
+  readonly afterSeq: number
+  readonly asOfWorldSeq: number
+  readonly blocks: readonly InteractionBlock[]
+}
+
+export interface InteractionTail extends InteractionTailInput {
+  readonly tailHash: WorldHash
 }
 
 export interface DramaticSignal extends WorldJsonObject {
@@ -228,6 +295,22 @@ export function hashCharacterContext(input: CharacterContextHashInput): WorldHas
     segments: input.segments,
   }
   return hashWorldJson('character-context/v2', envelope)
+}
+
+export function hashContinuityCheckpoint(input: CharacterContinuityCheckpointInput): WorldHash {
+  return hashWorldJson('continuity-checkpoint/v1', input)
+}
+
+export function hashInteractionBlock(input: InteractionBlockInput): WorldHash {
+  return hashWorldJson('interaction-block/v1', input)
+}
+
+export function hashInteractionTail(input: InteractionTailInput): WorldHash {
+  for (const block of input.blocks) {
+    const { blockHash: _blockHash, ...base } = block
+    if (block.blockHash !== hashInteractionBlock(base)) throw new TypeError('interaction block hash diverged')
+  }
+  return hashWorldJson('interaction-tail/v1', input)
 }
 
 /** Hash the least-privilege Director planning input independently from Character Context. */

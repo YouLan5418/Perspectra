@@ -1,4 +1,5 @@
 export * from './context.ts'
+export * from './continuity.ts'
 export * from './director.ts'
 export * from './model.ts'
 export * from './replay.ts'
