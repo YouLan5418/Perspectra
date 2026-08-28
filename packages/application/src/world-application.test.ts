@@ -200,6 +200,15 @@ describe('WorldApplication', () => {
     }
     expect(() => validator.activate(phase8PolicyAccepted as never)).toThrow('manifestHash does not match manifest')
     await validator.close()
+
+    const explicitPaths = paths()
+    const explicitContext = new WorldApplication({
+      ...explicitPaths,
+      memoryPath: join(explicitPaths.worldPath, '..', 'explicit-memory.sqlite'),
+      contextPath: join(explicitPaths.worldPath, '..', 'explicit-context.sqlite'),
+    })
+    expect(explicitContext.activate(world)).toMatchObject({ status: 'activated' })
+    await explicitContext.close()
   })
 
   it('mounts and executes an immutable stored V1 Manifest without reactivation', async () => {

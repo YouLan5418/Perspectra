@@ -8,6 +8,7 @@ import {
   createErrorEnvelope,
   PHASE8_REGISTRY_LOCKS,
   PHASE8_VOCABULARY_LOCKS,
+  type ProposalContext,
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { runtimeManifestFromStored, WorldBootstrap } from '@harness-world/kernel'
@@ -295,10 +296,20 @@ describe('WorldPackCompilerV2', () => {
     restartedAvailability.close()
     restarted.close()
 
+    let providerContext: ProposalContext | undefined
     const application = new WorldApplication({
       worldPath: join(root, 'application-world.sqlite'),
       sessionPath: join(root, 'application-session.sqlite'),
       memoryPath: join(root, 'application-memory.sqlite'),
+      modelBudgetTokens: 1_000,
+      participants: () => [{
+        participantId: 'agent:alice', role: 'agent', actorId: brandId('character:alice', 'CharacterId'),
+        allowedActionTypes: ['speak', 'move', 'take'], priority: 1, estimatedTokens: 100, timeoutMs: 1_000,
+        provider: { propose: async context => {
+          providerContext = context
+          return { participantId: 'agent:alice', actions: [] }
+        } },
+      }],
     })
     application.activate(first)
     await expect(application.submit(options.address, {
@@ -306,6 +317,15 @@ describe('WorldPackCompilerV2', () => {
       action: { actionType: 'speak', parameters: { text: 'The road remains open.' } },
       correlationId: 'phase8-scene-mount',
     })).resolves.toMatchObject({ status: 'accepted', tick: 1 })
+    expect(providerContext).toMatchObject({
+      agentContextVersion: 2,
+      participantId: 'agent:alice',
+      contextReceiptId: expect.any(String),
+      contextHash: expect.stringMatching(/^sha256:/),
+      providerRequestHash: expect.stringMatching(/^sha256:/),
+      exactProviderRequest: { schemaVersion: 'structured-provider-request/v1' },
+    })
+    expect(JSON.stringify(providerContext)).not.toContain('memorySourceRefs')
     expect(await application.recallMemory(
       options.address, brandId('character:alice', 'CharacterId'), 'irresponsible',
     )).toMatchObject([{

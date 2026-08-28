@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   brandId,
   deterministicId,
+  failWorld,
   hashWorldJson,
   type AgentProvider,
   type FaultInjector,
@@ -642,6 +643,111 @@ describe('RoundCoordinator', () => {
       event.eventType === 'round.participant-terminal'
       && JSON.stringify(event.data).includes('lifecycle_ineligible'))).toBe(true)
     close(lifecycleOptions, lifecycleCoordinator)
+  })
+
+  it('uses the formal Phase 8 Context result and records its receipt in Round Authority', async () => {
+    const path = database('phase8-context-success.sqlite')
+    const compiled = world()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    let received: ProposalContext | undefined
+    const npc = participant('agent:phase8', 'agent', 1, provider(context => {
+      received = context
+      return { participantId: 'agent:phase8', actions: [] }
+    }))
+    const configured = options(path, compiled, [npc])
+    const sceneDecision = {
+      decideFromEvents: (_address: unknown, player: typeof npc.actorId, _events: unknown, asOfSeq: number) => ({
+        sceneId: 'scene:test', observerIds: [player, npc.actorId], schedulableCharacterIds: [npc.actorId],
+        visibleResultCharacterIds: [player, npc.actorId], asOfSeq,
+      }),
+    } as never
+    const contextPipeline = {
+      prepare: (
+        _binding: RoundParticipant,
+        context: ProposalContext,
+        _history: unknown,
+        _decision: unknown,
+        _asOf: number,
+        heartbeat: () => void,
+      ) => {
+        heartbeat()
+        return {
+        providerContext: {
+          ...context, agentContextVersion: 2, participantId: npc.participantId,
+          contextReceiptId: 'receipt:phase8', contextHash: hashWorldJson('context', { phase8: true }),
+          providerRequestHash: hashWorldJson('provider', { phase8: true }),
+          exactProviderRequest: {
+            schemaVersion: 'structured-provider-request/v1', model: 'scripted', messages: [], tools: {},
+            sampling: {}, user: 'opaque',
+          },
+        },
+        receipt: {
+          receiptId: 'receipt:phase8', contextHash: hashWorldJson('context', { phase8: true }),
+          providerRequestHash: hashWorldJson('provider', { phase8: true }),
+        },
+          memorySourceRefs: [], recallResultHash: hashWorldJson('recall', {}),
+        }
+      },
+    } as never
+    const coordinator = new RoundCoordinator({ ...configured, sceneDecision, contextPipeline })
+    await coordinator.submit({
+      idempotencyKey: 'phase8-context', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'hello' } }, correlationId: 'phase8-context',
+    })
+    const transactionId = configured.store.readEvents(compiled.manifest.address)
+      .find(event => event.eventType === 'action.resolved')!.transactionId
+    const authority = configured.store.readRoundAuthority(compiled.manifest.address, transactionId)!.authority as any
+    expect(received).toMatchObject({ agentContextVersion: 2, contextReceiptId: 'receipt:phase8' })
+    expect(authority.participants.find((value: any) => value.participantId === npc.participantId)).toMatchObject({
+      contextReceiptId: 'receipt:phase8', providerRequestHash: hashWorldJson('provider', { phase8: true }),
+    })
+    close(configured, coordinator)
+  })
+
+  it('degrades ordinary Phase 8 Context failures but propagates integrity failures', async () => {
+    const run = async (suffix: string, failure: () => never) => {
+      const path = database(`phase8-context-${suffix}.sqlite`)
+      const compiled = world()
+      const setup = new WorldStore(path)
+      new WorldBootstrap(setup).activate(compiled)
+      setup.close()
+      let calls = 0
+      const npc = participant(`agent:${suffix}`, 'agent', 1, provider(() => {
+        calls += 1
+        return { participantId: `agent:${suffix}`, actions: [] }
+      }))
+      const configured = options(path, compiled, [npc])
+      const sceneDecision = {
+        decideFromEvents: (_address: unknown, player: typeof npc.actorId, _events: unknown, asOfSeq: number) => ({
+          sceneId: 'scene:test', observerIds: [player, npc.actorId], schedulableCharacterIds: [npc.actorId],
+          visibleResultCharacterIds: [player, npc.actorId], asOfSeq,
+        }),
+      } as never
+      const coordinator = new RoundCoordinator({
+        ...configured, sceneDecision, contextPipeline: { prepare: failure } as never,
+      })
+      const promise = coordinator.submit({
+        idempotencyKey: `phase8-${suffix}`, principalId: 'principal:player',
+        action: { actionType: 'speak', parameters: { text: suffix } }, correlationId: `phase8-${suffix}`,
+      })
+      return { promise, calls: () => calls, configured, coordinator }
+    }
+    const ordinary = await run('ordinary', () => { throw new Error('context offline') })
+    await expect(ordinary.promise).resolves.toMatchObject({ status: 'accepted' })
+    expect(ordinary.calls()).toBe(0)
+    expect(ordinary.configured.availability.get(world().manifest.address, brandId('character:npc', 'CharacterId')))
+      .toMatchObject({ state: 'session_lag' })
+    close(ordinary.configured, ordinary.coordinator)
+
+    const integrity = await run('integrity', () => failWorld({
+      errorCode: 'CONTEXT_REBUILD_DIVERGED', category: 'integrity', message: 'diverged', retryable: false,
+      correlationId: 'phase8-integrity',
+    }))
+    await expect(integrity.promise).rejects.toThrow('diverged')
+    expect(integrity.calls()).toBe(0)
+    close(integrity.configured, integrity.coordinator)
   })
 
   it('completes a committed Inbox item without recalling a non-deterministic participant', async () => {

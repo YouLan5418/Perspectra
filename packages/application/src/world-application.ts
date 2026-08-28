@@ -36,6 +36,7 @@ import {
   type RulebookRegistry,
 } from '@harness-world/kernel'
 import { CognitiveMemoryService, type RecalledMemory } from '@harness-world/memory'
+import { ContextReceiptStore, ContinuityCheckpointService } from '@harness-world/agents'
 import {
   DeterministicPresenter,
   type PresentationResult,
@@ -77,6 +78,7 @@ import {
 } from './round-coordinator.ts'
 import { SceneDecisionService } from './scene-decision.ts'
 import { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
+import { Phase8ContextPipeline } from './context-pipeline.ts'
 
 function assertCompatibleContentPackVersion(
   existing: { readonly manifest: WorldJsonValue } | undefined,
@@ -100,6 +102,10 @@ function assertCompatibleContentPackVersion(
   })
 }
 
+function contextPathFor(options: Pick<WorldApplicationOptions, 'contextPath' | 'memoryPath'>): string | undefined {
+  return options.contextPath ?? (options.memoryPath === undefined ? undefined : `${options.memoryPath}.context.sqlite`)
+}
+
 export interface WorldApplicationOptions {
   readonly worldPath: string
   readonly sessionPath: string
@@ -111,6 +117,7 @@ export interface WorldApplicationOptions {
   readonly faultInjector?: FaultInjector
   readonly rulebooks?: RulebookRegistry
   readonly memoryPath?: string
+  readonly contextPath?: string
 }
 
 export interface SubmitTextRequest {
@@ -229,9 +236,11 @@ export class BranchAgentComponent {
   constructor(
     readonly participants: readonly RoundParticipant[],
     readonly cognitiveMemory?: CognitiveMemoryService,
+    readonly contextPipeline?: Phase8ContextPipeline,
   ) {}
 
   close(): void {
+    this.contextPipeline?.close()
     this.cognitiveMemory?.close()
   }
 }
@@ -245,6 +254,7 @@ export class BranchDirectorComponent {
 /** Application-owned factory that mounts real stateful components into each Cordis Branch Slot. */
 export class WorldBranchComponentFactory implements BranchComponentFactory {
   readonly #runtimeOwnerId: string
+  readonly #contextPath: string | undefined
 
   constructor(private readonly options: WorldApplicationOptions & {
     readonly rulebooks: RulebookRegistry
@@ -253,6 +263,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
     const label = options.runtimeOwnerId ?? 'application'
     assertProtocolString(label, 'runtimeOwnerId diagnostic label')
     this.#runtimeOwnerId = `${label}:instance:${randomUUID()}`
+    this.#contextPath = contextPathFor(options)
   }
 
   create(scope: BranchExecutionLane) {
@@ -265,18 +276,32 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       this.options.faultInjector,
     )
     let cognitiveMemory: CognitiveMemoryService | undefined
+    let contextPipeline: Phase8ContextPipeline | undefined
     try {
       if (participants.length > 0 && this.options.modelBudgetTokens === undefined) {
         throw new TypeError('modelBudgetTokens must be configured when Round participants are enabled')
       }
       const manifest = runtimeManifestFromStoredRecord(store.store.readManifest(scope.address))
       const policies = validateApplicationManifest(
-        manifest, scope.address, `manifest-runtime:${worldAddressKey(scope.address)}`, this.options.memoryPath,
+        manifest, scope.address, `manifest-runtime:${worldAddressKey(scope.address)}`,
+        this.options.memoryPath,
       )
       cognitiveMemory = !policies.contextEnabled
         ? undefined
         : new CognitiveMemoryService(this.options.memoryPath!, store.store, this.options.faultInjector, policies.memoryVersion)
-      const agents = new BranchAgentComponent(participants.filter(value => value.role === 'agent'), cognitiveMemory)
+      if (manifest.schemaVersion === 4 && policies.contextEnabled && policies.memoryVersion === 2) {
+        contextPipeline = new Phase8ContextPipeline({
+          path: this.#contextPath!, store: store.store, memory: cognitiveMemory!,
+          availability: store.availability, manifest, manifestHash: scope.manifestHash,
+          rulebook: this.options.rulebooks.resolve(
+            manifest.rulebook.rulebookId, manifest.rulebook.version,
+            `context-pipeline:${worldAddressKey(scope.address)}`, scope.address,
+          ),
+        })
+      }
+      const agents = new BranchAgentComponent(
+        participants.filter(value => value.role === 'agent'), cognitiveMemory, contextPipeline,
+      )
       const director = new BranchDirectorComponent(participants.filter(value => value.role === 'director'))
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
       store.availability.initialize(scope.address, manifest.characters.map(character => ({
@@ -299,6 +324,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
           sceneDecision: new SceneDecisionService(store.store, store.availability, policies.sceneVersion),
         }),
         ...(cognitiveMemory === undefined ? {} : { cognitiveMemory }),
+        ...(contextPipeline === undefined ? {} : { contextPipeline }),
         runtimeMetrics: this.options.runtimeMetrics,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
       })
@@ -310,6 +336,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       }
       return { kernel, store, agents, director }
     } catch (error: unknown) {
+      contextPipeline?.close()
       cognitiveMemory?.close()
       store.close()
       throw error
@@ -367,7 +394,8 @@ export class WorldApplication {
       }
       validateApplicationManifest(
         compiled.manifest, compiled.manifest.address,
-        `activate:${worldAddressKey(compiled.manifest.address)}`, this.options.memoryPath,
+        `activate:${worldAddressKey(compiled.manifest.address)}`,
+        this.options.memoryPath,
       )
       return new WorldBootstrap(store).activate(compiled)
     } finally {
@@ -903,6 +931,18 @@ export class WorldApplication {
               memoryVerificationHash = memory.rebuildBranch(
                 address, manifest.characters.map(character => character.characterId), world.headSeq, correlationId,
               )
+              if (manifest.schemaVersion === 4) {
+                const contextPath = contextPathFor(this.options)!
+                const checkpoints = new ContinuityCheckpointService(contextPath, store, memory)
+                const receipts = new ContextReceiptStore(contextPath)
+                try {
+                  receipts.reset(address)
+                  for (const character of manifest.characters) checkpoints.reset(address, character.characterId)
+                } finally {
+                  receipts.close()
+                  checkpoints.close()
+                }
+              }
             } finally {
               memory.close()
             }

@@ -49,6 +49,7 @@ import {
 import { type CognitiveMemoryService, type CognitiveProposalContext, type MemorySourceRef } from '@harness-world/memory'
 import type { SceneDecision, SceneDecisionService } from './scene-decision.ts'
 import type { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
+import type { Phase8ContextPipeline } from './context-pipeline.ts'
 
 export type RoundParticipantRole = 'agent' | 'director'
 export type ParticipantTerminalStatus = 'proposed' | 'provider_failed' | 'provider_timeout' | 'budget_exhausted' | 'schema_invalid' | 'lifecycle_ineligible' | 'runtime_unavailable'
@@ -77,6 +78,7 @@ export interface RoundCoordinatorOptions {
   readonly rulebooks?: RulebookRegistry
   readonly sceneDecision?: SceneDecisionService
   readonly cognitiveMemory?: CognitiveMemoryService
+  readonly contextPipeline?: Phase8ContextPipeline
   readonly runtimeMetrics?: ApplicationRuntimeMetrics
 }
 
@@ -102,6 +104,8 @@ interface FrozenParticipant {
     readonly contextHash: ReturnType<typeof hashWorldJson>
     readonly memorySourceRefs: readonly MemorySourceRef[]
     readonly recallResultHash: ReturnType<typeof hashWorldJson>
+    readonly contextReceiptId?: string
+    readonly providerRequestHash?: ReturnType<typeof hashWorldJson>
   }
   readonly availabilityTransition?: {
     readonly state: 'session_lag' | 'model_unavailable' | 'budget_unavailable'
@@ -370,6 +374,10 @@ export class RoundCoordinator {
           ...(value.cognitive === undefined ? {} : {
             memorySourceRefs: value.cognitive.memorySourceRefs,
             recallResultHash: value.cognitive.recallResultHash,
+            ...(value.cognitive.contextReceiptId === undefined ? {} : {
+              contextReceiptId: value.cognitive.contextReceiptId,
+              providerRequestHash: value.cognitive.providerRequestHash!,
+            }),
           }),
         }
       }),
@@ -611,7 +619,30 @@ export class RoundCoordinator {
       }
       let providerContext: ProposalContext | CognitiveProposalContext = context
       let cognitive: FrozenParticipant['cognitive']
-      if (this.options.cognitiveMemory !== undefined) {
+      if (this.options.contextPipeline !== undefined) {
+        try {
+          this.#renewLease()
+          const prepared = this.options.contextPipeline.prepare(
+            binding, context, history as ReturnType<WorldStore['readEvents']>, sceneDecision!, asOfWorldSeq,
+            () => this.#renewLease(),
+          )
+          providerContext = prepared.providerContext
+          cognitive = {
+            contextHash: prepared.receipt.contextHash,
+            memorySourceRefs: prepared.memorySourceRefs,
+            recallResultHash: prepared.recallResultHash,
+            contextReceiptId: prepared.receipt.receiptId,
+            providerRequestHash: prepared.receipt.providerRequestHash,
+          }
+        } catch (error: unknown) {
+          if (error instanceof WorldError && error.envelope.category === 'integrity') throw error
+          frozen.push(this.#frozen(
+            binding, 'runtime_unavailable', { participantId: binding.participantId, actions: [] }, undefined,
+            { state: 'session_lag', reason: `Phase 8 Context preparation failed: ${String(error)}` },
+          ))
+          continue
+        }
+      } else if (this.options.cognitiveMemory !== undefined) {
         try {
           this.#renewLease()
           const prepared = this.options.cognitiveMemory.prepare({
