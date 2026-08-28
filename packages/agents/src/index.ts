@@ -1,5 +1,6 @@
 export * from './context.ts'
 export * from './context-v2.ts'
+export * from './context-receipt.ts'
 export * from './continuity.ts'
 export * from './director.ts'
 export * from './director-context.ts'

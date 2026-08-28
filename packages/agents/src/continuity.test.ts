@@ -306,9 +306,17 @@ describe('Phase 8 continuity derivation', () => {
     expect(() => wrongScope.latestAt(address(), alice, head.headSeq)).toThrow('scope diverged')
     wrongScope.close()
 
+    const receiptSchemaPath = join(contextPath, '..', 'receipt-schema.sqlite')
+    const receiptSchemaDb = new DatabaseSync(receiptSchemaPath)
+    receiptSchemaDb.exec('PRAGMA user_version=2')
+    receiptSchemaDb.close()
+    const receiptCompatible = new ContinuityCheckpointService(receiptSchemaPath, world, memory)
+    expect(receiptCompatible.latestAt(address(), alice, head.headSeq)).toBeUndefined()
+    receiptCompatible.close()
+
     const wrongVersionPath = join(contextPath, '..', 'wrong-version.sqlite')
     const wrongVersionDb = new DatabaseSync(wrongVersionPath)
-    wrongVersionDb.exec('PRAGMA user_version=2')
+    wrongVersionDb.exec('PRAGMA user_version=3')
     wrongVersionDb.close()
     expect(() => new ContinuityCheckpointService(wrongVersionPath, world, memory)).toThrow('unsupported')
     memory.close()
