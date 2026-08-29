@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { hashWorldJson } from './world-json.ts'
 import {
   PHASE8_CONTEXT_PROFILES,
+  PHASE8_PROVIDER_QUALITY_PROFILE,
   PHASE8_REFLECTION_PROFILE,
   PHASE8_REGISTRIES,
   PHASE8_REGISTRY_LOCKS,
   PHASE8_REGISTRY_SET_HASH,
+  PHASE8_SUBMIT_ACTIONS_PROFILE,
 } from './phase8-registries.ts'
 
 describe('Phase 8 runtime registries', () => {
@@ -31,6 +33,20 @@ describe('Phase 8 runtime registries', () => {
       maximumNarrativeBytesPerBatch: 16384,
     })
     expect(Object.isFrozen(PHASE8_REFLECTION_PROFILE)).toBe(true)
+  })
+
+  it('exposes the exact Provider quality and submit_actions registry contracts to runtime code', () => {
+    expect(PHASE8_PROVIDER_QUALITY_PROFILE).toEqual({
+      schemaVersion: 'provider-quality/v1', invalidReflectionThreshold: 3,
+      reflectionPauseEligibleTicks: 4, invalidResponseThreshold: 3,
+      probeBackoffEligibleTicks: [1, 2, 4, 8],
+    })
+    expect(PHASE8_SUBMIT_ACTIONS_PROFILE).toEqual({
+      schemaVersion: 'submit_actions/v2', maximumExternalActions: 2, maximumReflectionOperations: 4,
+    })
+    expect(Object.isFrozen(PHASE8_PROVIDER_QUALITY_PROFILE)).toBe(true)
+    expect(Object.isFrozen(PHASE8_PROVIDER_QUALITY_PROFILE.probeBackoffEligibleTicks)).toBe(true)
+    expect(Object.isFrozen(PHASE8_SUBMIT_ACTIONS_PROFILE)).toBe(true)
   })
 
   it('locks every Phase 8 runtime registry with domain-separated hashes', () => {

@@ -43,6 +43,20 @@ export interface Phase8ReflectionProfile extends WorldJsonObject {
   readonly maximumNarrativeBytesPerBatch: number
 }
 
+export interface Phase8ProviderQualityProfile extends WorldJsonObject {
+  readonly schemaVersion: 'provider-quality/v1'
+  readonly invalidReflectionThreshold: 3
+  readonly reflectionPauseEligibleTicks: 4
+  readonly invalidResponseThreshold: 3
+  readonly probeBackoffEligibleTicks: readonly [1, 2, 4, 8]
+}
+
+export interface Phase8SubmitActionsProfile extends WorldJsonObject {
+  readonly schemaVersion: 'submit_actions/v2'
+  readonly maximumExternalActions: 2
+  readonly maximumReflectionOperations: 4
+}
+
 export const PHASE8_REFLECTION_PROFILE: Phase8ReflectionProfile = Object.freeze({
   profileId: 'standard',
   maximumOperations: 4,
@@ -50,6 +64,20 @@ export const PHASE8_REFLECTION_PROFILE: Phase8ReflectionProfile = Object.freeze(
   maximumMagnitudeChangePermille: 200,
   maximumNarrativeBytesPerOperation: 4 * 1024,
   maximumNarrativeBytesPerBatch: 16 * 1024,
+})
+
+export const PHASE8_PROVIDER_QUALITY_PROFILE: Phase8ProviderQualityProfile = Object.freeze({
+  schemaVersion: 'provider-quality/v1',
+  invalidReflectionThreshold: 3,
+  reflectionPauseEligibleTicks: 4,
+  invalidResponseThreshold: 3,
+  probeBackoffEligibleTicks: Object.freeze([1, 2, 4, 8] as const),
+})
+
+export const PHASE8_SUBMIT_ACTIONS_PROFILE: Phase8SubmitActionsProfile = Object.freeze({
+  schemaVersion: 'submit_actions/v2',
+  maximumExternalActions: 2,
+  maximumReflectionOperations: 4,
 })
 
 export const PHASE8_CONTEXT_PROFILES: readonly Phase8ContextProfile[] = Object.freeze([
@@ -98,17 +126,14 @@ export const PHASE8_REGISTRIES: readonly Phase8RegistryManifest[] = Object.freez
   registry('cognitive-policy-registry/v1', [
     member('cognitive-policy', '1.0.0', { schemaVersion: 'cognitive-policy/v1' }),
     member('reflection-policy:standard', '1.0.0', PHASE8_REFLECTION_PROFILE),
-    member('provider-quality', '1.0.0', {
-      schemaVersion: 'provider-quality/v1', invalidReflectionThreshold: 3, reflectionPauseEligibleTicks: 4,
-      invalidResponseThreshold: 3, probeBackoffEligibleTicks: [1, 2, 4, 8],
-    }),
+    member('provider-quality', '1.0.0', PHASE8_PROVIDER_QUALITY_PROFILE),
   ]),
   registry('renderer-registry/v1', [
     member('character-controller-cache', '1.0.0', { schemaVersion: 'character-controller-cache/v1' }),
     member('structured-prompt-renderer', '1.0.0', { schemaVersion: 'structured-prompt-renderer/v1' }),
   ]),
   registry('tool-schema-registry/v1', [
-    member('submit_actions', '2.0.0', { schemaVersion: 'submit_actions/v2', maximumExternalActions: 2, maximumReflectionOperations: 4 }),
+    member('submit_actions', '2.0.0', PHASE8_SUBMIT_ACTIONS_PROFILE),
     member('submit_director_plan', '1.0.0', { schemaVersion: 'submit_director_plan/v1' }),
   ]),
   registry('context-profile-registry/v1', PHASE8_CONTEXT_PROFILES.map(profile => (

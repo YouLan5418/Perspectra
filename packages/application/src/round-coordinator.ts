@@ -9,6 +9,7 @@ import {
   type ProviderQualityDecision,
 } from '@harness-world/agents'
 import {
+  PHASE8_SUBMIT_ACTIONS_PROFILE,
   assertProtocolString,
   brandId,
   canonicalizeWorldJson,
@@ -973,13 +974,16 @@ export class RoundCoordinator {
           participantId: binding.participantId,
           actorId: binding.actorId,
           allowedActionTypes: binding.allowedActionTypes,
-          maxActions: 2,
+          maxActions: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumExternalActions,
           correlationId: `coordinator:${context.roundId}:${binding.participantId}`,
         }
         let proposal: Proposal
         let reflection: FrozenParticipant['reflection']
         if (this.#manifest.schemaVersion === 4 && binding.role === 'agent') {
-          const validated = this.#validator.validateV2(providerOutput, { ...authorization, maxReflectionOperations: 4 })
+          const validated = this.#validator.validateV2(providerOutput, {
+            ...authorization,
+            maxReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
+          })
           proposal = validated.proposal
           if (validated.reflectionOperations !== undefined && providerQuality?.reflectionMode !== 'suspended') {
             if (cognitive?.receipt === undefined || cognitive.cognition === undefined) {

@@ -15,6 +15,7 @@ import {
 } from '@harness-world/agents'
 import {
   PHASE8_CONTEXT_PROFILES,
+  PHASE8_SUBMIT_ACTIONS_PROFILE,
   compareWorldText,
   deterministicId,
   hashWorldJson,
@@ -71,7 +72,7 @@ export interface Phase8ContextPipelineOptions {
 
 const rendererLock = createPromptRendererLock()
 const characterTool = createProviderToolSchema('submit_actions/v2', {
-  type: 'object', schemaVersion: 'submit_actions/v2', maximumExternalActions: 2, maximumReflectionOperations: 4,
+  type: 'object', ...PHASE8_SUBMIT_ACTIONS_PROFILE,
 })
 const directorTool = createProviderToolSchema('submit_director_plan/v1', {
   type: 'object', schemaVersion: 'submit_director_plan/v1', maximumDirectives: 8,

@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import {
+  PHASE8_PROVIDER_QUALITY_PROFILE,
   assertProtocolString,
   canonicalizeWorldJson,
   failWorld,
@@ -165,10 +166,14 @@ export class ProviderQualityStore {
       }
       const responseMode = current.responseBackoffRemaining > 0
         ? 'skip' as const
-        : current.responseInvalidStreak >= 3 ? 'probe' as const : 'normal' as const
+        : current.responseInvalidStreak >= PHASE8_PROVIDER_QUALITY_PROFILE.invalidResponseThreshold
+        ? 'probe' as const
+        : 'normal' as const
       const reflectionMode = current.reflectionSuspensionRemaining > 0
         ? 'suspended' as const
-        : current.reflectionInvalidStreak >= 3 ? 'probe' as const : 'normal' as const
+        : current.reflectionInvalidStreak >= PHASE8_PROVIDER_QUALITY_PROFILE.invalidReflectionThreshold
+        ? 'probe' as const
+        : 'normal' as const
       const { stateHash: _ignored, ...next } = current
       const advanced = {
         ...next,
@@ -207,8 +212,13 @@ export class ProviderQualityStore {
         }
       }
       const streak = current.responseInvalidStreak + 1
-      const level = streak < 3 ? current.responseBackoffLevel : Math.min(4, current.responseBackoffLevel + 1)
-      const remaining = streak < 3 ? current.responseBackoffRemaining : 2 ** (level - 1)
+      const thresholdReached = streak >= PHASE8_PROVIDER_QUALITY_PROFILE.invalidResponseThreshold
+      const level = thresholdReached
+        ? Math.min(PHASE8_PROVIDER_QUALITY_PROFILE.probeBackoffEligibleTicks.length, current.responseBackoffLevel + 1)
+        : current.responseBackoffLevel
+      const remaining = thresholdReached
+        ? PHASE8_PROVIDER_QUALITY_PROFILE.probeBackoffEligibleTicks[level - 1]!
+        : current.responseBackoffRemaining
       return {
         next: {
           ...current,
@@ -237,13 +247,22 @@ export class ProviderQualityStore {
         }
       }
       const streak = current.reflectionInvalidStreak + 1
+      const thresholdReached = streak >= PHASE8_PROVIDER_QUALITY_PROFILE.invalidReflectionThreshold
       return {
         next: {
           ...current,
           reflectionInvalidStreak: streak,
-          reflectionSuspensionRemaining: streak >= 3 ? 4 : current.reflectionSuspensionRemaining,
+          reflectionSuspensionRemaining: thresholdReached
+            ? PHASE8_PROVIDER_QUALITY_PROFILE.reflectionPauseEligibleTicks
+            : current.reflectionSuspensionRemaining,
         },
-        details: { result, suspensionEligibleTicks: streak >= 3 ? 4 : 0 }, result: undefined,
+        details: {
+          result,
+          suspensionEligibleTicks: thresholdReached
+            ? PHASE8_PROVIDER_QUALITY_PROFILE.reflectionPauseEligibleTicks
+            : 0,
+        },
+        result: undefined,
       }
     }, { kind: 'reflection', id: outcomeId, result }).state
   }
