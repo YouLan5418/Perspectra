@@ -36,7 +36,12 @@ import {
   type RulebookRegistry,
 } from '@harness-world/kernel'
 import { CognitiveMemoryService, type RecalledMemory } from '@harness-world/memory'
-import { ContextReceiptStore, ContinuityCheckpointService, ProviderCallStore } from '@harness-world/agents'
+import {
+  ContextReceiptStore,
+  ContinuityCheckpointService,
+  ProviderCallStore,
+  ProviderQualityStore,
+} from '@harness-world/agents'
 import {
   DeterministicPresenter,
   type PresentationResult,
@@ -238,11 +243,13 @@ export class BranchAgentComponent {
     readonly cognitiveMemory?: CognitiveMemoryService,
     readonly contextPipeline?: Phase8ContextPipeline,
     readonly providerCalls?: ProviderCallStore,
+    readonly providerQuality?: ProviderQualityStore,
   ) {}
 
   close(): void {
     this.contextPipeline?.close()
     this.providerCalls?.close()
+    this.providerQuality?.close()
     this.cognitiveMemory?.close()
   }
 }
@@ -280,6 +287,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
     let cognitiveMemory: CognitiveMemoryService | undefined
     let contextPipeline: Phase8ContextPipeline | undefined
     let providerCalls: ProviderCallStore | undefined
+    let providerQuality: ProviderQualityStore | undefined
     try {
       if (participants.length > 0 && this.options.modelBudgetTokens === undefined) {
         throw new TypeError('modelBudgetTokens must be configured when Round participants are enabled')
@@ -302,9 +310,10 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
           ),
         })
         providerCalls = new ProviderCallStore(this.#contextPath!)
+        providerQuality = new ProviderQualityStore(this.#contextPath!)
       }
       const agents = new BranchAgentComponent(
-        participants.filter(value => value.role === 'agent'), cognitiveMemory, contextPipeline, providerCalls,
+        participants.filter(value => value.role === 'agent'), cognitiveMemory, contextPipeline, providerCalls, providerQuality,
       )
       const director = new BranchDirectorComponent(participants.filter(value => value.role === 'director'))
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
@@ -330,6 +339,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         ...(cognitiveMemory === undefined ? {} : { cognitiveMemory }),
         ...(contextPipeline === undefined ? {} : { contextPipeline }),
         ...(providerCalls === undefined ? {} : { providerCalls }),
+        ...(providerQuality === undefined ? {} : { providerQuality }),
         ...(this.options.faultInjector === undefined ? {} : { faultInjector: this.options.faultInjector }),
         runtimeMetrics: this.options.runtimeMetrics,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
@@ -344,6 +354,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
     } catch (error: unknown) {
       contextPipeline?.close()
       providerCalls?.close()
+      providerQuality?.close()
       cognitiveMemory?.close()
       store.close()
       throw error

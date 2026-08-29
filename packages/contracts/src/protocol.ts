@@ -187,6 +187,7 @@ export type RuntimeAvailabilityState =
   | 'ready'
   | 'session_lag'
   | 'model_unavailable'
+  | 'provider_output_invalid'
   | 'budget_unavailable'
   | 'offline'
   | 'disabled'

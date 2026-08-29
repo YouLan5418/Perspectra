@@ -82,11 +82,11 @@ describe('WorldArchiveService', () => {
     const service = new WorldArchiveService(source)
     const backupPath = join(directory, 'backup.sqlite')
     const artifact = await service.backup(backupPath, 'backup:create')
-    expect(artifact).toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 14 })
+    expect(artifact).toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 15 })
 
     const restoredPath = join(directory, 'restored.sqlite')
     expect(service.restore(backupPath, restoredPath, artifact.fileHash, 'backup:restore'))
-      .toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 14 })
+      .toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 15 })
     const restored = new WorldStore(restoredPath)
     expect(restored.head(address)).toMatchObject({ headSeq: 1, tick: 1 })
     const eventHash = restored.readEvents(address)[0]!.eventHash
@@ -118,7 +118,7 @@ describe('WorldArchiveService', () => {
     expect(await service.exportPortable(exportPath, 'export:create')).toEqual(artifact)
     const importedPath = join(directory, 'imported.sqlite')
     expect(service.importPortable(exportPath, importedPath, 'export:import'))
-      .toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 14 })
+      .toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: 15 })
     const imported = new WorldStore(importedPath)
     expect(imported.readEvents(address)[0]!.eventHash).toBe(eventHash)
     imported.close()

@@ -10,6 +10,7 @@ export class ApplicationRuntimeMetrics {
     provider_timeout: 0,
     budget_exhausted: 0,
     schema_invalid: 0,
+    provider_output_invalid: 0,
     lifecycle_ineligible: 0,
     runtime_unavailable: 0,
   }

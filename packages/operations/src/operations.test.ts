@@ -77,7 +77,7 @@ describe('OperationsMetrics and WorldHealthService', () => {
     })
     await app.release(parent)
     expect(new WorldHealthService(path).check()).toMatchObject({
-      status: 'ready', schemaVersion: 14, branchCount: 1,
+      status: 'ready', schemaVersion: 15, branchCount: 1,
       readyForRead: true, readyForWrite: true, readyForAgentCalls: true,
       branches: [{ status: 'healthy', readyForRead: true, readyForWrite: true, readyForAgentCalls: true,
         unavailableCharacterCount: 0, characterAvailability: [{ characterId: 'character:health', state: 'ready' }] }],

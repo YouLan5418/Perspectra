@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   createContextReceipt,
   ProviderCallStore,
+  ProviderQualityStore,
 } from '@harness-world/agents'
 import {
   brandId,
@@ -43,6 +44,7 @@ import {
   type RoundParticipant,
 } from './round-coordinator.ts'
 import { SceneDecisionService } from './scene-decision.ts'
+import { WorldApplication } from './world-application.ts'
 
 const directories: string[] = []
 
@@ -161,6 +163,10 @@ function phase8ReflectionWorld(): CompiledWorldSpec {
   const manifest = {
     ...base.manifest,
     schemaVersion: 4 as const,
+    plugins: [
+      { pluginId: 'builtin:agent-context', version: '2.0.0' },
+      { pluginId: 'builtin:scene-decision', version: '2.0.0' },
+    ],
     contentPack: {
       schemaVersion: 2 as const, packId: 'pack:reflection-test', packVersion: '1.0.0',
       packHash: hashWorldJson('pack', { id: 'reflection-test' }),
@@ -242,13 +248,21 @@ function options(
     readonly leaseTtlMs?: number
     readonly faultInjector?: FaultInjector
   } = {},
-): RoundCoordinatorOptions & { store: WorldStore; inbox: RoundInbox; leases: WriterLeaseService; availability: CharacterRuntimeAvailabilityService; providerCalls?: ProviderCallStore } {
+): RoundCoordinatorOptions & {
+  store: WorldStore
+  inbox: RoundInbox
+  leases: WriterLeaseService
+  availability: CharacterRuntimeAvailabilityService
+  providerCalls?: ProviderCallStore
+  providerQuality?: ProviderQualityStore
+} {
   const now = configuration.now ?? Date.now
   const store = new WorldStore(path, configuration.faultInjector, now)
   const inbox = new RoundInbox(path, now)
   const leases = new WriterLeaseService(path, now)
   const availability = new CharacterRuntimeAvailabilityService(path, now)
   const providerCalls = compiled.manifest.schemaVersion === 4 ? new ProviderCallStore(`${path}.context.sqlite`) : undefined
+  const providerQuality = compiled.manifest.schemaVersion === 4 ? new ProviderQualityStore(`${path}.context.sqlite`, now) : undefined
   if (store.readManifest(compiled.manifest.address) !== undefined) {
     availability.initialize(compiled.manifest.address, compiled.manifest.characters.map(value => ({ characterId: value.characterId, state: 'ready' })))
   }
@@ -262,6 +276,7 @@ function options(
     participants,
     modelBudgetTokens,
     ...(providerCalls === undefined ? {} : { providerCalls }),
+    ...(providerQuality === undefined ? {} : { providerQuality }),
     ...(configuration.faultInjector === undefined ? {} : { faultInjector: configuration.faultInjector }),
     ...(configuration.leaseTtlMs === undefined ? {} : { leaseTtlMs: configuration.leaseTtlMs }),
   }
@@ -272,6 +287,7 @@ function close(optionsValue: ReturnType<typeof options>, coordinator?: RoundCoor
   optionsValue.inbox.close()
   optionsValue.availability.close()
   optionsValue.providerCalls?.close()
+  optionsValue.providerQuality?.close()
   optionsValue.leases.close()
   optionsValue.store.close()
 }
@@ -918,7 +934,7 @@ describe('RoundCoordinator', () => {
     close(configured, coordinator)
   })
 
-  it.each(['prepared_budget', 'dispatch_started', 'response_received', 'validated'] as const)(
+  it.each(['prepared_budget', 'dispatch_started', 'response_received', 'invalid_response', 'validated'] as const)(
     'recovers Provider call state %s without redispatch', async recoveredState => {
     const path = database(`phase8-provider-${recoveredState}.sqlite`)
     const compiled = phase8ReflectionWorld()
@@ -985,11 +1001,14 @@ describe('RoundCoordinator', () => {
     })
     const prepared = configured.providerCalls!.prepare(makeReceipt(accepted.roundId, 1).receipt)
     if (recoveredState !== 'prepared_budget') configured.providerCalls!.markDispatchStarted(prepared.modelCallId)
-    const rawResponse = recoveredState === 'validated'
+    const rawResponse = recoveredState === 'validated' || recoveredState === 'invalid_response'
       ? { schemaVersion: 2, decision: 'abstain', actions: [{}] }
       : { schemaVersion: 2, decision: 'abstain', actions: [] }
-    if (recoveredState === 'response_received' || recoveredState === 'validated') {
+    if (recoveredState === 'response_received' || recoveredState === 'invalid_response' || recoveredState === 'validated') {
       configured.providerCalls!.recordResponse(prepared.modelCallId, rawResponse, { provider: 'scripted' })
+    }
+    if (recoveredState === 'invalid_response') {
+      configured.providerCalls!.markTerminal(prepared.modelCallId, 'invalid_response', { reason: 'fixture invalid response' })
     }
     if (recoveredState === 'validated') configured.providerCalls!.markValidated(prepared.modelCallId, rawResponse)
     if (recoveredState === 'validated') {
@@ -1003,7 +1022,8 @@ describe('RoundCoordinator', () => {
     expect(calls).toBe(0)
     expect(configured.providerCalls!.read(prepared.modelCallId)).toMatchObject({
       state: recoveredState === 'prepared_budget' ? 'budget_exhausted'
-        : recoveredState === 'dispatch_started' ? 'timed_out_ambiguous' : 'committed',
+        : recoveredState === 'dispatch_started' ? 'timed_out_ambiguous'
+        : recoveredState === 'invalid_response' ? 'invalid_response' : 'committed',
     })
     const authority = configured.store.readRoundAuthority(
       compiled.manifest.address,
@@ -1014,6 +1034,8 @@ describe('RoundCoordinator', () => {
         ? { terminalStatus: 'budget_exhausted', providerCallState: 'budget_exhausted' }
         : recoveredState === 'dispatch_started'
           ? { terminalStatus: 'provider_timeout', providerCallState: 'timed_out_ambiguous' }
+          : recoveredState === 'invalid_response'
+            ? { terminalStatus: 'schema_invalid', providerCallState: 'invalid_response' }
           : { terminalStatus: 'proposed', providerCallState: 'validated' })
     close(configured, coordinator)
   })
@@ -1030,8 +1052,134 @@ describe('RoundCoordinator', () => {
     const configured = options(path, compiled, [npc])
     expect(() => new RoundCoordinator({
       ...configured, contextPipeline: {} as never, providerCalls: undefined,
-    } as never)).toThrow('durable Provider call boundary')
+    } as never)).toThrow('durable Provider call and quality boundaries')
     close(configured)
+  })
+
+  it('backs off persistently invalid Phase 8 output and recovers through one deterministic probe', async () => {
+    const worldPath = database('phase8-quality-world.sqlite')
+    const sessionPath = `${worldPath}.session.sqlite`
+    const memoryPath = `${worldPath}.memory.sqlite`
+    const compiled = phase8ReflectionWorld()
+    let calls = 0
+    const application = new WorldApplication({
+      worldPath, sessionPath, memoryPath, modelBudgetTokens: 100,
+      participants: () => [{
+        participantId: 'agent:quality', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
+        allowedActionTypes: ['speak'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+        provider: {
+          async propose() {
+            calls += 1
+            return calls <= 3
+              ? { schemaVersion: 2, decision: 'act', actions: 'invalid' } as never
+              : { schemaVersion: 2 as const, decision: 'abstain' as const, actions: [] }
+          },
+        },
+      }],
+    })
+    application.activate(compiled)
+    for (let turn = 1; turn <= 3; turn += 1) {
+      await expect(application.submit(compiled.manifest.address, {
+        idempotencyKey: `quality:${turn}`, principalId: 'principal:player',
+        action: { actionType: 'speak', parameters: { text: `turn ${turn}` } }, correlationId: `quality:${turn}`,
+      })).resolves.toMatchObject({ status: 'accepted', tick: turn })
+    }
+    expect(calls).toBe(3)
+    await expect(application.characterAvailability(
+      compiled.manifest.address, brandId('character:npc', 'CharacterId'),
+    )).resolves.toMatchObject({ state: 'provider_output_invalid' })
+
+    await application.submit(compiled.manifest.address, {
+      idempotencyKey: 'quality:backoff', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'backoff' } }, correlationId: 'quality:backoff',
+    })
+    expect(calls).toBe(3)
+    await application.submit(compiled.manifest.address, {
+      idempotencyKey: 'quality:probe', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'probe' } }, correlationId: 'quality:probe',
+    })
+    expect(calls).toBe(4)
+    await expect(application.characterAvailability(
+      compiled.manifest.address, brandId('character:npc', 'CharacterId'),
+    )).resolves.toMatchObject({ state: 'ready', reason: null })
+    await application.submit(compiled.manifest.address, {
+      idempotencyKey: 'quality:backoff', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'backoff' } }, correlationId: 'quality:replay',
+    })
+    expect(calls).toBe(4)
+    expect(application.runtimeMetrics.snapshot()).toMatchObject({
+      participantTerminals: { schema_invalid: 2, provider_output_invalid: 2 },
+    })
+    await application.close()
+
+    const quality = new ProviderQualityStore(`${memoryPath}.context.sqlite`)
+    expect(quality.state(compiled.manifest.address, 'agent:quality')).toMatchObject({
+      responseInvalidStreak: 0, responseBackoffLevel: 0, responseBackoffRemaining: 0,
+    })
+    expect(quality.readAudit(compiled.manifest.address, 'agent:quality').map(value => value.operation))
+      .toEqual(expect.arrayContaining(['provider-quality.response-invalid', 'provider-quality.response-valid']))
+    quality.close()
+    const worldStore = new WorldStore(worldPath)
+    expect(worldStore.readEvents(compiled.manifest.address).filter(event =>
+      event.eventType === 'round.participant-terminal').map(event => (event.data as WorldJsonObject).status))
+      .toEqual(['schema_invalid', 'schema_invalid', 'provider_output_invalid', 'provider_output_invalid', 'proposed'])
+    worldStore.close()
+  })
+
+  it('suspends Reflection without suppressing a valid external Action', async () => {
+    const worldPath = database('phase8-reflection-quality-world.sqlite')
+    const sessionPath = `${worldPath}.session.sqlite`
+    const memoryPath = `${worldPath}.memory.sqlite`
+    const contextPath = `${memoryPath}.context.sqlite`
+    const compiled = phase8ReflectionWorld()
+    const seeded = new ProviderQualityStore(contextPath)
+    for (let index = 1; index <= 3; index += 1) {
+      seeded.recordReflection(compiled.manifest.address, 'agent:reflection-quality', `seed:${index}`, 'invalid')
+    }
+    seeded.close()
+    const application = new WorldApplication({
+      worldPath, sessionPath, memoryPath, modelBudgetTokens: 100,
+      participants: () => [{
+        participantId: 'agent:reflection-quality', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
+        allowedActionTypes: ['speak'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+        provider: {
+          async propose(): Promise<SubmitActionsV2> {
+            return {
+              schemaVersion: 2, decision: 'act', reflection: { operations: [] },
+              actions: [{
+                actionId: 'action:reflection-suspended', actorId: brandId('character:npc', 'CharacterId'),
+                actionType: 'speak', actionVersion: 1, parameters: { text: 'external action survives' },
+              }],
+            }
+          },
+        },
+      }],
+    })
+    application.activate(compiled)
+    await expect(application.submit(compiled.manifest.address, {
+      idempotencyKey: 'reflection:suspended', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'continue' } }, correlationId: 'reflection:suspended',
+    })).resolves.toMatchObject({ status: 'accepted', tick: 1 })
+    await application.close()
+
+    const worldStore = new WorldStore(worldPath)
+    expect(worldStore.readEvents(compiled.manifest.address).some(event =>
+      event.eventType === 'character.speak'
+      && (event.data as WorldJsonObject).text === 'external action survives')).toBe(true)
+    const transactionId = worldStore.readEvents(compiled.manifest.address).at(-1)!.transactionId
+    const authority = worldStore.readRoundAuthority(compiled.manifest.address, transactionId)!.authority
+    worldStore.close()
+    expect(authority).toMatchObject({ participants: expect.arrayContaining([expect.objectContaining({
+        participantId: 'agent:reflection-quality',
+        providerQualityDecision: expect.objectContaining({
+          policyId: 'provider-quality/v1', reflectionMode: 'suspended',
+        }),
+      })]) })
+    const quality = new ProviderQualityStore(contextPath)
+    expect(quality.state(compiled.manifest.address, 'agent:reflection-quality')).toMatchObject({
+      reflectionInvalidStreak: 3, reflectionSuspensionRemaining: 3,
+    })
+    quality.close()
   })
 
   it('degrades ordinary Phase 8 Context failures but propagates integrity failures', async () => {

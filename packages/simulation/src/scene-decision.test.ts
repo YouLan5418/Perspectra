@@ -63,6 +63,26 @@ describe('SceneDecisionService', () => {
       schedulableCharacterIds: [MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective],
       asOfSeq: head.headSeq,
     })
+    availability.set(
+      compiled.manifest.address, brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId'),
+      'provider_output_invalid', 'quality backoff',
+    )
+    expect(service.decide(compiled.manifest.address, player, head.headSeq).schedulableCharacterIds)
+      .toContain(MYSTERY_DEMO_IDS.bob)
+    const unavailable = brandId('character:unavailable', 'CharacterId')
+    expect(service.decideFromEvents(compiled.manifest.address, player, [
+      ...store.readEvents(compiled.manifest.address),
+      { eventType: 'character.created', data: { characterId: unavailable, locationId: 'location:study' } },
+      {
+        eventType: 'scene.upsert',
+        data: {
+          sceneId: MYSTERY_DEMO_IDS.scene,
+          value: {
+            participantIds: [MYSTERY_DEMO_IDS.player, MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective, unavailable],
+          },
+        },
+      },
+    ], head.headSeq).schedulableCharacterIds).not.toContain(unavailable)
     availability.set(compiled.manifest.address, brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId'), 'offline', 'drill')
     const history = store.readEvents(compiled.manifest.address)
     const changed: RulebookEvent[] = [

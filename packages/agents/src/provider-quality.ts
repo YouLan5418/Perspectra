@@ -41,6 +41,14 @@ CREATE TABLE IF NOT EXISTS provider_quality_outcomes (
   result TEXT NOT NULL CHECK(result IN ('valid', 'invalid')),
   PRIMARY KEY(namespace_key, participant_id, outcome_kind, outcome_id)
 ) STRICT;
+CREATE TABLE IF NOT EXISTS provider_quality_ticks (
+  namespace_key TEXT NOT NULL,
+  participant_id TEXT NOT NULL,
+  round_id TEXT NOT NULL,
+  response_mode TEXT NOT NULL CHECK(response_mode IN ('normal', 'skip', 'probe')),
+  reflection_mode TEXT NOT NULL CHECK(reflection_mode IN ('normal', 'suspended', 'probe')),
+  PRIMARY KEY(namespace_key, participant_id, round_id)
+) STRICT;
 `
 
 export type ProviderQualityResponseMode = 'normal' | 'skip' | 'probe'
@@ -137,27 +145,50 @@ export class ProviderQualityStore {
     return this.#read(address, participantId)
   }
 
-  beginEligibleTick(address: WorldAddress, participantId: string): ProviderQualityDecision {
+  beginEligibleTick(address: WorldAddress, participantId: string, roundId: string): ProviderQualityDecision {
     this.#validateParticipant(participantId)
-    const changed = this.#mutate(address, participantId, 'provider-quality.eligible-tick', (current) => {
+    assertProtocolString(roundId, 'provider quality eligible roundId')
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      this.#ensure(address, participantId)
+      const current = this.#read(address, participantId)
+      const replay = this.#db.prepare(`
+        SELECT response_mode, reflection_mode FROM provider_quality_ticks
+        WHERE namespace_key = ? AND participant_id = ? AND round_id = ?
+      `).get(worldAddressKey(address), participantId, roundId) as {
+        response_mode: ProviderQualityResponseMode
+        reflection_mode: ProviderQualityReflectionMode
+      } | undefined
+      if (replay !== undefined) {
+        this.#db.exec('COMMIT')
+        return { state: current, responseMode: replay.response_mode, reflectionMode: replay.reflection_mode }
+      }
       const responseMode = current.responseBackoffRemaining > 0
         ? 'skip' as const
         : current.responseInvalidStreak >= 3 ? 'probe' as const : 'normal' as const
       const reflectionMode = current.reflectionSuspensionRemaining > 0
         ? 'suspended' as const
         : current.reflectionInvalidStreak >= 3 ? 'probe' as const : 'normal' as const
-      return {
-        next: {
-          ...current,
-          eligibleTicks: current.eligibleTicks + 1,
-          responseBackoffRemaining: Math.max(0, current.responseBackoffRemaining - 1),
-          reflectionSuspensionRemaining: Math.max(0, current.reflectionSuspensionRemaining - 1),
-        },
-        details: { responseMode, reflectionMode },
-        result: { responseMode, reflectionMode },
+      const { stateHash: _ignored, ...next } = current
+      const advanced = {
+        ...next,
+        eligibleTicks: current.eligibleTicks + 1,
+        responseBackoffRemaining: Math.max(0, current.responseBackoffRemaining - 1),
+        reflectionSuspensionRemaining: Math.max(0, current.reflectionSuspensionRemaining - 1),
       }
-    })
-    return { state: changed.state, ...changed.result }
+      const hash = stateHash(advanced)
+      this.#writeState(advanced, hash)
+      this.#appendAudit(address, participantId, 'provider-quality.eligible-tick', { responseMode, reflectionMode })
+      this.#db.prepare(`
+        INSERT INTO provider_quality_ticks(namespace_key, participant_id, round_id, response_mode, reflection_mode)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(worldAddressKey(address), participantId, roundId, responseMode, reflectionMode)
+      this.#db.exec('COMMIT')
+      return { state: { ...advanced, stateHash: hash }, responseMode, reflectionMode }
+    } catch (error: unknown) {
+      this.#db.exec('ROLLBACK')
+      throw error
+    }
   }
 
   recordResponse(
@@ -255,44 +286,30 @@ export class ProviderQualityStore {
       readonly details: WorldJsonObject
       readonly result: Result
     },
-    outcome?: { readonly kind: 'response' | 'reflection'; readonly id: string; readonly result: 'valid' | 'invalid' },
+    outcome: { readonly kind: 'response' | 'reflection'; readonly id: string; readonly result: 'valid' | 'invalid' },
   ): { readonly state: ProviderQualityState; readonly result: Result } {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.#ensure(address, participantId)
       const current = this.#read(address, participantId)
       const change = update(current)
-      if (outcome !== undefined) {
-        const existing = this.#db.prepare(`
-          SELECT result FROM provider_quality_outcomes
-          WHERE namespace_key = ? AND participant_id = ? AND outcome_kind = ? AND outcome_id = ?
-        `).get(worldAddressKey(address), participantId, outcome.kind, outcome.id) as { result: string } | undefined
-        if (existing !== undefined) {
-          if (existing.result !== outcome.result) this.#integrity(address, participantId)
-          this.#db.exec('COMMIT')
-          return { state: current, result: change.result }
-        }
+      const existing = this.#db.prepare(`
+        SELECT result FROM provider_quality_outcomes
+        WHERE namespace_key = ? AND participant_id = ? AND outcome_kind = ? AND outcome_id = ?
+      `).get(worldAddressKey(address), participantId, outcome.kind, outcome.id) as { result: string } | undefined
+      if (existing !== undefined) {
+        if (existing.result !== outcome.result) this.#integrity(address, participantId)
+        this.#db.exec('COMMIT')
+        return { state: current, result: change.result }
       }
       const { stateHash: _ignored, ...next } = change.next as ProviderQualityState
       const hash = stateHash(next)
-      this.#db.prepare(`
-        UPDATE provider_quality_state SET
-          eligible_ticks = ?, response_invalid_streak = ?, response_backoff_level = ?,
-          response_backoff_remaining = ?, reflection_invalid_streak = ?,
-          reflection_suspension_remaining = ?, state_hash = ?
-        WHERE namespace_key = ? AND participant_id = ?
-      `).run(
-        next.eligibleTicks, next.responseInvalidStreak, next.responseBackoffLevel,
-        next.responseBackoffRemaining, next.reflectionInvalidStreak,
-        next.reflectionSuspensionRemaining, hash, worldAddressKey(address), participantId,
-      )
+      this.#writeState(next, hash)
       this.#appendAudit(address, participantId, operation, change.details)
-      if (outcome !== undefined) {
-        this.#db.prepare(`
-          INSERT INTO provider_quality_outcomes(namespace_key, participant_id, outcome_kind, outcome_id, result)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(worldAddressKey(address), participantId, outcome.kind, outcome.id, outcome.result)
-      }
+      this.#db.prepare(`
+        INSERT INTO provider_quality_outcomes(namespace_key, participant_id, outcome_kind, outcome_id, result)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(worldAddressKey(address), participantId, outcome.kind, outcome.id, outcome.result)
       this.#db.exec('COMMIT')
       return { state: { ...next, stateHash: hash }, result: change.result }
     } catch (error: unknown) {
@@ -314,6 +331,20 @@ export class ProviderQualityStore {
         reflection_suspension_remaining, state_hash
       ) VALUES (?, ?, 0, 0, 0, 0, 0, 0, ?)
     `).run(worldAddressKey(address), participantId, stateHash(input))
+  }
+
+  #writeState(next: ProviderQualityStateInput, hash: WorldHash): void {
+    this.#db.prepare(`
+      UPDATE provider_quality_state SET
+        eligible_ticks = ?, response_invalid_streak = ?, response_backoff_level = ?,
+        response_backoff_remaining = ?, reflection_invalid_streak = ?,
+        reflection_suspension_remaining = ?, state_hash = ?
+      WHERE namespace_key = ? AND participant_id = ?
+    `).run(
+      next.eligibleTicks, next.responseInvalidStreak, next.responseBackoffLevel,
+      next.responseBackoffRemaining, next.reflectionInvalidStreak,
+      next.reflectionSuspensionRemaining, hash, worldAddressKey(next.address), next.participantId,
+    )
   }
 
   #read(address: WorldAddress, participantId: string): ProviderQualityState {

@@ -251,7 +251,8 @@ export class SceneDecisionService {
       && currentCharacterLifecycle(events, characterId) === 'active'
       && currentLocation(events, characterId) === playerLocation)
     const schedulableCharacterIds = observerIds.filter(characterId =>
-      characterId !== player && this.availability.get(address, characterId)?.state === 'ready')
+      characterId !== player && ['ready', 'provider_output_invalid']
+        .includes(this.availability.get(address, characterId)?.state ?? ''))
     return {
       sceneId: scene.sceneId,
       observerIds,
@@ -288,7 +289,8 @@ export class SceneDecisionService {
       && currentCharacterLifecycle(events, characterId) === 'active'
       && (scene.locationId === null || currentLocation(events, characterId) === scene.locationId))
     const schedulableCharacterIds = observerIds.filter(characterId =>
-      characterId !== player && this.availability.get(address, characterId)?.state === 'ready')
+      characterId !== player && ['ready', 'provider_output_invalid']
+        .includes(this.availability.get(address, characterId)?.state ?? ''))
     const semantic = {
       schemaVersion: 'scene-decision/v2' as const,
       sceneId: scene?.sceneId ?? null,

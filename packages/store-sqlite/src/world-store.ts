@@ -340,7 +340,28 @@ ALTER TABLE outbox ADD COLUMN next_attempt_at_ms INTEGER NOT NULL DEFAULT 0 CHEC
 CREATE INDEX outbox_retry_schedule ON outbox(address_key, delivery_status, next_attempt_at_ms, world_seq);
 `
 
-export const WORLD_SCHEMA_VERSION = 14
+const WORLD_PROVIDER_OUTPUT_AVAILABILITY_SCHEMA = `
+ALTER TABLE character_runtime_availability RENAME TO character_runtime_availability_v14;
+CREATE TABLE character_runtime_availability (
+  address_key TEXT NOT NULL,
+  character_id TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN (
+    'provisioning', 'ready', 'session_lag', 'model_unavailable', 'provider_output_invalid',
+    'budget_unavailable', 'offline', 'disabled'
+  )),
+  reason TEXT,
+  changed_at_ms INTEGER NOT NULL CHECK(changed_at_ms >= 0),
+  revision INTEGER NOT NULL CHECK(revision >= 0),
+  PRIMARY KEY(address_key, character_id),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key)
+) STRICT;
+INSERT INTO character_runtime_availability(address_key, character_id, state, reason, changed_at_ms, revision)
+SELECT address_key, character_id, state, reason, changed_at_ms, revision
+FROM character_runtime_availability_v14;
+DROP TABLE character_runtime_availability_v14;
+`
+
+export const WORLD_SCHEMA_VERSION = 15
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -357,7 +378,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 11, sql: WORLD_ROUND_AUTHORITY_SCHEMA },
     { version: 12, sql: WORLD_COGNITIVE_JOB_SCHEMA },
     { version: 13, sql: WORLD_CLARIFICATION_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_OUTBOX_RETRY_SCHEMA },
+    { version: 14, sql: WORLD_OUTBOX_RETRY_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_PROVIDER_OUTPUT_AVAILABILITY_SCHEMA },
   ])
 }
 

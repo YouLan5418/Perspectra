@@ -3,8 +3,10 @@ import {
   ReflectionPolicyValidator,
   ModelBudgetLedger,
   ProviderCallStore,
+  ProviderQualityStore,
   SafeAgentRunner,
   type ProviderCallRecord,
+  type ProviderQualityDecision,
 } from '@harness-world/agents'
 import {
   assertProtocolString,
@@ -24,6 +26,7 @@ import {
   type OutboxDraft,
   type Proposal,
   type ProposalContext,
+  type RuntimeAvailabilityState,
   type TransactionId,
   type WorldAddress,
   type WorldEventDraft,
@@ -59,7 +62,7 @@ import type { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
 import type { Phase8ContextPipeline } from './context-pipeline.ts'
 
 export type RoundParticipantRole = 'agent' | 'director'
-export type ParticipantTerminalStatus = 'proposed' | 'provider_failed' | 'provider_timeout' | 'budget_exhausted' | 'schema_invalid' | 'lifecycle_ineligible' | 'runtime_unavailable'
+export type ParticipantTerminalStatus = 'proposed' | 'provider_failed' | 'provider_timeout' | 'budget_exhausted' | 'schema_invalid' | 'provider_output_invalid' | 'lifecycle_ineligible' | 'runtime_unavailable'
 
 export interface RoundParticipant {
   readonly participantId: string
@@ -87,6 +90,7 @@ export interface RoundCoordinatorOptions {
   readonly cognitiveMemory?: CognitiveMemoryService
   readonly contextPipeline?: Phase8ContextPipeline
   readonly providerCalls?: ProviderCallStore
+  readonly providerQuality?: ProviderQualityStore
   readonly faultInjector?: FaultInjector
   readonly runtimeMetrics?: ApplicationRuntimeMetrics
 }
@@ -120,9 +124,10 @@ interface FrozenParticipant {
   }
   readonly reflection?: ReturnType<ReflectionPolicyValidator['evaluate']>
   readonly providerCall?: ProviderCallRecord
+  readonly providerQuality?: ProviderQualityDecision
   readonly availabilityTransition?: {
-    readonly state: 'session_lag' | 'model_unavailable' | 'budget_unavailable'
-    readonly reason: string
+    readonly state: RuntimeAvailabilityState
+    readonly reason: string | null
   }
 }
 
@@ -231,8 +236,9 @@ export class RoundCoordinator {
       throw new TypeError('Cognitive Memory requires an authoritative Scene decision service')
     }
     if (this.#manifest.schemaVersion === 4 && options.contextPipeline !== undefined
-      && this.#participants.length > 0 && options.providerCalls === undefined) {
-      throw new TypeError('Phase 8 participants require the durable Provider call boundary')
+      && this.#participants.length > 0
+      && (options.providerCalls === undefined || options.providerQuality === undefined)) {
+      throw new TypeError('Phase 8 participants require durable Provider call and quality boundaries')
     }
     this.#leaseTtlMs = options.leaseTtlMs ?? 30_000
     if (!Number.isSafeInteger(this.#leaseTtlMs) || this.#leaseTtlMs <= 0) {
@@ -432,6 +438,14 @@ export class RoundCoordinator {
           }),
           ...(value.reflection === undefined ? {} : { cognitivePolicyReceipt: value.reflection.receipt }),
           ...(value.providerCall === undefined ? {} : { providerCallState: value.providerCall.state }),
+          ...(value.providerQuality === undefined ? {} : {
+            providerQualityDecision: {
+              policyId: 'provider-quality/v1',
+              responseMode: value.providerQuality.responseMode,
+              reflectionMode: value.providerQuality.reflectionMode,
+              stateHash: value.providerQuality.state.stateHash,
+            },
+          }),
         }
       }),
     ]
@@ -689,8 +703,24 @@ export class RoundCoordinator {
         frozen.push({ binding, status: 'lifecycle_ineligible', proposal: { participantId: binding.participantId, actions: [] } })
         continue
       }
-      if (this.options.availability.get(this.#address, binding.actorId)?.state !== 'ready') {
+      const availabilityState = this.options.availability.get(this.#address, binding.actorId)?.state
+      if (availabilityState !== 'ready'
+        && !(availabilityState === 'provider_output_invalid' && this.options.providerQuality !== undefined)) {
         frozen.push({ binding, status: 'runtime_unavailable', proposal: { participantId: binding.participantId, actions: [] } })
+        continue
+      }
+      let providerQuality = this.options.providerQuality?.beginEligibleTick(
+        this.#address, binding.participantId, context.roundId,
+      )
+      if (providerQuality?.responseMode === 'skip') {
+        frozen.push(this.#frozen(
+          binding, 'provider_output_invalid', { participantId: binding.participantId, actions: [] }, undefined,
+          {
+            state: 'provider_output_invalid',
+            reason: `Provider output probe is backed off for ${providerQuality.state.responseBackoffRemaining} more eligible Tick(s)`,
+          },
+          undefined, undefined, providerQuality,
+        ))
         continue
       }
       let providerContext: ProposalContext | CognitiveProposalContext = context
@@ -717,6 +747,7 @@ export class RoundCoordinator {
           frozen.push(this.#frozen(
             binding, 'runtime_unavailable', { participantId: binding.participantId, actions: [] }, undefined,
             { state: 'session_lag', reason: `Phase 8 Context preparation failed: ${String(error)}` },
+            undefined, undefined, providerQuality,
           ))
           continue
         }
@@ -751,6 +782,7 @@ export class RoundCoordinator {
             { participantId: binding.participantId, actions: [] },
             undefined,
             { state: 'session_lag', reason: `Cognitive Memory catch-up failed: ${String(error)}` },
+            undefined, undefined, providerQuality,
           ))
           continue
         }
@@ -770,11 +802,18 @@ export class RoundCoordinator {
         providerOutput = providerCall.proposal as Proposal | SubmitActionsV2
       }
       if (providerCall !== undefined && !['prepared', 'response_received', 'validated'].includes(providerCall.state)) {
-        const failure = participantFailureForCallState[providerCall.state]!
+        let failure = participantFailureForCallState[providerCall.state]!
+        let transition = availabilityForTerminalCallState[providerCall.state]!
+        if (providerCall.state === 'invalid_response' && providerQuality !== undefined) {
+          const invalid = this.#invalidProviderOutput(binding, providerCall, providerQuality)
+          failure = invalid.status
+          transition = invalid.transition!
+          providerQuality = invalid.quality
+        }
         frozen.push(this.#frozen(
           binding, failure, { participantId: binding.participantId, actions: [] }, cognitive,
-          availabilityForTerminalCallState[providerCall.state]!,
-          undefined, providerCall,
+          transition,
+          undefined, providerCall, providerQuality,
         ))
         continue
       }
@@ -806,7 +845,7 @@ export class RoundCoordinator {
           frozen.push(this.#frozen(
             binding, failure, { participantId: binding.participantId, actions: [] }, cognitive,
             availabilityForFailure[failure],
-            undefined, providerCall,
+            undefined, providerCall, providerQuality,
           ))
           continue
         }
@@ -831,7 +870,7 @@ export class RoundCoordinator {
         if (this.#manifest.schemaVersion === 4 && binding.role === 'agent') {
           const validated = this.#validator.validateV2(providerOutput, { ...authorization, maxReflectionOperations: 4 })
           proposal = validated.proposal
-          if (validated.reflectionOperations !== undefined) {
+          if (validated.reflectionOperations !== undefined && providerQuality?.reflectionMode !== 'suspended') {
             if (cognitive?.receipt === undefined || cognitive.cognition === undefined) {
               throw new TypeError('Phase 8 Reflection requires the exact Character Context prefix')
             }
@@ -855,18 +894,36 @@ export class RoundCoordinator {
               reason: 'provider reused an actionId already frozen in the Round',
             })
           }
+          const invalid = this.#invalidProviderOutput(binding, providerCall, providerQuality)
           frozen.push(this.#frozen(
-            binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive,
-            { state: 'model_unavailable', reason: 'provider returned a divergent action schema' },
-            undefined, providerCall,
+            binding, invalid.status, { participantId: binding.participantId, actions: [] }, cognitive,
+            invalid.transition,
+            undefined, providerCall, invalid.quality,
           ))
           continue
         }
         for (const action of proposal.actions) actionIds.add(action.actionId)
+        if (providerCall !== undefined && providerQuality !== undefined && this.options.providerQuality !== undefined) {
+          const responseState = this.options.providerQuality.recordResponse(
+            this.#address, binding.participantId, providerCall.modelCallId, 'valid',
+          )
+          providerQuality = { ...providerQuality, state: responseState }
+          if (reflection !== undefined) {
+            const reflectionState = this.options.providerQuality.recordReflection(
+              this.#address, binding.participantId, `${providerCall.modelCallId}:reflection`,
+              reflection.status === 'accepted' ? 'valid' : 'invalid',
+            )
+            providerQuality = { ...providerQuality, state: reflectionState }
+          }
+        }
         if (providerCall !== undefined) {
           providerCall = this.options.providerCalls!.markValidated(providerCall.modelCallId, providerOutput)
         }
-        frozen.push(this.#frozen(binding, 'proposed', proposal, cognitive, undefined, reflection, providerCall))
+        frozen.push(this.#frozen(
+          binding, 'proposed', proposal, cognitive,
+          availabilityState === 'provider_output_invalid' ? { state: 'ready', reason: null } : undefined,
+          reflection, providerCall, providerQuality,
+        ))
       } catch (error: unknown) {
         if (providerCall?.state === 'validated') {
           failWorld({
@@ -880,10 +937,11 @@ export class RoundCoordinator {
             reason: String(error),
           })
         }
+        const invalid = this.#invalidProviderOutput(binding, providerCall, providerQuality)
         frozen.push(this.#frozen(
-          binding, 'schema_invalid', { participantId: binding.participantId, actions: [] }, cognitive,
-          { state: 'model_unavailable', reason: 'provider returned an invalid action schema' },
-          undefined, providerCall,
+          binding, invalid.status, { participantId: binding.participantId, actions: [] }, cognitive,
+          invalid.transition,
+          undefined, providerCall, invalid.quality,
         ))
       }
     }
@@ -898,6 +956,7 @@ export class RoundCoordinator {
     availabilityTransition?: FrozenParticipant['availabilityTransition'],
     reflection?: FrozenParticipant['reflection'],
     providerCall?: ProviderCallRecord,
+    providerQuality?: ProviderQualityDecision,
   ): FrozenParticipant {
     return {
       binding, status, proposal,
@@ -905,7 +964,39 @@ export class RoundCoordinator {
       ...(availabilityTransition === undefined ? {} : { availabilityTransition }),
       ...(reflection === undefined ? {} : { reflection }),
       ...(providerCall === undefined ? {} : { providerCall }),
+      ...(providerQuality === undefined ? {} : { providerQuality }),
     }
+  }
+
+  #invalidProviderOutput(
+    binding: RoundParticipant,
+    providerCall: ProviderCallRecord | undefined,
+    quality: ProviderQualityDecision | undefined,
+  ): {
+    readonly status: 'schema_invalid' | 'provider_output_invalid'
+    readonly transition?: FrozenParticipant['availabilityTransition']
+    readonly quality?: ProviderQualityDecision
+  } {
+    if (providerCall === undefined || quality === undefined || this.options.providerQuality === undefined) {
+      return {
+        status: 'schema_invalid',
+        transition: { state: 'model_unavailable', reason: 'provider returned an invalid action schema' },
+      }
+    }
+    const state = this.options.providerQuality.recordResponse(
+      this.#address, binding.participantId, providerCall.modelCallId, 'invalid',
+    )
+    const nextQuality = { ...quality, state }
+    return state.responseInvalidStreak < 3
+      ? { status: 'schema_invalid', transition: { state: 'ready', reason: null }, quality: nextQuality }
+      : {
+          status: 'provider_output_invalid',
+          transition: {
+            state: 'provider_output_invalid',
+            reason: `Provider output is invalid; probe backoff level ${state.responseBackoffLevel}`,
+          },
+          quality: nextQuality,
+        }
   }
 
   /** Complete the derivation-side call marker after a world commit won a crash race. */

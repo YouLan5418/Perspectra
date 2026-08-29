@@ -9,7 +9,8 @@ import {
 import { openWorldDatabase } from './world-store.ts'
 
 const STATES = new Set<RuntimeAvailabilityState>([
-  'provisioning', 'ready', 'session_lag', 'model_unavailable', 'budget_unavailable', 'offline', 'disabled',
+  'provisioning', 'ready', 'session_lag', 'model_unavailable', 'provider_output_invalid',
+  'budget_unavailable', 'offline', 'disabled',
 ])
 
 interface RuntimeRow {
