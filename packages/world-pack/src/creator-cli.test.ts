@@ -1,6 +1,7 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   createErrorEnvelope,
@@ -117,6 +118,44 @@ describe('World Pack creator CLI', () => {
     })
     await expect(executeWorldPackCli(['init', '--profile', 'social', source]))
       .rejects.toThrow('scaffold target already exists')
+  })
+
+  it('runs the explicit v2 Pack through the same creator workflow', async () => {
+    const root = await temporaryRoot()
+    const source = join(root, 'rainy-road')
+    const artifact = join(root, 'rainy-road.worldpack.json')
+    const runtime = join(root, 'runtime')
+    await cp(fileURLToPath(new URL('../../../examples/world-packs/rainy-road-companions/', import.meta.url)), source, { recursive: true })
+
+    expect(parsed(await executeWorldPackCli(['validate', source]))).toMatchObject({
+      command: 'validate', status: 'valid', packId: 'pack:rainy-road-companions',
+      packHash: 'sha256:76098df56b8a9169861f5094159d41ee7d6ef26c018339c8017615eb4686e0b8',
+    })
+    expect(parsed(await executeWorldPackCli(['test', source]))).toMatchObject({
+      command: 'test', report: {
+        status: 'compiled', assertionsExecuted: 0,
+        assertionIds: [
+          'assertion:alice-mistake-remains-subjective',
+          'assertion:bob-secret-hidden-from-alice',
+          'assertion:bob-secret-hidden-from-player',
+          'assertion:trust-and-distrust-coexist',
+        ],
+      },
+    })
+    expect(parsed(await executeWorldPackCli(['compile', source, '--out', artifact]))).toMatchObject({
+      command: 'compile', status: 'compiled', outputPath: artifact,
+    })
+    expect(parsed(await executeWorldPackCli(['inspect', artifact]))).toMatchObject({
+      command: 'inspect', status: 'inspected', inspection: {
+        title: '雨夜同行', characterCount: 3, locationCount: 2, entityCount: 1, assertionCount: 4,
+      },
+    })
+    expect(parsed(await executeWorldPackCli(['activate', artifact, '--data-dir', runtime]))).toMatchObject({
+      command: 'activate', status: 'activated', dataDirectory: runtime,
+    })
+    expect(parsed(await executeWorldPackCli(['activate', artifact, '--data-dir', runtime]))).toMatchObject({
+      command: 'activate', status: 'already_active', dataDirectory: runtime,
+    })
   })
 
   it('fails closed for invalid UTF-8 and a content-diverged compiled artifact', async () => {

@@ -14,16 +14,15 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
-  WorldPackCompiler,
-  canonicalWorldPackBytes,
-} from './compiler.ts'
-import { WorldPackContractError } from './diagnostics.ts'
-import { worldPackErrorCode } from './schema.ts'
-import {
+  adaptCompiledWorldPack,
+  canonicalCompiledWorldPackBytes,
+  compileWorldPackSource,
   WorldPackInspector,
   WorldPackTestRunner,
   readCompiledPack,
 } from './tooling.ts'
+import { WorldPackContractError } from './diagnostics.ts'
+import { worldPackErrorCode } from './schema.ts'
 
 export type WorldPackCliInvocation =
   | { readonly command: 'init'; readonly profile: 'minimal' | 'social'; readonly directory: string }
@@ -135,7 +134,7 @@ async function activate(compiledPackPath: string, dataDirectoryInput: string): P
     memoryPath: join(databaseDirectory, 'memory.sqlite'),
   }
   const address = localAddress(pack.packId, pack.packVersion)
-  const compiled = new WorldPackCompiler().adaptToWorldSpec(pack, {
+  const compiled = adaptCompiledWorldPack(pack, {
     address,
     principalId: 'principal:local-player',
     sessionId: brandId('session:local-player', 'SessionId'),
@@ -157,14 +156,14 @@ export async function executeWorldPackCli(args: readonly string[]): Promise<stri
     return output({ command: 'init', status: 'created', profile: invocation.profile, directory })
   }
   if (invocation.command === 'validate') {
-    const pack = await new WorldPackCompiler().compile(invocation.sourceDirectory)
+    const pack = await compileWorldPackSource(invocation.sourceDirectory)
     return output({ command: 'validate', status: 'valid', packId: pack.packId, packVersion: pack.packVersion, packHash: pack.packHash })
   }
   if (invocation.command === 'compile') {
-    const pack = await new WorldPackCompiler().compile(invocation.sourceDirectory)
+    const pack = await compileWorldPackSource(invocation.sourceDirectory)
     const outputPath = resolve(invocation.outputPath)
     await mkdir(dirname(outputPath), { recursive: true })
-    await writeFile(outputPath, canonicalWorldPackBytes(pack))
+    await writeFile(outputPath, canonicalCompiledWorldPackBytes(pack))
     return output({ command: 'compile', status: 'compiled', outputPath, packId: pack.packId, packVersion: pack.packVersion, packHash: pack.packHash })
   }
   if (invocation.command === 'inspect') {
