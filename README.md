@@ -1,6 +1,6 @@
 # Harness / Cordis World V0
 
-> 当前状态：私有源码 V0 `v0.1.0` 保持冻结；Phase 7 `0.2.0` 本地候选已形成最小通用内容闭环。`0.2.0` 的 GitHub 四格 CI 与 Tag 尚待推送后完成。未发布 npm 或 GitHub Release；Harness/TencentDB Bridge 与远程访问保持禁用。
+> 当前状态：私有源码 `v0.2.0` 保持冻结；Phase 8 已完成本机门槛并形成 `0.3.0` 候选，远程四格 CI 与 Tag 尚待推送后完成。未发布 npm 或 GitHub Release；Harness/TencentDB Bridge、真实模型 API 与远程访问保持禁用。
 
 这是一个独立的、事件溯源的 TURN_DRIVEN 世界模拟内核原型，用 Cordis 管理 Branch 运行时生命周期，用 Node 内置 SQLite 验证耐久原子性、幂等投递、forkSeq 时态重建和无模型确定性闭环。
 
@@ -73,7 +73,16 @@ corepack pnpm@11.7.0 worldpack activate D:\worlds\my-tavern.worldpack.json --dat
 corepack pnpm@11.7.0 worldappctl chat --data-dir D:\worlds\my-tavern-data
 ```
 
-Pack 是严格数据而不是脚本。创作者可以修改角色、地点、物品、初始认知、Scene 和呈现文本，但不能由 Pack 注入代码、网络端点、任意事件或系统权限。完整说明见[创作者运行手册](docs/PHASE7-CREATOR-RUNBOOK.md)。
+Pack 是严格数据而不是脚本。创作者可以修改角色、地点、物品、初始认知、Scene 和呈现文本，但不能由 Pack 注入代码、网络端点、任意事件或系统权限。完整说明见[Phase 7 创作者运行手册](docs/PHASE7-CREATOR-RUNBOOK.md)。
+
+Phase 8 的 v2 Pack 可进一步声明多 Scene、角色关系、情绪、矛盾、承诺、开放问题、Memory Profile 和版本化 Context。可从仓库的“雨夜同行”参考内容开始：
+
+```powershell
+corepack pnpm@11.7.0 worldpack validate examples/world-packs/rainy-road-companions
+corepack pnpm@11.7.0 worldpack test examples/world-packs/rainy-road-companions
+```
+
+统一 Creator CLI 会按显式 Schema 精确选择 v1/v2 Compiler，不会隐式升级旧 Pack。字段、隐私、Scene 迁移与当前 Provider 边界见 [Phase 8 创作者运行手册](docs/PHASE8-CREATOR-RUNBOOK.md)。
 
 ## 使用基础契约
 
@@ -137,6 +146,11 @@ console.log(hash)
 - 普通对白、通用命令与调查语法可以在同一个连续 shell 中交错；clarification 不创建 Round。
 - 六种降级 Drill 均验证玩家 Tick 前进、terminal/Audit/Metric/Health、零调用重放和恢复后的重新参与。
 - 非悬疑社交参考切片只使用 Core v2、Scene、Cognitive Memory 与通用文本输入，证明横向能力不依赖调查规则。
+- World Pack v2 可声明七类时态主观状态、多 Scene、Memory Profile 与文档受众，并编译为锁定 Registry/Vocabulary 的 Manifest v4。
+- Cognitive Memory v2、唯一 L1 Summary、Continuity Checkpoint、Interaction Tail 和 Context Receipt 可在精确 as-of 水位重建 Agent 输入。
+- `contextHash` 与 `providerRequestHash` 分离语义选择和精确消息布局；缓存未命中不改变权限、结果或权威 Hash。
+- Scripted Provider 经过耐久 prepared/dispatch/result/Authority/commit 生命周期；dispatch 后歧义不自动重发，世界效果保持 at-most-once。
+- “雨夜同行”六轮 Fixture 验证私语、离场/合流、转述、关系 Reflection、Memory/fork 隔离、缓存前缀与可恢复降级，且不新增题材 Action。
 
 ## 文档
 
@@ -159,5 +173,7 @@ console.log(hash)
 - [下一阶段：通用内容与真实运行验证](docs/2026-08-24_下一阶段计划-通用内容与真实运行验证.md)
 - [Phase 7 创作者运行手册](docs/PHASE7-CREATOR-RUNBOOK.md)
 - [Phase 7 最小通用内容闭环报告](docs/2026-08-25_阶段报告-Harness-Cordis-World-Phase-7-report.md)
+- [Phase 8 创作者运行手册](docs/PHASE8-CREATOR-RUNBOOK.md)
+- [Phase 8 完成与 0.3.0 候选报告](docs/2026-08-29_阶段报告-Harness-Cordis-World-Phase-8-report.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。

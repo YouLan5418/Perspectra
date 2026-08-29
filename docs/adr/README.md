@@ -53,3 +53,4 @@
 | [0069](ADR-0069-worldpack-v2-source-file-shapes.md) | World Pack v2 作者源文件形状 | Character、Cognition、Scene、Memory 与 Document 的精确输入形状 |
 | [0070](ADR-0070-phase8a-cognition-scene-visibility-closure.md) | Phase 8A 认知词汇与 Scene 观察范围收口 | Goal objective 读取校验、direct/private 旁观语义与 occurrence-only 脱敏 |
 | [0071](ADR-0071-reflection-operation-protocol.md) | Reflection Operation 与确定性限制的精确协议 | 冻结 optimistic state、来源补入、字节/幅度/容量限制和 Policy Receipt |
+| [0072](ADR-0072-location-bound-scene-transition.md) | Location 绑定 Scene 的确定性迁移 | Scene v2 的通用 move 在同一 World Commit 追加离场、关闭、激活与加入事件 |
