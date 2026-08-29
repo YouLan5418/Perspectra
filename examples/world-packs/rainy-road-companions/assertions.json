@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "worldpack-assertions/v1",
+  "assertions": [
+    {
+      "assertionId": "assertion:alice-mistake-remains-subjective",
+      "assertionType": "view.includes",
+      "parameters": { "characterId": "character:alice", "recordKey": "claim:alice-bob-irresponsible" }
+    },
+    {
+      "assertionId": "assertion:bob-secret-hidden-from-alice",
+      "assertionType": "view.excludes",
+      "parameters": { "characterId": "character:alice", "text": "受伤的陌生人" }
+    },
+    {
+      "assertionId": "assertion:bob-secret-hidden-from-player",
+      "assertionType": "view.excludes",
+      "parameters": { "characterId": "character:player", "text": "受伤的陌生人" }
+    },
+    {
+      "assertionId": "assertion:trust-and-distrust-coexist",
+      "assertionType": "view.includes",
+      "parameters": {
+        "characterId": "character:alice",
+        "recordKeys": ["relationship:alice-trust-bob-competence", "relationship:alice-distrust-bob-honesty"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,210 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [
+        {
+          "key": "observation:player-bob-late",
+          "content": "Bob 比约定时间晚到了。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 650
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:player-catch-train",
+          "objective": { "kind": "narrative", "value": "和 Alice、Bob 一起赶上末班车。" },
+          "priorityPermille": 800,
+          "targetKeys": ["entity:ticket-bundle"],
+          "basisKeys": ["observation:player-bob-late"]
+        }
+      ]
+    },
+    {
+      "characterId": "character:alice",
+      "observations": [
+        {
+          "key": "observation:alice-bob-late",
+          "content": "Bob 比约定时间晚到了。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 800
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:alice-bob-irresponsible",
+          "proposition": { "subject": "character:bob", "predicate": "is_irresponsible" },
+          "stance": "believed",
+          "confidencePermille": 720,
+          "saliencePermille": 760,
+          "basisKeys": ["observation:alice-bob-late"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:alice-catch-train",
+          "objective": { "kind": "narrative", "value": "让三个人继续赶路并赶上末班车。" },
+          "priorityPermille": 900,
+          "targetKeys": ["entity:ticket-bundle"],
+          "blockerKeys": ["claim:alice-bob-irresponsible"],
+          "basisKeys": ["observation:alice-bob-late"]
+        }
+      ],
+      "relationships": [
+        {
+          "key": "relationship:alice-trust-bob-competence",
+          "target": "character:bob",
+          "type": "trust",
+          "facet": "competence",
+          "intensityPermille": 620,
+          "confidencePermille": 700,
+          "basisKeys": ["drive:alice-continue"]
+        },
+        {
+          "key": "relationship:alice-distrust-bob-honesty",
+          "target": "character:bob",
+          "type": "distrust",
+          "facet": "honesty",
+          "intensityPermille": 580,
+          "confidencePermille": 650,
+          "basisKeys": ["claim:alice-bob-irresponsible"]
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:alice-anxiety",
+          "type": "anxiety",
+          "intensityPermille": 670,
+          "cause": { "subject": "train:last", "predicate": "departs_soon" },
+          "targetKey": "entity:ticket-bundle",
+          "expressionMode": "restrained",
+          "duration": "short_lived",
+          "basisKeys": ["goal:alice-catch-train"]
+        },
+        {
+          "key": "affect:alice-resentment",
+          "type": "anger",
+          "intensityPermille": 520,
+          "cause": { "key": "claim:alice-bob-irresponsible" },
+          "targetKey": "character:bob",
+          "expressionMode": "leaking",
+          "duration": "sustained",
+          "basisKeys": ["claim:alice-bob-irresponsible"]
+        }
+      ],
+      "innerTensions": [
+        {
+          "key": "tension:alice-question-or-cooperate",
+          "title": "质问 Bob，还是先维持合作",
+          "pressurePermille": 700,
+          "basisKeys": ["goal:alice-catch-train", "claim:alice-bob-irresponsible"],
+          "poles": [
+            {
+              "key": "pole:alice-question",
+              "tendency": "express",
+              "impulseText": "立即追问 Bob 为何迟到。",
+              "strengthPermille": 690,
+              "awareness": "conscious",
+              "basisKeys": ["claim:alice-bob-irresponsible"]
+            },
+            {
+              "key": "pole:alice-cooperate",
+              "tendency": "preserve",
+              "impulseText": "先维持队伍合作并赶路。",
+              "strengthPermille": 760,
+              "awareness": "partially_conscious",
+              "basisKeys": ["principle:alice-cooperate", "goal:alice-catch-train"]
+            }
+          ]
+        }
+      ],
+      "openLoops": [
+        {
+          "key": "loop:alice-why-bob-late",
+          "kind": "question",
+          "summary": "Bob 为什么迟到？",
+          "saliencePermille": 780,
+          "basisKeys": ["observation:alice-bob-late"]
+        }
+      ]
+    },
+    {
+      "characterId": "character:bob",
+      "observations": [
+        {
+          "key": "observation:bob-helped-stranger",
+          "content": "Bob 在路边停下来帮助了一名受伤的陌生人，因此迟到。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 900
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:bob-help-caused-delay",
+          "proposition": { "subject": "character:bob", "predicate": "late_because_helped_injured_stranger" },
+          "stance": "believed",
+          "confidencePermille": 1000,
+          "saliencePermille": 900,
+          "basisKeys": ["observation:bob-helped-stranger"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:bob-protect-privacy",
+          "objective": { "kind": "narrative", "value": "解释迟到原因，但不泄露陌生人的身份。" },
+          "priorityPermille": 850,
+          "targetKeys": ["character:player", "character:alice"],
+          "basisKeys": ["observation:bob-helped-stranger", "principle:bob-privacy"]
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:bob-guilt",
+          "type": "guilt",
+          "intensityPermille": 610,
+          "cause": "让同伴在雨中等待。",
+          "targetKey": "character:alice",
+          "expressionMode": "concealed",
+          "duration": "sustained",
+          "basisKeys": ["observation:bob-helped-stranger"]
+        }
+      ],
+      "innerTensions": [
+        {
+          "key": "tension:bob-explain-or-protect",
+          "title": "解释迟到原因，还是保护陌生人隐私",
+          "pressurePermille": 760,
+          "basisKeys": ["goal:bob-protect-privacy", "claim:bob-help-caused-delay"],
+          "poles": [
+            {
+              "key": "pole:bob-explain",
+              "tendency": "express",
+              "impulseText": "向同伴说明自己停下来救了人。",
+              "strengthPermille": 720,
+              "awareness": "conscious",
+              "basisKeys": ["drive:bob-explain"]
+            },
+            {
+              "key": "pole:bob-protect",
+              "tendency": "conceal",
+              "impulseText": "不透露受伤陌生人的身份和细节。",
+              "strengthPermille": 820,
+              "awareness": "conscious",
+              "basisKeys": ["principle:bob-privacy"]
+            }
+          ]
+        }
+      ],
+      "commitments": [
+        {
+          "key": "commitment:bob-travel-together",
+          "content": "和 Alice、玩家一起赶上末班车。",
+          "origin": "agreement",
+          "saliencePermille": 730,
+          "basisKeys": ["drive:bob-explain"]
+        }
+      ]
+    }
+  ]
+}

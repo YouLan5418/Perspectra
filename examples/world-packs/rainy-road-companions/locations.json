@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    { "locationId": "location:road-shelter", "name": "山路雨棚" },
+    { "locationId": "location:station-platform", "name": "末班车站台" }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "worldpack-characters/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "旅人",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:road-shelter",
+      "portrayal": {
+        "summary": "与 Alice 和 Bob 同行的旅人。",
+        "speakingStyle": "由玩家决定。",
+        "drives": [{ "key": "drive:player-continue", "text": "和同伴一起赶上末班车。" }],
+        "principles": [{ "key": "principle:player-listen", "text": "在判断前听取同伴的说法。" }]
+      }
+    },
+    {
+      "characterId": "character:alice",
+      "displayName": "Alice",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:road-shelter",
+      "portrayal": {
+        "summary": "重视守时、希望维持合作的同行者。",
+        "speakingStyle": "直接但克制。",
+        "drives": [{ "key": "drive:alice-continue", "text": "带大家赶上末班车。" }],
+        "principles": [{ "key": "principle:alice-cooperate", "text": "即使不满也尽量维持合作。" }]
+      }
+    },
+    {
+      "characterId": "character:bob",
+      "displayName": "Bob",
+      "controllerClass": "scripted",
+      "pronouns": "他",
+      "initialLocationId": "location:road-shelter",
+      "portrayal": {
+        "summary": "因帮助陌生人而迟到、又不愿泄露对方隐私的同行者。",
+        "speakingStyle": "简短、谨慎。",
+        "drives": [{ "key": "drive:bob-explain", "text": "让同伴理解迟到并非轻慢。" }],
+        "principles": [{ "key": "principle:bob-privacy", "text": "保护受伤陌生人的隐私。" }]
+      }
+    }
+  ]
+}

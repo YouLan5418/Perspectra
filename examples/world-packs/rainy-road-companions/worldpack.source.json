@@ -1,0 +1,18 @@
+{
+  "sourceSchemaVersion": "worldpack-source/v2",
+  "packId": "pack:rainy-road-companions",
+  "packVersion": "1.0.0",
+  "worldFile": "world.json",
+  "characterFiles": ["characters.json"],
+  "locationFiles": ["locations.json"],
+  "entityFiles": ["entities.json"],
+  "sceneFiles": ["scenes.json"],
+  "playerSlotFiles": ["player-slots.json"],
+  "presentationFiles": ["presentation.json"],
+  "cognitionFiles": ["cognition.json"],
+  "memoryFiles": ["memory.json"],
+  "documentFiles": [],
+  "markdownFiles": [],
+  "assetFiles": [],
+  "assertionFiles": ["assertions.json"]
+}

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "worldpack-scenes/v2",
+  "scenes": [
+    {
+      "sceneId": "scene:road-shelter",
+      "lifecycle": "active",
+      "locationId": "location:road-shelter",
+      "participantIds": ["character:player", "character:alice", "character:bob"]
+    },
+    {
+      "sceneId": "scene:station-platform",
+      "lifecycle": "created",
+      "locationId": "location:station-platform",
+      "participantIds": ["character:player", "character:alice", "character:bob"]
+    }
+  ]
+}

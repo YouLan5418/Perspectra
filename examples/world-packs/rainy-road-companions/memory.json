@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    { "characterId": "character:player", "profile": "standard", "attentionTopics": ["Bob 迟到", "末班车"] },
+    { "characterId": "character:alice", "profile": "standard", "attentionTopics": ["Bob 迟到", "合作", "末班车"] },
+    { "characterId": "character:bob", "profile": "standard", "attentionTopics": ["受伤的陌生人", "迟到", "隐私"] }
+  ]
+}
