@@ -138,6 +138,7 @@ P8.12 已补齐创作者手册、需求—测试矩阵、兼容表、本机验�
 在所有 Phase 8 实现及 Creator CLI v2 接线后运行：
 
 ```powershell
+$env:CI = 'true'
 corepack pnpm@11.7.0 check
 corepack pnpm@11.7.0 test
 corepack pnpm@11.7.0 worldpack validate examples/world-packs/rainy-road-companions
