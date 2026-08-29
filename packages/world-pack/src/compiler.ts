@@ -797,6 +797,7 @@ function phase8GenesisCognition(pack: CompiledWorldPackV2): readonly WorldEventD
           ? {
               ...seed.value,
               cause: typeof seed.value.cause === 'object' && seed.value.cause !== null && !Array.isArray(seed.value.cause)
+                && typeof (seed.value.cause as WorldJsonObject).key === 'string'
                 ? { ...seed.value.cause as WorldJsonObject, key: replace((seed.value.cause as WorldJsonObject).key) as WorldJsonValue }
                 : seed.value.cause!,
               targetKey: replace(seed.value.targetKey) as WorldJsonValue,

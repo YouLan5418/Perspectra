@@ -392,6 +392,30 @@ describe('WorldPackCompilerV2', () => {
     ]))
   })
 
+  it('preserves an object-valued Affect cause that has no local cognition key', async () => {
+    const root = await temporaryRoot(); await writePack(root)
+    const cognition = structuredClone(sourceDocuments['cognition.json']) as Record<string, unknown>
+    records(records(cognition, 'characters')[0]!, 'affects')[0]!.cause = {
+      subject: 'train:last', predicate: 'departs_soon',
+    }
+    await writeJson(root, 'cognition.json', cognition as WorldJsonValue)
+    const compiler = new WorldPackCompilerV2()
+    const pack = await compiler.compile(root)
+    const compiled = compiler.adaptToWorldSpec(pack, {
+      address: {
+        tenantId: brandId('tenant:phase8', 'TenantId'), worldId: brandId('world:affect-cause', 'WorldId'),
+        branchId: brandId('branch:main', 'BranchId'),
+      },
+      principalId: 'principal:player', sessionId: brandId('session:player', 'SessionId'),
+    })
+    expect(compiled.genesisEvents).toContainEqual(expect.objectContaining({
+      eventType: 'affect-episode.upsert',
+      data: expect.objectContaining({
+        value: expect.objectContaining({ cause: { subject: 'train:last', predicate: 'departs_soon' } }),
+      }),
+    }))
+  })
+
   it('rejects altered hashes, registries, compiler identity and compiled references', async () => {
     const root = await temporaryRoot(); await writePack(root)
     const pack = await new WorldPackCompilerV2().compile(root)
