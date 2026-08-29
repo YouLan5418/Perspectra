@@ -5,6 +5,7 @@ import {
   createContextSegment,
   failWorld,
   hashCharacterContext,
+  hashCognitionRecordState,
   hashContinuityCheckpoint,
   hashInteractionTail,
   hashWorldJson,
@@ -335,11 +336,17 @@ export class CharacterContextAssembler {
     ])
     assertSourceScope(request, allSources)
     const consciousState = activeCognition.filter(record => (record.value as WorldJsonObject).awareness !== 'unrecognized')
-      .map(record => ({ kind: record.kind, id: record.id, value: safeValue(record.value) }))
+      .map(record => ({
+        kind: record.kind, id: record.id, value: safeValue(record.value),
+        stateHash: hashCognitionRecordState(record.kind, record.id, record.characterId, record.value),
+      }))
     const latentGuidance = activeCognition.filter(record =>
       (record.value as WorldJsonObject).awareness === 'unrecognized'
       && ['character-goal', 'relationship-attitude', 'affect-episode', 'inner-tension'].includes(record.kind))
-      .map(record => ({ kind: record.kind, id: record.id, value: safeValue(record.value) }))
+      .map(record => ({
+        kind: record.kind, id: record.id, value: safeValue(record.value),
+        stateHash: hashCognitionRecordState(record.kind, record.id, record.characterId, record.value),
+      }))
     const manifestSource: ContextSourceRef = {
       sourceKind: 'compiled_manifest', sourceId: 'manifest', sourceSeq: 0, sourceHash: request.manifestHash,
     }

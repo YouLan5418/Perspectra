@@ -216,7 +216,11 @@ export class StructuredPromptRenderer {
       { role: 'developer', content: jsonString(controller!.content) },
       ...dataSegments.map(segment => ({
         role: 'user' as const,
-        content: jsonString({ segmentKind: segment.segmentKind, content: segment.content }),
+        content: jsonString({
+          segmentKind: segment.segmentKind,
+          content: segment.content,
+          sourceRefs: segment.sourceRefs,
+        }),
       })),
     ]
     return render(

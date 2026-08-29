@@ -207,6 +207,8 @@ describe('CharacterContextAssembler v2', () => {
     expect((self.consciousState as WorldJsonObject[]).map(value => value.kind)).toEqual([
       'subjective-claim', 'affect-episode', 'commitment', 'open-loop',
     ])
+    expect([...(self.consciousState as WorldJsonObject[]), ...(self.latentGuidance as WorldJsonObject[])]
+      .every(value => typeof value.stateHash === 'string' && value.stateHash.startsWith('sha256:'))).toBe(true)
     const rendered = Buffer.from(characterContextUtf8(assembled.bundle)).toString('utf8')
     expect(rendered).not.toContain('AUTHOR_')
     expect(rendered).toContain('reported_speech')
