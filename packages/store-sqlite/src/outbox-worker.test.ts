@@ -169,6 +169,45 @@ describe('SessionOutboxWorker', () => {
     outbox.close()
   })
 
+  it('preserves Session sequence continuity behind a non-critical dead letter', async () => {
+    const path = paths('non-critical-dead-letter')
+    await seed(path.world, [
+      { id: 'delivery:optional-first', session: 'session:optional', critical: false },
+      { id: 'delivery:optional-later', session: 'session:optional', critical: false },
+    ])
+    const outbox = new WorldOutbox(path.world)
+    const failing: SessionDeliveryPort = { appendIfAbsent: async () => { throw new Error('optional delivery unavailable') } }
+    const worker = new SessionOutboxWorker(outbox, failing, address(), 1)
+    await expect(worker.runOnce()).resolves.toEqual({
+      status: 'dead_letter', deliveryId: 'delivery:optional-first',
+    })
+    await expect(worker.runOnce()).resolves.toEqual({ status: 'idle' })
+    expect(outbox.deadLetters(address())).toMatchObject([{
+      deliveryId: 'delivery:optional-first', critical: false, sessionDeliverySeq: 1,
+    }])
+
+    const raw = new DatabaseSync(path.world)
+    expect(raw.prepare(`
+      SELECT delivery_status, attempt_count, session_delivery_seq FROM outbox WHERE delivery_id = ?
+    `).get('delivery:optional-later')).toEqual({
+      delivery_status: 'pending', attempt_count: 0, session_delivery_seq: null,
+    })
+    raw.close()
+
+    outbox.retryDeadLetter(address(), brandId('delivery:optional-first', 'DeliveryId'), 'retry:optional')
+    const session = new SessionDeliveryAdapter(path.session)
+    const recovered = new SessionOutboxWorker(outbox, session, address(), 2)
+    await expect(recovered.runOnce()).resolves.toMatchObject({
+      status: 'delivered', deliveryId: 'delivery:optional-first',
+    })
+    await expect(recovered.runOnce()).resolves.toMatchObject({
+      status: 'delivered', deliveryId: 'delivery:optional-later',
+    })
+    expect(session.cursor(brandId('session:optional', 'SessionId'))).toBe(2)
+    session.close()
+    outbox.close()
+  })
+
   it('retries consumer commit ambiguity without duplicating a Session Observation', async () => {
     const path = paths('consumer-ambiguity')
     await seed(path.world, [{ id: 'delivery:ambiguous', session: 'session:ambiguous', critical: true }])

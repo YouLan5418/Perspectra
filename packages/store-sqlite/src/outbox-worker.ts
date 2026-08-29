@@ -95,8 +95,7 @@ export class WorldOutbox {
             SELECT 1 FROM outbox earlier
             WHERE earlier.address_key = o.address_key AND earlier.session_id = o.session_id
               AND (earlier.world_seq < o.world_seq OR (earlier.world_seq = o.world_seq AND earlier.delivery_id < o.delivery_id))
-              AND (earlier.delivery_status IN ('pending', 'inflight')
-                OR (earlier.delivery_status = 'dead_letter' AND earlier.critical = 1))
+              AND earlier.delivery_status IN ('pending', 'inflight', 'dead_letter')
           )
         ORDER BY o.world_seq, o.delivery_id LIMIT 1
       `).get(addressKey, now, now) as {
