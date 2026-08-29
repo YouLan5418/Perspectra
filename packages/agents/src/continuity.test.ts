@@ -242,20 +242,35 @@ describe('Phase 8 continuity derivation', () => {
       watermark: () => undefined,
       summaries: () => [],
     })
-    expect(() => missing.rebuildAt(address(), alice, head.headSeq)).toThrow('watermark is behind')
+    expect(() => missing.rebuildAt(address(), alice, head.headSeq)).toThrowError(expect.objectContaining({
+      envelope: expect.objectContaining({
+        errorCode: 'MEMORY_CATCHUP_FAILED', category: 'runtime', retryable: true,
+        details: expect.objectContaining({ verifiedThroughSeq: null, capturedThroughSeq: null }),
+      }),
+    }))
     expect(() => missing.rebuildAt(address(), alice, -1)).toThrow(RangeError)
     missing.close()
     const behindVerified = new ContinuityCheckpointService(join(contextPath, '..', 'behind-verified.sqlite'), world, {
       watermark: () => ({ ...memory.watermark(address(), alice)!, verifiedThroughSeq: head.headSeq - 1 }),
       summaries: () => [],
     })
-    expect(() => behindVerified.rebuildAt(address(), alice, head.headSeq)).toThrow('watermark is behind')
+    expect(() => behindVerified.rebuildAt(address(), alice, head.headSeq)).toThrowError(expect.objectContaining({
+      envelope: expect.objectContaining({
+        errorCode: 'MEMORY_CATCHUP_FAILED',
+        details: expect.objectContaining({ verifiedThroughSeq: head.headSeq - 1 }),
+      }),
+    }))
     behindVerified.close()
     const behindCaptured = new ContinuityCheckpointService(join(contextPath, '..', 'behind-captured.sqlite'), world, {
       watermark: () => ({ ...memory.watermark(address(), alice)!, capturedThroughSeq: head.headSeq - 1 }),
       summaries: () => [],
     })
-    expect(() => behindCaptured.rebuildAt(address(), alice, head.headSeq)).toThrow('watermark is behind')
+    expect(() => behindCaptured.rebuildAt(address(), alice, head.headSeq)).toThrowError(expect.objectContaining({
+      envelope: expect.objectContaining({
+        errorCode: 'MEMORY_CATCHUP_FAILED',
+        details: expect.objectContaining({ capturedThroughSeq: head.headSeq - 1 }),
+      }),
+    }))
     behindCaptured.close()
 
     const divergent = new ContinuityCheckpointService(contextPath, world, {

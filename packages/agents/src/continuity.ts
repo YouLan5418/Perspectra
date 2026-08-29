@@ -4,6 +4,7 @@ import {
   canonicalizeWorldJson,
   compareWorldText,
   deterministicId,
+  failWorld,
   hashContinuityCheckpoint,
   hashInteractionBlock,
   hashInteractionTail,
@@ -159,7 +160,17 @@ export class ContinuityCheckpointService {
     const watermark = this.memory.watermark(address, characterId)
     if (watermark === undefined || watermark.verifiedThroughSeq < asOfWorldSeq
       || watermark.capturedThroughSeq < asOfWorldSeq) {
-      throw new Error('Cognitive Memory watermark is behind the requested Checkpoint')
+      failWorld({
+        errorCode: 'MEMORY_CATCHUP_FAILED', category: 'runtime',
+        message: 'Cognitive Memory watermark is behind the requested Checkpoint', retryable: true,
+        correlationId: `checkpoint:${characterId}:${asOfWorldSeq}`, address,
+        details: {
+          characterId,
+          asOfWorldSeq,
+          verifiedThroughSeq: watermark?.verifiedThroughSeq ?? null,
+          capturedThroughSeq: watermark?.capturedThroughSeq ?? null,
+        },
+      })
     }
     const cognition = this.#cognition.rebuildCharacterAt(address, characterId, asOfWorldSeq)
     const activeCognition = cognition.claims.concat(

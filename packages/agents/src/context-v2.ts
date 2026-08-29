@@ -152,8 +152,11 @@ function sortedUniqueSources(sources: readonly ContextSourceRef[]): ContextSourc
     || compareText(left.sourceKind, right.sourceKind) || compareText(left.sourceId, right.sourceId))
 }
 
-function tailSelection(tail: InteractionTail, maximumBlocks: number): InteractionTail {
-  const blocks = tail.blocks.slice(-maximumBlocks)
+export function selectInteractionTail(tail: InteractionTail, maximumBlocks: number): InteractionTail {
+  if (!Number.isSafeInteger(maximumBlocks) || maximumBlocks < 0) {
+    throw new RangeError('maximumBlocks must be a non-negative safe integer')
+  }
+  const blocks = tail.blocks.slice(Math.max(0, tail.blocks.length - maximumBlocks), tail.blocks.length)
   const input = { ...tail, blocks }
   const { tailHash: _tailHash, ...base } = input
   return { ...base, tailHash: hashInteractionTail(base) }
@@ -324,7 +327,7 @@ export class CharacterContextAssembler {
       throw new TypeError('Context affordances must be unique')
     }
     assertComponentHashes(request, affordances)
-    const selectedTail = tailSelection(request.tail, selectedProfile.recentInteractionBlocks)
+    const selectedTail = selectInteractionTail(request.tail, selectedProfile.recentInteractionBlocks)
     const selectedMemories = request.recall.memories.slice(0, selectedProfile.recallResults)
     const checkpointSources = request.checkpoint?.activeCognition.map(entry => entry.sourceRef) ?? []
     const selfSources = activeCognition.map(record => record.sourceRef)

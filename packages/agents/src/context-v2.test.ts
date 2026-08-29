@@ -23,6 +23,7 @@ import {
 import {
   CharacterContextAssembler,
   characterContextUtf8,
+  selectInteractionTail,
   type CharacterContextRequest,
   type ContextAffordance,
 } from './context-v2.ts'
@@ -232,6 +233,16 @@ describe('CharacterContextAssembler v2', () => {
     expect(recallSegment.content as WorldJsonObject[]).toHaveLength(6)
     expect(compact.exclusions).toHaveLength(2)
     expect(new CharacterContextAssembler().assembleDetailed({ ...input, contextProfileId: 'deep' }).exclusions).toEqual([])
+  })
+
+  it('selects an empty Tail when a profile reserves zero recent blocks', () => {
+    const input = tail(5)
+    const selected = selectInteractionTail(input, 0)
+    expect(selected.blocks).toEqual([])
+    const { tailHash: _tailHash, ...selectedBase } = selected
+    expect(selected.tailHash).toBe(hashInteractionTail(selectedBase))
+    expect(() => selectInteractionTail(input, -1)).toThrow(RangeError)
+    expect(() => selectInteractionTail(input, 0.5)).toThrow(RangeError)
   })
 
   it('accepts a matching Checkpoint boundary and rejects namespace or watermark drift', () => {
