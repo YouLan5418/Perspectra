@@ -33,6 +33,14 @@ CREATE TABLE IF NOT EXISTS provider_quality_audit (
   previous_hash TEXT NOT NULL,
   record_hash TEXT NOT NULL UNIQUE
 ) STRICT;
+CREATE TABLE IF NOT EXISTS provider_quality_outcomes (
+  namespace_key TEXT NOT NULL,
+  participant_id TEXT NOT NULL,
+  outcome_kind TEXT NOT NULL CHECK(outcome_kind IN ('response', 'reflection')),
+  outcome_id TEXT NOT NULL,
+  result TEXT NOT NULL CHECK(result IN ('valid', 'invalid')),
+  PRIMARY KEY(namespace_key, participant_id, outcome_kind, outcome_id)
+) STRICT;
 `
 
 export type ProviderQualityResponseMode = 'normal' | 'skip' | 'probe'
@@ -152,8 +160,14 @@ export class ProviderQualityStore {
     return { state: changed.state, ...changed.result }
   }
 
-  recordResponse(address: WorldAddress, participantId: string, result: 'valid' | 'invalid'): ProviderQualityState {
+  recordResponse(
+    address: WorldAddress,
+    participantId: string,
+    outcomeId: string,
+    result: 'valid' | 'invalid',
+  ): ProviderQualityState {
     this.#validateParticipant(participantId)
+    assertProtocolString(outcomeId, 'provider quality response outcomeId')
     return this.#mutate(address, participantId, `provider-quality.response-${result}`, (current) => {
       if (result === 'valid') {
         return {
@@ -173,11 +187,17 @@ export class ProviderQualityStore {
         },
         details: { result, backoffEligibleTicks: remaining }, result: undefined,
       }
-    }).state
+    }, { kind: 'response', id: outcomeId, result }).state
   }
 
-  recordReflection(address: WorldAddress, participantId: string, result: 'valid' | 'invalid'): ProviderQualityState {
+  recordReflection(
+    address: WorldAddress,
+    participantId: string,
+    outcomeId: string,
+    result: 'valid' | 'invalid',
+  ): ProviderQualityState {
     this.#validateParticipant(participantId)
+    assertProtocolString(outcomeId, 'provider quality reflection outcomeId')
     return this.#mutate(address, participantId, `provider-quality.reflection-${result}`, (current) => {
       if (result === 'valid') {
         return {
@@ -194,7 +214,7 @@ export class ProviderQualityStore {
         },
         details: { result, suspensionEligibleTicks: streak >= 3 ? 4 : 0 }, result: undefined,
       }
-    }).state
+    }, { kind: 'reflection', id: outcomeId, result }).state
   }
 
   readAudit(address: WorldAddress, participantId: string): readonly ProviderQualityAuditRecord[] {
@@ -235,12 +255,24 @@ export class ProviderQualityStore {
       readonly details: WorldJsonObject
       readonly result: Result
     },
+    outcome?: { readonly kind: 'response' | 'reflection'; readonly id: string; readonly result: 'valid' | 'invalid' },
   ): { readonly state: ProviderQualityState; readonly result: Result } {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.#ensure(address, participantId)
       const current = this.#read(address, participantId)
       const change = update(current)
+      if (outcome !== undefined) {
+        const existing = this.#db.prepare(`
+          SELECT result FROM provider_quality_outcomes
+          WHERE namespace_key = ? AND participant_id = ? AND outcome_kind = ? AND outcome_id = ?
+        `).get(worldAddressKey(address), participantId, outcome.kind, outcome.id) as { result: string } | undefined
+        if (existing !== undefined) {
+          if (existing.result !== outcome.result) this.#integrity(address, participantId)
+          this.#db.exec('COMMIT')
+          return { state: current, result: change.result }
+        }
+      }
       const { stateHash: _ignored, ...next } = change.next as ProviderQualityState
       const hash = stateHash(next)
       this.#db.prepare(`
@@ -255,6 +287,12 @@ export class ProviderQualityStore {
         next.reflectionSuspensionRemaining, hash, worldAddressKey(address), participantId,
       )
       this.#appendAudit(address, participantId, operation, change.details)
+      if (outcome !== undefined) {
+        this.#db.prepare(`
+          INSERT INTO provider_quality_outcomes(namespace_key, participant_id, outcome_kind, outcome_id, result)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(worldAddressKey(address), participantId, outcome.kind, outcome.id, outcome.result)
+      }
       this.#db.exec('COMMIT')
       return { state: { ...next, stateHash: hash }, result: change.result }
     } catch (error: unknown) {

@@ -35,32 +35,37 @@ describe('ProviderQualityStore', () => {
       eligibleTicks: 0, responseInvalidStreak: 0, responseBackoffLevel: 0, responseBackoffRemaining: 0,
     })
     expect(store.beginEligibleTick(address(), participantId)).toMatchObject({ responseMode: 'normal' })
-    expect(store.recordResponse(address(), participantId, 'invalid')).toMatchObject({
+    expect(store.recordResponse(address(), participantId, 'response:1', 'invalid')).toMatchObject({
       responseInvalidStreak: 1, responseBackoffRemaining: 0,
     })
-    store.recordResponse(address(), participantId, 'invalid')
-    expect(store.recordResponse(address(), participantId, 'invalid')).toMatchObject({
+    store.recordResponse(address(), participantId, 'response:2', 'invalid')
+    expect(store.recordResponse(address(), participantId, 'response:3', 'invalid')).toMatchObject({
       responseInvalidStreak: 3, responseBackoffLevel: 1, responseBackoffRemaining: 1,
     })
     expect(store.beginEligibleTick(address(), participantId)).toMatchObject({
       responseMode: 'skip', state: { responseBackoffRemaining: 0 },
     })
     expect(store.beginEligibleTick(address(), participantId)).toMatchObject({ responseMode: 'probe' })
-    expect(store.recordResponse(address(), participantId, 'invalid')).toMatchObject({
+    expect(store.recordResponse(address(), participantId, 'response:4', 'invalid')).toMatchObject({
       responseBackoffLevel: 2, responseBackoffRemaining: 2,
     })
     expect(store.beginEligibleTick(address(), participantId).responseMode).toBe('skip')
     expect(store.beginEligibleTick(address(), participantId).responseMode).toBe('skip')
     expect(store.beginEligibleTick(address(), participantId).responseMode).toBe('probe')
 
-    for (const expected of [4, 8, 8]) {
-      expect(store.recordResponse(address(), participantId, 'invalid').responseBackoffRemaining).toBe(expected)
+    for (const [index, expected] of [4, 8, 8].entries()) {
+      expect(store.recordResponse(address(), participantId, `response:${index + 5}`, 'invalid').responseBackoffRemaining).toBe(expected)
       for (let index = 0; index < expected; index += 1) {
         expect(store.beginEligibleTick(address(), participantId).responseMode).toBe('skip')
       }
       expect(store.beginEligibleTick(address(), participantId).responseMode).toBe('probe')
     }
-    expect(store.recordResponse(address(), participantId, 'valid')).toMatchObject({
+    const beforeReplay = store.state(address(), participantId)
+    expect(store.recordResponse(address(), participantId, 'response:7', 'invalid')).toEqual(beforeReplay)
+    expect(() => store.recordResponse(address(), participantId, 'response:7', 'valid')).toThrowError(expect.objectContaining({
+      envelope: expect.objectContaining({ errorCode: 'BUNDLE_HASH_MISMATCH' }),
+    }))
+    expect(store.recordResponse(address(), participantId, 'response:valid', 'valid')).toMatchObject({
       responseInvalidStreak: 0, responseBackoffLevel: 0, responseBackoffRemaining: 0,
     })
     expect(store.beginEligibleTick(address(), participantId).responseMode).toBe('normal')
@@ -79,9 +84,9 @@ describe('ProviderQualityStore', () => {
   it('suspends only Reflection for four eligible Ticks and probes until a valid Batch', () => {
     const store = new ProviderQualityStore(database(), () => 7)
     const participantId = 'agent:reflection-quality'
-    store.recordReflection(address(), participantId, 'invalid')
-    store.recordReflection(address(), participantId, 'invalid')
-    expect(store.recordReflection(address(), participantId, 'invalid')).toMatchObject({
+    store.recordReflection(address(), participantId, 'reflection:1', 'invalid')
+    store.recordReflection(address(), participantId, 'reflection:2', 'invalid')
+    expect(store.recordReflection(address(), participantId, 'reflection:3', 'invalid')).toMatchObject({
       reflectionInvalidStreak: 3, reflectionSuspensionRemaining: 4,
     })
     for (let index = 0; index < 4; index += 1) {
@@ -90,10 +95,10 @@ describe('ProviderQualityStore', () => {
       })
     }
     expect(store.beginEligibleTick(address(), participantId).reflectionMode).toBe('probe')
-    expect(store.recordReflection(address(), participantId, 'invalid').reflectionSuspensionRemaining).toBe(4)
+    expect(store.recordReflection(address(), participantId, 'reflection:4', 'invalid').reflectionSuspensionRemaining).toBe(4)
     for (let index = 0; index < 4; index += 1) store.beginEligibleTick(address(), participantId)
     expect(store.beginEligibleTick(address(), participantId).reflectionMode).toBe('probe')
-    expect(store.recordReflection(address(), participantId, 'valid')).toMatchObject({
+    expect(store.recordReflection(address(), participantId, 'reflection:5', 'valid')).toMatchObject({
       reflectionInvalidStreak: 0, reflectionSuspensionRemaining: 0,
     })
     expect(store.beginEligibleTick(address(), participantId).reflectionMode).toBe('normal')
@@ -105,9 +110,11 @@ describe('ProviderQualityStore', () => {
   it('isolates participants, validates schema and clock input, and fails closed on tampering', () => {
     const path = database()
     const store = new ProviderQualityStore(path, () => 1)
-    store.recordResponse(address(), 'agent:a', 'invalid')
+    store.recordResponse(address(), 'agent:a', 'response:a', 'invalid')
     expect(store.state(address(), 'agent:b').responseInvalidStreak).toBe(0)
     expect(() => store.state(address(), ' padded ')).toThrow(TypeError)
+    expect(() => store.recordResponse(address(), 'agent:a', ' padded ', 'valid')).toThrow(TypeError)
+    expect(() => store.recordReflection(address(), 'agent:a', ' padded ', 'valid')).toThrow(TypeError)
     store.close()
 
     const tamper = new DatabaseSync(path)
