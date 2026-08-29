@@ -173,9 +173,9 @@ describe('ProviderCallStore', () => {
 
     const futurePath = path()
     const future = new DatabaseSync(futurePath)
-    future.exec('PRAGMA user_version=4')
+    future.exec('PRAGMA user_version=5')
     future.close()
-    expect(() => new ProviderCallStore(futurePath)).toThrow('unsupported Context derivation schema version 4')
+    expect(() => new ProviderCallStore(futurePath)).toThrow('unsupported Context derivation schema version 5')
   })
 
   it('rejects every terminal state from an incompatible lifecycle point', () => {

@@ -159,7 +159,7 @@ export class ContextReceiptStore {
     this.#db = new DatabaseSync(path)
     this.#db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;')
     const version = (this.#db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
-    if (version < 0 || version > 3) {
+    if (version < 0 || version > 4) {
       this.#db.close()
       throw new Error(`unsupported Context derivation schema version ${version}`)
     }

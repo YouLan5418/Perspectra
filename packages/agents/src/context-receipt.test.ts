@@ -122,7 +122,7 @@ describe('ContextReceiptStore and ContextExplainService', () => {
 
     const futurePath = path()
     const future = new DatabaseSync(futurePath)
-    future.exec('PRAGMA user_version=4')
+    future.exec('PRAGMA user_version=5')
     future.close()
     expect(() => new ContextReceiptStore(futurePath)).toThrow('unsupported')
   })
