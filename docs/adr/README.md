@@ -54,3 +54,6 @@
 | [0070](ADR-0070-phase8a-cognition-scene-visibility-closure.md) | Phase 8A 认知词汇与 Scene 观察范围收口 | Goal objective 读取校验、direct/private 旁观语义与 occurrence-only 脱敏 |
 | [0071](ADR-0071-reflection-operation-protocol.md) | Reflection Operation 与确定性限制的精确协议 | 冻结 optimistic state、来源补入、字节/幅度/容量限制和 Policy Receipt |
 | [0072](ADR-0072-location-bound-scene-transition.md) | Location 绑定 Scene 的确定性迁移 | Scene v2 的通用 move 在同一 World Commit 追加离场、关闭、激活与加入事件 |
+| [0073](ADR-0073-participant-stimulus-director-visibility.md) | 参与者刺激裁剪与 Director 可见性闭环 | 提交前刺激、Recall、Director 与动作时刻 Scene audience 使用同一最小权限边界 |
+| [0074](ADR-0074-deterministic-world-text-order.md) | 确定性世界文本顺序 | 所有权威及 Hash 相关排序统一使用 UTF-16 code unit 比较器 |
+| [0075](ADR-0075-session-dead-letter-sequence-continuity.md) | Session 死信序号连续性 | 任一已分配序号的 dead letter 阻塞同 Session 后续投递直至原序重试成功 |
