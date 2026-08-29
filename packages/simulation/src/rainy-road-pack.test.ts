@@ -3,9 +3,22 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SceneDecisionService, WorldApplication } from '@harness-world/application'
-import { brandId, PHASE8_REGISTRY_LOCKS, PHASE8_VOCABULARY_LOCKS } from '@harness-world/contracts'
+import {
+  brandId,
+  PHASE8_REGISTRY_LOCKS,
+  PHASE8_VOCABULARY_LOCKS,
+  type FaultInjector,
+  type FaultPoint,
+  type ProposalContext,
+} from '@harness-world/contracts'
 import { currentEntityState, currentLocation, WorldBootstrap } from '@harness-world/kernel'
-import { CharacterRuntimeAvailabilityService, CognitionProjectionRebuilder, WorldStore } from '@harness-world/store-sqlite'
+import { WorldHealthService } from '@harness-world/operations'
+import {
+  BranchAdministration,
+  CharacterRuntimeAvailabilityService,
+  CognitionProjectionRebuilder,
+  WorldStore,
+} from '@harness-world/store-sqlite'
 import {
   RAINY_ROAD_IDS,
   adaptRainyRoadPack,
@@ -21,6 +34,36 @@ async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'rainy-road-pack-'))
   roots.push(root)
   return root
+}
+
+function providerMessages(context: ProposalContext): readonly string[] {
+  return (context as unknown as { exactProviderRequest: { messages: readonly { content: string }[] } })
+    .exactProviderRequest.messages.map(message => message.content)
+}
+
+function commonMessagePrefix(left: ProposalContext, right: ProposalContext): number {
+  const leftMessages = providerMessages(left)
+  const rightMessages = providerMessages(right)
+  let length = 0
+  while (leftMessages[length] !== undefined && leftMessages[length] === rightMessages[length]) length += 1
+  return length
+}
+
+class OneShotRainyRoadFailure implements FaultInjector {
+  #armed = false
+  #fired = false
+
+  constructor(private readonly target: FaultPoint) {}
+
+  arm(): void {
+    this.#armed = true
+  }
+
+  hit(point: FaultPoint): void {
+    if (!this.#armed || point !== this.target || this.#fired) return
+    this.#fired = true
+    throw new Error(`rainy-road fault at ${point}`)
+  }
 }
 
 afterEach(async () => {
@@ -199,6 +242,13 @@ describe('Phase 8 rainy-road acceptance Pack source', () => {
       expect(JSON.stringify(alicePrivateOccurrence)).not.toContain('受伤')
       expect(JSON.stringify(evidence.contexts.get('agent:alice'))).not.toContain('late_because_helped_injured_stranger')
       expect(JSON.stringify(evidence.contexts.get('agent:bob')?.[0])).toContain('late_because_helped_injured_stranger')
+      const aliceContexts = evidence.contexts.get('agent:alice')!
+      const bobContexts = evidence.contexts.get('agent:bob')!
+      expect(commonMessagePrefix(aliceContexts[0]!, aliceContexts[1]!)).toBe(5)
+      expect(commonMessagePrefix(bobContexts[0]!, bobContexts[1]!)).toBe(5)
+      expect(commonMessagePrefix(aliceContexts[0]!, bobContexts[0]!)).toBe(3)
+      expect(providerMessages(aliceContexts[0]!)[4]).toBe(providerMessages(aliceContexts[5]!)[4])
+      expect(providerMessages(aliceContexts[0]!)[5]).not.toBe(providerMessages(aliceContexts[5]!)[5])
 
       const callsBeforeReplay = new Map(evidence.calls)
       expect(await submit(1, {
@@ -238,4 +288,98 @@ describe('Phase 8 rainy-road acceptance Pack source', () => {
       await restarted.close()
     }
   })
+
+  it.each(['provider-timeout', 'memory-catchup-failure'] as const)(
+    'keeps the player Round live and recovers from %s without invented participant effects',
+    async mode => {
+      const root = await temporaryRoot()
+      const pack = await compileRainyRoadPack()
+      const address = {
+        tenantId: brandId(`tenant:rainy-road:${mode}`, 'TenantId'),
+        worldId: brandId('world:rainy-road-degradation', 'WorldId'),
+        branchId: brandId('branch:main', 'BranchId'),
+      }
+      const compiled = adaptRainyRoadPack(pack, address)
+      let failProvider = mode === 'provider-timeout'
+      let aliceDispatches = 0
+      const memoryFailure = new OneShotRainyRoadFailure('memory.after-catchup-commit')
+      const participants = () => {
+        const base = createRainyRoadParticipants()
+        return base.map(participant => participant.actorId !== RAINY_ROAD_IDS.alice ? participant : {
+          ...participant,
+          timeoutMs: 5,
+          provider: {
+            async propose(context: ProposalContext) {
+              aliceDispatches += 1
+              if (failProvider) return new Promise<never>(() => undefined)
+              return participant.provider.propose(context)
+            },
+          },
+        })
+      }
+      const application = new WorldApplication({
+        worldPath: join(root, 'world.sqlite'),
+        sessionPath: join(root, 'session.sqlite'),
+        memoryPath: join(root, 'memory.sqlite'),
+        modelBudgetTokens: 100,
+        participants,
+        ...(mode === 'memory-catchup-failure' ? { faultInjector: memoryFailure } : {}),
+      })
+      const firstRequest = {
+        idempotencyKey: `rainy-road:${mode}:1`, principalId: RAINY_ROAD_IDS.principal,
+        action: { actionType: 'speak', parameters: { text: '我们继续赶路。' } },
+        correlationId: `rainy-road:${mode}:1`,
+      }
+      try {
+        expect(application.activate(compiled).status).toBe('activated')
+        await application.head(address)
+        memoryFailure.arm()
+        const first = await application.submit(address, firstRequest)
+        expect(first).toMatchObject({ status: 'accepted', tick: 1 })
+        const events = await application.eventHistory(address)
+        const expectedTerminal = mode === 'provider-timeout' ? 'provider_timeout' : 'runtime_unavailable'
+        expect(events).toContainEqual(expect.objectContaining({
+          tick: 1,
+          eventType: 'round.participant-terminal',
+          data: expect.objectContaining({ participantId: 'agent:alice', status: expectedTerminal, actionCount: 0 }),
+        }))
+        expect(events.some(event => event.tick === 1 && event.eventType === 'character.speak'
+          && (event.data as Record<string, unknown>).characterId === RAINY_ROAD_IDS.alice)).toBe(false)
+        expect(new WorldHealthService(join(root, 'world.sqlite')).check()).toMatchObject({
+          status: 'ready', branches: [expect.objectContaining({
+            status: 'degraded', readyForWrite: true, readyForAgentCalls: false,
+          })],
+        })
+        expect(application.runtimeMetrics.snapshot()).toMatchObject({
+          participantTerminals: { [expectedTerminal]: 1 },
+        })
+        expect(await application.recallMemory(address, RAINY_ROAD_IDS.alice, 'rainy-road')).toEqual([])
+        const administration = new BranchAdministration(join(root, 'world.sqlite'))
+        expect(administration.readAudit(address)).toContainEqual(expect.objectContaining({
+          operation: 'round.committed',
+          details: expect.objectContaining({
+            participantTerminals: expect.arrayContaining([
+              expect.objectContaining({ participantId: 'agent:alice', terminalStatus: expectedTerminal }),
+            ]),
+          }),
+        }))
+        administration.close()
+        const callsBeforeReplay = aliceDispatches
+        expect(await application.submit(address, firstRequest)).toEqual(first)
+        expect(aliceDispatches).toBe(callsBeforeReplay)
+
+        failProvider = false
+        await application.setCharacterAvailability(address, RAINY_ROAD_IDS.alice, 'ready', null)
+        expect(await application.submit(address, {
+          idempotencyKey: `rainy-road:${mode}:2`, principalId: RAINY_ROAD_IDS.principal,
+          action: { actionType: 'speak', parameters: { text: '恢复后继续。' } },
+          correlationId: `rainy-road:${mode}:2`,
+        })).toMatchObject({ status: 'accepted', tick: 2 })
+        expect(aliceDispatches).toBe(callsBeforeReplay + 1)
+        expect(new WorldHealthService(join(root, 'world.sqlite')).check().branches[0]?.status).toBe('healthy')
+      } finally {
+        await application.close()
+      }
+    },
+  )
 })
