@@ -1,6 +1,6 @@
 # Harness / Cordis World V0
 
-> 当前状态：私有源码 `v0.2.0` 保持冻结；Phase 8 已完成本机门槛并形成 `0.3.0` 候选，远程四格 CI 与 Tag 尚待推送后完成。未发布 npm 或 GitHub Release；Harness/TencentDB Bridge、真实模型 API 与远程访问保持禁用。
+> 当前状态：私有源码 `v0.3.0` 已完成远程四格 CI 并发布 Tag；Phase 8.1 独立审查加固已形成本机 `0.3.1` 候选。未发布 npm 或 GitHub Release；Harness/TencentDB Bridge、真实模型 API 与远程访问保持禁用。
 
 这是一个独立的、事件溯源的 TURN_DRIVEN 世界模拟内核原型，用 Cordis 管理 Branch 运行时生命周期，用 Node 内置 SQLite 验证耐久原子性、幂等投递、forkSeq 时态重建和无模型确定性闭环。
 
@@ -122,7 +122,7 @@ console.log(hash)
 - 数据库 Writer Lease 使用单调 fencing token；耐久 Round Inbox 与 Branch FIFO 保持每条玩家输入独立成 Tick。
 - 无 Agent 玩家 `character.speak`、move 和领域拒绝均可提交；提交后、Inbox 完成前失败可用相同 transaction/hash 恢复。
 - CharacterView 在同一 asOfSeq 组合 Scene、Visibility、Self Observation、Observation、Claim 与 Goal，并按角色 fail-closed 裁剪。
-- Outbox Worker 为每个 Session 分配连续序号；Receipt 可恢复，Critical Dead Letter 阻止同 Session 越序。
+- Outbox Worker 为每个 Session 分配连续序号；Receipt 可恢复，任一已分配序号的 Dead Letter 都阻止同 Session 越序。
 - Deterministic Presenter 只渲染授权内容，不参与 World Event、Projection 或权威 Bundle Hash。
 - Agent Context 固定 WorldAddress/CharacterView/Capability；`submit_actions` 对 actor、action type、版本和数量严格校验。
 - Harness Bridge 默认禁用且只通过 `HarnessAgentPort` 注入；预算、失败和超时均降级为空提案，不阻塞玩家。
@@ -175,5 +175,6 @@ console.log(hash)
 - [Phase 7 最小通用内容闭环报告](docs/2026-08-25_阶段报告-Harness-Cordis-World-Phase-7-report.md)
 - [Phase 8 创作者运行手册](docs/PHASE8-CREATOR-RUNBOOK.md)
 - [Phase 8 完成与 0.3.0 候选报告](docs/2026-08-29_阶段报告-Harness-Cordis-World-Phase-8-report.md)
+- [Phase 8.1 独立审查加固与 0.3.1 候选报告](docs/2026-08-30_阶段报告-Harness-Cordis-World-Phase-8.1-report.md)
 
 遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。

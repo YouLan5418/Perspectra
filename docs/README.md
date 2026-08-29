@@ -22,6 +22,7 @@
 - [Phase 8A 权威结构阶段报告](2026-08-28_阶段报告-Harness-Cordis-World-Phase-8A-report.md)
 - [Phase 8 创作者运行手册](PHASE8-CREATOR-RUNBOOK.md)
 - [Phase 8 完成与 0.3.0 候选报告](2026-08-29_阶段报告-Harness-Cordis-World-Phase-8-report.md)
+- [Phase 8.1 独立审查加固与 0.3.1 候选报告](2026-08-30_阶段报告-Harness-Cordis-World-Phase-8.1-report.md)
 - [Phase 7 范围形成计划（已由正式规格收敛）](2026-08-24_下一阶段计划-通用内容与真实运行验证.md)
 - [Phase 7 创作者运行手册](PHASE7-CREATOR-RUNBOOK.md)
 - [Phase 7 最小通用内容闭环报告](2026-08-25_阶段报告-Harness-Cordis-World-Phase-7-report.md)
