@@ -1136,6 +1136,7 @@ export class WorldStore {
         this.#db.exec('COMMIT')
         return stored
       }
+      this.#assertAdmissionOpen(addressKey, correlationId, address)
       const now = this.operationalNow()
       this.#db.prepare(`
         INSERT INTO round_clarifications(

@@ -697,6 +697,46 @@ describe('WorldStore and temporal projections', () => {
     store.close()
   })
 
+  it('admits only new clarifications on active open branches while replay remains readable', () => {
+    const path = database('world-clarification-admission.sqlite')
+    const store = new WorldStore(path)
+    const cases = [
+      { suffix: 'draining', admission: 'draining', lifecycle: 'active', phase: 'active', errorCode: 'BRANCH_DRAINING' },
+      { suffix: 'maintenance', admission: 'open', lifecycle: 'active', phase: 'maintenance', errorCode: 'BRANCH_DRAINING' },
+      { suffix: 'quarantined', admission: 'open', lifecycle: 'active', phase: 'quarantined', errorCode: 'BRANCH_QUARANTINED' },
+      { suffix: 'archived', admission: 'open', lifecycle: 'archived', phase: 'archived', errorCode: 'BRANCH_DRAINING' },
+    ] as const
+    for (const value of cases) {
+      const address = fixtureAddress(`clarification-${value.suffix}`)
+      store.createBranch(address)
+      const input = { text: `/existing-${value.suffix}` }
+      const result = { status: 'clarification_required', reason: value.suffix }
+      store.recordClarification(address, 'clarification:existing', input, result, `clarification:${value.suffix}:first`)
+      const raw = new DatabaseSync(path)
+      raw.prepare(`
+        UPDATE branch_controls SET admission_state = ?, lifecycle_state = ?, runtime_phase = ? WHERE address_key = ?
+      `).run(value.admission, value.lifecycle, value.phase, worldAddressKey(address))
+      raw.close()
+      expect(store.recordClarification(
+        address, 'clarification:existing', input, result, `clarification:${value.suffix}:replay`,
+      )).toEqual(result)
+      expect(store.readClarification(address, 'clarification:existing', input)).toEqual(result)
+      expect(() => store.recordClarification(
+        address,
+        'clarification:new',
+        { text: `/new-${value.suffix}` },
+        result,
+        `clarification:${value.suffix}:blocked`,
+      )).toThrowError(expect.objectContaining({
+        envelope: expect.objectContaining({ errorCode: value.errorCode }),
+      }))
+      const administration = new BranchAdministration(path)
+      expect(administration.readAudit(address).filter(event => event.operation === 'round.clarified')).toHaveLength(1)
+      administration.close()
+    }
+    store.close()
+  })
+
   it('validates branch heads, tick movement, and request content', async () => {
     const store = new WorldStore(database('world-errors.sqlite'))
     const address = fixtureAddress()
