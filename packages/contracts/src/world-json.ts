@@ -8,6 +8,11 @@ export interface WorldJsonObject {
 
 export type WorldHash = `sha256:${string}`
 
+/** Compare strings by raw UTF-16 code units, matching `world-json/v1` object-key order. */
+export function compareWorldText(left: string, right: string): number {
+  return Number(left > right) - Number(left < right)
+}
+
 function assertLegalUnicode(value: string): void {
   for (let index = 0; index < value.length; index += 1) {
     const unit = value.charCodeAt(index)
@@ -67,7 +72,7 @@ function serialize(value: unknown, ancestors: Set<object>): string {
         throw new TypeError('WorldJson objects require enumerable data properties')
       }
     }
-    stringKeys.sort()
+    stringKeys.sort(compareWorldText)
     const entries = stringKeys.map((key) => `${JSON.stringify(key)}:${serialize(Reflect.get(value, key), ancestors)}`)
     return `{${entries.join(',')}}`
   } finally {

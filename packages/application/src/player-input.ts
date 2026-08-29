@@ -1,4 +1,4 @@
-import { assertProtocolString, canonicalizeWorldJson, type WorldJsonValue } from '@harness-world/contracts'
+import { assertProtocolString, canonicalizeWorldJson, compareWorldText, type WorldJsonValue } from '@harness-world/contracts'
 import type { ActionAffordance, PlayerActionInput } from '@harness-world/kernel'
 
 export type PlayerInputInterpretation =
@@ -6,7 +6,7 @@ export type PlayerInputInterpretation =
   | { readonly status: 'clarification_required'; readonly reason: string; readonly candidates: readonly string[] }
 
 function clarification(reason: string, candidates: readonly string[]): PlayerInputInterpretation {
-  return { status: 'clarification_required', reason, candidates: [...new Set(candidates)].sort() }
+  return { status: 'clarification_required', reason, candidates: [...new Set(candidates)].sort(compareWorldText) }
 }
 
 /** Product-neutral deterministic text adapter. It creates candidate Actions, never world facts. */

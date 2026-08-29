@@ -12,6 +12,7 @@ import {
   assertProtocolString,
   brandId,
   canonicalizeWorldJson,
+  compareWorldText,
   deterministicId,
   failWorld,
   hashWorldJson,
@@ -182,9 +183,9 @@ export function compareActionOrderKey(left: ActionOrderKey, right: ActionOrderKe
   if (role !== 0) return role
   const priority = right.priority - left.priority
   if (priority !== 0) return priority
-  const actor = left.actorId.localeCompare(right.actorId)
+  const actor = compareWorldText(left.actorId, right.actorId)
   if (actor !== 0) return actor
-  return left.actionId.localeCompare(right.actionId)
+  return compareWorldText(left.actionId, right.actionId)
 }
 
 export const parseClaimedPlayerAction = parsePlayerActionInput
@@ -278,7 +279,7 @@ export class RoundCoordinator {
     this.#participants = [...options.participants].sort((left, right) =>
       roleRank[left.role] - roleRank[right.role]
       || right.priority - left.priority
-      || left.participantId.localeCompare(right.participantId))
+      || compareWorldText(left.participantId, right.participantId))
     if (new Set(this.#participants.map(value => value.participantId)).size !== this.#participants.length) {
       throw new TypeError('Round participantId values must be unique')
     }
@@ -697,7 +698,7 @@ export class RoundCoordinator {
         if (participant.reflection?.status === 'accepted') cognitiveCharacters.add(participant.binding.actorId)
       }
     }
-    const cognitiveCharacterIds = [...cognitiveCharacters].sort()
+    const cognitiveCharacterIds = [...cognitiveCharacters].sort(compareWorldText)
     const authority = {
       schemaVersion: 2,
       roundId,
@@ -1229,7 +1230,7 @@ export class RoundCoordinator {
     ] as const) {
       assertProtocolString(value, name)
     }
-    const keys = Object.keys(request.action).sort()
+    const keys = Object.keys(request.action).sort(compareWorldText)
     if (keys.join(',') !== 'actionType,parameters') throw new TypeError('action must contain exactly actionType and parameters')
   }
 }

@@ -2,6 +2,7 @@ import {
   PHASE8_CONTEXT_PROFILES,
   assertProtocolString,
   canonicalizeWorldJson,
+  compareWorldText,
   createContextSegment,
   failWorld,
   hashCharacterContext,
@@ -108,9 +109,7 @@ const OUTPUT_REMINDER = Object.freeze({
   maximumReflectionOperations: 4,
 })
 
-function compareText(left: string, right: string): number {
-  return Number(left > right) - Number(left < right)
-}
+const compareText = compareWorldText
 
 function profile(profileId: ContextProfileId): Phase8ContextProfile {
   const selected = PHASE8_CONTEXT_PROFILES.find(value => value.profileId === profileId)

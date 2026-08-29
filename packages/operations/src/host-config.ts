@@ -11,7 +11,7 @@ import {
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { canonicalizeWorldJson, type WorldJsonObject } from '@harness-world/contracts'
+import { canonicalizeWorldJson, compareWorldText, type WorldJsonObject } from '@harness-world/contracts'
 
 export interface WorldHostConfig {
   readonly dataDirectory: string
@@ -198,7 +198,7 @@ function parseLock(text: string): InstanceLockRecord {
   canonicalizeWorldJson(value as WorldJsonObject)
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('instance.lock must be an object')
   const record = value as Partial<InstanceLockRecord>
-  const keys = Object.keys(record).sort()
+  const keys = Object.keys(record).sort(compareWorldText)
   if (keys.join(',') !== 'instanceId,nonce,pid,startedAt,writerOwnerPrefix'
     || !Number.isSafeInteger(record.pid) || record.pid! <= 0
     || typeof record.instanceId !== 'string' || record.instanceId.length === 0

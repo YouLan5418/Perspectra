@@ -1,4 +1,5 @@
 import {
+  compareWorldText,
   hashWorldJson,
   type CharacterId,
   type CharacterLifecycleState,
@@ -102,7 +103,7 @@ export class CharacterViewBuilder {
     const visibility = projections.visibility.filter(record => owned(record, characterId, 'observerId'))
     const scenes = [...sceneChanges(events, heartbeat).values()]
       .filter(scene => visibleScene(scene, characterId, visibility))
-      .sort((left, right) => left.sceneId.localeCompare(right.sceneId))
+      .sort((left, right) => compareWorldText(left.sceneId, right.sceneId))
     const self = selfState(events, characterId, heartbeat)
     const base = {
       address,

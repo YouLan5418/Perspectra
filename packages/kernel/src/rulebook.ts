@@ -1,4 +1,4 @@
-import type { WorldEventDraft, WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
+import { compareWorldText, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import type { CompiledWorldManifest } from './world-spec.ts'
 
 export interface PlayerActionInput extends WorldJsonObject {
@@ -10,7 +10,7 @@ export interface PlayerActionInput extends WorldJsonObject {
 export function parsePlayerActionInput(value: WorldJsonValue): PlayerActionInput {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('claimed player action must be an object')
   const action = value as Record<string, WorldJsonValue>
-  const keys = Object.keys(action).sort()
+  const keys = Object.keys(action).sort(compareWorldText)
   if (keys.join(',') !== 'actionType,parameters' || typeof action.actionType !== 'string') {
     throw new TypeError('claimed player action has an invalid shape')
   }

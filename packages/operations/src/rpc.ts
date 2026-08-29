@@ -2,6 +2,7 @@ import {
   assertProtocolString,
   brandId,
   canonicalizeWorldJson,
+  compareWorldText,
   createErrorEnvelope,
   hashWorldJson,
   WorldError,
@@ -103,7 +104,7 @@ function stringParam(params: WorldJsonObject, name: string): string {
 function addressParam(value: WorldJsonValue | undefined, name = 'address'): WorldAddress {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError(`${name} must be an object`)
   const objectValue = value as WorldJsonObject
-  const keys = Object.keys(objectValue).sort()
+  const keys = Object.keys(objectValue).sort(compareWorldText)
   if (keys.join(',') !== 'branchId,tenantId,worldId') throw new TypeError(`${name} has invalid fields`)
   return {
     tenantId: brandId(stringParam(objectValue, 'tenantId'), 'TenantId'),
@@ -201,7 +202,7 @@ export class LocalJsonRpcRouter {
     if (method === 'branch.get') return worldResult(this.#application().getWorld(addressParam(params.address)))
     if (method === 'round.submit') {
       const action = objectParam(params, 'action')
-      const actionKeys = Object.keys(action).sort()
+      const actionKeys = Object.keys(action).sort(compareWorldText)
       if (actionKeys.join(',') !== 'actionType,parameters') throw new TypeError('action has invalid fields')
       const address = addressParam(params.address)
       const accepted = await this.#application().acceptRound(address, {

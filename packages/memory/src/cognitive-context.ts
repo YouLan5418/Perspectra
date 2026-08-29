@@ -1,5 +1,6 @@
 import {
   canonicalizeWorldJson,
+  compareWorldText,
   deterministicId,
   hashWorldJson,
   type ActionRequest,
@@ -25,7 +26,7 @@ function recallQuery(parameters: WorldJsonValue): string {
   if (typeof parameters === 'string') return parameters
   if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters)) return ''
   const object = parameters as WorldJsonObject
-  return Object.keys(object).sort().flatMap(key => {
+  return Object.keys(object).sort(compareWorldText).flatMap(key => {
     const value = object[key]
     return typeof value === 'string' ? [value] : []
   }).join(' ')
@@ -117,7 +118,7 @@ export class CognitiveMemoryService {
   }
 
   enqueue(address: WorldAddress, characterIds: readonly CharacterId[], asOfWorldSeq: number): void {
-    for (const characterId of [...new Set(characterIds)].sort()) {
+    for (const characterId of [...new Set(characterIds)].sort(compareWorldText)) {
       this.#memory.enqueueCognitiveJob(address, characterId, asOfWorldSeq)
     }
   }
@@ -196,10 +197,13 @@ export class CognitiveMemoryService {
         return [metadata.source as MemorySourceRef]
       })
       : v2Recall.receipt.selectedSourceRefs as readonly MemorySourceRef[])
-      .toSorted((left, right) => left.sourceKind.localeCompare(right.sourceKind) || left.sourceId.localeCompare(right.sourceId))
+      .toSorted((left, right) => compareWorldText(left.sourceKind, right.sourceKind) || compareWorldText(left.sourceId, right.sourceId))
     const recallResultHash = v2Recall?.receipt.resultHash
       ?? hashWorldJson('cognitive-memory-recall', { query, memories: memoryRecall, sources: memorySourceRefs })
-    const capability = { actorId: request.characterId, allowedActionTypes: [...request.allowedActionTypes].sort() }
+    const capability = {
+      actorId: request.characterId,
+      allowedActionTypes: [...request.allowedActionTypes].sort(compareWorldText),
+    }
     const base = {
       address: request.address,
       roundId: request.roundId,
@@ -300,7 +304,7 @@ export class CognitiveMemoryService {
     asOfWorldSeq: number,
     correlationId: string,
   ): WorldHash {
-    const views = [...new Set(characterIds)].sort().map(characterId => {
+    const views = [...new Set(characterIds)].sort(compareWorldText).map(characterId => {
       if (this.version === 2) this.#worker!.reset(address, characterId)
       else this.#memory.resetNamespace(address, characterId)
       return this.catchUp(address, characterId, asOfWorldSeq, `${correlationId}:${characterId}`).bundleHash

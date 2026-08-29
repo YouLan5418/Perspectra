@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
+  compareWorldText,
   deterministicId,
   failWorld,
   hashWorldJson,
@@ -57,7 +58,7 @@ export class SnapshotStore {
 
   create(address: WorldAddress, asOfSeq: number, units: WorldJsonObject, correlationId: string): CreateSnapshotResult {
     if (!Number.isSafeInteger(asOfSeq) || asOfSeq < 0) throw new RangeError('snapshot asOfSeq must be a non-negative safe integer')
-    const entries = Object.entries(units).sort(([left], [right]) => left.localeCompare(right))
+    const entries = Object.entries(units).sort(([left], [right]) => compareWorldText(left, right))
     if (entries.length === 0 || entries.some(([name]) => name.length === 0)) throw new TypeError('snapshot requires named units')
     const unitHashes = entries.map(([name, content]) => ({ name, hash: hashWorldJson(`snapshot-unit/${name}`, content as WorldJsonValue) }))
     const bundleHash = hashWorldJson('snapshot-bundle', { address, asOfSeq, unitHashes })

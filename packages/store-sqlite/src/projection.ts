@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
+  compareWorldText,
   hashWorldJson,
   worldAddressKey,
   type ProjectionBundle,
@@ -124,7 +125,9 @@ export class ProjectionRebuilder {
       }
     }
     heartbeat?.()
-    const sorted = (kind: ProjectionKind): ProjectionRecord[] => [...state[kind].keys()].sort().map(id => state[kind].get(id) as ProjectionRecord)
+    const sorted = (kind: ProjectionKind): ProjectionRecord[] => [...state[kind].keys()]
+      .sort(compareWorldText)
+      .map(id => state[kind].get(id) as ProjectionRecord)
     const observations = sorted('observation')
     const claims = sorted('claim')
     const goals = sorted('goal')

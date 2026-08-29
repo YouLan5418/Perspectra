@@ -1,4 +1,5 @@
 import {
+  compareWorldText,
   failWorld,
   hashWorldJson,
   type CharacterId,
@@ -50,9 +51,7 @@ interface SceneState {
   readonly locationId: string | null
 }
 
-function compareText(left: string, right: string): number {
-  return Number(left > right) - Number(left < right)
-}
+const compareText = compareWorldText
 
 function sceneIdOf(event: RulebookEvent): { readonly sceneId: string; readonly data: Record<string, WorldJsonValue> } {
   const data = worldJsonObject(event.data)
@@ -87,7 +86,7 @@ function legacySceneState(events: readonly RulebookEvent[]): readonly SceneState
     const value = worldJsonObject(data.value as WorldJsonValue)
     scenes.set(sceneId, { sceneId, participantIds: participantsOf(value), lifecycle: 'active', locationId: null })
   }
-  return [...scenes.values()].sort((left, right) => left.sceneId.localeCompare(right.sceneId))
+  return [...scenes.values()].sort((left, right) => compareWorldText(left.sceneId, right.sceneId))
 }
 
 function phase8SceneState(events: readonly RulebookEvent[]): readonly SceneState[] {

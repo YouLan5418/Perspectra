@@ -2,6 +2,7 @@ import {
   assertProtocolString,
   brandId,
   canonicalizeWorldJson,
+  compareWorldText,
   deterministicId,
   failWorld,
   worldAddressKey,
@@ -58,7 +59,7 @@ export interface RoundExecutionLane {
 export function parsePlayerRoundResult(value: WorldJsonValue): PlayerRoundResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('completed Round result must be an object')
   const result = value as Record<string, WorldJsonValue>
-  const keys = Object.keys(result).sort()
+  const keys = Object.keys(result).sort(compareWorldText)
   if (keys.join(',') !== 'bundleHash,headSeq,reason,status,tick') throw new TypeError('completed Round result has an invalid shape')
   if (result.status !== 'accepted' && result.status !== 'rejected') throw new TypeError('completed Round status is invalid')
   if (result.reason !== null && typeof result.reason !== 'string') throw new TypeError('completed Round reason is invalid')
@@ -221,7 +222,7 @@ export class WorldKernel {
       if (typeof value !== 'string') throw new TypeError(`${name} must be a string`)
       assertProtocolString(value, name)
     }
-    const actionKeys = Object.keys(request.action).sort()
+    const actionKeys = Object.keys(request.action).sort(compareWorldText)
     if (actionKeys.length !== 2 || actionKeys[0] !== 'actionType' || actionKeys[1] !== 'parameters') {
       throw new TypeError('action must contain exactly actionType and parameters')
     }

@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
   brandId,
+  compareWorldText,
   deterministicId,
   failWorld,
   hashWorldJson,
@@ -529,7 +530,7 @@ export class WorldStore {
       throw new TypeError('genesisHash does not match Genesis events')
     }
     assertManifestEvents(request.manifest, request.genesisEvents)
-    const cognitiveJobs = [...(request.cognitiveJobs ?? [])].sort((left, right) => left.characterId.localeCompare(right.characterId))
+    const cognitiveJobs = [...(request.cognitiveJobs ?? [])].sort((left, right) => compareWorldText(left.characterId, right.characterId))
     if (new Set(cognitiveJobs.map(job => job.characterId)).size !== cognitiveJobs.length) {
       throw new TypeError('Genesis cognitive job characterId values must be unique')
     }
@@ -783,7 +784,7 @@ export class WorldStore {
     if (request.events.length === 0) throw new TypeError('a committed round requires at least one event')
     if (request.nextTick !== request.expectedTick + 1) throw new TypeError('a committed round advances exactly one tick')
     const addressKey = worldAddressKey(request.address)
-    const cognitiveJobs = [...(request.cognitiveJobs ?? [])].sort((left, right) => left.characterId.localeCompare(right.characterId))
+    const cognitiveJobs = [...(request.cognitiveJobs ?? [])].sort((left, right) => compareWorldText(left.characterId, right.characterId))
     if (new Set(cognitiveJobs.map(job => job.characterId)).size !== cognitiveJobs.length) {
       throw new TypeError('cognitive job characterId values must be unique within one Round')
     }

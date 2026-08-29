@@ -6,6 +6,7 @@ import {
   assertProtocolString,
   brandId,
   canonicalizeWorldJson,
+  compareWorldText,
   createErrorEnvelope,
   deterministicId,
   failWorld,
@@ -31,6 +32,15 @@ describe('world-json/v1', () => {
     expect(hashWorldJson('text', 'é')).not.toBe(hashWorldJson('text', 'e\u0301'))
     expect(hashWorldJson('left', 1)).not.toBe(hashWorldJson('right', 1))
     expect(deterministicId('thing', { a: 1 })).toMatch(/^thing:[0-9a-f]{24}$/)
+  })
+
+  it('orders domain text by raw UTF-16 code units without locale or normalization', () => {
+    const values = ['Ａ', '\uE000', '😀', '𐀀', '中', 'é', 'e\u0301', 'a']
+    expect(values.sort(compareWorldText)).toEqual(['a', 'e\u0301', 'é', '中', '𐀀', '😀', '\uE000', 'Ａ'])
+    expect(compareWorldText('same', 'same')).toBe(0)
+    expect(compareWorldText('z', 'a')).toBeGreaterThan(0)
+    expect(compareWorldText('a', 'z')).toBeLessThan(0)
+    expect(hashWorldJson('utf16-domain-order/v1', values)).toBe('sha256:649fb99feda653b31c092f5a094c283d6e2f80dc6452e94486071e01d433618d')
   })
 
   it.each([

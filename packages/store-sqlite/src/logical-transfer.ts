@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import {
   canonicalizeWorldJson,
+  compareWorldText,
   failWorld,
   hashWorldJson,
   type WorldAddress,
@@ -129,8 +130,8 @@ export class WorldLogicalTransferService {
         const insert = db.prepare(`INSERT INTO ${table}(${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`)
         for (const row of rows) {
           if (typeof row !== 'object' || row === null || Array.isArray(row)) this.#invalid(`logical table ${table} has an invalid row`, correlationId)
-          const rowKeys = Object.keys(row).sort()
-          const expectedKeys = [...columns].sort()
+          const rowKeys = Object.keys(row).sort(compareWorldText)
+          const expectedKeys = [...columns].sort(compareWorldText)
           if (rowKeys.length !== expectedKeys.length || rowKeys.some((key, index) => key !== expectedKeys[index])) {
             this.#invalid(`logical table ${table} row has missing or unknown columns`, correlationId)
           }

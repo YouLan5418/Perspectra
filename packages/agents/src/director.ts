@@ -1,3 +1,5 @@
+import { compareWorldText } from '@harness-world/contracts'
+
 export interface DirectorCandidate {
   readonly participantId: string
   readonly priority: number
@@ -13,7 +15,7 @@ export class DirectorScheduler {
     if (new Set(ids).size !== ids.length) throw new TypeError('Director participantId values must be unique')
     return candidates
       .filter(candidate => candidate.enabled && candidate.authorizedActionTypes.length > 0)
-      .sort((left, right) => right.priority - left.priority || left.participantId.localeCompare(right.participantId))
+      .sort((left, right) => right.priority - left.priority || compareWorldText(left.participantId, right.participantId))
       .slice(0, maxParticipants)
   }
 }

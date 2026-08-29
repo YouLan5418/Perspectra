@@ -1,6 +1,7 @@
 import {
   DRAMATIC_SIGNAL_TYPES,
   assertProtocolString,
+  compareWorldText,
   failWorld,
   hashDirectorContext,
   hashWorldJson,
@@ -69,9 +70,7 @@ export interface DirectorContextAssembly {
   readonly sceneDecisionHash: WorldHash
 }
 
-function compareText(left: string, right: string): number {
-  return Number(left > right) - Number(left < right)
-}
+const compareText = compareWorldText
 
 function assertSafeValue(value: WorldJsonValue, path: string): void {
   if (Array.isArray(value)) {

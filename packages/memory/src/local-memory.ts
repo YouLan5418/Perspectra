@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
   canonicalizeWorldJson,
+  compareWorldText,
   deterministicId,
   failWorld,
   hashWorldJson,
@@ -575,7 +576,8 @@ export class LocalMemoryStore {
   capture(request: CaptureMemoryRequest): 'captured' | 'already_captured' {
     this.#validateCapture(request)
     const key = namespace(request.address, request.characterId)
-    const sortedSources = [...request.sources].sort((left, right) => left.sourceKind.localeCompare(right.sourceKind) || left.sourceId.localeCompare(right.sourceId))
+    const sortedSources = [...request.sources].sort((left, right) => compareWorldText(left.sourceKind, right.sourceKind)
+      || compareWorldText(left.sourceId, right.sourceId))
     const captureHash = hashWorldJson('local-memory-capture', {
       namespace: key,
       memoryId: request.memoryId,

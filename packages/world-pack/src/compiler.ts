@@ -3,6 +3,7 @@ import { lstat, readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import {
   canonicalizeWorldJson,
+  compareWorldText,
   deterministicId,
   hashWorldJson,
   PHASE8_CONTEXT_PROFILES,
@@ -117,9 +118,7 @@ interface UnsignedCompiledWorldPackV2 extends WorldJsonObject {
 
 interface SourceBudget { bytes: number }
 
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0
-}
+const compareText = compareWorldText
 
 function rawHash(bytes: Uint8Array): WorldHash {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`

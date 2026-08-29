@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import {
   brandId,
   canonicalizeWorldJson,
+  compareWorldText,
   deterministicId,
   hashContinuityCheckpoint,
   hashInteractionBlock,
@@ -47,9 +48,7 @@ export interface ContinuityMemoryReader {
   summaries(address: WorldAddress, characterId: CharacterId): readonly ExtractiveL1Summary[]
 }
 
-function compareText(left: string, right: string): number {
-  return Number(left > right) - Number(left < right)
-}
+const compareText = compareWorldText
 
 function contextNamespace(address: WorldAddress, characterId: CharacterId): string {
   return `${worldAddressKey(address)}\u001f${characterId}`

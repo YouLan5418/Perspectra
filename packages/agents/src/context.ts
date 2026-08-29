@@ -1,4 +1,5 @@
 import {
+  compareWorldText,
   hashWorldJson,
   type ActionRequest,
   type CharacterView,
@@ -47,7 +48,7 @@ export class ContextAssembler {
     if (input.participantId.length === 0 || input.participantId.trim() !== input.participantId) {
       throw new TypeError('participantId must be a non-empty, unpadded string')
     }
-    const allowedActionTypes = [...input.capability.allowedActionTypes].sort()
+    const allowedActionTypes = [...input.capability.allowedActionTypes].sort(compareWorldText)
     if (allowedActionTypes.length === 0 || new Set(allowedActionTypes).size !== allowedActionTypes.length) {
       throw new TypeError('Agent capability action types must be non-empty and unique')
     }

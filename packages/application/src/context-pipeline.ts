@@ -15,6 +15,7 @@ import {
 } from '@harness-world/agents'
 import {
   PHASE8_CONTEXT_PROFILES,
+  compareWorldText,
   deterministicId,
   hashWorldJson,
   type CharacterId,
@@ -76,9 +77,7 @@ const directorTool = createProviderToolSchema('submit_director_plan/v1', {
   type: 'object', schemaVersion: 'submit_director_plan/v1', maximumDirectives: 8,
 })
 
-function compareText(left: string, right: string): number {
-  return Number(left > right) - Number(left < right)
-}
+const compareText = compareWorldText
 
 function defaultModelProfile(): ProviderModelProfile {
   return {

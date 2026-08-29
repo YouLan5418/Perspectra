@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import {
   brandId,
   canonicalizeWorldJson,
+  compareWorldText,
   deterministicId,
   failWorld,
   hashContextReceipt,
@@ -89,9 +90,7 @@ export interface PlayerContextExplainReport {
 
 export type ContextExplainReport = PrivilegedContextExplainReport | PlayerContextExplainReport
 
-function compareText(left: string, right: string): number {
-  return Number(left > right) - Number(left < right)
-}
+const compareText = compareWorldText
 
 function sourceHash(source: ContextSourceRef): WorldHash {
   return hashWorldJson('context-source-ref/v1', source)

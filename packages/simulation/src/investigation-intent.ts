@@ -1,4 +1,4 @@
-import { assertProtocolString, type WorldJsonObject } from '@harness-world/contracts'
+import { assertProtocolString, compareWorldText, type WorldJsonObject } from '@harness-world/contracts'
 import type { PlayerActionInput } from '@harness-world/kernel'
 
 export interface IntentReference extends WorldJsonObject {
@@ -137,11 +137,11 @@ export class DeterministicInvestigationIntentParser {
     if (matches.length === 1) return { status: 'resolved', id: matches[0]!.id }
     return this.#clarify(
       matches.length === 0 ? `${label} is unknown` : `${label} is ambiguous`,
-      (matches.length === 0 ? references : matches).map(value => value.id).sort(),
+      (matches.length === 0 ? references : matches).map(value => value.id).sort(compareWorldText),
     )
   }
 
   #clarify(reason: string, candidates: readonly string[]): Extract<InvestigationIntentResult, { status: 'clarification_required' }> {
-    return { status: 'clarification_required', reason, candidates: [...candidates].sort() }
+    return { status: 'clarification_required', reason, candidates: [...candidates].sort(compareWorldText) }
   }
 }

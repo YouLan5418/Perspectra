@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
+  compareWorldText,
   worldAddressKey,
   type CharacterId,
   type CharacterRuntimeAvailability,
@@ -36,7 +37,7 @@ export class CharacterRuntimeAvailabilityService {
     `)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      for (const value of [...states].sort((a, b) => a.characterId.localeCompare(b.characterId))) {
+      for (const value of [...states].sort((a, b) => compareWorldText(a.characterId, b.characterId))) {
         if (!STATES.has(value.state)) throw new TypeError('invalid Runtime Availability state')
         insert.run(key, value.characterId, value.state, this.now())
       }

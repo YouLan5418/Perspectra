@@ -17,6 +17,7 @@ import {
   TENSION_RESOLUTION_KINDS,
   TENSION_STATUSES,
   COGNITION_PROJECTION_KINDS,
+  compareWorldText,
   hashCognitionRecordState,
   hashWorldJson,
   type CharacterCognitionView,
@@ -289,9 +290,9 @@ function apply(state: CognitionState, event: StoredWorldEvent): void {
 
 function orderedHistory(state: CognitionState): CognitionProjectionRecord[] {
   return Object.values(state).flatMap(records => [...records.values()].flat())
-    .sort((left, right) => left.kind.localeCompare(right.kind)
-      || left.characterId.localeCompare(right.characterId)
-      || left.id.localeCompare(right.id)
+    .sort((left, right) => compareWorldText(left.kind, right.kind)
+      || compareWorldText(left.characterId, right.characterId)
+      || compareWorldText(left.id, right.id)
       || left.validFromSeq - right.validFromSeq)
 }
 

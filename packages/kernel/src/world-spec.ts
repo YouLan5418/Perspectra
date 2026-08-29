@@ -1,6 +1,7 @@
 import {
   brandId,
   canonicalizeWorldJson,
+  compareWorldText,
   hashWorldJson,
   PHASE8_REGISTRY_LOCKS,
   PHASE8_VOCABULARY_LOCKS,
@@ -265,8 +266,8 @@ function objectAt(value: unknown, path: string): Record<string, unknown> {
 }
 
 function exactKeys(value: Record<string, unknown>, keys: readonly string[], path: string): void {
-  const actual = Object.keys(value).sort()
-  const expected = [...keys].sort()
+  const actual = Object.keys(value).sort(compareWorldText)
+  const expected = [...keys].sort(compareWorldText)
   if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) throw new TypeError(`${path} contains missing or unknown fields`)
 }
 
@@ -311,7 +312,7 @@ function definition(name: string): RegistryDefinition {
 }
 
 function registry(kind: string, names: readonly string[]): FrozenRegistry {
-  const definitions = [...names].sort().map(name => definition(name))
+  const definitions = [...names].sort(compareWorldText).map(name => definition(name))
   return { definitions, registryHash: hashWorldJson(`compiled-${kind}-registry`, definitions) }
 }
 
@@ -430,7 +431,7 @@ export class WorldSpecCompiler {
     const locations = arrayAt(root.locations, 'WorldSpec.locations').map((entry, index): LocationSpec => {
       const value = objectAt(entry, `locations[${index}]`); exactKeys(value, ['locationId', 'name'], `locations[${index}]`)
       return { locationId: textAt(value.locationId, 'locationId'), name: textAt(value.name, 'location.name') }
-    }).sort((a, b) => a.locationId.localeCompare(b.locationId))
+    }).sort((a, b) => compareWorldText(a.locationId, b.locationId))
     if (locations.length === 0) throw new TypeError('WorldSpec.locations cannot be empty')
     unique(locations.map(value => value.locationId), 'WorldSpec.locations')
     const locationIds = new Set(locations.map(value => value.locationId))
@@ -440,7 +441,7 @@ export class WorldSpecCompiler {
       const locationId = textAt(value.locationId, 'entity.locationId')
       if (!locationIds.has(locationId)) throw new TypeError(`entity references unknown location ${locationId}`)
       return { entityId: textAt(value.entityId, 'entityId'), locationId, kind: textAt(value.kind, 'entity.kind') }
-    }).sort((a, b) => a.entityId.localeCompare(b.entityId))
+    }).sort((a, b) => compareWorldText(a.entityId, b.entityId))
     unique(entities.map(value => value.entityId), 'WorldSpec.entities')
 
     const characters = arrayAt(root.characters, 'WorldSpec.characters').map((entry, index): CharacterSpec => {
@@ -448,29 +449,31 @@ export class WorldSpecCompiler {
       const locationId = textAt(value.locationId, 'character.locationId')
       if (!locationIds.has(locationId)) throw new TypeError(`character references unknown location ${locationId}`)
       return { characterId: brandId(textAt(value.characterId, 'characterId'), 'CharacterId'), name: textAt(value.name, 'character.name'), locationId }
-    }).sort((a, b) => a.characterId.localeCompare(b.characterId))
+    }).sort((a, b) => compareWorldText(a.characterId, b.characterId))
     if (characters.length === 0) throw new TypeError('WorldSpec.characters cannot be empty')
     unique(characters.map(value => value.characterId), 'WorldSpec.characters')
     const characterIds = new Set(characters.map(value => value.characterId))
 
-    const goals = parseSeeds(root, 'goals', 'goalId', 'characterId', characterIds, (goalId, characterId, value): GoalSpec => ({ goalId, characterId, value })).sort((a, b) => a.goalId.localeCompare(b.goalId)); unique(goals.map(v => v.goalId), 'WorldSpec.goals')
-    const claims = parseSeeds(root, 'claims', 'claimId', 'characterId', characterIds, (claimId, characterId, value): ClaimSpec => ({ claimId, characterId, value })).sort((a, b) => a.claimId.localeCompare(b.claimId)); unique(claims.map(v => v.claimId), 'WorldSpec.claims')
-    const observations = parseSeeds(root, 'observations', 'observationId', 'observerId', characterIds, (observationId, observerId, value): ObservationSpec => ({ observationId, observerId, value })).sort((a, b) => a.observationId.localeCompare(b.observationId)); unique(observations.map(v => v.observationId), 'WorldSpec.observations')
+    const goals = parseSeeds(root, 'goals', 'goalId', 'characterId', characterIds, (goalId, characterId, value): GoalSpec => ({ goalId, characterId, value })).sort((a, b) => compareWorldText(a.goalId, b.goalId)); unique(goals.map(v => v.goalId), 'WorldSpec.goals')
+    const claims = parseSeeds(root, 'claims', 'claimId', 'characterId', characterIds, (claimId, characterId, value): ClaimSpec => ({ claimId, characterId, value })).sort((a, b) => compareWorldText(a.claimId, b.claimId)); unique(claims.map(v => v.claimId), 'WorldSpec.claims')
+    const observations = parseSeeds(root, 'observations', 'observationId', 'observerId', characterIds, (observationId, observerId, value): ObservationSpec => ({ observationId, observerId, value })).sort((a, b) => compareWorldText(a.observationId, b.observationId)); unique(observations.map(v => v.observationId), 'WorldSpec.observations')
 
     const scenes = arrayAt(root.scenes, 'WorldSpec.scenes').map((entry, index): SceneSpec => {
       const value = objectAt(entry, `scenes[${index}]`); exactKeys(value, ['sceneId', 'participantIds'], `scenes[${index}]`)
-      const participantIds = arrayAt(value.participantIds, 'scene.participantIds').map(id => brandId(textAt(id, 'scene.participantId'), 'CharacterId')).sort()
+      const participantIds = arrayAt(value.participantIds, 'scene.participantIds')
+        .map(id => brandId(textAt(id, 'scene.participantId'), 'CharacterId'))
+        .sort(compareWorldText)
       unique(participantIds, 'scene.participantIds')
       if (participantIds.some(id => !characterIds.has(id))) throw new TypeError('scene references unknown character')
       return { sceneId: textAt(value.sceneId, 'sceneId'), participantIds }
-    }).sort((a, b) => a.sceneId.localeCompare(b.sceneId)); unique(scenes.map(v => v.sceneId), 'WorldSpec.scenes')
+    }).sort((a, b) => compareWorldText(a.sceneId, b.sceneId)); unique(scenes.map(v => v.sceneId), 'WorldSpec.scenes')
 
     const playerBindings = arrayAt(root.playerBindings, 'WorldSpec.playerBindings').map((entry, index): PlayerBindingSpec => {
       const value = objectAt(entry, `playerBindings[${index}]`); exactKeys(value, ['principalId', 'characterId', 'sessionId'], `playerBindings[${index}]`)
       const characterId = brandId(textAt(value.characterId, 'binding.characterId'), 'CharacterId')
       if (!characterIds.has(characterId)) throw new TypeError(`binding references unknown character ${characterId}`)
       return { principalId: textAt(value.principalId, 'principalId'), characterId, sessionId: brandId(textAt(value.sessionId, 'sessionId'), 'SessionId') }
-    }).sort((a, b) => a.principalId.localeCompare(b.principalId))
+    }).sort((a, b) => compareWorldText(a.principalId, b.principalId))
     if (playerBindings.length === 0) throw new TypeError('WorldSpec.playerBindings cannot be empty')
     unique(playerBindings.map(v => v.principalId), 'WorldSpec.playerBindings principals'); unique(playerBindings.map(v => v.characterId), 'WorldSpec.playerBindings characters')
 
@@ -479,7 +482,7 @@ export class WorldSpecCompiler {
       const version = textAt(value.version, 'plugin.version')
       if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) throw new TypeError('plugin.version must be exact semver')
       return { pluginId: textAt(value.pluginId, 'pluginId'), version }
-    }).sort((a, b) => a.pluginId.localeCompare(b.pluginId)); unique(plugins.map(v => v.pluginId), 'WorldSpec.plugins')
+    }).sort((a, b) => compareWorldText(a.pluginId, b.pluginId)); unique(plugins.map(v => v.pluginId), 'WorldSpec.plugins')
 
     const normalizedSpec = { schemaVersion: 2 as const, address, metadata, timeMode: 'TURN_DRIVEN' as const, roundQueueLimit: root.roundQueueLimit as number, runtimePolicy, rulebook: { rulebookId: 'builtin:speak-move' as const, version: rulebookVersion }, locations, entities, characters, scenes, goals, claims, observations, playerBindings, plugins }
     const specHash = hashWorldJson('world-spec-v2', normalizedSpec)

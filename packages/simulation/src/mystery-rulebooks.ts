@@ -1,4 +1,4 @@
-import { deterministicId, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
+import { compareWorldText, deterministicId, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import {
   RulebookRegistry,
   SpeakMoveRulebook,
@@ -76,10 +76,10 @@ export function currentInvestigationState(events: readonly RulebookEvent[]): Inv
   return {
     status,
     culpritId,
-    evidence: [...evidence.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([evidenceId, value]) => ({
+    evidence: [...evidence.entries()].sort(([left], [right]) => compareWorldText(left, right)).map(([evidenceId, value]) => ({
       evidenceId,
-      discoveredBy: [...value.discoveredBy].sort(),
-      presentedBy: [...value.presentedBy].sort(),
+      discoveredBy: [...value.discoveredBy].sort(compareWorldText),
+      presentedBy: [...value.presentedBy].sort(compareWorldText),
     })),
   }
 }

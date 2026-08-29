@@ -1,6 +1,7 @@
 import {
   brandId,
   canonicalizeWorldJson,
+  compareWorldText,
   failWorld,
   type ActionRequest,
   type CharacterId,
@@ -33,8 +34,8 @@ function record(value: unknown, path: string): Record<string, unknown> {
 }
 
 function exact(value: Record<string, unknown>, expected: readonly string[], path: string): void {
-  const keys = Object.keys(value).sort()
-  const sorted = [...expected].sort()
+  const keys = Object.keys(value).sort(compareWorldText)
+  const sorted = [...expected].sort(compareWorldText)
   if (keys.length !== sorted.length || keys.some((key, index) => key !== sorted[index])) {
     throw new TypeError(`${path} contains missing or unknown fields`)
   }

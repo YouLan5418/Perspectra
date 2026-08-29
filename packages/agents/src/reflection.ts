@@ -20,6 +20,7 @@ import {
   TENSION_RESOLUTION_KINDS,
   TENSION_STATUSES,
   canonicalizeWorldJson,
+  compareWorldText,
   failWorld,
   hashCognitionRecordState,
   hashContextReceipt,
@@ -265,7 +266,7 @@ function records(view: CharacterCognitionView): CognitionProjectionRecord[] {
 }
 
 function stateHash(values: readonly { kind: CognitionProjectionKind; id: string; characterId: CharacterId; value: WorldJsonValue }[]): WorldHash {
-  const ordered = [...values].sort((left, right) => left.kind.localeCompare(right.kind) || left.id.localeCompare(right.id))
+  const ordered = [...values].sort((left, right) => compareWorldText(left.kind, right.kind) || compareWorldText(left.id, right.id))
   return hashWorldJson('character-cognition-policy-state/v1', { records: ordered })
 }
 
