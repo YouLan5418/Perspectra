@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  ContextReceiptStore,
   createContextReceipt,
   ProviderCallStore,
   ProviderQualityStore,
@@ -44,6 +45,7 @@ import {
   type RoundParticipant,
 } from './round-coordinator.ts'
 import { SceneDecisionService } from './scene-decision.ts'
+import type { Phase8ProviderContext } from './context-pipeline.ts'
 import { WorldApplication } from './world-application.ts'
 
 const directories: string[] = []
@@ -1474,5 +1476,143 @@ describe('RoundCoordinator', () => {
       action: { actionType: 'speak', parameters: { text: 'after' } }, correlationId: 'after-deleted',
     })).rejects.toThrow('lost its PlayerBinding')
     close(bindingOptions, bindingCoordinator)
+  })
+
+  it('delivers a private player stimulus only to its recipient and records exclusions for bystanders and Director', async () => {
+    const worldPath = database('phase8-private-stimulus-world.sqlite')
+    const sessionPath = `${worldPath}.session.sqlite`
+    const memoryPath = `${worldPath}.memory.sqlite`
+    const compiled = phase8ReflectionWorld()
+    const received = new Map<string, ProposalContext>()
+    const participantFor = (
+      participantId: string,
+      role: 'agent' | 'director',
+      actorId: 'character:player' | 'character:npc' | 'character:witness',
+    ): RoundParticipant => ({
+      participantId,
+      role,
+      actorId: brandId(actorId, 'CharacterId'),
+      allowedActionTypes: role === 'agent' ? ['speak'] : ['take_initiative'],
+      priority: 1,
+      estimatedTokens: 1,
+      timeoutMs: 100,
+      provider: {
+        async propose(context) {
+          received.set(participantId, context)
+          return role === 'agent'
+            ? { schemaVersion: 2 as const, decision: 'abstain' as const, actions: [] }
+            : { participantId, actions: [] }
+        },
+      },
+    })
+    const application = new WorldApplication({
+      worldPath,
+      sessionPath,
+      memoryPath,
+      modelBudgetTokens: 10,
+      participants: () => [
+        participantFor('agent:recipient', 'agent', 'character:npc'),
+        participantFor('agent:bystander', 'agent', 'character:witness'),
+        participantFor('director:scene', 'director', 'character:player'),
+      ],
+    })
+    application.activate(compiled)
+    await application.submit(compiled.manifest.address, {
+      idempotencyKey: 'private-stimulus:1',
+      principalId: 'principal:player',
+      action: {
+        actionType: 'speak',
+        parameters: {
+          text: 'PRIVATE_CANARY_ONLY_FOR_NPC',
+          scope: 'private',
+          addresseeIds: ['character:npc'],
+        },
+      },
+      correlationId: 'private-stimulus:1',
+    })
+    expect([...received.keys()].sort()).toEqual(['agent:bystander', 'agent:recipient', 'director:scene'])
+    const recipient = received.get('agent:recipient') as Phase8ProviderContext
+    const bystander = received.get('agent:bystander') as Phase8ProviderContext
+    const director = received.get('director:scene') as Phase8ProviderContext
+    expect(JSON.stringify(recipient)).toContain('PRIVATE_CANARY_ONLY_FOR_NPC')
+    expect(bystander.playerAction).toMatchObject({
+      actionType: 'private_interaction',
+      parameters: { status: 'accepted', contentVisibility: 'occurrence_only' },
+    })
+    expect(director.playerAction).toMatchObject({
+      actionType: 'context.no-visible-stimulus',
+      parameters: { visibility: 'none' },
+    })
+    expect(JSON.stringify(bystander)).not.toContain('PRIVATE_CANARY_ONLY_FOR_NPC')
+    expect(JSON.stringify(director)).not.toContain('PRIVATE_CANARY_ONLY_FOR_NPC')
+    expect(new Set([recipient.candidateHash, bystander.candidateHash, director.candidateHash]).size).toBe(3)
+    await application.close()
+
+    const receipts = new ContextReceiptStore(`${memoryPath}.context.sqlite`)
+    expect(receipts.read(recipient.contextReceiptId)?.exclusions).not.toContainEqual(expect.objectContaining({
+      reason: 'audience_forbidden',
+    }))
+    for (const hidden of [bystander, director]) {
+      expect(receipts.read(hidden.contextReceiptId)?.exclusions).toContainEqual(expect.objectContaining({
+        reason: 'audience_forbidden',
+      }))
+    }
+    receipts.close()
+  })
+
+  it('does not dispatch a Scene v2 Director when the focal Scene is ineligible', async () => {
+    const path = database('phase8-director-ineligible.sqlite')
+    const compiled = phase8SceneWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    let directorCalls = 0
+    const director: RoundParticipant = {
+      participantId: 'director:ineligible',
+      role: 'director',
+      actorId: brandId('character:player', 'CharacterId'),
+      allowedActionTypes: ['take_initiative'],
+      priority: 1,
+      estimatedTokens: 1,
+      timeoutMs: 100,
+      provider: {
+        async propose() {
+          directorCalls += 1
+          return { participantId: 'director:ineligible', actions: [] }
+        },
+      },
+    }
+    const configured = options(path, compiled, [director])
+    const coordinator = new RoundCoordinator({
+      ...configured,
+      sceneDecision: {
+        version: 2,
+        decideFromEvents: (_address: unknown, _player: unknown, _events: unknown, asOfSeq: number) => ({
+          schemaVersion: 'scene-decision/v2',
+          sceneId: null,
+          memberIds: [],
+          observerIds: [],
+          schedulableCharacterIds: [],
+          visibleResultCharacterIds: [],
+          directorEligible: false,
+          asOfSeq,
+          decisionHash: hashWorldJson('scene-decision/v2', {
+            schemaVersion: 'scene-decision/v2', sceneId: null, memberIds: [], observerIds: [],
+            schedulableCharacterIds: [], visibleResultCharacterIds: [], directorEligible: false, asOfSeq,
+          }),
+        }),
+        audienceForAction: () => ({ fullContentCharacterIds: [], occurrenceOnlyCharacterIds: [] }),
+      } as never,
+    })
+    await expect(coordinator.submit({
+      idempotencyKey: 'director-ineligible:1',
+      principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'No active Scene' } },
+      correlationId: 'director-ineligible:1',
+    })).resolves.toMatchObject({ status: 'accepted' })
+    expect(directorCalls).toBe(0)
+    expect(configured.store.readEvents(compiled.manifest.address).filter(event =>
+      event.eventType === 'round.participant-terminal')).toEqual([])
+    close(configured, coordinator)
   })
 })

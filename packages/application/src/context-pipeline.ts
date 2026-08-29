@@ -18,6 +18,8 @@ import {
   deterministicId,
   hashWorldJson,
   type CharacterId,
+  type ActionRequest,
+  type ContextExclusion,
   type ContextProfileId,
   type ContextReceipt,
   type CharacterCognitionView,
@@ -25,6 +27,7 @@ import {
   type ProposalContext,
   type WorldHash,
   type WorldJsonObject,
+  type WorldJsonValue,
 } from '@harness-world/contracts'
 import type { CompiledWorldManifest, RulebookResolver } from '@harness-world/kernel'
 import { type CognitiveMemoryService, type MemorySourceRef } from '@harness-world/memory'
@@ -105,13 +108,85 @@ function eventSource(event: ReturnType<WorldStore['readEvents']>[number], source
   }
 }
 
-function sceneSources(events: ReturnType<WorldStore['readEvents']>): ContextSourceRef[] {
-  return events.filter(event => event.eventType.startsWith('scene.')
-    || event.eventType.startsWith('visibility.')
-    || event.eventType === 'character.created'
-    || event.eventType === 'character.location-changed'
-    || event.eventType === 'character.lifecycle-changed')
-    .map(event => eventSource(event, 'scene_public_event'))
+type StoredEvent = ReturnType<WorldStore['readEvents']>[number]
+
+function objectValue(value: WorldJsonValue | undefined): WorldJsonObject | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as WorldJsonObject
+    : undefined
+}
+
+function eventSceneId(event: StoredEvent): string | undefined {
+  const data = objectValue(event.data)
+  const sceneId = event.eventType.startsWith('visibility.')
+    ? objectValue(data?.value)?.sceneId
+    : data?.sceneId
+  return typeof sceneId === 'string' ? sceneId : undefined
+}
+
+function sceneSources(events: ReturnType<WorldStore['readEvents']>, decision: SceneDecision): ContextSourceRef[] {
+  if (decision.sceneId === null) return []
+  const members = new Set(decision.memberIds!)
+  return events.filter(event => {
+    if (event.eventType.startsWith('scene.') || event.eventType.startsWith('visibility.')) {
+      return eventSceneId(event) === decision.sceneId
+    }
+    if (event.eventType !== 'character.created'
+      && event.eventType !== 'character.location-changed'
+      && event.eventType !== 'character.lifecycle-changed') return false
+    const characterId = objectValue(event.data)?.characterId
+    return typeof characterId === 'string' && members.has(characterId as CharacterId)
+  }).map(event => eventSource(event, 'scene_public_event'))
+}
+
+function stimulusExclusion(action: ActionRequest, asOfWorldSeq: number): ContextExclusion {
+  const source: ContextSourceRef = {
+    sourceKind: 'round_stimulus', sourceId: action.actionId, sourceSeq: asOfWorldSeq,
+    sourceHash: hashWorldJson('context-stimulus/v1', action),
+  }
+  return { reason: 'audience_forbidden', sourceRefHash: hashWorldJson('context-source-ref/v1', source) }
+}
+
+function directorSceneInputs(
+  events: ReturnType<WorldStore['readEvents']>,
+  decision: SceneDecision,
+): {
+  readonly publicEvents: readonly StoredEvent[]
+  readonly targetSources: ReadonlyMap<CharacterId, StoredEvent>
+} {
+  if (decision.sceneId === null) return { publicEvents: [], targetSources: new Map() }
+  const members = new Map<CharacterId, StoredEvent>()
+  const publicEvents: StoredEvent[] = []
+  for (const event of events) {
+    const data = objectValue(event.data)
+    if (event.eventType.startsWith('scene.')) {
+      if (typeof data?.sceneId !== 'string') throw new TypeError(`${event.eventType} requires sceneId`)
+      if (data.sceneId !== decision.sceneId) continue
+      publicEvents.push(event)
+      if (event.eventType === 'scene.upsert') {
+        const value = objectValue(data.value)
+        if (!Array.isArray(value?.participantIds)
+          || value.participantIds.some(characterId => typeof characterId !== 'string')) {
+          throw new TypeError('scene.upsert requires string participantIds')
+        }
+        members.clear()
+        for (const characterId of value.participantIds) members.set(characterId as CharacterId, event)
+      } else if (event.eventType === 'scene.member_joined') {
+        if (typeof data.characterId !== 'string') throw new TypeError('scene.member_joined requires characterId')
+        members.set(data.characterId as CharacterId, event)
+      } else if (event.eventType === 'scene.member_left') {
+        if (typeof data.characterId !== 'string') throw new TypeError('scene.member_left requires characterId')
+        members.delete(data.characterId as CharacterId)
+      }
+      continue
+    }
+    if (event.eventType !== 'character.speak') continue
+    if (typeof data?.characterId !== 'string' || typeof data.scope !== 'string') {
+      throw new TypeError('Phase 8 character.speak requires characterId and scope')
+    }
+    if (data.scope === 'scene_public' && members.has(data.characterId as CharacterId)) publicEvents.push(event)
+  }
+  return { publicEvents, targetSources: members }
 }
 
 function profileId(manifest: CompiledWorldManifest, characterId: CharacterId): ContextProfileId {
@@ -167,11 +242,12 @@ export class Phase8ContextPipeline {
     decision: SceneDecision,
     asOfWorldSeq: number,
     heartbeat: () => void,
+    excludedStimulus?: ActionRequest,
   ): PreparedPhase8Participant {
     sceneContext(decision)
     return binding.role === 'director'
-      ? this.#prepareDirector(binding, context, history, decision, asOfWorldSeq)
-      : this.#prepareCharacter(binding, context, history, decision, asOfWorldSeq, heartbeat)
+      ? this.#prepareDirector(binding, context, history, decision, asOfWorldSeq, excludedStimulus)
+      : this.#prepareCharacter(binding, context, history, decision, asOfWorldSeq, heartbeat, excludedStimulus)
   }
 
   close(): void {
@@ -195,6 +271,7 @@ export class Phase8ContextPipeline {
     decision: SceneDecision,
     asOfWorldSeq: number,
     heartbeat: () => void,
+    excludedStimulus?: ActionRequest,
   ): PreparedPhase8Participant {
     const prepared = this.options.memory.prepare({
       address: context.address, roundId: context.roundId, tick: context.tick,
@@ -221,7 +298,7 @@ export class Phase8ContextPipeline {
       .sort((left, right) => compareText(left.actionType, right.actionType))
     const affordanceHash = hashWorldJson('context-affordances/v1', affordances)
     const scene = sceneContext(decision)
-    const sceneRefs = sceneSources(history)
+    const sceneRefs = sceneSources(history, decision)
     const cognition = this.#cognition.rebuildCharacterAt(context.address, binding.actorId, asOfWorldSeq)
     const character = this.options.manifest.characters.find(value => value.characterId === binding.actorId)!
     const assembly = this.#assembler.assembleDetailed({
@@ -250,7 +327,11 @@ export class Phase8ContextPipeline {
       baseHeadSeq: asOfWorldSeq, asOfWorldSeq, tick: context.tick, manifestHash: this.options.manifestHash,
       contextProfileId: selectedProfile, contextProfileHash: assembly.contextProfileHash,
       versionLocks: versionLocks('character'), componentHashes: assembly.componentHashes,
-      includedSourceRefs: assembly.includedSourceRefs, exclusions: assembly.exclusions,
+      includedSourceRefs: assembly.includedSourceRefs,
+      exclusions: [
+        ...assembly.exclusions,
+        ...(excludedStimulus === undefined ? [] : [stimulusExclusion(excludedStimulus, asOfWorldSeq)]),
+      ],
       contextHash: assembly.bundle.contextHash, providerRequestHash: rendered.providerRequestHash,
     })
     return this.#result(context, binding, receipt, rendered.exactRequest, prepared.memorySourceRefs, prepared.recallResultHash, cognition)
@@ -262,17 +343,15 @@ export class Phase8ContextPipeline {
     history: ReturnType<WorldStore['readEvents']>,
     decision: SceneDecision,
     asOfWorldSeq: number,
+    excludedStimulus?: ActionRequest,
   ): PreparedPhase8Participant {
     const scene = sceneContext(decision)
-    const sources = sceneSources(history)
-    const publicEvents = history.filter(event => event.eventType.startsWith('scene.') || event.eventType === 'character.speak')
-    if (scene.observerIds.length > 0 && sources.length === 0) {
-      throw new TypeError('Director targets require a durable Scene source')
-    }
-    const targets = scene.observerIds.map((targetId, index) => ({
-      targetId,
-      sourceRef: sources[index % sources.length]!,
-    }))
+    const { publicEvents, targetSources } = directorSceneInputs(history, decision)
+    const targets = scene.observerIds.map(targetId => {
+      const source = targetSources.get(targetId)
+      if (source === undefined) throw new TypeError(`Director target ${targetId} requires a durable Scene source proving focal membership`)
+      return { targetId, sourceRef: eventSource(source, 'scene_public_event') }
+    })
     const assembly = this.#director.assembleDetailed({
       address: context.address, roundId: context.roundId, participantId: binding.participantId,
       controllerId: `provider:${binding.participantId}`, controllerEpoch: 1,
@@ -303,7 +382,11 @@ export class Phase8ContextPipeline {
         tailHash: emptyHash, recallHash: emptyHash,
         affordanceHash: hashWorldJson('context-affordances/v1', [...binding.allowedActionTypes].sort(compareText)),
       },
-      includedSourceRefs: assembly.includedSourceRefs, exclusions: assembly.exclusions,
+      includedSourceRefs: assembly.includedSourceRefs,
+      exclusions: [
+        ...assembly.exclusions,
+        ...(excludedStimulus === undefined ? [] : [stimulusExclusion(excludedStimulus, asOfWorldSeq)]),
+      ],
       contextHash: assembly.context.contextHash, providerRequestHash: rendered.providerRequestHash,
     }
     const receipt = this.#receipts.append(receiptRequest)

@@ -57,7 +57,7 @@ import {
   type CommittedRoundRecord,
 } from '@harness-world/store-sqlite'
 import { type CognitiveMemoryService, type CognitiveProposalContext, type MemorySourceRef } from '@harness-world/memory'
-import type { SceneDecision, SceneDecisionService } from './scene-decision.ts'
+import type { SceneActionAudience, SceneDecision, SceneDecisionService } from './scene-decision.ts'
 import type { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
 import type { Phase8ContextPipeline } from './context-pipeline.ts'
 
@@ -188,6 +188,60 @@ export function compareActionOrderKey(left: ActionOrderKey, right: ActionOrderKe
 }
 
 export const parseClaimedPlayerAction = parsePlayerActionInput
+
+interface ParticipantVisibleProposalContext {
+  readonly context: ProposalContext
+  readonly excludedStimulus?: ActionRequest
+}
+
+function participantVisibleContext(
+  context: ProposalContext,
+  binding: RoundParticipant,
+  audience: SceneActionAudience | undefined,
+  playerStatus: RulebookResolution['status'],
+  directorCanSeeFull: boolean,
+): ParticipantVisibleProposalContext {
+  if (audience === undefined) return { context }
+  const full = binding.role === 'director'
+    ? directorCanSeeFull
+    : audience.fullContentCharacterIds.includes(binding.actorId)
+  if (full) return { context }
+  const occurrenceOnly = binding.role === 'agent'
+    && audience.occurrenceOnlyCharacterIds.includes(binding.actorId)
+  const playerAction: ActionRequest = occurrenceOnly
+    ? {
+      actionId: deterministicId('action:occurrence-only-stimulus/v1', {
+        roundId: context.roundId, participantId: binding.participantId,
+      }),
+      actorId: context.playerAction.actorId,
+      actionType: 'private_interaction',
+      actionVersion: 1,
+      parameters: { status: playerStatus, contentVisibility: 'occurrence_only' },
+    }
+    : {
+      actionId: deterministicId('action:no-visible-stimulus/v1', {
+        roundId: context.roundId, participantId: binding.participantId,
+      }),
+      actorId: binding.actorId,
+      actionType: 'context.no-visible-stimulus',
+      actionVersion: 1,
+      parameters: { visibility: 'none' },
+    }
+  return {
+    context: {
+      ...context,
+      playerAction,
+      candidateHash: hashWorldJson('participant-visible-player-candidate-s1', {
+        address: context.address,
+        roundId: context.roundId,
+        tick: context.tick,
+        participantId: binding.participantId,
+        playerAction,
+      }),
+    },
+    excludedStimulus: context.playerAction,
+  }
+}
 
 /** The sole production coordinator for player, NPC, and Director actions in one durable Round. */
 export class RoundCoordinator {
@@ -375,6 +429,27 @@ export class RoundCoordinator {
     const sceneDecision = this.options.sceneDecision?.decideFromEvents(
       this.#address, binding.characterId, history, head.headSeq,
     )
+    const playerBaseResolution = this.#rulebook.resolve({
+      manifest: this.#manifest,
+      events: history,
+      characterId: playerAction.actorId,
+      action: { actionType: playerAction.actionType, parameters: playerAction.parameters },
+    })
+    const playerObservationScope = playerBaseResolution.observationScope ?? { scope: 'scene_public' as const }
+    const playerAudience = this.options.sceneDecision?.version === 2
+      ? this.options.sceneDecision.audienceForAction(
+        this.#address,
+        playerAction.actorId,
+        history,
+        head.headSeq,
+        {
+          scope: playerObservationScope.scope,
+          ...(playerObservationScope.recipientIds === undefined ? {} : {
+            recipientIds: playerObservationScope.recipientIds.map(value => brandId(value, 'CharacterId')),
+          }),
+        },
+      )
+      : undefined
     const proposalContext: ProposalContext = {
       address: this.#address,
       roundId,
@@ -392,6 +467,9 @@ export class RoundCoordinator {
       sceneDecision?.schedulableCharacterIds,
       sceneDecision,
       head.headSeq,
+      playerAudience,
+      playerBaseResolution.status,
+      playerObservationScope.scope === 'scene_public',
     )
     const ordered = this.#orderedActions(playerAction, frozen)
     const contextHash = hashWorldJson('round-proposal-context', {
@@ -483,12 +561,14 @@ export class RoundCoordinator {
     let playerResolution: RulebookResolution | undefined
     for (const [ordinal, item] of ordered.entries()) {
       const actionPrefix = [...history, ...events]
-      const baseResolution = this.#rulebook.resolve({
-        manifest: this.#manifest,
-        events: actionPrefix,
-        characterId: item.action.actorId,
-        action: { actionType: item.action.actionType, parameters: item.action.parameters },
-      })
+      const baseResolution = item.sourceRole === 'player'
+        ? playerBaseResolution
+        : this.#rulebook.resolve({
+          manifest: this.#manifest,
+          events: actionPrefix,
+          characterId: item.action.actorId,
+          action: { actionType: item.action.actionType, parameters: item.action.parameters },
+        })
       const moveTarget = item.action.actionType === 'move'
         ? (item.action.parameters as WorldJsonObject).locationId
         : undefined
@@ -709,12 +789,23 @@ export class RoundCoordinator {
     schedulableCharacterIds?: readonly CharacterId[],
     sceneDecision?: SceneDecision,
     asOfWorldSeq = 0,
+    playerAudience?: SceneActionAudience,
+    playerStatus: RulebookResolution['status'] = 'accepted',
+    directorCanSeeFull = true,
   ): Promise<FrozenParticipant[]> {
     const frozen: FrozenParticipant[] = []
     const actionIds = new Set<string>([context.playerAction.actionId])
     const runner = new SafeAgentRunner(new ModelBudgetLedger(this.options.modelBudgetTokens))
     for (const binding of this.#participants) {
-      if (schedulableCharacterIds !== undefined && !schedulableCharacterIds.includes(binding.actorId)) continue
+      if (schedulableCharacterIds !== undefined) {
+        if (binding.role === 'agent' && !schedulableCharacterIds.includes(binding.actorId)) continue
+        if (binding.role === 'director') {
+          const eligible = sceneDecision?.schemaVersion === 'scene-decision/v2'
+            ? sceneDecision.directorEligible === true
+            : schedulableCharacterIds.includes(binding.actorId)
+          if (!eligible) continue
+        }
+      }
       if (currentCharacterLifecycle(history, binding.actorId) !== 'active') {
         frozen.push({ binding, status: 'lifecycle_ineligible', proposal: { participantId: binding.participantId, actions: [] } })
         continue
@@ -739,14 +830,17 @@ export class RoundCoordinator {
         ))
         continue
       }
-      let providerContext: ProposalContext | CognitiveProposalContext = context
+      const visible = participantVisibleContext(
+        context, binding, playerAudience, playerStatus, directorCanSeeFull,
+      )
+      let providerContext: ProposalContext | CognitiveProposalContext = visible.context
       let cognitive: FrozenParticipant['cognitive']
       if (this.options.contextPipeline !== undefined) {
         try {
           this.#renewLease()
           const prepared = this.options.contextPipeline.prepare(
-            binding, context, history as ReturnType<WorldStore['readEvents']>, sceneDecision!, asOfWorldSeq,
-            () => this.#renewLease(),
+            binding, visible.context, history as ReturnType<WorldStore['readEvents']>, sceneDecision!, asOfWorldSeq,
+            () => this.#renewLease(), visible.excludedStimulus,
           )
           providerContext = prepared.providerContext
           cognitive = {
@@ -772,13 +866,13 @@ export class RoundCoordinator {
           this.#renewLease()
           const prepared = this.options.cognitiveMemory.prepare({
             address: this.#address,
-            roundId: context.roundId,
-            tick: context.tick,
+            roundId: visible.context.roundId,
+            tick: visible.context.tick,
             participantId: binding.participantId,
             characterId: binding.actorId,
             asOfWorldSeq,
-            playerAction: context.playerAction,
-            candidateHash: context.candidateHash,
+            playerAction: visible.context.playerAction,
+            candidateHash: visible.context.candidateHash,
             allowedActionTypes: binding.allowedActionTypes,
             sceneDecision: sceneDecision!,
             correlationId: `cognitive:${context.roundId}:${binding.participantId}`,

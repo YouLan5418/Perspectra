@@ -175,6 +175,179 @@ describe('Phase8ContextPipeline', () => {
     value.store.close()
   })
 
+  it('limits Director context to public events from the focal Scene and uses exact membership provenance', () => {
+    const value = fixture()
+    const pipeline = new Phase8ContextPipeline(value.options)
+    const context = proposal(value.spec)
+    const durable = value.store.readEvents(value.spec.manifest.address)
+    const seed = durable.at(-1)!
+    const nextEvent = (
+      seq: number,
+      eventType: string,
+      data: Record<string, unknown>,
+    ): typeof seed => ({
+      ...seed,
+      seq,
+      eventType,
+      data: data as never,
+      eventHash: hashWorldJson('director-focal-scene-test-event/v1', { seq, eventType, data: data as never }),
+    })
+    const baseSeq = seed.seq
+    const focalLifecycle = nextEvent(baseSeq + 1, 'scene.lifecycle-changed', {
+      sceneId: 'scene:road', lifecycle: 'active',
+    })
+    const focalPublic = nextEvent(baseSeq + 2, 'character.speak', {
+      characterId: 'character:alice', text: 'FOCAL_PUBLIC_CANARY', scope: 'scene_public',
+    })
+    const focalPrivate = nextEvent(baseSeq + 3, 'character.speak', {
+      characterId: 'character:alice', text: 'FOCAL_PRIVATE_CANARY', scope: 'private',
+    })
+    const otherScene = nextEvent(baseSeq + 4, 'scene.upsert', {
+      sceneId: 'scene:elsewhere',
+      value: { lifecycle: 'active', locationId: 'location:elsewhere', participantIds: ['character:outsider'] },
+    })
+    const otherPublic = nextEvent(baseSeq + 5, 'character.speak', {
+      characterId: 'character:outsider', text: 'OTHER_SCENE_PUBLIC_CANARY', scope: 'scene_public',
+    })
+    const history = [...durable, focalLifecycle, focalPublic, focalPrivate, otherScene, otherPublic]
+    const original = new SceneDecisionService(value.store, value.availability, 2)
+      .decide(value.spec.manifest.address, context.playerAction.actorId, value.store.head(value.spec.manifest.address).headSeq)
+    const { decisionHash: _decisionHash, ...originalSemantic } = original
+    const semantic = { ...originalSemantic, asOfSeq: otherPublic.seq }
+    const decision = { ...semantic, decisionHash: hashWorldJson('scene-decision/v2', semantic) }
+    const prepared = pipeline.prepare(participant('director'), context, history, decision, decision.asOfSeq, () => undefined)
+    const exact = JSON.stringify(prepared.providerContext.exactProviderRequest)
+    expect(exact).toContain('FOCAL_PUBLIC_CANARY')
+    expect(exact).not.toContain('FOCAL_PRIVATE_CANARY')
+    expect(exact).not.toContain('OTHER_SCENE_PUBLIC_CANARY')
+    expect(prepared.receipt.includedSourceRefs).toContainEqual(expect.objectContaining({
+      sourceId: `event:${focalPublic.seq}`,
+    }))
+    expect(prepared.receipt.includedSourceRefs).not.toContainEqual(expect.objectContaining({
+      sourceId: `event:${focalPrivate.seq}`,
+    }))
+    expect(prepared.receipt.includedSourceRefs).not.toContainEqual(expect.objectContaining({
+      sourceId: `event:${otherPublic.seq}`,
+    }))
+    const sceneUpsert = durable.find(event => event.eventType === 'scene.upsert')!
+    const targetIds = prepared.receipt.includedSourceRefs
+      .filter(source => source.sourceKind === 'scene_public_event')
+      .map(source => source.sourceId)
+    expect(targetIds.filter(sourceId => sourceId === `event:${sceneUpsert.seq}`).length).toBeGreaterThanOrEqual(1)
+    pipeline.close()
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
+  })
+
+  it('fails closed on malformed Director visibility history and handles durable Scene membership transitions', () => {
+    const value = fixture()
+    const pipeline = new Phase8ContextPipeline(value.options)
+    const durable = value.store.readEvents(value.spec.manifest.address)
+    const seed = durable.at(-1)!
+    const event = (eventType: string, data: Record<string, unknown>, ordinal: number): typeof seed => ({
+      ...seed,
+      seq: seed.seq + ordinal,
+      eventType,
+      data: data as never,
+      eventHash: hashWorldJson('director-history-validation-test/v1', { eventType, data: data as never, ordinal }),
+    })
+    const decision = (
+      suffix: string,
+      overrides: Record<string, unknown> = {},
+    ) => {
+      const semantic = {
+        schemaVersion: 'scene-decision/v2' as const,
+        sceneId: 'scene:road',
+        memberIds: [brandId('character:player', 'CharacterId'), brandId('character:alice', 'CharacterId')],
+        observerIds: [brandId('character:player', 'CharacterId'), brandId('character:alice', 'CharacterId')],
+        schedulableCharacterIds: [brandId('character:alice', 'CharacterId')],
+        visibleResultCharacterIds: [brandId('character:player', 'CharacterId'), brandId('character:alice', 'CharacterId')],
+        directorEligible: true,
+        asOfSeq: seed.seq + 20,
+        ...overrides,
+      }
+      return {
+        context: { ...proposal(value.spec), roundId: brandId(`round:director-validation:${suffix}`, 'InteractionRoundId') },
+        decision: { ...semantic, decisionHash: hashWorldJson('scene-decision/v2', semantic as never) },
+      }
+    }
+
+    const absent = decision('absent', {
+      sceneId: null,
+      memberIds: [],
+      observerIds: [],
+      schedulableCharacterIds: [],
+      visibleResultCharacterIds: [],
+      directorEligible: false,
+      asOfSeq: seed.seq,
+    })
+    expect(() => pipeline.prepare(
+      participant('director'), absent.context, durable, absent.decision, absent.decision.asOfSeq, () => undefined,
+    )).toThrow('eligible focal Scene')
+    expect(() => pipeline.prepare(
+      participant(), absent.context, durable, absent.decision, seed.seq, () => undefined,
+    )).not.toThrow()
+
+    const joined = event('scene.member_joined', {
+      sceneId: 'scene:road', characterId: 'character:outsider',
+    }, 1)
+    const left = event('scene.member_left', {
+      sceneId: 'scene:road', characterId: 'character:alice',
+    }, 2)
+    const transitioned = decision('transitioned', {
+      memberIds: [brandId('character:player', 'CharacterId'), brandId('character:outsider', 'CharacterId')],
+      observerIds: [brandId('character:player', 'CharacterId'), brandId('character:outsider', 'CharacterId')],
+      schedulableCharacterIds: [brandId('character:outsider', 'CharacterId')],
+      visibleResultCharacterIds: [brandId('character:player', 'CharacterId'), brandId('character:outsider', 'CharacterId')],
+    })
+    const transitionedReceipt = pipeline.prepare(
+      participant('director'), transitioned.context, [...durable, joined, left], transitioned.decision,
+      transitioned.decision.asOfSeq, () => undefined,
+    ).receipt
+    expect(transitionedReceipt.includedSourceRefs).toContainEqual(expect.objectContaining({
+      sourceId: `event:${joined.seq}`,
+    }))
+
+    const invalidHistories = [
+      [event('scene.member_joined', { sceneId: 'scene:road' }, 3), 'scene.member_joined requires characterId'],
+      [event('scene.member_left', { sceneId: 'scene:road' }, 4), 'scene.member_left requires characterId'],
+      [event('scene.member_joined', { characterId: 'character:outsider' }, 5), 'requires sceneId'],
+      [event('scene.upsert', { sceneId: 'scene:road', value: {} }, 6), 'requires string participantIds'],
+      [event('scene.upsert', { sceneId: 'scene:road', value: { participantIds: [1] } }, 7), 'requires string participantIds'],
+      [event('character.speak', { characterId: 'character:alice' }, 8), 'requires characterId and scope'],
+      [event('character.speak', { scope: 'scene_public' }, 9), 'requires characterId and scope'],
+    ] as const
+    for (const [index, [invalid, message]] of invalidHistories.entries()) {
+      const request = decision(`invalid:${index}`)
+      expect(() => pipeline.prepare(
+        participant('director'), request.context, [...durable, invalid], request.decision,
+        request.decision.asOfSeq, () => undefined,
+      )).toThrow(message)
+    }
+
+    const characterRequest = decision('character-sources', { asOfSeq: seed.seq })
+    const characterHistory = [
+      ...durable,
+      event('scene.lifecycle-changed', { sceneId: 'scene:road', lifecycle: 'active' }, 10),
+      event('scene.lifecycle-changed', { lifecycle: 'active' }, 11),
+      event('visibility.observer-hidden', { value: { sceneId: 'scene:road' } }, 12),
+      event('visibility.observer-hidden', { value: {} }, 13),
+      event('visibility.observer-hidden', {}, 14),
+      event('character.location-changed', { characterId: 'character:alice' }, 15),
+      event('character.lifecycle-changed', { characterId: 'character:outsider' }, 16),
+      event('character.created', {}, 17),
+    ].map(value => value.seq <= seed.seq ? value : { ...value, seq: seed.seq })
+    expect(() => pipeline.prepare(
+      participant(), characterRequest.context, characterHistory, characterRequest.decision,
+      characterRequest.decision.asOfSeq, () => undefined,
+    )).not.toThrow()
+    pipeline.close()
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
+  })
+
   it('rejects incompatible runtime versions and malformed Scene inputs', () => {
     const value = fixture()
     const legacyMemory = new CognitiveMemoryService(join(value.storage.context, '..', 'legacy-memory.sqlite'), value.store)
