@@ -112,6 +112,72 @@ describe('SpeakMoveRulebook', () => {
     }
   })
 
+  it('resolves structured Manifest v4 speech without changing legacy Utterance bytes', () => {
+    const world = compiled()
+    const manifest = {
+      ...world.manifest,
+      schemaVersion: 4 as const,
+      characters: [
+        ...world.manifest.characters,
+        { characterId: 'character:bob', name: 'Bob', locationId: 'location:a' },
+      ],
+    }
+    const rulebook = new SpeakMoveRulebook()
+    const history = [
+      { eventType: 'character.created', data: { characterId: 'character:player', locationId: 'location:a' } },
+      { eventType: 'character.created', data: { characterId: 'character:bob', locationId: 'location:a' } },
+    ]
+    expect(rulebook.resolve(manifest as never, history, 'character:player', {
+      actionType: 'speak',
+      parameters: {
+        text: '只告诉 Bob', addresseeIds: ['character:bob'], scope: 'private',
+        replyTo: 'utterance:earlier', declaredSpeechAct: 'answer',
+      },
+    })).toEqual({
+      status: 'accepted',
+      events: [{
+        eventType: 'character.speak', eventVersion: 1,
+        data: {
+          characterId: 'character:player', text: '只告诉 Bob', addresseeIds: ['character:bob'],
+          scope: 'private', replyTo: 'utterance:earlier', declaredSpeechAct: 'answer',
+        },
+      }],
+      observationScope: { scope: 'private', recipientIds: ['character:bob'] },
+    })
+    expect(rulebook.resolve(manifest as never, history, 'character:player', {
+      actionType: 'speak', parameters: { text: '公开发言' },
+    })).toMatchObject({
+      status: 'accepted',
+      events: [{ data: { addresseeIds: [], scope: 'scene_public', replyTo: null, declaredSpeechAct: null } }],
+      observationScope: { scope: 'scene_public' },
+    })
+    expect(rulebook.resolve(manifest as never, history, 'character:player', {
+      actionType: 'speak', parameters: { text: '只对自己说', scope: 'self' },
+    })).toMatchObject({ status: 'accepted', observationScope: { scope: 'self' } })
+    expect(rulebook.resolve(manifest as never, history, 'character:player', {
+      actionType: 'speak', parameters: { text: '直接告诉 Bob', scope: 'direct', addresseeIds: ['character:bob'] },
+    })).toMatchObject({ status: 'accepted', observationScope: { scope: 'direct', recipientIds: ['character:bob'] } })
+
+    for (const parameters of [
+      null,
+      { text: '' },
+      { text: 'x', scope: 'unknown' },
+      { text: 'x', scope: 'private' },
+      { text: 'x', scope: 'scene_public', addresseeIds: ['character:bob'] },
+      { text: 'x', scope: 'private', addresseeIds: 'character:bob' },
+      { text: 'x', scope: 'private', addresseeIds: ['character:missing'] },
+      { text: 'x', scope: 'private', addresseeIds: ['character:player'] },
+      { text: 'x', scope: 'private', addresseeIds: ['character:bob', 'character:bob'] },
+      { text: 'x', replyTo: '' },
+      { text: 'x', declaredSpeechAct: ' padded ' },
+      { text: 'x', extra: true },
+    ]) {
+      expect(rulebook.resolve(manifest as never, history, 'character:player', {
+        actionType: 'speak', parameters: parameters as never,
+      })).toMatchObject({ status: 'rejected', reason: 'speak parameters are invalid for Manifest v4' })
+    }
+  })
+
   it('takes an available manifest entity once under Rulebook v2', () => {
     const base = compiled().manifest
     const manifest = {

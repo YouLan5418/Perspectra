@@ -101,6 +101,49 @@ export function rejectRulebookResolution(characterId: string, actionType: string
   }
 }
 
+function phase8Speech(
+  manifest: CompiledWorldManifest,
+  characterId: string,
+  parameters: Record<string, WorldJsonValue> | undefined,
+): RulebookResolution {
+  const text = parameters?.text
+  const scope = parameters?.scope ?? 'scene_public'
+  const addresseeIds = parameters?.addresseeIds ?? []
+  const recipients = Array.isArray(addresseeIds) ? addresseeIds : []
+  const replyTo = parameters?.replyTo ?? null
+  const declaredSpeechAct = parameters?.declaredSpeechAct ?? null
+  const allowedKeys = new Set(['text', 'addresseeIds', 'scope', 'replyTo', 'declaredSpeechAct'])
+  const parameterKeys = parameters === undefined ? [] : Object.keys(parameters)
+  const validText = typeof text === 'string' && text.length > 0
+  const validScope = scope === 'scene_public' || scope === 'direct' || scope === 'private' || scope === 'self'
+  const validAddressees = Array.isArray(addresseeIds)
+    && addresseeIds.every(value => typeof value === 'string'
+      && value !== characterId
+      && manifest.characters.some(character => character.characterId === value))
+    && new Set(addresseeIds).size === addresseeIds.length
+  const validAddressing = (scope === 'direct' || scope === 'private')
+    ? recipients.length > 0
+    : recipients.length === 0
+  const validOptionalText = (value: WorldJsonValue): boolean => value === null
+    || (typeof value === 'string' && value.length > 0 && value.trim() === value)
+  if (!validText || !validScope || !validAddressees || !validAddressing
+    || !validOptionalText(replyTo) || !validOptionalText(declaredSpeechAct)
+    || parameterKeys.some(key => !allowedKeys.has(key))) {
+    return rejectRulebookResolution(characterId, 'speak', 'speak parameters are invalid for Manifest v4')
+  }
+  return {
+    status: 'accepted',
+    events: [{
+      eventType: 'character.speak', eventVersion: 1,
+      data: { characterId, text, addresseeIds: recipients, scope, replyTo, declaredSpeechAct },
+    }],
+    observationScope: {
+      scope,
+      ...(scope === 'direct' || scope === 'private' ? { recipientIds: recipients as readonly string[] } : {}),
+    },
+  }
+}
+
 /** Product-neutral deterministic rules for speech, movement, and entity taking. */
 export class SpeakMoveRulebook {
   resolveSupported(
@@ -113,6 +156,7 @@ export class SpeakMoveRulebook {
     if (lifecycle !== 'active') return rejectRulebookResolution(characterId, action.actionType, `character lifecycle ${lifecycle ?? 'missing'} cannot act`)
     const parameters = worldJsonObject(action.parameters)
     if (action.actionType === 'speak') {
+      if (manifest.schemaVersion === 4) return phase8Speech(manifest, characterId, parameters)
       const text = parameters?.text
       if (typeof text !== 'string' || text.length === 0) return rejectRulebookResolution(characterId, action.actionType, 'speak requires non-empty text')
       return {
