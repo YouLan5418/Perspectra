@@ -145,6 +145,21 @@ describe('ProviderCallStore', () => {
     store.close()
   })
 
+  it('serializes deterministic prepare across two open connections', () => {
+    const databasePath = path()
+    const first = new ProviderCallStore(databasePath)
+    const second = new ProviderCallStore(databasePath)
+    const contextReceipt = receipt('agent:dual-connection')
+    const prepared = first.prepare(contextReceipt)
+    expect(second.prepare(contextReceipt)).toEqual(prepared)
+    expect(() => second.prepare(receipt('agent:dual-connection', {
+      manifestHash: hashWorldJson('manifest', { version: 99 }),
+    }))).toThrow('diverged')
+    expect(first.read(prepared.modelCallId)).toEqual(prepared)
+    first.close()
+    second.close()
+  })
+
   it('fails closed on corrupted hashes, namespaces, and future schemas', () => {
     const databasePath = path()
     const store = new ProviderCallStore(databasePath)

@@ -160,23 +160,30 @@ export class ProviderCallStore {
 
   prepare(receipt: ContextReceipt): ProviderCallRecord {
     const intent = intentFromReceipt(receipt)
-    this.#db.prepare(`
-      INSERT OR IGNORE INTO provider_calls(
-        model_call_id, namespace_key, round_id, participant_id, receipt_id, receipt_hash, controller_epoch,
-        context_hash, provider_request_hash, state
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'prepared')
-    `).run(
-      intent.modelCallId, worldAddressKey(intent.address), intent.roundId, intent.participantId,
-      intent.receiptId, intent.receiptHash, intent.controllerEpoch, intent.contextHash, intent.providerRequestHash,
-    )
-    const existing = this.#db.prepare(`
-      SELECT model_call_id FROM provider_calls
-      WHERE namespace_key = ? AND round_id = ? AND participant_id = ?
-    `).get(worldAddressKey(intent.address), intent.roundId, intent.participantId) as { model_call_id: string }
-    const record = this.read(existing.model_call_id)!
-    if (hashWorldJson('provider-call-intent/v1', this.#intent(record))
-      !== hashWorldJson('provider-call-intent/v1', intent)) this.#conflict(intent.modelCallId)
-    return record
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      this.#db.prepare(`
+        INSERT OR IGNORE INTO provider_calls(
+          model_call_id, namespace_key, round_id, participant_id, receipt_id, receipt_hash, controller_epoch,
+          context_hash, provider_request_hash, state
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'prepared')
+      `).run(
+        intent.modelCallId, worldAddressKey(intent.address), intent.roundId, intent.participantId,
+        intent.receiptId, intent.receiptHash, intent.controllerEpoch, intent.contextHash, intent.providerRequestHash,
+      )
+      const existing = this.#db.prepare(`
+        SELECT model_call_id FROM provider_calls
+        WHERE namespace_key = ? AND round_id = ? AND participant_id = ?
+      `).get(worldAddressKey(intent.address), intent.roundId, intent.participantId) as { model_call_id: string }
+      const record = this.read(existing.model_call_id)!
+      if (hashWorldJson('provider-call-intent/v1', this.#intent(record))
+        !== hashWorldJson('provider-call-intent/v1', intent)) this.#conflict(intent.modelCallId)
+      this.#db.exec('COMMIT')
+      return record
+    } catch (error: unknown) {
+      this.#db.exec('ROLLBACK')
+      throw error
+    }
   }
 
   markDispatchStarted(modelCallId: string): ProviderCallRecord {

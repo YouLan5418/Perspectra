@@ -91,6 +91,20 @@ describe('ContextReceiptStore and ContextExplainService', () => {
     store.close()
   })
 
+  it('serializes append-once verification across two open connections', () => {
+    const databasePath = path()
+    const first = new ContextReceiptStore(databasePath)
+    const second = new ContextReceiptStore(databasePath)
+    const receipt = first.append(request())
+    expect(second.append(request())).toEqual(receipt)
+    expect(() => second.append(request({
+      contextHash: hashWorldJson('context', { value: 2 }),
+    }))).toThrow('diverged')
+    expect(first.read(receipt.receiptId)).toEqual(receipt)
+    first.close()
+    second.close()
+  })
+
   it('rejects invalid scope, watermarks and future sources', () => {
     expect(() => createContextReceipt(request({ baseHeadSeq: 11 }))).toThrow('later')
     expect(() => createContextReceipt(request({ tick: -1 }))).toThrow('non-negative')

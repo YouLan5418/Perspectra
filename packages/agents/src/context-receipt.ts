@@ -169,28 +169,35 @@ export class ContextReceiptStore {
   append(request: CreateContextReceiptRequest): ContextReceipt {
     const receipt = createContextReceipt(request)
     const text = jsonText(receipt)
-    this.#db.prepare(`
-      INSERT OR IGNORE INTO context_receipts(
-        receipt_id, namespace_key, round_id, participant_id, receipt_json, receipt_hash
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
-      receipt.receiptId, worldAddressKey(receipt.address), receipt.roundId,
-      receipt.participantId, text, receipt.receiptHash,
-    )
-    const stored = this.#db.prepare(`
-      SELECT receipt_json, receipt_hash FROM context_receipts
-      WHERE namespace_key = ? AND round_id = ? AND participant_id = ?
-    `).get(
-      worldAddressKey(receipt.address), receipt.roundId, receipt.participantId,
-    ) as { receipt_json: string; receipt_hash: WorldHash }
-    if (stored.receipt_json !== text || stored.receipt_hash !== receipt.receiptHash) {
-      failWorld({
-        errorCode: 'CONTEXT_REBUILD_DIVERGED', category: 'integrity',
-        message: 'Context receipt diverged for the same deterministic identity', retryable: false,
-        correlationId: `context-receipt:${receipt.receiptId}`, address: receipt.address, roundId: receipt.roundId,
-      })
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      this.#db.prepare(`
+        INSERT OR IGNORE INTO context_receipts(
+          receipt_id, namespace_key, round_id, participant_id, receipt_json, receipt_hash
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        receipt.receiptId, worldAddressKey(receipt.address), receipt.roundId,
+        receipt.participantId, text, receipt.receiptHash,
+      )
+      const stored = this.#db.prepare(`
+        SELECT receipt_json, receipt_hash FROM context_receipts
+        WHERE namespace_key = ? AND round_id = ? AND participant_id = ?
+      `).get(
+        worldAddressKey(receipt.address), receipt.roundId, receipt.participantId,
+      ) as { receipt_json: string; receipt_hash: WorldHash }
+      if (stored.receipt_json !== text || stored.receipt_hash !== receipt.receiptHash) {
+        failWorld({
+          errorCode: 'CONTEXT_REBUILD_DIVERGED', category: 'integrity',
+          message: 'Context receipt diverged for the same deterministic identity', retryable: false,
+          correlationId: `context-receipt:${receipt.receiptId}`, address: receipt.address, roundId: receipt.roundId,
+        })
+      }
+      this.#db.exec('COMMIT')
+      return receipt
+    } catch (error: unknown) {
+      this.#db.exec('ROLLBACK')
+      throw error
     }
-    return receipt
   }
 
   read(receiptId: string): ContextReceipt | undefined {
