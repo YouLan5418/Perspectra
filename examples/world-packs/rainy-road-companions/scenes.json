@@ -11,7 +11,7 @@
       "sceneId": "scene:station-platform",
       "lifecycle": "created",
       "locationId": "location:station-platform",
-      "participantIds": ["character:player", "character:alice", "character:bob"]
+      "participantIds": []
     }
   ]
 }

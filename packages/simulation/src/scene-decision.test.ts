@@ -195,6 +195,77 @@ describe('SceneDecisionService', () => {
     store.close()
   })
 
+  it('derives deterministic Location-bound Scene transitions for generic movement', () => {
+    const { compiled, store, availability } = fixture()
+    const service = new SceneDecisionService(store, availability, 2)
+    const legacy = new SceneDecisionService(store, availability)
+    const player = brandId(MYSTERY_DEMO_IDS.player, 'CharacterId')
+    const bob = brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId')
+    const base = phase8Events()
+    const transition = (characterId: typeof bob, locationId: string, events = base) => service.transitionForMove(
+      compiled.manifest.address, events, characterId, locationId, events.length,
+    )
+    expect(transition(bob, 'location:station')).toEqual([
+      { eventType: 'scene.member_left', eventVersion: 1, data: { sceneId: 'scene:road', characterId: bob } },
+      { eventType: 'scene.activated', eventVersion: 1, data: { sceneId: 'scene:station' } },
+      { eventType: 'scene.member_joined', eventVersion: 1, data: { sceneId: 'scene:station', characterId: bob } },
+    ])
+    expect(transition(player, 'location:road')).toEqual([])
+    expect(transition(player, 'location:absent')).toEqual([
+      { eventType: 'scene.member_left', eventVersion: 1, data: { sceneId: 'scene:road', characterId: player } },
+    ])
+    const singleMember = base.map(event => event.eventType !== 'scene.upsert'
+      || (event.data as Record<string, unknown>).sceneId !== 'scene:road'
+      ? event
+      : {
+        ...event,
+        data: { sceneId: 'scene:road', value: { lifecycle: 'active', locationId: 'location:road', participantIds: [player] } },
+      })
+    expect(transition(player, 'location:absent', singleMember)).toEqual([
+      { eventType: 'scene.member_left', eventVersion: 1, data: { sceneId: 'scene:road', characterId: player } },
+      { eventType: 'scene.closed', eventVersion: 1, data: { sceneId: 'scene:road' } },
+    ])
+    const activeDestination = [
+      ...base,
+      { eventType: 'scene.activated', data: { sceneId: 'scene:station' } },
+    ]
+    expect(transition(bob, 'location:station', activeDestination)).toEqual([
+      { eventType: 'scene.member_left', eventVersion: 1, data: { sceneId: 'scene:road', characterId: bob } },
+      { eventType: 'scene.member_joined', eventVersion: 1, data: { sceneId: 'scene:station', characterId: bob } },
+    ])
+    const alreadyWaiting = base.map(event => event.eventType !== 'scene.upsert'
+      || (event.data as Record<string, unknown>).sceneId !== 'scene:station'
+      ? event
+      : {
+        ...event,
+        data: { sceneId: 'scene:station', value: { lifecycle: 'created', locationId: 'location:station', participantIds: [bob] } },
+      })
+    expect(transition(bob, 'location:station', alreadyWaiting)).toEqual([
+      { eventType: 'scene.member_left', eventVersion: 1, data: { sceneId: 'scene:road', characterId: bob } },
+      { eventType: 'scene.activated', eventVersion: 1, data: { sceneId: 'scene:station' } },
+    ])
+    const absent = brandId('character:absent', 'CharacterId')
+    expect(transition(absent, 'location:station')).toEqual([
+      { eventType: 'scene.activated', eventVersion: 1, data: { sceneId: 'scene:station' } },
+      { eventType: 'scene.member_joined', eventVersion: 1, data: { sceneId: 'scene:station', characterId: absent } },
+    ])
+    expect(() => legacy.transitionForMove(compiled.manifest.address, base, bob, 'location:station', 5)).toThrow(TypeError)
+    expect(() => transition(bob, 'location:station', [...base, {
+      eventType: 'scene.upsert',
+      data: { sceneId: 'scene:overlap', value: { lifecycle: 'active', locationId: null, participantIds: [bob] } },
+    }])).toThrowError(expect.objectContaining<Partial<WorldError>>({
+      envelope: expect.objectContaining({ errorCode: 'PROJECTION_INVARIANT_FAILED' }),
+    }))
+    expect(() => transition(bob, 'location:station', [...base, {
+      eventType: 'scene.upsert',
+      data: { sceneId: 'scene:station-2', value: { lifecycle: 'created', locationId: 'location:station', participantIds: [] } },
+    }])).toThrowError(expect.objectContaining<Partial<WorldError>>({
+      envelope: expect.objectContaining({ errorCode: 'PROJECTION_INVARIANT_FAILED' }),
+    }))
+    availability.close()
+    store.close()
+  })
+
   it('narrows full and occurrence-only action audiences without leaking private content', () => {
     const { compiled, store, availability } = fixture()
     const service = new SceneDecisionService(store, availability, 2)

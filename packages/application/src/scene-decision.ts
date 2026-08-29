@@ -3,6 +3,7 @@ import {
   hashWorldJson,
   type CharacterId,
   type WorldAddress,
+  type WorldEventDraft,
   type WorldHash,
   type WorldJsonObject,
   type WorldJsonValue,
@@ -180,6 +181,60 @@ export class SceneDecisionService {
 
   decide(address: WorldAddress, player: CharacterId, asOfSeq: number): SceneDecision {
     return this.decideFromEvents(address, player, this.store.readEvents(address, asOfSeq), asOfSeq)
+  }
+
+  /**
+   * Derive the durable Scene membership changes for a generic move. A Location-bound Scene is
+   * selected only when the target Location identifies at most one non-closed Scene; Location
+   * itself never becomes a second Scene state source.
+   */
+  transitionForMove(
+    address: WorldAddress,
+    events: readonly RulebookEvent[],
+    characterId: CharacterId,
+    targetLocationId: string,
+    asOfSeq: number,
+  ): readonly WorldEventDraft[] {
+    if (this.version !== 2) throw new TypeError('move-driven Scene transitions require Scene Decision v2')
+    try {
+      const scenes = phase8SceneState(events)
+      const sources = scenes.filter(scene => scene.lifecycle === 'active' && scene.participantIds.includes(characterId))
+      if (sources.length > 1) throw new TypeError(`${characterId} belongs to multiple active Scenes before move`)
+      const destinations = scenes.filter(scene => scene.lifecycle !== 'closed' && scene.locationId === targetLocationId)
+      if (destinations.length > 1) throw new TypeError(`Location ${targetLocationId} maps to multiple open Scenes`)
+      const source = sources[0]
+      const destination = destinations[0]
+      if (source?.sceneId === destination?.sceneId) return []
+      const transitions: WorldEventDraft[] = []
+      if (source !== undefined) {
+        transitions.push({
+          eventType: 'scene.member_left', eventVersion: 1,
+          data: { sceneId: source.sceneId, characterId },
+        })
+        if (source.participantIds.length === 1) {
+          transitions.push({ eventType: 'scene.closed', eventVersion: 1, data: { sceneId: source.sceneId } })
+        }
+      }
+      if (destination !== undefined) {
+        if (destination.lifecycle === 'created') {
+          transitions.push({ eventType: 'scene.activated', eventVersion: 1, data: { sceneId: destination.sceneId } })
+        }
+        if (!destination.participantIds.includes(characterId)) {
+          transitions.push({
+            eventType: 'scene.member_joined', eventVersion: 1,
+            data: { sceneId: destination.sceneId, characterId },
+          })
+        }
+      }
+      return transitions
+    } catch (error: unknown) {
+      failWorld({
+        errorCode: 'PROJECTION_INVARIANT_FAILED', category: 'integrity',
+        message: `Scene move transition is malformed: ${String(error)}`, retryable: false,
+        correlationId: `scene-move:${characterId}:${asOfSeq}`, address,
+        details: { characterId, targetLocationId, asOfSeq },
+      })
+    }
   }
 
   decideFromEvents(

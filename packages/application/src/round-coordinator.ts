@@ -483,12 +483,28 @@ export class RoundCoordinator {
     let playerResolution: RulebookResolution | undefined
     for (const [ordinal, item] of ordered.entries()) {
       const actionPrefix = [...history, ...events]
-      const resolution = this.#rulebook.resolve({
+      const baseResolution = this.#rulebook.resolve({
         manifest: this.#manifest,
         events: actionPrefix,
         characterId: item.action.actorId,
         action: { actionType: item.action.actionType, parameters: item.action.parameters },
       })
+      const moveTarget = item.action.actionType === 'move'
+        ? (item.action.parameters as WorldJsonObject).locationId
+        : undefined
+      const resolution: RulebookResolution = baseResolution.status === 'accepted'
+        && typeof moveTarget === 'string'
+        && this.options.sceneDecision?.version === 2
+        ? {
+          ...baseResolution,
+          events: [
+            ...baseResolution.events,
+            ...this.options.sceneDecision.transitionForMove(
+              this.#address, actionPrefix, item.action.actorId, moveTarget, head.headSeq + events.length,
+            ),
+          ],
+        }
+        : baseResolution
       const phase8Audience = this.options.sceneDecision?.version === 2
         ? this.options.sceneDecision.audienceForAction(
           this.#address,

@@ -2,10 +2,10 @@ import { cp, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { WorldApplication } from '@harness-world/application'
+import { SceneDecisionService, WorldApplication } from '@harness-world/application'
 import { brandId, PHASE8_REGISTRY_LOCKS, PHASE8_VOCABULARY_LOCKS } from '@harness-world/contracts'
 import { currentEntityState, currentLocation, WorldBootstrap } from '@harness-world/kernel'
-import { CognitionProjectionRebuilder, WorldStore } from '@harness-world/store-sqlite'
+import { CharacterRuntimeAvailabilityService, CognitionProjectionRebuilder, WorldStore } from '@harness-world/store-sqlite'
 import {
   RAINY_ROAD_IDS,
   adaptRainyRoadPack,
@@ -47,7 +47,7 @@ describe('Phase 8 rainy-road acceptance Pack source', () => {
       vocabularyLocks: PHASE8_VOCABULARY_LOCKS,
       registryLocks: PHASE8_REGISTRY_LOCKS,
     })
-    expect(pack.packHash).toBe('sha256:9796276f19488bdc7d94a59f6c728ef5134d32ce5abfe0b8458e992f9601f08b')
+    expect(pack.packHash).toBe('sha256:76098df56b8a9169861f5094159d41ee7d6ef26c018339c8017615eb4686e0b8')
     expect(JSON.stringify(pack)).not.toMatch(/investigation|evidence|accuse|travel_action/iu)
 
     const address = {
@@ -163,10 +163,25 @@ describe('Phase 8 rainy-road acceptance Pack source', () => {
       expect(currentLocation(events, RAINY_ROAD_IDS.alice)).toBe(RAINY_ROAD_IDS.station)
       expect(currentLocation(events, RAINY_ROAD_IDS.bob)).toBe(RAINY_ROAD_IDS.station)
       expect(currentEntityState(events, RAINY_ROAD_IDS.tickets)).toMatchObject({ holderId: RAINY_ROAD_IDS.alice })
+      expect(events.filter(event => event.eventType === 'scene.activated')).toMatchObject([
+        { data: { sceneId: 'scene:station-platform' } },
+      ])
+      expect(events.filter(event => event.eventType === 'scene.closed')).toMatchObject([
+        { data: { sceneId: 'scene:road-shelter' } },
+      ])
+      expect(events.filter(event => event.eventType === 'scene.member_joined')).toHaveLength(3)
+      expect(events.filter(event => event.eventType === 'scene.member_left')).toHaveLength(3)
 
       const verificationStore = new WorldStore(join(root, 'world.sqlite'))
       const cognition = new CognitionProjectionRebuilder(verificationStore)
         .rebuildCharacterAt(parent, RAINY_ROAD_IDS.alice, sixth.headSeq)
+      const verificationAvailability = new CharacterRuntimeAvailabilityService(join(root, 'world.sqlite'))
+      expect(new SceneDecisionService(verificationStore, verificationAvailability, 2)
+        .decide(parent, RAINY_ROAD_IDS.player, sixth.headSeq)).toMatchObject({
+        sceneId: 'scene:station-platform',
+        schedulableCharacterIds: [RAINY_ROAD_IDS.alice, RAINY_ROAD_IDS.bob],
+      })
+      verificationAvailability.close()
       verificationStore.close()
       const trust = cognition.relationships.find(record =>
         (record.value as Record<string, unknown>).type === 'trust')!
