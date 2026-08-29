@@ -236,6 +236,13 @@ interface CognitiveSourceCandidate {
   readonly metadata: WorldJsonValue
 }
 
+const EPISODIC_OBSERVATION_KINDS = new Set<CognitiveEpistemicKind>([
+  'direct_observation',
+  'observed_action',
+  'subjective_inference',
+  'self_intention',
+])
+
 function objectValue(value: WorldJsonValue, path: string): WorldJsonObject {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error(`${path} must be an object`)
   return value as WorldJsonObject
@@ -760,10 +767,11 @@ export class LocalMemoryStore {
           metadata = { observationId: data.id, speakerId: speech.characterId }
         } else {
           const declared = value.epistemicKind
-          if (declared !== undefined && declared !== 'direct_observation' && declared !== 'observed_action') {
+          if (declared !== undefined && !EPISODIC_OBSERVATION_KINDS.has(declared as CognitiveEpistemicKind)) {
             throw new Error('observation epistemicKind is unsupported for episodic capture')
           }
-          epistemicKind = declared ?? (contentObject?.actionType === undefined ? 'direct_observation' : 'observed_action')
+          epistemicKind = declared as Exclude<CognitiveEpistemicKind, 'derived_summary'> | undefined
+            ?? (contentObject?.actionType === undefined ? 'direct_observation' : 'observed_action')
         }
         candidates.push({
           sourceType: 'observation',

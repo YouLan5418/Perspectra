@@ -103,6 +103,33 @@ function plan(characterId: CharacterId, query: string, asOfWorldSeq = 8, planId 
 }
 
 describe('Cognitive Memory v2', () => {
+  it('captures the frozen subjective inference and self intention observation kinds', async () => {
+    const path = paths()
+    const world = new WorldStore(path.world)
+    world.createBranch(address())
+    await commit(world, 'subjective-observations', [
+      { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
+      { eventType: 'observation.upsert', eventVersion: 1, data: {
+        id: 'observation:alice:inference',
+        value: { observerId: alice, content: 'Bob may be hiding something', epistemicKind: 'subjective_inference' },
+      } },
+      { eventType: 'observation.upsert', eventVersion: 1, data: {
+        id: 'observation:alice:intention',
+        value: { observerId: alice, content: 'I will reach the station', epistemicKind: 'self_intention' },
+      } },
+    ])
+    const memory = new LocalMemoryStore(path.memory, world)
+    memory.catchUpV2(address(), alice, 3, 'catchup:subjective-observations')
+    expect(memory.recallV2(plan(alice, 'Bob', 3)).memories).toMatchObject([{
+      memoryKind: 'episodic', epistemicKind: 'subjective_inference',
+    }])
+    expect(memory.recallV2(plan(alice, 'station', 3)).memories).toMatchObject([{
+      memoryKind: 'episodic', epistemicKind: 'self_intention',
+    }])
+    memory.close()
+    world.close()
+  })
+
   it('captures four source kinds, keeps reported speech subjective, and persists stable receipts and L1 extracts', async () => {
     const { world, memory } = await fixture()
     const first = new CognitiveMemoryWorker(memory).catchUp(address(), alice, 8)
