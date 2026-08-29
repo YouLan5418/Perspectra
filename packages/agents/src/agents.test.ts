@@ -182,10 +182,14 @@ describe('Harness port, budget, and failure containment', () => {
       .resolves.toMatchObject({ status: 'proposed' })
     await expect(runner.invoke('call:raw', 2, 100, success, context))
       .resolves.toEqual({ status: 'proposed', output: { participantId: 'participant:agent', actions: [] } })
-    let dispatched = false
-    await expect(runner.invoke('call:hook', 2, 100, success, context, () => { dispatched = true }))
+    const dispatches: string[] = []
+    await expect(runner.invoke(
+      'call:hook', 2, 100, success, context,
+      () => { dispatches.push('before') },
+      () => { dispatches.push('after') },
+    ))
       .resolves.toMatchObject({ status: 'proposed' })
-    expect(dispatched).toBe(true)
+    expect(dispatches).toEqual(['before', 'after'])
     await expect(runner.propose('call:failure', 2, 100, 'participant:agent', failure, context))
       .resolves.toEqual({ status: 'fallback', proposal: { participantId: 'participant:agent', actions: [] }, failure: 'provider_failed' })
     await expect(runner.propose('call:deadline', 2, 0, 'participant:agent', success, context))

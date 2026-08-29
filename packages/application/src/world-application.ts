@@ -330,6 +330,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         ...(cognitiveMemory === undefined ? {} : { cognitiveMemory }),
         ...(contextPipeline === undefined ? {} : { contextPipeline }),
         ...(providerCalls === undefined ? {} : { providerCalls }),
+        ...(this.options.faultInjector === undefined ? {} : { faultInjector: this.options.faultInjector }),
         runtimeMetrics: this.options.runtimeMetrics,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
       })

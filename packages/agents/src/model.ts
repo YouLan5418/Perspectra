@@ -141,6 +141,7 @@ export class SafeAgentRunner {
     provider: { propose(context: ProposalContext): Promise<Output> },
     context: ProposalContext,
     beforeDispatch?: () => void,
+    afterDispatch?: () => void,
   ): Promise<SafeProviderResult<Output>> {
     const reservation = this.budget.reserve(callId, estimatedTokens)
     if (reservation === undefined) return { status: 'fallback', failure: 'budget_exhausted' }
@@ -151,7 +152,9 @@ export class SafeAgentRunner {
         timer = setTimeout(() => reject(new ProviderTimeout('provider timeout')), timeoutMs)
       })
       beforeDispatch?.()
-      const output = await Promise.race([provider.propose(context), timeout])
+      const providerResult = provider.propose(context)
+      afterDispatch?.()
+      const output = await Promise.race([providerResult, timeout])
       this.budget.settle(callId, estimatedTokens)
       return { status: 'proposed', output }
     } catch (error: unknown) {

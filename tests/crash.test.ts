@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, createErrorEnvelope } from '@harness-world/contracts'
+import { brandId, createErrorEnvelope, type SubmitActionsV2 } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { LocalJsonRpcRouter, WorldHostInstanceLock } from '@harness-world/operations'
@@ -23,6 +23,7 @@ import {
   fixtureDeliveryRequest,
   hardKillAt,
 } from '@harness-world/testkit'
+import { phase8ProviderCrashWorld } from './fixtures/phase8-provider-world.ts'
 
 const directories: string[] = []
 const worker = fileURLToPath(new URL('./workers/crash-worker.ts', import.meta.url))
@@ -32,6 +33,7 @@ const quarantineWorker = fileURLToPath(new URL('./workers/quarantine-crash-worke
 const acceptedRoundWorker = fileURLToPath(new URL('./workers/accepted-round-crash-worker.ts', import.meta.url))
 const instanceLockWorker = fileURLToPath(new URL('./workers/instance-lock-crash-worker.ts', import.meta.url))
 const memoryV2Worker = fileURLToPath(new URL('./workers/memory-v2-crash-worker.ts', import.meta.url))
+const providerCallWorker = fileURLToPath(new URL('./workers/provider-call-crash-worker.ts', import.meta.url))
 
 function database(name: string): string {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-crash-'))
@@ -349,4 +351,73 @@ describe('hard process termination recovery', () => {
       .resolves.toMatchObject({ status: 'committed', result: { status: 'accepted', tick: 1 } })
     await recovered.close()
   })
+
+  it.each([
+    ['provider.before-dispatch', 'prepared', 1, 'committed'],
+    ['provider.after-dispatch', 'dispatch_started', 0, 'timed_out_ambiguous'],
+    ['provider.after-response', 'response_received', 0, 'committed'],
+    ['provider.before-world-commit', 'validated', 0, 'committed'],
+  ] as const)(
+    'recovers the Provider call lifecycle without duplicate dispatch at %s',
+    async (point, interruptedState, expectedRecoveredCalls, finalState) => {
+      const worldPath = database(`${point}-world.sqlite`)
+      const sessionPath = worldPath.replace('-world.sqlite', '-session.sqlite')
+      const memoryPath = worldPath.replace('-world.sqlite', '-memory.sqlite')
+      const contextPath = `${memoryPath}.context.sqlite`
+      const compiled = phase8ProviderCrashWorld()
+      await hardKillAt(providerCallWorker, [worldPath, sessionPath, memoryPath, point])
+
+      const interrupted = new DatabaseSync(contextPath, { readOnly: true })
+      const interruptedCall = interrupted.prepare('SELECT state FROM provider_calls').get()
+      interrupted.close()
+      expect(interruptedCall).toEqual({ state: interruptedState })
+
+      let recoveredCalls = 0
+      const recovered = new WorldApplication({
+        worldPath, sessionPath, memoryPath,
+        runtimeOwnerId: 'application:p8-crash-recovered', leaseTtlMs: 500, modelBudgetTokens: 10,
+        participants: () => [{
+          participantId: 'agent:p8-crash', role: 'agent',
+          actorId: brandId('character:npc', 'CharacterId'),
+          allowedActionTypes: ['speak'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+          provider: {
+            async propose(): Promise<SubmitActionsV2> {
+              recoveredCalls += 1
+              return {
+                schemaVersion: 2, decision: 'act',
+                actions: [{
+                  actionId: 'action:p8-crash:npc', actorId: brandId('character:npc', 'CharacterId'),
+                  actionType: 'speak', actionVersion: 1, parameters: { text: 'durable provider response' },
+                }],
+              }
+            },
+          },
+        }],
+      })
+      const leaseDatabase = new DatabaseSync(worldPath, { readOnly: true })
+      const lease = leaseDatabase.prepare('SELECT expires_at_ms FROM writer_leases').get() as { expires_at_ms: number }
+      leaseDatabase.close()
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, lease.expires_at_ms - Date.now() + 20)))
+      await expect(recovered.submit(compiled.manifest.address, {
+        idempotencyKey: 'p8-provider-crash-round', principalId: 'principal:player',
+        action: { actionType: 'speak', parameters: { text: 'exercise provider crash boundary' } },
+        correlationId: `recover:${point}`,
+      })).resolves.toMatchObject({ status: 'accepted', tick: 1 })
+      expect(recoveredCalls).toBe(expectedRecoveredCalls)
+      await recovered.close()
+
+      const final = new DatabaseSync(contextPath, { readOnly: true })
+      const finalCall = final.prepare('SELECT state FROM provider_calls').get()
+      final.close()
+      expect(finalCall).toEqual({ state: finalState })
+      const world = new WorldStore(worldPath)
+      const head = world.head(compiled.manifest.address)
+      const providerSpeech = world.readEvents(compiled.manifest.address).filter(event =>
+        event.eventType === 'character.speak'
+        && JSON.stringify(event.data).includes('durable provider response'))
+      world.close()
+      expect(head.tick).toBe(1)
+      expect(providerSpeech).toHaveLength(point === 'provider.after-dispatch' ? 0 : 1)
+    },
+  )
 })

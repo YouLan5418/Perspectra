@@ -36,6 +36,10 @@ export type FaultPoint =
   | 'quarantine-recovery.after-commit'
   | 'memory.before-catchup'
   | 'memory.after-catchup-commit'
+  | 'provider.before-dispatch'
+  | 'provider.after-dispatch'
+  | 'provider.after-response'
+  | 'provider.before-world-commit'
 
 export interface FaultInjector {
   /** Pause, fail, or terminate execution at a named stable point. */

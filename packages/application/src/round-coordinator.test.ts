@@ -262,6 +262,7 @@ function options(
     participants,
     modelBudgetTokens,
     ...(providerCalls === undefined ? {} : { providerCalls }),
+    ...(configuration.faultInjector === undefined ? {} : { faultInjector: configuration.faultInjector }),
     ...(configuration.leaseTtlMs === undefined ? {} : { leaseTtlMs: configuration.leaseTtlMs }),
   }
 }

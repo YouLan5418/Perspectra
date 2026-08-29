@@ -17,6 +17,7 @@ import {
   type ActionRequest,
   type CharacterCognitionView,
   type ContextReceipt,
+  type FaultInjector,
   type SubmitActionsV2,
   type CharacterId,
   type InteractionRoundId,
@@ -86,6 +87,7 @@ export interface RoundCoordinatorOptions {
   readonly cognitiveMemory?: CognitiveMemoryService
   readonly contextPipeline?: Phase8ContextPipeline
   readonly providerCalls?: ProviderCallStore
+  readonly faultInjector?: FaultInjector
   readonly runtimeMetrics?: ApplicationRuntimeMetrics
 }
 
@@ -599,6 +601,9 @@ export class RoundCoordinator {
     } as const
     const authorityHash = hashWorldJson('world-round-authority', authority)
     this.#renewLease()
+    if (frozen.some(value => value.providerCall?.state === 'validated')) {
+      this.options.faultInjector?.hit('provider.before-world-commit')
+    }
     const commit = await this.options.store.commitRound({
       address: this.#address,
       transactionId,
@@ -781,7 +786,11 @@ export class RoundCoordinator {
           binding.provider,
           providerContext,
           providerCall === undefined ? undefined : () => {
+            this.options.faultInjector?.hit('provider.before-dispatch')
             providerCall = this.options.providerCalls!.markDispatchStarted(providerCall!.modelCallId)
+          },
+          providerCall === undefined ? undefined : () => {
+            this.options.faultInjector?.hit('provider.after-dispatch')
           },
         )
         this.#renewLease()
@@ -806,6 +815,7 @@ export class RoundCoordinator {
           providerCall = this.options.providerCalls!.recordResponse(providerCall.modelCallId, providerOutput, {
             provider: 'scripted', requestId: null, usage: null, cache: null,
           })
+          this.options.faultInjector?.hit('provider.after-response')
         }
       }
       try {
