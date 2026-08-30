@@ -14,6 +14,17 @@ import {
 import { openOwnedDatabase, parseWorldJson, PROJECTION_APPLICATION_ID, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 import type { WorldStore } from './world-store.ts'
 
+const PROJECTION_EVENT_TYPES = [
+  'claim.remove',
+  'claim.upsert',
+  'goal.remove',
+  'goal.upsert',
+  'observation.remove',
+  'observation.upsert',
+  'visibility.remove',
+  'visibility.upsert',
+] as const
+
 const PROJECTION_SCHEMA = `
 CREATE TABLE IF NOT EXISTS projection_records (
   address_key TEXT NOT NULL,
@@ -114,10 +125,9 @@ export class ProjectionRebuilder {
   /** Rebuild Observation, Claim, Goal, and Visibility exactly as of forkSeq. */
   rebuildAt(address: WorldAddress, forkSeq: number, heartbeat?: () => void): ProjectionBundle {
     const state = emptyState()
-    for (const [index, event] of this.worldStore.readEvents(address, forkSeq).entries()) {
+    for (const [index, event] of this.worldStore.readEventsRange(address, 0, forkSeq, PROJECTION_EVENT_TYPES).entries()) {
       if (index % 128 === 0) heartbeat?.()
-      const change = projectionOperation(event)
-      if (change === undefined) continue
+      const change = projectionOperation(event)!
       if (change.operation === 'remove') {
         state[change.kind].delete(change.id)
       } else {

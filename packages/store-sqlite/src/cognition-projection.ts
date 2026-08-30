@@ -43,6 +43,8 @@ const EVENT_KIND = new Map<string, CognitionProjectionKind>([
   ['open-loop.upsert', 'open-loop'],
 ])
 
+const COGNITION_EVENT_TYPES = [...EVENT_KIND.keys(), 'character.reflect'] as const
+
 type CognitionState = Record<CognitionProjectionKind, Map<string, CognitionProjectionRecord[]>>
 
 function object(value: unknown, path: string): WorldJsonObject {
@@ -278,8 +280,7 @@ function apply(state: CognitionState, event: StoredWorldEvent): void {
     applyReflection(state, event)
     return
   }
-  const kind = EVENT_KIND.get(event.eventType)
-  if (kind === undefined) return
+  const kind = EVENT_KIND.get(event.eventType)!
   const path = `${event.eventType}@${event.seq}`
   const data = object(event.data, path)
   const id = text(data.id, `${path}.id`)
@@ -327,7 +328,7 @@ export class CognitionProjectionRebuilder {
     if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
     if (asOfWorldSeq > this.worldStore.head(address).headSeq) throw new RangeError('asOfWorldSeq cannot be later than the branch head')
     const state = emptyState()
-    for (const [index, event] of this.worldStore.readEvents(address, asOfWorldSeq).entries()) {
+    for (const [index, event] of this.worldStore.readEventsRange(address, 0, asOfWorldSeq, COGNITION_EVENT_TYPES).entries()) {
       if (index % 128 === 0) heartbeat?.()
       apply(state, event)
     }

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { brandId, type WorldAddress, type WorldEventDraft } from '@harness-world/contracts'
 import { CharacterViewBuilder } from './character-view.ts'
 import { WorldStore } from './world-store.ts'
@@ -78,6 +78,9 @@ describe('CharacterViewBuilder', () => {
     ])
 
     const builder = new CharacterViewBuilder(store)
+    const fullHistoryRead = vi.spyOn(store, 'readEvents').mockImplementation(() => {
+      throw new Error('CharacterView must use typed Event range reads')
+    })
     const viewA = builder.rebuildAt(child, characterA, forkSeq)
     expect(viewA.lifecycleState).toBe('active')
     expect(viewA.locationId).toBe('location:b')
@@ -108,6 +111,7 @@ describe('CharacterViewBuilder', () => {
     expect(parentNow.lifecycleState).toBe('dead')
     expect(JSON.stringify(parentNow)).toContain('FUTURE_CANARY')
     expect(parentNow.scenes.map(scene => scene.sceneId)).toEqual(['scene:shared'])
+    expect(fullHistoryRead).not.toHaveBeenCalled()
     expect(() => builder.rebuildAt(parent, characterA, -1)).toThrow(RangeError)
     expect(() => builder.rebuildAt(parent, characterA, store.head(parent).headSeq + 1)).toThrow('later than the branch head')
     store.close()

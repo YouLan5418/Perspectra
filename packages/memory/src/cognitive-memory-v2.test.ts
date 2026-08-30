@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   brandId,
   hashWorldJson,
@@ -132,6 +132,9 @@ describe('Cognitive Memory v2', () => {
 
   it('captures four source kinds, keeps reported speech subjective, and persists stable receipts and L1 extracts', async () => {
     const { world, memory } = await fixture()
+    const fullHistoryRead = vi.spyOn(world, 'readEvents').mockImplementation(() => {
+      throw new Error('Cognitive Memory must use typed Event range reads')
+    })
     const first = new CognitiveMemoryWorker(memory).catchUp(address(), alice, 8)
     const replay = memory.catchUpV2(address(), alice, 8, 'catchup:alice:replay')
     expect(replay).toEqual(first)
@@ -166,6 +169,7 @@ describe('Cognitive Memory v2', () => {
     }])
     memory.catchUpV2(address(), charlie, 8, 'catchup:charlie')
     expect(memory.cognitiveSummaries(address(), charlie)).toEqual([])
+    expect(fullHistoryRead).not.toHaveBeenCalled()
     memory.close()
     world.close()
   })

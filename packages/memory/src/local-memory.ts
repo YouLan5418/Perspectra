@@ -741,9 +741,13 @@ export class LocalMemoryStore {
     heartbeat?: () => void,
   ): CognitiveSourceCandidate[] {
     const candidates: CognitiveSourceCandidate[] = []
-    for (const [index, event] of this.#worldStore.readEvents(address, asOfWorldSeq).entries()) {
+    for (const [index, event] of this.#worldStore.readEventsRange(
+      address,
+      0,
+      asOfWorldSeq,
+      ['observation.upsert'],
+    ).entries()) {
       if (index % 128 === 0) heartbeat?.()
-      if (event.eventType !== 'observation.upsert') continue
       try {
         const data = objectValue(event.data, `observation.upsert@${event.seq}`)
         if (typeof data.id !== 'string' || data.id.length === 0) throw new Error('observation id must be a non-empty string')

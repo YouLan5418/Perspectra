@@ -15,6 +15,21 @@ import {
 import { ProjectionRebuilder } from './projection.ts'
 import type { WorldStore } from './world-store.ts'
 
+const CHARACTER_VIEW_EVENT_TYPES = [
+  'action.rejected',
+  'character.created',
+  'character.lifecycle-changed',
+  'character.moved',
+  'character.speak',
+  'character.upsert',
+  'claim.upsert',
+  'goal.upsert',
+  'observation.upsert',
+  'scene.remove',
+  'scene.upsert',
+  'visibility.upsert',
+] as const
+
 function object(value: WorldJsonValue): WorldJsonObject | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as WorldJsonObject : undefined
 }
@@ -94,7 +109,7 @@ export class CharacterViewBuilder {
     if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
     const head = this.worldStore.head(address)
     if (asOfWorldSeq > head.headSeq) throw new RangeError('asOfWorldSeq cannot be later than the branch head')
-    const events = this.worldStore.readEvents(address, asOfWorldSeq)
+    const events = this.worldStore.readEventsRange(address, 0, asOfWorldSeq, CHARACTER_VIEW_EVENT_TYPES)
     heartbeat?.()
     const projections = new ProjectionRebuilder(this.worldStore).rebuildAt(address, asOfWorldSeq, heartbeat)
     const observations = projections.observations.filter(record => owned(record, characterId, 'observerId'))

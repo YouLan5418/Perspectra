@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   brandId,
   hashCognitionRecordState,
@@ -144,6 +144,9 @@ describe('CognitionProjectionRebuilder', () => {
     ])
 
     const rebuilder = new CognitionProjectionRebuilder(store)
+    const fullHistoryRead = vi.spyOn(store, 'readEvents').mockImplementation(() => {
+      throw new Error('Cognition projection must use typed Event range reads')
+    })
     let heartbeats = 0
     const childBundle = rebuilder.rebuildAt(child, forkSeq, () => { heartbeats += 1 })
     expect(heartbeats).toBeGreaterThan(1)
@@ -175,6 +178,7 @@ describe('CognitionProjectionRebuilder', () => {
     expect(bob.claims.map(value => value.id)).toEqual(['claim:bob'])
     expect(alice.bundleHash).not.toBe(bob.bundleHash)
     expect(rebuilder.rebuildAt(child, forkSeq).bundleHash).toBe(childBundle.bundleHash)
+    expect(fullHistoryRead).not.toHaveBeenCalled()
     expect(() => rebuilder.rebuildAt(parent, -1)).toThrow(RangeError)
     expect(() => rebuilder.rebuildAt(parent, store.head(parent).headSeq + 1)).toThrow('later than the branch head')
     store.close()
