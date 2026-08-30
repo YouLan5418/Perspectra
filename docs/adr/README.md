@@ -58,3 +58,4 @@
 | [0074](ADR-0074-deterministic-world-text-order.md) | 确定性世界文本顺序 | 所有权威及 Hash 相关排序统一使用 UTF-16 code unit 比较器 |
 | [0075](ADR-0075-session-dead-letter-sequence-continuity.md) | Session 死信序号连续性 | 任一已分配序号的 dead letter 阻塞同 Session 后续投递直至原序重试成功 |
 | [0076](ADR-0076-reaction-cycle-npc-only-round-prototype.md) | Reaction Cycle 与 NPC-only Round 原型 | **Proposed**；P0 证明耐久两层 FIFO 与硬崩溃恢复，尚未成为正式运行时契约 |
+| [0077](ADR-0077-bounded-autonomous-reaction-cycle.md) | 有界自主 Reaction Cycle 与 NPC-only Round | 正式方向已冻结；Phase 8.2/8.3 门禁关闭前不授权生产实现 |

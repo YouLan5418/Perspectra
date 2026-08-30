@@ -22,6 +22,6 @@ Get-FileHash -Algorithm SHA256 docs/spec/implementation-v0.2.md
 
 [Phase 8.1 加固规格](phase-8.1-hardening-v0.1.md)以 `v0.3.0` 为不可变基线，关闭参与者刺激与 Director 权限、跨平台排序、Session 死信连续性及派生持久化缺口，目标候选为 `0.3.1`；它不扩展 Phase 9 能力。
 
-[Phase 9 实施规格：有界自主 Reaction Cycle](phase-9-implementation-v0.1.md)以 `v0.3.1` 为正式基线，把 P0 原型收敛为有界多 wave、稳定预算、可抢占、可恢复且可审计的 NPC 连续反应。当前状态为 Draft implementation target；生产实现开始前必须完成 Phase 8.2 / 8.3 门禁，并由新的 Accepted ADR 正式 supersede 既有 Round / NPC 调用边界。
+[Phase 9 实施规格：有界自主 Reaction Cycle](phase-9-implementation-v0.1.md)以 `v0.3.1` 为正式基线，把 P0 原型收敛为有界多 wave、稳定预算、可抢占、可恢复且可审计的 NPC 连续反应。[ADR-0077](../adr/ADR-0077-bounded-autonomous-reaction-cycle.md)已冻结正式方向；生产实现开始前仍必须完成 Phase 8.2 / 8.3 门禁。
 
 这些文档扩展但不改写上述 V0.2 冻结规格；冲突由 Accepted ADR 的 supersedes/extends 关系处理。Phase 8 对长期总纲的实施时点调整及实施前边界收口见 ADR-0064～0068。

@@ -3,13 +3,13 @@
 | 属性 | 值 |
 |---|---|
 | 契约版本 | `phase9/v0.1` |
-| 状态 | Draft implementation target |
+| 状态 | Accepted implementation target（生产实现受 Phase 8.2 / 8.3 门禁） |
 | 日期 | 2026-08-30 |
 | 正式基线 | 私有源码 `v0.3.1` / `c2b3141` |
 | 原型证据 | 分支 `prototype/reaction-cycle-p0` / ADR-0076 / P0 验证报告 |
 | 目标 | 让 NPC 在一次玩家输入之后进行有界、可恢复、可审计的连续反应 |
 
-> **实施门禁：** 本规格不把原型分支直接提升为生产实现。开始修改生产代码前，必须先完成 Phase 8.2 正确性收口、Phase 8.3 性能基线，并新增一份 Accepted ADR 正式 supersede D-004、D-005 与 D-007 的相关边界。ADR-0076 继续作为 Proposed 原型证据，不在原地改向。
+> **实施门禁：** [ADR-0077](../adr/ADR-0077-bounded-autonomous-reaction-cycle.md) 已正式 supersede D-004、D-005 与 D-007 的相关边界，但不把原型分支直接提升为生产实现。开始修改生产代码前，仍必须先完成 Phase 8.2 正确性收口和 Phase 8.3 性能基线。ADR-0076 继续作为 Proposed 原型证据，不在原地改向。
 
 > **权威警告：** Reaction Cycle 只能调度提案，不能成为第二套世界状态机。World Event Log 仍是唯一世界事实权威；Session、Projection、Memory、Context、Scheduler 和 Telemetry 都不得反写或替代世界事实。
 
@@ -64,9 +64,9 @@ Phase 9 v1 只交付 `disabled` 与 `responsive/v1` 两种行为。更长时间�
 - [通用内容与真实运行架构总纲](general-content-architecture-v0.1.md)；
 - [Phase 8 实施规格](phase-8-implementation-v0.1.md)；
 - [Phase 8.1 加固规格](phase-8.1-hardening-v0.1.md)；
-- ADR-0038、ADR-0039、ADR-0040、ADR-0043、ADR-0044、ADR-0046、ADR-0064、ADR-0068、ADR-0071～ADR-0076。
+- ADR-0038、ADR-0039、ADR-0040、ADR-0043、ADR-0044、ADR-0046、ADR-0064、ADR-0068、ADR-0071～ADR-0077。
 
-正式实现前新增的 superseding ADR 必须至少冻结：
+[ADR-0077](../adr/ADR-0077-bounded-autonomous-reaction-cycle.md) 正式冻结：
 
 1. NPC-only Reaction Round 的合法来源以及它对 D-004 / D-005 的替代范围；
 2. `ActionOrderKey` 在无玩家 Action 时仍为全序的正式定义；
@@ -74,7 +74,7 @@ Phase 9 v1 只交付 `disabled` 与 `responsive/v1` 两种行为。更长时间�
 4. 玩家抢占、Provider 歧义调用和行政操作的终态语义；
 5. Schema、Logical Export 与 Backup 的版本升级。
 
-在该 ADR Accepted 前，本文件是可评审、可分解任务的实施目标，不是授权改变既有 Accepted 决策的依据。
+该 ADR 的 Accepted 状态冻结架构方向，但不解除 Phase 8.2 / 8.3 门禁。本文件仍不是在门禁关闭前修改生产代码的授权。
 
 本规格所称的前置门禁不是新增产品范围，而是两组可验证的基线工作：
 
@@ -558,7 +558,7 @@ corepack pnpm@11.7.0 check
 
 ### Path
 
-先完成 Phase 8.2 / 8.3 与正式 superseding ADR，再按 9A 的权威骨架、9B 的多 wave 与抢占、9C 的运行闭环交付。每一步只扩大一个可证明边界，并用 Logical Export、崩溃矩阵、长历史基线和最终用户试金石共同验收。
+ADR-0077 先冻结正式方向；随后完成 Phase 8.2 / 8.3 门禁，再按 9A 的权威骨架、9B 的多 wave 与抢占、9C 的运行闭环交付。每一步只扩大一个可证明边界，并用 Logical Export、崩溃矩阵、长历史基线和最终用户试金石共同验收。
 
 ## 27. 完成定义
 
