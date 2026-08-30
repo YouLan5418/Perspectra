@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint packages tests vitest.config.ts",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage --exclude tests/crash.test.ts",
+    "test:coverage": "vitest run --coverage --exclude tests/crash.test.ts --exclude tests/p8-performance.integration.test.ts",
     "test:p0": "vitest run tests/p0.integration.test.ts",
     "test:p1": "vitest run tests/p1.integration.test.ts",
     "test:p2": "vitest run tests/p2.integration.test.ts",
@@ -19,6 +19,7 @@
     "test:p4": "vitest run tests/p4.integration.test.ts",
     "test:p5": "vitest run tests/p5.integration.test.ts",
     "test:p6": "vitest run tests/p6.integration.test.ts",
+    "test:p8:performance": "vitest run tests/p8-performance.integration.test.ts",
     "test:crash": "vitest run tests/crash.test.ts --testTimeout=30000",
     "worldctl": "tsx packages/operations/process/cli-entry.ts",
     "worldappctl": "tsx packages/operations/process/application-cli-entry.ts",
@@ -28,7 +29,7 @@
     "demo:mystery:turn": "tsx packages/simulation/process/mystery-turn-entry.ts",
     "demo:mystery:shell": "tsx packages/simulation/process/mystery-shell-entry.ts",
     "demo:mystery:drill": "tsx packages/simulation/process/mystery-drill-entry.ts",
-    "check": "corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test:coverage && corepack pnpm@11.7.0 test:p0 && corepack pnpm@11.7.0 test:p1 && corepack pnpm@11.7.0 test:p2 && corepack pnpm@11.7.0 test:p3 && corepack pnpm@11.7.0 test:p4 && corepack pnpm@11.7.0 test:p5 && corepack pnpm@11.7.0 test:p6 && corepack pnpm@11.7.0 test:crash"
+    "check": "corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test:coverage && corepack pnpm@11.7.0 test:p0 && corepack pnpm@11.7.0 test:p1 && corepack pnpm@11.7.0 test:p2 && corepack pnpm@11.7.0 test:p3 && corepack pnpm@11.7.0 test:p4 && corepack pnpm@11.7.0 test:p5 && corepack pnpm@11.7.0 test:p6 && corepack pnpm@11.7.0 test:p8:performance && corepack pnpm@11.7.0 test:crash"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.1"
