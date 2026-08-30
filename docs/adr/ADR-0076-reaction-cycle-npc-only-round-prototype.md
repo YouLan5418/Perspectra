@@ -17,7 +17,7 @@
 3. Reaction Job 只能引用同一个 World commit 内的 `observation.upsert` ordinal。WorldStore 在计算出 Event seq/hash 后，将 Observation、Cycle 与 Job 放入同一 `BEGIN IMMEDIATE` 事务。
 4. 使用两层 FIFO：玩家输入仍按 `inboxSeq` 受理，但 Branch 存在 active Cycle 时，`RoundInbox.claimNext` 不得执行下一项玩家工作。Cycle 达到耐久终态后才释放玩家 FIFO。
 5. 每个 Reaction Round 推进一个 Tick。玩家输入可开启包含后续 Tick 的有限 Cycle；重放读取耐久 Round/Cycle 终态，不按墙钟重新推断。
-6. P0 仅允许一波、每角色最多一次调用、每 Proposal 最多一个 `speak@1` Action。调用上限从耐久 Job 集合推导，不维护可漂移的内存计数器。
+6. P0 仅允许一波、每角色最多一次调用、每 Proposal 最多一个 `speak@1` Action。调用上限从耐久 Job 集合推导，不维护可漂移的内存计数器。Job Hash 重建和预算截断必须在取回行后统一使用 `compareWorldText` 的 UTF-16 code unit 顺序，禁止依赖 SQLite BINARY collation。
 7. Cycle 终止原因必须耐久化为 `completed`、`call_limit` 或 `provider_terminal`。Reaction World commit 与 Job/Cycle 终态在同一事务完成。
 8. Writer fencing 可接管旧的 claimed Job；COMMIT 后重放不得再次产生 World Effect。
 9. active Cycle 是 fork/archive 屏障。否则 fork 会继承刺激 Observation 却丢失延续责任，archive 会产生无法再取得 Writer Lease 的永久未完成工作。

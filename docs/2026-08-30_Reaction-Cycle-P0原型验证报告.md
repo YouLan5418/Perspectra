@@ -49,6 +49,7 @@
 1. 公开对白：Bob 收到已提交 Observation 后自动回应；World Event 中恰好一个 Bob `character.speak`。
 2. 私语隔离：只给 Alice 创建 Observation/Job 时，Bob Provider 调用次数为 0，Bob 文本不进入 Event Log。
 3. 循环阻断：`maximumNpcCalls = 1` 且有两个 Job 时，只执行 UTF-16 稳定排序后的首项，另一项 skipped，终态为 `call_limit`。
+   - 回归 Fixture 使用 U+10000 增补平面 ID 与 U+E000 BMP 私用区 ID，证明领取、Cycle Hash 重建及逻辑导入不依赖 SQLite 的 UTF-8/BINARY 顺序。
 4. Provider 降级：缺失、抛错、越权角色、伪造 participant、多 Action、非 speak 或错误版本均不产生伪造 Action；Cycle 以准确终态关闭。
 5. 硬崩溃：
    - `reaction.after-job-insert`：Observation、Round、Cycle、Job 全部回滚；
