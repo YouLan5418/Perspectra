@@ -200,6 +200,11 @@ export function compareActionOrderKey(left: ActionOrderKey, right: ActionOrderKe
   return compareWorldText(left.actionId, right.actionId)
 }
 
+/** Return the single authoritative Action order for player-root and NPC-only Rounds. */
+export function sortActionOrderKeys<T extends ActionOrderKey>(values: readonly T[]): T[] {
+  return [...values].sort(compareActionOrderKey)
+}
+
 export const parseClaimedPlayerAction = parsePlayerActionInput
 
 interface ParticipantVisibleProposalContext {
@@ -1289,7 +1294,7 @@ export class RoundCoordinator {
         })
       }
     }
-    return actions.sort(compareActionOrderKey)
+    return sortActionOrderKeys(actions)
   }
 
   #validateSubmission(request: SubmitCoordinatedRoundRequest): void {

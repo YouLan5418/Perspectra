@@ -40,6 +40,7 @@ import {
   RoundCoordinator,
   compareActionOrderKey,
   parseClaimedPlayerAction,
+  sortActionOrderKeys,
   type ActionOrderKey,
   type RoundCoordinatorOptions,
   type RoundParticipant,
@@ -461,6 +462,29 @@ describe('RoundCoordinator', () => {
     expect(compareActionOrderKey({ ...base, actorId: brandId('character:a', 'CharacterId') }, base)).toBeLessThan(0)
     expect(compareActionOrderKey({ ...base, actionId: 'action:a' }, base)).toBeLessThan(0)
     expect(compareActionOrderKey(base, base)).toBe(0)
+  })
+
+  it('freezes one cross-platform ActionOrderKey Golden without a player row', () => {
+    const astral = brandId('character:\u{10000}', 'CharacterId')
+    const privateUse = brandId('character:\uE000', 'CharacterId')
+    const keys: readonly ActionOrderKey[] = [
+      { sourceRole: 'agent', priority: 1, actorId: privateUse, actionId: 'action:z' },
+      { sourceRole: 'agent', priority: 2, actorId: privateUse, actionId: 'action:priority' },
+      { sourceRole: 'agent', priority: 1, actorId: astral, actionId: 'action:b' },
+      { sourceRole: 'agent', priority: 1, actorId: astral, actionId: 'action:a' },
+    ]
+    const ordered = sortActionOrderKeys(keys)
+    expect(ordered.map(value => value.actionId)).toEqual([
+      'action:priority', 'action:a', 'action:b', 'action:z',
+    ])
+    expect(keys[0]!.actionId).toBe('action:z')
+    const golden = ordered.map(value => ({
+      sourceRole: value.sourceRole, priority: value.priority,
+      actorId: value.actorId, actionId: value.actionId,
+    }) satisfies WorldJsonObject)
+    expect(hashWorldJson('reaction-action-order-key-golden/v1', golden))
+      .toBe('sha256:727da7bdfb0957d2ad9450dd7f3dd4503eebb3167b3429d9c5d7a84b105612b2')
+    expect(sortActionOrderKeys([...keys].reverse())).toEqual(ordered)
   })
 
   it('freezes player, Agent, and Director terminals, re-resolves in stable order, and replays durably', async () => {
