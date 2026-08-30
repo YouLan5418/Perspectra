@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite'
+import type { DatabaseSync } from 'node:sqlite'
 import {
   canonicalizeWorldJson,
   deterministicId,
@@ -13,38 +13,7 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-
-const PROVIDER_CALL_SCHEMA = `
-CREATE TABLE IF NOT EXISTS provider_calls (
-  model_call_id TEXT PRIMARY KEY,
-  namespace_key TEXT NOT NULL,
-  round_id TEXT NOT NULL,
-  participant_id TEXT NOT NULL,
-  receipt_id TEXT NOT NULL,
-  receipt_hash TEXT NOT NULL,
-  controller_epoch INTEGER NOT NULL CHECK(controller_epoch >= 0),
-  context_hash TEXT NOT NULL,
-  provider_request_hash TEXT NOT NULL,
-  state TEXT NOT NULL CHECK(state IN (
-    'prepared', 'dispatch_started', 'response_received', 'validated', 'committed',
-    'failed_before_dispatch', 'provider_rejected', 'timed_out_ambiguous',
-    'invalid_response', 'budget_exhausted', 'discarded_after_quarantine'
-  )),
-  response_json TEXT,
-  response_hash TEXT,
-  proposal_json TEXT,
-  proposal_hash TEXT,
-  terminal_json TEXT,
-  transaction_id TEXT,
-  authority_hash TEXT,
-  UNIQUE(namespace_key, round_id, participant_id),
-  CHECK((response_json IS NULL) = (response_hash IS NULL)),
-  CHECK((proposal_json IS NULL) = (proposal_hash IS NULL)),
-  CHECK((transaction_id IS NULL) = (authority_hash IS NULL))
-) STRICT;
-CREATE INDEX IF NOT EXISTS provider_calls_round
-  ON provider_calls(namespace_key, round_id, participant_id);
-`
+import { openContextDatabase } from './context-database.ts'
 
 export type ProviderCallState =
   | 'prepared'
@@ -147,15 +116,7 @@ export class ProviderCallStore {
   readonly #db: DatabaseSync
 
   constructor(path: string) {
-    this.#db = new DatabaseSync(path)
-    this.#db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;')
-    const version = (this.#db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
-    if (version < 0 || version > 4) {
-      this.#db.close()
-      throw new Error(`unsupported Context derivation schema version ${version}`)
-    }
-    this.#db.exec(PROVIDER_CALL_SCHEMA)
-    if (version < 3) this.#db.exec('PRAGMA user_version=3')
+    this.#db = openContextDatabase(path)
   }
 
   prepare(receipt: ContextReceipt): ProviderCallRecord {

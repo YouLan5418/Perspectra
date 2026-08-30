@@ -123,7 +123,7 @@ describe('ContextReceiptStore and ContextExplainService', () => {
       .toBe('director')
   })
 
-  it('uses schema v2, upgrades v1 and rejects future Context database versions', () => {
+  it('uses the shared Context schema, upgrades v1 and rejects future versions', () => {
     const upgradePath = path()
     const old = new DatabaseSync(upgradePath)
     old.exec('PRAGMA user_version=1')
@@ -131,14 +131,14 @@ describe('ContextReceiptStore and ContextExplainService', () => {
     const upgraded = new ContextReceiptStore(upgradePath)
     upgraded.close()
     const check = new DatabaseSync(upgradePath)
-    expect((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(2)
+    expect((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(5)
     check.close()
 
     const futurePath = path()
     const future = new DatabaseSync(futurePath)
-    future.exec('PRAGMA user_version=5')
+    future.exec('PRAGMA user_version=6')
     future.close()
-    expect(() => new ContextReceiptStore(futurePath)).toThrow('unsupported')
+    expect(() => new ContextReceiptStore(futurePath)).toThrow('user_version mismatch')
   })
 
   it('detects altered durable JSON, column Hash and namespace', () => {

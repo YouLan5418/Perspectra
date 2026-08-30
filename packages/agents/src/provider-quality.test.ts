@@ -154,8 +154,8 @@ describe('ProviderQualityStore', () => {
 
     const futurePath = database('future.sqlite')
     const future = new DatabaseSync(futurePath)
-    future.exec('PRAGMA user_version=5')
+    future.exec('PRAGMA user_version=6')
     future.close()
-    expect(() => new ProviderQualityStore(futurePath)).toThrow('unsupported Context derivation schema version 5')
+    expect(() => new ProviderQualityStore(futurePath)).toThrow('user_version mismatch')
   })
 })

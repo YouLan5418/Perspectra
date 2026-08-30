@@ -331,9 +331,9 @@ describe('Phase 8 continuity derivation', () => {
 
     const wrongVersionPath = join(contextPath, '..', 'wrong-version.sqlite')
     const wrongVersionDb = new DatabaseSync(wrongVersionPath)
-    wrongVersionDb.exec('PRAGMA user_version=5')
+    wrongVersionDb.exec('PRAGMA user_version=6')
     wrongVersionDb.close()
-    expect(() => new ContinuityCheckpointService(wrongVersionPath, world, memory)).toThrow('unsupported')
+    expect(() => new ContinuityCheckpointService(wrongVersionPath, world, memory)).toThrow('user_version mismatch')
     memory.close()
     world.close()
   })

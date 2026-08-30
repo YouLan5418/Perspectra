@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite'
+import type { DatabaseSync } from 'node:sqlite'
 import {
   PHASE8_PROVIDER_QUALITY_PROFILE,
   assertProtocolString,
@@ -10,47 +10,7 @@ import {
   type WorldHash,
   type WorldJsonObject,
 } from '@harness-world/contracts'
-
-const QUALITY_SCHEMA = `
-CREATE TABLE IF NOT EXISTS provider_quality_state (
-  namespace_key TEXT NOT NULL,
-  participant_id TEXT NOT NULL,
-  eligible_ticks INTEGER NOT NULL CHECK(eligible_ticks >= 0),
-  response_invalid_streak INTEGER NOT NULL CHECK(response_invalid_streak >= 0),
-  response_backoff_level INTEGER NOT NULL CHECK(response_backoff_level BETWEEN 0 AND 4),
-  response_backoff_remaining INTEGER NOT NULL CHECK(response_backoff_remaining >= 0),
-  reflection_invalid_streak INTEGER NOT NULL CHECK(reflection_invalid_streak >= 0),
-  reflection_suspension_remaining INTEGER NOT NULL CHECK(reflection_suspension_remaining >= 0),
-  state_hash TEXT NOT NULL,
-  PRIMARY KEY(namespace_key, participant_id)
-) STRICT;
-CREATE TABLE IF NOT EXISTS provider_quality_audit (
-  audit_seq INTEGER PRIMARY KEY AUTOINCREMENT,
-  namespace_key TEXT NOT NULL,
-  participant_id TEXT NOT NULL,
-  operation TEXT NOT NULL,
-  details_json TEXT NOT NULL,
-  operational_time_ms INTEGER NOT NULL,
-  previous_hash TEXT NOT NULL,
-  record_hash TEXT NOT NULL UNIQUE
-) STRICT;
-CREATE TABLE IF NOT EXISTS provider_quality_outcomes (
-  namespace_key TEXT NOT NULL,
-  participant_id TEXT NOT NULL,
-  outcome_kind TEXT NOT NULL CHECK(outcome_kind IN ('response', 'reflection')),
-  outcome_id TEXT NOT NULL,
-  result TEXT NOT NULL CHECK(result IN ('valid', 'invalid')),
-  PRIMARY KEY(namespace_key, participant_id, outcome_kind, outcome_id)
-) STRICT;
-CREATE TABLE IF NOT EXISTS provider_quality_ticks (
-  namespace_key TEXT NOT NULL,
-  participant_id TEXT NOT NULL,
-  round_id TEXT NOT NULL,
-  response_mode TEXT NOT NULL CHECK(response_mode IN ('normal', 'skip', 'probe')),
-  reflection_mode TEXT NOT NULL CHECK(reflection_mode IN ('normal', 'suspended', 'probe')),
-  PRIMARY KEY(namespace_key, participant_id, round_id)
-) STRICT;
-`
+import { openContextDatabase } from './context-database.ts'
 
 export type ProviderQualityResponseMode = 'normal' | 'skip' | 'probe'
 export type ProviderQualityReflectionMode = 'normal' | 'suspended' | 'probe'
@@ -129,15 +89,7 @@ export class ProviderQualityStore {
   readonly #db: DatabaseSync
 
   constructor(path: string, private readonly now: () => number = Date.now) {
-    this.#db = new DatabaseSync(path)
-    this.#db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;')
-    const version = (this.#db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
-    if (version < 0 || version > 4) {
-      this.#db.close()
-      throw new Error(`unsupported Context derivation schema version ${version}`)
-    }
-    this.#db.exec(QUALITY_SCHEMA)
-    if (version < 4) this.#db.exec('PRAGMA user_version=4')
+    this.#db = openContextDatabase(path)
   }
 
   state(address: WorldAddress, participantId: string): ProviderQualityState {

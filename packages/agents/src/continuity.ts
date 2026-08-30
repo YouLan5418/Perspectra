@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite'
+import type { DatabaseSync } from 'node:sqlite'
 import {
   brandId,
   canonicalizeWorldJson,
@@ -30,19 +30,7 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { CognitionProjectionRebuilder, type WorldStore } from '@harness-world/store-sqlite'
-
-const CONTEXT_DERIVATION_SCHEMA = `
-CREATE TABLE IF NOT EXISTS continuity_checkpoints (
-  checkpoint_id TEXT PRIMARY KEY,
-  namespace_key TEXT NOT NULL,
-  as_of_seq INTEGER NOT NULL,
-  checkpoint_json TEXT NOT NULL,
-  checkpoint_hash TEXT NOT NULL,
-  UNIQUE(namespace_key, as_of_seq)
-);
-CREATE INDEX IF NOT EXISTS continuity_checkpoints_prefix
-  ON continuity_checkpoints(namespace_key, as_of_seq);
-`
+import { openContextDatabase } from './context-database.ts'
 
 export interface ContinuityMemoryReader {
   watermark(address: WorldAddress, characterId: CharacterId): CognitiveMemoryWatermark | undefined
@@ -141,15 +129,7 @@ export class ContinuityCheckpointService {
     private readonly world: WorldStore,
     private readonly memory: ContinuityMemoryReader,
   ) {
-    this.#db = new DatabaseSync(path)
-    this.#db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;')
-    const version = (this.#db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
-    if (version !== 0 && version !== 1 && version !== 2 && version !== 3 && version !== 4) {
-      this.#db.close()
-      throw new Error(`unsupported Context derivation schema version ${version}`)
-    }
-    this.#db.exec(CONTEXT_DERIVATION_SCHEMA)
-    if (version === 0) this.#db.exec('PRAGMA user_version=1')
+    this.#db = openContextDatabase(path)
     this.#cognition = new CognitionProjectionRebuilder(world)
   }
 

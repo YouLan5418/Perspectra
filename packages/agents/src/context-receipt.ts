@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite'
+import type { DatabaseSync } from 'node:sqlite'
 import {
   brandId,
   canonicalizeWorldJson,
@@ -21,20 +21,7 @@ import {
   type WorldAddress,
   type WorldHash,
 } from '@harness-world/contracts'
-
-const RECEIPT_SCHEMA = `
-CREATE TABLE IF NOT EXISTS context_receipts (
-  receipt_id TEXT PRIMARY KEY,
-  namespace_key TEXT NOT NULL,
-  round_id TEXT NOT NULL,
-  participant_id TEXT NOT NULL,
-  receipt_json TEXT NOT NULL,
-  receipt_hash TEXT NOT NULL,
-  UNIQUE(namespace_key, round_id, participant_id)
-);
-CREATE INDEX IF NOT EXISTS context_receipts_round
-  ON context_receipts(namespace_key, round_id, participant_id);
-`
+import { openContextDatabase } from './context-database.ts'
 
 export interface CreateContextReceiptRequest {
   readonly address: WorldAddress
@@ -155,15 +142,7 @@ export class ContextReceiptStore {
   readonly #db: DatabaseSync
 
   constructor(path: string) {
-    this.#db = new DatabaseSync(path)
-    this.#db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;')
-    const version = (this.#db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version
-    if (version < 0 || version > 4) {
-      this.#db.close()
-      throw new Error(`unsupported Context derivation schema version ${version}`)
-    }
-    this.#db.exec(RECEIPT_SCHEMA)
-    if (version < 2) this.#db.exec('PRAGMA user_version=2')
+    this.#db = openContextDatabase(path)
   }
 
   append(request: CreateContextReceiptRequest): ContextReceipt {
