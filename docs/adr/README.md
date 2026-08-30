@@ -1,6 +1,6 @@
 # 架构决策记录
 
-以下 ADR 状态均为 Accepted。实现若需要改变决定，新增 ADR 并标记 supersedes，不修改历史决定的含义。
+除表内明确标为 Proposed 的研究决断外，以下 ADR 状态均为 Accepted。实现若需要改变决定，新增 ADR 并标记 supersedes，不修改历史决定的含义。
 
 | ADR | 主题 | 当前落点 |
 |---|---|---|
@@ -57,3 +57,4 @@
 | [0073](ADR-0073-participant-stimulus-director-visibility.md) | 参与者刺激裁剪与 Director 可见性闭环 | 提交前刺激、Recall、Director 与动作时刻 Scene audience 使用同一最小权限边界 |
 | [0074](ADR-0074-deterministic-world-text-order.md) | 确定性世界文本顺序 | 所有权威及 Hash 相关排序统一使用 UTF-16 code unit 比较器 |
 | [0075](ADR-0075-session-dead-letter-sequence-continuity.md) | Session 死信序号连续性 | 任一已分配序号的 dead letter 阻塞同 Session 后续投递直至原序重试成功 |
+| [0076](ADR-0076-reaction-cycle-npc-only-round-prototype.md) | Reaction Cycle 与 NPC-only Round 原型 | **Proposed**；P0 证明耐久两层 FIFO 与硬崩溃恢复，尚未成为正式运行时契约 |
