@@ -55,10 +55,12 @@ export class CharacterRuntimeAvailabilityService {
     const result = this.#db.prepare(`
       UPDATE character_runtime_availability
       SET state = ?, reason = ?, changed_at_ms = ?, revision = revision + 1
-      WHERE address_key = ? AND character_id = ?
-    `).run(state, reason, changedAtMs, worldAddressKey(address), characterId)
-    if (result.changes !== 1) throw new Error(`runtime availability is not initialized for ${characterId}`)
-    return { address, characterId, state, reason, changedAtMs }
+      WHERE address_key = ? AND character_id = ? AND (state <> ? OR reason IS NOT ?)
+    `).run(state, reason, changedAtMs, worldAddressKey(address), characterId, state, reason)
+    if (result.changes === 1) return { address, characterId, state, reason, changedAtMs }
+    const current = this.get(address, characterId)
+    if (current === undefined) throw new Error(`runtime availability is not initialized for ${characterId}`)
+    return current
   }
 
   get(address: WorldAddress, characterId: CharacterId): CharacterRuntimeAvailability | undefined {

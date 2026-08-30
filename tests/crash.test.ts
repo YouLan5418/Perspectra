@@ -11,6 +11,7 @@ import { CognitiveMemoryService } from '@harness-world/memory'
 import { LocalJsonRpcRouter, WorldHostInstanceLock } from '@harness-world/operations'
 import {
   BranchQuarantineService,
+  CharacterRuntimeAvailabilityService,
   SessionDeliveryAdapter,
   WorldArchiveService,
   WorldOutbox,
@@ -420,4 +421,54 @@ describe('hard process termination recovery', () => {
       expect(providerSpeech).toHaveLength(point === 'provider.after-dispatch' ? 0 : 1)
     },
   )
+
+  it('reconciles participant Availability after hard termination following World COMMIT', async () => {
+    const worldPath = database('availability-after-commit-world.sqlite')
+    const sessionPath = worldPath.replace('-world.sqlite', '-session.sqlite')
+    const memoryPath = worldPath.replace('-world.sqlite', '-memory.sqlite')
+    const compiled = phase8ProviderCrashWorld()
+    await hardKillAt(providerCallWorker, [
+      worldPath, sessionPath, memoryPath, 'store.after-commit', 'provider-failure',
+    ])
+
+    const interruptedAvailability = new CharacterRuntimeAvailabilityService(worldPath)
+    expect(interruptedAvailability.get(
+      compiled.manifest.address, brandId('character:npc', 'CharacterId'),
+    )).toMatchObject({ state: 'ready' })
+    interruptedAvailability.close()
+
+    let recoveredCalls = 0
+    const recovered = new WorldApplication({
+      worldPath, sessionPath, memoryPath,
+      runtimeOwnerId: 'application:p8-availability-recovered', leaseTtlMs: 500, modelBudgetTokens: 10,
+      participants: () => [{
+        participantId: 'agent:p8-crash', role: 'agent',
+        actorId: brandId('character:npc', 'CharacterId'),
+        allowedActionTypes: ['speak'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+        provider: {
+          async propose(): Promise<SubmitActionsV2> {
+            recoveredCalls += 1
+            throw new Error('committed Round must not dispatch again')
+          },
+        },
+      }],
+    })
+    const leaseDatabase = new DatabaseSync(worldPath, { readOnly: true })
+    const lease = leaseDatabase.prepare('SELECT expires_at_ms FROM writer_leases').get() as { expires_at_ms: number }
+    leaseDatabase.close()
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, lease.expires_at_ms - Date.now() + 20)))
+    await expect(recovered.submit(compiled.manifest.address, {
+      idempotencyKey: 'p8-provider-crash-round', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'exercise provider crash boundary' } },
+      correlationId: 'recover:availability-after-commit',
+    })).resolves.toMatchObject({ status: 'accepted', tick: 1 })
+    expect(recoveredCalls).toBe(0)
+    await recovered.close()
+
+    const recoveredAvailability = new CharacterRuntimeAvailabilityService(worldPath)
+    expect(recoveredAvailability.get(
+      compiled.manifest.address, brandId('character:npc', 'CharacterId'),
+    )).toMatchObject({ state: 'model_unavailable', reason: 'provider failed' })
+    recoveredAvailability.close()
+  })
 })

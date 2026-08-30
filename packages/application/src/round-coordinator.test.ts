@@ -1267,6 +1267,125 @@ describe('RoundCoordinator', () => {
     close(recoveredOptions, recovered)
   })
 
+  it('reconciles the durable availability transition after a post-commit crash', async () => {
+    const path = database('availability-reconciliation.sqlite')
+    const compiled = world()
+    const bootstrap = new WorldStore(path)
+    new WorldBootstrap(bootstrap).activate(compiled)
+    bootstrap.close()
+    let providerCalls = 0
+    let now = 100
+    const failingParticipant = participant('agent:availability', 'agent', 1, provider(() => {
+      providerCalls += 1
+      throw new Error('provider unavailable')
+    }))
+    const request = {
+      idempotencyKey: 'round:availability-reconciliation',
+      principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'survive availability window' } },
+      correlationId: 'availability-reconciliation',
+    } as const
+    const interruptedOptions = options(path, compiled, [failingParticipant], 10, {
+      faultInjector: new ThrowAfterCommitOnce(), now: () => now,
+    })
+    const interrupted = new RoundCoordinator(interruptedOptions)
+    await expect(interrupted.submit(request)).rejects.toThrow('after committed coordinated Round')
+    expect(interruptedOptions.availability.get(compiled.manifest.address, failingParticipant.actorId))
+      .toMatchObject({ state: 'ready' })
+    const transactionId = interruptedOptions.store.readEvents(compiled.manifest.address)
+      .find(event => event.eventType === 'round.participant-terminal')!.transactionId
+    close(interruptedOptions, interrupted)
+
+    now = 200
+    const recoveredOptions = options(path, compiled, [failingParticipant], 10, { now: () => now })
+    const recovered = new RoundCoordinator(recoveredOptions)
+    await expect(recovered.submit(request)).resolves.toMatchObject({ status: 'accepted', tick: 1 })
+    expect(providerCalls).toBe(1)
+    expect(recoveredOptions.availability.get(compiled.manifest.address, failingParticipant.actorId))
+      .toMatchObject({ state: 'model_unavailable', reason: 'provider failed', changedAtMs: 200 })
+    now = 300
+    recovered.reconcileCommittedAvailability(transactionId)
+    expect(recoveredOptions.availability.get(compiled.manifest.address, failingParticipant.actorId))
+      .toMatchObject({ state: 'model_unavailable', changedAtMs: 200 })
+    close(recoveredOptions, recovered)
+  })
+
+  it('rejects malformed post-commit availability reconciliation intent', async () => {
+    const path = database('availability-reconciliation-invalid.sqlite')
+    const compiled = world()
+    const bootstrap = new WorldStore(path)
+    new WorldBootstrap(bootstrap).activate(compiled)
+    bootstrap.close()
+    const failingParticipant = participant('agent:availability-invalid', 'agent', 1, provider(() => {
+      throw new Error('provider unavailable')
+    }))
+    const configured = options(path, compiled, [failingParticipant])
+    const coordinator = new RoundCoordinator(configured)
+    await coordinator.submit({
+      idempotencyKey: 'round:availability-invalid', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'persist reconciliation intent' } },
+      correlationId: 'availability-invalid',
+    })
+    const transactionId = configured.store.readEvents(compiled.manifest.address)
+      .find(event => event.eventType === 'round.participant-terminal')!.transactionId
+    const raw = new DatabaseSync(path)
+    const row = raw.prepare(`
+      SELECT audit_seq, details_json FROM branch_audit_events
+      WHERE operation = 'round.committed' AND details_json LIKE ?
+    `).get(`%${transactionId}%`) as { audit_seq: number; details_json: string }
+    const original = JSON.parse(row.details_json) as Record<string, unknown>
+    const transitions = original.participantAvailability as Array<Record<string, unknown>>
+    const valid = transitions[0]!
+    const variants: unknown[] = [
+      { ...original, participantAvailability: 'invalid' },
+      { ...original, participantAvailability: [null] },
+      { ...original, participantAvailability: [{ ...valid, participantId: 1 }] },
+      { ...original, participantAvailability: [{ ...valid, actorId: 1 }] },
+      { ...original, participantAvailability: [{ ...valid, terminalStatus: 1 }] },
+      { ...original, participantAvailability: [{ ...valid, state: 1 }] },
+      { ...original, participantAvailability: [{ ...valid, reason: 1 }] },
+      { ...original, participantAvailability: [valid, valid] },
+      { ...original, participantAvailability: [{ ...valid, terminalStatus: 'unknown' }] },
+      { ...original, participantAvailability: [{ ...valid, state: 'offline' }] },
+      { ...original, participantAvailability: [{ ...valid, reason: null }] },
+      { ...original, participantAvailability: [{ ...valid, participantId: 'agent:other' }] },
+    ]
+    for (const variant of variants) {
+      raw.prepare('UPDATE branch_audit_events SET details_json = ? WHERE audit_seq = ?')
+        .run(JSON.stringify(variant), row.audit_seq)
+      expect(() => coordinator.reconcileCommittedAvailability(transactionId)).toThrow('reconciliation intent')
+    }
+    raw.prepare('UPDATE branch_audit_events SET details_json = ? WHERE audit_seq = ?')
+      .run(row.details_json, row.audit_seq)
+    raw.close()
+    close(configured, coordinator)
+  })
+
+  it('fails closed when availability reconciliation has no valid Authority participant set', () => {
+    const path = database('availability-reconciliation-authority-invalid.sqlite')
+    const compiled = world()
+    const bootstrap = new WorldStore(path)
+    new WorldBootstrap(bootstrap).activate(compiled)
+    bootstrap.close()
+    const configured = options(path, compiled, [])
+    const coordinator = new RoundCoordinator(configured)
+    const transactionId = brandId('transaction:authority-invalid', 'TransactionId')
+    Object.defineProperty(configured.store, 'committedRoundOperationalSummary', {
+      value: () => ({
+        schemaVersion: 'round-operational-summary/v1',
+        participantAvailability: [],
+      }),
+    })
+    let authority: unknown
+    Object.defineProperty(configured.store, 'readRoundAuthority', {
+      value: () => authority,
+    })
+    expect(() => coordinator.reconcileCommittedAvailability(transactionId)).toThrow('reconciliation intent')
+    authority = { authority: { participants: [null] } }
+    expect(() => coordinator.reconcileCommittedAvailability(transactionId)).toThrow('reconciliation intent')
+    close(configured, coordinator)
+  })
+
   it('renews the Writer Lease across cumulative participant latency and rejects unsafe timeout configuration', async () => {
     const path = database('lease-renewal.sqlite')
     const compiled = world()

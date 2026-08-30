@@ -775,16 +775,37 @@ describe('WorldStore and temporal projections', () => {
     setup.createBranch(fixtureAddress())
     setup.close()
     const failing = new WorldStore(path, new ThrowingFaultInjector('store.after-commit'))
-    await expect(failing.commitRound(fixtureCommitRequest())).rejects.toThrow('simulated fault')
+    const request = { ...fixtureCommitRequest(), operationalSummary: { marker: 'same-transaction' } }
+    await expect(failing.commitRound(request)).rejects.toThrow('simulated fault')
     failing.close()
     const recovered = new WorldStore(path)
     expect(recovered.head(fixtureAddress()).headSeq).toBe(1)
+    expect(recovered.committedRoundOperationalSummary(fixtureAddress(), request.transactionId))
+      .toMatchObject({ transactionId: request.transactionId, marker: 'same-transaction' })
+    expect(recovered.committedRoundOperationalSummary(
+      fixtureAddress(), brandId('transaction:absent-summary', 'TransactionId'),
+    )).toBeUndefined()
     const audit = new BranchAdministration(path)
     expect(audit.readAudit(fixtureAddress())).toMatchObject([{
       operation: 'round.committed',
       details: { transactionId: fixtureCommitRequest().transactionId, headSeq: 1, tick: 1 },
     }])
     audit.close()
+    const duplicate = new DatabaseSync(path)
+    duplicate.prepare(`
+      INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
+      VALUES (?, 'round.committed', 'malformed-audit', '[]', 0)
+    `).run(worldAddressKey(fixtureAddress()))
+    expect(recovered.committedRoundOperationalSummary(fixtureAddress(), request.transactionId))
+      .toMatchObject({ marker: 'same-transaction' })
+    duplicate.exec(`
+      INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
+      SELECT address_key, operation, correlation_id, details_json, operational_time_ms
+      FROM branch_audit_events WHERE operation = 'round.committed';
+    `)
+    duplicate.close()
+    expect(() => recovered.committedRoundOperationalSummary(fixtureAddress(), request.transactionId))
+      .toThrow('operational summaries')
     recovered.close()
   })
 

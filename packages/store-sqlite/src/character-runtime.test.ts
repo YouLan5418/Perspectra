@@ -46,6 +46,7 @@ describe('CharacterRuntimeAvailabilityService', () => {
       'budget_unavailable', 'offline', 'disabled',
     ]
     for (const state of states) expect(service.set(address, characterA, state, state === 'ready' ? null : `reason:${state}`)).toMatchObject({ state, changedAtMs: 42 })
+    expect(service.set(address, characterA, 'disabled', 'reason:disabled')).toMatchObject({ state: 'disabled', changedAtMs: 42 })
     expect(service.get(address, characterA)).toMatchObject({ state: 'disabled', reason: 'reason:disabled' })
     expect(service.get(address, brandId('character:missing', 'CharacterId'))).toBeUndefined()
     expect(world.head(address)).toEqual(before)

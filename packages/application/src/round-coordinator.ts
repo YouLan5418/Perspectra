@@ -178,6 +178,17 @@ const availabilityForTerminalCallState: Partial<Record<ProviderCallRecord['state
   discarded_after_quarantine: availabilityForFailure.provider_failed,
 }
 
+const availabilityStatesForTerminal: Record<ParticipantTerminalStatus, readonly RuntimeAvailabilityState[]> = {
+  proposed: ['ready'],
+  provider_failed: ['model_unavailable'],
+  provider_timeout: ['model_unavailable'],
+  budget_exhausted: ['budget_unavailable'],
+  schema_invalid: ['ready', 'model_unavailable'],
+  provider_output_invalid: ['provider_output_invalid'],
+  lifecycle_ineligible: [],
+  runtime_unavailable: ['session_lag'],
+}
+
 /** Compare the frozen ActionOrderKey tuple without consulting mutable world state. */
 export function compareActionOrderKey(left: ActionOrderKey, right: ActionOrderKey): number {
   const role = roleRank[left.sourceRole] - roleRank[right.sourceRole]
@@ -424,6 +435,7 @@ export class RoundCoordinator {
     const committed = this.options.store.committedRound(this.#address, transactionId)
     if (committed !== undefined) {
       this.reconcileCommittedProviderCalls(transactionId)
+      this.reconcileCommittedAvailability(transactionId)
       return { transactionId, result: this.#committedPlayerResult(committed, roundId, playerAction) }
     }
     const head = this.options.store.head(this.#address)
@@ -711,7 +723,6 @@ export class RoundCoordinator {
       resolutions,
       finalCandidateHash: candidateHash,
     } as const
-    const authorityHash = hashWorldJson('world-round-authority', authority)
     this.#renewLease()
     if (frozen.some(value => value.providerCall?.state === 'validated')) {
       this.options.faultInjector?.hit('provider.before-world-commit')
@@ -730,33 +741,28 @@ export class RoundCoordinator {
         : { cognitiveJobs: cognitiveCharacterIds.map(characterId => ({ characterId })) }),
       authority,
       operationalSummary: {
+        schemaVersion: 'round-operational-summary/v1',
         participantTerminals: frozen.map(value => ({
           participantId: value.binding.participantId,
           role: value.binding.role,
           terminalStatus: value.status,
+        })),
+        participantAvailability: frozen.filter(value => value.availabilityTransition !== undefined).map(value => ({
+          participantId: value.binding.participantId,
+          actorId: value.binding.actorId,
+          terminalStatus: value.status,
+          state: value.availabilityTransition!.state,
+          reason: value.availabilityTransition!.reason,
         })),
       },
       correlationId,
       admissionProof: { inboxSeq: claimed.inboxSeq, inputHash: claimed.inputHash },
       writerFencingToken: this.#lease.fencingToken,
     })
-    if (this.options.providerCalls !== undefined) {
-      for (const participant of frozen) {
-        if (participant.providerCall?.state === 'validated') {
-          this.options.providerCalls.markCommitted(participant.providerCall.modelCallId, transactionId, authorityHash)
-        }
-      }
-    }
+    this.reconcileCommittedProviderCalls(transactionId)
+    this.reconcileCommittedAvailability(transactionId)
     for (const participant of frozen) {
       if (participant.status !== 'proposed') this.options.runtimeMetrics?.recordParticipant(participant.status)
-      if (participant.availabilityTransition !== undefined) {
-        this.options.availability.set(
-          this.#address,
-          participant.binding.actorId,
-          participant.availabilityTransition.state,
-          participant.availabilityTransition.reason,
-        )
-      }
     }
     this.processCognitiveJobs()
     return {
@@ -1124,6 +1130,68 @@ export class RoundCoordinator {
       if (stored === undefined) continue
       this.options.providerCalls.markCommitted(stored.modelCallId, transactionId, authority.authorityHash)
     }
+  }
+
+  /** Apply durable post-commit availability intent after validating it against Round Authority. */
+  reconcileCommittedAvailability(transactionId: TransactionId): void {
+    const summary = this.options.store.committedRoundOperationalSummary(this.#address, transactionId)
+    if (summary?.schemaVersion !== 'round-operational-summary/v1') return
+    const availabilityValues = summary.participantAvailability
+    if (!Array.isArray(availabilityValues)) this.#invalidOperationalSummary(transactionId)
+    const authority = this.options.store.readRoundAuthority(this.#address, transactionId)
+    if (authority === undefined || !Array.isArray(authority.authority.participants)) {
+      this.#invalidOperationalSummary(transactionId)
+    }
+    const authorityParticipants = (authority.authority.participants as readonly WorldJsonValue[]).map(value => {
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        this.#invalidOperationalSummary(transactionId)
+      }
+      return value as WorldJsonObject
+    })
+    const seen = new Set<string>()
+    for (const value of availabilityValues) {
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        this.#invalidOperationalSummary(transactionId)
+      }
+      const transition = value as WorldJsonObject
+      if (typeof transition.participantId !== 'string' || typeof transition.actorId !== 'string'
+        || typeof transition.terminalStatus !== 'string' || typeof transition.state !== 'string'
+        || !(transition.reason === null || typeof transition.reason === 'string')) {
+        this.#invalidOperationalSummary(transactionId)
+      }
+      const participantKey = `${transition.participantId}\u001f${transition.actorId}`
+      if (seen.has(participantKey)) this.#invalidOperationalSummary(transactionId)
+      seen.add(participantKey)
+      if (!Object.hasOwn(availabilityStatesForTerminal, transition.terminalStatus)) {
+        this.#invalidOperationalSummary(transactionId)
+      }
+      const terminalStatus = transition.terminalStatus as ParticipantTerminalStatus
+      const state = transition.state as RuntimeAvailabilityState
+      if (!availabilityStatesForTerminal[terminalStatus].includes(state)
+        || (state === 'ready') !== (transition.reason === null)) {
+        this.#invalidOperationalSummary(transactionId)
+      }
+      const participant = authorityParticipants.find(candidate => (
+        candidate.participantId === transition.participantId
+        && candidate.actorId === transition.actorId
+        && candidate.terminalStatus === terminalStatus
+      ))
+      if (participant === undefined) this.#invalidOperationalSummary(transactionId)
+      this.options.availability.set(
+        this.#address,
+        brandId(transition.actorId, 'CharacterId'),
+        state,
+        transition.reason as string | null,
+      )
+    }
+  }
+
+  #invalidOperationalSummary(transactionId: TransactionId): never {
+    failWorld({
+      errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
+      message: 'committed Round operational reconciliation intent diverged from Authority', retryable: false,
+      correlationId: `round-operational-summary:${transactionId}`, address: this.#address,
+    })
   }
 
   #committedPlayerResult(

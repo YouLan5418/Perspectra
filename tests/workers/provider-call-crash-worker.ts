@@ -3,10 +3,11 @@ import { brandId, type FaultPoint, type SubmitActionsV2 } from '@harness-world/c
 import { IpcPauseFaultInjector } from '@harness-world/testkit'
 import { phase8ProviderCrashWorld } from '../fixtures/phase8-provider-world.ts'
 
-const [worldPath, sessionPath, memoryPath, faultPoint] = process.argv.slice(2)
+const [worldPath, sessionPath, memoryPath, faultPoint, mode = 'success'] = process.argv.slice(2)
 if (worldPath === undefined || sessionPath === undefined || memoryPath === undefined || faultPoint === undefined) {
-  throw new Error('usage: provider-call-crash-worker <world-path> <session-path> <memory-path> <fault-point>')
+  throw new Error('usage: provider-call-crash-worker <world-path> <session-path> <memory-path> <fault-point> [success|provider-failure]')
 }
+if (mode !== 'success' && mode !== 'provider-failure') throw new Error('invalid provider crash worker mode')
 const compiled = phase8ProviderCrashWorld()
 const application = new WorldApplication({
   worldPath, sessionPath, memoryPath,
@@ -17,6 +18,7 @@ const application = new WorldApplication({
     allowedActionTypes: ['speak'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
     provider: {
       async propose(): Promise<SubmitActionsV2> {
+        if (mode === 'provider-failure') throw new Error('provider failed before the committed availability transition')
         return {
           schemaVersion: 2, decision: 'act',
           actions: [{

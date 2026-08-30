@@ -1196,6 +1196,25 @@ export class WorldStore {
     return row === undefined ? undefined : { headSeq: row.base_head_seq, tick: row.base_tick }
   }
 
+  /** Read same-transaction operational reconciliation intent for one committed Round. */
+  committedRoundOperationalSummary(
+    address: WorldAddress,
+    transactionId: TransactionId,
+  ): WorldJsonObject | undefined {
+    const rows = this.#db.prepare(`
+      SELECT details_json FROM branch_audit_events
+      WHERE address_key = ? AND operation = 'round.committed' ORDER BY audit_seq
+    `).all(worldAddressKey(address)) as Array<{ details_json: string }>
+    const matches = rows.map(row => parseWorldJson(row.details_json)).filter((value): value is WorldJsonObject => {
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+      return (value as WorldJsonObject).transactionId === transactionId
+    })
+    if (matches.length > 1) {
+      this.#invalidCommittedRound(address, transactionId, 'committed Round has divergent operational summaries')
+    }
+    return matches[0]
+  }
+
   /** Read the authoritative outcome of one transaction without recomputing Provider proposals. */
   committedRound(address: WorldAddress, transactionId: TransactionId): CommittedRoundRecord | undefined {
     const addressKey = worldAddressKey(address)
