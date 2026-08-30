@@ -850,9 +850,59 @@ describe('WorldStore and temporal projections', () => {
       authority: { marker: 'BASE_AUTHORITY' },
     })
     expect(store.readRoundAuthority(child, brandId('transaction:future', 'TransactionId'))).toBeUndefined()
+    const unrelated = fixtureAddress('unrelated')
+    store.createBranch(unrelated)
+    const unrelatedTransaction = brandId('transaction:unrelated', 'TransactionId')
+    await store.commitRound({
+      ...fixtureCommitRequest(unrelated),
+      transactionId: unrelatedTransaction,
+      roundId: brandId('round:unrelated', 'InteractionRoundId'),
+      authority: { schemaVersion: 1, marker: 'UNRELATED_AUTHORITY' },
+      outbox: [],
+    })
+    expect(store.readRoundAuthority(child, unrelatedTransaction)).toBeUndefined()
+    expect(store.readEventsRange(
+      child, 1, forkSeq, ['observation.upsert', 'goal.upsert', 'goal.upsert'],
+    ).map(event => event.seq)).toEqual([3])
+    expect(store.readEventsRange(child, forkSeq, forkSeq)).toEqual([])
+    expect(store.readEventsRange(parent, forkSeq, store.head(parent).headSeq, ['claim.upsert'])
+      .map(event => event.data)).toEqual([{ id: 'claim:FUTURE_CANARY', value: 'future' }])
+    expect(store.readEventsRange(child, 0, forkSeq, [])).toEqual([])
+    for (const bounds of [[-1, 1], [0.5, 1], [2, 1], [0, 1.5]] as const) {
+      expect(() => store.readEventsRange(child, bounds[0], bounds[1])).toThrow(RangeError)
+    }
+    expect(() => store.readEventsRange(child, 0, forkSeq, [''])).toThrow(TypeError)
+    expect(() => store.readEventsRange(child, 0, forkSeq, [' padded '])).toThrow(TypeError)
     expect(() => store.forkBranch(parent, fixtureAddress('bad-negative'), -1)).toThrow(RangeError)
     expect(() => store.forkBranch(parent, fixtureAddress('bad-future'), 999)).toThrow(RangeError)
     store.close()
+  })
+
+  it('fails closed when an effective Authority lookup encounters a corrupted ancestor link', async () => {
+    const path = database('corrupt-authority-ancestor.sqlite')
+    const parent = fixtureAddress('authority-parent')
+    const child = fixtureAddress('authority-child')
+    const unrelated = fixtureAddress('authority-unrelated')
+    const setup = new WorldStore(path)
+    setup.createBranch(parent)
+    await setup.commitRound(fixtureCommitRequest(parent))
+    setup.forkBranch(parent, child, setup.head(parent).headSeq)
+    setup.createBranch(unrelated)
+    const transactionId = brandId('transaction:authority-unrelated', 'TransactionId')
+    await setup.commitRound({
+      ...fixtureCommitRequest(unrelated), transactionId,
+      roundId: brandId('round:authority-unrelated', 'InteractionRoundId'), outbox: [],
+      authority: { schemaVersion: 1 },
+    })
+    setup.close()
+    const corrupt = new DatabaseSync(path)
+    corrupt.exec('PRAGMA foreign_keys = OFF')
+    corrupt.prepare('UPDATE branches SET parent_address_key = ? WHERE address_key = ?')
+      .run('missing\u001fancestor\u001fkey', worldAddressKey(child))
+    corrupt.close()
+    const reopened = new WorldStore(path)
+    expect(() => reopened.readRoundAuthority(child, transactionId)).toThrow('unknown world branch')
+    reopened.close()
   })
 
   it('fails closed when a fork boundary event is missing from corrupted storage', async () => {

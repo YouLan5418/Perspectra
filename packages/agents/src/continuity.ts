@@ -224,7 +224,6 @@ export class ContinuityCheckpointService {
 }
 
 function observationFrom(event: StoredWorldEvent, characterId: CharacterId): InteractionObservation | undefined {
-  if (event.eventType !== 'observation.upsert') return undefined
   if (typeof event.data !== 'object' || event.data === null || Array.isArray(event.data)) {
     throw new Error(`observation.upsert@${event.seq} is malformed`)
   }
@@ -253,8 +252,7 @@ export class InteractionTailBuilder {
       throw new RangeError('Interaction Tail bounds must be ordered non-negative safe integers')
     }
     const grouped = new Map<TransactionId, StoredWorldEvent[]>()
-    for (const event of this.world.readEvents(address, asOfWorldSeq)) {
-      if (event.seq <= afterSeq) continue
+    for (const event of this.world.readEventsRange(address, afterSeq, asOfWorldSeq, ['observation.upsert'])) {
       const group = grouped.get(event.transactionId) ?? []
       group.push(event)
       grouped.set(event.transactionId, group)

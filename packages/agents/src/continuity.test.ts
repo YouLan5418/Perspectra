@@ -366,6 +366,9 @@ describe('Phase 8 continuity derivation', () => {
       { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:bob:only', value: { observerId: bob, content: 'BOB_ONLY_CANARY' } } },
     ])
     const asOf = world.head(address()).headSeq
+    Object.defineProperty(world, 'readEvents', {
+      value: () => { throw new Error('Interaction Tail must not scan the complete Event Log') },
+    })
     const tails = new InteractionTailBuilder(world)
     const tail = tails.rebuildAt(address(), alice, 0, asOf, 1)
     expect(tail.blocks).toHaveLength(1)
@@ -419,7 +422,7 @@ describe('Phase 8 continuity derivation', () => {
     const { world, memory } = await fixture()
     const event = world.readEvents(address()).find(value => value.eventType === 'observation.upsert')!
     const uncommitted = {
-      readEvents: () => [event],
+      readEventsRange: () => [event],
       committedRound: () => undefined,
       readRoundAuthority: () => undefined,
     } as unknown as WorldStore

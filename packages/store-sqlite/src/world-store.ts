@@ -750,7 +750,7 @@ export class WorldStore {
       }
       const forkEvent = forkSeq === 0
         ? undefined
-        : this.#readEventsByKey(parentKey, forkSeq).find(event => event.seq === forkSeq)
+        : this.#readEventsByKey(parentKey, 0, forkSeq).find(event => event.seq === forkSeq)
       if (forkSeq !== 0 && forkEvent === undefined) throw new Error(`fork event ${forkSeq} is missing`)
       if (this.#branchDepth(parentKey) >= 8) {
         failWorld({
@@ -977,7 +977,27 @@ export class WorldStore {
 
   /** Read effective inherited history through asOfSeq. */
   readEvents(address: WorldAddress, asOfSeq = Number.MAX_SAFE_INTEGER): StoredWorldEvent[] {
-    return this.#readEventsByKey(worldAddressKey(address), asOfSeq)
+    return this.#readEventsByKey(worldAddressKey(address), 0, asOfSeq)
+  }
+
+  /** Read only one effective Event range; callers may additionally restrict the stable event vocabulary. */
+  readEventsRange(
+    address: WorldAddress,
+    afterSeq: number,
+    asOfSeq: number,
+    eventTypes?: readonly string[],
+  ): StoredWorldEvent[] {
+    if (!Number.isSafeInteger(afterSeq) || afterSeq < 0 || !Number.isSafeInteger(asOfSeq) || asOfSeq < afterSeq) {
+      throw new RangeError('Event range bounds must be ordered non-negative safe integers')
+    }
+    const normalizedTypes = eventTypes === undefined
+      ? undefined
+      : [...new Set(eventTypes)].sort(compareWorldText)
+    if (normalizedTypes?.some(value => value.length === 0 || value.trim() !== value)) {
+      throw new TypeError('Event range types must be non-empty, unpadded strings')
+    }
+    if (normalizedTypes?.length === 0) return []
+    return this.#readEventsByKey(worldAddressKey(address), afterSeq, asOfSeq, normalizedTypes)
   }
 
   /** Read committed Outbox items for one branch. */
@@ -1311,7 +1331,7 @@ export class WorldStore {
 
   /** Read a hash-verified authority record only when its transaction is effective on this Branch. */
   readRoundAuthority(address: WorldAddress, transactionId: TransactionId): StoredRoundAuthority | undefined {
-    if (!this.readEvents(address).some(event => event.transactionId === transactionId)) return undefined
+    if (!this.#transactionIsEffective(worldAddressKey(address), transactionId)) return undefined
     return this.#authorityRow(transactionId, address)
   }
 
@@ -1564,7 +1584,34 @@ export class WorldStore {
     }
   }
 
-  #readEventsByKey(addressKey: string, asOfSeq: number): StoredWorldEvent[] {
+  #transactionIsEffective(addressKey: string, transactionId: TransactionId): boolean {
+    const event = this.#db.prepare(`
+      SELECT address_key, seq FROM events WHERE transaction_id = ? ORDER BY event_ordinal LIMIT 1
+    `).get(transactionId) as { address_key: string; seq: number } | undefined
+    if (event === undefined) return false
+    const head = this.#headRow(addressKey)
+    let currentKey = addressKey
+    let effectiveThrough = head.head_seq
+    while (true) {
+      const branch = this.#db.prepare(`
+        SELECT parent_address_key, fork_seq FROM branches WHERE address_key = ?
+      `).get(currentKey) as { parent_address_key: string | null; fork_seq: number | null } | undefined
+      if (branch === undefined) throw new Error(`unknown world branch ${currentKey}`)
+      if (currentKey === event.address_key) {
+        return event.seq > (branch.fork_seq ?? 0) && event.seq <= effectiveThrough
+      }
+      if (branch.parent_address_key === null) return false
+      effectiveThrough = Math.min(effectiveThrough, branch.fork_seq as number)
+      currentKey = branch.parent_address_key
+    }
+  }
+
+  #readEventsByKey(
+    addressKey: string,
+    afterSeq: number,
+    asOfSeq: number,
+    eventTypes?: readonly string[],
+  ): StoredWorldEvent[] {
     const branch = this.#db.prepare(`
       SELECT tenant_id, world_id, branch_id, parent_address_key, fork_seq FROM branches WHERE address_key = ?
     `).get(addressKey) as BranchRow | undefined
@@ -1574,14 +1621,20 @@ export class WorldStore {
       worldId: branch.world_id,
       branchId: branch.branch_id,
     } as WorldAddress
-    const inherited = branch.parent_address_key === null
+    const parentAsOf = branch.parent_address_key === null
+      ? 0
+      : Math.min(asOfSeq, branch.fork_seq as number)
+    const inherited = branch.parent_address_key === null || parentAsOf <= afterSeq
       ? []
-      : this.#readEventsByKey(branch.parent_address_key, Math.min(asOfSeq, branch.fork_seq as number))
-    const lowerBound = branch.fork_seq ?? 0
+      : this.#readEventsByKey(branch.parent_address_key, afterSeq, parentAsOf, eventTypes)
+    const lowerBound = Math.max(branch.fork_seq ?? 0, afterSeq)
+    const typeFilter = eventTypes === undefined
+      ? ''
+      : `AND event_type IN (${eventTypes.map(() => '?').join(', ')})`
     const rows = this.#db.prepare(`
       SELECT seq, tick, event_type, event_version, data_json, previous_hash, event_hash, transaction_id, event_ordinal
-      FROM events WHERE address_key = ? AND seq > ? AND seq <= ? ORDER BY seq
-    `).all(addressKey, lowerBound, asOfSeq) as unknown as EventRow[]
+      FROM events WHERE address_key = ? AND seq > ? AND seq <= ? ${typeFilter} ORDER BY seq
+    `).all(addressKey, lowerBound, asOfSeq, ...(eventTypes ?? [])) as unknown as EventRow[]
     const local = rows.map(row => ({
       address,
       seq: row.seq,
