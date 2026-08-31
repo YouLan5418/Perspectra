@@ -157,3 +157,11 @@ export type ClaimedReactionJob = StoredReactionJob & {
   readonly claimExpiresAtMs: number
   readonly claimFencingToken: number
 }
+
+/** Exact Context and append-once ProviderCall identities attached before dispatch. */
+export interface ReactionJobProviderBinding {
+  readonly contextReceiptId: string
+  readonly contextReceiptHash: WorldHash
+  readonly providerCallId: string
+  readonly providerRequestHash: WorldHash
+}

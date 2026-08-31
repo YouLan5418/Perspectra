@@ -15,6 +15,7 @@ import {
   type ReactionCycleDraft,
   type ReactionCycleId,
   type ReactionJobId,
+  type ReactionJobProviderBinding,
   type StableCallBudgetDecision,
   type StableCallBudgetPlan,
   type StoredReactionCycle,
@@ -1040,6 +1041,82 @@ export function renewReactionJobClaim(
       job.stateHash,
     )
     if (result.changes !== 1) throw new Error('Reaction Job claim changed concurrently')
+    db.exec('COMMIT')
+    return stored
+  } catch (error: unknown) {
+    rollbackAndThrow(db, error)
+  }
+}
+
+/** Bind one live Job claim to an exact Context Receipt and append-once ProviderCall before dispatch. */
+export function bindReactionJobProvider(
+  db: DatabaseSync,
+  address: WorldAddress,
+  jobId: ReactionJobId,
+  ownerId: string,
+  writerFencingToken: number,
+  jobFencingToken: number,
+  nowMs: number,
+  binding: ReactionJobProviderBinding,
+): ClaimedReactionJob {
+  assertProtocolString(ownerId, 'ownerId')
+  safeInteger(writerFencingToken, 'writerFencingToken', 1)
+  safeInteger(jobFencingToken, 'jobFencingToken', 1)
+  safeInteger(nowMs, 'nowMs', 0)
+  assertProtocolString(binding.contextReceiptId, 'contextReceiptId')
+  assertProtocolString(binding.providerCallId, 'providerCallId')
+  worldHash(binding.contextReceiptHash, 'contextReceiptHash')
+  worldHash(binding.providerRequestHash, 'providerRequestHash')
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    assertCurrentReactionWriter(db, address, ownerId, writerFencingToken, nowMs)
+    const bundle = readActiveReactionCycle(db, address)
+    const job = bundle?.jobs.find(candidate => candidate.jobId === jobId)
+    if (job?.status !== 'claimed' || job.claimOwnerId !== ownerId || job.claimFencingToken !== jobFencingToken
+      || job.claimExpiresAtMs! <= nowMs) {
+      throw new Error('Reaction Job Provider binding requires a live matching claim')
+    }
+    if (job.providerCallId !== null) {
+      if (job.contextReceiptId !== binding.contextReceiptId || job.contextReceiptHash !== binding.contextReceiptHash
+        || job.providerCallId !== binding.providerCallId || job.providerRequestHash !== binding.providerRequestHash) {
+        throw new Error('Reaction Job Provider binding is divergent')
+      }
+      db.exec('COMMIT')
+      return job as ClaimedReactionJob
+    }
+    const bound: ClaimedReactionJob = {
+      ...job,
+      status: 'claimed',
+      budgetDecision: 'reserved',
+      budgetOrdinal: job.budgetOrdinal!,
+      claimOwnerId: ownerId,
+      claimExpiresAtMs: job.claimExpiresAtMs!,
+      claimFencingToken: jobFencingToken,
+      contextReceiptId: binding.contextReceiptId,
+      contextReceiptHash: binding.contextReceiptHash,
+      providerCallId: binding.providerCallId,
+      providerRequestHash: binding.providerRequestHash,
+    }
+    const stored = { ...bound, stateHash: hashReactionJobState(bound) }
+    const result = db.prepare(`
+      UPDATE world_reaction_jobs
+      SET context_receipt_id = ?, context_receipt_hash = ?, provider_call_id = ?, provider_request_hash = ?, state_hash = ?
+      WHERE address_key = ? AND job_id = ? AND status = 'claimed' AND claim_owner_id = ?
+        AND claim_fencing_token = ? AND claim_expires_at_ms > ? AND provider_call_id IS NULL AND state_hash = ?
+    `).run(
+      stored.contextReceiptId,
+      stored.contextReceiptHash,
+      stored.providerCallId,
+      stored.providerRequestHash,
+      stored.stateHash,
+      worldAddressKey(address),
+      jobId,
+      ownerId,
+      jobFencingToken,
+      nowMs,
+      job.stateHash,
+    )
+    if (result.changes !== 1) throw new Error('Reaction Job Provider binding changed concurrently')
     db.exec('COMMIT')
     return stored
   } catch (error: unknown) {

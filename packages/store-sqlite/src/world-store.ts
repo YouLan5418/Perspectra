@@ -13,6 +13,7 @@ import {
   type FaultInjector,
   type ReactionCycleId,
   type ReactionJobId,
+  type ReactionJobProviderBinding,
   type StoredReactionCycleBundle,
   type StoredOutboxItem,
   type StoredCognitiveJob,
@@ -34,6 +35,7 @@ import {
 } from './sqlite.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
 import {
+  bindReactionJobProvider,
   insertInitialReactionCycle,
   claimNextReactionJob,
   prepareInitialReactionCycle,
@@ -1213,6 +1215,27 @@ export class WorldStore {
       jobFencingToken,
       this.operationalNow(),
       claimTtlMs,
+    )
+  }
+
+  /** Attach exact Context and ProviderCall identities to a live Job before external dispatch. */
+  bindReactionJobProvider(
+    address: WorldAddress,
+    jobId: ReactionJobId,
+    ownerId: string,
+    writerFencingToken: number,
+    jobFencingToken: number,
+    binding: ReactionJobProviderBinding,
+  ): ClaimedReactionJob {
+    return bindReactionJobProvider(
+      this.#db,
+      address,
+      jobId,
+      ownerId,
+      writerFencingToken,
+      jobFencingToken,
+      this.operationalNow(),
+      binding,
     )
   }
 

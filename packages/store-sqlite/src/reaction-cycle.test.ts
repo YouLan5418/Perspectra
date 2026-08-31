@@ -577,4 +577,87 @@ describe('WorldStore Reaction Cycle authority', () => {
       leases.close()
     }
   })
+
+  it('binds a claimed Job to one append-once ProviderCall and never reclaims it after dispatch becomes possible', async () => {
+    const { path, address } = fixture()
+    let now = 0
+    const bootstrap = new WorldStore(path, undefined, () => now)
+    bootstrap.createBranch(address)
+    await bootstrap.commitRound(request(address))
+    bootstrap.close()
+    const leases = new WriterLeaseService(path, () => now)
+    const writer = leases.acquire(address, 'reaction-worker:provider', 1_000)
+    const store = new WorldStore(path, undefined, () => now)
+    const claimed = store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 100)!
+    const binding = {
+      contextReceiptId: 'context-receipt:reaction-provider',
+      contextReceiptHash: hashWorldJson('context-receipt:test', 'provider'),
+      providerCallId: 'provider-call:reaction-provider',
+      providerRequestHash: hashWorldJson('provider-request:test', 'provider'),
+    }
+    const bound = store.bindReactionJobProvider(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, binding,
+    )
+    expect(bound).toMatchObject(binding)
+    expect(store.bindReactionJobProvider(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, binding,
+    )).toEqual(bound)
+    expect(store.committedRound(address, brandId('transaction:reaction-root', 'TransactionId')))
+      .toMatchObject({ roundId: brandId('round:reaction-root', 'InteractionRoundId') })
+    expect(() => store.bindReactionJobProvider(
+      address,
+      claimed.jobId,
+      writer.ownerId,
+      writer.fencingToken,
+      claimed.claimFencingToken,
+      { ...binding, providerCallId: 'provider-call:divergent' },
+    )).toThrow('binding is divergent')
+    now = 101
+    expect(store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 100)).toBeUndefined()
+    expect(() => store.bindReactionJobProvider(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, binding,
+    )).toThrow('live matching claim')
+    store.close()
+    leases.close()
+  })
+
+  it('rejects invalid or concurrently changed Provider bindings', async () => {
+    const { path, address } = fixture()
+    const bootstrap = new WorldStore(path, undefined, () => 0)
+    bootstrap.createBranch(address)
+    await bootstrap.commitRound(request(address))
+    bootstrap.close()
+    const leases = new WriterLeaseService(path, () => 0)
+    const writer = leases.acquire(address, 'reaction-worker:provider-cas', 1_000)
+    const store = new WorldStore(path, undefined, () => 0)
+    const claimed = store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 100)!
+    const binding = {
+      contextReceiptId: 'context-receipt:reaction-provider-cas',
+      contextReceiptHash: hashWorldJson('context-receipt:test', 'provider-cas'),
+      providerCallId: 'provider-call:reaction-provider-cas',
+      providerRequestHash: hashWorldJson('provider-request:test', 'provider-cas'),
+    }
+    expect(() => store.bindReactionJobProvider(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, { ...binding, contextReceiptId: '' },
+    )).toThrow(TypeError)
+    expect(() => store.bindReactionJobProvider(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, {
+        ...binding,
+        contextReceiptHash: 'sha256:bad',
+      },
+    )).toThrow('not a lowercase WorldHash')
+    const raw = new DatabaseSync(path)
+    raw.exec(`
+      CREATE TRIGGER ignore_reaction_provider_binding
+      BEFORE UPDATE ON world_reaction_jobs
+      WHEN OLD.status = 'claimed'
+      BEGIN SELECT RAISE(IGNORE); END
+    `)
+    raw.close()
+    expect(() => store.bindReactionJobProvider(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, binding,
+    )).toThrow('binding changed concurrently')
+    store.close()
+    leases.close()
+  })
 })
