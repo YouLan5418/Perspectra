@@ -26,4 +26,6 @@ Get-FileHash -Algorithm SHA256 docs/spec/implementation-v0.2.md
 
 Phase 8.2 正确性门禁与 Phase 8.3 固定数据性能基线现已关闭，证据见 [Phase 8.2 / 8.3 实施门禁收口报告](../2026-08-31_Phase-8.2-8.3实施门禁收口报告.md)。Phase 9A 开工前仍须完成 v15 → v16、logical v5 → v6、四库恢复和玩家抢占矩阵评审。
 
+上述数据库与抢占评审现已通过，正式四表 Schema、Logical v6 envelope、四库 Set Manifest 和线性化矩阵见 [Phase 9A 数据迁移、恢复集合与玩家抢占评审](../2026-08-31_Phase-9A迁移恢复与抢占评审.md)。该评审授权按 9A → 9B → 9C 顺序实施，不授权直接复制 ADR-0076 原型两表。
+
 这些文档扩展但不改写上述 V0.2 冻结规格；冲突由 Accepted ADR 的 supersedes/extends 关系处理。Phase 8 对长期总纲的实施时点调整及实施前边界收口见 ADR-0064～0068。
