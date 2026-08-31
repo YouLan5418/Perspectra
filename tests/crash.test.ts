@@ -304,6 +304,54 @@ describe('hard process termination recovery', () => {
     recoveredStore.close()
   })
 
+  it('rolls back an explicit Reaction cancellation when killed before commit', async () => {
+    const path = database('reaction.after-cancel-request.sqlite')
+    const address = fixtureAddress()
+    const observer = brandId('character:reaction-cancel-crash', 'CharacterId')
+    const setup = new WorldStore(path)
+    setup.createBranch(address)
+    await setup.commitRound({
+      ...fixtureCommitRequest(address),
+      events: [{
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: 'observation:reaction-cancel-crash', value: { observerId: observer } },
+      }],
+      reactionCycle: {
+        policyVersion: 'reaction-policy/v1',
+        profileId: 'responsive/v1',
+        maxWaves: 3,
+        maxNpcCalls: 8,
+        maxCallsPerCharacter: 2,
+        maxActionsPerCall: 1,
+        allowedActionTypes: ['speak@1'],
+        initialTokenBudget: 8,
+        deadlineAtMs: 10_000,
+        candidates: [{
+          characterId: observer,
+          estimatedTokens: 1,
+          stimuli: [{
+            sourceEventOrdinal: 0,
+            observationOrdinal: 0,
+            observationId: 'observation:reaction-cancel-crash',
+            observerCharacterId: observer,
+          }],
+        }],
+      },
+    })
+    const cycleId = setup.activeReactionCycle(address)!.cycle.cycleId
+    setup.close()
+
+    await hardKillAt(worker, ['reaction-cancel', path, 'reaction.after-cancel-request'])
+
+    const recovered = new WorldStore(path)
+    expect(recovered.reactionCycleView(address, cycleId)).toMatchObject({ status: 'active', stopReason: null })
+    expect(recovered.cancelReactionCycle(address, cycleId)).toMatchObject({
+      status: 'stop_requested', stopReason: 'user_cancelled',
+    })
+    recovered.close()
+  })
+
   it('recovers an instance lock only after its owner process is hard-killed', async () => {
     const worldPath = database('instance-lock-world.sqlite')
     const lockPath = join(dirname(worldPath), 'instance.lock')

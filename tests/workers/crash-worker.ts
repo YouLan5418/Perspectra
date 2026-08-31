@@ -10,9 +10,9 @@ import { brandId, hashWorldJson } from '@harness-world/contracts'
 
 const [mode, databasePath, faultPoint] = process.argv.slice(2)
 if ((mode !== 'world' && mode !== 'session' && mode !== 'outbox' && mode !== 'reaction-preempt'
-  && mode !== 'reaction-settle' && mode !== 'reaction-continue')
+  && mode !== 'reaction-cancel' && mode !== 'reaction-settle' && mode !== 'reaction-continue')
   || databasePath === undefined || faultPoint === undefined) {
-  throw new Error('usage: crash-worker <world|session|outbox|reaction-preempt|reaction-settle|reaction-continue> <database-path> <fault-point>')
+  throw new Error('usage: crash-worker <world|session|outbox|reaction-preempt|reaction-cancel|reaction-settle|reaction-continue> <database-path> <fault-point>')
 }
 const faultInjector = new IpcPauseFaultInjector(faultPoint as FaultPoint)
 if (mode === 'world') {
@@ -39,6 +39,13 @@ if (mode === 'world') {
     correlationId: 'reaction:player-preempt',
   }, 1)
   inbox.close()
+} else if (mode === 'reaction-cancel') {
+  const store = new WorldStore(databasePath, faultInjector)
+  const address = fixtureAddress()
+  const cycle = store.activeReactionCycle(address)?.cycle
+  if (cycle === undefined) throw new Error('reaction cancellation crash fixture is missing')
+  store.cancelReactionCycle(address, cycle.cycleId)
+  store.close()
 } else {
   const store = new WorldStore(databasePath, faultInjector)
   const address = fixtureAddress()

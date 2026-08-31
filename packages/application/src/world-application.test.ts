@@ -134,6 +134,80 @@ function request(idempotencyKey: string, text = idempotencyKey) {
 }
 
 describe('WorldApplication', () => {
+  it('reads, filters, and cancels Reaction Cycles through the durable application boundary', async () => {
+    const persistence = paths()
+    const world = compiled()
+    const application = new WorldApplication(persistence)
+    application.activate(world)
+    const store = new WorldStore(persistence.worldPath)
+    const head = store.head(world.manifest.address)
+    const observer = brandId('character:npc', 'CharacterId')
+    await store.commitRound({
+      address: world.manifest.address,
+      transactionId: brandId('transaction:application-reaction', 'TransactionId'),
+      roundId: brandId('round:application-reaction', 'InteractionRoundId'),
+      expectedHeadSeq: head.headSeq,
+      expectedTick: head.tick,
+      nextTick: head.tick + 1,
+      events: [{
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: 'observation:application-reaction', value: { observerId: observer, content: 'stimulus' } },
+      }],
+      outbox: [],
+      reactionCycle: {
+        policyVersion: 'reaction-policy/v1',
+        profileId: 'responsive/v1',
+        maxWaves: 3,
+        maxNpcCalls: 8,
+        maxCallsPerCharacter: 2,
+        maxActionsPerCall: 1,
+        allowedActionTypes: ['speak@1'],
+        initialTokenBudget: 8,
+        deadlineAtMs: Date.now() + 10_000,
+        candidates: [{
+          characterId: observer,
+          estimatedTokens: 1,
+          stimuli: [{
+            sourceEventOrdinal: 0,
+            observationOrdinal: 0,
+            observationId: 'observation:application-reaction',
+            observerCharacterId: observer,
+          }],
+        }],
+      },
+      correlationId: 'application-reaction',
+    })
+    const cycleId = store.activeReactionCycle(world.manifest.address)!.cycle.cycleId
+    store.close()
+
+    await expect(application.reactionCycle(world.manifest.address, cycleId))
+      .resolves.toMatchObject({ cycleId, status: 'active' })
+    await expect(application.reactionCycle(
+      world.manifest.address, brandId('reaction-cycle:application-missing', 'ReactionCycleId'),
+    )).resolves.toBeUndefined()
+    await expect(application.listReactionCycles(world.manifest.address))
+      .resolves.toEqual([expect.objectContaining({ cycleId })])
+    await expect(application.listReactionCycles(world.manifest.address, { status: 'terminal' }))
+      .resolves.toEqual([])
+    await expect(application.listReactionCycles(world.manifest.address, { status: 'bad' as never }))
+      .rejects.toThrow('status is invalid')
+    await expect(application.listReactionCycles(world.manifest.address, { limit: 0 }))
+      .rejects.toThrow('limit must be')
+    await expect(application.listReactionCycles(world.manifest.address, { limit: 101 }))
+      .rejects.toThrow('limit must be')
+    await expect(application.listReactionCycles(world.manifest.address, { limit: 1.5 }))
+      .rejects.toThrow('limit must be')
+    await expect(application.cancelReactionCycle(
+      world.manifest.address, brandId('reaction-cycle:application-missing', 'ReactionCycleId'), 'reaction:missing',
+    )).rejects.toMatchObject({ envelope: { errorCode: 'INVALID_REQUEST' } })
+    await expect(application.cancelReactionCycle(world.manifest.address, cycleId, 'reaction:cancel'))
+      .resolves.toMatchObject({ status: 'stop_requested', stopReason: 'user_cancelled' })
+    await expect(application.listReactionCycles(world.manifest.address, { status: 'stop_requested', limit: 1 }))
+      .resolves.toEqual([expect.objectContaining({ cycleId })])
+    await application.close()
+  })
+
   it('quarantines a Scene Decision v2 membership overlap before any Round can commit', async () => {
     const persistence = paths()
     const world = overlappingSceneWorld()

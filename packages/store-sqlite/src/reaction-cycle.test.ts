@@ -526,6 +526,16 @@ describe('WorldStore Reaction Cycle authority', () => {
     expect(settled.jobs.filter(job => job.status === 'settled')).toHaveLength(2)
     expect(settled.jobs.filter(job => job.status === 'settled').map(job => job.proposalHash).sort())
       .toEqual([...proposalHashes].sort())
+    expect(store.reactionCycleView(address, initial.cycle.cycleId)).toMatchObject({
+      status: 'terminal',
+      usedCalls: 2,
+      usedTokens: 4,
+      lastCommittedWave: 1,
+      lastReactionRoundId: reactionRequest.roundId,
+      lastResultTransactionId: reactionRequest.transactionId,
+      lastAuthorityHash: expect.stringMatching(/^sha256:/u),
+    })
+    expect(store.cancelReactionCycle(address, initial.cycle.cycleId)).toMatchObject({ status: 'terminal' })
     expect(store.committedRound(address, reactionRequest.transactionId)).toMatchObject({
       roundId: reactionRequest.roundId, bundleHash: committed.bundleHash,
     })
@@ -904,6 +914,9 @@ describe('WorldStore Reaction Cycle authority', () => {
       status: 'stop_requested',
       stopReason: 'player_preempted',
     })
+    expect(store.cancelReactionCycle(address, cycleId)).toMatchObject({
+      status: 'stop_requested', stopReason: 'player_preempted',
+    })
     expect(inbox.enqueue(firstRequest, 2)).toMatchObject({ status: 'already_enqueued', inboxSeq: 1 })
     expect(inbox.enqueue({
       ...firstRequest,
@@ -983,6 +996,106 @@ describe('WorldStore Reaction Cycle authority', () => {
     expect(reopened.activeReactionCycle(address)).toEqual(bundle)
     expect(reopened.committedRound(address, root.transactionId)).toMatchObject({ bundleHash: committed.bundleHash })
     reopened.close()
+  })
+
+  it('exposes privacy-safe Cycle views and idempotently requests user cancellation', async () => {
+    const { path, address } = fixture()
+    const store = new WorldStore(path)
+    store.createBranch(address)
+    await store.commitRound(request(address))
+    const cycleId = store.activeReactionCycle(address)!.cycle.cycleId
+    expect(store.reactionCycleView(address, brandId('reaction-cycle:missing', 'ReactionCycleId'))).toBeUndefined()
+    const view = store.reactionCycleView(address, cycleId)!
+    expect(view).toMatchObject({
+      cycleId,
+      status: 'active',
+      currentWave: 1,
+      usedCalls: 0,
+      usedTokens: 0,
+      lastCommittedWave: null,
+      lastReactionRoundId: null,
+      lastResultTransactionId: null,
+      lastAuthorityHash: null,
+    })
+    expect(view).not.toHaveProperty('jobs')
+    expect(view).not.toHaveProperty('stimuli')
+    expect(store.listReactionCycles(address)).toEqual([view])
+    expect(store.cancelReactionCycle(address, brandId('reaction-cycle:missing', 'ReactionCycleId'))).toBeUndefined()
+    store.close()
+
+    const faulting = new WorldStore(path, new ThrowingFaultInjector('reaction.after-cancel-request'))
+    expect(() => faulting.cancelReactionCycle(address, cycleId)).toThrow('reaction.after-cancel-request')
+    expect(faulting.reactionCycleView(address, cycleId)?.status).toBe('active')
+    faulting.close()
+
+    const blocker = new DatabaseSync(path)
+    blocker.exec(`
+      CREATE TRIGGER block_reaction_user_cancel
+      BEFORE UPDATE OF status ON world_reaction_cycles
+      WHEN NEW.stop_reason = 'user_cancelled'
+      BEGIN SELECT RAISE(IGNORE); END;
+    `)
+    blocker.close()
+    const guarded = new WorldStore(path)
+    expect(() => guarded.cancelReactionCycle(address, cycleId)).toThrow('cancellation changed concurrently')
+    const unblock = new DatabaseSync(path)
+    unblock.exec(`DROP TRIGGER block_reaction_user_cancel`)
+    unblock.close()
+    const cancelled = guarded.cancelReactionCycle(address, cycleId)!
+    expect(cancelled).toMatchObject({ status: 'stop_requested', stopReason: 'user_cancelled' })
+    expect(guarded.cancelReactionCycle(address, cycleId)).toEqual(cancelled)
+    guarded.close()
+  })
+
+  it('lists multiple Cycles newest first after a terminal Cycle permits another Root Round', async () => {
+    const value = await settlementFixture()
+    await value.store.commitRound({
+      address: value.address,
+      transactionId: brandId('transaction:reaction:list:first-terminal', 'TransactionId'),
+      roundId: brandId('round:reaction:list:first-terminal', 'InteractionRoundId'),
+      expectedHeadSeq: 2,
+      expectedTick: 1,
+      nextTick: 2,
+      events: [{ eventType: 'fixture.reaction', eventVersion: 1, data: {} }],
+      outbox: [],
+      authority: { schemaVersion: 1, origin: 'reaction', cycleId: value.cycle.cycleId, wave: 1 },
+      reactionSettlement: value.settlement,
+      writerFencingToken: value.writer.fencingToken,
+      correlationId: 'reaction:list:first-terminal',
+    })
+    await value.store.commitRound({
+      address: value.address,
+      transactionId: brandId('transaction:reaction:list:second-root', 'TransactionId'),
+      roundId: brandId('round:reaction:list:second-root', 'InteractionRoundId'),
+      expectedHeadSeq: 3,
+      expectedTick: 2,
+      nextTick: 3,
+      events: [{
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: 'observation:reaction:list:second', value: { observerId: privateUse } },
+      }],
+      outbox: [],
+      reactionCycle: reactionDraft({
+        candidates: [{
+          characterId: privateUse,
+          estimatedTokens: 1,
+          stimuli: [{
+            sourceEventOrdinal: 0,
+            observationOrdinal: 0,
+            observationId: 'observation:reaction:list:second',
+            observerCharacterId: privateUse,
+          }],
+        }],
+      }),
+      writerFencingToken: value.writer.fencingToken,
+      correlationId: 'reaction:list:second-root',
+    })
+    const activeId = value.store.activeReactionCycle(value.address)!.cycle.cycleId
+    expect(value.store.listReactionCycles(value.address).map(view => view.cycleId))
+      .toEqual([activeId, value.cycle.cycleId])
+    value.store.close()
+    value.leases.close()
   })
 
   it('restores multiple stimuli for one Job in durable ordinal order', async () => {

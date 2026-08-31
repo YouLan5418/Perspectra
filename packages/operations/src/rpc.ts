@@ -10,6 +10,8 @@ import {
   type CharacterId,
   type DeliveryId,
   type InteractionRoundId,
+  type ReactionCycleId,
+  type ReactionCycleStatus,
   type RuntimeAvailabilityState,
   type SessionId,
   type WorldJsonObject,
@@ -40,6 +42,9 @@ export interface WorldApplicationPort {
   roundStatus(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }): Promise<unknown | undefined>
   cancelQueuedRound(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }, correlationId: string): Promise<unknown>
   roundResult(address: WorldAddress, idempotencyKey: string): Promise<unknown | undefined>
+  reactionCycle(address: WorldAddress, cycleId: ReactionCycleId): Promise<unknown | undefined>
+  listReactionCycles(address: WorldAddress, query?: { readonly status?: ReactionCycleStatus; readonly limit?: number }): Promise<unknown>
+  cancelReactionCycle(address: WorldAddress, cycleId: ReactionCycleId, correlationId: string): Promise<unknown>
   head(address: WorldAddress): Promise<unknown>
   characterViewForPrincipal(address: WorldAddress, principalId: string, characterId: CharacterId, asOfWorldSeq?: number): Promise<unknown>
   characterAvailability(address: WorldAddress, characterId: CharacterId): Promise<unknown>
@@ -239,6 +244,27 @@ export class LocalJsonRpcRouter {
       return worldResult(await this.#application().cancelQueuedRound(
         addressParam(params.address),
         typeof idempotencyKey === 'string' ? { idempotencyKey: stringParam(params, 'idempotencyKey') } : { roundId: brandId(stringParam(params, 'roundId'), 'InteractionRoundId') },
+        stringParam(params, 'correlationId'),
+      ))
+    }
+    if (method === 'reaction.get') {
+      const result = await this.#application().reactionCycle(
+        addressParam(params.address), brandId(stringParam(params, 'cycleId'), 'ReactionCycleId'),
+      )
+      return result === undefined ? null : worldResult(result)
+    }
+    if (method === 'reaction.list') {
+      const status = params.status
+      if (status !== undefined && typeof status !== 'string') throw new TypeError('status must be a string')
+      return worldResult(await this.#application().listReactionCycles(addressParam(params.address), {
+        ...(status === undefined ? {} : { status: status as ReactionCycleStatus }),
+        ...(params.limit === undefined ? {} : { limit: integerParam(params, 'limit')! }),
+      }))
+    }
+    if (method === 'reaction.cancel') {
+      return worldResult(await this.#application().cancelReactionCycle(
+        addressParam(params.address),
+        brandId(stringParam(params, 'cycleId'), 'ReactionCycleId'),
         stringParam(params, 'correlationId'),
       ))
     }

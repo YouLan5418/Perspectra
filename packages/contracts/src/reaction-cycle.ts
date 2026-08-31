@@ -148,6 +148,38 @@ export interface StoredReactionCycleBundle extends WorldJsonObject {
   readonly bundleHash: WorldHash
 }
 
+/** Privacy-safe operational view exposed by reaction.get/list/cancel. */
+export interface ReactionCycleView extends WorldJsonObject {
+  readonly cycleId: ReactionCycleId
+  readonly address: WorldAddress
+  readonly rootRoundId: InteractionRoundId
+  readonly policyVersion: 'reaction-policy/v1'
+  readonly profileId: 'responsive/v1'
+  readonly status: ReactionCycleStatus
+  readonly stopReason: ReactionCycleStopReason | null
+  readonly terminalReason: ReactionCycleTerminalReason | null
+  readonly currentWave: number
+  readonly maxWaves: number
+  readonly maxNpcCalls: number
+  readonly maxCallsPerCharacter: number
+  readonly initialTokenBudget: number
+  readonly usedCalls: number
+  readonly usedTokens: number
+  readonly createdAtSeq: number
+  readonly deadlineAtMs: number
+  readonly terminalAtSeq: number | null
+  readonly lastCommittedWave: number | null
+  readonly lastReactionRoundId: InteractionRoundId | null
+  readonly lastResultTransactionId: TransactionId | null
+  readonly lastAuthorityHash: WorldHash | null
+  readonly stateHash: WorldHash
+}
+
+export interface ReactionListQuery extends WorldJsonObject {
+  readonly status?: ReactionCycleStatus
+  readonly limit?: number
+}
+
 /** A durable Reaction Job lease held under the current branch Writer lease. */
 export type ClaimedReactionJob = StoredReactionJob & {
   readonly status: 'claimed'

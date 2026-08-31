@@ -43,6 +43,7 @@ export type FaultPoint =
   | 'provider.before-world-commit'
   | 'reaction.after-player-enqueue'
   | 'reaction.after-player-preempt'
+  | 'reaction.after-cancel-request'
   | 'reaction.after-job-claim'
   | 'reaction.after-wave-settle'
 

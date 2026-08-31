@@ -15,6 +15,7 @@ import {
   type ReactionCandidateDraft,
   type ReactionCycleDraft,
   type ReactionCycleId,
+  type ReactionCycleView,
   type ReactionCycleStopReason,
   type ReactionCycleTerminalReason,
   type ReactionJobId,
@@ -898,6 +899,80 @@ export function readReactionCycleByRootTransaction(
 
 export function readActiveReactionCycle(db: DatabaseSync, address: WorldAddress): StoredReactionCycleBundle | undefined {
   return readReactionCycle(db, address, {})
+}
+
+/** Reduce internal Job/Stimulus rows to the privacy-safe operational API view. */
+export function reactionCycleView(bundle: StoredReactionCycleBundle): ReactionCycleView {
+  const dispatched = bundle.jobs.filter(job => job.status === 'settled' && job.providerCallId !== null)
+  const committedWaves = bundle.waves.filter(wave => wave.status === 'committed')
+  const last = committedWaves.at(-1)
+  return {
+    cycleId: bundle.cycle.cycleId,
+    address: bundle.cycle.address,
+    rootRoundId: bundle.cycle.rootRoundId,
+    policyVersion: bundle.cycle.policyVersion,
+    profileId: bundle.cycle.profileId,
+    status: bundle.cycle.status,
+    stopReason: bundle.cycle.stopReason,
+    terminalReason: bundle.cycle.terminalReason,
+    currentWave: bundle.waves.at(-1)!.wave,
+    maxWaves: bundle.cycle.maxWaves,
+    maxNpcCalls: bundle.cycle.maxNpcCalls,
+    maxCallsPerCharacter: bundle.cycle.maxCallsPerCharacter,
+    initialTokenBudget: bundle.cycle.initialTokenBudget,
+    usedCalls: dispatched.length,
+    usedTokens: dispatched.reduce((total, job) => total + job.reservedTokens, 0),
+    createdAtSeq: bundle.cycle.createdAtSeq,
+    deadlineAtMs: bundle.cycle.deadlineAtMs,
+    terminalAtSeq: bundle.cycle.terminalAtSeq,
+    lastCommittedWave: last?.wave ?? null,
+    lastReactionRoundId: last?.reactionRoundId ?? null,
+    lastResultTransactionId: last?.resultTransactionId ?? null,
+    lastAuthorityHash: last?.authorityHash ?? null,
+    stateHash: bundle.bundleHash,
+  }
+}
+
+/** Read all Cycles for one branch in newest-root-first deterministic order. */
+export function listReactionCycles(db: DatabaseSync, address: WorldAddress): StoredReactionCycleBundle[] {
+  const rows = db.prepare(`
+    SELECT cycle_id, created_at_seq FROM world_reaction_cycles WHERE address_key = ?
+  `).all(worldAddressKey(address)) as unknown as { readonly cycle_id: string; readonly created_at_seq: number }[]
+  rows.sort((left, right) => right.created_at_seq - left.created_at_seq)
+  return rows.map(row => readReactionCycleById(db, address, brandId(row.cycle_id, 'ReactionCycleId'))!)
+}
+
+/** Idempotently request user cancellation without discarding an already frozen Wave. */
+export function cancelReactionCycle(
+  db: DatabaseSync,
+  address: WorldAddress,
+  cycleId: ReactionCycleId,
+  faultInjector?: FaultInjector,
+): StoredReactionCycleBundle | undefined {
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const bundle = readReactionCycleById(db, address, cycleId)
+    if (bundle === undefined || bundle.cycle.status !== 'active') {
+      db.exec('COMMIT')
+      return bundle
+    }
+    const stopped: StoredReactionCycle = {
+      ...bundle.cycle,
+      status: 'stop_requested',
+      stopReason: 'user_cancelled',
+    }
+    const stateHash = hashReactionCycleState(stopped)
+    const result = db.prepare(`
+      UPDATE world_reaction_cycles SET status = 'stop_requested', stop_reason = 'user_cancelled', state_hash = ?
+      WHERE address_key = ? AND cycle_id = ? AND status = 'active' AND state_hash = ?
+    `).run(stateHash, worldAddressKey(address), cycleId, bundle.cycle.stateHash)
+    if (result.changes !== 1) throw new Error('Reaction Cycle cancellation changed concurrently')
+    faultInjector?.hit('reaction.after-cancel-request')
+    db.exec('COMMIT')
+    return readReactionCycleById(db, address, cycleId)
+  } catch (error: unknown) {
+    rollbackAndThrow(db, error)
+  }
 }
 
 /**

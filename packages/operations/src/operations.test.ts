@@ -20,7 +20,7 @@ import {
 import { executeLocalCli, parseLocalCli } from './cli.ts'
 import { WorldHealthService } from './health.ts'
 import { OperationsMetrics } from './metrics.ts'
-import { LocalJsonRpcRouter, type LocalJsonRpcRequest, type LocalJsonRpcResponse } from './rpc.ts'
+import { LocalJsonRpcRouter, type LocalJsonRpcRequest, type LocalJsonRpcResponse, type WorldApplicationPort } from './rpc.ts'
 
 const directories: string[] = []
 
@@ -132,6 +132,43 @@ describe('OperationsMetrics and WorldHealthService', () => {
 })
 
 describe('LocalJsonRpcRouter', () => {
+  it('routes privacy-safe Reaction get/list/cancel operations and validates query shapes', async () => {
+    const { path, parent } = fixture()
+    const cycleId = brandId('reaction-cycle:rpc', 'ReactionCycleId')
+    const queries: unknown[] = []
+    const application = {
+      async reactionCycle(_address: WorldAddress, requested: string) {
+        return requested === cycleId ? { cycleId, status: 'active' } : undefined
+      },
+      async listReactionCycles(_address: WorldAddress, query: unknown) {
+        queries.push(query)
+        return [{ cycleId, status: 'active' }]
+      },
+      async cancelReactionCycle(_address: WorldAddress, requested: string, correlationId: string) {
+        return { cycleId: requested, status: 'stop_requested', stopReason: 'user_cancelled', correlationId }
+      },
+      async close() {},
+    } as unknown as WorldApplicationPort
+    const router = new LocalJsonRpcRouter(path, application)
+    await expect(router.handle(request('reaction.get', { address: parent, cycleId })))
+      .resolves.toMatchObject({ result: { cycleId, status: 'active' } })
+    await expect(router.handle(request('reaction.get', { address: parent, cycleId: 'reaction-cycle:missing' })))
+      .resolves.toMatchObject({ result: null })
+    await expect(router.handle(request('reaction.list', { address: parent })))
+      .resolves.toMatchObject({ result: [{ cycleId }] })
+    await expect(router.handle(request('reaction.list', { address: parent, status: 'active', limit: 2 })))
+      .resolves.toMatchObject({ result: [{ cycleId }] })
+    expect(queries).toEqual([{}, { status: 'active', limit: 2 }])
+    await expect(router.handle(request('reaction.cancel', {
+      address: parent, cycleId, correlationId: 'reaction:rpc-cancel',
+    }))).resolves.toMatchObject({ result: { status: 'stop_requested', correlationId: 'reaction:rpc-cancel' } })
+    await expect(router.handle(request('reaction.list', { address: parent, status: 1 })))
+      .resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
+    await expect(router.handle(request('reaction.list', { address: parent, limit: 1.5 })))
+      .resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
+    await router.close()
+  })
+
   it('exposes branch lifecycle, fork, audit, health, and metrics without a listener', async () => {
     const { path, parent, child } = fixture()
     const setup = new WorldStore(path)

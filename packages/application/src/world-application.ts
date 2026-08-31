@@ -11,6 +11,10 @@ import {
   type CharacterId,
   type RuntimeAvailabilityState,
   type InteractionRoundId,
+  type ReactionCycleId,
+  type ReactionCycleStatus,
+  type ReactionCycleView,
+  type ReactionListQuery,
   type CharacterView,
   type DeliveryId,
   type FaultInjector,
@@ -642,6 +646,59 @@ export class WorldApplication {
       } finally {
         inbox.close()
       }
+    })
+  }
+
+  async reactionCycle(address: WorldAddress, cycleId: ReactionCycleId): Promise<ReactionCycleView | undefined> {
+    return this.#durableReadGuard(address, 'reaction.get', () => {
+      const store = new WorldStore(this.options.worldPath)
+      try {
+        return store.reactionCycleView(address, cycleId)
+      } finally {
+        store.close()
+      }
+    })
+  }
+
+  async listReactionCycles(address: WorldAddress, query: ReactionListQuery = {}): Promise<ReactionCycleView[]> {
+    return this.#durableReadGuard(address, 'reaction.list', () => {
+      const status = query.status
+      if (status !== undefined && !(['active', 'stop_requested', 'terminal'] as ReactionCycleStatus[]).includes(status)) {
+        throw new TypeError('reaction.list status is invalid')
+      }
+      const limit = query.limit ?? 100
+      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+        throw new RangeError('reaction.list limit must be a safe integer from 1 through 100')
+      }
+      const store = new WorldStore(this.options.worldPath)
+      try {
+        return store.listReactionCycles(address)
+          .filter(view => status === undefined || view.status === status).slice(0, limit)
+      } finally {
+        store.close()
+      }
+    })
+  }
+
+  async cancelReactionCycle(
+    address: WorldAddress,
+    cycleId: ReactionCycleId,
+    correlationId: string,
+  ): Promise<ReactionCycleView> {
+    return this.#integrityGuard(address, 'reaction.cancel', branch => {
+      const view = branch.store.store.cancelReactionCycle(address, cycleId)
+      if (view === undefined) {
+        failWorld({
+          errorCode: 'INVALID_REQUEST',
+          category: 'admission',
+          message: 'Reaction Cycle does not exist in this branch',
+          retryable: false,
+          correlationId,
+          address,
+          details: { cycleId },
+        })
+      }
+      return view
     })
   }
 

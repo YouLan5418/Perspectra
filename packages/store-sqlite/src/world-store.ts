@@ -12,6 +12,7 @@ import {
   type ClaimedReactionJob,
   type FaultInjector,
   type ReactionCycleId,
+  type ReactionCycleView,
   type ReactionJobId,
   type ReactionJobProviderBinding,
   type StoredReactionCycleBundle,
@@ -37,7 +38,9 @@ import { OperationalAuditLog } from './operational-audit.ts'
 import {
   applyPreparedReactionWaveSettlement,
   bindReactionJobProvider,
+  cancelReactionCycle,
   insertInitialReactionCycle,
+  listReactionCycles,
   claimNextReactionJob,
   normalizeReactionWaveSettlement,
   prepareInitialReactionCycle,
@@ -46,6 +49,7 @@ import {
   readReactionCycleById,
   readReactionCycleByRootTransaction,
   readReactionWaveSettlementHashByTransaction,
+  reactionCycleView as buildReactionCycleView,
   renewReactionJobClaim,
   type ReactionSourceEvent,
 } from './reaction-cycle.ts'
@@ -1204,9 +1208,26 @@ export class WorldStore {
     return readReactionCycleById(this.#db, address, cycleId)
   }
 
+  /** Read one privacy-safe Cycle view. */
+  reactionCycleView(address: WorldAddress, cycleId: ReactionCycleId): ReactionCycleView | undefined {
+    const bundle = readReactionCycleById(this.#db, address, cycleId)
+    return bundle === undefined ? undefined : buildReactionCycleView(bundle)
+  }
+
   /** Read the branch's only non-terminal Reaction Cycle, if one exists. */
   activeReactionCycle(address: WorldAddress): StoredReactionCycleBundle | undefined {
     return readActiveReactionCycle(this.#db, address)
+  }
+
+  /** List privacy-safe Cycle views in newest-root-first deterministic order. */
+  listReactionCycles(address: WorldAddress): ReactionCycleView[] {
+    return listReactionCycles(this.#db, address).map(buildReactionCycleView)
+  }
+
+  /** Idempotently request user cancellation while allowing the frozen Wave to settle. */
+  cancelReactionCycle(address: WorldAddress, cycleId: ReactionCycleId): ReactionCycleView | undefined {
+    const bundle = cancelReactionCycle(this.#db, address, cycleId, this.faultInjector)
+    return bundle === undefined ? undefined : buildReactionCycleView(bundle)
   }
 
   /** Claim the next stable Reaction Job while proving ownership of the branch Writer lease. */
