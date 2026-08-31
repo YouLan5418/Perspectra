@@ -136,6 +136,114 @@ describe('hard process termination recovery', () => {
     recovered.close()
   })
 
+  it('rolls back the next Wave together with its Reaction Round when killed before commit', async () => {
+    const path = database('reaction.after-wave-continuation.sqlite')
+    const address = fixtureAddress()
+    const observer = brandId('character:reaction-settle-crash', 'CharacterId')
+    const nextObserver = brandId('character:reaction-next-crash', 'CharacterId')
+    const setup = new WorldStore(path)
+    setup.createBranch(address)
+    const leases = new WriterLeaseService(path)
+    const writer = leases.acquire(address, 'reaction-worker:crash-continue', 100_000)
+    await setup.commitRound({
+      ...fixtureCommitRequest(address),
+      events: [{
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: 'observation:reaction-settle-crash', value: { observerId: observer, content: 'stimulus' } },
+      }],
+      reactionCycle: {
+        policyVersion: 'reaction-policy/v1',
+        profileId: 'responsive/v1',
+        maxWaves: 3,
+        maxNpcCalls: 8,
+        maxCallsPerCharacter: 2,
+        maxActionsPerCall: 1,
+        allowedActionTypes: ['speak@1'],
+        initialTokenBudget: 8,
+        deadlineAtMs: Date.now() + 100_000,
+        candidates: [{
+          characterId: observer,
+          estimatedTokens: 1,
+          stimuli: [{
+            sourceEventOrdinal: 0,
+            observationOrdinal: 0,
+            observationId: 'observation:reaction-settle-crash',
+            observerCharacterId: observer,
+          }],
+        }],
+      },
+      writerFencingToken: writer.fencingToken,
+    })
+    const claimed = setup.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 100_000)!
+    setup.bindReactionJobProvider(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, {
+        contextReceiptId: 'context-receipt:reaction-crash-continue',
+        contextReceiptHash: hashWorldJson('context-receipt:test', 'reaction-crash-continue'),
+        providerCallId: 'provider-call:reaction-crash-continue',
+        providerRequestHash: hashWorldJson('provider-request:test', 'reaction-crash-continue'),
+      },
+    )
+    setup.close()
+    leases.close()
+
+    await hardKillAt(worker, ['reaction-continue', path, 'reaction.after-wave-settle'])
+
+    const recovered = new WorldStore(path)
+    expect(recovered.head(address)).toMatchObject({ headSeq: 1, tick: 1 })
+    const bundle = recovered.activeReactionCycle(address)!
+    expect(bundle.waves).toHaveLength(1)
+    const job = bundle.jobs.find(value => value.status === 'claimed')!
+    await expect(recovered.commitRound({
+      address,
+      transactionId: brandId('transaction:reaction-crash-settle', 'TransactionId'),
+      roundId: brandId('round:reaction-crash-settle', 'InteractionRoundId'),
+      expectedHeadSeq: 1,
+      expectedTick: 1,
+      nextTick: 2,
+      events: [{
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: {
+          id: 'observation:reaction-next-crash',
+          value: { observerId: nextObserver, content: 'continue after crash' },
+        },
+      }],
+      outbox: [],
+      authority: { schemaVersion: 1, origin: 'reaction', cycleId: bundle.cycle.cycleId, wave: 1 },
+      reactionSettlement: {
+        cycleId: bundle.cycle.cycleId,
+        wave: 1,
+        terminalReason: null,
+        jobs: [{
+          jobId: job.jobId,
+          claimOwnerId: job.claimOwnerId!,
+          claimFencingToken: job.claimFencingToken!,
+          expectedStateHash: job.stateHash,
+          outcome: 'proposed',
+          proposalHash: hashWorldJson('reaction-proposal:test', 'crash-settle'),
+        }],
+        nextWaveCandidates: [{
+          characterId: nextObserver,
+          estimatedTokens: 1,
+          stimuli: [{
+            sourceEventOrdinal: 0,
+            observationOrdinal: 0,
+            observationId: 'observation:reaction-next-crash',
+            observerCharacterId: nextObserver,
+          }],
+        }],
+      },
+      writerFencingToken: 1,
+      correlationId: 'reaction-crash-continue:recovery',
+    })).resolves.toMatchObject({ status: 'committed', headSeq: 2, tick: 2 })
+    const continued = recovered.activeReactionCycle(address)!
+    expect(continued.waves).toHaveLength(2)
+    expect(continued.waves[1]).toMatchObject({ wave: 2, status: 'frozen', baseHeadSeq: 2 })
+    expect(continued.jobs.find(value => value.wave === 2)).toMatchObject({ characterId: nextObserver, status: 'pending' })
+    recovered.close()
+  })
+
   it.each([
     'reaction.after-player-enqueue',
     'reaction.after-player-preempt',

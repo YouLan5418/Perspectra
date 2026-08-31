@@ -176,10 +176,14 @@ export interface ReactionJobSettlementDraft extends WorldJsonObject {
   readonly proposalHash: WorldHash | null
 }
 
-/** Single-wave settlement contract; multi-wave continuation is added by Phase 9B separately. */
+/**
+ * Exact outcome of one frozen Wave. A null terminalReason requests continuation;
+ * the Store independently derives the next budget plan and rejects mismatches.
+ */
 export interface ReactionWaveSettlementDraft extends WorldJsonObject {
   readonly cycleId: ReactionCycleId
   readonly wave: number
-  readonly terminalReason: ReactionCycleTerminalReason
+  readonly terminalReason: ReactionCycleTerminalReason | null
   readonly jobs: readonly ReactionJobSettlementDraft[]
+  readonly nextWaveCandidates?: readonly ReactionCandidateDraft[]
 }

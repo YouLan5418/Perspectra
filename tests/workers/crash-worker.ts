@@ -9,9 +9,10 @@ import type { FaultPoint } from '@harness-world/contracts'
 import { brandId, hashWorldJson } from '@harness-world/contracts'
 
 const [mode, databasePath, faultPoint] = process.argv.slice(2)
-if ((mode !== 'world' && mode !== 'session' && mode !== 'outbox' && mode !== 'reaction-preempt' && mode !== 'reaction-settle')
+if ((mode !== 'world' && mode !== 'session' && mode !== 'outbox' && mode !== 'reaction-preempt'
+  && mode !== 'reaction-settle' && mode !== 'reaction-continue')
   || databasePath === undefined || faultPoint === undefined) {
-  throw new Error('usage: crash-worker <world|session|outbox|reaction-preempt|reaction-settle> <database-path> <fault-point>')
+  throw new Error('usage: crash-worker <world|session|outbox|reaction-preempt|reaction-settle|reaction-continue> <database-path> <fault-point>')
 }
 const faultInjector = new IpcPauseFaultInjector(faultPoint as FaultPoint)
 if (mode === 'world') {
@@ -48,6 +49,8 @@ if (mode === 'world') {
     throw new Error('reaction settlement crash fixture has no live claim')
   }
   const head = store.head(address)
+  const continuationCharacter = brandId('character:reaction-next-crash', 'CharacterId')
+  const continueCycle = mode === 'reaction-continue'
   await store.commitRound({
     address,
     transactionId: brandId('transaction:reaction-crash-settle', 'TransactionId'),
@@ -55,13 +58,22 @@ if (mode === 'world') {
     expectedHeadSeq: head.headSeq,
     expectedTick: head.tick,
     nextTick: head.tick + 1,
-    events: [{ eventType: 'fixture.reaction', eventVersion: 1, data: { text: 'settle after crash' } }],
+    events: continueCycle
+      ? [{
+          eventType: 'observation.upsert',
+          eventVersion: 1,
+          data: {
+            id: 'observation:reaction-next-crash',
+            value: { observerId: continuationCharacter, content: 'continue after crash' },
+          },
+        }]
+      : [{ eventType: 'fixture.reaction', eventVersion: 1, data: { text: 'settle after crash' } }],
     outbox: [],
     authority: { schemaVersion: 1, origin: 'reaction', cycleId: bundle.cycle.cycleId, wave: 1 },
     reactionSettlement: {
       cycleId: bundle.cycle.cycleId,
       wave: 1,
-      terminalReason: 'quiescent',
+      terminalReason: continueCycle ? null : 'quiescent',
       jobs: [{
         jobId: job.jobId,
         claimOwnerId: job.claimOwnerId,
@@ -70,6 +82,18 @@ if (mode === 'world') {
         outcome: 'proposed',
         proposalHash: hashWorldJson('reaction-proposal:test', 'crash-settle'),
       }],
+      ...(continueCycle ? {
+        nextWaveCandidates: [{
+          characterId: continuationCharacter,
+          estimatedTokens: 1,
+          stimuli: [{
+            sourceEventOrdinal: 0,
+            observationOrdinal: 0,
+            observationId: 'observation:reaction-next-crash',
+            observerCharacterId: continuationCharacter,
+          }],
+        }],
+      } : {}),
     },
     writerFencingToken: 1,
     correlationId: 'reaction-crash-settle',

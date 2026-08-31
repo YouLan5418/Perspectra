@@ -1105,6 +1105,8 @@ export class WorldStore {
         request.expectedHeadSeq,
         head.event_hash,
         finalHeadSeq,
+        finalHeadHash,
+        reactionSourceEvents,
         this.operationalNow(),
       )
       const bundleHash = hashWorldJson('world-round-bundle', {

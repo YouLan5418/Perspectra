@@ -12,6 +12,7 @@ import {
   type ClaimedReactionJob,
   type FaultInjector,
   type InteractionRoundId,
+  type ReactionCandidateDraft,
   type ReactionCycleDraft,
   type ReactionCycleId,
   type ReactionCycleStopReason,
@@ -171,11 +172,14 @@ interface ReactionCycleBundleContent {
 }
 
 export function hashReactionCycleAuthority(input: ReactionCycleBundleContent): WorldHash {
+  const initialJobs = input.jobs.filter(job => job.wave === 1)
+  const initialJobIds = new Set(initialJobs.map(job => job.jobId))
   return hashWorldJson('reaction-cycle-initial-bundle/v1', {
     cycleHash: input.cycle.cycleHash,
-    waveHashes: input.waves.map(wave => wave.waveHash),
-    jobHashes: input.jobs.map(job => job.jobHash),
-    stimulusEntryHashes: input.stimuli.map(stimulus => stimulus.stimulusEntryHash),
+    waveHashes: input.waves.filter(wave => wave.wave === 1).map(wave => wave.waveHash),
+    jobHashes: initialJobs.map(job => job.jobHash),
+    stimulusEntryHashes: input.stimuli.filter(stimulus => initialJobIds.has(stimulus.jobId))
+      .map(stimulus => stimulus.stimulusEntryHash),
   })
 }
 
@@ -852,18 +856,20 @@ function readReactionCycle(
       throw new Error('Reaction Job stimulus bundle is divergent')
     }
   }
-  const initialWave = waves[0]!
-  if (initialWave.budgetPlan.decisions.length !== jobs.filter(job => job.wave === 1).length) {
-    throw new Error('Reaction wave budget decisions do not match Jobs')
-  }
-  for (const [index, decision] of initialWave.budgetPlan.decisions.entries()) {
-    const job = jobs.filter(value => value.wave === 1)[index]!
-    if (decision.candidate.jobId !== job.jobId
-      || decision.candidate.characterId !== job.characterId || decision.candidate.stimulusHash !== job.stimulusHash
-      || decision.reservationOrdinal !== job.budgetOrdinal
-      || (decision.status === 'reserved' ? 'reserved' : decision.exclusion) !== job.budgetDecision
-      || (decision.status === 'reserved' ? decision.candidate.estimatedTokens : 0) !== job.reservedTokens) {
-      throw new Error('Reaction Job diverges from its frozen budget decision')
+  for (const wave of waves) {
+    const waveJobs = jobs.filter(job => job.wave === wave.wave)
+    if (wave.budgetPlan.decisions.length !== waveJobs.length) {
+      throw new Error('Reaction wave budget decisions do not match Jobs')
+    }
+    for (const [index, decision] of wave.budgetPlan.decisions.entries()) {
+      const job = waveJobs[index]!
+      if (decision.candidate.jobId !== job.jobId
+        || decision.candidate.characterId !== job.characterId || decision.candidate.stimulusHash !== job.stimulusHash
+        || decision.reservationOrdinal !== job.budgetOrdinal
+        || (decision.status === 'reserved' ? 'reserved' : decision.exclusion) !== job.budgetDecision
+        || (decision.status === 'reserved' ? decision.candidate.estimatedTokens : 0) !== job.reservedTokens) {
+        throw new Error('Reaction Job diverges from its frozen budget decision')
+      }
     }
   }
   const bundle = { cycle, waves, jobs, stimuli }
@@ -933,7 +939,9 @@ export function normalizeReactionWaveSettlement(
 ): ReactionWaveSettlementDraft {
   canonicalizeWorldJson(draft)
   safeInteger(draft.wave, 'reactionSettlement.wave', 1)
-  if (!TERMINAL_REASONS.has(draft.terminalReason)) throw new TypeError('Reaction settlement terminal reason is invalid')
+  if (draft.terminalReason !== null && !TERMINAL_REASONS.has(draft.terminalReason)) {
+    throw new TypeError('Reaction settlement terminal reason is invalid')
+  }
   const jobs = [...draft.jobs].sort((left, right) => compareWorldText(left.jobId, right.jobId))
   if (new Set(jobs.map(job => job.jobId)).size !== jobs.length) {
     throw new TypeError('Reaction settlement Job ids must be unique')
@@ -948,7 +956,18 @@ export function normalizeReactionWaveSettlement(
       throw new TypeError('Reaction settlement proposal Hash does not match its outcome')
     }
   }
-  return { ...draft, jobs }
+  const nextWaveCandidates = [...(draft.nextWaveCandidates ?? [])]
+    .sort((left, right) => compareWorldText(left.characterId, right.characterId))
+  const characterIds = new Set<CharacterId>()
+  for (const candidate of nextWaveCandidates) {
+    assertProtocolString(candidate.characterId, 'reactionSettlement.nextWaveCandidate.characterId')
+    safeInteger(candidate.estimatedTokens, 'reactionSettlement.nextWaveCandidate.estimatedTokens', 1)
+    if (characterIds.has(candidate.characterId)) {
+      throw new TypeError('Reaction settlement contains duplicate next-Wave candidate characters')
+    }
+    characterIds.add(candidate.characterId)
+  }
+  return { ...draft, jobs, nextWaveCandidates }
 }
 
 interface PreparedReactionJobSettlement {
@@ -959,11 +978,19 @@ interface PreparedReactionJobSettlement {
 export interface PreparedReactionWaveSettlement {
   readonly draft: ReactionWaveSettlementDraft
   readonly previousCycle: StoredReactionCycle
-  readonly terminalCycle: StoredReactionCycle
+  readonly resultCycle: StoredReactionCycle
   readonly previousWave: StoredReactionWave
   readonly committedWave: StoredReactionWave
   readonly jobs: readonly PreparedReactionJobSettlement[]
+  readonly continuation: PreparedReactionWaveContinuation | null
   readonly settlementHash: WorldHash
+}
+
+interface PreparedReactionWaveContinuation {
+  readonly wave: StoredReactionWave
+  readonly jobs: readonly StoredReactionJob[]
+  readonly stimuli: readonly StoredReactionStimulus[]
+  readonly authorityHash: WorldHash
 }
 
 function hashReactionWaveSettlement(
@@ -973,9 +1000,115 @@ function hashReactionWaveSettlement(
   jobStateHashes: readonly WorldHash[],
   terminalReason: ReactionCycleTerminalReason | null,
   terminalAtSeq: number | null,
+  continuationHash: WorldHash | null,
 ): WorldHash {
   return hashWorldJson('reaction-wave-settlement/v1', {
-    cycleId, wave, waveStateHash, jobStateHashes, terminalReason, terminalAtSeq,
+    cycleId, wave, waveStateHash, jobStateHashes, terminalReason, terminalAtSeq, continuationHash,
+  })
+}
+
+function prepareContinuationStimuli(
+  address: WorldAddress,
+  cycleId: ReactionCycleId,
+  wave: number,
+  sourceRoundId: InteractionRoundId,
+  sourceTransactionId: TransactionId,
+  events: readonly ReactionSourceEvent[],
+  candidate: ReactionCandidateDraft,
+): { readonly jobId: ReactionJobId; readonly stimulusHash: WorldHash; readonly stimuli: readonly StoredReactionStimulus[] } {
+  if (candidate.stimuli.length === 0) throw new TypeError('Reaction candidate requires at least one authorized stimulus')
+  const ordered = [...candidate.stimuli].sort((left, right) => left.sourceEventOrdinal - right.sourceEventOrdinal
+    || left.observationOrdinal - right.observationOrdinal)
+  const identities = new Set<string>()
+  const partial = ordered.map((source, stimulusOrdinal) => {
+    safeInteger(source.sourceEventOrdinal, 'reaction stimulus sourceEventOrdinal', 0)
+    safeInteger(source.observationOrdinal, 'reaction stimulus observationOrdinal', 0)
+    const identity = `${source.sourceEventOrdinal}:${source.observationOrdinal}`
+    if (identities.has(identity)) throw new TypeError('Reaction candidate contains duplicate stimulus source coordinates')
+    identities.add(identity)
+    if (source.observerCharacterId !== candidate.characterId) {
+      throw new TypeError('Reaction stimulus observer does not match candidate character')
+    }
+    if (source.observationOrdinal !== 0) throw new TypeError('observation.upsert v1 contains exactly one Observation')
+    const event = events[source.sourceEventOrdinal]
+    if (event === undefined || event.eventOrdinal !== source.sourceEventOrdinal || event.draft.eventType !== 'observation.upsert') {
+      throw new TypeError('Reaction stimulus must reference an observation.upsert in the committing Reaction Round')
+    }
+    const data = objectValue(event.draft.data, 'observation.upsert data')
+    const value = objectValue(data.value as WorldJsonValue, 'observation.upsert value')
+    if (data.id !== source.observationId || value.observerId !== candidate.characterId) {
+      throw new TypeError('Reaction stimulus identity or observer diverges from its source Observation')
+    }
+    return {
+      address,
+      stimulusOrdinal,
+      observerCharacterId: candidate.characterId,
+      sourceRoundId,
+      sourceTransactionId,
+      sourceEventSeq: event.seq,
+      sourceEventOrdinal: event.eventOrdinal,
+      observationOrdinal: source.observationOrdinal,
+      observationId: source.observationId,
+      sourceEventHash: event.eventHash,
+    }
+  })
+  const stimulusHash = hashStimulusBundle(candidate.characterId, partial)
+  const jobId = brandId(deterministicId('reaction-job', {
+    address, cycleId, wave, characterId: candidate.characterId, stimulusHash,
+  }), 'ReactionJobId')
+  return {
+    jobId,
+    stimulusHash,
+    stimuli: partial.map(value => {
+      const withoutHash = { jobId, ...value }
+      return { ...withoutHash, stimulusEntryHash: hashReactionStimulusEntry(withoutHash) }
+    }),
+  }
+}
+
+function prepareContinuationJob(
+  address: WorldAddress,
+  cycleId: ReactionCycleId,
+  wave: number,
+  decision: StableCallBudgetDecision,
+): StoredReactionJob {
+  const budgetDecision = decision.status === 'reserved' ? 'reserved' : decision.exclusion!
+  const immutable = {
+    jobId: brandId(decision.candidate.jobId, 'ReactionJobId'),
+    address,
+    cycleId,
+    wave,
+    characterId: decision.candidate.characterId,
+    stimulusHash: decision.candidate.stimulusHash,
+    budgetDecision,
+    budgetOrdinal: decision.reservationOrdinal,
+    reservedTokens: decision.status === 'reserved' ? decision.candidate.estimatedTokens : 0,
+  } as const
+  const seed: StoredReactionJob = {
+    ...immutable,
+    status: decision.status === 'reserved' ? 'pending' : 'skipped',
+    claimOwnerId: null,
+    claimExpiresAtMs: null,
+    claimFencingToken: null,
+    attemptCount: 0,
+    outcome: null,
+    contextReceiptId: null,
+    contextReceiptHash: null,
+    providerCallId: null,
+    providerRequestHash: null,
+    proposalHash: null,
+    resultTransactionId: null,
+    jobHash: hashJob(immutable),
+    stateHash: 'sha256:pending',
+  }
+  return { ...seed, stateHash: hashReactionJobState(seed) }
+}
+
+function continuationAuthorityHash(continuation: Omit<PreparedReactionWaveContinuation, 'authorityHash'>): WorldHash {
+  return hashWorldJson('reaction-wave-continuation/v1', {
+    waveHash: continuation.wave.waveHash,
+    jobHashes: continuation.jobs.map(job => job.jobHash),
+    stimulusEntryHashes: continuation.stimuli.map(stimulus => stimulus.stimulusEntryHash),
   })
 }
 
@@ -990,6 +1123,8 @@ export function prepareReactionWaveSettlement(
   expectedHeadSeq: number,
   expectedHeadHash: WorldHash | 'genesis',
   finalHeadSeq: number,
+  finalHeadHash: WorldHash,
+  events: readonly ReactionSourceEvent[],
   nowMs: number,
 ): PreparedReactionWaveSettlement {
   const draft = normalizeReactionWaveSettlement(draftInput)
@@ -1005,7 +1140,7 @@ export function prepareReactionWaveSettlement(
   }
   if (bundle.cycle.status === 'stop_requested') {
     if (draft.terminalReason !== bundle.cycle.stopReason) throw new Error('Reaction settlement must preserve the durable stop reason')
-  } else if (STOP_REASONS.has(draft.terminalReason)) {
+  } else if (draft.terminalReason !== null && STOP_REASONS.has(draft.terminalReason)) {
     throw new Error('Reaction settlement cannot invent a stop reason')
   }
   const reserved = bundle.jobs.filter(job => job.wave === draft.wave && job.budgetDecision === 'reserved')
@@ -1040,27 +1175,125 @@ export function prepareReactionWaveSettlement(
     authorityHash: roundAuthorityHash,
   }
   const committedWave = { ...committedWaveSeed, stateHash: hashReactionWaveState(committedWaveSeed) }
-  const terminalSeed: StoredReactionCycle = {
-    ...bundle.cycle,
-    status: 'terminal',
-    terminalReason: draft.terminalReason,
-    terminalAtSeq: finalHeadSeq,
+
+  const nextWaveNumber = draft.wave + 1
+  const candidates = draft.nextWaveCandidates!.map(candidate => ({
+    candidate,
+    ...prepareContinuationStimuli(
+      address,
+      bundle.cycle.cycleId,
+      nextWaveNumber,
+      reactionRoundId,
+      resultTransactionId,
+      events,
+      candidate,
+    ),
+  }))
+  const currentSettled = new Map(jobs.map(job => [job.settled.jobId, job.settled] as const))
+  const effectiveJobs = bundle.jobs.map(job => currentSettled.get(job.jobId) ?? job)
+  const dispatchedJobs = effectiveJobs.filter(job => job.status === 'settled' && job.providerCallId !== null)
+  const callsBefore = dispatchedJobs.length
+  const spentTokens = dispatchedJobs.reduce((total, job) => total + job.reservedTokens, 0)
+  const tokensBefore = bundle.cycle.initialTokenBudget - spentTokens
+  if (callsBefore > bundle.cycle.maxNpcCalls || tokensBefore < 0) {
+    throw new Error('Reaction Cycle durable usage exceeds its frozen budget')
   }
-  const terminalCycle = { ...terminalSeed, stateHash: hashReactionCycleState(terminalSeed) }
+  const callsByCharacter = new Map<CharacterId, number>()
+  for (const job of dispatchedJobs) {
+    callsByCharacter.set(job.characterId, (callsByCharacter.get(job.characterId) ?? 0) + 1)
+  }
+  const usedCallsByCharacter = [...callsByCharacter].map(([characterId, calls]) => ({ characterId, calls }))
+    .sort((left, right) => compareWorldText(left.characterId, right.characterId))
+  const budgetPlan = planStableCallBudget(candidates.map(value => ({
+    wave: nextWaveNumber,
+    characterId: value.candidate.characterId,
+    stimulusHash: value.stimulusHash,
+    jobId: value.jobId,
+    estimatedTokens: value.candidate.estimatedTokens,
+  })), {
+    remainingCalls: bundle.cycle.maxNpcCalls - callsBefore,
+    remainingTokens: tokensBefore,
+    maxCallsPerCharacter: bundle.cycle.maxCallsPerCharacter,
+    usedCallsByCharacter,
+  })
+
+  let derivedTerminalReason: ReactionCycleTerminalReason | null = null
+  if (bundle.cycle.status === 'stop_requested') derivedTerminalReason = bundle.cycle.stopReason
+  else if (jobs.some(job => job.settled.outcome === 'provider_terminal')) derivedTerminalReason = 'provider_terminal'
+  else if (nowMs >= bundle.cycle.deadlineAtMs) derivedTerminalReason = 'deadline_reached'
+  else if (candidates.length === 0) {
+    derivedTerminalReason = jobs.every(job => job.settled.outcome === 'abstained') ? 'all_abstained' : 'quiescent'
+  } else if (nextWaveNumber > bundle.cycle.maxWaves) derivedTerminalReason = 'wave_limit'
+  else if (budgetPlan.reservedCalls === 0) {
+    derivedTerminalReason = budgetPlan.decisions.some(decision => decision.exclusion === 'token_budget_exhausted')
+      ? 'token_budget_exhausted'
+      : 'call_limit'
+  }
+  if (draft.terminalReason !== derivedTerminalReason) {
+    throw new Error('Reaction settlement terminal decision diverges from durable state and frozen limits')
+  }
+
+  let continuation: PreparedReactionWaveContinuation | null = null
+  if (derivedTerminalReason === null) {
+    const immutableWave = {
+      cycleId: bundle.cycle.cycleId,
+      address,
+      wave: nextWaveNumber,
+      baseHeadSeq: finalHeadSeq,
+      baseHeadHash: finalHeadHash,
+      callsBefore,
+      tokensBefore,
+      budgetPlan,
+      budgetPlanHash: budgetPlan.planHash,
+      reservedCalls: budgetPlan.reservedCalls,
+      reservedTokens: budgetPlan.reservedTokens,
+    } as const
+    const waveHash = hashWave(immutableWave)
+    const waveSeed: StoredReactionWave = {
+      ...immutableWave,
+      status: 'frozen',
+      reactionRoundId: null,
+      resultTransactionId: null,
+      authorityHash: null,
+      waveHash,
+      stateHash: 'sha256:pending',
+    }
+    const wave = { ...waveSeed, stateHash: hashReactionWaveState(waveSeed) }
+    const continuationJobs = budgetPlan.decisions.map(decision => prepareContinuationJob(
+      address, bundle.cycle.cycleId, nextWaveNumber, decision,
+    ))
+    const stimuliByJob = new Map(candidates.map(value => [value.jobId, value.stimuli] as const))
+    const stimuli = continuationJobs.flatMap(job => stimuliByJob.get(job.jobId)!)
+    const withoutAuthority = { wave, jobs: continuationJobs, stimuli }
+    continuation = { ...withoutAuthority, authorityHash: continuationAuthorityHash(withoutAuthority) }
+  }
+  const resultCycleSeed: StoredReactionCycle = derivedTerminalReason === null
+    ? bundle.cycle
+    : {
+        ...bundle.cycle,
+        status: 'terminal',
+        terminalReason: derivedTerminalReason,
+        terminalAtSeq: finalHeadSeq,
+      }
+  const resultCycle = derivedTerminalReason === null
+    ? resultCycleSeed
+    : { ...resultCycleSeed, stateHash: hashReactionCycleState(resultCycleSeed) }
   return {
     draft,
     previousCycle: bundle.cycle,
-    terminalCycle,
+    resultCycle,
     previousWave,
     committedWave,
     jobs,
+    continuation,
     settlementHash: hashReactionWaveSettlement(
       draft.cycleId,
       draft.wave,
       committedWave.stateHash,
       jobs.map(job => job.settled.stateHash),
-      draft.terminalReason,
-      finalHeadSeq,
+      derivedTerminalReason,
+      derivedTerminalReason === null ? null : finalHeadSeq,
+      continuation?.authorityHash ?? null,
     ),
   }
 }
@@ -1106,19 +1339,67 @@ export function applyPreparedReactionWaveSettlement(
     prepared.previousWave.stateHash,
   )
   if (waveResult.changes !== 1) throw new Error('Reaction settlement Wave changed concurrently')
-  const cycleResult = db.prepare(`
-    UPDATE world_reaction_cycles
-    SET status = 'terminal', terminal_reason = ?, terminal_at_seq = ?, state_hash = ?
-    WHERE address_key = ? AND cycle_id = ? AND status <> 'terminal' AND state_hash = ?
-  `).run(
-    prepared.terminalCycle.terminalReason,
-    prepared.terminalCycle.terminalAtSeq,
-    prepared.terminalCycle.stateHash,
-    addressKey,
-    prepared.terminalCycle.cycleId,
-    prepared.previousCycle.stateHash,
-  )
+  const cycleResult = prepared.resultCycle.status === 'terminal'
+    ? db.prepare(`
+        UPDATE world_reaction_cycles
+        SET status = 'terminal', terminal_reason = ?, terminal_at_seq = ?, state_hash = ?
+        WHERE address_key = ? AND cycle_id = ? AND status <> 'terminal' AND state_hash = ?
+      `).run(
+        prepared.resultCycle.terminalReason,
+        prepared.resultCycle.terminalAtSeq,
+        prepared.resultCycle.stateHash,
+        addressKey,
+        prepared.resultCycle.cycleId,
+        prepared.previousCycle.stateHash,
+      )
+    : db.prepare(`
+        UPDATE world_reaction_cycles SET state_hash = state_hash
+        WHERE address_key = ? AND cycle_id = ? AND status = 'active' AND state_hash = ?
+      `).run(addressKey, prepared.resultCycle.cycleId, prepared.previousCycle.stateHash)
   if (cycleResult.changes !== 1) throw new Error('Reaction settlement Cycle changed concurrently')
+  if (prepared.continuation !== null) {
+    const continuation = prepared.continuation
+    const wave = continuation.wave
+    db.prepare(`
+      INSERT INTO world_reaction_waves(
+        cycle_id, address_key, wave, base_head_seq, base_head_hash, calls_before, tokens_before,
+        budget_plan_json, budget_plan_hash, reserved_calls, reserved_tokens, status,
+        reaction_round_id, result_transaction_id, authority_hash, wave_hash, state_hash
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      wave.cycleId, addressKey, wave.wave, wave.baseHeadSeq, wave.baseHeadHash, wave.callsBefore, wave.tokensBefore,
+      worldJsonText(wave.budgetPlan), wave.budgetPlanHash, wave.reservedCalls, wave.reservedTokens, wave.status,
+      wave.reactionRoundId, wave.resultTransactionId, wave.authorityHash, wave.waveHash, wave.stateHash,
+    )
+    for (const job of continuation.jobs) {
+      db.prepare(`
+        INSERT INTO world_reaction_jobs(
+          job_id, address_key, cycle_id, wave, character_id, stimulus_hash, status,
+          budget_decision, budget_ordinal, reserved_tokens, claim_owner_id, claim_expires_at_ms,
+          claim_fencing_token, attempt_count, outcome, context_receipt_id, context_receipt_hash,
+          provider_call_id, provider_request_hash, proposal_hash, result_transaction_id, job_hash, state_hash
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        job.jobId, addressKey, job.cycleId, job.wave, job.characterId, job.stimulusHash, job.status,
+        job.budgetDecision, job.budgetOrdinal, job.reservedTokens, job.claimOwnerId, job.claimExpiresAtMs,
+        job.claimFencingToken, job.attemptCount, job.outcome, job.contextReceiptId, job.contextReceiptHash,
+        job.providerCallId, job.providerRequestHash, job.proposalHash, job.resultTransactionId, job.jobHash, job.stateHash,
+      )
+    }
+    for (const stimulus of continuation.stimuli) {
+      db.prepare(`
+        INSERT INTO world_reaction_job_stimuli(
+          job_id, address_key, stimulus_ordinal, observer_character_id, source_round_id,
+          source_transaction_id, source_event_seq, source_event_ordinal, observation_ordinal,
+          observation_id, source_event_hash, stimulus_entry_hash
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        stimulus.jobId, addressKey, stimulus.stimulusOrdinal, stimulus.observerCharacterId, stimulus.sourceRoundId,
+        stimulus.sourceTransactionId, stimulus.sourceEventSeq, stimulus.sourceEventOrdinal,
+        stimulus.observationOrdinal, stimulus.observationId, stimulus.sourceEventHash, stimulus.stimulusEntryHash,
+      )
+    }
+  }
 }
 
 /** Rebuild the immutable settlement link used by a committed Reaction Round bundle. */
@@ -1142,6 +1423,19 @@ export function readReactionWaveSettlementHashByTransaction(
     throw new Error('Reaction Round settlement binding is divergent')
   }
   const isTerminalRound = bundle.cycle.terminalAtSeq === roundHeadSeq
+  const nextWave = bundle.waves.find(value => value.wave === row.wave + 1)
+  const nextJobs = nextWave === undefined ? [] : bundle.jobs.filter(job => job.wave === nextWave.wave)
+  const nextJobIds = new Set(nextJobs.map(job => job.jobId))
+  const nextStimuli = bundle.stimuli.filter(stimulus => nextJobIds.has(stimulus.jobId))
+  if (!isTerminalRound && nextWave === undefined) {
+    throw new Error('Reaction Round continuation binding is absent')
+  }
+  if (isTerminalRound && nextWave !== undefined && nextWave.baseHeadSeq === roundHeadSeq) {
+    throw new Error('Terminal Reaction Round unexpectedly created a continuation')
+  }
+  const continuationHash = nextWave === undefined || nextWave.baseHeadSeq !== roundHeadSeq
+    ? null
+    : continuationAuthorityHash({ wave: nextWave, jobs: nextJobs, stimuli: nextStimuli })
   return hashReactionWaveSettlement(
     bundle.cycle.cycleId,
     wave.wave,
@@ -1149,6 +1443,7 @@ export function readReactionWaveSettlementHashByTransaction(
     jobs.map(job => job.stateHash),
     isTerminalRound ? bundle.cycle.terminalReason : null,
     isTerminalRound ? bundle.cycle.terminalAtSeq : null,
+    continuationHash,
   )
 }
 
