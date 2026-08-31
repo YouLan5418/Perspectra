@@ -9,6 +9,7 @@ import type {
   WorldId,
 } from './ids.ts'
 import type { WorldHash, WorldJsonObject, WorldJsonValue } from './world-json.ts'
+import type { ReactionCycleDraft } from './reaction-cycle.ts'
 
 export interface WorldAddress extends WorldJsonObject {
   readonly tenantId: TenantId
@@ -106,6 +107,8 @@ export interface CommitRoundRequest {
   readonly outbox: readonly OutboxDraft[]
   /** Non-authoritative derived-state work inserted in the same World transaction. */
   readonly cognitiveJobs?: readonly CognitiveJobDraft[]
+  /** Durable, bounded NPC Reaction work created atomically with the Root Round. */
+  readonly reactionCycle?: ReactionCycleDraft
   readonly correlationId: string
   /** Versioned participant/proposal/action/resolution authority committed with this Round. */
   readonly authority?: WorldJsonObject

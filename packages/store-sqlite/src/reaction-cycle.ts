@@ -1,0 +1,871 @@
+import type { DatabaseSync } from 'node:sqlite'
+import {
+  brandId,
+  canonicalizeWorldJson,
+  compareWorldText,
+  deterministicId,
+  hashWorldJson,
+  planStableCallBudget,
+  type CharacterId,
+  type InteractionRoundId,
+  type ReactionCycleDraft,
+  type ReactionCycleId,
+  type ReactionJobId,
+  type StableCallBudgetDecision,
+  type StableCallBudgetPlan,
+  type StoredReactionCycle,
+  type StoredReactionCycleBundle,
+  type StoredReactionJob,
+  type StoredReactionStimulus,
+  type StoredReactionWave,
+  type TransactionId,
+  type WorldAddress,
+  type WorldEventDraft,
+  type WorldHash,
+  type WorldJsonObject,
+  type WorldJsonValue,
+  worldAddressKey,
+} from '@harness-world/contracts'
+import { parseWorldJson, worldJsonText } from './sqlite.ts'
+
+export interface ReactionSourceEvent {
+  readonly draft: WorldEventDraft
+  readonly eventOrdinal: number
+  readonly seq: number
+  readonly eventHash: WorldHash
+}
+
+export interface PrepareInitialReactionCycleInput {
+  readonly address: WorldAddress
+  readonly rootRoundId: InteractionRoundId
+  readonly rootTransactionId: TransactionId
+  readonly finalHeadSeq: number
+  readonly finalHeadHash: WorldHash
+  readonly draft: ReactionCycleDraft
+  readonly events: readonly ReactionSourceEvent[]
+}
+
+function safeInteger(value: number, name: string, minimum: number, maximum = Number.MAX_SAFE_INTEGER): number {
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    throw new RangeError(`${name} must be a safe integer from ${minimum} through ${maximum}`)
+  }
+  return value
+}
+
+function objectValue(value: WorldJsonValue, name: string): WorldJsonObject {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError(`${name} must be an object`)
+  return value as WorldJsonObject
+}
+
+function exactJson(text: string, name: string): WorldJsonValue {
+  const value = parseWorldJson(text)
+  if (worldJsonText(value) !== text) throw new Error(`${name} is not stored as canonical World JSON`)
+  return value
+}
+
+function hashCycle(cycle: Omit<StoredReactionCycle, 'status' | 'stopReason' | 'terminalReason' | 'terminalAtSeq' | 'cycleHash' | 'stateHash'>): WorldHash {
+  return hashWorldJson('reaction-cycle/v1', cycle)
+}
+
+export function hashReactionCycleState(cycle: StoredReactionCycle): WorldHash {
+  return hashWorldJson('reaction-cycle-state/v1', {
+    cycleId: cycle.cycleId,
+    cycleHash: cycle.cycleHash,
+    status: cycle.status,
+    stopReason: cycle.stopReason,
+    terminalReason: cycle.terminalReason,
+    terminalAtSeq: cycle.terminalAtSeq,
+  })
+}
+
+function hashWave(wave: Omit<StoredReactionWave, 'status' | 'reactionRoundId' | 'resultTransactionId' | 'authorityHash' | 'waveHash' | 'stateHash'>): WorldHash {
+  return hashWorldJson('reaction-wave/v1', wave)
+}
+
+export function hashReactionWaveState(wave: StoredReactionWave): WorldHash {
+  return hashWorldJson('reaction-wave-state/v1', {
+    cycleId: wave.cycleId,
+    wave: wave.wave,
+    waveHash: wave.waveHash,
+    status: wave.status,
+    reactionRoundId: wave.reactionRoundId,
+    resultTransactionId: wave.resultTransactionId,
+    authorityHash: wave.authorityHash,
+  })
+}
+
+function hashJob(job: Omit<StoredReactionJob,
+  | 'status'
+  | 'claimOwnerId'
+  | 'claimExpiresAtMs'
+  | 'claimFencingToken'
+  | 'attemptCount'
+  | 'outcome'
+  | 'contextReceiptId'
+  | 'contextReceiptHash'
+  | 'providerCallId'
+  | 'providerRequestHash'
+  | 'proposalHash'
+  | 'resultTransactionId'
+  | 'jobHash'
+  | 'stateHash'
+>): WorldHash {
+  return hashWorldJson('reaction-job/v1', job)
+}
+
+export function hashReactionJobState(job: StoredReactionJob): WorldHash {
+  return hashWorldJson('reaction-job-state/v1', {
+    jobId: job.jobId,
+    jobHash: job.jobHash,
+    status: job.status,
+    claimOwnerId: job.claimOwnerId,
+    claimExpiresAtMs: job.claimExpiresAtMs,
+    claimFencingToken: job.claimFencingToken,
+    attemptCount: job.attemptCount,
+    outcome: job.outcome,
+    contextReceiptId: job.contextReceiptId,
+    contextReceiptHash: job.contextReceiptHash,
+    providerCallId: job.providerCallId,
+    providerRequestHash: job.providerRequestHash,
+    proposalHash: job.proposalHash,
+    resultTransactionId: job.resultTransactionId,
+  })
+}
+
+export function hashReactionStimulusEntry(stimulus: Omit<StoredReactionStimulus, 'stimulusEntryHash'>): WorldHash {
+  return hashWorldJson('reaction-stimulus-entry/v1', stimulus)
+}
+
+function hashStimulusBundle(characterId: CharacterId, stimuli: ReadonlyArray<{
+  readonly sourceEventSeq: number
+  readonly sourceEventOrdinal: number
+  readonly observationOrdinal: number
+  readonly observationId: string
+  readonly sourceEventHash: WorldHash
+}>): WorldHash {
+  return hashWorldJson('reaction-stimulus-bundle/v1', {
+    characterId,
+    entries: stimuli.map(value => ({
+      sourceEventSeq: value.sourceEventSeq,
+      sourceEventOrdinal: value.sourceEventOrdinal,
+      observationOrdinal: value.observationOrdinal,
+      observationId: value.observationId,
+      sourceEventHash: value.sourceEventHash,
+    })),
+  })
+}
+
+export function hashReactionCycleBundle(input: {
+  readonly cycle: StoredReactionCycle
+  readonly waves: readonly StoredReactionWave[]
+  readonly jobs: readonly StoredReactionJob[]
+  readonly stimuli: readonly StoredReactionStimulus[]
+}): WorldHash {
+  return hashWorldJson('reaction-cycle-initial-bundle/v1', {
+    cycleHash: input.cycle.cycleHash,
+    cycleStateHash: input.cycle.stateHash,
+    waveHashes: input.waves.map(wave => wave.waveHash),
+    waveStateHashes: input.waves.map(wave => wave.stateHash),
+    jobHashes: input.jobs.map(job => job.jobHash),
+    jobStateHashes: input.jobs.map(job => job.stateHash),
+    stimulusEntryHashes: input.stimuli.map(stimulus => stimulus.stimulusEntryHash),
+  })
+}
+
+function validatePolicy(draft: ReactionCycleDraft): void {
+  canonicalizeWorldJson(draft)
+  if (draft.policyVersion !== 'reaction-policy/v1' || draft.profileId !== 'responsive/v1') {
+    throw new TypeError('Reaction Cycle policy must be reaction-policy/v1 responsive/v1')
+  }
+  safeInteger(draft.maxWaves, 'reactionCycle.maxWaves', 1, 3)
+  safeInteger(draft.maxNpcCalls, 'reactionCycle.maxNpcCalls', 1, 8)
+  safeInteger(draft.maxCallsPerCharacter, 'reactionCycle.maxCallsPerCharacter', 1, 2)
+  if (draft.maxActionsPerCall !== 1) throw new RangeError('reactionCycle.maxActionsPerCall must equal one')
+  if (draft.allowedActionTypes.length !== 1 || draft.allowedActionTypes[0] !== 'speak@1') {
+    throw new TypeError('Reaction Cycle v1 only allows speak@1')
+  }
+  safeInteger(draft.initialTokenBudget, 'reactionCycle.initialTokenBudget', 0)
+  safeInteger(draft.deadlineAtMs, 'reactionCycle.deadlineAtMs', 0)
+  if (draft.candidates.length === 0) throw new TypeError('Reaction Cycle requires at least one candidate')
+}
+
+function reactionCycleIdentity(input: PrepareInitialReactionCycleInput): {
+  readonly cycleId: ReactionCycleId
+  readonly budgetHash: WorldHash
+} {
+  const cycleId = brandId(deterministicId('reaction-cycle', {
+    address: input.address,
+    rootRoundId: input.rootRoundId,
+    rootTransactionId: input.rootTransactionId,
+    createdAtSeq: input.finalHeadSeq,
+  }), 'ReactionCycleId')
+  const budgetHash = hashWorldJson('reaction-cycle-budget/v1', {
+    policyVersion: input.draft.policyVersion,
+    profileId: input.draft.profileId,
+    maxWaves: input.draft.maxWaves,
+    maxNpcCalls: input.draft.maxNpcCalls,
+    maxCallsPerCharacter: input.draft.maxCallsPerCharacter,
+    maxActionsPerCall: input.draft.maxActionsPerCall,
+    allowedActionTypes: input.draft.allowedActionTypes,
+    initialTokenBudget: input.draft.initialTokenBudget,
+    deadlineAtMs: input.draft.deadlineAtMs,
+  })
+  return { cycleId, budgetHash }
+}
+
+function prepareStimuli(
+  input: PrepareInitialReactionCycleInput,
+  cycleId: ReactionCycleId,
+  characterId: CharacterId,
+  sourceDrafts: ReactionCycleDraft['candidates'][number]['stimuli'],
+): { readonly jobId: ReactionJobId; readonly stimulusHash: WorldHash; readonly stimuli: readonly StoredReactionStimulus[] } {
+  if (sourceDrafts.length === 0) throw new TypeError('Reaction candidate requires at least one authorized stimulus')
+  const ordered = [...sourceDrafts].sort((left, right) => left.sourceEventOrdinal - right.sourceEventOrdinal
+    || left.observationOrdinal - right.observationOrdinal)
+  const identities = new Set<string>()
+  const partial = ordered.map((source, stimulusOrdinal) => {
+    safeInteger(source.sourceEventOrdinal, 'reaction stimulus sourceEventOrdinal', 0)
+    safeInteger(source.observationOrdinal, 'reaction stimulus observationOrdinal', 0)
+    const identity = `${source.sourceEventOrdinal}:${source.observationOrdinal}`
+    if (identities.has(identity)) throw new TypeError('Reaction candidate contains duplicate stimulus source coordinates')
+    identities.add(identity)
+    if (source.observerCharacterId !== characterId) throw new TypeError('Reaction stimulus observer does not match candidate character')
+    if (source.observationOrdinal !== 0) throw new TypeError('observation.upsert v1 contains exactly one Observation')
+    const event = input.events[source.sourceEventOrdinal]
+    if (event === undefined || event.eventOrdinal !== source.sourceEventOrdinal || event.draft.eventType !== 'observation.upsert') {
+      throw new TypeError('Reaction stimulus must reference an observation.upsert in the Root Round')
+    }
+    const data = objectValue(event.draft.data, 'observation.upsert data')
+    const value = objectValue(data.value as WorldJsonValue, 'observation.upsert value')
+    if (data.id !== source.observationId || value.observerId !== characterId) {
+      throw new TypeError('Reaction stimulus identity or observer diverges from its source Observation')
+    }
+    return {
+      address: input.address,
+      stimulusOrdinal,
+      observerCharacterId: characterId,
+      sourceRoundId: input.rootRoundId,
+      sourceTransactionId: input.rootTransactionId,
+      sourceEventSeq: event.seq,
+      sourceEventOrdinal: event.eventOrdinal,
+      observationOrdinal: source.observationOrdinal,
+      observationId: source.observationId,
+      sourceEventHash: event.eventHash,
+    }
+  })
+  const stimulusHash = hashStimulusBundle(characterId, partial)
+  const jobId = brandId(deterministicId('reaction-job', {
+    address: input.address, cycleId, wave: 1, characterId, stimulusHash,
+  }), 'ReactionJobId')
+  const stimuli = partial.map(value => {
+    const withoutHash = { jobId, ...value }
+    return { ...withoutHash, stimulusEntryHash: hashReactionStimulusEntry(withoutHash) }
+  })
+  return { jobId, stimulusHash, stimuli }
+}
+
+function prepareJob(
+  input: PrepareInitialReactionCycleInput,
+  cycleId: ReactionCycleId,
+  decision: StableCallBudgetDecision,
+): StoredReactionJob {
+  const budgetDecision = decision.status === 'reserved' ? 'reserved' : decision.exclusion!
+  const immutable = {
+    jobId: brandId(decision.candidate.jobId, 'ReactionJobId'),
+    address: input.address,
+    cycleId,
+    wave: 1,
+    characterId: decision.candidate.characterId,
+    stimulusHash: decision.candidate.stimulusHash,
+    budgetDecision,
+    budgetOrdinal: decision.reservationOrdinal,
+    reservedTokens: decision.status === 'reserved' ? decision.candidate.estimatedTokens : 0,
+  } as const
+  const jobHash = hashJob(immutable)
+  const job: StoredReactionJob = {
+    ...immutable,
+    status: decision.status === 'reserved' ? 'pending' : 'skipped',
+    claimOwnerId: null,
+    claimExpiresAtMs: null,
+    claimFencingToken: null,
+    attemptCount: 0,
+    outcome: null,
+    contextReceiptId: null,
+    contextReceiptHash: null,
+    providerCallId: null,
+    providerRequestHash: null,
+    proposalHash: null,
+    resultTransactionId: null,
+    jobHash,
+    stateHash: 'sha256:pending',
+  }
+  return { ...job, stateHash: hashReactionJobState(job) }
+}
+
+/** Build the exact initial Cycle rows from one Root Round before the enclosing transaction commits. */
+export function prepareInitialReactionCycle(input: PrepareInitialReactionCycleInput): StoredReactionCycleBundle {
+  validatePolicy(input.draft)
+  safeInteger(input.finalHeadSeq, 'reactionCycle.finalHeadSeq', 1)
+  if (input.events.length === 0 || input.events.at(-1)?.seq !== input.finalHeadSeq) {
+    throw new TypeError('Reaction Cycle events do not end at finalHeadSeq')
+  }
+  const { cycleId, budgetHash } = reactionCycleIdentity(input)
+  const seenCharacters = new Set<CharacterId>()
+  const preparedCandidates = input.draft.candidates.map(candidate => {
+    if (seenCharacters.has(candidate.characterId)) throw new TypeError('Reaction Cycle contains duplicate candidate characters')
+    seenCharacters.add(candidate.characterId)
+    safeInteger(candidate.estimatedTokens, 'reaction candidate estimatedTokens', 1)
+    const prepared = prepareStimuli(input, cycleId, candidate.characterId, candidate.stimuli)
+    return { candidate, ...prepared }
+  })
+  const budgetPlan = planStableCallBudget(preparedCandidates.map(value => ({
+    wave: 1,
+    characterId: value.candidate.characterId,
+    stimulusHash: value.stimulusHash,
+    jobId: value.jobId,
+    estimatedTokens: value.candidate.estimatedTokens,
+  })), {
+    remainingCalls: input.draft.maxNpcCalls,
+    remainingTokens: input.draft.initialTokenBudget,
+    maxCallsPerCharacter: input.draft.maxCallsPerCharacter,
+    usedCallsByCharacter: [],
+  })
+  const immutableCycle = {
+    cycleId,
+    address: input.address,
+    rootRoundId: input.rootRoundId,
+    rootTransactionId: input.rootTransactionId,
+    createdAtSeq: input.finalHeadSeq,
+    policyVersion: input.draft.policyVersion,
+    profileId: input.draft.profileId,
+    maxWaves: input.draft.maxWaves,
+    maxNpcCalls: input.draft.maxNpcCalls,
+    maxCallsPerCharacter: input.draft.maxCallsPerCharacter,
+    maxActionsPerCall: input.draft.maxActionsPerCall,
+    allowedActionTypes: input.draft.allowedActionTypes,
+    initialTokenBudget: input.draft.initialTokenBudget,
+    deadlineAtMs: input.draft.deadlineAtMs,
+    budgetHash,
+  } as const
+  const cycleHash = hashCycle(immutableCycle)
+  const cycleSeed: StoredReactionCycle = {
+    ...immutableCycle,
+    status: 'active',
+    stopReason: null,
+    terminalReason: null,
+    terminalAtSeq: null,
+    cycleHash,
+    stateHash: 'sha256:pending',
+  }
+  const cycle = { ...cycleSeed, stateHash: hashReactionCycleState(cycleSeed) }
+  const immutableWave = {
+    cycleId,
+    address: input.address,
+    wave: 1,
+    baseHeadSeq: input.finalHeadSeq,
+    baseHeadHash: input.finalHeadHash,
+    callsBefore: 0,
+    tokensBefore: input.draft.initialTokenBudget,
+    budgetPlan,
+    budgetPlanHash: budgetPlan.planHash,
+    reservedCalls: budgetPlan.reservedCalls,
+    reservedTokens: budgetPlan.reservedTokens,
+  } as const
+  const waveHash = hashWave(immutableWave)
+  const waveSeed: StoredReactionWave = {
+    ...immutableWave,
+    status: 'frozen',
+    reactionRoundId: null,
+    resultTransactionId: null,
+    authorityHash: null,
+    waveHash,
+    stateHash: 'sha256:pending',
+  }
+  const wave = { ...waveSeed, stateHash: hashReactionWaveState(waveSeed) }
+  const jobs = budgetPlan.decisions.map(decision => prepareJob(input, cycleId, decision))
+  const stimuliByJob = new Map(preparedCandidates.map(value => [value.jobId, value.stimuli] as const))
+  const stimuli = jobs.flatMap(job => stimuliByJob.get(job.jobId)!)
+  const bundle = { cycle, waves: [wave], jobs, stimuli }
+  return { ...bundle, bundleHash: hashReactionCycleBundle(bundle) }
+}
+
+/** Insert an already prepared initial bundle on the caller-owned World transaction. */
+export function insertInitialReactionCycle(db: DatabaseSync, bundle: StoredReactionCycleBundle): void {
+  const cycle = bundle.cycle
+  db.prepare(`
+    INSERT INTO world_reaction_cycles(
+      cycle_id, address_key, root_round_id, root_transaction_id, created_at_seq,
+      policy_version, profile_id, max_waves, max_npc_calls, max_calls_per_character,
+      max_actions_per_call, allowed_action_types_json, initial_token_budget, deadline_at_ms,
+      budget_hash, status, stop_reason, terminal_reason, terminal_at_seq, cycle_hash, state_hash
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    cycle.cycleId,
+    worldAddressKey(cycle.address),
+    cycle.rootRoundId,
+    cycle.rootTransactionId,
+    cycle.createdAtSeq,
+    cycle.policyVersion,
+    cycle.profileId,
+    cycle.maxWaves,
+    cycle.maxNpcCalls,
+    cycle.maxCallsPerCharacter,
+    cycle.maxActionsPerCall,
+    worldJsonText(cycle.allowedActionTypes),
+    cycle.initialTokenBudget,
+    cycle.deadlineAtMs,
+    cycle.budgetHash,
+    cycle.status,
+    cycle.stopReason,
+    cycle.terminalReason,
+    cycle.terminalAtSeq,
+    cycle.cycleHash,
+    cycle.stateHash,
+  )
+  for (const wave of bundle.waves) {
+    db.prepare(`
+      INSERT INTO world_reaction_waves(
+        cycle_id, address_key, wave, base_head_seq, base_head_hash, calls_before, tokens_before,
+        budget_plan_json, budget_plan_hash, reserved_calls, reserved_tokens, status,
+        reaction_round_id, result_transaction_id, authority_hash, wave_hash, state_hash
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      wave.cycleId,
+      worldAddressKey(wave.address),
+      wave.wave,
+      wave.baseHeadSeq,
+      wave.baseHeadHash,
+      wave.callsBefore,
+      wave.tokensBefore,
+      worldJsonText(wave.budgetPlan),
+      wave.budgetPlanHash,
+      wave.reservedCalls,
+      wave.reservedTokens,
+      wave.status,
+      wave.reactionRoundId,
+      wave.resultTransactionId,
+      wave.authorityHash,
+      wave.waveHash,
+      wave.stateHash,
+    )
+  }
+  for (const job of bundle.jobs) {
+    db.prepare(`
+      INSERT INTO world_reaction_jobs(
+        job_id, address_key, cycle_id, wave, character_id, stimulus_hash, status,
+        budget_decision, budget_ordinal, reserved_tokens, claim_owner_id, claim_expires_at_ms,
+        claim_fencing_token, attempt_count, outcome, context_receipt_id, context_receipt_hash,
+        provider_call_id, provider_request_hash, proposal_hash, result_transaction_id, job_hash, state_hash
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      job.jobId,
+      worldAddressKey(job.address),
+      job.cycleId,
+      job.wave,
+      job.characterId,
+      job.stimulusHash,
+      job.status,
+      job.budgetDecision,
+      job.budgetOrdinal,
+      job.reservedTokens,
+      job.claimOwnerId,
+      job.claimExpiresAtMs,
+      job.claimFencingToken,
+      job.attemptCount,
+      job.outcome,
+      job.contextReceiptId,
+      job.contextReceiptHash,
+      job.providerCallId,
+      job.providerRequestHash,
+      job.proposalHash,
+      job.resultTransactionId,
+      job.jobHash,
+      job.stateHash,
+    )
+  }
+  for (const stimulus of bundle.stimuli) {
+    db.prepare(`
+      INSERT INTO world_reaction_job_stimuli(
+        job_id, address_key, stimulus_ordinal, observer_character_id, source_round_id,
+        source_transaction_id, source_event_seq, source_event_ordinal, observation_ordinal,
+        observation_id, source_event_hash, stimulus_entry_hash
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      stimulus.jobId,
+      worldAddressKey(stimulus.address),
+      stimulus.stimulusOrdinal,
+      stimulus.observerCharacterId,
+      stimulus.sourceRoundId,
+      stimulus.sourceTransactionId,
+      stimulus.sourceEventSeq,
+      stimulus.sourceEventOrdinal,
+      stimulus.observationOrdinal,
+      stimulus.observationId,
+      stimulus.sourceEventHash,
+      stimulus.stimulusEntryHash,
+    )
+  }
+}
+
+function worldHash(value: string, name: string): WorldHash {
+  if (!/^sha256:[0-9a-f]{64}$/u.test(value)) throw new Error(`${name} is not a lowercase WorldHash`)
+  return value as WorldHash
+}
+
+function nullableWorldHash(value: string | null, name: string): WorldHash | null {
+  return value === null ? null : worldHash(value, name)
+}
+
+interface CycleRow {
+  readonly cycle_id: string
+  readonly root_round_id: string
+  readonly root_transaction_id: string
+  readonly created_at_seq: number
+  readonly policy_version: string
+  readonly profile_id: string
+  readonly max_waves: number
+  readonly max_npc_calls: number
+  readonly max_calls_per_character: number
+  readonly max_actions_per_call: number
+  readonly allowed_action_types_json: string
+  readonly initial_token_budget: number
+  readonly deadline_at_ms: number
+  readonly budget_hash: string
+  readonly status: StoredReactionCycle['status']
+  readonly stop_reason: StoredReactionCycle['stopReason']
+  readonly terminal_reason: StoredReactionCycle['terminalReason']
+  readonly terminal_at_seq: number | null
+  readonly cycle_hash: string
+  readonly state_hash: string
+}
+
+interface WaveRow {
+  readonly cycle_id: string
+  readonly wave: number
+  readonly base_head_seq: number
+  readonly base_head_hash: string
+  readonly calls_before: number
+  readonly tokens_before: number
+  readonly budget_plan_json: string
+  readonly budget_plan_hash: string
+  readonly reserved_calls: number
+  readonly reserved_tokens: number
+  readonly status: StoredReactionWave['status']
+  readonly reaction_round_id: string | null
+  readonly result_transaction_id: string | null
+  readonly authority_hash: string | null
+  readonly wave_hash: string
+  readonly state_hash: string
+}
+
+interface JobRow {
+  readonly job_id: string
+  readonly cycle_id: string
+  readonly wave: number
+  readonly character_id: string
+  readonly stimulus_hash: string
+  readonly status: StoredReactionJob['status']
+  readonly budget_decision: StoredReactionJob['budgetDecision']
+  readonly budget_ordinal: number | null
+  readonly reserved_tokens: number
+  readonly claim_owner_id: string | null
+  readonly claim_expires_at_ms: number | null
+  readonly claim_fencing_token: number | null
+  readonly attempt_count: number
+  readonly outcome: StoredReactionJob['outcome']
+  readonly context_receipt_id: string | null
+  readonly context_receipt_hash: string | null
+  readonly provider_call_id: string | null
+  readonly provider_request_hash: string | null
+  readonly proposal_hash: string | null
+  readonly result_transaction_id: string | null
+  readonly job_hash: string
+  readonly state_hash: string
+}
+
+interface StimulusRow {
+  readonly job_id: string
+  readonly stimulus_ordinal: number
+  readonly observer_character_id: string
+  readonly source_round_id: string
+  readonly source_transaction_id: string
+  readonly source_event_seq: number
+  readonly source_event_ordinal: number
+  readonly observation_ordinal: number
+  readonly observation_id: string
+  readonly source_event_hash: string
+  readonly stimulus_entry_hash: string
+}
+
+function parseBudgetPlan(text: string, expectedHash: string): StableCallBudgetPlan {
+  const value = objectValue(exactJson(text, 'Reaction wave budget plan'), 'Reaction wave budget plan')
+  if (!Array.isArray(value.decisions) || typeof value.limits !== 'object' || value.limits === null
+    || Array.isArray(value.limits) || typeof value.planHash !== 'string') {
+    throw new Error('Reaction wave budget plan is malformed')
+  }
+  const plan = value as unknown as StableCallBudgetPlan
+  const replay = planStableCallBudget(plan.decisions.map(decision => decision.candidate), plan.limits)
+  if (worldJsonText(replay) !== text || replay.planHash !== expectedHash) {
+    throw new Error('Reaction wave budget plan is divergent')
+  }
+  return plan
+}
+
+function readCycleRow(db: DatabaseSync, addressKey: string, selector: { readonly cycleId?: string; readonly rootTransactionId?: string }): CycleRow | undefined {
+  if (selector.cycleId !== undefined) {
+    return db.prepare(`SELECT * FROM world_reaction_cycles WHERE address_key = ? AND cycle_id = ?`)
+      .get(addressKey, selector.cycleId) as unknown as CycleRow | undefined
+  }
+  if (selector.rootTransactionId !== undefined) {
+    return db.prepare(`SELECT * FROM world_reaction_cycles WHERE address_key = ? AND root_transaction_id = ?`)
+      .get(addressKey, selector.rootTransactionId) as unknown as CycleRow | undefined
+  }
+  return db.prepare(`SELECT * FROM world_reaction_cycles WHERE address_key = ? AND status <> 'terminal'`)
+    .get(addressKey) as unknown as CycleRow | undefined
+}
+
+function readReactionCycle(
+  db: DatabaseSync,
+  address: WorldAddress,
+  selector: { readonly cycleId?: string; readonly rootTransactionId?: string },
+): StoredReactionCycleBundle | undefined {
+  const addressKey = worldAddressKey(address)
+  const row = readCycleRow(db, addressKey, selector)
+  if (row === undefined) return undefined
+  const allowed = exactJson(row.allowed_action_types_json, 'Reaction Cycle allowed Action types')
+  if (!Array.isArray(allowed) || allowed.length !== 1 || allowed[0] !== 'speak@1'
+    || row.policy_version !== 'reaction-policy/v1' || row.profile_id !== 'responsive/v1'
+    || row.max_actions_per_call !== 1) {
+    throw new Error('Reaction Cycle policy row is malformed')
+  }
+  const cycleId = brandId(row.cycle_id, 'ReactionCycleId')
+  const cycle: StoredReactionCycle = {
+    cycleId,
+    address,
+    rootRoundId: brandId(row.root_round_id, 'InteractionRoundId'),
+    rootTransactionId: brandId(row.root_transaction_id, 'TransactionId'),
+    createdAtSeq: row.created_at_seq,
+    policyVersion: row.policy_version,
+    profileId: row.profile_id,
+    maxWaves: row.max_waves,
+    maxNpcCalls: row.max_npc_calls,
+    maxCallsPerCharacter: row.max_calls_per_character,
+    maxActionsPerCall: row.max_actions_per_call,
+    allowedActionTypes: ['speak@1'],
+    initialTokenBudget: row.initial_token_budget,
+    deadlineAtMs: row.deadline_at_ms,
+    budgetHash: worldHash(row.budget_hash, 'Reaction Cycle budget_hash'),
+    status: row.status,
+    stopReason: row.stop_reason,
+    terminalReason: row.terminal_reason,
+    terminalAtSeq: row.terminal_at_seq,
+    cycleHash: worldHash(row.cycle_hash, 'Reaction Cycle cycle_hash'),
+    stateHash: worldHash(row.state_hash, 'Reaction Cycle state_hash'),
+  }
+  const immutableCycle = {
+    cycleId: cycle.cycleId,
+    address: cycle.address,
+    rootRoundId: cycle.rootRoundId,
+    rootTransactionId: cycle.rootTransactionId,
+    createdAtSeq: cycle.createdAtSeq,
+    policyVersion: cycle.policyVersion,
+    profileId: cycle.profileId,
+    maxWaves: cycle.maxWaves,
+    maxNpcCalls: cycle.maxNpcCalls,
+    maxCallsPerCharacter: cycle.maxCallsPerCharacter,
+    maxActionsPerCall: cycle.maxActionsPerCall,
+    allowedActionTypes: cycle.allowedActionTypes,
+    initialTokenBudget: cycle.initialTokenBudget,
+    deadlineAtMs: cycle.deadlineAtMs,
+    budgetHash: cycle.budgetHash,
+  }
+  if (hashCycle(immutableCycle) !== cycle.cycleHash || hashReactionCycleState(cycle) !== cycle.stateHash) {
+    throw new Error('Reaction Cycle hash is divergent')
+  }
+
+  const waveRows = db.prepare(`SELECT * FROM world_reaction_waves WHERE cycle_id = ? ORDER BY wave`).all(cycleId) as unknown as WaveRow[]
+  const waves = waveRows.map((waveRow, index): StoredReactionWave => {
+    if (waveRow.wave !== index + 1) throw new Error('Reaction Cycle wave sequence is discontinuous')
+    const budgetPlan = parseBudgetPlan(waveRow.budget_plan_json, waveRow.budget_plan_hash)
+    const wave: StoredReactionWave = {
+      cycleId,
+      address,
+      wave: waveRow.wave,
+      baseHeadSeq: waveRow.base_head_seq,
+      baseHeadHash: worldHash(waveRow.base_head_hash, 'Reaction wave base_head_hash'),
+      callsBefore: waveRow.calls_before,
+      tokensBefore: waveRow.tokens_before,
+      budgetPlan,
+      budgetPlanHash: worldHash(waveRow.budget_plan_hash, 'Reaction wave budget_plan_hash'),
+      reservedCalls: waveRow.reserved_calls,
+      reservedTokens: waveRow.reserved_tokens,
+      status: waveRow.status,
+      reactionRoundId: waveRow.reaction_round_id === null ? null : brandId(waveRow.reaction_round_id, 'InteractionRoundId'),
+      resultTransactionId: waveRow.result_transaction_id === null ? null : brandId(waveRow.result_transaction_id, 'TransactionId'),
+      authorityHash: nullableWorldHash(waveRow.authority_hash, 'Reaction wave authority_hash'),
+      waveHash: worldHash(waveRow.wave_hash, 'Reaction wave wave_hash'),
+      stateHash: worldHash(waveRow.state_hash, 'Reaction wave state_hash'),
+    }
+    const immutable = {
+      cycleId: wave.cycleId,
+      address: wave.address,
+      wave: wave.wave,
+      baseHeadSeq: wave.baseHeadSeq,
+      baseHeadHash: wave.baseHeadHash,
+      callsBefore: wave.callsBefore,
+      tokensBefore: wave.tokensBefore,
+      budgetPlan: wave.budgetPlan,
+      budgetPlanHash: wave.budgetPlanHash,
+      reservedCalls: wave.reservedCalls,
+      reservedTokens: wave.reservedTokens,
+    }
+    if (hashWave(immutable) !== wave.waveHash || hashReactionWaveState(wave) !== wave.stateHash) {
+      throw new Error('Reaction wave hash is divergent')
+    }
+    return wave
+  })
+  if (waves.length === 0 || waves.length > cycle.maxWaves) throw new Error('Reaction Cycle wave count is invalid')
+
+  const jobRows = db.prepare(`SELECT * FROM world_reaction_jobs WHERE cycle_id = ?`).all(cycleId) as unknown as JobRow[]
+  jobRows.sort((left, right) => compareWorldText(
+    `${left.wave}\u001f${left.character_id}\u001f${left.stimulus_hash}\u001f${left.job_id}`,
+    `${right.wave}\u001f${right.character_id}\u001f${right.stimulus_hash}\u001f${right.job_id}`,
+  ))
+  const jobs = jobRows.map((jobRow): StoredReactionJob => {
+    const job: StoredReactionJob = {
+      jobId: brandId(jobRow.job_id, 'ReactionJobId'),
+      address,
+      cycleId,
+      wave: jobRow.wave,
+      characterId: brandId(jobRow.character_id, 'CharacterId'),
+      stimulusHash: worldHash(jobRow.stimulus_hash, 'Reaction Job stimulus_hash'),
+      status: jobRow.status,
+      budgetDecision: jobRow.budget_decision,
+      budgetOrdinal: jobRow.budget_ordinal,
+      reservedTokens: jobRow.reserved_tokens,
+      claimOwnerId: jobRow.claim_owner_id,
+      claimExpiresAtMs: jobRow.claim_expires_at_ms,
+      claimFencingToken: jobRow.claim_fencing_token,
+      attemptCount: jobRow.attempt_count,
+      outcome: jobRow.outcome,
+      contextReceiptId: jobRow.context_receipt_id,
+      contextReceiptHash: nullableWorldHash(jobRow.context_receipt_hash, 'Reaction Job context_receipt_hash'),
+      providerCallId: jobRow.provider_call_id,
+      providerRequestHash: nullableWorldHash(jobRow.provider_request_hash, 'Reaction Job provider_request_hash'),
+      proposalHash: nullableWorldHash(jobRow.proposal_hash, 'Reaction Job proposal_hash'),
+      resultTransactionId: jobRow.result_transaction_id === null ? null : brandId(jobRow.result_transaction_id, 'TransactionId'),
+      jobHash: worldHash(jobRow.job_hash, 'Reaction Job job_hash'),
+      stateHash: worldHash(jobRow.state_hash, 'Reaction Job state_hash'),
+    }
+    const immutable = {
+      jobId: job.jobId,
+      address: job.address,
+      cycleId: job.cycleId,
+      wave: job.wave,
+      characterId: job.characterId,
+      stimulusHash: job.stimulusHash,
+      budgetDecision: job.budgetDecision,
+      budgetOrdinal: job.budgetOrdinal,
+      reservedTokens: job.reservedTokens,
+    }
+    if (hashJob(immutable) !== job.jobHash || hashReactionJobState(job) !== job.stateHash) {
+      throw new Error('Reaction Job hash is divergent')
+    }
+    return job
+  })
+  const stimulusRows = db.prepare(`SELECT * FROM world_reaction_job_stimuli WHERE address_key = ? AND job_id IN (
+    SELECT job_id FROM world_reaction_jobs WHERE cycle_id = ?
+  )`).all(addressKey, cycleId) as unknown as StimulusRow[]
+  const jobRank = new Map(jobs.map((job, index) => [job.jobId, index] as const))
+  stimulusRows.sort((left, right) => jobRank.get(left.job_id as ReactionJobId)!
+    - jobRank.get(right.job_id as ReactionJobId)!
+    || left.stimulus_ordinal - right.stimulus_ordinal)
+  const stimuli = stimulusRows.map((stimulusRow): StoredReactionStimulus => {
+    const stimulusWithoutHash = {
+      jobId: brandId(stimulusRow.job_id, 'ReactionJobId'),
+      address,
+      stimulusOrdinal: stimulusRow.stimulus_ordinal,
+      observerCharacterId: brandId(stimulusRow.observer_character_id, 'CharacterId'),
+      sourceRoundId: brandId(stimulusRow.source_round_id, 'InteractionRoundId'),
+      sourceTransactionId: brandId(stimulusRow.source_transaction_id, 'TransactionId'),
+      sourceEventSeq: stimulusRow.source_event_seq,
+      sourceEventOrdinal: stimulusRow.source_event_ordinal,
+      observationOrdinal: stimulusRow.observation_ordinal,
+      observationId: stimulusRow.observation_id,
+      sourceEventHash: worldHash(stimulusRow.source_event_hash, 'Reaction stimulus source_event_hash'),
+    }
+    const stimulus = {
+      ...stimulusWithoutHash,
+      stimulusEntryHash: worldHash(stimulusRow.stimulus_entry_hash, 'Reaction stimulus stimulus_entry_hash'),
+    }
+    if (hashReactionStimulusEntry(stimulusWithoutHash) !== stimulus.stimulusEntryHash) {
+      throw new Error('Reaction stimulus entry hash is divergent')
+    }
+    const source = db.prepare(`
+      SELECT event_type, data_json, event_hash, transaction_id, event_ordinal
+      FROM events WHERE address_key = ? AND seq = ?
+    `).get(addressKey, stimulus.sourceEventSeq) as {
+      event_type: string
+      data_json: string
+      event_hash: string
+      transaction_id: string
+      event_ordinal: number
+    } | undefined
+    const sourceData = source === undefined ? undefined : objectValue(
+      exactJson(source.data_json, 'Reaction stimulus source Event'), 'Reaction stimulus source Event',
+    )
+    const sourceValue = sourceData === undefined ? undefined : objectValue(
+      sourceData.value as WorldJsonValue, 'Reaction stimulus source Observation',
+    )
+    if (source === undefined || source.event_type !== 'observation.upsert'
+      || source.event_hash !== stimulus.sourceEventHash || source.transaction_id !== stimulus.sourceTransactionId
+      || source.event_ordinal !== stimulus.sourceEventOrdinal || sourceData?.id !== stimulus.observationId
+      || sourceValue?.observerId !== stimulus.observerCharacterId) {
+      throw new Error('Reaction stimulus source binding is divergent')
+    }
+    return stimulus
+  })
+  for (const job of jobs) {
+    const owned = stimuli.filter(stimulus => stimulus.jobId === job.jobId)
+    if (owned.length === 0 || owned.some((stimulus, index) => stimulus.stimulusOrdinal !== index)
+      || hashStimulusBundle(job.characterId, owned) !== job.stimulusHash) {
+      throw new Error('Reaction Job stimulus bundle is divergent')
+    }
+  }
+  const initialWave = waves[0]!
+  if (initialWave.budgetPlan.decisions.length !== jobs.filter(job => job.wave === 1).length) {
+    throw new Error('Reaction wave budget decisions do not match Jobs')
+  }
+  for (const [index, decision] of initialWave.budgetPlan.decisions.entries()) {
+    const job = jobs.filter(value => value.wave === 1)[index]!
+    if (decision.candidate.jobId !== job.jobId
+      || decision.candidate.characterId !== job.characterId || decision.candidate.stimulusHash !== job.stimulusHash
+      || decision.reservationOrdinal !== job.budgetOrdinal
+      || (decision.status === 'reserved' ? 'reserved' : decision.exclusion) !== job.budgetDecision
+      || (decision.status === 'reserved' ? decision.candidate.estimatedTokens : 0) !== job.reservedTokens) {
+      throw new Error('Reaction Job diverges from its frozen budget decision')
+    }
+  }
+  const bundle = { cycle, waves, jobs, stimuli }
+  return { ...bundle, bundleHash: hashReactionCycleBundle(bundle) }
+}
+
+export function readReactionCycleById(
+  db: DatabaseSync,
+  address: WorldAddress,
+  cycleId: ReactionCycleId,
+): StoredReactionCycleBundle | undefined {
+  return readReactionCycle(db, address, { cycleId })
+}
+
+export function readReactionCycleByRootTransaction(
+  db: DatabaseSync,
+  address: WorldAddress,
+  transactionId: TransactionId,
+): StoredReactionCycleBundle | undefined {
+  return readReactionCycle(db, address, { rootTransactionId: transactionId })
+}
+
+export function readActiveReactionCycle(db: DatabaseSync, address: WorldAddress): StoredReactionCycleBundle | undefined {
+  return readReactionCycle(db, address, {})
+}

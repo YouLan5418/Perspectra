@@ -19,6 +19,8 @@ export type OpenLoopId = BrandedId<'OpenLoopId'>
 export type ContinuityCheckpointId = BrandedId<'ContinuityCheckpointId'>
 export type ContextReceiptId = BrandedId<'ContextReceiptId'>
 export type ProviderCallId = BrandedId<'ProviderCallId'>
+export type ReactionCycleId = BrandedId<'ReactionCycleId'>
+export type ReactionJobId = BrandedId<'ReactionJobId'>
 
 /** Validate and brand an opaque identifier at a parser or storage boundary. */
 export function brandId<Name extends string>(value: string, name: Name): BrandedId<Name> {

@@ -10,6 +10,8 @@ import {
   type CommitRoundResult,
   type CognitiveJobDraft,
   type FaultInjector,
+  type ReactionCycleId,
+  type StoredReactionCycleBundle,
   type StoredOutboxItem,
   type StoredCognitiveJob,
   type StoredRoundAuthority,
@@ -29,6 +31,14 @@ import {
   worldJsonText,
 } from './sqlite.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
+import {
+  insertInitialReactionCycle,
+  prepareInitialReactionCycle,
+  readActiveReactionCycle,
+  readReactionCycleById,
+  readReactionCycleByRootTransaction,
+  type ReactionSourceEvent,
+} from './reaction-cycle.ts'
 
 export const WORLD_SCHEMA = `
 CREATE TABLE IF NOT EXISTS branches (
@@ -959,6 +969,7 @@ export class WorldStore {
       events: request.events,
       outbox: request.outbox,
       ...(cognitiveJobs.length === 0 ? {} : { cognitiveJobs }),
+      ...(request.reactionCycle === undefined ? {} : { reactionCycle: request.reactionCycle }),
       ...(authorityHash === null ? {} : { authorityHash }),
     })
 
@@ -1004,6 +1015,7 @@ export class WorldStore {
 
       let previousHash = head.event_hash
       const eventHashes: WorldHash[] = []
+      const reactionSourceEvents: ReactionSourceEvent[] = []
       for (const [eventOrdinal, draft] of request.events.entries()) {
         const seq = head.head_seq + eventOrdinal + 1
         const eventHash = hashWorldJson('world-event-envelope', {
@@ -1034,10 +1046,21 @@ export class WorldStore {
         )
         previousHash = eventHash
         eventHashes.push(eventHash)
+        reactionSourceEvents.push({ draft, eventOrdinal, seq, eventHash })
       }
       this.faultInjector?.hit('store.after-event-insert')
 
       const finalHeadSeq = head.head_seq + request.events.length
+      const finalHeadHash = previousHash as WorldHash
+      const reactionCycle = request.reactionCycle === undefined ? undefined : prepareInitialReactionCycle({
+        address: request.address,
+        rootRoundId: request.roundId,
+        rootTransactionId: request.transactionId,
+        finalHeadSeq,
+        finalHeadHash,
+        draft: request.reactionCycle,
+        events: reactionSourceEvents,
+      })
       const outboxHashes = request.outbox.map((item) => {
         const payloadHash = hashWorldJson('world-outbox-payload', item.payload)
         this.#db.prepare(`
@@ -1062,6 +1085,7 @@ export class WorldStore {
         eventHashes,
         outboxHashes,
         ...(authorityHash === null ? {} : { authorityHash }),
+        ...(reactionCycle === undefined ? {} : { reactionCycleHash: reactionCycle.bundleHash }),
       })
       if (authorityHash !== null) {
         this.#db.prepare(`
@@ -1084,6 +1108,7 @@ export class WorldStore {
         bundleHash,
         authorityHash,
       )
+      if (reactionCycle !== undefined) insertInitialReactionCycle(this.#db, reactionCycle)
       for (const job of cognitiveJobs) {
         const identity = {
           address: request.address,
@@ -1136,6 +1161,16 @@ export class WorldStore {
   /** Read effective inherited history through asOfSeq. */
   readEvents(address: WorldAddress, asOfSeq = Number.MAX_SAFE_INTEGER): StoredWorldEvent[] {
     return this.#readEventsByKey(worldAddressKey(address), 0, asOfSeq)
+  }
+
+  /** Read and verify one durable Reaction Cycle without opening another SQLite connection. */
+  readReactionCycle(address: WorldAddress, cycleId: ReactionCycleId): StoredReactionCycleBundle | undefined {
+    return readReactionCycleById(this.#db, address, cycleId)
+  }
+
+  /** Read the branch's only non-terminal Reaction Cycle, if one exists. */
+  activeReactionCycle(address: WorldAddress): StoredReactionCycleBundle | undefined {
+    return readActiveReactionCycle(this.#db, address)
   }
 
   /** Read only one effective Event range; callers may additionally restrict the stable event vocabulary. */
@@ -1453,6 +1488,7 @@ export class WorldStore {
       || (authority !== undefined && (authority.authorityHash !== row.authority_hash || authority.roundId !== row.round_id))) {
       this.#invalidCommittedRound(address, transactionId, 'committed Round authority binding is divergent')
     }
+    const reactionCycle = readReactionCycleByRootTransaction(this.#db, address, transactionId)
     const bundleHash = hashWorldJson('world-round-bundle', {
       address,
       roundId: row.round_id,
@@ -1460,6 +1496,7 @@ export class WorldStore {
       eventHashes,
       outboxHashes: outbox.map(item => item.payload_hash),
       ...(row.authority_hash === null ? {} : { authorityHash: row.authority_hash }),
+      ...(reactionCycle === undefined ? {} : { reactionCycleHash: reactionCycle.bundleHash }),
     })
     if (bundleHash !== row.bundle_hash) {
       this.#invalidCommittedRound(address, transactionId, 'committed Round bundle hash is divergent')
