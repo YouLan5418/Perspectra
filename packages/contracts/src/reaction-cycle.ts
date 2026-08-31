@@ -142,6 +142,9 @@ export interface StoredReactionCycleBundle extends WorldJsonObject {
   readonly waves: readonly StoredReactionWave[]
   readonly jobs: readonly StoredReactionJob[]
   readonly stimuli: readonly StoredReactionStimulus[]
+  /** Immutable Cycle/Wave/Job/Stimulus authority bound into the Root Round. */
+  readonly authorityHash: WorldHash
+  /** Current mutable scheduler state, used for diagnostics and transfer integrity. */
   readonly bundleHash: WorldHash
 }
 

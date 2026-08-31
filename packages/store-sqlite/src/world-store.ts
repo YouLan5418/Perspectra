@@ -1089,7 +1089,7 @@ export class WorldStore {
         eventHashes,
         outboxHashes,
         ...(authorityHash === null ? {} : { authorityHash }),
-        ...(reactionCycle === undefined ? {} : { reactionCycleHash: reactionCycle.bundleHash }),
+        ...(reactionCycle === undefined ? {} : { reactionCycleHash: reactionCycle.authorityHash }),
       })
       if (authorityHash !== null) {
         this.#db.prepare(`
@@ -1539,7 +1539,7 @@ export class WorldStore {
       eventHashes,
       outboxHashes: outbox.map(item => item.payload_hash),
       ...(row.authority_hash === null ? {} : { authorityHash: row.authority_hash }),
-      ...(reactionCycle === undefined ? {} : { reactionCycleHash: reactionCycle.bundleHash }),
+      ...(reactionCycle === undefined ? {} : { reactionCycleHash: reactionCycle.authorityHash }),
     })
     if (bundleHash !== row.bundle_hash) {
       this.#invalidCommittedRound(address, transactionId, 'committed Round bundle hash is divergent')

@@ -159,20 +159,28 @@ function hashStimulusBundle(characterId: CharacterId, stimuli: ReadonlyArray<{
   })
 }
 
-export function hashReactionCycleBundle(input: {
+interface ReactionCycleBundleContent {
   readonly cycle: StoredReactionCycle
   readonly waves: readonly StoredReactionWave[]
   readonly jobs: readonly StoredReactionJob[]
   readonly stimuli: readonly StoredReactionStimulus[]
-}): WorldHash {
+}
+
+export function hashReactionCycleAuthority(input: ReactionCycleBundleContent): WorldHash {
   return hashWorldJson('reaction-cycle-initial-bundle/v1', {
     cycleHash: input.cycle.cycleHash,
-    cycleStateHash: input.cycle.stateHash,
     waveHashes: input.waves.map(wave => wave.waveHash),
-    waveStateHashes: input.waves.map(wave => wave.stateHash),
     jobHashes: input.jobs.map(job => job.jobHash),
-    jobStateHashes: input.jobs.map(job => job.stateHash),
     stimulusEntryHashes: input.stimuli.map(stimulus => stimulus.stimulusEntryHash),
+  })
+}
+
+export function hashReactionCycleBundle(input: ReactionCycleBundleContent): WorldHash {
+  return hashWorldJson('reaction-cycle-state-bundle/v1', {
+    authorityHash: hashReactionCycleAuthority(input),
+    cycleStateHash: input.cycle.stateHash,
+    waveStateHashes: input.waves.map(wave => wave.stateHash),
+    jobStateHashes: input.jobs.map(job => job.stateHash),
   })
 }
 
@@ -390,7 +398,11 @@ export function prepareInitialReactionCycle(input: PrepareInitialReactionCycleIn
   const stimuliByJob = new Map(preparedCandidates.map(value => [value.jobId, value.stimuli] as const))
   const stimuli = jobs.flatMap(job => stimuliByJob.get(job.jobId)!)
   const bundle = { cycle, waves: [wave], jobs, stimuli }
-  return { ...bundle, bundleHash: hashReactionCycleBundle(bundle) }
+  return {
+    ...bundle,
+    authorityHash: hashReactionCycleAuthority(bundle),
+    bundleHash: hashReactionCycleBundle(bundle),
+  }
 }
 
 /** Insert an already prepared initial bundle on the caller-owned World transaction. */
@@ -851,7 +863,11 @@ function readReactionCycle(
     }
   }
   const bundle = { cycle, waves, jobs, stimuli }
-  return { ...bundle, bundleHash: hashReactionCycleBundle(bundle) }
+  return {
+    ...bundle,
+    authorityHash: hashReactionCycleAuthority(bundle),
+    bundleHash: hashReactionCycleBundle(bundle),
+  }
 }
 
 export function readReactionCycleById(

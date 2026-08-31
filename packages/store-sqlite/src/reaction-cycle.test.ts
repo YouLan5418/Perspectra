@@ -441,6 +441,8 @@ describe('WorldStore Reaction Cycle authority', () => {
       claimExpiresAtMs: 100,
       budgetDecision: 'reserved',
     })
+    expect(firstStore.committedRound(address, brandId('transaction:reaction-root', 'TransactionId')))
+      .toMatchObject({ roundId: brandId('round:reaction-root', 'InteractionRoundId') })
     expect(firstStore.claimNextReactionJob(address, firstWriter.ownerId, firstWriter.fencingToken, 100)).toBeUndefined()
     now = 50
     const renewed = firstStore.renewReactionJobClaim(
@@ -453,6 +455,8 @@ describe('WorldStore Reaction Cycle authority', () => {
     const secondStore = new WorldStore(path, undefined, () => now)
     const replacement = secondStore.claimNextReactionJob(address, secondWriter.ownerId, secondWriter.fencingToken, 100)!
     expect(replacement).toMatchObject({ attemptCount: 2, claimFencingToken: 2, claimOwnerId: secondWriter.ownerId })
+    expect(secondStore.committedRound(address, brandId('transaction:reaction-root', 'TransactionId')))
+      .toMatchObject({ roundId: brandId('round:reaction-root', 'InteractionRoundId') })
     expect(() => firstStore.renewReactionJobClaim(
       address, first.jobId, firstWriter.ownerId, firstWriter.fencingToken, first.claimFencingToken, 100,
     )).toThrow('current branch Writer lease')
