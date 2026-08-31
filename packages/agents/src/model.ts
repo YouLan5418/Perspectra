@@ -134,12 +134,12 @@ export class SafeAgentRunner {
       : { status: 'fallback', proposal: { participantId, actions: [] }, failure: result.failure }
   }
 
-  async invoke<Output extends WorldJsonObject>(
+  async invoke<Output extends WorldJsonObject, Context = ProposalContext>(
     callId: string,
     estimatedTokens: number,
     timeoutMs: number,
-    provider: { propose(context: ProposalContext): Promise<Output> },
-    context: ProposalContext,
+    provider: { propose(context: Context): Promise<Output> },
+    context: Context,
     beforeDispatch?: () => void,
     afterDispatch?: () => void,
   ): Promise<SafeProviderResult<Output>> {

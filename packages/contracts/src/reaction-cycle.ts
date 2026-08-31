@@ -7,7 +7,7 @@ import type {
 } from './ids.ts'
 import type { WorldAddress } from './protocol.ts'
 import type { StableCallBudgetPlan } from './stable-call-budget.ts'
-import type { WorldHash, WorldJsonObject } from './world-json.ts'
+import type { WorldHash, WorldJsonObject, WorldJsonValue } from './world-json.ts'
 
 export type ReactionCycleStatus = 'active' | 'stop_requested' | 'terminal'
 export type ReactionCycleStopReason = 'player_preempted' | 'user_cancelled' | 'administrative_stop' | 'quarantined'
@@ -196,6 +196,43 @@ export interface ReactionJobProviderBinding {
   readonly contextReceiptHash: WorldHash
   readonly providerCallId: string
   readonly providerRequestHash: WorldHash
+}
+
+/** One exact committed Observation exposed to one Character in a frozen Reaction Wave. */
+export interface ReactionContextStimulus extends WorldJsonObject {
+  readonly observationId: string
+  readonly sourceEventSeq: number
+  readonly sourceEventHash: WorldHash
+  readonly content: WorldJsonValue
+}
+
+/** Durable stimulus envelope used instead of manufacturing a player Action. */
+export interface ReactionContextStimulusBundle extends WorldJsonObject {
+  readonly schemaVersion: 'reaction-stimulus-context/v1'
+  readonly cycleId: ReactionCycleId
+  readonly wave: number
+  readonly characterId: CharacterId
+  readonly stimulusHash: WorldHash
+  readonly stimuli: readonly ReactionContextStimulus[]
+}
+
+/** Provider-facing NPC-only context. It deliberately has no playerAction field. */
+export interface ReactionProposalContext extends WorldJsonObject {
+  readonly address: WorldAddress
+  readonly roundId: InteractionRoundId
+  readonly tick: number
+  readonly origin: {
+    readonly kind: 'reaction'
+    readonly cycleId: ReactionCycleId
+    readonly rootRoundId: InteractionRoundId
+    readonly wave: number
+  }
+  readonly stimulus: ReactionContextStimulusBundle
+  readonly candidateHash: WorldHash
+}
+
+export interface ReactionAgentProvider {
+  propose(context: ReactionProposalContext): Promise<import('./cognition-projection.ts').SubmitActionsV2>
 }
 
 /** One exact claimed Job outcome consumed by a Reaction Round transaction. */

@@ -11,7 +11,6 @@ import {
   hashInteractionTail,
   hashWorldJson,
   worldAddressKey,
-  type ActionRequest,
   type CharacterCognitionView,
   type CharacterContextBundle,
   type CharacterContinuityCheckpoint,
@@ -72,8 +71,10 @@ export interface CharacterContextRequest {
   readonly sceneSourceRefs: readonly ContextSourceRef[]
   readonly recallPlan: RecallQueryPlan
   readonly recall: CognitiveRecallResult
-  readonly stimulus: ActionRequest
+  readonly stimulus: WorldJsonValue
   readonly stimulusHash: WorldHash
+  readonly stimulusSourceRefs?: readonly ContextSourceRef[]
+  readonly maximumExternalActions?: 1 | 2
   readonly affordances: readonly ContextAffordance[]
   readonly affordanceHash: WorldHash
   readonly runtimeAvailability: RuntimeAvailabilityState
@@ -352,10 +353,16 @@ export class CharacterContextAssembler {
     const manifestSource: ContextSourceRef = {
       sourceKind: 'compiled_manifest', sourceId: 'manifest', sourceSeq: 0, sourceHash: request.manifestHash,
     }
-    const stimulusSource: ContextSourceRef = {
-      sourceKind: 'round_stimulus', sourceId: request.stimulus.actionId,
+    const stimulusObject = typeof request.stimulus === 'object' && request.stimulus !== null
+      && !Array.isArray(request.stimulus) ? request.stimulus as WorldJsonObject : undefined
+    const actionId = typeof stimulusObject?.actionId === 'string'
+      ? stimulusObject.actionId
+      : null
+    const stimulusSources: readonly ContextSourceRef[] = request.stimulusSourceRefs ?? [{
+      sourceKind: 'round_stimulus', sourceId: actionId ?? `stimulus:${request.stimulusHash}`,
       sourceSeq: request.asOfWorldSeq, sourceHash: request.stimulusHash,
-    }
+    }]
+    assertSourceScope(request, stimulusSources)
     const affordanceSource: ContextSourceRef = {
       sourceKind: 'rulebook_affordances', sourceId: 'current',
       sourceSeq: request.asOfWorldSeq, sourceHash: request.affordanceHash,
@@ -379,9 +386,11 @@ export class CharacterContextAssembler {
         memoryKind: memory.memoryKind, epistemicKind: memory.epistemicKind,
         text: memory.text, metadata: safeValue(memory.metadata),
       })), recallSources],
-      ['current_stimulus', request.stimulus, [stimulusSource]],
+      ['current_stimulus', request.stimulus, stimulusSources],
       ['affordances', affordances, [affordanceSource]],
-      ['output_reminder', OUTPUT_REMINDER, []],
+      ['output_reminder', request.maximumExternalActions === undefined
+        ? OUTPUT_REMINDER
+        : { ...OUTPUT_REMINDER, maximumExternalActions: request.maximumExternalActions }, []],
     ]
     const segments = segmentInputs.map(([kind, content, sources]) => createContextSegment(kind, content, sources))
     const base = {
@@ -421,7 +430,7 @@ export class CharacterContextAssembler {
         recallHash: request.recall.receipt.resultHash,
         affordanceHash: request.affordanceHash,
       },
-      includedSourceRefs: sortedUniqueSources([...allSources, manifestSource, stimulusSource, affordanceSource]),
+      includedSourceRefs: sortedUniqueSources([...allSources, manifestSource, ...stimulusSources, affordanceSource]),
       exclusions,
     }
   }

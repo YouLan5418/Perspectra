@@ -9,6 +9,7 @@ import {
   hashWorldJson,
   type AgentProvider,
   type ProposalContext,
+  type ReactionProposalContext,
 } from '@harness-world/contracts'
 import { WorldBootstrap, WorldSpecCompiler, createCoreRulebookRegistry, type CompiledWorldSpec } from '@harness-world/kernel'
 import { CognitiveMemoryService } from '@harness-world/memory'
@@ -152,6 +153,84 @@ describe('Phase8ContextPipeline', () => {
     const reopened = new Phase8ContextPipeline(value.options)
     expect(reopened.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)).toEqual(first)
     reopened.close()
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
+  })
+
+  it('prepares a reaction character from durable Observations without manufacturing a player Action', () => {
+    const value = fixture()
+    const pipeline = new Phase8ContextPipeline(value.options)
+    const history = value.store.readEvents(value.spec.manifest.address)
+    const source = history.find(event => event.eventType === 'observation.upsert'
+      && (event.data as { id?: string }).id === 'observation:alice:rain')!
+    const head = value.store.head(value.spec.manifest.address)
+    const decision = new SceneDecisionService(value.store, value.availability, 2)
+      .decide(value.spec.manifest.address, brandId('character:alice', 'CharacterId'), head.headSeq)
+    const stimulus = {
+      schemaVersion: 'reaction-stimulus-context/v1' as const,
+      cycleId: brandId('reaction-cycle:pipeline', 'ReactionCycleId'),
+      wave: 1,
+      characterId: brandId('character:alice', 'CharacterId'),
+      stimulusHash: hashWorldJson('reaction-stimulus-bundle/v1', ['observation:alice:rain']),
+      stimuli: [{
+        observationId: 'observation:alice:rain', sourceEventSeq: source.seq,
+        sourceEventHash: source.eventHash, content: source.data,
+      }],
+    }
+    const context: ReactionProposalContext = {
+      address: value.spec.manifest.address,
+      roundId: brandId('round:pipeline:reaction', 'InteractionRoundId'),
+      tick: head.tick + 1,
+      origin: {
+        kind: 'reaction', cycleId: stimulus.cycleId,
+        rootRoundId: brandId('round:pipeline:root', 'InteractionRoundId'), wave: 1,
+      },
+      stimulus,
+      candidateHash: hashWorldJson('world-reaction-candidate-s1/v1', stimulus),
+    }
+    const prepared = pipeline.prepareReaction(
+      participant(), context, history, decision, head.headSeq, () => undefined,
+    )
+    expect(prepared.providerContext).toMatchObject({
+      origin: { kind: 'reaction', wave: 1 }, stimulus,
+      contextReceiptId: prepared.receipt.receiptId,
+    })
+    expect('playerAction' in prepared.providerContext).toBe(false)
+    expect(prepared.receipt.includedSourceRefs).toContainEqual({
+      sourceKind: 'reaction_observation', sourceId: 'observation:alice:rain',
+      sourceSeq: source.seq, sourceHash: source.eventHash,
+    })
+    expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain('maximumExternalActions')
+    expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain('Rain is heavy')
+    expect(() => pipeline.prepareReaction(
+      participant('director'), context, history, decision, head.headSeq, () => undefined,
+    )).toThrow('only supports Character Agent')
+
+    const missing = vi.spyOn(value.memory, 'prepareStimulus').mockReturnValueOnce({
+      characterView: {} as never, memoryRecall: [], memorySourceRefs: [],
+      recallResultHash: hashWorldJson('missing-recall', null),
+    })
+    expect(() => pipeline.prepareReaction(
+      participant(), { ...context, roundId: brandId('round:pipeline:reaction:missing', 'InteractionRoundId') },
+      history, decision, head.headSeq, () => undefined,
+    )).toThrow('requires Cognitive Memory v2 Recall receipts')
+    missing.mockRestore()
+    const absentAvailability = new CharacterRuntimeAvailabilityService(
+      join(value.storage.context, '..', 'reaction-availability.sqlite'),
+    )
+    const offlinePipeline = new Phase8ContextPipeline({
+      ...value.options,
+      path: join(value.storage.context, '..', 'reaction-offline-context.sqlite'),
+      availability: absentAvailability,
+    })
+    expect(offlinePipeline.prepareReaction(
+      participant(), { ...context, roundId: brandId('round:pipeline:reaction:offline', 'InteractionRoundId') },
+      history, decision, head.headSeq, () => undefined,
+    ).providerContext.exactProviderRequest).toBeDefined()
+    offlinePipeline.close()
+    absentAvailability.close()
+    pipeline.close()
     value.memory.close()
     value.availability.close()
     value.store.close()

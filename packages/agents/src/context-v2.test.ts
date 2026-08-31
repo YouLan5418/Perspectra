@@ -220,6 +220,23 @@ describe('CharacterContextAssembler v2', () => {
     )
   })
 
+  it('accepts non-Action stimuli and freezes the reaction action limit without changing legacy defaults', () => {
+    const assembler = new CharacterContextAssembler()
+    for (const stimulus of [null, [], 'heard rain', { content: 'heard rain' }] as const) {
+      const stimulusHash = hashWorldJson('context-stimulus/v1', stimulus)
+      const assembled = assembler.assembleDetailed(request({
+        stimulus, stimulusHash, maximumExternalActions: 1,
+      }))
+      const current = assembled.bundle.segments.find(segment => segment.segmentKind === 'current_stimulus')!
+      const reminder = assembled.bundle.segments.find(segment => segment.segmentKind === 'output_reminder')!
+      expect(current.content).toEqual(stimulus)
+      expect(reminder.content).toMatchObject({ maximumExternalActions: 1 })
+      expect(assembled.includedSourceRefs).toContainEqual(expect.objectContaining({
+        sourceId: `stimulus:${stimulusHash}`,
+      }))
+    }
+  })
+
   it('trims only whole Tail blocks and lowest-ranked Recall entries at profile capacity', () => {
     const assembler = new CharacterContextAssembler()
     const recalled = recall(7)

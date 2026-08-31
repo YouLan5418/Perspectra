@@ -22,7 +22,7 @@ import {
 import { CharacterViewBuilder, type WorldStore } from '@harness-world/store-sqlite'
 import { LocalMemoryStore, memorySourceRef, type MemorySourceRef, type RecalledMemory } from './local-memory.ts'
 
-function recallQuery(parameters: WorldJsonValue): string {
+function legacyRecallQuery(parameters: WorldJsonValue): string {
   if (typeof parameters === 'string') return parameters
   if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters)) return ''
   const object = parameters as WorldJsonObject
@@ -30,6 +30,15 @@ function recallQuery(parameters: WorldJsonValue): string {
     const value = object[key]
     return typeof value === 'string' ? [value] : []
   }).join(' ')
+}
+
+function reactionRecallQuery(stimulus: WorldJsonValue): string {
+  if (typeof stimulus === 'string') return stimulus
+  if (Array.isArray(stimulus)) return stimulus.map(reactionRecallQuery).filter(Boolean).join(' ')
+  if (typeof stimulus !== 'object' || stimulus === null) return ''
+  const object = stimulus as WorldJsonObject
+  return Object.keys(object).sort(compareWorldText)
+    .map(key => reactionRecallQuery(object[key]!)).filter(Boolean).join(' ')
 }
 
 export interface CognitiveProposalContext extends ProposalContext, WorldJsonObject {
@@ -59,6 +68,26 @@ export interface PrepareCognitiveContextRequest {
   readonly sceneDecision: WorldJsonValue
   readonly correlationId: string
   readonly heartbeat?: () => void
+}
+
+export interface PrepareCognitiveStimulusRequest {
+  readonly address: WorldAddress
+  readonly roundId: InteractionRoundId
+  readonly participantId: string
+  readonly characterId: CharacterId
+  readonly asOfWorldSeq: number
+  readonly stimulus: WorldJsonValue
+  readonly correlationId: string
+  readonly heartbeat?: () => void
+}
+
+export interface PreparedCognitiveStimulus {
+  readonly characterView: CharacterView
+  readonly memoryRecall: readonly RecalledMemory[]
+  readonly memorySourceRefs: readonly MemorySourceRef[]
+  readonly recallResultHash: WorldHash
+  readonly recallPlan?: RecallQueryPlan
+  readonly recall?: CognitiveRecallResult
 }
 
 /** Phase 8 worker boundary: callers supply only an exact namespace and required World watermark. */
@@ -170,11 +199,52 @@ export class CognitiveMemoryService {
   }
 
   prepare(request: PrepareCognitiveContextRequest): CognitiveProposalContext {
+    const stimulusRequest = {
+      address: request.address,
+      roundId: request.roundId,
+      participantId: request.participantId,
+      characterId: request.characterId,
+      asOfWorldSeq: request.asOfWorldSeq,
+      stimulus: request.playerAction.parameters,
+      correlationId: request.correlationId,
+      ...(request.heartbeat === undefined ? {} : { heartbeat: request.heartbeat }),
+    }
+    const prepared = this.#prepareStimulus(stimulusRequest, legacyRecallQuery(request.playerAction.parameters))
+    const capability = {
+      actorId: request.characterId,
+      allowedActionTypes: [...request.allowedActionTypes].sort(compareWorldText),
+    }
+    const base = {
+      address: request.address,
+      roundId: request.roundId,
+      tick: request.tick,
+      playerAction: request.playerAction,
+      candidateHash: request.candidateHash,
+      agentContextVersion: 2 as const,
+      participantId: request.participantId,
+      characterView: prepared.characterView,
+      sceneDecision: request.sceneDecision,
+      memoryRecall: prepared.memoryRecall,
+      memorySourceRefs: prepared.memorySourceRefs,
+      recallResultHash: prepared.recallResultHash,
+      capability,
+      ...(prepared.recallPlan === undefined || prepared.recall === undefined
+        ? {}
+        : { recallPlan: prepared.recallPlan, recall: prepared.recall }),
+    }
+    return { ...base, contextHash: hashWorldJson('agent-context-envelope/v2', base) }
+  }
+
+  /** Prepare the same verified Memory prefix for a non-player durable stimulus. */
+  prepareStimulus(request: PrepareCognitiveStimulusRequest): PreparedCognitiveStimulus {
+    return this.#prepareStimulus(request, reactionRecallQuery(request.stimulus))
+  }
+
+  #prepareStimulus(request: PrepareCognitiveStimulusRequest, query: string): PreparedCognitiveStimulus {
     const characterView = this.catchUp(
       request.address, request.characterId, request.asOfWorldSeq, request.correlationId,
       request.heartbeat,
     )
-    const query = recallQuery(request.playerAction.parameters)
     const v2Plan: RecallQueryPlan | undefined = this.version === 2 ? {
       schemaVersion: 'recall-query-plan/v1',
       planId: deterministicId('round-recall-plan/v1', {
@@ -200,27 +270,13 @@ export class CognitiveMemoryService {
       .toSorted((left, right) => compareWorldText(left.sourceKind, right.sourceKind) || compareWorldText(left.sourceId, right.sourceId))
     const recallResultHash = v2Recall?.receipt.resultHash
       ?? hashWorldJson('cognitive-memory-recall', { query, memories: memoryRecall, sources: memorySourceRefs })
-    const capability = {
-      actorId: request.characterId,
-      allowedActionTypes: [...request.allowedActionTypes].sort(compareWorldText),
-    }
-    const base = {
-      address: request.address,
-      roundId: request.roundId,
-      tick: request.tick,
-      playerAction: request.playerAction,
-      candidateHash: request.candidateHash,
-      agentContextVersion: 2 as const,
-      participantId: request.participantId,
+    return {
       characterView,
-      sceneDecision: request.sceneDecision,
       memoryRecall,
       memorySourceRefs,
       recallResultHash,
-      capability,
       ...(v2Plan === undefined || v2Recall === undefined ? {} : { recallPlan: v2Plan, recall: v2Recall }),
     }
-    return { ...base, contextHash: hashWorldJson('agent-context-envelope/v2', base) }
   }
 
   recall(address: WorldAddress, characterId: CharacterId, query: string, asOfWorldSeq: number): RecalledMemory[] {

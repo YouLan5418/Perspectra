@@ -96,6 +96,23 @@ describe('CognitiveMemoryService', () => {
     const rebuilt = memory.rebuildBranch(address(), [alice, alice], 6, 'rebuild:v2')
     expect(rebuilt).toMatch(/^sha256:/)
     expect(memory.watermark(address(), alice)?.memoryEpoch).toBe(2)
+    await world.commitRound({
+      address: address(), transactionId: brandId('transaction:cognitive:second', 'TransactionId'),
+      roundId: brandId('round:cognitive:second', 'InteractionRoundId'),
+      expectedHeadSeq: 6, expectedTick: 1, nextTick: 2,
+      events: [{
+        eventType: 'observation.upsert', eventVersion: 1,
+        data: { id: 'observation:alice:second', value: { observerId: alice, content: 'secret green key' } },
+      }],
+      outbox: [], correlationId: 'cognitive:second',
+    })
+    const reaction = memory.prepareStimulus({
+      address: address(), roundId: brandId('round:v2-reaction-context', 'InteractionRoundId'),
+      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 7,
+      stimulus: { entries: [{ speech: 'secret' }, null] }, correlationId: 'prepare:v2-reaction',
+    })
+    expect(reaction.memoryRecall.map(value => value.text).toSorted()).toEqual(['secret green key', 'secret red key'])
+    expect(reaction.recallResultHash).toMatch(/^sha256:/)
     memory.close()
     world.close()
   })

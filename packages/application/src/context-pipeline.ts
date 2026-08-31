@@ -27,6 +27,7 @@ import {
   type CharacterCognitionView,
   type ContextSourceRef,
   type ProposalContext,
+  type ReactionProposalContext,
   type WorldHash,
   type WorldJsonObject,
   type WorldJsonValue,
@@ -59,6 +60,23 @@ export interface PreparedPhase8Participant {
   readonly cognition?: CharacterCognitionView
 }
 
+export interface Phase8ReactionProviderContext extends ReactionProposalContext {
+  readonly agentContextVersion: 2
+  readonly participantId: string
+  readonly contextReceiptId: string
+  readonly contextHash: WorldHash
+  readonly providerRequestHash: WorldHash
+  readonly exactProviderRequest: ExactProviderRequest
+}
+
+export interface PreparedPhase8ReactionParticipant {
+  readonly providerContext: Phase8ReactionProviderContext
+  readonly receipt: ContextReceipt
+  readonly memorySourceRefs: readonly MemorySourceRef[]
+  readonly recallResultHash: WorldHash
+  readonly cognition: CharacterCognitionView
+}
+
 export interface Phase8ContextPipelineOptions {
   readonly path: string
   readonly store: WorldStore
@@ -73,6 +91,9 @@ export interface Phase8ContextPipelineOptions {
 const rendererLock = createPromptRendererLock()
 const characterTool = createProviderToolSchema('submit_actions/v2', {
   type: 'object', ...PHASE8_SUBMIT_ACTIONS_PROFILE,
+})
+const reactionCharacterTool = createProviderToolSchema('submit_actions/v2', {
+  type: 'object', ...PHASE8_SUBMIT_ACTIONS_PROFILE, maximumExternalActions: 1,
 })
 const directorTool = createProviderToolSchema('submit_director_plan/v1', {
   type: 'object', schemaVersion: 'submit_director_plan/v1', maximumDirectives: 8,
@@ -250,6 +271,20 @@ export class Phase8ContextPipeline {
       : this.#prepareCharacter(binding, context, history, decision, asOfWorldSeq, heartbeat, excludedStimulus)
   }
 
+  /** Build an exact Character Context from a frozen Observation bundle without a synthetic player Action. */
+  prepareReaction(
+    binding: RoundParticipant,
+    context: ReactionProposalContext,
+    history: ReturnType<WorldStore['readEvents']>,
+    decision: SceneDecision,
+    asOfWorldSeq: number,
+    heartbeat: () => void,
+  ): PreparedPhase8ReactionParticipant {
+    sceneContext(decision)
+    if (binding.role !== 'agent') throw new TypeError('Reaction v1 only supports Character Agent participants')
+    return this.#prepareReactionCharacter(binding, context, history, decision, asOfWorldSeq, heartbeat)
+  }
+
   close(): void {
     this.#receipts.close()
     this.#checkpoints.close()
@@ -335,6 +370,91 @@ export class Phase8ContextPipeline {
       contextHash: assembly.bundle.contextHash, providerRequestHash: rendered.providerRequestHash,
     })
     return this.#result(context, binding, receipt, rendered.exactRequest, prepared.memorySourceRefs, prepared.recallResultHash, cognition)
+  }
+
+  #prepareReactionCharacter(
+    binding: RoundParticipant,
+    context: ReactionProposalContext,
+    history: ReturnType<WorldStore['readEvents']>,
+    decision: SceneDecision,
+    asOfWorldSeq: number,
+    heartbeat: () => void,
+  ): PreparedPhase8ReactionParticipant {
+    const prepared = this.options.memory.prepareStimulus({
+      address: context.address,
+      roundId: context.roundId,
+      participantId: binding.participantId,
+      characterId: binding.actorId,
+      asOfWorldSeq,
+      stimulus: context.stimulus,
+      correlationId: `context:${context.roundId}:${binding.participantId}`,
+      heartbeat,
+    })
+    if (prepared.recallPlan === undefined || prepared.recall === undefined) {
+      throw new TypeError('Reaction Context requires Cognitive Memory v2 Recall receipts')
+    }
+    const selectedProfile = profileId(this.options.manifest, binding.actorId)
+    const checkpoint = this.#checkpoints.latestAt(context.address, binding.actorId, asOfWorldSeq)
+      ?? this.#checkpoints.rebuildAt(context.address, binding.actorId, asOfWorldSeq)
+    const selectedProfileContract = PHASE8_CONTEXT_PROFILES.find(profile => profile.profileId === selectedProfile)!
+    const tail = this.#tails.rebuildAt(
+      context.address, binding.actorId, checkpoint.sourceEndSeq, asOfWorldSeq,
+      selectedProfileContract.recentInteractionBlocks,
+    )
+    const affordances: ContextAffordance[] = this.options.rulebook.affordances({
+      manifest: this.options.manifest, events: history, characterId: binding.actorId,
+    }).filter(value => value.actionType === 'speak' && value.actionVersion === 1
+      && binding.allowedActionTypes.includes(value.actionType))
+      .map(value => ({ actionType: value.actionType, actionVersion: value.actionVersion }))
+    const affordanceHash = hashWorldJson('context-affordances/v1', affordances)
+    const scene = sceneContext(decision)
+    const cognition = this.#cognition.rebuildCharacterAt(context.address, binding.actorId, asOfWorldSeq)
+    const character = this.options.manifest.characters.find(value => value.characterId === binding.actorId)!
+    const stimulusSourceRefs: ContextSourceRef[] = context.stimulus.stimuli.map(stimulus => ({
+      sourceKind: 'reaction_observation', sourceId: stimulus.observationId,
+      sourceSeq: stimulus.sourceEventSeq, sourceHash: stimulus.sourceEventHash,
+    }))
+    const assembly = this.#assembler.assembleDetailed({
+      address: context.address, roundId: context.roundId, participantId: binding.participantId,
+      characterId: binding.actorId, controllerId: `provider:${binding.participantId}`, controllerEpoch: 1,
+      baseHeadSeq: asOfWorldSeq, asOfWorldSeq, tick: context.tick, manifestHash: this.options.manifestHash,
+      contextProfileId: selectedProfile,
+      worldPublicAnchor: { metadata: this.options.manifest.metadata, timeMode: this.options.manifest.timeMode },
+      characterAnchor: character,
+      characterView: prepared.characterView, cognition, checkpoint, tail, sceneDecision: scene,
+      sceneSourceRefs: sceneSources(history, decision), recallPlan: prepared.recallPlan, recall: prepared.recall,
+      stimulus: context.stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', context.stimulus),
+      stimulusSourceRefs, maximumExternalActions: 1,
+      affordances, affordanceHash,
+      runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
+      correlationId: `context:${context.roundId}:${binding.participantId}`,
+    })
+    const rendered = this.#renderer.renderCharacter({
+      context: assembly.bundle, contextProfileId: selectedProfile, renderer: rendererLock,
+      toolSchema: reactionCharacterTool, modelProfile: this.#model(context.address),
+      correlationId: `render:${context.roundId}:${binding.participantId}`,
+    })
+    const receipt = this.#receipts.append({
+      address: context.address, roundId: context.roundId, participantKind: 'character',
+      participantId: binding.participantId, subjectCharacterId: binding.actorId,
+      controllerId: `provider:${binding.participantId}`, controllerEpoch: 1,
+      baseHeadSeq: asOfWorldSeq, asOfWorldSeq, tick: context.tick, manifestHash: this.options.manifestHash,
+      contextProfileId: selectedProfile, contextProfileHash: assembly.contextProfileHash,
+      versionLocks: versionLocks('character'), componentHashes: assembly.componentHashes,
+      includedSourceRefs: assembly.includedSourceRefs, exclusions: assembly.exclusions,
+      contextHash: assembly.bundle.contextHash, providerRequestHash: rendered.providerRequestHash,
+    })
+    return {
+      providerContext: {
+        ...context, agentContextVersion: 2, participantId: binding.participantId,
+        contextReceiptId: receipt.receiptId, contextHash: receipt.contextHash,
+        providerRequestHash: receipt.providerRequestHash, exactProviderRequest: rendered.exactRequest,
+      },
+      receipt,
+      memorySourceRefs: prepared.memorySourceRefs,
+      recallResultHash: prepared.recallResultHash,
+      cognition,
+    }
   }
 
   #prepareDirector(
