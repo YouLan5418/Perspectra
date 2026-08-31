@@ -12,6 +12,7 @@ import {
   type FaultPoint,
   type WorldAddress,
   type WorldEventDraft,
+  type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
   BranchAdministration,
@@ -24,6 +25,7 @@ import {
   WorldStore,
   openMigratedDatabase,
   openOwnedDatabase,
+  openWorldDatabase,
   parseWorldJson,
   readPragmaInteger,
   rollbackAndThrow,
@@ -87,6 +89,49 @@ function database(name: string): string {
   return join(directory, name)
 }
 
+function worldSchemaRows(db: DatabaseSync): WorldJsonValue {
+  const rows = db.prepare(`
+    SELECT type, name, tbl_name, sql
+    FROM sqlite_schema
+    WHERE type IN ('table', 'index') AND name NOT LIKE 'sqlite_%'
+  `).all() as Array<{ readonly type: string; readonly name: string; readonly tbl_name: string; readonly sql: string }>
+  return rows.map(row => ({ type: row.type, name: row.name, tableName: row.tbl_name, sql: row.sql }))
+    .sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)
+}
+
+function insertReactionCycle(
+  db: DatabaseSync,
+  input: {
+    readonly cycleId: string
+    readonly addressKey: string
+    readonly rootRoundId: string
+    readonly rootTransactionId: string
+    readonly status?: 'active' | 'stop_requested' | 'terminal'
+    readonly stopReason?: string | null
+    readonly terminalReason?: string | null
+    readonly terminalAtSeq?: number | null
+  },
+): void {
+  db.prepare(`
+    INSERT INTO world_reaction_cycles(
+      cycle_id, address_key, root_round_id, root_transaction_id, created_at_seq,
+      policy_version, profile_id, max_waves, max_npc_calls, max_calls_per_character,
+      max_actions_per_call, allowed_action_types_json, initial_token_budget, deadline_at_ms,
+      budget_hash, status, stop_reason, terminal_reason, terminal_at_seq, cycle_hash, state_hash
+    ) VALUES (?, ?, ?, ?, 1, 'reaction-policy/v1', 'responsive/v1', 3, 8, 2, 1,
+      '["speak@1"]', 4096, 1000, 'sha256:budget', ?, ?, ?, ?, 'sha256:cycle', 'sha256:state')
+  `).run(
+    input.cycleId,
+    input.addressKey,
+    input.rootRoundId,
+    input.rootTransactionId,
+    input.status ?? 'active',
+    input.stopReason ?? null,
+    input.terminalReason ?? null,
+    input.terminalAtSeq ?? null,
+  )
+}
+
 afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
@@ -133,6 +178,136 @@ describe('SQLite ownership helpers', () => {
     expect(v2.prepare(`SELECT name FROM sqlite_schema WHERE name = 'second'`).get()).toBeDefined()
     v2.close()
     expect(() => openMigratedDatabase(path, 5678, [{ version: 1, sql: '' }])).toThrow('user_version mismatch')
+
+    const rollbackPath = database('migration-rollback.sqlite')
+    const beforeFailure = openMigratedDatabase(rollbackPath, 6789, [{
+      version: 1,
+      sql: 'CREATE TABLE durable(id INTEGER PRIMARY KEY, value TEXT NOT NULL) STRICT; INSERT INTO durable VALUES (1, \'kept\');',
+    }])
+    beforeFailure.close()
+    expect(() => openMigratedDatabase(rollbackPath, 6789, [
+      { version: 1, sql: '' },
+      { version: 2, sql: 'CREATE TABLE rolled_back(id INTEGER PRIMARY KEY) STRICT; INSERT INTO missing VALUES (1);' },
+    ])).toThrow()
+    const afterFailure = new DatabaseSync(rollbackPath)
+    expect(readPragmaInteger(afterFailure, 'user_version')).toBe(1)
+    expect(afterFailure.prepare('SELECT * FROM durable').all()).toEqual([{ id: 1, value: 'kept' }])
+    expect(afterFailure.prepare(`SELECT name FROM sqlite_schema WHERE name = 'rolled_back'`).get()).toBeUndefined()
+    afterFailure.close()
+  })
+})
+
+describe('World schema v16', () => {
+  it('freezes the formal four-table Reaction schema, constraints, indexes, and Golden hash', async () => {
+    const path = database('world-v16.sqlite')
+    const firstAddress = fixtureAddress('reaction-schema-a')
+    const secondAddress = fixtureAddress('reaction-schema-b')
+    const store = new WorldStore(path)
+    store.createBranch(firstAddress)
+    store.createBranch(secondAddress)
+    const firstRequest = { ...fixtureCommitRequest(firstAddress), transactionId: brandId('transaction:reaction-schema-a', 'TransactionId'), roundId: brandId('round:reaction-schema-a', 'InteractionRoundId'), outbox: [] }
+    const secondRequest = { ...fixtureCommitRequest(secondAddress), transactionId: brandId('transaction:reaction-schema-b', 'TransactionId'), roundId: brandId('round:reaction-schema-b', 'InteractionRoundId'), outbox: [] }
+    await store.commitRound(firstRequest)
+    await store.commitRound(secondRequest)
+    store.close()
+
+    const raw = new DatabaseSync(path)
+    raw.exec('PRAGMA foreign_keys = ON')
+    expect(readPragmaInteger(raw, 'user_version')).toBe(16)
+    const names = (worldSchemaRows(raw) as Array<{ readonly name: string }>).map(row => row.name)
+    expect(names).toEqual(expect.arrayContaining([
+      'events_type_range',
+      'world_reaction_cycles',
+      'world_reaction_cycles_one_open',
+      'world_reaction_job_stimuli',
+      'world_reaction_jobs',
+      'world_reaction_jobs_claim_order',
+      'world_reaction_jobs_cycle_wave_status',
+      'world_reaction_jobs_provider_call',
+      'world_reaction_waves',
+      'world_reaction_waves_reaction_round',
+      'world_reaction_waves_result_transaction',
+    ]))
+    expect(hashWorldJson('world-sqlite-schema/v16', worldSchemaRows(raw)))
+      .toBe('sha256:3447bd16a781f0a0b9fa11eb151e5650bfa84c91b76dd0ca9ae3e097a8b7f28e')
+
+    insertReactionCycle(raw, {
+      cycleId: 'cycle:valid',
+      addressKey: worldAddressKey(firstAddress),
+      rootRoundId: firstRequest.roundId,
+      rootTransactionId: firstRequest.transactionId,
+    })
+    expect(() => insertReactionCycle(raw, {
+      cycleId: 'cycle:duplicate-open',
+      addressKey: worldAddressKey(firstAddress),
+      rootRoundId: 'round:duplicate-open',
+      rootTransactionId: secondRequest.transactionId,
+    })).toThrow()
+    expect(() => insertReactionCycle(raw, {
+      cycleId: 'cycle:invalid-state',
+      addressKey: worldAddressKey(secondAddress),
+      rootRoundId: secondRequest.roundId,
+      rootTransactionId: secondRequest.transactionId,
+      status: 'active',
+      stopReason: 'player_preempted',
+    })).toThrow()
+    expect(() => insertReactionCycle(raw, {
+      cycleId: 'cycle:missing-branch',
+      addressKey: 'missing-address',
+      rootRoundId: 'round:missing',
+      rootTransactionId: secondRequest.transactionId,
+    })).toThrow()
+    expect(raw.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    raw.close()
+  })
+
+  it('migrates a v15 authority prefix without rewriting historical rows', () => {
+    const path = database('world-v15-to-v16.sqlite')
+    const address = fixtureAddress('legacy-v15')
+    const key = worldAddressKey(address)
+    const legacy = new DatabaseSync(path)
+    legacy.exec(`
+      PRAGMA application_id = ${WORLD_APPLICATION_ID};
+      PRAGMA user_version = 15;
+      CREATE TABLE branches(address_key TEXT PRIMARY KEY) STRICT;
+      CREATE TABLE round_commits(
+        transaction_id TEXT PRIMARY KEY,
+        address_key TEXT NOT NULL,
+        round_id TEXT NOT NULL,
+        authority_hash TEXT
+      ) STRICT;
+      CREATE TABLE events(
+        address_key TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        event_type TEXT NOT NULL,
+        transaction_id TEXT NOT NULL,
+        PRIMARY KEY(address_key, seq)
+      ) STRICT;
+    `)
+    legacy.prepare('INSERT INTO branches VALUES (?)').run(key)
+    legacy.prepare('INSERT INTO round_commits VALUES (?, ?, ?, ?)')
+      .run('transaction:legacy', key, 'round:legacy', 'sha256:legacy-authority')
+    legacy.prepare('INSERT INTO events VALUES (?, 1, ?, ?)')
+      .run(key, 'observation.upsert', 'transaction:legacy')
+    const before = {
+      branches: legacy.prepare('SELECT * FROM branches').all(),
+      rounds: legacy.prepare('SELECT * FROM round_commits').all(),
+      events: legacy.prepare('SELECT * FROM events').all(),
+    }
+    legacy.close()
+
+    const migrated = openWorldDatabase(path)
+    expect(readPragmaInteger(migrated, 'user_version')).toBe(WORLD_SCHEMA_VERSION)
+    expect({
+      branches: migrated.prepare('SELECT * FROM branches').all(),
+      rounds: migrated.prepare('SELECT * FROM round_commits').all(),
+      events: migrated.prepare('SELECT * FROM events').all(),
+    }).toEqual(before)
+    for (const table of [
+      'world_reaction_cycles', 'world_reaction_waves', 'world_reaction_jobs', 'world_reaction_job_stimuli',
+    ]) expect((migrated.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number }).count).toBe(0)
+    expect(migrated.prepare(`SELECT name FROM sqlite_schema WHERE name = 'events_type_range'`).get()).toBeDefined()
+    migrated.close()
   })
 })
 

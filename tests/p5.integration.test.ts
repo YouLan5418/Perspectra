@@ -109,6 +109,11 @@ describe('Phase 5 local operations acceptance', () => {
       preMigration.close()
       const raw = new DatabaseSync(migratedPath)
       raw.exec(`
+        DROP TABLE world_reaction_job_stimuli;
+        DROP TABLE world_reaction_jobs;
+        DROP TABLE world_reaction_waves;
+        DROP TABLE world_reaction_cycles;
+        DROP INDEX events_type_range;
         DROP TABLE round_clarifications;
         DROP INDEX world_cognitive_jobs_pending;
         DROP TABLE world_cognitive_jobs;

@@ -83,6 +83,11 @@ describe('CharacterRuntimeAvailabilityService', () => {
     const legacy = new DatabaseSync(path)
     legacy.exec(`
       PRAGMA foreign_keys=OFF;
+      DROP TABLE world_reaction_job_stimuli;
+      DROP TABLE world_reaction_jobs;
+      DROP TABLE world_reaction_waves;
+      DROP TABLE world_reaction_cycles;
+      DROP INDEX events_type_range;
       ALTER TABLE character_runtime_availability RENAME TO character_runtime_availability_v15;
       CREATE TABLE character_runtime_availability (
         address_key TEXT NOT NULL, character_id TEXT NOT NULL,

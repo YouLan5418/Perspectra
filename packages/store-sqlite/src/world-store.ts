@@ -362,7 +362,164 @@ FROM character_runtime_availability_v14;
 DROP TABLE character_runtime_availability_v14;
 `
 
-export const WORLD_SCHEMA_VERSION = 15
+const WORLD_REACTION_SCHEMA = `
+CREATE TABLE world_reaction_cycles (
+  cycle_id TEXT PRIMARY KEY,
+  address_key TEXT NOT NULL,
+  root_round_id TEXT NOT NULL,
+  root_transaction_id TEXT NOT NULL UNIQUE,
+  created_at_seq INTEGER NOT NULL CHECK(created_at_seq >= 0),
+  policy_version TEXT NOT NULL CHECK(policy_version = 'reaction-policy/v1'),
+  profile_id TEXT NOT NULL,
+  max_waves INTEGER NOT NULL CHECK(max_waves BETWEEN 1 AND 3),
+  max_npc_calls INTEGER NOT NULL CHECK(max_npc_calls BETWEEN 1 AND 8),
+  max_calls_per_character INTEGER NOT NULL CHECK(max_calls_per_character BETWEEN 1 AND 2),
+  max_actions_per_call INTEGER NOT NULL CHECK(max_actions_per_call = 1),
+  allowed_action_types_json TEXT NOT NULL,
+  initial_token_budget INTEGER NOT NULL CHECK(initial_token_budget >= 0),
+  deadline_at_ms INTEGER NOT NULL CHECK(deadline_at_ms >= 0),
+  budget_hash TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('active', 'stop_requested', 'terminal')),
+  stop_reason TEXT CHECK(stop_reason IN ('player_preempted', 'user_cancelled', 'administrative_stop', 'quarantined')),
+  terminal_reason TEXT CHECK(terminal_reason IN (
+    'quiescent', 'all_abstained', 'call_limit', 'wave_limit', 'token_budget_exhausted',
+    'deadline_reached', 'provider_terminal', 'player_preempted', 'user_cancelled',
+    'administrative_stop', 'quarantined'
+  )),
+  terminal_at_seq INTEGER CHECK(terminal_at_seq >= created_at_seq),
+  cycle_hash TEXT NOT NULL,
+  state_hash TEXT NOT NULL,
+  UNIQUE(cycle_id, address_key),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key),
+  FOREIGN KEY(root_transaction_id) REFERENCES round_commits(transaction_id),
+  CHECK (
+    (status = 'active' AND stop_reason IS NULL AND terminal_reason IS NULL AND terminal_at_seq IS NULL)
+    OR (status = 'stop_requested' AND stop_reason IS NOT NULL AND terminal_reason IS NULL AND terminal_at_seq IS NULL)
+    OR (status = 'terminal' AND terminal_reason IS NOT NULL AND terminal_at_seq IS NOT NULL)
+  )
+) STRICT;
+CREATE UNIQUE INDEX world_reaction_cycles_one_open
+  ON world_reaction_cycles(address_key) WHERE status <> 'terminal';
+CREATE INDEX world_reaction_cycles_root_round
+  ON world_reaction_cycles(address_key, root_round_id);
+
+CREATE TABLE world_reaction_waves (
+  cycle_id TEXT NOT NULL,
+  address_key TEXT NOT NULL,
+  wave INTEGER NOT NULL CHECK(wave >= 1),
+  base_head_seq INTEGER NOT NULL CHECK(base_head_seq >= 0),
+  base_head_hash TEXT NOT NULL,
+  calls_before INTEGER NOT NULL CHECK(calls_before >= 0),
+  tokens_before INTEGER NOT NULL CHECK(tokens_before >= 0),
+  budget_plan_json TEXT NOT NULL,
+  budget_plan_hash TEXT NOT NULL,
+  reserved_calls INTEGER NOT NULL CHECK(reserved_calls >= 0),
+  reserved_tokens INTEGER NOT NULL CHECK(reserved_tokens >= 0),
+  status TEXT NOT NULL CHECK(status IN ('frozen', 'committed', 'closed_without_dispatch')),
+  reaction_round_id TEXT,
+  result_transaction_id TEXT,
+  authority_hash TEXT,
+  wave_hash TEXT NOT NULL,
+  state_hash TEXT NOT NULL,
+  PRIMARY KEY(cycle_id, wave),
+  UNIQUE(cycle_id, wave, address_key),
+  FOREIGN KEY(cycle_id, address_key) REFERENCES world_reaction_cycles(cycle_id, address_key),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key),
+  FOREIGN KEY(result_transaction_id) REFERENCES round_commits(transaction_id),
+  CHECK (
+    (status = 'frozen' AND reaction_round_id IS NULL AND result_transaction_id IS NULL AND authority_hash IS NULL)
+    OR (status = 'committed' AND reaction_round_id IS NOT NULL AND result_transaction_id IS NOT NULL AND authority_hash IS NOT NULL)
+    OR (status = 'closed_without_dispatch' AND reaction_round_id IS NULL AND result_transaction_id IS NULL AND authority_hash IS NULL)
+  )
+) STRICT;
+CREATE UNIQUE INDEX world_reaction_waves_result_transaction
+  ON world_reaction_waves(result_transaction_id) WHERE result_transaction_id IS NOT NULL;
+CREATE UNIQUE INDEX world_reaction_waves_reaction_round
+  ON world_reaction_waves(address_key, reaction_round_id) WHERE reaction_round_id IS NOT NULL;
+
+CREATE TABLE world_reaction_jobs (
+  job_id TEXT PRIMARY KEY,
+  address_key TEXT NOT NULL,
+  cycle_id TEXT NOT NULL,
+  wave INTEGER NOT NULL CHECK(wave >= 1),
+  character_id TEXT NOT NULL,
+  stimulus_hash TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('pending', 'claimed', 'settled', 'skipped')),
+  budget_decision TEXT NOT NULL CHECK(budget_decision IN (
+    'reserved', 'character_limit', 'call_limit', 'token_budget_exhausted'
+  )),
+  budget_ordinal INTEGER CHECK(budget_ordinal >= 0),
+  reserved_tokens INTEGER NOT NULL CHECK(reserved_tokens >= 0),
+  claim_owner_id TEXT,
+  claim_expires_at_ms INTEGER CHECK(claim_expires_at_ms >= 0),
+  claim_fencing_token INTEGER CHECK(claim_fencing_token >= 1),
+  attempt_count INTEGER NOT NULL CHECK(attempt_count >= 0),
+  outcome TEXT CHECK(outcome IN ('proposed', 'abstained', 'provider_terminal', 'runtime_unavailable', 'rejected')),
+  context_receipt_id TEXT,
+  context_receipt_hash TEXT,
+  provider_call_id TEXT,
+  provider_request_hash TEXT,
+  proposal_hash TEXT,
+  result_transaction_id TEXT,
+  job_hash TEXT NOT NULL,
+  state_hash TEXT NOT NULL,
+  UNIQUE(job_id, address_key),
+  UNIQUE(cycle_id, wave, character_id),
+  FOREIGN KEY(cycle_id, wave, address_key) REFERENCES world_reaction_waves(cycle_id, wave, address_key),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key),
+  FOREIGN KEY(result_transaction_id) REFERENCES round_commits(transaction_id),
+  CHECK ((context_receipt_id IS NULL) = (context_receipt_hash IS NULL)),
+  CHECK ((provider_call_id IS NULL) = (provider_request_hash IS NULL)),
+  CHECK (proposal_hash IS NULL OR provider_call_id IS NOT NULL),
+  CHECK (
+    (status = 'skipped' AND budget_decision <> 'reserved' AND budget_ordinal IS NULL AND reserved_tokens = 0
+      AND claim_owner_id IS NULL AND claim_expires_at_ms IS NULL AND claim_fencing_token IS NULL
+      AND attempt_count = 0 AND outcome IS NULL AND context_receipt_id IS NULL AND provider_call_id IS NULL
+      AND proposal_hash IS NULL AND result_transaction_id IS NULL)
+    OR (status = 'pending' AND budget_decision = 'reserved' AND budget_ordinal IS NOT NULL AND reserved_tokens > 0
+      AND claim_owner_id IS NULL AND claim_expires_at_ms IS NULL AND claim_fencing_token IS NULL
+      AND outcome IS NULL AND context_receipt_id IS NULL AND provider_call_id IS NULL
+      AND proposal_hash IS NULL AND result_transaction_id IS NULL)
+    OR (status = 'claimed' AND budget_decision = 'reserved' AND budget_ordinal IS NOT NULL AND reserved_tokens > 0
+      AND claim_owner_id IS NOT NULL AND claim_expires_at_ms IS NOT NULL AND claim_fencing_token IS NOT NULL
+      AND attempt_count >= 1 AND outcome IS NULL AND result_transaction_id IS NULL)
+    OR (status = 'settled' AND budget_decision = 'reserved' AND budget_ordinal IS NOT NULL AND reserved_tokens > 0
+      AND claim_owner_id IS NOT NULL AND claim_expires_at_ms IS NOT NULL AND claim_fencing_token IS NOT NULL
+      AND attempt_count >= 1 AND outcome IS NOT NULL)
+  )
+) STRICT;
+CREATE INDEX world_reaction_jobs_claim_order
+  ON world_reaction_jobs(address_key, status, wave, character_id, stimulus_hash, job_id);
+CREATE INDEX world_reaction_jobs_cycle_wave_status
+  ON world_reaction_jobs(cycle_id, wave, status);
+CREATE UNIQUE INDEX world_reaction_jobs_provider_call
+  ON world_reaction_jobs(provider_call_id) WHERE provider_call_id IS NOT NULL;
+
+CREATE TABLE world_reaction_job_stimuli (
+  job_id TEXT NOT NULL,
+  address_key TEXT NOT NULL,
+  stimulus_ordinal INTEGER NOT NULL CHECK(stimulus_ordinal >= 0),
+  observer_character_id TEXT NOT NULL,
+  source_round_id TEXT NOT NULL,
+  source_transaction_id TEXT NOT NULL,
+  source_event_seq INTEGER NOT NULL CHECK(source_event_seq >= 1),
+  source_event_ordinal INTEGER NOT NULL CHECK(source_event_ordinal >= 0),
+  observation_ordinal INTEGER NOT NULL CHECK(observation_ordinal >= 0),
+  observation_id TEXT NOT NULL,
+  source_event_hash TEXT NOT NULL,
+  stimulus_entry_hash TEXT NOT NULL,
+  PRIMARY KEY(job_id, stimulus_ordinal),
+  FOREIGN KEY(job_id, address_key) REFERENCES world_reaction_jobs(job_id, address_key),
+  FOREIGN KEY(address_key) REFERENCES branches(address_key),
+  FOREIGN KEY(source_transaction_id) REFERENCES round_commits(transaction_id),
+  FOREIGN KEY(address_key, source_event_seq) REFERENCES events(address_key, seq)
+) STRICT;
+CREATE INDEX world_reaction_job_stimuli_source
+  ON world_reaction_job_stimuli(address_key, source_event_seq, source_event_ordinal, observation_ordinal);
+CREATE INDEX events_type_range ON events(address_key, event_type, seq);
+`
+
+export const WORLD_SCHEMA_VERSION = 16
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -380,7 +537,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 12, sql: WORLD_COGNITIVE_JOB_SCHEMA },
     { version: 13, sql: WORLD_CLARIFICATION_SCHEMA },
     { version: 14, sql: WORLD_OUTBOX_RETRY_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_PROVIDER_OUTPUT_AVAILABILITY_SCHEMA },
+    { version: 15, sql: WORLD_PROVIDER_OUTPUT_AVAILABILITY_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_REACTION_SCHEMA },
   ])
 }
 
