@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { openContextDatabase } from '@harness-world/agents'
-import { brandId, compareWorldText, worldAddressKey, type WorldAddress } from '@harness-world/contracts'
+import { planStableCallBudget } from '@harness-world/application'
+import { brandId, worldAddressKey, type WorldAddress, type WorldHash } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 
 const HISTORY_ROWS = 10_000
@@ -163,14 +164,23 @@ describe('Phase 8.3 fixed-data performance gates', () => {
       stimulus_hash: string
       job_id: string
     }>
-    const selected = candidates.sort((left, right) => compareWorldText(left.character_id, right.character_id)
-      || compareWorldText(left.stimulus_hash, right.stimulus_hash)
-      || compareWorldText(left.job_id, right.job_id)).slice(0, MAX_REACTION_CALLS)
+    const plan = planStableCallBudget(candidates.map(value => ({
+      wave: 1,
+      characterId: brandId(value.character_id, 'CharacterId'),
+      stimulusHash: value.stimulus_hash as WorldHash,
+      jobId: value.job_id,
+      estimatedTokens: 1,
+    })), {
+      remainingCalls: MAX_REACTION_CALLS,
+      remainingTokens: MAX_REACTION_CALLS,
+      maxCallsPerCharacter: 2,
+      usedCallsByCharacter: [],
+    })
     const elapsedMs = performance.now() - startedAt
     db.close()
     expect(candidates).toHaveLength(MAX_ACTIVE_JOB_CANDIDATES)
-    expect(selected).toHaveLength(MAX_REACTION_CALLS)
-    expect(selected[0]!.job_id).toBe(`job:${String(HISTORY_ROWS - MAX_ACTIVE_JOB_CANDIDATES).padStart(5, '0')}`)
+    expect(plan.reservedJobIds).toHaveLength(MAX_REACTION_CALLS)
+    expect(plan.reservedJobIds[0]).toBe(`job:${String(HISTORY_ROWS - MAX_ACTIVE_JOB_CANDIDATES).padStart(5, '0')}`)
     expect(elapsedMs).toBeLessThan(MAX_QUERY_MS)
   })
 })
