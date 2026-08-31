@@ -35,13 +35,17 @@ import {
 } from './sqlite.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
 import {
+  applyPreparedReactionWaveSettlement,
   bindReactionJobProvider,
   insertInitialReactionCycle,
   claimNextReactionJob,
+  normalizeReactionWaveSettlement,
   prepareInitialReactionCycle,
+  prepareReactionWaveSettlement,
   readActiveReactionCycle,
   readReactionCycleById,
   readReactionCycleByRootTransaction,
+  readReactionWaveSettlementHashByTransaction,
   renewReactionJobClaim,
   type ReactionSourceEvent,
 } from './reaction-cycle.ts'
@@ -957,8 +961,14 @@ export class WorldStore {
   async commitRound(request: CommitRoundRequest): Promise<CommitRoundResult> {
     if (request.events.length === 0) throw new TypeError('a committed round requires at least one event')
     if (request.nextTick !== request.expectedTick + 1) throw new TypeError('a committed round advances exactly one tick')
+    if (request.reactionCycle !== undefined && request.reactionSettlement !== undefined) {
+      throw new TypeError('one Round cannot create and settle a Reaction Cycle')
+    }
     const addressKey = worldAddressKey(request.address)
     const cognitiveJobs = [...(request.cognitiveJobs ?? [])].sort((left, right) => compareWorldText(left.characterId, right.characterId))
+    const normalizedReactionSettlement = request.reactionSettlement === undefined
+      ? undefined
+      : normalizeReactionWaveSettlement(request.reactionSettlement)
     if (new Set(cognitiveJobs.map(job => job.characterId)).size !== cognitiveJobs.length) {
       throw new TypeError('cognitive job characterId values must be unique within one Round')
     }
@@ -976,6 +986,7 @@ export class WorldStore {
       outbox: request.outbox,
       ...(cognitiveJobs.length === 0 ? {} : { cognitiveJobs }),
       ...(request.reactionCycle === undefined ? {} : { reactionCycle: request.reactionCycle }),
+      ...(normalizedReactionSettlement === undefined ? {} : { reactionSettlement: normalizedReactionSettlement }),
       ...(authorityHash === null ? {} : { authorityHash }),
     })
 
@@ -1084,6 +1095,18 @@ export class WorldStore {
         )
         return payloadHash
       })
+      const reactionSettlement = normalizedReactionSettlement === undefined ? undefined : prepareReactionWaveSettlement(
+        this.#db,
+        request.address,
+        normalizedReactionSettlement,
+        request.roundId,
+        request.transactionId,
+        authorityHash,
+        request.expectedHeadSeq,
+        head.event_hash,
+        finalHeadSeq,
+        this.operationalNow(),
+      )
       const bundleHash = hashWorldJson('world-round-bundle', {
         address: request.address,
         roundId: request.roundId,
@@ -1092,6 +1115,7 @@ export class WorldStore {
         outboxHashes,
         ...(authorityHash === null ? {} : { authorityHash }),
         ...(reactionCycle === undefined ? {} : { reactionCycleHash: reactionCycle.authorityHash }),
+        ...(reactionSettlement === undefined ? {} : { reactionSettlementHash: reactionSettlement.settlementHash }),
       })
       if (authorityHash !== null) {
         this.#db.prepare(`
@@ -1115,6 +1139,10 @@ export class WorldStore {
         authorityHash,
       )
       if (reactionCycle !== undefined) insertInitialReactionCycle(this.#db, reactionCycle)
+      if (reactionSettlement !== undefined) {
+        applyPreparedReactionWaveSettlement(this.#db, request.address, reactionSettlement)
+        this.faultInjector?.hit('reaction.after-wave-settle')
+      }
       for (const job of cognitiveJobs) {
         const identity = {
           address: request.address,
@@ -1555,6 +1583,13 @@ export class WorldStore {
       this.#invalidCommittedRound(address, transactionId, 'committed Round authority binding is divergent')
     }
     const reactionCycle = readReactionCycleByRootTransaction(this.#db, address, transactionId)
+    const reactionSettlementHash = readReactionWaveSettlementHashByTransaction(
+      this.#db,
+      address,
+      transactionId,
+      row.authority_hash,
+      row.head_seq,
+    )
     const bundleHash = hashWorldJson('world-round-bundle', {
       address,
       roundId: row.round_id,
@@ -1563,6 +1598,7 @@ export class WorldStore {
       outboxHashes: outbox.map(item => item.payload_hash),
       ...(row.authority_hash === null ? {} : { authorityHash: row.authority_hash }),
       ...(reactionCycle === undefined ? {} : { reactionCycleHash: reactionCycle.authorityHash }),
+      ...(reactionSettlementHash === undefined ? {} : { reactionSettlementHash }),
     })
     if (bundleHash !== row.bundle_hash) {
       this.#invalidCommittedRound(address, transactionId, 'committed Round bundle hash is divergent')

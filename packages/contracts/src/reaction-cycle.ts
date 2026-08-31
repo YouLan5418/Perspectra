@@ -165,3 +165,21 @@ export interface ReactionJobProviderBinding {
   readonly providerCallId: string
   readonly providerRequestHash: WorldHash
 }
+
+/** One exact claimed Job outcome consumed by a Reaction Round transaction. */
+export interface ReactionJobSettlementDraft extends WorldJsonObject {
+  readonly jobId: ReactionJobId
+  readonly claimOwnerId: string
+  readonly claimFencingToken: number
+  readonly expectedStateHash: WorldHash
+  readonly outcome: ReactionJobOutcome
+  readonly proposalHash: WorldHash | null
+}
+
+/** Single-wave settlement contract; multi-wave continuation is added by Phase 9B separately. */
+export interface ReactionWaveSettlementDraft extends WorldJsonObject {
+  readonly cycleId: ReactionCycleId
+  readonly wave: number
+  readonly terminalReason: ReactionCycleTerminalReason
+  readonly jobs: readonly ReactionJobSettlementDraft[]
+}

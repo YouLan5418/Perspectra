@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, createErrorEnvelope, type SubmitActionsV2 } from '@harness-world/contracts'
+import { brandId, createErrorEnvelope, hashWorldJson, type SubmitActionsV2 } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { LocalJsonRpcRouter, WorldHostInstanceLock } from '@harness-world/operations'
@@ -47,6 +47,95 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 describe('hard process termination recovery', () => {
+  it('rolls back a complete Reaction Round when killed after Wave settlement but before commit', async () => {
+    const path = database('reaction.after-wave-settle.sqlite')
+    const address = fixtureAddress()
+    const observer = brandId('character:reaction-settle-crash', 'CharacterId')
+    const setup = new WorldStore(path)
+    setup.createBranch(address)
+    const leases = new WriterLeaseService(path)
+    const writer = leases.acquire(address, 'reaction-worker:crash-settle', 100_000)
+    await setup.commitRound({
+      ...fixtureCommitRequest(address),
+      events: [{
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: 'observation:reaction-settle-crash', value: { observerId: observer, content: 'stimulus' } },
+      }],
+      reactionCycle: {
+        policyVersion: 'reaction-policy/v1',
+        profileId: 'responsive/v1',
+        maxWaves: 3,
+        maxNpcCalls: 8,
+        maxCallsPerCharacter: 2,
+        maxActionsPerCall: 1,
+        allowedActionTypes: ['speak@1'],
+        initialTokenBudget: 8,
+        deadlineAtMs: Date.now() + 100_000,
+        candidates: [{
+          characterId: observer,
+          estimatedTokens: 1,
+          stimuli: [{
+            sourceEventOrdinal: 0,
+            observationOrdinal: 0,
+            observationId: 'observation:reaction-settle-crash',
+            observerCharacterId: observer,
+          }],
+        }],
+      },
+      writerFencingToken: writer.fencingToken,
+    })
+    const claimed = setup.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 100_000)!
+    setup.bindReactionJobProvider(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, {
+        contextReceiptId: 'context-receipt:reaction-crash-settle',
+        contextReceiptHash: hashWorldJson('context-receipt:test', 'reaction-crash-settle'),
+        providerCallId: 'provider-call:reaction-crash-settle',
+        providerRequestHash: hashWorldJson('provider-request:test', 'reaction-crash-settle'),
+      },
+    )
+    setup.close()
+    leases.close()
+
+    await hardKillAt(worker, ['reaction-settle', path, 'reaction.after-wave-settle'])
+
+    const recovered = new WorldStore(path)
+    expect(recovered.head(address)).toMatchObject({ headSeq: 1, tick: 1 })
+    expect(recovered.committedRound(address, brandId('transaction:reaction-crash-settle', 'TransactionId'))).toBeUndefined()
+    const bundle = recovered.activeReactionCycle(address)!
+    const job = bundle.jobs.find(value => value.status === 'claimed')!
+    expect(bundle.waves[0]?.status).toBe('frozen')
+    expect(job).toMatchObject({ status: 'claimed', providerCallId: 'provider-call:reaction-crash-settle' })
+    await expect(recovered.commitRound({
+      address,
+      transactionId: brandId('transaction:reaction-crash-settle', 'TransactionId'),
+      roundId: brandId('round:reaction-crash-settle', 'InteractionRoundId'),
+      expectedHeadSeq: 1,
+      expectedTick: 1,
+      nextTick: 2,
+      events: [{ eventType: 'fixture.reaction', eventVersion: 1, data: { text: 'settle after crash' } }],
+      outbox: [],
+      authority: { schemaVersion: 1, origin: 'reaction', cycleId: bundle.cycle.cycleId, wave: 1 },
+      reactionSettlement: {
+        cycleId: bundle.cycle.cycleId,
+        wave: 1,
+        terminalReason: 'quiescent',
+        jobs: [{
+          jobId: job.jobId,
+          claimOwnerId: job.claimOwnerId!,
+          claimFencingToken: job.claimFencingToken!,
+          expectedStateHash: job.stateHash,
+          outcome: 'proposed',
+          proposalHash: hashWorldJson('reaction-proposal:test', 'crash-settle'),
+        }],
+      },
+      writerFencingToken: 1,
+      correlationId: 'reaction-crash-settle:recovery',
+    })).resolves.toMatchObject({ status: 'committed', headSeq: 2, tick: 2 })
+    expect(recovered.readReactionCycle(address, bundle.cycle.cycleId)?.cycle.status).toBe('terminal')
+    recovered.close()
+  })
+
   it.each([
     'reaction.after-player-enqueue',
     'reaction.after-player-preempt',

@@ -9,7 +9,7 @@ import type {
   WorldId,
 } from './ids.ts'
 import type { WorldHash, WorldJsonObject, WorldJsonValue } from './world-json.ts'
-import type { ReactionCycleDraft } from './reaction-cycle.ts'
+import type { ReactionCycleDraft, ReactionWaveSettlementDraft } from './reaction-cycle.ts'
 
 export interface WorldAddress extends WorldJsonObject {
   readonly tenantId: TenantId
@@ -44,6 +44,7 @@ export type FaultPoint =
   | 'reaction.after-player-enqueue'
   | 'reaction.after-player-preempt'
   | 'reaction.after-job-claim'
+  | 'reaction.after-wave-settle'
 
 export interface FaultInjector {
   /** Pause, fail, or terminate execution at a named stable point. */
@@ -112,6 +113,8 @@ export interface CommitRoundRequest {
   readonly cognitiveJobs?: readonly CognitiveJobDraft[]
   /** Durable, bounded NPC Reaction work created atomically with the Root Round. */
   readonly reactionCycle?: ReactionCycleDraft
+  /** Exact claimed Reaction Jobs settled atomically with one NPC-only Round. */
+  readonly reactionSettlement?: ReactionWaveSettlementDraft
   readonly correlationId: string
   /** Versioned participant/proposal/action/resolution authority committed with this Round. */
   readonly authority?: WorldJsonObject

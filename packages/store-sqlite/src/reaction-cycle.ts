@@ -15,8 +15,10 @@ import {
   type ReactionCycleDraft,
   type ReactionCycleId,
   type ReactionCycleStopReason,
+  type ReactionCycleTerminalReason,
   type ReactionJobId,
   type ReactionJobProviderBinding,
+  type ReactionWaveSettlementDraft,
   type StableCallBudgetDecision,
   type StableCallBudgetPlan,
   type StoredReactionCycle,
@@ -916,6 +918,238 @@ export function requestReactionCycleStopInTransaction(
   `).run(reason, stateHash, worldAddressKey(address), stopped.cycleId, bundle.cycle.stateHash)
   if (result.changes !== 1) throw new Error('Reaction Cycle stop request changed concurrently')
   return stopped.cycleId
+}
+
+const STOP_REASONS = new Set<ReactionCycleTerminalReason>([
+  'player_preempted', 'user_cancelled', 'administrative_stop', 'quarantined',
+])
+const TERMINAL_REASONS = new Set<ReactionCycleTerminalReason>([
+  'quiescent', 'all_abstained', 'call_limit', 'wave_limit', 'token_budget_exhausted',
+  'deadline_reached', 'provider_terminal', ...STOP_REASONS,
+])
+
+export function normalizeReactionWaveSettlement(
+  draft: ReactionWaveSettlementDraft,
+): ReactionWaveSettlementDraft {
+  canonicalizeWorldJson(draft)
+  safeInteger(draft.wave, 'reactionSettlement.wave', 1)
+  if (!TERMINAL_REASONS.has(draft.terminalReason)) throw new TypeError('Reaction settlement terminal reason is invalid')
+  const jobs = [...draft.jobs].sort((left, right) => compareWorldText(left.jobId, right.jobId))
+  if (new Set(jobs.map(job => job.jobId)).size !== jobs.length) {
+    throw new TypeError('Reaction settlement Job ids must be unique')
+  }
+  for (const job of jobs) {
+    assertProtocolString(job.claimOwnerId, 'reactionSettlement.claimOwnerId')
+    safeInteger(job.claimFencingToken, 'reactionSettlement.claimFencingToken', 1)
+    worldHash(job.expectedStateHash, 'Reaction settlement expectedStateHash')
+    nullableWorldHash(job.proposalHash, 'Reaction settlement proposalHash')
+    const proposalRequired = job.outcome === 'proposed' || job.outcome === 'rejected'
+    if (proposalRequired !== (job.proposalHash !== null)) {
+      throw new TypeError('Reaction settlement proposal Hash does not match its outcome')
+    }
+  }
+  return { ...draft, jobs }
+}
+
+interface PreparedReactionJobSettlement {
+  readonly previous: ClaimedReactionJob
+  readonly settled: StoredReactionJob
+}
+
+export interface PreparedReactionWaveSettlement {
+  readonly draft: ReactionWaveSettlementDraft
+  readonly previousCycle: StoredReactionCycle
+  readonly terminalCycle: StoredReactionCycle
+  readonly previousWave: StoredReactionWave
+  readonly committedWave: StoredReactionWave
+  readonly jobs: readonly PreparedReactionJobSettlement[]
+  readonly settlementHash: WorldHash
+}
+
+function hashReactionWaveSettlement(
+  cycleId: ReactionCycleId,
+  wave: number,
+  waveStateHash: WorldHash,
+  jobStateHashes: readonly WorldHash[],
+  terminalReason: ReactionCycleTerminalReason | null,
+  terminalAtSeq: number | null,
+): WorldHash {
+  return hashWorldJson('reaction-wave-settlement/v1', {
+    cycleId, wave, waveStateHash, jobStateHashes, terminalReason, terminalAtSeq,
+  })
+}
+
+/** Validate and freeze the exact post-state before the owning Round commit row exists. */
+export function prepareReactionWaveSettlement(
+  db: DatabaseSync,
+  address: WorldAddress,
+  draftInput: ReactionWaveSettlementDraft,
+  reactionRoundId: InteractionRoundId,
+  resultTransactionId: TransactionId,
+  roundAuthorityHash: WorldHash | null,
+  expectedHeadSeq: number,
+  expectedHeadHash: WorldHash | 'genesis',
+  finalHeadSeq: number,
+  nowMs: number,
+): PreparedReactionWaveSettlement {
+  const draft = normalizeReactionWaveSettlement(draftInput)
+  if (roundAuthorityHash === null) throw new TypeError('Reaction Round settlement requires Round Authority')
+  const bundle = readReactionCycleById(db, address, draft.cycleId)
+  if (bundle === undefined || bundle.cycle.status === 'terminal') throw new Error('Reaction Cycle is absent or terminal')
+  const previousWave = bundle.waves.find(value => value.wave === draft.wave)
+  if (previousWave === undefined || previousWave.status !== 'frozen' || draft.wave !== bundle.waves.length) {
+    throw new Error('Reaction settlement does not target the current frozen wave')
+  }
+  if (previousWave.baseHeadSeq !== expectedHeadSeq || previousWave.baseHeadHash !== expectedHeadHash) {
+    throw new Error('Reaction settlement base Head is divergent')
+  }
+  if (bundle.cycle.status === 'stop_requested') {
+    if (draft.terminalReason !== bundle.cycle.stopReason) throw new Error('Reaction settlement must preserve the durable stop reason')
+  } else if (STOP_REASONS.has(draft.terminalReason)) {
+    throw new Error('Reaction settlement cannot invent a stop reason')
+  }
+  const reserved = bundle.jobs.filter(job => job.wave === draft.wave && job.budgetDecision === 'reserved')
+    .sort((left, right) => compareWorldText(left.jobId, right.jobId))
+  if (reserved.length !== draft.jobs.length || reserved.some((job, index) => job.jobId !== draft.jobs[index]!.jobId)) {
+    throw new Error('Reaction settlement must cover every reserved Job exactly once')
+  }
+  const jobs = reserved.map((job, index): PreparedReactionJobSettlement => {
+    const settlement = draft.jobs[index]!
+    if (job.status !== 'claimed' || job.claimOwnerId !== settlement.claimOwnerId
+      || job.claimFencingToken !== settlement.claimFencingToken || job.stateHash !== settlement.expectedStateHash
+      || job.claimExpiresAtMs! <= nowMs) {
+      throw new Error('Reaction settlement Job claim is stale, expired, or divergent')
+    }
+    if (settlement.outcome !== 'runtime_unavailable' && job.providerCallId === null) {
+      throw new Error('Reaction settlement outcome requires a bound ProviderCall')
+    }
+    const settled: StoredReactionJob = {
+      ...job,
+      status: 'settled',
+      outcome: settlement.outcome,
+      proposalHash: settlement.proposalHash,
+      resultTransactionId,
+    }
+    return { previous: job as ClaimedReactionJob, settled: { ...settled, stateHash: hashReactionJobState(settled) } }
+  })
+  const committedWaveSeed: StoredReactionWave = {
+    ...previousWave,
+    status: 'committed',
+    reactionRoundId,
+    resultTransactionId,
+    authorityHash: roundAuthorityHash,
+  }
+  const committedWave = { ...committedWaveSeed, stateHash: hashReactionWaveState(committedWaveSeed) }
+  const terminalSeed: StoredReactionCycle = {
+    ...bundle.cycle,
+    status: 'terminal',
+    terminalReason: draft.terminalReason,
+    terminalAtSeq: finalHeadSeq,
+  }
+  const terminalCycle = { ...terminalSeed, stateHash: hashReactionCycleState(terminalSeed) }
+  return {
+    draft,
+    previousCycle: bundle.cycle,
+    terminalCycle,
+    previousWave,
+    committedWave,
+    jobs,
+    settlementHash: hashReactionWaveSettlement(
+      draft.cycleId,
+      draft.wave,
+      committedWave.stateHash,
+      jobs.map(job => job.settled.stateHash),
+      draft.terminalReason,
+      finalHeadSeq,
+    ),
+  }
+}
+
+/** Apply a prepared settlement after its Round commit row has been inserted in the same transaction. */
+export function applyPreparedReactionWaveSettlement(
+  db: DatabaseSync,
+  address: WorldAddress,
+  prepared: PreparedReactionWaveSettlement,
+): void {
+  const addressKey = worldAddressKey(address)
+  for (const job of prepared.jobs) {
+    const result = db.prepare(`
+      UPDATE world_reaction_jobs
+      SET status = 'settled', outcome = ?, proposal_hash = ?, result_transaction_id = ?, state_hash = ?
+      WHERE address_key = ? AND job_id = ? AND status = 'claimed' AND claim_owner_id = ?
+        AND claim_fencing_token = ? AND state_hash = ?
+    `).run(
+      job.settled.outcome,
+      job.settled.proposalHash,
+      job.settled.resultTransactionId,
+      job.settled.stateHash,
+      addressKey,
+      job.settled.jobId,
+      job.previous.claimOwnerId,
+      job.previous.claimFencingToken,
+      job.previous.stateHash,
+    )
+    if (result.changes !== 1) throw new Error('Reaction settlement Job changed concurrently')
+  }
+  const waveResult = db.prepare(`
+    UPDATE world_reaction_waves
+    SET status = 'committed', reaction_round_id = ?, result_transaction_id = ?, authority_hash = ?, state_hash = ?
+    WHERE address_key = ? AND cycle_id = ? AND wave = ? AND status = 'frozen' AND state_hash = ?
+  `).run(
+    prepared.committedWave.reactionRoundId,
+    prepared.committedWave.resultTransactionId,
+    prepared.committedWave.authorityHash,
+    prepared.committedWave.stateHash,
+    addressKey,
+    prepared.committedWave.cycleId,
+    prepared.committedWave.wave,
+    prepared.previousWave.stateHash,
+  )
+  if (waveResult.changes !== 1) throw new Error('Reaction settlement Wave changed concurrently')
+  const cycleResult = db.prepare(`
+    UPDATE world_reaction_cycles
+    SET status = 'terminal', terminal_reason = ?, terminal_at_seq = ?, state_hash = ?
+    WHERE address_key = ? AND cycle_id = ? AND status <> 'terminal' AND state_hash = ?
+  `).run(
+    prepared.terminalCycle.terminalReason,
+    prepared.terminalCycle.terminalAtSeq,
+    prepared.terminalCycle.stateHash,
+    addressKey,
+    prepared.terminalCycle.cycleId,
+    prepared.previousCycle.stateHash,
+  )
+  if (cycleResult.changes !== 1) throw new Error('Reaction settlement Cycle changed concurrently')
+}
+
+/** Rebuild the immutable settlement link used by a committed Reaction Round bundle. */
+export function readReactionWaveSettlementHashByTransaction(
+  db: DatabaseSync,
+  address: WorldAddress,
+  transactionId: TransactionId,
+  roundAuthorityHash: WorldHash | null,
+  roundHeadSeq: number,
+): WorldHash | undefined {
+  const row = db.prepare(`
+    SELECT cycle_id, wave FROM world_reaction_waves WHERE address_key = ? AND result_transaction_id = ?
+  `).get(worldAddressKey(address), transactionId) as { cycle_id: string; wave: number } | undefined
+  if (row === undefined) return undefined
+  const bundle = readReactionCycleById(db, address, brandId(row.cycle_id, 'ReactionCycleId'))
+  const wave = bundle?.waves.find(value => value.wave === row.wave)
+  const jobs = bundle?.jobs.filter(job => job.wave === row.wave && job.budgetDecision === 'reserved') ?? []
+  if (bundle === undefined || wave?.status !== 'committed' || wave.resultTransactionId !== transactionId
+    || roundAuthorityHash === null || wave.authorityHash !== roundAuthorityHash
+    || jobs.some(job => job.status !== 'settled' || job.resultTransactionId !== transactionId)) {
+    throw new Error('Reaction Round settlement binding is divergent')
+  }
+  const isTerminalRound = bundle.cycle.terminalAtSeq === roundHeadSeq
+  return hashReactionWaveSettlement(
+    bundle.cycle.cycleId,
+    wave.wave,
+    wave.stateHash,
+    jobs.map(job => job.stateHash),
+    isTerminalRound ? bundle.cycle.terminalReason : null,
+    isTerminalRound ? bundle.cycle.terminalAtSeq : null,
+  )
 }
 
 function assertCurrentReactionWriter(

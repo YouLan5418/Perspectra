@@ -10,6 +10,7 @@ import {
   type CommitRoundRequest,
   type ReactionCycleDraft,
   type ReactionCycleId,
+  type ReactionWaveSettlementDraft,
   type StoredReactionJob,
   type StoredReactionStimulus,
   type StoredReactionWave,
@@ -20,6 +21,9 @@ import {
   hashReactionCycleState,
   hashReactionStimulusEntry,
   hashReactionWaveState,
+  normalizeReactionWaveSettlement,
+  prepareReactionWaveSettlement,
+  readReactionWaveSettlementHashByTransaction,
   prepareInitialReactionCycle,
   type PrepareInitialReactionCycleInput,
 } from './reaction-cycle.ts'
@@ -117,11 +121,369 @@ function prepareInput(overrides: Partial<PrepareInitialReactionCycleInput> = {})
   }
 }
 
+async function settlementFixture(bindProvider = true) {
+  const { path, address } = fixture()
+  const clock = { value: 10 }
+  const store = new WorldStore(path, undefined, () => clock.value)
+  store.createBranch(address)
+  const leases = new WriterLeaseService(path, () => clock.value)
+  const writer = leases.acquire(address, 'reaction-worker:settlement-fixture', 1_000)
+  await store.commitRound({ ...request(address), writerFencingToken: writer.fencingToken })
+  const cycle = store.activeReactionCycle(address)!.cycle
+  const claimed = store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 500)!
+  const job = bindProvider
+    ? store.bindReactionJobProvider(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, {
+        contextReceiptId: 'context-receipt:settlement-fixture',
+        contextReceiptHash: hashWorldJson('context-receipt:test', 'settlement-fixture'),
+        providerCallId: 'provider-call:settlement-fixture',
+        providerRequestHash: hashWorldJson('provider-request:test', 'settlement-fixture'),
+      },
+    )
+    : claimed
+  const settlement = {
+    cycleId: cycle.cycleId,
+    wave: 1,
+    terminalReason: 'quiescent' as const,
+    jobs: [{
+      jobId: job.jobId,
+      claimOwnerId: job.claimOwnerId,
+      claimFencingToken: job.claimFencingToken,
+      expectedStateHash: job.stateHash,
+      outcome: 'proposed' as const,
+      proposalHash: hashWorldJson('reaction-proposal:test', 'settlement-fixture'),
+    }],
+  }
+  return { path, address, clock, store, leases, writer, cycle, job, settlement }
+}
+
 afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
 describe('WorldStore Reaction Cycle authority', () => {
+  it('normalizes and rejects malformed Reaction settlement contracts', () => {
+    const first = {
+      jobId: brandId('reaction-job:z', 'ReactionJobId'),
+      claimOwnerId: 'reaction-worker:normalize',
+      claimFencingToken: 1,
+      expectedStateHash: hashWorldJson('reaction-state:test', 'z'),
+      outcome: 'proposed' as const,
+      proposalHash: hashWorldJson('reaction-proposal:test', 'z'),
+    }
+    const second = {
+      ...first,
+      jobId: brandId('reaction-job:a', 'ReactionJobId'),
+      expectedStateHash: hashWorldJson('reaction-state:test', 'a'),
+      outcome: 'runtime_unavailable' as const,
+      proposalHash: null,
+    }
+    const draft = {
+      cycleId: brandId('reaction-cycle:normalize', 'ReactionCycleId'),
+      wave: 1,
+      terminalReason: 'quiescent' as const,
+      jobs: [first, second],
+    }
+    expect(normalizeReactionWaveSettlement(draft).jobs.map(job => job.jobId)).toEqual([
+      second.jobId, first.jobId,
+    ])
+    expect(() => normalizeReactionWaveSettlement({ ...draft, wave: 0 })).toThrow(RangeError)
+    expect(() => normalizeReactionWaveSettlement({ ...draft, terminalReason: 'invalid' as never })).toThrow('terminal reason')
+    expect(() => normalizeReactionWaveSettlement({ ...draft, jobs: [first, first] })).toThrow('must be unique')
+    expect(() => normalizeReactionWaveSettlement({ ...draft, jobs: [{ ...first, claimOwnerId: '' }] })).toThrow(TypeError)
+    expect(() => normalizeReactionWaveSettlement({ ...draft, jobs: [{ ...first, claimFencingToken: 0 }] })).toThrow(RangeError)
+    expect(() => normalizeReactionWaveSettlement({ ...draft, jobs: [{ ...first, expectedStateHash: 'bad' as never }] }))
+      .toThrow('expectedStateHash')
+    expect(() => normalizeReactionWaveSettlement({ ...draft, jobs: [{ ...first, proposalHash: 'bad' as never }] }))
+      .toThrow('proposalHash')
+    expect(() => normalizeReactionWaveSettlement({ ...draft, jobs: [{ ...first, proposalHash: null }] }))
+      .toThrow('does not match')
+    expect(() => normalizeReactionWaveSettlement({
+      ...draft,
+      jobs: [{ ...first, outcome: 'abstained', proposalHash: first.proposalHash }],
+    })).toThrow('does not match')
+    expect(normalizeReactionWaveSettlement({
+      ...draft,
+      jobs: [{ ...first, outcome: 'rejected' }],
+    }).jobs[0]?.outcome).toBe('rejected')
+  })
+
+  it('rejects incomplete, stale, unbound, and authority-free Reaction settlements before mutation', async () => {
+    const value = await settlementFixture()
+    const authority = { schemaVersion: 1, origin: 'reaction', cycleId: value.cycle.cycleId, wave: 1 } as const
+    const round = (suffix: string, settlement: ReactionWaveSettlementDraft, includeAuthority = true): CommitRoundRequest => ({
+      address: value.address,
+      transactionId: brandId(`transaction:settlement-guard:${suffix}`, 'TransactionId'),
+      roundId: brandId(`round:settlement-guard:${suffix}`, 'InteractionRoundId'),
+      expectedHeadSeq: 2,
+      expectedTick: 1,
+      nextTick: 2,
+      events: [{ eventType: 'fixture.reaction', eventVersion: 1, data: { suffix } }],
+      outbox: [],
+      ...(includeAuthority ? { authority } : {}),
+      reactionSettlement: settlement,
+      writerFencingToken: value.writer.fencingToken,
+      correlationId: `settlement-guard:${suffix}`,
+    })
+    await expect(value.store.commitRound(round('missing-authority', value.settlement, false)))
+      .rejects.toThrow('requires Round Authority')
+    await expect(value.store.commitRound(round('missing-cycle', {
+      ...value.settlement,
+      cycleId: brandId('reaction-cycle:missing', 'ReactionCycleId'),
+    }))).rejects.toThrow('absent or terminal')
+    await expect(value.store.commitRound(round('missing-wave', {
+      ...value.settlement,
+      wave: 2,
+    }))).rejects.toThrow('current frozen wave')
+    await expect(value.store.commitRound(round('invented-stop', {
+      ...value.settlement,
+      terminalReason: 'user_cancelled',
+    }))).rejects.toThrow('cannot invent')
+    await expect(value.store.commitRound(round('incomplete', {
+      ...value.settlement,
+      jobs: [],
+    }))).rejects.toThrow('every reserved Job')
+    await expect(value.store.commitRound(round('stale', {
+      ...value.settlement,
+      jobs: [{ ...value.settlement.jobs[0]!, expectedStateHash: hashWorldJson('reaction-state:test', 'stale') }],
+    }))).rejects.toThrow('stale, expired, or divergent')
+    const raw = new DatabaseSync(value.path)
+    expect(() => prepareReactionWaveSettlement(
+      raw,
+      value.address,
+      value.settlement,
+      brandId('round:settlement-guard:base', 'InteractionRoundId'),
+      brandId('transaction:settlement-guard:base', 'TransactionId'),
+      hashWorldJson('world-round-authority', authority),
+      2,
+      hashWorldJson('reaction-head:test', 'divergent'),
+      3,
+      value.clock.value,
+    )).toThrow('base Head is divergent')
+    raw.close()
+    value.clock.value = 511
+    await expect(value.store.commitRound(round('expired', value.settlement))).rejects.toThrow('stale, expired, or divergent')
+    expect(value.store.head(value.address)).toMatchObject({ headSeq: 2, tick: 1 })
+    value.store.close()
+    value.leases.close()
+
+    const unbound = await settlementFixture(false)
+    await expect(unbound.store.commitRound({
+      ...round('unbound', {
+        ...unbound.settlement,
+        cycleId: unbound.cycle.cycleId,
+        jobs: [{
+          ...unbound.settlement.jobs[0]!,
+          jobId: unbound.job.jobId,
+          claimOwnerId: unbound.job.claimOwnerId,
+          claimFencingToken: unbound.job.claimFencingToken,
+          expectedStateHash: unbound.job.stateHash,
+        }],
+      }),
+      address: unbound.address,
+      writerFencingToken: unbound.writer.fencingToken,
+      authority: { ...authority, cycleId: unbound.cycle.cycleId },
+    })).rejects.toThrow('requires a bound ProviderCall')
+    const runtimeUnavailable = {
+      ...unbound.settlement,
+      jobs: [{
+        ...unbound.settlement.jobs[0]!,
+        outcome: 'runtime_unavailable' as const,
+        proposalHash: null,
+      }],
+    }
+    await expect(unbound.store.commitRound({
+      ...round('runtime-unavailable', runtimeUnavailable),
+      address: unbound.address,
+      writerFencingToken: unbound.writer.fencingToken,
+      authority: { ...authority, cycleId: unbound.cycle.cycleId },
+      reactionSettlement: runtimeUnavailable,
+    })).resolves.toMatchObject({ status: 'committed' })
+    unbound.store.close()
+    unbound.leases.close()
+  })
+
+  it('preserves player preemption as the terminal reason when the frozen Wave settles', async () => {
+    const value = await settlementFixture()
+    const inbox = new RoundInbox(value.path)
+    inbox.enqueue({
+      address: value.address,
+      idempotencyKey: 'player:settlement-preempt',
+      principalId: 'principal:player',
+      input: { type: 'speak', text: '插话' },
+      correlationId: 'player:settlement-preempt',
+    }, 1)
+    const base = {
+      address: value.address,
+      transactionId: brandId('transaction:settlement-preempt', 'TransactionId'),
+      roundId: brandId('round:settlement-preempt', 'InteractionRoundId'),
+      expectedHeadSeq: 2,
+      expectedTick: 1,
+      nextTick: 2,
+      events: [{ eventType: 'fixture.reaction', eventVersion: 1, data: { preempted: true } }],
+      outbox: [],
+      authority: { schemaVersion: 1, origin: 'reaction', cycleId: value.cycle.cycleId, wave: 1 },
+      writerFencingToken: value.writer.fencingToken,
+      correlationId: 'settlement-preempt',
+    } as const
+    await expect(value.store.commitRound({
+      ...base,
+      reactionSettlement: value.settlement,
+    })).rejects.toThrow('preserve the durable stop reason')
+    const preempted = { ...value.settlement, terminalReason: 'player_preempted' as const }
+    await expect(value.store.commitRound({ ...base, reactionSettlement: preempted }))
+      .resolves.toMatchObject({ status: 'committed' })
+    expect(value.store.readReactionCycle(value.address, value.cycle.cycleId)?.cycle)
+      .toMatchObject({ status: 'terminal', stopReason: 'player_preempted', terminalReason: 'player_preempted' })
+    inbox.close()
+    value.store.close()
+    value.leases.close()
+  })
+
+  it.each([
+    ['world_reaction_jobs', 'Job'],
+    ['world_reaction_waves', 'Wave'],
+    ['world_reaction_cycles', 'Cycle'],
+  ] as const)('rolls back the whole Reaction Round when the %s settlement CAS is lost', async (table, label) => {
+    const value = await settlementFixture()
+    const blocker = new DatabaseSync(value.path)
+    blocker.exec(`
+      CREATE TRIGGER block_reaction_settlement
+      BEFORE UPDATE ON ${table}
+      BEGIN SELECT RAISE(IGNORE); END;
+    `)
+    blocker.close()
+    await expect(value.store.commitRound({
+      address: value.address,
+      transactionId: brandId(`transaction:settlement-cas:${label}`, 'TransactionId'),
+      roundId: brandId(`round:settlement-cas:${label}`, 'InteractionRoundId'),
+      expectedHeadSeq: 2,
+      expectedTick: 1,
+      nextTick: 2,
+      events: [{ eventType: 'fixture.reaction', eventVersion: 1, data: { label } }],
+      outbox: [],
+      authority: { schemaVersion: 1, origin: 'reaction', cycleId: value.cycle.cycleId, wave: 1 },
+      reactionSettlement: value.settlement,
+      writerFencingToken: value.writer.fencingToken,
+      correlationId: `settlement-cas:${label}`,
+    })).rejects.toThrow(`settlement ${label} changed concurrently`)
+    expect(value.store.head(value.address)).toMatchObject({ headSeq: 2, tick: 1 })
+    const unblock = new DatabaseSync(value.path)
+    unblock.exec(`DROP TRIGGER block_reaction_settlement`)
+    unblock.close()
+    expect(value.store.activeReactionCycle(value.address)?.cycle.status).toBe('active')
+    value.store.close()
+    value.leases.close()
+  })
+
+  it('atomically commits one NPC-only Round and settles its Wave, Jobs, and Cycle', async () => {
+    const { path, address } = fixture()
+    let now = 10
+    const store = new WorldStore(path, undefined, () => now)
+    store.createBranch(address)
+    const leases = new WriterLeaseService(path, () => now)
+    const writer = leases.acquire(address, 'reaction-worker:settle', 1_000)
+    const root = request(address, reactionDraft({ maxNpcCalls: 2 }))
+    await expect(store.commitRound({
+      ...root,
+      reactionSettlement: {
+        cycleId: brandId('reaction-cycle:mutually-exclusive', 'ReactionCycleId'),
+        wave: 1,
+        terminalReason: 'quiescent',
+        jobs: [],
+      },
+    })).rejects.toThrow('cannot create and settle')
+    await store.commitRound({ ...root, writerFencingToken: writer.fencingToken })
+    const initial = store.activeReactionCycle(address)!
+    const claims = [
+      store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 500)!,
+      store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 500)!,
+    ]
+    const bound = claims.map((claimed, index) => store.bindReactionJobProvider(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, {
+        contextReceiptId: `context-receipt:reaction:settle:${index}`,
+        contextReceiptHash: hashWorldJson('context-receipt:test', `reaction:settle:${index}`),
+        providerCallId: `provider-call:reaction:settle:${index}`,
+        providerRequestHash: hashWorldJson('provider-request:test', `reaction:settle:${index}`),
+      },
+    ))
+    const proposalHashes = bound.map((_, index) => hashWorldJson('reaction-proposal:test', { index }))
+    const reactionRequest: CommitRoundRequest = {
+      address,
+      transactionId: brandId('transaction:reaction:settle', 'TransactionId'),
+      roundId: brandId('round:reaction:settle', 'InteractionRoundId'),
+      expectedHeadSeq: 2,
+      expectedTick: 1,
+      nextTick: 2,
+      events: [{ eventType: 'fixture.reaction', eventVersion: 1, data: { text: '回应' } }],
+      outbox: [],
+      authority: {
+        schemaVersion: 1,
+        origin: 'reaction',
+        cycleId: initial.cycle.cycleId,
+        wave: 1,
+      },
+      reactionSettlement: {
+        cycleId: initial.cycle.cycleId,
+        wave: 1,
+        terminalReason: 'quiescent',
+        jobs: bound.map((job, index) => ({
+          jobId: job.jobId,
+          claimOwnerId: job.claimOwnerId,
+          claimFencingToken: job.claimFencingToken,
+          expectedStateHash: job.stateHash,
+          outcome: 'proposed' as const,
+          proposalHash: proposalHashes[index]!,
+        })).reverse(),
+      },
+      writerFencingToken: writer.fencingToken,
+      correlationId: 'reaction:settle',
+    }
+    const committed = await store.commitRound(reactionRequest)
+    expect(committed).toMatchObject({ status: 'committed', headSeq: 3, tick: 2 })
+    expect(store.activeReactionCycle(address)).toBeUndefined()
+    const settled = store.readReactionCycle(address, initial.cycle.cycleId)!
+    expect(settled.cycle).toMatchObject({
+      status: 'terminal', terminalReason: 'quiescent', terminalAtSeq: 3,
+    })
+    expect(settled.waves[0]).toMatchObject({
+      status: 'committed', reactionRoundId: reactionRequest.roundId,
+      resultTransactionId: reactionRequest.transactionId,
+    })
+    expect(settled.jobs.filter(job => job.status === 'settled')).toHaveLength(2)
+    expect(settled.jobs.filter(job => job.status === 'settled').map(job => job.proposalHash).sort())
+      .toEqual([...proposalHashes].sort())
+    expect(store.committedRound(address, reactionRequest.transactionId)).toMatchObject({
+      roundId: reactionRequest.roundId, bundleHash: committed.bundleHash,
+    })
+    const authorityHash = store.readRoundAuthority(address, reactionRequest.transactionId)!.authorityHash
+    const raw = new DatabaseSync(path)
+    expect(readReactionWaveSettlementHashByTransaction(
+      raw, address, reactionRequest.transactionId, authorityHash, 999,
+    )).toMatch(/^sha256:/u)
+    expect(() => readReactionWaveSettlementHashByTransaction(
+      raw, address, reactionRequest.transactionId, null, 3,
+    )).toThrow('settlement binding is divergent')
+    raw.exec('PRAGMA foreign_keys = OFF')
+    raw.prepare(`DELETE FROM world_reaction_cycles WHERE cycle_id = ?`).run(initial.cycle.cycleId)
+    expect(() => readReactionWaveSettlementHashByTransaction(
+      raw, address, reactionRequest.transactionId, authorityHash, 3,
+    )).toThrow('settlement binding is divergent')
+    raw.close()
+    await expect(store.commitRound(reactionRequest)).resolves.toEqual({ ...committed, status: 'already_committed' })
+    await expect(store.commitRound({
+      ...reactionRequest,
+      transactionId: brandId('transaction:reaction:settle:terminal', 'TransactionId'),
+      roundId: brandId('round:reaction:settle:terminal', 'InteractionRoundId'),
+      expectedHeadSeq: 3,
+      expectedTick: 2,
+      nextTick: 3,
+    })).rejects.toThrow('absent or terminal')
+    now = 20
+    store.close()
+    leases.close()
+  })
+
   it('atomically enqueues player input and requests Cycle preemption with first reason winning', async () => {
     const { path, address } = fixture()
     const store = new WorldStore(path)
