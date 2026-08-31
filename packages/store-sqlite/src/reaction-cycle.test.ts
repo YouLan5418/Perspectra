@@ -23,6 +23,7 @@ import {
   prepareInitialReactionCycle,
   type PrepareInitialReactionCycleInput,
 } from './reaction-cycle.ts'
+import { RoundInbox } from './round-inbox.ts'
 import { WorldStore } from './world-store.ts'
 import { WriterLeaseService } from './writer-lease.ts'
 
@@ -121,6 +122,73 @@ afterEach(() => {
 })
 
 describe('WorldStore Reaction Cycle authority', () => {
+  it('atomically enqueues player input and requests Cycle preemption with first reason winning', async () => {
+    const { path, address } = fixture()
+    const store = new WorldStore(path)
+    store.createBranch(address)
+    await store.commitRound(request(address))
+    const cycleId = store.activeReactionCycle(address)!.cycle.cycleId
+    const inbox = new RoundInbox(path)
+    const firstRequest = {
+      address,
+      idempotencyKey: 'player:preempt:first',
+      principalId: 'principal:player',
+      input: { type: 'speak', text: '等等' },
+      correlationId: 'player:preempt:first',
+    } as const
+    expect(inbox.enqueue(firstRequest, 2)).toMatchObject({ status: 'enqueued', inboxSeq: 1 })
+    expect(store.activeReactionCycle(address)?.cycle).toMatchObject({
+      cycleId,
+      status: 'stop_requested',
+      stopReason: 'player_preempted',
+    })
+    expect(inbox.enqueue(firstRequest, 2)).toMatchObject({ status: 'already_enqueued', inboxSeq: 1 })
+    expect(inbox.enqueue({
+      ...firstRequest,
+      idempotencyKey: 'player:preempt:second',
+      correlationId: 'player:preempt:second',
+      input: { type: 'speak', text: '继续' },
+    }, 2)).toMatchObject({ status: 'enqueued', inboxSeq: 2 })
+    expect(store.activeReactionCycle(address)?.cycle).toMatchObject({
+      cycleId,
+      status: 'stop_requested',
+      stopReason: 'player_preempted',
+    })
+    inbox.close()
+    store.close()
+  })
+
+  it('rolls back player admission when the atomic Cycle preemption CAS cannot apply', async () => {
+    const { path, address } = fixture()
+    const store = new WorldStore(path)
+    store.createBranch(address)
+    await store.commitRound(request(address))
+    const blocker = new DatabaseSync(path)
+    blocker.exec(`
+      CREATE TRIGGER block_reaction_player_preemption
+      BEFORE UPDATE OF status ON world_reaction_cycles
+      WHEN NEW.status = 'stop_requested'
+      BEGIN SELECT RAISE(IGNORE); END;
+    `)
+    blocker.close()
+    const inbox = new RoundInbox(path)
+    const playerRequest = {
+      address,
+      idempotencyKey: 'player:preempt:rollback',
+      principalId: 'principal:player',
+      input: { type: 'speak', text: '停一下' },
+      correlationId: 'player:preempt:rollback',
+    } as const
+    expect(() => inbox.enqueue(playerRequest, 1)).toThrow('stop request changed concurrently')
+    expect(store.activeReactionCycle(address)?.cycle.status).toBe('active')
+    const unblock = new DatabaseSync(path)
+    unblock.exec(`DROP TRIGGER block_reaction_player_preemption`)
+    unblock.close()
+    expect(inbox.enqueue(playerRequest, 1)).toMatchObject({ status: 'enqueued', inboxSeq: 1 })
+    inbox.close()
+    store.close()
+  })
+
   it('atomically freezes, replays, restarts, and verifies one UTF-16 ordered initial wave', async () => {
     const { path, address } = fixture()
     const store = new WorldStore(path)

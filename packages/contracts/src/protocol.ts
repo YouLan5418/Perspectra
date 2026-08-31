@@ -41,6 +41,8 @@ export type FaultPoint =
   | 'provider.after-dispatch'
   | 'provider.after-response'
   | 'provider.before-world-commit'
+  | 'reaction.after-player-enqueue'
+  | 'reaction.after-player-preempt'
   | 'reaction.after-job-claim'
 
 export interface FaultInjector {

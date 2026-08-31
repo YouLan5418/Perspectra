@@ -14,6 +14,7 @@ import {
   type InteractionRoundId,
   type ReactionCycleDraft,
   type ReactionCycleId,
+  type ReactionCycleStopReason,
   type ReactionJobId,
   type ReactionJobProviderBinding,
   type StableCallBudgetDecision,
@@ -889,6 +890,32 @@ export function readReactionCycleByRootTransaction(
 
 export function readActiveReactionCycle(db: DatabaseSync, address: WorldAddress): StoredReactionCycleBundle | undefined {
   return readReactionCycle(db, address, {})
+}
+
+/**
+ * Mark the branch's current Cycle as stop-requested inside the caller's existing write transaction.
+ * The first durable stop reason wins; callers must not use this helper outside a BEGIN IMMEDIATE boundary.
+ */
+export function requestReactionCycleStopInTransaction(
+  db: DatabaseSync,
+  address: WorldAddress,
+  reason: ReactionCycleStopReason,
+): ReactionCycleId | undefined {
+  const bundle = readActiveReactionCycle(db, address)
+  if (bundle === undefined) return undefined
+  if (bundle.cycle.status !== 'active') return bundle.cycle.cycleId
+  const stopped: StoredReactionCycle = {
+    ...bundle.cycle,
+    status: 'stop_requested',
+    stopReason: reason,
+  }
+  const stateHash = hashReactionCycleState(stopped)
+  const result = db.prepare(`
+    UPDATE world_reaction_cycles SET status = 'stop_requested', stop_reason = ?, state_hash = ?
+    WHERE address_key = ? AND cycle_id = ? AND status = 'active' AND state_hash = ?
+  `).run(reason, stateHash, worldAddressKey(address), stopped.cycleId, bundle.cycle.stateHash)
+  if (result.changes !== 1) throw new Error('Reaction Cycle stop request changed concurrently')
+  return stopped.cycleId
 }
 
 function assertCurrentReactionWriter(

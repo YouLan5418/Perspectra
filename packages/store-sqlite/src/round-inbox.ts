@@ -7,12 +7,14 @@ import {
   hashWorldJson,
   worldAddressKey,
   type WorldAddress,
+  type FaultInjector,
   type WorldHash,
   type WorldJsonValue,
   type TransactionId,
   type InteractionRoundId,
 } from '@harness-world/contracts'
 import { openWorldDatabase } from './world-store.ts'
+import { requestReactionCycleStopInTransaction } from './reaction-cycle.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 
 export interface EnqueueRoundRequest {
@@ -94,7 +96,11 @@ function boundBundleHash(result: WorldJsonValue): WorldHash | undefined {
 export class RoundInbox {
   readonly #db: DatabaseSync
 
-  constructor(path: string, private readonly now: () => number = Date.now) {
+  constructor(
+    path: string,
+    private readonly now: () => number = Date.now,
+    private readonly faultInjector?: FaultInjector,
+  ) {
     this.#db = openWorldDatabase(path)
   }
 
@@ -156,6 +162,9 @@ export class RoundInbox {
         INSERT INTO round_inbox(address_key, inbox_seq, idempotency_key, input_hash, principal_id, input_json, status)
         VALUES (?, ?, ?, ?, ?, ?, 'pending')
       `).run(key, inboxSeq, request.idempotencyKey, inputHash, request.principalId, worldJsonText(request.input))
+      this.faultInjector?.hit('reaction.after-player-enqueue')
+      requestReactionCycleStopInTransaction(this.#db, request.address, 'player_preempted')
+      this.faultInjector?.hit('reaction.after-player-preempt')
       this.#db.exec('COMMIT')
       return {
         status: 'enqueued', inboxSeq, inputHash,

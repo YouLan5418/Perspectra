@@ -13,6 +13,7 @@ import {
   BranchQuarantineService,
   CharacterRuntimeAvailabilityService,
   SessionDeliveryAdapter,
+  RoundInbox,
   WorldArchiveService,
   WorldOutbox,
   WorldStore,
@@ -46,6 +47,66 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 describe('hard process termination recovery', () => {
+  it.each([
+    'reaction.after-player-enqueue',
+    'reaction.after-player-preempt',
+  ] as const)('atomically rolls back player admission and Reaction preemption at %s', async point => {
+    const path = database(`${point}.sqlite`)
+    const address = fixtureAddress()
+    const observer = brandId('character:reaction-crash', 'CharacterId')
+    const setup = new WorldStore(path)
+    setup.createBranch(address)
+    await setup.commitRound({
+      ...fixtureCommitRequest(address),
+      events: [{
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: 'observation:reaction-crash', value: { observerId: observer, content: 'stimulus' } },
+      }],
+      reactionCycle: {
+        policyVersion: 'reaction-policy/v1',
+        profileId: 'responsive/v1',
+        maxWaves: 3,
+        maxNpcCalls: 8,
+        maxCallsPerCharacter: 2,
+        maxActionsPerCall: 1,
+        allowedActionTypes: ['speak@1'],
+        initialTokenBudget: 8,
+        deadlineAtMs: 10_000,
+        candidates: [{
+          characterId: observer,
+          estimatedTokens: 1,
+          stimuli: [{
+            sourceEventOrdinal: 0,
+            observationOrdinal: 0,
+            observationId: 'observation:reaction-crash',
+            observerCharacterId: observer,
+          }],
+        }],
+      },
+    })
+    setup.close()
+
+    await hardKillAt(worker, ['reaction-preempt', path, point])
+
+    const recoveredStore = new WorldStore(path)
+    expect(recoveredStore.activeReactionCycle(address)?.cycle.status).toBe('active')
+    const recoveredInbox = new RoundInbox(path)
+    expect(recoveredInbox.readStatus(address, { idempotencyKey: 'reaction:player-preempt' })).toBeUndefined()
+    expect(recoveredInbox.enqueue({
+      address,
+      idempotencyKey: 'reaction:player-preempt',
+      principalId: 'principal:player',
+      input: { type: 'speak', text: 'interrupt' },
+      correlationId: 'reaction:player-preempt:recovery',
+    }, 1)).toMatchObject({ status: 'enqueued', inboxSeq: 1 })
+    expect(recoveredStore.activeReactionCycle(address)?.cycle).toMatchObject({
+      status: 'stop_requested', stopReason: 'player_preempted',
+    })
+    recoveredInbox.close()
+    recoveredStore.close()
+  })
+
   it('recovers an instance lock only after its owner process is hard-killed', async () => {
     const worldPath = database('instance-lock-world.sqlite')
     const lockPath = join(dirname(worldPath), 'instance.lock')
