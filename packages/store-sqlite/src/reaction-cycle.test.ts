@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
+import { ThrowingFaultInjector } from '@harness-world/testkit'
 import {
   brandId,
   hashWorldJson,
@@ -16,12 +17,14 @@ import {
 } from '@harness-world/contracts'
 import {
   hashReactionJobState,
+  hashReactionCycleState,
   hashReactionStimulusEntry,
   hashReactionWaveState,
   prepareInitialReactionCycle,
   type PrepareInitialReactionCycleInput,
 } from './reaction-cycle.ts'
 import { WorldStore } from './world-store.ts'
+import { WriterLeaseService } from './writer-lease.ts'
 
 const directories: string[] = []
 const supplementary = brandId('character:\u{10000}', 'CharacterId')
@@ -417,6 +420,157 @@ describe('WorldStore Reaction Cycle authority', () => {
       const corrupted = new WorldStore(path)
       expect(() => corrupted.readReactionCycle(address, bundle.cycle.cycleId)).toThrow()
       corrupted.close()
+    }
+  })
+
+  it('claims, renews, and fences one Job across Writer takeover without duplicating its reservation', async () => {
+    const { path, address } = fixture()
+    let now = 0
+    const bootstrap = new WorldStore(path, undefined, () => now)
+    bootstrap.createBranch(address)
+    await bootstrap.commitRound(request(address))
+    bootstrap.close()
+    const leases = new WriterLeaseService(path, () => now)
+    const firstWriter = leases.acquire(address, 'reaction-worker:first', 120)
+    const firstStore = new WorldStore(path, undefined, () => now)
+    const first = firstStore.claimNextReactionJob(address, firstWriter.ownerId, firstWriter.fencingToken, 100)!
+    expect(first).toMatchObject({
+      status: 'claimed',
+      attemptCount: 1,
+      claimFencingToken: 1,
+      claimExpiresAtMs: 100,
+      budgetDecision: 'reserved',
+    })
+    expect(firstStore.claimNextReactionJob(address, firstWriter.ownerId, firstWriter.fencingToken, 100)).toBeUndefined()
+    now = 50
+    const renewed = firstStore.renewReactionJobClaim(
+      address, first.jobId, firstWriter.ownerId, firstWriter.fencingToken, first.claimFencingToken, 100,
+    )
+    expect(renewed.claimExpiresAtMs).toBe(120)
+
+    now = 121
+    const secondWriter = leases.acquire(address, 'reaction-worker:second', 1_000)
+    const secondStore = new WorldStore(path, undefined, () => now)
+    const replacement = secondStore.claimNextReactionJob(address, secondWriter.ownerId, secondWriter.fencingToken, 100)!
+    expect(replacement).toMatchObject({ attemptCount: 2, claimFencingToken: 2, claimOwnerId: secondWriter.ownerId })
+    expect(() => firstStore.renewReactionJobClaim(
+      address, first.jobId, firstWriter.ownerId, firstWriter.fencingToken, first.claimFencingToken, 100,
+    )).toThrow('current branch Writer lease')
+    now = 150
+    expect(secondStore.renewReactionJobClaim(
+      address, replacement.jobId, secondWriter.ownerId, secondWriter.fencingToken, replacement.claimFencingToken, 100,
+    ).claimExpiresAtMs).toBe(250)
+    expect(secondStore.activeReactionCycle(address)?.jobs.filter(job => job.status === 'claimed')).toHaveLength(1)
+    firstStore.close()
+    secondStore.close()
+    leases.close()
+  })
+
+  it('does not claim absent or stopped work and rolls back a fault after the claim CAS', async () => {
+    const { path, address } = fixture()
+    let now = 10
+    const bootstrap = new WorldStore(path, undefined, () => now)
+    bootstrap.createBranch(address)
+    const leases = new WriterLeaseService(path, () => now)
+    const writer = leases.acquire(address, 'reaction-worker:fault', 1_000)
+    expect(bootstrap.claimNextReactionJob(address, writer.ownerId, writer.fencingToken)).toBeUndefined()
+    await bootstrap.commitRound({ ...request(address), writerFencingToken: writer.fencingToken })
+    const cycle = bootstrap.activeReactionCycle(address)!.cycle
+    const stopped = { ...cycle, status: 'stop_requested' as const, stopReason: 'user_cancelled' as const }
+    bootstrap.close()
+    const raw = new DatabaseSync(path)
+    raw.prepare(`UPDATE world_reaction_cycles SET status = 'stop_requested', stop_reason = ?, state_hash = ? WHERE cycle_id = ?`)
+      .run(stopped.stopReason, hashReactionCycleState(stopped), cycle.cycleId)
+    raw.close()
+    const stoppedStore = new WorldStore(path, undefined, () => now)
+    expect(stoppedStore.claimNextReactionJob(address, writer.ownerId, writer.fencingToken)).toBeUndefined()
+    stoppedStore.close()
+
+    const second = fixture()
+    const secondBootstrap = new WorldStore(second.path, undefined, () => now)
+    secondBootstrap.createBranch(second.address)
+    await secondBootstrap.commitRound(request(second.address))
+    secondBootstrap.close()
+    const secondLeases = new WriterLeaseService(second.path, () => now)
+    const secondWriter = secondLeases.acquire(second.address, 'reaction-worker:fault', 1_000)
+    const faulting = new WorldStore(
+      second.path,
+      new ThrowingFaultInjector('reaction.after-job-claim'),
+      () => now,
+    )
+    expect(() => faulting.claimNextReactionJob(
+      second.address, secondWriter.ownerId, secondWriter.fencingToken, 100,
+    )).toThrow('reaction.after-job-claim')
+    faulting.close()
+    const recovered = new WorldStore(second.path, undefined, () => now)
+    expect(recovered.claimNextReactionJob(second.address, secondWriter.ownerId, secondWriter.fencingToken, 100))
+      .toMatchObject({ attemptCount: 1, claimFencingToken: 1 })
+    recovered.close()
+    secondLeases.close()
+    leases.close()
+  })
+
+  it('rejects invalid claim input, missing Writer ownership, and stale renewal proofs', async () => {
+    const { path, address } = fixture()
+    let now = 0
+    const store = new WorldStore(path, undefined, () => now)
+    store.createBranch(address)
+    await store.commitRound(request(address))
+    expect(() => store.claimNextReactionJob(address, '', 1)).toThrow(TypeError)
+    expect(() => store.claimNextReactionJob(address, 'reaction-worker:guard', 0)).toThrow(RangeError)
+    expect(() => store.claimNextReactionJob(address, 'reaction-worker:guard', 1, 0)).toThrow(RangeError)
+    expect(() => store.claimNextReactionJob(address, 'reaction-worker:guard', 1)).toThrow('current branch Writer lease')
+    const leases = new WriterLeaseService(path, () => now)
+    const writer = leases.acquire(address, 'reaction-worker:guard', 1_000)
+    const claimed = store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 100)!
+    expect(() => store.renewReactionJobClaim(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, 0, 100,
+    )).toThrow(RangeError)
+    expect(() => store.renewReactionJobClaim(
+      address, brandId('reaction-job:missing', 'ReactionJobId'), writer.ownerId, writer.fencingToken, claimed.claimFencingToken, 100,
+    )).toThrow('stale, expired')
+    expect(() => store.renewReactionJobClaim(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken + 1, 100,
+    )).toThrow('stale, expired')
+    now = 101
+    expect(() => store.renewReactionJobClaim(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, 100,
+    )).toThrow('stale, expired')
+    store.close()
+    leases.close()
+  })
+
+  it('fails closed when a claim or renewal CAS does not update its exact durable row', async () => {
+    for (const operation of ['claim', 'renew'] as const) {
+      const { path, address } = fixture()
+      const bootstrap = new WorldStore(path, undefined, () => 0)
+      bootstrap.createBranch(address)
+      await bootstrap.commitRound(request(address))
+      bootstrap.close()
+      const leases = new WriterLeaseService(path, () => 0)
+      const writer = leases.acquire(address, `reaction-worker:cas:${operation}`, 1_000)
+      const store = new WorldStore(path, undefined, () => 0)
+      const claimed = operation === 'renew'
+        ? store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 100)!
+        : undefined
+      const raw = new DatabaseSync(path)
+      raw.exec(`
+        CREATE TRIGGER ignore_reaction_job_update
+        BEFORE UPDATE ON world_reaction_jobs
+        WHEN OLD.status = '${operation === 'claim' ? 'pending' : 'claimed'}'
+        BEGIN SELECT RAISE(IGNORE); END
+      `)
+      raw.close()
+      if (operation === 'claim') {
+        expect(() => store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 100))
+          .toThrow('claim changed concurrently')
+      } else {
+        expect(() => store.renewReactionJobClaim(
+          address, claimed!.jobId, writer.ownerId, writer.fencingToken, claimed!.claimFencingToken, 100,
+        )).toThrow('claim changed concurrently')
+      }
+      store.close()
+      leases.close()
     }
   })
 })

@@ -41,6 +41,7 @@ export type FaultPoint =
   | 'provider.after-dispatch'
   | 'provider.after-response'
   | 'provider.before-world-commit'
+  | 'reaction.after-job-claim'
 
 export interface FaultInjector {
   /** Pause, fail, or terminate execution at a named stable point. */

@@ -1,12 +1,16 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
+  assertProtocolString,
   brandId,
   canonicalizeWorldJson,
   compareWorldText,
   deterministicId,
+  failWorld,
   hashWorldJson,
   planStableCallBudget,
   type CharacterId,
+  type ClaimedReactionJob,
+  type FaultInjector,
   type InteractionRoundId,
   type ReactionCycleDraft,
   type ReactionCycleId,
@@ -26,7 +30,7 @@ import {
   type WorldJsonValue,
   worldAddressKey,
 } from '@harness-world/contracts'
-import { parseWorldJson, worldJsonText } from './sqlite.ts'
+import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 
 export interface ReactionSourceEvent {
   readonly draft: WorldEventDraft
@@ -868,4 +872,161 @@ export function readReactionCycleByRootTransaction(
 
 export function readActiveReactionCycle(db: DatabaseSync, address: WorldAddress): StoredReactionCycleBundle | undefined {
   return readReactionCycle(db, address, {})
+}
+
+function assertCurrentReactionWriter(
+  db: DatabaseSync,
+  address: WorldAddress,
+  ownerId: string,
+  writerFencingToken: number,
+  nowMs: number,
+): number {
+  const lease = db.prepare(`
+    SELECT owner_id, fencing_token, expires_at_ms FROM writer_leases WHERE address_key = ?
+  `).get(worldAddressKey(address)) as { owner_id: string; fencing_token: number; expires_at_ms: number } | undefined
+  if (lease === undefined || lease.owner_id !== ownerId || lease.fencing_token !== writerFencingToken
+    || lease.expires_at_ms <= nowMs) {
+    failWorld({
+      errorCode: 'WRITER_LEASE_LOST',
+      category: 'runtime',
+      message: 'Reaction Job operation is not owned by the current branch Writer lease',
+      retryable: true,
+      correlationId: `reaction-job:${worldAddressKey(address)}`,
+      address,
+      details: { suppliedFencingToken: writerFencingToken },
+    })
+  }
+  return lease.expires_at_ms
+}
+
+function validateClaimInput(ownerId: string, writerFencingToken: number, nowMs: number, claimTtlMs: number): number {
+  assertProtocolString(ownerId, 'ownerId')
+  safeInteger(writerFencingToken, 'writerFencingToken', 1)
+  safeInteger(nowMs, 'nowMs', 0)
+  safeInteger(claimTtlMs, 'claimTtlMs', 1)
+  return safeInteger(nowMs + claimTtlMs, 'claimExpiresAtMs', 1)
+}
+
+function claimedJob(job: StoredReactionJob, ownerId: string, claimExpiresAtMs: number): ClaimedReactionJob {
+  const claimFencingToken = safeInteger((job.claimFencingToken ?? 0) + 1, 'Reaction Job claim fencing token', 1)
+  const attemptCount = safeInteger(job.attemptCount + 1, 'Reaction Job attempt count', 1)
+  const claimed: ClaimedReactionJob = {
+    ...job,
+    status: 'claimed',
+    budgetDecision: 'reserved',
+    budgetOrdinal: job.budgetOrdinal!,
+    claimOwnerId: ownerId,
+    claimExpiresAtMs,
+    claimFencingToken,
+    attemptCount,
+  }
+  return { ...claimed, stateHash: hashReactionJobState(claimed) }
+}
+
+function updateClaim(db: DatabaseSync, previous: StoredReactionJob, claimed: ClaimedReactionJob): void {
+  const result = db.prepare(`
+    UPDATE world_reaction_jobs
+    SET status = 'claimed', claim_owner_id = ?, claim_expires_at_ms = ?, claim_fencing_token = ?,
+      attempt_count = ?, state_hash = ?
+    WHERE address_key = ? AND job_id = ? AND state_hash = ?
+  `).run(
+    claimed.claimOwnerId,
+    claimed.claimExpiresAtMs,
+    claimed.claimFencingToken,
+    claimed.attemptCount,
+    claimed.stateHash,
+    worldAddressKey(claimed.address),
+    claimed.jobId,
+    previous.stateHash,
+  )
+  if (result.changes !== 1) throw new Error('Reaction Job claim changed concurrently')
+}
+
+/** Claim one frozen, budget-reserved Job using the current branch Writer lease. */
+export function claimNextReactionJob(
+  db: DatabaseSync,
+  address: WorldAddress,
+  ownerId: string,
+  writerFencingToken: number,
+  nowMs: number,
+  claimTtlMs: number,
+  faultInjector?: FaultInjector,
+): ClaimedReactionJob | undefined {
+  const requestedExpiry = validateClaimInput(ownerId, writerFencingToken, nowMs, claimTtlMs)
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const writerExpiresAtMs = assertCurrentReactionWriter(db, address, ownerId, writerFencingToken, nowMs)
+    const bundle = readActiveReactionCycle(db, address)
+    if (bundle === undefined || bundle.cycle.status !== 'active') {
+      db.exec('COMMIT')
+      return undefined
+    }
+    const job = bundle.jobs.find(candidate => candidate.status === 'pending'
+      || (candidate.status === 'claimed' && candidate.claimExpiresAtMs! <= nowMs && candidate.providerCallId === null))
+    if (job === undefined) {
+      db.exec('COMMIT')
+      return undefined
+    }
+    const claimed = claimedJob(job, ownerId, Math.min(requestedExpiry, writerExpiresAtMs))
+    updateClaim(db, job, claimed)
+    faultInjector?.hit('reaction.after-job-claim')
+    db.exec('COMMIT')
+    return claimed
+  } catch (error: unknown) {
+    rollbackAndThrow(db, error)
+  }
+}
+
+/** Extend a live Job lease. The Job fence and branch Writer fence must both still match. */
+export function renewReactionJobClaim(
+  db: DatabaseSync,
+  address: WorldAddress,
+  jobId: ReactionJobId,
+  ownerId: string,
+  writerFencingToken: number,
+  jobFencingToken: number,
+  nowMs: number,
+  claimTtlMs: number,
+): ClaimedReactionJob {
+  const requestedExpiry = validateClaimInput(ownerId, writerFencingToken, nowMs, claimTtlMs)
+  safeInteger(jobFencingToken, 'jobFencingToken', 1)
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const writerExpiresAtMs = assertCurrentReactionWriter(db, address, ownerId, writerFencingToken, nowMs)
+    const bundle = readActiveReactionCycle(db, address)
+    const job = bundle?.jobs.find(candidate => candidate.jobId === jobId)
+    if (job?.status !== 'claimed' || job.claimOwnerId !== ownerId || job.claimFencingToken !== jobFencingToken
+      || job.claimExpiresAtMs! <= nowMs) {
+      throw new Error('Reaction Job claim is stale, expired, or owned by another worker')
+    }
+    const renewed: ClaimedReactionJob = {
+      ...job,
+      status: 'claimed',
+      budgetDecision: 'reserved',
+      budgetOrdinal: job.budgetOrdinal!,
+      claimOwnerId: ownerId,
+      claimExpiresAtMs: Math.max(job.claimExpiresAtMs!, Math.min(requestedExpiry, writerExpiresAtMs)),
+      claimFencingToken: jobFencingToken,
+    }
+    const stored = { ...renewed, stateHash: hashReactionJobState(renewed) }
+    const result = db.prepare(`
+      UPDATE world_reaction_jobs SET claim_expires_at_ms = ?, state_hash = ?
+      WHERE address_key = ? AND job_id = ? AND status = 'claimed' AND claim_owner_id = ?
+        AND claim_fencing_token = ? AND claim_expires_at_ms > ? AND state_hash = ?
+    `).run(
+      stored.claimExpiresAtMs,
+      stored.stateHash,
+      worldAddressKey(address),
+      jobId,
+      ownerId,
+      jobFencingToken,
+      nowMs,
+      job.stateHash,
+    )
+    if (result.changes !== 1) throw new Error('Reaction Job claim changed concurrently')
+    db.exec('COMMIT')
+    return stored
+  } catch (error: unknown) {
+    rollbackAndThrow(db, error)
+  }
 }

@@ -9,8 +9,10 @@ import {
   type CommitRoundRequest,
   type CommitRoundResult,
   type CognitiveJobDraft,
+  type ClaimedReactionJob,
   type FaultInjector,
   type ReactionCycleId,
+  type ReactionJobId,
   type StoredReactionCycleBundle,
   type StoredOutboxItem,
   type StoredCognitiveJob,
@@ -33,10 +35,12 @@ import {
 import { OperationalAuditLog } from './operational-audit.ts'
 import {
   insertInitialReactionCycle,
+  claimNextReactionJob,
   prepareInitialReactionCycle,
   readActiveReactionCycle,
   readReactionCycleById,
   readReactionCycleByRootTransaction,
+  renewReactionJobClaim,
   type ReactionSourceEvent,
 } from './reaction-cycle.ts'
 
@@ -1171,6 +1175,45 @@ export class WorldStore {
   /** Read the branch's only non-terminal Reaction Cycle, if one exists. */
   activeReactionCycle(address: WorldAddress): StoredReactionCycleBundle | undefined {
     return readActiveReactionCycle(this.#db, address)
+  }
+
+  /** Claim the next stable Reaction Job while proving ownership of the branch Writer lease. */
+  claimNextReactionJob(
+    address: WorldAddress,
+    ownerId: string,
+    writerFencingToken: number,
+    claimTtlMs = 30_000,
+  ): ClaimedReactionJob | undefined {
+    return claimNextReactionJob(
+      this.#db,
+      address,
+      ownerId,
+      writerFencingToken,
+      this.operationalNow(),
+      claimTtlMs,
+      this.faultInjector,
+    )
+  }
+
+  /** Renew a live Reaction Job claim without changing its Job fence. */
+  renewReactionJobClaim(
+    address: WorldAddress,
+    jobId: ReactionJobId,
+    ownerId: string,
+    writerFencingToken: number,
+    jobFencingToken: number,
+    claimTtlMs = 30_000,
+  ): ClaimedReactionJob {
+    return renewReactionJobClaim(
+      this.#db,
+      address,
+      jobId,
+      ownerId,
+      writerFencingToken,
+      jobFencingToken,
+      this.operationalNow(),
+      claimTtlMs,
+    )
   }
 
   /** Read only one effective Event range; callers may additionally restrict the stable event vocabulary. */

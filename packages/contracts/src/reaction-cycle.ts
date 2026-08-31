@@ -144,3 +144,13 @@ export interface StoredReactionCycleBundle extends WorldJsonObject {
   readonly stimuli: readonly StoredReactionStimulus[]
   readonly bundleHash: WorldHash
 }
+
+/** A durable Reaction Job lease held under the current branch Writer lease. */
+export type ClaimedReactionJob = StoredReactionJob & {
+  readonly status: 'claimed'
+  readonly budgetDecision: 'reserved'
+  readonly budgetOrdinal: number
+  readonly claimOwnerId: string
+  readonly claimExpiresAtMs: number
+  readonly claimFencingToken: number
+}
