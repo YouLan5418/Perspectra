@@ -2,6 +2,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import {
+  brandId,
   canonicalizeWorldJson,
   compareWorldText,
   failWorld,
@@ -14,12 +15,15 @@ import {
 import { openWorldDatabase } from './world-store.ts'
 import { parseWorldJson } from './sqlite.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
+import { readReactionCycleById, readReactionCycleByRootTransaction } from './reaction-cycle.ts'
 
 type SqlValue = string | number | null
 type SqlRow = Record<string, SqlValue>
 
 const TABLES = [
-  'world_manifests', 'branches', 'heads', 'round_commits', 'round_authority', 'events', 'outbox', 'branch_activations',
+  'world_manifests', 'branches', 'heads', 'round_commits', 'round_authority', 'events',
+  'world_reaction_cycles', 'world_reaction_waves', 'world_reaction_jobs', 'world_reaction_job_stimuli',
+  'outbox', 'branch_activations',
   'outbox_session_counters', 'branch_controls', 'branch_failures', 'branch_audit_events', 'round_inbox_counters', 'round_inbox',
 ] as const
 
@@ -30,6 +34,28 @@ const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
   round_commits: ['transaction_id', 'address_key', 'request_hash', 'round_id', 'base_head_seq', 'base_tick', 'head_seq', 'tick', 'bundle_hash', 'authority_hash'],
   round_authority: ['transaction_id', 'address_key', 'round_id', 'authority_hash', 'authority_json'],
   events: ['address_key', 'seq', 'tick', 'event_type', 'event_version', 'data_json', 'previous_hash', 'event_hash', 'transaction_id', 'event_ordinal'],
+  world_reaction_cycles: [
+    'cycle_id', 'address_key', 'root_round_id', 'root_transaction_id', 'created_at_seq', 'policy_version', 'profile_id',
+    'max_waves', 'max_npc_calls', 'max_calls_per_character', 'max_actions_per_call', 'allowed_action_types_json',
+    'initial_token_budget', 'deadline_at_ms', 'budget_hash', 'status', 'stop_reason', 'terminal_reason', 'terminal_at_seq',
+    'cycle_hash', 'state_hash',
+  ],
+  world_reaction_waves: [
+    'cycle_id', 'address_key', 'wave', 'base_head_seq', 'base_head_hash', 'calls_before', 'tokens_before',
+    'budget_plan_json', 'budget_plan_hash', 'reserved_calls', 'reserved_tokens', 'status', 'reaction_round_id',
+    'result_transaction_id', 'authority_hash', 'wave_hash', 'state_hash',
+  ],
+  world_reaction_jobs: [
+    'job_id', 'address_key', 'cycle_id', 'wave', 'character_id', 'stimulus_hash', 'status', 'budget_decision',
+    'budget_ordinal', 'reserved_tokens', 'claim_owner_id', 'claim_expires_at_ms', 'claim_fencing_token', 'attempt_count',
+    'outcome', 'context_receipt_id', 'context_receipt_hash', 'provider_call_id', 'provider_request_hash', 'proposal_hash',
+    'result_transaction_id', 'job_hash', 'state_hash',
+  ],
+  world_reaction_job_stimuli: [
+    'job_id', 'address_key', 'stimulus_ordinal', 'observer_character_id', 'source_round_id', 'source_transaction_id',
+    'source_event_seq', 'source_event_ordinal', 'observation_ordinal', 'observation_id', 'source_event_hash',
+    'stimulus_entry_hash',
+  ],
   outbox: ['delivery_id', 'address_key', 'session_id', 'world_seq', 'payload_hash', 'payload_json', 'critical', 'transaction_id', 'delivery_status', 'attempt_count', 'session_delivery_seq', 'last_error'],
   outbox_session_counters: ['session_id', 'next_delivery_seq'],
   branch_activations: ['address_key', 'activation_hash', 'manifest_hash', 'genesis_hash', 'transaction_id'],
@@ -47,13 +73,24 @@ const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
 }
 
 interface LogicalAuthorityData extends WorldJsonObject {
-  readonly authorityVersion: 5
+  readonly authorityVersion: 6
   readonly tables: WorldJsonObject
 }
 
 interface LogicalAuthorityEnvelope extends WorldJsonObject {
-  readonly format: 'dshworld-authority/v5'
+  readonly format: 'dshworld-authority/v6'
   readonly data: LogicalAuthorityData
+  readonly bundleHash: WorldHash
+}
+
+interface LegacyV5AuthorityData extends WorldJsonObject {
+  readonly authorityVersion: 5
+  readonly tables: WorldJsonObject
+}
+
+interface LegacyV5AuthorityEnvelope extends WorldJsonObject {
+  readonly format: 'dshworld-authority/v5'
+  readonly data: LegacyV5AuthorityData
   readonly bundleHash: WorldHash
 }
 
@@ -87,9 +124,9 @@ export class WorldLogicalTransferService {
         this.afterTableRead?.(table)
       }
       db.exec('COMMIT')
-      const data: LogicalAuthorityData = { authorityVersion: 5, tables }
+      const data: LogicalAuthorityData = { authorityVersion: 6, tables }
       const bundleHash = hashWorldJson('logical-authority-export', data)
-      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v5', data, bundleHash }
+      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v6', data, bundleHash }
       writeFileSync(targetPath, canonicalizeWorldJson(envelope), { flag: 'wx' })
       this.#audit('authority.export.completed', correlationId, { targetPath, bundleHash })
       return bundleHash
@@ -104,22 +141,29 @@ export class WorldLogicalTransferService {
   importAuthority(exportPath: string, targetPath: string, correlationId: string): WorldHash {
     this.#guardTarget(targetPath, correlationId)
     this.#audit('authority.import.requested', correlationId, { exportPath, targetPath })
-    let parsed: LogicalAuthorityEnvelope | LegacyAuthorityEnvelope
+    let parsed: LogicalAuthorityEnvelope | LegacyV5AuthorityEnvelope | LegacyAuthorityEnvelope
     try {
-      parsed = JSON.parse(readFileSync(exportPath, 'utf8')) as LogicalAuthorityEnvelope | LegacyAuthorityEnvelope
+      parsed = JSON.parse(readFileSync(exportPath, 'utf8')) as LogicalAuthorityEnvelope | LegacyV5AuthorityEnvelope | LegacyAuthorityEnvelope
       canonicalizeWorldJson(parsed)
     } catch (error: unknown) {
       this.#invalid('logical export is invalid', correlationId, error)
     }
-    if (!((parsed.format === 'dshworld-authority/v5' && parsed.data.authorityVersion === 5)
+    if (!((parsed.format === 'dshworld-authority/v6' && parsed.data.authorityVersion === 6)
+      || (parsed.format === 'dshworld-authority/v5' && parsed.data.authorityVersion === 5)
       || (parsed.format === 'dshworld-authority/v4' && parsed.data.authorityVersion === 4))) {
       this.#invalid('logical export format is unsupported', correlationId)
     }
     const actualHash = hashWorldJson('logical-authority-export', parsed.data)
     if (actualHash !== parsed.bundleHash) this.#invalid('logical export hash is invalid', correlationId)
-    const envelope: LogicalAuthorityEnvelope = parsed.format === 'dshworld-authority/v4'
-      ? { format: 'dshworld-authority/v5', data: this.#upgradeV4(parsed.data, correlationId), bundleHash: parsed.bundleHash }
-      : parsed
+    const envelope: LogicalAuthorityEnvelope = parsed.format === 'dshworld-authority/v6'
+      ? parsed
+      : {
+          format: 'dshworld-authority/v6',
+          data: this.#upgradeV5(
+            parsed.format === 'dshworld-authority/v4' ? this.#upgradeV4(parsed.data, correlationId) : parsed.data,
+          ),
+          bundleHash: parsed.bundleHash,
+        }
     const db = openWorldDatabase(targetPath)
     try {
       db.exec('BEGIN IMMEDIATE')
@@ -140,6 +184,7 @@ export class WorldLogicalTransferService {
       }
       this.#validateEvents(db, correlationId)
       this.#validateBranchesAndHeads(db, correlationId)
+      this.#validateReactions(db, correlationId)
       this.#validateRoundBundles(db, correlationId)
       this.#validateOutbox(db, correlationId)
       this.#validateCompletedInbox(db, correlationId)
@@ -160,7 +205,7 @@ export class WorldLogicalTransferService {
     }
   }
 
-  #upgradeV4(data: LegacyAuthorityData, correlationId: string): LogicalAuthorityData {
+  #upgradeV4(data: LegacyAuthorityData, correlationId: string): LegacyV5AuthorityData {
     const commits = data.tables.round_commits
     if (!Array.isArray(commits)) this.#invalid('logical table round_commits is missing', correlationId)
     const upgradedCommits = commits.map((row) => {
@@ -170,6 +215,19 @@ export class WorldLogicalTransferService {
     return {
       authorityVersion: 5,
       tables: { ...data.tables, round_commits: upgradedCommits, round_authority: [] },
+    }
+  }
+
+  #upgradeV5(data: LegacyV5AuthorityData): LogicalAuthorityData {
+    return {
+      authorityVersion: 6,
+      tables: {
+        ...data.tables,
+        world_reaction_cycles: [],
+        world_reaction_waves: [],
+        world_reaction_jobs: [],
+        world_reaction_job_stimuli: [],
+      },
     }
   }
 
@@ -337,17 +395,46 @@ export class WorldLogicalTransferService {
           this.#invalid('logical export Round authority is divergent', correlationId)
         }
       }
+      const address = {
+        tenantId: branch!.tenant_id,
+        worldId: branch!.world_id,
+        branchId: branch!.branch_id,
+      } as WorldAddress
+      const reactionCycle = readReactionCycleByRootTransaction(
+        db, address, brandId(commit.transaction_id, 'TransactionId'),
+      )
       const actual = hashWorldJson('world-round-bundle', {
-        address: { tenantId: branch!.tenant_id, worldId: branch!.world_id, branchId: branch!.branch_id },
+        address,
         roundId: commit.round_id,
         tick: commit.tick,
         eventHashes: eventRows.map(event => event.event_hash),
         outboxHashes: outboxRows.map(row => row.payload_hash),
         ...(commit.authority_hash === null ? {} : { authorityHash: commit.authority_hash }),
+        ...(reactionCycle === undefined ? {} : { reactionCycleHash: reactionCycle.authorityHash }),
       })
       if (actual !== commit.bundle_hash) this.#invalid('logical export contains a divergent Round bundle', correlationId)
       if (commit.tick !== 0 && commit.tick !== commit.base_tick + 1) {
         this.#invalid('logical export Round tick boundary is inconsistent', correlationId)
+      }
+    }
+  }
+
+  #validateReactions(db: DatabaseSync, correlationId: string): void {
+    const cycles = db.prepare(`
+      SELECT c.cycle_id, b.tenant_id, b.world_id, b.branch_id
+      FROM world_reaction_cycles c JOIN branches b ON b.address_key = c.address_key
+      ORDER BY c.address_key, c.created_at_seq, c.cycle_id
+    `).all() as Array<{ cycle_id: string; tenant_id: string; world_id: string; branch_id: string }>
+    for (const cycle of cycles) {
+      const address = {
+        tenantId: cycle.tenant_id,
+        worldId: cycle.world_id,
+        branchId: cycle.branch_id,
+      } as WorldAddress
+      try {
+        readReactionCycleById(db, address, brandId(cycle.cycle_id, 'ReactionCycleId'))
+      } catch (error: unknown) {
+        this.#invalid('logical export contains a divergent Reaction Cycle', correlationId, error)
       }
     }
   }

@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { brandId, createErrorEnvelope, hashWorldJson } from '@harness-world/contracts'
+import { brandId, createErrorEnvelope, hashWorldJson, type ReactionCycleDraft } from '@harness-world/contracts'
 import { BranchQuarantineService } from './quarantine.ts'
 import { fixtureAddress, fixtureCommitRequest } from '@harness-world/testkit'
 import { WorldLogicalTransferService } from './logical-transfer.ts'
@@ -45,7 +45,7 @@ describe('WorldLogicalTransferService', () => {
     const exportPath = join(root, 'quarantined.dshworld')
     service.exportAuthority(exportPath, 'logical:quarantine-export')
     const envelope = JSON.parse(readFileSync(exportPath, 'utf8')) as any
-    expect(envelope).toMatchObject({ format: 'dshworld-authority/v5', data: { authorityVersion: 5 } })
+    expect(envelope).toMatchObject({ format: 'dshworld-authority/v6', data: { authorityVersion: 6 } })
     const target = join(root, 'quarantined-import.sqlite')
     service.importAuthority(exportPath, target, 'logical:quarantine-import')
     const imported = new BranchQuarantineService(target)
@@ -180,6 +180,80 @@ describe('WorldLogicalTransferService', () => {
     audit.close()
   })
 
+  it('round-trips v6 Reaction authority exactly and rejects a divergent Job state', async () => {
+    const root = directory()
+    const source = join(root, 'reaction-source.sqlite')
+    const address = fixtureAddress('logical-reaction')
+    const characterId = brandId('character:logical-reaction', 'CharacterId')
+    const base = fixtureCommitRequest(address)
+    const reactionCycle = {
+      policyVersion: 'reaction-policy/v1',
+      profileId: 'responsive/v1',
+      maxWaves: 3,
+      maxNpcCalls: 1,
+      maxCallsPerCharacter: 2,
+      maxActionsPerCall: 1,
+      allowedActionTypes: ['speak@1'],
+      initialTokenBudget: 10,
+      deadlineAtMs: 30_000,
+      candidates: [{
+        characterId,
+        estimatedTokens: 4,
+        stimuli: [{
+          sourceEventOrdinal: 0,
+          observationOrdinal: 0,
+          observationId: 'observation:logical-reaction',
+          observerCharacterId: characterId,
+        }],
+      }],
+    } satisfies ReactionCycleDraft
+    const request = {
+      ...base,
+      events: [{
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: 'observation:logical-reaction', value: { observerId: characterId, content: 'wake' } },
+      }],
+      outbox: [],
+      reactionCycle,
+    }
+    const setup = new WorldStore(source)
+    setup.createBranch(address)
+    const committed = await setup.commitRound(request)
+    setup.close()
+    const leases = new WriterLeaseService(source)
+    const writer = leases.acquire(address, 'reaction-worker:logical')
+    const worker = new WorldStore(source)
+    const claimed = worker.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 10_000)!
+    const expected = worker.activeReactionCycle(address)!
+    worker.close()
+    leases.close()
+
+    const service = new WorldLogicalTransferService(source)
+    const exportPath = join(root, 'reaction.dshworld')
+    service.exportAuthority(exportPath, 'logical:reaction-export')
+    const envelope = JSON.parse(readFileSync(exportPath, 'utf8')) as any
+    expect(envelope.data.tables).toMatchObject({
+      world_reaction_cycles: [{ cycle_id: expected.cycle.cycleId }],
+      world_reaction_waves: [{ cycle_id: expected.cycle.cycleId, wave: 1 }],
+      world_reaction_jobs: [{ job_id: claimed.jobId, status: 'claimed', claim_fencing_token: 1 }],
+      world_reaction_job_stimuli: [{ job_id: claimed.jobId, source_event_seq: 1 }],
+    })
+    const target = join(root, 'reaction-target.sqlite')
+    service.importAuthority(exportPath, target, 'logical:reaction-import')
+    const imported = new WorldStore(target)
+    expect(imported.activeReactionCycle(address)).toEqual(expected)
+    expect(imported.committedRound(address, request.transactionId)).toMatchObject({ bundleHash: committed.bundleHash })
+    imported.close()
+
+    envelope.data.tables.world_reaction_jobs[0].state_hash = 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+    envelope.bundleHash = hashWorldJson('logical-authority-export', envelope.data)
+    const forgedPath = join(root, 'reaction-forged.dshworld')
+    writeFileSync(forgedPath, JSON.stringify(envelope))
+    expect(() => service.importAuthority(forgedPath, join(root, 'reaction-forged.sqlite'), 'logical:reaction-forged'))
+      .toThrow('divergent Reaction Cycle')
+  })
+
   it('exports every authority table from one WAL snapshot during a concurrent commit', async () => {
     const root = directory()
     const source = join(root, 'source.sqlite')
@@ -263,7 +337,7 @@ describe('WorldLogicalTransferService', () => {
     rejectHead('empty-tick', head => { head.tick = 1 })
   })
 
-  it('upgrades a version 4 authority export without inventing Round authority', async () => {
+  it('upgrades version 4 and 5 authority exports without inventing newer authority', async () => {
     const root = directory()
     const source = join(root, 'legacy-source.sqlite')
     const address = fixtureAddress('legacy-v4')
@@ -277,7 +351,25 @@ describe('WorldLogicalTransferService', () => {
     const service = new WorldLogicalTransferService(source)
     const currentPath = join(root, 'current.dshworld')
     service.exportAuthority(currentPath, 'logical:v4-source')
-    const legacy = JSON.parse(readFileSync(currentPath, 'utf8')) as any
+    const current = JSON.parse(readFileSync(currentPath, 'utf8')) as any
+    const v5 = structuredClone(current)
+    v5.format = 'dshworld-authority/v5'
+    v5.data.authorityVersion = 5
+    delete v5.data.tables.world_reaction_cycles
+    delete v5.data.tables.world_reaction_waves
+    delete v5.data.tables.world_reaction_jobs
+    delete v5.data.tables.world_reaction_job_stimuli
+    v5.bundleHash = hashWorldJson('logical-authority-export', v5.data)
+    const v5Path = join(root, 'legacy-v5.dshworld')
+    writeFileSync(v5Path, JSON.stringify(v5))
+    const v5Target = join(root, 'legacy-v5-target.sqlite')
+    expect(service.importAuthority(v5Path, v5Target, 'logical:v5-import')).toBe(v5.bundleHash)
+    const v5Imported = new WorldStore(v5Target)
+    expect(v5Imported.committedRound(address, request.transactionId)).toMatchObject({ bundleHash: expect.any(String) })
+    expect(v5Imported.activeReactionCycle(address)).toBeUndefined()
+    v5Imported.close()
+
+    const legacy = structuredClone(current)
     legacy.format = 'dshworld-authority/v4'
     legacy.data.authorityVersion = 4
     delete legacy.data.tables.round_authority
