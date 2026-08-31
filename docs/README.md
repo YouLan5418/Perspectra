@@ -21,6 +21,7 @@
 - [Phase 8 正式实施规格：可重建角色心智与多 Scene 上下文](spec/phase-8-implementation-v0.1.md)
 - [Phase 9 实施规格：有界自主 Reaction Cycle](spec/phase-9-implementation-v0.1.md)
 - [Reaction Cycle P0 原型验证报告](2026-08-30_Reaction-Cycle-P0原型验证报告.md)
+- [Phase 8.2 / 8.3 实施门禁收口报告](2026-08-31_Phase-8.2-8.3实施门禁收口报告.md)
 - [Phase 8A 权威结构阶段报告](2026-08-28_阶段报告-Harness-Cordis-World-Phase-8A-report.md)
 - [Phase 8 创作者运行手册](PHASE8-CREATOR-RUNBOOK.md)
 - [Phase 8 完成与 0.3.0 候选报告](2026-08-29_阶段报告-Harness-Cordis-World-Phase-8-report.md)
