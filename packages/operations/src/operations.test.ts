@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, createErrorEnvelope, WorldError, type WorldAddress } from '@harness-world/contracts'
+import { brandId, createErrorEnvelope, WorldError, type FaultInjector, type WorldAddress } from '@harness-world/contracts'
 import {
   BranchQuarantineService,
   BranchAdministration,
@@ -21,6 +21,7 @@ import { executeLocalCli, parseLocalCli } from './cli.ts'
 import { WorldHealthService } from './health.ts'
 import { OperationsMetrics } from './metrics.ts'
 import { LocalJsonRpcRouter, type LocalJsonRpcRequest, type LocalJsonRpcResponse, type WorldApplicationPort } from './rpc.ts'
+import { ADDRESS, reactionBinding, roundProvider, v5Manifest, type ProviderScript } from '../../../tests/reaction-fixture.ts'
 
 const directories: string[] = []
 
@@ -147,6 +148,9 @@ describe('LocalJsonRpcRouter', () => {
       async cancelReactionCycle(_address: WorldAddress, requested: string, correlationId: string) {
         return { cycleId: requested, status: 'stop_requested', stopReason: 'user_cancelled', correlationId }
       },
+      async processReactionCycles() {
+        return { cycleId, waves: [{ wave: 1 }] }
+      },
       async close() {},
     } as unknown as WorldApplicationPort
     const router = new LocalJsonRpcRouter(path, application)
@@ -162,6 +166,8 @@ describe('LocalJsonRpcRouter', () => {
     await expect(router.handle(request('reaction.cancel', {
       address: parent, cycleId, correlationId: 'reaction:rpc-cancel',
     }))).resolves.toMatchObject({ result: { status: 'stop_requested', correlationId: 'reaction:rpc-cancel' } })
+    await expect(router.handle(request('reaction.process', { address: parent })))
+      .resolves.toMatchObject({ result: { cycleId, waves: [{ wave: 1 }] } })
     await expect(router.handle(request('reaction.list', { address: parent, status: 1 })))
       .resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
     await expect(router.handle(request('reaction.list', { address: parent, limit: 1.5 })))
@@ -873,5 +879,187 @@ describe('worldctl grammar', () => {
     } as unknown as LocalJsonRpcRouter
     await expect(executeLocalCli(['health'], defaultWait, { busyRetryTimeoutMs: 5, busyRetryDelayMs: 1 }))
       .resolves.toContain('"status":"ready"')
+  })
+
+  it('recovers active Reaction Cycles on startup and drains them via the reaction worker', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hcw-op-reaction-recovery-'))
+    directories.push(dir)
+    const worldPath = join(dir, 'world.sqlite')
+    const sessionPath = join(dir, 'session.sqlite')
+    const memoryPath = join(dir, 'memory.sqlite')
+
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const aliceScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const bobScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+
+    const compiled = v5Manifest()
+    const application = new WorldApplication({
+      worldPath, sessionPath, memoryPath, modelBudgetTokens: 64, leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    application.activate(compiled)
+    await application.submit(ADDRESS, {
+      idempotencyKey: 'recovery:e2e', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'Hello' } },
+      correlationId: 'recovery:e2e',
+    })
+    const probe1 = new WorldStore(worldPath)
+    const cyclesBefore = probe1.listReactionCycles(ADDRESS)
+    probe1.close()
+    expect(cyclesBefore.length).toBe(1)
+    expect(cyclesBefore[0]!.status).toBe('active')
+    await application.close()
+
+    const recovered = new WorldApplication({
+      worldPath, sessionPath, memoryPath, modelBudgetTokens: 64, leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    recovered.activate(compiled)
+    const router = new LocalJsonRpcRouter(worldPath, recovered)
+    try {
+      const count = router.recoverAcceptedRounds('recovery:startup')
+      expect(count).toBeGreaterThanOrEqual(1)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      const probe2 = new WorldStore(worldPath)
+      const cyclesAfter = probe2.listReactionCycles(ADDRESS)
+      probe2.close()
+      expect(cyclesAfter[0]!.status).toBe('terminal')
+    } finally {
+      await router.close()
+      await recovered.close()
+    }
+  })
+
+  it('records reaction worker failures and coalesces concurrent wake-ups', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hcw-op-reaction-fault-'))
+    directories.push(dir)
+    const worldPath = join(dir, 'world.sqlite')
+    const sessionPath = join(dir, 'session.sqlite')
+    const memoryPath = join(dir, 'memory.sqlite')
+
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const aliceScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const bobScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+
+    let faultHits = 0
+    let faultThrown: () => void
+    const faultPromise = new Promise<void>(resolve => { faultThrown = resolve })
+    const faultInjector: FaultInjector = {
+      hit(point) {
+        if (point === 'reaction.after-wave-settle' && faultHits++ === 0) {
+          faultThrown()
+          throw new WorldError(createErrorEnvelope({
+            errorCode: 'WORLD_COMMIT_FAILED', category: 'runtime',
+            message: 'test fault injection', retryable: true, correlationId: 'reaction-fault',
+          }))
+        }
+      },
+    }
+
+    const compiled = v5Manifest()
+    const application = new WorldApplication({
+      worldPath, sessionPath, memoryPath, modelBudgetTokens: 64, leaseTtlMs: 30_000, faultInjector,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    application.activate(compiled)
+    const router = new LocalJsonRpcRouter(worldPath, application)
+    try {
+      await router.handle({
+        jsonrpc: '2.0', id: 'fault:submit', method: 'round.submit',
+        params: {
+          address: ADDRESS, idempotencyKey: 'fault:e2e', principalId: 'principal:player',
+          action: { actionType: 'speak', parameters: { text: 'trigger fault' } },
+          correlationId: 'fault:e2e',
+        },
+      })
+      await new Promise(resolve => setTimeout(resolve, 200))
+      await faultPromise
+      const recovered = router.recoverAcceptedRounds('fault:coalesced-wake')
+      expect(recovered).toBeGreaterThanOrEqual(1)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      expect(router.metrics.snapshot().reaction_worker_failures).toBeGreaterThanOrEqual(1)
+      const auditDb = new DatabaseSync(worldPath)
+      try {
+        const events = auditDb.prepare(`SELECT operation, correlation_id FROM branch_audit_events WHERE operation = 'reaction.worker.failed'`).all()
+        expect(events.length).toBeGreaterThanOrEqual(1)
+      } finally {
+        auditDb.close()
+      }
+    } finally {
+      await router.close()
+      await application.close()
+    }
+  }, 60000)
+
+  it('coalesces startup Reaction wakes and retries a typed transient worker failure', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hcw-op-reaction-retry-'))
+    directories.push(dir)
+    const worldPath = join(dir, 'world.sqlite')
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const aliceScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const bobScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const compiled = v5Manifest()
+    const seed = new WorldApplication({
+      worldPath,
+      sessionPath: join(dir, 'session.sqlite'),
+      memoryPath: join(dir, 'memory.sqlite'),
+      modelBudgetTokens: 64,
+      leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    seed.activate(compiled)
+    await seed.submit(ADDRESS, {
+      idempotencyKey: 'retry:seed',
+      principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'seed active Cycle' } },
+      correlationId: 'retry:seed',
+    })
+    await seed.close()
+
+    let releaseFirst!: () => void
+    const firstStarted = new Promise<void>(resolve => { releaseFirst = resolve })
+    let calls = 0
+    const application = {
+      async processReactionCycles(address: WorldAddress) {
+        calls += 1
+        if (calls === 1) {
+          await firstStarted
+          throw new WorldError(createErrorEnvelope({
+            errorCode: 'WORLDSTORE_BUSY',
+            category: 'runtime',
+            message: 'retry typed Reaction worker failure',
+            retryable: true,
+            correlationId: 'retry:typed',
+            address,
+          }))
+        }
+        return { cycleId: null, terminalReason: null, waves: [] }
+      },
+    } as unknown as WorldApplicationPort
+    const router = new LocalJsonRpcRouter(worldPath, application)
+    try {
+      expect(router.recoverAcceptedRounds('retry:first')).toBeGreaterThanOrEqual(1)
+      expect(router.recoverAcceptedRounds('retry:coalesced')).toBeGreaterThanOrEqual(1)
+      releaseFirst()
+      await new Promise(resolve => setTimeout(resolve, 250))
+      expect(calls).toBe(2)
+      expect(router.metrics.snapshot().reaction_worker_failures).toBe(1)
+      const auditDb = new DatabaseSync(worldPath)
+      try {
+        expect(auditDb.prepare(`SELECT details_json FROM branch_audit_events WHERE operation = 'reaction.worker.failed'`).get())
+          .toMatchObject({ details_json: expect.stringContaining('WORLDSTORE_BUSY') })
+      } finally {
+        auditDb.close()
+      }
+    } finally {
+      await router.close()
+    }
   })
 })

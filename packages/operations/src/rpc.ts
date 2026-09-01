@@ -39,6 +39,7 @@ export interface WorldApplicationPort {
     readonly correlationId: string
   }): Promise<unknown>
   processAcceptedRounds(address: WorldAddress, correlationId: string): Promise<number>
+  processReactionCycles(address: WorldAddress): Promise<unknown>
   roundStatus(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }): Promise<unknown | undefined>
   cancelQueuedRound(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }, correlationId: string): Promise<unknown>
   roundResult(address: WorldAddress, idempotencyKey: string): Promise<unknown | undefined>
@@ -144,6 +145,8 @@ export class LocalJsonRpcRouter {
   readonly metrics = new OperationsMetrics()
   readonly #roundWorkers = new Map<string, Promise<void>>()
   readonly #roundWorkerRequests = new Map<string, { readonly address: WorldAddress; readonly correlationId: string }>()
+  readonly #reactionWorkers = new Map<string, Promise<void>>()
+  readonly #reactionWorkerRequests = new Map<string, { readonly address: WorldAddress; readonly correlationId: string }>()
   readonly #notificationListeners = new Set<(notification: LocalJsonRpcNotification) => void>()
   #lastHealthHash: string | undefined
   #closing = false
@@ -180,7 +183,9 @@ export class LocalJsonRpcRouter {
 
   async close(): Promise<void> {
     this.#closing = true
-    while (this.#roundWorkers.size > 0) await Promise.all(this.#roundWorkers.values())
+    while (this.#roundWorkers.size > 0 || this.#reactionWorkers.size > 0) {
+      await Promise.all([...this.#roundWorkers.values(), ...this.#reactionWorkers.values()])
+    }
     this.#admin?.close()
     this.#store?.close()
   }
@@ -190,12 +195,16 @@ export class LocalJsonRpcRouter {
     assertProtocolString(correlationId, 'correlationId')
     this.#application()
     const inbox = new RoundInbox(this.worldPath)
+    const store = new WorldStore(this.worldPath)
     try {
       const addresses = inbox.unfinishedAddresses()
       for (const address of addresses) this.#kickRoundWorker(address, correlationId)
-      return addresses.length
+      const reactionAddresses = store.activeReactionCycleAddresses()
+      for (const address of reactionAddresses) this.#kickReactionWorker(address, correlationId)
+      return addresses.length + reactionAddresses.length
     } finally {
       inbox.close()
+      store.close()
     }
   }
 
@@ -267,6 +276,9 @@ export class LocalJsonRpcRouter {
         brandId(stringParam(params, 'cycleId'), 'ReactionCycleId'),
         stringParam(params, 'correlationId'),
       ))
+    }
+    if (method === 'reaction.process') {
+      return worldResult(await this.#application().processReactionCycles(addressParam(params.address)))
     }
     if (method === 'world.head') return worldResult(await this.#application().head(addressParam(params.address)))
     if (method === 'view.character' || method === 'character.view') {
@@ -512,6 +524,7 @@ export class LocalJsonRpcRouter {
             this.#notify('round.committed', {
               address: requested.address, processed, correlationId: requested.correlationId,
             })
+            this.#kickReactionWorker(requested.address, requested.correlationId)
           }
         } catch (error: unknown) {
           this.metrics.increment('round_worker_failures')
@@ -532,6 +545,41 @@ export class LocalJsonRpcRouter {
       }
     })
     this.#roundWorkers.set(key, worker)
+  }
+
+  #kickReactionWorker(address: WorldAddress, correlationId: string): void {
+    const key = `${address.tenantId}\u001f${address.worldId}\u001f${address.branchId}`
+    this.#reactionWorkerRequests.set(key, { address, correlationId })
+    if (this.#reactionWorkers.has(key)) return
+    const worker = Promise.resolve().then(async () => {
+      while (true) {
+        const requested = this.#reactionWorkerRequests.get(key)
+        if (requested === undefined) {
+          this.#reactionWorkers.delete(key)
+          return
+        }
+        this.#reactionWorkerRequests.delete(key)
+        try {
+          await this.#application().processReactionCycles(requested.address)
+        } catch (error: unknown) {
+          this.metrics.increment('reaction_worker_failures')
+          const details = error instanceof WorldError
+            ? { errorId: error.envelope.errorId, errorCode: error.envelope.errorCode }
+            : { errorType: typeof error, message: String(error) }
+          const audit = new BranchAdministration(this.worldPath)
+          try {
+            audit.recordReactionWorkerFailure(requested.address, `${requested.correlationId}:reaction-worker-failed`, details)
+          } finally {
+            audit.close()
+          }
+          if (error instanceof WorldError && error.envelope.retryable && !this.#closing) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+            this.#reactionWorkerRequests.set(key, requested)
+          }
+        }
+      }
+    })
+    this.#reactionWorkers.set(key, worker)
   }
 
   #legacyAdmin(): BranchAdministration {

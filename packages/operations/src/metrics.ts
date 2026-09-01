@@ -1,6 +1,6 @@
 import type { WorldJsonObject } from '@harness-world/contracts'
 
-export type OperationMetric = 'rpc_requests' | 'rpc_errors' | 'branch_forks' | 'branch_transitions' | 'round_worker_failures'
+export type OperationMetric = 'rpc_requests' | 'rpc_errors' | 'branch_forks' | 'branch_transitions' | 'round_worker_failures' | 'reaction_worker_failures'
 
 /** Fixed-cardinality process metrics; authoritative state never depends on these counters. */
 export class OperationsMetrics {
@@ -10,6 +10,7 @@ export class OperationsMetrics {
     branch_forks: 0,
     branch_transitions: 0,
     round_worker_failures: 0,
+    reaction_worker_failures: 0,
   }
 
   increment(metric: OperationMetric, amount = 1): void {

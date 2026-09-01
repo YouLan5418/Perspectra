@@ -153,6 +153,23 @@ export class BranchAdministration {
     correlationId: string,
     details: WorldJsonObject,
   ): BranchAuditEvent {
+    return this.#recordWorkerFailure(address, 'round.worker.failed', correlationId, details)
+  }
+
+  recordReactionWorkerFailure(
+    address: WorldAddress,
+    correlationId: string,
+    details: WorldJsonObject,
+  ): BranchAuditEvent {
+    return this.#recordWorkerFailure(address, 'reaction.worker.failed', correlationId, details)
+  }
+
+  #recordWorkerFailure(
+    address: WorldAddress,
+    operation: 'round.worker.failed' | 'reaction.worker.failed',
+    correlationId: string,
+    details: WorldJsonObject,
+  ): BranchAuditEvent {
     assertProtocolString(correlationId, 'correlationId')
     const key = worldAddressKey(address)
     const operationalTimeMs = this.operationalNow()
@@ -161,11 +178,11 @@ export class BranchAdministration {
       this.status(address)
       const result = this.#db.prepare(`
         INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
-        VALUES (?, 'round.worker.failed', ?, ?, ?)
-      `).run(key, correlationId, worldJsonText(details), operationalTimeMs)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(key, operation, correlationId, worldJsonText(details), operationalTimeMs)
       this.#db.exec('COMMIT')
       return {
-        auditSeq: Number(result.lastInsertRowid), operation: 'round.worker.failed', correlationId,
+        auditSeq: Number(result.lastInsertRowid), operation, correlationId,
         details, operationalTimeMs,
       }
     } catch (error: unknown) {
