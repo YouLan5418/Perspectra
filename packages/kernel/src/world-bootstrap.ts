@@ -1,6 +1,6 @@
 import { brandId, deterministicId, failWorld, worldAddressKey } from '@harness-world/contracts'
 import { WorldStore, type ActivateBranchResult } from '@harness-world/store-sqlite'
-import type { CompiledWorldSpec } from './world-spec.ts'
+import { manifestUsesPhase8Contracts, type CompiledWorldSpec } from './world-spec.ts'
 
 /** Activates a compiled world through the Store's Tick 0 administrative transaction. */
 export class WorldBootstrap {
@@ -26,7 +26,7 @@ export class WorldBootstrap {
       genesisHash: compiled.genesisHash,
       transactionId: brandId(deterministicId('transaction:genesis', identity), 'TransactionId'),
       roundId: brandId(deterministicId('round:genesis', identity), 'InteractionRoundId'),
-      ...(compiled.manifest.schemaVersion === 4
+      ...(manifestUsesPhase8Contracts(compiled.manifest)
         ? { cognitiveJobs: compiled.manifest.characters.map(character => ({ characterId: character.characterId })) }
         : {}),
       correlationId,

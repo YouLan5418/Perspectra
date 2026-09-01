@@ -279,6 +279,13 @@ export function reactionPolicyFromManifest(manifest: CompiledWorldManifest): Rea
     : HISTORICAL_REACTION_POLICY
 }
 
+/** Manifest v5 deliberately retains every Phase 8 execution contract from v4. */
+export function manifestUsesPhase8Contracts(
+  manifest: CompiledWorldManifest,
+): manifest is CompiledWorldManifestV4 | CompiledWorldManifestV5 {
+  return manifest.schemaVersion === 4 || manifest.schemaVersion === 5
+}
+
 function parseReactionPolicy(value: unknown): ReactionPolicyV1 {
   const policy = objectAt(value, 'StoredWorldManifest.reactionPolicy')
   if (policy.mode === 'disabled') {

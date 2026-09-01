@@ -32,7 +32,7 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import type { CompiledWorldManifest, RulebookResolver } from '@harness-world/kernel'
+import { manifestUsesPhase8Contracts, type CompiledWorldManifest, type RulebookResolver } from '@harness-world/kernel'
 import { type CognitiveMemoryService, type MemorySourceRef } from '@harness-world/memory'
 import {
   CognitionProjectionRebuilder,
@@ -254,8 +254,8 @@ export class Phase8ContextPipeline {
   readonly #modelProfile: ProviderModelProfile
 
   constructor(private readonly options: Phase8ContextPipelineOptions) {
-    if (options.memory.version !== 2 || options.manifest.schemaVersion !== 4) {
-      throw new TypeError('Phase 8 Context Pipeline requires Manifest v4 and Cognitive Memory v2')
+    if (options.memory.version !== 2 || !manifestUsesPhase8Contracts(options.manifest)) {
+      throw new TypeError('Phase 8 Context Pipeline requires Manifest v4 or v5 and Cognitive Memory v2')
     }
     this.#checkpoints = new ContinuityCheckpointService(options.path, options.store, options.memory)
     this.#receipts = new ContextReceiptStore(options.path)

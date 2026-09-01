@@ -15,6 +15,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldBootstrap } from './world-bootstrap.ts'
 import {
   reactionPolicyFromManifest,
+  manifestUsesPhase8Contracts,
   runtimeManifestFromStored,
   runtimeManifestFromStoredRecord,
   WorldSpecCompiler,
@@ -203,6 +204,8 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     const v4 = { ...v2, schemaVersion: 4 as const, contentPack }
     expect(runtimeManifestFromStored(v4)).toBe(v4)
     expect(reactionPolicyFromManifest(v4)).toEqual({ version: 'reaction-policy/v1', mode: 'disabled' })
+    expect(manifestUsesPhase8Contracts(v2)).toBe(false)
+    expect(manifestUsesPhase8Contracts(v4)).toBe(true)
 
     const responsivePolicy = {
       version: 'reaction-policy/v1' as const,
@@ -212,6 +215,7 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     const v5 = { ...v4, schemaVersion: 5, reactionPolicy: responsivePolicy } as unknown as CompiledWorldManifestV5
     expect(runtimeManifestFromStored(v5)).toBe(v5)
     expect(reactionPolicyFromManifest(v5)).toBe(responsivePolicy)
+    expect(manifestUsesPhase8Contracts(v5)).toBe(true)
     expect(runtimeManifestFromStored({
       ...v5,
       reactionPolicy: { version: 'reaction-policy/v1', mode: 'disabled' },

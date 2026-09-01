@@ -1,5 +1,5 @@
 import { compareWorldText, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
-import type { CompiledWorldManifest } from './world-spec.ts'
+import { manifestUsesPhase8Contracts, type CompiledWorldManifest } from './world-spec.ts'
 
 export interface PlayerActionInput extends WorldJsonObject {
   readonly actionType: string
@@ -156,7 +156,7 @@ export class SpeakMoveRulebook {
     if (lifecycle !== 'active') return rejectRulebookResolution(characterId, action.actionType, `character lifecycle ${lifecycle ?? 'missing'} cannot act`)
     const parameters = worldJsonObject(action.parameters)
     if (action.actionType === 'speak') {
-      if (manifest.schemaVersion === 4) return phase8Speech(manifest, characterId, parameters)
+      if (manifestUsesPhase8Contracts(manifest)) return phase8Speech(manifest, characterId, parameters)
       const text = parameters?.text
       if (typeof text !== 'string' || text.length === 0) return rejectRulebookResolution(characterId, action.actionType, 'speak requires non-empty text')
       return {
