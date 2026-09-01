@@ -1,6 +1,7 @@
 export * from './branch-operation-coordinator.ts'
 export * from './context-pipeline.ts'
 export * from './reaction-scheduler.ts'
+export * from './reaction-worker.ts'
 export * from './player-input.ts'
 export * from './round-coordinator.ts'
 export * from './runtime-metrics.ts'

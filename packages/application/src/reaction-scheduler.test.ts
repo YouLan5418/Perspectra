@@ -39,6 +39,7 @@ import {
   type ReactionSchedulerOptions,
   type ReactionWriterLeasePort,
 } from './reaction-scheduler.ts'
+import { ReactionCycleWorker } from './reaction-worker.ts'
 import { SceneDecisionService } from './scene-decision.ts'
 
 const roots: string[] = []
@@ -315,6 +316,35 @@ afterEach(() => {
 })
 
 describe('ReactionScheduler', () => {
+  it('drains two bounded Waves on one serial lane and carries only committed Observations forward', async () => {
+    const alice = new Provider(output('character:alice', 'Alice continues.'))
+    const bob = new Provider(output('character:bob', 'Bob continues.'))
+    const value = await fixture([binding('character:alice', alice), binding('character:bob', bob)])
+    let laneEntries = 0
+    const worker = new ReactionCycleWorker({
+      enqueueRound: async work => {
+        laneEntries += 1
+        return work()
+      },
+    }, value.scheduler)
+    const result = await worker.drain()
+    expect(laneEntries).toBe(1)
+    expect(result.waves.map(wave => [wave.wave, wave.tick, wave.terminalReason])).toEqual([
+      [1, 2, null],
+      [2, 3, 'call_limit'],
+    ])
+    expect(alice.calls).toBe(2)
+    expect(bob.calls).toBe(2)
+    const secondWaveContexts = value.contexts.seen.filter(context => context.origin.wave === 2)
+    expect(secondWaveContexts).toHaveLength(2)
+    expect(secondWaveContexts.every(context => context.stimulus.stimuli.every(stimulus =>
+      stimulus.sourceEventSeq > value.store.readReactionCycle(
+        value.spec.manifest.address, brandId(result.cycleId!, 'ReactionCycleId'),
+      )!.cycle.createdAtSeq))).toBe(true)
+    expect(value.store.activeReactionCycle(value.spec.manifest.address)).toBeUndefined()
+    close(value)
+  })
+
   it('returns no work when there is no active Cycle or its status is no longer active', async () => {
     const value = await fixture([binding('character:alice', new Provider(abstain()))])
     const noCycleStore = proxyStore(value.store, { activeReactionCycle: () => undefined })
