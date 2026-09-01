@@ -323,7 +323,7 @@ describe('ReactionScheduler', () => {
 
     const bundle = value.store.activeReactionCycle(value.spec.manifest.address)!
     const closedStore = proxyStore(value.store, {
-      activeReactionCycle: () => ({ ...bundle, cycle: { ...bundle.cycle, status: 'completed' } }),
+      activeReactionCycle: () => ({ ...bundle, cycle: { ...bundle.cycle, status: 'terminal' } }),
     })
     await expect(new ReactionScheduler({ ...value.schedulerOptions, store: closedStore }).runCurrentWave())
       .resolves.toBeUndefined()
@@ -499,6 +499,20 @@ describe('ReactionScheduler', () => {
     close(integrity)
   })
 
+  it('settles a Wave stopped before dispatch without calling any Provider', async () => {
+    const provider = new Provider(output('character:alice', 'must not be dispatched'))
+    const value = await fixture([binding('character:alice', provider)])
+    const cycleId = value.store.activeReactionCycle(value.spec.manifest.address)!.cycle.cycleId
+    value.store.cancelReactionCycle(value.spec.manifest.address, cycleId)
+    await expect(value.scheduler.runCurrentWave()).resolves.toMatchObject({
+      terminalReason: 'user_cancelled', actionCount: 0,
+    })
+    expect(provider.calls).toBe(0)
+    expect(value.store.readReactionCycle(value.spec.manifest.address, cycleId)?.cycle)
+      .toMatchObject({ status: 'terminal', terminalReason: 'user_cancelled' })
+    close(value)
+  })
+
   it('resumes durable ProviderCall states without a second dispatch', async () => {
     const states = ['dispatch_started', 'response_received', 'validated', 'committed', 'provider_rejected'] as const
     for (const state of states) {
@@ -617,8 +631,20 @@ describe('ReactionScheduler', () => {
     ])
     close(hooked)
 
+    const afterClaims = await fixture([binding('character:alice', new Provider(abstain()))])
+    const absentAfterClaims = proxyStore(afterClaims.store, { readReactionCycle: () => undefined })
+    await expect(new ReactionScheduler({ ...afterClaims.schedulerOptions, store: absentAfterClaims }).runCurrentWave())
+      .rejects.toThrow('disappeared after Wave claims')
+    close(afterClaims)
+
     const disappearing = await fixture([binding('character:alice', new Provider(abstain()))])
-    const disappearingStore = proxyStore(disappearing.store, { readReactionCycle: () => undefined })
+    let reads = 0
+    const disappearingStore = proxyStore(disappearing.store, {
+      readReactionCycle: (...args: Parameters<WorldStore['readReactionCycle']>) => {
+        reads += 1
+        return reads === 1 ? disappearing.store.readReactionCycle(...args) : undefined
+      },
+    })
     await expect(new ReactionScheduler({ ...disappearing.schedulerOptions, store: disappearingStore }).runCurrentWave())
       .rejects.toThrow('disappeared before Wave commit')
     close(disappearing)

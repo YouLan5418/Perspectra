@@ -1236,6 +1236,7 @@ export class WorldStore {
     ownerId: string,
     writerFencingToken: number,
     claimTtlMs = 30_000,
+    includeStopRequested = false,
   ): ClaimedReactionJob | undefined {
     return claimNextReactionJob(
       this.#db,
@@ -1244,6 +1245,7 @@ export class WorldStore {
       writerFencingToken,
       this.operationalNow(),
       claimTtlMs,
+      includeStopRequested,
       this.faultInjector,
     )
   }

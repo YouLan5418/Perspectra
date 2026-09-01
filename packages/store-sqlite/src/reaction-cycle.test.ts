@@ -1431,6 +1431,8 @@ describe('WorldStore Reaction Cycle authority', () => {
     raw.close()
     const stoppedStore = new WorldStore(path, undefined, () => now)
     expect(stoppedStore.claimNextReactionJob(address, writer.ownerId, writer.fencingToken)).toBeUndefined()
+    expect(stoppedStore.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 30_000, true))
+      .toMatchObject({ status: 'claimed', providerCallId: null })
     stoppedStore.close()
 
     const second = fixture()

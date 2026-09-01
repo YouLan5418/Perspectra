@@ -189,7 +189,7 @@ export class ReactionScheduler {
 
   async runCurrentWave(): Promise<ReactionWaveResult | undefined> {
     const initial = this.options.store.activeReactionCycle(this.options.address)
-    if (initial === undefined || initial.cycle.status !== 'active') return undefined
+    if (initial === undefined || initial.cycle.status === 'terminal') return undefined
     const wave = initial.waves.at(-1)!
     if (wave.status !== 'frozen') throw new Error('active Reaction Cycle does not end in a frozen Wave')
     const head = this.options.store.head(this.options.address)
@@ -203,6 +203,10 @@ export class ReactionScheduler {
       address: this.options.address, cycleId: initial.cycle.cycleId, wave: wave.wave,
     }), 'TransactionId')
     const claims = this.#claimWave(initial)
+    const current = this.options.store.readReactionCycle(this.options.address, initial.cycle.cycleId)
+    if (current === undefined || current.cycle.status === 'terminal') {
+      throw new Error('Reaction Cycle disappeared after Wave claims')
+    }
     const history = this.options.store.readEvents(this.options.address, head.headSeq)
     const candidateHash = hashWorldJson('world-reaction-candidate-s1/v1', {
       address: this.options.address,
@@ -216,7 +220,7 @@ export class ReactionScheduler {
       })),
     })
     const prepared: PreparedJob[] = []
-    for (const job of claims) prepared.push(this.#prepareJob(initial, job, roundId, candidateHash, history, head.tick + 1))
+    for (const job of claims) prepared.push(this.#prepareJob(current, job, roundId, candidateHash, history, head.tick + 1))
     this.options.writer.renew()
     const runner = new SafeAgentRunner(new ModelBudgetLedger(
       prepared.reduce((total, value) => total + (value.providerCall === undefined ? 0 : value.job.reservedTokens), 0),
@@ -299,7 +303,7 @@ export class ReactionScheduler {
     for (let index = 0; index < expected; index += 1) {
       const lease = this.options.writer.current()
       const job = this.options.store.claimNextReactionJob(
-        this.options.address, lease.ownerId, lease.fencingToken,
+        this.options.address, lease.ownerId, lease.fencingToken, 30_000, true,
       )
       if (job === undefined || job.wave !== wave.wave) throw new Error('Reaction Wave could not claim every reserved Job')
       claimed.push(job)
@@ -317,6 +321,9 @@ export class ReactionScheduler {
   ): PreparedJob {
     const binding = this.#bindings.get(claimed.characterId)
     if (binding === undefined) return { job: claimed, unavailableReason: 'participant binding is unavailable' }
+    if (cycle.cycle.status === 'stop_requested' && claimed.providerCallId === null) {
+      return { job: claimed, binding, unavailableReason: 'Reaction Cycle stopped before Provider dispatch' }
+    }
     if (currentCharacterLifecycle(history, claimed.characterId) !== 'active') {
       return { job: claimed, binding, unavailableReason: 'character lifecycle is not active' }
     }

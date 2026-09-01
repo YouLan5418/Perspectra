@@ -1598,6 +1598,7 @@ export function claimNextReactionJob(
   writerFencingToken: number,
   nowMs: number,
   claimTtlMs: number,
+  includeStopRequested: boolean,
   faultInjector?: FaultInjector,
 ): ClaimedReactionJob | undefined {
   const requestedExpiry = validateClaimInput(ownerId, writerFencingToken, nowMs, claimTtlMs)
@@ -1605,7 +1606,8 @@ export function claimNextReactionJob(
   try {
     const writerExpiresAtMs = assertCurrentReactionWriter(db, address, ownerId, writerFencingToken, nowMs)
     const bundle = readActiveReactionCycle(db, address)
-    if (bundle === undefined || bundle.cycle.status !== 'active') {
+    if (bundle === undefined || (bundle.cycle.status !== 'active'
+      && !(includeStopRequested && bundle.cycle.status === 'stop_requested'))) {
       db.exec('COMMIT')
       return undefined
     }
