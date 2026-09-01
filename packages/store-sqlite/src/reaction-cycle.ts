@@ -1612,7 +1612,7 @@ export function claimNextReactionJob(
       return undefined
     }
     const job = bundle.jobs.find(candidate => candidate.status === 'pending'
-      || (candidate.status === 'claimed' && candidate.claimExpiresAtMs! <= nowMs && candidate.providerCallId === null))
+      || (candidate.status === 'claimed' && candidate.claimExpiresAtMs! <= nowMs))
     if (job === undefined) {
       db.exec('COMMIT')
       return undefined

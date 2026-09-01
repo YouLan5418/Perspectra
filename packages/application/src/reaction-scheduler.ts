@@ -9,6 +9,7 @@ import {
   brandId,
   compareWorldText,
   deterministicId,
+  failWorld,
   hashWorldJson,
   planStableCallBudget,
   WorldError,
@@ -412,7 +413,15 @@ export class ReactionScheduler {
     } else if (providerCall.state === 'validated') {
       output = providerCall.proposal as SubmitActionsV2
     }
-    if (terminalCallStates.has(providerCall.state) || providerCall.state === 'committed') {
+    if (providerCall.state === 'committed') {
+      failWorld({
+        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
+        message: 'uncommitted Reaction Job references an already committed ProviderCall', retryable: false,
+        correlationId: `reaction:${prepared.job.cycleId}:${prepared.job.wave}:${prepared.job.jobId}`,
+        address: this.options.address,
+      })
+    }
+    if (terminalCallStates.has(providerCall.state)) {
       return { ...prepared, providerCall, outcome: 'provider_terminal', proposal: empty }
     }
     if (output === undefined) {
@@ -439,6 +448,7 @@ export class ReactionScheduler {
       })
       this.options.faultInjector?.hit('provider.after-response')
     }
+    const replayingValidated = providerCall.state === 'validated'
     try {
       const validated = this.#validator.validateV2(output, {
         participantId: prepared.binding.participantId,
@@ -456,6 +466,14 @@ export class ReactionScheduler {
         proposal: validated.proposal,
       }
     } catch (error: unknown) {
+      if (replayingValidated) {
+        failWorld({
+          errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
+          message: 'durably validated Reaction Provider output no longer validates', retryable: false,
+          correlationId: `reaction:${prepared.job.cycleId}:${prepared.job.wave}:${prepared.job.jobId}`,
+          address: this.options.address,
+        })
+      }
       providerCall = this.options.providerCalls.markTerminal(providerCall.modelCallId, 'invalid_response', {
         reason: String(error),
       })

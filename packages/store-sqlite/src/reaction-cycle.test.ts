@@ -1523,7 +1523,7 @@ describe('WorldStore Reaction Cycle authority', () => {
     }
   })
 
-  it('binds a claimed Job to one append-once ProviderCall and never reclaims it after dispatch becomes possible', async () => {
+  it('binds a claimed Job to one append-once ProviderCall and reclaims the same binding after lease expiry', async () => {
     const { path, address } = fixture()
     let now = 0
     const bootstrap = new WorldStore(path, undefined, () => now)
@@ -1558,10 +1558,18 @@ describe('WorldStore Reaction Cycle authority', () => {
       { ...binding, providerCallId: 'provider-call:divergent' },
     )).toThrow('binding is divergent')
     now = 101
-    expect(store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 100)).toBeUndefined()
+    const recovered = store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 100)!
+    expect(recovered).toMatchObject({
+      ...binding,
+      attemptCount: 2,
+      claimFencingToken: claimed.claimFencingToken + 1,
+    })
     expect(() => store.bindReactionJobProvider(
       address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, binding,
     )).toThrow('live matching claim')
+    expect(store.bindReactionJobProvider(
+      address, recovered.jobId, writer.ownerId, writer.fencingToken, recovered.claimFencingToken, binding,
+    )).toEqual(recovered)
     store.close()
     leases.close()
   })

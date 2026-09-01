@@ -630,13 +630,60 @@ describe('ReactionScheduler', () => {
           value.providerCalls.markTerminal(prepared.modelCallId, state, { stored: state })
         }
       }
-      const result = await value.scheduler.runCurrentWave()
+      const result = value.scheduler.runCurrentWave()
+      if (state === 'committed') await expect(result).rejects.toThrow('already committed ProviderCall')
+      else {
+        await expect(result).resolves.toMatchObject({
+          terminalReason: state === 'response_received' || state === 'validated' ? 'quiescent' : 'provider_terminal',
+        })
+      }
       expect(provider.calls).toBe(0)
-      expect(result?.terminalReason).toBe(
-        state === 'response_received' || state === 'validated' ? 'quiescent' : 'provider_terminal',
-      )
       close(value)
     }
+  })
+
+  it('reclaims a bound validated Job after expiry and commits without a second Provider call', async () => {
+    const crash = { enabled: true }
+    const faultInjector: FaultInjector = {
+      hit: point => {
+        if (crash.enabled && point === 'provider.before-world-commit') throw new Error('simulated process loss')
+      },
+    }
+    const provider = new Provider(output('character:alice', 'Durable response.'))
+    const clock = { value: 100 }
+    const value = await fixture([binding('character:alice', provider)], clock, { faultInjector })
+    await expect(value.scheduler.runCurrentWave()).rejects.toThrow('simulated process loss')
+    expect(provider.calls).toBe(1)
+    expect(value.store.activeReactionCycle(value.spec.manifest.address)?.jobs[0])
+      .toMatchObject({ status: 'claimed', providerCallId: expect.any(String), attemptCount: 1 })
+
+    clock.value = 10_101
+    const recoveredLease = value.leases.acquire(value.spec.manifest.address, 'reaction-worker:recovered', 10_000)
+    crash.enabled = false
+    const { faultInjector: _discardedFaultInjector, ...recoveredOptions } = value.schedulerOptions
+    const recovered = new ReactionScheduler({
+      ...recoveredOptions,
+      writer: new LeasePort(value.leases, value.spec.manifest.address, recoveredLease),
+    })
+    await expect(recovered.runCurrentWave()).resolves.toMatchObject({ terminalReason: 'quiescent', actionCount: 1 })
+    expect(provider.calls).toBe(1)
+    expect(value.store.listReactionCycles(value.spec.manifest.address)[0]).toMatchObject({ status: 'terminal' })
+    close(value)
+  })
+
+  it('fails closed when a durably validated Provider response no longer passes validation', async () => {
+    const provider = new Provider(abstain())
+    const value = await fixture([binding('character:alice', provider)])
+    const invalid = { schemaVersion: 2, decision: 'act', actions: [] } as SubmitActionsV2
+    value.contexts.onReceipt = receipt => {
+      const call = value.providerCalls.prepare(receipt)
+      value.providerCalls.markDispatchStarted(call.modelCallId)
+      value.providerCalls.recordResponse(call.modelCallId, invalid, {})
+      value.providerCalls.markValidated(call.modelCallId, invalid)
+    }
+    await expect(value.scheduler.runCurrentWave()).rejects.toThrow('no longer validates')
+    expect(provider.calls).toBe(0)
+    close(value)
   })
 
   it('enforces timeout, duplicate Action, private audience, and every Cycle terminal budget', async () => {
