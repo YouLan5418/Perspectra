@@ -28,6 +28,7 @@ import {
   type OutboxDraft,
   type Proposal,
   type ProposalContext,
+  type ReactionCycleDraft,
   type RuntimeAvailabilityState,
   type TransactionId,
   type WorldAddress,
@@ -38,8 +39,10 @@ import {
 import {
   createCoreRulebookRegistry,
   currentCharacterLifecycle,
+  manifestUsesPhase8Contracts,
   parsePlayerActionInput,
   parsePlayerRoundResult,
+  reactionPolicyFromManifest,
   runtimeManifestFromStored,
   type CompiledWorldManifest,
   type PlayerActionInput,
@@ -77,6 +80,16 @@ export interface RoundParticipant {
   readonly provider: { propose(context: ProposalContext): Promise<Proposal | SubmitActionsV2> }
 }
 
+export interface ReactionParticipantDraftBinding {
+  readonly actorId: CharacterId
+  readonly estimatedTokens: number
+}
+
+const RESPONSIVE_V1_MAX_WAVES = 3
+const RESPONSIVE_V1_MAX_NPC_CALLS = 8
+const RESPONSIVE_V1_MAX_CALLS_PER_CHARACTER = 2
+const REACTION_CYCLE_DEADLINE_MS = 30_000
+
 export interface RoundCoordinatorOptions {
   readonly store: WorldStore
   readonly inbox: RoundInbox
@@ -95,6 +108,7 @@ export interface RoundCoordinatorOptions {
   readonly providerQuality?: ProviderQualityStore
   readonly faultInjector?: FaultInjector
   readonly runtimeMetrics?: ApplicationRuntimeMetrics
+  readonly reactionParticipants?: readonly ReactionParticipantDraftBinding[]
 }
 
 export interface SubmitCoordinatedRoundRequest {
@@ -307,7 +321,7 @@ export class RoundCoordinator {
     if (options.cognitiveMemory !== undefined && options.sceneDecision === undefined) {
       throw new TypeError('Cognitive Memory requires an authoritative Scene decision service')
     }
-    if (this.#manifest.schemaVersion === 4 && options.contextPipeline !== undefined
+    if (manifestUsesPhase8Contracts(this.#manifest) && options.contextPipeline !== undefined
       && this.#participants.length > 0
       && (options.providerCalls === undefined || options.providerQuality === undefined)) {
       throw new TypeError('Phase 8 participants require durable Provider call and quality boundaries')
@@ -373,6 +387,12 @@ export class RoundCoordinator {
     this.options.leases.release(this.#address, this.options.ownerId, this.#lease.fencingToken)
   }
 
+  /** Expose the current writer lease for the reaction system to share. */
+  get writerLease(): WriterLease { return this.#lease }
+
+  /** Renew the writer lease; called by the reaction system before long operations. */
+  renewWriterLease(): void { this.#renewLease() }
+
   /** Finish every Round admitted before an administrative draining barrier. */
   drainAccepted(correlationId: string): Promise<number> {
     if (this.#closed) return Promise.reject(new Error('RoundCoordinator is closed'))
@@ -385,6 +405,25 @@ export class RoundCoordinator {
         await this.#commitAndComplete(claimed, correlationId)
         drained += 1
       }
+    })
+  }
+
+  /** Commit at most one durable Inbox item so the composition root can interleave its Reaction Cycle. */
+  processNextAccepted(correlationId: string, required = false): Promise<boolean> {
+    if (this.#closed) return Promise.reject(new Error('RoundCoordinator is closed'))
+    return this.options.runtimeLane.enqueueRound(async () => {
+      this.#refreshLease()
+      const claimed = this.options.inbox.claimNext(
+        this.#address,
+        this.options.ownerId,
+        this.#lease.fencingToken,
+      )
+      if (claimed === undefined) {
+        if (required) throw new Error('Round Inbox lost an admitted responsive/v1 item')
+        return false
+      }
+      await this.#commitAndComplete(claimed, correlationId)
+      return true
     })
   }
 
@@ -578,6 +617,12 @@ export class RoundCoordinator {
     }))
     const outbox: OutboxDraft[] = []
     let playerResolution: RulebookResolution | undefined
+    const reactionStimuli: {
+      sourceEventOrdinal: number
+      observationId: string
+      observerId: CharacterId
+      actorId: CharacterId
+    }[] = []
     for (const [ordinal, item] of ordered.entries()) {
       const actionPrefix = [...history, ...events]
       const baseResolution = item.sourceRole === 'player'
@@ -691,6 +736,12 @@ export class RoundCoordinator {
             ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
           },
         }
+        reactionStimuli.push({
+          sourceEventOrdinal: events.length,
+          observationId,
+          observerId,
+          actorId: item.action.actorId,
+        })
         events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id: observationId, value: observation } })
         if (observerId === binding.characterId) {
           outbox.push({
@@ -732,6 +783,7 @@ export class RoundCoordinator {
     if (frozen.some(value => value.providerCall?.state === 'validated')) {
       this.options.faultInjector?.hit('provider.before-world-commit')
     }
+    const reactionCycle = this.#buildReactionCycleDraft(reactionStimuli)
     const commit = await this.options.store.commitRound({
       address: this.#address,
       transactionId,
@@ -744,6 +796,7 @@ export class RoundCoordinator {
       ...(cognitiveCharacterIds.length === 0
         ? {}
         : { cognitiveJobs: cognitiveCharacterIds.map(characterId => ({ characterId })) }),
+      ...(reactionCycle === undefined ? {} : { reactionCycle }),
       authority,
       operationalSummary: {
         schemaVersion: 'round-operational-summary/v1',
@@ -990,7 +1043,7 @@ export class RoundCoordinator {
         }
         let proposal: Proposal
         let reflection: FrozenParticipant['reflection']
-        if (this.#manifest.schemaVersion === 4 && binding.role === 'agent') {
+        if (manifestUsesPhase8Contracts(this.#manifest) && binding.role === 'agent') {
           const validated = this.#validator.validateV2(providerOutput, {
             ...authorization,
             maxReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
@@ -1309,5 +1362,60 @@ export class RoundCoordinator {
     }
     const keys = Object.keys(request.action).sort(compareWorldText)
     if (keys.join(',') !== 'actionType,parameters') throw new TypeError('action must contain exactly actionType and parameters')
+  }
+
+  #buildReactionCycleDraft(
+    stimuli: readonly {
+      sourceEventOrdinal: number
+      observationId: string
+      observerId: CharacterId
+      actorId: CharacterId
+    }[],
+  ): ReactionCycleDraft | undefined {
+    const policy = reactionPolicyFromManifest(this.#manifest)
+    if (policy.mode !== 'responsive') return undefined
+    const reactionParticipants = this.options.reactionParticipants ?? []
+    const playerCharacters = new Set(this.#manifest.playerBindings.map(binding => binding.characterId))
+    const stimuliByObserver = new Map<CharacterId, { sourceEventOrdinal: number; observationOrdinal: number; observationId: string; observerCharacterId: CharacterId }[]>()
+    for (const stimulus of stimuli) {
+      if (stimulus.observerId === stimulus.actorId) continue
+      let bucket = stimuliByObserver.get(stimulus.observerId)
+      if (bucket === undefined) {
+        bucket = []
+        stimuliByObserver.set(stimulus.observerId, bucket)
+      }
+      bucket.push({
+        sourceEventOrdinal: stimulus.sourceEventOrdinal,
+        observationOrdinal: 0,
+        observationId: stimulus.observationId,
+        observerCharacterId: stimulus.observerId,
+      })
+    }
+    const candidates = reactionParticipants
+      .filter(participant => !playerCharacters.has(participant.actorId) && stimuliByObserver.has(participant.actorId))
+      .map(participant => ({
+        characterId: participant.actorId,
+        estimatedTokens: participant.estimatedTokens,
+        stimuli: stimuliByObserver.get(participant.actorId)!,
+      }))
+      .sort((left, right) => compareWorldText(left.characterId, right.characterId))
+    if (candidates.length === 0) return undefined
+    const maximumEstimate = Math.max(...candidates.map(candidate => candidate.estimatedTokens))
+    const initialTokenBudget = Math.min(
+      this.options.modelBudgetTokens,
+      RESPONSIVE_V1_MAX_NPC_CALLS * maximumEstimate,
+    )
+    return {
+      policyVersion: 'reaction-policy/v1',
+      profileId: 'responsive/v1',
+      maxWaves: RESPONSIVE_V1_MAX_WAVES,
+      maxNpcCalls: RESPONSIVE_V1_MAX_NPC_CALLS,
+      maxCallsPerCharacter: RESPONSIVE_V1_MAX_CALLS_PER_CHARACTER,
+      maxActionsPerCall: 1,
+      allowedActionTypes: ['speak@1'],
+      initialTokenBudget,
+      deadlineAtMs: Date.now() + REACTION_CYCLE_DEADLINE_MS,
+      candidates,
+    }
   }
 }

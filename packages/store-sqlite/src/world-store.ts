@@ -633,7 +633,7 @@ interface EventRow {
 function assertManifestEvents(manifest: WorldJsonValue, events: readonly WorldEventDraft[]): void {
   if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) return
   const root = manifest as WorldJsonObject
-  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4) return
+  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4 && root.schemaVersion !== 5) return
   const registries = root.registries
   if (typeof registries !== 'object' || registries === null || Array.isArray(registries)) throw new TypeError('compiled manifest registries are malformed')
   const eventRegistry = (registries as WorldJsonObject).events
@@ -1222,6 +1222,22 @@ export class WorldStore {
   /** List privacy-safe Cycle views in newest-root-first deterministic order. */
   listReactionCycles(address: WorldAddress): ReactionCycleView[] {
     return listReactionCycles(this.#db, address).map(buildReactionCycleView)
+  }
+
+  /** List branch addresses that have an active or stop_requested Reaction Cycle. */
+  activeReactionCycleAddresses(): WorldAddress[] {
+    const addresses = (this.#db.prepare(`
+      SELECT DISTINCT b.tenant_id, b.world_id, b.branch_id
+      FROM world_reaction_cycles r
+      JOIN branches b ON b.address_key = r.address_key
+      JOIN branch_controls c ON c.address_key = r.address_key
+      WHERE r.status IN ('active', 'stop_requested') AND c.runtime_phase = 'active'
+    `).all() as Array<{ tenant_id: string; world_id: string; branch_id: string }>).map(row => ({
+      tenantId: brandId(row.tenant_id, 'TenantId'),
+      worldId: brandId(row.world_id, 'WorldId'),
+      branchId: brandId(row.branch_id, 'BranchId'),
+    }))
+    return addresses.sort((left, right) => compareWorldText(worldAddressKey(left), worldAddressKey(right)))
   }
 
   /** Idempotently request user cancellation while allowing the frozen Wave to settle. */

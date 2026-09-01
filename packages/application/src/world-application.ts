@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import {
   assertProtocolString,
   canonicalizeWorldJson,
+  compareWorldText,
   failWorld,
   hashWorldJson,
   WorldError,
@@ -29,11 +30,14 @@ import {
   WorldBootstrap,
   WorldSpecCompiler,
   createCoreRulebookRegistry,
+  manifestUsesPhase8Contracts,
   parsePlayerRoundResult,
   parsePlayerActionInput,
+  reactionPolicyFromManifest,
   runtimeManifestFromStored,
   runtimeManifestFromStoredRecord,
   type CompiledWorldManifest,
+  type CompiledWorldManifestV5,
   type CompiledWorldSpec,
   type PlayerActionInput,
   type PlayerRoundResult,
@@ -88,6 +92,13 @@ import {
 import { SceneDecisionService } from './scene-decision.ts'
 import { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
 import { Phase8ContextPipeline } from './context-pipeline.ts'
+import {
+  ReactionScheduler,
+  type ReactionParticipantBinding,
+  type ReactionSchedulerOptions,
+  type ReactionWriterLeasePort,
+} from './reaction-scheduler.ts'
+import { ReactionCycleWorker, type ReactionDrainResult, type ReactionExecutionLane } from './reaction-worker.ts'
 
 function assertCompatibleContentPackVersion(
   existing: { readonly manifest: WorldJsonValue } | undefined,
@@ -119,6 +130,7 @@ export interface WorldApplicationOptions {
   readonly worldPath: string
   readonly sessionPath: string
   readonly participants?: (address: WorldAddress) => readonly RoundParticipant[]
+  readonly reactionParticipants?: (address: WorldAddress) => readonly ReactionParticipantBinding[]
   readonly modelBudgetTokens?: number
   readonly outboxMaxAttempts?: number
   readonly runtimeOwnerId?: string
@@ -304,7 +316,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       cognitiveMemory = !policies.contextEnabled
         ? undefined
         : new CognitiveMemoryService(this.options.memoryPath!, store.store, this.options.faultInjector, policies.memoryVersion)
-      if (manifest.schemaVersion === 4 && policies.contextEnabled && policies.memoryVersion === 2) {
+      if (manifestUsesPhase8Contracts(manifest) && policies.contextEnabled && policies.memoryVersion === 2) {
         contextPipeline = new Phase8ContextPipeline({
           path: this.#contextPath!, store: store.store, memory: cognitiveMemory!,
           availability: store.availability, manifest, manifestHash: scope.manifestHash,
@@ -327,6 +339,28 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
           ? manifest.runtimePolicy.playerInitialAvailability
           : manifest.runtimePolicy.npcInitialAvailability,
       })))
+      const sceneDecision = policies.sceneVersion === undefined ? undefined
+        : new SceneDecisionService(store.store, store.availability, policies.sceneVersion)
+      const reactionBindings = this.options.reactionParticipants?.(scope.address) ?? []
+      const reactionPolicy = reactionPolicyFromManifest(manifest)
+      if (reactionPolicy.mode === 'responsive') {
+        const responsiveManifest = manifest as CompiledWorldManifestV5
+        const requiredActors = responsiveManifest.characters
+          .filter(character => !players.has(character.characterId)
+            && character.lifecycle === 'active'
+            && character.controllerClass !== 'manual')
+          .map(character => character.characterId)
+          .sort(compareWorldText)
+        const registeredActors = reactionBindings.map(binding => binding.actorId).sort(compareWorldText)
+        if (requiredActors.length !== registeredActors.length
+          || requiredActors.some((actorId, index) => actorId !== registeredActors[index])) {
+          throw new TypeError('responsive/v1 requires one Reaction participant binding for every active non-manual NPC')
+        }
+      }
+      const reactionDraftBindings = reactionBindings.map(binding => ({
+        actorId: binding.actorId,
+        estimatedTokens: binding.estimatedTokens,
+      }))
       const kernel = new RoundCoordinator({
         store: store.store,
         inbox: store.inbox,
@@ -337,9 +371,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         participants: [...agents.participants, ...director.participants],
         modelBudgetTokens: this.options.modelBudgetTokens ?? 0,
         rulebooks: this.options.rulebooks,
-        ...(policies.sceneVersion === undefined ? {} : {
-          sceneDecision: new SceneDecisionService(store.store, store.availability, policies.sceneVersion),
-        }),
+        ...(sceneDecision === undefined ? {} : { sceneDecision }),
         ...(cognitiveMemory === undefined ? {} : { cognitiveMemory }),
         ...(contextPipeline === undefined ? {} : { contextPipeline }),
         ...(providerCalls === undefined ? {} : { providerCalls }),
@@ -347,6 +379,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         ...(this.options.faultInjector === undefined ? {} : { faultInjector: this.options.faultInjector }),
         runtimeMetrics: this.options.runtimeMetrics,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
+        ...(reactionDraftBindings.length === 0 ? {} : { reactionParticipants: reactionDraftBindings }),
       })
       try {
         kernel.processCognitiveJobs()
@@ -354,7 +387,29 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         kernel.close()
         throw error
       }
-      return { kernel, store, agents, director }
+      let reactionWorker: ReactionCycleWorker | undefined
+      if (reactionPolicy.mode === 'responsive') {
+        const writerPort: ReactionWriterLeasePort = {
+          current: () => kernel.writerLease,
+          renew: () => { kernel.renewWriterLease(); return kernel.writerLease },
+        }
+        const schedulerOptions: ReactionSchedulerOptions = {
+          address: scope.address,
+          manifest,
+          store: store.store,
+          availability: store.availability,
+          sceneDecision: sceneDecision!,
+          contextPipeline: contextPipeline!,
+          providerCalls: providerCalls!,
+          rulebooks: this.options.rulebooks,
+          participants: reactionBindings,
+          writer: writerPort,
+          ...(this.options.faultInjector === undefined ? {} : { faultInjector: this.options.faultInjector }),
+        }
+        const scheduler = new ReactionScheduler(schedulerOptions)
+        reactionWorker = new ReactionCycleWorker(scope as ReactionExecutionLane, scheduler)
+      }
+      return { kernel, store, agents, director, ...(reactionWorker === undefined ? {} : { reactionWorker }) }
     } catch (error: unknown) {
       contextPipeline?.close()
       providerCalls?.close()
@@ -372,6 +427,7 @@ interface MountedBranch {
   readonly store: BranchStoreComponent
   readonly agents: BranchAgentComponent
   readonly director: BranchDirectorComponent
+  readonly reactionWorker?: ReactionCycleWorker
 }
 
 /** Local composition root and the only production entrypoint into branch-owned state. */
@@ -493,7 +549,19 @@ export class WorldApplication {
   }
 
   async submit(address: WorldAddress, request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
-    return this.#integrityGuard(address, 'round.submit', branch => branch.kernel.submit(request))
+    return this.#integrityGuard(address, 'round.submit', async (branch) => {
+      if (branch.reactionWorker === undefined) return branch.kernel.submit(request)
+      branch.kernel.accept(request)
+      const replay = branch.store.inbox.readCompleted(address, request.idempotencyKey)
+      if (replay !== undefined) return parsePlayerRoundResult(replay)
+      await branch.reactionWorker.drain()
+      while (true) {
+        await branch.kernel.processNextAccepted(request.correlationId, true)
+        const result = branch.store.inbox.readCompleted(address, request.idempotencyKey)
+        if (result !== undefined) return parsePlayerRoundResult(result)
+        await branch.reactionWorker.drain()
+      }
+    })
   }
 
   async submitText(address: WorldAddress, request: SubmitTextRequest): Promise<SubmitTextResult> {
@@ -505,16 +573,18 @@ export class WorldApplication {
       ['correlationId', request.correlationId],
     ] as const) assertProtocolString(value, name)
     const clarificationInput = { principalId: request.principalId, text: request.text }
-    const clarificationStore = new WorldStore(this.options.worldPath)
-    try {
-      const replay = clarificationStore.readClarification(
-        address, request.idempotencyKey, clarificationInput, request.correlationId,
-      )
-      if (replay !== undefined) {
-        return replay as Extract<PlayerInputInterpretation, { readonly status: 'clarification_required' }>
+    const replay = await this.#durableReadGuard(address, 'round.clarify', () => {
+      const clarificationStore = new WorldStore(this.options.worldPath)
+      try {
+        return clarificationStore.readClarification(
+          address, request.idempotencyKey, clarificationInput, request.correlationId,
+        )
+      } finally {
+        clarificationStore.close()
       }
-    } finally {
-      clarificationStore.close()
+    })
+    if (replay !== undefined) {
+      return replay as Extract<PlayerInputInterpretation, { readonly status: 'clarification_required' }>
     }
     const interpretation = await this.#durableReadGuard(address, 'round.interpret', () => {
       const store = new WorldStore(this.options.worldPath)
@@ -545,18 +615,20 @@ export class WorldApplication {
       }
     })
     if (interpretation.status === 'clarification_required') {
-      const store = new WorldStore(this.options.worldPath)
-      try {
-        return store.recordClarification(
-          address,
-          request.idempotencyKey,
-          clarificationInput,
-          interpretation,
-          request.correlationId,
-        ) as Extract<PlayerInputInterpretation, { readonly status: 'clarification_required' }>
-      } finally {
-        store.close()
-      }
+      return await this.#durableReadGuard(address, 'round.clarify', () => {
+        const store = new WorldStore(this.options.worldPath)
+        try {
+          return store.recordClarification(
+            address,
+            request.idempotencyKey,
+            clarificationInput,
+            interpretation,
+            request.correlationId,
+          ) as Extract<PlayerInputInterpretation, { readonly status: 'clarification_required' }>
+        } finally {
+          store.close()
+        }
+      })
     }
     const result = await this.submit(address, {
       idempotencyKey: request.idempotencyKey,
@@ -615,7 +687,15 @@ export class WorldApplication {
   }
 
   async processAcceptedRounds(address: WorldAddress, correlationId: string): Promise<number> {
-    return this.#integrityGuard(address, 'round.process', branch => branch.kernel.drainAccepted(correlationId))
+    return this.#integrityGuard(address, 'round.process', async (branch) => {
+      if (branch.reactionWorker === undefined) return branch.kernel.drainAccepted(correlationId)
+      let processed = 0
+      while (true) {
+        await branch.reactionWorker.drain()
+        if (!await branch.kernel.processNextAccepted(correlationId)) return processed
+        processed += 1
+      }
+    })
   }
 
   async roundStatus(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }) {
@@ -699,6 +779,13 @@ export class WorldApplication {
         })
       }
       return view
+    })
+  }
+
+  async processReactionCycles(address: WorldAddress): Promise<ReactionDrainResult | null> {
+    return this.#integrityGuard(address, 'reaction.process', branch => {
+      if (branch.reactionWorker === undefined) return null
+      return branch.reactionWorker.drain()
     })
   }
 
@@ -1006,7 +1093,7 @@ export class WorldApplication {
               memoryVerificationHash = memory.rebuildBranch(
                 address, manifest.characters.map(character => character.characterId), world.headSeq, correlationId,
               )
-              if (manifest.schemaVersion === 4) {
+              if (manifestUsesPhase8Contracts(manifest)) {
                 const contextPath = contextPathFor(this.options)!
                 const checkpoints = new ContinuityCheckpointService(contextPath, store, memory)
                 const receipts = new ContextReceiptStore(contextPath)
@@ -1184,7 +1271,8 @@ export class WorldApplication {
     if (!(components.kernel instanceof RoundCoordinator)
       || !(components.store instanceof BranchStoreComponent)
       || !(components.agents instanceof BranchAgentComponent)
-      || !(components.director instanceof BranchDirectorComponent)) {
+      || !(components.director instanceof BranchDirectorComponent)
+      || (components.reactionWorker !== undefined && !(components.reactionWorker instanceof ReactionCycleWorker))) {
       await lease.dispose()
       throw new Error('Branch Component Factory returned an incompatible component set')
     }
@@ -1194,6 +1282,7 @@ export class WorldApplication {
       store: components.store,
       agents: components.agents,
       director: components.director,
+      ...(components.reactionWorker === undefined ? {} : { reactionWorker: components.reactionWorker }),
     }
   }
 

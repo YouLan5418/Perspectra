@@ -38,6 +38,7 @@ export interface BranchRuntimeComponents {
   readonly store: BranchOwnedComponent
   readonly agents: BranchOwnedComponent
   readonly director: BranchOwnedComponent
+  readonly reactionWorker?: BranchOwnedComponent
 }
 
 export interface BranchExecutionLane {
@@ -159,7 +160,14 @@ export class BranchRuntimeSlot {
       const director = new BranchComponentService(ctx, 'worldDirector', addressKey, components.director)
       services = { kernel, store, agents, director }
       ctx.effect(() => async () => {
-        for (const component of [components.kernel, components.director, components.agents, components.store]) {
+        const allComponents = [
+          ...(components.reactionWorker === undefined ? [] : [components.reactionWorker]),
+          components.kernel,
+          components.director,
+          components.agents,
+          components.store,
+        ]
+        for (const component of allComponents) {
           if (hasDisposer(component)) await component.dispose()
           else if (hasCloser(component)) await component.close()
         }

@@ -1459,6 +1459,33 @@ describe('WorldStore Reaction Cycle authority', () => {
     leases.close()
   })
 
+  it('lists active Cycle addresses in world UTF-16 order rather than SQLite byte order', async () => {
+    const { path, address } = fixture()
+    const supplementaryAddress = {
+      ...address,
+      branchId: brandId('branch:\u{10000}', 'BranchId'),
+    }
+    const privateUseAddress = {
+      ...address,
+      branchId: brandId('branch:\uE000', 'BranchId'),
+    }
+    const store = new WorldStore(path)
+    store.createBranch(privateUseAddress)
+    store.createBranch(supplementaryAddress)
+    await store.commitRound(request(privateUseAddress))
+    await store.commitRound({
+      ...request(supplementaryAddress),
+      transactionId: brandId('transaction:reaction-root:supplementary', 'TransactionId'),
+      roundId: brandId('round:reaction-root:supplementary', 'InteractionRoundId'),
+    })
+
+    expect(store.activeReactionCycleAddresses()).toEqual([
+      supplementaryAddress,
+      privateUseAddress,
+    ])
+    store.close()
+  })
+
   it('rejects invalid claim input, missing Writer ownership, and stale renewal proofs', async () => {
     const { path, address } = fixture()
     let now = 0

@@ -1491,7 +1491,8 @@ export function readReactionWaveSettlementHashByTransaction(
   if (row === undefined) return undefined
   const bundle = readReactionCycleById(db, address, brandId(row.cycle_id, 'ReactionCycleId'))
   const wave = bundle?.waves.find(value => value.wave === row.wave)
-  const jobs = bundle?.jobs.filter(job => job.wave === row.wave && job.budgetDecision === 'reserved') ?? []
+  const jobs = (bundle?.jobs.filter(job => job.wave === row.wave && job.budgetDecision === 'reserved') ?? [])
+    .sort((left, right) => compareWorldText(left.jobId, right.jobId))
   if (bundle === undefined || wave?.status !== 'committed' || wave.resultTransactionId !== transactionId
     || roundAuthorityHash === null || wave.authorityHash !== roundAuthorityHash
     || jobs.some(job => job.status !== 'settled' || job.resultTransactionId !== transactionId)) {

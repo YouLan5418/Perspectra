@@ -48,6 +48,7 @@ import {
 import { SceneDecisionService } from './scene-decision.ts'
 import type { Phase8ProviderContext } from './context-pipeline.ts'
 import { WorldApplication } from './world-application.ts'
+import { v5Manifest } from '../../../tests/reaction-fixture.ts'
 
 const directories: string[] = []
 
@@ -370,6 +371,27 @@ async function installCommittedRecoveryFixture(
 }
 
 describe('RoundCoordinator', () => {
+  it('does not synthesize a Cycle when a low-level responsive coordinator has no Reaction bindings', async () => {
+    const path = database('responsive-no-reaction-bindings.sqlite')
+    const compiled = v5Manifest()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const coordinatorOptions = options(path, compiled)
+    const coordinator = new RoundCoordinator(coordinatorOptions)
+    try {
+      await expect(coordinator.submit({
+        idempotencyKey: 'responsive:no-bindings',
+        principalId: 'principal:player',
+        action: { actionType: 'speak', parameters: { text: 'no bindings' } },
+        correlationId: 'responsive:no-bindings',
+      })).resolves.toMatchObject({ status: 'accepted' })
+      expect(coordinatorOptions.store.activeReactionCycle(compiled.manifest.address)).toBeUndefined()
+    } finally {
+      close(coordinatorOptions, coordinator)
+    }
+  })
+
   it('freezes Scene v2 participants but recomputes full and redacted observations at each action prefix', async () => {
     const path = database('scene-v2.sqlite')
     const compiled = phase8SceneWorld()
@@ -1535,7 +1557,24 @@ describe('RoundCoordinator', () => {
       idempotencyKey: 'closed', principalId: 'principal:player',
       action: { actionType: 'speak', parameters: {} }, correlationId: 'closed',
     })).rejects.toThrow('closed')
+    await expect(normal.processNextAccepted('closed-next')).rejects.toThrow('closed')
     close(normalOptions)
+
+    const requiredPath = database('required-next.sqlite')
+    const requiredSetup = new WorldStore(requiredPath)
+    new WorldBootstrap(requiredSetup).activate(compiled)
+    requiredSetup.close()
+    const requiredOptions = options(requiredPath, compiled)
+    const required = new RoundCoordinator(requiredOptions)
+    required.accept({
+      idempotencyKey: 'required-next', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'required' } }, correlationId: 'required-next',
+    })
+    const requiredRaw = new DatabaseSync(requiredPath)
+    requiredRaw.prepare(`DELETE FROM round_inbox WHERE idempotency_key = 'required-next'`).run()
+    requiredRaw.close()
+    await expect(required.processNextAccepted('required-next', true)).rejects.toThrow('lost an admitted responsive/v1 item')
+    close(requiredOptions, required)
 
     const corruptOptions = options(path, compiled)
     corruptOptions.inbox.enqueue({
