@@ -77,6 +77,14 @@ export interface PreparedPhase8ReactionParticipant {
   readonly cognition: CharacterCognitionView
 }
 
+/** Minimum participant identity required to build an NPC-only Reaction Context. */
+export interface ReactionContextBinding {
+  readonly participantId: string
+  readonly role: 'agent' | 'director'
+  readonly actorId: CharacterId
+  readonly allowedActionTypes: readonly string[]
+}
+
 export interface Phase8ContextPipelineOptions {
   readonly path: string
   readonly store: WorldStore
@@ -273,7 +281,7 @@ export class Phase8ContextPipeline {
 
   /** Build an exact Character Context from a frozen Observation bundle without a synthetic player Action. */
   prepareReaction(
-    binding: RoundParticipant,
+    binding: ReactionContextBinding,
     context: ReactionProposalContext,
     history: ReturnType<WorldStore['readEvents']>,
     decision: SceneDecision,
@@ -373,7 +381,7 @@ export class Phase8ContextPipeline {
   }
 
   #prepareReactionCharacter(
-    binding: RoundParticipant,
+    binding: ReactionContextBinding,
     context: ReactionProposalContext,
     history: ReturnType<WorldStore['readEvents']>,
     decision: SceneDecision,
