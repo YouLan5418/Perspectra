@@ -27,6 +27,7 @@ import {
 } from '@harness-world/kernel'
 import {
   CharacterRuntimeAvailabilityService,
+  RoundInbox,
   WriterLeaseService,
   WorldStore,
   type WriterLease,
@@ -540,6 +541,69 @@ describe('ReactionScheduler', () => {
     expect(provider.calls).toBe(0)
     expect(value.store.readReactionCycle(value.spec.manifest.address, cycleId)?.cycle)
       .toMatchObject({ status: 'terminal', terminalReason: 'user_cancelled' })
+    close(value)
+  })
+
+  it('preserves a player input that preempts an in-flight Wave and does not create a continuation', async () => {
+    let enqueuePlayer = () => undefined as unknown
+    const provider = new Provider(output('character:alice', 'Current Wave still settles.'), undefined, () => {
+      enqueuePlayer()
+    })
+    const value = await fixture([binding('character:alice', provider)])
+    const inbox = new RoundInbox(value.paths.world)
+    enqueuePlayer = () => inbox.enqueue({
+      address: value.spec.manifest.address,
+      idempotencyKey: 'player:preempt:in-flight',
+      principalId: 'principal:player',
+      input: { type: 'speak', text: 'Player interrupts.' },
+      correlationId: 'player:preempt:in-flight',
+    }, value.store.head(value.spec.manifest.address).headSeq)
+    const result = await value.scheduler.runCurrentWave()
+    expect(result).toMatchObject({ terminalReason: 'player_preempted', actionCount: 1 })
+    expect(inbox.readStatus(value.spec.manifest.address, { idempotencyKey: 'player:preempt:in-flight' }))
+      .toMatchObject({ status: 'queued' })
+    const cycle = value.store.readReactionCycle(
+      value.spec.manifest.address,
+      value.store.listReactionCycles(value.spec.manifest.address)[0]!.cycleId,
+    )!
+    expect(cycle.cycle).toMatchObject({ status: 'terminal', terminalReason: 'player_preempted' })
+    expect(cycle.waves).toHaveLength(1)
+    inbox.close()
+    close(value)
+  })
+
+  it('settles an already frozen next Wave without Provider dispatch when player input arrives between Waves', async () => {
+    const alice = new Provider(output('character:alice', 'Alice first Wave.'))
+    const bob = new Provider(output('character:bob', 'Bob first Wave.'))
+    const value = await fixture([binding('character:alice', alice), binding('character:bob', bob)])
+    const inbox = new RoundInbox(value.paths.world)
+    let calls = 0
+    const runner = {
+      runCurrentWave: async () => {
+        const result = await value.scheduler.runCurrentWave()
+        calls += 1
+        if (calls === 1) {
+          inbox.enqueue({
+            address: value.spec.manifest.address,
+            idempotencyKey: 'player:preempt:between-waves',
+            principalId: 'principal:player',
+            input: { type: 'speak', text: 'Player takes the floor.' },
+            correlationId: 'player:preempt:between-waves',
+          }, value.store.head(value.spec.manifest.address).headSeq)
+        }
+        return result
+      },
+    }
+    const drained = await new ReactionCycleWorker({ enqueueRound: work => work() }, runner).drain()
+    expect(drained.waves.map(wave => [wave.wave, wave.terminalReason, wave.actionCount])).toEqual([
+      [1, null, 2],
+      [2, 'player_preempted', 0],
+    ])
+    expect(alice.calls).toBe(1)
+    expect(bob.calls).toBe(1)
+    expect(inbox.readStatus(value.spec.manifest.address, { idempotencyKey: 'player:preempt:between-waves' }))
+      .toMatchObject({ status: 'queued' })
+    inbox.close()
     close(value)
   })
 
