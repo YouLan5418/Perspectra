@@ -7,6 +7,7 @@ import {
   PHASE8_VOCABULARY_LOCKS,
   type CharacterId,
   type Phase8RegistryLock,
+  type ReactionPolicyV1,
   type SessionId,
   type VocabularyLock,
   type WorldAddress,
@@ -40,7 +41,7 @@ export interface ManifestRegistries extends WorldJsonObject {
 }
 
 export interface CompiledWorldManifest extends WorldJsonObject {
-  readonly schemaVersion: 2 | 3 | 4
+  readonly schemaVersion: 2 | 3 | 4 | 5
   readonly address: WorldAddress
   readonly specHash: WorldHash
   readonly genesisPlanHash: WorldHash
@@ -157,6 +158,15 @@ export interface CompiledWorldManifestV4 extends CompiledWorldManifest {
   readonly contentPack: ContentPackManifestBindingV2
 }
 
+/** V5 adds the only capability gate that can enable bounded autonomous reactions. */
+export interface CompiledWorldManifestV5 extends CompiledWorldManifest {
+  readonly schemaVersion: 5
+  readonly characters: readonly ContentPackCharacterSpecV2[]
+  readonly scenes: readonly SceneSpecV2[]
+  readonly contentPack: ContentPackManifestBindingV2
+  readonly reactionPolicy: ReactionPolicyV1
+}
+
 export interface CompiledWorldSpec {
   readonly manifest: CompiledWorldManifest
   readonly manifestHash: WorldHash
@@ -172,7 +182,10 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   canonicalizeWorldJson(value)
   const root = objectAt(value, 'StoredWorldManifest')
   if (root.schemaVersion === 1) return new WorldSpecCompiler().compile(value).manifest
-  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4) throw new TypeError('stored Manifest schemaVersion is unsupported')
+  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4 && root.schemaVersion !== 5) throw new TypeError('stored Manifest schemaVersion is unsupported')
+  if (root.schemaVersion !== 5 && Object.hasOwn(root, 'reactionPolicy')) {
+    throw new TypeError('stored Manifest reactionPolicy requires schemaVersion 5')
+  }
   const runtimePolicy = objectAt(root.runtimePolicy, 'StoredWorldManifest.runtimePolicy')
   exactKeys(runtimePolicy, ['npcInitialAvailability', 'playerInitialAvailability'], 'StoredWorldManifest.runtimePolicy')
   if (runtimePolicy.npcInitialAvailability !== 'provisioning' && runtimePolicy.npcInitialAvailability !== 'ready') {
@@ -182,10 +195,10 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   arrayAt(root.locations, 'StoredWorldManifest.locations')
   arrayAt(root.characters, 'StoredWorldManifest.characters')
   arrayAt(root.playerBindings, 'StoredWorldManifest.playerBindings')
-  if (root.schemaVersion === 3 || root.schemaVersion === 4) {
+  if (root.schemaVersion === 3 || root.schemaVersion === 4 || root.schemaVersion === 5) {
     const contentPack = objectAt(root.contentPack, 'StoredWorldManifest.contentPack')
-    const v4 = root.schemaVersion === 4
-    exactKeys(contentPack, v4
+    const phase8 = root.schemaVersion === 4 || root.schemaVersion === 5
+    exactKeys(contentPack, phase8
       ? [
           'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
           'registryLocks', 'runtimeCapabilities', 'presentation', 'initialFacts', 'memory', 'documents', 'markdown',
@@ -194,7 +207,7 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
           'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'runtimeCapabilities',
           'presentation', 'initialFacts',
         ], 'StoredWorldManifest.contentPack')
-    if (contentPack.schemaVersion !== (v4 ? 2 : 1)) throw new TypeError('stored Manifest contentPack schemaVersion is unsupported')
+    if (contentPack.schemaVersion !== (phase8 ? 2 : 1)) throw new TypeError('stored Manifest contentPack schemaVersion is unsupported')
     textAt(contentPack.packId, 'StoredWorldManifest.contentPack.packId')
     textAt(contentPack.packVersion, 'StoredWorldManifest.contentPack.packVersion')
     hashAt(contentPack.packHash, 'StoredWorldManifest.contentPack.packHash')
@@ -217,11 +230,11 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
     })
     unique(locks.map(lock => lock.kind), 'StoredWorldManifest.contentPack.pluginLocks')
     const capabilities = objectAt(contentPack.runtimeCapabilities, 'StoredWorldManifest.contentPack.runtimeCapabilities')
-    exactKeys(capabilities, v4
+    exactKeys(capabilities, phase8
       ? ['publicSpeechObservationVersion', 'cognitionProjectionVersion', 'sceneDecisionVersion', 'cognitiveMemoryVersion', 'agentContextVersion']
       : ['publicSpeechObservationVersion'], 'StoredWorldManifest.contentPack.runtimeCapabilities')
     if (capabilities.publicSpeechObservationVersion !== 1) throw new TypeError('stored Manifest publicSpeechObservationVersion is unsupported')
-    if (v4 && (capabilities.cognitionProjectionVersion !== 1 || capabilities.sceneDecisionVersion !== 2
+    if (phase8 && (capabilities.cognitionProjectionVersion !== 1 || capabilities.sceneDecisionVersion !== 2
       || capabilities.cognitiveMemoryVersion !== 2 || capabilities.agentContextVersion !== 2)) {
       throw new TypeError('stored Manifest Phase 8 runtime capability is unsupported')
     }
@@ -242,7 +255,7 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
       return textAt(fact.factId, `${path}.factId`)
     })
     unique(factIds, 'StoredWorldManifest.contentPack.initialFacts')
-    if (v4) {
+    if (phase8) {
       exactLockedArray(contentPack.vocabularyLocks, PHASE8_VOCABULARY_LOCKS, 'StoredWorldManifest.contentPack.vocabularyLocks')
       exactLockedArray(contentPack.registryLocks, PHASE8_REGISTRY_LOCKS, 'StoredWorldManifest.contentPack.registryLocks')
       arrayAt(contentPack.memory, 'StoredWorldManifest.contentPack.memory')
@@ -250,7 +263,36 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
       arrayAt(contentPack.markdown, 'StoredWorldManifest.contentPack.markdown')
     }
   }
+  if (root.schemaVersion === 5) parseReactionPolicy(root.reactionPolicy)
   return value as CompiledWorldManifest
+}
+
+const HISTORICAL_REACTION_POLICY: ReactionPolicyV1 = Object.freeze({
+  version: 'reaction-policy/v1',
+  mode: 'disabled',
+})
+
+/** Resolve the effective policy without mutating or re-hashing historical Manifest bytes. */
+export function reactionPolicyFromManifest(manifest: CompiledWorldManifest): ReactionPolicyV1 {
+  return manifest.schemaVersion === 5
+    ? (manifest as CompiledWorldManifestV5).reactionPolicy
+    : HISTORICAL_REACTION_POLICY
+}
+
+function parseReactionPolicy(value: unknown): ReactionPolicyV1 {
+  const policy = objectAt(value, 'StoredWorldManifest.reactionPolicy')
+  if (policy.mode === 'disabled') {
+    exactKeys(policy, ['version', 'mode'], 'StoredWorldManifest.reactionPolicy')
+    if (policy.version !== 'reaction-policy/v1') throw new TypeError('stored Manifest reactionPolicy version is unsupported')
+    return policy as ReactionPolicyV1
+  }
+  if (policy.mode === 'responsive') {
+    exactKeys(policy, ['version', 'mode', 'profile'], 'StoredWorldManifest.reactionPolicy')
+    if (policy.version !== 'reaction-policy/v1') throw new TypeError('stored Manifest reactionPolicy version is unsupported')
+    if (policy.profile !== 'responsive/v1') throw new TypeError('stored Manifest reactionPolicy profile is unsupported')
+    return policy as ReactionPolicyV1
+  }
+  throw new TypeError('stored Manifest reactionPolicy mode is unsupported')
 }
 
 export function runtimeManifestFromStoredRecord(

@@ -13,7 +13,14 @@ import {
 } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldBootstrap } from './world-bootstrap.ts'
-import { runtimeManifestFromStored, runtimeManifestFromStoredRecord, WorldSpecCompiler, type CompiledWorldSpec } from './world-spec.ts'
+import {
+  reactionPolicyFromManifest,
+  runtimeManifestFromStored,
+  runtimeManifestFromStoredRecord,
+  WorldSpecCompiler,
+  type CompiledWorldManifestV5,
+  type CompiledWorldSpec,
+} from './world-spec.ts'
 
 const directories: string[] = []
 
@@ -195,6 +202,20 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     }
     const v4 = { ...v2, schemaVersion: 4 as const, contentPack }
     expect(runtimeManifestFromStored(v4)).toBe(v4)
+    expect(reactionPolicyFromManifest(v4)).toEqual({ version: 'reaction-policy/v1', mode: 'disabled' })
+
+    const responsivePolicy = {
+      version: 'reaction-policy/v1' as const,
+      mode: 'responsive' as const,
+      profile: 'responsive/v1' as const,
+    }
+    const v5 = { ...v4, schemaVersion: 5, reactionPolicy: responsivePolicy } as unknown as CompiledWorldManifestV5
+    expect(runtimeManifestFromStored(v5)).toBe(v5)
+    expect(reactionPolicyFromManifest(v5)).toBe(responsivePolicy)
+    expect(runtimeManifestFromStored({
+      ...v5,
+      reactionPolicy: { version: 'reaction-policy/v1', mode: 'disabled' },
+    })).toMatchObject({ reactionPolicy: { version: 'reaction-policy/v1', mode: 'disabled' } })
 
     const invalid: readonly (readonly [WorldJsonValue, string])[] = [
       [{ ...v4, contentPack: { ...contentPack, schemaVersion: 1 } }, 'schemaVersion'],
@@ -218,12 +239,21 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
           runtimeCapabilities: { ...contentPack.runtimeCapabilities, [field]: 99 },
         },
       } as WorldJsonValue, 'runtime capability'] as const)),
+      [{ ...v4, reactionPolicy: responsivePolicy }, 'requires schemaVersion 5'],
+      [{ ...v5, reactionPolicy: null }, 'reactionPolicy must be an object'],
+      [{ ...v5, reactionPolicy: { version: 'reaction-policy/v1', mode: 'disabled', profile: 'responsive/v1' } }, 'missing or unknown'],
+      [{ ...v5, reactionPolicy: { version: 'reaction-policy/v2', mode: 'disabled' } }, 'version'],
+      [{ ...v5, reactionPolicy: { version: 'reaction-policy/v1', mode: 'unknown' } }, 'mode'],
+      [{ ...v5, reactionPolicy: { version: 'reaction-policy/v1', mode: 'responsive' } }, 'missing or unknown'],
+      [{ ...v5, reactionPolicy: { version: 'reaction-policy/v2', mode: 'responsive', profile: 'responsive/v1' } }, 'version'],
+      [{ ...v5, reactionPolicy: { version: 'reaction-policy/v1', mode: 'responsive', profile: 'responsive/v2' } }, 'profile'],
+      [{ ...v5, reactionPolicy: { ...responsivePolicy, extra: true } }, 'missing or unknown'],
     ]
     for (const [manifest, message] of invalid) expect(() => runtimeManifestFromStored(manifest)).toThrow(message)
   })
 
   it.each([
-    [{ schemaVersion: 5 }, 'schemaVersion'],
+    [{ schemaVersion: 6 }, 'schemaVersion'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: null }, 'runtimePolicy'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'offline', playerInitialAvailability: 'ready' } }, 'npcInitialAvailability'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'offline' } }, 'playerInitialAvailability'],

@@ -23,6 +23,18 @@ export type ReactionCycleTerminalReason =
 
 export type ReactionJobOutcome = 'proposed' | 'abstained' | 'provider_terminal' | 'runtime_unavailable' | 'rejected'
 
+/** Hash-locked Manifest capability gate. Historical Manifests are interpreted as disabled. */
+export type ReactionPolicyV1 =
+  | {
+      readonly version: 'reaction-policy/v1'
+      readonly mode: 'disabled'
+    }
+  | {
+      readonly version: 'reaction-policy/v1'
+      readonly mode: 'responsive'
+      readonly profile: 'responsive/v1'
+    }
+
 /** One Observation from the committing Root Round that may stimulate a character. */
 export interface ReactionStimulusDraft extends WorldJsonObject {
   readonly sourceEventOrdinal: number
