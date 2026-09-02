@@ -5,8 +5,8 @@
 | 项目 | 内容 |
 | --- | --- |
 | 日期 | 2026-09-02 |
-| 分支 | `qwen`（待合回 `phase9b/bounded-multi-wave`） |
-| 本次验证提交 | `a1aa750` |
+| 分支 | `phase9b/bounded-multi-wave`（`qwen` 已快进到同一基线） |
+| 本次验证提交 | `af0541f` |
 | 状态 | **Phase 9B 本机门槛完成；Phase 9C 尚未开始** |
 | 对照规格 | [Phase 9 实施规格：有界自主 Reaction Cycle](spec/phase-9-implementation-v0.1.md) |
 

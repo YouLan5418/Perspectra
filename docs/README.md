@@ -25,6 +25,7 @@
 - [Phase 9A 数据迁移、恢复集合与玩家抢占评审](2026-08-31_Phase-9A迁移恢复与抢占评审.md)
 - [Phase 9A 权威骨架阶段汇总](2026-08-31_阶段报告-Harness-Cordis-World-Phase-9A-report.md)
 - [Phase 9B 完成报告：有界多 wave、通知与可重建 Presentation](2026-09-02_阶段报告-Harness-Cordis-World-Phase-9B-report.md)
+- [Phase 9C 实施规划：运行闭环与发布收口](2026-09-02_实施计划-Harness-Cordis-World-Phase-9C.md)
 - [Phase 9B 多 wave 权威骨架与运行闭环计划（历史进度）](2026-09-01_阶段报告-Harness-Cordis-World-Phase-9B-progress-report.md)
 - [Phase 9B Scheduler、多 wave、抢占与恢复阶段报告（历史进度）](2026-09-01_阶段报告-Harness-Cordis-World-Phase-9B-scheduler-report.md)
 - [Phase 9B Qwen 通知与 Presentation 收口交接说明（已完成）](2026-09-02_Phase-9B-Qwen交接说明.md)
