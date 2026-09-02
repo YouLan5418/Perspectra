@@ -145,6 +145,37 @@ describe('CognitiveMemoryService', () => {
     world.close()
   })
 
+  it('settles an older world cognitive job when a newer verified watermark already subsumes it', async () => {
+    const { world, memory: legacy, alice, worldPath, memoryPath } = await fixture()
+    legacy.close()
+    await world.commitRound({
+      address: address(), transactionId: brandId('transaction:cognitive:newer', 'TransactionId'),
+      roundId: brandId('round:cognitive:newer', 'InteractionRoundId'),
+      expectedHeadSeq: 6, expectedTick: 1, nextTick: 2,
+      events: [{
+        eventType: 'observation.upsert', eventVersion: 1,
+        data: { id: 'observation:alice:newer', value: { observerId: alice, content: 'newer verified source' } },
+      }],
+      outbox: [], correlationId: 'cognitive:newer',
+    })
+    const memory = new CognitiveMemoryService(memoryPath, world, undefined, 2)
+    expect(memory.catchUpReceipt(address(), alice, 7)).toMatchObject({
+      watermark: { verifiedThroughSeq: 7, capturedThroughSeq: 7 },
+    })
+    const leases = new WriterLeaseService(worldPath)
+    const lease = leases.acquire(address(), 'cognitive:subsumed-worker')
+    expect(memory.processPending(address(), 'cognitive:subsumed-worker', lease.fencingToken, () => undefined)).toEqual({
+      completed: 1, failed: [],
+    })
+    expect(world.readCognitiveJobs(address(), true)[0]).toMatchObject({
+      asOfWorldSeq: 6, status: 'completed', attemptCount: 1,
+    })
+    expect(memory.watermark(address(), alice)).toMatchObject({ verifiedThroughSeq: 7, capturedThroughSeq: 7 })
+    memory.close()
+    leases.close()
+    world.close()
+  })
+
   it('catches up distinct character namespaces and assembles a stable Context v2', async () => {
     const { world, memory, alice, bob } = await fixture()
     memory.enqueue(address(), [bob, alice, alice], 6)

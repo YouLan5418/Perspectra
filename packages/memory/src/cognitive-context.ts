@@ -334,7 +334,10 @@ export class CognitiveMemoryService {
     const failed: Array<{ characterId: CharacterId; error: string }> = []
     for (const job of this.worldStore.readCognitiveJobs(address)) {
       try {
-        this.catchUp(address, job.characterId, job.asOfWorldSeq, `cognitive-job:${job.jobId}`, heartbeat)
+        const watermark = this.watermark(address, job.characterId)
+        if (watermark === undefined || watermark.verifiedThroughSeq <= job.asOfWorldSeq) {
+          this.catchUp(address, job.characterId, job.asOfWorldSeq, `cognitive-job:${job.jobId}`, heartbeat)
+        }
         heartbeat()
         this.worldStore.recordCognitiveJobResult(
           address, job.jobId, ownerId, fencingToken, 'completed', null, `cognitive-job:${job.jobId}`,

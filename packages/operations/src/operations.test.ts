@@ -1433,6 +1433,7 @@ describe('worldctl grammar', () => {
     })
     application.activate(compiled)
     const router = new LocalJsonRpcRouter(worldPath, application)
+    const presentations: Array<{ readonly sessionEventSeq: number; readonly result: unknown }> = []
     try {
       await router.handle({
         jsonrpc: '2.0', id: 'causal:submit', method: 'round.submit',
@@ -1507,6 +1508,7 @@ describe('worldctl grammar', () => {
             wave: event.payload.wave,
             roundId: event.payload.roundId,
           })
+          presentations.push({ sessionEventSeq: event.session_event_seq, result: rendered })
           renderedOrigins.push(rendered.reactionOrigin)
         }
         expect(renderedOrigins.map(value => value.wave)).toEqual([1, 2])
@@ -1516,6 +1518,27 @@ describe('worldctl grammar', () => {
     } finally {
       await router.close()
       await application.close()
+    }
+
+    const restarted = new WorldApplication({
+      worldPath, sessionPath, memoryPath, modelBudgetTokens: 64, leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [
+        waveBinding(alice, new Set([1])),
+        waveBinding(bob, new Set([2])),
+      ],
+    })
+    restarted.activate(compiled)
+    try {
+      for (const presentation of presentations) {
+        await expect(restarted.renderSession(
+          ADDRESS,
+          brandId('session:player', 'SessionId'),
+          presentation.sessionEventSeq,
+        )).resolves.toEqual(presentation.result)
+      }
+    } finally {
+      await restarted.close()
     }
   }, 30000)
 
