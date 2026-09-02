@@ -228,7 +228,7 @@ export class ReactionScheduler {
     ))
     const executed = await Promise.all(prepared.map(value => this.#executeJob(value, runner)))
     this.options.writer.renew()
-    const built = this.#buildRound(initial, roundId, candidateHash, history, executed, head.headSeq, head.tick)
+    const built = this.#buildRound(initial, roundId, candidateHash, history, executed, head.headSeq, head.tick, wave.wave)
     const refreshed = this.options.store.readReactionCycle(this.options.address, initial.cycle.cycleId)
     if (refreshed === undefined || refreshed.cycle.status === 'terminal') throw new Error('Reaction Cycle disappeared before Wave commit')
     const terminalReason = this.#terminalReason(refreshed, executed, built.nextWaveCandidates)
@@ -489,6 +489,7 @@ export class ReactionScheduler {
     executed: readonly ExecutedJob[],
     baseHeadSeq: number,
     baseTick: number,
+    wave: number,
   ): BuiltReactionRound {
     const actions = sortActionOrderKeys(executed.flatMap(value => value.proposal.actions.map((action, proposalOrdinal): OrderedReactionAction => ({
       jobId: value.job.jobId,
@@ -625,7 +626,15 @@ export class ReactionScheduler {
           outbox.push({
             deliveryId: brandId(deterministicId('delivery:reaction-round', { roundId, observationId }), 'DeliveryId'),
             sessionId: player.sessionId,
-            payload: { observationId, value: observation },
+            payload: {
+              observationType: 'reaction-round',
+              observationId,
+              value: observation,
+              cycleId: cycle.cycle.cycleId,
+              wave,
+              roundId,
+              rootRoundId: cycle.cycle.rootRoundId,
+            },
             critical: true,
           })
         }
