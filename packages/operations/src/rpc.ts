@@ -20,7 +20,7 @@ import {
 } from '@harness-world/contracts'
 import { BranchAdministration, RoundInbox, WorldStore } from '@harness-world/store-sqlite'
 import type { BranchWorkStep, ReactionWaveResult, ReactionWaveStep } from '@harness-world/application'
-import { BranchWorkScheduler, type BranchWorkWakeReason } from './branch-work-scheduler.ts'
+import { BranchWorkScheduler, SHUTDOWN_TIMEOUT_MS_DEFAULT, type BranchWorkWakeReason } from './branch-work-scheduler.ts'
 import { WorldHealthService } from './health.ts'
 import { OperationsMetrics } from './metrics.ts'
 
@@ -146,6 +146,7 @@ function worldResult(value: unknown): WorldJsonValue {
 export interface LocalJsonRpcRouterOptions {
   readonly maxConcurrentBranches?: number
   readonly rescanIntervalMs?: number
+  readonly shutdownTimeoutMs?: number
 }
 
 /** In-process JSON-RPC 2.0 router. It intentionally owns no socket or remote listener. */
@@ -155,6 +156,7 @@ export class LocalJsonRpcRouter {
   readonly #health: WorldHealthService
   readonly metrics = new OperationsMetrics()
   readonly #scheduler: BranchWorkScheduler
+  readonly #shutdownTimeoutMs: number
   readonly #announcedCycles = new Set<string>()
   readonly #notificationListeners = new Set<(notification: LocalJsonRpcNotification) => void>()
   #lastHealthHash: string | undefined
@@ -167,6 +169,7 @@ export class LocalJsonRpcRouter {
     this.#store = application === undefined ? new WorldStore(worldPath) : undefined
     this.#admin = application === undefined ? new BranchAdministration(worldPath) : undefined
     this.#health = new WorldHealthService(worldPath)
+    this.#shutdownTimeoutMs = options.shutdownTimeoutMs ?? SHUTDOWN_TIMEOUT_MS_DEFAULT
     this.#scheduler = new BranchWorkScheduler({
       work: {
         processNextBranchWork: (address, correlationId) => this.#application().processNextBranchWork(address, correlationId),
@@ -205,7 +208,8 @@ export class LocalJsonRpcRouter {
   }
 
   async close(): Promise<void> {
-    await this.#scheduler.stop()
+    const stopped = await this.#scheduler.stop(this.#shutdownTimeoutMs)
+    if (stopped.timedOut) this.metrics.increment('shutdown_timeouts')
     this.#admin?.close()
     this.#store?.close()
   }
@@ -459,7 +463,7 @@ export class LocalJsonRpcRouter {
       ))
     }
     if (method === 'health.get') {
-      const health = this.#health.check()
+      const health = { ...this.#health.check(), process: this.#processHealth() }
       const healthHash = hashWorldJson('local-health-notification', health)
       if (healthHash !== this.#lastHealthHash) {
         this.#lastHealthHash = healthHash
@@ -467,7 +471,9 @@ export class LocalJsonRpcRouter {
       }
       return health
     }
-    if (method === 'metrics.get') return this.metrics.snapshot()
+    if (method === 'metrics.get') {
+      return worldResult({ ...this.metrics.snapshot(), branchWork: this.#scheduler.snapshot() })
+    }
     if (method === 'branch.status') {
       const address = addressParam(params.address)
       return worldResult(this.application === undefined ? this.#legacyAdmin().status(address) : this.application.branchStatus(address))
@@ -550,16 +556,21 @@ export class LocalJsonRpcRouter {
       return
     }
     if (step.status === 'idle') return
+    this.metrics.increment('player_rounds_committed')
     this.#notify('round.committed', { address, processed: 1, correlationId })
     if (step.openedCycleId !== null) this.#announceCycleStart(address, step.openedCycleId, step.roundId)
   }
 
   #projectWave(address: WorldAddress, wave: ReactionWaveResult): void {
+    this.metrics.increment('reaction_waves_committed')
+    if (wave.actionCount > 0) this.metrics.increment('reaction_actions_accepted', wave.actionCount)
     this.#announceCycleStart(address, wave.cycleId, wave.rootRoundId)
     this.#notify('reaction.round_committed', {
       address, cycleId: wave.cycleId, wave: wave.wave, roundId: wave.roundId, rootRoundId: wave.rootRoundId,
     })
     if (wave.terminalReason === null) return
+    this.metrics.increment('reaction_cycles_completed')
+    this.metrics.recordTerminalReason(wave.terminalReason)
     this.#notify('reaction.completed', {
       address, cycleId: wave.cycleId, terminalReason: wave.terminalReason, rootRoundId: wave.rootRoundId,
     })
@@ -568,7 +579,28 @@ export class LocalJsonRpcRouter {
   #announceCycleStart(address: WorldAddress, cycleId: string, rootRoundId: string): void {
     if (this.#announcedCycles.has(cycleId)) return
     this.#announcedCycles.add(cycleId)
+    this.metrics.increment('reaction_cycles_started')
     this.#notify('reaction.started', { address, cycleId, rootRoundId })
+  }
+
+  /** Process-level health: fixed reason codes and counts, never a WorldAddress, Prompt or world text. */
+  #processHealth(): WorldJsonObject {
+    const snapshot = this.#scheduler.snapshot()
+    const degradedSignals = snapshot.failures + snapshot.scanFailures + snapshot.shutdownTimeouts
+    return {
+      degraded: degradedSignals > 0,
+      reason: degradedSignals > 0 ? 'branch-work-degraded' : null,
+      branchWork: {
+        readyBranches: snapshot.readyBranches,
+        inFlightBranches: snapshot.inFlightBranches,
+        oldestReadyWaitMs: snapshot.oldestReadyWaitMs,
+        wakeOverflow: snapshot.wakeOverflow,
+        rescans: snapshot.rescans,
+        scanFailures: snapshot.scanFailures,
+        failures: snapshot.failures,
+        shutdownTimeouts: snapshot.shutdownTimeouts,
+      },
+    }
   }
 
   #recordBranchWorkFailure(address: WorldAddress, error: unknown): void {

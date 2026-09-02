@@ -754,6 +754,9 @@ describe('worldctl grammar', () => {
       address: failedFixture.parent, idempotencyKey: 'worker:failed', principalId: 'principal:failed',
       action: { actionType: 'speak', parameters: { text: 'failed' } }, correlationId: 'worker:failed',
     }))).resolves.toMatchObject({ result: { status: 'queued' } })
+    await expect(failingRouter.handle(request('health.get'))).resolves.toMatchObject({
+      result: { status: 'ready', process: { degraded: true, reason: 'branch-work-degraded' } },
+    })
     await failingRouter.close()
     expect(failingRouter.metrics.snapshot()).toMatchObject({ branch_work_failures: 1 })
     const failureAudit = new BranchAdministration(failedFixture.path)
@@ -1114,6 +1117,13 @@ describe('worldctl grammar', () => {
         address: ADDRESS, cycleId: started.params.cycleId,
         terminalReason: expect.any(String), rootRoundId: started.params.rootRoundId,
       })
+      expect(router.metrics.snapshot()).toMatchObject({
+        reaction_cycles_started: 1,
+        reaction_cycles_completed: 1,
+        reaction_waves_committed: 3,
+        reaction_actions_accepted: 2,
+        reactionTerminalReasons: expect.objectContaining({ all_abstained: 1, quiescent: 0 }),
+      })
     } finally {
       await router.close()
       await application.close()
@@ -1257,10 +1267,87 @@ describe('worldctl grammar', () => {
       expect(notifications).toEqual([
         'round.committed', 'reaction.started', 'reaction.round_committed', 'reaction.completed',
       ])
+      await expect(router.handle(request('metrics.get'))).resolves.toMatchObject({
+        result: {
+          player_rounds_committed: 1,
+          reaction_cycles_started: 1,
+          reaction_cycles_completed: 1,
+          reaction_waves_committed: 1,
+          reaction_actions_accepted: 0,
+          reactionTerminalReasons: expect.objectContaining({ all_abstained: 1, wave_limit: 0 }),
+          branchWork: expect.objectContaining({ failures: 0 }),
+        },
+      })
+      await expect(router.handle(request('health.get'))).resolves.toMatchObject({
+        result: { status: 'ready', process: { degraded: false, reason: null } },
+      })
     } finally {
       await router.close()
       await application.close()
     }
+  })
+
+  it('reports fixed-cardinality Branch work metrics and abandons quanta past the shutdown budget', async () => {
+    const { directory, path, parent } = fixture()
+    const spec = {
+      schemaVersion: 1, address: parent, timeMode: 'TURN_DRIVEN', roundQueueLimit: 4,
+      rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+      locations: [{ locationId: 'location:metrics', name: 'Metrics' }],
+      characters: [{ characterId: 'character:metrics', name: 'Metrics', locationId: 'location:metrics' }],
+      playerBindings: [{
+        principalId: 'principal:metrics', characterId: 'character:metrics', sessionId: 'session:metrics',
+      }],
+      plugins: [],
+    } as const
+    const application = new WorldApplication({ worldPath: path, sessionPath: join(directory, 'metrics-session.sqlite') })
+    application.activateSpec(spec)
+    const router = new LocalJsonRpcRouter(path, application)
+    try {
+      await router.handle(request('round.submit', {
+        address: parent, idempotencyKey: 'metrics:round', principalId: 'principal:metrics',
+        action: { actionType: 'speak', parameters: { text: 'metrics' } }, correlationId: 'metrics:round',
+      }))
+      await new Promise(resolve => setTimeout(resolve, 150))
+      const metrics = await router.handle(request('metrics.get'))
+      expect(metrics.result).toMatchObject({
+        player_rounds_committed: 1,
+        branch_work_failures: 0,
+        shutdown_timeouts: 0,
+        branchWork: expect.objectContaining({ started: true, failures: 0, quanta: expect.objectContaining({ player_round: 1 }) }),
+      })
+      const health = await router.handle(request('health.get'))
+      expect(health.result).toMatchObject({ status: 'ready', process: { degraded: false, reason: null } })
+      const observed = JSON.stringify([metrics.result, (health.result as { process: unknown }).process])
+      for (const forbidden of [parent.tenantId, parent.worldId, parent.branchId, 'character:metrics', 'metrics:round']) {
+        expect(observed).not.toContain(forbidden)
+      }
+      expect(await application.roundStatus(parent, { idempotencyKey: 'metrics:round' })).toMatchObject({ status: 'committed' })
+    } finally {
+      await router.close()
+      await application.close()
+    }
+
+    const blockedFixture = fixture()
+    class BlockedWorldApplication extends WorldApplication {
+      override processNextBranchWork(): Promise<BranchWorkStep> { return new Promise(() => {}) }
+    }
+    const blocked = new BlockedWorldApplication({
+      worldPath: blockedFixture.path, sessionPath: join(blockedFixture.directory, 'blocked-session.sqlite'),
+    })
+    blocked.activateSpec({ ...spec, address: blockedFixture.parent })
+    const blockedRouter = new LocalJsonRpcRouter(blockedFixture.path, blocked, {
+      shutdownTimeoutMs: 20, rescanIntervalMs: 60_000,
+    })
+    await blockedRouter.handle(request('round.submit', {
+      address: blockedFixture.parent, idempotencyKey: 'blocked:round', principalId: 'principal:metrics',
+      action: { actionType: 'speak', parameters: { text: 'blocked' } }, correlationId: 'blocked:round',
+    }))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    await blockedRouter.close()
+    expect(blockedRouter.metrics.snapshot()).toMatchObject({ shutdown_timeouts: 1 })
+    await expect(blocked.roundStatus(blockedFixture.parent, { idempotencyKey: 'blocked:round' }))
+      .resolves.toMatchObject({ status: 'queued' })
+    await blocked.close()
   })
 
   it('does not project an old terminal Cycle when a later Root creates no Cycle', async () => {

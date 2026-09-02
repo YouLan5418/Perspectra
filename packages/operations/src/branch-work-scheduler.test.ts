@@ -89,11 +89,10 @@ describe('BranchWorkScheduler', () => {
     await scheduler.stop()
   })
 
-  it('passes the configured correlation id, clock, delay and hooks through each quantum', async () => {
+  it('passes the configured correlation id, clock and hooks through each quantum', async () => {
     const target = address('hooked')
     const quantumCorrelationIds: string[] = []
     const projected: Array<{ branchId: string; status: string; correlationId: string }> = []
-    const delays: number[] = []
     const failedBranches: string[] = []
     let calls = 0
     let clock = 5_000
@@ -115,11 +114,11 @@ describe('BranchWorkScheduler', () => {
       },
       onFailure: (failureAddress) => { failedBranches.push(failureAddress.branchId) },
       now: () => clock,
-      delay: async ms => { delays.push(ms) },
     })
     scheduler.wake(target, 'round.accepted')
     scheduler.start()
     await settle()
+    await new Promise(resolve => setTimeout(resolve, QUANTUM_RETRY_DELAY_MS + 50))
     clock = 9_000
     expect(calls).toBe(3)
     expect(new Set(quantumCorrelationIds)).toEqual(new Set([`test:branch-work:${worldAddressKey(target)}`]))
@@ -127,7 +126,6 @@ describe('BranchWorkScheduler', () => {
       { branchId: 'branch:hooked', status: 'reaction_wave', correlationId: `test:branch-work:${worldAddressKey(target)}` },
       { branchId: 'branch:hooked', status: 'idle', correlationId: `test:branch-work:${worldAddressKey(target)}` },
     ])
-    expect(delays).toEqual([QUANTUM_RETRY_DELAY_MS])
     expect(failedBranches).toEqual(['branch:hooked'])
     expect(scheduler.snapshot()).toMatchObject({
       failures: 1, readyBranches: 0, oldestReadyWaitMs: 0,
@@ -298,7 +296,6 @@ describe('BranchWorkScheduler', () => {
   })
 
   it('discards a pending retry when the scheduler stops during the backoff', async () => {
-    const gate = deferred()
     let calls = 0
     const scheduler = new BranchWorkScheduler({
       work: {
@@ -309,18 +306,38 @@ describe('BranchWorkScheduler', () => {
       },
       scan: noWork,
       rescanIntervalMs: 60_000,
-      delay: () => gate.promise,
     })
     scheduler.wake(address('stalled'), 'explicit')
     scheduler.start()
-    await settle()
+    await settle(2)
     expect(calls).toBe(1)
     expect(scheduler.snapshot()).toMatchObject({ inFlightBranches: 1, readyBranches: 1, failures: 1 })
-    const stopped = scheduler.stop()
-    gate.resolve()
-    await stopped
+    await expect(scheduler.stop()).resolves.toEqual({ timedOut: false, abandonedBranches: 0 })
     expect(calls).toBe(1)
-    expect(scheduler.snapshot()).toMatchObject({ readyBranches: 0, inFlightBranches: 0 })
+    expect(scheduler.snapshot()).toMatchObject({ readyBranches: 0, inFlightBranches: 0, shutdownTimeouts: 0 })
+  })
+
+  it('abandons in-flight quanta once the shutdown budget is exhausted', async () => {
+    const gate = deferred()
+    const scheduler = new BranchWorkScheduler({
+      work: {
+        processNextBranchWork: async () => {
+          await gate.promise
+          return { status: 'idle' }
+        },
+      },
+      scan: noWork,
+      rescanIntervalMs: 60_000,
+    })
+    scheduler.wake(address('abandoned'), 'explicit')
+    scheduler.start()
+    await settle()
+    expect(scheduler.snapshot()).toMatchObject({ inFlightBranches: 1, readyBranches: 1 })
+    await expect(scheduler.stop(5)).resolves.toEqual({ timedOut: true, abandonedBranches: 1 })
+    expect(scheduler.snapshot()).toMatchObject({ shutdownTimeouts: 1, readyBranches: 0 })
+    gate.resolve()
+    await settle()
+    expect(scheduler.snapshot()).toMatchObject({ inFlightBranches: 0 })
   })
 
   it('keeps scheduling after a durable scan failure and reports the oldest wait', async () => {

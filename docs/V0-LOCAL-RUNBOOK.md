@@ -32,7 +32,7 @@ corepack pnpm@11.7.0 worldhost -- --config D:\path\world-host.yml
 corepack pnpm@11.7.0 worldhost -- --data-dir D:\HarnessCordisWorld --lease-ttl-ms 5000
 ```
 
-兼容入口 `worldhost <world.sqlite> <session.sqlite>` 仍保留。环境变量为 `HCW_CONFIG_PATH`、`HCW_DATA_DIR`、`HCW_WORLD_PATH`、`HCW_SESSION_PATH`、`HCW_MEMORY_PATH`、`HCW_LEASE_TTL_MS`。示例见 [`config/world-host.example.yml`](../config/world-host.example.yml)。Secret 不属于该配置，不得写入 YAML、Backup 或 Export。
+兼容入口 `worldhost <world.sqlite> <session.sqlite>` 仍保留。环境变量为 `HCW_CONFIG_PATH`、`HCW_DATA_DIR`、`HCW_WORLD_PATH`、`HCW_SESSION_PATH`、`HCW_MEMORY_PATH`、`HCW_CONTEXT_PATH`、`HCW_LEASE_TTL_MS`，以及 Host 调度专用的 `HCW_MAX_CONCURRENT_BRANCHES`（1～32，默认 4）、`HCW_RESCAN_INTERVAL_MS`（100～60000，默认 1000）、`HCW_SHUTDOWN_TIMEOUT_MS`（1000～300000，默认 35000）。三个调度旋钮只决定何时执行工作，不进入 Manifest、Genesis 或任何世界 Hash（见 [ADR-0079](adr/ADR-0079-host-fair-scheduling-backpressure-administrative-stop.md)）。示例见 [`config/world-host.example.yml`](../config/world-host.example.yml)。Secret 不属于该配置，不得写入 YAML、Backup 或 Export。
 
 默认目录：
 
@@ -57,6 +57,9 @@ stdin 每行一个 JSON-RPC request，stdout 每行一个 response 或 notificat
 | 通知 | 查询恢复 |
 |---|---|
 | `round.committed` | `round.get` |
+| `reaction.started` | `reaction.get` / `reaction.list` |
+| `reaction.round_committed` | `reaction.get` / `session.render` |
+| `reaction.completed` | `reaction.get` |
 | `presentation.ready` | `session.render` |
 | `health.changed` | `health.get` |
 | `outbox.dead-lettered` | `outbox.list` |
@@ -64,9 +67,26 @@ stdin 每行一个 JSON-RPC request，stdout 每行一个 response 或 notificat
 
 `worldhost` 不打开 TCP、Pipe、Socket 或浏览器端口。
 
+## 公平调度与可观测性
+
+Host 按 [ADR-0079](adr/ADR-0079-host-fair-scheduling-backpressure-administrative-stop.md) 以「一个 Branch 一个量子」调度：
+
+- 一次量子最多推进一个已冻结 Wave，或提交一个已受理玩家 Round；Cycle 未终态前不会跳到下一条玩家输入；
+- 同一 Branch 同时只有一个量子在执行，跨 Branch 最多 `maxConcurrentBranches` 个并行；
+- ready Branch 按 `worldAddressKey` 的 UTF-16 顺序建立稳定起点并轮转，热 Branch 不会饿死其他 Branch；
+- wake 只是可丢失、可合并的提示：驻留提示上限 1024，超限只置 `rescanRequired`；启动扫描与每 `rescanIntervalMs` 的耐久扫描会从 `round_inbox` 与 `world_reaction_cycles` 重新推导可运行 Branch，因此丢掉全部提示也不会丢工作。
+
+观测入口同样是固定基数：
+
+- `metrics.get` 返回进程计数（含 `reaction_cycles_started/completed`、`reaction_waves_committed`、`reaction_actions_accepted`、终态原因分布、`branch_work_failures`、`shutdown_timeouts`）与 `branchWork` 调度快照（ready/in-flight 数、`wakeOverflow`、`rescans`、`scanFailures`、`oldestReadyWaitMs`）；
+- `health.get` 在数据库与 Branch 健康之外返回进程级 `process.degraded` 与 `process.reason`；
+- 两者都不含 `worldId`、`branchId`、`characterId`、Prompt 或正文。需要定位某个 Branch 时使用 `reaction.get` / `reaction.list` 与 `audit.list`。
+
+`round.process` 与 `reaction.process` 现在都只推进一个量子，不再是排空命令；需要排空请反复调用或交给 Host 调度。
+
 ## 崩溃与 instance.lock
 
-正常退出会先关闭 Round worker、Application 和 Writer Lease，再删除 `instance.lock`。硬终止会留下 lock；新实例只有同时确认旧 PID 已死亡且 World DB 无有效 Writer Lease时才回收。若 PID 仍活、权限不足、nonce 变化或 lease 未过期，必须等待或排查，禁止手工 force-steal。
+正常退出按固定五步关闭：停止接收新的调度提示；不再领取新量子或新 ProviderCall；在 `shutdownTimeoutMs` 预算内等待已冻结 Wave 收口和正在进行的短事务；释放 Writer Lease、Application 与 `instance.lock`；预算内没完成的工作留在耐久状态，由下次启动扫描恢复。超时只计入 `shutdown_timeouts`，不伪造 Cycle 终态，也不修改 Branch admission。硬终止会留下 lock；新实例只有同时确认旧 PID 已死亡且 World DB 无有效 Writer Lease时才回收。若 PID 仍活、权限不足、nonce 变化或 lease 未过期，必须等待或排查，禁止手工 force-steal。
 
 若确认是陈旧锁但仍被拒绝：
 

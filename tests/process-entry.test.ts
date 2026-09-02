@@ -1,8 +1,11 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
+import { WorldApplication } from '@harness-world/application'
+import { brandId } from '@harness-world/contracts'
 
 const directories: string[] = []
 const root = process.cwd()
@@ -70,4 +73,59 @@ describe('process entrypoints', () => {
     const host = await run('packages/operations/process/headless-entry.ts', [worldPath, sessionPath])
     expect(host).toMatchObject({ code: 0, stdout: '', stderr: '' })
   })
+
+  it('finishes the in-flight quantum before a graceful stdio shutdown', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-process-shutdown-'))
+    directories.push(directory)
+    const dataDirectory = join(directory, 'host')
+    const worldPath = join(dataDirectory, 'data', 'world.sqlite')
+    mkdirSync(dirname(worldPath), { recursive: true })
+    const address = {
+      tenantId: brandId('tenant:host', 'TenantId'),
+      worldId: brandId('world:host', 'WorldId'),
+      branchId: brandId('branch:main', 'BranchId'),
+    }
+    const seed = new WorldApplication({
+      worldPath, sessionPath: join(dataDirectory, 'data', 'session.sqlite'),
+    })
+    seed.activateSpec({
+      schemaVersion: 1, address, timeMode: 'TURN_DRIVEN', roundQueueLimit: 4,
+      rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
+      locations: [{ locationId: 'location:host', name: 'Host' }],
+      characters: [{ characterId: 'character:host', name: 'Host', locationId: 'location:host' }],
+      playerBindings: [{
+        principalId: 'principal:host', characterId: 'character:host', sessionId: 'session:host',
+      }],
+      plugins: [],
+    })
+    await seed.close()
+
+    const submit = {
+      jsonrpc: '2.0', id: 'shutdown:submit', method: 'round.submit',
+      params: {
+        address, idempotencyKey: 'shutdown:round', principalId: 'principal:host',
+        action: { actionType: 'speak', parameters: { text: 'graceful shutdown' } },
+        correlationId: 'shutdown:round',
+      },
+    }
+    const host = await run(
+      'packages/operations/process/headless-entry.ts',
+      ['--data-dir', dataDirectory, '--shutdown-timeout-ms', '20000'],
+      `${JSON.stringify(submit)}\n`,
+    )
+    expect(host).toMatchObject({ code: 0, stderr: '' })
+    const written = host.stdout.split('\n').filter(line => line.length > 0)
+      .map(line => JSON.parse(line) as Record<string, unknown>)
+    expect(written.some(value => value.id === 'shutdown:submit')).toBe(true)
+
+    const database = new DatabaseSync(worldPath, { readOnly: true })
+    try {
+      expect(database.prepare(`SELECT status FROM round_inbox WHERE idempotency_key = 'shutdown:round'`).get())
+        .toMatchObject({ status: 'completed' })
+      expect(database.prepare('SELECT COUNT(*) AS rounds FROM round_commits').get()).toMatchObject({ rounds: 2 })
+      expect(database.prepare('SELECT COUNT(*) AS leases FROM writer_leases').get()).toMatchObject({ leases: 0 })
+    } finally {
+      database.close()
+    }
+  }, 60_000)
 })

@@ -7,9 +7,22 @@ export const MAX_CONCURRENT_BRANCHES_MAX = 32
 export const RESCAN_INTERVAL_MS_DEFAULT = 1_000
 export const RESCAN_INTERVAL_MS_MIN = 100
 export const RESCAN_INTERVAL_MS_MAX = 60_000
+/** Shutdown waits at least one Reaction Cycle deadline plus a scheduling margin, then abandons. */
+export const SHUTDOWN_TIMEOUT_MS_DEFAULT = 35_000
+export const SHUTDOWN_TIMEOUT_MS_MIN = 1_000
+export const SHUTDOWN_TIMEOUT_MS_MAX = 300_000
 /** Resident wake keys are hints only; overflow degrades to a durable rescan instead of growing. */
 export const MAX_RESIDENT_WAKE_KEYS = 1_024
 export const QUANTUM_RETRY_DELAY_MS = 100
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+export interface BranchWorkStopResult {
+  readonly timedOut: boolean
+  readonly abandonedBranches: number
+}
 
 export const BRANCH_WORK_WAKE_REASONS = Object.freeze([
   'round.accepted',
@@ -38,6 +51,7 @@ export interface BranchWorkSchedulerSnapshot extends WorldJsonObject {
   readonly rescans: number
   readonly scanFailures: number
   readonly failures: number
+  readonly shutdownTimeouts: number
   readonly oldestReadyWaitMs: number
   readonly quanta: Record<BranchWorkStep['status'], number>
   readonly wakes: Record<BranchWorkWakeReason, number>
@@ -52,7 +66,6 @@ export interface BranchWorkSchedulerOptions {
   readonly onStep?: (address: WorldAddress, step: BranchWorkStep, correlationId: string) => void
   readonly onFailure?: (address: WorldAddress, error: unknown) => void
   readonly now?: () => number
-  readonly delay?: (ms: number) => Promise<void>
 }
 
 interface ReadyBranch {
@@ -78,13 +91,13 @@ export class BranchWorkScheduler {
   readonly #rescanIntervalMs: number
   readonly #correlationId: string
   readonly #now: () => number
-  readonly #delay: (ms: number) => Promise<void>
   #cursor: string | null = null
   #rescanRequired = true
   #wakeOverflow = 0
   #rescans = 0
   #scanFailures = 0
   #failures = 0
+  #shutdownTimeouts = 0
   #started = false
   #closing = false
   #timer: NodeJS.Timeout | undefined
@@ -96,7 +109,6 @@ export class BranchWorkScheduler {
     this.#rescanIntervalMs = options.rescanIntervalMs ?? RESCAN_INTERVAL_MS_DEFAULT
     this.#correlationId = options.correlationId ?? 'branch-work'
     this.#now = options.now ?? Date.now
-    this.#delay = options.delay ?? (ms => new Promise(resolve => setTimeout(resolve, ms)))
   }
 
   /** Lossy, mergeable readiness hint. Returns true only when the Branch became newly resident. */
@@ -137,7 +149,11 @@ export class BranchWorkScheduler {
     this.#timer.unref()
   }
 
-  async stop(): Promise<void> {
+  /**
+   * Graceful shutdown: stop accepting hints, stop launching quanta, then wait at most `timeoutMs`
+   * for the in-flight quanta. Abandoned work stays durable and is recovered by the next startup scan.
+   */
+  async stop(timeoutMs: number = SHUTDOWN_TIMEOUT_MS_DEFAULT): Promise<BranchWorkStopResult> {
     this.#closing = true
     if (this.#timer !== undefined) {
       clearInterval(this.#timer)
@@ -145,8 +161,19 @@ export class BranchWorkScheduler {
     }
     this.#signalPump()
     await this.#pump
-    await Promise.all(this.#inFlight.values())
+    const inFlight = [...this.#inFlight.values()]
+    let timedOut = false
+    if (inFlight.length > 0) {
+      let deadline!: NodeJS.Timeout
+      const abandoned = new Promise<boolean>(resolve => {
+        deadline = setTimeout(() => resolve(true), timeoutMs)
+      })
+      timedOut = await Promise.race([Promise.all(inFlight).then(() => false), abandoned])
+      clearTimeout(deadline)
+    }
     this.#ready.clear()
+    if (timedOut) this.#shutdownTimeouts += 1
+    return { timedOut, abandonedBranches: timedOut ? this.#inFlight.size : 0 }
   }
 
   /** Fixed-cardinality scheduler observation; never exposes a WorldAddress, Prompt or world text. */
@@ -167,6 +194,7 @@ export class BranchWorkScheduler {
       rescans: this.#rescans,
       scanFailures: this.#scanFailures,
       failures: this.#failures,
+      shutdownTimeouts: this.#shutdownTimeouts,
       oldestReadyWaitMs,
       quanta: { ...this.#quanta },
       wakes: { ...this.#wakes },
@@ -221,7 +249,7 @@ export class BranchWorkScheduler {
         this.#failures += 1
         this.options.onFailure?.(address, error)
         if (error instanceof WorldError && error.envelope.retryable) {
-          await this.#delay(QUANTUM_RETRY_DELAY_MS)
+          await sleep(QUANTUM_RETRY_DELAY_MS)
           this.#requeue(key, address)
         } else {
           this.#ready.delete(key)

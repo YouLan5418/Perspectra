@@ -19,6 +19,9 @@ import {
   RESCAN_INTERVAL_MS_DEFAULT,
   RESCAN_INTERVAL_MS_MAX,
   RESCAN_INTERVAL_MS_MIN,
+  SHUTDOWN_TIMEOUT_MS_DEFAULT,
+  SHUTDOWN_TIMEOUT_MS_MAX,
+  SHUTDOWN_TIMEOUT_MS_MIN,
 } from './branch-work-scheduler.ts'
 
 export interface WorldHostConfig {
@@ -35,6 +38,7 @@ export interface WorldHostConfig {
   readonly leaseTtlMs: number
   readonly maxConcurrentBranches: number
   readonly rescanIntervalMs: number
+  readonly shutdownTimeoutMs: number
 }
 
 export interface ResolveWorldHostConfigOptions {
@@ -46,7 +50,7 @@ export interface ResolveWorldHostConfigOptions {
 
 const RAW_HOST_CONFIG_KEYS = Object.freeze([
   'dataDirectory', 'worldPath', 'sessionPath', 'memoryPath', 'contextPath', 'leaseTtlMs',
-  'maxConcurrentBranches', 'rescanIntervalMs',
+  'maxConcurrentBranches', 'rescanIntervalMs', 'shutdownTimeoutMs',
 ] as const)
 
 type RawHostConfig = Partial<Record<typeof RAW_HOST_CONFIG_KEYS[number], string>>
@@ -60,6 +64,7 @@ const CLI_KEYS = new Map([
   ['--lease-ttl-ms', 'leaseTtlMs'],
   ['--max-concurrent-branches', 'maxConcurrentBranches'],
   ['--rescan-interval-ms', 'rescanIntervalMs'],
+  ['--shutdown-timeout-ms', 'shutdownTimeoutMs'],
 ] as const)
 
 function requiredValue(args: readonly string[], index: number, name: string): string {
@@ -156,6 +161,7 @@ export function resolveWorldHostConfig(
     ...(env.HCW_LEASE_TTL_MS === undefined ? {} : { leaseTtlMs: env.HCW_LEASE_TTL_MS }),
     ...(env.HCW_MAX_CONCURRENT_BRANCHES === undefined ? {} : { maxConcurrentBranches: env.HCW_MAX_CONCURRENT_BRANCHES }),
     ...(env.HCW_RESCAN_INTERVAL_MS === undefined ? {} : { rescanIntervalMs: env.HCW_RESCAN_INTERVAL_MS }),
+    ...(env.HCW_SHUTDOWN_TIMEOUT_MS === undefined ? {} : { shutdownTimeoutMs: env.HCW_SHUTDOWN_TIMEOUT_MS }),
   }
   const merged = { ...yaml, ...environment, ...cli.values }
   const dataDirectory = absolute(cwd, merged.dataDirectory ?? initialRoot)
@@ -179,6 +185,10 @@ export function resolveWorldHostConfig(
     rescanIntervalMs: boundedInteger(
       merged.rescanIntervalMs ?? String(RESCAN_INTERVAL_MS_DEFAULT),
       'rescanIntervalMs', RESCAN_INTERVAL_MS_MIN, RESCAN_INTERVAL_MS_MAX,
+    ),
+    shutdownTimeoutMs: boundedInteger(
+      merged.shutdownTimeoutMs ?? String(SHUTDOWN_TIMEOUT_MS_DEFAULT),
+      'shutdownTimeoutMs', SHUTDOWN_TIMEOUT_MS_MIN, SHUTDOWN_TIMEOUT_MS_MAX,
     ),
   }
 }

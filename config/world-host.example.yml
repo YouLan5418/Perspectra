@@ -5,3 +5,7 @@ sessionPath: ./.harness-world/data/session.sqlite
 memoryPath: ./.harness-world/data/memory.sqlite
 contextPath: ./.harness-world/data/context.sqlite
 leaseTtlMs: 5000
+# Host scheduling only (ADR-0079). These never reach the Manifest or any world hash.
+maxConcurrentBranches: 4
+rescanIntervalMs: 1000
+shutdownTimeoutMs: 35000

@@ -58,6 +58,7 @@ describe('worldhost configuration', () => {
       'leaseTtlMs: 9000',
       'maxConcurrentBranches: 8',
       'rescanIntervalMs: 2500',
+      'shutdownTimeoutMs: 9000',
     ].join('\n'))
     const config = resolveWorldHostConfig([
       '--config', configPath,
@@ -65,6 +66,7 @@ describe('worldhost configuration', () => {
       '--context-path', 'nested/cli-context.sqlite',
       '--lease-ttl-ms', '7000',
       '--max-concurrent-branches', '12',
+      '--shutdown-timeout-ms', '11000',
     ], {
       cwd: root,
       platform: 'linux',
@@ -74,6 +76,7 @@ describe('worldhost configuration', () => {
         HCW_LEASE_TTL_MS: '8000',
         HCW_MAX_CONCURRENT_BRANCHES: '6',
         HCW_RESCAN_INTERVAL_MS: '1500',
+        HCW_SHUTDOWN_TIMEOUT_MS: '10000',
       },
     })
     expect(config).toMatchObject({
@@ -85,6 +88,7 @@ describe('worldhost configuration', () => {
       leaseTtlMs: 7000,
       maxConcurrentBranches: 12,
       rescanIntervalMs: 1500,
+      shutdownTimeoutMs: 11000,
       configPath,
     })
     ensureWorldHostLayout(config)
@@ -97,7 +101,9 @@ describe('worldhost configuration', () => {
   it('provides platform defaults, environment roots, and legacy positional paths', () => {
     const root = directory()
     expect(resolveWorldHostConfig([]).leaseTtlMs).toBe(5000)
-    expect(resolveWorldHostConfig([])).toMatchObject({ maxConcurrentBranches: 4, rescanIntervalMs: 1000 })
+    expect(resolveWorldHostConfig([])).toMatchObject({
+      maxConcurrentBranches: 4, rescanIntervalMs: 1000, shutdownTimeoutMs: 35000,
+    })
     const windows = resolveWorldHostConfig([], {
       cwd: root, platform: 'win32', homeDirectory: join(root, 'home'), env: { LOCALAPPDATA: join(root, 'local') },
     })
@@ -153,11 +159,15 @@ describe('worldhost configuration', () => {
       ['--max-concurrent-branches', '0'], ['--max-concurrent-branches', '33'],
       ['--max-concurrent-branches', '1.5'], ['--rescan-interval-ms', '99'],
       ['--rescan-interval-ms', '60001'], ['--rescan-interval-ms', 'nope'],
+      ['--shutdown-timeout-ms', '999'], ['--shutdown-timeout-ms', '300001'],
     ]) expect(() => resolveWorldHostConfig(args, base)).toThrow(RangeError)
     expect(resolveWorldHostConfig(['--max-concurrent-branches', '1', '--rescan-interval-ms', '100'], base))
       .toMatchObject({ maxConcurrentBranches: 1, rescanIntervalMs: 100 })
-    expect(resolveWorldHostConfig(['--max-concurrent-branches', '32', '--rescan-interval-ms', '60000'], base))
-      .toMatchObject({ maxConcurrentBranches: 32, rescanIntervalMs: 60_000 })
+    expect(resolveWorldHostConfig([
+      '--max-concurrent-branches', '32', '--rescan-interval-ms', '60000', '--shutdown-timeout-ms', '300000',
+    ], base)).toMatchObject({ maxConcurrentBranches: 32, rescanIntervalMs: 60_000, shutdownTimeoutMs: 300_000 })
+    expect(resolveWorldHostConfig(['--shutdown-timeout-ms', '1000'], base))
+      .toMatchObject({ shutdownTimeoutMs: 1_000 })
     const configPath = join(root, 'world-host.yml')
     for (const text of ['not yaml', 'unsupported: value', 'worldPath:', 'leaseTtlMs: nope']) {
       writeFileSync(configPath, text)
