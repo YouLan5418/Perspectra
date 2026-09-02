@@ -18,6 +18,7 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { BranchAdministration, RoundInbox, WorldStore } from '@harness-world/store-sqlite'
+import type { ReactionDrainResult } from '@harness-world/application'
 import { WorldHealthService } from './health.ts'
 import { OperationsMetrics } from './metrics.ts'
 
@@ -39,7 +40,7 @@ export interface WorldApplicationPort {
     readonly correlationId: string
   }): Promise<unknown>
   processAcceptedRounds(address: WorldAddress, correlationId: string): Promise<number>
-  processReactionCycles(address: WorldAddress): Promise<unknown>
+  processReactionCycles(address: WorldAddress): Promise<ReactionDrainResult | null>
   roundStatus(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }): Promise<unknown | undefined>
   cancelQueuedRound(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }, correlationId: string): Promise<unknown>
   roundResult(address: WorldAddress, idempotencyKey: string): Promise<unknown | undefined>
@@ -94,6 +95,9 @@ export type LocalNotificationMethod =
   | 'health.changed'
   | 'outbox.dead-lettered'
   | 'branch.quarantined'
+  | 'reaction.started'
+  | 'reaction.round_committed'
+  | 'reaction.completed'
 
 export interface LocalJsonRpcNotification extends WorldJsonObject {
   readonly jsonrpc: '2.0'
@@ -147,6 +151,7 @@ export class LocalJsonRpcRouter {
   readonly #roundWorkerRequests = new Map<string, { readonly address: WorldAddress; readonly correlationId: string }>()
   readonly #reactionWorkers = new Map<string, Promise<void>>()
   readonly #reactionWorkerRequests = new Map<string, { readonly address: WorldAddress; readonly correlationId: string }>()
+  readonly #reactionNotificationKeys = new Set<string>()
   readonly #notificationListeners = new Set<(notification: LocalJsonRpcNotification) => void>()
   #lastHealthHash: string | undefined
   #closing = false
@@ -278,7 +283,12 @@ export class LocalJsonRpcRouter {
       ))
     }
     if (method === 'reaction.process') {
-      return worldResult(await this.#application().processReactionCycles(addressParam(params.address)))
+      const address = addressParam(params.address)
+      const result = await this.#application().processReactionCycles(address)
+      if (result !== null && result.cycleId !== null) {
+        this.#emitReactionNotifications(address, brandId(result.cycleId, 'ReactionCycleId'))
+      }
+      return worldResult(result)
     }
     if (method === 'world.head') return worldResult(await this.#application().head(addressParam(params.address)))
     if (method === 'view.character' || method === 'character.view') {
@@ -519,12 +529,16 @@ export class LocalJsonRpcRouter {
         }
         this.#roundWorkerRequests.delete(key)
         try {
+          const knownCycleIds = new Set(this.#reactionCycleViews(requested.address).map(value => value.cycleId))
           const processed = await this.#application().processAcceptedRounds(requested.address, `${requested.correlationId}:worker`)
           if (processed > 0) {
             this.#notify('round.committed', {
               address: requested.address, processed, correlationId: requested.correlationId,
             })
-            this.#kickReactionWorker(requested.address, requested.correlationId)
+            const created = this.#reactionCycleViews(requested.address)
+              .filter(value => !knownCycleIds.has(value.cycleId))
+              .reverse()
+            for (const cycle of created) this.#emitReactionNotifications(requested.address, cycle.cycleId)
           }
         } catch (error: unknown) {
           this.metrics.increment('round_worker_failures')
@@ -560,7 +574,10 @@ export class LocalJsonRpcRouter {
         }
         this.#reactionWorkerRequests.delete(key)
         try {
-          await this.#application().processReactionCycles(requested.address)
+          const result = await this.#application().processReactionCycles(requested.address)
+          if (result !== null && result.cycleId !== null) {
+            this.#emitReactionNotifications(requested.address, brandId(result.cycleId, 'ReactionCycleId'))
+          }
         } catch (error: unknown) {
           this.metrics.increment('reaction_worker_failures')
           const details = error instanceof WorldError
@@ -594,6 +611,49 @@ export class LocalJsonRpcRouter {
       } catch {
         // Notifications are ephemeral hints. A broken subscriber must not change an authoritative result.
       }
+    }
+  }
+
+  #reactionCycleViews(address: WorldAddress) {
+    const store = new WorldStore(this.worldPath)
+    try {
+      return store.listReactionCycles(address)
+    } finally {
+      store.close()
+    }
+  }
+
+  #emitReactionNotifications(address: WorldAddress, cycleId: ReactionCycleId): void {
+    const store = new WorldStore(this.worldPath)
+    try {
+      const bundle = store.readReactionCycle(address, cycleId)
+      if (bundle === undefined) return
+      const rootRoundId = bundle.cycle.rootRoundId
+      const startedKey = `started\u001f${cycleId}`
+      if (!this.#reactionNotificationKeys.has(startedKey)) {
+        this.#reactionNotificationKeys.add(startedKey)
+        this.#notify('reaction.started', { address, cycleId, rootRoundId })
+      }
+      for (const wave of bundle.waves.filter(value => value.status === 'committed')) {
+        const roundId = wave.reactionRoundId!
+        const waveKey = `round\u001f${cycleId}\u001f${wave.wave}\u001f${roundId}`
+        if (this.#reactionNotificationKeys.has(waveKey)) continue
+        this.#reactionNotificationKeys.add(waveKey)
+        this.#notify('reaction.round_committed', {
+          address, cycleId, wave: wave.wave, roundId, rootRoundId,
+        })
+      }
+      if (bundle.cycle.status === 'terminal') {
+        const completedKey = `completed\u001f${cycleId}`
+        if (!this.#reactionNotificationKeys.has(completedKey)) {
+          this.#reactionNotificationKeys.add(completedKey)
+          this.#notify('reaction.completed', {
+            address, cycleId, terminalReason: bundle.cycle.terminalReason!, rootRoundId,
+          })
+        }
+      }
+    } finally {
+      store.close()
     }
   }
 

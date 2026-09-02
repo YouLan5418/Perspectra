@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { WorldApplication } from '@harness-world/application'
-import { brandId, createErrorEnvelope, WorldError, type FaultInjector, type WorldAddress } from '@harness-world/contracts'
+import { WorldApplication, type ReactionParticipantBinding } from '@harness-world/application'
+import { brandId, createErrorEnvelope, WorldError, type CharacterId, type FaultInjector, type ReactionAgentProvider, type ReactionProposalContext, type SubmitActionsV2, type WorldAddress } from '@harness-world/contracts'
 import {
   BranchQuarantineService,
   BranchAdministration,
@@ -137,6 +137,7 @@ describe('LocalJsonRpcRouter', () => {
     const { path, parent } = fixture()
     const cycleId = brandId('reaction-cycle:rpc', 'ReactionCycleId')
     const queries: unknown[] = []
+    let processCalls = 0
     const application = {
       async reactionCycle(_address: WorldAddress, requested: string) {
         return requested === cycleId ? { cycleId, status: 'active' } : undefined
@@ -149,6 +150,9 @@ describe('LocalJsonRpcRouter', () => {
         return { cycleId: requested, status: 'stop_requested', stopReason: 'user_cancelled', correlationId }
       },
       async processReactionCycles() {
+        processCalls += 1
+        if (processCalls === 2) return null
+        if (processCalls === 3) return { cycleId: null, waves: [] }
         return { cycleId, waves: [{ wave: 1 }] }
       },
       async close() {},
@@ -168,6 +172,10 @@ describe('LocalJsonRpcRouter', () => {
     }))).resolves.toMatchObject({ result: { status: 'stop_requested', correlationId: 'reaction:rpc-cancel' } })
     await expect(router.handle(request('reaction.process', { address: parent })))
       .resolves.toMatchObject({ result: { cycleId, waves: [{ wave: 1 }] } })
+    await expect(router.handle(request('reaction.process', { address: parent })))
+      .resolves.toMatchObject({ result: null })
+    await expect(router.handle(request('reaction.process', { address: parent })))
+      .resolves.toMatchObject({ result: { cycleId: null, waves: [] } })
     await expect(router.handle(request('reaction.list', { address: parent, status: 1 })))
       .resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
     await expect(router.handle(request('reaction.list', { address: parent, limit: 1.5 })))
@@ -920,6 +928,8 @@ describe('worldctl grammar', () => {
     recovered.activate(compiled)
     const router = new LocalJsonRpcRouter(worldPath, recovered)
     try {
+      const notifications: string[] = []
+      router.subscribeNotifications(notification => { notifications.push(notification.method) })
       const count = router.recoverAcceptedRounds('recovery:startup')
       expect(count).toBeGreaterThanOrEqual(1)
       await new Promise(resolve => setTimeout(resolve, 500))
@@ -927,6 +937,9 @@ describe('worldctl grammar', () => {
       const cyclesAfter = probe2.listReactionCycles(ADDRESS)
       probe2.close()
       expect(cyclesAfter[0]!.status).toBe('terminal')
+      expect(notifications).toEqual(expect.arrayContaining([
+        'reaction.started', 'reaction.round_committed', 'reaction.completed',
+      ]))
     } finally {
       await router.close()
       await recovered.close()
@@ -996,6 +1009,308 @@ describe('worldctl grammar', () => {
     }
   }, 60000)
 
+  it('emits reaction notifications for a multi-wave cycle via the auto worker', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hcw-op-reaction-notify-'))
+    directories.push(dir)
+    const worldPath = join(dir, 'world.sqlite')
+    const sessionPath = join(dir, 'session.sqlite')
+    const memoryPath = join(dir, 'memory.sqlite')
+
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+
+    function waveProvider(actorId: CharacterId, wavesToAct: Set<number>): ReactionAgentProvider {
+      return {
+        async propose(context: ReactionProposalContext): Promise<SubmitActionsV2> {
+          if (wavesToAct.has(context.origin.wave)) {
+            return {
+              schemaVersion: 2,
+              decision: 'act',
+              actions: [{
+                actionId: `action:${actorId}:wave${context.origin.wave}`,
+                actorId,
+                actionType: 'speak',
+                actionVersion: 1,
+                parameters: { text: `wave ${context.origin.wave}` },
+              }],
+            }
+          }
+          return { schemaVersion: 2, decision: 'abstain', actions: [] }
+        },
+      }
+    }
+
+    function waveBinding(actorId: CharacterId, wavesToAct: Set<number>): ReactionParticipantBinding {
+      return {
+        participantId: `agent:${actorId.split(':')[1]}`,
+        role: 'agent',
+        actorId,
+        allowedActionTypes: ['speak'],
+        priority: 0,
+        estimatedTokens: 2,
+        timeoutMs: 5_000,
+        provider: waveProvider(actorId, wavesToAct),
+      }
+    }
+
+    const compiled = v5Manifest()
+    const application = new WorldApplication({
+      worldPath, sessionPath, memoryPath, modelBudgetTokens: 64, leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [
+        waveBinding(alice, new Set([1])),
+        waveBinding(bob, new Set([2])),
+      ],
+    })
+    application.activate(compiled)
+    const router = new LocalJsonRpcRouter(worldPath, application)
+    try {
+      const notifications: Array<{ method: string; params: Record<string, unknown> }> = []
+      router.subscribeNotifications(notification => {
+        notifications.push({ method: notification.method, params: notification.params as Record<string, unknown> })
+      })
+      await router.handle({
+        jsonrpc: '2.0', id: 'notify:submit', method: 'round.submit',
+        params: {
+          address: ADDRESS, idempotencyKey: 'notify:e2e', principalId: 'principal:player',
+          action: { actionType: 'speak', parameters: { text: 'trigger reaction' } },
+          correlationId: 'notify:e2e',
+        },
+      })
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      const methods = notifications.map(value => value.method)
+      expect(methods).toContain('reaction.started')
+      expect(methods.filter(value => value === 'reaction.round_committed').length).toBeGreaterThanOrEqual(2)
+      expect(methods).toContain('reaction.completed')
+
+      const started = notifications.find(value => value.method === 'reaction.started')!
+      expect(started.params).toMatchObject({
+        address: ADDRESS, cycleId: expect.any(String), rootRoundId: expect.any(String),
+      })
+      const roundCommitted = notifications.filter(value => value.method === 'reaction.round_committed')
+      expect(roundCommitted.length).toBeGreaterThanOrEqual(2)
+      const waves = roundCommitted.map(value => (value.params as Record<string, unknown>).wave as number)
+      expect(waves).toContain(1)
+      expect(waves).toContain(2)
+      const allSameCycle = roundCommitted.every(value => value.params.cycleId === started.params.cycleId)
+      expect(allSameCycle).toBe(true)
+      const allSameRoot = roundCommitted.every(value => value.params.rootRoundId === started.params.rootRoundId)
+      expect(allSameRoot).toBe(true)
+
+      const completed = notifications.find(value => value.method === 'reaction.completed')!
+      expect(completed.params).toMatchObject({
+        address: ADDRESS, cycleId: started.params.cycleId,
+        terminalReason: expect.any(String), rootRoundId: started.params.rootRoundId,
+      })
+    } finally {
+      await router.close()
+      await application.close()
+    }
+  }, 30000)
+
+  it('isolates broken notification subscribers from the Reaction Cycle outcome', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hcw-op-reaction-notify-broken-'))
+    directories.push(dir)
+    const worldPath = join(dir, 'world.sqlite')
+    const sessionPath = join(dir, 'session.sqlite')
+    const memoryPath = join(dir, 'memory.sqlite')
+
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const aliceScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const bobScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+
+    const compiled = v5Manifest()
+    const application = new WorldApplication({
+      worldPath, sessionPath, memoryPath, modelBudgetTokens: 64, leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    application.activate(compiled)
+    const router = new LocalJsonRpcRouter(worldPath, application)
+    try {
+      router.subscribeNotifications(() => { throw new Error('broken subscriber') })
+      const notifications: string[] = []
+      router.subscribeNotifications(notification => { notifications.push(notification.method) })
+
+      await router.handle({
+        jsonrpc: '2.0', id: 'notify-broken:submit', method: 'round.submit',
+        params: {
+          address: ADDRESS, idempotencyKey: 'notify:broken', principalId: 'principal:player',
+          action: { actionType: 'speak', parameters: { text: 'trigger reaction' } },
+          correlationId: 'notify:broken',
+        },
+      })
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      const probe = new WorldStore(worldPath)
+      try {
+        const cycles = probe.listReactionCycles(ADDRESS)
+        expect(cycles[0]!.status).toBe('terminal')
+      } finally {
+        probe.close()
+      }
+      expect(notifications).toContain('reaction.started')
+      expect(notifications).toContain('reaction.completed')
+    } finally {
+      await router.close()
+      await application.close()
+    }
+  }, 30000)
+
+  it('projects reaction notifications from the explicit reaction.process handler', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hcw-op-reaction-notify-process-'))
+    directories.push(dir)
+    const worldPath = join(dir, 'world.sqlite')
+    const sessionPath = join(dir, 'session.sqlite')
+    const memoryPath = join(dir, 'memory.sqlite')
+
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const aliceScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const bobScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+
+    const compiled = v5Manifest()
+    const seed = new WorldApplication({
+      worldPath, sessionPath, memoryPath, modelBudgetTokens: 64, leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    seed.activate(compiled)
+    await seed.submit(ADDRESS, {
+      idempotencyKey: 'notify-process:seed', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'seed' } },
+      correlationId: 'notify-process:seed',
+    })
+    await seed.close()
+
+    const application = new WorldApplication({
+      worldPath, sessionPath, memoryPath, modelBudgetTokens: 64, leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    application.activate(compiled)
+    const router = new LocalJsonRpcRouter(worldPath, application)
+    try {
+      const notifications: string[] = []
+      router.subscribeNotifications(notification => { notifications.push(notification.method) })
+      await expect(router.handle(request('reaction.process', { address: ADDRESS })))
+        .resolves.toMatchObject({ result: expect.anything() })
+      await new Promise(resolve => setTimeout(resolve, 200))
+      expect(notifications).toContain('reaction.started')
+      expect(notifications).toContain('reaction.completed')
+    } finally {
+      await router.close()
+      await application.close()
+    }
+  }, 30000)
+
+  it('projects each durable Reaction transition at most once per router while allowing later waves', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hcw-op-reaction-notify-dedup-'))
+    directories.push(dir)
+    const worldPath = join(dir, 'world.sqlite')
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const aliceScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const bobScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const compiled = v5Manifest()
+    const application = new WorldApplication({
+      worldPath,
+      sessionPath: join(dir, 'session.sqlite'),
+      memoryPath: join(dir, 'memory.sqlite'),
+      modelBudgetTokens: 64,
+      leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    application.activate(compiled)
+    await application.submit(ADDRESS, {
+      idempotencyKey: 'notify-dedup:seed', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'seed' } }, correlationId: 'notify-dedup:seed',
+    })
+    const probe = new WorldStore(worldPath)
+    const cycleId = probe.listReactionCycles(ADDRESS)[0]!.cycleId
+    probe.close()
+    let calls = 0
+    const port = {
+      async processReactionCycles(address: WorldAddress) {
+        calls += 1
+        if (calls === 1) return { cycleId, waves: [] }
+        if (calls === 2) return application.processReactionCycles(address)
+        return { cycleId, waves: [] }
+      },
+    } as unknown as WorldApplicationPort
+    const router = new LocalJsonRpcRouter(worldPath, port)
+    const notifications: string[] = []
+    router.subscribeNotifications(notification => { notifications.push(notification.method) })
+    try {
+      const processRequest = request('reaction.process', { address: ADDRESS })
+      await router.handle(processRequest)
+      expect(notifications).toEqual(['reaction.started'])
+      await router.handle(processRequest)
+      expect(notifications).toEqual([
+        'reaction.started', 'reaction.round_committed', 'reaction.completed',
+      ])
+      await router.handle(processRequest)
+      expect(notifications).toEqual([
+        'reaction.started', 'reaction.round_committed', 'reaction.completed',
+      ])
+    } finally {
+      await router.close()
+      await application.close()
+    }
+  })
+
+  it('does not project an old terminal Cycle when a later Root creates no Cycle', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hcw-op-reaction-notify-old-'))
+    directories.push(dir)
+    const worldPath = join(dir, 'world.sqlite')
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const aliceScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const bobScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const compiled = v5Manifest()
+    const seed = new WorldApplication({
+      worldPath,
+      sessionPath: join(dir, 'session.sqlite'),
+      memoryPath: join(dir, 'memory.sqlite'),
+      modelBudgetTokens: 64,
+      leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    seed.activate(compiled)
+    await seed.submit(ADDRESS, {
+      idempotencyKey: 'old-cycle:seed', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: 'seed' } }, correlationId: 'old-cycle:seed',
+    })
+    await seed.processReactionCycles(ADDRESS)
+    await seed.close()
+
+    const application = {
+      async acceptRound() { return { status: 'queued' } },
+      async processAcceptedRounds() { return 1 },
+    } as unknown as WorldApplicationPort
+    const router = new LocalJsonRpcRouter(worldPath, application)
+    const notifications: string[] = []
+    router.subscribeNotifications(notification => { notifications.push(notification.method) })
+    try {
+      await router.handle(request('round.submit', {
+        address: ADDRESS,
+        idempotencyKey: 'old-cycle:no-new-cycle',
+        principalId: 'principal:player',
+        action: { actionType: 'speak', parameters: { text: 'no new Cycle in mocked worker' } },
+        correlationId: 'old-cycle:no-new-cycle',
+      }))
+      await new Promise(resolve => setTimeout(resolve, 100))
+      expect(notifications).toContain('round.committed')
+      expect(notifications.some(method => method.startsWith('reaction.'))).toBe(false)
+    } finally {
+      await router.close()
+    }
+  })
+
   it('coalesces startup Reaction wakes and retries a typed transient worker failure', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'hcw-op-reaction-retry-'))
     directories.push(dir)
@@ -1062,4 +1377,146 @@ describe('worldctl grammar', () => {
       await router.close()
     }
   })
+
+  it('enriches reaction outbox payloads with the full causal chain for Presentation rendering', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hcw-op-reaction-causal-'))
+    directories.push(dir)
+    const worldPath = join(dir, 'world.sqlite')
+    const sessionPath = join(dir, 'session.sqlite')
+    const memoryPath = join(dir, 'memory.sqlite')
+
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+
+    function waveProvider(actorId: CharacterId, wavesToAct: Set<number>): ReactionAgentProvider {
+      return {
+        async propose(context: ReactionProposalContext): Promise<SubmitActionsV2> {
+          if (wavesToAct.has(context.origin.wave)) {
+            return {
+              schemaVersion: 2,
+              decision: 'act',
+              actions: [{
+                actionId: `action:${actorId}:wave${context.origin.wave}`,
+                actorId,
+                actionType: 'speak',
+                actionVersion: 1,
+                parameters: { text: `wave ${context.origin.wave}` },
+              }],
+            }
+          }
+          return { schemaVersion: 2, decision: 'abstain', actions: [] }
+        },
+      }
+    }
+
+    function waveBinding(actorId: CharacterId, wavesToAct: Set<number>): ReactionParticipantBinding {
+      return {
+        participantId: `agent:${actorId.split(':')[1]}`,
+        role: 'agent',
+        actorId,
+        allowedActionTypes: ['speak'],
+        priority: 0,
+        estimatedTokens: 2,
+        timeoutMs: 5_000,
+        provider: waveProvider(actorId, wavesToAct),
+      }
+    }
+
+    const compiled = v5Manifest()
+    const application = new WorldApplication({
+      worldPath, sessionPath, memoryPath, modelBudgetTokens: 64, leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [
+        waveBinding(alice, new Set([1])),
+        waveBinding(bob, new Set([2])),
+      ],
+    })
+    application.activate(compiled)
+    const router = new LocalJsonRpcRouter(worldPath, application)
+    try {
+      await router.handle({
+        jsonrpc: '2.0', id: 'causal:submit', method: 'round.submit',
+        params: {
+          address: ADDRESS, idempotencyKey: 'causal:e2e', principalId: 'principal:player',
+          action: { actionType: 'speak', parameters: { text: 'trigger causal chain' } },
+          correlationId: 'causal:e2e',
+        },
+      })
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      const db = new DatabaseSync(worldPath)
+      let reactionPayloads: Array<Record<string, unknown>> = []
+      try {
+        const rows = db.prepare(`SELECT payload_json FROM outbox ORDER BY delivery_id`).all() as Array<{ payload_json: string }>
+        reactionPayloads = rows
+          .map(row => JSON.parse(row.payload_json) as Record<string, unknown>)
+          .filter(payload => payload.observationType === 'reaction-round')
+        expect(reactionPayloads.length).toBeGreaterThanOrEqual(2)
+
+        const waves = reactionPayloads.map(payload => payload.wave as number)
+        expect(waves).toContain(1)
+        expect(waves).toContain(2)
+
+        const cycleIds = new Set(reactionPayloads.map(payload => payload.cycleId as string))
+        expect(cycleIds.size).toBe(1)
+        const rootRoundIds = new Set(reactionPayloads.map(payload => payload.rootRoundId as string))
+        expect(rootRoundIds.size).toBe(1)
+        const roundIds = new Set(reactionPayloads.map(payload => payload.roundId as string))
+        expect(roundIds.size).toBeGreaterThanOrEqual(2)
+
+        for (const payload of reactionPayloads) {
+          expect(payload).toMatchObject({
+            observationType: 'reaction-round',
+            observationId: expect.any(String),
+            cycleId: expect.any(String),
+            wave: expect.any(Number),
+            roundId: expect.any(String),
+            rootRoundId: expect.any(String),
+          })
+          expect(typeof payload.value).toBe('object')
+          expect(payload.value).not.toBeNull()
+        }
+      } finally {
+        db.close()
+      }
+
+      await application.deliver(ADDRESS, 'causal:deliver')
+      const sessionDb = new DatabaseSync(sessionPath)
+      try {
+        const delivered = sessionDb.prepare(`
+          SELECT session_event_seq, payload_json
+          FROM session_events
+          WHERE session_id = 'session:player'
+          ORDER BY session_event_seq
+        `).all() as Array<{ session_event_seq: number; payload_json: string }>
+        const reactionEvents = delivered
+          .map(row => ({ ...row, payload: JSON.parse(row.payload_json) as Record<string, unknown> }))
+          .filter(row => row.payload.observationType === 'reaction-round')
+        expect(reactionEvents.length).toBe(reactionPayloads.length)
+        const renderedOrigins: Array<Record<string, unknown>> = []
+        for (const event of reactionEvents) {
+          const rendered = await application.renderSession(
+            ADDRESS,
+            brandId('session:player', 'SessionId'),
+            event.session_event_seq,
+          ) as { readonly text: string; readonly reactionOrigin: Record<string, unknown> }
+          expect(rendered.text).toContain('says:')
+          expect(rendered.reactionOrigin).toMatchObject({
+            rootRoundId: event.payload.rootRoundId,
+            cycleId: event.payload.cycleId,
+            wave: event.payload.wave,
+            roundId: event.payload.roundId,
+          })
+          renderedOrigins.push(rendered.reactionOrigin)
+        }
+        expect(renderedOrigins.map(value => value.wave)).toEqual([1, 2])
+      } finally {
+        sessionDb.close()
+      }
+    } finally {
+      await router.close()
+      await application.close()
+    }
+  }, 30000)
+
 })
