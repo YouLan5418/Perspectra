@@ -58,5 +58,8 @@
 | [0074](ADR-0074-deterministic-world-text-order.md) | 确定性世界文本顺序 | 所有权威及 Hash 相关排序统一使用 UTF-16 code unit 比较器 |
 | [0075](ADR-0075-session-dead-letter-sequence-continuity.md) | Session 死信序号连续性 | 任一已分配序号的 dead letter 阻塞同 Session 后续投递直至原序重试成功 |
 | [0076](ADR-0076-reaction-cycle-npc-only-round-prototype.md) | Reaction Cycle 与 NPC-only Round 原型 | **Proposed**；P0 证明耐久两层 FIFO 与硬崩溃恢复，尚未成为正式运行时契约 |
-| [0077](ADR-0077-bounded-autonomous-reaction-cycle.md) | 有界自主 Reaction Cycle 与 NPC-only Round | 正式方向已冻结；Phase 8.2/8.3 门禁关闭前不授权生产实现 |
+| [0077](ADR-0077-bounded-autonomous-reaction-cycle.md) | 有界自主 Reaction Cycle 与 NPC-only Round | 正式方向已冻结；Phase 9A/9B 已落地权威骨架与有界多 wave，Phase 9C 收口运行闭环 |
 | [0078](ADR-0078-reaction-policy-manifest-version-gate.md) | Reaction Policy 的 Manifest 版本门 | Manifest v1～v4 恒为 disabled；只有严格校验的 v5 可显式启用 responsive/v1 |
+| [0079](ADR-0079-host-fair-scheduling-backpressure-administrative-stop.md) | Host 公平调度、背压与行政停止语义 | 一个 Branch 一个量子；wake 可丢失并由耐久扫描恢复；行政操作纳入 active Cycle |
+| [0080](ADR-0080-world-pack-v3-reaction-policy-creator-entry.md) | World Pack v3 与 Reaction Policy 创作者入口 | v1/v2 字节与 Hash 冻结；只有 v3 必填 reactionFile 能编译出 Manifest v5 |
+| [0081](ADR-0081-deployment-backup-restore-set.md) | 多库部署备份与恢复集合 | 五库制品、部署静默屏障、双向水位校验与只恢复到全新空目录 |
