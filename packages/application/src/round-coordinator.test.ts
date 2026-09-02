@@ -1558,6 +1558,7 @@ describe('RoundCoordinator', () => {
       action: { actionType: 'speak', parameters: {} }, correlationId: 'closed',
     })).rejects.toThrow('closed')
     await expect(normal.processNextAccepted('closed-next')).rejects.toThrow('closed')
+    await expect(normal.processNextAcceptedStep('closed-step')).rejects.toThrow('closed')
     close(normalOptions)
 
     const requiredPath = database('required-next.sqlite')
@@ -1573,7 +1574,7 @@ describe('RoundCoordinator', () => {
     const requiredRaw = new DatabaseSync(requiredPath)
     requiredRaw.prepare(`DELETE FROM round_inbox WHERE idempotency_key = 'required-next'`).run()
     requiredRaw.close()
-    await expect(required.processNextAccepted('required-next', true)).rejects.toThrow('lost an admitted responsive/v1 item')
+    await expect(required.processNextAccepted('required-next')).rejects.toThrow('lost an admitted responsive/v1 item')
     close(requiredOptions, required)
 
     const corruptOptions = options(path, compiled)

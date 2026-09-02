@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { WorldApplication, type ReactionParticipantBinding } from '@harness-world/application'
+import { WorldApplication, type BranchWorkStep, type ReactionParticipantBinding } from '@harness-world/application'
 import { brandId, createErrorEnvelope, WorldError, type CharacterId, type FaultInjector, type ReactionAgentProvider, type ReactionProposalContext, type SubmitActionsV2, type WorldAddress } from '@harness-world/contracts'
 import {
   BranchQuarantineService,
@@ -149,11 +149,11 @@ describe('LocalJsonRpcRouter', () => {
       async cancelReactionCycle(_address: WorldAddress, requested: string, correlationId: string) {
         return { cycleId: requested, status: 'stop_requested', stopReason: 'user_cancelled', correlationId }
       },
-      async processReactionCycles() {
+      async processNextReactionWave() {
         processCalls += 1
-        if (processCalls === 2) return null
-        if (processCalls === 3) return { cycleId: null, waves: [] }
-        return { cycleId, waves: [{ wave: 1 }] }
+        if (processCalls === 2) return { status: 'unsupported' }
+        if (processCalls === 3) return { status: 'idle' }
+        return { status: 'wave', cycleId, wave: 1, rootRoundId: 'round:root' }
       },
       async close() {},
     } as unknown as WorldApplicationPort
@@ -171,11 +171,11 @@ describe('LocalJsonRpcRouter', () => {
       address: parent, cycleId, correlationId: 'reaction:rpc-cancel',
     }))).resolves.toMatchObject({ result: { status: 'stop_requested', correlationId: 'reaction:rpc-cancel' } })
     await expect(router.handle(request('reaction.process', { address: parent })))
-      .resolves.toMatchObject({ result: { cycleId, waves: [{ wave: 1 }] } })
+      .resolves.toMatchObject({ result: { status: 'wave', cycleId, wave: 1 } })
     await expect(router.handle(request('reaction.process', { address: parent })))
-      .resolves.toMatchObject({ result: null })
+      .resolves.toMatchObject({ result: { status: 'unsupported' } })
     await expect(router.handle(request('reaction.process', { address: parent })))
-      .resolves.toMatchObject({ result: { cycleId: null, waves: [] } })
+      .resolves.toMatchObject({ result: { status: 'idle' } })
     await expect(router.handle(request('reaction.list', { address: parent, status: 1 })))
       .resolves.toMatchObject({ error: { errorCode: 'INVALID_REQUEST' } })
     await expect(router.handle(request('reaction.list', { address: parent, limit: 1.5 })))
@@ -355,10 +355,12 @@ describe('LocalJsonRpcRouter', () => {
     })
     await expect(router.handle(request('round.process', {
       address: parent, correlationId: 'rpc:explicit-process',
-    }))).resolves.toMatchObject({ result: { processed: 1 } })
+    }))).resolves.toMatchObject({
+      result: { status: 'player_round', roundId: expect.any(String), openedCycleId: null },
+    })
     await expect(router.handle(request('round.process', {
       address: parent, correlationId: 'rpc:explicit-process-empty',
-    }))).resolves.toMatchObject({ result: { processed: 0 } })
+    }))).resolves.toMatchObject({ result: { status: 'idle' } })
     const fixtureOutbox = new WorldOutbox(path)
     const failingWorker = new SessionOutboxWorker(fixtureOutbox, {
       appendIfAbsent: async () => { throw new Error('RPC recovery fixture') },
@@ -674,15 +676,17 @@ describe('worldctl grammar', () => {
     }
   })
 
-  it('deduplicates concurrent local Round workers and contains worker failures', async () => {
+  it('merges concurrent Branch wakes into one quantum and contains quantum failures', async () => {
     const { directory, path, parent } = fixture()
-    let releaseWorker!: () => void
-    let workerCalls = 0
+    let releaseQuantum!: () => void
+    let quantumCalls = 0
     class DeferredWorldApplication extends WorldApplication {
-      override processAcceptedRounds(): Promise<number> {
-        workerCalls += 1
-        if (workerCalls > 1) return Promise.resolve(0)
-        return new Promise(resolve => { releaseWorker = () => resolve(0) })
+      override processNextBranchWork(address: WorldAddress, correlationId: string): Promise<BranchWorkStep> {
+        quantumCalls += 1
+        if (quantumCalls > 1) return super.processNextBranchWork(address, correlationId)
+        return new Promise(resolve => {
+          releaseQuantum = () => resolve(super.processNextBranchWork(address, correlationId))
+        })
       }
     }
     const application = new DeferredWorldApplication({ worldPath: path, sessionPath: join(directory, 'deferred-session.sqlite') })
@@ -694,22 +698,28 @@ describe('worldctl grammar', () => {
       playerBindings: [{ principalId: 'principal:worker', characterId: 'character:worker', sessionId: 'session:worker' }],
       plugins: [],
     })
-    const router = new LocalJsonRpcRouter(path, application)
+    const router = new LocalJsonRpcRouter(path, application, { maxConcurrentBranches: 2, rescanIntervalMs: 60_000 })
     const base = {
-      address: parent, principalId: 'principal:worker', action: { actionType: 'speak', parameters: {} },
+      address: parent, principalId: 'principal:worker', action: { actionType: 'speak', parameters: { text: 'worker' } },
     }
     await router.handle(request('round.submit', { ...base, idempotencyKey: 'worker:one', correlationId: 'worker:one' }))
     await router.handle(request('round.submit', { ...base, idempotencyKey: 'worker:two', correlationId: 'worker:two' }))
-    releaseWorker()
+    await new Promise(resolve => setTimeout(resolve, 25))
+    expect(quantumCalls).toBe(1)
+    releaseQuantum()
+    await new Promise(resolve => setTimeout(resolve, 150))
+    expect(quantumCalls).toBeGreaterThanOrEqual(2)
+    for (const idempotencyKey of ['worker:one', 'worker:two']) {
+      await expect(application.roundStatus(parent, { idempotencyKey })).resolves.toMatchObject({ status: 'committed' })
+    }
     await router.close()
-    expect(workerCalls).toBe(2)
     await application.close()
 
     const directFixture = fixture()
-    class DirectProcessWorldApplication extends WorldApplication {
-      override processAcceptedRounds(): Promise<number> { return Promise.resolve(1) }
+    class IdleQuantumWorldApplication extends WorldApplication {
+      override processNextBranchWork(): Promise<BranchWorkStep> { return Promise.resolve({ status: 'idle' }) }
     }
-    const directApplication = new DirectProcessWorldApplication({
+    const directApplication = new IdleQuantumWorldApplication({
       worldPath: directFixture.path, sessionPath: join(directFixture.directory, 'direct-session.sqlite'),
     })
     const directRouter = new LocalJsonRpcRouter(directFixture.path, directApplication)
@@ -717,15 +727,15 @@ describe('worldctl grammar', () => {
     directRouter.subscribeNotifications(notification => { directNotifications.push(notification.method) })
     await expect(directRouter.handle(request('round.process', {
       address: directFixture.parent, correlationId: 'round:direct-process',
-    }))).resolves.toMatchObject({ result: { processed: 1 } })
-    expect(directNotifications).toContain('round.committed')
+    }))).resolves.toMatchObject({ result: { status: 'idle' } })
+    expect(directNotifications).toEqual([])
     await directRouter.close()
     await directApplication.close()
 
     const failedFixture = fixture()
     class FailingWorldApplication extends WorldApplication {
-      override async processAcceptedRounds(): Promise<number> {
-        throw new Error('contained worker failure')
+      override async processNextBranchWork(): Promise<BranchWorkStep> {
+        throw new Error('contained quantum failure')
       }
     }
     const failing = new FailingWorldApplication({
@@ -739,25 +749,25 @@ describe('worldctl grammar', () => {
       playerBindings: [{ principalId: 'principal:failed', characterId: 'character:failed', sessionId: 'session:failed' }],
       plugins: [],
     })
-    const failingRouter = new LocalJsonRpcRouter(failedFixture.path, failing)
+    const failingRouter = new LocalJsonRpcRouter(failedFixture.path, failing, { rescanIntervalMs: 60_000 })
     await expect(failingRouter.handle(request('round.submit', {
       address: failedFixture.parent, idempotencyKey: 'worker:failed', principalId: 'principal:failed',
-      action: { actionType: 'speak', parameters: {} }, correlationId: 'worker:failed',
+      action: { actionType: 'speak', parameters: { text: 'failed' } }, correlationId: 'worker:failed',
     }))).resolves.toMatchObject({ result: { status: 'queued' } })
     await failingRouter.close()
-    expect(failingRouter.metrics.snapshot()).toMatchObject({ round_worker_failures: 1 })
+    expect(failingRouter.metrics.snapshot()).toMatchObject({ branch_work_failures: 1 })
     const failureAudit = new BranchAdministration(failedFixture.path)
     expect(failureAudit.readAudit(failedFixture.parent)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ operation: 'round.worker.failed', details: { errorType: 'object', message: 'Error: contained worker failure' } }),
+      expect.objectContaining({ operation: 'branch.work.failed', details: { errorType: 'object', message: 'Error: contained quantum failure' } }),
     ]))
     failureAudit.close()
     await failing.close()
 
     const typedFixture = fixture()
     class TypedFailingWorldApplication extends WorldApplication {
-      override async processAcceptedRounds(): Promise<number> {
+      override async processNextBranchWork(): Promise<BranchWorkStep> {
         throw new WorldError(createErrorEnvelope({
-          errorCode: 'WORLDSTORE_BUSY', category: 'runtime', message: 'typed worker failure', retryable: true,
+          errorCode: 'WORLDSTORE_BUSY', category: 'runtime', message: 'typed quantum failure', retryable: true,
           correlationId: 'worker:typed', address: typedFixture.parent,
         }))
       }
@@ -773,15 +783,16 @@ describe('worldctl grammar', () => {
       playerBindings: [{ principalId: 'principal:typed', characterId: 'character:typed', sessionId: 'session:typed' }],
       plugins: [],
     })
-    const typedRouter = new LocalJsonRpcRouter(typedFixture.path, typedFailing)
+    const typedRouter = new LocalJsonRpcRouter(typedFixture.path, typedFailing, { rescanIntervalMs: 60_000 })
     await typedRouter.handle(request('round.submit', {
       address: typedFixture.parent, idempotencyKey: 'worker:typed', principalId: 'principal:typed',
-      action: { actionType: 'speak', parameters: {} }, correlationId: 'worker:typed',
+      action: { actionType: 'speak', parameters: { text: 'typed' } }, correlationId: 'worker:typed',
     }))
     await typedRouter.close()
+    expect(typedRouter.metrics.snapshot().branch_work_failures).toBeGreaterThanOrEqual(1)
     const typedAudit = new BranchAdministration(typedFixture.path)
     expect(typedAudit.readAudit(typedFixture.parent)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ operation: 'round.worker.failed', details: { errorCode: 'WORLDSTORE_BUSY', errorId: expect.any(String) } }),
+      expect.objectContaining({ operation: 'branch.work.failed', details: { errorCode: 'WORLDSTORE_BUSY', errorId: expect.any(String) } }),
     ]))
     typedAudit.close()
     await typedFailing.close()
@@ -789,7 +800,7 @@ describe('worldctl grammar', () => {
     const retryFixture = fixture()
     let retryCalls = 0
     class RetryOnceWorldApplication extends WorldApplication {
-      override processAcceptedRounds(address: WorldAddress, correlationId: string): Promise<number> {
+      override processNextBranchWork(address: WorldAddress, correlationId: string): Promise<BranchWorkStep> {
         retryCalls += 1
         if (retryCalls === 1) {
           return Promise.reject(new WorldError(createErrorEnvelope({
@@ -797,7 +808,7 @@ describe('worldctl grammar', () => {
             correlationId: 'worker:retry-once', address,
           })))
         }
-        return super.processAcceptedRounds(address, correlationId)
+        return super.processNextBranchWork(address, correlationId)
       }
     }
     const retryingApplication = new RetryOnceWorldApplication({
@@ -811,14 +822,14 @@ describe('worldctl grammar', () => {
       playerBindings: [{ principalId: 'principal:retry', characterId: 'character:retry', sessionId: 'session:retry' }],
       plugins: [],
     })
-    const retryRouter = new LocalJsonRpcRouter(retryFixture.path, retryingApplication)
+    const retryRouter = new LocalJsonRpcRouter(retryFixture.path, retryingApplication, { rescanIntervalMs: 60_000 })
     const retryAccepted = await retryRouter.handle(request('round.submit', {
       address: retryFixture.parent, idempotencyKey: 'worker:retry', principalId: 'principal:retry',
-      action: { actionType: 'speak', parameters: {} }, correlationId: 'worker:retry',
+      action: { actionType: 'speak', parameters: { text: 'retry' } }, correlationId: 'worker:retry',
     }))
     await new Promise(resolve => setTimeout(resolve, 150))
     await retryRouter.close()
-    expect(retryCalls).toBe(2)
+    expect(retryCalls).toBeGreaterThanOrEqual(2)
     await expect(retryingApplication.roundStatus(retryFixture.parent, {
       roundId: brandId((retryAccepted.result as { roundId: string }).roundId, 'InteractionRoundId'),
     })).resolves.toMatchObject({ status: 'committed' })
@@ -995,10 +1006,10 @@ describe('worldctl grammar', () => {
       const recovered = router.recoverAcceptedRounds('fault:coalesced-wake')
       expect(recovered).toBeGreaterThanOrEqual(1)
       await new Promise(resolve => setTimeout(resolve, 500))
-      expect(router.metrics.snapshot().reaction_worker_failures).toBeGreaterThanOrEqual(1)
+      expect(router.metrics.snapshot().branch_work_failures).toBeGreaterThanOrEqual(1)
       const auditDb = new DatabaseSync(worldPath)
       try {
-        const events = auditDb.prepare(`SELECT operation, correlation_id FROM branch_audit_events WHERE operation = 'reaction.worker.failed'`).all()
+        const events = auditDb.prepare(`SELECT operation, correlation_id FROM branch_audit_events WHERE operation = 'branch.work.failed'`).all()
         expect(events.length).toBeGreaterThanOrEqual(1)
       } finally {
         auditDb.close()
@@ -1225,36 +1236,26 @@ describe('worldctl grammar', () => {
       reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
     })
     application.activate(compiled)
-    await application.submit(ADDRESS, {
+    await application.acceptRound(ADDRESS, {
       idempotencyKey: 'notify-dedup:seed', principalId: 'principal:player',
       action: { actionType: 'speak', parameters: { text: 'seed' } }, correlationId: 'notify-dedup:seed',
     })
-    const probe = new WorldStore(worldPath)
-    const cycleId = probe.listReactionCycles(ADDRESS)[0]!.cycleId
-    probe.close()
-    let calls = 0
-    const port = {
-      async processReactionCycles(address: WorldAddress) {
-        calls += 1
-        if (calls === 1) return { cycleId, waves: [] }
-        if (calls === 2) return application.processReactionCycles(address)
-        return { cycleId, waves: [] }
-      },
-    } as unknown as WorldApplicationPort
-    const router = new LocalJsonRpcRouter(worldPath, port)
+    const router = new LocalJsonRpcRouter(worldPath, application, { rescanIntervalMs: 60_000 })
     const notifications: string[] = []
     router.subscribeNotifications(notification => { notifications.push(notification.method) })
     try {
-      const processRequest = request('reaction.process', { address: ADDRESS })
-      await router.handle(processRequest)
-      expect(notifications).toEqual(['reaction.started'])
-      await router.handle(processRequest)
+      await expect(router.handle(request('round.process', { address: ADDRESS, correlationId: 'notify-dedup:root' })))
+        .resolves.toMatchObject({ result: { status: 'player_round', openedCycleId: expect.any(String) } })
+      expect(notifications).toEqual(['round.committed', 'reaction.started'])
+      await expect(router.handle(request('reaction.process', { address: ADDRESS })))
+        .resolves.toMatchObject({ result: { status: 'wave', wave: 1, terminalReason: expect.any(String) } })
       expect(notifications).toEqual([
-        'reaction.started', 'reaction.round_committed', 'reaction.completed',
+        'round.committed', 'reaction.started', 'reaction.round_committed', 'reaction.completed',
       ])
-      await router.handle(processRequest)
+      await expect(router.handle(request('reaction.process', { address: ADDRESS })))
+        .resolves.toMatchObject({ result: { status: 'idle' } })
       expect(notifications).toEqual([
-        'reaction.started', 'reaction.round_committed', 'reaction.completed',
+        'round.committed', 'reaction.started', 'reaction.round_committed', 'reaction.completed',
       ])
     } finally {
       await router.close()
@@ -1288,11 +1289,24 @@ describe('worldctl grammar', () => {
     await seed.processReactionCycles(ADDRESS)
     await seed.close()
 
+    let quantumCalls = 0
     const application = {
       async acceptRound() { return { status: 'queued' } },
-      async processAcceptedRounds() { return 1 },
+      async processNextBranchWork(): Promise<BranchWorkStep> {
+        quantumCalls += 1
+        if (quantumCalls > 1) return { status: 'idle' }
+        return {
+          status: 'player_round',
+          roundId: brandId('round:mocked', 'InteractionRoundId'),
+          transactionId: brandId('transaction:mocked', 'TransactionId'),
+          headSeq: 1,
+          tick: 1,
+          bundleHash: 'sha256:mocked-quantum',
+          openedCycleId: null,
+        }
+      },
     } as unknown as WorldApplicationPort
-    const router = new LocalJsonRpcRouter(worldPath, application)
+    const router = new LocalJsonRpcRouter(worldPath, application, { rescanIntervalMs: 60_000 })
     const notifications: string[] = []
     router.subscribeNotifications(notification => { notifications.push(notification.method) })
     try {
@@ -1342,33 +1356,33 @@ describe('worldctl grammar', () => {
     const firstStarted = new Promise<void>(resolve => { releaseFirst = resolve })
     let calls = 0
     const application = {
-      async processReactionCycles(address: WorldAddress) {
+      async processNextBranchWork(address: WorldAddress): Promise<BranchWorkStep> {
         calls += 1
         if (calls === 1) {
           await firstStarted
           throw new WorldError(createErrorEnvelope({
             errorCode: 'WORLDSTORE_BUSY',
             category: 'runtime',
-            message: 'retry typed Reaction worker failure',
+            message: 'retry typed Branch quantum failure',
             retryable: true,
             correlationId: 'retry:typed',
             address,
           }))
         }
-        return { cycleId: null, terminalReason: null, waves: [] }
+        return { status: 'idle' }
       },
     } as unknown as WorldApplicationPort
-    const router = new LocalJsonRpcRouter(worldPath, application)
+    const router = new LocalJsonRpcRouter(worldPath, application, { rescanIntervalMs: 60_000 })
     try {
       expect(router.recoverAcceptedRounds('retry:first')).toBeGreaterThanOrEqual(1)
       expect(router.recoverAcceptedRounds('retry:coalesced')).toBeGreaterThanOrEqual(1)
       releaseFirst()
       await new Promise(resolve => setTimeout(resolve, 250))
       expect(calls).toBe(2)
-      expect(router.metrics.snapshot().reaction_worker_failures).toBe(1)
+      expect(router.metrics.snapshot().branch_work_failures).toBe(1)
       const auditDb = new DatabaseSync(worldPath)
       try {
-        expect(auditDb.prepare(`SELECT details_json FROM branch_audit_events WHERE operation = 'reaction.worker.failed'`).get())
+        expect(auditDb.prepare(`SELECT details_json FROM branch_audit_events WHERE operation = 'branch.work.failed'`).get())
           .toMatchObject({ details_json: expect.stringContaining('WORLDSTORE_BUSY') })
       } finally {
         auditDb.close()

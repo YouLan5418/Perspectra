@@ -27,6 +27,9 @@ export interface BranchAuditEvent extends WorldJsonObject {
   readonly operationalTimeMs: number
 }
 
+/** Durable audit operation recorded when one Host scheduling quantum fails (ADR-0079). */
+export const BRANCH_WORK_FAILURE_OPERATION = 'branch.work.failed'
+
 /** Durable administrative barrier and append-only audit for one World database. */
 export class BranchAdministration {
   readonly #db: DatabaseSync
@@ -148,25 +151,8 @@ export class BranchAdministration {
     }))
   }
 
-  recordRoundWorkerFailure(
+  recordBranchWorkFailure(
     address: WorldAddress,
-    correlationId: string,
-    details: WorldJsonObject,
-  ): BranchAuditEvent {
-    return this.#recordWorkerFailure(address, 'round.worker.failed', correlationId, details)
-  }
-
-  recordReactionWorkerFailure(
-    address: WorldAddress,
-    correlationId: string,
-    details: WorldJsonObject,
-  ): BranchAuditEvent {
-    return this.#recordWorkerFailure(address, 'reaction.worker.failed', correlationId, details)
-  }
-
-  #recordWorkerFailure(
-    address: WorldAddress,
-    operation: 'round.worker.failed' | 'reaction.worker.failed',
     correlationId: string,
     details: WorldJsonObject,
   ): BranchAuditEvent {
@@ -179,10 +165,10 @@ export class BranchAdministration {
       const result = this.#db.prepare(`
         INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
         VALUES (?, ?, ?, ?, ?)
-      `).run(key, operation, correlationId, worldJsonText(details), operationalTimeMs)
+      `).run(key, BRANCH_WORK_FAILURE_OPERATION, correlationId, worldJsonText(details), operationalTimeMs)
       this.#db.exec('COMMIT')
       return {
-        auditSeq: Number(result.lastInsertRowid), operation, correlationId,
+        auditSeq: Number(result.lastInsertRowid), operation: BRANCH_WORK_FAILURE_OPERATION, correlationId,
         details, operationalTimeMs,
       }
     } catch (error: unknown) {

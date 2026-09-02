@@ -5,6 +5,7 @@ import {
   compareWorldText,
   createErrorEnvelope,
   hashWorldJson,
+  worldAddressKey,
   WorldError,
   type WorldAddress,
   type CharacterId,
@@ -18,7 +19,8 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { BranchAdministration, RoundInbox, WorldStore } from '@harness-world/store-sqlite'
-import type { ReactionDrainResult } from '@harness-world/application'
+import type { BranchWorkStep, ReactionWaveResult, ReactionWaveStep } from '@harness-world/application'
+import { BranchWorkScheduler, type BranchWorkWakeReason } from './branch-work-scheduler.ts'
 import { WorldHealthService } from './health.ts'
 import { OperationsMetrics } from './metrics.ts'
 
@@ -39,8 +41,8 @@ export interface WorldApplicationPort {
     readonly action: { readonly actionType: string; readonly parameters: WorldJsonValue }
     readonly correlationId: string
   }): Promise<unknown>
-  processAcceptedRounds(address: WorldAddress, correlationId: string): Promise<number>
-  processReactionCycles(address: WorldAddress): Promise<ReactionDrainResult | null>
+  processNextBranchWork(address: WorldAddress, correlationId: string): Promise<BranchWorkStep>
+  processNextReactionWave(address: WorldAddress): Promise<ReactionWaveStep>
   roundStatus(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }): Promise<unknown | undefined>
   cancelQueuedRound(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }, correlationId: string): Promise<unknown>
   roundResult(address: WorldAddress, idempotencyKey: string): Promise<unknown | undefined>
@@ -141,25 +143,41 @@ function worldResult(value: unknown): WorldJsonValue {
   return value as WorldJsonValue
 }
 
+export interface LocalJsonRpcRouterOptions {
+  readonly maxConcurrentBranches?: number
+  readonly rescanIntervalMs?: number
+}
+
 /** In-process JSON-RPC 2.0 router. It intentionally owns no socket or remote listener. */
 export class LocalJsonRpcRouter {
   readonly #store: WorldStore | undefined
   readonly #admin: BranchAdministration | undefined
   readonly #health: WorldHealthService
   readonly metrics = new OperationsMetrics()
-  readonly #roundWorkers = new Map<string, Promise<void>>()
-  readonly #roundWorkerRequests = new Map<string, { readonly address: WorldAddress; readonly correlationId: string }>()
-  readonly #reactionWorkers = new Map<string, Promise<void>>()
-  readonly #reactionWorkerRequests = new Map<string, { readonly address: WorldAddress; readonly correlationId: string }>()
-  readonly #reactionNotificationKeys = new Set<string>()
+  readonly #scheduler: BranchWorkScheduler
+  readonly #announcedCycles = new Set<string>()
   readonly #notificationListeners = new Set<(notification: LocalJsonRpcNotification) => void>()
   #lastHealthHash: string | undefined
-  #closing = false
 
-  constructor(private readonly worldPath: string, private readonly application?: WorldApplicationPort) {
+  constructor(
+    private readonly worldPath: string,
+    private readonly application?: WorldApplicationPort,
+    options: LocalJsonRpcRouterOptions = {},
+  ) {
     this.#store = application === undefined ? new WorldStore(worldPath) : undefined
     this.#admin = application === undefined ? new BranchAdministration(worldPath) : undefined
     this.#health = new WorldHealthService(worldPath)
+    this.#scheduler = new BranchWorkScheduler({
+      work: {
+        processNextBranchWork: (address, correlationId) => this.#application().processNextBranchWork(address, correlationId),
+      },
+      scan: { scanRunnableBranches: () => this.#scanRunnableBranches() },
+      correlationId: 'worldhost:branch-work',
+      ...(options.maxConcurrentBranches === undefined ? {} : { maxConcurrentBranches: options.maxConcurrentBranches }),
+      ...(options.rescanIntervalMs === undefined ? {} : { rescanIntervalMs: options.rescanIntervalMs }),
+      onStep: (address, step, correlationId) => this.#projectQuantum(address, step, correlationId),
+      onFailure: (address, error) => this.#recordBranchWorkFailure(address, error),
+    })
   }
 
   async handle(request: LocalJsonRpcRequest): Promise<LocalJsonRpcResponse> {
@@ -187,30 +205,18 @@ export class LocalJsonRpcRouter {
   }
 
   async close(): Promise<void> {
-    this.#closing = true
-    while (this.#roundWorkers.size > 0 || this.#reactionWorkers.size > 0) {
-      await Promise.all([...this.#roundWorkers.values(), ...this.#reactionWorkers.values()])
-    }
+    await this.#scheduler.stop()
     this.#admin?.close()
     this.#store?.close()
   }
 
-  /** Wake every durable active FIFO after host restart; the workers retain normal fencing rules. */
+  /** Wake every durable active FIFO after host restart; quanta retain normal fencing rules. */
   recoverAcceptedRounds(correlationId = 'round:startup-recovery'): number {
     assertProtocolString(correlationId, 'correlationId')
     this.#application()
-    const inbox = new RoundInbox(this.worldPath)
-    const store = new WorldStore(this.worldPath)
-    try {
-      const addresses = inbox.unfinishedAddresses()
-      for (const address of addresses) this.#kickRoundWorker(address, correlationId)
-      const reactionAddresses = store.activeReactionCycleAddresses()
-      for (const address of reactionAddresses) this.#kickReactionWorker(address, correlationId)
-      return addresses.length + reactionAddresses.length
-    } finally {
-      inbox.close()
-      store.close()
-    }
+    const woken = this.#scheduler.rescan('startup')
+    this.#scheduler.start()
+    return woken
   }
 
   async #dispatch(method: string, params: WorldJsonObject): Promise<WorldJsonValue> {
@@ -231,7 +237,7 @@ export class LocalJsonRpcRouter {
         correlationId: stringParam(params, 'correlationId'),
       })
       if ((accepted as { readonly status?: string }).status === 'queued' || (accepted as { readonly status?: string }).status === 'processing') {
-        this.#kickRoundWorker(address, stringParam(params, 'correlationId'))
+        this.#wake(address, 'round.accepted')
       }
       return worldResult(accepted)
     }
@@ -247,9 +253,9 @@ export class LocalJsonRpcRouter {
     if (method === 'round.process') {
       const address = addressParam(params.address)
       const correlationId = stringParam(params, 'correlationId')
-      const processed = await this.#application().processAcceptedRounds(address, correlationId)
-      if (processed > 0) this.#notify('round.committed', { address, processed, correlationId })
-      return { processed }
+      const step = await this.#application().processNextBranchWork(address, correlationId)
+      this.#projectQuantum(address, step, correlationId)
+      return worldResult(step)
     }
     if (method === 'round.cancel-queued') {
       const idempotencyKey = params.idempotencyKey
@@ -276,19 +282,20 @@ export class LocalJsonRpcRouter {
       }))
     }
     if (method === 'reaction.cancel') {
-      return worldResult(await this.#application().cancelReactionCycle(
-        addressParam(params.address),
+      const address = addressParam(params.address)
+      const view = await this.#application().cancelReactionCycle(
+        address,
         brandId(stringParam(params, 'cycleId'), 'ReactionCycleId'),
         stringParam(params, 'correlationId'),
-      ))
+      )
+      this.#wake(address, 'reaction.active')
+      return worldResult(view)
     }
     if (method === 'reaction.process') {
       const address = addressParam(params.address)
-      const result = await this.#application().processReactionCycles(address)
-      if (result !== null && result.cycleId !== null) {
-        this.#emitReactionNotifications(address, brandId(result.cycleId, 'ReactionCycleId'))
-      }
-      return worldResult(result)
+      const step = await this.#application().processNextReactionWave(address)
+      if (step.status === 'wave') this.#projectWave(address, step)
+      return worldResult(step)
     }
     if (method === 'world.head') return worldResult(await this.#application().head(addressParam(params.address)))
     if (method === 'view.character' || method === 'character.view') {
@@ -516,87 +523,69 @@ export class LocalJsonRpcRouter {
     return this.application
   }
 
-  #kickRoundWorker(address: WorldAddress, correlationId: string): void {
-    const key = `${address.tenantId}\u001f${address.worldId}\u001f${address.branchId}`
-    this.#roundWorkerRequests.set(key, { address, correlationId })
-    if (this.#roundWorkers.has(key)) return
-    const worker = Promise.resolve().then(async () => {
-      while (true) {
-        const requested = this.#roundWorkerRequests.get(key)
-        if (requested === undefined) {
-          this.#roundWorkers.delete(key)
-          return
-        }
-        this.#roundWorkerRequests.delete(key)
-        try {
-          const knownCycleIds = new Set(this.#reactionCycleViews(requested.address).map(value => value.cycleId))
-          const processed = await this.#application().processAcceptedRounds(requested.address, `${requested.correlationId}:worker`)
-          if (processed > 0) {
-            this.#notify('round.committed', {
-              address: requested.address, processed, correlationId: requested.correlationId,
-            })
-            const created = this.#reactionCycleViews(requested.address)
-              .filter(value => !knownCycleIds.has(value.cycleId))
-              .reverse()
-            for (const cycle of created) this.#emitReactionNotifications(requested.address, cycle.cycleId)
-          }
-        } catch (error: unknown) {
-          this.metrics.increment('round_worker_failures')
-          const details = error instanceof WorldError
-            ? { errorId: error.envelope.errorId, errorCode: error.envelope.errorCode }
-            : { errorType: typeof error, message: String(error) }
-          const audit = new BranchAdministration(this.worldPath)
-          try {
-            audit.recordRoundWorkerFailure(requested.address, `${requested.correlationId}:worker-failed`, details)
-          } finally {
-            audit.close()
-          }
-          if (error instanceof WorldError && error.envelope.retryable && !this.#closing) {
-            await new Promise(resolve => setTimeout(resolve, 100))
-            this.#roundWorkerRequests.set(key, requested)
-          }
-        }
-      }
-    })
-    this.#roundWorkers.set(key, worker)
+  /** Lossy, mergeable readiness hint; the durable scan stays the only source of truth. */
+  #wake(address: WorldAddress, reason: BranchWorkWakeReason): void {
+    this.#scheduler.start()
+    this.#scheduler.wake(address, reason)
   }
 
-  #kickReactionWorker(address: WorldAddress, correlationId: string): void {
-    const key = `${address.tenantId}\u001f${address.worldId}\u001f${address.branchId}`
-    this.#reactionWorkerRequests.set(key, { address, correlationId })
-    if (this.#reactionWorkers.has(key)) return
-    const worker = Promise.resolve().then(async () => {
-      while (true) {
-        const requested = this.#reactionWorkerRequests.get(key)
-        if (requested === undefined) {
-          this.#reactionWorkers.delete(key)
-          return
-        }
-        this.#reactionWorkerRequests.delete(key)
-        try {
-          const result = await this.#application().processReactionCycles(requested.address)
-          if (result !== null && result.cycleId !== null) {
-            this.#emitReactionNotifications(requested.address, brandId(result.cycleId, 'ReactionCycleId'))
-          }
-        } catch (error: unknown) {
-          this.metrics.increment('reaction_worker_failures')
-          const details = error instanceof WorldError
-            ? { errorId: error.envelope.errorId, errorCode: error.envelope.errorCode }
-            : { errorType: typeof error, message: String(error) }
-          const audit = new BranchAdministration(this.worldPath)
-          try {
-            audit.recordReactionWorkerFailure(requested.address, `${requested.correlationId}:reaction-worker-failed`, details)
-          } finally {
-            audit.close()
-          }
-          if (error instanceof WorldError && error.envelope.retryable && !this.#closing) {
-            await new Promise(resolve => setTimeout(resolve, 100))
-            this.#reactionWorkerRequests.set(key, requested)
-          }
-        }
+  #scanRunnableBranches(): WorldAddress[] {
+    const inbox = new RoundInbox(this.worldPath)
+    const store = new WorldStore(this.worldPath)
+    try {
+      const addresses = new Map<string, WorldAddress>()
+      for (const address of [...inbox.unfinishedAddresses(), ...store.activeReactionCycleAddresses()]) {
+        addresses.set(worldAddressKey(address), address)
       }
+      return [...addresses.values()]
+    } finally {
+      inbox.close()
+      store.close()
+    }
+  }
+
+  #projectQuantum(address: WorldAddress, step: BranchWorkStep, correlationId: string): void {
+    if (step.status === 'reaction_wave') {
+      this.#projectWave(address, step)
+      return
+    }
+    if (step.status === 'idle') return
+    this.#notify('round.committed', { address, processed: 1, correlationId })
+    if (step.openedCycleId !== null) this.#announceCycleStart(address, step.openedCycleId, step.roundId)
+  }
+
+  #projectWave(address: WorldAddress, wave: ReactionWaveResult): void {
+    this.#announceCycleStart(address, wave.cycleId, wave.rootRoundId)
+    this.#notify('reaction.round_committed', {
+      address, cycleId: wave.cycleId, wave: wave.wave, roundId: wave.roundId, rootRoundId: wave.rootRoundId,
     })
-    this.#reactionWorkers.set(key, worker)
+    if (wave.terminalReason === null) return
+    this.#notify('reaction.completed', {
+      address, cycleId: wave.cycleId, terminalReason: wave.terminalReason, rootRoundId: wave.rootRoundId,
+    })
+  }
+
+  #announceCycleStart(address: WorldAddress, cycleId: string, rootRoundId: string): void {
+    if (this.#announcedCycles.has(cycleId)) return
+    this.#announcedCycles.add(cycleId)
+    this.#notify('reaction.started', { address, cycleId, rootRoundId })
+  }
+
+  #recordBranchWorkFailure(address: WorldAddress, error: unknown): void {
+    this.metrics.increment('branch_work_failures')
+    const details = error instanceof WorldError
+      ? { errorId: error.envelope.errorId, errorCode: error.envelope.errorCode }
+      : { errorType: typeof error, message: String(error) }
+    try {
+      const audit = new BranchAdministration(this.worldPath)
+      try {
+        audit.recordBranchWorkFailure(address, 'branch-work:quantum-failed', details)
+      } finally {
+        audit.close()
+      }
+    } catch {
+      // The failure is already counted. A broken audit write must not stop Branch scheduling.
+    }
   }
 
   #legacyAdmin(): BranchAdministration {
@@ -611,49 +600,6 @@ export class LocalJsonRpcRouter {
       } catch {
         // Notifications are ephemeral hints. A broken subscriber must not change an authoritative result.
       }
-    }
-  }
-
-  #reactionCycleViews(address: WorldAddress) {
-    const store = new WorldStore(this.worldPath)
-    try {
-      return store.listReactionCycles(address)
-    } finally {
-      store.close()
-    }
-  }
-
-  #emitReactionNotifications(address: WorldAddress, cycleId: ReactionCycleId): void {
-    const store = new WorldStore(this.worldPath)
-    try {
-      const bundle = store.readReactionCycle(address, cycleId)
-      if (bundle === undefined) return
-      const rootRoundId = bundle.cycle.rootRoundId
-      const startedKey = `started\u001f${cycleId}`
-      if (!this.#reactionNotificationKeys.has(startedKey)) {
-        this.#reactionNotificationKeys.add(startedKey)
-        this.#notify('reaction.started', { address, cycleId, rootRoundId })
-      }
-      for (const wave of bundle.waves.filter(value => value.status === 'committed')) {
-        const roundId = wave.reactionRoundId!
-        const waveKey = `round\u001f${cycleId}\u001f${wave.wave}\u001f${roundId}`
-        if (this.#reactionNotificationKeys.has(waveKey)) continue
-        this.#reactionNotificationKeys.add(waveKey)
-        this.#notify('reaction.round_committed', {
-          address, cycleId, wave: wave.wave, roundId, rootRoundId,
-        })
-      }
-      if (bundle.cycle.status === 'terminal') {
-        const completedKey = `completed\u001f${cycleId}`
-        if (!this.#reactionNotificationKeys.has(completedKey)) {
-          this.#reactionNotificationKeys.add(completedKey)
-          this.#notify('reaction.completed', {
-            address, cycleId, terminalReason: bundle.cycle.terminalReason!, rootRoundId,
-          })
-        }
-      }
-    } finally {
-      store.close()
     }
   }
 

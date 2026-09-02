@@ -1208,6 +1208,14 @@ export class WorldStore {
     return readReactionCycleById(this.#db, address, cycleId)
   }
 
+  /** Resolve the Cycle opened by one committed Root Round transaction, if that Round opened one. */
+  reactionCycleIdByRootTransaction(address: WorldAddress, transactionId: TransactionId): ReactionCycleId | undefined {
+    const row = this.#db.prepare(`
+      SELECT cycle_id FROM world_reaction_cycles WHERE address_key = ? AND root_transaction_id = ?
+    `).get(worldAddressKey(address), transactionId) as { cycle_id: string } | undefined
+    return row === undefined ? undefined : brandId(row.cycle_id, 'ReactionCycleId')
+  }
+
   /** Read one privacy-safe Cycle view. */
   reactionCycleView(address: WorldAddress, cycleId: ReactionCycleId): ReactionCycleView | undefined {
     const bundle = readReactionCycleById(this.#db, address, cycleId)

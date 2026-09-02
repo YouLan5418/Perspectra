@@ -102,16 +102,16 @@ describe('BranchAdministration', () => {
     expect(() => admin.status(address('missing'))).toThrow('unknown world branch')
     expect(() => admin.setAdmission(target, 'draining', '', 'correlation')).toThrow(TypeError)
     expect(() => admin.archive(target, 'reason', '')).toThrow(TypeError)
-    expect(admin.recordRoundWorkerFailure(target, 'worker:failure', { message: 'provider failed' })).toMatchObject({
-      operation: 'round.worker.failed', details: { message: 'provider failed' },
+    expect(admin.recordBranchWorkFailure(target, 'branch-work:failure', { message: 'provider failed' })).toMatchObject({
+      operation: 'branch.work.failed', details: { message: 'provider failed' },
     })
-    expect(() => admin.recordRoundWorkerFailure(address('missing'), 'worker:missing', {})).toThrow('unknown world branch')
-    expect(() => admin.recordRoundWorkerFailure(target, '', {})).toThrow(TypeError)
+    expect(() => admin.recordBranchWorkFailure(address('missing'), 'branch-work:missing', {})).toThrow('unknown world branch')
+    expect(() => admin.recordBranchWorkFailure(target, '', {})).toThrow(TypeError)
     admin.close()
 
     const invalidClock = new BranchAdministration(path, () => -1)
     expect(() => invalidClock.archive(target, 'invalid time', 'admin:invalid-time')).toThrow()
-    expect(() => invalidClock.recordRoundWorkerFailure(target, 'worker:invalid-time', {})).toThrow()
+    expect(() => invalidClock.recordBranchWorkFailure(target, 'branch-work:invalid-time', {})).toThrow()
     expect(invalidClock.status(target).revision).toBe(0)
     invalidClock.close()
     store.close()

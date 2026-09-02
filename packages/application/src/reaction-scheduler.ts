@@ -96,6 +96,7 @@ export interface ReactionSchedulerOptions {
 
 export interface ReactionWaveResult {
   readonly cycleId: string
+  readonly rootRoundId: InteractionRoundId
   readonly wave: number
   readonly roundId: InteractionRoundId
   readonly transactionId: TransactionId
@@ -287,6 +288,7 @@ export class ReactionScheduler {
     this.#reconcileCommittedCalls(transactionId)
     return {
       cycleId: initial.cycle.cycleId,
+      rootRoundId: initial.cycle.rootRoundId,
       wave: wave.wave,
       roundId,
       transactionId,

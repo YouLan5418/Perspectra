@@ -29,10 +29,12 @@ import {
   type Proposal,
   type ProposalContext,
   type ReactionCycleDraft,
+  type ReactionCycleId,
   type RuntimeAvailabilityState,
   type TransactionId,
   type WorldAddress,
   type WorldEventDraft,
+  type WorldHash,
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
@@ -89,6 +91,23 @@ const RESPONSIVE_V1_MAX_WAVES = 3
 const RESPONSIVE_V1_MAX_NPC_CALLS = 8
 const RESPONSIVE_V1_MAX_CALLS_PER_CHARACTER = 2
 const REACTION_CYCLE_DEADLINE_MS = 30_000
+
+/** Durable effect of committing exactly one accepted player Round; the Host scheduling quantum. */
+export interface AcceptedRoundStep {
+  readonly roundId: InteractionRoundId
+  readonly transactionId: TransactionId
+  readonly headSeq: number
+  readonly tick: number
+  readonly bundleHash: WorldHash
+  readonly openedCycleId: ReactionCycleId | null
+}
+
+interface CommittedAcceptedRound {
+  readonly roundId: InteractionRoundId
+  readonly transactionId: TransactionId
+  readonly openedCycleId: ReactionCycleId | null
+  readonly result: PlayerRoundResult
+}
 
 export interface RoundCoordinatorOptions {
   readonly store: WorldStore
@@ -408,23 +427,39 @@ export class RoundCoordinator {
     })
   }
 
-  /** Commit at most one durable Inbox item so the composition root can interleave its Reaction Cycle. */
-  processNextAccepted(correlationId: string, required = false): Promise<boolean> {
+  /** Commit exactly one durable Inbox item so the composition root can interleave its Reaction Cycle. */
+  processNextAccepted(correlationId: string): Promise<void> {
     if (this.#closed) return Promise.reject(new Error('RoundCoordinator is closed'))
     return this.options.runtimeLane.enqueueRound(async () => {
-      this.#refreshLease()
-      const claimed = this.options.inbox.claimNext(
-        this.#address,
-        this.options.ownerId,
-        this.#lease.fencingToken,
-      )
-      if (claimed === undefined) {
-        if (required) throw new Error('Round Inbox lost an admitted responsive/v1 item')
-        return false
+      if (await this.#runAcceptedStep(correlationId) === undefined) {
+        throw new Error('Round Inbox lost an admitted responsive/v1 item')
       }
-      await this.#commitAndComplete(claimed, correlationId)
-      return true
     })
+  }
+
+  /** Commit at most one accepted player Round and report the durable step for Host scheduling. */
+  processNextAcceptedStep(correlationId: string): Promise<AcceptedRoundStep | undefined> {
+    if (this.#closed) return Promise.reject(new Error('RoundCoordinator is closed'))
+    return this.options.runtimeLane.enqueueRound(() => this.#runAcceptedStep(correlationId))
+  }
+
+  async #runAcceptedStep(correlationId: string): Promise<AcceptedRoundStep | undefined> {
+    this.#refreshLease()
+    const claimed = this.options.inbox.claimNext(
+      this.#address,
+      this.options.ownerId,
+      this.#lease.fencingToken,
+    )
+    if (claimed === undefined) return undefined
+    const committed = await this.#commitAndComplete(claimed, correlationId)
+    return {
+      roundId: committed.roundId,
+      transactionId: committed.transactionId,
+      headSeq: committed.result.headSeq,
+      tick: committed.result.tick,
+      bundleHash: committed.result.bundleHash,
+      openedCycleId: committed.openedCycleId,
+    }
   }
 
   async #drainUntil(targetSeq: number, correlationId: string): Promise<PlayerRoundResult> {
@@ -440,7 +475,7 @@ export class RoundCoordinator {
   async #commitAndComplete(
     claimed: ClaimedRound,
     correlationId: string,
-  ): Promise<{ readonly transactionId: TransactionId; readonly result: PlayerRoundResult }> {
+  ): Promise<CommittedAcceptedRound> {
     const committed = await this.#commitClaimed(claimed, correlationId)
     this.#renewLease()
     this.options.inbox.complete(
@@ -457,7 +492,7 @@ export class RoundCoordinator {
   async #commitClaimed(
     claimed: ClaimedRound,
     correlationId: string,
-  ): Promise<{ readonly transactionId: TransactionId; readonly result: PlayerRoundResult }> {
+  ): Promise<CommittedAcceptedRound> {
     const binding = this.#manifest.playerBindings.find(value => value.principalId === claimed.principalId)
     if (binding === undefined) throw new Error('admitted coordinated Round lost its PlayerBinding')
     const action = parseClaimedPlayerAction(claimed.input)
@@ -480,7 +515,12 @@ export class RoundCoordinator {
     if (committed !== undefined) {
       this.reconcileCommittedProviderCalls(transactionId)
       this.reconcileCommittedAvailability(transactionId)
-      return { transactionId, result: this.#committedPlayerResult(committed, roundId, playerAction) }
+      return {
+        roundId,
+        transactionId,
+        openedCycleId: this.options.store.reactionCycleIdByRootTransaction(this.#address, transactionId) ?? null,
+        result: this.#committedPlayerResult(committed, roundId, playerAction),
+      }
     }
     const head = this.options.store.head(this.#address)
     const history = this.options.store.readEvents(this.#address, head.headSeq)
@@ -824,7 +864,9 @@ export class RoundCoordinator {
     }
     this.processCognitiveJobs()
     return {
+      roundId,
       transactionId,
+      openedCycleId: this.options.store.reactionCycleIdByRootTransaction(this.#address, transactionId) ?? null,
       result: {
         status: playerResolution!.status,
         reason: playerResolution!.reason ?? null,

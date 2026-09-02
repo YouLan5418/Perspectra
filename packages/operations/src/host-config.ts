@@ -12,6 +12,14 @@ import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { canonicalizeWorldJson, compareWorldText, type WorldJsonObject } from '@harness-world/contracts'
+import {
+  MAX_CONCURRENT_BRANCHES_DEFAULT,
+  MAX_CONCURRENT_BRANCHES_MAX,
+  MAX_CONCURRENT_BRANCHES_MIN,
+  RESCAN_INTERVAL_MS_DEFAULT,
+  RESCAN_INTERVAL_MS_MAX,
+  RESCAN_INTERVAL_MS_MIN,
+} from './branch-work-scheduler.ts'
 
 export interface WorldHostConfig {
   readonly dataDirectory: string
@@ -25,6 +33,8 @@ export interface WorldHostConfig {
   readonly exportDirectory: string
   readonly logDirectory: string
   readonly leaseTtlMs: number
+  readonly maxConcurrentBranches: number
+  readonly rescanIntervalMs: number
 }
 
 export interface ResolveWorldHostConfigOptions {
@@ -34,7 +44,12 @@ export interface ResolveWorldHostConfigOptions {
   readonly homeDirectory?: string
 }
 
-type RawHostConfig = Partial<Record<'dataDirectory' | 'worldPath' | 'sessionPath' | 'memoryPath' | 'contextPath' | 'leaseTtlMs', string>>
+const RAW_HOST_CONFIG_KEYS = Object.freeze([
+  'dataDirectory', 'worldPath', 'sessionPath', 'memoryPath', 'contextPath', 'leaseTtlMs',
+  'maxConcurrentBranches', 'rescanIntervalMs',
+] as const)
+
+type RawHostConfig = Partial<Record<typeof RAW_HOST_CONFIG_KEYS[number], string>>
 
 const CLI_KEYS = new Map([
   ['--data-dir', 'dataDirectory'],
@@ -43,6 +58,8 @@ const CLI_KEYS = new Map([
   ['--memory-path', 'memoryPath'],
   ['--context-path', 'contextPath'],
   ['--lease-ttl-ms', 'leaseTtlMs'],
+  ['--max-concurrent-branches', 'maxConcurrentBranches'],
+  ['--rescan-interval-ms', 'rescanIntervalMs'],
 ] as const)
 
 function requiredValue(args: readonly string[], index: number, name: string): string {
@@ -79,7 +96,7 @@ function parseFlatYaml(text: string): RawHostConfig {
     const match = /^([A-Za-z][A-Za-z0-9]*):\s*(.*?)\s*$/u.exec(trimmed)
     if (match === null) throw new TypeError(`world-host.yml line ${index + 1} is invalid`)
     const key = match[1] as keyof RawHostConfig
-    if (!['dataDirectory', 'worldPath', 'sessionPath', 'memoryPath', 'contextPath', 'leaseTtlMs'].includes(key)) {
+    if (!(RAW_HOST_CONFIG_KEYS as readonly string[]).includes(key)) {
       throw new TypeError(`world-host.yml key ${key} is unsupported`)
     }
     const rawValue = match[2]!
@@ -100,6 +117,14 @@ function absolute(base: string, value: string): string {
 function positiveInteger(value: string, name: string): number {
   const parsed = Number(value)
   if (!Number.isSafeInteger(parsed) || parsed <= 0) throw new RangeError(`${name} must be a positive safe integer`)
+  return parsed
+}
+
+function boundedInteger(value: string, name: string, minimum: number, maximum: number): number {
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new RangeError(`${name} must be a safe integer from ${minimum} through ${maximum}`)
+  }
   return parsed
 }
 
@@ -129,6 +154,8 @@ export function resolveWorldHostConfig(
     ...(env.HCW_MEMORY_PATH === undefined ? {} : { memoryPath: env.HCW_MEMORY_PATH }),
     ...(env.HCW_CONTEXT_PATH === undefined ? {} : { contextPath: env.HCW_CONTEXT_PATH }),
     ...(env.HCW_LEASE_TTL_MS === undefined ? {} : { leaseTtlMs: env.HCW_LEASE_TTL_MS }),
+    ...(env.HCW_MAX_CONCURRENT_BRANCHES === undefined ? {} : { maxConcurrentBranches: env.HCW_MAX_CONCURRENT_BRANCHES }),
+    ...(env.HCW_RESCAN_INTERVAL_MS === undefined ? {} : { rescanIntervalMs: env.HCW_RESCAN_INTERVAL_MS }),
   }
   const merged = { ...yaml, ...environment, ...cli.values }
   const dataDirectory = absolute(cwd, merged.dataDirectory ?? initialRoot)
@@ -145,6 +172,14 @@ export function resolveWorldHostConfig(
     exportDirectory: join(dataDirectory, 'exports'),
     logDirectory: join(dataDirectory, 'logs'),
     leaseTtlMs: positiveInteger(merged.leaseTtlMs ?? '5000', 'leaseTtlMs'),
+    maxConcurrentBranches: boundedInteger(
+      merged.maxConcurrentBranches ?? String(MAX_CONCURRENT_BRANCHES_DEFAULT),
+      'maxConcurrentBranches', MAX_CONCURRENT_BRANCHES_MIN, MAX_CONCURRENT_BRANCHES_MAX,
+    ),
+    rescanIntervalMs: boundedInteger(
+      merged.rescanIntervalMs ?? String(RESCAN_INTERVAL_MS_DEFAULT),
+      'rescanIntervalMs', RESCAN_INTERVAL_MS_MIN, RESCAN_INTERVAL_MS_MAX,
+    ),
   }
 }
 

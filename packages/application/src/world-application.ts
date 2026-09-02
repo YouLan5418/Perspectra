@@ -86,6 +86,7 @@ import {
 import { PlayerInputInterpreter, type PlayerInputInterpretation } from './player-input.ts'
 import {
   RoundCoordinator,
+  type AcceptedRoundStep,
   type RoundParticipant,
   type SubmitCoordinatedRoundRequest,
 } from './round-coordinator.ts'
@@ -96,6 +97,7 @@ import {
   ReactionScheduler,
   type ReactionParticipantBinding,
   type ReactionSchedulerOptions,
+  type ReactionWaveResult,
   type ReactionWriterLeasePort,
 } from './reaction-scheduler.ts'
 import { ReactionCycleWorker, type ReactionDrainResult, type ReactionExecutionLane } from './reaction-worker.ts'
@@ -430,6 +432,32 @@ interface MountedBranch {
   readonly reactionWorker?: ReactionCycleWorker
 }
 
+/** One Reaction quantum (ADR-0079): whether the Branch may react, and the Wave it committed if it did. */
+export type ReactionWaveStep =
+  | { readonly status: 'unsupported' }
+  | { readonly status: 'idle' }
+  | ({ readonly status: 'wave' } & ReactionWaveResult)
+
+function reactionWaveOf(step: Extract<ReactionWaveStep, { readonly status: 'wave' }>): ReactionWaveResult {
+  return {
+    cycleId: step.cycleId,
+    rootRoundId: step.rootRoundId,
+    wave: step.wave,
+    roundId: step.roundId,
+    transactionId: step.transactionId,
+    headSeq: step.headSeq,
+    tick: step.tick,
+    terminalReason: step.terminalReason,
+    actionCount: step.actionCount,
+  }
+}
+
+/** One durable scheduling quantum (ADR-0079): at most one Wave, or at most one accepted player Round. */
+export type BranchWorkStep =
+  | { readonly status: 'idle' }
+  | ({ readonly status: 'reaction_wave' } & ReactionWaveResult)
+  | ({ readonly status: 'player_round' } & AcceptedRoundStep)
+
 /** Local composition root and the only production entrypoint into branch-owned state. */
 export class WorldApplication {
   readonly #root = new Context()
@@ -556,7 +584,7 @@ export class WorldApplication {
       if (replay !== undefined) return parsePlayerRoundResult(replay)
       await branch.reactionWorker.drain()
       while (true) {
-        await branch.kernel.processNextAccepted(request.correlationId, true)
+        await branch.kernel.processNextAccepted(request.correlationId)
         const result = branch.store.inbox.readCompleted(address, request.idempotencyKey)
         if (result !== undefined) return parsePlayerRoundResult(result)
         await branch.reactionWorker.drain()
@@ -686,16 +714,32 @@ export class WorldApplication {
     })
   }
 
-  async processAcceptedRounds(address: WorldAddress, correlationId: string): Promise<number> {
-    return this.#integrityGuard(address, 'round.process', async (branch) => {
-      if (branch.reactionWorker === undefined) return branch.kernel.drainAccepted(correlationId)
-      let processed = 0
-      while (true) {
-        await branch.reactionWorker.drain()
-        if (!await branch.kernel.processNextAccepted(correlationId)) return processed
-        processed += 1
-      }
+  /** Run at most one frozen Wave; `unsupported` means this Manifest does not enable Reactions. */
+  async processNextReactionWave(address: WorldAddress): Promise<ReactionWaveStep> {
+    return this.#integrityGuard(address, 'reaction.process', async (branch) => {
+      if (branch.reactionWorker === undefined) return { status: 'unsupported' }
+      const wave = await branch.reactionWorker.runOneWave()
+      return wave === undefined ? { status: 'idle' } : { ...wave, status: 'wave' }
     })
+  }
+
+  /** Execute at most one durable quantum: one frozen Wave, else one accepted player Round, else idle. */
+  async processNextBranchWork(address: WorldAddress, correlationId: string): Promise<BranchWorkStep> {
+    const wave = await this.processNextReactionWave(address)
+    if (wave.status === 'wave') return { ...wave, status: 'reaction_wave' }
+    return this.#integrityGuard(address, 'round.process', async (branch) => {
+      const round = await branch.kernel.processNextAcceptedStep(correlationId)
+      return round === undefined ? { status: 'idle' } : { ...round, status: 'player_round' }
+    })
+  }
+
+  async processAcceptedRounds(address: WorldAddress, correlationId: string): Promise<number> {
+    let processed = 0
+    while (true) {
+      const step = await this.processNextBranchWork(address, correlationId)
+      if (step.status === 'idle') return processed
+      if (step.status === 'player_round') processed += 1
+    }
   }
 
   async roundStatus(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }) {
@@ -783,10 +827,14 @@ export class WorldApplication {
   }
 
   async processReactionCycles(address: WorldAddress): Promise<ReactionDrainResult | null> {
-    return this.#integrityGuard(address, 'reaction.process', branch => {
-      if (branch.reactionWorker === undefined) return null
-      return branch.reactionWorker.drain()
-    })
+    const first = await this.processNextReactionWave(address)
+    if (first.status === 'unsupported') return null
+    const waves: ReactionWaveResult[] = first.status === 'wave' ? [reactionWaveOf(first)] : []
+    while (true) {
+      const step = await this.processNextReactionWave(address)
+      if (step.status !== 'wave') return { cycleId: waves[0]?.cycleId ?? null, waves }
+      waves.push(reactionWaveOf(step))
+    }
   }
 
   async head(address: WorldAddress) {

@@ -19,7 +19,10 @@ try {
     leaseTtlMs: config.leaseTtlMs,
     runtimeOwnerId: lock.record.writerOwnerPrefix,
   })
-  const router = new LocalJsonRpcRouter(config.worldPath, application)
+  const router = new LocalJsonRpcRouter(config.worldPath, application, {
+    maxConcurrentBranches: config.maxConcurrentBranches,
+    rescanIntervalMs: config.rescanIntervalMs,
+  })
   const shutdown = new AbortController()
   const stop = () => shutdown.abort()
   process.once('SIGINT', stop)

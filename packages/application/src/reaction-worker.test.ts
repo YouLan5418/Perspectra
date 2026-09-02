@@ -5,6 +5,7 @@ import { ReactionCycleWorker, type ReactionWaveRunner } from './reaction-worker.
 function wave(number: number, terminalReason: ReactionCycleTerminalReason | null = null) {
   return {
     cycleId: 'reaction-cycle:test',
+    rootRoundId: brandId('round:root:test', 'InteractionRoundId'),
     wave: number,
     roundId: brandId(`round:reaction:${number}`, 'InteractionRoundId'),
     transactionId: brandId(`transaction:reaction:${number}`, 'TransactionId'),
@@ -39,5 +40,24 @@ describe('ReactionCycleWorker', () => {
     const runner: ReactionWaveRunner = { runCurrentWave: () => Promise.resolve(wave(1)) }
     const worker = new ReactionCycleWorker({ enqueueRound: work => work() }, runner)
     await expect(worker.drain()).rejects.toThrow('same Wave twice')
+  })
+
+  it('runs exactly one frozen Wave per quantum on the branch lane', async () => {
+    const results = [wave(1), wave(2, 'quiescent')]
+    let laneEntries = 0
+    const worker = new ReactionCycleWorker(
+      {
+        enqueueRound: work => {
+          laneEntries += 1
+          return work()
+        },
+      },
+      { runCurrentWave: () => Promise.resolve(results.shift()) },
+    )
+    await expect(worker.runOneWave()).resolves.toEqual(wave(1))
+    await expect(worker.runOneWave()).resolves.toEqual(wave(2, 'quiescent'))
+    await expect(worker.runOneWave()).resolves.toBeUndefined()
+    expect(laneEntries).toBe(3)
+    expect(results).toHaveLength(0)
   })
 })

@@ -387,4 +387,66 @@ describe('Phase 9B reaction end-to-end', () => {
       await application.close()
     }
   })
+
+  it('advances exactly one durable quantum per call and keeps Cycle work ahead of player input', async () => {
+    const dir = directory('quantum')
+    const worldPath = join(dir, 'world.sqlite')
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const aliceScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const bobScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const compiled = v5Manifest()
+    const application = new WorldApplication({
+      worldPath,
+      sessionPath: join(dir, 'session.sqlite'),
+      memoryPath: join(dir, 'memory.sqlite'),
+      modelBudgetTokens: 64,
+      leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    application.activate(compiled)
+    try {
+      const first = await application.acceptRound(ADDRESS, request('quantum:first', 'Hello everyone'))
+      expect(first.status).toBe('queued')
+
+      const rootStep = await application.processNextBranchWork(ADDRESS, 'quantum:root')
+      if (rootStep.status !== 'player_round') throw new Error('the first quantum must commit the accepted Root Round')
+      expect(rootStep.roundId).toBe(first.roundId)
+      const cycleId = rootStep.openedCycleId
+      expect(cycleId).not.toBeNull()
+      aliceScript.outputs.set(`${cycleId}:1:${alice}`, reactionSpeech(alice, 1, 'Alice reacts'))
+      bobScript.outputs.set(`${cycleId}:2:${bob}`, reactionSpeech(bob, 2, 'Bob answers Alice'))
+
+      const waveOne = await application.processNextBranchWork(ADDRESS, 'quantum:wave-one')
+      expect(waveOne).toMatchObject({
+        status: 'reaction_wave', cycleId, wave: 1, rootRoundId: rootStep.roundId,
+        actionCount: 1, terminalReason: null,
+      })
+
+      const second = await application.acceptRound(ADDRESS, request('quantum:second', 'Interrupt'))
+      const waveTwo = await application.processNextBranchWork(ADDRESS, 'quantum:wave-two')
+      expect(waveTwo).toMatchObject({
+        status: 'reaction_wave', cycleId, wave: 2, rootRoundId: rootStep.roundId,
+        actionCount: 0, terminalReason: 'player_preempted',
+      })
+
+      const secondStep = await application.processNextBranchWork(ADDRESS, 'quantum:second')
+      if (secondStep.status !== 'player_round') throw new Error('the queued player Round must follow the terminal Cycle')
+      expect(secondStep.roundId).toBe(second.roundId)
+
+      const trailing: string[] = []
+      for (let index = 0; index < 8; index += 1) {
+        const step = await application.processNextBranchWork(ADDRESS, 'quantum:trailing')
+        trailing.push(step.status)
+        if (step.status === 'idle') break
+      }
+      expect(trailing.at(-1)).toBe('idle')
+      expect(trailing.every(status => status !== 'player_round')).toBe(true)
+
+      await expect(application.processNextReactionWave(ADDRESS)).resolves.toMatchObject({ status: 'idle' })
+    } finally {
+      await application.close()
+    }
+  })
 })

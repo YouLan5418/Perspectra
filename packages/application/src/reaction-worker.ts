@@ -35,4 +35,9 @@ export class ReactionCycleWorker {
       }
     })
   }
+
+  /** Execute at most one frozen Wave so a Host scheduler can bound every Branch to one quantum. */
+  runOneWave(): Promise<ReactionWaveResult | undefined> {
+    return this.lane.enqueueRound(() => this.runner.runCurrentWave())
+  }
 }
