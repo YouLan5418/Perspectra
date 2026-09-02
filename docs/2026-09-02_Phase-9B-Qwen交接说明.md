@@ -1,5 +1,7 @@
 # Phase 9B Qwen 交接说明
 
+> **交接已完成：** 本文的三个剩余单元已经由提交 `982012d`、`01b5859` 与 `a1aa750` 关闭，不再作为当前待办。最终行为、验证结果和 Phase 9C 边界见[Phase 9B 完成报告](2026-09-02_阶段报告-Harness-Cordis-World-Phase-9B-report.md)。
+
 > **接手起点：** `phase9b/bounded-multi-wave` 与 `qwen` 应共同指向本文所在提交。开始工作前必须确认已跟踪工作树干净；`.idea/`、`.workbuddy/`、`coverage-detail/` 和现有未跟踪审查报告属于用户本地材料，不得加入提交。
 >
 > **当前状态：** 有界多 wave 的权威存储、Scheduler、Root Round 接线、自动恢复和运维 worker 已完成。Phase 9B 尚未结束；剩余范围仅为 Reaction 通知、Presentation 因果链、阶段报告收口，不进入 Phase 9C。

@@ -1,5 +1,7 @@
 # Harness / Cordis World Phase 9B Scheduler 阶段报告
 
+> **历史状态：** 本文记录 Scheduler 单元完成时的中间状态，其中 Manifest、Root Round、Host 唤醒与 Presentation 缺口均已在后续提交关闭。当前状态以[Phase 9B 完成报告](2026-09-02_阶段报告-Harness-Cordis-World-Phase-9B-report.md)为准。
+
 | 项目 | 内容 |
 | --- | --- |
 | 日期 | 2026-09-01 |
