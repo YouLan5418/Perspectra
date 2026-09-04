@@ -1,4 +1,4 @@
-import type { WorldAddress, WorldJsonObject } from '@harness-world/contracts'
+import { failWorld, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
 import {
   BranchAdministration,
   WorldStore,
@@ -49,6 +49,7 @@ export class BranchOperationCoordinator {
   ) {}
 
   async forkAtHead(request: ForkAtHeadRequest): Promise<ForkAtHeadResult> {
+    this.#assertNoOpenCycle(request.parent, request.correlationId)
     this.administration.setAdmission(request.parent, 'draining', request.reason, `${request.correlationId}:drain`)
     const drainedRounds = await this.rounds.drainAccepted(`${request.correlationId}:rounds`)
     const forkSeq = this.store.head(request.parent).headSeq
@@ -77,11 +78,21 @@ export class BranchOperationCoordinator {
   }
 
   async archive(request: ArchiveBranchRequest): Promise<ArchiveBranchResult> {
+    this.#assertNoOpenCycle(request.address, request.correlationId)
     this.administration.setAdmission(request.address, 'draining', request.reason, `${request.correlationId}:drain`)
     const drainedRounds = await this.rounds.drainAccepted(`${request.correlationId}:rounds`)
     const drainedDeliveries = await this.deliveries.drainCritical(`${request.correlationId}:outbox`)
     await this.rounds.close()
     const state = this.administration.archive(request.address, request.reason, `${request.correlationId}:archive`)
     return { drainedRounds, drainedDeliveries, state }
+  }
+
+  #assertNoOpenCycle(address: WorldAddress, correlationId: string): void {
+    if (this.store.openReactionCycleId(address) !== undefined) {
+      failWorld({
+        errorCode: 'BRANCH_DRAINING', category: 'admin', retryable: true,
+        message: 'administrative operation must wait for the open Reaction Cycle', correlationId, address,
+      })
+    }
   }
 }

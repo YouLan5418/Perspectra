@@ -1,17 +1,18 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import {
   brandId,
+  createErrorEnvelope,
   hashWorldJson,
   type CharacterId,
   type FaultInjector,
   type SubmitActionsV2,
 } from '@harness-world/contracts'
 import { type CompiledWorldSpec } from '@harness-world/kernel'
-import { WorldStore } from '@harness-world/store-sqlite'
+import { BranchQuarantineService, WorldStore, WorldLogicalTransferService } from '@harness-world/store-sqlite'
 import {
   ADDRESS,
   reactionBinding,
@@ -446,6 +447,245 @@ describe('Phase 9B reaction end-to-end', () => {
 
       await expect(application.processNextReactionWave(ADDRESS)).resolves.toMatchObject({ status: 'idle' })
     } finally {
+      await application.close()
+    }
+  })
+
+  it('quiesces open Cycles before maintenance and never resurrects them', async () => {
+    const dir = directory('maintenance')
+    const worldPath = join(dir, 'world.sqlite')
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const aliceScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const bobScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const compiled = v5Manifest()
+    const application = new WorldApplication({
+      worldPath,
+      sessionPath: join(dir, 'session.sqlite'),
+      memoryPath: join(dir, 'memory.sqlite'),
+      modelBudgetTokens: 64,
+      leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    application.activate(compiled)
+    try {
+      await application.submit(ADDRESS, request('maintenance:first', 'Hello everyone'))
+      const opened = await application.listReactionCycles(ADDRESS)
+      expect(opened).toHaveLength(1)
+      expect(opened[0]!.status).toBe('active')
+      await application.acceptRound(ADDRESS, request('maintenance:queued', 'Queued while reacting'))
+      await application.acceptRound(ADDRESS, request('maintenance:queued-second', 'Another queued input'))
+
+      const result = await application.enterMaintenance(ADDRESS, 'planned maintenance', 'maintenance:enter')
+      expect(result.state).toMatchObject({ runtimePhase: 'maintenance', admissionState: 'draining' })
+      expect(result.drainedRounds).toBe(2)
+      expect(result.settledWaves).toBe(3)
+      expect(typeof result.stoppedCycleId).toBe('string')
+
+      const cycles = await application.listReactionCycles(ADDRESS)
+      expect(cycles).toHaveLength(3)
+      expect(cycles.every(cycle => cycle.status === 'terminal')).toBe(true)
+      expect(cycles.find(cycle => cycle.cycleId === opened[0]!.cycleId))
+        .toMatchObject({ terminalReason: 'player_preempted' })
+      expect(cycles.find(cycle => cycle.cycleId !== opened[0]!.cycleId))
+        .toMatchObject({ terminalReason: 'administrative_stop' })
+      expect(aliceScript.calls.value).toBe(0)
+      expect(bobScript.calls.value).toBe(0)
+
+      await application.exitMaintenance(ADDRESS, 'maintenance complete', 'maintenance:exit')
+      expect(await application.branchStatus(ADDRESS)).toMatchObject({ runtimePhase: 'active', admissionState: 'open' })
+      const afterExit = await application.listReactionCycles(ADDRESS)
+      expect(afterExit.every(cycle => cycle.status === 'terminal')).toBe(true)
+    } finally {
+      await application.close()
+    }
+  })
+
+  it('refuses archive and fork with a retryable error while a Cycle is still open', async () => {
+    const dir = directory('archive-fork-barrier')
+    const worldPath = join(dir, 'world.sqlite')
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const aliceScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const bobScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const compiled = v5Manifest()
+    const application = new WorldApplication({
+      worldPath,
+      sessionPath: join(dir, 'session.sqlite'),
+      memoryPath: join(dir, 'memory.sqlite'),
+      modelBudgetTokens: 64,
+      leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'round alice'), roundProvider(bob, 'round bob')],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    application.activate(compiled)
+    try {
+      await application.submit(ADDRESS, request('barrier:first', 'Hello everyone'))
+      expect((await application.listReactionCycles(ADDRESS))[0]!.status).toBe('active')
+      const child = { ...ADDRESS, branchId: brandId('branch:barrier-child', 'BranchId') }
+      for (const attempt of [
+        () => application.forkAtHead(ADDRESS, child, 'barrier fork', 'barrier:fork'),
+        () => application.archive(ADDRESS, 'barrier archive', 'barrier:archive'),
+      ]) {
+        await expect(attempt()).rejects.toMatchObject({
+          envelope: { errorCode: 'BRANCH_DRAINING', retryable: true },
+        })
+      }
+      expect((await application.listReactionCycles(ADDRESS))[0]!.status).toBe('active')
+      await application.processReactionCycles(ADDRESS)
+      const fork = await application.forkAtHead(ADDRESS, child, 'barrier fork complete', 'barrier:fork-complete')
+      expect(fork.forkSeq).toBe((await application.head(ADDRESS)).headSeq)
+      expect(await application.listReactionCycles(child)).toEqual([])
+      expect((await application.archive(ADDRESS, 'barrier archive complete', 'barrier:archive-complete')).state.runtimePhase)
+        .toBe('archived')
+    } finally {
+      await application.close()
+    }
+  })
+
+  it('pauses an administrative drain when a queued Root opens a Cycle, then safely retries', async () => {
+    const dir = directory('archive-queued-roots')
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const application = new WorldApplication({
+      worldPath: join(dir, 'world.sqlite'), sessionPath: join(dir, 'session.sqlite'), memoryPath: join(dir, 'memory.sqlite'),
+      modelBudgetTokens: 64, leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'root alice'), roundProvider(bob, 'root bob')],
+      reactionParticipants: () => [alice, bob].map(actor => reactionBinding(actor, { calls: { value: 0 }, outputs: new Map() })),
+    })
+    application.activate(v5Manifest())
+    try {
+      const first = await application.acceptRound(ADDRESS, request('archive-queued:first'))
+      const second = await application.acceptRound(ADDRESS, request('archive-queued:second'))
+      await expect(application.archive(ADDRESS, 'archive after draining', 'archive-queued:attempt-one'))
+        .rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING', retryable: true } })
+      expect((await application.listReactionCycles(ADDRESS)).map(cycle => cycle.rootRoundId)).toEqual([first.roundId])
+      await application.processReactionCycles(ADDRESS)
+      await expect(application.archive(ADDRESS, 'archive after draining', 'archive-queued:attempt-two'))
+        .rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING', retryable: true } })
+      expect((await application.listReactionCycles(ADDRESS)).map(cycle => cycle.rootRoundId).sort())
+        .toEqual([first.roundId, second.roundId].sort())
+      await application.processReactionCycles(ADDRESS)
+      expect((await application.archive(ADDRESS, 'archive after draining', 'archive-queued:attempt-three')).state.runtimePhase)
+        .toBe('archived')
+      expect((await application.listReactionCycles(ADDRESS)).every(cycle => cycle.status === 'terminal')).toBe(true)
+    } finally { await application.close() }
+  })
+
+  it('stops a Cycle created by a Root which was already running when maintenance began', async () => {
+    const dir = directory('maintenance-inflight-root')
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const started = Promise.withResolvers<void>()
+    const finish = Promise.withResolvers<void>()
+    const reactionCalls = { value: 0 }
+    const application = new WorldApplication({
+      worldPath: join(dir, 'world.sqlite'), sessionPath: join(dir, 'session.sqlite'), memoryPath: join(dir, 'memory.sqlite'),
+      modelBudgetTokens: 64, leaseTtlMs: 30_000,
+      participants: () => [alice, bob].map(actor => {
+        const participant = roundProvider(actor, 'root speaks before maintenance')
+        return { ...participant, provider: { propose: async context => {
+          started.resolve()
+          await finish.promise
+          return participant.provider.propose(context)
+        } } }
+      }),
+      reactionParticipants: () => [alice, bob].map(actor => reactionBinding(actor, { calls: reactionCalls, outputs: new Map() })),
+    })
+    application.activate(v5Manifest())
+    const running = application.submit(ADDRESS, request('maintenance-inflight-root'))
+      .then(result => ({ result }), error => ({ error }))
+    let maintenance: Promise<unknown> | undefined
+    try {
+      await started.promise
+      expect(await application.listReactionCycles(ADDRESS)).toEqual([])
+      maintenance = application.enterMaintenance(ADDRESS, 'maintenance after root', 'maintenance:root')
+      await vi.waitFor(async () => expect((await application.branchStatus(ADDRESS)).admissionState).toBe('draining'))
+      finish.resolve()
+      expect(await running).toHaveProperty('result')
+      expect(await maintenance).toMatchObject({ state: { runtimePhase: 'maintenance' } })
+      expect(await application.listReactionCycles(ADDRESS)).toEqual([
+        expect.objectContaining({ status: 'terminal', terminalReason: 'administrative_stop' }),
+      ])
+      expect(reactionCalls.value).toBe(0)
+    } finally { finish.resolve(); await running; await maintenance; await application.close() }
+  })
+
+  it.each(['maintenance', 'quarantine'] as const)('handles %s while a real Wave awaits Providers', async mode => {
+    const dir = directory(`inflight-${mode}`)
+    const worldPath = join(dir, 'world.sqlite')
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const started = Promise.withResolvers<void>()
+    const finish = Promise.withResolvers<void>()
+    let calls = 0
+    const application = new WorldApplication({
+      worldPath, sessionPath: join(dir, 'session.sqlite'), memoryPath: join(dir, 'memory.sqlite'),
+      modelBudgetTokens: 64, leaseTtlMs: 30_000,
+      participants: () => [roundProvider(alice, 'root alice'), roundProvider(bob, 'root bob')],
+      reactionParticipants: () => [alice, bob].map(actor => ({
+        ...reactionBinding(actor, { calls: { value: 0 }, outputs: new Map() }),
+        provider: { propose: async context => {
+          calls++
+          started.resolve()
+          await finish.promise
+          return reactionSpeech(actor, context.origin.wave, `LATE_CANARY:${actor}`)
+        } },
+      })),
+    })
+    application.activate(v5Manifest())
+    let running: Promise<unknown> | undefined
+    try {
+      await application.submit(ADDRESS, request(`inflight:${mode}`))
+      const before = await application.head(ADDRESS)
+      const cycleId = (await application.listReactionCycles(ADDRESS))[0]!.cycleId
+      running = application.processReactionCycles(ADDRESS).then(result => ({ result }), error => ({ error }))
+      await started.promise
+      // A denied archive/fork must neither wait for nor dispose this in-flight writer.
+      await expect(application.forkAtHead(ADDRESS, { ...ADDRESS, branchId: brandId('branch:inflight-child', 'BranchId') }, 'fork', 'inflight:fork'))
+        .rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING', retryable: true } })
+      await expect(application.archive(ADDRESS, 'archive', 'inflight:archive'))
+        .rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING', retryable: true } })
+      expect(application.activeBranchCount).toBe(1)
+      if (mode === 'maintenance') {
+        const maintenance = application.enterMaintenance(ADDRESS, 'upgrade', 'inflight:maintenance')
+        await vi.waitFor(async () => {
+          expect((await application.reactionCycle(ADDRESS, cycleId))?.status).toBe('stop_requested')
+        })
+        finish.resolve()
+        expect(await running).toHaveProperty('result')
+        expect((await maintenance).state.runtimePhase).toBe('maintenance')
+        expect((await application.reactionCycle(ADDRESS, cycleId))?.terminalReason).toBe('administrative_stop')
+        await application.exitMaintenance(ADDRESS, 'done', 'inflight:exit')
+        expect((await application.eventHistory(ADDRESS)).filter(event => event.eventType === 'character.speak'
+          && JSON.stringify(event.data).includes('LATE_CANARY'))).toHaveLength(2)
+      } else {
+        const quarantine = new BranchQuarantineService(worldPath)
+        try {
+          expect(quarantine.quarantine({ address: ADDRESS, source: 'inflight:test', error: createErrorEnvelope({
+            errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', retryable: false,
+            message: 'isolating while Providers await', correlationId: 'inflight:quarantine', address: ADDRESS,
+          }) }).quarantinedCycleId).toBe(cycleId)
+        } finally { quarantine.close() }
+        finish.resolve()
+        expect(await running).toHaveProperty('error')
+        const probe = new WorldStore(worldPath)
+        try {
+          expect(probe.head(ADDRESS)).toEqual(before)
+          expect(probe.readEvents(ADDRESS).some(event => JSON.stringify(event.data).includes('LATE_CANARY'))).toBe(false)
+          expect(probe.verifyBranchIntegrity(ADDRESS).tick).toBe(before.tick)
+        } finally { probe.close() }
+        new WorldLogicalTransferService(worldPath).exportAuthority(join(dir, 'quarantined.json'), 'quarantine:export')
+        await application.quarantineRecover(ADDRESS, 'inflight:recover')
+        expect((await application.branchStatus(ADDRESS)).runtimePhase).toBe('active')
+      }
+      expect(calls).toBe(2)
+      expect((await application.processReactionCycles(ADDRESS))?.waves).toHaveLength(0)
+      expect(calls).toBe(2)
+    } finally {
+      finish.resolve()
+      await running
       await application.close()
     }
   })

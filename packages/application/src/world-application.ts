@@ -1044,7 +1044,8 @@ export class WorldApplication {
       return await new BranchOperationCoordinator(branch.store.store, branch.store.administration, branch.kernel, branch.store)
         .archive({ address, reason, correlationId })
     } finally {
-      await this.release(address)
+      // A retryable Cycle barrier must not dispose the writer used by an in-flight Wave.
+      if (branch.store.store.openReactionCycleId(address) === undefined) await this.release(address)
     }
   }
 
@@ -1071,17 +1072,43 @@ export class WorldApplication {
   async enterMaintenance(address: WorldAddress, reason: string, correlationId: string) {
     const branch = await this.#branch(address)
     branch.store.administration.setAdmission(address, 'draining', reason, `${correlationId}:drain`)
-    const drainedRounds = await branch.kernel.drainAccepted(`${correlationId}:rounds`)
+    let stoppedCycleId: string | null = null
+    let settledWaves = 0
+    let drainedRounds = 0
+    while (true) {
+      const stopped = branch.store.store.requestReactionCycleAdministrativeStop(address)
+      if (stopped !== undefined) stoppedCycleId = stopped
+      // A Root already running when the barrier closed may create its Cycle after the first stop request.
+      await branch.lease.slot.enqueueRound(async () => {
+        const opened = branch.store.store.requestReactionCycleAdministrativeStop(address)
+        if (opened !== undefined) stoppedCycleId = opened
+      })
+      settledWaves += await this.#settleStoppedCycle(branch)
+      const drained = await branch.kernel.processNextAcceptedStep(`${correlationId}:rounds`)
+      if (drained === undefined) break
+      drainedRounds += 1
+    }
+    await branch.store.drainCritical(`${correlationId}:outbox`)
     await this.release(address)
     const administration = new BranchAdministration(this.options.worldPath)
     try {
       return {
         drainedRounds,
+        stoppedCycleId,
+        settledWaves,
         state: administration.enterMaintenance(address, reason, `${correlationId}:enter`),
       }
     } finally {
       administration.close()
     }
+  }
+
+  /** Settle the frozen Wave of a stop-requested Cycle so maintenance never leaves it open (ADR-0079). */
+  async #settleStoppedCycle(branch: MountedBranch): Promise<number> {
+    if (branch.reactionWorker === undefined) return 0
+    let settledWaves = 0
+    while (await branch.reactionWorker.runOneWave() !== undefined) settledWaves += 1
+    return settledWaves
   }
 
   async exitMaintenance(address: WorldAddress, reason: string, correlationId: string) {

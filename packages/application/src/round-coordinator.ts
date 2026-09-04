@@ -418,6 +418,13 @@ export class RoundCoordinator {
     return this.options.runtimeLane.enqueueRound(async () => {
       let drained = 0
       while (true) {
+        if (this.options.store.openReactionCycleId(this.#address) !== undefined) {
+          failWorld({
+            errorCode: 'BRANCH_DRAINING', category: 'admin',
+            message: 'accepted Round drain must wait for the open Reaction Cycle', retryable: true,
+            correlationId, address: this.#address,
+          })
+        }
         this.#refreshLease()
         const claimed = this.options.inbox.claimNext(this.#address, this.options.ownerId, this.#lease.fencingToken)
         if (claimed === undefined) return drained
