@@ -34,11 +34,14 @@ import {
   WORLD_PACK_COGNITION_SCHEMA_VERSION_V2,
   WORLD_PACK_COMPILED_SCHEMA_VERSION,
   WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
+  WORLD_PACK_COMPILED_SCHEMA_VERSION_V3,
   WORLD_PACK_COMPILER_CONTRACT_VERSION,
   WORLD_PACK_COMPILER_CONTRACT_VERSION_V2,
+  WORLD_PACK_COMPILER_CONTRACT_VERSION_V3,
   WORLD_PACK_COMPILER_ID,
   WORLD_PACK_COMPILER_VERSION,
   WORLD_PACK_COMPILER_VERSION_V2,
+  WORLD_PACK_COMPILER_VERSION_V3,
   WORLD_PACK_LIMITS_PROFILE,
   WORLD_PACK_LIMITS_PROFILE_V2,
   WORLD_PACK_CONTROLLER_CLASSES_V2,
@@ -52,8 +55,11 @@ import {
   WORLD_PACK_SCENES_SCHEMA_VERSION_V2,
   WORLD_PACK_SOURCE_SCHEMA_VERSION,
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
+  WORLD_PACK_SOURCE_SCHEMA_VERSION_V3,
+  WORLD_PACK_REACTION_SCHEMA_VERSION,
   type CompiledWorldPack,
   type CompiledWorldPackV2,
+  type CompiledWorldPackV3,
   type WorldPackAcceptanceAssertion,
   type WorldPackAffectSourceV2,
   type WorldPackAssertionsSource,
@@ -98,6 +104,8 @@ import {
   type WorldPackSlotId,
   type WorldPackSourceManifest,
   type WorldPackSourceManifestV2,
+  type WorldPackSourceManifestV3,
+  type WorldPackReactionSource,
   type WorldPackTensionPoleSourceV2,
   type WorldPackWorldSource,
 } from './contracts.ts'
@@ -414,6 +422,50 @@ export function parseWorldPackSourceManifestV2(input: unknown, file = 'worldpack
     assetFiles: lists.assetFiles,
     assertionFiles: lists.assertionFiles,
   }
+}
+
+/** Parse the explicit Phase 9 file manifest without modifying the frozen v2 parser. */
+export function parseWorldPackSourceManifestV3(input: unknown, file = 'worldpack.source.json'): WorldPackSourceManifestV3 {
+  const root = sourceDocument(input, file)
+  const v2Fields = [
+    'characterFiles', 'locationFiles', 'entityFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles',
+    'cognitionFiles', 'memoryFiles', 'documentFiles', 'markdownFiles', 'assetFiles', 'assertionFiles',
+  ] as const
+  exactKeys(root, ['sourceSchemaVersion', 'packId', 'packVersion', 'worldFile', ...v2Fields, 'reactionFile'], [], file, '')
+  if (root.sourceSchemaVersion !== WORLD_PACK_SOURCE_SCHEMA_VERSION_V3) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/sourceSchemaVersion', `must be ${WORLD_PACK_SOURCE_SCHEMA_VERSION_V3}`)
+  }
+  const reactionFile = textAt(root.reactionFile, file, '/reactionFile')
+  const { reactionFile: _, ...base } = root
+  const parsed = parseWorldPackSourceManifestV2({
+    ...base,
+    sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
+  }, file)
+  const explicitFiles = [parsed.worldFile, ...v2Fields.flatMap(field => parsed[field]), reactionFile]
+  if (explicitFiles.length > MAX_EXPLICIT_FILES) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '', `must list at most ${MAX_EXPLICIT_FILES} files`)
+  }
+  unique(explicitFiles, file, '')
+  return { ...parsed, sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V3, reactionFile }
+}
+
+/** Strict creator-selectable Reaction mode. Numeric safety limits are deliberately absent. */
+export function parseWorldPackReactionSource(input: unknown, file = 'reaction.json'): WorldPackReactionSource {
+  const root = sourceDocument(input, file)
+  if (root.mode === 'disabled') {
+    exactKeys(root, ['schemaVersion', 'mode'], [], file, '')
+    if (root.schemaVersion !== WORLD_PACK_REACTION_SCHEMA_VERSION) {
+      failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must be ${WORLD_PACK_REACTION_SCHEMA_VERSION}`)
+    }
+    return { schemaVersion: WORLD_PACK_REACTION_SCHEMA_VERSION, mode: 'disabled' }
+  }
+  exactKeys(root, ['schemaVersion', 'mode', 'profile'], [], file, '')
+  if (root.schemaVersion !== WORLD_PACK_REACTION_SCHEMA_VERSION) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must be ${WORLD_PACK_REACTION_SCHEMA_VERSION}`)
+  }
+  if (root.mode !== 'responsive') failWorldPackContract('PACK_SOURCE_INVALID', file, '/mode', 'must be disabled or responsive')
+  if (root.profile !== 'responsive/v1') failWorldPackContract('PACK_SOURCE_INVALID', file, '/profile', 'must be responsive/v1')
+  return { schemaVersion: WORLD_PACK_REACTION_SCHEMA_VERSION, mode: 'responsive', profile: 'responsive/v1' }
 }
 
 function cognitionArray(value: unknown, file: string, at: string): readonly unknown[] {
@@ -1159,6 +1211,45 @@ export function parseCompiledWorldPackV2(input: unknown, file = 'worldpack.json'
     content: parsedContent,
     assets,
     acceptanceAssertions,
+  }
+}
+
+/** Validate one compiled v3 envelope while delegating the frozen Phase 8 content shape to the v2 parser. */
+export function parseCompiledWorldPackV3(input: unknown, file = 'worldpack.json'): CompiledWorldPackV3 {
+  const root = sourceDocument(input, file, MAX_COMPILED_BYTES)
+  exactKeys(root, [
+    'compiledSchemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
+    'registryLocks', 'reaction', 'content', 'assets', 'acceptanceAssertions',
+  ], [], file, '')
+  if (root.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V3) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiledSchemaVersion', `must be ${WORLD_PACK_COMPILED_SCHEMA_VERSION_V3}`)
+  }
+  const compiler = objectAt(root.compiler, file, '/compiler')
+  exactKeys(compiler, ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'], [], file, '/compiler')
+  if (compiler.id !== WORLD_PACK_COMPILER_ID || compiler.version !== WORLD_PACK_COMPILER_VERSION_V3
+    || compiler.contractVersion !== WORLD_PACK_COMPILER_CONTRACT_VERSION_V3 || compiler.canonicalJsonVersion !== 'world-json/v1'
+    || compiler.limitsProfile !== WORLD_PACK_LIMITS_PROFILE_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiler', 'does not identify the Phase 9 compiler contract')
+  }
+  const { reaction: reactionInput, ...withoutReaction } = root
+  const base = parseCompiledWorldPackV2({
+    ...withoutReaction,
+    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
+    compiler: {
+      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V2,
+      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V2,
+      canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
+    },
+  }, file)
+  return {
+    ...base,
+    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V3,
+    compiler: {
+      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V3,
+      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V3,
+      canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
+    },
+    reaction: parseWorldPackReactionSource(reactionInput, `${file}#/reaction`),
   }
 }
 

@@ -34,6 +34,7 @@ describe('World Pack creator CLI', () => {
   it.each([
     [['init', '--profile', 'minimal', 'pack'], { command: 'init', profile: 'minimal', directory: 'pack' }],
     [['init', '--profile', 'social', 'pack'], { command: 'init', profile: 'social', directory: 'pack' }],
+    [['init', '--profile', 'responsive-social', 'pack'], { command: 'init', profile: 'responsive-social', directory: 'pack' }],
     [['validate', 'pack'], { command: 'validate', sourceDirectory: 'pack' }],
     [['compile', 'pack', '--out', 'pack.json'], { command: 'compile', sourceDirectory: 'pack', outputPath: 'pack.json' }],
     [['inspect', 'pack.json'], { command: 'inspect', compiledPackPath: 'pack.json' }],
@@ -158,6 +159,41 @@ describe('World Pack creator CLI', () => {
     })
   })
 
+  it('scaffolds, compiles, inspects, tests, and activates an explicit responsive v3 Pack', async () => {
+    const root = await temporaryRoot()
+    const source = join(root, 'responsive-social')
+    const artifact = join(root, 'responsive-social.worldpack.json')
+    const runtime = join(root, 'runtime')
+    expect(parsed(await executeWorldPackCli(['init', '--profile', 'responsive-social', source]))).toMatchObject({
+      command: 'init', status: 'created', profile: 'responsive-social', directory: source,
+    })
+    expect(JSON.parse(await readFile(join(source, 'reaction.json'), 'utf8'))).toEqual({
+      schemaVersion: 'worldpack-reaction/v1', mode: 'responsive', profile: 'responsive/v1',
+    })
+    expect(parsed(await executeWorldPackCli(['validate', source]))).toMatchObject({
+      command: 'validate', status: 'valid', packId: 'pack:responsive-social',
+    })
+    expect(parsed(await executeWorldPackCli(['test', source]))).toMatchObject({
+      command: 'test', report: { status: 'compiled', assertionsExecuted: 0 },
+    })
+    await executeWorldPackCli(['compile', source, '--out', artifact])
+    expect(parsed(await executeWorldPackCli(['inspect', artifact]))).toMatchObject({
+      command: 'inspect', status: 'inspected', inspection: {
+        title: '雨夜同行', reaction: {
+          mode: 'responsive', profile: 'responsive/v1', maximumWaves: 3, maximumNpcCalls: 8,
+          maximumCallsPerCharacter: 2, maximumActionsPerCall: 1,
+          maximumNpcSpeechesPerPlayerInput: 8, deadlineMs: 30_000,
+        },
+      },
+    })
+    expect(parsed(await executeWorldPackCli(['activate', artifact, '--data-dir', runtime]))).toMatchObject({
+      command: 'activate', status: 'activated', requiredReactionActors: ['character:alice', 'character:bob'],
+    })
+    expect(parsed(await executeWorldPackCli(['activate', artifact, '--data-dir', runtime]))).toMatchObject({
+      command: 'activate', status: 'already_active', requiredReactionActors: ['character:alice', 'character:bob'],
+    })
+  })
+
   it('fails closed for invalid UTF-8 and a content-diverged compiled artifact', async () => {
     const root = await temporaryRoot()
     const invalid = join(root, 'invalid.worldpack.json')
@@ -172,6 +208,24 @@ describe('World Pack creator CLI', () => {
     document.content.world.title = 'Tampered'
     await writeFile(artifact, JSON.stringify(document))
     await expect(executeWorldPackCli(['inspect', artifact])).rejects.toThrow('does not match the compiled envelope content')
+  })
+
+  it('fails closed for an unknown source schema and exposes a disabled v3 policy without implied limits changes', async () => {
+    const root = await temporaryRoot()
+    const unknown = join(root, 'unknown')
+    await executeWorldPackCli(['init', '--profile', 'minimal', unknown])
+    const sourceManifest = JSON.parse(await readFile(join(unknown, 'worldpack.source.json'), 'utf8')) as Record<string, unknown>
+    await writeFile(join(unknown, 'worldpack.source.json'), JSON.stringify({ ...sourceManifest, sourceSchemaVersion: 'worldpack-source/v99' }))
+    await expect(executeWorldPackCli(['validate', unknown])).rejects.toThrow('source schema version is unsupported')
+
+    const responsive = join(root, 'disabled')
+    const artifact = join(root, 'disabled.worldpack.json')
+    await executeWorldPackCli(['init', '--profile', 'responsive-social', responsive])
+    await writeFile(join(responsive, 'reaction.json'), JSON.stringify({ schemaVersion: 'worldpack-reaction/v1', mode: 'disabled' }))
+    await executeWorldPackCli(['compile', responsive, '--out', artifact])
+    expect(parsed(await executeWorldPackCli(['inspect', artifact]))).toMatchObject({
+      inspection: { reaction: { mode: 'disabled', profile: null } },
+    })
   })
 
   it('normalizes contract, world, usage and unexpected errors without leaking internals', () => {

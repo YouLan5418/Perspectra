@@ -6,6 +6,7 @@ import { WorldApplication } from '@harness-world/application'
 import {
   brandId,
   canonicalizeWorldJson,
+  compareWorldText,
   createErrorEnvelope,
   deterministicId,
   WorldError,
@@ -23,16 +24,17 @@ import {
 } from './tooling.ts'
 import { WorldPackContractError } from './diagnostics.ts'
 import { worldPackErrorCode } from './schema.ts'
+import { WORLD_PACK_COMPILED_SCHEMA_VERSION_V3 } from './contracts.ts'
 
 export type WorldPackCliInvocation =
-  | { readonly command: 'init'; readonly profile: 'minimal' | 'social'; readonly directory: string }
+  | { readonly command: 'init'; readonly profile: 'minimal' | 'social' | 'responsive-social'; readonly directory: string }
   | { readonly command: 'validate'; readonly sourceDirectory: string }
   | { readonly command: 'compile'; readonly sourceDirectory: string; readonly outputPath: string }
   | { readonly command: 'inspect'; readonly compiledPackPath: string }
   | { readonly command: 'test'; readonly sourceDirectory: string }
   | { readonly command: 'activate'; readonly compiledPackPath: string; readonly dataDirectory: string }
 
-const USAGE = 'usage: worldpack init --profile minimal|social <dir> | validate <dir> | compile <dir> --out <worldpack.json> | inspect <worldpack.json> | test <dir> | activate <worldpack.json> --data-dir <dir>'
+const USAGE = 'usage: worldpack init --profile minimal|social|responsive-social <dir> | validate <dir> | compile <dir> --out <worldpack.json> | inspect <worldpack.json> | test <dir> | activate <worldpack.json> --data-dir <dir>'
 
 function value(value: string | undefined, name: string): string {
   if (value === undefined || value.length === 0) throw new TypeError(`${name} is required; ${USAGE}`)
@@ -43,7 +45,9 @@ export function parseWorldPackCliInvocation(args: readonly string[]): WorldPackC
   const command = args[0]
   if (command === 'init' && args.length === 4 && args[1] === '--profile') {
     const profile = args[2]
-    if (profile !== 'minimal' && profile !== 'social') throw new TypeError(`worldpack profile must be minimal or social; ${USAGE}`)
+    if (profile !== 'minimal' && profile !== 'social' && profile !== 'responsive-social') {
+      throw new TypeError(`worldpack profile must be minimal, social, or responsive-social; ${USAGE}`)
+    }
     return { command, profile, directory: value(args[3], 'directory') }
   }
   if ((command === 'validate' || command === 'test') && args.length === 2) {
@@ -103,11 +107,28 @@ async function scaffoldMinimal(directory: string): Promise<void> {
   await Promise.all(Object.entries(documents).map(([path, document]) => writeJson(directory, path, document)))
 }
 
-async function scaffold(profile: 'minimal' | 'social', targetInput: string): Promise<string> {
+async function scaffoldResponsiveSocial(target: string): Promise<void> {
+  await cp(fileURLToPath(new URL('../../../examples/world-packs/rainy-road-companions/', import.meta.url)), target, {
+    recursive: true, errorOnExist: true, force: false,
+  })
+  await writeJson(target, 'worldpack.source.json', {
+    sourceSchemaVersion: 'worldpack-source/v3', packId: 'pack:responsive-social', packVersion: '1.0.0',
+    worldFile: 'world.json', characterFiles: ['characters.json'], locationFiles: ['locations.json'],
+    entityFiles: ['entities.json'], sceneFiles: ['scenes.json'], playerSlotFiles: ['player-slots.json'],
+    presentationFiles: ['presentation.json'], cognitionFiles: ['cognition.json'], memoryFiles: ['memory.json'],
+    documentFiles: [], markdownFiles: [], assetFiles: [], assertionFiles: ['assertions.json'], reactionFile: 'reaction.json',
+  })
+  await writeJson(target, 'reaction.json', {
+    schemaVersion: 'worldpack-reaction/v1', mode: 'responsive', profile: 'responsive/v1',
+  })
+}
+
+async function scaffold(profile: 'minimal' | 'social' | 'responsive-social', targetInput: string): Promise<string> {
   const target = resolve(targetInput)
   assertAbsent(target)
   if (profile === 'minimal') await scaffoldMinimal(target)
-  else await cp(referenceSocialDirectory(), target, { recursive: true, errorOnExist: true, force: false })
+  else if (profile === 'social') await cp(referenceSocialDirectory(), target, { recursive: true, errorOnExist: true, force: false })
+  else await scaffoldResponsiveSocial(target)
   return target
 }
 
@@ -142,7 +163,17 @@ async function activate(compiledPackPath: string, dataDirectoryInput: string): P
   const application = new WorldApplication(paths)
   try {
     const result = application.activate(compiled)
-    return { command: 'activate', status: result.status, address, manifestHash: compiled.manifestHash, dataDirectory, ...paths }
+    const requiredReactionActors = pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V3
+      && pack.reaction.mode === 'responsive'
+      ? pack.content.characters
+        .filter(character => character.lifecycle === 'active' && character.controllerClass !== 'manual')
+        .map(character => character.characterId)
+        .sort(compareWorldText)
+      : []
+    return {
+      command: 'activate', status: result.status, address, manifestHash: compiled.manifestHash,
+      requiredReactionActors, dataDirectory, ...paths,
+    }
   } finally {
     await application.close()
   }
