@@ -45,6 +45,8 @@ corepack pnpm@11.7.0 exec tsx tools/report-v15-watermarks.ts
 
 `reactionTables: 0` 证明旧库不含任何 `world_reaction_*` 表，因此 v15→v16 是真正的“新增结构”迁移，而不是重写。
 
+> **2026-09-05 复核更正：** 原始 `c2b3141` 制品的 `context.sqlite` 实际为 `user_version=4`、`application_id=0`，不是本文初稿第 6 节“当前值”表里的 Context v5/`0x48435743`。第 6 节描述的是当前代码目标版本，不是旧制品版本。P9C.5 真盘演练已把 Context v4 前向迁移到 v5 并设置归属标识，迁移前后全部既有 Context 行的内容 Hash 相同。此差异没有被静默修饰，而是作为旧部署恢复矩阵的一部分保留证据。
+
 ## 3. 逐文件 SHA-256
 
 同一命令连续运行两次，结果如下（byte length 两次相同）：
@@ -138,9 +140,9 @@ P9C.4 必须保持以下断言值不变（`worldpack-source/v1`、`worldpack-sou
 
 ### Path
 
-1. P9C.5 用本文第 1 节命令产出的制品执行真盘 v15→v16 迁移与五库备份/恢复演练，并把迁移后断言输出追加到阶段报告；
-2. P9C.5 同时在 CI 中补由冻结 DDL 构造的等价 v15 旧库门槛；
-3. P9C.4 实现 v3 链后重跑本文第 5 节全部 Golden 断言，任何值变化即视为污染旧版本并停止；
+1. P9C.5 已用本文第 1 节命令产出的制品执行真盘 v15→v16、Context v4→v5 迁移与五库备份/恢复演练，证据见[Phase 9C.5 阶段报告](2026-09-05_阶段报告-Harness-Cordis-World-Phase-9C.5-report.md)；
+2. P9C.5 已在 CI 测试集中补由完整现行表集降级构造的等价 v15 旧库门槛；
+3. P9C.4 已在引入 v3 编译链后重跑本文第 5 节全部 Golden 断言，v1/v2 字节与 Hash 未发生漂移；
 4. P9C.7 Release Closure 引用本文作为迁移与恢复证据的来源。
 
 ## 附录 A：`tools/make-v15-fixture.ts`（在 `c2b3141` worktree 内运行）
