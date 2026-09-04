@@ -33,7 +33,7 @@ import {
   worldJsonText,
 } from '@harness-world/store-sqlite'
 
-const MEMORY_APPLICATION_ID = 0x4843574c
+export const MEMORY_APPLICATION_ID = 0x4843574c
 const MEMORY_SCHEMA = `
 CREATE TABLE memory_source_mappings (
   namespace_key TEXT NOT NULL,

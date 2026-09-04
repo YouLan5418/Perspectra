@@ -24,6 +24,7 @@
     "worldctl": "tsx packages/operations/process/cli-entry.ts",
     "worldappctl": "tsx packages/operations/process/application-cli-entry.ts",
     "worldhost": "tsx packages/operations/process/headless-entry.ts",
+    "worlddeploy": "tsx packages/operations/process/deployment-backup-entry.ts",
     "worldpack": "tsx packages/world-pack/process/cli-entry.ts",
     "demo:mystery": "tsx packages/simulation/process/mystery-demo-entry.ts",
     "demo:mystery:turn": "tsx packages/simulation/process/mystery-turn-entry.ts",

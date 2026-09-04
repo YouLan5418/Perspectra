@@ -6,6 +6,9 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId } from '@harness-world/contracts'
+import { openContextDatabase } from '@harness-world/agents'
+import { LocalMemoryStore } from '@harness-world/memory'
+import { SessionDeliveryAdapter, WorldStore } from '@harness-world/store-sqlite'
 
 const directories: string[] = []
 const root = process.cwd()
@@ -44,6 +47,7 @@ describe('process entrypoints', () => {
     const entries = [
       'packages/operations/process/application-cli-entry.ts',
       'packages/operations/process/cli-entry.ts',
+      'packages/operations/process/deployment-backup-entry.ts',
       'packages/world-pack/process/cli-entry.ts',
       'packages/simulation/process/mystery-demo-entry.ts',
       'packages/simulation/process/mystery-drill-entry.ts',
@@ -73,6 +77,39 @@ describe('process entrypoints', () => {
     const host = await run('packages/operations/process/headless-entry.ts', [worldPath, sessionPath])
     expect(host).toMatchObject({ code: 0, stdout: '', stderr: '' })
   })
+
+  it('creates, validates, and restores an offline deployment through worlddeploy', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-worlddeploy-entry-'))
+    directories.push(directory)
+    const dataDirectory = join(directory, 'host')
+    const dataPath = join(dataDirectory, 'data')
+    const world = new WorldStore(join(dataPath, 'world.sqlite'))
+    const session = new SessionDeliveryAdapter(join(dataPath, 'session.sqlite'))
+    const memory = new LocalMemoryStore(join(dataPath, 'memory.sqlite'), world)
+    openContextDatabase(join(dataPath, 'context.sqlite')).close()
+    memory.close()
+    session.close()
+    world.close()
+    const artifact = join(directory, 'artifact')
+    const created = await run('packages/operations/process/deployment-backup-entry.ts', [
+      'create', artifact, '--data-dir', dataDirectory,
+    ])
+    expect(created).toMatchObject({ code: 0, stderr: '' })
+    expect(JSON.parse(created.stdout)).toMatchObject({ format: 'world-deployment-backup/v1' })
+
+    const validated = await run('packages/operations/process/deployment-backup-entry.ts', [
+      'validate', artifact, '--data-dir', dataDirectory,
+    ])
+    expect(validated).toMatchObject({ code: 0, stderr: '' })
+    expect(JSON.parse(validated.stdout)).toEqual(JSON.parse(created.stdout))
+
+    const restored = join(directory, 'restored')
+    const restore = await run('packages/operations/process/deployment-backup-entry.ts', [
+      'restore', artifact, restored, '--data-dir', dataDirectory,
+    ])
+    expect(restore).toMatchObject({ code: 0, stderr: '' })
+    expect(JSON.parse(restore.stdout)).toMatchObject({ format: 'world-deployment-restore-provenance/v1' })
+  }, 60_000)
 
   it('finishes the in-flight quantum before a graceful stdio shutdown', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'hcw-process-shutdown-'))

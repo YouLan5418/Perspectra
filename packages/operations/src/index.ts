@@ -1,4 +1,5 @@
 export * from './branch-work-scheduler.ts'
+export * from './deployment-backup.ts'
 export * from './cli.ts'
 export * from './chat.ts'
 export * from './health.ts'

@@ -46,6 +46,10 @@ export type FaultPoint =
   | 'reaction.after-cancel-request'
   | 'reaction.after-job-claim'
   | 'reaction.after-wave-settle'
+  | 'deployment-backup.after-file-copy'
+  | 'deployment-backup.before-ready'
+  | 'deployment-restore.after-file-copy'
+  | 'deployment-restore.before-ready'
 
 export interface FaultInjector {
   /** Pause, fail, or terminate execution at a named stable point. */

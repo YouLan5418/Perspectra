@@ -5,8 +5,10 @@
   "type": "module",
   "exports": "./src/index.ts",
   "dependencies": {
+    "@harness-world/agents": "workspace:*",
     "@harness-world/application": "workspace:*",
     "@harness-world/contracts": "workspace:*",
+    "@harness-world/memory": "workspace:*",
     "@harness-world/store-sqlite": "workspace:*"
   }
 }

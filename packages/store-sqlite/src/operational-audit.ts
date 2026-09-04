@@ -2,7 +2,8 @@ import type { DatabaseSync } from 'node:sqlite'
 import { failWorld, hashWorldJson, type WorldHash, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { openMigratedDatabase, parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 
-const AUDIT_APPLICATION_ID = 0x48435741
+export const AUDIT_APPLICATION_ID = 0x48435741
+export const AUDIT_SCHEMA_VERSION = 2
 const AUDIT_SCHEMA = `
 CREATE TABLE operational_audit_events (
   audit_seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +39,7 @@ export class OperationalAuditLog {
   constructor(path: string, private readonly operationalNow: () => number = Date.now) {
     this.#db = openMigratedDatabase(path, AUDIT_APPLICATION_ID, [
       { version: 1, sql: AUDIT_SCHEMA },
-      { version: 2, sql: AUDIT_HASH_CHAIN_SCHEMA },
+      { version: AUDIT_SCHEMA_VERSION, sql: AUDIT_HASH_CHAIN_SCHEMA },
     ])
     try {
       this.#backfillChain()
