@@ -79,6 +79,47 @@ export function fixtureCommitRequest(address = fixtureAddress()): CommitRoundReq
   }
 }
 
+/** Stable Root Round request that opens one responsive/v1 Reaction Cycle for crash recovery tests. */
+export function fixtureReactionCommitRequest(address = fixtureAddress()): CommitRoundRequest {
+  const observer = brandId('character:reaction-observer', 'CharacterId')
+  return {
+    address,
+    transactionId: brandId('transaction:reaction-crash-fixture', 'TransactionId'),
+    roundId: brandId('round:reaction-crash-fixture', 'InteractionRoundId'),
+    expectedHeadSeq: 0,
+    expectedTick: 0,
+    nextTick: 1,
+    events: [{
+      eventType: 'observation.upsert',
+      eventVersion: 1,
+      data: { id: 'observation:reaction-fixture', value: { observerId: observer, content: 'stimulus' } },
+    }],
+    outbox: [],
+    reactionCycle: {
+      policyVersion: 'reaction-policy/v1',
+      profileId: 'responsive/v1',
+      maxWaves: 3,
+      maxNpcCalls: 1,
+      maxCallsPerCharacter: 2,
+      maxActionsPerCall: 1,
+      allowedActionTypes: ['speak@1'],
+      initialTokenBudget: 4,
+      deadlineAtMs: 10_000,
+      candidates: [{
+        characterId: observer,
+        estimatedTokens: 2,
+        stimuli: [{
+          sourceEventOrdinal: 0,
+          observationOrdinal: 0,
+          observationId: 'observation:reaction-fixture',
+          observerCharacterId: observer,
+        }],
+      }],
+    },
+    correlationId: 'reaction-crash-fixture',
+  }
+}
+
 /** Stable Session delivery used by crash recovery tests. */
 export function fixtureDeliveryRequest() {
   const observationEvent = { observationId: 'observation:crash-fixture', content: 'visible' } as const

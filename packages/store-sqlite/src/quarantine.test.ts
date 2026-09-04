@@ -57,6 +57,7 @@ describe('BranchQuarantineService', () => {
     const error = integrityError(address)
     expect(quarantine.quarantine({ address, error, source: 'world-store.committed-round' })).toEqual({
       status: 'quarantined', failureId: error.errorId, abortedRoundCount: 2, runtimeEpoch: 0,
+      quarantinedCycleId: null, terminalizedJobCount: 0,
     })
     expect(store.head(address)).toMatchObject({ headSeq: 0, tick: 0 })
     const administration = new BranchAdministration(path)

@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { ThrowingFaultInjector } from '@harness-world/testkit'
 import {
   brandId,
+  createErrorEnvelope,
   hashWorldJson,
+  WorldError,
   type CommitRoundRequest,
   type ReactionCycleDraft,
   type ReactionCycleId,
@@ -24,10 +26,13 @@ import {
   hashReactionWaveState,
   normalizeReactionWaveSettlement,
   prepareReactionWaveSettlement,
+  quarantineReactionCycleInTransaction,
   readReactionWaveSettlementHashByTransaction,
   prepareInitialReactionCycle,
   type PrepareInitialReactionCycleInput,
 } from './reaction-cycle.ts'
+import { BranchAdministration } from './branch-administration.ts'
+import { BranchQuarantineService } from './quarantine.ts'
 import { RoundInbox } from './round-inbox.ts'
 import { WorldStore } from './world-store.ts'
 import { WriterLeaseService } from './writer-lease.ts'
@@ -1639,5 +1644,175 @@ describe('WorldStore Reaction Cycle authority', () => {
     )).toThrow('binding changed concurrently')
     store.close()
     leases.close()
+  })
+})
+
+describe('Reaction Cycle administrative boundaries', () => {
+  function quarantineError(address: WorldAddress) {
+    return createErrorEnvelope({
+      errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'reaction quarantine',
+      retryable: false, correlationId: 'quarantine:reaction', address,
+    })
+  }
+
+  async function pendingCycleFixture(label: string) {
+    const { path, address } = fixture()
+    const clock = { value: 10 }
+    const store = new WorldStore(path, undefined, () => clock.value)
+    store.createBranch(address)
+    const leases = new WriterLeaseService(path, () => clock.value)
+    const writer = leases.acquire(address, `reaction-worker:${label}`, 1_000)
+    await store.commitRound({ ...request(address), writerFencingToken: writer.fencingToken })
+    const cycle = store.activeReactionCycle(address)!.cycle
+    return { path, address, store, leases, cycle }
+  }
+
+  it('quarantines an open Cycle without waiting for its Provider and revokes the fence', async () => {
+    const settled = await settlementFixture()
+    const { path, address, store, leases, cycle, job } = settled
+    expect(store.openReactionCycleId(address)).toBe(cycle.cycleId)
+    const quarantine = new BranchQuarantineService(path, () => 2_000)
+    expect(quarantine.quarantine({ address, error: quarantineError(address), source: 'reaction.quarantine' }))
+      .toMatchObject({ status: 'quarantined', quarantinedCycleId: cycle.cycleId, terminalizedJobCount: 1 })
+    expect(quarantine.quarantine({ address, error: quarantineError(address), source: 'reaction.quarantine' }))
+      .toMatchObject({ status: 'already_quarantined', quarantinedCycleId: null, terminalizedJobCount: 0 })
+    quarantine.close()
+
+    const quarantined = store.readReactionCycle(address, cycle.cycleId)!
+    expect(quarantined.cycle).toMatchObject({ status: 'terminal', terminalReason: 'quarantined', terminalAtSeq: 2 })
+    expect(quarantined.waves.at(-1)).toMatchObject({
+      status: 'closed_without_dispatch', reactionRoundId: null, resultTransactionId: null, authorityHash: null,
+    })
+    expect(quarantined.jobs.find(value => value.jobId === job.jobId)).toMatchObject({
+      status: 'settled', outcome: 'runtime_unavailable',
+      claimOwnerId: job.claimOwnerId, claimFencingToken: job.claimFencingToken,
+    })
+    expect(store.activeReactionCycle(address)).toBeUndefined()
+    expect(store.openReactionCycleId(address)).toBeUndefined()
+    expect(() => store.claimNextReactionJob(address, 'late:worker', 4_321, 500)).toThrow()
+    expect(store.verifyBranchIntegrity(address).tick).toBe(1)
+    const administration = new BranchAdministration(path)
+    expect(administration.readAudit(address)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        operation: 'branch.quarantined',
+        details: expect.objectContaining({ quarantinedCycleId: cycle.cycleId, terminalizedJobCount: 1 }),
+      }),
+    ]))
+    administration.close()
+    store.close()
+    leases.close()
+  })
+
+  it('terminalizes pending Jobs when quarantine precedes any claim', async () => {
+    const pending = await pendingCycleFixture('pending')
+    const { path, address, store, leases, cycle } = pending
+    const quarantine = new BranchQuarantineService(path, () => 20)
+    const result = quarantine.quarantine({ address, error: quarantineError(address), source: 'reaction.pending' })
+    expect(result).toMatchObject({ quarantinedCycleId: cycle.cycleId, terminalizedJobCount: 1 })
+    quarantine.close()
+    const bundle = store.readReactionCycle(address, cycle.cycleId)!
+    const reserved = bundle.jobs.filter(value => value.budgetDecision === 'reserved')
+    expect(reserved).toHaveLength(1)
+    expect(reserved[0]).toMatchObject({
+      status: 'settled', outcome: 'runtime_unavailable', attemptCount: 1,
+      claimOwnerId: `quarantine:${result.failureId}`, claimExpiresAtMs: 20, claimFencingToken: 1,
+    })
+    expect(bundle.jobs.filter(value => value.status === 'skipped')).toHaveLength(1)
+    expect(bundle.waves.at(-1)).toMatchObject({ status: 'closed_without_dispatch' })
+    store.close()
+    leases.close()
+  })
+
+  it.each([
+    ['world_reaction_cycles', `sha256:${'0'.repeat(64)}`],
+    ['world_reaction_waves', `sha256:${'0'.repeat(64)}`],
+    ['world_reaction_jobs', `sha256:${'0'.repeat(64)}`],
+    ['world_reaction_cycles', 'malformed-hash'],
+  ])('preserves corrupt %s evidence while still quarantining the Branch (%s)', async (table, hash) => {
+    const { path, address, store, leases } = await pendingCycleFixture('corrupt-quarantine')
+    const db = new DatabaseSync(path)
+    const quarantine = new BranchQuarantineService(path, () => 20)
+    const administration = new BranchAdministration(path)
+    try {
+      db.prepare(`UPDATE ${table} SET state_hash = ?`).run(hash)
+      const readRows = () => ['world_reaction_cycles', 'world_reaction_waves', 'world_reaction_jobs']
+        .map(name => db.prepare(`SELECT * FROM ${name}`).all())
+      const before = readRows()
+      expect(quarantine.quarantine({ address, error: quarantineError(address), source: 'reaction.corrupt' }))
+        .toMatchObject({ status: 'quarantined', quarantinedCycleId: null, terminalizedJobCount: 0, unresolvedReactionCycle: true })
+      expect(readRows()).toEqual(before)
+      expect(administration.status(address)).toMatchObject({ runtimePhase: 'quarantined', admissionState: 'draining' })
+      expect(db.prepare('SELECT * FROM writer_leases').all()).toHaveLength(0)
+      expect(() => leases.acquire(address, 'late:writer', 1_000)).toThrow('quarantined')
+      expect(administration.readAudit(address).at(-1)?.details).toMatchObject({ unresolvedReactionCycle: true })
+      expect(() => quarantine.recover(address, 'corrupt:recover', () => store.verifyBranchIntegrity(address)))
+        .toThrow('controlled quarantine recovery validation failed')
+      expect(administration.status(address).runtimePhase).toBe('quarantined')
+      expect(readRows()).toEqual(before)
+    } finally { administration.close(); quarantine.close(); db.close(); leases.close(); store.close() }
+  })
+
+  it('fails closed when quarantine races a Wave, Job, or Cycle change', async () => {
+    const races = [
+      ['wave', 'world_reaction_waves', "NEW.status = 'closed_without_dispatch'", 'Reaction Wave changed concurrently during quarantine'],
+      ['job', 'world_reaction_jobs', "NEW.outcome = 'runtime_unavailable'", 'Reaction Job changed concurrently during quarantine'],
+      ['cycle', 'world_reaction_cycles', "NEW.terminal_reason = 'quarantined'", 'Reaction Cycle changed concurrently during quarantine'],
+    ] as const
+    for (const [label, table, condition, message] of races) {
+      const pending = await pendingCycleFixture(`race-${label}`)
+      pending.store.close()
+      pending.leases.close()
+      const db = new DatabaseSync(pending.path)
+      db.exec(`CREATE TRIGGER block_quarantine_${label} BEFORE UPDATE OF status ON ${table} WHEN ${condition} BEGIN SELECT RAISE(IGNORE); END;`)
+      db.exec('BEGIN IMMEDIATE')
+      expect(() => quarantineReactionCycleInTransaction(db, pending.address, {
+        terminalAtSeq: 2, claimOwnerId: 'quarantine:race', claimExpiresAtMs: 30,
+      })).toThrow(message)
+      db.exec('ROLLBACK')
+      db.close()
+    }
+  })
+
+  it('refuses fork, maintenance, and archive with a retryable error while a Cycle is open', async () => {
+    const pending = await pendingCycleFixture('barrier')
+    const { path, address, store, leases, cycle } = pending
+    const child = { ...address, branchId: brandId('branch:child', 'BranchId') }
+    expect(() => store.forkBranch(address, child, 2)).toThrow('no active or stop-requested Reaction Cycle')
+    const administration = new BranchAdministration(path, () => 5_000)
+    administration.setAdmission(address, 'draining', 'maintenance', 'admin:drain')
+    for (const attempt of [
+      () => administration.enterMaintenance(address, 'maintenance', 'admin:enter'),
+      () => administration.archive(address, 'archive', 'admin:archive'),
+    ]) {
+      try {
+        attempt()
+        throw new Error('administrative barrier ignored an open Reaction Cycle')
+      } catch (error: unknown) {
+        expect(error).toBeInstanceOf(WorldError)
+        expect((error as WorldError).envelope).toMatchObject({ errorCode: 'BRANCH_DRAINING', retryable: true })
+      }
+    }
+    expect(store.requestReactionCycleAdministrativeStop(address)).toBe(cycle.cycleId)
+    expect(() => administration.archive(address, 'archive', 'admin:archive-stopped')).toThrow('Reaction Cycle')
+    expect(store.requestReactionCycleAdministrativeStop(address)).toBe(cycle.cycleId)
+    expect(store.listReactionCycles(address)[0]!.status).toBe('stop_requested')
+    administration.close()
+    store.close()
+    leases.close()
+  })
+
+  it('rolls back a failed administrative stop without hiding Cycle integrity errors', async () => {
+    const { path, address, store, leases } = await pendingCycleFixture('stop-rollback')
+    const db = new DatabaseSync(path)
+    try {
+      db.prepare('UPDATE world_reaction_cycles SET state_hash = ?').run(`sha256:${'0'.repeat(64)}`)
+      expect(() => store.requestReactionCycleAdministrativeStop(address)).toThrow('Reaction Cycle hash is divergent')
+      // A second BEGIN succeeds only if the helper released its failed transaction.
+      expect(() => store.createBranch({ ...address, branchId: brandId('branch:after-rollback', 'BranchId') })).not.toThrow()
+    } finally {
+      db.close()
+      store.close()
+      leases.close()
+    }
   })
 })

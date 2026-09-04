@@ -43,6 +43,7 @@ import {
   listReactionCycles,
   claimNextReactionJob,
   normalizeReactionWaveSettlement,
+  openReactionCycleId,
   prepareInitialReactionCycle,
   prepareReactionWaveSettlement,
   readActiveReactionCycle,
@@ -51,6 +52,7 @@ import {
   readReactionWaveSettlementHashByTransaction,
   reactionCycleView as buildReactionCycleView,
   renewReactionJobClaim,
+  requestReactionCycleAdministrativeStop,
   type ReactionSourceEvent,
 } from './reaction-cycle.ts'
 
@@ -926,6 +928,13 @@ export class WorldStore {
           correlationId: `fork:${child.branchId}`, address: parent,
         })
       }
+      if (openReactionCycleId(this.#db, parent) !== undefined) {
+        failWorld({
+          errorCode: 'BRANCH_DRAINING', category: 'admin',
+          message: 'branch fork requires no active or stop-requested Reaction Cycle', retryable: true,
+          correlationId: `fork:${child.branchId}`, address: parent,
+        })
+      }
       const parentHead = this.#headRow(parentKey)
       if (!Number.isSafeInteger(forkSeq) || forkSeq < 0 || forkSeq > parentHead.head_seq) {
         throw new RangeError(`forkSeq ${forkSeq} is outside parent head ${parentHead.head_seq}`)
@@ -1225,6 +1234,16 @@ export class WorldStore {
   /** Read the branch's only non-terminal Reaction Cycle, if one exists. */
   activeReactionCycle(address: WorldAddress): StoredReactionCycleBundle | undefined {
     return readActiveReactionCycle(this.#db, address)
+  }
+
+  /** Lean open-Cycle lookup for administrative barriers (ADR-0079). */
+  openReactionCycleId(address: WorldAddress): ReactionCycleId | undefined {
+    return openReactionCycleId(this.#db, address)
+  }
+
+  /** Idempotently request administrative_stop; the frozen Wave still settles before termination. */
+  requestReactionCycleAdministrativeStop(address: WorldAddress): ReactionCycleId | undefined {
+    return requestReactionCycleAdministrativeStop(this.#db, address)
   }
 
   /** List privacy-safe Cycle views in newest-root-first deterministic order. */
@@ -1914,6 +1933,11 @@ export class WorldStore {
         address: request.address,
         roundId: request.roundId,
       })
+    }
+    if (row.lifecycle_state === 'active' && request.reactionSettlement !== undefined) {
+      // Settling an already frozen Wave finishes work admitted before the draining barrier. It carries no
+      // admission proof by design, cannot admit player input, and cannot open a Cycle in the same commit.
+      return
     }
     if (row.lifecycle_state !== 'active' || proof === undefined || admitted?.input_hash !== proof.inputHash) {
       failWorld({

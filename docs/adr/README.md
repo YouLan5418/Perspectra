@@ -63,3 +63,4 @@
 | [0079](ADR-0079-host-fair-scheduling-backpressure-administrative-stop.md) | Host 公平调度、背压与行政停止语义 | 一个 Branch 一个量子；wake 可丢失并由耐久扫描恢复；行政操作纳入 active Cycle |
 | [0080](ADR-0080-world-pack-v3-reaction-policy-creator-entry.md) | World Pack v3 与 Reaction Policy 创作者入口 | v1/v2 字节与 Hash 冻结；只有 v3 必填 reactionFile 能编译出 Manifest v5 |
 | [0081](ADR-0081-deployment-backup-restore-set.md) | 多库部署备份与恢复集合 | 五库制品、部署静默屏障、双向水位校验与只恢复到全新空目录 |
+| [0082](ADR-0082-quarantine-unreadable-reaction-ledger.md) | 损坏 Reaction 账本的紧急隔离 | 保留损坏证据但仍封锁 Branch；不伪造 Cycle 终态，恢复必须重新校验 |

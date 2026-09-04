@@ -1000,7 +1000,6 @@ export function requestReactionCycleStopInTransaction(
   if (result.changes !== 1) throw new Error('Reaction Cycle stop request changed concurrently')
   return stopped.cycleId
 }
-
 const STOP_REASONS = new Set<ReactionCycleTerminalReason>([
   'player_preempted', 'user_cancelled', 'administrative_stop', 'quarantined',
 ])
@@ -1008,6 +1007,114 @@ const TERMINAL_REASONS = new Set<ReactionCycleTerminalReason>([
   'quiescent', 'all_abstained', 'call_limit', 'wave_limit', 'token_budget_exhausted',
   'deadline_reached', 'provider_terminal', ...STOP_REASONS,
 ])
+
+/** Lean check for administrative barriers: the branch's only non-terminal Cycle, if any. */
+export function openReactionCycleId(db: DatabaseSync, address: WorldAddress): ReactionCycleId | undefined {
+  const row = db.prepare(`
+    SELECT cycle_id FROM world_reaction_cycles WHERE address_key = ? AND status <> 'terminal'
+  `).get(worldAddressKey(address)) as { cycle_id: string } | undefined
+  return row === undefined ? undefined : brandId(row.cycle_id, 'ReactionCycleId')
+}
+
+/** Idempotently request an administrative stop; the frozen Wave still settles before termination. */
+export function requestReactionCycleAdministrativeStop(
+  db: DatabaseSync,
+  address: WorldAddress,
+): ReactionCycleId | undefined {
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const cycleId = requestReactionCycleStopInTransaction(db, address, 'administrative_stop')
+    db.exec('COMMIT')
+    return cycleId
+  } catch (error: unknown) {
+    rollbackAndThrow(db, error)
+  }
+}
+
+export interface QuarantinedReactionCycle {
+  readonly cycleId: ReactionCycleId
+  readonly terminalReason: 'quarantined'
+  readonly closedWave: number
+  readonly terminalizedJobCount: number
+}
+
+export interface ReactionQuarantineInput {
+  readonly terminalAtSeq: number
+  readonly claimOwnerId: string
+  readonly claimExpiresAtMs: number
+}
+
+/**
+ * Terminalize the branch's open Cycle inside the caller's quarantine transaction (ADR-0079 §4).
+ * Quarantine never waits for a Provider: the frozen Wave closes without a World commit, unexecuted Jobs
+ * settle as `runtime_unavailable` with a revoked fence, and no late result can commit world facts.
+ */
+export function quarantineReactionCycleInTransaction(
+  db: DatabaseSync,
+  address: WorldAddress,
+  input: ReactionQuarantineInput,
+): QuarantinedReactionCycle | { readonly unresolvedReactionCycle: true } | undefined {
+  let bundle: StoredReactionCycleBundle | undefined
+  try {
+    bundle = readActiveReactionCycle(db, address)
+  } catch {
+    // ADR-0082: never repair corrupt evidence to make quarantine pass. This read-only
+    // failure is reported to the caller; write/CAS failures below still roll back.
+    return { unresolvedReactionCycle: true }
+  }
+  if (bundle === undefined) return undefined
+  const addressKey = worldAddressKey(address)
+  const cycle = bundle.cycle
+  const openWave = bundle.waves.at(-1)!
+  const closedWave: StoredReactionWave = { ...openWave, status: 'closed_without_dispatch' }
+  const waveResult = db.prepare(`
+    UPDATE world_reaction_waves SET status = 'closed_without_dispatch', state_hash = ?
+    WHERE address_key = ? AND cycle_id = ? AND wave = ? AND status = 'frozen' AND state_hash = ?
+  `).run(hashReactionWaveState(closedWave), addressKey, cycle.cycleId, openWave.wave, openWave.stateHash)
+  if (waveResult.changes !== 1) throw new Error('Reaction Wave changed concurrently during quarantine')
+  let terminalizedJobCount = 0
+  for (const job of bundle.jobs) {
+    if (job.status !== 'pending' && job.status !== 'claimed') continue
+    const settled: StoredReactionJob = {
+      ...job,
+      status: 'settled',
+      claimOwnerId: job.claimOwnerId ?? input.claimOwnerId,
+      claimExpiresAtMs: job.claimExpiresAtMs ?? input.claimExpiresAtMs,
+      claimFencingToken: job.claimFencingToken ?? 1,
+      attemptCount: job.attemptCount > 0 ? job.attemptCount : 1,
+      outcome: 'runtime_unavailable',
+    }
+    const jobResult = db.prepare(`
+      UPDATE world_reaction_jobs
+      SET status = 'settled', claim_owner_id = ?, claim_expires_at_ms = ?, claim_fencing_token = ?,
+        attempt_count = ?, outcome = 'runtime_unavailable', state_hash = ?
+      WHERE address_key = ? AND job_id = ? AND status IN ('pending', 'claimed') AND state_hash = ?
+    `).run(
+      settled.claimOwnerId, settled.claimExpiresAtMs, settled.claimFencingToken, settled.attemptCount,
+      hashReactionJobState(settled), addressKey, job.jobId, job.stateHash,
+    )
+    if (jobResult.changes !== 1) throw new Error('Reaction Job changed concurrently during quarantine')
+    terminalizedJobCount += 1
+  }
+  const terminalCycle: StoredReactionCycle = {
+    ...cycle,
+    status: 'terminal',
+    terminalReason: 'quarantined',
+    terminalAtSeq: input.terminalAtSeq,
+  }
+  const cycleResult = db.prepare(`
+    UPDATE world_reaction_cycles
+    SET status = 'terminal', terminal_reason = 'quarantined', terminal_at_seq = ?, state_hash = ?
+    WHERE address_key = ? AND cycle_id = ? AND status <> 'terminal' AND state_hash = ?
+  `).run(input.terminalAtSeq, hashReactionCycleState(terminalCycle), addressKey, cycle.cycleId, cycle.stateHash)
+  if (cycleResult.changes !== 1) throw new Error('Reaction Cycle changed concurrently during quarantine')
+  return {
+    cycleId: cycle.cycleId,
+    terminalReason: 'quarantined',
+    closedWave: openWave.wave,
+    terminalizedJobCount,
+  }
+}
 
 export function normalizeReactionWaveSettlement(
   draft: ReactionWaveSettlementDraft,

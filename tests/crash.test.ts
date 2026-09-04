@@ -23,6 +23,7 @@ import {
   fixtureAddress,
   fixtureCommitRequest,
   fixtureDeliveryRequest,
+  fixtureReactionCommitRequest,
   hardKillAt,
 } from '@harness-world/testkit'
 import { phase8ProviderCrashWorld } from './fixtures/phase8-provider-world.ts'
@@ -479,6 +480,38 @@ describe('hard process termination recovery', () => {
     expect(recovered.explain(fixtureAddress())).toMatchObject({ runtimePhase })
     expect(recovered.explain(fixtureAddress()).failures).toHaveLength(failureCount)
     recovered.close()
+  })
+
+  it.each([
+    ['quarantine.before-commit', 'active'],
+    ['quarantine.after-commit', 'quarantined'],
+  ] as const)('recovers an atomic Reaction Cycle quarantine at %s', async (point, runtimePhase) => {
+    const path = database(`reaction-${point}.sqlite`)
+    const address = fixtureAddress()
+    const setup = new WorldStore(path)
+    setup.createBranch(address)
+    await setup.commitRound(fixtureReactionCommitRequest())
+    const cycleId = setup.openReactionCycleId(address)!
+    setup.close()
+    await hardKillAt(quarantineWorker, ['quarantine', path, point])
+    const recovered = new BranchQuarantineService(path)
+    expect(recovered.explain(address)).toMatchObject({ runtimePhase })
+    recovered.close()
+    const store = new WorldStore(path)
+    const cycle = store.readReactionCycle(address, cycleId)!
+    if (runtimePhase === 'quarantined') {
+      expect(cycle.cycle).toMatchObject({ status: 'terminal', terminalReason: 'quarantined' })
+      expect(cycle.waves.at(-1)).toMatchObject({ status: 'closed_without_dispatch' })
+      expect(cycle.jobs.every(job => job.status === 'settled' || job.status === 'skipped')).toBe(true)
+      expect(cycle.jobs.filter(job => job.outcome === 'runtime_unavailable')).toHaveLength(1)
+      expect(store.openReactionCycleId(address)).toBeUndefined()
+    } else {
+      expect(cycle.cycle).toMatchObject({ status: 'active', terminalReason: null })
+      expect(cycle.waves.at(-1)).toMatchObject({ status: 'frozen' })
+      expect(cycle.jobs.filter(job => job.status === 'pending')).toHaveLength(1)
+      expect(store.openReactionCycleId(address)).toBe(cycleId)
+    }
+    store.close()
   })
 
   it.each([

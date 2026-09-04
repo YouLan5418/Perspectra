@@ -15,6 +15,7 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { openWorldDatabase } from './world-store.ts'
+import { quarantineReactionCycleInTransaction } from './reaction-cycle.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 
 export interface QuarantineRequest {
@@ -28,6 +29,9 @@ export interface QuarantineResult extends WorldJsonObject {
   readonly failureId: string
   readonly abortedRoundCount: number
   readonly runtimeEpoch: number
+  readonly quarantinedCycleId: string | null
+  readonly terminalizedJobCount: number
+  readonly unresolvedReactionCycle?: true
 }
 
 export interface BranchFailureRecord extends WorldJsonObject {
@@ -115,6 +119,7 @@ export function applyBranchQuarantine(
       return {
         status: 'already_quarantined', failureId: request.error.errorId,
         abortedRoundCount: 0, runtimeEpoch: control.runtime_epoch,
+        quarantinedCycleId: null, terminalizedJobCount: 0,
       }
     }
     db.prepare(`
@@ -146,6 +151,17 @@ export function applyBranchQuarantine(
     `).run(hashWorldJson('player-round-result', result), worldJsonText(result), key, round.inbox_seq)
   }
   db.prepare(`DELETE FROM writer_leases WHERE address_key = ?`).run(key)
+  const headRow = db.prepare('SELECT head_seq FROM heads WHERE address_key = ?').get(key) as { head_seq: number }
+  const quarantinedCycle = quarantineReactionCycleInTransaction(db, request.address, {
+    terminalAtSeq: headRow.head_seq,
+    claimOwnerId: `quarantine:${request.error.errorId}`,
+    claimExpiresAtMs: occurredAtMs,
+  })
+  const unresolved = quarantinedCycle !== undefined && 'unresolvedReactionCycle' in quarantinedCycle
+    ? { unresolvedReactionCycle: true as const } : {}
+  const finalized = quarantinedCycle !== undefined && 'cycleId' in quarantinedCycle ? quarantinedCycle : undefined
+  const quarantinedCycleId = finalized?.cycleId ?? null
+  const terminalizedJobCount = finalized?.terminalizedJobCount ?? 0
   db.prepare(`
     UPDATE branch_controls SET admission_state = 'draining', runtime_phase = 'quarantined',
       reason = ?, revision = revision + 1 WHERE address_key = ?
@@ -160,10 +176,15 @@ export function applyBranchQuarantine(
     source: request.source,
     abortedRoundCount: rounds.length,
     priorAdmissionState,
+    quarantinedCycleId,
+    terminalizedJobCount,
+    ...unresolved,
   }), occurredAtMs)
   return {
     status: 'quarantined', failureId: request.error.errorId,
     abortedRoundCount: rounds.length, runtimeEpoch: control.runtime_epoch,
+    quarantinedCycleId, terminalizedJobCount,
+    ...unresolved,
   }
 }
 
