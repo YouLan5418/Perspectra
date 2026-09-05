@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { SubmitActionsV2, CharacterId } from '@harness-world/contracts'
+import type { SubmitActionsV2, CharacterId, WorldJsonObject } from '@harness-world/contracts'
 
 export interface ExperimentMessage {
   readonly role: 'system' | 'developer' | 'user'
@@ -7,6 +7,7 @@ export interface ExperimentMessage {
 }
 
 export type PromptMode = 'full' | 'compact'
+export type ExperimentOutputMode = 'speech_only' | 'external_actions'
 export const EXPERIMENT_RENDERER = 'ollama-experience-renderer/v3'
 
 const segmentKinds = [
@@ -37,7 +38,11 @@ export function byteHash(text: string): string {
   return `sha256:${createHash('sha256').update(text).digest('hex')}`
 }
 
-export function renderExperiment(messages: readonly ExperimentMessage[], mode: PromptMode) {
+export function renderExperiment(
+  messages: readonly ExperimentMessage[],
+  mode: PromptMode,
+  outputMode: ExperimentOutputMode = 'speech_only',
+) {
   if (messages.length !== 12 || messages[0]?.role !== 'system' || messages[1]?.role !== 'developer') {
     throw new TypeError('experiment requires the known 12-segment Character Context')
   }
@@ -74,11 +79,15 @@ export function renderExperiment(messages: readonly ExperimentMessage[], mode: P
         segmentKind: segment, content: compact(data.content),
       })
       if (segment === 'output_reminder') {
-        // Identical output contract in both A/B arms; the host supplies all action identity.
-        content = JSON.stringify({
+        // The host always supplies action identity. Only player-triggered calls may propose physical actions.
+        content = JSON.stringify(outputMode === 'speech_only' ? {
           segmentKind: segment,
           content: { decision: 'act or abstain', text: '中文角色对白；abstain 时为空字符串',
             maximumSpeechActions: 1, reflectionAllowed: false },
+        } : {
+          segmentKind: segment,
+          content: { decision: 'act or abstain', actions: ['speak', 'move', 'take'],
+            maximumExternalActions: 2, hostSuppliesIdentity: true, reflectionAllowed: false },
         })
       }
     }
@@ -101,6 +110,70 @@ export const speechSchema = {
     text: { type: 'string', maxLength: 500 },
   },
 } as const
+
+export const externalActionSchema = {
+  type: 'object', additionalProperties: false, required: ['decision', 'actions'],
+  properties: {
+    decision: { type: 'string', enum: ['act', 'abstain'] },
+    actions: {
+      type: 'array', maxItems: 2, items: {
+        type: 'object', additionalProperties: false, required: ['actionType', 'parameters'],
+        properties: {
+          actionType: { type: 'string', enum: ['speak', 'move', 'take'] },
+          parameters: { type: 'object' },
+        },
+      },
+    },
+  },
+} as const
+
+function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
+  const keys = Object.keys(value).sort()
+  const sorted = [...expected].sort()
+  return keys.length === sorted.length && keys.every((key, index) => key === sorted[index])
+}
+
+function requiredText(value: unknown, name: string, maximum = Number.MAX_SAFE_INTEGER): string {
+  if (typeof value !== 'string' || value.trim() !== value || value.length === 0 || value.length > maximum) {
+    throw new TypeError(`${name} is invalid`)
+  }
+  return value
+}
+
+export function externalActionProposal(
+  raw: unknown,
+  actorId: CharacterId,
+  roundId: string,
+): SubmitActionsV2 {
+  const result = object(raw)
+  if (!exactKeys(result, ['decision', 'actions']) || !Array.isArray(result.actions) || result.actions.length > 2) {
+    throw new TypeError('invalid experimental action response')
+  }
+  const actions = result.actions.map((value, index) => {
+    const action = object(value)
+    if (!exactKeys(action, ['actionType', 'parameters'])) throw new TypeError('invalid experimental action')
+    const parameters = object(action.parameters)
+    let normalized: WorldJsonObject
+    if (action.actionType === 'speak' && exactKeys(parameters, ['text'])) {
+      normalized = { text: requiredText(parameters.text, 'speak.text', 500) }
+    } else if (action.actionType === 'move' && exactKeys(parameters, ['locationId'])) {
+      normalized = { locationId: requiredText(parameters.locationId, 'move.locationId') }
+    } else if (action.actionType === 'take' && exactKeys(parameters, ['entityId'])) {
+      normalized = { entityId: requiredText(parameters.entityId, 'take.entityId') }
+    } else {
+      throw new TypeError('unsupported or malformed experimental action')
+    }
+    return {
+      actionId: `action:playtest:${actorId}:${roundId}:${index + 1}`,
+      actorId, actionType: action.actionType, actionVersion: 1 as const, parameters: normalized,
+    }
+  })
+  if (result.decision === 'abstain' && actions.length === 0) {
+    return { schemaVersion: 2, decision: 'abstain', actions: [] }
+  }
+  if (result.decision !== 'act' || actions.length === 0) throw new TypeError('invalid action decision/actions')
+  return { schemaVersion: 2, decision: 'act', actions }
+}
 
 export function speechProposal(raw: unknown, actorId: CharacterId, actionId: string): SubmitActionsV2 {
   const result = object(raw)

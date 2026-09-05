@@ -19,6 +19,10 @@ describe('player-facing playtest transcript', () => {
           content: { status: 'accepted', contentVisibility: 'occurrence_only' } } },
         { kind: 'observation', id: 'observation:4', sourceSeq: 3, value: { observerId: player,
           content: { status: 'accepted', speech: { characterId: player, text: 'player speech' } } } },
+        { kind: 'observation', id: 'observation:5', sourceSeq: 7, value: { observerId: player,
+          content: { status: 'accepted', actorId: 'character:bob', actionType: 'move' } } },
+        { kind: 'observation', id: 'observation:6', sourceSeq: 8, value: { observerId: player,
+          content: { status: 'accepted', actorId: 'character:bob', actionType: 'take' } } },
       ],
       selfObservations: [],
       claims: [{ kind: 'claim', id: 'claim:private', sourceSeq: 2, value: { proposition: 'PRIVATE_CLAIM_CANARY' } }],
@@ -30,6 +34,8 @@ describe('player-facing playtest transcript', () => {
     expect(transcript).toEqual([
       { seq: 3, speaker: '玩家', text: 'player speech', player: true },
       { seq: 4, speaker: 'Bob', text: 'visible speech', player: false },
+      { seq: 7, speaker: 'Bob', text: '移动到了另一个地点。', player: false },
+      { seq: 8, speaker: 'Bob', text: '拿取了一个物品。', player: false },
     ])
     expect(JSON.stringify(transcript)).not.toMatch(/REJECTED_CANARY|PRIVATE_CLAIM_CANARY/)
   })

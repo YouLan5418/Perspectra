@@ -39,4 +39,16 @@ describe('provider diagnostic comparison', () => {
     expect(variant.filter(message => message.role === 'user')).toEqual(input.slice(2))
     expect(input).toHaveLength(3)
   })
+
+  it('uses the structured action contract only for player-triggered calls', () => {
+    const input = [{ role: 'system' as const, content: 'host' }, { role: 'developer' as const, content: 'controller' },
+      { role: 'user' as const, content: 'move now' }]
+    const root = comparisonMessages(input, 'turn_taking', 'external_actions')
+    const reaction = comparisonMessages(input, 'turn_taking', 'speech_only')
+    expect(root[2]?.content).toContain('speak|move|take')
+    expect(root[2]?.content).toContain('宿主填写')
+    expect(root[4]?.content).toContain('{"decision":"abstain","actions":[]}')
+    expect(reaction[2]?.content).not.toContain('move')
+    expect(reaction[4]?.content).toContain('{"decision":"abstain","text":""}')
+  })
 })

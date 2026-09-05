@@ -15,7 +15,15 @@ import {
 } from '@harness-world/contracts'
 import type { CompiledWorldManifestV5, CompiledWorldSpec } from '@harness-world/kernel'
 import { RAINY_ROAD_IDS, adaptRainyRoadPack, compileRainyRoadPack } from '@harness-world/simulation'
-import { byteHash, renderExperiment, speechProposal, speechSchema, type ExperimentMessage } from './compact-context.ts'
+import {
+  byteHash,
+  externalActionProposal,
+  externalActionSchema,
+  renderExperiment,
+  speechProposal,
+  speechSchema,
+  type ExperimentMessage,
+} from './compact-context.ts'
 import { comparisonMessages, comparisonResponse } from './provider-comparison.ts'
 import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
 
@@ -58,7 +66,16 @@ export function playerTranscript(
   return view.observations.flatMap(observation => {
     const content = object(object(observation.value)?.content)
     const speech = object(content?.speech)
-    if (content?.status !== 'accepted' || typeof speech?.characterId !== 'string' || typeof speech.text !== 'string') return []
+    if (content?.status !== 'accepted') return []
+    if (typeof speech?.characterId !== 'string' || typeof speech.text !== 'string') {
+      if ((content?.actionType !== 'move' && content?.actionType !== 'take') || typeof content.actorId !== 'string') return []
+      return [{
+        seq: observation.sourceSeq,
+        speaker: names.get(content.actorId) ?? content.actorId,
+        text: content.actionType === 'move' ? '移动到了另一个地点。' : '拿取了一个物品。',
+        player: content.actorId === playerId,
+      }]
+    }
     return [{
       seq: observation.sourceSeq,
       speaker: names.get(speech.characterId) ?? speech.characterId,
@@ -95,10 +112,12 @@ class PlaytestModelProvider {
     const exact = (context as unknown as { exactProviderRequest?: { messages: ExperimentMessage[] } }).exactProviderRequest
     if (exact === undefined || !Array.isArray(exact.messages)) throw new TypeError('exact Provider request is unavailable')
     const reaction = 'origin' in context && context.origin.kind === 'reaction' ? context.origin : null
-    const rendered = renderExperiment(exact.messages, 'compact')
-    const messages = comparisonMessages(rendered.messages, 'turn_taking')
+    const outputMode = reaction === null ? 'external_actions' : 'speech_only'
+    const rendered = renderExperiment(exact.messages, 'compact', outputMode)
+    const messages = comparisonMessages(rendered.messages, 'turn_taking', outputMode)
     const body = JSON.stringify(this.provider === 'ollama'
-      ? { model: this.model, messages, stream: false, think: false, format: speechSchema,
+      ? { model: this.model, messages, stream: false, think: false,
+        format: outputMode === 'speech_only' ? speechSchema : externalActionSchema,
         options: { temperature: 0.3, seed: 42, num_predict: 256 }, keep_alive: '10m' }
       : { model: this.model, messages, stream: false, thinking: { type: 'disabled' },
         response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 256 })
@@ -122,8 +141,9 @@ class PlaytestModelProvider {
       if (!response.ok) throw new Error(`${this.provider} returned HTTP ${response.status}`)
       const raw = await response.json()
       const parsed = comparisonResponse(this.provider, raw)
-      const proposal = speechProposal(JSON.parse(parsed.content), this.actorId,
-        `action:playtest:${this.actorId}:${context.roundId}`)
+      const proposal = outputMode === 'speech_only'
+        ? speechProposal(JSON.parse(parsed.content), this.actorId, `action:playtest:${this.actorId}:${context.roundId}`)
+        : externalActionProposal(JSON.parse(parsed.content), this.actorId, context.roundId)
       const durationMs = Math.round(performance.now() - started)
       this.onFinish(call, durationMs, proposal.decision)
       writeFileSync(resolve(this.evidenceDirectory, `${evidenceId}.response.json`), JSON.stringify({
@@ -208,7 +228,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       evidenceDirectory, onStart, onFinish,
     ) }))
     const roundParticipants: RoundParticipant[] = providers.map(item => ({ ...item, role: 'agent',
-      allowedActionTypes: ['speak'], estimatedTokens: 1, timeoutMs: timeoutMs + 5_000 }))
+      allowedActionTypes: ['speak', 'move', 'take'], estimatedTokens: 1, timeoutMs: timeoutMs + 5_000 }))
     const reactionParticipants: ReactionParticipantBinding[] = providers.map(item => ({ ...item, role: 'agent',
       allowedActionTypes: ['speak'], estimatedTokens: 1, timeoutMs: timeoutMs + 5_000 }))
     this.#application = new WorldApplication({

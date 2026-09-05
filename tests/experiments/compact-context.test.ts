@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { brandId } from '@harness-world/contracts'
-import { byteHash, renderExperiment, speechProposal, type ExperimentMessage } from './compact-context.ts'
+import {
+  byteHash,
+  externalActionProposal,
+  renderExperiment,
+  speechProposal,
+  type ExperimentMessage,
+} from './compact-context.ts'
 
 function messages(secret = '仅此角色知道的经历'): ExperimentMessage[] {
   const sourceRef = { sourceId: 'source:long-identity', sourceHash: 'sha256:technical-canary', sourceSeq: 42 }
@@ -65,6 +71,19 @@ describe('manual Ollama compact context experiment', () => {
     expect(full.references).toEqual([])
   })
 
+  it('renders an explicit host-owned external action contract only when requested', () => {
+    const speech = JSON.parse(renderExperiment(messages(), 'compact').messages.at(-1)!.content)
+    const actions = JSON.parse(renderExperiment(messages(), 'compact', 'external_actions').messages.at(-1)!.content)
+    expect(speech.content).toMatchObject({ maximumSpeechActions: 1, reflectionAllowed: false })
+    expect(actions.content).toEqual({
+      decision: 'act or abstain',
+      actions: ['speak', 'move', 'take'],
+      maximumExternalActions: 2,
+      hostSuppliesIdentity: true,
+      reflectionAllowed: false,
+    })
+  })
+
   it('does not erase technical-looking authored payloads or elevate player content to control roles', () => {
     const input = messages()
     const data = JSON.parse(input[6]!.content)
@@ -109,5 +128,54 @@ describe('manual Ollama compact context experiment', () => {
       { decision: 'act', text: 3 }, { decision: 'act', text: 'x'.repeat(501) }]) {
       expect(() => speechProposal(value, actorId, 'action:host')).toThrow()
     }
+  })
+
+  it('normalizes external actions while keeping identity under host control', () => {
+    const actorId = brandId('character:alice', 'CharacterId')
+    expect(externalActionProposal({ decision: 'act', actions: [
+      { actionType: 'speak', parameters: { text: '我们走。' } },
+      { actionType: 'move', parameters: { locationId: 'location:station' } },
+    ] }, actorId, 'round:1')).toEqual({
+      schemaVersion: 2,
+      decision: 'act',
+      actions: [
+        { actionId: 'action:playtest:character:alice:round:1:1', actorId, actionType: 'speak',
+          actionVersion: 1, parameters: { text: '我们走。' } },
+        { actionId: 'action:playtest:character:alice:round:1:2', actorId, actionType: 'move',
+          actionVersion: 1, parameters: { locationId: 'location:station' } },
+      ],
+    })
+    expect(externalActionProposal({ decision: 'act', actions: [
+      { actionType: 'take', parameters: { entityId: 'entity:ticket' } },
+    ] }, actorId, 'round:2').actions[0]).toMatchObject({
+      actorId, actionType: 'take', parameters: { entityId: 'entity:ticket' },
+    })
+    expect(externalActionProposal({ decision: 'abstain', actions: [] }, actorId, 'round:3')).toEqual({
+      schemaVersion: 2, decision: 'abstain', actions: [],
+    })
+  })
+
+  it('rejects forged, unsupported, excessive, and malformed external actions', () => {
+    const actorId = brandId('character:alice', 'CharacterId')
+    const invalid = [
+      null,
+      { decision: 'act', actions: [], actorId: 'character:bob' },
+      { decision: 'act', actions: [{ actionType: 'speak', parameters: { text: 'x' }, actionId: 'forged' }] },
+      { decision: 'act', actions: [1] },
+      { decision: 'act', actions: [
+        { actionType: 'speak', parameters: { text: '1' } },
+        { actionType: 'move', parameters: { locationId: 'location:a' } },
+        { actionType: 'take', parameters: { entityId: 'entity:a' } },
+      ] },
+      { decision: 'act', actions: [{ actionType: 'inspect', parameters: {} }] },
+      { decision: 'act', actions: [{ actionType: 'speak', parameters: { text: ' x ' } }] },
+      { decision: 'act', actions: [{ actionType: 'speak', parameters: { text: 'x'.repeat(501) } }] },
+      { decision: 'act', actions: [{ actionType: 'move', parameters: { locationId: '' } }] },
+      { decision: 'act', actions: [{ actionType: 'take', parameters: { entityId: 1 } }] },
+      { decision: 'act', actions: [{ actionType: 'take', parameters: { entityId: 'entity:a', extra: true } }] },
+      { decision: 'abstain', actions: [{ actionType: 'speak', parameters: { text: 'x' } }] },
+      { decision: 'other', actions: [] },
+    ]
+    for (const value of invalid) expect(() => externalActionProposal(value, actorId, 'round:bad')).toThrow()
   })
 })
