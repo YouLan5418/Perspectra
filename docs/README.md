@@ -29,6 +29,7 @@
 - [Phase 9C v15 旧库与 Golden 基线（P9C.0 证据）](2026-09-02_Phase-9C-v15旧库与Golden基线.md)
 - [Phase 9C.5 五库备份与真实迁移阶段报告](2026-09-05_阶段报告-Harness-Cordis-World-Phase-9C.5-report.md)
 - [Phase 9C.6 首批并发证据与剩余性能门槛](2026-09-05_阶段报告-Harness-Cordis-World-Phase-9C.6-concurrency-report.md)
+- [Phase 9C.6 长历史测试结果与重复读取定位](2026-09-05_测试报告-P9C.6长历史基准-report.md)
 - [Phase 9C 接手与行政边界收口（P9C.3 本机完成）](2026-09-05_阶段报告-Phase-9C接手与行政边界收口-report.md)
 - [Phase 9B 多 wave 权威骨架与运行闭环计划（历史进度）](2026-09-01_阶段报告-Harness-Cordis-World-Phase-9B-progress-report.md)
 - [Phase 9B Scheduler、多 wave、抢占与恢复阶段报告（历史进度）](2026-09-01_阶段报告-Harness-Cordis-World-Phase-9B-scheduler-report.md)
