@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -118,6 +118,86 @@ describe('player-facing playtest transcript', () => {
         '我们带上车票去车站。', '拿取了一个物品。', '移动到了另一个地点。',
       ])
       expect(fetchMock).toHaveBeenCalled()
+    } finally {
+      await runtime?.close()
+      fetchMock.mockRestore()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps valid actions when an optional model Reflection is rejected', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-playtest-reflection-fallback-'))
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const body = JSON.parse(init?.body as string) as { messages: { content: string }[] }
+      const root = body.messages.some(message => message.content.includes('speak|move|take'))
+      const alice = body.messages.some(message => message.content.includes('"segmentKind":"character_anchor"')
+        && message.content.includes('character:alice'))
+      const content = !root
+        ? { decision: 'abstain', text: '' }
+        : !alice
+          ? { decision: 'abstain', actions: [] }
+          : { decision: 'act', actions: [{ actionType: 'take', parameters: { entityId: 'entity:ticket-bundle' } }],
+              reflection: [{ recordRef: 'R999', changes: { confidencePermille: 500 } }] }
+      return new Response(JSON.stringify({ model: 'qwen3.5:4b', done_reason: 'stop',
+        message: { content: JSON.stringify(content) } }), { status: 200 })
+    })
+    let runtime: WorldPlaytestRuntime | undefined
+    try {
+      runtime = await WorldPlaytestRuntime.create({ dataDirectory: directory })
+      const state = await runtime.submit('Alice，请带上车票。')
+      expect(state.transcript.map(entry => entry.text)).toContain('拿取了一个物品。')
+      const responseFiles = readdirSync(join(directory, 'requests')).filter(name => name.endsWith('.response.json'))
+      const evidence = responseFiles.map(name => JSON.parse(readFileSync(join(directory, 'requests', name), 'utf8')))
+      expect(evidence).toContainEqual(expect.objectContaining({ warning: 'reflection_rejected' }))
+      const store = new WorldStore(join(directory, 'world.sqlite'))
+      try {
+        const events = store.readEvents({
+          tenantId: brandId('tenant:web-playtest', 'TenantId'), worldId: brandId('world:rainy-road-web', 'WorldId'),
+          branchId: brandId('branch:main', 'BranchId'),
+        })
+        expect(events.map(event => event.eventType)).toContain('entity.taken')
+        expect(events.map(event => event.eventType)).not.toContain('character.reflect')
+      } finally {
+        store.close()
+      }
+    } finally {
+      await runtime?.close()
+      fetchMock.mockRestore()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('classifies malformed model output as retryable quality evidence instead of a Provider outage', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-playtest-invalid-output-'))
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const body = JSON.parse(init?.body as string) as { messages: { content: string }[] }
+      const root = body.messages.some(message => message.content.includes('speak|move|take'))
+      const alice = body.messages.some(message => message.content.includes('"segmentKind":"character_anchor"')
+        && message.content.includes('character:alice'))
+      const content = root && alice
+        ? { decision: 'act', actions: [{ actionType: 'invented', parameters: {} }] }
+        : root ? { decision: 'abstain', actions: [] } : { decision: 'abstain', text: '' }
+      return new Response(JSON.stringify({ model: 'qwen3.5:4b', done_reason: 'stop',
+        message: { content: JSON.stringify(content) } }), { status: 200 })
+    })
+    let runtime: WorldPlaytestRuntime | undefined
+    try {
+      runtime = await WorldPlaytestRuntime.create({ dataDirectory: directory })
+      const state = await runtime.submit('请回应。')
+      expect(state.notice).toContain('无效动作格式')
+      const store = new WorldStore(join(directory, 'world.sqlite'))
+      try {
+        const terminals = store.readEvents({
+          tenantId: brandId('tenant:web-playtest', 'TenantId'), worldId: brandId('world:rainy-road-web', 'WorldId'),
+          branchId: brandId('branch:main', 'BranchId'),
+        }).filter(event => event.eventType === 'round.participant-terminal'
+          && (event.data as { participantId?: string }).participantId === 'agent:alice')
+        expect(terminals.map(event => (event.data as { status: string }).status)).toContain('schema_invalid')
+        expect(terminals.map(event => (event.data as { status: string }).status)).not.toContain('provider_failed')
+      } finally {
+        store.close()
+      }
+      expect(readdirSync(join(directory, 'requests')).some(name => name.endsWith('.invalid.json'))).toBe(true)
     } finally {
       await runtime?.close()
       fetchMock.mockRestore()

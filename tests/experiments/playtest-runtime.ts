@@ -105,7 +105,7 @@ class PlaytestModelProvider {
     private readonly timeoutMs: number,
     private readonly evidenceDirectory: string,
     private readonly onStart: (call: CallTelemetry) => void,
-    private readonly onFinish: (call: CallTelemetry, durationMs: number, status: 'act' | 'abstain' | 'failed') => void,
+    private readonly onFinish: (call: CallTelemetry, durationMs: number, status: 'act' | 'abstain' | 'invalid' | 'failed') => void,
   ) {}
 
   async propose(context: ProposalContext | ReactionProposalContext): Promise<SubmitActionsV2> {
@@ -131,6 +131,7 @@ class PlaytestModelProvider {
     }, null, 2), { flag: 'wx' })
     this.onStart(call)
     const started = performance.now()
+    let raw: unknown
     try {
       const response = await fetch(this.endpoint, {
         method: 'POST', redirect: 'error', headers: this.provider === 'ollama'
@@ -139,26 +140,58 @@ class PlaytestModelProvider {
         body, signal: AbortSignal.timeout(this.timeoutMs),
       })
       if (!response.ok) throw new Error(`${this.provider} returned HTTP ${response.status}`)
-      const raw = await response.json()
-      const parsed = comparisonResponse(this.provider, raw)
-      const proposal = outputMode === 'speech_only'
-        ? speechProposal(JSON.parse(parsed.content), this.actorId, `action:playtest:${this.actorId}:${context.roundId}`)
-        : externalActionProposal(JSON.parse(parsed.content), this.actorId, context.roundId, {
-          exactMessages: exact.messages,
-          references: rendered.references,
-        })
-      const durationMs = Math.round(performance.now() - started)
-      this.onFinish(call, durationMs, proposal.decision)
-      writeFileSync(resolve(this.evidenceDirectory, `${evidenceId}.response.json`), JSON.stringify({
-        durationMs, model: parsed.model, usage: parsed.usage, proposal,
-      }, null, 2), { flag: 'wx' })
-      return proposal
+      raw = await response.json()
     } catch (error: unknown) {
       this.onFinish(call, Math.round(performance.now() - started), 'failed')
       writeFileSync(resolve(this.evidenceDirectory, `${evidenceId}.failure.json`), JSON.stringify({
         status: 'failed_or_ambiguous', retryAttempted: false,
       }, null, 2), { flag: 'wx' })
       throw new Error('local model call failed; inspect the terminal and local evidence', { cause: error })
+    }
+    let parsed: ReturnType<typeof comparisonResponse> | undefined
+    try {
+      parsed = comparisonResponse(this.provider, raw)
+      const decoded = JSON.parse(parsed.content) as unknown
+      let reflectionWarning: string | undefined
+      let proposal: SubmitActionsV2
+      if (outputMode === 'speech_only') {
+        proposal = speechProposal(decoded, this.actorId, `action:playtest:${this.actorId}:${context.roundId}`)
+      } else {
+        try {
+          proposal = externalActionProposal(decoded, this.actorId, context.roundId, {
+            exactMessages: exact.messages,
+            references: rendered.references,
+          })
+        } catch (error: unknown) {
+          const candidate = object(decoded)
+          if (candidate === undefined || !('reflection' in candidate)) throw error
+          const { reflection: _reflection, ...withoutReflection } = candidate
+          proposal = externalActionProposal(withoutReflection, this.actorId, context.roundId)
+          reflectionWarning = 'reflection_rejected'
+        }
+      }
+      const durationMs = Math.round(performance.now() - started)
+      this.onFinish(call, durationMs, proposal.decision)
+      writeFileSync(resolve(this.evidenceDirectory, `${evidenceId}.response.json`), JSON.stringify({
+        durationMs, model: parsed.model, usage: parsed.usage, proposal,
+        ...(reflectionWarning === undefined ? {} : { warning: reflectionWarning }),
+      }, null, 2), { flag: 'wx' })
+      return proposal
+    } catch (error: unknown) {
+      const durationMs = Math.round(performance.now() - started)
+      this.onFinish(call, durationMs, 'invalid')
+      writeFileSync(resolve(this.evidenceDirectory, `${evidenceId}.invalid.json`), JSON.stringify({
+        status: 'invalid_model_output', reasonCode: error instanceof SyntaxError
+          ? 'invalid_json' : 'proposal_schema_rejected', durationMs,
+        ...(parsed === undefined ? {} : { model: parsed.model, usage: parsed.usage }),
+      }, null, 2), { flag: 'wx' })
+      // Deliberately return a canonical but invalid marker so the coordinator's
+      // durable Provider quality policy classifies this as schema-invalid rather
+      // than confusing it with a transport or API failure.
+      return {
+        schemaVersion: 2, decision: 'abstain', actions: [],
+        invalidModelOutput: true,
+      } as unknown as SubmitActionsV2
     }
   }
 }
@@ -218,10 +251,11 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       this.#providerCalls += 1
       this.#phaseLabel = `${this.#names.get(call.participantId.replace('agent:', 'character:')) ?? call.participantId} 正在思考`
     }
-    const onFinish = (call: CallTelemetry, durationMs: number, status: 'act' | 'abstain' | 'failed') => {
+    const onFinish = (call: CallTelemetry, durationMs: number, status: 'act' | 'abstain' | 'invalid' | 'failed') => {
       this.#activeCalls.delete(call.participantId)
       this.#lastProviderDurationMs = durationMs
       if (status === 'failed') this.#notice = '一个角色的本地模型调用失败；本轮将按既有降级规则收口。'
+      if (status === 'invalid') this.#notice = '一个角色返回了无效动作格式；本次输出已忽略，角色可在后续轮次重试。'
     }
     const providers = [
       { participantId: 'agent:alice', actorId: RAINY_ROAD_IDS.alice, priority: 2 },
