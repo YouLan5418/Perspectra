@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   PHASE8_REGISTRY_LOCKS,
   PHASE8_VOCABULARY_LOCKS,
@@ -312,6 +312,7 @@ function proxyStore(store: WorldStore, overrides: Partial<Record<keyof WorldStor
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   for (const cleanup of pendingCleanup) cleanup()
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
@@ -437,7 +438,136 @@ describe('ReactionScheduler', () => {
     expect(() => new ReactionScheduler({ ...options, participants: [{ ...base, timeoutMs: 1.5 }] })).toThrow('timeoutMs')
     expect(() => new ReactionScheduler({ ...options, participants: [{ ...base, estimatedTokens: 0 }] })).toThrow('estimatedTokens')
     expect(() => new ReactionScheduler({ ...options, participants: [{ ...base, estimatedTokens: 1.5 }] })).toThrow('estimatedTokens')
+    expect(() => new ReactionScheduler({ ...options, claimTtlMs: 1 })).toThrow('claimTtlMs')
+    expect(() => new ReactionScheduler({ ...options, claimTtlMs: 1.5 })).toThrow('claimTtlMs')
+    expect(() => new ReactionScheduler({ ...options, claimHeartbeatMs: 0 })).toThrow('claimHeartbeatMs')
+    expect(() => new ReactionScheduler({ ...options, claimHeartbeatMs: 1.5 })).toThrow('claimHeartbeatMs')
+    expect(() => new ReactionScheduler({ ...options, claimTtlMs: 10, claimHeartbeatMs: 10 })).toThrow('claimHeartbeatMs')
     expect(() => new ReactionScheduler(({ ...options, now: undefined }) as unknown as ReactionSchedulerOptions)).not.toThrow()
+    close(value)
+  })
+
+  it('renews Writer and Job claims while a slow Provider is in flight and fails closed if renewal is lost', async () => {
+    const clock = { value: 100 }
+    const delayedProvider = (activeClock: { value: number }): ReactionAgentProvider => ({
+      async propose() {
+        await new Promise<void>(resolve => {
+          let ticks = 0
+          const timer = setInterval(() => {
+            activeClock.value += 10
+            ticks += 1
+            if (ticks === 6) {
+              clearInterval(timer)
+              resolve()
+            }
+          }, 5)
+        })
+        return output('character:alice', 'Slow but still owned.')
+      },
+    })
+    const value = await fixture([binding('character:alice', delayedProvider(clock))], clock)
+    const cycleId = value.store.listReactionCycles(value.spec.manifest.address)[0]!.cycleId
+    const scheduler = new ReactionScheduler({
+      ...value.schedulerOptions,
+      claimTtlMs: 20,
+      claimHeartbeatMs: 5,
+    })
+    await expect(scheduler.runCurrentWave()).resolves.toMatchObject({ actionCount: 1 })
+    expect(value.store.readReactionCycle(value.spec.manifest.address, cycleId)!.jobs[0]!.attemptCount).toBe(1)
+    close(value)
+
+    const lostClock = { value: 100 }
+    const lost = await fixture([binding('character:alice', delayedProvider(lostClock))], lostClock)
+    const renewalFailure = proxyStore(lost.store, {
+      renewReactionJobClaim: () => { throw new Error('simulated claim heartbeat loss') },
+    })
+    await expect(new ReactionScheduler({
+      ...lost.schedulerOptions,
+      store: renewalFailure,
+      claimTtlMs: 20,
+      claimHeartbeatMs: 5,
+    }).runCurrentWave()).rejects.toThrow('simulated claim heartbeat loss')
+    expect(lost.store.activeReactionCycle(lost.spec.manifest.address)?.waves.at(-1)?.status).toBe('frozen')
+    close(lost)
+  })
+
+  it.each(['fast', 'unavailable', 'replayed'] as const)(
+    'keeps the %s participant claim alive until its slow wave sibling settles', async mode => {
+      vi.useFakeTimers()
+      const clock = { value: 100 }
+      const alice = new Provider(output('character:alice', 'Fast response.'))
+      const bob: ReactionAgentProvider = {
+        async propose() {
+          await new Promise(resolve => setTimeout(resolve, 60))
+          return output('character:bob', 'Slow response.')
+        },
+      }
+      const value = await fixture([binding('character:alice', alice), binding('character:bob', bob)], clock)
+      if (mode === 'replayed') {
+        value.contexts.onReceipt = receipt => {
+          if (receipt.subjectCharacterId !== 'character:alice') return
+          const call = value.providerCalls.prepare(receipt)
+          value.providerCalls.markDispatchStarted(call.modelCallId)
+          value.providerCalls.recordResponse(call.modelCallId, output('character:alice', 'Stored response.'), {})
+          value.providerCalls.markValidated(call.modelCallId, output('character:alice', 'Stored response.'))
+        }
+      }
+      const scheduler = new ReactionScheduler({
+        ...value.schedulerOptions,
+        participants: mode === 'unavailable' ? [binding('character:bob', bob)] : value.schedulerOptions.participants,
+        claimTtlMs: 20, claimHeartbeatMs: 5,
+      })
+      const run = scheduler.runCurrentWave()
+      for (let elapsed = 0; elapsed < 60; elapsed += 5) {
+        clock.value += 5
+        await vi.advanceTimersByTimeAsync(5)
+      }
+      await expect(run).resolves.toMatchObject({ actionCount: mode === 'unavailable' ? 1 : 2 })
+      const cycleId = value.store.listReactionCycles(value.spec.manifest.address)[0]!.cycleId
+      expect(value.store.readReactionCycle(value.spec.manifest.address, cycleId)!.jobs
+        .filter(job => job.wave === 1).map(job => [job.status, job.attemptCount]))
+        .toEqual([['settled', 1], ['settled', 1]])
+      expect(alice.calls).toBe(mode === 'fast' ? 1 : 0)
+      expect(vi.getTimerCount()).toBe(0)
+      close(value)
+    },
+  )
+
+  it('waits for sibling ProviderCall settlement and clears heartbeats after a wave error', async () => {
+    vi.useFakeTimers()
+    const clock = { value: 100 }
+    let responses = 0
+    let bobReturned = false
+    const value = await fixture([
+      binding('character:alice', new Provider(abstain())),
+      binding('character:bob', {
+        async propose() {
+          await new Promise(resolve => setTimeout(resolve, 60))
+          bobReturned = true
+          return abstain()
+        },
+      }),
+    ], clock, {
+      faultInjector: { hit: point => {
+        if (point === 'provider.after-response' && ++responses === 1) throw new Error('first response fault')
+      } },
+    })
+    let settled = false
+    const run = new ReactionScheduler({
+      ...value.schedulerOptions, claimTtlMs: 20, claimHeartbeatMs: 5,
+    }).runCurrentWave().finally(() => { settled = true })
+    const assertion = expect(run).rejects.toThrow('first response fault')
+    for (let elapsed = 0; elapsed < 60; elapsed += 5) {
+      expect(settled).toBe(false)
+      clock.value += 5
+      await vi.advanceTimersByTimeAsync(5)
+    }
+    await assertion
+    expect(bobReturned).toBe(true)
+    expect(responses).toBe(2)
+    expect(value.store.activeReactionCycle(value.spec.manifest.address)?.waves.at(-1)?.status).toBe('frozen')
+    expect(value.store.head(value.spec.manifest.address).tick).toBe(1)
+    expect(vi.getTimerCount()).toBe(0)
     close(value)
   })
 

@@ -92,6 +92,8 @@ export interface ReactionSchedulerOptions {
   readonly writer: ReactionWriterLeasePort
   readonly faultInjector?: FaultInjector
   readonly now?: () => number
+  readonly claimTtlMs?: number
+  readonly claimHeartbeatMs?: number
 }
 
 export interface ReactionWaveResult {
@@ -160,6 +162,8 @@ export class ReactionScheduler {
   readonly #rulebook: RulebookResolver
   readonly #validator = new SubmitActionsValidator()
   readonly #now: () => number
+  readonly #claimTtlMs: number
+  readonly #claimHeartbeatMs: number
 
   constructor(private readonly options: ReactionSchedulerOptions) {
     const bindings = new Map<CharacterId, ReactionParticipantBinding>()
@@ -187,6 +191,15 @@ export class ReactionScheduler {
       options.address,
     )
     this.#now = options.now ?? Date.now
+    this.#claimTtlMs = options.claimTtlMs ?? 30_000
+    this.#claimHeartbeatMs = options.claimHeartbeatMs ?? 10_000
+    if (!Number.isSafeInteger(this.#claimTtlMs) || this.#claimTtlMs <= 1) {
+      throw new RangeError('Reaction claimTtlMs must be a safe integer greater than 1')
+    }
+    if (!Number.isSafeInteger(this.#claimHeartbeatMs) || this.#claimHeartbeatMs <= 0
+      || this.#claimHeartbeatMs >= this.#claimTtlMs) {
+      throw new RangeError('Reaction claimHeartbeatMs must be a positive safe integer below claimTtlMs')
+    }
   }
 
   async runCurrentWave(): Promise<ReactionWaveResult | undefined> {
@@ -227,7 +240,7 @@ export class ReactionScheduler {
     const runner = new SafeAgentRunner(new ModelBudgetLedger(
       prepared.reduce((total, value) => total + (value.providerCall === undefined ? 0 : value.job.reservedTokens), 0),
     ))
-    const executed = await Promise.all(prepared.map(value => this.#executeJob(value, runner)))
+    const executed = await this.#executeWave(prepared, runner)
     this.options.writer.renew()
     const built = this.#buildRound(initial, roundId, candidateHash, history, executed, head.headSeq, head.tick, wave.wave)
     const refreshed = this.options.store.readReactionCycle(this.options.address, initial.cycle.cycleId)
@@ -306,7 +319,7 @@ export class ReactionScheduler {
     for (let index = 0; index < expected; index += 1) {
       const lease = this.options.writer.current()
       const job = this.options.store.claimNextReactionJob(
-        this.options.address, lease.ownerId, lease.fencingToken, 30_000, true,
+        this.options.address, lease.ownerId, lease.fencingToken, this.#claimTtlMs, true,
       )
       if (job === undefined || job.wave !== wave.wave) throw new Error('Reaction Wave could not claim every reserved Job')
       claimed.push(job)
@@ -396,6 +409,41 @@ export class ReactionScheduler {
     )
     providerCall = this.options.providerCalls.read(providerCall.modelCallId)!
     return { job, binding, prepared, providerCall }
+  }
+
+  async #executeWave(prepared: readonly PreparedJob[], runner: SafeAgentRunner): Promise<ExecutedJob[]> {
+    // A fast/replayed/unavailable participant still owns a claim until the whole wave settles.
+    const claims = prepared.map(value => value.job)
+    let failure: { readonly error: unknown } | undefined
+    const renewClaims = () => {
+      if (failure !== undefined) return
+      try {
+        const lease = this.options.writer.renew()
+        for (const [index, job] of claims.entries()) {
+          claims[index] = this.options.store.renewReactionJobClaim(
+            this.options.address, job.jobId, lease.ownerId, lease.fencingToken,
+            job.claimFencingToken, this.#claimTtlMs,
+          )
+        }
+      } catch (error: unknown) {
+        failure = { error }
+      }
+    }
+    const heartbeat = setInterval(renewClaims, this.#claimHeartbeatMs)
+    try {
+      // Do not release the wave while a sibling may still write its ProviderCall result.
+      const results = await Promise.allSettled(prepared.map(value => this.#executeJob(value, runner)))
+      renewClaims()
+      if (failure !== undefined) throw failure.error
+      const executed: ExecutedJob[] = []
+      for (const [index, result] of results.entries()) {
+        if (result.status === 'rejected') throw result.reason
+        executed.push({ ...result.value, job: claims[index]! })
+      }
+      return executed
+    } finally {
+      clearInterval(heartbeat)
+    }
   }
 
   async #executeJob(prepared: PreparedJob, runner: SafeAgentRunner): Promise<ExecutedJob> {
