@@ -62,6 +62,14 @@ corepack pnpm@11.7.0 experience:web
 
 浏览器只接收玩家绑定角色的 `CharacterView` 派生对白，不接收其他角色的私有 Claim、Memory、完整 Prompt 或原始模型响应。完整请求和响应仍会写入世界目录下的 `requests/`，仅供本机诊断，其中可能包含角色私密上下文，不得提交或分享。
 
+需要明确改用 DeepSeek Flash 时，先保证启动该命令的终端能够读取 `DEEPSEEK_API_KEY`，再运行：
+
+```powershell
+corepack pnpm@11.7.0 experience:web:flash
+```
+
+该入口固定使用 `deepseek-v4-flash` 和 `https://api.deepseek.com/chat/completions`，不会接受自定义远程 Endpoint，也不会因 Key 缺失而回退到 Ollama。它会产生外部 API 调用与可能的费用；Key 只进入 Authorization 请求头，不进入浏览器状态、本地请求证据或错误正文。每次请求超时 30 秒，失败或终态不明时不自动重发。
+
 ## DeepSeek Flash 三轮体验
 
 启动进程必须能读取已配置的 `DEEPSEEK_API_KEY`，不要把 Key 写入仓库或发到聊天中。入口固定调用既有实验模型 `deepseek-v4-flash`，不会自动换模型或重试收费请求。
