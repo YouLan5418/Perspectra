@@ -669,6 +669,7 @@ export class RoundCoordinator {
       observationId: string
       observerId: CharacterId
       actorId: CharacterId
+      sourceRole: 'player' | RoundParticipantRole
     }[] = []
     for (const [ordinal, item] of ordered.entries()) {
       const actionPrefix = [...history, ...events]
@@ -788,6 +789,7 @@ export class RoundCoordinator {
           observationId,
           observerId,
           actorId: item.action.actorId,
+          sourceRole: item.sourceRole,
         })
         events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id: observationId, value: observation } })
         if (observerId === binding.characterId) {
@@ -830,7 +832,10 @@ export class RoundCoordinator {
     if (frozen.some(value => value.providerCall?.state === 'validated')) {
       this.options.faultInjector?.hit('provider.before-world-commit')
     }
-    const reactionCycle = this.#buildReactionCycleDraft(reactionStimuli)
+    const reactionCycle = this.#buildReactionCycleDraft(
+      reactionStimuli,
+      new Set(frozen.map(participant => participant.binding.actorId)),
+    )
     const commit = await this.options.store.commitRound({
       address: this.#address,
       transactionId,
@@ -1419,7 +1424,9 @@ export class RoundCoordinator {
       observationId: string
       observerId: CharacterId
       actorId: CharacterId
+      sourceRole: 'player' | RoundParticipantRole
     }[],
+    rootParticipantActorIds: ReadonlySet<CharacterId>,
   ): ReactionCycleDraft | undefined {
     const policy = reactionPolicyFromManifest(this.#manifest)
     if (policy.mode !== 'responsive') return undefined
@@ -1427,7 +1434,8 @@ export class RoundCoordinator {
     const playerCharacters = new Set(this.#manifest.playerBindings.map(binding => binding.characterId))
     const stimuliByObserver = new Map<CharacterId, { sourceEventOrdinal: number; observationOrdinal: number; observationId: string; observerCharacterId: CharacterId }[]>()
     for (const stimulus of stimuli) {
-      if (stimulus.observerId === stimulus.actorId) continue
+      if (stimulus.observerId === stimulus.actorId
+        || (stimulus.sourceRole === 'player' && rootParticipantActorIds.has(stimulus.observerId))) continue
       let bucket = stimuliByObserver.get(stimulus.observerId)
       if (bucket === undefined) {
         bucket = []

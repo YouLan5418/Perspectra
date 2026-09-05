@@ -68,6 +68,48 @@ export function request(idempotencyKey: string, text = idempotencyKey) {
 }
 
 describe('Phase 9B reaction end-to-end', () => {
+  it('does not schedule a second NPC response to the player stimulus already consumed by the Root Round', async () => {
+    const dir = directory('no-player-stimulus-replay')
+    const worldPath = join(dir, 'world.sqlite')
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const aliceScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const bobScript: ProviderScript = { calls: { value: 0 }, outputs: new Map() }
+    const compiled = v5Manifest()
+    const bobAbstains = {
+      ...roundProvider(bob, 'unused'),
+      provider: {
+        async propose() {
+          return { participantId: 'agent:bob', actions: [] }
+        },
+      },
+    }
+    const application = new WorldApplication({
+      worldPath,
+      sessionPath: join(dir, 'session.sqlite'),
+      memoryPath: join(dir, 'memory.sqlite'),
+      modelBudgetTokens: 64,
+      participants: () => [roundProvider(alice, 'Alice answers once'), bobAbstains],
+      reactionParticipants: () => [reactionBinding(alice, aliceScript), reactionBinding(bob, bobScript)],
+    })
+    application.activate(compiled)
+    try {
+      await expect(application.submit(ADDRESS, request('e2e:no-player-replay', 'Hello everyone')))
+        .resolves.toMatchObject({ status: 'accepted' })
+      const probe = new WorldStore(worldPath)
+      try {
+        expect(probe.activeReactionCycle(ADDRESS)!.jobs.map(job => job.characterId)).toEqual([bob])
+      } finally {
+        probe.close()
+      }
+      await application.processReactionCycles(ADDRESS)
+      expect(aliceScript.calls.value).toBe(0)
+      expect(bobScript.calls.value).toBe(1)
+    } finally {
+      await application.close()
+    }
+  })
+
   it('creates a Reaction Cycle atomically with the Root Round and drains it through the application', async () => {
     const dir = directory('full-cycle')
     const worldPath = join(dir, 'world.sqlite')
