@@ -17,8 +17,9 @@ import type { CompiledWorldManifestV5, CompiledWorldSpec } from '@harness-world/
 import { RAINY_ROAD_IDS, adaptRainyRoadPack, compileRainyRoadPack } from '@harness-world/simulation'
 import {
   byteHash,
+  createExperimentActionReferences,
   externalActionProposal,
-  externalActionSchema,
+  externalActionSchemaFor,
   renderExperiment,
   speechProposal,
   speechSchema,
@@ -103,6 +104,7 @@ class PlaytestModelProvider {
     private readonly model: string,
     private readonly apiKey: string | undefined,
     private readonly timeoutMs: number,
+    private readonly actionReferences: ReturnType<typeof createExperimentActionReferences>,
     private readonly evidenceDirectory: string,
     private readonly onStart: (call: CallTelemetry) => void,
     private readonly onFinish: (call: CallTelemetry, durationMs: number, status: 'act' | 'abstain' | 'invalid' | 'failed') => void,
@@ -113,11 +115,11 @@ class PlaytestModelProvider {
     if (exact === undefined || !Array.isArray(exact.messages)) throw new TypeError('exact Provider request is unavailable')
     const reaction = 'origin' in context && context.origin.kind === 'reaction' ? context.origin : null
     const outputMode = reaction === null ? 'external_actions' : 'speech_only'
-    const rendered = renderExperiment(exact.messages, 'compact', outputMode)
+    const rendered = renderExperiment(exact.messages, 'compact', outputMode, this.actionReferences)
     const messages = comparisonMessages(rendered.messages, 'turn_taking', outputMode)
     const body = JSON.stringify(this.provider === 'ollama'
       ? { model: this.model, messages, stream: false, think: false,
-        format: outputMode === 'speech_only' ? speechSchema : externalActionSchema,
+        format: outputMode === 'speech_only' ? speechSchema : externalActionSchemaFor(rendered.actionReferences),
         options: { temperature: 0.3, seed: 42, num_predict: 256 }, keep_alive: '10m' }
       : { model: this.model, messages, stream: false, thinking: { type: 'disabled' },
         response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 256 })
@@ -157,16 +159,18 @@ class PlaytestModelProvider {
       if (outputMode === 'speech_only') {
         proposal = speechProposal(decoded, this.actorId, `action:playtest:${this.actorId}:${context.roundId}`)
       } else {
+        const proposalContext = {
+          exactMessages: exact.messages,
+          references: rendered.references,
+          actionReferences: rendered.actionReferences,
+        }
         try {
-          proposal = externalActionProposal(decoded, this.actorId, context.roundId, {
-            exactMessages: exact.messages,
-            references: rendered.references,
-          })
+          proposal = externalActionProposal(decoded, this.actorId, context.roundId, proposalContext)
         } catch (error: unknown) {
           const candidate = object(decoded)
           if (candidate === undefined || !('reflection' in candidate)) throw error
           const { reflection: _reflection, ...withoutReflection } = candidate
-          proposal = externalActionProposal(withoutReflection, this.actorId, context.roundId)
+          proposal = externalActionProposal(withoutReflection, this.actorId, context.roundId, proposalContext)
           reflectionWarning = 'reflection_rejected'
         }
       }
@@ -262,6 +266,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       { participantId: 'agent:bob', actorId: RAINY_ROAD_IDS.bob, priority: 1 },
     ].map(item => ({ ...item, provider: new PlaytestModelProvider(
       item.participantId, item.actorId, this.#provider, endpoint, this.#model, apiKey, timeoutMs,
+      createExperimentActionReferences(compiled.manifest),
       evidenceDirectory, onStart, onFinish,
     ) }))
     const roundParticipants: RoundParticipant[] = providers.map(item => ({ ...item, role: 'agent',

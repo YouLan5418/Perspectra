@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { brandId } from '@harness-world/contracts'
 import {
   byteHash,
+  createExperimentActionReferences,
   externalActionProposal,
+  externalActionSchemaFor,
   renderExperiment,
   speechProposal,
   type ExperimentMessage,
@@ -84,6 +86,66 @@ describe('manual Ollama compact context experiment', () => {
       hostSuppliesIdentity: true,
       reflection: { mode: 'update_existing_self_state', maximumOperations: 1, hostSuppliesProvenance: true },
     })
+  })
+
+  it('generates model-visible action targets from authoritative Pack resources and resolves only their short references', () => {
+    const input = messages()
+    const selfState = JSON.parse(input[6]!.content)
+    selfState.content.locationId = 'location:road-shelter'
+    input[6] = { role: 'user', content: JSON.stringify(selfState) }
+    input[10] = { role: 'user', content: JSON.stringify({
+      segmentKind: 'affordances',
+      content: [
+        { actionType: 'speak', actionVersion: 1 },
+        { actionType: 'move', actionVersion: 1 },
+        { actionType: 'take', actionVersion: 1 },
+      ],
+      sourceRefs: [],
+    }) }
+    const actionReferences = createExperimentActionReferences({
+      locations: [
+        { locationId: 'location:station-platform', name: '末班车站台' },
+        { locationId: 'location:road-shelter', name: '山路雨棚' },
+      ],
+      entities: [
+        { entityId: 'entity:ticket-bundle', kind: 'tickets', locationId: 'location:road-shelter' },
+        { entityId: 'entity:remote', kind: 'remote', locationId: 'location:station-platform' },
+      ],
+    })
+    const rendered = renderExperiment(input, 'compact', 'external_actions', actionReferences)
+    const affordances = JSON.parse(rendered.messages[10]!.content).content
+    expect(affordances).toEqual({
+      actions: [
+        { actionType: 'speak', actionVersion: 1 },
+        { actionType: 'move', actionVersion: 1 },
+        { actionType: 'take', actionVersion: 1 },
+      ],
+      parameterDomains: {
+        move: [{ locationRef: 'L1', name: '末班车站台' }],
+        take: [{ entityRef: 'E1', kind: 'tickets' }],
+      },
+    })
+    expect(JSON.stringify(rendered.messages)).not.toMatch(/location:station-platform|entity:ticket-bundle/)
+    expect(rendered.actionReferences.map(reference => reference.short)).toEqual(['L1', 'E1'])
+    const schema = JSON.stringify(externalActionSchemaFor(rendered.actionReferences))
+    expect(schema).toContain('"enum":["L1"]')
+    expect(schema).toContain('"enum":["E1"]')
+    const actorId = brandId('character:alice', 'CharacterId')
+    const result = externalActionProposal({ decision: 'act', actions: [
+      { actionType: 'move', parameters: { locationRef: 'L1' } },
+      { actionType: 'take', parameters: { entityRef: 'E1' } },
+    ] }, actorId, 'round:catalog', {
+      exactMessages: input, references: rendered.references, actionReferences: rendered.actionReferences,
+    })
+    expect(result.actions.map(action => action.parameters)).toEqual([
+      { locationId: 'location:station-platform' },
+      { entityId: 'entity:ticket-bundle' },
+    ])
+    expect(() => externalActionProposal({ decision: 'act', actions: [
+      { actionType: 'move', parameters: { locationRef: 'L2' } },
+    ] }, actorId, 'round:forged-catalog', {
+      exactMessages: input, references: rendered.references, actionReferences: rendered.actionReferences,
+    })).toThrow('unknown')
   })
 
   it('does not erase technical-looking authored payloads or elevate player content to control roles', () => {

@@ -4,6 +4,7 @@ import {
   type CharacterId,
   type CognitionProjectionKind,
   type ContextSourceRef,
+  compareWorldText,
   type SubmitActionsV2,
   type WorldHash,
   type WorldJsonObject,
@@ -16,7 +17,33 @@ export interface ExperimentMessage {
 
 export type PromptMode = 'full' | 'compact'
 export type ExperimentOutputMode = 'speech_only' | 'external_actions'
-export const EXPERIMENT_RENDERER = 'ollama-experience-renderer/v3'
+export const EXPERIMENT_RENDERER = 'ollama-experience-renderer/v4'
+
+export interface ExperimentActionReference {
+  readonly kind: 'location' | 'entity'
+  readonly short: string
+  readonly source: string
+  readonly label: string
+  readonly locationSource?: string
+}
+
+export function createExperimentActionReferences(input: {
+  readonly locations: readonly { readonly locationId: string; readonly name: string }[]
+  readonly entities: readonly { readonly entityId: string; readonly kind: string; readonly locationId: string }[]
+}): readonly ExperimentActionReference[] {
+  const locations: ExperimentActionReference[] = [...input.locations]
+    .sort((left, right) => compareWorldText(left.locationId, right.locationId))
+    .map((location, index) => ({
+      kind: 'location', short: `L${index + 1}`, source: location.locationId, label: location.name,
+    }))
+  const entities: ExperimentActionReference[] = [...input.entities]
+    .sort((left, right) => compareWorldText(left.entityId, right.entityId))
+    .map((entity, index) => ({
+      kind: 'entity', short: `E${index + 1}`, source: entity.entityId,
+      label: entity.kind, locationSource: entity.locationId,
+    }))
+  return [...locations, ...entities]
+}
 
 const segmentKinds = [
   'world_public_anchor', 'character_anchor', 'continuity_checkpoint', 'recent_interaction_tail',
@@ -50,10 +77,21 @@ export function renderExperiment(
   messages: readonly ExperimentMessage[],
   mode: PromptMode,
   outputMode: ExperimentOutputMode = 'speech_only',
+  actionReferences: readonly ExperimentActionReference[] = [],
 ) {
   if (messages.length !== 12 || messages[0]?.role !== 'system' || messages[1]?.role !== 'developer') {
     throw new TypeError('experiment requires the known 12-segment Character Context')
   }
+  const currentSelfState = object(object(JSON.parse(messages[6]!.content)).content)
+  const currentLocationId = currentSelfState.locationId
+  let locationOrdinal = 0
+  let entityOrdinal = 0
+  const availableActionReferences = actionReferences.filter(reference => reference.kind === 'location'
+    ? reference.source !== currentLocationId
+    : reference.locationSource === currentLocationId).map(reference => ({
+      ...reference,
+      short: reference.kind === 'location' ? `L${++locationOrdinal}` : `E${++entityOrdinal}`,
+    }))
   const references = new Map<string, string>()
   const alias = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(alias)
@@ -86,6 +124,26 @@ export function renderExperiment(
       content = JSON.stringify(mode === 'full' ? data : {
         segmentKind: segment, content: compact(data.content),
       })
+      if (segment === 'affordances' && outputMode === 'external_actions' && actionReferences.length > 0) {
+        const locations = availableActionReferences.filter(reference => reference.kind === 'location')
+        const entities = availableActionReferences.filter(reference => reference.kind === 'entity')
+        const actions = (Array.isArray(data.content) ? data.content : []).filter(value => {
+          const actionType = object(value).actionType
+          if (actionType === 'move') return locations.length > 0
+          if (actionType === 'take') return entities.length > 0
+          return true
+        }).map(compact)
+        content = JSON.stringify({
+          segmentKind: segment,
+          content: {
+            actions,
+            parameterDomains: {
+              move: locations.map(reference => ({ locationRef: reference.short, name: reference.label })),
+              take: entities.map(reference => ({ entityRef: reference.short, kind: reference.label })),
+            },
+          },
+        })
+      }
       if (segment === 'output_reminder') {
         // The host always supplies action identity. Only player-triggered calls may propose physical actions.
         content = JSON.stringify(outputMode === 'speech_only' ? {
@@ -107,6 +165,7 @@ export function renderExperiment(
     renderer: EXPERIMENT_RENDERER, mode, messages: rendered, sizes,
     // This stays in the experiment sidecar, never in the model-visible messages.
     references: [...references].map(([source, short]) => ({ short, source })),
+    actionReferences: availableActionReferences,
     sourceMessagesHash: byteHash(JSON.stringify(messages)),
     renderedMessagesHash: byteHash(JSON.stringify(rendered)),
   }
@@ -144,6 +203,42 @@ export const externalActionSchema = {
     },
   },
 } as const
+
+export function externalActionSchemaFor(actionReferences: readonly ExperimentActionReference[]) {
+  const locations = actionReferences.filter(reference => reference.kind === 'location').map(reference => reference.short)
+  const entities = actionReferences.filter(reference => reference.kind === 'entity').map(reference => reference.short)
+  const actionVariants: Record<string, unknown>[] = [{
+    type: 'object', additionalProperties: false, required: ['actionType', 'parameters'],
+    properties: {
+      actionType: { type: 'string', const: 'speak' },
+      parameters: { type: 'object', additionalProperties: false, required: ['text'],
+        properties: { text: { type: 'string', maxLength: 500 } } },
+    },
+  }]
+  if (locations.length > 0) actionVariants.push({
+    type: 'object', additionalProperties: false, required: ['actionType', 'parameters'],
+    properties: {
+      actionType: { type: 'string', const: 'move' },
+      parameters: { type: 'object', additionalProperties: false, required: ['locationRef'],
+        properties: { locationRef: { type: 'string', enum: locations } } },
+    },
+  })
+  if (entities.length > 0) actionVariants.push({
+    type: 'object', additionalProperties: false, required: ['actionType', 'parameters'],
+    properties: {
+      actionType: { type: 'string', const: 'take' },
+      parameters: { type: 'object', additionalProperties: false, required: ['entityRef'],
+        properties: { entityRef: { type: 'string', enum: entities } } },
+    },
+  })
+  return {
+    ...externalActionSchema,
+    properties: {
+      ...externalActionSchema.properties,
+      actions: { type: 'array', maxItems: 2, items: { oneOf: actionVariants } },
+    },
+  } as const
+}
 
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
   const keys = Object.keys(value).sort()
@@ -188,6 +283,7 @@ function sourceRef(value: unknown): ContextSourceRef {
 export interface ExperimentReflectionContext {
   readonly exactMessages: readonly ExperimentMessage[]
   readonly references: readonly { readonly short: string; readonly source: string }[]
+  readonly actionReferences?: readonly ExperimentActionReference[]
 }
 
 function segment(messages: readonly ExperimentMessage[], kind: string): Record<string, unknown> {
@@ -306,9 +402,25 @@ export function externalActionProposal(
     let normalized: WorldJsonObject
     if (action.actionType === 'speak' && exactKeys(parameters, ['text'])) {
       normalized = { text: requiredText(parameters.text, 'speak.text', 500) }
-    } else if (action.actionType === 'move' && exactKeys(parameters, ['locationId'])) {
+    } else if (action.actionType === 'move' && reflectionContext?.actionReferences !== undefined
+      && exactKeys(parameters, ['locationRef'])) {
+      const locationRef = requiredText(parameters.locationRef, 'move.locationRef')
+      const location = reflectionContext.actionReferences.find(reference => reference.kind === 'location'
+        && reference.short === locationRef)
+      if (location === undefined) throw new TypeError('move.locationRef is unknown')
+      normalized = { locationId: location.source }
+    } else if (action.actionType === 'take' && reflectionContext?.actionReferences !== undefined
+      && exactKeys(parameters, ['entityRef'])) {
+      const entityRef = requiredText(parameters.entityRef, 'take.entityRef')
+      const entity = reflectionContext.actionReferences.find(reference => reference.kind === 'entity'
+        && reference.short === entityRef)
+      if (entity === undefined) throw new TypeError('take.entityRef is unknown')
+      normalized = { entityId: entity.source }
+    } else if (action.actionType === 'move' && reflectionContext?.actionReferences === undefined
+      && exactKeys(parameters, ['locationId'])) {
       normalized = { locationId: requiredText(parameters.locationId, 'move.locationId') }
-    } else if (action.actionType === 'take' && exactKeys(parameters, ['entityId'])) {
+    } else if (action.actionType === 'take' && reflectionContext?.actionReferences === undefined
+      && exactKeys(parameters, ['entityId'])) {
       normalized = { entityId: requiredText(parameters.entityId, 'take.entityId') }
     } else {
       throw new TypeError('unsupported or malformed experimental action')

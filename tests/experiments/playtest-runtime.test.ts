@@ -86,8 +86,8 @@ describe('player-facing playtest transcript', () => {
       const response = {
         decision: 'act',
         actions: [
-          { actionType: 'take', parameters: { entityId: 'entity:ticket-bundle' } },
-          { actionType: 'move', parameters: { locationId: 'location:station-platform' } },
+          { actionType: 'take', parameters: { entityRef: 'E1' } },
+          { actionType: 'move', parameters: { locationRef: 'L1' } },
         ],
         reflection: [{ recordRef: relationship.id,
           changes: { intensityPermille: relationship.value.intensityPermille! + 100 } }],
@@ -136,7 +136,7 @@ describe('player-facing playtest transcript', () => {
         ? { decision: 'abstain', text: '' }
         : !alice
           ? { decision: 'abstain', actions: [] }
-          : { decision: 'act', actions: [{ actionType: 'take', parameters: { entityId: 'entity:ticket-bundle' } }],
+          : { decision: 'act', actions: [{ actionType: 'take', parameters: { entityRef: 'E1' } }],
               reflection: [{ recordRef: 'R999', changes: { confidencePermille: 500 } }] }
       return new Response(JSON.stringify({ model: 'qwen3.5:4b', done_reason: 'stop',
         message: { content: JSON.stringify(content) } }), { status: 200 })
