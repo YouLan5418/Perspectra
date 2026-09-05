@@ -26,6 +26,8 @@
     "worldhost": "tsx packages/operations/process/headless-entry.ts",
     "worlddeploy": "tsx packages/operations/process/deployment-backup-entry.ts",
     "worldpack": "tsx packages/world-pack/process/cli-entry.ts",
+    "experience:ollama": "tsx tests/experiments/ollama-qwen35-4b.ts",
+    "experience:flash": "tsx tests/experiments/flash-playthrough-entry.ts",
     "demo:mystery": "tsx packages/simulation/process/mystery-demo-entry.ts",
     "demo:mystery:turn": "tsx packages/simulation/process/mystery-turn-entry.ts",
     "demo:mystery:shell": "tsx packages/simulation/process/mystery-shell-entry.ts",
