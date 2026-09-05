@@ -6,10 +6,10 @@ import { brandId, hashWorldJson, type CharacterId, type ProposalContext, type Re
   type WorldJsonObject } from '@harness-world/contracts'
 import type { CompiledWorldManifestV5, CompiledWorldSpec } from '@harness-world/kernel'
 import { RAINY_ROAD_IDS, adaptRainyRoadPack, compileRainyRoadPack } from '@harness-world/simulation'
-import { byteHash, renderExperiment, speechProposal, type ExperimentMessage } from './compact-context.ts'
+import { byteHash, renderExperiment, speechProposal, speechSchema, type ExperimentMessage } from './compact-context.ts'
 import { comparisonMessages, comparisonResponse } from './provider-comparison.ts'
 
-// Manual paid experiment only. Not a production Model Profile or automatic CI test.
+// Manual experiment only (paid unless --ollama). Never an automatic CI test.
 const inputs = [
   'Bob，你迟到了。到底发生了什么？Alice，你也说说你现在最在意什么。',
   'Alice，听了 Bob 的解释，你愿意相信他吗？Bob，请回应 Alice 的顾虑，不要只重复刚才的话。',
@@ -27,15 +27,20 @@ function responsive(compiled: CompiledWorldSpec): CompiledWorldSpec {
 }
 
 async function main() {
+  const args = process.argv.slice(2)
+  if (args.length > 1 || (args.length === 1 && args[0] !== '--ollama')) throw new Error('unsupported experiment argument')
+  const vendor = args[0] === '--ollama' ? 'ollama' : 'deepseek'
+  const model = vendor === 'ollama' ? 'qwen3.5:4b' : 'deepseek-v4-flash'
+  const timeoutMs = vendor === 'ollama' ? 120_000 : 30_000
   const promptVariant = process.env.HCW_FLASH_PROMPT ?? 'ownership_clear'
   if (promptVariant !== 'ownership_clear' && promptVariant !== 'turn_taking') throw new Error('unsupported experiment prompt')
   const key = process.env.DEEPSEEK_API_KEY?.trim()
-  if (!key) throw new Error('credential unavailable')
-  const directory = resolve('.tmp', `flash-playthrough-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}`)
-  mkdirSync(directory)
+  if (vendor === 'deepseek' && !key) throw new Error('credential unavailable')
+  const directory = resolve('.tmp', `${vendor}-playthrough-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}`)
+  mkdirSync(directory, { recursive: true })
   const requests = resolve(directory, 'requests')
   mkdirSync(requests)
-  console.log(JSON.stringify({ directory, promptVariant, model: 'deepseek-v4-flash', maximumCalls: 30, playerTurns: inputs.length }))
+  console.log(JSON.stringify({ directory, vendor, promptVariant, model, maximumCalls: 30, playerTurns: inputs.length }))
   const save = (name: string, value: unknown) => writeFileSync(resolve(directory, name), JSON.stringify(value, null, 2), { flag: 'wx' })
   const address = { tenantId: brandId('tenant:flash-experiment', 'TenantId'),
     worldId: brandId('world:rainy-road-flash', 'WorldId'), branchId: brandId('branch:main', 'BranchId') }
@@ -54,8 +59,11 @@ async function main() {
       if (!exact || !Array.isArray(exact.messages)) throw new Error('exact context unavailable')
       const rendered = renderExperiment(exact.messages, 'compact')
       const messages = comparisonMessages(rendered.messages, promptVariant)
-      const wireBody = JSON.stringify({ model: 'deepseek-v4-flash', messages, stream: false,
-        thinking: { type: 'disabled' }, response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 256 })
+      const wireBody = JSON.stringify(vendor === 'ollama'
+        ? { model, messages, stream: false, think: false, format: speechSchema,
+          options: { temperature: 0.3, seed: 42, num_predict: 256 }, keep_alive: '10m' }
+        : { model, messages, stream: false, thinking: { type: 'disabled' },
+          response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 256 })
       if (Buffer.byteLength(wireBody) > 48_000) {
         stopped = true
         throw new Error('experiment input bound exceeded')
@@ -69,12 +77,14 @@ async function main() {
         wireBody, wireBodyHash: byteHash(wireBody), messagesHash: byteHash(JSON.stringify(messages)) })
       const started = performance.now()
       try {
-        const response = await fetch('https://api.deepseek.com/chat/completions', {
-          method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-          body: wireBody, signal: AbortSignal.timeout(30_000),
+        const response = await fetch(vendor === 'ollama' ? 'http://127.0.0.1:11434/api/chat' : 'https://api.deepseek.com/chat/completions', {
+          method: 'POST', redirect: 'error', headers: vendor === 'ollama'
+            ? { 'content-type': 'application/json' }
+            : { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+          body: wireBody, signal: AbortSignal.timeout(timeoutMs),
         })
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        const parsed = comparisonResponse('deepseek', await response.json())
+        const parsed = comparisonResponse(vendor, await response.json())
         const proposal = speechProposal(JSON.parse(parsed.content), actorId, `action:flash:${actorId}:${context.roundId}`)
         const evidence = { ordinal, participantId, roundId: context.roundId, wave: reaction?.wave ?? null,
           durationMs: Math.round(performance.now() - started), status: 'valid', ...parsed, proposal }
@@ -87,7 +97,7 @@ async function main() {
         const failure = { ordinal, participantId, status: 'failed_or_ambiguous', retryAttempted: false }
         save(`requests/${evidenceId}.failure.json`, failure)
         calls.push(failure)
-        throw new Error('Flash experiment call failed; vendor error body suppressed')
+        throw new Error('Model experiment call failed; vendor error body suppressed')
       }
     },
   })
@@ -95,7 +105,7 @@ async function main() {
     { participantId: 'agent:alice', actorId: RAINY_ROAD_IDS.alice, priority: 2 },
     { participantId: 'agent:bob', actorId: RAINY_ROAD_IDS.bob, priority: 1 },
   ].map(binding => ({ ...binding, role: 'agent' as const, allowedActionTypes: ['speak'],
-    estimatedTokens: 1, timeoutMs: 35_000, provider: provider(binding.participantId, binding.actorId) }))
+    estimatedTokens: 1, timeoutMs: timeoutMs + 5_000, provider: provider(binding.participantId, binding.actorId) }))
   const openApplication = () => new WorldApplication({
     worldPath: resolve(directory, 'world.sqlite'), sessionPath: resolve(directory, 'session.sqlite'),
     memoryPath: resolve(directory, 'memory.sqlite'), contextPath: resolve(directory, 'context.sqlite'),
@@ -124,7 +134,7 @@ async function main() {
       completedTurns++
     }
     finalHead = await app.head(address)
-    save('summary.json', { model: 'deepseek-v4-flash', promptVariant, completedTurns, callCount, stopped, finalHead, calls,
+    save('summary.json', { vendor, model, promptVariant, completedTurns, callCount, stopped, finalHead, calls,
       caveat: 'Experimental wire adapter; production profile still scripted; no Reflection; raw evidence stays local.' })
   } finally { await app.close() }
   if (stopped || completedTurns !== inputs.length) throw new Error('experiment incomplete')
@@ -139,4 +149,4 @@ async function main() {
   } finally { await restarted.close() }
 }
 
-try { await main() } catch { console.error('Flash playthrough stopped; inspect local evidence. Credentials/vendor errors suppressed.'); process.exitCode = 1 }
+try { await main() } catch { console.error('Model playthrough stopped; inspect local evidence. Credentials/vendor errors suppressed.'); process.exitCode = 1 }
