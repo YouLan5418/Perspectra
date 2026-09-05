@@ -76,10 +76,14 @@ export function reactionBinding(
   }
 }
 
-export function v5Manifest(): CompiledWorldSpec {
+export function v5Manifest(options: {
+  readonly address?: WorldAddress
+  readonly npcIds?: readonly string[]
+} = {}): CompiledWorldSpec {
+  const npcIds = options.npcIds ?? ['character:alice', 'character:bob']
   const base = new WorldSpecCompiler().compile({
     schemaVersion: 2,
-    address: { tenantId: 'tenant:reaction-e2e', worldId: 'world:reaction-e2e', branchId: 'branch:main' },
+    address: options.address ?? { tenantId: 'tenant:reaction-e2e', worldId: 'world:reaction-e2e', branchId: 'branch:main' },
     metadata: { title: 'Reaction e2e', description: '' },
     timeMode: 'TURN_DRIVEN',
     roundQueueLimit: 8,
@@ -89,10 +93,11 @@ export function v5Manifest(): CompiledWorldSpec {
     entities: [],
     characters: [
       { characterId: 'character:player', name: 'Player', locationId: 'location:room' },
-      { characterId: 'character:alice', name: 'Alice', locationId: 'location:room' },
-      { characterId: 'character:bob', name: 'Bob', locationId: 'location:room' },
+      ...npcIds.map(characterId => ({ characterId,
+        name: characterId === 'character:alice' ? 'Alice' : characterId === 'character:bob' ? 'Bob' : characterId,
+        locationId: 'location:room' })),
     ],
-    scenes: [{ sceneId: 'scene:room', participantIds: ['character:player', 'character:alice', 'character:bob'] }],
+    scenes: [{ sceneId: 'scene:room', participantIds: ['character:player', ...npcIds] }],
     goals: [], claims: [], observations: [],
     playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
     plugins: [
@@ -133,10 +138,7 @@ export function v5Manifest(): CompiledWorldSpec {
     },
     presentation: { schemaVersion: 'worldpack-presentation/v1', locale: 'en', style: 'plain' },
     initialFacts: [],
-    memory: [
-      { characterId: 'character:alice', profile: 'compact', attentionTopics: [] },
-      { characterId: 'character:bob', profile: 'compact', attentionTopics: [] },
-    ],
+    memory: npcIds.map(characterId => ({ characterId, profile: 'compact', attentionTopics: [] })),
     documents: [],
     markdown: [],
   }
