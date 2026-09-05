@@ -37,6 +37,31 @@ corepack pnpm@11.7.0 experience:ollama:dialogue
 
 结果和请求/响应保存在 `.tmp/ollama-qwen35-4b-时间戳/`，其中可能包含角色私有上下文。原始文件只留本机，不应提交、分享或当作玩家视图。
 
+## 在浏览器中连续试玩
+
+这是一个只绑定本机回环地址的实验页面，仍使用上述 Ollama 模型和正式 `WorldApplication` 管线。它不改变 V0 的 `stdio only` 发布边界，也不提供远程服务。
+
+先确认 Ollama 正在运行，然后执行：
+
+```powershell
+corepack pnpm@11.7.0 experience:web
+```
+
+终端会打印一个类似 `http://127.0.0.1:<随机端口>/#token=<随机令牌>` 的地址。用同一台电脑的浏览器打开完整地址即可开始连续对话；随机令牌只放在 URL fragment 中，页面读取后会立即从地址栏移除。不要分享该地址或令牌。
+
+页面包含玩家视角的对话记录、自由文本输入、角色思考状态、波次边界暂停/继续按钮，以及一个只含 Tick、Cycle 状态和调用耗时的调试抽屉。普通文本按玩家发言处理；一次提交期间不能重复发送。暂停只会在当前 NPC 波次完成后生效，不会中断已经发出的模型请求。
+
+默认每次启动创建一个新的 `.tmp/web-playtest-*` 世界。需要关闭页面后继续同一个世界时，可显式指定目录：
+
+```powershell
+$env:HCW_PLAYTEST_DATA_DIRECTORY='.tmp/my-web-playtest'
+corepack pnpm@11.7.0 experience:web
+```
+
+可通过 `HCW_OLLAMA_MODEL` 和 `HCW_OLLAMA_ENDPOINT` 改用其他本机 Ollama 模型或端口；Endpoint 只接受未携带凭证的 `localhost` 或 `127.0.0.1` HTTP 地址。按 `Ctrl+C` 会安全关闭监听和数据库。
+
+浏览器只接收玩家绑定角色的 `CharacterView` 派生对白，不接收其他角色的私有 Claim、Memory、完整 Prompt 或原始模型响应。完整请求和响应仍会写入世界目录下的 `requests/`，仅供本机诊断，其中可能包含角色私密上下文，不得提交或分享。
+
 ## DeepSeek Flash 三轮体验
 
 启动进程必须能读取已配置的 `DEEPSEEK_API_KEY`，不要把 Key 写入仓库或发到聊天中。入口固定调用既有实验模型 `deepseek-v4-flash`，不会自动换模型或重试收费请求。
@@ -69,3 +94,9 @@ corepack pnpm@11.7.0 experience:flash
 - **F-004（E-002/E-003）**：真实模型可以在同一世界中跨玩家输入持续运行，并偶尔主动沉默；耐久重放仍不重调模型。下一步更值得检查同一语义在模型上下文中的重复呈现和话语归属，而不是继续叠加“不要重复”的提示或优化十万条历史。
 
 原始请求/响应和全文对白不进入 Git；本次未读取或使用外部凭证，未修改 Kernel、Memory 或权威 Hash。
+
+## 追加实测：本机浏览器入口（2026-09-05）
+
+- **E-004**：执行 `corepack pnpm@11.7.0 experience:web`，入口在 `127.0.0.1` 随机端口启动；GET `/` 返回 200，自包含页面为 6621 bytes；带随机令牌读取 `/api/state` 返回 `tick=0`、`scene:road-shelter` 和空玩家对白。随后用同一入口提交“Bob，你为什么迟到了？Alice，你怎么看？”，7 条玩家可见对白落库，最终 `headSeq=78, tick=3`，6 次本地模型调用完成。
+- **F-005（E-004）**：现有主线已具备可实际试玩的最小浏览器壳，且浏览器数据来自玩家授权视图；它仍是单机实验入口，不代表远程 Web 产品、身份系统或正式前端已经完成。
+- **Path**：后续体验评估优先通过该页面收集“角色是否自然、是否重复、玩家是否愿意继续说”的样本；只有体验证据明确指向上下文或调度问题时，再修改 Kernel 或 Provider 约束。页面本身不扩张远程服务范围。
