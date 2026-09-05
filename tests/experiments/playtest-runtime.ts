@@ -143,7 +143,10 @@ class PlaytestModelProvider {
       const parsed = comparisonResponse(this.provider, raw)
       const proposal = outputMode === 'speech_only'
         ? speechProposal(JSON.parse(parsed.content), this.actorId, `action:playtest:${this.actorId}:${context.roundId}`)
-        : externalActionProposal(JSON.parse(parsed.content), this.actorId, context.roundId)
+        : externalActionProposal(JSON.parse(parsed.content), this.actorId, context.roundId, {
+          exactMessages: exact.messages,
+          references: rendered.references,
+        })
       const durationMs = Math.round(performance.now() - started)
       this.onFinish(call, durationMs, proposal.decision)
       writeFileSync(resolve(this.evidenceDirectory, `${evidenceId}.response.json`), JSON.stringify({

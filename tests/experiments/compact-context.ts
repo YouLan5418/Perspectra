@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto'
-import type { SubmitActionsV2, CharacterId, WorldJsonObject } from '@harness-world/contracts'
+import {
+  CLAIM_STANCES,
+  type CharacterId,
+  type CognitionProjectionKind,
+  type ContextSourceRef,
+  type SubmitActionsV2,
+  type WorldHash,
+  type WorldJsonObject,
+} from '@harness-world/contracts'
 
 export interface ExperimentMessage {
   readonly role: 'system' | 'developer' | 'user'
@@ -87,7 +95,8 @@ export function renderExperiment(
         } : {
           segmentKind: segment,
           content: { decision: 'act or abstain', actions: ['speak', 'move', 'take'],
-            maximumExternalActions: 2, hostSuppliesIdentity: true, reflectionAllowed: false },
+            maximumExternalActions: 2, hostSuppliesIdentity: true,
+            reflection: { mode: 'update_existing_self_state', maximumOperations: 1, hostSuppliesProvenance: true } },
         })
       }
     }
@@ -124,6 +133,15 @@ export const externalActionSchema = {
         },
       },
     },
+    reflection: {
+      type: 'array', maxItems: 1, items: {
+        type: 'object', additionalProperties: false, required: ['recordRef', 'changes'],
+        properties: {
+          recordRef: { type: 'string', pattern: '^R[1-9][0-9]*$' },
+          changes: { type: 'object' },
+        },
+      },
+    },
   },
 } as const
 
@@ -140,13 +158,145 @@ function requiredText(value: unknown, name: string, maximum = Number.MAX_SAFE_IN
   return value
 }
 
+function hash(value: unknown, name: string): WorldHash {
+  if (typeof value !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(value)) throw new TypeError(`${name} is invalid`)
+  return value as WorldHash
+}
+
+function permille(value: unknown, name: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0 || (value as number) > 1000) {
+    throw new TypeError(`${name} is invalid`)
+  }
+  return value as number
+}
+
+function sourceRef(value: unknown): ContextSourceRef {
+  const source = object(value)
+  if (!exactKeys(source, ['sourceKind', 'sourceId', 'sourceSeq', 'sourceHash'])
+    || typeof source.sourceKind !== 'string' || typeof source.sourceId !== 'string'
+    || !Number.isSafeInteger(source.sourceSeq) || (source.sourceSeq as number) < 0) {
+    throw new TypeError('reflection source reference is invalid')
+  }
+  return {
+    sourceKind: requiredText(source.sourceKind, 'sourceKind'),
+    sourceId: requiredText(source.sourceId, 'sourceId'),
+    sourceSeq: source.sourceSeq as number,
+    sourceHash: hash(source.sourceHash, 'sourceHash'),
+  }
+}
+
+export interface ExperimentReflectionContext {
+  readonly exactMessages: readonly ExperimentMessage[]
+  readonly references: readonly { readonly short: string; readonly source: string }[]
+}
+
+function segment(messages: readonly ExperimentMessage[], kind: string): Record<string, unknown> {
+  for (const message of messages.slice(2)) {
+    const parsed = object(JSON.parse(message.content))
+    if (parsed.segmentKind === kind) return parsed
+  }
+  throw new TypeError(`missing ${kind} segment`)
+}
+
+function changedPermille(
+  changes: Record<string, unknown>,
+  field: string,
+  previous: WorldJsonObject,
+): number | undefined {
+  if (!(field in changes)) return undefined
+  const next = permille(changes[field], field)
+  const before = previous[field]
+  if (typeof before !== 'number' || Math.abs(next - before) > 200) throw new TypeError(`${field} change is too large`)
+  return next
+}
+
+function reflectionValue(kind: CognitionProjectionKind, raw: unknown, previous: WorldJsonObject): WorldJsonObject {
+  const changes = object(raw)
+  if (Object.keys(changes).length === 0) throw new TypeError('reflection changes are empty')
+  if (kind === 'subjective-claim') {
+    if (Object.keys(changes).some(key => !['stance', 'confidencePermille'].includes(key))) {
+      throw new TypeError('unsupported subjective-claim change')
+    }
+    const stance = 'stance' in changes
+      ? requiredText(changes.stance, 'stance')
+      : undefined
+    if (stance !== undefined && !CLAIM_STANCES.includes(stance as typeof CLAIM_STANCES[number])) {
+      throw new TypeError('unsupported claim stance')
+    }
+    const confidencePermille = changedPermille(changes, 'confidencePermille', previous)
+    return { ...previous, ...(stance === undefined ? {} : { stance }),
+      ...(confidencePermille === undefined ? {} : { confidencePermille }) }
+  }
+  if (kind === 'relationship-attitude') {
+    if (Object.keys(changes).some(key => !['intensityPermille', 'confidencePermille'].includes(key))) {
+      throw new TypeError('unsupported relationship change')
+    }
+    const intensityPermille = changedPermille(changes, 'intensityPermille', previous)
+    const confidencePermille = changedPermille(changes, 'confidencePermille', previous)
+    return { ...previous, ...(intensityPermille === undefined ? {} : { intensityPermille }),
+      ...(confidencePermille === undefined ? {} : { confidencePermille }) }
+  }
+  if (kind === 'character-goal') {
+    if (Object.keys(changes).some(key => !['priorityPermille', 'status'].includes(key))) {
+      throw new TypeError('unsupported character-goal change')
+    }
+    const priorityPermille = changedPermille(changes, 'priorityPermille', previous)
+    const status = 'status' in changes ? requiredText(changes.status, 'status') : undefined
+    if (status !== undefined && status !== 'active' && status !== 'blocked') {
+      throw new TypeError('playtest cannot make a goal terminal')
+    }
+    return { ...previous, ...(priorityPermille === undefined ? {} : { priorityPermille }),
+      ...(status === undefined ? {} : { status }) }
+  }
+  throw new TypeError('reflection record kind is not enabled in playtest')
+}
+
+function reflectionOperations(
+  raw: unknown,
+  actorId: CharacterId,
+  roundId: string,
+  context: ExperimentReflectionContext | undefined,
+): NonNullable<SubmitActionsV2['reflection']> | undefined {
+  if (raw === undefined) return undefined
+  if (context === undefined || !Array.isArray(raw) || raw.length > 1) throw new TypeError('invalid experimental reflection')
+  if (raw.length === 0) return { operations: [] }
+  const self = object(segment(context.exactMessages, 'current_self_state').content)
+  const records = [...(Array.isArray(self.consciousState) ? self.consciousState : []),
+    ...(Array.isArray(self.latentGuidance) ? self.latentGuidance : [])].map(value => object(value))
+  const stimulus = segment(context.exactMessages, 'current_stimulus')
+  if (!Array.isArray(stimulus.sourceRefs) || stimulus.sourceRefs.length === 0) {
+    throw new TypeError('reflection has no current stimulus provenance')
+  }
+  const proposal = object(raw[0])
+  if (!exactKeys(proposal, ['recordRef', 'changes'])) throw new TypeError('invalid experimental reflection operation')
+  const recordRef = requiredText(proposal.recordRef, 'recordRef')
+  const recordId = context.references.find(value => value.short === recordRef)?.source
+  if (recordId === undefined) throw new TypeError('reflection record reference is unknown')
+  const record = records.find(value => value.id === recordId)
+  if (record === undefined || typeof record.kind !== 'string') throw new TypeError('reflection record is not current self state')
+  const kind = record.kind as CognitionProjectionKind
+  const previous = object(record.value) as WorldJsonObject
+  return { operations: [{
+    operationId: `operation:playtest:${actorId}:${roundId}:1`,
+    kind,
+    recordId,
+    expectedStateHash: hash(record.stateHash, 'stateHash'),
+    basisRefs: stimulus.sourceRefs.map(sourceRef),
+    value: reflectionValue(kind, proposal.changes, previous),
+  }] }
+}
+
 export function externalActionProposal(
   raw: unknown,
   actorId: CharacterId,
   roundId: string,
+  reflectionContext?: ExperimentReflectionContext,
 ): SubmitActionsV2 {
   const result = object(raw)
-  if (!exactKeys(result, ['decision', 'actions']) || !Array.isArray(result.actions) || result.actions.length > 2) {
+  const keys = Object.keys(result)
+  if (!['decision', 'actions'].every(key => key in result)
+    || keys.some(key => !['decision', 'actions', 'reflection'].includes(key))
+    || !Array.isArray(result.actions) || result.actions.length > 2) {
     throw new TypeError('invalid experimental action response')
   }
   const actions = result.actions.map((value, index) => {
@@ -168,11 +318,12 @@ export function externalActionProposal(
       actorId, actionType: action.actionType, actionVersion: 1 as const, parameters: normalized,
     }
   })
+  const reflection = reflectionOperations(result.reflection, actorId, roundId, reflectionContext)
   if (result.decision === 'abstain' && actions.length === 0) {
-    return { schemaVersion: 2, decision: 'abstain', actions: [] }
+    return { schemaVersion: 2, decision: 'abstain', actions: [], ...(reflection === undefined ? {} : { reflection }) }
   }
   if (result.decision !== 'act' || actions.length === 0) throw new TypeError('invalid action decision/actions')
-  return { schemaVersion: 2, decision: 'act', actions }
+  return { schemaVersion: 2, decision: 'act', actions, ...(reflection === undefined ? {} : { reflection }) }
 }
 
 export function speechProposal(raw: unknown, actorId: CharacterId, actionId: string): SubmitActionsV2 {

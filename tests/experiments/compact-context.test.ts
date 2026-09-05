@@ -9,12 +9,14 @@ import {
 } from './compact-context.ts'
 
 function messages(secret = '仅此角色知道的经历'): ExperimentMessage[] {
-  const sourceRef = { sourceId: 'source:long-identity', sourceHash: 'sha256:technical-canary', sourceSeq: 42 }
+  const sourceRef = { sourceKind: 'world_event', sourceId: 'source:long-identity',
+    sourceHash: `sha256:${'a'.repeat(64)}`, sourceSeq: 42 }
   const cognition = {
     kind: 'subjective-claim', id: 'claim:long-identity',
     value: { proposition: { subject: 'character:bob', predicate: 'may_be_late' },
-      stance: 'suspected', confidencePermille: 300, awareness: 'conscious' },
-    stateHash: 'sha256:state-canary', sourceRef,
+      stance: 'suspected', confidencePermille: 300, saliencePermille: 500,
+      awareness: 'conscious', status: 'active' },
+    stateHash: `sha256:${'b'.repeat(64)}`, sourceRef,
   }
   const inputs = [
     ['world_public_anchor', { description: '雨夜同行' }],
@@ -80,7 +82,7 @@ describe('manual Ollama compact context experiment', () => {
       actions: ['speak', 'move', 'take'],
       maximumExternalActions: 2,
       hostSuppliesIdentity: true,
-      reflectionAllowed: false,
+      reflection: { mode: 'update_existing_self_state', maximumOperations: 1, hostSuppliesProvenance: true },
     })
   })
 
@@ -153,6 +155,51 @@ describe('manual Ollama compact context experiment', () => {
     expect(externalActionProposal({ decision: 'abstain', actions: [] }, actorId, 'round:3')).toEqual({
       schemaVersion: 2, decision: 'abstain', actions: [],
     })
+  })
+
+  it('resolves a short self-state reference into a host-grounded Reflection operation', () => {
+    const input = messages()
+    const rendered = renderExperiment(input, 'compact', 'external_actions')
+    const actorId = brandId('character:alice', 'CharacterId')
+    const result = externalActionProposal({
+      decision: 'act',
+      actions: [{ actionType: 'speak', parameters: { text: '也许我判断得太早了。' } }],
+      reflection: [{ recordRef: 'R1', changes: { stance: 'doubted', confidencePermille: 200 } }],
+    }, actorId, 'round:reflection', { exactMessages: input, references: rendered.references })
+    expect(result.reflection).toEqual({ operations: [{
+      operationId: 'operation:playtest:character:alice:round:reflection:1',
+      kind: 'subjective-claim',
+      recordId: 'claim:long-identity',
+      expectedStateHash: `sha256:${'b'.repeat(64)}`,
+      basisRefs: [{ sourceKind: 'world_event', sourceId: 'source:long-identity',
+        sourceHash: `sha256:${'a'.repeat(64)}`, sourceSeq: 42 }],
+      value: {
+        proposition: { subject: 'character:bob', predicate: 'may_be_late' },
+        stance: 'doubted', confidencePermille: 200, saliencePermille: 500,
+        awareness: 'conscious', status: 'active',
+      },
+    }] })
+  })
+
+  it('rejects ungrounded or overpowered Reflection changes', () => {
+    const input = messages()
+    const rendered = renderExperiment(input, 'compact', 'external_actions')
+    const actorId = brandId('character:alice', 'CharacterId')
+    const base = { decision: 'abstain', actions: [] }
+    const context = { exactMessages: input, references: rendered.references }
+    for (const reflection of [
+      [{ recordRef: 'R999', changes: { stance: 'doubted' } }],
+      [{ recordRef: 'R1', changes: {} }],
+      [{ recordRef: 'R1', changes: { proposition: 'forged' } }],
+      [{ recordRef: 'R1', changes: { stance: 'invented' } }],
+      [{ recordRef: 'R1', changes: { confidencePermille: 900 } }],
+      [{ recordRef: 'R1', changes: { confidencePermille: 300 }, operationId: 'forged' }],
+      [{ recordRef: 'R1', changes: { confidencePermille: 300 } },
+        { recordRef: 'R1', changes: { confidencePermille: 300 } }],
+    ]) {
+      expect(() => externalActionProposal({ ...base, reflection }, actorId, 'round:bad', context)).toThrow()
+    }
+    expect(() => externalActionProposal({ ...base, reflection: [] }, actorId, 'round:bad')).toThrow()
   })
 
   it('rejects forged, unsupported, excessive, and malformed external actions', () => {

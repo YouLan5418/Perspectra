@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { describe, expect, it, vi } from 'vitest'
 import { brandId, type CharacterView } from '@harness-world/contracts'
-import { playerTranscript } from './playtest-runtime.ts'
+import { WorldStore } from '@harness-world/store-sqlite'
+import { playerTranscript, WorldPlaytestRuntime } from './playtest-runtime.ts'
 
 describe('player-facing playtest transcript', () => {
   it('uses only the already authorized player observations', () => {
@@ -56,5 +60,68 @@ describe('player-facing playtest transcript', () => {
     expect(playerTranscript(view, new Map(), player)).toEqual([
       { seq: 2, speaker: 'character:unknown', text: 'hello', player: false },
     ])
+  })
+
+  it('commits host-grounded model actions and Reflection through the real application path', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-playtest-actions-'))
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const body = JSON.parse(init?.body as string) as { messages: { role: string; content: string }[] }
+      const root = body.messages.some(message => message.content.includes('speak|move|take'))
+      if (!root) {
+        return new Response(JSON.stringify({ model: 'qwen3.5:4b', done_reason: 'stop',
+          message: { content: '{"decision":"abstain","text":""}' } }), { status: 200 })
+      }
+      const anchor = body.messages.find(message => message.content.includes('"segmentKind":"character_anchor"'))?.content ?? ''
+      if (!anchor.includes('character:alice')) {
+        return new Response(JSON.stringify({ model: 'qwen3.5:4b', done_reason: 'stop',
+          message: { content: '{"decision":"abstain","actions":[]}' } }), { status: 200 })
+      }
+      const selfMessage = body.messages.find(message => message.content.includes('"segmentKind":"current_self_state"'))!
+      const self = JSON.parse(selfMessage.content) as { content: { consciousState: Array<{
+        id: string
+        kind: string
+        value: { intensityPermille?: number }
+      }> } }
+      const relationship = self.content.consciousState.find(record => record.kind === 'relationship-attitude')!
+      const response = {
+        decision: 'act',
+        actions: [
+          { actionType: 'take', parameters: { entityId: 'entity:ticket-bundle' } },
+          { actionType: 'move', parameters: { locationId: 'location:station-platform' } },
+        ],
+        reflection: [{ recordRef: relationship.id,
+          changes: { intensityPermille: relationship.value.intensityPermille! + 100 } }],
+      }
+      return new Response(JSON.stringify({ model: 'qwen3.5:4b', done_reason: 'stop',
+        message: { content: JSON.stringify(response) } }), { status: 200 })
+    })
+    let runtime: WorldPlaytestRuntime | undefined
+    try {
+      runtime = await WorldPlaytestRuntime.create({ dataDirectory: directory })
+      const state = await runtime.submit('我们带上车票去车站。')
+      const store = new WorldStore(join(directory, 'world.sqlite'))
+      try {
+        const events = store.readEvents({
+          tenantId: brandId('tenant:web-playtest', 'TenantId'),
+          worldId: brandId('world:rainy-road-web', 'WorldId'),
+          branchId: brandId('branch:main', 'BranchId'),
+        })
+        const eventTypes = events.map(event => event.eventType)
+        expect(eventTypes, JSON.stringify(events.filter(event => event.eventType === 'round.participant-terminal')))
+          .toContain('entity.taken')
+        expect(eventTypes).toContain('character.moved')
+        expect(events.filter(event => event.eventType === 'character.reflect')).toHaveLength(1)
+      } finally {
+        store.close()
+      }
+      expect(state.transcript.map(entry => entry.text)).toEqual([
+        '我们带上车票去车站。', '拿取了一个物品。', '移动到了另一个地点。',
+      ])
+      expect(fetchMock).toHaveBeenCalled()
+    } finally {
+      await runtime?.close()
+      fetchMock.mockRestore()
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 })
