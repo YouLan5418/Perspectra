@@ -5,13 +5,21 @@ import { createPlaytestServer } from './playtest-server.ts'
 import { defaultPlaytestDirectory, WorldPlaytestRuntime } from './playtest-runtime.ts'
 
 async function main(): Promise<void> {
+  const args = process.argv.slice(2)
+  if (args.length > 1 || (args.length === 1 && args[0] !== '--deepseek')) {
+    throw new Error('unsupported playtest argument')
+  }
+  const provider = args[0] === '--deepseek' ? 'deepseek' : 'ollama'
   const dataDirectory = defaultPlaytestDirectory()
   const endpoint = process.env.HCW_OLLAMA_ENDPOINT
-  const model = process.env.HCW_OLLAMA_MODEL
+  const model = provider === 'deepseek' ? 'deepseek-v4-flash' : process.env.HCW_OLLAMA_MODEL
+  const apiKey = provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY : undefined
   const runtime = await WorldPlaytestRuntime.create({
     dataDirectory,
-    ...(endpoint === undefined ? {} : { endpoint }),
+    provider,
+    ...(provider === 'ollama' && endpoint !== undefined ? { endpoint } : {}),
     ...(model === undefined ? {} : { model }),
+    ...(apiKey === undefined ? {} : { apiKey }),
   })
   const token = randomBytes(32).toString('hex')
   const server = createPlaytestServer(runtime, token)
@@ -32,7 +40,7 @@ async function main(): Promise<void> {
   await once(server, 'listening')
   const port = (server.address() as AddressInfo).port
   process.stdout.write(`\n本机试玩页已启动：\nhttp://127.0.0.1:${port}/#token=${token}\n\n`)
-  process.stdout.write(`世界数据：${dataDirectory}\n模型：${process.env.HCW_OLLAMA_MODEL?.trim() || 'qwen3.5:4b'}\n按 Ctrl+C 安全关闭。\n`)
+  process.stdout.write(`世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || 'qwen3.5:4b'}\n按 Ctrl+C 安全关闭。\n`)
 }
 
 try {

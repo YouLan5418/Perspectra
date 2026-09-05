@@ -20,7 +20,11 @@ import { comparisonMessages, comparisonResponse } from './provider-comparison.ts
 import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
 
 const DEFAULT_ENDPOINT = 'http://127.0.0.1:11434'
-const DEFAULT_MODEL = 'qwen3.5:4b'
+const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions'
+const OLLAMA_MODEL = 'qwen3.5:4b'
+const DEEPSEEK_MODEL = 'deepseek-v4-flash'
+
+export type PlaytestProviderKind = 'ollama' | 'deepseek'
 
 function object(value: WorldJsonValue | unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -71,14 +75,17 @@ interface CallTelemetry {
   readonly startedAt: number
 }
 
-class PlaytestOllamaProvider {
+class PlaytestModelProvider {
   #ordinal = 0
 
   constructor(
     readonly participantId: string,
     readonly actorId: CharacterId,
+    private readonly provider: PlaytestProviderKind,
     private readonly endpoint: URL,
     private readonly model: string,
+    private readonly apiKey: string | undefined,
+    private readonly timeoutMs: number,
     private readonly evidenceDirectory: string,
     private readonly onStart: (call: CallTelemetry) => void,
     private readonly onFinish: (call: CallTelemetry, durationMs: number, status: 'act' | 'abstain' | 'failed') => void,
@@ -90,26 +97,31 @@ class PlaytestOllamaProvider {
     const reaction = 'origin' in context && context.origin.kind === 'reaction' ? context.origin : null
     const rendered = renderExperiment(exact.messages, 'compact')
     const messages = comparisonMessages(rendered.messages, 'turn_taking')
-    const body = JSON.stringify({ model: this.model, messages, stream: false, think: false, format: speechSchema,
-      options: { temperature: 0.3, seed: 42, num_predict: 256 }, keep_alive: '10m' })
+    const body = JSON.stringify(this.provider === 'ollama'
+      ? { model: this.model, messages, stream: false, think: false, format: speechSchema,
+        options: { temperature: 0.3, seed: 42, num_predict: 256 }, keep_alive: '10m' }
+      : { model: this.model, messages, stream: false, thinking: { type: 'disabled' },
+        response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 256 })
     if (Buffer.byteLength(body) > 48_000) throw new RangeError('playtest Provider input exceeds 48,000 bytes')
     const call: CallTelemetry = { participantId: this.participantId,
       phase: reaction === null ? 'root' : 'reaction', wave: reaction?.wave ?? null, startedAt: Date.now() }
     const evidenceId = `${String(++this.#ordinal).padStart(4, '0')}-${byteHash(`${this.participantId}:${context.roundId}`).slice(7, 23)}`
     writeFileSync(resolve(this.evidenceDirectory, `${evidenceId}.request.json`), JSON.stringify({
-      participantId: this.participantId, roundId: context.roundId, upstreamMessages: exact.messages,
+      provider: this.provider, participantId: this.participantId, roundId: context.roundId, upstreamMessages: exact.messages,
       ...rendered, messages, wireBodyHash: byteHash(body),
     }, null, 2), { flag: 'wx' })
     this.onStart(call)
     const started = performance.now()
     try {
-      const response = await fetch(new URL('/api/chat', this.endpoint), {
-        method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json' }, body,
-        signal: AbortSignal.timeout(120_000),
+      const response = await fetch(this.endpoint, {
+        method: 'POST', redirect: 'error', headers: this.provider === 'ollama'
+          ? { 'content-type': 'application/json' }
+          : { 'content-type': 'application/json', authorization: `Bearer ${this.apiKey}` },
+        body, signal: AbortSignal.timeout(this.timeoutMs),
       })
-      if (!response.ok) throw new Error(`Ollama returned HTTP ${response.status}`)
+      if (!response.ok) throw new Error(`${this.provider} returned HTTP ${response.status}`)
       const raw = await response.json()
-      const parsed = comparisonResponse('ollama', raw)
+      const parsed = comparisonResponse(this.provider, raw)
       const proposal = speechProposal(JSON.parse(parsed.content), this.actorId,
         `action:playtest:${this.actorId}:${context.roundId}`)
       const durationMs = Math.round(performance.now() - started)
@@ -130,8 +142,10 @@ class PlaytestOllamaProvider {
 
 export interface PlaytestRuntimeOptions {
   readonly dataDirectory: string
+  readonly provider?: PlaytestProviderKind
   readonly endpoint?: string
   readonly model?: string
+  readonly apiKey?: string
 }
 
 export class WorldPlaytestRuntime implements PlaytestRuntime {
@@ -140,6 +154,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
   readonly #principalId: string
   readonly #playerId: CharacterId
   readonly #names: ReadonlyMap<string, string>
+  readonly #provider: PlaytestProviderKind
   readonly #model: string
   readonly #dataDirectory: string
   readonly #activeCalls = new Map<string, CallTelemetry>()
@@ -161,11 +176,20 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     this.#principalId = binding.principalId
     this.#playerId = binding.characterId
     this.#names = new Map(compiled.manifest.characters.map(character => [character.characterId, character.name]))
-    this.#model = options.model ?? DEFAULT_MODEL
+    this.#provider = options.provider ?? 'ollama'
+    this.#model = options.model ?? (this.#provider === 'ollama' ? OLLAMA_MODEL : DEEPSEEK_MODEL)
     this.#dataDirectory = resolve(options.dataDirectory)
     const evidenceDirectory = resolve(this.#dataDirectory, 'requests')
     mkdirSync(evidenceDirectory, { recursive: true })
-    const endpoint = localEndpoint(options.endpoint ?? DEFAULT_ENDPOINT)
+    const apiKey = options.apiKey?.trim()
+    if (this.#provider === 'deepseek' && !apiKey) throw new TypeError('DeepSeek credential unavailable')
+    if (this.#provider === 'deepseek' && options.endpoint !== undefined) {
+      throw new TypeError('DeepSeek playtest endpoint is fixed')
+    }
+    const endpoint = this.#provider === 'ollama'
+      ? new URL('/api/chat', localEndpoint(options.endpoint ?? DEFAULT_ENDPOINT))
+      : new URL(DEEPSEEK_ENDPOINT)
+    const timeoutMs = this.#provider === 'ollama' ? 120_000 : 30_000
     const onStart = (call: CallTelemetry) => {
       this.#activeCalls.set(call.participantId, call)
       this.#providerCalls += 1
@@ -179,13 +203,14 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     const providers = [
       { participantId: 'agent:alice', actorId: RAINY_ROAD_IDS.alice, priority: 2 },
       { participantId: 'agent:bob', actorId: RAINY_ROAD_IDS.bob, priority: 1 },
-    ].map(item => ({ ...item, provider: new PlaytestOllamaProvider(
-      item.participantId, item.actorId, endpoint, this.#model, evidenceDirectory, onStart, onFinish,
+    ].map(item => ({ ...item, provider: new PlaytestModelProvider(
+      item.participantId, item.actorId, this.#provider, endpoint, this.#model, apiKey, timeoutMs,
+      evidenceDirectory, onStart, onFinish,
     ) }))
     const roundParticipants: RoundParticipant[] = providers.map(item => ({ ...item, role: 'agent',
-      allowedActionTypes: ['speak'], estimatedTokens: 1, timeoutMs: 125_000 }))
+      allowedActionTypes: ['speak'], estimatedTokens: 1, timeoutMs: timeoutMs + 5_000 }))
     const reactionParticipants: ReactionParticipantBinding[] = providers.map(item => ({ ...item, role: 'agent',
-      allowedActionTypes: ['speak'], estimatedTokens: 1, timeoutMs: 125_000 }))
+      allowedActionTypes: ['speak'], estimatedTokens: 1, timeoutMs: timeoutMs + 5_000 }))
     this.#application = new WorldApplication({
       worldPath: resolve(this.#dataDirectory, 'world.sqlite'),
       sessionPath: resolve(this.#dataDirectory, 'session.sqlite'),
@@ -211,7 +236,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     return {
       busy: this.#busy, paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#cachedTranscript,
-      debug: { ...this.#cachedDebug, model: this.#model, providerCalls: this.#providerCalls,
+      debug: { ...this.#cachedDebug, provider: this.#provider, model: this.#model, providerCalls: this.#providerCalls,
         activeProviderCalls: [...this.#activeCalls.values()].map(call => ({
           participantId: call.participantId, phase: call.phase, wave: call.wave,
         elapsedMs: Date.now() - call.startedAt,

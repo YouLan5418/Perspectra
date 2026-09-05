@@ -29,6 +29,7 @@
     "experience:ollama": "node --import tsx tests/experiments/ollama-qwen35-4b.ts",
     "experience:ollama:dialogue": "node --import tsx tests/experiments/flash-playthrough-entry.ts --ollama",
     "experience:web": "node --import tsx tests/experiments/playtest-web-entry.ts",
+    "experience:web:flash": "node --import tsx tests/experiments/playtest-web-entry.ts --deepseek",
     "experience:flash": "node --import tsx tests/experiments/flash-playthrough-entry.ts",
     "demo:mystery": "tsx packages/simulation/process/mystery-demo-entry.ts",
     "demo:mystery:turn": "tsx packages/simulation/process/mystery-turn-entry.ts",
