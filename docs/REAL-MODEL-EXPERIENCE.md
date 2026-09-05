@@ -26,6 +26,15 @@ node --import tsx tests/experiments/ollama-qwen35-4b.ts 'Alice，你现在最担
 
 每次启动创建新的临时世界，处理一次玩家输入及其有界 NPC 反应；**不是同库连续输入壳**。默认使用 compact Context；本地入口目前沿用基础 compact 提示，未启用 Flash 的额外 turn-taking 提示。默认仅访问 `http://127.0.0.1:11434`，不得重定向到远程服务。
 
+需要同一世界的三轮固定对话与重启重放验证时，使用新入口：
+
+```powershell
+$env:HCW_FLASH_PROMPT='turn_taking'
+corepack pnpm@11.7.0 experience:ollama:dialogue
+```
+
+此命令通过显式 `--ollama` 选择本地 `qwen3.5:4b`，不会因 Key 存在而改用收费服务，也不向本地发送 Key。环境变量名沿用旧 Flash 实验，提示在两种模型入口共用；支持 `ownership_clear`（默认）与 `turn_taking`。这是三条固定输入的自动体验，不是自由交互聊天窗口。输出目录为 `.tmp/ollama-playthrough-时间戳/`；每次 HTTP 超时 120 秒，最多 30 次调用、6 分钟接纳预算，歧义不重发。在途调用可能超出接纳预算后才结束。
+
 结果和请求/响应保存在 `.tmp/ollama-qwen35-4b-时间戳/`，其中可能包含角色私有上下文。原始文件只留本机，不应提交、分享或当作玩家视图。
 
 ## DeepSeek Flash 三轮体验
@@ -51,3 +60,12 @@ corepack pnpm@11.7.0 experience:flash
 本文按 docs-generator 的渐进披露和证据链组织。原始模型响应不收入 Git，文档只记录聚合结果和可复现路径。
 
 本机完整 `pnpm check` 退出码 0：81 个文件、868 项 coverage 测试通过，生产四项覆盖率均为 100%，P0～P6、3 项 P8 查询基准及 33 项子进程硬崩溃测试通过。真实模型调用仅手动执行，不进入 CI；远程 CI 本轮未执行。
+
+## 追加实测：本地三轮对话（2026-09-05）
+
+- **E-002**：上述 `experience:ollama:dialogue` 对应直接脚本实跑，证据目录 `.tmp/ollama-playthrough-2026-09-05T12-23-21-475Z/`。`turn_taking`，三轮全部完成，16 次调用返回有效提案；13 次 act、3 次 abstain；单次约 1.99～14.63 秒。最终 `headSeq=138, tick=8`。
+- **E-003**：`restart-replay.json`：重启后重放三条输入，新模型调用为 0，Head 完全相同。三个 Cycle 终因分别为 `call_limit`、`call_limit`、`all_abstained`；最后一轮确实由模型沉默收口，不是把预算耗尽写成自然结束。
+- **F-003（E-002）**：本样本未观察到直接把另一角色的第一人称经历当成自己的情况，但仍有多次逐字重复，第一、二轮没有自然停止。相比前一单轮样本，输入与执行条件也不同，不能把差异全部归因于提示，不能宣布身份混淆已解决。
+- **F-004（E-002/E-003）**：真实模型可以在同一世界中跨玩家输入持续运行，并偶尔主动沉默；耐久重放仍不重调模型。下一步更值得检查同一语义在模型上下文中的重复呈现和话语归属，而不是继续叠加“不要重复”的提示或优化十万条历史。
+
+原始请求/响应和全文对白不进入 Git；本次未读取或使用外部凭证，未修改 Kernel、Memory 或权威 Hash。
