@@ -12,7 +12,17 @@ export type UtilityIntentResult =
   | { readonly status: 'action'; readonly action: { readonly actionType: 'speak' | 'move' | 'take'; readonly parameters: WorldJsonObject } }
   | { readonly status: 'clarification'; readonly question: string }
 
-const SYSTEM = '你是玩家输入翻译器，不扮演角色、不续写故事。只判断玩家本人此刻要执行的一个动作。规则：①“好，去X”“我们走吧/出发吧/去X吧”等确认现在付诸行动且目标明确的表达选择 move；这只移动玩家本人，其他角色自行决定。②“要不要/是不是/觉得/可以吗”等询问、讨论计划、尚未确认的建议，以及要求某个具名角色或其他人行动，都选择 speak。③玩家明确表示自己现在拿取某物才选择 take。④目标必须使用用户消息提供的短引用；动作或目标确实无法确定才选择 clarification。不得创造目标。严格按 Schema 填写三个字段。'
+const SYSTEM = '你是玩家输入翻译器，不扮演角色、不续写故事。只判断玩家本人此刻要执行的一个动作。规则：①完整的提问、陈述、讨论和对白必须选择 speak；绝不能因为 targets 非空就要求用户在 move/take 中选择。②“好，去X”“我们走吧/出发吧/去X吧”等确认现在付诸行动且目标明确的表达选择 move；这只移动玩家本人，其他角色自行决定。③“要不要/是不是/觉得/可以吗”等询问、讨论计划、尚未确认的建议，以及要求某个具名角色或其他人行动，都选择 speak。④玩家明确表示自己现在拿取某物才选择 take。⑤目标必须使用用户消息提供的短引用；clarification 只用于玩家明确要行动、但动作或目标确实无法确定的情况。不得创造目标。严格按 Schema 填写三个字段。'
+
+const CLARIFICATION_SYSTEM = `${SYSTEM} 你正在处理上一条输入的澄清答复。答复只用于消除歧义，不是新的角色对白；若用户确认 speak，最终对白必须是 originalText，不能是 answer。`
+
+/** Questions and conversational utterances that are safer to preserve verbatim than to send through an action classifier. */
+export function isDefinitelyPlayerSpeech(text: string): boolean {
+  const normalized = text.trim()
+  return /[?？]$/u.test(normalized)
+    || /^(?:发生了什么|怎么了|为什么|谁(?:在|是|会|能|要|把|拿|去|来|说)|哪里|哪儿|什么时候)/u.test(normalized)
+    || /(?:吗|呢)$/u.test(normalized)
+}
 
 function schema(references: readonly ExperimentActionReference[]) {
   const variants: Record<string, unknown>[] = [
@@ -68,6 +78,27 @@ function messages(text: string, references: readonly ExperimentActionReference[]
   ]
 }
 
+function clarificationMessages(
+  originalText: string,
+  question: string,
+  answer: string,
+  references: readonly ExperimentActionReference[],
+): readonly ExperimentMessage[] {
+  return [
+    { role: 'system', content: CLARIFICATION_SYSTEM },
+    { role: 'user', content: JSON.stringify({
+      originalText, clarificationQuestion: question, answer,
+      output: { intent: 'speak|move|take|clarification', targetRef: '短引用或空字符串', question: '澄清问题或空字符串' },
+      targets: {
+        move: references.filter(reference => reference.kind === 'location')
+          .map(reference => ({ locationRef: reference.short, name: reference.label })),
+        take: references.filter(reference => reference.kind === 'entity')
+          .map(reference => ({ entityRef: reference.short, kind: reference.label })),
+      },
+    }) },
+  ]
+}
+
 function normalizedResult(
   raw: unknown,
   text: string,
@@ -111,11 +142,33 @@ export class OllamaUtilityIntentInterpreter {
 
   async interpret(text: string, references: readonly ExperimentActionReference[]): Promise<UtilityIntentResult> {
     const requestMessages = messages(text, references)
+    return this.#request(requestMessages, text, references, text)
+  }
+
+  async interpretClarification(
+    originalText: string,
+    question: string,
+    answer: string,
+    references: readonly ExperimentActionReference[],
+  ): Promise<UtilityIntentResult> {
+    const requestMessages = clarificationMessages(originalText, question, answer, references)
+    const result = await this.#request(requestMessages, originalText, references, `${originalText}\u001f${answer}`)
+    return result.status === 'action' && result.action.actionType === 'speak'
+      ? { status: 'action', action: { actionType: 'speak', parameters: { text: originalText } } }
+      : result
+  }
+
+  async #request(
+    requestMessages: readonly ExperimentMessage[],
+    actionText: string,
+    references: readonly ExperimentActionReference[],
+    evidenceText: string,
+  ): Promise<UtilityIntentResult> {
     const body = JSON.stringify({
       model: this.model, messages: requestMessages, stream: false, think: false,
       format: schema(references), options: { temperature: 0, seed: 42, num_predict: 80 }, keep_alive: '10m',
     })
-    const evidenceId = `utility-${String(++this.#ordinal).padStart(4, '0')}-${byteHash(text).slice(7, 23)}`
+    const evidenceId = `utility-${String(++this.#ordinal).padStart(4, '0')}-${byteHash(evidenceText).slice(7, 23)}`
     writeFileSync(resolve(this.evidenceDirectory, `${evidenceId}.request.json`), JSON.stringify({
       model: this.model, messages: requestMessages, actionReferences: references, wireBodyHash: byteHash(body),
     }, null, 2), { flag: 'wx' })
@@ -128,7 +181,7 @@ export class OllamaUtilityIntentInterpreter {
     if (envelope.done_reason !== 'stop') throw new TypeError('utility model response was not complete')
     const message = object(envelope.message)
     if (typeof message.content !== 'string') throw new TypeError('utility model returned no content')
-    const result = normalizedResult(JSON.parse(message.content), text, references)
+    const result = normalizedResult(JSON.parse(message.content), actionText, references)
     writeFileSync(resolve(this.evidenceDirectory, `${evidenceId}.response.json`), JSON.stringify({
       model: envelope.model, result,
     }, null, 2), { flag: 'wx' })

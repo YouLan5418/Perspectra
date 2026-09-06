@@ -168,6 +168,46 @@ describe('player-facing playtest transcript', () => {
     }
   })
 
+  it('preserves an input across clarification and bypasses the utility model for complete questions', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-playtest-clarification-'))
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const body = JSON.parse(init?.body as string) as { messages: { content: string }[] }
+      const utility = body.messages.some(message => message.content.includes('玩家输入翻译器'))
+      const root = body.messages.some(message => message.content.includes('speak|move|take'))
+      const content = utility
+        ? { intent: 'clarification', targetRef: '', question: '你是在说话，还是要执行一个动作？' }
+        : root ? { decision: 'abstain', actions: [] } : { decision: 'abstain', text: '' }
+      return new Response(JSON.stringify({ model: 'qwen3.5:4b', done_reason: 'stop',
+        message: { content: JSON.stringify(content) } }), { status: 200 })
+    })
+    let runtime: WorldPlaytestRuntime | undefined
+    try {
+      runtime = await WorldPlaytestRuntime.create({ dataDirectory: directory })
+      const pending = await runtime.submit('处理一下')
+      expect(pending.transcript).not.toContainEqual(expect.objectContaining({ player: true }))
+      expect(pending.debug.pendingClarification).toEqual({
+        originalText: '处理一下', question: '你是在说话，还是要执行一个动作？',
+      })
+
+      const resolved = await runtime.submit('是speak')
+      expect(resolved.transcript).toContainEqual(expect.objectContaining({ player: true, text: '处理一下' }))
+      expect(resolved.transcript).not.toContainEqual(expect.objectContaining({ text: '是speak' }))
+      expect(resolved.debug.pendingClarification).toBeNull()
+
+      const question = await runtime.submit('发生了什么')
+      expect(question.transcript).toContainEqual(expect.objectContaining({ player: true, text: '发生了什么' }))
+      const utilityCalls = fetchMock.mock.calls.filter(([, init]) => {
+        const body = JSON.parse(init?.body as string) as { messages: { content: string }[] }
+        return body.messages.some(message => message.content.includes('玩家输入翻译器'))
+      })
+      expect(utilityCalls).toHaveLength(1)
+    } finally {
+      await runtime?.close()
+      fetchMock.mockRestore()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it('keeps valid actions when an optional model Reflection is rejected', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'hcw-playtest-reflection-fallback-'))
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {

@@ -28,7 +28,11 @@ import {
 } from './compact-context.ts'
 import { comparisonMessages, comparisonResponse } from './provider-comparison.ts'
 import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
-import { OllamaUtilityIntentInterpreter, type UtilityIntentResult } from './utility-intent.ts'
+import {
+  isDefinitelyPlayerSpeech,
+  OllamaUtilityIntentInterpreter,
+  type UtilityIntentResult,
+} from './utility-intent.ts'
 
 const DEFAULT_ENDPOINT = 'http://127.0.0.1:11434'
 const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions'
@@ -237,6 +241,11 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
   #cachedDebug: Record<string, unknown> = {}
   #playerLocationId: string | null = null
   #lastPlayerIntent: string | null = null
+  #pendingClarification: {
+    readonly originalText: string
+    readonly question: string
+    readonly references: ReturnType<typeof availableExperimentActionReferences>
+  } | null = null
 
   private constructor(options: PlaytestRuntimeOptions, compiled: CompiledWorldSpec) {
     this.#address = compiled.manifest.address
@@ -317,6 +326,10 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       notice: this.#notice, error: this.#error, transcript: this.#cachedTranscript,
       debug: { ...this.#cachedDebug, provider: this.#provider, model: this.#model, providerCalls: this.#providerCalls,
         utilityModel: this.#utilityModel, lastPlayerIntent: this.#lastPlayerIntent,
+        pendingClarification: this.#pendingClarification === null ? null : {
+          originalText: this.#pendingClarification.originalText,
+          question: this.#pendingClarification.question,
+        },
         activeProviderCalls: [...this.#activeCalls.values()].map(call => ({
           participantId: call.participantId, phase: call.phase, wave: call.wave,
         elapsedMs: Date.now() - call.startedAt,
@@ -336,22 +349,57 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     try {
       const key = `web-playtest:${randomUUID()}`
       let interpretation: UtilityIntentResult | undefined
-      if (!text.startsWith('/')) {
+      let cancelled = false
+      if (text === '/cancel' && this.#pendingClarification !== null) {
+        this.#pendingClarification = null
+        this.#lastPlayerIntent = 'clarification_cancelled'
+        this.#notice = '已取消上一条未决输入；没有推进世界时间。'
+        cancelled = true
+      } else if (!text.startsWith('/')) {
+        const pending = this.#pendingClarification
         try {
-          interpretation = await this.#utilityIntent.interpret(
-            text,
-            availableExperimentActionReferences(this.#actionReferences, this.#playerLocationId),
-          )
+          if (pending !== null) {
+            interpretation = /^(?:是\s*)?speak$/iu.test(text.trim())
+              || /^(?:是)?(?:说话|对白|发言|当作说话|当作发言|只是问问)$/u.test(text.trim())
+              ? { status: 'action', action: { actionType: 'speak', parameters: { text: pending.originalText } } }
+              : await this.#utilityIntent.interpretClarification(
+                pending.originalText, pending.question, text, pending.references,
+              )
+          } else {
+            const references = availableExperimentActionReferences(this.#actionReferences, this.#playerLocationId)
+            interpretation = isDefinitelyPlayerSpeech(text)
+              ? { status: 'action', action: { actionType: 'speak', parameters: { text } } }
+              : await this.#utilityIntent.interpret(text, references)
+          }
         } catch (error: unknown) {
-          this.#notice = '自然语言行动翻译暂不可用，本条已安全地按对白处理。'
+          if (pending !== null) {
+            this.#notice = '未能理解这次澄清；上一条输入仍未提交。你可以换种说法，或输入 /cancel。'
+            interpretation = { status: 'clarification', question: pending.question }
+          } else {
+            this.#notice = '自然语言行动翻译暂不可用，本条已安全地按对白处理。'
+            interpretation = { status: 'action', action: { actionType: 'speak', parameters: { text } } }
+          }
           console.warn('Utility intent fallback:', error instanceof Error ? error.message : 'unknown error')
-          interpretation = { status: 'action', action: { actionType: 'speak', parameters: { text } } }
         }
+      } else {
+        this.#pendingClarification = null
       }
-      if (interpretation?.status === 'clarification') {
+      if (cancelled) {
+        // A clarification is adapter state, so cancelling it creates no Round.
+      } else if (interpretation?.status === 'clarification') {
+        if (this.#pendingClarification === null) {
+          this.#pendingClarification = {
+            originalText: text,
+            question: interpretation.question,
+            references: availableExperimentActionReferences(this.#actionReferences, this.#playerLocationId),
+          }
+        } else {
+          this.#pendingClarification = { ...this.#pendingClarification, question: interpretation.question }
+        }
         this.#lastPlayerIntent = 'clarification'
         this.#notice = interpretation.question
       } else {
+        this.#pendingClarification = null
         this.#phaseLabel = '角色正在回应玩家'
         const result = interpretation === undefined
           ? await this.#application.submitText(this.#address, {

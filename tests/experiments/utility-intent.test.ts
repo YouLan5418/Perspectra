@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { OllamaUtilityIntentInterpreter } from './utility-intent.ts'
+import { isDefinitelyPlayerSpeech, OllamaUtilityIntentInterpreter } from './utility-intent.ts'
 import type { ExperimentActionReference } from './compact-context.ts'
 
 const roots: string[] = []
@@ -29,6 +29,14 @@ const references: readonly ExperimentActionReference[] = [
 ]
 
 describe('local utility intent interpreter', () => {
+  it('recognizes complete conversational questions without asking an action model', () => {
+    expect(isDefinitelyPlayerSpeech('发生了什么')).toBe(true)
+    expect(isDefinitelyPlayerSpeech('我们现在走吗？')).toBe(true)
+    expect(isDefinitelyPlayerSpeech('为什么不等 Bob')).toBe(true)
+    expect(isDefinitelyPlayerSpeech('好，我们去车站吧')).toBe(false)
+    expect(isDefinitelyPlayerSpeech('拿上车票')).toBe(false)
+  })
+
   it('translates constrained actions while preserving player speech verbatim', async () => {
     const speech = setup({ intent: 'speak', targetRef: '', question: '' })
     await expect(speech.interpreter.interpret('我们要不要走？', references)).resolves.toEqual({
@@ -73,5 +81,17 @@ describe('local utility intent interpreter', () => {
       await expect(fixture.interpreter.interpret('输入', references)).rejects.toThrow()
       fixture.fetchMock.mockRestore()
     }
+  })
+
+  it('uses clarification answers only as metadata and preserves the original speech', async () => {
+    const fixture = setup({ intent: 'speak', targetRef: '', question: '' })
+    await expect(fixture.interpreter.interpretClarification(
+      '发生了什么', '你是想移动还是说话？', '是 speak', references,
+    )).resolves.toEqual({
+      status: 'action', action: { actionType: 'speak', parameters: { text: '发生了什么' } },
+    })
+    const body = JSON.parse(fixture.fetchMock.mock.calls[0]![1]!.body as string)
+    expect(JSON.stringify(body.messages)).toContain('clarificationQuestion')
+    expect(JSON.stringify(body.messages)).toContain('是 speak')
   })
 })
