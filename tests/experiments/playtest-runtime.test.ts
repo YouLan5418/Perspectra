@@ -125,6 +125,49 @@ describe('player-facing playtest transcript', () => {
     }
   })
 
+  it('uses the local utility model to translate natural-language player movement before role responses', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-playtest-player-intent-'))
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const body = JSON.parse(init?.body as string) as { messages: { content: string }[] }
+      const utility = body.messages.some(message => message.content.includes('玩家输入翻译器'))
+      const content = utility
+        ? { intent: 'move', targetRef: 'L1', question: '' }
+        : body.messages.some(message => message.content.includes('speak|move|take'))
+          ? { decision: 'abstain', actions: [] }
+          : { decision: 'abstain', text: '' }
+      return new Response(JSON.stringify({ model: 'qwen3.5:4b', done_reason: 'stop',
+        message: { content: JSON.stringify(content) } }), { status: 200 })
+    })
+    let runtime: WorldPlaytestRuntime | undefined
+    try {
+      runtime = await WorldPlaytestRuntime.create({ dataDirectory: directory })
+      const state = await runtime.submit('好，我们去车站吧。')
+      const store = new WorldStore(join(directory, 'world.sqlite'))
+      try {
+        const moved = store.readEvents({
+          tenantId: brandId('tenant:web-playtest', 'TenantId'), worldId: brandId('world:rainy-road-web', 'WorldId'),
+          branchId: brandId('branch:main', 'BranchId'),
+        }).filter(event => event.eventType === 'character.moved')
+        expect(moved.map(event => event.data)).toContainEqual(expect.objectContaining({
+          characterId: 'character:player',
+          fromLocationId: 'location:road-shelter',
+          toLocationId: 'location:station-platform',
+        }))
+      } finally {
+        store.close()
+      }
+      expect(state.debug.lastPlayerIntent).toBe('move')
+      expect(state.transcript).toContainEqual(expect.objectContaining({ player: true, text: '移动到了另一个地点。' }))
+      const utilityBody = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)
+      expect(JSON.stringify(utilityBody.messages)).toContain('末班车站台')
+      expect(JSON.stringify(utilityBody.messages)).not.toContain('location:station-platform')
+    } finally {
+      await runtime?.close()
+      fetchMock.mockRestore()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it('keeps valid actions when an optional model Reflection is rejected', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'hcw-playtest-reflection-fallback-'))
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {

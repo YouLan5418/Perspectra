@@ -45,6 +45,20 @@ export function createExperimentActionReferences(input: {
   return [...locations, ...entities]
 }
 
+export function availableExperimentActionReferences(
+  references: readonly ExperimentActionReference[],
+  currentLocationId: unknown,
+): readonly ExperimentActionReference[] {
+  let locationOrdinal = 0
+  let entityOrdinal = 0
+  return references.filter(reference => reference.kind === 'location'
+    ? reference.source !== currentLocationId
+    : reference.locationSource === currentLocationId).map(reference => ({
+      ...reference,
+      short: reference.kind === 'location' ? `L${++locationOrdinal}` : `E${++entityOrdinal}`,
+    }))
+}
+
 const segmentKinds = [
   'world_public_anchor', 'character_anchor', 'continuity_checkpoint', 'recent_interaction_tail',
   'current_self_state', 'current_scene', 'verified_recall', 'current_stimulus', 'affordances', 'output_reminder',
@@ -84,14 +98,7 @@ export function renderExperiment(
   }
   const currentSelfState = object(object(JSON.parse(messages[6]!.content)).content)
   const currentLocationId = currentSelfState.locationId
-  let locationOrdinal = 0
-  let entityOrdinal = 0
-  const availableActionReferences = actionReferences.filter(reference => reference.kind === 'location'
-    ? reference.source !== currentLocationId
-    : reference.locationSource === currentLocationId).map(reference => ({
-      ...reference,
-      short: reference.kind === 'location' ? `L${++locationOrdinal}` : `E${++entityOrdinal}`,
-    }))
+  const availableActionReferences = availableExperimentActionReferences(actionReferences, currentLocationId)
   const references = new Map<string, string>()
   const alias = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(alias)

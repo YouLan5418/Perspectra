@@ -12,12 +12,15 @@ async function main(): Promise<void> {
   const provider = args[0] === '--deepseek' ? 'deepseek' : 'ollama'
   const dataDirectory = defaultPlaytestDirectory()
   const endpoint = process.env.HCW_OLLAMA_ENDPOINT
+  const utilityModel = process.env.HCW_UTILITY_MODEL
   const model = provider === 'deepseek' ? 'deepseek-v4-flash' : process.env.HCW_OLLAMA_MODEL
   const apiKey = provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY : undefined
   const runtime = await WorldPlaytestRuntime.create({
     dataDirectory,
     provider,
     ...(provider === 'ollama' && endpoint !== undefined ? { endpoint } : {}),
+    ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),
+    ...(utilityModel === undefined ? {} : { utilityModel }),
     ...(model === undefined ? {} : { model }),
     ...(apiKey === undefined ? {} : { apiKey }),
   })

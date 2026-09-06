@@ -17,6 +17,7 @@ import type { CompiledWorldManifestV5, CompiledWorldSpec } from '@harness-world/
 import { RAINY_ROAD_IDS, adaptRainyRoadPack, compileRainyRoadPack } from '@harness-world/simulation'
 import {
   byteHash,
+  availableExperimentActionReferences,
   createExperimentActionReferences,
   externalActionProposal,
   externalActionSchemaFor,
@@ -27,6 +28,7 @@ import {
 } from './compact-context.ts'
 import { comparisonMessages, comparisonResponse } from './provider-comparison.ts'
 import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
+import { OllamaUtilityIntentInterpreter, type UtilityIntentResult } from './utility-intent.ts'
 
 const DEFAULT_ENDPOINT = 'http://127.0.0.1:11434'
 const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions'
@@ -206,6 +208,8 @@ export interface PlaytestRuntimeOptions {
   readonly endpoint?: string
   readonly model?: string
   readonly apiKey?: string
+  readonly utilityEndpoint?: string
+  readonly utilityModel?: string
 }
 
 export class WorldPlaytestRuntime implements PlaytestRuntime {
@@ -217,6 +221,9 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
   readonly #provider: PlaytestProviderKind
   readonly #model: string
   readonly #dataDirectory: string
+  readonly #actionReferences: ReturnType<typeof createExperimentActionReferences>
+  readonly #utilityIntent: OllamaUtilityIntentInterpreter
+  readonly #utilityModel: string
   readonly #activeCalls = new Map<string, CallTelemetry>()
   #providerCalls = 0
   #lastProviderDurationMs: number | null = null
@@ -228,6 +235,8 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
   #error = false
   #cachedTranscript: PlaytestState['transcript'] = []
   #cachedDebug: Record<string, unknown> = {}
+  #playerLocationId: string | null = null
+  #lastPlayerIntent: string | null = null
 
   private constructor(options: PlaytestRuntimeOptions, compiled: CompiledWorldSpec) {
     this.#address = compiled.manifest.address
@@ -241,6 +250,14 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     this.#dataDirectory = resolve(options.dataDirectory)
     const evidenceDirectory = resolve(this.#dataDirectory, 'requests')
     mkdirSync(evidenceDirectory, { recursive: true })
+    this.#actionReferences = createExperimentActionReferences(compiled.manifest)
+    this.#utilityModel = options.utilityModel?.trim() || OLLAMA_MODEL
+    this.#utilityIntent = new OllamaUtilityIntentInterpreter(
+      new URL('/api/chat', localEndpoint(options.utilityEndpoint ?? DEFAULT_ENDPOINT)),
+      this.#utilityModel,
+      30_000,
+      evidenceDirectory,
+    )
     const apiKey = options.apiKey?.trim()
     if (this.#provider === 'deepseek' && !apiKey) throw new TypeError('DeepSeek credential unavailable')
     if (this.#provider === 'deepseek' && options.endpoint !== undefined) {
@@ -266,7 +283,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       { participantId: 'agent:bob', actorId: RAINY_ROAD_IDS.bob, priority: 1 },
     ].map(item => ({ ...item, provider: new PlaytestModelProvider(
       item.participantId, item.actorId, this.#provider, endpoint, this.#model, apiKey, timeoutMs,
-      createExperimentActionReferences(compiled.manifest),
+      this.#actionReferences,
       evidenceDirectory, onStart, onFinish,
     ) }))
     const roundParticipants: RoundParticipant[] = providers.map(item => ({ ...item, role: 'agent',
@@ -299,6 +316,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       busy: this.#busy, paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#cachedTranscript,
       debug: { ...this.#cachedDebug, provider: this.#provider, model: this.#model, providerCalls: this.#providerCalls,
+        utilityModel: this.#utilityModel, lastPlayerIntent: this.#lastPlayerIntent,
         activeProviderCalls: [...this.#activeCalls.values()].map(call => ({
           participantId: call.participantId, phase: call.phase, wave: call.wave,
         elapsedMs: Date.now() - call.startedAt,
@@ -314,17 +332,45 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     this.#pauseRequested = false
     this.#error = false
     this.#notice = ''
-    this.#phaseLabel = '角色正在回应玩家'
+    this.#phaseLabel = text.startsWith('/') ? '正在解析命令' : '正在理解玩家输入'
     try {
       const key = `web-playtest:${randomUUID()}`
-      const result = await this.#application.submitText(this.#address, {
-        text, idempotencyKey: key, principalId: this.#principalId, correlationId: key,
-      })
-      if (result.status === 'clarification_required') {
-        this.#notice = result.reason
+      let interpretation: UtilityIntentResult | undefined
+      if (!text.startsWith('/')) {
+        try {
+          interpretation = await this.#utilityIntent.interpret(
+            text,
+            availableExperimentActionReferences(this.#actionReferences, this.#playerLocationId),
+          )
+        } catch (error: unknown) {
+          this.#notice = '自然语言行动翻译暂不可用，本条已安全地按对白处理。'
+          console.warn('Utility intent fallback:', error instanceof Error ? error.message : 'unknown error')
+          interpretation = { status: 'action', action: { actionType: 'speak', parameters: { text } } }
+        }
+      }
+      if (interpretation?.status === 'clarification') {
+        this.#lastPlayerIntent = 'clarification'
+        this.#notice = interpretation.question
       } else {
-        await this.#refresh()
-        await this.#drain()
+        this.#phaseLabel = '角色正在回应玩家'
+        const result = interpretation === undefined
+          ? await this.#application.submitText(this.#address, {
+            text, idempotencyKey: key, principalId: this.#principalId, correlationId: key,
+          })
+          : await this.#application.submit(this.#address, {
+            action: interpretation.action,
+            idempotencyKey: key,
+            principalId: this.#principalId,
+            correlationId: key,
+          })
+        this.#lastPlayerIntent = interpretation?.action.actionType ?? 'command'
+        if ('status' in result && result.status === 'clarification_required') {
+          this.#notice = result.reason
+          this.#lastPlayerIntent = 'clarification'
+        } else {
+          await this.#refresh()
+          await this.#drain()
+        }
       }
     } catch (error: unknown) {
       this.#error = true
@@ -406,6 +452,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       this.#application.listReactionCycles(this.#address, { limit: 10 }),
     ])
     this.#cachedTranscript = playerTranscript(view, this.#names, this.#playerId)
+    this.#playerLocationId = view.locationId
     const active = cycles.find(cycle => cycle.status !== 'terminal')
     this.#cachedDebug = {
       headSeq: head.headSeq, tick: head.tick,
