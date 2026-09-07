@@ -37,10 +37,10 @@ export const PLAYTEST_PAGE = `<!doctype html>
 </head>
 <body>
 <main>
-  <header><div><h1>雨夜同行</h1><div class="subtle">本机多角色世界试玩</div></div><div id="status">正在连接</div></header>
+  <header><div><h1 id="world-title">本机世界试玩</h1><div class="subtle">创作者 World Pack · 多角色真实模型</div></div><div id="status">正在连接</div></header>
   <section id="transcript" aria-live="polite"><div class="empty">世界正在醒来……</div></section>
   <div>
-    <form id="composer"><textarea id="input" maxlength="2000" placeholder="对 Alice 和 Bob 说些什么……" required></textarea><button id="send" type="submit">发送</button></form>
+    <form id="composer"><textarea id="input" maxlength="2000" placeholder="说些什么……" required></textarea><button id="send" type="submit">发送</button></form>
     <div class="controls"><span id="notice"></span><button id="pause" class="secondary" type="button">当前波次后暂停</button></div>
   </div>
   <details><summary>运行状态（不含私密记忆和 Prompt）</summary><pre id="debug">等待状态……</pre></details>
@@ -57,6 +57,7 @@ export const PLAYTEST_PAGE = `<!doctype html>
   const send = document.querySelector('#send');
   const pause = document.querySelector('#pause');
   const debug = document.querySelector('#debug');
+  const worldTitle = document.querySelector('#world-title');
   let latest = null;
   const api = async (path, options = {}) => {
     const response = await fetch(path, { ...options, headers: { 'x-playtest-token': token, ...(options.headers || {}) } });
@@ -67,13 +68,16 @@ export const PLAYTEST_PAGE = `<!doctype html>
   const escape = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const render = state => {
     latest = state;
+    worldTitle.textContent = state.world.title;
+    document.title = state.world.title + ' · Harness World 试玩';
+    input.placeholder = state.world.npcNames.length === 0 ? '说些什么……' : '对 ' + state.world.npcNames.join('、') + ' 说些什么……';
     status.className = state.error ? 'error' : state.busy ? 'busy' : '';
     status.textContent = state.error ? '发生错误' : state.busy ? state.phaseLabel : state.paused ? 'NPC 已暂停' : '可以输入';
     send.disabled = state.busy;
     pause.disabled = !state.busy && !state.paused;
     pause.textContent = state.paused ? '继续 NPC 反应' : '当前波次后暂停';
     notice.textContent = state.notice || '';
-    transcript.innerHTML = state.transcript.length === 0 ? '<div class="empty">说第一句话，开始这个雨夜。</div>'
+    transcript.innerHTML = state.transcript.length === 0 ? '<div class="empty">说第一句话，进入“'+escape(state.world.title)+'”。</div>'
       : state.transcript.map(item => '<article class="message '+(item.player ? 'player' : '')+'"><span class="speaker">'+escape(item.speaker)+'</span>'+escape(item.text)+'</article>').join('');
     transcript.scrollTop = transcript.scrollHeight;
     debug.textContent = JSON.stringify(state.debug, null, 2);

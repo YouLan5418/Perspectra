@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { WorldApplication, type ReactionParticipantBinding, type RoundParticipant } from '@harness-world/application'
 import {
   brandId,
+  compareWorldText,
   hashWorldJson,
   type CharacterId,
   type CharacterView,
@@ -13,8 +14,9 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import type { CompiledWorldManifestV5, CompiledWorldSpec } from '@harness-world/kernel'
-import { RAINY_ROAD_IDS, adaptRainyRoadPack, compileRainyRoadPack } from '@harness-world/simulation'
+import type { CompiledWorldManifest, CompiledWorldManifestV5, CompiledWorldSpec } from '@harness-world/kernel'
+import { adaptRainyRoadPack, compileRainyRoadPack } from '@harness-world/simulation'
+import { adaptCompiledWorldPack, readCompiledPack } from '@harness-world/world-pack'
 import {
   byteHash,
   availableExperimentActionReferences,
@@ -63,6 +65,22 @@ function responsive(compiled: CompiledWorldSpec): CompiledWorldSpec {
   const genesisEvents = compiled.genesisEvents.map(event => event.eventType === 'world.manifest-locked'
     ? { ...event, data: { ...(event.data as WorldJsonObject), manifestHash } } : event)
   return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
+}
+
+export function playtestModelCharacters(
+  manifest: CompiledWorldManifest,
+  playerId: CharacterId,
+): readonly { readonly actorId: CharacterId; readonly name: string; readonly participantId: string }[] {
+  return manifest.characters
+    .filter(character => character.characterId !== playerId)
+    .filter(character => !('lifecycle' in character) || character.lifecycle === 'active')
+    .filter(character => !('controllerClass' in character) || character.controllerClass !== 'manual')
+    .sort((left, right) => compareWorldText(left.characterId, right.characterId))
+    .map(character => ({
+      actorId: character.characterId,
+      name: character.name,
+      participantId: `agent:${character.characterId.replace(/^character:/u, '')}`,
+    }))
 }
 
 export function playerTranscript(
@@ -208,6 +226,7 @@ class PlaytestModelProvider {
 
 export interface PlaytestRuntimeOptions {
   readonly dataDirectory: string
+  readonly packPath?: string
   readonly provider?: PlaytestProviderKind
   readonly endpoint?: string
   readonly model?: string
@@ -222,6 +241,9 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
   readonly #principalId: string
   readonly #playerId: CharacterId
   readonly #names: ReadonlyMap<string, string>
+  readonly #title: string
+  readonly #playerName: string
+  readonly #npcNames: readonly string[]
   readonly #provider: PlaytestProviderKind
   readonly #model: string
   readonly #dataDirectory: string
@@ -254,6 +276,10 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     this.#principalId = binding.principalId
     this.#playerId = binding.characterId
     this.#names = new Map(compiled.manifest.characters.map(character => [character.characterId, character.name]))
+    this.#title = compiled.manifest.metadata.title
+    this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
+    const controlledCharacters = playtestModelCharacters(compiled.manifest, this.#playerId)
+    this.#npcNames = controlledCharacters.map(character => character.name)
     this.#provider = options.provider ?? 'ollama'
     this.#model = options.model ?? (this.#provider === 'ollama' ? OLLAMA_MODEL : DEEPSEEK_MODEL)
     this.#dataDirectory = resolve(options.dataDirectory)
@@ -276,10 +302,11 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       ? new URL('/api/chat', localEndpoint(options.endpoint ?? DEFAULT_ENDPOINT))
       : new URL(DEEPSEEK_ENDPOINT)
     const timeoutMs = this.#provider === 'ollama' ? 120_000 : 30_000
+    const participantNames = new Map(controlledCharacters.map(character => [character.participantId, character.name]))
     const onStart = (call: CallTelemetry) => {
       this.#activeCalls.set(call.participantId, call)
       this.#providerCalls += 1
-      this.#phaseLabel = `${this.#names.get(call.participantId.replace('agent:', 'character:')) ?? call.participantId} 正在思考`
+      this.#phaseLabel = `${participantNames.get(call.participantId) ?? call.participantId} 正在思考`
     }
     const onFinish = (call: CallTelemetry, durationMs: number, status: 'act' | 'abstain' | 'invalid' | 'failed') => {
       this.#activeCalls.delete(call.participantId)
@@ -287,10 +314,10 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       if (status === 'failed') this.#notice = '一个角色的本地模型调用失败；本轮将按既有降级规则收口。'
       if (status === 'invalid') this.#notice = '一个角色返回了无效动作格式；本次输出已忽略，角色可在后续轮次重试。'
     }
-    const providers = [
-      { participantId: 'agent:alice', actorId: RAINY_ROAD_IDS.alice, priority: 2 },
-      { participantId: 'agent:bob', actorId: RAINY_ROAD_IDS.bob, priority: 1 },
-    ].map(item => ({ ...item, provider: new PlaytestModelProvider(
+    const providers = controlledCharacters.map((character, index) => ({
+      ...character,
+      priority: controlledCharacters.length - index,
+    })).map(item => ({ ...item, provider: new PlaytestModelProvider(
       item.participantId, item.actorId, this.#provider, endpoint, this.#model, apiKey, timeoutMs,
       this.#actionReferences,
       evidenceDirectory, onStart, onFinish,
@@ -311,9 +338,22 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
 
   static async create(options: PlaytestRuntimeOptions): Promise<WorldPlaytestRuntime> {
     mkdirSync(resolve(options.dataDirectory), { recursive: true })
-    const address = { tenantId: brandId('tenant:web-playtest', 'TenantId'),
-      worldId: brandId('world:rainy-road-web', 'WorldId'), branchId: brandId('branch:main', 'BranchId') }
-    const compiled = responsive(adaptRainyRoadPack(await compileRainyRoadPack(), address))
+    let compiled: CompiledWorldSpec
+    if (options.packPath === undefined) {
+      const address = { tenantId: brandId('tenant:web-playtest', 'TenantId'),
+        worldId: brandId('world:rainy-road-web', 'WorldId'), branchId: brandId('branch:main', 'BranchId') }
+      compiled = responsive(adaptRainyRoadPack(await compileRainyRoadPack(), address))
+    } else {
+      const pack = await readCompiledPack(resolve(options.packPath))
+      const address = { tenantId: brandId('tenant:web-playtest', 'TenantId'),
+        worldId: brandId(`world:web-playtest:${pack.packHash.slice(7, 23)}`, 'WorldId'),
+        branchId: brandId('branch:main', 'BranchId') }
+      compiled = adaptCompiledWorldPack(pack, {
+        address,
+        principalId: 'principal:web-playtest',
+        sessionId: brandId('session:web-playtest', 'SessionId'),
+      })
+    }
     const runtime = new WorldPlaytestRuntime(options, compiled)
     runtime.#application.activate(compiled)
     await runtime.#refresh()
@@ -324,6 +364,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     return {
       busy: this.#busy, paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#cachedTranscript,
+      world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames },
       debug: { ...this.#cachedDebug, provider: this.#provider, model: this.#model, providerCalls: this.#providerCalls,
         utilityModel: this.#utilityModel, lastPlayerIntent: this.#lastPlayerIntent,
         pendingClarification: this.#pendingClarification === null ? null : {

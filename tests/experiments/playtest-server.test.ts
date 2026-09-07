@@ -8,6 +8,7 @@ const token = 'a'.repeat(64)
 const state: PlaytestState = {
   busy: false, paused: false, phaseLabel: '可以输入', notice: '', error: false,
   transcript: [{ seq: 1, speaker: '玩家', text: '你好', player: true }],
+  world: { title: '测试世界', playerName: '玩家', npcNames: ['Alice'] },
   debug: { tick: 1 },
 }
 const servers: ReturnType<typeof createPlaytestServer>[] = []
@@ -50,7 +51,8 @@ describe('local playtest server', () => {
     expect(response.headers.get('content-security-policy')).toContain("connect-src 'self'")
     const page = await response.text()
     expect(page).toBe(PLAYTEST_PAGE)
-    expect(page).toContain('雨夜同行')
+    expect(page).toContain('本机世界试玩')
+    expect(page).toContain('state.world.title')
     expect(page).not.toContain(token)
     expect(page).not.toMatch(/https?:\/\//)
   })

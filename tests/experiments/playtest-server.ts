@@ -9,6 +9,7 @@ export interface PlaytestState {
   readonly notice: string
   readonly error: boolean
   readonly transcript: readonly { readonly seq: number; readonly speaker: string; readonly text: string; readonly player: boolean }[]
+  readonly world: { readonly title: string; readonly playerName: string; readonly npcNames: readonly string[] }
   readonly debug: Record<string, unknown>
 }
 

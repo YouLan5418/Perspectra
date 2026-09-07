@@ -1,16 +1,16 @@
 import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
+import { parsePlaytestLaunchArguments } from './playtest-launch.ts'
 import { createPlaytestServer } from './playtest-server.ts'
 import { defaultPlaytestDirectory, WorldPlaytestRuntime } from './playtest-runtime.ts'
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2)
-  if (args.length > 1 || (args.length === 1 && args[0] !== '--deepseek')) {
-    throw new Error('unsupported playtest argument')
-  }
-  const provider = args[0] === '--deepseek' ? 'deepseek' : 'ollama'
-  const dataDirectory = defaultPlaytestDirectory()
+  const launch = parsePlaytestLaunchArguments(process.argv.slice(2))
+  const provider = launch.provider
+  const packPath = launch.packPath ?? (process.env.HCW_PLAYTEST_PACK?.trim() || undefined)
+  const dataDirectory = launch.dataDirectory
+    ?? (process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim() || defaultPlaytestDirectory())
   const endpoint = process.env.HCW_OLLAMA_ENDPOINT
   const utilityModel = process.env.HCW_UTILITY_MODEL
   const model = provider === 'deepseek' ? 'deepseek-v4-flash' : process.env.HCW_OLLAMA_MODEL
@@ -18,6 +18,7 @@ async function main(): Promise<void> {
   const runtime = await WorldPlaytestRuntime.create({
     dataDirectory,
     provider,
+    ...(packPath === undefined ? {} : { packPath }),
     ...(provider === 'ollama' && endpoint !== undefined ? { endpoint } : {}),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),
     ...(utilityModel === undefined ? {} : { utilityModel }),
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
   const port = (server.address() as AddressInfo).port
   process.stdout.write(`\n本机试玩页已启动：\nhttp://127.0.0.1:${port}/#token=${token}\n\n`)
   process.stdout.write(`世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || 'qwen3.5:4b'}\n按 Ctrl+C 安全关闭。\n`)
+  if (packPath !== undefined) process.stdout.write(`World Pack：${packPath}\n`)
 }
 
 try {

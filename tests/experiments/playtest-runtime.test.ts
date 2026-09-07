@@ -1,12 +1,55 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { brandId, type CharacterView } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
+import {
+  canonicalCompiledWorldPackBytes,
+  compileWorldPackSource,
+  executeWorldPackCli,
+} from '@harness-world/world-pack'
 import { playerTranscript, WorldPlaytestRuntime } from './playtest-runtime.ts'
 
 describe('player-facing playtest transcript', () => {
+  it('loads a compiled creator Pack and dynamically binds its model-controlled characters', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-playtest-creator-pack-'))
+    const sourceDirectory = join(directory, 'source')
+    await executeWorldPackCli(['init', '--profile', 'responsive-social', sourceDirectory])
+    const pack = await compileWorldPackSource(sourceDirectory)
+    const packPath = join(directory, 'creator.worldpack.json')
+    writeFileSync(packPath, canonicalCompiledWorldPackBytes(pack))
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const body = JSON.parse(init?.body as string) as { messages: { content: string }[] }
+      const root = body.messages.some(message => message.content.includes('speak|move|take'))
+      const alice = body.messages.some(message => message.content.includes('"segmentKind":"character_anchor"')
+        && message.content.includes('character:alice'))
+      return new Response(JSON.stringify({
+        model: 'qwen3.5:4b', done_reason: 'stop',
+        message: { content: JSON.stringify(root ? { decision: 'act', actions: [{
+          actionType: 'speak', parameters: { text: alice ? 'Alice 已载入。' : 'Bob 已载入。' },
+        }] } : { decision: 'abstain', text: '' }) },
+      }), { status: 200 })
+    })
+    let runtime: WorldPlaytestRuntime | undefined
+    try {
+      runtime = await WorldPlaytestRuntime.create({ dataDirectory: join(directory, 'data'), packPath })
+      const initial = await runtime.state()
+      expect(initial.world).toEqual({ title: '雨夜同行', playerName: '旅人', npcNames: ['Alice', 'Bob'] })
+      const submitted = await runtime.submit('发生了什么')
+      expect(Number(submitted.debug.providerCalls)).toBeGreaterThanOrEqual(2)
+      expect(submitted.transcript).toContainEqual(expect.objectContaining({ player: true, text: '发生了什么' }))
+      expect(submitted.transcript.map(entry => entry.text)).toEqual(expect.arrayContaining([
+        'Alice 已载入。', 'Bob 已载入。',
+      ]))
+      expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+    } finally {
+      await runtime?.close()
+      fetchMock.mockRestore()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it('uses only the already authorized player observations', () => {
     const player = brandId('character:player', 'CharacterId')
     const address = { tenantId: brandId('tenant:test', 'TenantId'), worldId: brandId('world:test', 'WorldId'),
