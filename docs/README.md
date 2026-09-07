@@ -32,6 +32,7 @@
 - [Phase 9C.6 长历史测试结果与重复读取定位](2026-09-05_测试报告-P9C.6长历史基准-report.md)
 - [主线真实模型体验入口与 P9 合并说明](REAL-MODEL-EXPERIENCE.md)
 - [创作者 World Pack 与真实模型试玩指南](CREATOR-PLAYTEST-RUNBOOK.md)
+- [World Pack 创作者字段手册](WORLD-PACK-AUTHORING-MANUAL.md)
 - [Phase 9C 接手与行政边界收口（P9C.3 本机完成）](2026-09-05_阶段报告-Phase-9C接手与行政边界收口-report.md)
 - [Phase 9B 多 wave 权威骨架与运行闭环计划（历史进度）](2026-09-01_阶段报告-Harness-Cordis-World-Phase-9B-progress-report.md)
 - [Phase 9B Scheduler、多 wave、抢占与恢复阶段报告（历史进度）](2026-09-01_阶段报告-Harness-Cordis-World-Phase-9B-scheduler-report.md)
