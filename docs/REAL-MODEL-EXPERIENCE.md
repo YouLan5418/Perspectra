@@ -60,6 +60,20 @@ corepack pnpm@11.7.0 experience:web
 
 可通过 `HCW_OLLAMA_MODEL` 和 `HCW_OLLAMA_ENDPOINT` 改用其他本机 Ollama 模型或端口；Endpoint 只接受未携带凭证的 `localhost` 或 `127.0.0.1` HTTP 地址。按 `Ctrl+C` 会安全关闭监听和数据库。
 
+也可以加载任意已经编译的 World Pack，而不是使用内置“雨夜同行”：
+
+```powershell
+corepack pnpm@11.7.0 experience:web --pack D:\worlds\my-world.worldpack.json --data-dir D:\worlds\my-world-playtest
+```
+
+DeepSeek 模式使用相同参数：
+
+```powershell
+corepack pnpm@11.7.0 experience:web:flash --pack D:\worlds\my-world.worldpack.json --data-dir D:\worlds\my-world-playtest
+```
+
+页面标题、玩家名称和 NPC 列表来自 Pack；试玩 Host 会动态绑定 active、非 manual 角色。完整创作流程见[创作者 World Pack 与真实模型试玩指南](CREATOR-PLAYTEST-RUNBOOK.md)。
+
 浏览器只接收玩家绑定角色的 `CharacterView` 派生对白，不接收其他角色的私有 Claim、Memory、完整 Prompt 或原始模型响应。完整请求和响应仍会写入世界目录下的 `requests/`，仅供本机诊断，其中可能包含角色私密上下文，不得提交或分享。
 
 需要明确改用 DeepSeek Flash 时，先保证启动该命令的终端能够读取 `DEEPSEEK_API_KEY`，再运行：
