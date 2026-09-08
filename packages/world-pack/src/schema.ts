@@ -35,13 +35,16 @@ import {
   WORLD_PACK_COMPILED_SCHEMA_VERSION,
   WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
   WORLD_PACK_COMPILED_SCHEMA_VERSION_V3,
+  WORLD_PACK_COMPILED_SCHEMA_VERSION_V4,
   WORLD_PACK_COMPILER_CONTRACT_VERSION,
   WORLD_PACK_COMPILER_CONTRACT_VERSION_V2,
   WORLD_PACK_COMPILER_CONTRACT_VERSION_V3,
+  WORLD_PACK_COMPILER_CONTRACT_VERSION_V4,
   WORLD_PACK_COMPILER_ID,
   WORLD_PACK_COMPILER_VERSION,
   WORLD_PACK_COMPILER_VERSION_V2,
   WORLD_PACK_COMPILER_VERSION_V3,
+  WORLD_PACK_COMPILER_VERSION_V4,
   WORLD_PACK_LIMITS_PROFILE,
   WORLD_PACK_LIMITS_PROFILE_V2,
   WORLD_PACK_CONTROLLER_CLASSES_V2,
@@ -56,10 +59,13 @@ import {
   WORLD_PACK_SOURCE_SCHEMA_VERSION,
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V3,
+  WORLD_PACK_SOURCE_SCHEMA_VERSION_V4,
   WORLD_PACK_REACTION_SCHEMA_VERSION,
+  WORLD_PACK_MANIFESTATION_SCHEMA_VERSION,
   type CompiledWorldPack,
   type CompiledWorldPackV2,
   type CompiledWorldPackV3,
+  type CompiledWorldPackV4,
   type WorldPackAcceptanceAssertion,
   type WorldPackAffectSourceV2,
   type WorldPackAssertionsSource,
@@ -105,7 +111,9 @@ import {
   type WorldPackSourceManifest,
   type WorldPackSourceManifestV2,
   type WorldPackSourceManifestV3,
+  type WorldPackSourceManifestV4,
   type WorldPackReactionSource,
+  type WorldPackManifestationSource,
   type WorldPackTensionPoleSourceV2,
   type WorldPackWorldSource,
 } from './contracts.ts'
@@ -449,6 +457,33 @@ export function parseWorldPackSourceManifestV3(input: unknown, file = 'worldpack
   return { ...parsed, sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V3, reactionFile }
 }
 
+/** Parse the explicit manifestation source manifest without changing frozen v1-v3 shapes. */
+export function parseWorldPackSourceManifestV4(input: unknown, file = 'worldpack.source.json'): WorldPackSourceManifestV4 {
+  const root = sourceDocument(input, file)
+  const v2Fields = [
+    'characterFiles', 'locationFiles', 'entityFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles',
+    'cognitionFiles', 'memoryFiles', 'documentFiles', 'markdownFiles', 'assetFiles', 'assertionFiles',
+  ] as const
+  exactKeys(root, [
+    'sourceSchemaVersion', 'packId', 'packVersion', 'worldFile', ...v2Fields, 'reactionFile', 'manifestationFile',
+  ], [], file, '')
+  if (root.sourceSchemaVersion !== WORLD_PACK_SOURCE_SCHEMA_VERSION_V4) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/sourceSchemaVersion', `must be ${WORLD_PACK_SOURCE_SCHEMA_VERSION_V4}`)
+  }
+  const manifestationFile = textAt(root.manifestationFile, file, '/manifestationFile')
+  const { manifestationFile: _, ...base } = root
+  const parsed = parseWorldPackSourceManifestV3({
+    ...base,
+    sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V3,
+  }, file)
+  const explicitFiles = [parsed.worldFile, ...v2Fields.flatMap(field => parsed[field]), parsed.reactionFile, manifestationFile]
+  if (explicitFiles.length > MAX_EXPLICIT_FILES) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '', `must list at most ${MAX_EXPLICIT_FILES} files`)
+  }
+  unique(explicitFiles, file, '')
+  return { ...parsed, sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V4, manifestationFile }
+}
+
 /** Strict creator-selectable Reaction mode. Numeric safety limits are deliberately absent. */
 export function parseWorldPackReactionSource(input: unknown, file = 'reaction.json'): WorldPackReactionSource {
   const root = sourceDocument(input, file)
@@ -466,6 +501,22 @@ export function parseWorldPackReactionSource(input: unknown, file = 'reaction.js
   if (root.mode !== 'responsive') failWorldPackContract('PACK_SOURCE_INVALID', file, '/mode', 'must be disabled or responsive')
   if (root.profile !== 'responsive/v1') failWorldPackContract('PACK_SOURCE_INVALID', file, '/profile', 'must be responsive/v1')
   return { schemaVersion: WORLD_PACK_REACTION_SCHEMA_VERSION, mode: 'responsive', profile: 'responsive/v1' }
+}
+
+/** Strict creator-selectable observable manifestation capability. */
+export function parseWorldPackManifestationSource(
+  input: unknown,
+  file = 'manifestation.json',
+): WorldPackManifestationSource {
+  const root = sourceDocument(input, file)
+  exactKeys(root, ['schemaVersion', 'mode'], [], file, '')
+  if (root.schemaVersion !== WORLD_PACK_MANIFESTATION_SCHEMA_VERSION) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must be ${WORLD_PACK_MANIFESTATION_SCHEMA_VERSION}`)
+  }
+  if (root.mode !== 'disabled' && root.mode !== 'enabled') {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/mode', 'must be disabled or enabled')
+  }
+  return { schemaVersion: WORLD_PACK_MANIFESTATION_SCHEMA_VERSION, mode: root.mode }
 }
 
 function cognitionArray(value: unknown, file: string, at: string): readonly unknown[] {
@@ -1250,6 +1301,45 @@ export function parseCompiledWorldPackV3(input: unknown, file = 'worldpack.json'
       canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
     },
     reaction: parseWorldPackReactionSource(reactionInput, `${file}#/reaction`),
+  }
+}
+
+/** Validate one compiled v4 envelope while preserving the frozen v3 content and Reaction semantics. */
+export function parseCompiledWorldPackV4(input: unknown, file = 'worldpack.json'): CompiledWorldPackV4 {
+  const root = sourceDocument(input, file, MAX_COMPILED_BYTES)
+  exactKeys(root, [
+    'compiledSchemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
+    'registryLocks', 'reaction', 'manifestation', 'content', 'assets', 'acceptanceAssertions',
+  ], [], file, '')
+  if (root.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiledSchemaVersion', `must be ${WORLD_PACK_COMPILED_SCHEMA_VERSION_V4}`)
+  }
+  const compiler = objectAt(root.compiler, file, '/compiler')
+  exactKeys(compiler, ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'], [], file, '/compiler')
+  if (compiler.id !== WORLD_PACK_COMPILER_ID || compiler.version !== WORLD_PACK_COMPILER_VERSION_V4
+    || compiler.contractVersion !== WORLD_PACK_COMPILER_CONTRACT_VERSION_V4 || compiler.canonicalJsonVersion !== 'world-json/v1'
+    || compiler.limitsProfile !== WORLD_PACK_LIMITS_PROFILE_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiler', 'does not identify the manifestation compiler contract')
+  }
+  const { manifestation: manifestationInput, ...withoutManifestation } = root
+  const base = parseCompiledWorldPackV3({
+    ...withoutManifestation,
+    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V3,
+    compiler: {
+      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V3,
+      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V3,
+      canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
+    },
+  }, file)
+  return {
+    ...base,
+    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V4,
+    compiler: {
+      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V4,
+      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V4,
+      canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
+    },
+    manifestation: parseWorldPackManifestationSource(manifestationInput, `${file}#/manifestation`),
   }
 }
 

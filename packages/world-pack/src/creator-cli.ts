@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { cp, mkdir, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WorldApplication } from '@harness-world/application'
@@ -24,17 +24,17 @@ import {
 } from './tooling.ts'
 import { WorldPackContractError } from './diagnostics.ts'
 import { worldPackErrorCode } from './schema.ts'
-import { WORLD_PACK_COMPILED_SCHEMA_VERSION_V3 } from './contracts.ts'
+import { WORLD_PACK_COMPILED_SCHEMA_VERSION_V3, WORLD_PACK_COMPILED_SCHEMA_VERSION_V4 } from './contracts.ts'
 
 export type WorldPackCliInvocation =
-  | { readonly command: 'init'; readonly profile: 'minimal' | 'social' | 'responsive-social'; readonly directory: string }
+  | { readonly command: 'init'; readonly profile: 'minimal' | 'social' | 'responsive-social' | 'expressive-social'; readonly directory: string }
   | { readonly command: 'validate'; readonly sourceDirectory: string }
   | { readonly command: 'compile'; readonly sourceDirectory: string; readonly outputPath: string }
   | { readonly command: 'inspect'; readonly compiledPackPath: string }
   | { readonly command: 'test'; readonly sourceDirectory: string }
   | { readonly command: 'activate'; readonly compiledPackPath: string; readonly dataDirectory: string }
 
-const USAGE = 'usage: worldpack init --profile minimal|social|responsive-social <dir> | validate <dir> | compile <dir> --out <worldpack.json> | inspect <worldpack.json> | test <dir> | activate <worldpack.json> --data-dir <dir>'
+const USAGE = 'usage: worldpack init --profile minimal|social|responsive-social|expressive-social <dir> | validate <dir> | compile <dir> --out <worldpack.json> | inspect <worldpack.json> | test <dir> | activate <worldpack.json> --data-dir <dir>'
 
 function value(value: string | undefined, name: string): string {
   if (value === undefined || value.length === 0) throw new TypeError(`${name} is required; ${USAGE}`)
@@ -45,8 +45,8 @@ export function parseWorldPackCliInvocation(args: readonly string[]): WorldPackC
   const command = args[0]
   if (command === 'init' && args.length === 4 && args[1] === '--profile') {
     const profile = args[2]
-    if (profile !== 'minimal' && profile !== 'social' && profile !== 'responsive-social') {
-      throw new TypeError(`worldpack profile must be minimal, social, or responsive-social; ${USAGE}`)
+    if (profile !== 'minimal' && profile !== 'social' && profile !== 'responsive-social' && profile !== 'expressive-social') {
+      throw new TypeError(`worldpack profile must be minimal, social, responsive-social, or expressive-social; ${USAGE}`)
     }
     return { command, profile, directory: value(args[3], 'directory') }
   }
@@ -123,12 +123,27 @@ async function scaffoldResponsiveSocial(target: string): Promise<void> {
   })
 }
 
-async function scaffold(profile: 'minimal' | 'social' | 'responsive-social', targetInput: string): Promise<string> {
+async function scaffoldExpressiveSocial(target: string): Promise<void> {
+  await scaffoldResponsiveSocial(target)
+  const manifest = JSON.parse(await readFile(join(target, 'worldpack.source.json'), 'utf8')) as WorldJsonObject
+  await writeJson(target, 'worldpack.source.json', {
+    ...manifest,
+    sourceSchemaVersion: 'worldpack-source/v4',
+    packId: 'pack:expressive-social',
+    manifestationFile: 'manifestation.json',
+  })
+  await writeJson(target, 'manifestation.json', {
+    schemaVersion: 'worldpack-manifestation/v1', mode: 'enabled',
+  })
+}
+
+async function scaffold(profile: 'minimal' | 'social' | 'responsive-social' | 'expressive-social', targetInput: string): Promise<string> {
   const target = resolve(targetInput)
   assertAbsent(target)
   if (profile === 'minimal') await scaffoldMinimal(target)
   else if (profile === 'social') await cp(referenceSocialDirectory(), target, { recursive: true, errorOnExist: true, force: false })
-  else await scaffoldResponsiveSocial(target)
+  else if (profile === 'responsive-social') await scaffoldResponsiveSocial(target)
+  else await scaffoldExpressiveSocial(target)
   return target
 }
 
@@ -163,7 +178,8 @@ async function activate(compiledPackPath: string, dataDirectoryInput: string): P
   const application = new WorldApplication(paths)
   try {
     const result = application.activate(compiled)
-    const requiredReactionActors = pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V3
+    const requiredReactionActors = (pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V3
+      || pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V4)
       && pack.reaction.mode === 'responsive'
       ? pack.content.characters
         .filter(character => character.lifecycle === 'active' && character.controllerClass !== 'manual')

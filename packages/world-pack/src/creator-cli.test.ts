@@ -35,6 +35,7 @@ describe('World Pack creator CLI', () => {
     [['init', '--profile', 'minimal', 'pack'], { command: 'init', profile: 'minimal', directory: 'pack' }],
     [['init', '--profile', 'social', 'pack'], { command: 'init', profile: 'social', directory: 'pack' }],
     [['init', '--profile', 'responsive-social', 'pack'], { command: 'init', profile: 'responsive-social', directory: 'pack' }],
+    [['init', '--profile', 'expressive-social', 'pack'], { command: 'init', profile: 'expressive-social', directory: 'pack' }],
     [['validate', 'pack'], { command: 'validate', sourceDirectory: 'pack' }],
     [['compile', 'pack', '--out', 'pack.json'], { command: 'compile', sourceDirectory: 'pack', outputPath: 'pack.json' }],
     [['inspect', 'pack.json'], { command: 'inspect', compiledPackPath: 'pack.json' }],
@@ -191,6 +192,32 @@ describe('World Pack creator CLI', () => {
     })
     expect(parsed(await executeWorldPackCli(['activate', artifact, '--data-dir', runtime]))).toMatchObject({
       command: 'activate', status: 'already_active', requiredReactionActors: ['character:alice', 'character:bob'],
+    })
+  })
+
+  it('scaffolds, compiles, inspects, and activates an expressive v4 Pack', async () => {
+    const root = await temporaryRoot()
+    const source = join(root, 'expressive-social')
+    const artifact = join(root, 'expressive-social.worldpack.json')
+    const runtime = join(root, 'runtime')
+    expect(parsed(await executeWorldPackCli(['init', '--profile', 'expressive-social', source]))).toMatchObject({
+      command: 'init', status: 'created', profile: 'expressive-social', directory: source,
+    })
+    expect(JSON.parse(await readFile(join(source, 'manifestation.json'), 'utf8'))).toEqual({
+      mode: 'enabled', schemaVersion: 'worldpack-manifestation/v1',
+    })
+    expect(parsed(await executeWorldPackCli(['validate', source]))).toMatchObject({
+      command: 'validate', status: 'valid', packId: 'pack:expressive-social',
+    })
+    await executeWorldPackCli(['compile', source, '--out', artifact])
+    expect(parsed(await executeWorldPackCli(['inspect', artifact]))).toMatchObject({
+      command: 'inspect', status: 'inspected', inspection: {
+        title: '雨夜同行', manifestation: { schemaVersion: 'worldpack-manifestation/v1', mode: 'enabled' },
+        reaction: { mode: 'responsive', profile: 'responsive/v1' },
+      },
+    })
+    expect(parsed(await executeWorldPackCli(['activate', artifact, '--data-dir', runtime]))).toMatchObject({
+      command: 'activate', status: 'activated', requiredReactionActors: ['character:alice', 'character:bob'],
     })
   })
 
