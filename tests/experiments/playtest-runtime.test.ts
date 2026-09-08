@@ -12,10 +12,10 @@ import {
 import { playerTranscript, WorldPlaytestRuntime } from './playtest-runtime.ts'
 
 describe('player-facing playtest transcript', () => {
-  it('loads a compiled creator Pack and dynamically binds its model-controlled characters', async () => {
+  it('loads an expressive creator Pack and renders only committed manifestation observations', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'hcw-playtest-creator-pack-'))
     const sourceDirectory = join(directory, 'source')
-    await executeWorldPackCli(['init', '--profile', 'responsive-social', sourceDirectory])
+    await executeWorldPackCli(['init', '--profile', 'expressive-social', sourceDirectory])
     const pack = await compileWorldPackSource(sourceDirectory)
     const packPath = join(directory, 'creator.worldpack.json')
     writeFileSync(packPath, canonicalCompiledWorldPackBytes(pack))
@@ -28,7 +28,10 @@ describe('player-facing playtest transcript', () => {
         model: 'qwen3.5:4b', done_reason: 'stop',
         message: { content: JSON.stringify(root ? { decision: 'act', actions: [{
           actionType: 'speak', parameters: { text: alice ? 'Alice 已载入。' : 'Bob 已载入。' },
-        }] } : { decision: 'abstain', text: '' }) },
+        }], manifestation: { description: alice ? 'Alice 抬起眼睛。' : 'Bob 点了点头。', cues: [{
+          cueId: alice ? 'alice:gaze' : 'bob:gesture', channel: alice ? 'gaze' : 'gesture',
+          description: alice ? '抬起眼睛' : '点了点头', persistence: 'event_only',
+        }] } } : { decision: 'abstain', text: '' }) },
       }), { status: 200 })
     })
     let runtime: WorldPlaytestRuntime | undefined
@@ -40,7 +43,7 @@ describe('player-facing playtest transcript', () => {
       expect(Number(submitted.debug.providerCalls)).toBeGreaterThanOrEqual(2)
       expect(submitted.transcript).toContainEqual(expect.objectContaining({ player: true, text: '发生了什么' }))
       expect(submitted.transcript.map(entry => entry.text)).toEqual(expect.arrayContaining([
-        'Alice 已载入。', 'Bob 已载入。',
+        '（Alice 抬起眼睛。）\nAlice 已载入。', '（Bob 点了点头。）\nBob 已载入。',
       ]))
       expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2)
     } finally {
@@ -59,7 +62,11 @@ describe('player-facing playtest transcript', () => {
       characterId: player, asOfWorldSeq: 9, lifecycleState: 'active', locationId: 'location:room', scenes: [],
       observations: [
         { kind: 'observation', id: 'observation:1', sourceSeq: 4, value: { observerId: player,
-          content: { status: 'accepted', speech: { characterId: 'character:bob', text: 'visible speech' } } } },
+          content: { status: 'accepted', speech: { characterId: 'character:bob', text: 'visible speech' },
+            manifestation: { characterId: 'character:bob', description: null, cues: [
+              { cueId: 'cue:gaze', channel: 'gaze', description: '避开玩家的视线', persistence: 'event_only' },
+              { cueId: 'cue:voice', channel: 'voice', description: '声音压得很低', persistence: 'event_only' },
+            ] } } } },
         { kind: 'observation', id: 'observation:2', sourceSeq: 5, value: { observerId: player,
           content: { status: 'rejected', speech: { characterId: 'character:bob', text: 'REJECTED_CANARY' } } } },
         { kind: 'observation', id: 'observation:3', sourceSeq: 6, value: { observerId: player,
@@ -80,7 +87,7 @@ describe('player-facing playtest transcript', () => {
     ]), player)
     expect(transcript).toEqual([
       { seq: 3, speaker: '玩家', text: 'player speech', player: true },
-      { seq: 4, speaker: 'Bob', text: 'visible speech', player: false },
+      { seq: 4, speaker: 'Bob', text: '（避开玩家的视线，声音压得很低）\nvisible speech', player: false },
       { seq: 7, speaker: 'Bob', text: '移动到了另一个地点。', player: false },
       { seq: 8, speaker: 'Bob', text: '拿取了一个物品。', player: false },
     ])

@@ -11,10 +11,17 @@ import {
   type ProposalContext,
   type ReactionProposalContext,
   type SubmitActionsV2,
+  type SubmitActionsV3,
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import type { CompiledWorldManifest, CompiledWorldManifestV5, CompiledWorldSpec } from '@harness-world/kernel'
+import {
+  manifestationManifestRegistries,
+  manifestationPolicyFromManifest,
+  type CompiledWorldManifest,
+  type CompiledWorldManifestV6,
+  type CompiledWorldSpec,
+} from '@harness-world/kernel'
 import { adaptRainyRoadPack, compileRainyRoadPack } from '@harness-world/simulation'
 import { adaptCompiledWorldPack, readCompiledPack } from '@harness-world/world-pack'
 import {
@@ -58,13 +65,87 @@ function localEndpoint(value: string): URL {
 }
 
 function responsive(compiled: CompiledWorldSpec): CompiledWorldSpec {
-  const manifest = { ...compiled.manifest, schemaVersion: 5,
+  const manifest = { ...compiled.manifest, schemaVersion: 6,
+    registries: manifestationManifestRegistries(),
     reactionPolicy: { version: 'reaction-policy/v1', mode: 'responsive', profile: 'responsive/v1' },
-  } as CompiledWorldManifestV5
+    manifestationPolicy: { version: 'manifestation-policy/v1', mode: 'enabled' },
+  } as CompiledWorldManifestV6
   const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
   const genesisEvents = compiled.genesisEvents.map(event => event.eventType === 'world.manifest-locked'
     ? { ...event, data: { ...(event.data as WorldJsonObject), manifestHash } } : event)
   return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
+}
+
+const manifestationSchema = {
+  type: 'object', additionalProperties: false, required: ['cues'],
+  properties: {
+    description: { type: 'string', minLength: 1, maxLength: 500 },
+    cues: { type: 'array', minItems: 1, maxItems: 4, items: {
+      oneOf: [
+        { type: 'object', additionalProperties: false,
+          required: ['cueId', 'channel', 'description', 'persistence'],
+          properties: {
+            cueId: { type: 'string', minLength: 1, maxLength: 80 },
+            channel: { type: 'string', enum: ['facial', 'gaze', 'gesture', 'voice'] },
+            description: { type: 'string', minLength: 1, maxLength: 160 },
+            persistence: { type: 'string', const: 'event_only' },
+          } },
+        { type: 'object', additionalProperties: false,
+          required: ['cueId', 'channel', 'description', 'persistence', 'stateKey', 'operation'],
+          properties: {
+            cueId: { type: 'string', minLength: 1, maxLength: 80 },
+            channel: { type: 'string', enum: ['posture', 'appearance'] },
+            description: { type: 'string', minLength: 1, maxLength: 160 },
+            persistence: { type: 'string', const: 'until_changed' },
+            stateKey: { type: 'string', minLength: 1, maxLength: 80 },
+            operation: { type: 'string', enum: ['set', 'clear'] },
+          } },
+      ],
+    } },
+  },
+} as const
+
+function expressiveSchema(base: Record<string, unknown>): Record<string, unknown> {
+  const properties = object(base.properties) ?? {}
+  const actions = object(properties.actions)
+  return {
+    ...base,
+    properties: {
+      ...properties,
+      ...(actions === undefined ? {} : { actions: { ...actions, maxItems: 1 } }),
+      manifestation: manifestationSchema,
+    },
+  }
+}
+
+const manifestationOutputContract = '可选增加 manifestation，描述角色做这个动作时外界能直接看到或听到的表现。格式为 {"description":"综合舞台动作","cues":[{"cueId":"本次响应内唯一短标识","channel":"facial|gaze|posture|gesture|voice|appearance","description":"可观察表现","persistence":"event_only"}]}。不要写真实情绪、秘密、动机或心理数值；只写可观察线索。posture/appearance 若需持续可用 until_changed，并加 stateKey 与 operation=set|clear。一次响应最多一个 action；没有合适表现可省略 manifestation。'
+
+function expressiveProposal<T extends SubmitActionsV2>(
+  raw: unknown,
+  parse: (withoutManifestation: unknown) => T,
+): SubmitActionsV3 {
+  const candidate = object(raw)
+  if (candidate === undefined) throw new TypeError('invalid expressive model response')
+  const { manifestation, ...withoutManifestation } = candidate
+  const proposal = parse(withoutManifestation)
+  return {
+    ...proposal,
+    schemaVersion: 3,
+    ...(manifestation === undefined ? {} : { manifestation: manifestation as SubmitActionsV3['manifestation'] }),
+  }
+}
+
+function manifestationText(value: unknown): string | undefined {
+  const manifestation = object(value)
+  if (typeof manifestation?.description === 'string' && manifestation.description.length > 0) {
+    return manifestation.description
+  }
+  if (!Array.isArray(manifestation?.cues)) return undefined
+  const descriptions = manifestation.cues.flatMap(cue => {
+    const description = object(cue)?.description
+    return typeof description === 'string' && description.length > 0 ? [description] : []
+  })
+  return descriptions.length === 0 ? undefined : descriptions.join('，')
 }
 
 export function playtestModelCharacters(
@@ -91,20 +172,22 @@ export function playerTranscript(
   return view.observations.flatMap(observation => {
     const content = object(object(observation.value)?.content)
     const speech = object(content?.speech)
+    const stage = manifestationText(content?.manifestation)
     if (content?.status !== 'accepted') return []
     if (typeof speech?.characterId !== 'string' || typeof speech.text !== 'string') {
       if ((content?.actionType !== 'move' && content?.actionType !== 'take') || typeof content.actorId !== 'string') return []
+      const actionText = content.actionType === 'move' ? '移动到了另一个地点。' : '拿取了一个物品。'
       return [{
         seq: observation.sourceSeq,
         speaker: names.get(content.actorId) ?? content.actorId,
-        text: content.actionType === 'move' ? '移动到了另一个地点。' : '拿取了一个物品。',
+        text: stage === undefined ? actionText : `（${stage}）\n${actionText}`,
         player: content.actorId === playerId,
       }]
     }
     return [{
       seq: observation.sourceSeq,
       speaker: names.get(speech.characterId) ?? speech.characterId,
-      text: speech.text,
+      text: stage === undefined ? speech.text : `（${stage}）\n${speech.text}`,
       player: speech.characterId === playerId,
     }]
   }).sort((left, right) => left.seq - right.seq)
@@ -128,22 +211,28 @@ class PlaytestModelProvider {
     private readonly model: string,
     private readonly apiKey: string | undefined,
     private readonly timeoutMs: number,
+    private readonly manifestationEnabled: boolean,
     private readonly actionReferences: ReturnType<typeof createExperimentActionReferences>,
     private readonly evidenceDirectory: string,
     private readonly onStart: (call: CallTelemetry) => void,
     private readonly onFinish: (call: CallTelemetry, durationMs: number, status: 'act' | 'abstain' | 'invalid' | 'failed') => void,
   ) {}
 
-  async propose(context: ProposalContext | ReactionProposalContext): Promise<SubmitActionsV2> {
+  async propose(context: ProposalContext | ReactionProposalContext): Promise<SubmitActionsV2 | SubmitActionsV3> {
     const exact = (context as unknown as { exactProviderRequest?: { messages: ExperimentMessage[] } }).exactProviderRequest
     if (exact === undefined || !Array.isArray(exact.messages)) throw new TypeError('exact Provider request is unavailable')
     const reaction = 'origin' in context && context.origin.kind === 'reaction' ? context.origin : null
     const outputMode = reaction === null ? 'external_actions' : 'speech_only'
     const rendered = renderExperiment(exact.messages, 'compact', outputMode, this.actionReferences)
     const messages = comparisonMessages(rendered.messages, 'turn_taking', outputMode)
+    if (this.manifestationEnabled) messages.push({ role: 'system', content: manifestationOutputContract })
+    const ordinarySchema = outputMode === 'speech_only' ? speechSchema : externalActionSchemaFor(rendered.actionReferences)
+    const responseSchema = this.manifestationEnabled
+      ? expressiveSchema(ordinarySchema as unknown as Record<string, unknown>)
+      : ordinarySchema
     const body = JSON.stringify(this.provider === 'ollama'
       ? { model: this.model, messages, stream: false, think: false,
-        format: outputMode === 'speech_only' ? speechSchema : externalActionSchemaFor(rendered.actionReferences),
+        format: responseSchema,
         options: { temperature: 0.3, seed: 42, num_predict: 256 }, keep_alive: '10m' }
       : { model: this.model, messages, stream: false, thinking: { type: 'disabled' },
         response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 256 })
@@ -179,9 +268,12 @@ class PlaytestModelProvider {
       parsed = comparisonResponse(this.provider, raw)
       const decoded = JSON.parse(parsed.content) as unknown
       let reflectionWarning: string | undefined
-      let proposal: SubmitActionsV2
+      let proposal: SubmitActionsV2 | SubmitActionsV3
       if (outputMode === 'speech_only') {
-        proposal = speechProposal(decoded, this.actorId, `action:playtest:${this.actorId}:${context.roundId}`)
+        const parseSpeech = (value: unknown) => speechProposal(
+          value, this.actorId, `action:playtest:${this.actorId}:${context.roundId}`,
+        )
+        proposal = this.manifestationEnabled ? expressiveProposal(decoded, parseSpeech) : parseSpeech(decoded)
       } else {
         const proposalContext = {
           exactMessages: exact.messages,
@@ -189,12 +281,16 @@ class PlaytestModelProvider {
           actionReferences: rendered.actionReferences,
         }
         try {
-          proposal = externalActionProposal(decoded, this.actorId, context.roundId, proposalContext)
+          const parseAction = (value: unknown) => externalActionProposal(value, this.actorId, context.roundId, proposalContext)
+          proposal = this.manifestationEnabled ? expressiveProposal(decoded, parseAction) : parseAction(decoded)
         } catch (error: unknown) {
           const candidate = object(decoded)
           if (candidate === undefined || !('reflection' in candidate)) throw error
           const { reflection: _reflection, ...withoutReflection } = candidate
-          proposal = externalActionProposal(withoutReflection, this.actorId, context.roundId, proposalContext)
+          const parseAction = (value: unknown) => externalActionProposal(value, this.actorId, context.roundId, proposalContext)
+          proposal = this.manifestationEnabled
+            ? expressiveProposal(withoutReflection, parseAction)
+            : parseAction(withoutReflection)
           reflectionWarning = 'reflection_rejected'
         }
       }
@@ -217,9 +313,8 @@ class PlaytestModelProvider {
       // durable Provider quality policy classifies this as schema-invalid rather
       // than confusing it with a transport or API failure.
       return {
-        schemaVersion: 2, decision: 'abstain', actions: [],
-        invalidModelOutput: true,
-      } as unknown as SubmitActionsV2
+        schemaVersion: this.manifestationEnabled ? 3 : 2, decision: 'abstain', actions: [], invalidModelOutput: true,
+      } as unknown as SubmitActionsV2 | SubmitActionsV3
     }
   }
 }
@@ -279,6 +374,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     this.#title = compiled.manifest.metadata.title
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
     const controlledCharacters = playtestModelCharacters(compiled.manifest, this.#playerId)
+    const manifestationEnabled = manifestationPolicyFromManifest(compiled.manifest).mode === 'enabled'
     this.#npcNames = controlledCharacters.map(character => character.name)
     this.#provider = options.provider ?? 'ollama'
     this.#model = options.model ?? (this.#provider === 'ollama' ? OLLAMA_MODEL : DEEPSEEK_MODEL)
@@ -318,7 +414,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       ...character,
       priority: controlledCharacters.length - index,
     })).map(item => ({ ...item, provider: new PlaytestModelProvider(
-      item.participantId, item.actorId, this.#provider, endpoint, this.#model, apiKey, timeoutMs,
+      item.participantId, item.actorId, this.#provider, endpoint, this.#model, apiKey, timeoutMs, manifestationEnabled,
       this.#actionReferences,
       evidenceDirectory, onStart, onFinish,
     ) }))
