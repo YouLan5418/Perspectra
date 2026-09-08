@@ -1,5 +1,6 @@
 export * from './rulebook.ts'
 export * from './rulebook-registry.ts'
+export * from './manifestation.ts'
 export * from './world-bootstrap.ts'
 export * from './world-kernel.ts'
 export * from './world-spec.ts'
