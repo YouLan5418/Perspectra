@@ -70,6 +70,41 @@ export interface SubmitActionsV2 extends WorldJsonObject {
   readonly reflection?: ReflectionBatch
 }
 
+export type ManifestationChannel = 'facial' | 'gaze' | 'posture' | 'gesture' | 'voice' | 'appearance'
+
+export interface EventOnlyManifestationCue extends WorldJsonObject {
+  readonly cueId: string
+  readonly channel: ManifestationChannel
+  readonly description: string
+  readonly persistence: 'event_only'
+}
+
+export interface PersistentManifestationCue extends WorldJsonObject {
+  readonly cueId: string
+  readonly channel: 'posture' | 'appearance'
+  readonly description: string
+  readonly persistence: 'until_changed'
+  readonly stateKey: string
+  readonly operation: 'set' | 'clear'
+}
+
+export type ManifestationCueProposal = EventOnlyManifestationCue | PersistentManifestationCue
+
+/** One externally observable performance proposal bound to the output's single Action attempt. */
+export interface ManifestationProposal extends WorldJsonObject {
+  readonly description?: string
+  readonly cues: readonly ManifestationCueProposal[]
+}
+
+/** ADR-0083 provider output; older submit_actions versions remain byte-for-byte closed. */
+export interface SubmitActionsV3 extends WorldJsonObject {
+  readonly schemaVersion: 3
+  readonly decision: 'act' | 'abstain'
+  readonly actions: readonly WorldJsonObject[]
+  readonly reflection?: ReflectionBatch
+  readonly manifestation?: ManifestationProposal
+}
+
 export interface CognitivePolicyReceipt extends WorldJsonObject {
   readonly schemaVersion: 'cognitive-policy-receipt/v1'
   readonly policyId: 'reflection-policy/standard-v1'
