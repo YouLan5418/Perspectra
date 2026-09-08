@@ -41,7 +41,7 @@ export interface ManifestRegistries extends WorldJsonObject {
 }
 
 export interface CompiledWorldManifest extends WorldJsonObject {
-  readonly schemaVersion: 2 | 3 | 4 | 5
+  readonly schemaVersion: 2 | 3 | 4 | 5 | 6
   readonly address: WorldAddress
   readonly specHash: WorldHash
   readonly genesisPlanHash: WorldHash
@@ -167,6 +167,20 @@ export interface CompiledWorldManifestV5 extends CompiledWorldManifest {
   readonly reactionPolicy: ReactionPolicyV1
 }
 
+export type ManifestationPolicyV1 =
+  | { readonly version: 'manifestation-policy/v1'; readonly mode: 'disabled' }
+  | { readonly version: 'manifestation-policy/v1'; readonly mode: 'enabled' }
+
+/** V6 explicitly selects submit_actions/v3 and ADR-0083 manifestation semantics. */
+export interface CompiledWorldManifestV6 extends CompiledWorldManifest {
+  readonly schemaVersion: 6
+  readonly characters: readonly ContentPackCharacterSpecV2[]
+  readonly scenes: readonly SceneSpecV2[]
+  readonly contentPack: ContentPackManifestBindingV2
+  readonly reactionPolicy: ReactionPolicyV1
+  readonly manifestationPolicy: ManifestationPolicyV1
+}
+
 export interface CompiledWorldSpec {
   readonly manifest: CompiledWorldManifest
   readonly manifestHash: WorldHash
@@ -182,9 +196,12 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   canonicalizeWorldJson(value)
   const root = objectAt(value, 'StoredWorldManifest')
   if (root.schemaVersion === 1) return new WorldSpecCompiler().compile(value).manifest
-  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4 && root.schemaVersion !== 5) throw new TypeError('stored Manifest schemaVersion is unsupported')
-  if (root.schemaVersion !== 5 && Object.hasOwn(root, 'reactionPolicy')) {
-    throw new TypeError('stored Manifest reactionPolicy requires schemaVersion 5')
+  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4 && root.schemaVersion !== 5 && root.schemaVersion !== 6) throw new TypeError('stored Manifest schemaVersion is unsupported')
+  if (root.schemaVersion !== 5 && root.schemaVersion !== 6 && Object.hasOwn(root, 'reactionPolicy')) {
+    throw new TypeError('stored Manifest reactionPolicy requires schemaVersion 5 or 6')
+  }
+  if (root.schemaVersion !== 6 && Object.hasOwn(root, 'manifestationPolicy')) {
+    throw new TypeError('stored Manifest manifestationPolicy requires schemaVersion 6')
   }
   const runtimePolicy = objectAt(root.runtimePolicy, 'StoredWorldManifest.runtimePolicy')
   exactKeys(runtimePolicy, ['npcInitialAvailability', 'playerInitialAvailability'], 'StoredWorldManifest.runtimePolicy')
@@ -195,9 +212,9 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   arrayAt(root.locations, 'StoredWorldManifest.locations')
   arrayAt(root.characters, 'StoredWorldManifest.characters')
   arrayAt(root.playerBindings, 'StoredWorldManifest.playerBindings')
-  if (root.schemaVersion === 3 || root.schemaVersion === 4 || root.schemaVersion === 5) {
+  if (root.schemaVersion === 3 || root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6) {
     const contentPack = objectAt(root.contentPack, 'StoredWorldManifest.contentPack')
-    const phase8 = root.schemaVersion === 4 || root.schemaVersion === 5
+    const phase8 = root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6
     exactKeys(contentPack, phase8
       ? [
           'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
@@ -263,7 +280,8 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
       arrayAt(contentPack.markdown, 'StoredWorldManifest.contentPack.markdown')
     }
   }
-  if (root.schemaVersion === 5) parseReactionPolicy(root.reactionPolicy)
+  if (root.schemaVersion === 5 || root.schemaVersion === 6) parseReactionPolicy(root.reactionPolicy)
+  if (root.schemaVersion === 6) parseManifestationPolicy(root.manifestationPolicy)
   return value as CompiledWorldManifest
 }
 
@@ -274,16 +292,36 @@ const HISTORICAL_REACTION_POLICY: ReactionPolicyV1 = Object.freeze({
 
 /** Resolve the effective policy without mutating or re-hashing historical Manifest bytes. */
 export function reactionPolicyFromManifest(manifest: CompiledWorldManifest): ReactionPolicyV1 {
-  return manifest.schemaVersion === 5
-    ? (manifest as CompiledWorldManifestV5).reactionPolicy
+  return manifest.schemaVersion === 5 || manifest.schemaVersion === 6
+    ? (manifest as CompiledWorldManifestV5 | CompiledWorldManifestV6).reactionPolicy
     : HISTORICAL_REACTION_POLICY
 }
 
-/** Manifest v5 deliberately retains every Phase 8 execution contract from v4. */
+const HISTORICAL_MANIFESTATION_POLICY: ManifestationPolicyV1 = Object.freeze({
+  version: 'manifestation-policy/v1',
+  mode: 'disabled',
+})
+
+/** Resolve the exact provider-output capability without changing historical Manifest bytes. */
+export function manifestationPolicyFromManifest(manifest: CompiledWorldManifest): ManifestationPolicyV1 {
+  return manifest.schemaVersion === 6
+    ? (manifest as CompiledWorldManifestV6).manifestationPolicy
+    : HISTORICAL_MANIFESTATION_POLICY
+}
+
+/** Manifest v5/v6 deliberately retain every Phase 8 execution contract from v4. */
 export function manifestUsesPhase8Contracts(
   manifest: CompiledWorldManifest,
-): manifest is CompiledWorldManifestV4 | CompiledWorldManifestV5 {
-  return manifest.schemaVersion === 4 || manifest.schemaVersion === 5
+): manifest is CompiledWorldManifestV4 | CompiledWorldManifestV5 | CompiledWorldManifestV6 {
+  return manifest.schemaVersion === 4 || manifest.schemaVersion === 5 || manifest.schemaVersion === 6
+}
+
+function parseManifestationPolicy(value: unknown): ManifestationPolicyV1 {
+  const policy = objectAt(value, 'StoredWorldManifest.manifestationPolicy')
+  exactKeys(policy, ['version', 'mode'], 'StoredWorldManifest.manifestationPolicy')
+  if (policy.version !== 'manifestation-policy/v1') throw new TypeError('stored Manifest manifestationPolicy version is unsupported')
+  if (policy.mode !== 'disabled' && policy.mode !== 'enabled') throw new TypeError('stored Manifest manifestationPolicy mode is unsupported')
+  return policy as ManifestationPolicyV1
 }
 
 function parseReactionPolicy(value: unknown): ReactionPolicyV1 {
