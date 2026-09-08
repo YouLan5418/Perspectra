@@ -12,6 +12,7 @@ import {
   type ExtractiveL1Summary,
   type FaultInjector,
   type InteractionRoundId,
+  type ManifestationProposal,
   type ProposalContext,
   type RecallQueryPlan,
   type WorldAddress,
@@ -63,6 +64,7 @@ export interface PrepareCognitiveContextRequest {
   readonly characterId: CharacterId
   readonly asOfWorldSeq: number
   readonly playerAction: ActionRequest
+  readonly playerManifestation?: ManifestationProposal
   readonly candidateHash: WorldHash
   readonly allowedActionTypes: readonly string[]
   readonly sceneDecision: WorldJsonValue
@@ -199,17 +201,20 @@ export class CognitiveMemoryService {
   }
 
   prepare(request: PrepareCognitiveContextRequest): CognitiveProposalContext {
+    const stimulus = request.playerManifestation === undefined
+      ? request.playerAction.parameters
+      : { action: request.playerAction.parameters, manifestation: request.playerManifestation }
     const stimulusRequest = {
       address: request.address,
       roundId: request.roundId,
       participantId: request.participantId,
       characterId: request.characterId,
       asOfWorldSeq: request.asOfWorldSeq,
-      stimulus: request.playerAction.parameters,
+      stimulus,
       correlationId: request.correlationId,
       ...(request.heartbeat === undefined ? {} : { heartbeat: request.heartbeat }),
     }
-    const prepared = this.#prepareStimulus(stimulusRequest, legacyRecallQuery(request.playerAction.parameters))
+    const prepared = this.#prepareStimulus(stimulusRequest, legacyRecallQuery(stimulus))
     const capability = {
       actorId: request.characterId,
       allowedActionTypes: [...request.allowedActionTypes].sort(compareWorldText),
@@ -219,6 +224,7 @@ export class CognitiveMemoryService {
       roundId: request.roundId,
       tick: request.tick,
       playerAction: request.playerAction,
+      ...(request.playerManifestation === undefined ? {} : { playerManifestation: request.playerManifestation }),
       candidateHash: request.candidateHash,
       agentContextVersion: 2 as const,
       participantId: request.participantId,

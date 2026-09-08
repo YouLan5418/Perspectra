@@ -1,5 +1,6 @@
 import {
   SubmitActionsValidator,
+  parseManifestationProposal,
   ReflectionPolicyValidator,
   ModelBudgetLedger,
   ProviderCallStore,
@@ -139,6 +140,7 @@ export interface SubmitCoordinatedRoundRequest {
   readonly idempotencyKey: string
   readonly principalId: string
   readonly action: PlayerActionInput
+  readonly manifestation?: ManifestationProposal
   readonly correlationId: string
 }
 
@@ -248,6 +250,28 @@ export function sortActionOrderKeys<T extends ActionOrderKey>(values: readonly T
 
 export const parseClaimedPlayerAction = parsePlayerActionInput
 
+interface ClaimedPlayerSubmission {
+  readonly action: PlayerActionInput
+  readonly manifestation?: ManifestationProposal
+}
+
+/** Preserve legacy Inbox bytes while parsing the explicitly wrapped manifestation form. */
+export function parseClaimedPlayerSubmission(value: WorldJsonValue): ClaimedPlayerSubmission {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError('claimed player submission must be an object')
+  }
+  const root = value as Record<string, WorldJsonValue>
+  if ('actionType' in root) return { action: parsePlayerActionInput(value) }
+  const keys = Object.keys(root).sort(compareWorldText)
+  if (keys.join(',') !== 'action,manifestation') {
+    throw new TypeError('claimed player manifestation submission has an invalid shape')
+  }
+  return {
+    action: parsePlayerActionInput(root.action!),
+    manifestation: parseManifestationProposal(root.manifestation),
+  }
+}
+
 interface ParticipantVisibleProposalContext {
   readonly context: ProposalContext
   readonly excludedStimulus?: ActionRequest
@@ -286,9 +310,10 @@ function participantVisibleContext(
       actionVersion: 1,
       parameters: { visibility: 'none' },
     }
+  const { playerManifestation: _hiddenManifestation, ...visibleBase } = context
   return {
     context: {
-      ...context,
+      ...visibleBase,
       playerAction,
       candidateHash: hashWorldJson('participant-visible-player-candidate-s1', {
         address: context.address,
@@ -510,7 +535,8 @@ export class RoundCoordinator {
   ): Promise<CommittedAcceptedRound> {
     const binding = this.#manifest.playerBindings.find(value => value.principalId === claimed.principalId)
     if (binding === undefined) throw new Error('admitted coordinated Round lost its PlayerBinding')
-    const action = parseClaimedPlayerAction(claimed.input)
+    const submission = parseClaimedPlayerSubmission(claimed.input)
+    const action = submission.action
     const identity = {
       address: this.#address,
       inboxSeq: claimed.inboxSeq,
@@ -568,10 +594,12 @@ export class RoundCoordinator {
       roundId,
       tick: head.tick + 1,
       playerAction,
+      ...(submission.manifestation === undefined ? {} : { playerManifestation: submission.manifestation }),
       candidateHash: hashWorldJson('world-player-candidate-s1', {
         baseHeadSeq: head.headSeq,
         baseTick: head.tick,
         playerAction,
+        ...(submission.manifestation === undefined ? {} : { playerManifestation: submission.manifestation }),
       }),
     }
     const frozen = await this.#freezeParticipants(
@@ -584,12 +612,15 @@ export class RoundCoordinator {
       playerBaseResolution.status,
       playerObservationScope.scope === 'scene_public',
     )
-    const ordered = this.#orderedActions(playerAction, frozen)
+    const ordered = this.#orderedActions(playerAction, frozen, submission.manifestation)
     const contextHash = hashWorldJson('round-proposal-context', {
       address: proposalContext.address,
       roundId: proposalContext.roundId,
       tick: proposalContext.tick,
       playerAction: proposalContext.playerAction,
+      ...(proposalContext.playerManifestation === undefined ? {} : {
+        playerManifestation: proposalContext.playerManifestation,
+      }),
       candidateHash: proposalContext.candidateHash,
     })
     const participants = [
@@ -597,8 +628,17 @@ export class RoundCoordinator {
         participantId: 'player', role: 'player', actorId: binding.characterId, terminalStatus: 'proposed',
         providerInvocationId: null, contextHash, profileVersion: null, budgetEvaluationId: null,
         modelReplayRecordHash: null, budgetReservationRecordHash: null,
-        responseHash: hashWorldJson('round-player-action-response', playerAction), proposalId: null,
-        proposalHash: hashWorldJson('round-player-proposal', { actions: [playerAction] }),
+        responseHash: submission.manifestation === undefined
+          ? hashWorldJson('round-player-action-response', playerAction)
+          : hashWorldJson('round-player-action-response', {
+            action: playerAction, manifestation: submission.manifestation,
+          }),
+        proposalId: null,
+        proposalHash: hashWorldJson('round-player-proposal', {
+          actions: [playerAction],
+          ...(submission.manifestation === undefined ? {} : { manifestation: submission.manifestation }),
+        }),
+        ...(submission.manifestation === undefined ? {} : { manifestation: submission.manifestation }),
       },
       ...frozen.map(value => {
         const proposalHash = hashWorldJson('round-participant-proposal', value.proposal)
@@ -930,7 +970,10 @@ export class RoundCoordinator {
     }
     return this.options.inbox.enqueue({
       address: this.#address, idempotencyKey: request.idempotencyKey, principalId: request.principalId,
-      input: request.action, correlationId: request.correlationId,
+      input: request.manifestation === undefined
+        ? request.action
+        : { action: request.action, manifestation: request.manifestation },
+      correlationId: request.correlationId,
     }, this.#manifest.roundQueueLimit)
   }
 
@@ -1412,7 +1455,11 @@ export class RoundCoordinator {
     )
   }
 
-  #orderedActions(playerAction: ActionRequest, frozen: readonly FrozenParticipant[]): OrderedAction[] {
+  #orderedActions(
+    playerAction: ActionRequest,
+    frozen: readonly FrozenParticipant[],
+    playerManifestation?: ManifestationProposal,
+  ): OrderedAction[] {
     const actions: OrderedAction[] = [{
       action: playerAction,
       sourceRole: 'player',
@@ -1421,6 +1468,7 @@ export class RoundCoordinator {
       actorId: playerAction.actorId,
       actionId: playerAction.actionId,
       proposalOrdinal: 0,
+      ...(playerManifestation === undefined ? {} : { manifestation: playerManifestation }),
     }]
     for (const participant of frozen) {
       for (const [proposalOrdinal, action] of participant.proposal.actions.entries()) {
@@ -1453,6 +1501,16 @@ export class RoundCoordinator {
     }
     const keys = Object.keys(request.action).sort(compareWorldText)
     if (keys.join(',') !== 'actionType,parameters') throw new TypeError('action must contain exactly actionType and parameters')
+    if (request.manifestation !== undefined) {
+      if (manifestationPolicyFromManifest(this.#manifest).mode !== 'enabled') {
+        failWorld({
+          errorCode: 'INVALID_REQUEST', category: 'admission',
+          message: 'player manifestation requires an enabled Manifest capability', retryable: false,
+          correlationId: request.correlationId, address: this.#address,
+        })
+      }
+      parseManifestationProposal(request.manifestation)
+    }
   }
 
   #buildReactionCycleDraft(

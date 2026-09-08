@@ -87,7 +87,8 @@ function boundedText(value: unknown, path: string, maximumBytes: number): string
   return parsed
 }
 
-function manifestation(value: unknown): ManifestationProposal {
+/** Strict shared parser for manifestation proposals from either model or manual-player adapters. */
+export function parseManifestationProposal(value: unknown): ManifestationProposal {
   const root = record(value, 'submit_actions.manifestation')
   exactWithOptional(root, ['cues'], ['description'], 'submit_actions.manifestation')
   if (!Array.isArray(root.cues) || root.cues.length === 0 || root.cues.length > 8) {
@@ -210,7 +211,7 @@ export class SubmitActionsValidator {
       if (root.decision !== 'act' && root.decision !== 'abstain') throw new TypeError('submit_actions.decision must be act or abstain')
       const parsedActions = actions(root.actions, authorization)
       if ((root.decision === 'act') !== (parsedActions.length > 0)) throw new TypeError('submit_actions decision and actions are inconsistent')
-      const parsedManifestation = root.manifestation === undefined ? undefined : manifestation(root.manifestation)
+      const parsedManifestation = root.manifestation === undefined ? undefined : parseManifestationProposal(root.manifestation)
       if (parsedManifestation !== undefined && parsedActions.length !== 1) {
         throw new TypeError('submit_actions manifestation requires exactly one Action')
       }

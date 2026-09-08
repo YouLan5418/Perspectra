@@ -42,6 +42,7 @@ import {
   RoundCoordinator,
   compareActionOrderKey,
   parseClaimedPlayerAction,
+  parseClaimedPlayerSubmission,
   sortActionOrderKeys,
   type ActionOrderKey,
   type RoundCoordinatorOptions,
@@ -547,6 +548,89 @@ describe('RoundCoordinator', () => {
       .toHaveProperty('manifestation')
     expect(firstAuthority.resolutions.find((value: any) => value.actionId === 'action:manifested-speech'))
       .toMatchObject({ manifestation: { status: 'accepted' } })
+    close(configured, coordinator)
+  })
+
+  it('commits manual-player manifestation and exposes it only through the authorized proposal context and observations', async () => {
+    const path = database('player-manifestation.sqlite')
+    const compiled = manifestationWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    let seen: ProposalContext | undefined
+    const npc: RoundParticipant = {
+      participantId: 'agent:player-witness', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
+      allowedActionTypes: ['speak'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+      provider: { async propose(context): Promise<SubmitActionsV3> {
+        seen = context
+        return { schemaVersion: 3, decision: 'abstain', actions: [] }
+      } },
+    }
+    const configured = options(path, compiled, [npc])
+    const coordinator = new RoundCoordinator({
+      ...configured,
+      sceneDecision: new SceneDecisionService(configured.store, configured.availability, 2),
+    })
+    const manifestation = {
+      description: '玩家皱了皱眉，避开 NPC 的视线。',
+      cues: [
+        { cueId: 'cue:player-frown', channel: 'facial', description: '皱了皱眉', persistence: 'event_only' },
+        { cueId: 'cue:player-gaze', channel: 'gaze', description: '避开 NPC 的视线', persistence: 'event_only' },
+      ],
+    } as const
+    const request = {
+      idempotencyKey: 'player-manifestation:first', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: '随你。' } }, manifestation,
+      correlationId: 'player-manifestation:first',
+    } as const
+    const result = await coordinator.submit(request)
+    expect(result.status).toBe('accepted')
+    expect(seen?.playerManifestation).toEqual(manifestation)
+    const manifested = configured.store.readEvents(compiled.manifest.address)
+      .find(event => event.eventType === 'character.manifested')!
+    expect(manifested.data).toMatchObject({ characterId: 'character:player', description: manifestation.description })
+    const authority = configured.store.readRoundAuthority(
+      compiled.manifest.address, manifested.transactionId,
+    )!.authority as any
+    expect(authority.participants.find((value: any) => value.participantId === 'player'))
+      .toMatchObject({ manifestation })
+    expect(authority.actions[0]).toMatchObject({ sourceRole: 'player', manifestation })
+    expect(authority.resolutions[0]).toMatchObject({ manifestation: { status: 'accepted' } })
+    expect(configured.store.readEvents(compiled.manifest.address).filter(event => event.eventType === 'observation.upsert'))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ data: expect.objectContaining({ value: expect.objectContaining({
+          content: expect.objectContaining({ manifestation: expect.objectContaining({ characterId: 'character:player' }) }),
+        }) }) }),
+      ]))
+    await expect(coordinator.submit(request)).resolves.toEqual(result)
+    expect(() => coordinator.submit({
+      ...request,
+      manifestation: { ...manifestation, description: '同键改写表现。' },
+      correlationId: 'player-manifestation:diverged',
+    })).toThrow('different player input')
+    close(configured, coordinator)
+  })
+
+  it('rejects player manifestation without capability and malformed durable wrappers fail closed', () => {
+    const compiled = phase8ReflectionWorld()
+    const path = database('player-manifestation-disabled.sqlite')
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const configured = options(path, compiled)
+    const coordinator = new RoundCoordinator(configured)
+    const request = {
+      idempotencyKey: 'player-manifestation:disabled', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: '随你。' } },
+      manifestation: { cues: [{ cueId: 'cue:1', channel: 'facial', description: '皱眉', persistence: 'event_only' }] },
+      correlationId: 'player-manifestation:disabled',
+    } as const
+    expect(() => coordinator.submit(request)).toThrow('enabled Manifest capability')
+    expect(() => parseClaimedPlayerSubmission(null)).toThrow('must be an object')
+    expect(() => parseClaimedPlayerSubmission({ action: request.action })).toThrow('invalid shape')
+    expect(() => parseClaimedPlayerSubmission({ action: request.action, manifestation: { cues: [] } }))
+      .toThrow('between 1 and 8')
+    expect(parseClaimedPlayerSubmission(request.action)).toEqual({ action: request.action })
     close(configured, coordinator)
   })
 

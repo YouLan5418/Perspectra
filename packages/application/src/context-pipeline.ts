@@ -346,10 +346,14 @@ export class Phase8ContextPipeline {
     heartbeat: () => void,
     excludedStimulus?: ActionRequest,
   ): PreparedPhase8Participant {
+    const stimulus = context.playerManifestation === undefined
+      ? context.playerAction
+      : { action: context.playerAction, manifestation: context.playerManifestation }
     const prepared = this.options.memory.prepare({
       address: context.address, roundId: context.roundId, tick: context.tick,
       participantId: binding.participantId, characterId: binding.actorId, asOfWorldSeq,
       playerAction: context.playerAction, candidateHash: context.candidateHash,
+      ...(context.playerManifestation === undefined ? {} : { playerManifestation: context.playerManifestation }),
       allowedActionTypes: binding.allowedActionTypes, sceneDecision: decision,
       correlationId: `context:${context.roundId}:${binding.participantId}`, heartbeat,
     })
@@ -383,7 +387,7 @@ export class Phase8ContextPipeline {
       characterAnchor: character,
       characterView: prepared.characterView, cognition, checkpoint, tail, sceneDecision: scene,
       sceneSourceRefs: sceneRefs, recallPlan: prepared.recallPlan, recall: prepared.recall,
-      stimulus: context.playerAction, stimulusHash: hashWorldJson('context-stimulus/v1', context.playerAction),
+      stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', stimulus),
       affordances, affordanceHash,
       runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
       correlationId: `context:${context.roundId}:${binding.participantId}`,

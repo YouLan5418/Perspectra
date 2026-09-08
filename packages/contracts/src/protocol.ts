@@ -248,6 +248,8 @@ export interface ProposalContext {
   readonly roundId: InteractionRoundId
   readonly tick: number
   readonly playerAction: ActionRequest
+  /** Present only when an authorized observer may see the player's proposed outward performance. */
+  readonly playerManifestation?: import('./cognition-projection.ts').ManifestationProposal
   readonly candidateHash: WorldHash
 }
 
