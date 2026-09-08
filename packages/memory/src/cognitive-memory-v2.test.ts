@@ -103,6 +103,54 @@ function plan(characterId: CharacterId, query: string, asOfWorldSeq = 8, planId 
 }
 
 describe('Cognitive Memory v2', () => {
+  it('captures only committed, observer-scoped manifestation content without promoting private affect', async () => {
+    const path = paths()
+    const world = new WorldStore(path.world)
+    world.createBranch(address())
+    await commit(world, 'manifestation-observations', [
+      { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
+      { eventType: 'character.created', eventVersion: 1, data: { characterId: bob, locationId: 'location:road' } },
+      { eventType: 'observation.upsert', eventVersion: 1, data: {
+        id: 'observation:alice:manifested-speech', value: { observerId: alice, content: {
+          actionType: 'speak', actorId: bob,
+          speech: { characterId: bob, text: '我没事。' },
+          manifestation: {
+            characterId: bob, description: 'Bob 避开视线，声音发颤。',
+            cues: [
+              { cueId: 'cue:gaze', channel: 'gaze', description: '避开视线', persistence: 'event_only' },
+              { cueId: 'cue:voice', channel: 'voice', description: '声音发颤', persistence: 'event_only' },
+            ],
+          },
+        } },
+      } },
+      { eventType: 'observation.upsert', eventVersion: 1, data: {
+        id: 'observation:alice:manifested-only', value: { observerId: alice, content: {
+          actionType: 'move', actorId: bob,
+          manifestation: {
+            characterId: bob, description: null,
+            cues: [{ cueId: 'cue:posture', channel: 'posture', description: '抱起双臂', persistence: 'event_only' }],
+          },
+        } },
+      } },
+    ])
+    const memory = new LocalMemoryStore(path.memory, world)
+    memory.catchUpV2(address(), alice, 4, 'catchup:manifestation:alice')
+    expect(memory.recallV2(plan(alice, '声音发颤', 4)).memories).toMatchObject([{
+      memoryKind: 'communication', epistemicKind: 'reported_speech',
+      text: 'character:bob said: 我没事。; character:bob appeared: Bob 避开视线，声音发颤。',
+      metadata: { manifestation: { characterId: bob } },
+    }])
+    expect(memory.recallV2(plan(alice, '抱起双臂', 4)).memories).toMatchObject([{
+      memoryKind: 'episodic', epistemicKind: 'direct_observation',
+      text: 'character:bob appeared: 抱起双臂',
+    }])
+    memory.catchUpV2(address(), bob, 4, 'catchup:manifestation:bob')
+    expect(memory.recallV2(plan(bob, '声音发颤', 4)).memories).toEqual([])
+    expect(JSON.stringify(memory.recallV2(plan(alice, '声音发颤', 4)).memories)).not.toContain('jealousy')
+    memory.close()
+    world.close()
+  })
+
   it('captures the frozen subjective inference and self intention observation kinds', async () => {
     const path = paths()
     const world = new WorldStore(path.world)

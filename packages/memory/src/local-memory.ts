@@ -253,6 +253,38 @@ function canonicalText(value: WorldJsonValue): string {
   return typeof value === 'string' ? value : Buffer.from(canonicalizeWorldJson(value)).toString('utf8')
 }
 
+function observedManifestation(
+  value: WorldJsonValue | undefined,
+  path: string,
+): { readonly characterId: string; readonly text: string; readonly value: WorldJsonObject } | undefined {
+  if (value === undefined) return undefined
+  const manifestation = objectValue(value, path)
+  if (typeof manifestation.characterId !== 'string' || manifestation.characterId.length === 0) {
+    throw new Error('manifestation observation requires characterId')
+  }
+  if (manifestation.description !== null && manifestation.description !== undefined
+    && typeof manifestation.description !== 'string') {
+    throw new Error('manifestation observation description must be string or null')
+  }
+  if (!Array.isArray(manifestation.cues) || manifestation.cues.length === 0) {
+    throw new Error('manifestation observation requires accepted cues')
+  }
+  const cueDescriptions = manifestation.cues.map((entry, index) => {
+    const cue = objectValue(entry, `${path}.cues[${index}]`)
+    if (typeof cue.description !== 'string' || cue.description.length === 0) {
+      throw new Error('manifestation observation cue requires description')
+    }
+    return cue.description
+  })
+  return {
+    characterId: manifestation.characterId,
+    text: typeof manifestation.description === 'string'
+      ? manifestation.description
+      : cueDescriptions.join('；'),
+    value: manifestation,
+  }
+}
+
 function orderedSources(values: readonly CognitiveSourceCandidate[]): CognitiveSourceCandidate[] {
   // One authoritative World Event can produce at most one captured record for one character.
   return [...values].sort((left, right) => left.sourceRef.sourceSeq - right.sourceRef.sourceSeq)
@@ -758,6 +790,10 @@ export class LocalMemoryStore {
           ? content as WorldJsonObject
           : undefined
         const speechValue = contentObject?.speech
+        const manifestation = observedManifestation(
+          contentObject?.manifestation,
+          `observation.upsert@${event.seq}.value.content.manifestation`,
+        )
         let memoryKind: CognitiveMemoryKind = 'episodic'
         let epistemicKind: Exclude<CognitiveEpistemicKind, 'derived_summary'>
         let text = canonicalText(content)
@@ -770,7 +806,16 @@ export class LocalMemoryStore {
           memoryKind = 'communication'
           epistemicKind = 'reported_speech'
           text = `${speech.characterId} said: ${speech.text}`
-          metadata = { observationId: data.id, speakerId: speech.characterId }
+            + (manifestation === undefined ? '' : `; ${manifestation.characterId} appeared: ${manifestation.text}`)
+          metadata = {
+            observationId: data.id,
+            speakerId: speech.characterId,
+            ...(manifestation === undefined ? {} : { manifestation: manifestation.value }),
+          }
+        } else if (manifestation !== undefined) {
+          epistemicKind = 'direct_observation'
+          text = `${manifestation.characterId} appeared: ${manifestation.text}`
+          metadata = { observationId: data.id, manifestation: manifestation.value }
         } else {
           const declared = value.epistemicKind
           if (declared !== undefined && !EPISODIC_OBSERVATION_KINDS.has(declared as CognitiveEpistemicKind)) {
