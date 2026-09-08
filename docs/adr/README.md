@@ -65,3 +65,4 @@
 | [0081](ADR-0081-deployment-backup-restore-set.md) | 多库部署备份与恢复集合 | 五库制品、部署静默屏障、双向水位校验与只恢复到全新空目录 |
 | [0082](ADR-0082-quarantine-unreadable-reaction-ledger.md) | 损坏 Reaction 账本的紧急隔离 | 保留损坏证据但仍封锁 Branch；不伪造 Cycle 终态，恢复必须重新校验 |
 | [0083](ADR-0083-manifestation-observable-expression.md) | 角色外显表现、观察传播与可见状态 | submit_actions/v3 显式启用；表现独立裁定后进入 Event、Observation、Memory 与可见状态 |
+| [0084](ADR-0084-player-manifestation-input.md) | 玩家自然语言外显表现输入 | 人工玩家可在唯一 Action 旁提交同构表现；翻译器不可信且不得绕过 Authority |
