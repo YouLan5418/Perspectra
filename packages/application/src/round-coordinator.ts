@@ -5,6 +5,7 @@ import {
   ProviderCallStore,
   ProviderQualityStore,
   SafeAgentRunner,
+  type ManifestationProposalEnvelope,
   type ProviderCallRecord,
   type ProviderQualityDecision,
 } from '@harness-world/agents'
@@ -23,8 +24,10 @@ import {
   type ContextReceipt,
   type FaultInjector,
   type SubmitActionsV2,
+  type SubmitActionsV3,
   type CharacterId,
   type InteractionRoundId,
+  type ManifestationProposal,
   type OutboxDraft,
   type Proposal,
   type ProposalContext,
@@ -42,9 +45,11 @@ import {
   createCoreRulebookRegistry,
   currentCharacterLifecycle,
   manifestUsesPhase8Contracts,
+  manifestationPolicyFromManifest,
   parsePlayerActionInput,
   parsePlayerRoundResult,
   reactionPolicyFromManifest,
+  resolveManifestation,
   runtimeManifestFromStored,
   type CompiledWorldManifest,
   type PlayerActionInput,
@@ -79,7 +84,7 @@ export interface RoundParticipant {
   readonly priority: number
   readonly estimatedTokens: number
   readonly timeoutMs: number
-  readonly provider: { propose(context: ProposalContext): Promise<Proposal | SubmitActionsV2> }
+  readonly provider: { propose(context: ProposalContext): Promise<Proposal | SubmitActionsV2 | SubmitActionsV3> }
 }
 
 export interface ReactionParticipantDraftBinding {
@@ -144,10 +149,12 @@ export interface RoundAcceptedResult {
   readonly idempotencyKey: string
 }
 
+type CharacterProposal = Proposal & ManifestationProposalEnvelope
+
 interface FrozenParticipant {
   readonly binding: RoundParticipant
   readonly status: ParticipantTerminalStatus
-  readonly proposal: Proposal
+  readonly proposal: CharacterProposal
   readonly cognitive?: {
     readonly contextHash: ReturnType<typeof hashWorldJson>
     readonly memorySourceRefs: readonly MemorySourceRef[]
@@ -178,6 +185,7 @@ interface OrderedAction extends ActionOrderKey {
   readonly participantId: string
   /** Position in the participant's validated Proposal before global resolution ordering. */
   readonly proposalOrdinal: number
+  readonly manifestation?: ManifestationProposal
 }
 
 const roleRank = { player: 0, agent: 1, director: 2 } as const
@@ -629,6 +637,9 @@ export class RoundCoordinator {
               stateHash: value.providerQuality.state.stateHash,
             },
           }),
+          ...(value.proposal.manifestation === undefined ? {} : {
+            manifestation: value.proposal.manifestation,
+          }),
         }
       }),
     ]
@@ -641,6 +652,7 @@ export class RoundCoordinator {
       actionVersion: item.action.actionVersion,
       parameters: item.action.parameters,
       proposalOrdinal: item.proposalOrdinal,
+      ...(item.manifestation === undefined ? {} : { manifestation: item.manifestation }),
       orderKey: {
         phase: item.sourceRole === 'player' ? 0 : 1,
         roleRank: roleRank[item.sourceRole],
@@ -697,6 +709,20 @@ export class RoundCoordinator {
           ],
         }
         : baseResolution
+      const manifestation = item.manifestation === undefined ? undefined : {
+        proposal: item.manifestation,
+        resolution: resolveManifestation({
+          roundId,
+          actionId: item.action.actionId,
+          actorId: item.action.actorId,
+          manifestation: item.manifestation,
+          events: actionPrefix,
+        }),
+      }
+      const manifestationResolution = manifestation?.resolution
+      const resolvedEvents = manifestationResolution === undefined
+        ? resolution.events
+        : [...resolution.events, ...manifestationResolution.events]
       const phase8Audience = this.options.sceneDecision?.version === 2
         ? this.options.sceneDecision.audienceForAction(
           this.#address,
@@ -717,14 +743,15 @@ export class RoundCoordinator {
         action: item.action,
         status: resolution.status,
         reason: resolution.reason ?? null,
-        events: resolution.events,
+        events: resolvedEvents,
+        ...(manifestation === undefined ? {} : { manifestation }),
         ...(this.options.sceneDecision?.version !== 2 ? {} : {
           observationScope: resolution.observationScope ?? { scope: 'scene_public' },
         }),
       })
-      candidateHash = resolution.status === 'accepted'
+      candidateHash = resolution.status === 'accepted' || (manifestationResolution?.events.length ?? 0) > 0
         ? hashWorldJson('round-candidate-after-resolution', {
-          candidateHashBefore, actionId: item.action.actionId, events: resolution.events, ruleTraceHash,
+          candidateHashBefore, actionId: item.action.actionId, events: resolvedEvents, ruleTraceHash,
         })
         : candidateHashBefore
       resolutions.push({
@@ -737,9 +764,10 @@ export class RoundCoordinator {
         ruleTraceHash,
         entropyRefs: [],
         conflictingActionId: null,
+        ...(manifestationResolution === undefined ? {} : { manifestation: manifestationResolution }),
       })
       if (item.sourceRole === 'player') playerResolution = resolution
-      events.push(...resolution.events, {
+      events.push(...resolvedEvents, {
         eventType: 'action.resolved',
         eventVersion: 1,
         data: {
@@ -752,12 +780,14 @@ export class RoundCoordinator {
           order: ordinal,
           accepted: resolution.status === 'accepted',
           reason: resolution.reason ?? null,
+          ...(manifestationResolution === undefined ? {} : { manifestationStatus: manifestationResolution.status }),
         },
       })
       const publicSpeech = (this.#manifest.rulebook.version >= 4
         || this.#manifest.contentPack?.runtimeCapabilities.publicSpeechObservationVersion === 1)
         ? resolution.events.find(event => event.eventType === 'character.speak')
         : undefined
+      const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
       const occurrenceOnly = new Set(phase8Audience?.occurrenceOnlyCharacterIds ?? [])
       const observerIds = phase8Audience === undefined
         ? this.options.sceneDecision?.decideFromEvents(
@@ -782,6 +812,7 @@ export class RoundCoordinator {
             status: resolution.status,
             reason: resolution.reason ?? null,
             ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
+            ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
           },
         }
         reactionStimuli.push({
@@ -1021,15 +1052,15 @@ export class RoundCoordinator {
       let providerCall = cognitive?.receipt === undefined || this.options.providerCalls === undefined
         ? undefined
         : this.options.providerCalls.prepare(cognitive.receipt)
-      let providerOutput: Proposal | SubmitActionsV2 | undefined
+      let providerOutput: Proposal | SubmitActionsV2 | SubmitActionsV3 | undefined
       if (providerCall?.state === 'dispatch_started') {
         providerCall = this.options.providerCalls!.markTerminal(providerCall.modelCallId, 'timed_out_ambiguous', {
           reason: 'provider dispatch had no durable terminal result',
         })
       } else if (providerCall?.state === 'response_received') {
-        providerOutput = providerCall.response as Proposal | SubmitActionsV2
+        providerOutput = providerCall.response as Proposal | SubmitActionsV2 | SubmitActionsV3
       } else if (providerCall?.state === 'validated') {
-        providerOutput = providerCall.proposal as Proposal | SubmitActionsV2
+        providerOutput = providerCall.proposal as Proposal | SubmitActionsV2 | SubmitActionsV3
       }
       if (providerCall !== undefined && !['prepared', 'response_received', 'validated'].includes(providerCall.state)) {
         let failure = participantFailureForCallState[providerCall.state]!
@@ -1095,13 +1126,16 @@ export class RoundCoordinator {
           maxActions: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumExternalActions,
           correlationId: `coordinator:${context.roundId}:${binding.participantId}`,
         }
-        let proposal: Proposal
+        let proposal: CharacterProposal
         let reflection: FrozenParticipant['reflection']
         if (manifestUsesPhase8Contracts(this.#manifest) && binding.role === 'agent') {
-          const validated = this.#validator.validateV2(providerOutput, {
+          const validatorAuthorization = {
             ...authorization,
             maxReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
-          })
+          }
+          const validated = manifestationPolicyFromManifest(this.#manifest).mode === 'enabled'
+            ? this.#validator.validateV3(providerOutput, validatorAuthorization)
+            : this.#validator.validateV2(providerOutput, validatorAuthorization)
           proposal = validated.proposal
           if (validated.reflectionOperations !== undefined && providerQuality?.reflectionMode !== 'suspended') {
             if (cognitive?.receipt === undefined || cognitive.cognition === undefined) {
@@ -1184,7 +1218,7 @@ export class RoundCoordinator {
   #frozen(
     binding: RoundParticipant,
     status: ParticipantTerminalStatus,
-    proposal: Proposal,
+    proposal: CharacterProposal,
     cognitive?: FrozenParticipant['cognitive'],
     availabilityTransition?: FrozenParticipant['availabilityTransition'],
     reflection?: FrozenParticipant['reflection'],
@@ -1398,6 +1432,9 @@ export class RoundCoordinator {
           actorId: action.actorId,
           actionId: action.actionId,
           proposalOrdinal,
+          ...(participant.proposal.manifestation === undefined ? {} : {
+            manifestation: participant.proposal.manifestation,
+          }),
         })
       }
     }

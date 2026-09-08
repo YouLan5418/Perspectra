@@ -14,9 +14,11 @@ import {
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldBootstrap } from './world-bootstrap.ts'
 import {
+  manifestationManifestRegistries,
   reactionPolicyFromManifest,
   manifestationPolicyFromManifest,
   manifestUsesPhase8Contracts,
+  phase8ManifestRegistries,
   runtimeManifestFromStored,
   runtimeManifestFromStoredRecord,
   WorldSpecCompiler,
@@ -229,6 +231,13 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     expect(reactionPolicyFromManifest(v6)).toBe(responsivePolicy)
     expect(manifestationPolicyFromManifest(v6)).toBe(enabledManifestation)
     expect(manifestUsesPhase8Contracts(v6)).toBe(true)
+    const manifestationRegistries = manifestationManifestRegistries()
+    expect(manifestationRegistries.events.definitions.map(value => value.name)).toEqual(expect.arrayContaining([
+      'character.manifested', 'character.visible-state-removed', 'character.visible-state-upserted',
+    ]))
+    expect(manifestationRegistries.projections.definitions.map(value => value.name))
+      .toContain('character-visible-state')
+    expect(manifestationRegistries.actions).toEqual(phase8ManifestRegistries().actions)
     expect(runtimeManifestFromStored({
       ...v6,
       manifestationPolicy: { version: 'manifestation-policy/v1', mode: 'disabled' },

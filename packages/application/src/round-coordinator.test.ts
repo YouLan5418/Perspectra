@@ -23,11 +23,13 @@ import {
   type Proposal,
   type ProposalContext,
   type SubmitActionsV2,
+  type SubmitActionsV3,
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
   currentEntityState,
+  manifestationManifestRegistries,
   phase8ManifestRegistries,
   RulebookRegistry,
   WorldBootstrap,
@@ -194,6 +196,22 @@ function phase8ReflectionWorld(): CompiledWorldSpec {
   return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
 }
 
+function manifestationWorld(): CompiledWorldSpec {
+  const base = phase8ReflectionWorld()
+  const manifest = {
+    ...base.manifest,
+    schemaVersion: 6 as const,
+    registries: manifestationManifestRegistries(),
+    reactionPolicy: { version: 'reaction-policy/v1' as const, mode: 'disabled' as const },
+    manifestationPolicy: { version: 'manifestation-policy/v1' as const, mode: 'enabled' as const },
+  }
+  const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+  const genesisEvents = base.genesisEvents.map(value => value.eventType === 'world.manifest-locked'
+    ? { ...value, data: { ...(value.data as WorldJsonObject), manifestHash } }
+    : value)
+  return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
+}
+
 function lane(compiled: CompiledWorldSpec): RoundExecutionLane {
   let tail: Promise<void> = Promise.resolve()
   return {
@@ -265,8 +283,8 @@ function options(
   const inbox = new RoundInbox(path, now)
   const leases = new WriterLeaseService(path, now)
   const availability = new CharacterRuntimeAvailabilityService(path, now)
-  const providerCalls = compiled.manifest.schemaVersion === 4 ? new ProviderCallStore(`${path}.context.sqlite`) : undefined
-  const providerQuality = compiled.manifest.schemaVersion === 4 ? new ProviderQualityStore(`${path}.context.sqlite`, now) : undefined
+  const providerCalls = compiled.manifest.schemaVersion >= 4 ? new ProviderCallStore(`${path}.context.sqlite`) : undefined
+  const providerQuality = compiled.manifest.schemaVersion >= 4 ? new ProviderQualityStore(`${path}.context.sqlite`, now) : undefined
   if (store.readManifest(compiled.manifest.address) !== undefined) {
     availability.initialize(compiled.manifest.address, compiled.manifest.characters.map(value => ({ characterId: value.characterId, state: 'ready' })))
   }
@@ -448,6 +466,88 @@ describe('RoundCoordinator', () => {
     expect(forCharacter('character:other')[1]!.content).not.toHaveProperty('reason')
     expect(JSON.stringify(forCharacter('character:player')[1])).toContain('private reply')
     expect(JSON.stringify(forCharacter('character:player')[1])).toContain('PRIVATE_REASON_CANARY')
+  })
+
+  it('commits v3 manifestation authority, observable facts, state transitions, and independent action outcomes', async () => {
+    const path = database('manifestation-v3.sqlite')
+    const compiled = manifestationWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    let call = 0
+    const npc: RoundParticipant = {
+      participantId: 'agent:manifestation', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
+      allowedActionTypes: ['speak', 'move'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+      provider: {
+        async propose(): Promise<SubmitActionsV3> {
+          call += 1
+          return call === 1 ? {
+            schemaVersion: 3, decision: 'act',
+            actions: [{
+              actionId: 'action:manifested-speech', actorId: 'character:npc',
+              actionType: 'speak', actionVersion: 1, parameters: { text: '随你。' },
+            }],
+            manifestation: {
+              description: 'NPC 抱起双臂，避开玩家的视线，冷淡地开口。',
+              cues: [
+                { cueId: 'cue:gaze', channel: 'gaze', description: '避开玩家的视线', persistence: 'event_only' },
+                {
+                  cueId: 'cue:posture', channel: 'posture', description: '抱起双臂', persistence: 'until_changed',
+                  stateKey: 'posture:arms-crossed', operation: 'set',
+                },
+              ],
+            },
+          } : {
+            schemaVersion: 3, decision: 'act',
+            actions: [{
+              actionId: 'action:rejected-move', actorId: 'character:npc',
+              actionType: 'move', actionVersion: 1, parameters: { locationId: 'location:missing' },
+            }],
+            manifestation: {
+              cues: [{ cueId: 'cue:frown', channel: 'facial', description: '皱了皱眉', persistence: 'event_only' }],
+            },
+          }
+        },
+      },
+    }
+    const configured = options(path, compiled, [npc])
+    const coordinator = new RoundCoordinator({
+      ...configured,
+      sceneDecision: new SceneDecisionService(configured.store, configured.availability, 2),
+    })
+    await coordinator.submit({
+      idempotencyKey: 'manifestation:first', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: '发生了什么？' } }, correlationId: 'manifestation:first',
+    })
+    await coordinator.submit({
+      idempotencyKey: 'manifestation:rejected-action', principalId: 'principal:player',
+      action: { actionType: 'speak', parameters: { text: '去不存在的地方。' } }, correlationId: 'manifestation:second',
+    })
+    const history = configured.store.readEvents(compiled.manifest.address)
+    const manifested = history.filter(value => value.eventType === 'character.manifested')
+    expect(manifested).toHaveLength(2)
+    expect(history).toEqual(expect.arrayContaining([
+      expect.objectContaining({ eventType: 'character.visible-state-upserted' }),
+    ]))
+    const rejectedMove = history.find(value => value.eventType === 'action.resolved'
+      && (value.data as WorldJsonObject).actionId === 'action:rejected-move')!
+    expect(rejectedMove.data).toMatchObject({ accepted: false, manifestationStatus: 'accepted' })
+    const fullObservation = history.find(value => value.eventType === 'observation.upsert'
+      && JSON.stringify(value.data).includes('action:manifested-speech')
+      && JSON.stringify(value.data).includes('character:player'))!
+    expect(fullObservation.data).toMatchObject({ value: { content: { manifestation: {
+      description: 'NPC 抱起双臂，避开玩家的视线，冷淡地开口。',
+    } } } })
+    const firstAuthority = configured.store.readRoundAuthority(
+      compiled.manifest.address, manifested[0]!.transactionId,
+    )!.authority as any
+    expect(firstAuthority.participants.find((value: any) => value.participantId === npc.participantId))
+      .toHaveProperty('manifestation')
+    expect(firstAuthority.actions.find((value: any) => value.actionId === 'action:manifested-speech'))
+      .toHaveProperty('manifestation')
+    expect(firstAuthority.resolutions.find((value: any) => value.actionId === 'action:manifested-speech'))
+      .toMatchObject({ manifestation: { status: 'accepted' } })
+    close(configured, coordinator)
   })
 
   it('reports a durably claimed Round as processing without executing it again', () => {

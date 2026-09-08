@@ -446,6 +446,25 @@ export function phase8ManifestRegistries(): ManifestRegistries {
   }
 }
 
+/** Manifest V6 registries extend the frozen Phase 8 set without rewriting any V4/V5 hash. */
+export function manifestationManifestRegistries(): ManifestRegistries {
+  const phase8 = phase8ManifestRegistries()
+  return {
+    events: registry('event', [
+      ...phase8.events.definitions.map(value => value.name),
+      'character.manifested',
+      'character.visible-state-removed',
+      'character.visible-state-upserted',
+    ]),
+    actions: phase8.actions,
+    projections: registry('projection', [
+      ...phase8.projections.definitions.map(value => value.name),
+      'character-visible-state',
+    ]),
+    rules: phase8.rules,
+  }
+}
+
 /** Pure compatibility upcast. It never mutates or re-hashes an already stored event. */
 export function upcastWorldSpecV1(input: Record<string, unknown>): Record<string, unknown> {
   exactKeys(input, ['schemaVersion', 'address', 'timeMode', 'roundQueueLimit', 'rulebook', 'locations', 'characters', 'playerBindings', 'plugins'], 'WorldSpecV1')
