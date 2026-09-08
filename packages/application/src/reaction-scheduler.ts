@@ -3,6 +3,7 @@ import {
   ProviderCallStore,
   SafeAgentRunner,
   SubmitActionsValidator,
+  type ManifestationProposalEnvelope,
   type ProviderCallRecord,
 } from '@harness-world/agents'
 import {
@@ -29,6 +30,8 @@ import {
   type ReactionWaveSettlementDraft,
   type StoredReactionCycleBundle,
   type SubmitActionsV2,
+  type SubmitActionsV3,
+  type ManifestationProposal,
   type TransactionId,
   type WorldAddress,
   type WorldEventDraft,
@@ -38,6 +41,8 @@ import {
 } from '@harness-world/contracts'
 import {
   currentCharacterLifecycle,
+  manifestationPolicyFromManifest,
+  resolveManifestation,
   type CompiledWorldManifest,
   type RulebookRegistry,
   type RulebookResolver,
@@ -116,13 +121,15 @@ interface PreparedJob {
   readonly unavailableReason?: string
 }
 
+type ReactionCharacterProposal = Proposal & ManifestationProposalEnvelope
+
 interface ExecutedJob {
   readonly job: ClaimedReactionJob
   readonly binding?: ReactionParticipantBinding
   readonly prepared?: PreparedPhase8ReactionParticipant
   readonly providerCall?: ProviderCallRecord
   readonly outcome: 'abstained' | 'proposed' | 'provider_terminal' | 'runtime_unavailable'
-  readonly proposal: Proposal
+  readonly proposal: ReactionCharacterProposal
 }
 
 interface OrderedReactionAction {
@@ -134,6 +141,7 @@ interface OrderedReactionAction {
   readonly actionId: string
   readonly action: ActionRequest
   readonly proposalOrdinal: number
+  readonly manifestation?: ManifestationProposal
 }
 
 interface BuiltReactionRound {
@@ -453,15 +461,15 @@ export class ReactionScheduler {
       return { ...prepared, outcome: 'runtime_unavailable', proposal: empty }
     }
     let providerCall = prepared.providerCall
-    let output: SubmitActionsV2 | undefined
+    let output: SubmitActionsV2 | SubmitActionsV3 | undefined
     if (providerCall.state === 'dispatch_started') {
       providerCall = this.options.providerCalls.markTerminal(providerCall.modelCallId, 'timed_out_ambiguous', {
         reason: 'Reaction Provider dispatch had no durable response',
       })
     } else if (providerCall.state === 'response_received') {
-      output = providerCall.response as SubmitActionsV2
+      output = providerCall.response as SubmitActionsV2 | SubmitActionsV3
     } else if (providerCall.state === 'validated') {
-      output = providerCall.proposal as SubmitActionsV2
+      output = providerCall.proposal as SubmitActionsV2 | SubmitActionsV3
     }
     if (providerCall.state === 'committed') {
       failWorld({
@@ -500,14 +508,17 @@ export class ReactionScheduler {
     }
     const replayingValidated = providerCall.state === 'validated'
     try {
-      const validated = this.#validator.validateV2(output, {
+      const authorization = {
         participantId: prepared.binding.participantId,
         actorId: prepared.binding.actorId,
         allowedActionTypes: ['speak'],
         maxActions: 1,
         maxReflectionOperations: 0,
         correlationId: `reaction:${prepared.job.cycleId}:${prepared.job.wave}:${prepared.job.jobId}`,
-      })
+      }
+      const validated = manifestationPolicyFromManifest(this.options.manifest).mode === 'enabled'
+        ? this.#validator.validateV3(output, authorization)
+        : this.#validator.validateV2(output, authorization)
       providerCall = this.options.providerCalls.markValidated(providerCall.modelCallId, output)
       return {
         ...prepared,
@@ -550,6 +561,7 @@ export class ReactionScheduler {
       actionId: action.actionId,
       action,
       proposalOrdinal,
+      ...(value.proposal.manifestation === undefined ? {} : { manifestation: value.proposal.manifestation }),
     }))))
     if (new Set(actions.map(value => value.actionId)).size !== actions.length) {
       throw new TypeError('Reaction actionId values must be unique within one Wave')
@@ -584,6 +596,20 @@ export class ReactionScheduler {
         characterId: item.action.actorId,
         action: { actionType: item.action.actionType, parameters: item.action.parameters },
       })
+      const manifestation = item.manifestation === undefined ? undefined : {
+        proposal: item.manifestation,
+        resolution: resolveManifestation({
+          roundId,
+          actionId: item.action.actionId,
+          actorId: item.action.actorId,
+          manifestation: item.manifestation,
+          events: actionPrefix,
+        }),
+      }
+      const manifestationResolution = manifestation?.resolution
+      const resolvedEvents = manifestationResolution === undefined
+        ? resolution.events
+        : [...resolution.events, ...manifestationResolution.events]
       const audience = this.options.sceneDecision.audienceForAction(
         this.options.address,
         item.action.actorId,
@@ -606,12 +632,13 @@ export class ReactionScheduler {
         action: item.action,
         status: resolution.status,
         reason: resolution.reason ?? null,
-        events: resolution.events,
+        events: resolvedEvents,
+        ...(manifestation === undefined ? {} : { manifestation }),
         observationScope: resolution.observationScope ?? { scope: 'scene_public' },
       })
-      candidateHash = resolution.status === 'accepted'
+      candidateHash = resolution.status === 'accepted' || (manifestationResolution?.events.length ?? 0) > 0
         ? hashWorldJson('round-candidate-after-resolution', {
-          candidateHashBefore, actionId: item.action.actionId, events: resolution.events, ruleTraceHash,
+          candidateHashBefore, actionId: item.action.actionId, events: resolvedEvents, ruleTraceHash,
         })
         : candidateHashBefore
       authorityActions.push({
@@ -623,6 +650,7 @@ export class ReactionScheduler {
         actionVersion: item.action.actionVersion,
         parameters: item.action.parameters,
         proposalOrdinal: item.proposalOrdinal,
+        ...(item.manifestation === undefined ? {} : { manifestation: item.manifestation }),
         orderKey,
       })
       resolutions.push({
@@ -635,18 +663,21 @@ export class ReactionScheduler {
         ruleTraceHash,
         entropyRefs: [],
         conflictingActionId: null,
+        ...(manifestationResolution === undefined ? {} : { manifestation: manifestationResolution }),
       })
       outcomeByJob.set(item.jobId, resolution.status === 'accepted' ? 'proposed' : 'rejected')
-      events.push(...resolution.events, {
+      events.push(...resolvedEvents, {
         eventType: 'action.resolved', eventVersion: 1,
         data: {
           roundId, actionId: item.action.actionId, participantId: item.participantId,
           actorId: item.action.actorId, actionType: item.action.actionType,
           sourceRole: 'agent', order: ordinal, accepted: resolution.status === 'accepted',
           reason: resolution.reason ?? null,
+          ...(manifestationResolution === undefined ? {} : { manifestationStatus: manifestationResolution.status }),
         },
       })
       const publicSpeech = resolution.events.find(event => event.eventType === 'character.speak')
+      const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
       const occurrenceOnly = new Set(audience.occurrenceOnlyCharacterIds)
       const observerIds = [...new Set([
         ...audience.fullContentCharacterIds,
@@ -666,6 +697,7 @@ export class ReactionScheduler {
             actionType: item.action.actionType, actorId: item.action.actorId,
             status: resolution.status, reason: resolution.reason ?? null,
             ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
+            ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
           },
         }
         const sourceEventOrdinal = events.length
@@ -730,6 +762,7 @@ export class ReactionScheduler {
           providerRequestHash: value.prepared.receipt.providerRequestHash,
         }),
         ...(value.providerCall === undefined ? {} : { providerCallState: value.providerCall.state }),
+        ...(value.proposal.manifestation === undefined ? {} : { manifestation: value.proposal.manifestation }),
       }
     })
     const authority = {

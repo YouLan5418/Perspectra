@@ -15,6 +15,7 @@ import {
   type ReactionCycleDraft,
   type ReactionProposalContext,
   type SubmitActionsV2,
+  type SubmitActionsV3,
   type WorldEventDraft,
   type WorldHash,
 } from '@harness-world/contracts'
@@ -23,6 +24,7 @@ import {
   WorldBootstrap,
   WorldSpecCompiler,
   createCoreRulebookRegistry,
+  manifestationManifestRegistries,
   type CompiledWorldSpec,
 } from '@harness-world/kernel'
 import {
@@ -52,7 +54,7 @@ function storage() {
   return { world: join(root, 'world.sqlite'), context: join(root, 'context.sqlite') }
 }
 
-function compiled(): CompiledWorldSpec {
+function compiled(manifestation = false): CompiledWorldSpec {
   const base = new WorldSpecCompiler().compile({
     schemaVersion: 2,
     address: { tenantId: 'tenant:reaction', worldId: 'world:reaction', branchId: 'branch:main' },
@@ -99,7 +101,16 @@ function compiled(): CompiledWorldSpec {
     pronouns: 'they', lifecycle: 'active' as const, portrayal: null,
   }))
   const scenes = base.manifest.scenes.map(scene => ({ ...scene, lifecycle: 'active' as const, locationId: 'location:room' }))
-  const manifest = { ...base.manifest, schemaVersion: 4 as const, characters, scenes, contentPack }
+  const phase8Manifest = { ...base.manifest, schemaVersion: 4 as const, characters, scenes, contentPack }
+  const manifest = manifestation ? {
+    ...phase8Manifest,
+    schemaVersion: 6 as const,
+    registries: manifestationManifestRegistries(),
+    reactionPolicy: {
+      version: 'reaction-policy/v1' as const, mode: 'responsive' as const, profile: 'responsive/v1' as const,
+    },
+    manifestationPolicy: { version: 'manifestation-policy/v1' as const, mode: 'enabled' as const },
+  } : phase8Manifest
   const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
   const genesisEvents = base.genesisEvents.map(event => {
     if (event.eventType === 'world.manifest-locked') {
@@ -195,11 +206,11 @@ class ParallelGate {
 class Provider implements ReactionAgentProvider {
   calls = 0
   constructor(
-    private readonly output: SubmitActionsV2 | Error,
+    private readonly output: SubmitActionsV2 | SubmitActionsV3 | Error,
     private readonly gate?: ParallelGate,
     private readonly onCall?: () => void,
   ) {}
-  async propose(): Promise<SubmitActionsV2> {
+  async propose(): Promise<SubmitActionsV2 | SubmitActionsV3> {
     this.calls += 1
     if (this.gate !== undefined) await this.gate.arrive()
     this.onCall?.()
@@ -230,6 +241,7 @@ function binding(characterId: 'character:alice' | 'character:bob', provider: Rea
 interface FixtureOptions {
   readonly cycle?: Partial<Omit<ReactionCycleDraft, 'candidates'>>
   readonly faultInjector?: FaultInjector
+  readonly manifestation?: boolean
 }
 
 async function fixture(
@@ -238,7 +250,7 @@ async function fixture(
   options: FixtureOptions = {},
 ) {
   const paths = storage()
-  const spec = compiled()
+  const spec = compiled(options.manifestation)
   const store = new WorldStore(paths.world, undefined, () => now.value)
   new WorldBootstrap(store).activate(spec)
   const leases = new WriterLeaseService(paths.world, () => now.value)
@@ -384,6 +396,47 @@ describe('ReactionScheduler', () => {
     })
     expect(value.store.activeReactionCycle(value.spec.manifest.address)?.waves.at(-1)).toMatchObject({ wave: 2, status: 'frozen' })
     expect(value.store.readOutbox(value.spec.manifest.address)).toHaveLength(2)
+    close(value)
+  })
+
+  it('commits one v3 manifestation through the NPC-only Reaction authority and observation path', async () => {
+    const proposal: SubmitActionsV3 = {
+      schemaVersion: 3, decision: 'act',
+      actions: [{
+        actionId: 'action:alice:manifested', actorId: 'character:alice',
+        actionType: 'speak', actionVersion: 1, parameters: { text: '我没事。' },
+      }],
+      manifestation: {
+        description: 'Alice 攥紧袖口，声音有些发颤。',
+        cues: [
+          { cueId: 'cue:gesture', channel: 'gesture', description: '攥紧袖口', persistence: 'event_only' },
+          { cueId: 'cue:voice', channel: 'voice', description: '声音有些发颤', persistence: 'event_only' },
+        ],
+      },
+    }
+    const value = await fixture([
+      binding('character:alice', new Provider(proposal)),
+    ], { value: 100 }, { manifestation: true })
+    const result = await value.scheduler.runCurrentWave()
+    expect(result).toMatchObject({ wave: 1, actionCount: 1, terminalReason: 'quiescent' })
+    const events = value.store.readEvents(value.spec.manifest.address)
+    const manifested = events.find(event => event.eventType === 'character.manifested')!
+    expect(manifested.data).toMatchObject({
+      characterId: 'character:alice', description: 'Alice 攥紧袖口，声音有些发颤。',
+    })
+    const playerObservation = events.find(event => event.eventType === 'observation.upsert'
+      && JSON.stringify(event.data).includes('action:alice:manifested')
+      && JSON.stringify(event.data).includes('character:player'))!
+    expect(playerObservation.data).toMatchObject({ value: { content: { manifestation: {
+      cues: expect.arrayContaining([expect.objectContaining({ channel: 'voice' })]),
+    } } } })
+    const authority = value.store.readRoundAuthority(value.spec.manifest.address, result!.transactionId)!.authority as any
+    expect(authority.participants[0]).toHaveProperty('manifestation')
+    expect(authority.actions[0]).toHaveProperty('manifestation')
+    expect(authority.resolutions[0]).toMatchObject({ manifestation: { status: 'accepted' } })
+    expect(value.store.readReactionCycle(
+      value.spec.manifest.address, value.store.listReactionCycles(value.spec.manifest.address)[0]!.cycleId,
+    )!.jobs).toHaveLength(1)
     close(value)
   })
 

@@ -244,7 +244,9 @@ export interface ReactionProposalContext extends WorldJsonObject {
 }
 
 export interface ReactionAgentProvider {
-  propose(context: ReactionProposalContext): Promise<import('./cognition-projection.ts').SubmitActionsV2>
+  propose(context: ReactionProposalContext): Promise<
+    import('./cognition-projection.ts').SubmitActionsV2 | import('./cognition-projection.ts').SubmitActionsV3
+  >
 }
 
 /** One exact claimed Job outcome consumed by a Reaction Round transaction. */
