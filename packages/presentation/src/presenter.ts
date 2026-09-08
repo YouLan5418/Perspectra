@@ -55,12 +55,17 @@ export class DeterministicPresenter {
           rootRoundId: value.rootRoundId,
         }
       : undefined
+    const observationPayload = reactionOrigin !== undefined
+      ? value
+      : typeof value?.observationId === 'string' && object(value.value ?? null)?.content !== undefined
+      ? value
+      : undefined
     const text = value?.observationType === 'player-action-result'
       && typeof value.actionType === 'string'
       && (value.status === 'accepted' || value.status === 'rejected')
       ? this.#playerAction(locale, value.actionType, value.status, typeof value.reason === 'string' ? value.reason : undefined)
-      : reactionOrigin !== undefined
-      ? this.#reactionRound(locale, value!)
+      : observationPayload !== undefined
+      ? this.#observedAction(locale, observationPayload)
       : new TextDecoder().decode(canonicalizeWorldJson(observation))
     const observationContentHash = hashWorldJson('authorized-observation', observation)
     const base = {
@@ -83,7 +88,7 @@ export class DeterministicPresenter {
     return reason === undefined ? `Action rejected: ${actionType}` : `Action rejected: ${actionType} (${reason})`
   }
 
-  #reactionRound(locale: 'en' | 'zh-CN', payload: WorldJsonObject): string {
+  #observedAction(locale: 'en' | 'zh-CN', payload: WorldJsonObject): string {
     const observation = object(payload.value!)
     const content = object(observation?.content ?? null)
     if (content === undefined) return new TextDecoder().decode(canonicalizeWorldJson(payload))
@@ -93,13 +98,29 @@ export class DeterministicPresenter {
     if (status !== 'accepted') return new TextDecoder().decode(canonicalizeWorldJson(payload))
     const speechValue = object(content.speech ?? null)
     const speech = typeof speechValue?.text === 'string' ? speechValue.text : null
+    const manifestation = object(content.manifestation ?? null)
+    const cueValues = Array.isArray(manifestation?.cues) ? manifestation.cues : []
+    const cueDescriptions = cueValues.map(value => object(value)?.description)
+    const manifestationMalformed = content.manifestation !== undefined && (
+      manifestation === undefined
+      || (manifestation.description !== undefined && manifestation.description !== null
+        && typeof manifestation.description !== 'string')
+      || cueValues.length === 0
+      || cueDescriptions.some(value => typeof value !== 'string')
+    )
+    if (manifestationMalformed) return new TextDecoder().decode(canonicalizeWorldJson(payload))
+    const stage = typeof manifestation?.description === 'string'
+      ? manifestation.description
+      : manifestation === undefined ? null : (cueDescriptions as string[]).join(locale === 'zh-CN' ? '，' : ', ')
     if (locale === 'zh-CN') {
-      return speech !== null
+      const action = speech !== null
         ? `角色 ${actorId} 说："${speech}"`
         : `角色 ${actorId} 行动：${actionType}`
+      return stage === null ? action : `（${stage}）\n${action}`
     }
-    return speech !== null
+    const action = speech !== null
       ? `${actorId} says: "${speech}"`
       : `${actorId} acts: ${actionType}`
+    return stage === null ? action : `*${stage}*\n${action}`
   }
 }

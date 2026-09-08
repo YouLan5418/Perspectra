@@ -55,6 +55,38 @@ describe('DeterministicPresenter', () => {
     })
     expect(presenter.render(speechObservation, { locale: 'zh-CN' }).text).toBe('角色 alice 说："你好世界"')
 
+    const manifestedSpeech = {
+      ...speechObservation,
+      value: {
+        ...speechObservation.value,
+        content: {
+          ...speechObservation.value.content,
+          manifestation: {
+            characterId: 'alice', description: 'Alice 避开视线，抱起双臂。',
+            cues: [
+              { cueId: 'cue:gaze', channel: 'gaze', description: '避开视线', persistence: 'event_only' },
+              { cueId: 'cue:posture', channel: 'posture', description: '抱起双臂', persistence: 'event_only' },
+            ],
+          },
+        },
+      },
+    }
+    expect(presenter.render(manifestedSpeech, { locale: 'zh-CN' }).text)
+      .toBe('（Alice 避开视线，抱起双臂。）\n角色 alice 说："你好世界"')
+    expect(presenter.render({
+      observationId: 'observation:root',
+      value: {
+        observerId: 'character:player', actionId: 'action:root',
+        content: {
+          actorId: 'alice', actionType: 'speak', status: 'accepted', speech: { text: '走吧' },
+          manifestation: {
+            characterId: 'alice', description: null,
+            cues: [{ cueId: 'cue:voice', channel: 'voice', description: '压低声音', persistence: 'event_only' }],
+          },
+        },
+      },
+    } as never, { locale: 'zh-CN' }).text).toBe('（压低声音）\n角色 alice 说："走吧"')
+
     const actionObservation = {
       ...base,
       value: { observerId: 'character:player', actionId: 'action:bob:move', content: { actorId: 'bob', actionType: 'move', status: 'accepted' } },
@@ -82,6 +114,24 @@ describe('DeterministicPresenter', () => {
 
     const innerMissingContent = { ...base, value: { observerId: 'character:player', actionId: 'action:no-content' } }
     expect(presenter.render(innerMissingContent).text).toContain('"actionId":"action:no-content"')
+
+    expect(presenter.render(manifestedSpeech).text)
+      .toBe('*Alice 避开视线，抱起双臂。*\nalice says: "你好世界"')
+    for (const manifestation of [
+      'invalid',
+      { description: 1, cues: [{ description: 'valid cue' }] },
+      { description: null, cues: [] },
+      { description: null, cues: [{}] },
+    ]) {
+      const malformedManifestation = {
+        ...speechObservation,
+        value: {
+          ...speechObservation.value,
+          content: { ...speechObservation.value.content, manifestation },
+        },
+      }
+      expect(presenter.render(malformedManifestation).text).toContain('"manifestation"')
+    }
   })
 
   it('rejects unsupported render profiles and invalid World JSON', () => {
