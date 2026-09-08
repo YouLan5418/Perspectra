@@ -64,3 +64,4 @@
 | [0080](ADR-0080-world-pack-v3-reaction-policy-creator-entry.md) | World Pack v3 与 Reaction Policy 创作者入口 | v1/v2 字节与 Hash 冻结；只有 v3 必填 reactionFile 能编译出 Manifest v5 |
 | [0081](ADR-0081-deployment-backup-restore-set.md) | 多库部署备份与恢复集合 | 五库制品、部署静默屏障、双向水位校验与只恢复到全新空目录 |
 | [0082](ADR-0082-quarantine-unreadable-reaction-ledger.md) | 损坏 Reaction 账本的紧急隔离 | 保留损坏证据但仍封锁 Branch；不伪造 Cycle 终态，恢复必须重新校验 |
+| [0083](ADR-0083-manifestation-observable-expression.md) | 角色外显表现、观察传播与可见状态 | submit_actions/v3 显式启用；表现独立裁定后进入 Event、Observation、Memory 与可见状态 |
