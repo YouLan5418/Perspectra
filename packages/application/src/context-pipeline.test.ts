@@ -11,7 +11,13 @@ import {
   type ProposalContext,
   type ReactionProposalContext,
 } from '@harness-world/contracts'
-import { WorldBootstrap, WorldSpecCompiler, createCoreRulebookRegistry, type CompiledWorldSpec } from '@harness-world/kernel'
+import {
+  WorldBootstrap,
+  WorldSpecCompiler,
+  createCoreRulebookRegistry,
+  manifestationManifestRegistries,
+  type CompiledWorldSpec,
+} from '@harness-world/kernel'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { CharacterRuntimeAvailabilityService, WorldStore } from '@harness-world/store-sqlite'
 import { Phase8ContextPipeline } from './context-pipeline.ts'
@@ -153,6 +159,34 @@ describe('Phase8ContextPipeline', () => {
     const reopened = new Phase8ContextPipeline(value.options)
     expect(reopened.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)).toEqual(first)
     reopened.close()
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
+  })
+
+  it('selects submit_actions/v3 only for an explicitly enabled Manifest v6', () => {
+    const value = fixture()
+    const manifest = {
+      ...value.spec.manifest,
+      schemaVersion: 6 as const,
+      registries: manifestationManifestRegistries(),
+      reactionPolicy: { version: 'reaction-policy/v1' as const, mode: 'disabled' as const },
+      manifestationPolicy: { version: 'manifestation-policy/v1' as const, mode: 'enabled' as const },
+    }
+    const pipeline = new Phase8ContextPipeline({
+      ...value.options,
+      path: join(value.storage.context, '..', 'manifestation-context.sqlite'),
+      manifest,
+      manifestHash: hashWorldJson('compiled-world-manifest', manifest),
+    })
+    const context = proposal({ ...value.spec, manifest })
+    const history = value.store.readEvents(value.spec.manifest.address)
+    const decision = new SceneDecisionService(value.store, value.availability, 2)
+      .decide(value.spec.manifest.address, context.playerAction.actorId, value.store.head(value.spec.manifest.address).headSeq)
+    const prepared = pipeline.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)
+    expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain('submit_actions/v3')
+    expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain('maximumCues')
+    pipeline.close()
     value.memory.close()
     value.availability.close()
     value.store.close()

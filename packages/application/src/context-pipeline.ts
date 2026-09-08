@@ -32,7 +32,12 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { manifestUsesPhase8Contracts, type CompiledWorldManifest, type RulebookResolver } from '@harness-world/kernel'
+import {
+  manifestationPolicyFromManifest,
+  manifestUsesPhase8Contracts,
+  type CompiledWorldManifest,
+  type RulebookResolver,
+} from '@harness-world/kernel'
 import { type CognitiveMemoryService, type MemorySourceRef } from '@harness-world/memory'
 import {
   CognitionProjectionRebuilder,
@@ -102,6 +107,23 @@ const characterTool = createProviderToolSchema('submit_actions/v2', {
 })
 const reactionCharacterTool = createProviderToolSchema('submit_actions/v2', {
   type: 'object', ...PHASE8_SUBMIT_ACTIONS_PROFILE, maximumExternalActions: 1,
+})
+const manifestationToolContract = {
+  maximumCues: 8,
+  channels: ['facial', 'gaze', 'posture', 'gesture', 'voice', 'appearance'],
+  persistence: ['event_only', 'until_changed'],
+  persistentChannels: ['posture', 'appearance'],
+} as const
+const manifestationCharacterTool = createProviderToolSchema('submit_actions/v3', {
+  type: 'object', schemaVersion: 'submit_actions/v3',
+  maximumExternalActions: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumExternalActions,
+  maximumReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
+  manifestation: manifestationToolContract,
+})
+const manifestationReactionCharacterTool = createProviderToolSchema('submit_actions/v3', {
+  type: 'object', schemaVersion: 'submit_actions/v3', maximumExternalActions: 1,
+  maximumReflectionOperations: 0,
+  manifestation: manifestationToolContract,
 })
 const directorTool = createProviderToolSchema('submit_director_plan/v1', {
   type: 'object', schemaVersion: 'submit_director_plan/v1', maximumDirectives: 8,
@@ -252,16 +274,24 @@ export class Phase8ContextPipeline {
   readonly #director = new DirectorContextAssembler()
   readonly #renderer = new StructuredPromptRenderer()
   readonly #modelProfile: ProviderModelProfile
+  readonly #characterTool: ReturnType<typeof createProviderToolSchema>
+  readonly #reactionCharacterTool: ReturnType<typeof createProviderToolSchema>
 
   constructor(private readonly options: Phase8ContextPipelineOptions) {
     if (options.memory.version !== 2 || !manifestUsesPhase8Contracts(options.manifest)) {
-      throw new TypeError('Phase 8 Context Pipeline requires Manifest v4 or v5 and Cognitive Memory v2')
+      throw new TypeError('Phase 8 Context Pipeline requires Manifest v4 or newer and Cognitive Memory v2')
     }
     this.#checkpoints = new ContinuityCheckpointService(options.path, options.store, options.memory)
     this.#receipts = new ContextReceiptStore(options.path)
     this.#tails = new InteractionTailBuilder(options.store)
     this.#cognition = new CognitionProjectionRebuilder(options.store)
     this.#modelProfile = options.modelProfile ?? defaultModelProfile()
+    this.#characterTool = manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
+      ? manifestationCharacterTool
+      : characterTool
+    this.#reactionCharacterTool = manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
+      ? manifestationReactionCharacterTool
+      : reactionCharacterTool
   }
 
   prepare(
@@ -360,7 +390,7 @@ export class Phase8ContextPipeline {
     })
     const rendered = this.#renderer.renderCharacter({
       context: assembly.bundle, contextProfileId: selectedProfile, renderer: rendererLock,
-      toolSchema: characterTool, modelProfile: this.#model(context.address),
+      toolSchema: this.#characterTool, modelProfile: this.#model(context.address),
       correlationId: `render:${context.roundId}:${binding.participantId}`,
     })
     const receipt = this.#receipts.append({
@@ -439,7 +469,7 @@ export class Phase8ContextPipeline {
     })
     const rendered = this.#renderer.renderCharacter({
       context: assembly.bundle, contextProfileId: selectedProfile, renderer: rendererLock,
-      toolSchema: reactionCharacterTool, modelProfile: this.#model(context.address),
+      toolSchema: this.#reactionCharacterTool, modelProfile: this.#model(context.address),
       correlationId: `render:${context.roundId}:${binding.participantId}`,
     })
     const receipt = this.#receipts.append({
