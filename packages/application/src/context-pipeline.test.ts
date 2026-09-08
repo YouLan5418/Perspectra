@@ -179,13 +179,22 @@ describe('Phase8ContextPipeline', () => {
       manifest,
       manifestHash: hashWorldJson('compiled-world-manifest', manifest),
     })
-    const context = proposal({ ...value.spec, manifest })
+    const context: ProposalContext = {
+      ...proposal({ ...value.spec, manifest }),
+      playerManifestation: {
+        cues: [{
+          cueId: 'cue:player-look', channel: 'gaze', description: 'Player looks at Alice', persistence: 'event_only',
+        }],
+      },
+    }
     const history = value.store.readEvents(value.spec.manifest.address)
     const decision = new SceneDecisionService(value.store, value.availability, 2)
       .decide(value.spec.manifest.address, context.playerAction.actorId, value.store.head(value.spec.manifest.address).headSeq)
     const prepared = pipeline.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)
     expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain('submit_actions/v3')
     expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain('maximumCues')
+    expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain('Player looks at Alice')
+    expect(prepared.providerContext.playerManifestation).toEqual(context.playerManifestation)
     pipeline.close()
     value.memory.close()
     value.availability.close()

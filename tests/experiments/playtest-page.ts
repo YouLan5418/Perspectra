@@ -40,7 +40,7 @@ export const PLAYTEST_PAGE = `<!doctype html>
   <header><div><h1 id="world-title">本机世界试玩</h1><div class="subtle">创作者 World Pack · 多角色真实模型</div></div><div id="status">正在连接</div></header>
   <section id="transcript" aria-live="polite"><div class="empty">世界正在醒来……</div></section>
   <div>
-    <form id="composer"><textarea id="input" maxlength="2000" placeholder="说些什么……" required></textarea><button id="send" type="submit">发送</button></form>
+    <form id="composer"><textarea id="input" maxlength="2000" placeholder="说些什么，或写下角色的动作与神态……" required></textarea><button id="send" type="submit">发送</button></form>
     <div class="controls"><span id="notice"></span><button id="pause" class="secondary" type="button">当前波次后暂停</button></div>
   </div>
   <details><summary>运行状态（不含私密记忆和 Prompt）</summary><pre id="debug">等待状态……</pre></details>
@@ -70,7 +70,9 @@ export const PLAYTEST_PAGE = `<!doctype html>
     latest = state;
     worldTitle.textContent = state.world.title;
     document.title = state.world.title + ' · Harness World 试玩';
-    input.placeholder = state.world.npcNames.length === 0 ? '说些什么……' : '对 ' + state.world.npcNames.join('、') + ' 说些什么……';
+    input.placeholder = state.world.npcNames.length === 0
+      ? '说些什么，或写下角色的动作与神态……'
+      : '对 ' + state.world.npcNames.join('、') + ' 说些什么，或写下动作与神态……';
     status.className = state.error ? 'error' : state.busy ? 'busy' : '';
     status.textContent = state.error ? '发生错误' : state.busy ? state.phaseLabel : state.paused ? 'NPC 已暂停' : '可以输入';
     send.disabled = state.busy;

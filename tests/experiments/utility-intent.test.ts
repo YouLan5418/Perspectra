@@ -2,7 +2,11 @@ import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { isDefinitelyPlayerSpeech, OllamaUtilityIntentInterpreter } from './utility-intent.ts'
+import {
+  hasExplicitPlayerPerformance,
+  isDefinitelyPlayerSpeech,
+  OllamaUtilityIntentInterpreter,
+} from './utility-intent.ts'
 import type { ExperimentActionReference } from './compact-context.ts'
 
 const roots: string[] = []
@@ -11,7 +15,12 @@ afterEach(() => {
   while (roots.length > 0) rmSync(roots.pop()!, { recursive: true, force: true })
 })
 
-function setup(content: unknown, options: { status?: number; doneReason?: string; missingContent?: boolean } = {}) {
+function setup(content: unknown, options: {
+  status?: number
+  doneReason?: string
+  missingContent?: boolean
+  manifestationEnabled?: boolean
+} = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-utility-intent-'))
   roots.push(directory)
   const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
@@ -20,6 +29,7 @@ function setup(content: unknown, options: { status?: number; doneReason?: string
   }), { status: options.status ?? 200 }))
   return { directory, fetchMock, interpreter: new OllamaUtilityIntentInterpreter(
     new URL('http://127.0.0.1:11434/api/chat'), 'qwen3.5:4b', 5_000, directory,
+    options.manifestationEnabled ?? false,
   ) }
 }
 
@@ -35,6 +45,39 @@ describe('local utility intent interpreter', () => {
     expect(isDefinitelyPlayerSpeech('为什么不等 Bob')).toBe(true)
     expect(isDefinitelyPlayerSpeech('好，我们去车站吧')).toBe(false)
     expect(isDefinitelyPlayerSpeech('拿上车票')).toBe(false)
+    expect(hasExplicitPlayerPerformance('（皱着眉）发生了什么？')).toBe(true)
+    expect(hasExplicitPlayerPerformance('*避开视线* 随你。')).toBe(true)
+    expect(hasExplicitPlayerPerformance('发生了什么？')).toBe(false)
+  })
+
+  it('extracts only exact observable player spans into event-only manifestation cues', async () => {
+    const text = '我皱着眉，避开 Bob 的视线说：“随你。”'
+    const fixture = setup({
+      intent: 'speak', targetRef: '', question: '', spokenText: '随你。',
+      manifestationCues: [
+        { channel: 'facial', description: '皱着眉' },
+        { channel: 'gaze', description: '避开 Bob 的视线' },
+      ],
+    }, { manifestationEnabled: true })
+    const result = await fixture.interpreter.interpret(text, references)
+    expect(result).toMatchObject({
+      status: 'action', action: { actionType: 'speak', parameters: { text: '随你。' } },
+      manifestation: { cues: [
+        { channel: 'facial', description: '皱着眉', persistence: 'event_only' },
+        { channel: 'gaze', description: '避开 Bob 的视线', persistence: 'event_only' },
+      ] },
+    })
+    const body = JSON.parse(fixture.fetchMock.mock.calls[0]![1]!.body as string)
+    expect(body.format.oneOf[0].required).toEqual([
+      'intent', 'targetRef', 'question', 'spokenText', 'manifestationCues',
+    ])
+    expect(JSON.stringify(body.messages)).toContain('不得推断')
+
+    const invented = setup({
+      intent: 'speak', targetRef: '', question: '', spokenText: '随你。',
+      manifestationCues: [{ channel: 'facial', description: '嫉妒地皱眉' }],
+    }, { manifestationEnabled: true })
+    await expect(invented.interpreter.interpret(text, references)).rejects.toThrow('exact observable source span')
   })
 
   it('translates constrained actions while preserving player speech verbatim', async () => {

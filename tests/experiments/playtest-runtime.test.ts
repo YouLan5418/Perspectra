@@ -181,7 +181,7 @@ describe('player-facing playtest transcript', () => {
       const body = JSON.parse(init?.body as string) as { messages: { content: string }[] }
       const utility = body.messages.some(message => message.content.includes('玩家输入翻译器'))
       const content = utility
-        ? { intent: 'move', targetRef: 'L1', question: '' }
+        ? { intent: 'move', targetRef: 'L1', question: '', spokenText: '', manifestationCues: [] }
         : body.messages.some(message => message.content.includes('speak|move|take'))
           ? { decision: 'abstain', actions: [] }
           : { decision: 'abstain', text: '' }
@@ -218,6 +218,47 @@ describe('player-facing playtest transcript', () => {
     }
   })
 
+  it('renders a committed player manifestation before the preserved speech span', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-playtest-player-manifestation-'))
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const body = JSON.parse(init?.body as string) as { messages: { content: string }[] }
+      const utility = body.messages.some(message => message.content.includes('玩家输入翻译器'))
+      const content = utility ? {
+        intent: 'speak', targetRef: '', question: '', spokenText: '随你。',
+        manifestationCues: [
+          { channel: 'facial', description: '皱着眉' },
+          { channel: 'gaze', description: '避开 Bob 的视线' },
+        ],
+      } : { decision: 'abstain', actions: [] }
+      return new Response(JSON.stringify({
+        model: 'qwen3.5:4b', done_reason: 'stop', message: { content: JSON.stringify(content) },
+      }), { status: 200 })
+    })
+    let runtime: WorldPlaytestRuntime | undefined
+    try {
+      runtime = await WorldPlaytestRuntime.create({ dataDirectory: directory })
+      const state = await runtime.submit('我皱着眉，避开 Bob 的视线说：“随你。”')
+      expect(state.transcript).toContainEqual(expect.objectContaining({
+        player: true,
+        text: '（皱着眉，避开 Bob 的视线）\n随你。',
+      }))
+      const store = new WorldStore(join(directory, 'world.sqlite'))
+      try {
+        const manifestation = store.readEvents({
+          tenantId: brandId('tenant:web-playtest', 'TenantId'), worldId: brandId('world:rainy-road-web', 'WorldId'),
+          branchId: brandId('branch:main', 'BranchId'),
+        }).find(event => event.eventType === 'character.manifested')
+        expect(manifestation?.data).toMatchObject({ characterId: 'character:player' })
+      } finally {
+        store.close()
+      }
+    } finally {
+      await runtime?.close()
+      fetchMock.mockRestore()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it('preserves an input across clarification and bypasses the utility model for complete questions', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'hcw-playtest-clarification-'))
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
@@ -225,7 +266,10 @@ describe('player-facing playtest transcript', () => {
       const utility = body.messages.some(message => message.content.includes('玩家输入翻译器'))
       const root = body.messages.some(message => message.content.includes('speak|move|take'))
       const content = utility
-        ? { intent: 'clarification', targetRef: '', question: '你是在说话，还是要执行一个动作？' }
+        ? {
+            intent: 'clarification', targetRef: '', question: '你是在说话，还是要执行一个动作？',
+            spokenText: '', manifestationCues: [],
+          }
         : root ? { decision: 'abstain', actions: [] } : { decision: 'abstain', text: '' }
       return new Response(JSON.stringify({ model: 'qwen3.5:4b', done_reason: 'stop',
         message: { content: JSON.stringify(content) } }), { status: 200 })

@@ -38,6 +38,7 @@ import {
 import { comparisonMessages, comparisonResponse } from './provider-comparison.ts'
 import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
 import {
+  hasExplicitPlayerPerformance,
   isDefinitelyPlayerSpeech,
   OllamaUtilityIntentInterpreter,
   type UtilityIntentResult,
@@ -345,6 +346,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
   readonly #actionReferences: ReturnType<typeof createExperimentActionReferences>
   readonly #utilityIntent: OllamaUtilityIntentInterpreter
   readonly #utilityModel: string
+  readonly #manifestationEnabled: boolean
   readonly #activeCalls = new Map<string, CallTelemetry>()
   #providerCalls = 0
   #lastProviderDurationMs: number | null = null
@@ -375,6 +377,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
     const controlledCharacters = playtestModelCharacters(compiled.manifest, this.#playerId)
     const manifestationEnabled = manifestationPolicyFromManifest(compiled.manifest).mode === 'enabled'
+    this.#manifestationEnabled = manifestationEnabled
     this.#npcNames = controlledCharacters.map(character => character.name)
     this.#provider = options.provider ?? 'ollama'
     this.#model = options.model ?? (this.#provider === 'ollama' ? OLLAMA_MODEL : DEEPSEEK_MODEL)
@@ -388,6 +391,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       this.#utilityModel,
       30_000,
       evidenceDirectory,
+      manifestationEnabled,
     )
     const apiKey = options.apiKey?.trim()
     if (this.#provider === 'deepseek' && !apiKey) throw new TypeError('DeepSeek credential unavailable')
@@ -504,7 +508,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
               )
           } else {
             const references = availableExperimentActionReferences(this.#actionReferences, this.#playerLocationId)
-            interpretation = isDefinitelyPlayerSpeech(text)
+            interpretation = isDefinitelyPlayerSpeech(text) && !hasExplicitPlayerPerformance(text)
               ? { status: 'action', action: { actionType: 'speak', parameters: { text } } }
               : await this.#utilityIntent.interpret(text, references)
           }
@@ -512,6 +516,9 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
           if (pending !== null) {
             this.#notice = '未能理解这次澄清；上一条输入仍未提交。你可以换种说法，或输入 /cancel。'
             interpretation = { status: 'clarification', question: pending.question }
+          } else if (this.#manifestationEnabled && hasExplicitPlayerPerformance(text)) {
+            this.#notice = '未能可靠提取这条外显表现，本条没有提交；请换种说法后重试。'
+            interpretation = { status: 'clarification', question: '请明确说明角色要说什么、去哪里或拿什么。' }
           } else {
             this.#notice = '自然语言行动翻译暂不可用，本条已安全地按对白处理。'
             interpretation = { status: 'action', action: { actionType: 'speak', parameters: { text } } }
@@ -544,6 +551,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
           })
           : await this.#application.submit(this.#address, {
             action: interpretation.action,
+            ...(interpretation.manifestation === undefined ? {} : { manifestation: interpretation.manifestation }),
             idempotencyKey: key,
             principalId: this.#principalId,
             correlationId: key,

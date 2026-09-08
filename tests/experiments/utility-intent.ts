@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { WorldJsonObject } from '@harness-world/contracts'
+import type { ManifestationChannel, ManifestationProposal, WorldJsonObject } from '@harness-world/contracts'
 import {
   byteHash,
   object,
@@ -9,10 +9,16 @@ import {
 } from './compact-context.ts'
 
 export type UtilityIntentResult =
-  | { readonly status: 'action'; readonly action: { readonly actionType: 'speak' | 'move' | 'take'; readonly parameters: WorldJsonObject } }
+  | {
+      readonly status: 'action'
+      readonly action: { readonly actionType: 'speak' | 'move' | 'take'; readonly parameters: WorldJsonObject }
+      readonly manifestation?: ManifestationProposal
+    }
   | { readonly status: 'clarification'; readonly question: string }
 
-const SYSTEM = '你是玩家输入翻译器，不扮演角色、不续写故事。只判断玩家本人此刻要执行的一个动作。规则：①完整的提问、陈述、讨论和对白必须选择 speak；绝不能因为 targets 非空就要求用户在 move/take 中选择。②“好，去X”“我们走吧/出发吧/去X吧”等确认现在付诸行动且目标明确的表达选择 move；这只移动玩家本人，其他角色自行决定。③“要不要/是不是/觉得/可以吗”等询问、讨论计划、尚未确认的建议，以及要求某个具名角色或其他人行动，都选择 speak。④玩家明确表示自己现在拿取某物才选择 take。⑤目标必须使用用户消息提供的短引用；clarification 只用于玩家明确要行动、但动作或目标确实无法确定的情况。不得创造目标。严格按 Schema 填写三个字段。'
+const SYSTEM = '你是玩家输入翻译器，不扮演角色、不续写故事。只判断玩家本人此刻要执行的一个动作。规则：①完整的提问、陈述、讨论和对白必须选择 speak；绝不能因为 targets 非空就要求用户在 move/take 中选择。②“好，去X”“我们走吧/出发吧/去X吧”等确认现在付诸行动且目标明确的表达选择 move；这只移动玩家本人，其他角色自行决定。③“要不要/是不是/觉得/可以吗”等询问、讨论计划、尚未确认的建议，以及要求某个具名角色或其他人行动，都选择 speak。④玩家明确表示自己现在拿取某物才选择 take。⑤目标必须使用用户消息提供的短引用；clarification 只用于玩家明确要行动、但动作或目标确实无法确定的情况。不得创造目标。严格按提供的 Schema 填写字段。'
+
+const MANIFESTATION_SYSTEM = '同时提取玩家明确写出的外部可观察表现。spokenText 必须是原文中的连续原样片段；没有说话则为空。manifestationCues 只允许原文中逐字出现的表情、视线、姿态、手势、语气声音或外观变化，每项 description 必须是原文中的连续原样片段。不得推断、改写或补充情绪、动机、秘密和心理数值。没有表现则返回空数组。纯表现而没有 speak/move/take 主行为时返回 clarification，不能伪造对白。严格按 Schema 填写五个字段。'
 
 const CLARIFICATION_SYSTEM = `${SYSTEM} 你正在处理上一条输入的澄清答复。答复只用于消除歧义，不是新的角色对白；若用户确认 speak，最终对白必须是 originalText，不能是 answer。`
 
@@ -24,50 +30,77 @@ export function isDefinitelyPlayerSpeech(text: string): boolean {
     || /(?:吗|呢)$/u.test(normalized)
 }
 
-function schema(references: readonly ExperimentActionReference[]) {
+/** Explicit stage-direction notation opts into the utility model even when the line is a question. */
+export function hasExplicitPlayerPerformance(text: string): boolean {
+  return /[（(][^）)]+[）)]/u.test(text) || /\*[^*]+\*/u.test(text)
+}
+
+function schema(references: readonly ExperimentActionReference[], manifestationEnabled: boolean) {
+  const manifestationProperties = manifestationEnabled ? {
+    spokenText: { type: 'string', maxLength: 2_048 },
+    manifestationCues: {
+      type: 'array', maxItems: 8,
+      items: {
+        type: 'object', additionalProperties: false, required: ['channel', 'description'],
+        properties: {
+          channel: { type: 'string', enum: ['facial', 'gaze', 'posture', 'gesture', 'voice', 'appearance'] },
+          description: { type: 'string', minLength: 1, maxLength: 512 },
+        },
+      },
+    },
+  } : {}
+  const required = manifestationEnabled
+    ? ['intent', 'targetRef', 'question', 'spokenText', 'manifestationCues']
+    : ['intent', 'targetRef', 'question']
+  const variant = (properties: Record<string, unknown>) => ({
+    type: 'object', additionalProperties: false, required,
+    properties: { ...properties, ...manifestationProperties },
+  })
   const variants: Record<string, unknown>[] = [
-    {
-      type: 'object', additionalProperties: false, required: ['intent', 'targetRef', 'question'],
-      properties: {
+    variant({
         intent: { type: 'string', const: 'speak' }, targetRef: { type: 'string', const: '' },
         question: { type: 'string', const: '' },
-      },
-    },
-    {
-      type: 'object', additionalProperties: false, required: ['intent', 'targetRef', 'question'],
-      properties: {
+      }),
+    variant({
         intent: { type: 'string', const: 'clarification' }, targetRef: { type: 'string', const: '' },
         question: { type: 'string', minLength: 1, maxLength: 200 },
-      },
-    },
+      }),
   ]
   const locations = references.filter(reference => reference.kind === 'location').map(reference => reference.short)
   const entities = references.filter(reference => reference.kind === 'entity').map(reference => reference.short)
-  if (locations.length > 0) variants.push({
-    type: 'object', additionalProperties: false, required: ['intent', 'targetRef', 'question'],
-    properties: {
+  if (locations.length > 0) variants.push(variant({
       intent: { type: 'string', const: 'move' }, targetRef: { type: 'string', enum: locations },
       question: { type: 'string', const: '' },
-    },
-  })
-  if (entities.length > 0) variants.push({
-    type: 'object', additionalProperties: false, required: ['intent', 'targetRef', 'question'],
-    properties: {
+    }))
+  if (entities.length > 0) variants.push(variant({
       intent: { type: 'string', const: 'take' }, targetRef: { type: 'string', enum: entities },
       question: { type: 'string', const: '' },
-    },
-  })
+    }))
   return {
     oneOf: variants,
   } as const
 }
 
-function messages(text: string, references: readonly ExperimentActionReference[]): readonly ExperimentMessage[] {
+function outputShape(manifestationEnabled: boolean) {
+  return manifestationEnabled
+    ? {
+        intent: 'speak|move|take|clarification', targetRef: '短引用或空字符串', question: '澄清问题或空字符串',
+        spokenText: '原文中的对白片段或空字符串',
+        manifestationCues: [{ channel: 'facial|gaze|posture|gesture|voice|appearance', description: '原文片段' }],
+      }
+    : { intent: 'speak|move|take|clarification', targetRef: '短引用或空字符串', question: '澄清问题或空字符串' }
+}
+
+function messages(
+  text: string,
+  references: readonly ExperimentActionReference[],
+  manifestationEnabled: boolean,
+): readonly ExperimentMessage[] {
   return [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: manifestationEnabled ? `${SYSTEM} ${MANIFESTATION_SYSTEM}` : SYSTEM },
     { role: 'user', content: JSON.stringify({
       text,
-      output: { intent: 'speak|move|take|clarification', targetRef: '短引用或空字符串', question: '澄清问题或空字符串' },
+      output: outputShape(manifestationEnabled),
       targets: {
         move: references.filter(reference => reference.kind === 'location')
           .map(reference => ({ locationRef: reference.short, name: reference.label })),
@@ -83,12 +116,15 @@ function clarificationMessages(
   question: string,
   answer: string,
   references: readonly ExperimentActionReference[],
+  manifestationEnabled: boolean,
 ): readonly ExperimentMessage[] {
   return [
-    { role: 'system', content: CLARIFICATION_SYSTEM },
+    { role: 'system', content: manifestationEnabled
+      ? `${CLARIFICATION_SYSTEM} ${MANIFESTATION_SYSTEM}`
+      : CLARIFICATION_SYSTEM },
     { role: 'user', content: JSON.stringify({
       originalText, clarificationQuestion: question, answer,
-      output: { intent: 'speak|move|take|clarification', targetRef: '短引用或空字符串', question: '澄清问题或空字符串' },
+      output: outputShape(manifestationEnabled),
       targets: {
         move: references.filter(reference => reference.kind === 'location')
           .map(reference => ({ locationRef: reference.short, name: reference.label })),
@@ -103,27 +139,69 @@ function normalizedResult(
   raw: unknown,
   text: string,
   references: readonly ExperimentActionReference[],
+  manifestationEnabled: boolean,
 ): UtilityIntentResult {
   const value = object(raw)
-  if (Object.keys(value).sort().join(',') !== 'intent,question,targetRef'
+  const expectedKeys = manifestationEnabled
+    ? 'intent,manifestationCues,question,spokenText,targetRef'
+    : 'intent,question,targetRef'
+  if (Object.keys(value).sort().join(',') !== expectedKeys
     || typeof value.intent !== 'string' || typeof value.targetRef !== 'string'
     || typeof value.question !== 'string' || value.question.length > 200) {
     throw new TypeError('utility intent output is malformed')
   }
+  let manifestation: ManifestationProposal | undefined
+  let spokenText = text
+  if (manifestationEnabled) {
+    if (typeof value.spokenText !== 'string' || !Array.isArray(value.manifestationCues)
+      || value.manifestationCues.length > 8) throw new TypeError('utility manifestation output is malformed')
+    spokenText = value.spokenText
+    const cues = value.manifestationCues.map((entry, index) => {
+      const cue = object(entry)
+      if (Object.keys(cue).sort().join(',') !== 'channel,description'
+        || typeof cue.channel !== 'string'
+        || !['facial', 'gaze', 'posture', 'gesture', 'voice', 'appearance'].includes(cue.channel)
+        || typeof cue.description !== 'string' || cue.description.length === 0
+        || cue.description.trim() !== cue.description || !text.includes(cue.description)) {
+        throw new TypeError('utility manifestation cue is not an exact observable source span')
+      }
+      return {
+        cueId: `cue:player:${index + 1}:${byteHash(`${cue.channel}\u001f${cue.description}`).slice(7, 15)}`,
+        channel: cue.channel as ManifestationChannel,
+        description: cue.description,
+        persistence: 'event_only' as const,
+      }
+    })
+    if (new Set(cues.map(cue => `${cue.channel}\u001f${cue.description}`)).size !== cues.length) {
+      throw new TypeError('utility manifestation cues must be unique')
+    }
+    manifestation = cues.length === 0 ? undefined : { cues }
+  }
   if (value.intent === 'speak' && value.targetRef === '' && value.question === '') {
-    return { status: 'action', action: { actionType: 'speak', parameters: { text } } }
+    if (spokenText.length === 0 || !text.includes(spokenText)
+      || (manifestation === undefined && spokenText !== text)) {
+      throw new TypeError('utility speech must preserve an exact player source span')
+    }
+    return {
+      status: 'action', action: { actionType: 'speak', parameters: { text: spokenText } },
+      ...(manifestation === undefined ? {} : { manifestation }),
+    }
   }
   if ((value.intent === 'move' || value.intent === 'take') && value.question === '') {
+    if (manifestationEnabled && spokenText !== '') throw new TypeError('utility physical action cannot invent speech')
     const kind = value.intent === 'move' ? 'location' : 'entity'
     const reference = references.find(candidate => candidate.kind === kind && candidate.short === value.targetRef)
     if (reference === undefined) throw new TypeError('utility intent target reference is unavailable')
-    return { status: 'action', action: {
-      actionType: value.intent,
-      parameters: value.intent === 'move' ? { locationId: reference.source } : { entityId: reference.source },
-    } }
+    return {
+      status: 'action', action: {
+        actionType: value.intent,
+        parameters: value.intent === 'move' ? { locationId: reference.source } : { entityId: reference.source },
+      },
+      ...(manifestation === undefined ? {} : { manifestation }),
+    }
   }
   if (value.intent === 'clarification' && value.targetRef === '' && value.question.trim() === value.question
-    && value.question.length > 0) {
+    && value.question.length > 0 && (!manifestationEnabled || (spokenText === '' && manifestation === undefined))) {
     return { status: 'clarification', question: value.question }
   }
   throw new TypeError('utility intent output is contradictory')
@@ -138,10 +216,11 @@ export class OllamaUtilityIntentInterpreter {
     private readonly model: string,
     private readonly timeoutMs: number,
     private readonly evidenceDirectory: string,
+    private readonly manifestationEnabled = false,
   ) {}
 
   async interpret(text: string, references: readonly ExperimentActionReference[]): Promise<UtilityIntentResult> {
-    const requestMessages = messages(text, references)
+    const requestMessages = messages(text, references, this.manifestationEnabled)
     return this.#request(requestMessages, text, references, text)
   }
 
@@ -151,9 +230,11 @@ export class OllamaUtilityIntentInterpreter {
     answer: string,
     references: readonly ExperimentActionReference[],
   ): Promise<UtilityIntentResult> {
-    const requestMessages = clarificationMessages(originalText, question, answer, references)
+    const requestMessages = clarificationMessages(
+      originalText, question, answer, references, this.manifestationEnabled,
+    )
     const result = await this.#request(requestMessages, originalText, references, `${originalText}\u001f${answer}`)
-    return result.status === 'action' && result.action.actionType === 'speak'
+    return !this.manifestationEnabled && result.status === 'action' && result.action.actionType === 'speak'
       ? { status: 'action', action: { actionType: 'speak', parameters: { text: originalText } } }
       : result
   }
@@ -166,7 +247,8 @@ export class OllamaUtilityIntentInterpreter {
   ): Promise<UtilityIntentResult> {
     const body = JSON.stringify({
       model: this.model, messages: requestMessages, stream: false, think: false,
-      format: schema(references), options: { temperature: 0, seed: 42, num_predict: 80 }, keep_alive: '10m',
+      format: schema(references, this.manifestationEnabled),
+      options: { temperature: 0, seed: 42, num_predict: this.manifestationEnabled ? 240 : 80 }, keep_alive: '10m',
     })
     const evidenceId = `utility-${String(++this.#ordinal).padStart(4, '0')}-${byteHash(evidenceText).slice(7, 23)}`
     writeFileSync(resolve(this.evidenceDirectory, `${evidenceId}.request.json`), JSON.stringify({
@@ -181,7 +263,7 @@ export class OllamaUtilityIntentInterpreter {
     if (envelope.done_reason !== 'stop') throw new TypeError('utility model response was not complete')
     const message = object(envelope.message)
     if (typeof message.content !== 'string') throw new TypeError('utility model returned no content')
-    const result = normalizedResult(JSON.parse(message.content), actionText, references)
+    const result = normalizedResult(JSON.parse(message.content), actionText, references, this.manifestationEnabled)
     writeFileSync(resolve(this.evidenceDirectory, `${evidenceId}.response.json`), JSON.stringify({
       model: envelope.model, result,
     }, null, 2), { flag: 'wx' })
