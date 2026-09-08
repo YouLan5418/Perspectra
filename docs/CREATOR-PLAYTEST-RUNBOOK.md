@@ -6,14 +6,14 @@
 
 ## 快速开始
 
-以下命令均在仓库根目录执行。先创建一个支持复杂认知、多 Scene 和有界 NPC 自主反应的 v3 Pack：
+以下命令均在仓库根目录执行。先创建一个支持复杂认知、多 Scene、有界 NPC 自主反应和外显表现的 v4 Pack：
 
 ```powershell
 $source = 'D:\worlds\my-world'
 $artifact = 'D:\worlds\my-world.worldpack.json'
 $data = 'D:\worlds\my-world-playtest'
 
-corepack pnpm@11.7.0 worldpack init --profile responsive-social $source
+corepack pnpm@11.7.0 worldpack init --profile expressive-social $source
 ```
 
 编辑 `$source` 中的内容文件，然后依次校验、测试、编译和检查：
@@ -44,7 +44,7 @@ corepack pnpm@11.7.0 experience:web:flash --pack $artifact --data-dir $data
 
 ## 编辑世界内容
 
-`responsive-social` 从“雨夜同行”复制一份完整且可运行的 v3 结构。可以先只改标题、角色描写和初始认知，确认能运行后再改 ID 与交叉引用。
+`expressive-social` 从“雨夜同行”复制一份完整且可运行的 v4 结构。可以先只改标题、角色描写和初始认知，确认能运行后再改 ID 与交叉引用。
 
 | 文件 | 创作者控制的内容 |
 | --- | --- |
@@ -57,6 +57,7 @@ corepack pnpm@11.7.0 experience:web:flash --pack $artifact --data-dir $data
 | `scenes.json` | Scene 生命周期、位置、成员和观察边界 |
 | `player-slots.json` | 唯一手动玩家角色 |
 | `reaction.json` | NPC 自主反应开启或关闭 |
+| `manifestation.json` | 角色外显表现开启或关闭 |
 | `presentation.json` | 确定性呈现配置 |
 | `assertions.json` | Testkit 验收计划，不进入角色上下文 |
 
@@ -81,6 +82,17 @@ corepack pnpm@11.7.0 experience:web:flash --pack $artifact --data-dir $data
 }
 ```
 
+外显表现默认启用：
+
+```json
+{
+  "schemaVersion": "worldpack-manifestation/v1",
+  "mode": "enabled"
+}
+```
+
+启用后，模型可以在对白或动作旁附带表情、视线、姿态、手势、声音和外观变化。它们仍需经过裁定和观察权限，玩家基础界面会显示为一行舞台动作加一行对白。完整字段与安全边界见 [World Pack 创作者字段手册](WORLD-PACK-AUTHORING-MANUAL.md#15-开启角色外显表现)。
+
 ## 继续、重建与修改
 
 相同 `--data-dir` 会打开同一持久世界；相同玩家幂等提交不会重复调用模型。每次不传 `--data-dir` 时，试玩入口会在 `.tmp` 下创建一个新世界。
@@ -94,19 +106,19 @@ Pack 的 `packId + packVersion` 一旦激活，内容 Hash 就被锁定。修改
 - `worldpack test` 当前验证确定性编译和 WorldSpec 适配，并如实返回 `assertionsExecuted: 0`；真实多轮行为由仓库测试和手动网页试玩验证。
 - 所有非玩家角色暂时共用同一个模型与采样配置；还没有逐角色 Provider 配置界面。
 - 试玩页不支持热替换 Pack。修改内容后需重新编译并启动新世界。
-- v1/v2 Pack 可以加载，但只有显式 v3 `responsive/v1` 会启用多 wave 自主反应。
+- v1/v2 Pack 可以加载；显式 v3/v4 `responsive/v1` 才会启用多 wave 自主反应，只有 v4 能启用外显表现。
 - 本机 Ollama 必须已经运行；DeepSeek 模式仍依赖 Ollama 完成玩家动作翻译。
 - 出现 `PACK_REFERENCE_INVALID` 时，优先检查改名后的角色、地点、Scene、认知 basis 和玩家绑定引用。
 - 出现 `PACK_VERSION_DIVERGED` 时，说明同一 Pack 版本的内容已经改变，应提升版本并使用新数据目录。
 - 出现完整性错误或 quarantine 时，停止写入并按 [V0 本机运行与恢复手册](V0-LOCAL-RUNBOOK.md)处理。
 
-字段完整定义见 [Phase 8 创作者运行手册](PHASE8-CREATOR-RUNBOOK.md) 和 [ADR-0069](adr/ADR-0069-worldpack-v2-source-file-shapes.md)；自主反应边界见 [ADR-0080](adr/ADR-0080-world-pack-v3-reaction-policy-creator-entry.md)。
+字段完整定义见 [World Pack 创作者字段手册](WORLD-PACK-AUTHORING-MANUAL.md) 和 [ADR-0069](adr/ADR-0069-worldpack-v2-source-file-shapes.md)；自主反应边界见 [ADR-0080](adr/ADR-0080-world-pack-v3-reaction-policy-creator-entry.md)，外显表现边界见 [ADR-0083](adr/ADR-0083-manifestation-observable-expression.md)。
 
 ## Evidence → Finding → Path
 
 | Evidence | 可复现观察 |
 | --- | --- |
-| E-001 | `worldpack init --profile responsive-social` 生成显式 `worldpack-source/v3` 和 `reaction.json` |
+| E-001 | `worldpack init --profile expressive-social` 生成显式 `worldpack-source/v4`、`reaction.json` 和 `manifestation.json` |
 | E-002 | `validate → test → compile → inspect` 由版本化编译器产生并复核不可变 Pack Hash |
 | E-003 | 网页运行时读取 compiled Pack，并按 Manifest 动态绑定 active、非 manual 角色 |
 | E-004 | Ollama/DeepSeek 只接收宿主组装的角色上下文，动作仍经 Inbox、Validator、Rulebook 和 World Commit |

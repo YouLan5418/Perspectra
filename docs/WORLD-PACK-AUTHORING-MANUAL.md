@@ -2,7 +2,7 @@
 
 本手册说明如何只编辑 JSON/Markdown 内容，创建一个可以由真实模型驱动 NPC、支持独立认知与有界连续反应的本机世界。
 
-> **当前推荐版本：** 新世界统一使用 `worldpack-source/v3`，从 `responsive-social` 模板开始。不要让 AI 混用 v1、v2、v3 文件形状。
+> **当前推荐版本：** 需要角色表情、姿态、语气等外显表现的新世界使用 `worldpack-source/v4`，从 `expressive-social` 模板开始。只需连续对白时仍可使用 v3；不要让 AI 混用不同版本的文件形状。
 
 > **严格格式：** Schema 会拒绝未知字段、错误枚举、重复 ID、越界数字和未登记文件。不能通过“多写一个看起来合理的字段”扩展系统。
 
@@ -17,7 +17,7 @@ $source = 'D:\worlds\my-world'
 $artifact = 'D:\worlds\my-world.worldpack.json'
 $data = 'D:\worlds\my-world-playtest'
 
-corepack pnpm@11.7.0 worldpack init --profile responsive-social $source
+corepack pnpm@11.7.0 worldpack init --profile expressive-social $source
 corepack pnpm@11.7.0 worldpack validate $source
 corepack pnpm@11.7.0 worldpack test $source
 corepack pnpm@11.7.0 worldpack compile $source --out $artifact
@@ -39,20 +39,21 @@ corepack pnpm@11.7.0 experience:web --pack D:\worlds\my-world.worldpack.json --d
 | --- | --- | --- | --- |
 | `worldpack init --profile minimal` | v1 | 一个玩家、一个地点、一个 Scene | 学习最小目录和编译流程 |
 | `worldpack init --profile social` | v1 | 酒馆、玩家、Alice、Bob、秘密与错误认知 | 查看旧版简单社交内容 |
-| `worldpack init --profile responsive-social` | v3 | 复杂认知、Memory、Scene v2、NPC 连续反应 | **新世界推荐起点** |
+| `worldpack init --profile responsive-social` | v3 | 复杂认知、Memory、Scene v2、NPC 连续反应 | 不需要非语言表现时使用 |
+| `worldpack init --profile expressive-social` | v4 | v3 全部能力，加上可观察的表情、视线、姿态、手势、声音与外观变化 | **表现型新世界推荐起点** |
 | `examples/world-packs/rainy-road-companions` | v2 | Phase 8 完整认知参考 | 查阅字段；直接复制时没有 Reaction Cycle |
 
-`responsive-social` 当前复制“雨夜同行”的完整结构，再加入 v3 Reaction 配置。创作者应保留文件形状，替换世界内容、角色、地点和交叉引用。
+`expressive-social` 复制“雨夜同行”的完整结构，同时加入 Reaction 与 Manifestation 配置。创作者应保留文件形状，替换世界内容、角色、地点和交叉引用。
 
 ## 3. 让 AI 生成内容
 
 可以把本手册和下列要求一起交给 AI。第一次生成时，先要求它保持模板中的 ID；校验通过后再整体重命名 ID，能显著减少交叉引用错误。
 
 ```text
-请依据《World Pack 创作者字段手册》，把 responsive-social 模板改写成一个“暴风雪中的山间旅店”世界。
+请依据《World Pack 创作者字段手册》，把 expressive-social 模板改写成一个“暴风雪中的山间旅店”世界。
 
 要求：
-1. 继续使用 worldpack-source/v3，不改变任何 schemaVersion。
+1. 继续使用 worldpack-source/v4，不改变任何 schemaVersion。
 2. 保留一个 manual 玩家角色，增加三个 scripted NPC。
 3. 每个 NPC 都有公开人设、个人目标、至少一条只属于自己的认知；其中一人持有秘密，一人持有错误认知。
 4. 至少创建两个地点和两个 Scene；只有一个 Scene 初始为 active。
@@ -92,7 +93,7 @@ loop:       drive:       principle:   document:    assertion:
 
 前缀是可读性约定；真正的约束是 ID 必须合法、稳定、唯一且所有引用一致。
 
-## 5. 推荐 v3 目录
+## 5. 推荐 v4 目录
 
 ```text
 my-world/
@@ -107,6 +108,7 @@ my-world/
 ├── cognition.json
 ├── memory.json
 ├── reaction.json
+├── manifestation.json
 ├── assertions.json
 ├── documents.json             # 可选
 └── text/                      # 可选 Markdown
@@ -116,11 +118,11 @@ my-world/
 
 ## 6. 声明文件清单
 
-`worldpack.source.json` 是唯一入口。v3 的所有字段都必须出现；暂时不用的类别也要写成空数组。
+`worldpack.source.json` 是唯一入口。v4 的所有字段都必须出现；暂时不用的类别也要写成空数组。
 
 ```json
 {
-  "sourceSchemaVersion": "worldpack-source/v3",
+  "sourceSchemaVersion": "worldpack-source/v4",
   "packId": "pack:mountain-inn",
   "packVersion": "1.0.0",
   "worldFile": "world.json",
@@ -136,13 +138,14 @@ my-world/
   "markdownFiles": [],
   "assetFiles": [],
   "assertionFiles": ["assertions.json"],
-  "reactionFile": "reaction.json"
+  "reactionFile": "reaction.json",
+  "manifestationFile": "manifestation.json"
 }
 ```
 
 | 字段 | 必填 | 含义 |
 | --- | --- | --- |
-| `sourceSchemaVersion` | 是 | 新世界固定 `worldpack-source/v3` |
+| `sourceSchemaVersion` | 是 | 表现型新世界固定 `worldpack-source/v4` |
 | `packId` | 是 | 内容包稳定身份；不同世界不要复用 |
 | `packVersion` | 是 | 作者版本；内容变更后递增 |
 | `worldFile` | 是 | 唯一世界配置文件 |
@@ -159,12 +162,13 @@ my-world/
 | `assetFiles` | 是，可空 | 二进制素材文件列表 |
 | `assertionFiles` | 是，可空 | 验收声明文件列表 |
 | `reactionFile` | 是 | NPC 连续反应策略文件 |
+| `manifestationFile` | 是 | 外显表现能力开关文件；v4 必须显式登记 |
 
 清单最多登记 512 个文件。一个路径不能在两个位置重复出现。
 
 ## 7. 定义世界
 
-`world.json` 使用 `worldpack-world/v1`；在 v3 Pack 中仍然保持这个文件版本。
+`world.json` 使用 `worldpack-world/v1`；在 v4 Pack 中仍然保持这个文件版本。
 
 ```json
 {
@@ -747,7 +751,69 @@ Scene 决定当前互动、观察和 NPC 调度范围，Location 只表示物理
 
 当前 Reaction Cycle 中 NPC 每次只能提议一个 `speak@1`。它用于让 NPC 在同一次玩家输入后有界地互相回应，不是无限自主运行。
 
-## 15. 声明验收意图
+## 15. 开启角色外显表现
+
+v4 Pack 必须提供 `manifestation.json`。推荐启用：
+
+```json
+{
+  "schemaVersion": "worldpack-manifestation/v1",
+  "mode": "enabled"
+}
+```
+
+若希望保留 v4 制品形状但暂不让模型输出表现，可写：
+
+```json
+{
+  "schemaVersion": "worldpack-manifestation/v1",
+  "mode": "disabled"
+}
+```
+
+这个文件只有两个必填字段，不接受其他设置。创作者不需要在 Pack 中预写每一轮的表情和动作；启用后，运行时会向角色模型开放一个受约束的 `manifestation` 输出槽。其字段如下：
+
+| 字段 | 必填 | 格式 | 用途 |
+| --- | --- | --- | --- |
+| `description` | 否 | 非空文本 | 本轮表现的综合舞台动作；基础网页优先显示它 |
+| `cues` | 是 | 1～8 项数组 | 可被观察、记忆和未来表现层分别消费的结构化线索 |
+| `cues[].cueId` | 是 | 本次 Proposal 内唯一的非空 ID | 让裁定和审计稳定指向某个 Cue |
+| `cues[].channel` | 是 | 下表闭集 | 表现通道 |
+| `cues[].description` | 是 | 非空文本 | 外界实际可见或可听的描述 |
+| `cues[].persistence` | 是 | `event_only` 或 `until_changed` | 只发生一次，或持续成为当前可见状态 |
+| `stateKey` | 条件必填 | 稳定非空 ID | 仅 `until_changed` 使用，标识要设置或清除的状态 |
+| `operation` | 条件必填 | `set` 或 `clear` | 仅 `until_changed` 使用 |
+
+`channel` 的含义：
+
+| 值 | 适合表达 | 能否持续 |
+| --- | --- | --- |
+| `facial` | 皱眉、微笑、脸红 | 否 |
+| `gaze` | 看向某人、移开视线 | 否 |
+| `gesture` | 攥拳、敲桌、拨弄头发 | 否 |
+| `voice` | 轻声、发颤、语速加快 | 否 |
+| `posture` | 抱臂、倚靠、蹲下 | 是 |
+| `appearance` | 袖口湿了、衣服破损、出现擦伤 | 是 |
+
+玩家最终看到的基础文本类似：
+
+```text
+（Claude 避开视线，握杯子的手略微收紧。）
+Claude 说：“随你。”
+```
+
+安全边界：
+
+- 只能写外界可观察到的线索，不能写“真实嫉妒 0.8”“其实在撒谎”“暗中想杀人”等内在事实。
+- `voice` 只写语气、音量或声音状态，不复制对白正文。
+- `appearance` 只写本轮发生的变化，不重复银发、蓝眼等固有外貌。
+- `event_only` 只进入历史；`until_changed` 才更新当前可见状态。V1 只允许 `posture` 和 `appearance` 持续。
+- 模型输出只是 Proposal。只有经过规则裁定、提交并被某个角色实际观察到的表现，才会进入该角色的 Observation 和 Memory。
+- 表现不会自动证明角色的真实情绪、动机、秘密或说法为真。
+
+当前 V1 中，带 `manifestation` 的 Proposal 必须恰好有一个 Action。它不是第四种 Action，也不能脱离 Action 单独提交。未来逐动作绑定表现时会使用新版本，不会重解释 v4 历史。
+
+## 16. 声明验收意图
 
 `assertions.json` 的格式是：
 
@@ -778,7 +844,7 @@ Scene 决定当前互动、观察和 NPC 调度范围，Location 只表示物理
 }
 ```
 
-## 16. 理解引用和隐私
+## 17. 理解引用和隐私
 
 编译前必须满足以下闭包：
 
@@ -801,7 +867,7 @@ Scene 决定当前互动、观察和 NPC 调度范围，Location 只表示物理
 | `innerTensions` | 互相冲突的倾向 | 系统已经替角色作出选择 |
 | `author_note` | 作者私有说明 | 可进入 NPC 上下文的隐藏提示词 |
 
-## 17. 校验、版本化和试玩
+## 18. 校验、版本化和试玩
 
 每次编辑后按顺序执行：
 
@@ -824,7 +890,7 @@ corepack pnpm@11.7.0 experience:web --deepseek `
 
 不要手改 SQLite、Manifest Hash 或编译产物来覆盖旧世界。
 
-## 18. 常见错误
+## 19. 常见错误
 
 | 表现 | 常见原因 | 处理方法 |
 | --- | --- | --- |
@@ -835,41 +901,44 @@ corepack pnpm@11.7.0 experience:web --deepseek `
 | `PACK_PROFILE_NOT_ALLOWED` | AI 自行修改了 Core Profile | 恢复本手册中的固定 Profile |
 | `PACK_VERSION_DIVERGED` | 同一 packId/version 对应不同内容 | 提升 `packVersion` 并重新编译 |
 | NPC 不说话 | 角色不是 active/scripted，或不在 active Scene | 检查 Character、Scene 和 Reaction |
-| NPC 不连续回应 | 使用 v1/v2 Pack 或 Reaction disabled | 使用 `worldpack-source/v3 + responsive/v1` |
+| NPC 不连续回应 | 使用 v1/v2 Pack 或 Reaction disabled | 使用 v3/v4 并启用 `responsive/v1` |
+| 没有舞台动作 | 使用 v1～v3、Manifestation disabled，或模型省略表现 | 使用 v4 并检查 `manifestation.json` 为 `enabled` |
 | 秘密泄漏 | 把秘密写进 public Portrayal、公开 Fact 受众或玩家文档 | 把信息放进正确角色的 Cognition/私有 Document |
 | 世界能编译但玩法不存在 | `kind` 或自由文本不会自动生成规则 | 只依赖 Core `speak/move/take/reflect`，新硬语义需要受信规则实现 |
 
 全局安全上限：最多 256 个角色、512 个地点、512 个物品、每类每角色最多 512 条认知、512 个 Document；每个源 JSON 最大 1 MiB，完整编译制品最大 16 MiB。
 
-## 19. 版本兼容说明
+## 20. 版本兼容说明
 
-| Source 版本 | Character/Scene/Cognition | Reaction | 使用建议 |
-| --- | --- | --- | --- |
-| v1 | Character v1、单 Scene、简单 Observation/Claim/Goal | 无 | 只维护旧 Pack |
-| v2 | Character v2、Scene v2、完整 Cognition/Memory/Document | 无 | Phase 8 历史世界或字段参考 |
-| v3 | 与 v2 内容形状一致，增加 `reactionFile` | 有 | **所有新世界** |
+| Source 版本 | Character/Scene/Cognition | Reaction | Manifestation | 使用建议 |
+| --- | --- | --- | --- | --- |
+| v1 | Character v1、单 Scene、简单 Observation/Claim/Goal | 无 | 无 | 只维护旧 Pack |
+| v2 | Character v2、Scene v2、完整 Cognition/Memory/Document | 无 | 无 | Phase 8 历史世界或字段参考 |
+| v3 | 与 v2 内容形状一致 | 有 | 无 | 只需连续对白的新世界 |
+| v4 | 与 v3 内容形状一致 | 有 | 有，显式开关 | **需要非语言表现的新世界** |
 
-不要把 v1 的 `initialClaims`、`initialGoals` 写进 Character v2。v2/v3 将这些内容集中放在 `cognition.json`。系统不会隐式升级旧 Pack，也不会在解析失败时退回其他版本。
+不要把 v1 的 `initialClaims`、`initialGoals` 写进 Character v2。v2/v3/v4 将这些内容集中放在 `cognition.json`。系统不会隐式升级旧 Pack，也不会在解析失败时退回其他版本。
 
-## 20. Evidence → Finding → Path
+## 21. Evidence → Finding → Path
 
 | Evidence | 实现来源 | 可复现观察 |
 | --- | --- | --- |
-| E-001 | `packages/world-pack/src/creator-cli.ts` | `init` 注册 `minimal/social/responsive-social`，v3 模板显式生成 Reaction 文件 |
+| E-001 | `packages/world-pack/src/creator-cli.ts` | `init` 注册四种模板；v4 模板显式生成 Reaction 与 Manifestation 文件 |
 | E-002 | `packages/world-pack/src/schema.ts` | 每类文件使用 exact-key、枚举、默认值和跨文件编译门禁 |
-| E-003 | `packages/world-pack/src/contracts.ts` | v1/v2/v3、认知词汇和固定 Profile 有版本化类型 |
+| E-003 | `packages/world-pack/src/contracts.ts` | v1～v4、认知词汇、Reaction 与 Manifestation 均有版本化类型 |
 | E-004 | `examples/world-packs/rainy-road-companions` | 完整 v2 角色认知、Memory 与多 Scene 参考数据 |
 | E-005 | `docs/CREATOR-PLAYTEST-RUNBOOK.md` | 已验证从脚手架到真实模型网页试玩的执行路径 |
 
-Finding F-001：E-001～E-004 证明创作者可以只改内容文件建立通用世界，但新创作必须统一到 v3，避免 AI 混合三代字段。
+Finding F-001：E-001～E-004 证明创作者可以只改内容文件建立通用世界；是否需要外显表现决定选择 v3 或 v4，不能混合版本字段。
 
 Finding F-002：E-002～E-003 证明“可省略”不等于“不进入编译结果”；默认值会物化并参与 Pack Hash，因此手册必须精确记录默认值。
 
-Path P-001：生成 `responsive-social` → 只改登记文件 → `validate` → `test` → `compile` → `inspect` → 用独立数据目录进行真实模型网页试玩。
+Path P-001：生成 `expressive-social` → 只改登记文件 → `validate` → `test` → `compile` → `inspect` → 用独立数据目录进行真实模型网页试玩。
 
-## 21. 相关文档
+## 22. 相关文档
 
 - [创作者 World Pack 与真实模型试玩指南](CREATOR-PLAYTEST-RUNBOOK.md)
 - [Phase 8 创作者运行手册](PHASE8-CREATOR-RUNBOOK.md)
 - [World Pack v2 作者源文件形状 ADR](adr/ADR-0069-worldpack-v2-source-file-shapes.md)
+- [角色外显表现 ADR](adr/ADR-0083-manifestation-observable-expression.md)
 - [雨夜同行参考 Pack](../examples/world-packs/rainy-road-companions/worldpack.source.json)
