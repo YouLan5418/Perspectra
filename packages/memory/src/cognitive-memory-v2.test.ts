@@ -151,6 +151,27 @@ describe('Cognitive Memory v2', () => {
     world.close()
   })
 
+  it.each([
+    ['missing-character', { description: 'visible', cues: [{ description: 'visible' }] }, 'requires characterId'],
+    ['invalid-description', { characterId: bob, description: 1, cues: [{ description: 'visible' }] }, 'description must be string'],
+    ['missing-cues', { characterId: bob, description: 'visible', cues: [] }, 'requires accepted cues'],
+    ['invalid-cue', { characterId: bob, description: null, cues: [{}] }, 'cue requires description'],
+  ] as const)('fails closed for malformed committed manifestation observations: %s', async (suffix, manifestation, message) => {
+    const path = paths()
+    const world = new WorldStore(path.world)
+    world.createBranch(address())
+    await commit(world, `malformed-manifestation:${suffix}`, [
+      { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
+      { eventType: 'observation.upsert', eventVersion: 1, data: {
+        id: `observation:alice:${suffix}`, value: { observerId: alice, content: { manifestation } },
+      } },
+    ])
+    const memory = new LocalMemoryStore(path.memory, world)
+    expect(() => memory.catchUpV2(address(), alice, 2, `catchup:${suffix}`)).toThrow(message)
+    memory.close()
+    world.close()
+  })
+
   it('captures the frozen subjective inference and self intention observation kinds', async () => {
     const path = paths()
     const world = new WorldStore(path.world)

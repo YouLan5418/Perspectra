@@ -38,6 +38,24 @@ afterEach(() => {
 })
 
 describe('VisibleStateRebuilder', () => {
+  it('orders multiple state keys for one character with the world text comparator', async () => {
+    const store = new WorldStore(path())
+    store.createBranch(address())
+    await commit(store, 'same-character-order', [
+      { eventType: 'character.visible-state-upserted', eventVersion: 1, data: {
+        characterId: 'character:a', stateKey: 'posture:z',
+        value: { channel: 'posture', description: '后一个状态' },
+      } },
+      { eventType: 'character.visible-state-upserted', eventVersion: 1, data: {
+        characterId: 'character:a', stateKey: 'appearance:a',
+        value: { channel: 'appearance', description: '前一个状态' },
+      } },
+    ])
+    expect(new VisibleStateRebuilder(store).rebuildAt(address(), 2).states.map(value => value.stateKey))
+      .toEqual(['appearance:a', 'posture:z'])
+    store.close()
+  })
+
   it('rebuilds set, replace, remove, filtering, fork as-of, and stable ordering from events', async () => {
     const store = new WorldStore(path())
     store.createBranch(address())

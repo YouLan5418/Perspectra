@@ -114,9 +114,33 @@ describe('DeterministicPresenter', () => {
 
     const innerMissingContent = { ...base, value: { observerId: 'character:player', actionId: 'action:no-content' } }
     expect(presenter.render(innerMissingContent).text).toContain('"actionId":"action:no-content"')
+    expect(presenter.render({ observationId: 'observation:no-content', value: {} }).text)
+      .toContain('"observationId":"observation:no-content"')
+    expect(presenter.render({ observationId: 'observation:scalar', value: 'not-an-object' }).text)
+      .toContain('"observationId":"observation:scalar"')
+    expect(presenter.render({ observationId: 'observation:missing-value' }).text)
+      .toContain('"observationId":"observation:missing-value"')
 
     expect(presenter.render(manifestedSpeech).text)
       .toBe('*Alice 避开视线，抱起双臂。*\nalice says: "你好世界"')
+    const manifestedWithoutSummary = {
+      ...manifestedSpeech,
+      value: {
+        ...manifestedSpeech.value,
+        content: {
+          ...manifestedSpeech.value.content,
+          manifestation: {
+            characterId: 'alice', description: null,
+            cues: [
+              { cueId: 'cue:gaze', channel: 'gaze', description: 'looks away', persistence: 'event_only' },
+              { cueId: 'cue:voice', channel: 'voice', description: 'lowers her voice', persistence: 'event_only' },
+            ],
+          },
+        },
+      },
+    }
+    expect(presenter.render(manifestedWithoutSummary).text)
+      .toBe('*looks away, lowers her voice*\nalice says: "你好世界"')
     for (const manifestation of [
       'invalid',
       { description: 1, cues: [{ description: 'valid cue' }] },

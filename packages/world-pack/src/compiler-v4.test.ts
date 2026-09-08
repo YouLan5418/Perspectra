@@ -110,6 +110,25 @@ describe('WorldPackCompilerV4', () => {
       .toThrow('does not match the compiled v4 envelope content')
     expect(() => parseCompiledWorldPackV4({ ...pack, compiledSchemaVersion: 'worldpack/v3' })).toThrow()
     expect(() => parseCompiledWorldPackV4({ ...pack, compiler: { ...pack.compiler, version: '0.3.0' } })).toThrow()
+
+    await writeFile(join(root, 'reaction.json'), canonicalizeWorldJson({
+      schemaVersion: 'worldpack-reaction/v1', mode: 'disabled',
+    }))
+    const charactersPath = join(root, 'characters.json')
+    const characters = JSON.parse(await readFile(charactersPath, 'utf8')) as { characters: Array<{ lifecycle?: string }> }
+    characters.characters[1]!.lifecycle = 'departed'
+    await writeFile(charactersPath, canonicalizeWorldJson(characters))
+    const disabled = compiler.adaptToWorldSpec(await compiler.compile(root), {
+      address: {
+        tenantId: brandId('tenant:v4-disabled', 'TenantId'), worldId: brandId('world:v4-disabled', 'WorldId'),
+        branchId: brandId('branch:main', 'BranchId'),
+      },
+      principalId: 'principal:player', sessionId: brandId('session:player', 'SessionId'),
+    })
+    expect(disabled.manifest).toMatchObject({ reactionPolicy: { mode: 'disabled' } })
+    expect(disabled.genesisEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ eventType: 'character.lifecycle-changed' }),
+    ]))
     await expect(compiler.compile(join(root, 'absent'))).rejects.toThrow('cannot open source directory')
   })
 })
