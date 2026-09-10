@@ -10,6 +10,8 @@
 
 > **能力边界：** World Pack 是内容，不是程序。它不能包含 JavaScript、任意 Event、API Key、模型地址、系统提示或自定义规则脚本。
 
+本次接入大模型并验证两步/交互，请先按[真实模型试玩指南 §1～5](CREATOR-PLAYTEST-RUNBOOK.md)设置凭证、选择新协议和检查运行状态；本手册用于查询字段。
+
 ## 1. 五分钟创建并试玩世界
 
 在仓库根目录执行：
@@ -839,11 +841,10 @@ Claude 说：“随你。”
 | 模型协议 | **submit_actions/v4** |
 | 两步组合 | 必须恰好一次 `speak` 加一次 `move` 或 `take`；顺序可任意；`abstain` 必须零步 |
 
-在编译之后激活，或在试玩命令上追加开关（数据目录要新的）：
+在编译之后启动网页试玩并追加开关（数据目录要新的）：
 
 ```powershell
-corepack pnpm@11.7.0 worldpack activate $artifact --data-dir $data --action-groups
-
+# 网页试玩自带激活，不需要先执行 worldpack activate。
 corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data --action-groups
 ```
 
@@ -912,12 +913,10 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 - 命名与文案**不会**改变操作的前置条件或效果。
 - 上限：最多 128 个定义、4096 个对象绑定，ID 与名称最长 128 字符。
 
-启用方式：
+启用方式（目录中的物品 ID 必须与自己的 Pack 一致）：
 
 ```powershell
-corepack pnpm@11.7.0 worldpack activate $artifact --data-dir $data `
-  --interactions examples\world-packs\possession-interactions.json
-
+# 网页试玩自带激活；--interactions 已包含两步能力。
 corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data `
   --interactions examples\world-packs\possession-interactions.json
 ```
@@ -933,6 +932,8 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 模型只能在 `affordances.interactions` 当前枚举出的候选里选择（同地点无人持有的物品、以及自己持有的物品；递交收件再按当前 Scene 可见角色裁剪）。这些候选是**提案输入，不是授权票据**——执行时会在最新事件前缀上重新验证。
 
 > 角色握手、递物邀请等「请求/接受/拒绝」协议属于第二阶段，尚未实现。
+
+`worldpack activate` 用于另一个 Host 的激活，写入 `<data-dir>/data/`；网页试玩写入 `<data-dir>/` 且使用不同地址和玩家绑定。两种入口不能通过相同目录互相接续。新 v7/v8 DeepSeek 模式不需要 Ollama 翻译玩家输入；普通文本只作为对白。
 
 ## 18. 声明验收意图
 

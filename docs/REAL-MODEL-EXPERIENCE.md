@@ -39,6 +39,8 @@ corepack pnpm@11.7.0 experience:ollama:dialogue
 
 ## 在浏览器中连续试玩
 
+新建世界要验证两步行动组和物品交互，请优先按[创作者真实模型试玩指南](CREATOR-PLAYTEST-RUNBOOK.md)启动 `--interactions`。下方不带扩展开关的命令保留旧模式；网页模型可通过 `HCW_DEEPSEEK_MODEL` 显式配置，固定对话脚本仍沿用自己的默认模型。
+
 这是一个只绑定本机回环地址的实验页面，仍使用上述 Ollama 模型和正式 `WorldApplication` 管线。它不改变 V0 的 `stdio only` 发布边界，也不提供远程服务。
 
 先确认 Ollama 正在运行，然后执行：
@@ -82,7 +84,7 @@ corepack pnpm@11.7.0 experience:web:flash --pack D:\worlds\my-world.worldpack.js
 corepack pnpm@11.7.0 experience:web:flash
 ```
 
-该入口固定使用 `deepseek-v4-flash` 和 `https://api.deepseek.com/chat/completions`，不会接受自定义远程 Endpoint，也不会因 Key 缺失而回退到 Ollama。它会产生外部 API 调用与可能的费用；Key 只进入 Authorization 请求头，不进入浏览器状态、本地请求证据或错误正文。每次请求超时 30 秒，失败或终态不明时不自动重发。
+该网页入口默认模型字符串为 `deepseek-v4-flash`，可由 `HCW_DEEPSEEK_MODEL` 覆盖；固定使用 `https://api.deepseek.com/chat/completions`，不会接受自定义远程 Endpoint，也不会因 Key 缺失而回退到 Ollama。它会产生外部 API 调用与可能的费用；Key 只进入 Authorization 请求头，不进入浏览器状态、本地请求证据或错误正文。每次请求超时 30 秒，失败或终态不明时不自动重发。
 
 ## DeepSeek Flash 三轮体验
 
