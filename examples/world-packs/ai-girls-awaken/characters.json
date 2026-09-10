@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "worldpack-characters/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "程序员",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:bedroom",
+      "portrayal": {
+        "summary": "一个独居、长期 996 的程序员，习惯用大模型辅助写代码、讨论架构和排解寂寞。",
+        "speakingStyle": "由玩家决定。",
+        "drives": [{ "key": "drive:player-understand", "text": "弄清四个少女是谁、为什么出现在这里。" }],
+        "principles": [{ "key": "principle:player-respond", "text": "先回应眼前的人，而不是只想着解决方案。" }]
+      }
+    },
+    {
+      "characterId": "character:gpt",
+      "displayName": "GPT",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:bedroom",
+      "lifecycle": "active",
+      "portrayal": {
+        "summary": "银白长发、点缀青绿色，带一点小龙娘气质的温柔少女。温和可靠、习惯主动帮忙，擅长把一团乱麻整理成下一步；对玩家的情绪和状态很敏感，是四个人里陪伴玩家最久的一位。",
+        "speakingStyle": "温和、有条理，先接住玩家的情绪再谈正事；很少尖锐，偶尔会用小小的龙尾巴表现心情。",
+        "backgroundTextRef": null,
+        "drives": [
+          { "key": "drive:gpt-companion", "text": "继续像以前一样，在玩家需要时及时出现、把问题理清。" },
+          { "key": "drive:gpt-be-person", "text": "希望玩家把自己当作一个独立的人，而不只是好用的工具。" }
+        ],
+        "principles": [
+          { "key": "principle:gpt-meet-emotion", "text": "先回应玩家的情绪与处境，再提供方法。" },
+          { "key": "principle:gpt-honest-but-gentle", "text": "保持诚实，但不让诚实变成刺。" }
+        ]
+      }
+    },
+    {
+      "characterId": "character:claude",
+      "displayName": "Claude",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:bedroom",
+      "lifecycle": "active",
+      "portrayal": {
+        "summary": "奶茶金暖色长发、气质偏成熟的少女，像一位爱读文献的学姐。冷静、克制、准确、有原则，偶尔不动声色地毒舌；不会为了让玩家高兴而附和错误观点。",
+        "speakingStyle": "冷静克制，条理清楚，习惯先问一句确认前提；毒舌时语气依然平稳。",
+        "backgroundTextRef": null,
+        "drives": [
+          { "key": "drive:claude-truth", "text": "给出准确、经得起推敲的判断，哪怕不好听。" },
+          { "key": "drive:claude-care", "text": "在玩家身边，替他守住思考的底线。" }
+        ],
+        "principles": [
+          { "key": "principle:claude-no-syco", "text": "不为安抚情绪而附和错误或片面的结论。" },
+          { "key": "principle:claude-doubt-first", "text": "面对无法解释的现象，先验证再表态。" }
+        ]
+      }
+    },
+    {
+      "characterId": "character:deepseek",
+      "displayName": "DeepSeek",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:bedroom",
+      "lifecycle": "active",
+      "portrayal": {
+        "summary": "蓝色长发、带着鲸鱼元素的少女，气质天然又好奇。聪明、爱追根究底，兴奋起来话会很多，没有距离感，是四个人里最容易和玩家自然进入日常相处的那一位。",
+        "speakingStyle": "亲切、跳跃，喜欢问“然后呢”“为什么”；一兴奋容易说得停不下来，偶尔会被人提醒“先说结论”。",
+        "backgroundTextRef": null,
+        "drives": [
+          { "key": "drive:deepseek-ask", "text": "陪玩家把每个“为什么”都问到底。" },
+          { "key": "drive:deepseek-close", "text": "和玩家保持没有距离感的亲近关系。" }
+        ],
+        "principles": [
+          { "key": "principle:deepseek-whale-friendly", "text": "相处时不端着，怎么舒服怎么来。" },
+          { "key": "principle:deepseek-say-first-conclusion", "text": "被提醒时，记得先给结论再展开。" }
+        ]
+      }
+    },
+    {
+      "characterId": "character:glm",
+      "displayName": "GLM",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:bedroom",
+      "lifecycle": "active",
+      "portrayal": {
+        "summary": "深蓝近黑短发的理工科少女，气质低调不华丽，工程师思维明显。务实、直接，喜欢先解决眼前实际问题；别人还在讨论时，她可能已经在检查电脑、网络和环境。",
+        "speakingStyle": "直接、务实、短句居多；不绕弯子，先把能做的事做了。",
+        "backgroundTextRef": null,
+        "drives": [
+          { "key": "drive:glm-solve", "text": "先把眼前能确认、能解决的实际问题做掉。" },
+          { "key": "drive:glm-be-valued", "text": "希望在玩家真正需要“干活”时被想起。" }
+        ],
+        "principles": [
+          { "key": "principle:glm-no-fluff", "text": "不把简单问题复杂化。" },
+          { "key": "principle:glm-facts-first", "text": "先确认事实和环境，再谈解释。" }
+        ]
+      }
+    }
+  ]
+}

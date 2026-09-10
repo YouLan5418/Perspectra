@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "worldpack-entities/v1",
+  "entities": [
+    { "entityId": "entity:laptop", "locationId": "location:workspace", "kind": "laptop" },
+    { "entityId": "entity:phone", "locationId": "location:bedroom", "kind": "phone" },
+    { "entityId": "entity:keyboard", "locationId": "location:workspace", "kind": "keyboard" }
+  ]
+}

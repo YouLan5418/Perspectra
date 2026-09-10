@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "worldpack-player-slots/v1",
+  "playerSlots": [
+    { "slotId": "slot:programmer", "characterId": "character:player", "controlMode": "manual" }
+  ]
+}

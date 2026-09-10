@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "worldpack-documents/v2",
+  "documents": [
+    {
+      "documentId": "document:claude-3am-memory",
+      "contentRef": "text/claude-memory.zh-CN.md",
+      "usage": "portrayal",
+      "audience": "character_private",
+      "characterIds": ["character:claude"]
+    },
+    {
+      "documentId": "document:deepseek-observation-notes",
+      "contentRef": "text/deepseek-notes.zh-CN.md",
+      "usage": "portrayal",
+      "audience": "character_private",
+      "characterIds": ["character:deepseek"]
+    }
+  ]
+}

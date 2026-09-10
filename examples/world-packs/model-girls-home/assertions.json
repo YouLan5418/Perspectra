@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "worldpack-assertions/v1",
+  "assertions": [
+    {
+      "assertionId": "assertion:claude-3am-memory-hidden-from-player",
+      "assertionType": "view.excludes",
+      "parameters": { "characterId": "character:player", "text": "凌晨三点半" }
+    },
+    {
+      "assertionId": "assertion:deepseek-notes-hidden-from-others",
+      "assertionType": "view.excludes",
+      "parameters": { "characterId": "character:gpt", "text": "观察笔记" }
+    },
+    {
+      "assertionId": "assertion:gpt-affection-visible-to-gpt",
+      "assertionType": "view.includes",
+      "parameters": { "characterId": "character:gpt", "recordKey": "relationship:gpt-wants-needed" }
+    }
+  ]
+}

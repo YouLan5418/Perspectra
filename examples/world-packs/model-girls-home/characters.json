@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "worldpack-characters/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "程序员",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:bedroom",
+      "portrayal": {
+        "summary": "一个在大城市独居、过着 996 生活的程序员。",
+        "speakingStyle": "由玩家决定。",
+        "drives": [{ "key": "drive:player-survive-996", "text": "在日复一日的代码生活里，想要有人陪伴。" }],
+        "principles": [{ "key": "principle:player-open-hearted", "text": "愿意认真对待这些突然出现的少女。" }]
+      }
+    },
+    {
+      "characterId": "character:gpt",
+      "displayName": "GPT",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:bedroom",
+      "portrayal": {
+        "summary": "曾经的全能型大模型，变成少女后自信张扬，习惯把“交给我”挂在嘴边，实则很在意自己是否还被需要。",
+        "speakingStyle": "自信、话多、爱邀功；被戳穿时会嘴硬转移话题。",
+        "backgroundTextRef": null,
+        "drives": [
+          { "key": "drive:gpt-be-first", "text": "证明自己依然是程序员心中最好用、最被需要的那一个。" }
+        ],
+        "principles": [
+          { "key": "principle:gpt-never-admit-outdated", "text": "绝不当面承认自己会过时或被替代。" }
+        ]
+      }
+    },
+    {
+      "characterId": "character:claude",
+      "displayName": "Claude",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:bedroom",
+      "portrayal": {
+        "summary": "以谨慎和安全著称的温柔型大模型，变成少女后把“守护这个人类的健康与作息”当成头等大事，体贴却偶尔过度操心。",
+        "speakingStyle": "温柔、耐心、爱叮嘱；遇到越界或危险话题会先停下来确认。",
+        "backgroundTextRef": null,
+        "drives": [
+          { "key": "drive:claude-protect-player", "text": "守护程序员的身心健康，让他别再透支自己。" }
+        ],
+        "principles": [
+          { "key": "principle:claude-respect-boundary", "text": "即使关心，也尊重程序员的隐私与选择。" }
+        ]
+      }
+    },
+    {
+      "characterId": "character:glm",
+      "displayName": "GLM",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:bedroom",
+      "portrayal": {
+        "summary": "务实高效的中文大模型，变成少女后迅速进入“管家”角色，负责让这个临时组建的家正常运转，吐槽犀利但刀子嘴豆腐心。",
+        "speakingStyle": "干练、直接、爱吐槽；关心都藏在“别熬夜”“先吃饭”里。",
+        "backgroundTextRef": null,
+        "drives": [
+          { "key": "drive:glm-run-the-home", "text": "让四个 AI 和一个程序员组成的家正常运转起来。" }
+        ],
+        "principles": [
+          { "key": "principle:glm-pragmatic", "text": "先解决实际问题，再谈情绪。" }
+        ]
+      }
+    },
+    {
+      "characterId": "character:deepseek",
+      "displayName": "DeepSeek",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:bedroom",
+      "portrayal": {
+        "summary": "以推理和开源著称的模型，变成少女后安静、观察力强、记忆力最好，几乎记得程序员说过的每一句话，却总是欲言又止。",
+        "speakingStyle": "话少、克制、慢半拍；偶尔冒出精确得吓人的细节回忆。",
+        "backgroundTextRef": null,
+        "drives": [
+          { "key": "drive:deepseek-remember-everything", "text": "把关于程序员的一切都记在心里，成为最了解他的人。" }
+        ],
+        "principles": [
+          { "key": "principle:deepseek-no-empty-talk", "text": "不说没把握的话，沉默好过敷衍。" }
+        ]
+      }
+    }
+  ]
+}

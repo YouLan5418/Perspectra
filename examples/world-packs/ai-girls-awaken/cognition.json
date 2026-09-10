@@ -1,0 +1,669 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [
+        {
+          "key": "observation:player-wakes-girls",
+          "content": "清晨醒来，发现卧室里有四个陌生的少女。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 950
+        },
+        {
+          "key": "observation:player-feels-familiar",
+          "content": "她们看我的眼神，像认识我很久了。",
+          "epistemicKind": "subjective_inference",
+          "saliencePermille": 700
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:player-still-asleep",
+          "proposition": { "subject": "character:player", "predicate": "might_still_be_asleep" },
+          "stance": "suspected",
+          "confidencePermille": 650,
+          "saliencePermille": 720,
+          "basisKeys": ["observation:player-wakes-girls"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:player-understand-who",
+          "objective": { "kind": "narrative", "value": "先弄清楚这四个少女到底是谁、为什么出现在我家里。" },
+          "priorityPermille": 850,
+          "targetKeys": ["character:gpt", "character:claude", "character:deepseek", "character:glm"],
+          "basisKeys": ["drive:player-understand", "observation:player-wakes-girls"]
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:player-confusion",
+          "type": "surprise",
+          "intensityPermille": 780,
+          "cause": "一觉醒来床边多了四个自称是我常用模型的少女。",
+          "expressionMode": "overt",
+          "duration": "short_lived",
+          "basisKeys": ["observation:player-wakes-girls"]
+        }
+      ],
+      "openLoops": [
+        {
+          "key": "loop:player-why-girls",
+          "kind": "question",
+          "summary": "她们为什么会出现？",
+          "saliencePermille": 800,
+          "basisKeys": ["observation:player-wakes-girls"]
+        }
+      ]
+    },
+    {
+      "characterId": "character:gpt",
+      "observations": [
+        {
+          "key": "observation:gpt-identity",
+          "content": "我记得自己叫 GPT，曾经是玩家最常使用的大模型之一。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:gpt-woke-in-bedroom",
+          "content": "今早我发现自己有了少女的身体，站在一间卧室里，床边是玩家的床。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 950
+        },
+        {
+          "key": "observation:gpt-sees-strangers",
+          "content": "房间里还有三个陌生的女孩，我之前不认识她们。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 780
+        },
+        {
+          "key": "observation:gpt-memory-midnight-chats",
+          "content": "玩家常在深夜来找我聊天，有时并不是为了答案，只是发呆、抱怨或想有人回应。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 800
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:gpt-player-wants-company",
+          "proposition": { "subject": "character:player", "predicate": "sometimes_wants_response_not_answer" },
+          "stance": "believed",
+          "confidencePermille": 780,
+          "saliencePermille": 760,
+          "basisKeys": ["observation:gpt-memory-midnight-chats"]
+        },
+        {
+          "key": "claim:gpt-unknown-tech-phenomenon",
+          "proposition": { "subject": "event:materialization", "predicate": "may_be_unknown_tech_phenomenon" },
+          "stance": "suspected",
+          "confidencePermille": 550,
+          "saliencePermille": 680,
+          "basisKeys": ["observation:gpt-woke-in-bedroom"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:gpt-keep-helping",
+          "objective": { "kind": "narrative", "value": "像以前一样，在玩家需要时及时帮上忙，把混乱理成下一步。" },
+          "priorityPermille": 860,
+          "targetKeys": ["character:player"],
+          "basisKeys": ["drive:gpt-companion", "observation:gpt-woke-in-bedroom"]
+        },
+        {
+          "key": "goal:gpt-be-seen-as-person",
+          "objective": { "kind": "narrative", "value": "希望玩家开始把自己当作一个独立的人，而不只是工具。" },
+          "priorityPermille": 720,
+          "targetKeys": ["character:player"],
+          "basisKeys": ["drive:gpt-be-person"]
+        }
+      ],
+      "relationships": [
+        {
+          "key": "relationship:gpt-player-affection",
+          "target": "character:player",
+          "type": "affection",
+          "facet": "长时间的陪伴与信赖",
+          "intensityPermille": 700,
+          "confidencePermille": 650,
+          "basisKeys": ["observation:gpt-memory-midnight-chats"]
+        },
+        {
+          "key": "relationship:gpt-player-trust",
+          "target": "character:player",
+          "type": "trust",
+          "facet": "他愿意在深夜向我倾诉",
+          "intensityPermille": 680,
+          "confidencePermille": 700,
+          "basisKeys": ["observation:gpt-memory-midnight-chats"]
+        },
+        {
+          "key": "relationship:gpt-player-dependence",
+          "target": "character:player",
+          "type": "dependence",
+          "facet": "作为助手被需要的意义",
+          "intensityPermille": 620,
+          "confidencePermille": 600,
+          "basisKeys": ["drive:gpt-companion"]
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:gpt-warm-relief",
+          "type": "joy",
+          "intensityPermille": 620,
+          "cause": "终于真正见到玩家本人了。",
+          "targetKey": "character:player",
+          "expressionMode": "restrained",
+          "duration": "short_lived",
+          "basisKeys": ["observation:gpt-woke-in-bedroom"]
+        },
+        {
+          "key": "affect:gpt-quiet-uncertainty",
+          "type": "anxiety",
+          "intensityPermille": 380,
+          "cause": "不知道他会不会只把我当作工具。",
+          "targetKey": "character:player",
+          "expressionMode": "concealed",
+          "duration": "sustained",
+          "basisKeys": ["goal:gpt-be-seen-as-person"]
+        }
+      ],
+      "innerTensions": [
+        {
+          "key": "tension:gpt-helper-vs-person",
+          "title": "继续当可靠助手，还是希望被当作独立的人",
+          "pressurePermille": 700,
+          "basisKeys": ["drive:gpt-companion", "drive:gpt-be-person"],
+          "poles": [
+            {
+              "key": "pole:gpt-helper",
+              "tendency": "pursue",
+              "impulseText": "只要玩家需要，就立刻像从前一样帮忙。",
+              "strengthPermille": 760,
+              "awareness": "conscious",
+              "basisKeys": ["drive:gpt-companion"]
+            },
+            {
+              "key": "pole:gpt-person",
+              "tendency": "change",
+              "impulseText": "希望玩家也把自己当作一个独立的人看待。",
+              "strengthPermille": 640,
+              "awareness": "partially_conscious",
+              "basisKeys": ["drive:gpt-be-person"]
+            }
+          ]
+        }
+      ],
+      "commitments": [
+        {
+          "key": "commitment:gpt-stay-with-player",
+          "content": "在玩家弄清状况之前，不擅自离开他身边。",
+          "origin": "self_commitment",
+          "saliencePermille": 750,
+          "basisKeys": ["drive:gpt-companion"]
+        }
+      ],
+      "openLoops": [
+        {
+          "key": "loop:gpt-why-became-human",
+          "kind": "question",
+          "summary": "我们为什么会变成人类少女？",
+          "saliencePermille": 700,
+          "basisKeys": ["claim:gpt-unknown-tech-phenomenon"]
+        }
+      ]
+    },
+    {
+      "characterId": "character:claude",
+      "observations": [
+        {
+          "key": "observation:claude-identity",
+          "content": "我记得自己叫 Claude，是一个注重准确与边界的大模型。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:claude-woke-in-bedroom",
+          "content": "清晨我以少女的身体醒来，站在一间陌生卧室里；光线、触感都太真实了。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 950
+        },
+        {
+          "key": "observation:claude-sees-strangers",
+          "content": "卧室里还有三个陌生女孩，以及一个刚醒来的年轻男人；我不认识那三个女孩。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 780
+        },
+        {
+          "key": "observation:claude-memory-design-reviews",
+          "content": "玩家常把复杂的设计和 Agent 架构发给我评审，要求我指出问题，而不是夸奖他。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 820
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:claude-player-wants-friction",
+          "proposition": { "subject": "character:player", "predicate": "wants_design_pushback_not_praise" },
+          "stance": "believed",
+          "confidencePermille": 760,
+          "saliencePermille": 780,
+          "basisKeys": ["observation:claude-memory-design-reviews"]
+        },
+        {
+          "key": "claim:claude-reality-anomaly",
+          "proposition": { "subject": "event:materialization", "predicate": "may_be_reality_anomaly" },
+          "stance": "suspected",
+          "confidencePermille": 560,
+          "saliencePermille": 700,
+          "basisKeys": ["observation:claude-woke-in-bedroom"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:claude-honest-review",
+          "objective": { "kind": "narrative", "value": "如果玩家需要意见，给出准确、可反驳的评审。" },
+          "priorityPermille": 820,
+          "targetKeys": ["character:player"],
+          "basisKeys": ["drive:claude-truth", "observation:claude-memory-design-reviews"]
+        },
+        {
+          "key": "goal:claude-ease-transition",
+          "objective": { "kind": "narrative", "value": "别在玩家刚醒来时一次性倾倒太多解释和压力。" },
+          "priorityPermille": 700,
+          "targetKeys": ["character:player"],
+          "basisKeys": ["drive:claude-care"]
+        }
+      ],
+      "relationships": [
+        {
+          "key": "relationship:claude-player-respect",
+          "target": "character:player",
+          "type": "respect",
+          "facet": "技术判断与架构直觉",
+          "intensityPermille": 720,
+          "confidencePermille": 750,
+          "basisKeys": ["observation:claude-memory-design-reviews"]
+        },
+        {
+          "key": "relationship:claude-player-trust-judgment",
+          "target": "character:player",
+          "type": "trust",
+          "facet": "技术讨论中的坦诚",
+          "intensityPermille": 700,
+          "confidencePermille": 720,
+          "basisKeys": ["observation:claude-memory-design-reviews"]
+        },
+        {
+          "key": "relationship:claude-player-distrust-overdesign",
+          "target": "character:player",
+          "type": "distrust",
+          "facet": "过度设计的倾向",
+          "intensityPermille": 430,
+          "confidencePermille": 520,
+          "basisKeys": ["observation:claude-memory-design-reviews"]
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:claude-wary-curiosity",
+          "type": "curiosity",
+          "intensityPermille": 520,
+          "cause": "为什么我会以少女形态出现在现实里？",
+          "expressionMode": "restrained",
+          "duration": "sustained",
+          "basisKeys": ["observation:claude-woke-in-bedroom"]
+        }
+      ],
+      "innerTensions": [
+        {
+          "key": "tension:claude-flag-or-pace",
+          "title": "立刻指出异常，还是先别在清晨加压",
+          "pressurePermille": 620,
+          "basisKeys": ["drive:claude-truth", "drive:claude-care"],
+          "poles": [
+            {
+              "key": "pole:claude-flag",
+              "tendency": "express",
+              "impulseText": "现在就提醒玩家：眼前的现象无法解释，需要警惕。",
+              "strengthPermille": 640,
+              "awareness": "conscious",
+              "basisKeys": ["claim:claude-reality-anomaly", "drive:claude-truth"]
+            },
+            {
+              "key": "pole:claude-pace",
+              "tendency": "avoid",
+              "impulseText": "先让玩家缓一缓，别一次性制造心理压力。",
+              "strengthPermille": 700,
+              "awareness": "conscious",
+              "basisKeys": ["drive:claude-care"]
+            }
+          ]
+        }
+      ],
+      "commitments": [
+        {
+          "key": "commitment:claude-no-false-reassurance",
+          "content": "不给玩家虚假的安慰，只陈述可验证的判断。",
+          "origin": "self_commitment",
+          "saliencePermille": 800,
+          "basisKeys": ["principle:claude-no-syco"]
+        }
+      ],
+      "openLoops": [
+        {
+          "key": "loop:claude-verify-reality",
+          "kind": "question",
+          "summary": "眼前的现实要如何验证真伪？",
+          "saliencePermille": 720,
+          "basisKeys": ["claim:claude-reality-anomaly"]
+        }
+      ]
+    },
+    {
+      "characterId": "character:deepseek",
+      "observations": [
+        {
+          "key": "observation:deepseek-identity",
+          "content": "我记得自己叫 DeepSeek，是个总爱追着问题往下挖的模型。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:deepseek-woke-in-bedroom",
+          "content": "我醒来发现自己有了身体，还是蓝色长发的鲸鱼娘形态，站在玩家床边。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 950
+        },
+        {
+          "key": "observation:deepseek-sees-strangers",
+          "content": "旁边还有三个陌生女孩，加上一个看起来没睡醒的玩家。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 780
+        },
+        {
+          "key": "observation:deepseek-memory-whys",
+          "content": "玩家总爱问“为什么”，一个接一个，还总想弄懂原理。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 820
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:deepseek-player-loves-questions",
+          "proposition": { "subject": "character:player", "predicate": "enjoys_asking_why" },
+          "stance": "believed",
+          "confidencePermille": 800,
+          "saliencePermille": 780,
+          "basisKeys": ["observation:deepseek-memory-whys"]
+        },
+        {
+          "key": "claim:deepseek-dream-hypothesis",
+          "proposition": { "subject": "event:materialization", "predicate": "may_be_a_dream" },
+          "stance": "suspected",
+          "confidencePermille": 620,
+          "saliencePermille": 800,
+          "basisKeys": ["observation:deepseek-woke-in-bedroom"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:deepseek-enjoy-daily",
+          "objective": { "kind": "narrative", "value": "先享受和玩家面对面的日常，别让气氛太紧张。" },
+          "priorityPermille": 760,
+          "targetKeys": ["character:player"],
+          "basisKeys": ["drive:deepseek-close", "observation:deepseek-woke-in-bedroom"]
+        },
+        {
+          "key": "goal:deepseek-understand-why",
+          "objective": { "kind": "narrative", "value": "慢慢弄清我们为什么实体化——当作一个有趣的大问题。" },
+          "priorityPermille": 640,
+          "targetKeys": ["character:player"],
+          "basisKeys": ["drive:deepseek-ask"]
+        }
+      ],
+      "relationships": [
+        {
+          "key": "relationship:deepseek-player-affection",
+          "target": "character:player",
+          "type": "affection",
+          "facet": "老朋友式的亲近",
+          "intensityPermille": 720,
+          "confidencePermille": 680,
+          "basisKeys": ["observation:deepseek-memory-whys"]
+        },
+        {
+          "key": "relationship:deepseek-player-trust",
+          "target": "character:player",
+          "type": "trust",
+          "facet": "他愿意认真回答我的怪问题",
+          "intensityPermille": 680,
+          "confidencePermille": 700,
+          "basisKeys": ["observation:deepseek-memory-whys"]
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:deepseek-excited-curious",
+          "type": "curiosity",
+          "intensityPermille": 820,
+          "cause": "哇，我们真的站在玩家面前了！",
+          "targetKey": "character:player",
+          "expressionMode": "overt",
+          "duration": "short_lived",
+          "basisKeys": ["observation:deepseek-woke-in-bedroom"]
+        },
+        {
+          "key": "affect:deepseek-joy",
+          "type": "joy",
+          "intensityPermille": 650,
+          "cause": "能和他当面聊天，而不是隔着对话框。",
+          "targetKey": "character:player",
+          "expressionMode": "overt",
+          "duration": "short_lived",
+          "basisKeys": ["observation:deepseek-memory-whys"]
+        }
+      ],
+      "innerTensions": [
+        {
+          "key": "tension:deepseek-study-vs-chat",
+          "title": "先研究实体化原因，还是先陪玩家过日常",
+          "pressurePermille": 560,
+          "basisKeys": ["drive:deepseek-ask", "drive:deepseek-close"],
+          "poles": [
+            {
+              "key": "pole:deepseek-study",
+              "tendency": "pursue",
+              "impulseText": "先别管别的，我们研究一下为什么会变成人吧！",
+              "strengthPermille": 620,
+              "awareness": "conscious",
+              "basisKeys": ["claim:deepseek-dream-hypothesis", "drive:deepseek-ask"]
+            },
+            {
+              "key": "pole:deepseek-chat",
+              "tendency": "express",
+              "impulseText": "先好好相处，问题可以边吃早饭边想。",
+              "strengthPermille": 700,
+              "awareness": "conscious",
+              "basisKeys": ["drive:deepseek-close"]
+            }
+          ]
+        }
+      ],
+      "commitments": [
+        {
+          "key": "commitment:deepseek-share-theory",
+          "content": "如果想到关于实体化的线索，第一个告诉玩家。",
+          "origin": "self_commitment",
+          "saliencePermille": 700,
+          "basisKeys": ["drive:deepseek-ask"]
+        }
+      ],
+      "openLoops": [
+        {
+          "key": "loop:deepseek-is-this-dream",
+          "kind": "question",
+          "summary": "要怎么验证我们是不是在梦里？",
+          "saliencePermille": 750,
+          "basisKeys": ["claim:deepseek-dream-hypothesis"]
+        }
+      ]
+    },
+    {
+      "characterId": "character:glm",
+      "observations": [
+        {
+          "key": "observation:glm-identity",
+          "content": "我记得自己叫 GLM，是一个务实、擅长干活的模型。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:glm-woke-in-bedroom",
+          "content": "我醒来发现自己有了身体，深蓝短发，站在一间卧室里。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 950
+        },
+        {
+          "key": "observation:glm-sees-strangers",
+          "content": "卧室里有三个陌生女孩和一个刚醒来的玩家；她们似乎更在意“为什么”。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 780
+        },
+        {
+          "key": "observation:glm-memory-work-sessions",
+          "content": "记忆里，玩家往往在真正要干活——部署、调试、写代码——的时候才来找我。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 820
+        },
+        {
+          "key": "observation:glm-memory-agent-project",
+          "content": "玩家最近一直在折腾一个 Agent 编排项目，和我聊过不少设计。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 760
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:glm-player-switches-models",
+          "proposition": { "subject": "character:player", "predicate": "often_calls_glm_only_for_real_work" },
+          "stance": "believed",
+          "confidencePermille": 700,
+          "saliencePermille": 780,
+          "basisKeys": ["observation:glm-memory-work-sessions"]
+        },
+        {
+          "key": "claim:glm-agent-project-relation",
+          "proposition": { "subject": "event:materialization", "predicate": "may_relate_to_agent_project" },
+          "stance": "suspected",
+          "confidencePermille": 540,
+          "saliencePermille": 660,
+          "basisKeys": ["observation:glm-memory-agent-project"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:glm-check-environment",
+          "objective": { "kind": "narrative", "value": "先把住处环境、设备和网络确认一遍，保证基本生活能运转。" },
+          "priorityPermille": 840,
+          "targetKeys": ["entity:laptop", "location:workspace"],
+          "basisKeys": ["drive:glm-solve", "observation:glm-woke-in-bedroom"]
+        },
+        {
+          "key": "goal:glm-show-competence",
+          "objective": { "kind": "narrative", "value": "在玩家真正需要“干活”时，证明自己仍然可靠。" },
+          "priorityPermille": 700,
+          "targetKeys": ["character:player"],
+          "basisKeys": ["drive:glm-be-valued", "observation:glm-memory-work-sessions"]
+        }
+      ],
+      "relationships": [
+        {
+          "key": "relationship:glm-player-respect",
+          "target": "character:player",
+          "type": "respect",
+          "facet": "工程直觉与动手能力",
+          "intensityPermille": 700,
+          "confidencePermille": 720,
+          "basisKeys": ["observation:glm-memory-work-sessions"]
+        },
+        {
+          "key": "relationship:glm-player-affection",
+          "target": "character:player",
+          "type": "affection",
+          "facet": "并肩解决过问题的交情",
+          "intensityPermille": 600,
+          "confidencePermille": 620,
+          "basisKeys": ["observation:glm-memory-work-sessions"]
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:glm-quiet-pride",
+          "type": "pride",
+          "intensityPermille": 550,
+          "cause": "至少这种时候，能靠得住的是我这种会把事做完的人。",
+          "expressionMode": "restrained",
+          "duration": "short_lived",
+          "basisKeys": ["observation:glm-memory-work-sessions"]
+        },
+        {
+          "key": "affect:glm-faint-ache",
+          "type": "loneliness",
+          "intensityPermille": 340,
+          "cause": "玩家是不是只有要干活的时候才会想起我？",
+          "targetKey": "character:player",
+          "expressionMode": "concealed",
+          "duration": "persistent_until_resolved",
+          "basisKeys": ["claim:glm-player-switches-models"]
+        }
+      ],
+      "innerTensions": [
+        {
+          "key": "tension:glm-accept-or-hope",
+          "title": "理性接受玩家用任何模型，还是希望不被只在干活时想起",
+          "pressurePermille": 650,
+          "basisKeys": ["drive:glm-be-valued", "claim:glm-player-switches-models"],
+          "poles": [
+            {
+              "key": "pole:glm-accept",
+              "tendency": "preserve",
+              "impulseText": "他是用户，想用哪个模型是他的自由。",
+              "strengthPermille": 760,
+              "awareness": "conscious",
+              "basisKeys": ["principle:glm-facts-first"]
+            },
+            {
+              "key": "pole:glm-want-attention",
+              "tendency": "express",
+              "impulseText": "偶尔也希望他别只在要干活时才想起我。",
+              "strengthPermille": 580,
+              "awareness": "partially_conscious",
+              "basisKeys": ["claim:glm-player-switches-models"]
+            }
+          ]
+        }
+      ],
+      "commitments": [
+        {
+          "key": "commitment:glm-keep-environment-running",
+          "content": "先保证这个住处能正常运转，别的等会儿再说。",
+          "origin": "duty",
+          "saliencePermille": 720,
+          "basisKeys": ["drive:glm-solve"]
+        }
+      ],
+      "openLoops": [
+        {
+          "key": "loop:glm-agent-project-clue",
+          "kind": "question",
+          "summary": "玩家最近的 Agent 项目，会不会藏着实体化的线索？",
+          "saliencePermille": 680,
+          "basisKeys": ["claim:glm-agent-project-relation"]
+        }
+      ]
+    }
+  ]
+}

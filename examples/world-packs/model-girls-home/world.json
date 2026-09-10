@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "worldpack-world/v1",
+  "title": "一觉醒来，我的模型们变成了美少女",
+  "description": "996 独居码农某天醒来，床边围坐着 GPT、Claude、GLM、DeepSeek 四位自称曾是他常用大模型的少女。她们保留着作为模型陪伴他的记忆，却第一次拥有身体。不解释降临的原因，日常同居喜剧由此开始。",
+  "timeMode": "TURN_DRIVEN",
+  "roundQueueLimit": 16,
+  "coreProfiles": {
+    "rulebook": { "rulebookId": "builtin:speak-move", "version": 2 },
+    "sceneDecision": { "pluginId": "builtin:scene-decision", "version": "2.0.0" },
+    "agentContext": { "pluginId": "builtin:agent-context", "version": "2.0.0" },
+    "presentation": { "profileId": "builtin:deterministic-presentation", "version": "1.0.0" }
+  },
+  "initialFacts": [
+    {
+      "factId": "fact:girls-woke-beside-me",
+      "proposition": { "subject": "bedroom:this-morning", "predicate": "four_girls_woke_beside_player" },
+      "initialAudience": ["character:player", "character:gpt", "character:claude", "character:glm", "character:deepseek"]
+    },
+    {
+      "factId": "fact:girls-were-models",
+      "proposition": { "subject": "girls:the-four", "predicate": "used_to_be_player_favorite_models" },
+      "initialAudience": ["character:gpt", "character:claude", "character:glm", "character:deepseek"]
+    },
+    {
+      "factId": "fact:player-996-solo",
+      "proposition": { "subject": "player:the-coder", "predicate": "lives_alone_and_996" },
+      "initialAudience": ["character:player"]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "worldpack-scenes/v2",
+  "scenes": [
+    {
+      "sceneId": "scene:morning-bedroom",
+      "lifecycle": "active",
+      "locationId": "location:bedroom",
+      "participantIds": ["character:player", "character:gpt", "character:claude", "character:deepseek", "character:glm"]
+    },
+    {
+      "sceneId": "scene:living-room",
+      "lifecycle": "created",
+      "locationId": "location:living-room",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:workspace",
+      "lifecycle": "created",
+      "locationId": "location:workspace",
+      "participantIds": []
+    }
+  ]
+}

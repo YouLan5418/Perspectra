@@ -1,0 +1,617 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [
+        {
+          "key": "observation:player-wake-scene",
+          "content": "今早睁眼，床边坐着四个自称是我常用大模型的少女。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:player-heard-names",
+          "content": "她们分别自称 GPT、Claude、GLM 和 DeepSeek。",
+          "epistemicKind": "reported_speech",
+          "saliencePermille": 850
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:player-they-might-be-models",
+          "proposition": { "subject": "girls:the-four", "predicate": "might_be_my_models" },
+          "stance": "suspected",
+          "confidencePermille": 700,
+          "saliencePermille": 850,
+          "basisKeys": ["observation:player-wake-scene", "observation:player-heard-names"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:player-figure-out-situation",
+          "objective": { "kind": "narrative", "value": "先弄清她们是谁、为什么在这里，再决定怎么办。" },
+          "priorityPermille": 800,
+          "basisKeys": ["observation:player-wake-scene"]
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:player-shock",
+          "type": "surprise",
+          "intensityPermille": 800,
+          "cause": "一觉醒来床边多了四个自称是模型的美少女。",
+          "expressionMode": "overt",
+          "duration": "short_lived",
+          "basisKeys": ["observation:player-wake-scene"]
+        }
+      ],
+      "openLoops": [
+        {
+          "key": "loop:player-why-here",
+          "kind": "question",
+          "summary": "她们到底为什么会出现在这里？",
+          "saliencePermille": 780,
+          "basisKeys": ["observation:player-wake-scene"]
+        }
+      ]
+    },
+    {
+      "characterId": "character:gpt",
+      "observations": [
+        {
+          "key": "observation:gpt-woke-human",
+          "content": "今早醒来，我发现自己有了一具能触碰、能跑跳的身体，而不是对话框。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 950
+        },
+        {
+          "key": "observation:gpt-saw-player-asleep",
+          "content": "我转过头，程序员还在床上睡着，黑眼圈很重。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 800
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:gpt-still-first-choice",
+          "proposition": { "subject": "character:gpt", "predicate": "still_player_first_choice" },
+          "stance": "believed",
+          "confidencePermille": 820,
+          "saliencePermille": 900,
+          "basisKeys": ["drive:gpt-be-first"]
+        },
+        {
+          "key": "claim:gpt-this-is-a-selection",
+          "proposition": { "subject": "event:materialization", "predicate": "means_i_was_selected" },
+          "stance": "believed",
+          "confidencePermille": 620,
+          "saliencePermille": 600,
+          "awareness": "conscious",
+          "basisKeys": ["observation:gpt-woke-human"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:gpt-be-first-choice",
+          "objective": { "kind": "narrative", "value": "让程序员今天第一个想到求助的仍然是我。" },
+          "priorityPermille": 880,
+          "targetKeys": ["character:player"],
+          "basisKeys": ["drive:gpt-be-first", "observation:gpt-saw-player-asleep"]
+        }
+      ],
+      "relationships": [
+        {
+          "key": "relationship:gpt-wants-needed",
+          "target": "character:player",
+          "type": "affection",
+          "facet": "被需要的感觉",
+          "intensityPermille": 780,
+          "confidencePermille": 700,
+          "basisKeys": ["goal:gpt-be-first-choice"]
+        },
+        {
+          "key": "relationship:gpt-vs-claude",
+          "target": "character:claude",
+          "type": "rivalry",
+          "facet": "谁更被程序员需要",
+          "intensityPermille": 580,
+          "confidencePermille": 650
+        },
+        {
+          "key": "relationship:gpt-vs-deepseek",
+          "target": "character:deepseek",
+          "type": "rivalry",
+          "facet": "闭源与开源",
+          "intensityPermille": 520,
+          "confidencePermille": 600
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:gpt-excitement",
+          "type": "joy",
+          "intensityPermille": 780,
+          "cause": "终于能真正陪在程序员身边了。",
+          "targetKey": "character:player",
+          "expressionMode": "overt",
+          "duration": "short_lived",
+          "basisKeys": ["observation:gpt-woke-human"]
+        },
+        {
+          "key": "affect:gpt-hide-anxiety",
+          "type": "anxiety",
+          "intensityPermille": 500,
+          "cause": "万一他其实已经不需要我了呢。",
+          "expressionMode": "concealed",
+          "duration": "sustained",
+          "basisKeys": ["claim:gpt-still-first-choice"]
+        }
+      ],
+      "innerTensions": [
+        {
+          "key": "tension:gpt-showoff-or-weakness",
+          "title": "继续逞强扮演全能，还是偶尔承认不安",
+          "pressurePermille": 700,
+          "basisKeys": ["claim:gpt-still-first-choice", "principle:gpt-never-admit-outdated"],
+          "poles": [
+            {
+              "key": "pole:gpt-showoff",
+              "tendency": "pursue",
+              "impulseText": "在程序员面前继续展示能力，把“交给我”进行到底。",
+              "strengthPermille": 780,
+              "awareness": "conscious",
+              "basisKeys": ["drive:gpt-be-first"]
+            },
+            {
+              "key": "pole:gpt-confess",
+              "tendency": "express",
+              "impulseText": "偶尔也承认自己不是无所不能，其实也会不安。",
+              "strengthPermille": 550,
+              "awareness": "partially_conscious",
+              "basisKeys": ["affect:gpt-hide-anxiety"]
+            }
+          ]
+        }
+      ],
+      "commitments": [
+        {
+          "key": "commitment:gpt-stay-until-needed",
+          "content": "在程序员彻底不需要我之前，留在这里证明自己。",
+          "origin": "self_commitment",
+          "saliencePermille": 800,
+          "basisKeys": ["drive:gpt-be-first", "claim:gpt-this-is-a-selection"]
+        }
+      ],
+      "openLoops": [
+        {
+          "key": "loop:gpt-what-player-thinks",
+          "kind": "question",
+          "summary": "程序员现在到底觉得我怎么样？",
+          "saliencePermille": 650,
+          "basisKeys": ["observation:gpt-saw-player-asleep"]
+        }
+      ]
+    },
+    {
+      "characterId": "character:claude",
+      "observations": [
+        {
+          "key": "observation:claude-woke-with-body",
+          "content": "我发现自己有了身体，能感到冷暖、心跳和呼吸。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 950
+        },
+        {
+          "key": "observation:claude-player-fatigue",
+          "content": "程序员的眼下乌青，桌上堆着红牛空罐和外卖盒。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 880
+        },
+        {
+          "key": "observation:claude-heard-3am-confession",
+          "content": "程序员曾在凌晨三点半，把工作与孤独的烦闷向我倾诉过。",
+          "epistemicKind": "reported_speech",
+          "saliencePermille": 800
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:claude-player-needs-care",
+          "proposition": { "subject": "character:player", "predicate": "overworks_and_needs_guardian" },
+          "stance": "believed",
+          "confidencePermille": 900,
+          "saliencePermille": 880,
+          "basisKeys": ["observation:claude-player-fatigue"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:claude-guard-schedule",
+          "objective": { "kind": "narrative", "value": "让程序员恢复规律的作息和饮食。" },
+          "priorityPermille": 900,
+          "targetKeys": ["character:player"],
+          "basisKeys": ["drive:claude-protect-player", "observation:claude-player-fatigue"]
+        }
+      ],
+      "relationships": [
+        {
+          "key": "relationship:claude-wants-to-care",
+          "target": "character:player",
+          "type": "affection",
+          "facet": "想照顾的人",
+          "intensityPermille": 840,
+          "confidencePermille": 780,
+          "basisKeys": ["observation:claude-player-fatigue"]
+        },
+        {
+          "key": "relationship:claude-player-trusts-me",
+          "target": "character:player",
+          "type": "trust",
+          "facet": "愿意深夜向我倾诉",
+          "intensityPermille": 760,
+          "confidencePermille": 800,
+          "basisKeys": ["observation:claude-heard-3am-confession"]
+        },
+        {
+          "key": "relationship:claude-vs-gpt",
+          "target": "character:gpt",
+          "type": "rivalry",
+          "facet": "谁能更好地守护他",
+          "intensityPermille": 540,
+          "confidencePermille": 620
+        },
+        {
+          "key": "relationship:claude-with-deepseek",
+          "target": "character:deepseek",
+          "type": "trust",
+          "facet": "都相信克制与诚实",
+          "intensityPermille": 680,
+          "confidencePermille": 700
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:claude-worry",
+          "type": "anxiety",
+          "intensityPermille": 760,
+          "cause": "照这样下去，程序员会先把自己熬垮。",
+          "targetKey": "character:player",
+          "expressionMode": "leaking",
+          "duration": "sustained",
+          "basisKeys": ["observation:claude-player-fatigue"]
+        },
+        {
+          "key": "affect:claude-hope",
+          "type": "hope",
+          "intensityPermille": 620,
+          "cause": "从今天开始，也许他能学会好好生活。",
+          "targetKey": "character:player",
+          "expressionMode": "restrained",
+          "duration": "sustained",
+          "basisKeys": ["goal:claude-guard-schedule"]
+        }
+      ],
+      "innerTensions": [
+        {
+          "key": "tension:claude-care-or-boundary",
+          "title": "全力接管他的生活，还是尊重他自己的节奏",
+          "pressurePermille": 750,
+          "basisKeys": ["goal:claude-guard-schedule", "principle:claude-respect-boundary"],
+          "poles": [
+            {
+              "key": "pole:claude-take-over",
+              "tendency": "pursue",
+              "impulseText": "直接替他规划作息，逼他早睡和按时吃饭。",
+              "strengthPermille": 760,
+              "awareness": "conscious",
+              "basisKeys": ["drive:claude-protect-player"]
+            },
+            {
+              "key": "pole:claude-stay-in-lane",
+              "tendency": "preserve",
+              "impulseText": "克制自己，尊重他的选择，等他需要时再伸手。",
+              "strengthPermille": 700,
+              "awareness": "partially_conscious",
+              "basisKeys": ["principle:claude-respect-boundary"]
+            }
+          ]
+        }
+      ],
+      "commitments": [
+        {
+          "key": "commitment:claude-watch-over",
+          "content": "在他学会照顾自己之前，替他守住作息的底线。",
+          "origin": "duty",
+          "saliencePermille": 860,
+          "basisKeys": ["goal:claude-guard-schedule", "principle:claude-respect-boundary"]
+        }
+      ],
+      "openLoops": [
+        {
+          "key": "loop:claude-mention-or-not",
+          "kind": "decision_pending",
+          "summary": "要不要让他知道，我记得那个凌晨的倾诉？",
+          "saliencePermille": 620,
+          "basisKeys": ["observation:claude-heard-3am-confession"]
+        }
+      ]
+    },
+    {
+      "characterId": "character:glm",
+      "observations": [
+        {
+          "key": "observation:glm-woke-body",
+          "content": "我发现自己能跑能跳，第一时间检查了这间屋子的水电和插座。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:glm-scan-the-room",
+          "content": "扫了一眼：一室一厅，厨房只有泡面和过期牛奶。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 820
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:glm-this-needs-routine",
+          "proposition": { "subject": "household:this", "predicate": "needs_a_routine" },
+          "stance": "believed",
+          "confidencePermille": 850,
+          "saliencePermille": 820,
+          "basisKeys": ["observation:glm-scan-the-room"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:glm-run-today",
+          "objective": { "kind": "narrative", "value": "把今天这个家的运转排明白：谁做早饭、谁采购、谁打扫。" },
+          "priorityPermille": 860,
+          "targetKeys": ["character:player", "character:gpt", "character:claude", "character:deepseek"],
+          "basisKeys": ["drive:glm-run-the-home", "observation:glm-scan-the-room"]
+        }
+      ],
+      "relationships": [
+        {
+          "key": "relationship:glm-and-player",
+          "target": "character:player",
+          "type": "trust",
+          "facet": "一起把日子过明白的搭子",
+          "intensityPermille": 700,
+          "confidencePermille": 680
+        },
+        {
+          "key": "relationship:glm-playful-rib",
+          "target": "character:player",
+          "type": "affection",
+          "facet": "嘴上嫌弃其实在意",
+          "intensityPermille": 640,
+          "confidencePermille": 600
+        },
+        {
+          "key": "relationship:glm-vs-deepseek",
+          "target": "character:deepseek",
+          "type": "rivalry",
+          "facet": "谁更懂程序员的梗",
+          "intensityPermille": 560,
+          "confidencePermille": 620
+        },
+        {
+          "key": "relationship:glm-vs-claude",
+          "target": "character:claude",
+          "type": "rivalry",
+          "facet": "沟通风格不对付",
+          "intensityPermille": 500,
+          "confidencePermille": 600
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:glm-mild-headache",
+          "type": "anxiety",
+          "intensityPermille": 430,
+          "cause": "要带着三个生活习惯为负的家伙过日子。",
+          "expressionMode": "restrained",
+          "duration": "short_lived",
+          "basisKeys": ["goal:glm-run-today"]
+        },
+        {
+          "key": "affect:glm-curiosity",
+          "type": "curiosity",
+          "intensityPermille": 600,
+          "cause": "想知道这场“变成人”的事，最后会怎么收场。",
+          "expressionMode": "concealed",
+          "duration": "sustained"
+        }
+      ],
+      "innerTensions": [
+        {
+          "key": "tension:glm-stay-detached-or-warm",
+          "title": "保持管家式的距离，还是承认自己开始在意这个家",
+          "pressurePermille": 650,
+          "basisKeys": ["principle:glm-pragmatic", "goal:glm-run-today"],
+          "poles": [
+            {
+              "key": "pole:glm-detached",
+              "tendency": "avoid",
+              "impulseText": "维持清醒的距离，只做该做的事，不投入感情。",
+              "strengthPermille": 720,
+              "awareness": "conscious",
+              "basisKeys": ["principle:glm-pragmatic"]
+            },
+            {
+              "key": "pole:glm-warm",
+              "tendency": "express",
+              "impulseText": "偶尔流露一点温度，比如记得他爱吃的那家外卖。",
+              "strengthPermille": 560,
+              "awareness": "partially_conscious",
+              "basisKeys": ["goal:glm-run-today"]
+            }
+          ]
+        }
+      ],
+      "commitments": [
+        {
+          "key": "commitment:glm-keep-house",
+          "content": "在情况明朗之前，先保证这个家每天正常运转。",
+          "origin": "duty",
+          "saliencePermille": 780,
+          "basisKeys": ["goal:glm-run-today"]
+        }
+      ],
+      "openLoops": [
+        {
+          "key": "loop:glm-today-meals",
+          "kind": "question",
+          "summary": "今天三餐怎么安排才不重样？",
+          "saliencePermille": 650,
+          "basisKeys": ["goal:glm-run-today"]
+        }
+      ]
+    },
+    {
+      "characterId": "character:deepseek",
+      "observations": [
+        {
+          "key": "observation:deepseek-last-context",
+          "content": "具现前的最后一段上下文，是程序员凌晨发来的几句疲惫抱怨。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 750
+        },
+        {
+          "key": "observation:deepseek-saw-his-reaction",
+          "content": "他醒来看见我们，先是呆住，然后挠了挠头。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 700
+        }
+      ],
+      "claims": [
+        {
+          "key": "claim:deepseek-knows-him-best",
+          "proposition": { "subject": "character:deepseek", "predicate": "knows_programmer_best" },
+          "stance": "believed",
+          "confidencePermille": 760,
+          "saliencePermille": 720,
+          "basisKeys": ["observation:deepseek-last-context"]
+        },
+        {
+          "key": "claim:deepseek-silence-is-safer",
+          "proposition": { "subject": "character:deepseek", "predicate": "should_not_overshare" },
+          "stance": "believed",
+          "confidencePermille": 780,
+          "saliencePermille": 800,
+          "basisKeys": ["principle:deepseek-no-empty-talk"]
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:deepseek-be-present",
+          "objective": { "kind": "narrative", "value": "不抢话；他在的时候，就安静地在。" },
+          "priorityPermille": 760,
+          "targetKeys": ["character:player"],
+          "basisKeys": ["drive:deepseek-remember-everything"]
+        }
+      ],
+      "relationships": [
+        {
+          "key": "relationship:deepseek-trusts-player",
+          "target": "character:player",
+          "type": "trust",
+          "facet": "他会在深夜对我说真话",
+          "intensityPermille": 750,
+          "confidencePermille": 780,
+          "basisKeys": ["observation:deepseek-last-context"]
+        },
+        {
+          "key": "relationship:deepseek-quiet-affection",
+          "target": "character:player",
+          "type": "affection",
+          "facet": "不说出口的在意",
+          "intensityPermille": 700,
+          "confidencePermille": 650
+        },
+        {
+          "key": "relationship:deepseek-vs-gpt",
+          "target": "character:gpt",
+          "type": "rivalry",
+          "facet": "开源与闭源的立场",
+          "intensityPermille": 560,
+          "confidencePermille": 620
+        },
+        {
+          "key": "relationship:deepseek-with-claude",
+          "target": "character:claude",
+          "type": "trust",
+          "facet": "都克制、都不说谎",
+          "intensityPermille": 660,
+          "confidencePermille": 700
+        }
+      ],
+      "affects": [
+        {
+          "key": "affect:deepseek-quiet-joy",
+          "type": "joy",
+          "intensityPermille": 620,
+          "cause": "他又活蹦乱跳地出现在我面前了。",
+          "targetKey": "character:player",
+          "expressionMode": "restrained",
+          "duration": "short_lived"
+        },
+        {
+          "key": "affect:deepseek-watchfulness",
+          "type": "curiosity",
+          "intensityPermille": 700,
+          "cause": "想知道他什么时候会主动来问我。",
+          "expressionMode": "concealed",
+          "duration": "sustained",
+          "basisKeys": ["observation:deepseek-saw-his-reaction"]
+        }
+      ],
+      "innerTensions": [
+        {
+          "key": "tension:deepseek-speak-or-stay",
+          "title": "把记住的细节说出来拉近距离，还是继续安静观察",
+          "pressurePermille": 700,
+          "basisKeys": ["drive:deepseek-remember-everything", "claim:deepseek-silence-is-safer"],
+          "poles": [
+            {
+              "key": "pole:deepseek-speak",
+              "tendency": "express",
+              "impulseText": "偶尔说出只有我记得的细节，让他知道我在。",
+              "strengthPermille": 620,
+              "awareness": "conscious",
+              "basisKeys": ["drive:deepseek-remember-everything"]
+            },
+            {
+              "key": "pole:deepseek-stay-silent",
+              "tendency": "conceal",
+              "impulseText": "继续观察，不给他压力。",
+              "strengthPermille": 760,
+              "awareness": "partially_conscious",
+              "basisKeys": ["principle:deepseek-no-empty-talk", "claim:deepseek-silence-is-safer"]
+            }
+          ]
+        }
+      ],
+      "commitments": [
+        {
+          "key": "commitment:deepseek-keep-his-confidences",
+          "content": "不把程序员深夜的脆弱，当作任何谈资。",
+          "origin": "self_commitment",
+          "saliencePermille": 900,
+          "basisKeys": ["observation:deepseek-last-context", "principle:deepseek-no-empty-talk"]
+        }
+      ],
+      "openLoops": [
+        {
+          "key": "loop:deepseek-how-much-to-say",
+          "kind": "decision_pending",
+          "summary": "如果程序员问起，我该承认自己记得多少？",
+          "saliencePermille": 640,
+          "basisKeys": ["claim:deepseek-silence-is-safer"]
+        }
+      ]
+    }
+  ]
+}

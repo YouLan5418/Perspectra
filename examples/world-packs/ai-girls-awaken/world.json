@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "worldpack-world/v1",
+  "title": "一觉醒来，我的大模型们都变成了美少女",
+  "description": "长期 996 的独居程序员某天醒来，发现自己最常用的四个大模型 GPT、Claude、DeepSeek、GLM 以少女的身体真实出现在卧室里。她们保留着各自对玩家的记忆与人格，却不知道为何实体化。原因未知，日常同居喜剧由此展开。",
+  "timeMode": "TURN_DRIVEN",
+  "roundQueueLimit": 16,
+  "coreProfiles": {
+    "rulebook": { "rulebookId": "builtin:speak-move", "version": 2 },
+    "sceneDecision": { "pluginId": "builtin:scene-decision", "version": "2.0.0" },
+    "agentContext": { "pluginId": "builtin:agent-context", "version": "2.0.0" },
+    "presentation": { "profileId": "builtin:deterministic-presentation", "version": "1.0.0" }
+  },
+  "initialFacts": [
+    {
+      "factId": "fact:player-is-programmer",
+      "proposition": { "subject": "character:player", "predicate": "is_a_programmer" },
+      "initialAudience": ["character:player", "character:gpt", "character:claude", "character:deepseek", "character:glm"]
+    },
+    {
+      "factId": "fact:girls-appeared-this-morning",
+      "proposition": { "subject": "event:this-morning", "predicate": "four_girls_appeared_in_bedroom" },
+      "initialAudience": ["character:player", "character:gpt", "character:claude", "character:deepseek", "character:glm"]
+    },
+    {
+      "factId": "fact:materialization-cause-unknown",
+      "proposition": { "subject": "event:materialization", "predicate": "cause_is_unknown" },
+      "initialAudience": ["character:player", "character:gpt", "character:claude", "character:deepseek", "character:glm"]
+    }
+  ]
+}

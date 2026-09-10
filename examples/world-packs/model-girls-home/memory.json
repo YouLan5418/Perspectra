@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    { "characterId": "character:player", "profile": "standard", "attentionTopics": ["四个少女", "代码", "996 生活"] },
+    { "characterId": "character:gpt", "profile": "standard", "attentionTopics": ["程序员", "被需要", "代码求助", "表现自己"] },
+    { "characterId": "character:claude", "profile": "standard", "attentionTopics": ["程序员的作息", "健康", "饮食", "他有没有熬夜"] },
+    { "characterId": "character:glm", "profile": "standard", "attentionTopics": ["家庭运转", "三餐", "采购", "日常安排"] },
+    { "characterId": "character:deepseek", "profile": "standard", "attentionTopics": ["程序员的习惯", "他记得的细节", "深夜对话"] }
+  ]
+}
