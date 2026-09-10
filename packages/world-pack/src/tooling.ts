@@ -41,7 +41,7 @@ import { failWorldPackContract } from './diagnostics.ts'
 
 export type AnyCompiledWorldPack = CompiledWorldPack | CompiledWorldPackV2 | CompiledWorldPackV3 | CompiledWorldPackV4
 
-async function readStrictJson(path: string): Promise<unknown> {
+export async function readStrictJson(path: string): Promise<import('@harness-world/contracts').WorldJsonValue> {
   const bytes = await readFile(path)
   let text: string
   try {
@@ -83,6 +83,14 @@ async function readCompiledPack(path: string): Promise<AnyCompiledWorldPack> {
 
 /** Bind the immutable envelope through its exact versioned compiler. */
 export function adaptCompiledWorldPack(pack: AnyCompiledWorldPack, options: WorldPackRuntimeOptions) {
+  if (options.interactionCatalog !== undefined) {
+    if (pack.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) throw new TypeError('object interactions require a v4 Pack')
+    return new WorldPackCompilerV4().adaptToInteractionWorldSpec(pack, options)
+  }
+  if (options.actionGroups !== undefined) {
+    if (options.actionGroups !== 'bounded/v1' || pack.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) throw new TypeError('bounded action groups require a v4 Pack')
+    return new WorldPackCompilerV4().adaptToActionGroupWorldSpec(pack, options)
+  }
   if (pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) {
     return new WorldPackCompilerV4().adaptToWorldSpec(pack, options)
   }

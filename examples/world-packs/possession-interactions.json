@@ -1,0 +1,15 @@
+{
+  "version": "object-interactions/v1",
+  "definitions": [
+    { "interactionId": "core:take", "label": "拿取", "operation": "take" },
+    { "interactionId": "core:drop", "label": "放下", "operation": "drop" },
+    { "interactionId": "core:give", "label": "递交", "operation": "give" },
+    { "interactionId": "travel:collect-tickets", "label": "收好票据", "operation": "take" }
+  ],
+  "bindings": [
+    {
+      "entityId": "entity:ticket-bundle",
+      "interactionIds": ["core:take", "core:drop", "core:give", "travel:collect-tickets"]
+    }
+  ]
+}

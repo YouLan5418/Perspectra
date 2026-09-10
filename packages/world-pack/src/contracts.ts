@@ -596,6 +596,8 @@ export interface WorldPackReactionInspection extends WorldJsonObject {
 }
 
 export interface WorldPackRuntimeOptions {
+  readonly actionGroups?: 'bounded/v1'
+  readonly interactionCatalog?: WorldJsonValue
   readonly address: WorldAddress
   readonly principalId: string
   readonly sessionId: SessionId

@@ -41,6 +41,7 @@ describe('World Pack creator CLI', () => {
     [['inspect', 'pack.json'], { command: 'inspect', compiledPackPath: 'pack.json' }],
     [['test', 'pack'], { command: 'test', sourceDirectory: 'pack' }],
     [['activate', 'pack.json', '--data-dir', 'runtime'], { command: 'activate', compiledPackPath: 'pack.json', dataDirectory: 'runtime' }],
+    [['activate', 'pack.json', '--data-dir', 'runtime', '--action-groups'], { command: 'activate', compiledPackPath: 'pack.json', dataDirectory: 'runtime', actionGroups: 'bounded/v1' }],
   ] as const)('parses the exact local command surface %#', (args, expected) => {
     expect(parseWorldPackCliInvocation(args)).toEqual(expected)
   })
@@ -75,6 +76,7 @@ describe('World Pack creator CLI', () => {
       command: 'compile', status: 'compiled', outputPath: artifact,
     })
     expect((await readFile(artifact)).byteLength).toBeGreaterThan(0)
+    await expect(executeWorldPackCli(['activate', artifact, '--data-dir', join(root, 'invalid-group'), '--action-groups'])).rejects.toThrow('v4 Pack')
     expect(parsed(await executeWorldPackCli(['inspect', artifact]))).toMatchObject({
       command: 'inspect', status: 'inspected',
       inspection: { title: 'Minimal World', characterCount: 1, locationCount: 1, entityCount: 0, assertionCount: 0 },
@@ -219,6 +221,23 @@ describe('World Pack creator CLI', () => {
     expect(parsed(await executeWorldPackCli(['activate', artifact, '--data-dir', runtime]))).toMatchObject({
       command: 'activate', status: 'activated', requiredReactionActors: ['character:alice', 'character:bob'],
     })
+    const grouped = parsed(await executeWorldPackCli(['activate', artifact, '--data-dir', join(root, 'grouped-runtime'), '--action-groups']))
+    expect(grouped).toMatchObject({ command: 'activate', status: 'activated' })
+    const catalogPath = join(root, 'interactions.json')
+    await writeFile(catalogPath, await readFile(new URL('../../../examples/world-packs/possession-interactions.json', import.meta.url)))
+    const args = ['activate', artifact, '--data-dir', join(root, 'interaction-runtime'), '--interactions', catalogPath]
+    expect(parseWorldPackCliInvocation(args)).toMatchObject({ interactionsPath: catalogPath })
+    expect(parsed(await executeWorldPackCli(args))).toMatchObject({ command: 'activate', status: 'activated' })
+    expect(parsed(await executeWorldPackCli(args))).toMatchObject({ command: 'activate', status: 'already_active' })
+    await writeFile(catalogPath, '{"version":"object-interactions/v1","version":"other"}')
+    await expect(executeWorldPackCli(args)).rejects.toThrow('duplicate object key')
+    await writeFile(catalogPath, new Uint8Array([0xc3, 0x28]))
+    await expect(executeWorldPackCli(args)).rejects.toThrow('valid UTF-8')
+    await writeFile(catalogPath, JSON.stringify({ version: 'object-interactions/v1', definitions: [], bindings: [] }))
+    await executeWorldPackCli(['init', '--profile', 'minimal', join(root, 'minimal-interactions')])
+    const oldPack = join(root, 'old.worldpack.json')
+    await executeWorldPackCli(['compile', join(root, 'minimal-interactions'), '--out', oldPack])
+    await expect(executeWorldPackCli(['activate', oldPack, '--data-dir', join(root, 'invalid-interactions'), '--interactions', catalogPath])).rejects.toThrow('require a v4 Pack')
   })
 
   it('fails closed for invalid UTF-8 and a content-diverged compiled artifact', async () => {

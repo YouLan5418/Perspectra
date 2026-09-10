@@ -17,6 +17,8 @@ import {
 import {
   phase8ManifestRegistries,
   manifestationManifestRegistries,
+  interactionManifestRegistries,
+  parseInteractionCatalog,
   WorldSpecCompiler,
   type CompiledWorldManifestV4,
   type CompiledWorldManifestV5,
@@ -1259,6 +1261,35 @@ export class WorldPackCompilerV3 {
 
 /** Explicit manifestation compiler. It extends v3 only through Manifest v6 capability gating. */
 export class WorldPackCompilerV4 {
+  /** Explicit new-world opt-in. Existing Manifest v6 worlds are never reinterpreted. */
+  adaptToActionGroupWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
+    const base = this.adaptToWorldSpec(packInput, options)
+    if ((base.manifest.manifestationPolicy as WorldJsonObject).mode !== 'enabled') throw new TypeError('action groups require enabled manifestation pack')
+    const actionGroupPolicy = { version: 'bounded-action-group/v1' } as const
+    const specHash = hashWorldJson('world-pack-runtime-spec/action-groups-v1', { baseSpecHash: base.manifest.specHash, actionGroupPolicy })
+    const manifest = { ...base.manifest, schemaVersion: 7 as const, actionGroupPolicy, specHash }
+    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+    const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.created'
+      ? { ...event, data: { specHash } }
+      : event.eventType === 'world.manifest-locked'
+        ? { ...event, data: { manifestHash, genesisPlanHash: manifest.genesisPlanHash } } : event)
+    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
+  }
+
+  adaptToInteractionWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
+    const base = this.adaptToActionGroupWorldSpec(packInput, options)
+    if (options.interactionCatalog === undefined) throw new TypeError('interaction catalog is required')
+    const interactionCatalog = parseInteractionCatalog(options.interactionCatalog, base.manifest.entities.map(value => value.entityId))
+    const specHash = hashWorldJson('world-pack-runtime-spec/interactions-v1', { baseSpecHash: base.manifest.specHash, interactionCatalog })
+    const manifest = { ...base.manifest, schemaVersion: 8 as const, interactionCatalog, specHash, registries: interactionManifestRegistries() }
+    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+    const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.created'
+      ? { ...event, data: { specHash } }
+      : event.eventType === 'world.manifest-locked'
+        ? { ...event, data: { manifestHash, genesisPlanHash: manifest.genesisPlanHash } } : event)
+    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
+  }
+
   async compile(
     sourceDirectory: string,
     options: WorldPackCompileOptionsV2 = { limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2 },

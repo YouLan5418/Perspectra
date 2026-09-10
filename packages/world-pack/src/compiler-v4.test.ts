@@ -99,6 +99,20 @@ describe('WorldPackCompilerV4', () => {
       ]) } },
     })
     expect(compiled.genesisEvents.at(-1)?.eventType).toBe('world.lifecycle-changed')
+    const options = { address: compiled.manifest.address, principalId: 'principal:player', sessionId: brandId('session:player', 'SessionId') }
+    if (mode === 'enabled') {
+      const interactionCatalog = { version: 'object-interactions/v1', definitions: [{ interactionId: 'custom:collect', label: '收下', operation: 'take' }], bindings: first.content.entities.map(entity => ({ entityId: entity.entityId, interactionIds: ['custom:collect'] })) }
+      const interaction = compiler.adaptToInteractionWorldSpec(first, { ...options, interactionCatalog })
+      expect(interaction.manifest.schemaVersion).toBe(8)
+      expect(interaction.manifest.interactionCatalog).toEqual(interactionCatalog)
+      expect(interaction.manifest.registries.actions.definitions.map(value => value.name)).toEqual(['interact', 'move', 'speak'])
+      expect(compiler.adaptToInteractionWorldSpec(first, { ...options, interactionCatalog })).toEqual(interaction)
+      expect(() => compiler.adaptToInteractionWorldSpec(first, options)).toThrow('catalog is required')
+      const grouped = compiler.adaptToActionGroupWorldSpec(first, options)
+      expect(grouped.manifest).toMatchObject({ schemaVersion: 7, actionGroupPolicy: { version: 'bounded-action-group/v1' } })
+      expect(grouped.manifestHash).not.toBe(compiled.manifestHash)
+      expect(grouped.genesisEvents.find(e => e.eventType === 'world.manifest-locked')?.data).toMatchObject({ manifestHash: grouped.manifestHash })
+    } else expect(() => compiler.adaptToActionGroupWorldSpec(first, options)).toThrow('enabled manifestation')
   })
 
   it('rejects profile changes, tampering, wrong envelopes, and unavailable sources', async () => {
