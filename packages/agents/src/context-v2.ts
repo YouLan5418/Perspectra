@@ -75,6 +75,7 @@ export interface CharacterContextRequest {
   readonly stimulusHash: WorldHash
   readonly stimulusSourceRefs?: readonly ContextSourceRef[]
   readonly maximumExternalActions?: 1 | 2
+  readonly groupedOutput?: { readonly tool: 'submit_actions/v4' | 'submit_actions/v5'; readonly maximumReflectionOperations: 0 | 4 }
   readonly affordances: readonly ContextAffordance[]
   readonly affordanceHash: WorldHash
   readonly runtimeAvailability: RuntimeAvailabilityState
@@ -388,7 +389,8 @@ export class CharacterContextAssembler {
       })), recallSources],
       ['current_stimulus', request.stimulus, stimulusSources],
       ['affordances', affordances, [affordanceSource]],
-      ['output_reminder', request.maximumExternalActions === undefined
+      ['output_reminder', request.groupedOutput !== undefined ? { ...OUTPUT_REMINDER, ...request.groupedOutput }
+        : request.maximumExternalActions === undefined
         ? OUTPUT_REMINDER
         : { ...OUTPUT_REMINDER, maximumExternalActions: request.maximumExternalActions }, []],
     ]

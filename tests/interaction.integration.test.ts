@@ -31,11 +31,13 @@ it('runs v5 Root and Reaction interactions with durable Context, ownership, retr
       expect(request).toContain('submit_actions/v5')
       expect(request).toContain('core:')
       expect(request).not.toContain('character:hidden')
+      expect(request).not.toContain('submit_actions/v2')
       rootCalls++
       return rootCalls === 1 ? interactionOutput() : rootCalls === 2 ? interactionOutput('give', 'character:npc', 'entity:cup', { recipientId: 'character:player' }) : abstain
     } } }],
     reactionParticipants: () => [{ ...binding('bob'), provider: { propose: async context => {
       expect(JSON.stringify(context)).toContain('submit_actions/v5')
+      expect(JSON.stringify(context)).not.toContain('submit_actions/v2')
       reactionCalls++
       return reactionCalls === 1 ? interactionOutput('take', 'character:bob', 'entity:other') : abstain
     } } }, { ...binding('npc'), provider: { propose: async () => abstain } }],
@@ -56,6 +58,11 @@ it('runs v5 Root and Reaction interactions with durable Context, ownership, retr
     const source = new WorldStore(worldPath)
     const events = source.readEvents(compiled.manifest.address)
     expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(4)
+    const transfers = events.filter(event => event.eventType === 'observation.upsert').map(event => (event.data as any).value.content?.interaction).filter(Boolean)
+    expect(transfers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ entityId: 'entity:cup', toHolderId: 'character:player' }),
+      expect.objectContaining({ entityId: 'entity:other', toHolderId: 'character:bob' }),
+    ]))
     expect(currentEntityState(events, 'entity:cup')).toMatchObject({ holderId: null, locationId: 'location:room' })
     expect(currentEntityState(events, 'entity:other')?.holderId).toBe('character:bob')
     const head = source.head(compiled.manifest.address)

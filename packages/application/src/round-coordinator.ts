@@ -845,6 +845,7 @@ export class RoundCoordinator {
         ? resolution.events.find(event => event.eventType === 'character.speak')
         : undefined
       const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
+      const publicInteraction = resolution.events.find(event => event.eventType === 'entity.transferred')
       const occurrenceOnly = new Set(phase8Audience?.occurrenceOnlyCharacterIds ?? [])
       const observerIds = phase8Audience === undefined
         ? this.options.sceneDecision?.decideFromEvents(
@@ -870,6 +871,7 @@ export class RoundCoordinator {
             reason: resolution.reason ?? null,
             ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
             ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
+            ...(publicInteraction === undefined ? {} : { interaction: publicInteraction.data }),
           },
         }
         reactionStimuli.push({

@@ -424,6 +424,10 @@ export class Phase8ContextPipeline {
       sceneSourceRefs: sceneRefs, recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', stimulus),
       affordances, affordanceHash,
+      ...(manifestUsesActionGroups(this.options.manifest) ? { groupedOutput: {
+        tool: manifestUsesInteractions(this.options.manifest) ? 'submit_actions/v5' as const : 'submit_actions/v4' as const,
+        maximumReflectionOperations: 4 as const,
+      } } : {}),
       runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
       correlationId: `context:${context.roundId}:${binding.participantId}`,
     })
@@ -503,6 +507,10 @@ export class Phase8ContextPipeline {
       sceneSourceRefs: sceneSources(history, decision), recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus: context.stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', context.stimulus),
       stimulusSourceRefs, maximumExternalActions: manifestUsesActionGroups(this.options.manifest) ? 2 : 1,
+      ...(manifestUsesActionGroups(this.options.manifest) ? { groupedOutput: {
+        tool: manifestUsesInteractions(this.options.manifest) ? 'submit_actions/v5' as const : 'submit_actions/v4' as const,
+        maximumReflectionOperations: 0 as const,
+      } } : {}),
       affordances, affordanceHash,
       runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
       correlationId: `context:${context.roundId}:${binding.participantId}`,

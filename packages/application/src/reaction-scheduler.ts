@@ -708,6 +708,7 @@ export class ReactionScheduler {
       })
       const publicSpeech = resolution.events.find(event => event.eventType === 'character.speak')
       const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
+      const publicInteraction = resolution.events.find(event => event.eventType === 'entity.transferred')
       const occurrenceOnly = new Set(audience.occurrenceOnlyCharacterIds)
       const observerIds = [...new Set([
         ...audience.fullContentCharacterIds,
@@ -728,6 +729,7 @@ export class ReactionScheduler {
             status: skipped ? 'skipped' : resolution.status, reason: resolution.reason ?? null,
             ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
             ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
+            ...(publicInteraction === undefined ? {} : { interaction: publicInteraction.data }),
           },
         }
         const sourceEventOrdinal = events.length
