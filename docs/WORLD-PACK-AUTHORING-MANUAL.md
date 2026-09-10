@@ -3,6 +3,8 @@
 本手册说明如何只编辑 JSON/Markdown 内容，创建一个可以由真实模型驱动 NPC、支持独立认知与有界连续反应的本机世界。
 
 > **当前推荐版本：** 需要角色表情、姿态、语气等外显表现的新世界使用 `worldpack-source/v4`，从 `expressive-social` 模板开始。只需连续对白时仍可使用 v3；不要让 AI 混用不同版本的文件形状。
+>
+> **可选扩展：** 需要「一轮两步动作」或「拿取/放下/递交物品」的新世界，**仍然使用同一个 `worldpack-source/v4`**，只是在激活和试玩时追加一个开关，见 §16 有界行动组与 §17 对象交互。扩展会改变生成的 Manifest 与模型协议，但不新增 Pack 源版本。
 
 > **严格格式：** Schema 会拒绝未知字段、错误枚举、重复 ID、越界数字和未登记文件。不能通过“多写一个看起来合理的字段”扩展系统。
 
@@ -31,7 +33,18 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 corepack pnpm@11.7.0 experience:web --pack D:\worlds\my-world.worldpack.json --data-dir D:\worlds\my-world-playtest
 ```
 
-浏览器打开命令输出的本机地址。页面只监听 loopback，不向局域网或公网开放。
+如果这个世界需要「一轮两步动作」或「物品交互」，保持同一个 v4 Pack 不变，只在命令末尾加一个开关（两个开关互斥，二选一）：
+
+```powershell
+# 有界行动组：Manifest v7 / 模型协议 submit_actions/v4
+corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data --action-groups
+
+# 对象交互：Manifest v8 / 模型协议 submit_actions/v5（需要目录文件）
+corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data `
+  --interactions examples\world-packs\possession-interactions.json
+```
+
+详细字段、码表和玩家指令见 §16 与 §17。浏览器打开命令输出的本机地址。页面只监听 loopback，不向局域网或公网开放。
 
 ## 2. 选择起点
 
@@ -44,6 +57,8 @@ corepack pnpm@11.7.0 experience:web --pack D:\worlds\my-world.worldpack.json --d
 | `examples/world-packs/rainy-road-companions` | v2 | Phase 8 完整认知参考 | 查阅字段；直接复制时没有 Reaction Cycle |
 
 `expressive-social` 复制“雨夜同行”的完整结构，同时加入 Reaction 与 Manifestation 配置。创作者应保留文件形状，替换世界内容、角色、地点和交叉引用。
+
+> Profile 只决定初始文件形状。「有界行动组」和「对象交互」**不是** Profile，而是激活/试玩时追加的开关，见 §16、§17；它们不会改变 Pack 源格式。
 
 ## 3. 让 AI 生成内容
 
@@ -811,9 +826,115 @@ Claude 说：“随你。”
 - 模型输出只是 Proposal。只有经过规则裁定、提交并被某个角色实际观察到的表现，才会进入该角色的 Observation 和 Memory。
 - 表现不会自动证明角色的真实情绪、动机、秘密或说法为真。
 
-当前 V1 中，带 `manifestation` 的 Proposal 必须恰好有一个 Action。它不是第四种 Action，也不能脱离 Action 单独提交。未来逐动作绑定表现时会使用新版本，不会重解释 v4 历史。
+当前 V1 中，带 `manifestation` 的 Proposal 必须恰好有一个 Action。它不是第四种 Action，也不能脱离 Action 单独提交。未来逐动作绑定表现时会使用新版本，不会重解释 v4 历史。（逐动作、闭合码的表现现在已由 §16 有界行动组提供。）
 
-## 16. 声明验收意图
+## 16. 有界行动组（两步动作）
+
+默认情况下，一个角色每轮最多提交**一个** Action。启用有界行动组后，同一个角色可以在一次模型调用里**按顺序提交最多两步**动作（例如「先移动、后发言」）。两步在同一个原子 Round 内连续裁定：**第一步被拒绝，第二步记为 `skipped`**，已成功的步骤不会因后续失败而撤回，组内也不会插入其他角色。
+
+| 项 | 值 |
+| --- | --- |
+| Pack 源格式 | 仍是 `worldpack-source/v4`（**不变**） |
+| 生成的 Manifest | **v7** |
+| 模型协议 | **submit_actions/v4** |
+| 两步组合 | 必须恰好一次 `speak` 加一次 `move` 或 `take`；顺序可任意；`abstain` 必须零步 |
+
+在编译之后激活，或在试玩命令上追加开关（数据目录要新的）：
+
+```powershell
+corepack pnpm@11.7.0 worldpack activate $artifact --data-dir $data --action-groups
+
+corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data --action-groups
+```
+
+启用后，表现**不再接受自由文案**，改为**闭合表现码**。每个步骤可带一个 `manifestation`，由两个数组组成，合计最多 8 项且不得重复：
+
+| 数组 | 含义 |
+| --- | --- |
+| `independent` | 本次尝试中独立成立的表现，**不能**含声音或步态 |
+| `onSuccess` | 仅在该步骤被接受时才发生 |
+
+可用码表：
+
+| 码 | 通道 | 绑定约束 |
+| --- | --- | --- |
+| `smile` | 面部 | 任意步骤 |
+| `frown` | 面部 | 任意步骤 |
+| `nod` | 手势 | 任意步骤 |
+| `shake_head` | 手势 | 任意步骤 |
+| `avert_gaze` | 视线 | 任意步骤 |
+| `quiet_voice` | 声音 | 只能放 `speak` 的 `onSuccess` |
+| `trembling_voice` | 声音 | 只能放 `speak` 的 `onSuccess` |
+| `slow_walk` | 步态 | 只能放 `move` 的 `onSuccess` |
+
+未知的表现码会让该 Provider 输出判为 `schema-invalid`（默认不重试）。表现**不会**授予位置、视野、持有或心理事实。
+
+玩家侧：普通输入仍按对白处理，也可以用 `/say <台词>` 明确发话。
+
+> **命名提醒：** 这里的 **submit_actions/v4** 是**模型协议版本**，和 Pack 源格式 `worldpack-source/v4` 完全是两回事。Pack 源格式始终是 v4；启用行动组只改变生成的 Manifest 与模型协议。
+
+## 17. 对象交互（拿取/放下/递交）
+
+默认规则只有 `take`，持有关系不成循环。启用对象交互后，模型用统一的 `interact` 动作执行**拿取 / 放下 / 递交**，且只在合法前置条件下成功：
+
+- 拿取：物品无人持有且与行动者同地点；
+- 放下：行动者持有该物品；
+- 递交：行动者持有该物品，且收件人是另一个同地点的 active 角色。
+
+递交只改变持有关系，**不表示对方同意、承诺或作出身体反应**。
+
+| 项 | 值 |
+| --- | --- |
+| Pack 源格式 | 仍是 `worldpack-source/v4`（**不变**） |
+| 生成的 Manifest | **v8** |
+| 模型协议 | **submit_actions/v5**（动作词汇为 `speak` / `move` / `interact`） |
+| 目录协议 | `object-interactions/v1` |
+
+目录是一个独立 JSON 文件，激活时传入，规范化后计入 `specHash`；运行中的世界不会再去读它。
+
+```json
+{
+  "version": "object-interactions/v1",
+  "definitions": [
+    { "interactionId": "core:take", "label": "拿取", "operation": "take" },
+    { "interactionId": "core:drop", "label": "放下", "operation": "drop" },
+    { "interactionId": "core:give", "label": "递交", "operation": "give" }
+  ],
+  "bindings": [
+    { "entityId": "entity:ticket-bundle", "interactionIds": ["core:take", "core:drop", "core:give"] }
+  ]
+}
+```
+
+- `definitions` 声明交互 ID、显示名和确定性操作（首版只有 `take` / `drop` / `give`）。
+- `bindings` 把交互 ID 绑定到具体物品。
+- 自定义 ID 必须使用自有命名空间（如 `travel:collect-tickets`）；`core:` 保留给同名操作。
+- 命名与文案**不会**改变操作的前置条件或效果。
+- 上限：最多 128 个定义、4096 个对象绑定，ID 与名称最长 128 字符。
+
+启用方式：
+
+```powershell
+corepack pnpm@11.7.0 worldpack activate $artifact --data-dir $data `
+  --interactions examples\world-packs\possession-interactions.json
+
+corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data `
+  --interactions examples\world-packs\possession-interactions.json
+```
+
+玩家侧可以用
+
+```text
+/interact <物品ID> <交互ID> [收件角色ID]
+```
+
+明确提交一次交互（例如 `/interact entity:ticket-bundle core:give character:alice`）；其它普通输入仍按对白处理，也可以用 `/say <台词>` 发话。旧的 `/take` 在 v8 世界会被拒绝，并提示改用 `/interact`。
+
+模型只能在 `affordances.interactions` 当前枚举出的候选里选择（同地点无人持有的物品、以及自己持有的物品；递交收件再按当前 Scene 可见角色裁剪）。这些候选是**提案输入，不是授权票据**——执行时会在最新事件前缀上重新验证。
+
+> 角色握手、递物邀请等「请求/接受/拒绝」协议属于第二阶段，尚未实现。
+
+## 18. 声明验收意图
 
 `assertions.json` 的格式是：
 
@@ -844,7 +965,7 @@ Claude 说：“随你。”
 }
 ```
 
-## 17. 理解引用和隐私
+## 19. 理解引用和隐私
 
 编译前必须满足以下闭包：
 
@@ -867,7 +988,7 @@ Claude 说：“随你。”
 | `innerTensions` | 互相冲突的倾向 | 系统已经替角色作出选择 |
 | `author_note` | 作者私有说明 | 可进入 NPC 上下文的隐藏提示词 |
 
-## 18. 校验、版本化和试玩
+## 20. 校验、版本化和试玩
 
 每次编辑后按顺序执行：
 
@@ -890,7 +1011,24 @@ corepack pnpm@11.7.0 experience:web --deepseek `
 
 不要手改 SQLite、Manifest Hash 或编译产物来覆盖旧世界。
 
-## 19. 常见错误
+### 试玩可选开关
+
+`experience:web` 在 `--pack` / `--data-dir` 之外还接受两个**互斥**开关，用于试玩新协议（详见 §16、§17）：
+
+```powershell
+# 有界行动组（Manifest v7 / submit_actions/v4）
+corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data --action-groups
+
+# 对象交互（Manifest v8 / submit_actions/v5，需目录文件）
+corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data `
+  --interactions examples\world-packs\possession-interactions.json
+```
+
+两个开关都**必须配合 `--pack`**（不能用于内置示例世界），且**只能选一个**。试玩命令会自行在给定数据目录里激活世界，因此数据目录必须是全新（空）的。
+
+进入页面后，可以用 `/say <台词>` 明确发话；启用对象交互时还可以用 `/interact <物品ID> <交互ID> [收件角色ID]` 提交一次交互。
+
+## 21. 常见错误
 
 | 表现 | 常见原因 | 处理方法 |
 | --- | --- | --- |
@@ -905,10 +1043,15 @@ corepack pnpm@11.7.0 experience:web --deepseek `
 | 没有舞台动作 | 使用 v1～v3、Manifestation disabled，或模型省略表现 | 使用 v4 并检查 `manifestation.json` 为 `enabled` |
 | 秘密泄漏 | 把秘密写进 public Portrayal、公开 Fact 受众或玩家文档 | 把信息放进正确角色的 Cognition/私有 Document |
 | 世界能编译但玩法不存在 | `kind` 或自由文本不会自动生成规则 | 只依赖 Core `speak/move/take/reflect`，新硬语义需要受信规则实现 |
+| 一轮只能做一个动作 | 未启用有界行动组 | 用 `--action-groups`（见 §16） |
+| 拿取 / 放下 / 递交不可用 | 未启用对象交互 | 用 `--interactions <catalog>`（见 §17） |
+| 表现只能选固定码，不能写自由文案 | 已启用行动组或对象交互 | 新版使用闭合表现码；自由文案表现只存在于 Manifest v6 / submit_actions v3 |
+| `/take` 被拒绝 | v8 世界改用统一的 `interact` | 用 `/interact <物品ID> <交互ID> [收件角色ID]` |
+| 报错 `choose --action-groups or --interactions` | 同时传了两个互斥开关 | 二选一；两者都要求 `--pack` 与全新数据目录 |
 
 全局安全上限：最多 256 个角色、512 个地点、512 个物品、每类每角色最多 512 条认知、512 个 Document；每个源 JSON 最大 1 MiB，完整编译制品最大 16 MiB。
 
-## 20. 版本兼容说明
+## 22. 版本兼容说明
 
 | Source 版本 | Character/Scene/Cognition | Reaction | Manifestation | 使用建议 |
 | --- | --- | --- | --- | --- |
@@ -919,7 +1062,17 @@ corepack pnpm@11.7.0 experience:web --deepseek `
 
 不要把 v1 的 `initialClaims`、`initialGoals` 写进 Character v2。v2/v3/v4 将这些内容集中放在 `cognition.json`。系统不会隐式升级旧 Pack，也不会在解析失败时退回其他版本。
 
-## 21. Evidence → Finding → Path
+上表的 **v1～v4 指 Pack 源格式**。在 `worldpack-source/v4` 基础上，激活/试玩时可追加开关，从而生成不同的 Manifest 与模型协议：
+
+| 激活开关 | 生成的 Manifest | 模型协议 | 动作词汇 | 表现形式 | 用途 |
+| --- | --- | --- | --- | --- | --- |
+| 无 | v6 | submit_actions/v3 | speak / move / take | 自由文案 `manifestation` | 表现型基础世界（§15） |
+| `--action-groups` | v7 | submit_actions/v4 | speak / move / take | 闭合表现码（§16） | 一轮最多两步顺序动作 |
+| `--interactions <catalog>` | v8 | submit_actions/v5 | speak / move / interact | 闭合表现码（§16） | 拿取 / 放下 / 递交（§17） |
+
+两个扩展都**不新增 Pack 源版本**，旧 Pack 文件、旧 Hash 与旧世界的语义保持不变；不会根据模型输出隐式升级。
+
+## 23. Evidence → Finding → Path
 
 | Evidence | 实现来源 | 可复现观察 |
 | --- | --- | --- |
@@ -935,10 +1088,12 @@ Finding F-002：E-002～E-003 证明“可省略”不等于“不进入编译�
 
 Path P-001：生成 `expressive-social` → 只改登记文件 → `validate` → `test` → `compile` → `inspect` → 用独立数据目录进行真实模型网页试玩。
 
-## 22. 相关文档
+## 24. 相关文档
 
 - [创作者 World Pack 与真实模型试玩指南](CREATOR-PLAYTEST-RUNBOOK.md)
 - [Phase 8 创作者运行手册](PHASE8-CREATOR-RUNBOOK.md)
 - [World Pack v2 作者源文件形状 ADR](adr/ADR-0069-worldpack-v2-source-file-shapes.md)
 - [角色外显表现 ADR](adr/ADR-0083-manifestation-observable-expression.md)
+- [有界行动组 ADR](adr/ADR-0085-bounded-action-groups.md)与[实施规格](spec/bounded-action-groups-v0.1.md)
+- [对象交互 ADR](adr/ADR-0086-object-interactions.md)与[实施规格](spec/object-interactions-v0.1.md)
 - [雨夜同行参考 Pack](../examples/world-packs/rainy-road-companions/worldpack.source.json)
