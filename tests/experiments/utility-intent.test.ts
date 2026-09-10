@@ -80,6 +80,23 @@ describe('local utility intent interpreter', () => {
     await expect(invented.interpreter.interpret(text, references)).rejects.toThrow('exact observable source span')
   })
 
+  it('tolerates whitespace drift while preserving the exact source span', async () => {
+    const text = '(又捏了一下DeepSeek的脸)难道是因为长期熬夜加班，我直接猝死飞升到天堂了？'
+    const fixture = setup({
+      intent: 'speak', targetRef: '', question: '', spokenText: '难道是因为长期熬夜加班，我直接猝死飞升到天堂了？',
+      manifestationCues: [
+        { channel: 'gesture', description: '又捏了一下 DeepSeek 的脸' },
+      ],
+    }, { manifestationEnabled: true })
+    const result = await fixture.interpreter.interpret(text, references)
+    expect(result).toMatchObject({
+      status: 'action', action: { actionType: 'speak', parameters: { text: '难道是因为长期熬夜加班，我直接猝死飞升到天堂了？' } },
+      manifestation: { cues: [
+        { channel: 'gesture', description: '又捏了一下DeepSeek的脸', persistence: 'event_only' },
+      ] },
+    })
+  })
+
   it('translates constrained actions while preserving player speech verbatim', async () => {
     const speech = setup({ intent: 'speak', targetRef: '', question: '' })
     await expect(speech.interpreter.interpret('我们要不要走？', references)).resolves.toEqual({

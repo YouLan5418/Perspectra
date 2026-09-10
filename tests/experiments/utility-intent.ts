@@ -18,7 +18,7 @@ export type UtilityIntentResult =
 
 const SYSTEM = '你是玩家输入翻译器，不扮演角色、不续写故事。只判断玩家本人此刻要执行的一个动作。规则：①完整的提问、陈述、讨论和对白必须选择 speak；绝不能因为 targets 非空就要求用户在 move/take 中选择。②“好，去X”“我们走吧/出发吧/去X吧”等确认现在付诸行动且目标明确的表达选择 move；这只移动玩家本人，其他角色自行决定。③“要不要/是不是/觉得/可以吗”等询问、讨论计划、尚未确认的建议，以及要求某个具名角色或其他人行动，都选择 speak。④玩家明确表示自己现在拿取某物才选择 take。⑤目标必须使用用户消息提供的短引用；clarification 只用于玩家明确要行动、但动作或目标确实无法确定的情况。不得创造目标。严格按提供的 Schema 填写字段。'
 
-const MANIFESTATION_SYSTEM = '同时提取玩家明确写出的外部可观察表现。spokenText 必须是原文中的连续原样片段；没有说话则为空。manifestationCues 只允许原文中逐字出现的表情、视线、姿态、手势、语气声音或外观变化，每项 description 必须是原文中的连续原样片段。不得推断、改写或补充情绪、动机、秘密和心理数值。没有表现则返回空数组。纯表现而没有 speak/move/take 主行为时返回 clarification，不能伪造对白。严格按 Schema 填写五个字段。'
+const MANIFESTATION_SYSTEM = '同时提取玩家明确写出的外部可观察表现。舞台动作常用全角或半角括号（…）(…)或星号*…*标记，提取时剥掉这些标记符号，只保留标记内与括号外的真实文字。spokenText 必须是原文中括号外连续出现的对白，没有说话则为空。manifestationCues 只允许原文中逐字出现的表情、视线、姿态、手势、语气或外观变化，每项 description 必须是原文中的连续片段且不含标记符号。voice 通道只描述说话时的语气或声音特征（如“声音颤抖”“压低声音”“语气迟疑”），绝不能把台词本身当作 voice；台词只放 spokenText，spokenText 不得与任一 voice description 重复。不得推断、改写或补充情绪、动机、秘密和心理数值。没有表现则返回空数组。纯表现而没有 speak/move/take 主行为时返回 clarification，不能伪造对白。严格按 Schema 填写五个字段。'
 
 const CLARIFICATION_SYSTEM = `${SYSTEM} 你正在处理上一条输入的澄清答复。答复只用于消除歧义，不是新的角色对白；若用户确认 speak，最终对白必须是 originalText，不能是 answer。`
 
@@ -85,8 +85,8 @@ function outputShape(manifestationEnabled: boolean) {
   return manifestationEnabled
     ? {
         intent: 'speak|move|take|clarification', targetRef: '短引用或空字符串', question: '澄清问题或空字符串',
-        spokenText: '原文中的对白片段或空字符串',
-        manifestationCues: [{ channel: 'facial|gaze|posture|gesture|voice|appearance', description: '原文片段' }],
+        spokenText: '原文中括号外的对白片段或空字符串',
+        manifestationCues: [{ channel: 'facial|gaze|posture|gesture|voice|appearance', description: '原文中剥掉标记符号后的表现片段' }],
       }
     : { intent: 'speak|move|take|clarification', targetRef: '短引用或空字符串', question: '澄清问题或空字符串' }
 }
@@ -135,6 +135,32 @@ function clarificationMessages(
   ]
 }
 
+/** 空白不敏感地匹配原文连续片段，返回原文中对应的精确片段（保留原文空白）。 */
+function sourceSpan(text: string, fragment: string): string | undefined {
+  if (fragment.trim() !== fragment || fragment.length === 0) return undefined
+  const compactText = text.replace(/\s+/gu, '')
+  const compactFragment = fragment.replace(/\s+/gu, '')
+  if (compactFragment.length === 0) return undefined
+  const idx = compactText.indexOf(compactFragment)
+  if (idx === -1) return undefined
+  let start = -1
+  let seen = 0
+  for (let i = 0; i < text.length; i++) {
+    if (/\s/u.test(text.charAt(i))) continue
+    if (seen === idx) { start = i; break }
+    seen++
+  }
+  if (start === -1) return undefined
+  let remaining = compactFragment.length
+  let end = text.length
+  for (let i = start; i < text.length; i++) {
+    if (/\s/u.test(text.charAt(i))) continue
+    remaining--
+    if (remaining === 0) { end = i + 1; break }
+  }
+  return text.slice(start, end)
+}
+
 function normalizedResult(
   raw: unknown,
   text: string,
@@ -162,13 +188,15 @@ function normalizedResult(
         || typeof cue.channel !== 'string'
         || !['facial', 'gaze', 'posture', 'gesture', 'voice', 'appearance'].includes(cue.channel)
         || typeof cue.description !== 'string' || cue.description.length === 0
-        || cue.description.trim() !== cue.description || !text.includes(cue.description)) {
+        || cue.description.trim() !== cue.description) {
         throw new TypeError('utility manifestation cue is not an exact observable source span')
       }
+      const span = sourceSpan(text, cue.description)
+      if (span === undefined) throw new TypeError('utility manifestation cue is not an exact observable source span')
       return {
-        cueId: `cue:player:${index + 1}:${byteHash(`${cue.channel}\u001f${cue.description}`).slice(7, 15)}`,
+        cueId: `cue:player:${index + 1}:${byteHash(`${cue.channel}\u001f${span}`).slice(7, 15)}`,
         channel: cue.channel as ManifestationChannel,
-        description: cue.description,
+        description: span,
         persistence: 'event_only' as const,
       }
     })
@@ -178,12 +206,12 @@ function normalizedResult(
     manifestation = cues.length === 0 ? undefined : { cues }
   }
   if (value.intent === 'speak' && value.targetRef === '' && value.question === '') {
-    if (spokenText.length === 0 || !text.includes(spokenText)
-      || (manifestation === undefined && spokenText !== text)) {
+    const speechSpan = sourceSpan(text, spokenText)
+    if (speechSpan === undefined || (manifestation === undefined && speechSpan !== text)) {
       throw new TypeError('utility speech must preserve an exact player source span')
     }
     return {
-      status: 'action', action: { actionType: 'speak', parameters: { text: spokenText } },
+      status: 'action', action: { actionType: 'speak', parameters: { text: speechSpan } },
       ...(manifestation === undefined ? {} : { manifestation }),
     }
   }

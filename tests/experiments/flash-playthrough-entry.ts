@@ -64,7 +64,7 @@ async function main() {
           options: { temperature: 0.3, seed: 42, num_predict: 256 }, keep_alive: '10m' }
         : { model, messages, stream: false, thinking: { type: 'disabled' },
           response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 256 })
-      if (Buffer.byteLength(wireBody) > 48_000) {
+      if (Buffer.byteLength(wireBody) > 512_000) {
         stopped = true
         throw new Error('experiment input bound exceeded')
       }

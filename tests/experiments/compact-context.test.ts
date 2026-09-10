@@ -169,6 +169,20 @@ describe('manual Ollama compact context experiment', () => {
     expect(JSON.stringify(renderExperiment(messages('BOB_ONLY_CANARY'), 'compact').messages)).toContain('BOB_ONLY_CANARY')
   })
 
+  it('preserves schema-legal null references instead of failing the render', () => {
+    const input = messages()
+    const checkpoint = JSON.parse(input[4]!.content)
+    checkpoint.content.activeCognition.push({
+      kind: 'affect-episode', id: 'affect:no-target',
+      value: { type: 'curiosity', intensityPermille: 500, targetKey: null },
+    })
+    input[4] = { role: 'user', content: JSON.stringify(checkpoint) }
+    const rendered = renderExperiment(input, 'compact')
+    const renderedCheckpoint = JSON.parse(rendered.messages[4]!.content)
+    expect(renderedCheckpoint.content.activeCognition[1].value.targetKey).toBeNull()
+    expect(renderExperiment(input, 'compact')).toEqual(rendered)
+  })
+
   it('fails for unknown layouts and malformed references', () => {
     expect(() => renderExperiment([], 'compact')).toThrow('12-segment')
     const input = messages()

@@ -119,7 +119,7 @@ function expressiveSchema(base: Record<string, unknown>): Record<string, unknown
   }
 }
 
-const manifestationOutputContract = '可选增加 manifestation，描述角色做这个动作时外界能直接看到或听到的表现。格式为 {"description":"综合舞台动作","cues":[{"cueId":"本次响应内唯一短标识","channel":"facial|gaze|posture|gesture|voice|appearance","description":"可观察表现","persistence":"event_only"}]}。不要写真实情绪、秘密、动机或心理数值；只写可观察线索。posture/appearance 若需持续可用 until_changed，并加 stateKey 与 operation=set|clear。一次响应最多一个 action；没有合适表现可省略 manifestation。'
+const manifestationOutputContract = '可选增加 manifestation，描述角色执行本次 action 时外界能直接看到或听到的表现，格式为 {"description":"综合舞台动作","cues":[{"cueId":"本次响应内唯一短标识","channel":"facial|gaze|posture|gesture|voice|appearance","description":"可观察表现","persistence":"event_only"}]}。只写可观察线索，不要写真实情绪、秘密、动机或心理数值。posture/appearance 若需持续可用 until_changed，并加 stateKey 与 operation=set|clear。\n硬规则（移动必须真实）：角色要改变位置（移动/离开/前往某处），必须提交 move action（parameters.locationRef），manifestation 只能描写这次移动的姿态。禁止用 speak 口头说"我去某处"来替代移动，也禁止在 manifestation 里把尚未发生的移动写成"已经到某处"。\nmanifestation 不限于移动：原地说话（speak）同样应在 manifestation 里附带可见的表情、目光、语气、手势或姿态；只要不涉及位置变化就不要提交 move，但仍要写出说话时的外显表现。\n示例——① 位置变化（走开/前往）：actions:[{"actionType":"move","parameters":{"locationRef":"L2"}}]，manifestation 描写起身走向目标，如 posture"起身走向电脑桌"、gaze"目光转向工作区"；错误：speak"我去工作区"并配 manifestation"已经坐在电脑前"。② 原地说话（位置不变）：actions:[{"actionType":"speak",...}]，manifestation 附带说话时的表现，如 gaze"看向对方"、voice"语气平静"、gesture"轻轻点头"，不要提交 move。\n一次响应最多一个 action，manifestation 绑定这个 action；确实无任何可见变化时才省略。'
 
 function expressiveProposal<T extends SubmitActionsV2>(
   raw: unknown,
@@ -237,7 +237,7 @@ class PlaytestModelProvider {
         options: { temperature: 0.3, seed: 42, num_predict: 256 }, keep_alive: '10m' }
       : { model: this.model, messages, stream: false, thinking: { type: 'disabled' },
         response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 256 })
-    if (Buffer.byteLength(body) > 48_000) throw new RangeError('playtest Provider input exceeds 48,000 bytes')
+    if (Buffer.byteLength(body) > 512_000) throw new RangeError('playtest Provider input exceeds 512,000 bytes')
     const call: CallTelemetry = { participantId: this.participantId,
       phase: reaction === null ? 'root' : 'reaction', wave: reaction?.wave ?? null, startedAt: Date.now() }
     const evidenceId = `${String(++this.#ordinal).padStart(4, '0')}-${byteHash(`${this.participantId}:${context.roundId}`).slice(7, 23)}`

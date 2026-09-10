@@ -102,6 +102,9 @@ export function renderExperiment(
   const references = new Map<string, string>()
   const alias = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(alias)
+    // Schema-legal null/undefined references (e.g. an affect with no targetKey) pass through
+    // untouched instead of failing the render of the entire character context.
+    if (value === null || value === undefined) return value
     if (typeof value !== 'string') throw new TypeError('context reference must be a string')
     // Character/location/entity labels remain readable and retain their referents.
     if (/^(character|location|entity|scene):/.test(value)) return value
