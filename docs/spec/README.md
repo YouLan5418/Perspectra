@@ -29,3 +29,15 @@ Phase 8.2 正确性门禁与 Phase 8.3 固定数据性能基线现已关闭，�
 上述数据库与抢占评审现已通过，正式四表 Schema、Logical v6 envelope、四库 Set Manifest 和线性化矩阵见 [Phase 9A 数据迁移、恢复集合与玩家抢占评审](../2026-08-31_Phase-9A迁移恢复与抢占评审.md)。该评审授权按 9A → 9B → 9C 顺序实施，不授权直接复制 ADR-0076 原型两表。
 
 这些文档扩展但不改写上述 V0.2 冻结规格；冲突由 Accepted ADR 的 supersedes/extends 关系处理。Phase 8 对长期总纲的实施时点调整及实施前边界收口见 ADR-0064～0068。
+
+## 有界行动组
+
+有界行动组的独立规格见 [有界行动组 V0.1](bounded-action-groups-v0.1.md) 与 [ADR-0085](../adr/ADR-0085-bounded-action-groups.md)：新世界显式启用两步顺序动作和逐步闭合表现，工程门禁已通过，真实模型试玩待验。
+
+## 对象交互
+
+对象交互的第一阶段见 [对象交互 V0.1](object-interactions-v0.1.md) 与 [ADR-0086](../adr/ADR-0086-object-interactions.md)：新世界通过对象目录提供拿取、放下和递交选项；工程门禁通过，任意条件/效果 DSL 与角色回应型交互尚未实现。
+
+## Memory 独立演进工作流
+
+[记忆模块策略演进规划](../2026-09-06_规划-记忆模块策略演进.md)与[记忆模块实施规格](memory-evolution-implementation-v0.1.md)以 `a2cc212` 为调研基线，规划 M0～M4：包内职责拆分、长历史评测、版本化多路召回、经历来源分组与恢复验收。当前为 Proposed，尚未实施；不占用现有 Phase 编号，不修改 Accepted ADR 或旧 Manifest 行为。
