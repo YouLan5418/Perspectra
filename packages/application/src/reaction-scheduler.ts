@@ -1,3 +1,4 @@
+import { sortActionGroups, stepManifestation, resolveGroupAction } from './action-groups.ts'
 import {
   ModelBudgetLedger,
   ProviderCallStore,
@@ -31,6 +32,9 @@ import {
   type StoredReactionCycleBundle,
   type SubmitActionsV2,
   type SubmitActionsV3,
+  type SubmitActionsV4,
+  type SubmitActionsV5,
+  type ActionGroupBinding,
   type ManifestationProposal,
   type TransactionId,
   type WorldAddress,
@@ -42,6 +46,8 @@ import {
 import {
   currentCharacterLifecycle,
   manifestationPolicyFromManifest,
+  manifestUsesActionGroups,
+  manifestUsesInteractions,
   resolveManifestation,
   type CompiledWorldManifest,
   type RulebookRegistry,
@@ -56,7 +62,7 @@ import type {
   PreparedPhase8ReactionParticipant,
   ReactionContextBinding,
 } from './context-pipeline.ts'
-import { sortActionOrderKeys } from './round-coordinator.ts'
+import { compareActionOrderKey, sortActionOrderKeys } from './round-coordinator.ts'
 import type { SceneDecisionService } from './scene-decision.ts'
 
 export interface ReactionParticipantBinding extends ReactionContextBinding {
@@ -142,6 +148,7 @@ interface OrderedReactionAction {
   readonly action: ActionRequest
   readonly proposalOrdinal: number
   readonly manifestation?: ManifestationProposal
+  readonly actionGroup?: ActionGroupBinding
 }
 
 interface BuiltReactionRound {
@@ -180,7 +187,8 @@ export class ReactionScheduler {
       if (!options.manifest.characters.some(character => character.characterId === binding.actorId)) {
         throw new TypeError(`Reaction participant ${binding.actorId} is absent from the Manifest`)
       }
-      if (!binding.allowedActionTypes.includes('speak') || binding.allowedActionTypes.some(value => value !== 'speak')) {
+      if (!binding.allowedActionTypes.includes('speak') || binding.allowedActionTypes.some(value =>
+        !(manifestUsesActionGroups(options.manifest) ? ['speak', 'move', manifestUsesInteractions(options.manifest) ? 'interact' : 'take'] : ['speak']).includes(value))) {
         throw new TypeError('Reaction v1 participants must allow only speak')
       }
       if (!Number.isSafeInteger(binding.timeoutMs) || binding.timeoutMs <= 0) {
@@ -213,6 +221,9 @@ export class ReactionScheduler {
   async runCurrentWave(): Promise<ReactionWaveResult | undefined> {
     const initial = this.options.store.activeReactionCycle(this.options.address)
     if (initial === undefined || initial.cycle.status === 'terminal') return undefined
+    if ((initial.cycle.allowedActionTypes.includes('interact@1' as never) !== manifestUsesInteractions(this.options.manifest)) || initial.cycle.maxActionsPerCall !== (manifestUsesActionGroups(this.options.manifest) ? 2 : 1)) {
+      throw new Error('Reaction Cycle action policy differs from Manifest')
+    }
     const wave = initial.waves.at(-1)!
     if (wave.status !== 'frozen') throw new Error('active Reaction Cycle does not end in a frozen Wave')
     const head = this.options.store.head(this.options.address)
@@ -461,15 +472,15 @@ export class ReactionScheduler {
       return { ...prepared, outcome: 'runtime_unavailable', proposal: empty }
     }
     let providerCall = prepared.providerCall
-    let output: SubmitActionsV2 | SubmitActionsV3 | undefined
+    let output: SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | undefined
     if (providerCall.state === 'dispatch_started') {
       providerCall = this.options.providerCalls.markTerminal(providerCall.modelCallId, 'timed_out_ambiguous', {
         reason: 'Reaction Provider dispatch had no durable response',
       })
     } else if (providerCall.state === 'response_received') {
-      output = providerCall.response as SubmitActionsV2 | SubmitActionsV3
+      output = providerCall.response as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5
     } else if (providerCall.state === 'validated') {
-      output = providerCall.proposal as SubmitActionsV2 | SubmitActionsV3
+      output = providerCall.proposal as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5
     }
     if (providerCall.state === 'committed') {
       failWorld({
@@ -511,12 +522,14 @@ export class ReactionScheduler {
       const authorization = {
         participantId: prepared.binding.participantId,
         actorId: prepared.binding.actorId,
-        allowedActionTypes: ['speak'],
-        maxActions: 1,
+        allowedActionTypes: manifestUsesActionGroups(this.options.manifest) ? prepared.binding.allowedActionTypes : ['speak'],
+        maxActions: manifestUsesActionGroups(this.options.manifest) ? 2 : 1,
         maxReflectionOperations: 0,
         correlationId: `reaction:${prepared.job.cycleId}:${prepared.job.wave}:${prepared.job.jobId}`,
       }
-      const validated = manifestationPolicyFromManifest(this.options.manifest).mode === 'enabled'
+      const validated = manifestUsesActionGroups(this.options.manifest)
+        ? (manifestUsesInteractions(this.options.manifest) ? this.#validator.validateV5(output, authorization) : this.#validator.validateV4(output, authorization))
+        : manifestationPolicyFromManifest(this.options.manifest).mode === 'enabled'
         ? this.#validator.validateV3(output, authorization)
         : this.#validator.validateV2(output, authorization)
       providerCall = this.options.providerCalls.markValidated(providerCall.modelCallId, output)
@@ -552,7 +565,7 @@ export class ReactionScheduler {
     baseTick: number,
     wave: number,
   ): BuiltReactionRound {
-    const actions = sortActionOrderKeys(executed.flatMap(value => value.proposal.actions.map((action, proposalOrdinal): OrderedReactionAction => ({
+    const unordered = executed.flatMap(value => value.proposal.actions.map((action, proposalOrdinal): OrderedReactionAction => ({
       jobId: value.job.jobId,
       participantId: value.binding!.participantId,
       sourceRole: 'agent',
@@ -561,8 +574,11 @@ export class ReactionScheduler {
       actionId: action.actionId,
       action,
       proposalOrdinal,
+      ...(value.proposal.actionGroup === undefined ? {} : { actionGroup: value.proposal.actionGroup }),
       ...(value.proposal.manifestation === undefined ? {} : { manifestation: value.proposal.manifestation }),
-    }))))
+    })))
+    const actions = manifestUsesActionGroups(this.options.manifest)
+      ? sortActionGroups(unordered, compareActionOrderKey) : sortActionOrderKeys(unordered)
     if (new Set(actions.map(value => value.actionId)).size !== actions.length) {
       throw new TypeError('Reaction actionId values must be unique within one Wave')
     }
@@ -588,21 +604,29 @@ export class ReactionScheduler {
     }
     const cognitiveCharacters = new Set<CharacterId>()
     let candidateHash = candidateHashInput
+    const stoppedGroups = new Set<string>()
     for (const [ordinal, item] of actions.entries()) {
       const actionPrefix = [...history, ...events]
-      const resolution = this.#rulebook.resolve({
+      const { resolution: baseResolution, skipped } = resolveGroupAction(item.action, item.participantId, item.actionGroup !== undefined, stoppedGroups, () => this.#rulebook.resolve({
         manifest: this.options.manifest,
         events: actionPrefix,
         characterId: item.action.actorId,
         action: { actionType: item.action.actionType, parameters: item.action.parameters },
-      })
-      const manifestation = item.manifestation === undefined ? undefined : {
-        proposal: item.manifestation,
+      }))
+      const moveTarget = item.action.actionType === 'move' ? (item.action.parameters as WorldJsonObject).locationId : undefined
+      const resolution = baseResolution.status === 'accepted' && typeof moveTarget === 'string'
+        ? { ...baseResolution, events: [...baseResolution.events, ...this.options.sceneDecision.transitionForMove(
+          this.options.address, actionPrefix, item.actorId, moveTarget, baseHeadSeq + events.length,
+        )] } : baseResolution
+      const performance = item.actionGroup === undefined ? item.manifestation
+        : skipped ? undefined : stepManifestation(item.actionGroup.manifestations[item.proposalOrdinal]!, resolution.status === 'accepted')
+      const manifestation = performance === undefined ? undefined : {
+        proposal: performance,
         resolution: resolveManifestation({
           roundId,
           actionId: item.action.actionId,
           actorId: item.action.actorId,
-          manifestation: item.manifestation,
+          manifestation: performance,
           events: actionPrefix,
         }),
       }
@@ -625,12 +649,17 @@ export class ReactionScheduler {
       const orderKey = {
         phase: 1, roleRank: 1, priority: item.priority,
         actorId: item.actorId, actionId: item.actionId,
+        ...(item.actionGroup === undefined ? {} : {
+          groupParticipantId: item.participantId,
+          groupFirstActionId: actions.find(first => first.participantId === item.participantId && first.proposalOrdinal === 0)!.actionId,
+          stepOrdinal: item.proposalOrdinal,
+        }),
       }
       const candidateHashBefore = candidateHash
       const ruleTraceHash = hashWorldJson('round-rule-trace', {
         rulebook: this.options.manifest.rulebook,
         action: item.action,
-        status: resolution.status,
+        status: skipped ? 'skipped' : resolution.status,
         reason: resolution.reason ?? null,
         events: resolvedEvents,
         ...(manifestation === undefined ? {} : { manifestation }),
@@ -650,12 +679,13 @@ export class ReactionScheduler {
         actionVersion: item.action.actionVersion,
         parameters: item.action.parameters,
         proposalOrdinal: item.proposalOrdinal,
+        ...(item.actionGroup === undefined ? {} : { actionGroup: item.actionGroup }),
         ...(item.manifestation === undefined ? {} : { manifestation: item.manifestation }),
         orderKey,
       })
       resolutions.push({
         actionId: item.action.actionId,
-        status: resolution.status,
+        status: skipped ? 'skipped' : resolution.status,
         reason: resolution.reason ?? null,
         orderKey,
         candidateHashBefore,
@@ -695,7 +725,7 @@ export class ReactionScheduler {
             status: resolution.status, contentVisibility: 'occurrence_only',
           } : {
             actionType: item.action.actionType, actorId: item.action.actorId,
-            status: resolution.status, reason: resolution.reason ?? null,
+            status: skipped ? 'skipped' : resolution.status, reason: resolution.reason ?? null,
             ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
             ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
           },
@@ -762,11 +792,12 @@ export class ReactionScheduler {
           providerRequestHash: value.prepared.receipt.providerRequestHash,
         }),
         ...(value.providerCall === undefined ? {} : { providerCallState: value.providerCall.state }),
-        ...(value.proposal.manifestation === undefined ? {} : { manifestation: value.proposal.manifestation }),
+        ...(value.proposal.actionGroup === undefined ? {} : { actionGroup: value.proposal.actionGroup }),
+      ...(value.proposal.manifestation === undefined ? {} : { manifestation: value.proposal.manifestation }),
       }
     })
     const authority = {
-      schemaVersion: 3,
+      schemaVersion: manifestUsesActionGroups(this.options.manifest) ? 4 : 3,
       origin: {
         kind: 'reaction', cycleId: cycle.cycle.cycleId,
         rootRoundId: cycle.cycle.rootRoundId, wave: cycle.waves.at(-1)!.wave,

@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, createErrorEnvelope, hashWorldJson, type ReactionCycleDraft } from '@harness-world/contracts'
 import { BranchQuarantineService } from './quarantine.ts'
@@ -45,7 +46,7 @@ describe('WorldLogicalTransferService', () => {
     const exportPath = join(root, 'quarantined.dshworld')
     service.exportAuthority(exportPath, 'logical:quarantine-export')
     const envelope = JSON.parse(readFileSync(exportPath, 'utf8')) as any
-    expect(envelope).toMatchObject({ format: 'dshworld-authority/v6', data: { authorityVersion: 6 } })
+    expect(envelope).toMatchObject({ format: 'dshworld-authority/v7', data: { authorityVersion: 7 } })
     const target = join(root, 'quarantined-import.sqlite')
     service.importAuthority(exportPath, target, 'logical:quarantine-import')
     const imported = new BranchQuarantineService(target)
@@ -245,6 +246,37 @@ describe('WorldLogicalTransferService', () => {
     expect(imported.activeReactionCycle(address)).toEqual(expected)
     expect(imported.committedRound(address, request.transactionId)).toMatchObject({ bundleHash: committed.bundleHash })
     imported.close()
+
+    const legacy = structuredClone(envelope)
+    legacy.format = 'dshworld-authority/v6'
+    legacy.data.authorityVersion = 6
+    for (const row of legacy.data.tables.world_reaction_cycles) delete row.action_group_max_actions
+    const legacyPath = join(root, 'legacy-v6.dshworld')
+    const saveLegacy = () => {
+      legacy.bundleHash = hashWorldJson('logical-authority-export', legacy.data)
+      writeFileSync(legacyPath, JSON.stringify(legacy))
+    }
+    saveLegacy()
+    const legacyTarget = join(root, 'legacy-v6.sqlite')
+    service.importAuthority(legacyPath, legacyTarget, 'logical:v6-import')
+    const legacyStore = new WorldStore(legacyTarget)
+    expect(legacyStore.activeReactionCycle(address)).toEqual(expected)
+    legacyStore.close()
+    const v16 = new DatabaseSync(legacyTarget)
+    v16.exec('ALTER TABLE world_reaction_cycles DROP COLUMN action_group_max_actions; PRAGMA user_version = 16')
+    v16.close()
+    const migrated = new WorldStore(legacyTarget)
+    expect(migrated.activeReactionCycle(address)).toEqual(expected)
+    expect(migrated.committedRound(address, request.transactionId)).toMatchObject({ bundleHash: committed.bundleHash })
+    migrated.close()
+    for (const [name, rows] of [
+      ['invalid', [null]], ['array', [[]]], ['primitive', [1]],
+      ['extension', [{ action_group_max_actions: 2 }]], ['missing', null],
+    ] as const) {
+      legacy.data.tables.world_reaction_cycles = rows
+      saveLegacy()
+      expect(() => service.importAuthority(legacyPath, join(root, `legacy-v6-${name}.sqlite`), 'logical:v6-invalid')).toThrow()
+    }
 
     envelope.data.tables.world_reaction_jobs[0].state_hash = 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
     envelope.bundleHash = hashWorldJson('logical-authority-export', envelope.data)

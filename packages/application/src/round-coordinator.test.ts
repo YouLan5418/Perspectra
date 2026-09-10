@@ -197,19 +197,25 @@ function phase8ReflectionWorld(): CompiledWorldSpec {
   return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
 }
 
-function manifestationWorld(): CompiledWorldSpec {
+function manifestationWorld(groups = false): CompiledWorldSpec {
   const base = phase8ReflectionWorld()
   const manifest = {
     ...base.manifest,
-    schemaVersion: 6 as const,
+    schemaVersion: groups ? 7 as const : 6 as const,
+    ...(groups ? { actionGroupPolicy: { version: 'bounded-action-group/v1' } } : {}),
     registries: manifestationManifestRegistries(),
     reactionPolicy: { version: 'reaction-policy/v1' as const, mode: 'disabled' as const },
     manifestationPolicy: { version: 'manifestation-policy/v1' as const, mode: 'enabled' as const },
+  }
+  if (groups) {
+    Object.assign(manifest, { locations: [...manifest.locations, { locationId: 'location:b', name: 'Next room' }] })
   }
   const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
   const genesisEvents = base.genesisEvents.map(value => value.eventType === 'world.manifest-locked'
     ? { ...value, data: { ...(value.data as WorldJsonObject), manifestHash } }
     : value)
+  if (groups) genesisEvents.push({ eventType: 'location.upsert', eventVersion: 1, data: { locationId: 'location:b', name: 'Next room' } } as never,
+    { eventType: 'scene.upsert', eventVersion: 1, data: { sceneId: 'scene:next', value: { lifecycle: 'active', locationId: 'location:b', participantIds: [] } } } as never)
   return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
 }
 
@@ -390,6 +396,95 @@ async function installCommittedRecoveryFixture(
 }
 
 describe('RoundCoordinator', () => {
+  it('retains speech before a rejected move and resolves contested take groups without interleaving', async () => {
+    const path = database('group-contention.sqlite')
+    const base = manifestationWorld(true)
+    const entity = { entityId: 'entity:cup', kind: 'cup', locationId: 'location:a' }
+    const manifest = { ...base.manifest, entities: [entity] }
+    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+    const genesisEvents = [...base.genesisEvents.map(e => e.eventType === 'world.manifest-locked' ? { ...e, data: { ...e.data as WorldJsonObject, manifestHash } } : e), { eventType: 'entity.upsert', eventVersion: 1, data: entity }]
+    const compiled = { ...base, manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    let round = 0
+    const participants: RoundParticipant[] = ['character:npc', 'character:witness'].map((id, index) => ({
+      participantId: `agent:${id}`, role: 'agent', actorId: brandId(id, 'CharacterId'),
+      allowedActionTypes: ['speak', 'move', 'take'], priority: 2 - index, estimatedTokens: 1, timeoutMs: 100,
+      provider: { async propose() {
+        if (round === 1) return index === 0 ? { schemaVersion: 4, decision: 'act', actions: [
+          { actionId: 'z:farewell', actorId: id, actionType: 'speak', actionVersion: 1, parameters: { text: 'goodbye' } },
+          { actionId: 'a:missing', actorId: id, actionType: 'move', actionVersion: 1, parameters: { locationId: 'missing' } },
+        ] } : { schemaVersion: 4, decision: 'abstain', actions: [] }
+        return { schemaVersion: 4, decision: 'act', actions: [
+          { actionId: `z:take:${index}`, actorId: id, actionType: 'take', actionVersion: 1, parameters: { entityId: 'entity:cup' } },
+          { actionId: `a:speak:${index}`, actorId: id, actionType: 'speak', actionVersion: 1, parameters: { text: `mine:${index}` } },
+        ] }
+      } },
+    }))
+    const configured = options(path, compiled, participants)
+    const coordinator = new RoundCoordinator({ ...configured, sceneDecision: new SceneDecisionService(configured.store, configured.availability, 2) })
+    try {
+      const request = { principalId: 'principal:player', action: { actionType: 'speak', parameters: { text: 'go' } }, correlationId: 'group:contention' }
+      await coordinator.submit({ ...request, idempotencyKey: 'take' })
+      round = 1
+      await coordinator.submit({ ...request, idempotencyKey: 'farewell' })
+      const events = configured.store.readEvents(compiled.manifest.address)
+      expect(events.filter(e => e.eventType === 'entity.taken')).toHaveLength(1)
+      const speech = events.filter(e => e.eventType === 'character.speak').map(e => (e.data as WorldJsonObject).text)
+      expect(speech).toContain('mine:0')
+      expect(speech).not.toContain('mine:1')
+      expect(speech).toContain('goodbye')
+      const ids = events.filter(e => e.eventType === 'action.resolved').map(e => (e.data as WorldJsonObject).actionId)
+      expect(ids.slice(1, 5)).toEqual(['z:take:0', 'a:speak:0', 'z:take:1', 'a:speak:1'])
+      expect(ids.slice(-2)).toEqual(['z:farewell', 'a:missing'])
+    } finally { close(configured, coordinator) }
+  })
+
+  it.each([false, true])('resolves a bounded group in proposal order and durably skips dependent speech after rejection (%s)', async rejected => {
+    const path = database('action-group.sqlite')
+    const compiled = manifestationWorld(true)
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const npc: RoundParticipant = {
+      participantId: 'agent:group', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
+      allowedActionTypes: ['speak', 'move'], priority: 0, estimatedTokens: 1, timeoutMs: 100,
+      provider: { async propose() { return { schemaVersion: 4, decision: 'act', actions: [
+        { actionId: 'z:move', actorId: 'character:npc', actionType: 'move', actionVersion: 1,
+          parameters: { locationId: rejected ? 'missing' : 'location:b' },
+          manifestation: { independent: ['frown'], onSuccess: ['slow_walk'] } },
+        { actionId: 'a:speak', actorId: 'character:npc', actionType: 'speak', actionVersion: 1,
+          parameters: { text: 'arrived' }, manifestation: { independent: [], onSuccess: ['quiet_voice'] } },
+      ] } } },
+    }
+    const configured = options(path, compiled, [npc])
+    const coordinator = new RoundCoordinator({ ...configured, sceneDecision: new SceneDecisionService(configured.store, configured.availability, 2) })
+    const request = { idempotencyKey: 'group', principalId: 'principal:player', action: { actionType: 'speak', parameters: { text: 'go' } }, correlationId: 'group' }
+    await coordinator.submit(request)
+    await coordinator.submit(request)
+    const events = configured.store.readEvents(compiled.manifest.address)
+    const resolutions = events.filter(e => e.eventType === 'action.resolved')
+    expect(resolutions.slice(1).map(e => (e.data as WorldJsonObject).actionId)).toEqual(['z:move', 'a:speak'])
+    const transactionId = resolutions[0]!.transactionId
+    const authority = configured.store.readRoundAuthority(compiled.manifest.address, transactionId)!.authority as any
+    expect(authority.schemaVersion).toBe(4)
+    expect(authority.resolutions.slice(1).map((r: any) => r.status)).toEqual(rejected ? ['rejected', 'skipped'] : ['accepted', 'accepted'])
+    const observations = events.filter(e => e.eventType === 'observation.upsert').map(e => (e.data as any).value)
+    if (rejected) {
+      expect(observations.filter(o => o.actionId === 'a:speak').map(o => o.observerId)).toEqual(['character:npc'])
+      expect(JSON.stringify(observations)).not.toContain('arrived')
+      expect(JSON.stringify(observations)).not.toContain('移动时步伐缓慢')
+    } else expect(JSON.stringify(observations)).toContain('arrived')
+    const participantRow = authority.participants.find((p: any) => p.participantId === npc.participantId)
+    const proposal = { participantId: npc.participantId, actions: authority.actions.filter((a: any) => a.participantId === npc.participantId).map((a: any) => ({ actionId: a.actionId, actorId: a.actorId, actionType: a.actionType, actionVersion: a.actionVersion, parameters: a.parameters })), actionGroup: participantRow.actionGroup }
+    expect(hashWorldJson('round-participant-proposal', proposal)).toBe(participantRow.proposalHash)
+    close(configured, coordinator)
+    const reopened = new WorldStore(path)
+    expect(reopened.readRoundAuthority(compiled.manifest.address, transactionId)!.authority).toEqual(authority)
+    reopened.close()
+  })
+
   it('does not synthesize a Cycle when a low-level responsive coordinator has no Reaction bindings', async () => {
     const path = database('responsive-no-reaction-bindings.sqlite')
     const compiled = v5Manifest()

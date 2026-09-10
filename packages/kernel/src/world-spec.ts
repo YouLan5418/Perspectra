@@ -1,3 +1,4 @@
+import { parseInteractionCatalog, type InteractionCatalog } from './interactions.ts'
 import {
   brandId,
   canonicalizeWorldJson,
@@ -41,7 +42,7 @@ export interface ManifestRegistries extends WorldJsonObject {
 }
 
 export interface CompiledWorldManifest extends WorldJsonObject {
-  readonly schemaVersion: 2 | 3 | 4 | 5 | 6
+  readonly schemaVersion: 2 | 3 | 4 | 5 | 6 | 7 | 8
   readonly address: WorldAddress
   readonly specHash: WorldHash
   readonly genesisPlanHash: WorldHash
@@ -181,6 +182,31 @@ export interface CompiledWorldManifestV6 extends CompiledWorldManifest {
   readonly manifestationPolicy: ManifestationPolicyV1
 }
 
+export interface CompiledWorldManifestV7 extends CompiledWorldManifest {
+  readonly schemaVersion: 7
+  readonly characters: readonly ContentPackCharacterSpecV2[]
+  readonly scenes: readonly SceneSpecV2[]
+  readonly contentPack: ContentPackManifestBindingV2
+  readonly reactionPolicy: ReactionPolicyV1
+  readonly manifestationPolicy: ManifestationPolicyV1
+  readonly actionGroupPolicy: { readonly version: 'bounded-action-group/v1' }
+}
+
+export interface CompiledWorldManifestV8 extends CompiledWorldManifest {
+  readonly schemaVersion: 8
+  readonly characters: readonly ContentPackCharacterSpecV2[]
+  readonly scenes: readonly SceneSpecV2[]
+  readonly contentPack: ContentPackManifestBindingV2
+  readonly reactionPolicy: ReactionPolicyV1
+  readonly manifestationPolicy: ManifestationPolicyV1
+  readonly interactionCatalog: InteractionCatalog
+  readonly actionGroupPolicy: { readonly version: 'bounded-action-group/v1' }
+}
+
+export function manifestUsesActionGroups(manifest: CompiledWorldManifest): boolean {
+  return (manifest.schemaVersion === 7 || manifest.schemaVersion === 8)
+}
+
 export interface CompiledWorldSpec {
   readonly manifest: CompiledWorldManifest
   readonly manifestHash: WorldHash
@@ -196,13 +222,21 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   canonicalizeWorldJson(value)
   const root = objectAt(value, 'StoredWorldManifest')
   if (root.schemaVersion === 1) return new WorldSpecCompiler().compile(value).manifest
-  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4 && root.schemaVersion !== 5 && root.schemaVersion !== 6) throw new TypeError('stored Manifest schemaVersion is unsupported')
-  if (root.schemaVersion !== 5 && root.schemaVersion !== 6 && Object.hasOwn(root, 'reactionPolicy')) {
+  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4 && root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8) throw new TypeError('stored Manifest schemaVersion is unsupported')
+  if (root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && Object.hasOwn(root, 'reactionPolicy')) {
     throw new TypeError('stored Manifest reactionPolicy requires schemaVersion 5 or 6')
   }
-  if (root.schemaVersion !== 6 && Object.hasOwn(root, 'manifestationPolicy')) {
+  if (root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && Object.hasOwn(root, 'manifestationPolicy')) {
     throw new TypeError('stored Manifest manifestationPolicy requires schemaVersion 6')
   }
+  if ((root.schemaVersion === 7 || root.schemaVersion === 8)) {
+    const policy = objectAt(root.actionGroupPolicy, 'actionGroupPolicy')
+    exactKeys(policy, ['version'], 'actionGroupPolicy')
+    if (policy.version !== 'bounded-action-group/v1') throw new TypeError('unsupported action group policy')
+    if (objectAt(root.manifestationPolicy, 'manifestationPolicy').mode !== 'enabled') throw new TypeError('action groups require manifestation enabled')
+  } else if (Object.hasOwn(root, 'actionGroupPolicy')) throw new TypeError('actionGroupPolicy requires Manifest v7')
+  if (root.schemaVersion === 8) parseInteractionCatalog(root.interactionCatalog as WorldJsonValue, (root.entities as { entityId: string }[]).map(value => value.entityId))
+  else if (Object.hasOwn(root, 'interactionCatalog')) throw new TypeError('interaction catalog requires Manifest v8')
   const runtimePolicy = objectAt(root.runtimePolicy, 'StoredWorldManifest.runtimePolicy')
   exactKeys(runtimePolicy, ['npcInitialAvailability', 'playerInitialAvailability'], 'StoredWorldManifest.runtimePolicy')
   if (runtimePolicy.npcInitialAvailability !== 'provisioning' && runtimePolicy.npcInitialAvailability !== 'ready') {
@@ -212,9 +246,9 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   arrayAt(root.locations, 'StoredWorldManifest.locations')
   arrayAt(root.characters, 'StoredWorldManifest.characters')
   arrayAt(root.playerBindings, 'StoredWorldManifest.playerBindings')
-  if (root.schemaVersion === 3 || root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6) {
+  if (root.schemaVersion === 3 || root.schemaVersion === 4 || root.schemaVersion === 5 || (root.schemaVersion === 6 || (root.schemaVersion === 7 || root.schemaVersion === 8))) {
     const contentPack = objectAt(root.contentPack, 'StoredWorldManifest.contentPack')
-    const phase8 = root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6
+    const phase8 = root.schemaVersion === 4 || root.schemaVersion === 5 || (root.schemaVersion === 6 || (root.schemaVersion === 7 || root.schemaVersion === 8))
     exactKeys(contentPack, phase8
       ? [
           'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
@@ -280,8 +314,8 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
       arrayAt(contentPack.markdown, 'StoredWorldManifest.contentPack.markdown')
     }
   }
-  if (root.schemaVersion === 5 || root.schemaVersion === 6) parseReactionPolicy(root.reactionPolicy)
-  if (root.schemaVersion === 6) parseManifestationPolicy(root.manifestationPolicy)
+  if (root.schemaVersion === 5 || (root.schemaVersion === 6 || (root.schemaVersion === 7 || root.schemaVersion === 8))) parseReactionPolicy(root.reactionPolicy)
+  if ((root.schemaVersion === 6 || (root.schemaVersion === 7 || root.schemaVersion === 8))) parseManifestationPolicy(root.manifestationPolicy)
   return value as CompiledWorldManifest
 }
 
@@ -292,7 +326,7 @@ const HISTORICAL_REACTION_POLICY: ReactionPolicyV1 = Object.freeze({
 
 /** Resolve the effective policy without mutating or re-hashing historical Manifest bytes. */
 export function reactionPolicyFromManifest(manifest: CompiledWorldManifest): ReactionPolicyV1 {
-  return manifest.schemaVersion === 5 || manifest.schemaVersion === 6
+  return manifest.schemaVersion === 5 || (manifest.schemaVersion === 6 || (manifest.schemaVersion === 7 || manifest.schemaVersion === 8))
     ? (manifest as CompiledWorldManifestV5 | CompiledWorldManifestV6).reactionPolicy
     : HISTORICAL_REACTION_POLICY
 }
@@ -304,7 +338,7 @@ const HISTORICAL_MANIFESTATION_POLICY: ManifestationPolicyV1 = Object.freeze({
 
 /** Resolve the exact provider-output capability without changing historical Manifest bytes. */
 export function manifestationPolicyFromManifest(manifest: CompiledWorldManifest): ManifestationPolicyV1 {
-  return manifest.schemaVersion === 6
+  return (manifest.schemaVersion === 6 || (manifest.schemaVersion === 7 || manifest.schemaVersion === 8))
     ? (manifest as CompiledWorldManifestV6).manifestationPolicy
     : HISTORICAL_MANIFESTATION_POLICY
 }
@@ -312,8 +346,8 @@ export function manifestationPolicyFromManifest(manifest: CompiledWorldManifest)
 /** Manifest v5/v6 deliberately retain every Phase 8 execution contract from v4. */
 export function manifestUsesPhase8Contracts(
   manifest: CompiledWorldManifest,
-): manifest is CompiledWorldManifestV4 | CompiledWorldManifestV5 | CompiledWorldManifestV6 {
-  return manifest.schemaVersion === 4 || manifest.schemaVersion === 5 || manifest.schemaVersion === 6
+): manifest is CompiledWorldManifestV4 | CompiledWorldManifestV5 | CompiledWorldManifestV6 | CompiledWorldManifestV7 | CompiledWorldManifestV8 {
+  return manifest.schemaVersion === 4 || manifest.schemaVersion === 5 || (manifest.schemaVersion === 6 || (manifest.schemaVersion === 7 || manifest.schemaVersion === 8))
 }
 
 function parseManifestationPolicy(value: unknown): ManifestationPolicyV1 {
@@ -625,4 +659,10 @@ export class WorldSpecCompiler {
     ]
     return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
   }
+}
+
+export function interactionManifestRegistries(): ManifestRegistries {
+  const base = manifestationManifestRegistries()
+  return { ...base, events: registry('event', [...base.events.definitions.map(value => value.name), 'entity.transferred']),
+    actions: registry('action', ['speak', 'move', 'interact']) }
 }

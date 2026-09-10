@@ -1,3 +1,4 @@
+import { sortActionGroups, stepManifestation, resolveGroupAction } from './action-groups.ts'
 import {
   SubmitActionsValidator,
   parseManifestationProposal,
@@ -26,6 +27,9 @@ import {
   type FaultInjector,
   type SubmitActionsV2,
   type SubmitActionsV3,
+  type SubmitActionsV4,
+  type SubmitActionsV5,
+  type ActionGroupBinding,
   type CharacterId,
   type InteractionRoundId,
   type ManifestationProposal,
@@ -47,6 +51,8 @@ import {
   currentCharacterLifecycle,
   manifestUsesPhase8Contracts,
   manifestationPolicyFromManifest,
+  manifestUsesActionGroups,
+  manifestUsesInteractions,
   parsePlayerActionInput,
   parsePlayerRoundResult,
   reactionPolicyFromManifest,
@@ -85,7 +91,7 @@ export interface RoundParticipant {
   readonly priority: number
   readonly estimatedTokens: number
   readonly timeoutMs: number
-  readonly provider: { propose(context: ProposalContext): Promise<Proposal | SubmitActionsV2 | SubmitActionsV3> }
+  readonly provider: { propose(context: ProposalContext): Promise<Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5> }
 }
 
 export interface ReactionParticipantDraftBinding {
@@ -188,6 +194,7 @@ interface OrderedAction extends ActionOrderKey {
   /** Position in the participant's validated Proposal before global resolution ordering. */
   readonly proposalOrdinal: number
   readonly manifestation?: ManifestationProposal
+  readonly actionGroup?: ActionGroupBinding
 }
 
 const roleRank = { player: 0, agent: 1, director: 2 } as const
@@ -677,6 +684,7 @@ export class RoundCoordinator {
               stateHash: value.providerQuality.state.stateHash,
             },
           }),
+          ...(value.proposal.actionGroup === undefined ? {} : { actionGroup: value.proposal.actionGroup }),
           ...(value.proposal.manifestation === undefined ? {} : {
             manifestation: value.proposal.manifestation,
           }),
@@ -692,6 +700,7 @@ export class RoundCoordinator {
       actionVersion: item.action.actionVersion,
       parameters: item.action.parameters,
       proposalOrdinal: item.proposalOrdinal,
+      ...(item.actionGroup === undefined ? {} : { actionGroup: item.actionGroup }),
       ...(item.manifestation === undefined ? {} : { manifestation: item.manifestation }),
       orderKey: {
         phase: item.sourceRole === 'player' ? 0 : 1,
@@ -699,6 +708,11 @@ export class RoundCoordinator {
         priority: item.priority,
         actorId: item.actorId,
         actionId: item.actionId,
+        ...(item.actionGroup === undefined ? {} : {
+          groupParticipantId: item.participantId,
+          groupFirstActionId: ordered.find(first => first.participantId === item.participantId && first.proposalOrdinal === 0)!.actionId,
+          stepOrdinal: item.proposalOrdinal,
+        }),
       },
     }))
     const resolutions: WorldJsonValue[] = []
@@ -723,16 +737,17 @@ export class RoundCoordinator {
       actorId: CharacterId
       sourceRole: 'player' | RoundParticipantRole
     }[] = []
+    const stoppedGroups = new Set<string>()
     for (const [ordinal, item] of ordered.entries()) {
       const actionPrefix = [...history, ...events]
-      const baseResolution = item.sourceRole === 'player'
+      const { resolution: baseResolution, skipped } = resolveGroupAction(item.action, item.participantId, item.actionGroup !== undefined, stoppedGroups, () => item.sourceRole === 'player'
         ? playerBaseResolution
         : this.#rulebook.resolve({
           manifest: this.#manifest,
           events: actionPrefix,
           characterId: item.action.actorId,
           action: { actionType: item.action.actionType, parameters: item.action.parameters },
-        })
+        }))
       const moveTarget = item.action.actionType === 'move'
         ? (item.action.parameters as WorldJsonObject).locationId
         : undefined
@@ -749,13 +764,15 @@ export class RoundCoordinator {
           ],
         }
         : baseResolution
-      const manifestation = item.manifestation === undefined ? undefined : {
-        proposal: item.manifestation,
+      const performance = item.actionGroup === undefined ? item.manifestation
+        : skipped ? undefined : stepManifestation(item.actionGroup.manifestations[item.proposalOrdinal]!, resolution.status === 'accepted')
+      const manifestation = performance === undefined ? undefined : {
+        proposal: performance,
         resolution: resolveManifestation({
           roundId,
           actionId: item.action.actionId,
           actorId: item.action.actorId,
-          manifestation: item.manifestation,
+          manifestation: performance,
           events: actionPrefix,
         }),
       }
@@ -781,7 +798,7 @@ export class RoundCoordinator {
       const ruleTraceHash = hashWorldJson('round-rule-trace', {
         rulebook: this.#manifest.rulebook,
         action: item.action,
-        status: resolution.status,
+        status: skipped ? 'skipped' : resolution.status,
         reason: resolution.reason ?? null,
         events: resolvedEvents,
         ...(manifestation === undefined ? {} : { manifestation }),
@@ -796,7 +813,7 @@ export class RoundCoordinator {
         : candidateHashBefore
       resolutions.push({
         actionId: item.action.actionId,
-        status: resolution.status,
+        status: skipped ? 'skipped' : resolution.status,
         reason: resolution.reason ?? null,
         orderKey: actions[ordinal]!.orderKey,
         candidateHashBefore,
@@ -849,7 +866,7 @@ export class RoundCoordinator {
           } : {
             actionType: item.action.actionType,
             actorId: item.action.actorId,
-            status: resolution.status,
+            status: skipped ? 'skipped' : resolution.status,
             reason: resolution.reason ?? null,
             ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
             ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
@@ -883,13 +900,16 @@ export class RoundCoordinator {
     if (this.options.cognitiveMemory !== undefined) {
       for (const item of ordered) cognitiveCharacters.add(item.action.actorId)
       for (const observerId of sceneDecision!.observerIds) cognitiveCharacters.add(observerId)
+      if (manifestUsesActionGroups(this.#manifest)) {
+        for (const stimulus of reactionStimuli) cognitiveCharacters.add(stimulus.observerId)
+      }
       for (const participant of frozen) {
         if (participant.reflection?.status === 'accepted') cognitiveCharacters.add(participant.binding.actorId)
       }
     }
     const cognitiveCharacterIds = [...cognitiveCharacters].sort(compareWorldText)
     const authority = {
-      schemaVersion: 2,
+      schemaVersion: manifestUsesActionGroups(this.#manifest) ? 4 : 2,
       roundId,
       baseHeadSeq: head.headSeq,
       baseTick: head.tick,
@@ -1095,15 +1115,15 @@ export class RoundCoordinator {
       let providerCall = cognitive?.receipt === undefined || this.options.providerCalls === undefined
         ? undefined
         : this.options.providerCalls.prepare(cognitive.receipt)
-      let providerOutput: Proposal | SubmitActionsV2 | SubmitActionsV3 | undefined
+      let providerOutput: Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | undefined
       if (providerCall?.state === 'dispatch_started') {
         providerCall = this.options.providerCalls!.markTerminal(providerCall.modelCallId, 'timed_out_ambiguous', {
           reason: 'provider dispatch had no durable terminal result',
         })
       } else if (providerCall?.state === 'response_received') {
-        providerOutput = providerCall.response as Proposal | SubmitActionsV2 | SubmitActionsV3
+        providerOutput = providerCall.response as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5
       } else if (providerCall?.state === 'validated') {
-        providerOutput = providerCall.proposal as Proposal | SubmitActionsV2 | SubmitActionsV3
+        providerOutput = providerCall.proposal as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5
       }
       if (providerCall !== undefined && !['prepared', 'response_received', 'validated'].includes(providerCall.state)) {
         let failure = participantFailureForCallState[providerCall.state]!
@@ -1176,11 +1196,14 @@ export class RoundCoordinator {
             ...authorization,
             maxReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
           }
-          const validated = manifestationPolicyFromManifest(this.#manifest).mode === 'enabled'
+          const validated = manifestUsesActionGroups(this.#manifest)
+            ? (manifestUsesInteractions(this.#manifest) ? this.#validator.validateV5(providerOutput, validatorAuthorization) : this.#validator.validateV4(providerOutput, validatorAuthorization))
+            : manifestationPolicyFromManifest(this.#manifest).mode === 'enabled'
             ? this.#validator.validateV3(providerOutput, validatorAuthorization)
             : this.#validator.validateV2(providerOutput, validatorAuthorization)
           proposal = validated.proposal
-          if (validated.reflectionOperations !== undefined && providerQuality?.reflectionMode !== 'suspended') {
+          const reflectionOperations = 'reflectionOperations' in validated ? validated.reflectionOperations : undefined
+          if (reflectionOperations !== undefined && providerQuality?.reflectionMode !== 'suspended') {
             if (cognitive?.receipt === undefined || cognitive.cognition === undefined) {
               throw new TypeError('Phase 8 Reflection requires the exact Character Context prefix')
             }
@@ -1188,7 +1211,7 @@ export class RoundCoordinator {
               participantId: binding.participantId, actorId: binding.actorId,
               contextReceipt: cognitive.receipt, cognition: cognitive.cognition,
               contextProfileId: cognitive.receipt.contextProfileId,
-              operations: validated.reflectionOperations,
+              operations: reflectionOperations,
               correlationId: `reflection:${context.roundId}:${binding.participantId}`,
             })
           }
@@ -1480,13 +1503,14 @@ export class RoundCoordinator {
           actorId: action.actorId,
           actionId: action.actionId,
           proposalOrdinal,
+          ...(participant.proposal.actionGroup === undefined ? {} : { actionGroup: participant.proposal.actionGroup }),
           ...(participant.proposal.manifestation === undefined ? {} : {
             manifestation: participant.proposal.manifestation,
           }),
         })
       }
     }
-    return sortActionOrderKeys(actions)
+    return manifestUsesActionGroups(this.#manifest) ? sortActionGroups(actions, compareActionOrderKey) : sortActionOrderKeys(actions)
   }
 
   #validateSubmission(request: SubmitCoordinatedRoundRequest): void {
@@ -1502,6 +1526,7 @@ export class RoundCoordinator {
     const keys = Object.keys(request.action).sort(compareWorldText)
     if (keys.join(',') !== 'actionType,parameters') throw new TypeError('action must contain exactly actionType and parameters')
     if (request.manifestation !== undefined) {
+      if (manifestUsesActionGroups(this.#manifest)) throw new TypeError('Manifest v7 does not accept legacy free-text player manifestation')
       if (manifestationPolicyFromManifest(this.#manifest).mode !== 'enabled') {
         failWorld({
           errorCode: 'INVALID_REQUEST', category: 'admission',
@@ -1563,8 +1588,8 @@ export class RoundCoordinator {
       maxWaves: RESPONSIVE_V1_MAX_WAVES,
       maxNpcCalls: RESPONSIVE_V1_MAX_NPC_CALLS,
       maxCallsPerCharacter: RESPONSIVE_V1_MAX_CALLS_PER_CHARACTER,
-      maxActionsPerCall: 1,
-      allowedActionTypes: ['speak@1'],
+      maxActionsPerCall: manifestUsesActionGroups(this.#manifest) ? 2 : 1,
+      allowedActionTypes: manifestUsesInteractions(this.#manifest) ? ['speak@1', 'move@1', 'interact@1'] : manifestUsesActionGroups(this.#manifest) ? ['speak@1', 'move@1', 'take@1'] : ['speak@1'],
       initialTokenBudget,
       deadlineAtMs: Date.now() + REACTION_CYCLE_DEADLINE_MS,
       candidates,

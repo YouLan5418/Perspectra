@@ -66,3 +66,5 @@
 | [0082](ADR-0082-quarantine-unreadable-reaction-ledger.md) | 损坏 Reaction 账本的紧急隔离 | 保留损坏证据但仍封锁 Branch；不伪造 Cycle 终态，恢复必须重新校验 |
 | [0083](ADR-0083-manifestation-observable-expression.md) | 角色外显表现、观察传播与可见状态 | submit_actions/v3 显式启用；表现独立裁定后进入 Event、Observation、Memory 与可见状态 |
 | [0084](ADR-0084-player-manifestation-input.md) | 玩家自然语言外显表现输入 | 人工玩家可在唯一 Action 旁提交同构表现；翻译器不可信且不得绕过 Authority |
+| [0085](ADR-0085-bounded-action-groups.md) | 有界顺序行动组与逐步表现 | Manifest v7 显式启用最多两步、连续裁定、失败停止与闭合表现；旧协议保持原语义 |
+| [0086](ADR-0086-object-interactions.md) | 对象声明的物品交互 | Manifest v8、submit_actions/v5 与显式对象目录；拿取、放下、递交均确定性重验 |

@@ -1,3 +1,4 @@
+import { manifestUsesInteractions, resolveInteraction } from './interactions.ts'
 import { compareWorldText, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { manifestUsesPhase8Contracts, type CompiledWorldManifest } from './world-spec.ts'
 
@@ -68,6 +69,15 @@ export function currentEntityState(events: readonly RulebookEvent[], entityId: s
         throw new TypeError(`entity.upsert for ${entityId} is malformed`)
       }
       state = { entityId, locationId: data.locationId, holderId: null, kind: data.kind }
+    }
+    if (event.eventType === 'entity.transferred') {
+      if (state === undefined || state.locationId !== data.fromLocationId || state.holderId !== data.fromHolderId
+        || typeof data.characterId !== 'string' || typeof data.interactionId !== 'string'
+        || !((typeof data.toLocationId === 'string' && data.toHolderId === null)
+          || (data.toLocationId === null && typeof data.toHolderId === 'string'))) {
+        throw new TypeError(`entity.transferred for ${entityId} violates the entity event prefix`)
+      }
+      state = { ...state, locationId: data.toLocationId as string | null, holderId: data.toHolderId as string | null }
     }
     if (event.eventType === 'entity.taken') {
       if (state === undefined || typeof data.characterId !== 'string' || typeof data.fromLocationId !== 'string'
@@ -154,6 +164,10 @@ export class SpeakMoveRulebook {
   ): RulebookResolution | undefined {
     const lifecycle = currentCharacterLifecycle(events, characterId)
     if (lifecycle !== 'active') return rejectRulebookResolution(characterId, action.actionType, `character lifecycle ${lifecycle ?? 'missing'} cannot act`)
+    if (manifestUsesInteractions(manifest)) {
+      if (action.actionType === 'interact') return resolveInteraction(manifest, events, characterId, action.parameters)
+      if (action.actionType === 'take') return rejectRulebookResolution(characterId, 'take', 'use interact in Manifest v8')
+    }
     const parameters = worldJsonObject(action.parameters)
     if (action.actionType === 'speak') {
       if (manifestUsesPhase8Contracts(manifest)) return phase8Speech(manifest, characterId, parameters)

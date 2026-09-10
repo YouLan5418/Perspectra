@@ -197,7 +197,7 @@ describe('SQLite ownership helpers', () => {
   })
 })
 
-describe('World schema v16', () => {
+describe('World schema v17', () => {
   it('freezes the formal four-table Reaction schema, constraints, indexes, and Golden hash', async () => {
     const path = database('world-v16.sqlite')
     const firstAddress = fixtureAddress('reaction-schema-a')
@@ -213,7 +213,7 @@ describe('World schema v16', () => {
 
     const raw = new DatabaseSync(path)
     raw.exec('PRAGMA foreign_keys = ON')
-    expect(readPragmaInteger(raw, 'user_version')).toBe(16)
+    expect(readPragmaInteger(raw, 'user_version')).toBe(17)
     const names = (worldSchemaRows(raw) as Array<{ readonly name: string }>).map(row => row.name)
     expect(names).toEqual(expect.arrayContaining([
       'events_type_range',
@@ -228,8 +228,8 @@ describe('World schema v16', () => {
       'world_reaction_waves_reaction_round',
       'world_reaction_waves_result_transaction',
     ]))
-    expect(hashWorldJson('world-sqlite-schema/v16', worldSchemaRows(raw)))
-      .toBe('sha256:3447bd16a781f0a0b9fa11eb151e5650bfa84c91b76dd0ca9ae3e097a8b7f28e')
+    expect(hashWorldJson('world-sqlite-schema/v17', worldSchemaRows(raw)))
+      .toBe('sha256:b3f741a73b8b6aedc884ea044ae1297243541796b8c5fc3ded32607bf1dc1319')
 
     insertReactionCycle(raw, {
       cycleId: 'cycle:valid',

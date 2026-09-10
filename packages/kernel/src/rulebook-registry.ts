@@ -1,4 +1,5 @@
-import { assertProtocolString, failWorld, type CharacterId, type WorldAddress } from '@harness-world/contracts'
+import { availableInteractions, manifestUsesInteractions } from './interactions.ts'
+import { assertProtocolString, failWorld, type CharacterId, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
 import {
   SpeakMoveRulebook,
   type PlayerActionInput,
@@ -17,6 +18,7 @@ export interface RulebookResolutionContext {
 export interface ActionAffordance {
   readonly actionType: string
   readonly actionVersion: number
+  readonly interactions?: readonly WorldJsonObject[]
 }
 
 /** One exact, versioned deterministic rules implementation. */
@@ -72,7 +74,7 @@ class CoreRulebookResolver implements RulebookResolver {
     return [
       { actionType: 'speak', actionVersion: 1 },
       { actionType: 'move', actionVersion: 1 },
-      ...(context.manifest.rulebook.version >= 2 ? [{ actionType: 'take', actionVersion: 1 }] : []),
+      ...(manifestUsesInteractions(context.manifest) ? [{ actionType: 'interact', actionVersion: 1, interactions: availableInteractions(context.manifest, context.events, context.characterId) }] : context.manifest.rulebook.version >= 2 ? [{ actionType: 'take', actionVersion: 1 }] : []),
     ]
   }
 }

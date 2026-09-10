@@ -16,6 +16,7 @@ import {
   type ReactionProposalContext,
   type SubmitActionsV2,
   type SubmitActionsV3,
+  type SubmitActionsV4,
   type WorldEventDraft,
   type WorldHash,
 } from '@harness-world/contracts'
@@ -54,7 +55,7 @@ function storage() {
   return { world: join(root, 'world.sqlite'), context: join(root, 'context.sqlite') }
 }
 
-function compiled(manifestation = false): CompiledWorldSpec {
+function compiled(manifestation = false, groups = false): CompiledWorldSpec {
   const base = new WorldSpecCompiler().compile({
     schemaVersion: 2,
     address: { tenantId: 'tenant:reaction', worldId: 'world:reaction', branchId: 'branch:main' },
@@ -104,13 +105,17 @@ function compiled(manifestation = false): CompiledWorldSpec {
   const phase8Manifest = { ...base.manifest, schemaVersion: 4 as const, characters, scenes, contentPack }
   const manifest = manifestation ? {
     ...phase8Manifest,
-    schemaVersion: 6 as const,
+    schemaVersion: groups ? 7 as const : 6 as const,
+    ...(groups ? { actionGroupPolicy: { version: 'bounded-action-group/v1' } } : {}),
     registries: manifestationManifestRegistries(),
     reactionPolicy: {
       version: 'reaction-policy/v1' as const, mode: 'responsive' as const, profile: 'responsive/v1' as const,
     },
     manifestationPolicy: { version: 'manifestation-policy/v1' as const, mode: 'enabled' as const },
   } : phase8Manifest
+  if (groups) {
+    Object.assign(manifest, { locations: [...manifest.locations, { locationId: 'location:next', name: 'Next room' }] })
+  }
   const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
   const genesisEvents = base.genesisEvents.map(event => {
     if (event.eventType === 'world.manifest-locked') {
@@ -120,6 +125,8 @@ function compiled(manifestation = false): CompiledWorldSpec {
     const data = event.data as { readonly sceneId: string; readonly value: { readonly participantIds: readonly string[] } }
     return { ...event, data: { sceneId: data.sceneId, value: { ...data.value, lifecycle: 'active', locationId: 'location:room' } } }
   })
+  if (groups) genesisEvents.push({ eventType: 'location.upsert', eventVersion: 1, data: { locationId: 'location:next', name: 'Next room' } } as never,
+    { eventType: 'scene.upsert', eventVersion: 1, data: { sceneId: 'scene:next', value: { lifecycle: 'active', locationId: 'location:next', participantIds: [] } } } as never)
   return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
 }
 
@@ -206,11 +213,11 @@ class ParallelGate {
 class Provider implements ReactionAgentProvider {
   calls = 0
   constructor(
-    private readonly output: SubmitActionsV2 | SubmitActionsV3 | Error,
+    private readonly output: SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | Error,
     private readonly gate?: ParallelGate,
     private readonly onCall?: () => void,
   ) {}
-  async propose(): Promise<SubmitActionsV2 | SubmitActionsV3> {
+  async propose(): Promise<SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4> {
     this.calls += 1
     if (this.gate !== undefined) await this.gate.arrive()
     this.onCall?.()
@@ -242,6 +249,7 @@ interface FixtureOptions {
   readonly cycle?: Partial<Omit<ReactionCycleDraft, 'candidates'>>
   readonly faultInjector?: FaultInjector
   readonly manifestation?: boolean
+  readonly groups?: boolean
 }
 
 async function fixture(
@@ -250,7 +258,7 @@ async function fixture(
   options: FixtureOptions = {},
 ) {
   const paths = storage()
-  const spec = compiled(options.manifestation)
+  const spec = compiled(options.manifestation, options.groups)
   const store = new WorldStore(paths.world, undefined, () => now.value)
   new WorldBootstrap(store).activate(spec)
   const leases = new WriterLeaseService(paths.world, () => now.value)
@@ -274,7 +282,7 @@ async function fixture(
     reactionCycle: {
       policyVersion: 'reaction-policy/v1', profileId: 'responsive/v1',
       maxWaves: 3, maxNpcCalls: 8, maxCallsPerCharacter: 2,
-      maxActionsPerCall: 1, allowedActionTypes: ['speak@1'],
+      maxActionsPerCall: options.groups ? 2 : 1, allowedActionTypes: options.groups ? ['speak@1', 'move@1', 'take@1'] : ['speak@1'],
       initialTokenBudget: 16, deadlineAtMs: 100_000,
       ...options.cycle,
       candidates: participants.map((participant, index) => ({
@@ -330,6 +338,39 @@ afterEach(() => {
 })
 
 describe('ReactionScheduler', () => {
+  it('rejects a durable cycle whose action cap differs from its Manifest', async () => {
+    const value = await fixture([binding('character:alice', new Provider(abstain()))])
+    const scheduler = new ReactionScheduler({ ...value.schedulerOptions, manifest: { ...value.spec.manifest, schemaVersion: 7 } })
+    await expect(scheduler.runCurrentWave()).rejects.toThrow('action policy differs')
+    const interactions = new ReactionScheduler({ ...value.schedulerOptions, manifest: { ...value.spec.manifest, schemaVersion: 8 } })
+    await expect(interactions.runCurrentWave()).rejects.toThrow('action policy differs')
+    close(value)
+  })
+  it.each([false, true])('adjudicates two-step groups without extra provider calls, retaining only valid outcomes (%s)', async rejected => {
+    const alice = new Provider({ schemaVersion: 4, decision: 'act', actions: [
+      { actionId: 'z:move', actorId: 'character:alice', actionType: 'move', actionVersion: 1,
+        parameters: { locationId: rejected ? 'missing' : 'location:next' },
+        manifestation: { independent: ['frown'], onSuccess: ['slow_walk'] } },
+      { actionId: 'a:speech', actorId: 'character:alice', actionType: 'speak', actionVersion: 1,
+        parameters: { text: 'arrived' }, manifestation: { independent: [], onSuccess: ['quiet_voice'] } },
+    ] })
+    const value = await fixture([{ ...binding('character:alice', alice), allowedActionTypes: ['speak', 'move'] }], undefined, { manifestation: true, groups: true })
+    const result = await value.scheduler.runCurrentWave()
+    expect(result?.actionCount).toBe(2)
+    expect(alice.calls).toBe(1)
+    const authority = value.store.readRoundAuthority(value.spec.manifest.address, result!.transactionId)!.authority as any
+    expect(authority.schemaVersion).toBe(4)
+    expect(authority.actions.map((a: any) => a.actionId)).toEqual(['z:move', 'a:speech'])
+    expect(authority.resolutions.map((r: any) => r.status)).toEqual(rejected ? ['rejected', 'skipped'] : ['accepted', 'accepted'])
+    const observations = value.store.readEvents(value.spec.manifest.address).filter(e => e.eventType === 'observation.upsert').map(e => (e.data as any).value)
+    if (rejected) {
+      expect(observations.filter(o => o.actionId === 'a:speech').map(o => o.observerId)).toEqual(['character:alice'])
+      expect(JSON.stringify(observations)).not.toContain('arrived')
+    }
+    expect(value.store.readReactionCycle(value.spec.manifest.address, result!.cycleId as any)!.cycle.maxActionsPerCall).toBe(2)
+    close(value)
+  })
+
   it('drains two bounded Waves on one serial lane and carries only committed Observations forward', async () => {
     const alice = new Provider(output('character:alice', 'Alice continues.'))
     const bob = new Provider(output('character:bob', 'Bob continues.'))

@@ -34,6 +34,8 @@ import {
 } from '@harness-world/contracts'
 import {
   manifestationPolicyFromManifest,
+  manifestUsesActionGroups,
+  manifestUsesInteractions,
   manifestUsesPhase8Contracts,
   type CompiledWorldManifest,
   type RulebookResolver,
@@ -128,6 +130,39 @@ const manifestationReactionCharacterTool = createProviderToolSchema('submit_acti
 const directorTool = createProviderToolSchema('submit_director_plan/v1', {
   type: 'object', schemaVersion: 'submit_director_plan/v1', maximumDirectives: 8,
 })
+const actionGroupTool = createProviderToolSchema('submit_actions/v4', {
+  type: 'object', schemaVersion: 'submit_actions/v4', maximumExternalActions: 2,
+  maximumReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
+  actionGroup: {
+    version: 'bounded-action-group/v1', allowedActionTypes: ['speak', 'move', 'take'],
+    maximumSpeechActions: 1, maximumWorldOperations: 1, order: 'proposal',
+    failure: 'stop_remaining_steps', interleaving: 'forbidden',
+    newInformationRequiresNextCall: true,
+    manifestation: { independent: ['smile', 'frown', 'nod', 'shake_head', 'avert_gaze'],
+      onSuccess: ['smile', 'frown', 'nod', 'shake_head', 'avert_gaze', 'quiet_voice', 'trembling_voice', 'slow_walk'] },
+  },
+})
+const reactionActionGroupTool = createProviderToolSchema('submit_actions/v4', {
+  ...actionGroupTool.schema as WorldJsonObject, maximumReflectionOperations: 0,
+})
+
+const interactionTool = createProviderToolSchema('submit_actions/v5', {
+  ...actionGroupTool.schema as WorldJsonObject, schemaVersion: 'submit_actions/v5',
+  actionGroup: { ...(actionGroupTool.schema as WorldJsonObject).actionGroup as WorldJsonObject, allowedActionTypes: ['speak', 'move', 'interact'] },
+  interact: { parameters: ['targetId', 'interactionId', 'arguments'], choices: 'context.affordances.interactions',
+    execution: 'revalidate_current_state', give: 'possession_transfer_only_no_recipient_consent_or_reaction' },
+})
+const reactionInteractionTool = createProviderToolSchema('submit_actions/v5', {
+  ...interactionTool.schema as WorldJsonObject, maximumReflectionOperations: 0,
+})
+
+function contextAffordance(value: { readonly actionType: string; readonly actionVersion: number; readonly interactions?: readonly WorldJsonObject[] }, decision: SceneDecision): ContextAffordance {
+  return { actionType: value.actionType, actionVersion: value.actionVersion,
+    ...(value.interactions === undefined ? {} : { interactions: value.interactions.filter(choice => {
+      const recipient = (choice.arguments as WorldJsonObject).recipientId
+      return recipient === undefined || decision.observerIds.includes(recipient as CharacterId)
+    }) }) }
+}
 
 const compareText = compareWorldText
 
@@ -286,10 +321,10 @@ export class Phase8ContextPipeline {
     this.#tails = new InteractionTailBuilder(options.store)
     this.#cognition = new CognitionProjectionRebuilder(options.store)
     this.#modelProfile = options.modelProfile ?? defaultModelProfile()
-    this.#characterTool = manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
+    this.#characterTool = manifestUsesInteractions(options.manifest) ? interactionTool : manifestUsesActionGroups(options.manifest) ? actionGroupTool : manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
       ? manifestationCharacterTool
       : characterTool
-    this.#reactionCharacterTool = manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
+    this.#reactionCharacterTool = manifestUsesInteractions(options.manifest) ? reactionInteractionTool : manifestUsesActionGroups(options.manifest) ? reactionActionGroupTool : manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
       ? manifestationReactionCharacterTool
       : reactionCharacterTool
   }
@@ -371,7 +406,7 @@ export class Phase8ContextPipeline {
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,
     }).filter(value => binding.allowedActionTypes.includes(value.actionType))
-      .map(value => ({ actionType: value.actionType, actionVersion: value.actionVersion }))
+      .map(value => contextAffordance(value, decision))
       .sort((left, right) => compareText(left.actionType, right.actionType))
     const affordanceHash = hashWorldJson('context-affordances/v1', affordances)
     const scene = sceneContext(decision)
@@ -445,9 +480,10 @@ export class Phase8ContextPipeline {
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,
-    }).filter(value => value.actionType === 'speak' && value.actionVersion === 1
+    }).filter(value => (manifestUsesActionGroups(this.options.manifest) ? ['speak', 'move', manifestUsesInteractions(this.options.manifest) ? 'interact' : 'take'].includes(value.actionType) : value.actionType === 'speak') && value.actionVersion === 1
       && binding.allowedActionTypes.includes(value.actionType))
-      .map(value => ({ actionType: value.actionType, actionVersion: value.actionVersion }))
+      .map(value => contextAffordance(value, decision))
+      .sort((left, right) => compareText(left.actionType, right.actionType))
     const affordanceHash = hashWorldJson('context-affordances/v1', affordances)
     const scene = sceneContext(decision)
     const cognition = this.#cognition.rebuildCharacterAt(context.address, binding.actorId, asOfWorldSeq)
@@ -466,7 +502,7 @@ export class Phase8ContextPipeline {
       characterView: prepared.characterView, cognition, checkpoint, tail, sceneDecision: scene,
       sceneSourceRefs: sceneSources(history, decision), recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus: context.stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', context.stimulus),
-      stimulusSourceRefs, maximumExternalActions: 1,
+      stimulusSourceRefs, maximumExternalActions: manifestUsesActionGroups(this.options.manifest) ? 2 : 1,
       affordances, affordanceHash,
       runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
       correlationId: `context:${context.roundId}:${binding.participantId}`,

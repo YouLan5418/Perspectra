@@ -545,7 +545,7 @@ CREATE INDEX world_reaction_job_stimuli_source
 CREATE INDEX events_type_range ON events(address_key, event_type, seq);
 `
 
-export const WORLD_SCHEMA_VERSION = 16
+export const WORLD_SCHEMA_VERSION = 17
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -564,7 +564,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 13, sql: WORLD_CLARIFICATION_SCHEMA },
     { version: 14, sql: WORLD_OUTBOX_RETRY_SCHEMA },
     { version: 15, sql: WORLD_PROVIDER_OUTPUT_AVAILABILITY_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_REACTION_SCHEMA },
+    { version: 16, sql: WORLD_REACTION_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: 'ALTER TABLE world_reaction_cycles ADD COLUMN action_group_max_actions INTEGER CHECK(action_group_max_actions = 2);' },
   ])
 }
 
@@ -636,7 +637,7 @@ function assertManifestEvents(manifest: WorldJsonValue, events: readonly WorldEv
   if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) return
   const root = manifest as WorldJsonObject
   if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4
-    && root.schemaVersion !== 5 && root.schemaVersion !== 6) return
+    && root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8) return
   const registries = root.registries
   if (typeof registries !== 'object' || registries === null || Array.isArray(registries)) throw new TypeError('compiled manifest registries are malformed')
   const eventRegistry = (registries as WorldJsonObject).events
@@ -988,6 +989,11 @@ export class WorldStore {
     }
     const activeManifest = this.#readManifestByKey(addressKey)
     if (activeManifest !== undefined) assertManifestEvents(activeManifest.manifest, request.events)
+    if (request.reactionCycle?.maxActionsPerCall === 2
+      && ![7, 8].includes((activeManifest?.manifest as WorldJsonObject | undefined)?.schemaVersion as number)) {
+      throw new TypeError('two-action Reaction Cycle requires Manifest v7')
+    }
+    if (request.reactionCycle !== undefined && (request.reactionCycle.allowedActionTypes.includes('interact@1' as never) !== ((activeManifest?.manifest as WorldJsonObject | undefined)?.schemaVersion === 8))) throw new TypeError('Reaction Cycle interaction capability does not match Manifest')
     const authorityHash = request.authority === undefined ? null : hashWorldJson('world-round-authority', request.authority)
     const requestHash = hashWorldJson('world-round-commit-request', {
       address: request.address,

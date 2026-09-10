@@ -231,6 +231,16 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     expect(reactionPolicyFromManifest(v6)).toBe(responsivePolicy)
     expect(manifestationPolicyFromManifest(v6)).toBe(enabledManifestation)
     expect(manifestUsesPhase8Contracts(v6)).toBe(true)
+    const v7 = { ...v6, schemaVersion: 7 as const, actionGroupPolicy: { version: 'bounded-action-group/v1' } }
+    expect(runtimeManifestFromStored(v7)).toBe(v7)
+    expect(reactionPolicyFromManifest(v7)).toBe(responsivePolicy)
+    expect(manifestationPolicyFromManifest(v7)).toBe(enabledManifestation)
+    expect(manifestUsesPhase8Contracts(v7)).toBe(true)
+    for (const invalid of [
+      { ...v7, actionGroupPolicy: {} }, { ...v7, actionGroupPolicy: { version: 'bad' } },
+      { ...v7, manifestationPolicy: { version: 'manifestation-policy/v1', mode: 'disabled' } },
+      { ...v6, actionGroupPolicy: v7.actionGroupPolicy },
+    ]) expect(() => runtimeManifestFromStored(invalid)).toThrow()
     const manifestationRegistries = manifestationManifestRegistries()
     expect(manifestationRegistries.events.definitions.map(value => value.name)).toEqual(expect.arrayContaining([
       'character.manifested', 'character.visible-state-removed', 'character.visible-state-upserted',
@@ -284,7 +294,7 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
   })
 
   it.each([
-    [{ schemaVersion: 7 }, 'schemaVersion'],
+    [{ schemaVersion: 9 }, 'schemaVersion'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: null }, 'runtimePolicy'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'offline', playerInitialAvailability: 'ready' } }, 'npcInitialAvailability'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'offline' } }, 'playerInitialAvailability'],

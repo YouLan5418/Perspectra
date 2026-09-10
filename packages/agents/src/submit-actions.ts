@@ -1,4 +1,8 @@
 import {
+  ACTION_GROUP_CUES,
+  type ActionGroupCue,
+  type ActionGroupProposal,
+  type StepManifestation,
   brandId,
   canonicalizeWorldJson,
   compareWorldText,
@@ -36,6 +40,7 @@ export interface ManifestationProposalEnvelope extends WorldJsonObject {
   readonly participantId: string
   readonly actions: readonly ActionRequest[]
   readonly manifestation?: ManifestationProposal
+  readonly actionGroup?: import('@harness-world/contracts').ActionGroupBinding
 }
 
 export interface ValidatedSubmitActionsV3 {
@@ -160,6 +165,64 @@ function invalid(error: unknown, authorization: SubmitActionsAuthorization): nev
 
 /** Strict parser for the only model output tool accepted by V0 Agents. */
 export class SubmitActionsValidator {
+  validateV4(payload: unknown, authorization: SubmitActionsV2Authorization): { readonly proposal: ActionGroupProposal; readonly reflectionOperations?: readonly ReflectionOperation[] } {
+    return this.#validateGroup(payload, authorization, 4)
+  }
+
+  validateV5(payload: unknown, authorization: SubmitActionsV2Authorization): { readonly proposal: ActionGroupProposal; readonly reflectionOperations?: readonly ReflectionOperation[] } {
+    return this.#validateGroup(payload, authorization, 5)
+  }
+
+  #validateGroup(payload: unknown, authorization: SubmitActionsV2Authorization, version: 4 | 5): { readonly proposal: ActionGroupProposal; readonly reflectionOperations?: readonly ReflectionOperation[] } {
+    try {
+      canonicalizeWorldJson(payload as WorldJsonValue)
+      const root = record(payload, 'submit_actions')
+      exactWithOptional(root, ['schemaVersion', 'decision', 'actions'], ['reflection'], 'submit_actions')
+      if (root.schemaVersion !== version) throw new TypeError(`submit_actions.schemaVersion must be ${version}`)
+      if (root.decision !== 'act' && root.decision !== 'abstain') throw new TypeError('invalid decision')
+      if (!Array.isArray(root.actions) || root.actions.length > 2) throw new TypeError('action group permits at most two steps')
+      const manifestations: (StepManifestation | null)[] = []
+      const rawActions = root.actions.map((entry, index) => {
+        const action = record(entry, `actions[${index}]`)
+        exactWithOptional(action, ['actionId', 'actorId', 'actionType', 'actionVersion', 'parameters'], ['manifestation'], 'action')
+        let manifestation: StepManifestation | null = null
+        if (action.manifestation !== undefined) {
+          const value = record(action.manifestation, 'step manifestation')
+          exact(value, ['independent', 'onSuccess'], 'step manifestation')
+          const parse = (input: unknown, independent: boolean): ActionGroupCue[] => {
+            if (!Array.isArray(input) || input.length > 8) throw new TypeError('invalid cue list')
+            return input.map(cue => {
+              if (typeof cue !== 'string' || !Object.hasOwn(ACTION_GROUP_CUES, cue)) throw new TypeError('unknown cue')
+              const name = cue as ActionGroupCue
+              const required = ACTION_GROUP_CUES[name].actionType
+              if (required !== null && (independent || required !== action.actionType)) throw new TypeError('cue requires matching successful action')
+              return name
+            })
+          }
+          const independent = parse(value.independent, true)
+          const onSuccess = parse(value.onSuccess, false)
+          const all = [...independent, ...onSuccess]
+          if (all.length === 0 || all.length > 8 || new Set(all).size !== all.length) throw new TypeError('invalid or duplicate step cues')
+          manifestation = { independent, onSuccess }
+        }
+        manifestations.push(manifestation)
+        const { manifestation: _manifestation, ...bare } = action
+        return bare
+      })
+      const parsed = actions(rawActions, authorization)
+      if ((root.decision === 'act') !== (parsed.length > 0)) throw new TypeError('inconsistent decision')
+      if (parsed.some(action => !['speak', 'move', version === 5 ? 'interact' : 'take'].includes(action.actionType))) throw new TypeError('unsupported group action')
+      if (parsed.length === 2 && parsed.filter(action => action.actionType === 'speak').length !== 1) throw new TypeError('group requires exactly one speech and one world operation')
+      const reflection = this.validateV2({ schemaVersion: 2, decision: root.decision, actions: rawActions,
+        ...(root.reflection === undefined ? {} : { reflection: root.reflection }) }, authorization)
+      return { proposal: { participantId: authorization.participantId, actions: parsed,
+        actionGroup: { version: 'bounded-action-group/v1', manifestations } },
+        ...(reflection.reflectionOperations === undefined ? {} : { reflectionOperations: reflection.reflectionOperations }) }
+    } catch (error: unknown) {
+      invalid(error, authorization)
+    }
+  }
+
   validate(payload: unknown, authorization: SubmitActionsAuthorization): Proposal {
     try {
       canonicalizeWorldJson(payload as WorldJsonValue)

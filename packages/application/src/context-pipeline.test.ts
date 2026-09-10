@@ -164,11 +164,11 @@ describe('Phase8ContextPipeline', () => {
     value.store.close()
   })
 
-  it('selects submit_actions/v3 only for an explicitly enabled Manifest v6', () => {
+  it.each([6, 7] as const)('selects the versioned tool for Manifest %s', version => {
     const value = fixture()
     const manifest = {
       ...value.spec.manifest,
-      schemaVersion: 6 as const,
+      schemaVersion: version,
       registries: manifestationManifestRegistries(),
       reactionPolicy: { version: 'reaction-policy/v1' as const, mode: 'disabled' as const },
       manifestationPolicy: { version: 'manifestation-policy/v1' as const, mode: 'enabled' as const },
@@ -191,8 +191,8 @@ describe('Phase8ContextPipeline', () => {
     const decision = new SceneDecisionService(value.store, value.availability, 2)
       .decide(value.spec.manifest.address, context.playerAction.actorId, value.store.head(value.spec.manifest.address).headSeq)
     const prepared = pipeline.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)
-    expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain('submit_actions/v3')
-    expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain('maximumCues')
+    expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain(version === 7 ? 'submit_actions/v4' : 'submit_actions/v3')
+    expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain(version === 7 ? 'bounded-action-group/v1' : 'maximumCues')
     expect(JSON.stringify(prepared.providerContext.exactProviderRequest)).toContain('Player looks at Alice')
     expect(prepared.providerContext.playerManifestation).toEqual(context.playerManifestation)
     pipeline.close()
@@ -201,9 +201,9 @@ describe('Phase8ContextPipeline', () => {
     value.store.close()
   })
 
-  it('prepares a reaction character from durable Observations without manufacturing a player Action', () => {
+  it.each([4, 7] as const)('prepares a reaction character from durable Observations without manufacturing a player Action (%s)', version => {
     const value = fixture()
-    const pipeline = new Phase8ContextPipeline(value.options)
+    const pipeline = new Phase8ContextPipeline({ ...value.options, manifest: { ...value.options.manifest, schemaVersion: version } })
     const history = value.store.readEvents(value.spec.manifest.address)
     const source = history.find(event => event.eventType === 'observation.upsert'
       && (event.data as { id?: string }).id === 'observation:alice:rain')!

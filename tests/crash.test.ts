@@ -1,3 +1,4 @@
+import { interactionWorld, interactionOutput } from './fixtures/interaction-world.ts'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -33,6 +34,7 @@ import {
   hardKillAt,
 } from '@harness-world/testkit'
 import { phase8ProviderCrashWorld } from './fixtures/phase8-provider-world.ts'
+import { actionGroupWorld, groupOutput } from './fixtures/action-group-world.ts'
 
 const directories: string[] = []
 const worker = fileURLToPath(new URL('./workers/crash-worker.ts', import.meta.url))
@@ -77,6 +79,80 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 describe('hard process termination recovery', () => {
+  it.each(['provider.before-world-commit', 'store.before-commit', 'store.after-commit'] as const)('recovers a whole two-step action group after hard termination at %s', async point => {
+    const worldPath = database('group-world.sqlite')
+    const sessionPath = `${worldPath}.session.sqlite`
+    const memoryPath = `${worldPath}.memory.sqlite`
+    const compiled = actionGroupWorld()
+    const initial = new WorldApplication({ worldPath, sessionPath, memoryPath })
+    initial.activate(compiled)
+    await initial.close()
+    await hardKillAt(fileURLToPath(new URL('./workers/action-group-crash-worker.ts', import.meta.url)), [worldPath, sessionPath, memoryPath, point])
+    const interrupted = new WorldStore(worldPath)
+    const effects = interrupted.readEvents(compiled.manifest.address).filter(e => e.eventType === 'character.moved' || (e.eventType === 'character.speak' && JSON.stringify(e.data).includes('group durable response')))
+    expect(effects).toHaveLength(point === 'store.after-commit' ? 2 : 0)
+    interrupted.close()
+    const leaseDb = new DatabaseSync(worldPath, { readOnly: true })
+    const lease = leaseDb.prepare('SELECT expires_at_ms FROM writer_leases').get() as { expires_at_ms: number }
+    leaseDb.close()
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, lease.expires_at_ms - Date.now() + 20)))
+    let calls = 0
+    const recovered = new WorldApplication({ worldPath, sessionPath, memoryPath,
+      runtimeOwnerId: 'group:recovered', leaseTtlMs: 500, modelBudgetTokens: 10,
+      participants: () => [{ participantId: 'agent:group', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
+        allowedActionTypes: ['speak', 'move'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+        provider: { propose: async () => { calls++; return groupOutput } } }],
+    })
+    const request = { idempotencyKey: 'group:crash', principalId: 'principal:player', action: { actionType: 'speak', parameters: { text: 'go' } }, correlationId: 'group:recovery' }
+    await recovered.submit(compiled.manifest.address, request)
+    await recovered.submit(compiled.manifest.address, request)
+    await recovered.close()
+    expect(calls).toBe(0)
+    const final = new WorldStore(worldPath)
+    const events = final.readEvents(compiled.manifest.address)
+    expect(events.filter(e => e.eventType === 'character.moved')).toHaveLength(1)
+    expect(events.filter(e => e.eventType === 'character.speak' && JSON.stringify(e.data).includes('group durable response'))).toHaveLength(1)
+    expect(final.head(compiled.manifest.address).tick).toBe(1)
+    final.close()
+  })
+
+  it.each(['provider.before-world-commit', 'store.before-commit', 'store.after-commit'] as const)('recovers a v5 object interaction group after hard termination at %s', async point => {
+    const worldPath = database('group-world.sqlite')
+    const sessionPath = `${worldPath}.session.sqlite`
+    const memoryPath = `${worldPath}.memory.sqlite`
+    const compiled = interactionWorld()
+    const initial = new WorldApplication({ worldPath, sessionPath, memoryPath })
+    initial.activate(compiled)
+    await initial.close()
+    await hardKillAt(fileURLToPath(new URL('./workers/action-group-crash-worker.ts', import.meta.url)), [worldPath, sessionPath, memoryPath, point, 'interactions'])
+    const interrupted = new WorldStore(worldPath)
+    const effects = interrupted.readEvents(compiled.manifest.address).filter(e => e.eventType === 'entity.transferred' || (e.eventType === 'character.speak' && JSON.stringify(e.data).includes('done')))
+    expect(effects).toHaveLength(point === 'store.after-commit' ? 2 : 0)
+    interrupted.close()
+    const leaseDb = new DatabaseSync(worldPath, { readOnly: true })
+    const lease = leaseDb.prepare('SELECT expires_at_ms FROM writer_leases').get() as { expires_at_ms: number }
+    leaseDb.close()
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, lease.expires_at_ms - Date.now() + 20)))
+    let calls = 0
+    const recovered = new WorldApplication({ worldPath, sessionPath, memoryPath,
+      runtimeOwnerId: 'group:recovered', leaseTtlMs: 500, modelBudgetTokens: 10,
+      participants: () => [{ participantId: 'agent:group', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
+        allowedActionTypes: ['speak', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+        provider: { propose: async () => { calls++; return interactionOutput() } } }],
+    })
+    const request = { idempotencyKey: 'group:crash', principalId: 'principal:player', action: { actionType: 'speak', parameters: { text: 'go' } }, correlationId: 'group:recovery' }
+    await recovered.submit(compiled.manifest.address, request)
+    await recovered.submit(compiled.manifest.address, request)
+    await recovered.close()
+    expect(calls).toBe(0)
+    const final = new WorldStore(worldPath)
+    const events = final.readEvents(compiled.manifest.address)
+    expect(events.filter(e => e.eventType === 'entity.transferred')).toHaveLength(1)
+    expect(events.filter(e => e.eventType === 'character.speak' && JSON.stringify(e.data).includes('done'))).toHaveLength(1)
+    expect(final.head(compiled.manifest.address).tick).toBe(1)
+    final.close()
+  })
+
   it('leaves a non-ready backup artifact after hard termination and recovers the stale host lock', async () => {
     const value = deploymentFixture()
     const partial = join(value.root, 'partial-backup')

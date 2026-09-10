@@ -57,8 +57,8 @@ export interface ReactionCycleDraft extends WorldJsonObject {
   readonly maxWaves: number
   readonly maxNpcCalls: number
   readonly maxCallsPerCharacter: number
-  readonly maxActionsPerCall: 1
-  readonly allowedActionTypes: readonly ['speak@1']
+  readonly maxActionsPerCall: 1 | 2
+  readonly allowedActionTypes: readonly ['speak@1'] | readonly ['speak@1', 'move@1', 'take@1'] | readonly ['speak@1', 'move@1', 'interact@1']
   readonly initialTokenBudget: number
   readonly deadlineAtMs: number
   readonly candidates: readonly ReactionCandidateDraft[]
@@ -75,8 +75,8 @@ export interface StoredReactionCycle extends WorldJsonObject {
   readonly maxWaves: number
   readonly maxNpcCalls: number
   readonly maxCallsPerCharacter: number
-  readonly maxActionsPerCall: 1
-  readonly allowedActionTypes: readonly ['speak@1']
+  readonly maxActionsPerCall: 1 | 2
+  readonly allowedActionTypes: readonly ['speak@1'] | readonly ['speak@1', 'move@1', 'take@1'] | readonly ['speak@1', 'move@1', 'interact@1']
   readonly initialTokenBudget: number
   readonly deadlineAtMs: number
   readonly budgetHash: WorldHash
@@ -245,7 +245,7 @@ export interface ReactionProposalContext extends WorldJsonObject {
 
 export interface ReactionAgentProvider {
   propose(context: ReactionProposalContext): Promise<
-    import('./cognition-projection.ts').SubmitActionsV2 | import('./cognition-projection.ts').SubmitActionsV3
+    import('./cognition-projection.ts').SubmitActionsV2 | import('./cognition-projection.ts').SubmitActionsV3 | import('./action-group.ts').SubmitActionsV4 | import('./action-group.ts').SubmitActionsV5
   >
 }
 

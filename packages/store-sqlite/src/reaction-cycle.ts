@@ -201,8 +201,9 @@ function validatePolicy(draft: ReactionCycleDraft): void {
   safeInteger(draft.maxWaves, 'reactionCycle.maxWaves', 1, 3)
   safeInteger(draft.maxNpcCalls, 'reactionCycle.maxNpcCalls', 1, 8)
   safeInteger(draft.maxCallsPerCharacter, 'reactionCycle.maxCallsPerCharacter', 1, 2)
-  if (draft.maxActionsPerCall !== 1) throw new RangeError('reactionCycle.maxActionsPerCall must equal one')
-  if (draft.allowedActionTypes.length !== 1 || draft.allowedActionTypes[0] !== 'speak@1') {
+  if (draft.maxActionsPerCall !== 1 && draft.maxActionsPerCall !== 2) throw new RangeError('reactionCycle.maxActionsPerCall must equal one or two')
+  const expected = draft.maxActionsPerCall === 2 ? ['speak@1', 'move@1', 'take@1'] : ['speak@1']
+  if (worldJsonText(draft.allowedActionTypes) !== worldJsonText(expected) && !(draft.maxActionsPerCall === 2 && worldJsonText(draft.allowedActionTypes) === worldJsonText(['speak@1', 'move@1', 'interact@1']))) {
     throw new TypeError('Reaction Cycle v1 only allows speak@1')
   }
   safeInteger(draft.initialTokenBudget, 'reactionCycle.initialTokenBudget', 0)
@@ -435,7 +436,7 @@ export function insertInitialReactionCycle(db: DatabaseSync, bundle: StoredReact
     cycle.maxWaves,
     cycle.maxNpcCalls,
     cycle.maxCallsPerCharacter,
-    cycle.maxActionsPerCall,
+    1,
     worldJsonText(cycle.allowedActionTypes),
     cycle.initialTokenBudget,
     cycle.deadlineAtMs,
@@ -447,6 +448,9 @@ export function insertInitialReactionCycle(db: DatabaseSync, bundle: StoredReact
     cycle.cycleHash,
     cycle.stateHash,
   )
+  if (cycle.maxActionsPerCall === 2) {
+    db.prepare('UPDATE world_reaction_cycles SET action_group_max_actions = 2 WHERE cycle_id = ?').run(cycle.cycleId)
+  }
   for (const wave of bundle.waves) {
     db.prepare(`
       INSERT INTO world_reaction_waves(
@@ -552,6 +556,7 @@ interface CycleRow {
   readonly max_npc_calls: number
   readonly max_calls_per_character: number
   readonly max_actions_per_call: number
+  readonly action_group_max_actions: number | null
   readonly allowed_action_types_json: string
   readonly initial_token_budget: number
   readonly deadline_at_ms: number
@@ -658,9 +663,11 @@ function readReactionCycle(
   const row = readCycleRow(db, addressKey, selector)
   if (row === undefined) return undefined
   const allowed = exactJson(row.allowed_action_types_json, 'Reaction Cycle allowed Action types')
-  if (!Array.isArray(allowed) || allowed.length !== 1 || allowed[0] !== 'speak@1'
+  const maximumActions = row.action_group_max_actions ?? row.max_actions_per_call
+  const expected = maximumActions === 2 ? ['speak@1', 'move@1', 'take@1'] : ['speak@1']
+  if (!Array.isArray(allowed) || (worldJsonText(allowed) !== worldJsonText(expected) && !(maximumActions === 2 && worldJsonText(allowed) === worldJsonText(['speak@1', 'move@1', 'interact@1'])))
     || row.policy_version !== 'reaction-policy/v1' || row.profile_id !== 'responsive/v1'
-    || row.max_actions_per_call !== 1) {
+    || row.max_actions_per_call !== 1 || (maximumActions !== 1 && maximumActions !== 2)) {
     throw new Error('Reaction Cycle policy row is malformed')
   }
   const cycleId = brandId(row.cycle_id, 'ReactionCycleId')
@@ -675,8 +682,8 @@ function readReactionCycle(
     maxWaves: row.max_waves,
     maxNpcCalls: row.max_npc_calls,
     maxCallsPerCharacter: row.max_calls_per_character,
-    maxActionsPerCall: row.max_actions_per_call,
-    allowedActionTypes: ['speak@1'],
+    maxActionsPerCall: maximumActions,
+    allowedActionTypes: allowed as unknown as StoredReactionCycle['allowedActionTypes'],
     initialTokenBudget: row.initial_token_budget,
     deadlineAtMs: row.deadline_at_ms,
     budgetHash: worldHash(row.budget_hash, 'Reaction Cycle budget_hash'),
