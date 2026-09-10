@@ -11,7 +11,7 @@ import {
 export type UtilityIntentResult =
   | {
       readonly status: 'action'
-      readonly action: { readonly actionType: 'speak' | 'move' | 'take'; readonly parameters: WorldJsonObject }
+      readonly action: { readonly actionType: 'speak' | 'move' | 'take' | 'interact'; readonly parameters: WorldJsonObject }
       readonly manifestation?: ManifestationProposal
     }
   | { readonly status: 'clarification'; readonly question: string }

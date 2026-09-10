@@ -12,18 +12,22 @@ import {
   type ReactionProposalContext,
   type SubmitActionsV2,
   type SubmitActionsV3,
+  type SubmitActionsV4,
+  type SubmitActionsV5,
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
   manifestationManifestRegistries,
   manifestationPolicyFromManifest,
+  manifestUsesActionGroups,
+  manifestUsesInteractions,
   type CompiledWorldManifest,
   type CompiledWorldManifestV6,
   type CompiledWorldSpec,
 } from '@harness-world/kernel'
 import { adaptRainyRoadPack, compileRainyRoadPack } from '@harness-world/simulation'
-import { adaptCompiledWorldPack, readCompiledPack } from '@harness-world/world-pack'
+import { adaptCompiledWorldPack, readCompiledPack, readStrictJson } from '@harness-world/world-pack'
 import {
   byteHash,
   availableExperimentActionReferences,
@@ -35,6 +39,7 @@ import {
   speechSchema,
   type ExperimentMessage,
 } from './compact-context.ts'
+import { groupedPlaytestRequest, groupedPlaytestProposal, groupedPlayerCommand } from './grouped-playtest.ts'
 import { comparisonMessages, comparisonResponse } from './provider-comparison.ts'
 import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
 import {
@@ -176,6 +181,13 @@ export function playerTranscript(
     const stage = manifestationText(content?.manifestation)
     if (content?.status !== 'accepted') return []
     if (typeof speech?.characterId !== 'string' || typeof speech.text !== 'string') {
+      if (content?.actionType === 'interact' && typeof content.actorId === 'string') {
+        const transfer = object(content.interaction)
+        if (typeof transfer?.entityId !== 'string') return []
+        const item = transfer.entityId
+        const destination = transfer.toHolderId === null ? '放在当前位置' : `交由${names.get(String(transfer.toHolderId)) ?? transfer.toHolderId}持有`
+        return [{ seq: observation.sourceSeq, speaker: names.get(content.actorId) ?? content.actorId, text: `${item} 已${destination}。`, player: content.actorId === playerId }]
+      }
       if ((content?.actionType !== 'move' && content?.actionType !== 'take') || typeof content.actorId !== 'string') return []
       const actionText = content.actionType === 'move' ? '移动到了另一个地点。' : '拿取了一个物品。'
       return [{
@@ -213,30 +225,32 @@ class PlaytestModelProvider {
     private readonly apiKey: string | undefined,
     private readonly timeoutMs: number,
     private readonly manifestationEnabled: boolean,
+    private readonly groupVersion: 4 | 5 | undefined,
     private readonly actionReferences: ReturnType<typeof createExperimentActionReferences>,
     private readonly evidenceDirectory: string,
     private readonly onStart: (call: CallTelemetry) => void,
     private readonly onFinish: (call: CallTelemetry, durationMs: number, status: 'act' | 'abstain' | 'invalid' | 'failed') => void,
   ) {}
 
-  async propose(context: ProposalContext | ReactionProposalContext): Promise<SubmitActionsV2 | SubmitActionsV3> {
+  async propose(context: ProposalContext | ReactionProposalContext): Promise<SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5> {
     const exact = (context as unknown as { exactProviderRequest?: { messages: ExperimentMessage[] } }).exactProviderRequest
     if (exact === undefined || !Array.isArray(exact.messages)) throw new TypeError('exact Provider request is unavailable')
     const reaction = 'origin' in context && context.origin.kind === 'reaction' ? context.origin : null
     const outputMode = reaction === null ? 'external_actions' : 'speech_only'
-    const rendered = renderExperiment(exact.messages, 'compact', outputMode, this.actionReferences)
-    const messages = comparisonMessages(rendered.messages, 'turn_taking', outputMode)
-    if (this.manifestationEnabled) messages.push({ role: 'system', content: manifestationOutputContract })
+    const grouped = this.groupVersion === undefined ? undefined : groupedPlaytestRequest(exact.messages, this.actorId, this.groupVersion, reaction !== null, this.actionReferences)
+    const rendered = grouped ?? renderExperiment(exact.messages, 'compact', outputMode, this.actionReferences)
+    const messages = grouped?.messages ?? comparisonMessages(rendered.messages, 'turn_taking', outputMode)
+    if (this.manifestationEnabled && grouped === undefined) messages.push({ role: 'system', content: manifestationOutputContract })
     const ordinarySchema = outputMode === 'speech_only' ? speechSchema : externalActionSchemaFor(rendered.actionReferences)
-    const responseSchema = this.manifestationEnabled
+    const responseSchema = grouped?.schema ?? (this.manifestationEnabled
       ? expressiveSchema(ordinarySchema as unknown as Record<string, unknown>)
-      : ordinarySchema
+      : ordinarySchema)
     const body = JSON.stringify(this.provider === 'ollama'
       ? { model: this.model, messages, stream: false, think: false,
         format: responseSchema,
-        options: { temperature: 0.3, seed: 42, num_predict: 256 }, keep_alive: '10m' }
+        options: { temperature: 0.3, seed: 42, num_predict: grouped === undefined ? 256 : 2048 }, keep_alive: '10m' }
       : { model: this.model, messages, stream: false, thinking: { type: 'disabled' },
-        response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: 256 })
+        response_format: { type: 'json_object' }, temperature: 0.3, max_tokens: grouped === undefined ? 256 : 2048 })
     if (Buffer.byteLength(body) > 512_000) throw new RangeError('playtest Provider input exceeds 512,000 bytes')
     const call: CallTelemetry = { participantId: this.participantId,
       phase: reaction === null ? 'root' : 'reaction', wave: reaction?.wave ?? null, startedAt: Date.now() }
@@ -269,8 +283,10 @@ class PlaytestModelProvider {
       parsed = comparisonResponse(this.provider, raw)
       const decoded = JSON.parse(parsed.content) as unknown
       let reflectionWarning: string | undefined
-      let proposal: SubmitActionsV2 | SubmitActionsV3
-      if (outputMode === 'speech_only') {
+      let proposal: SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5
+      if (this.groupVersion !== undefined) {
+        proposal = groupedPlaytestProposal(decoded, this.actorId, this.participantId, this.groupVersion, reaction !== null)
+      } else if (outputMode === 'speech_only') {
         const parseSpeech = (value: unknown) => speechProposal(
           value, this.actorId, `action:playtest:${this.actorId}:${context.roundId}`,
         )
@@ -314,8 +330,8 @@ class PlaytestModelProvider {
       // durable Provider quality policy classifies this as schema-invalid rather
       // than confusing it with a transport or API failure.
       return {
-        schemaVersion: this.manifestationEnabled ? 3 : 2, decision: 'abstain', actions: [], invalidModelOutput: true,
-      } as unknown as SubmitActionsV2 | SubmitActionsV3
+        schemaVersion: this.groupVersion ?? (this.manifestationEnabled ? 3 : 2), decision: 'abstain', actions: [], invalidModelOutput: true,
+      } as unknown as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5
     }
   }
 }
@@ -323,6 +339,8 @@ class PlaytestModelProvider {
 export interface PlaytestRuntimeOptions {
   readonly dataDirectory: string
   readonly packPath?: string
+  readonly interactionsPath?: string
+  readonly actionGroups?: boolean
   readonly provider?: PlaytestProviderKind
   readonly endpoint?: string
   readonly model?: string
@@ -347,6 +365,8 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
   readonly #utilityIntent: OllamaUtilityIntentInterpreter
   readonly #utilityModel: string
   readonly #manifestationEnabled: boolean
+  readonly #groupVersion: 4 | 5 | undefined
+  readonly #manifestVersion: number
   readonly #activeCalls = new Map<string, CallTelemetry>()
   #providerCalls = 0
   #lastProviderDurationMs: number | null = null
@@ -368,6 +388,8 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
 
   private constructor(options: PlaytestRuntimeOptions, compiled: CompiledWorldSpec) {
     this.#address = compiled.manifest.address
+    this.#manifestVersion = compiled.manifest.schemaVersion
+    this.#groupVersion = manifestUsesInteractions(compiled.manifest) ? 5 : manifestUsesActionGroups(compiled.manifest) ? 4 : undefined
     const binding = compiled.manifest.playerBindings[0]
     if (binding === undefined) throw new TypeError('playtest Pack has no PlayerBinding')
     this.#principalId = binding.principalId
@@ -377,7 +399,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
     const controlledCharacters = playtestModelCharacters(compiled.manifest, this.#playerId)
     const manifestationEnabled = manifestationPolicyFromManifest(compiled.manifest).mode === 'enabled'
-    this.#manifestationEnabled = manifestationEnabled
+    this.#manifestationEnabled = manifestationEnabled && this.#groupVersion === undefined
     this.#npcNames = controlledCharacters.map(character => character.name)
     this.#provider = options.provider ?? 'ollama'
     this.#model = options.model ?? (this.#provider === 'ollama' ? OLLAMA_MODEL : DEEPSEEK_MODEL)
@@ -391,7 +413,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       this.#utilityModel,
       30_000,
       evidenceDirectory,
-      manifestationEnabled,
+      this.#manifestationEnabled,
     )
     const apiKey = options.apiKey?.trim()
     if (this.#provider === 'deepseek' && !apiKey) throw new TypeError('DeepSeek credential unavailable')
@@ -418,14 +440,14 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       ...character,
       priority: controlledCharacters.length - index,
     })).map(item => ({ ...item, provider: new PlaytestModelProvider(
-      item.participantId, item.actorId, this.#provider, endpoint, this.#model, apiKey, timeoutMs, manifestationEnabled,
+      item.participantId, item.actorId, this.#provider, endpoint, this.#model, apiKey, timeoutMs, manifestationEnabled, this.#groupVersion,
       this.#actionReferences,
       evidenceDirectory, onStart, onFinish,
     ) }))
     const roundParticipants: RoundParticipant[] = providers.map(item => ({ ...item, role: 'agent',
-      allowedActionTypes: ['speak', 'move', 'take'], estimatedTokens: 1, timeoutMs: timeoutMs + 5_000 }))
+      allowedActionTypes: ['speak', 'move', this.#groupVersion === 5 ? 'interact' : 'take'], estimatedTokens: 1, timeoutMs: timeoutMs + 5_000 }))
     const reactionParticipants: ReactionParticipantBinding[] = providers.map(item => ({ ...item, role: 'agent',
-      allowedActionTypes: ['speak'], estimatedTokens: 1, timeoutMs: timeoutMs + 5_000 }))
+      allowedActionTypes: this.#groupVersion === undefined ? ['speak'] : ['speak', 'move', this.#groupVersion === 5 ? 'interact' : 'take'], estimatedTokens: 1, timeoutMs: timeoutMs + 5_000 }))
     this.#application = new WorldApplication({
       worldPath: resolve(this.#dataDirectory, 'world.sqlite'),
       sessionPath: resolve(this.#dataDirectory, 'session.sqlite'),
@@ -437,6 +459,8 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
   }
 
   static async create(options: PlaytestRuntimeOptions): Promise<WorldPlaytestRuntime> {
+    if ((options.actionGroups || options.interactionsPath !== undefined) && options.packPath === undefined) throw new TypeError('new protocols require --pack')
+    if (options.actionGroups && options.interactionsPath !== undefined) throw new TypeError('choose action groups or interactions')
     mkdirSync(resolve(options.dataDirectory), { recursive: true })
     let compiled: CompiledWorldSpec
     if (options.packPath === undefined) {
@@ -452,12 +476,19 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
         address,
         principalId: 'principal:web-playtest',
         sessionId: brandId('session:web-playtest', 'SessionId'),
+        ...(options.actionGroups ? { actionGroups: 'bounded/v1' as const } : {}),
+        ...(options.interactionsPath === undefined ? {} : { interactionCatalog: await readStrictJson(resolve(options.interactionsPath)) }),
       })
     }
     const runtime = new WorldPlaytestRuntime(options, compiled)
-    runtime.#application.activate(compiled)
-    await runtime.#refresh()
-    return runtime
+    try {
+      runtime.#application.activate(compiled)
+      await runtime.#refresh()
+      return runtime
+    } catch (error) {
+      await runtime.close()
+      throw error
+    }
   }
 
   async state(): Promise<PlaytestState> {
@@ -496,6 +527,11 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
         this.#lastPlayerIntent = 'clarification_cancelled'
         this.#notice = '已取消上一条未决输入；没有推进世界时间。'
         cancelled = true
+      } else if (this.#groupVersion !== undefined) {
+        this.#pendingClarification = null
+        const command = groupedPlayerCommand(text, this.#groupVersion)
+        if (command !== undefined) interpretation = { status: 'action', action: command }
+        else if (!text.startsWith('/')) interpretation = { status: 'action', action: { actionType: 'speak', parameters: { text } } }
       } else if (!text.startsWith('/')) {
         const pending = this.#pendingClarification
         try {
@@ -649,6 +685,8 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     const active = cycles.find(cycle => cycle.status !== 'terminal')
     this.#cachedDebug = {
       headSeq: head.headSeq, tick: head.tick,
+      manifestVersion: this.#manifestVersion, outputProtocol: this.#groupVersion === undefined ? 'legacy' : `submit_actions/v${this.#groupVersion}`,
+      playerInputMode: this.#groupVersion === undefined ? 'utility' : 'speech-and-explicit-commands',
       cycleStatus: active?.status ?? cycles[0]?.status ?? null,
       currentWave: active?.currentWave ?? cycles[0]?.currentWave ?? null,
       terminalReason: active?.terminalReason ?? cycles[0]?.terminalReason ?? null,

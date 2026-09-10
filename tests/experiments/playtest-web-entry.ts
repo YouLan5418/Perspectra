@@ -13,11 +13,13 @@ async function main(): Promise<void> {
     ?? (process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim() || defaultPlaytestDirectory())
   const endpoint = process.env.HCW_OLLAMA_ENDPOINT
   const utilityModel = process.env.HCW_UTILITY_MODEL
-  const model = provider === 'deepseek' ? 'deepseek-v4-flash' : process.env.HCW_OLLAMA_MODEL
+  const model = provider === 'deepseek' ? (process.env.HCW_DEEPSEEK_MODEL?.trim() || 'deepseek-v4-flash') : process.env.HCW_OLLAMA_MODEL
   const apiKey = provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY : undefined
   const runtime = await WorldPlaytestRuntime.create({
     dataDirectory,
     provider,
+    ...(launch.interactionsPath === undefined ? {} : { interactionsPath: launch.interactionsPath }),
+    ...(launch.actionGroups === undefined ? {} : { actionGroups: launch.actionGroups }),
     ...(packPath === undefined ? {} : { packPath }),
     ...(provider === 'ollama' && endpoint !== undefined ? { endpoint } : {}),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),
