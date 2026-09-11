@@ -1,5 +1,13 @@
-import { availableInteractions, manifestUsesInteractions } from './interactions.ts'
-import { assertProtocolString, failWorld, type CharacterId, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
+import { availableInteractions, manifestUsesCharacterInteractions, manifestUsesInteractions } from './interactions.ts'
+import {
+  assertProtocolString,
+  failWorld,
+  validateResolutionAuthority,
+  type CharacterId,
+  type RulebookResolutionAuthorityV1,
+  type WorldAddress,
+  type WorldJsonObject,
+} from '@harness-world/contracts'
 import {
   SpeakMoveRulebook,
   type PlayerActionInput,
@@ -12,6 +20,8 @@ export interface RulebookResolutionContext {
   readonly manifest: CompiledWorldManifest
   readonly events: readonly RulebookEvent[]
   readonly characterId: CharacterId | string
+  readonly actionId?: string
+  readonly resolutionAuthority?: RulebookResolutionAuthorityV1
   readonly action: PlayerActionInput
 }
 
@@ -24,7 +34,7 @@ export interface ActionAffordance {
 /** One exact, versioned deterministic rules implementation. */
 export interface RulebookResolver {
   resolve(context: RulebookResolutionContext): RulebookResolution
-  affordances(context: Omit<RulebookResolutionContext, 'action'>): readonly ActionAffordance[]
+  affordances(context: Omit<RulebookResolutionContext, 'action' | 'actionId'>): readonly ActionAffordance[]
 }
 
 function key(rulebookId: string, version: number): string {
@@ -67,14 +77,35 @@ class CoreRulebookResolver implements RulebookResolver {
   readonly #legacy = new SpeakMoveRulebook()
 
   resolve(context: RulebookResolutionContext): RulebookResolution {
-    return this.#legacy.resolve(context.manifest, context.events, context.characterId, context.action)
+    if (manifestUsesCharacterInteractions(context.manifest)
+      && (context.actionId === undefined || context.resolutionAuthority === undefined)) {
+      throw new TypeError('Manifest v9 Rulebook resolution requires Host authority and actionId')
+    }
+    const authority = context.resolutionAuthority === undefined
+      ? undefined
+      : validateResolutionAuthority(context.resolutionAuthority)
+    return this.#legacy.resolve(context.manifest, context.events, context.characterId, context.action, {
+      actionId: context.actionId!,
+      resolutionAuthority: authority!,
+    })
   }
 
-  affordances(context: Omit<RulebookResolutionContext, 'action'>): readonly ActionAffordance[] {
+  affordances(context: Omit<RulebookResolutionContext, 'action' | 'actionId'>): readonly ActionAffordance[] {
+    if (manifestUsesCharacterInteractions(context.manifest) && context.resolutionAuthority === undefined) {
+      throw new TypeError('Manifest v9 affordances require Host authority')
+    }
+    const authority = context.resolutionAuthority === undefined
+      ? undefined
+      : validateResolutionAuthority(context.resolutionAuthority)
     return [
       { actionType: 'speak', actionVersion: 1 },
       { actionType: 'move', actionVersion: 1 },
-      ...(manifestUsesInteractions(context.manifest) ? [{ actionType: 'interact', actionVersion: 1, interactions: availableInteractions(context.manifest, context.events, context.characterId) }] : context.manifest.rulebook.version >= 2 ? [{ actionType: 'take', actionVersion: 1 }] : []),
+      ...(manifestUsesInteractions(context.manifest) ? [{
+        actionType: 'interact', actionVersion: 1,
+        interactions: authority === undefined
+          ? availableInteractions(context.manifest, context.events, context.characterId)
+          : availableInteractions(context.manifest, context.events, context.characterId, authority),
+      }] : context.manifest.rulebook.version >= 2 ? [{ actionType: 'take', actionVersion: 1 }] : []),
     ]
   }
 }

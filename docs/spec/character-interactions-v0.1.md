@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 决策 | [ADR-0087](../adr/ADR-0087-player-immediate-character-interactions.md) |
-| 状态 | Accepted implementation target；C0 工程边界已冻结、真实 Provider 门禁待运行，C1～C4 尚未实现或验收 |
+| 状态 | Accepted implementation target；C0 真实 Provider 门禁待运行；C1 核心内部实现已落地、阶段未关闭；C2～C4 待实施 |
 | 实施基线 | `codex/player-immediate-character-interactions`；v8 契约修复 `5d6b982`，文档与试玩证据 `26bc98c` |
 | 候选世界 / 模型协议 | Manifest v9；submit_actions/v6 仅在 C2 证明 v5 不能保持原语义时引入 |
 | 候选目录 / 玩家协议 | interaction-catalog/v2 / player-intent/v1 / player-submission/v2 |
@@ -11,6 +11,8 @@
 | 首个试金石 | 玩家输入“我抓住 Alice 的手”，Alice 同轮选择 release、move、speak 或 abstain |
 
 > **前置门禁进度：** v8 表现 Schema 已在独立提交 `5d6b982` 收口，设计与证据在 `26bc98c` 隔离；完整工程门禁已通过。C0 的版本、DDL 与恢复所有权见 [`2026-09-11_角色交互-C0-Schema-Spike.md`](../2026-09-11_角色交互-C0-Schema-Spike.md)。真实 DeepSeek 20-call 门禁尚未运行，因此 C0 仍未关闭，不得提前进入 C1 生产实现。
+
+> **执行进度补充：** 用户随后要求跳过不可用的 DeepSeek 子进程并继续实施，当前已有 C1 内部实现，详见 [`2026-09-11_角色交互-C1-实施记录.md`](../2026-09-11_角色交互-C1-实施记录.md)。上述前置门禁仍未关闭；此进度不构成 C1 正式验收或 Manifest v9 发布许可。
 
 > **术语：** “即时成立”表示无需目标审批、在裁决顺序上先形成玩家候选 S1；不表示零延迟、提前显示或玩家阶段单独 COMMIT。玩家组与 NPC 结果仍由一个 Root Round 原子提交。
 

@@ -16,6 +16,7 @@ import {
 } from '@harness-world/contracts'
 import {
   phase8ManifestRegistries,
+  characterInteractionManifestRegistries,
   manifestationManifestRegistries,
   interactionManifestRegistries,
   parseInteractionCatalog,
@@ -23,6 +24,8 @@ import {
   type CompiledWorldManifestV4,
   type CompiledWorldManifestV5,
   type CompiledWorldManifestV6,
+  type CompiledWorldManifestV9,
+  type CompiledWorldManifestV7,
   type CompiledWorldManifestV3,
   type CompiledWorldSpec,
   type ContentPackCharacterSpec,
@@ -1282,6 +1285,38 @@ export class WorldPackCompilerV4 {
     const interactionCatalog = parseInteractionCatalog(options.interactionCatalog, base.manifest.entities.map(value => value.entityId))
     const specHash = hashWorldJson('world-pack-runtime-spec/interactions-v1', { baseSpecHash: base.manifest.specHash, interactionCatalog })
     const manifest = { ...base.manifest, schemaVersion: 8 as const, interactionCatalog, specHash, registries: interactionManifestRegistries() }
+    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+    const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.created'
+      ? { ...event, data: { specHash } }
+      : event.eventType === 'world.manifest-locked'
+        ? { ...event, data: { manifestHash, genesisPlanHash: manifest.genesisPlanHash } } : event)
+    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
+  }
+
+  /** Bind the closed v2 target catalog to Manifest V9 while retaining the C1 legacy player input path. */
+  adaptToCharacterInteractionWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
+    const base = this.adaptToActionGroupWorldSpec(packInput, options)
+    if (options.interactionCatalog === undefined) throw new TypeError('interaction catalog is required')
+    const parsed = parseInteractionCatalog(options.interactionCatalog, {
+      entityIds: base.manifest.entities.map(value => value.entityId),
+      characterIds: base.manifest.characters.map(value => value.characterId),
+      manualCharacterIds: base.manifest.playerBindings.map(value => value.characterId),
+    })
+    if (parsed.version !== 'interaction-catalog/v2') throw new TypeError('character interactions require interaction-catalog/v2')
+    const playerInputPolicy = { version: 'legacy-speech/v1' } as const
+    const specHash = hashWorldJson('world-pack-runtime-spec/character-interactions-v1', {
+      baseSpecHash: base.manifest.specHash,
+      interactionCatalog: parsed,
+      playerInputPolicy,
+    })
+    const manifest: CompiledWorldManifestV9 = {
+      ...base.manifest as CompiledWorldManifestV7,
+      schemaVersion: 9,
+      interactionCatalog: parsed,
+      playerInputPolicy,
+      specHash,
+      registries: characterInteractionManifestRegistries(),
+    }
     const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
     const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.created'
       ? { ...event, data: { specHash } }

@@ -13,6 +13,7 @@ import {
   deterministicId,
   failWorld,
   hashWorldJson,
+  resolutionAuthority,
   planStableCallBudget,
   WorldError,
   type ActionRequest,
@@ -45,6 +46,7 @@ import {
 } from '@harness-world/contracts'
 import {
   currentCharacterLifecycle,
+  characterRelationObservations,
   manifestationPolicyFromManifest,
   manifestUsesActionGroups,
   manifestUsesInteractions,
@@ -607,10 +609,13 @@ export class ReactionScheduler {
     const stoppedGroups = new Set<string>()
     for (const [ordinal, item] of actions.entries()) {
       const actionPrefix = [...history, ...events]
+      const actionAuthority = resolutionAuthority('agent', 'standard')
       const { resolution: baseResolution, skipped } = resolveGroupAction(item.action, item.participantId, item.actionGroup !== undefined, stoppedGroups, () => this.#rulebook.resolve({
         manifest: this.options.manifest,
         events: actionPrefix,
         characterId: item.action.actorId,
+        actionId: item.action.actionId,
+        ...(this.options.manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
         action: { actionType: item.action.actionType, parameters: item.action.parameters },
       }))
       const moveTarget = item.action.actionType === 'move' ? (item.action.parameters as WorldJsonObject).locationId : undefined
@@ -658,6 +663,7 @@ export class ReactionScheduler {
       const candidateHashBefore = candidateHash
       const ruleTraceHash = hashWorldJson('round-rule-trace', {
         rulebook: this.options.manifest.rulebook,
+        ...(this.options.manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
         action: item.action,
         status: skipped ? 'skipped' : resolution.status,
         reason: resolution.reason ?? null,
@@ -674,6 +680,7 @@ export class ReactionScheduler {
         actionId: item.action.actionId,
         participantId: item.participantId,
         sourceRole: 'agent',
+        ...(this.options.manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
         actorId: item.action.actorId,
         actionType: item.action.actionType,
         actionVersion: item.action.actionVersion,
@@ -709,6 +716,7 @@ export class ReactionScheduler {
       const publicSpeech = resolution.events.find(event => event.eventType === 'character.speak')
       const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
       const publicInteraction = resolution.events.find(event => event.eventType === 'entity.transferred')
+      const relations = characterRelationObservations(actionPrefix, resolution.events)
       const occurrenceOnly = new Set(audience.occurrenceOnlyCharacterIds)
       const observerIds = [...new Set([
         ...audience.fullContentCharacterIds,
@@ -730,6 +738,7 @@ export class ReactionScheduler {
             ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
             ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
             ...(publicInteraction === undefined ? {} : { interaction: publicInteraction.data }),
+            ...(relations.length === 0 ? {} : { relations }),
           },
         }
         const sourceEventOrdinal = events.length
@@ -799,7 +808,7 @@ export class ReactionScheduler {
       }
     })
     const authority = {
-      schemaVersion: manifestUsesActionGroups(this.options.manifest) ? 4 : 3,
+      schemaVersion: this.options.manifest.schemaVersion === 9 ? 5 : manifestUsesActionGroups(this.options.manifest) ? 4 : 3,
       origin: {
         kind: 'reaction', cycleId: cycle.cycle.cycleId,
         rootRoundId: cycle.cycle.rootRoundId, wave: cycle.waves.at(-1)!.wave,

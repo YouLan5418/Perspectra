@@ -20,6 +20,7 @@ import {
   createStepManifestationSchema,
   deterministicId,
   hashWorldJson,
+  resolutionAuthority,
   type CharacterId,
   type ActionRequest,
   type ContextExclusion,
@@ -412,6 +413,7 @@ export class Phase8ContextPipeline {
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,
+      resolutionAuthority: resolutionAuthority('agent', 'standard'),
     }).filter(value => binding.allowedActionTypes.includes(value.actionType))
       .map(value => contextAffordance(value, decision))
       .sort((left, right) => compareText(left.actionType, right.actionType))
@@ -491,6 +493,7 @@ export class Phase8ContextPipeline {
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,
+      resolutionAuthority: resolutionAuthority('agent', 'standard'),
     }).filter(value => (manifestUsesActionGroups(this.options.manifest) ? ['speak', 'move', manifestUsesInteractions(this.options.manifest) ? 'interact' : 'take'].includes(value.actionType) : value.actionType === 'speak') && value.actionVersion === 1
       && binding.allowedActionTypes.includes(value.actionType))
       .map(value => contextAffordance(value, decision))

@@ -20,6 +20,7 @@ import {
   deterministicId,
   failWorld,
   hashWorldJson,
+  resolutionAuthority,
   WorldError,
   type ActionRequest,
   type CharacterCognitionView,
@@ -48,6 +49,7 @@ import {
 } from '@harness-world/contracts'
 import {
   createCoreRulebookRegistry,
+  characterRelationObservations,
   currentCharacterLifecycle,
   manifestUsesPhase8Contracts,
   manifestationPolicyFromManifest,
@@ -579,6 +581,8 @@ export class RoundCoordinator {
       manifest: this.#manifest,
       events: history,
       characterId: playerAction.actorId,
+      actionId: playerAction.actionId,
+      resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
       action: { actionType: playerAction.actionType, parameters: playerAction.parameters },
     })
     const playerObservationScope = playerBaseResolution.observationScope ?? { scope: 'scene_public' as const }
@@ -695,6 +699,10 @@ export class RoundCoordinator {
       actionId: item.action.actionId,
       participantId: item.participantId,
       sourceRole: item.sourceRole,
+      ...(this.#manifest.schemaVersion === 9 ? { resolutionAuthority: resolutionAuthority(
+        item.sourceRole,
+        item.sourceRole === 'player' ? 'manual_player_immediate' : 'standard',
+      ) } : {}),
       actorId: item.action.actorId,
       actionType: item.action.actionType,
       actionVersion: item.action.actionVersion,
@@ -740,12 +748,18 @@ export class RoundCoordinator {
     const stoppedGroups = new Set<string>()
     for (const [ordinal, item] of ordered.entries()) {
       const actionPrefix = [...history, ...events]
+      const actionAuthority = resolutionAuthority(
+        item.sourceRole,
+        item.sourceRole === 'player' ? 'manual_player_immediate' : 'standard',
+      )
       const { resolution: baseResolution, skipped } = resolveGroupAction(item.action, item.participantId, item.actionGroup !== undefined, stoppedGroups, () => item.sourceRole === 'player'
         ? playerBaseResolution
         : this.#rulebook.resolve({
           manifest: this.#manifest,
           events: actionPrefix,
           characterId: item.action.actorId,
+          actionId: item.action.actionId,
+          resolutionAuthority: actionAuthority,
           action: { actionType: item.action.actionType, parameters: item.action.parameters },
         }))
       const moveTarget = item.action.actionType === 'move'
@@ -797,6 +811,7 @@ export class RoundCoordinator {
       const candidateHashBefore = candidateHash
       const ruleTraceHash = hashWorldJson('round-rule-trace', {
         rulebook: this.#manifest.rulebook,
+        ...(this.#manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
         action: item.action,
         status: skipped ? 'skipped' : resolution.status,
         reason: resolution.reason ?? null,
@@ -846,6 +861,7 @@ export class RoundCoordinator {
         : undefined
       const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
       const publicInteraction = resolution.events.find(event => event.eventType === 'entity.transferred')
+      const relations = characterRelationObservations(actionPrefix, resolution.events)
       const occurrenceOnly = new Set(phase8Audience?.occurrenceOnlyCharacterIds ?? [])
       const observerIds = phase8Audience === undefined
         ? this.options.sceneDecision?.decideFromEvents(
@@ -872,6 +888,7 @@ export class RoundCoordinator {
             ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
             ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
             ...(publicInteraction === undefined ? {} : { interaction: publicInteraction.data }),
+            ...(relations.length === 0 ? {} : { relations }),
           },
         }
         reactionStimuli.push({
@@ -911,7 +928,7 @@ export class RoundCoordinator {
     }
     const cognitiveCharacterIds = [...cognitiveCharacters].sort(compareWorldText)
     const authority = {
-      schemaVersion: manifestUsesActionGroups(this.#manifest) ? 4 : 2,
+      schemaVersion: this.#manifest.schemaVersion === 9 ? 5 : manifestUsesActionGroups(this.#manifest) ? 4 : 2,
       roundId,
       baseHeadSeq: head.headSeq,
       baseTick: head.tick,

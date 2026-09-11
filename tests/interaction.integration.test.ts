@@ -4,17 +4,24 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId, createStepManifestationSchema, hashWorldJson } from '@harness-world/contracts'
-import { currentEntityState } from '@harness-world/kernel'
+import { currentEntityState, characterInteractionManifestRegistries, type InteractionCatalogV1 } from '@harness-world/kernel'
 import { WorldLogicalTransferService, WorldStore } from '@harness-world/store-sqlite'
 import { interactionOutput, interactionWorld } from './fixtures/interaction-world.ts'
 
-it('runs v5 Root and Reaction interactions with durable Context, ownership, retry and logical recovery', async () => {
+it.each([8, 9] as const)('runs Manifest v%s Root and Reaction interactions with durable Context, ownership, retry and logical recovery', async version => {
   const root = mkdtempSync(join(tmpdir(), 'interaction-integration-'))
   const worldPath = join(root, 'world.sqlite')
   const base = interactionWorld(true)
   // A same-location manual character outside the Scene must not become a give option.
   const hidden = { ...base.manifest.characters.find(value => value.characterId === 'character:player')!, characterId: brandId('character:hidden', 'CharacterId'), name: 'Hidden' }
-  const manifest = { ...base.manifest, characters: [...base.manifest.characters, hidden] }
+  const originalCatalog = base.manifest.interactionCatalog as InteractionCatalogV1
+  const manifest = { ...base.manifest, schemaVersion: version, characters: [...base.manifest.characters, hidden],
+    ...(version === 9 ? { registries: characterInteractionManifestRegistries(), interactionCatalog: {
+      version: 'interaction-catalog/v2',
+      definitions: originalCatalog.definitions.map(value => ({ ...value, targetKind: 'entity', initiationPolicy: { manualPlayer: 'standard', autonomousCharacter: 'standard' } })),
+      bindings: originalCatalog.bindings.map(value => ({ targetId: value.entityId, interactionIds: value.interactionIds })),
+    } } : {}),
+  }
   const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
   const genesisEvents = [...base.genesisEvents.map(event => event.eventType === 'world.manifest-locked'
     ? { ...event, data: { manifestHash, genesisPlanHash: manifest.genesisPlanHash } } : event),

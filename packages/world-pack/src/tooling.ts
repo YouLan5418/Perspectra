@@ -85,7 +85,10 @@ async function readCompiledPack(path: string): Promise<AnyCompiledWorldPack> {
 export function adaptCompiledWorldPack(pack: AnyCompiledWorldPack, options: WorldPackRuntimeOptions) {
   if (options.interactionCatalog !== undefined) {
     if (pack.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) throw new TypeError('object interactions require a v4 Pack')
-    return new WorldPackCompilerV4().adaptToInteractionWorldSpec(pack, options)
+    const catalogVersion = (options.interactionCatalog as { readonly version?: unknown } | null)?.version
+    return catalogVersion === 'interaction-catalog/v2'
+      ? new WorldPackCompilerV4().adaptToCharacterInteractionWorldSpec(pack, options)
+      : new WorldPackCompilerV4().adaptToInteractionWorldSpec(pack, options)
   }
   if (options.actionGroups !== undefined) {
     if (options.actionGroups !== 'bounded/v1' || pack.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) throw new TypeError('bounded action groups require a v4 Pack')

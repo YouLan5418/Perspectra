@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, canonicalizeWorldJson } from '@harness-world/contracts'
+import { runtimeManifestFromStored } from '@harness-world/kernel'
+import { adaptCompiledWorldPack } from './tooling.ts'
 import {
   WorldPackCompilerV4,
   canonicalWorldPackBytesV4,
@@ -108,6 +110,13 @@ describe('WorldPackCompilerV4', () => {
       expect(interaction.manifest.registries.actions.definitions.map(value => value.name)).toEqual(['interact', 'move', 'speak'])
       expect(compiler.adaptToInteractionWorldSpec(first, { ...options, interactionCatalog })).toEqual(interaction)
       expect(() => compiler.adaptToInteractionWorldSpec(first, options)).toThrow('catalog is required')
+      const characterCatalog = { version: 'interaction-catalog/v2', definitions: [], bindings: [] }
+      const characterWorld = compiler.adaptToCharacterInteractionWorldSpec(first, { ...options, interactionCatalog: characterCatalog })
+      expect(characterWorld.manifest).toMatchObject({ schemaVersion: 9, playerInputPolicy: { version: 'legacy-speech/v1' } })
+      expect(runtimeManifestFromStored(characterWorld.manifest)).toEqual(characterWorld.manifest)
+      expect(adaptCompiledWorldPack(first, { ...options, interactionCatalog: characterCatalog })).toEqual(characterWorld)
+      expect(() => compiler.adaptToCharacterInteractionWorldSpec(first, options)).toThrow('catalog is required')
+      expect(() => compiler.adaptToCharacterInteractionWorldSpec(first, { ...options, interactionCatalog })).toThrow('require interaction-catalog/v2')
       const grouped = compiler.adaptToActionGroupWorldSpec(first, options)
       expect(grouped.manifest).toMatchObject({ schemaVersion: 7, actionGroupPolicy: { version: 'bounded-action-group/v1' } })
       expect(grouped.manifestHash).not.toBe(compiled.manifestHash)

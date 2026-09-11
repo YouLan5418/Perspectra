@@ -1,4 +1,4 @@
-import { manifestUsesInteractions, resolveInteraction } from './interactions.ts'
+import { endCharacterRelations, manifestUsesCharacterInteractions, manifestUsesInteractions, resolveInteraction, type InteractionResolutionContext } from './interactions.ts'
 import { compareWorldText, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { manifestUsesPhase8Contracts, type CompiledWorldManifest } from './world-spec.ts'
 
@@ -37,6 +37,7 @@ export function worldJsonObject(value: WorldJsonValue): Record<string, WorldJson
 
 export interface RulebookEvent {
   readonly eventType: string
+  readonly eventVersion?: number
   readonly data: WorldJsonValue
 }
 
@@ -161,12 +162,13 @@ export class SpeakMoveRulebook {
     events: readonly RulebookEvent[],
     characterId: string,
     action: PlayerActionInput,
+    interactionContext?: InteractionResolutionContext,
   ): RulebookResolution | undefined {
     const lifecycle = currentCharacterLifecycle(events, characterId)
     if (lifecycle !== 'active') return rejectRulebookResolution(characterId, action.actionType, `character lifecycle ${lifecycle ?? 'missing'} cannot act`)
     if (manifestUsesInteractions(manifest)) {
-      if (action.actionType === 'interact') return resolveInteraction(manifest, events, characterId, action.parameters)
-      if (action.actionType === 'take') return rejectRulebookResolution(characterId, 'take', 'use interact in Manifest v8')
+      if (action.actionType === 'interact') return resolveInteraction(manifest, events, characterId, action.parameters, interactionContext)
+      if (action.actionType === 'take') return rejectRulebookResolution(characterId, 'take', 'use interact in Manifest v8/v9')
     }
     const parameters = worldJsonObject(action.parameters)
     if (action.actionType === 'speak') {
@@ -185,13 +187,19 @@ export class SpeakMoveRulebook {
       }
       const from = currentLocation(events, characterId)
       if (from === target) return rejectRulebookResolution(characterId, action.actionType, 'character is already at the target location')
+      const moveEvent: WorldEventDraft = {
+        eventType: 'character.moved',
+        eventVersion: 1,
+        data: { characterId, fromLocationId: from ?? null, toLocationId: target },
+      }
       return {
         status: 'accepted',
-        events: [{
-          eventType: 'character.moved',
-          eventVersion: 1,
-          data: { characterId, fromLocationId: from ?? null, toLocationId: target },
-        }],
+        events: [
+          moveEvent,
+          ...(manifestUsesCharacterInteractions(manifest)
+            ? endCharacterRelations([...events, moveEvent], characterId, 'participant_moved')
+            : []),
+        ],
       }
     }
     if (action.actionType === 'take' && manifest.rulebook.version >= 2) {
@@ -221,8 +229,9 @@ export class SpeakMoveRulebook {
     events: readonly RulebookEvent[],
     characterId: string,
     action: PlayerActionInput,
+    interactionContext?: InteractionResolutionContext,
   ): RulebookResolution {
-    return this.resolveSupported(manifest, events, characterId, action)
+    return this.resolveSupported(manifest, events, characterId, action, interactionContext)
       ?? rejectRulebookResolution(characterId, action.actionType, 'action type is not afforded by the V0 Rulebook')
   }
 }

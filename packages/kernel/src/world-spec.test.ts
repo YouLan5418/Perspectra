@@ -294,7 +294,7 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
   })
 
   it.each([
-    [{ schemaVersion: 9 }, 'schemaVersion'],
+    [{ schemaVersion: 10 }, 'schemaVersion'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: null }, 'runtimePolicy'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'offline', playerInitialAvailability: 'ready' } }, 'npcInitialAvailability'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'offline' } }, 'playerInitialAvailability'],

@@ -263,7 +263,7 @@ export class MysteryRulebookResolver implements RulebookResolver {
     return rejectRulebookResolution(characterId, action.actionType, 'action type is not afforded by the V0 Rulebook')
   }
 
-  affordances(_context: Omit<RulebookResolutionContext, 'action'>): readonly ActionAffordance[] {
+  affordances(_context: Omit<RulebookResolutionContext, 'action' | 'actionId'>): readonly ActionAffordance[] {
     return [
       { actionType: 'speak', actionVersion: 1 },
       { actionType: 'move', actionVersion: 1 },

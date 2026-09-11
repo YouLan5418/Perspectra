@@ -5,6 +5,7 @@ import {
   compareWorldText,
   deterministicId,
   failWorld,
+  resolutionAuthority,
   worldAddressKey,
   type WorldAddress,
   type WorldHash,
@@ -174,7 +175,15 @@ export class WorldKernel {
       ? this.options.store.head(this.#address)
       : { headSeq: frozenBase.headSeq, tick: frozenBase.tick }
     const history = this.options.store.readEvents(this.#address, head.headSeq)
-    const resolution = this.#rulebook.resolve({ manifest: this.#manifest, events: history, characterId: binding.characterId, action })
+    const actionId = deterministicId('action:player-round', { roundId, inboxSeq: claimed.inboxSeq })
+    const resolution = this.#rulebook.resolve({
+      manifest: this.#manifest,
+      events: history,
+      characterId: binding.characterId,
+      actionId,
+      resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
+      action,
+    })
     const committed = await this.options.store.commitRound({
       address: this.#address,
       transactionId,

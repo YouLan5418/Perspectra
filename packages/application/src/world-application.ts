@@ -7,6 +7,7 @@ import {
   compareWorldText,
   failWorld,
   hashWorldJson,
+  resolutionAuthority,
   WorldError,
   worldAddressKey,
   type CharacterId,
@@ -637,6 +638,7 @@ export class WorldApplication {
           manifest,
           events,
           characterId: binding.characterId,
+          resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
         }))
       } finally {
         store.close()
