@@ -22,7 +22,8 @@ import { join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { WorldApplication, type RoundParticipant } from '@harness-world/application'
 import { brandId, type CharacterId, type ProposalContext } from '@harness-world/contracts'
-import { tokenizeKeywordText } from '@harness-world/memory'
+import { isCjkText, tokenizeHybridText, tokenizeKeywordText } from '@harness-world/memory'
+import { cut } from 'jieba-wasm'
 import { adaptRainyRoadPack, compileRainyRoadPack, RAINY_ROAD_IDS } from '@harness-world/simulation'
 
 const [outputArgument, noiseArgument = '200'] = process.argv.slice(2)
@@ -151,11 +152,26 @@ function tokenSetOf(text: string): ReadonlySet<string> {
   return new Set(tokenizeKeywordText(text).map(token => token.token))
 }
 
+/** The token set the segmenter-backed version derives from one text. */
+function hybridTokenSetOf(text: string): ReadonlySet<string> {
+  return new Set(tokenizeHybridText(text).map(token => token.token))
+}
+
+/** The words a segmenter alone would produce, which is the variant that drops the n-gram floor. */
+function segmenterTokenSetOf(text: string): ReadonlySet<string> {
+  return new Set(cut(text, false).filter(word => isCjkText(word) && [...word].length >= 2))
+}
+
+/** How many stored utterances a token set matches over the same corpus. */
+function matchedByTokenSet(query: string, corpus: readonly string[], tokenize: (text: string) => ReadonlySet<string>): number {
+  const queryTokens = tokenize(query)
+  if (queryTokens.size === 0) return 0
+  return corpus.filter(text => [...tokenize(text)].some(token => queryTokens.has(token))).length
+}
+
 /** How many stored utterances the versioned tokenizer would match over the same corpus. */
 function matchedByNgrams(query: string, corpus: readonly string[]): number {
-  const queryTokens = tokenSetOf(query)
-  if (queryTokens.size === 0) return 0
-  return corpus.filter(text => [...tokenSetOf(text)].some(token => queryTokens.has(token))).length
+  return matchedByTokenSet(query, corpus, tokenSetOf)
 }
 
 /** What the character actually received in the last Round: the Recall segment as the model saw it. */
@@ -218,6 +234,8 @@ try {
       stage: 'preview', query,
       frozenMatch: diagnostics.matchedCount,
       ngramMatch: matchedByNgrams(query, corpus),
+      segmenterOnlyMatch: matchedByTokenSet(query, corpus, segmenterTokenSetOf),
+      hybridMatch: matchedByTokenSet(query, corpus, hybridTokenSetOf),
     })
   }
 
