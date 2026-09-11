@@ -544,6 +544,10 @@ standard 为默认。Profile 不改变权限；deep 只包含更多已授权内�
 3. 近期：完整 InteractionBlock、Scene 次要细节；
 4. 长期：Recall 和低相关历史摘要。
 
+裁剪由两级执行。Context Profile 的条数上限先按其数值裁剪，记 `profile_capacity`。渲染为精确请求后仍超出 `min(Context Profile 上限, Model Profile 上限)` 时，再按上面的优先级逐项放弃第四级、然后第三级的内容，记 `budget_trimmed`，直到请求放得下；可放弃项耗尽仍超限才降级参与者。未发生体积裁剪时，组装与渲染结果与不启用该机制完全一致。放弃单位是整条 Recall 结果或整块 InteractionBlock，块内 observation 不截断。
+
+本结构下"Scene 次要细节"没有可放弃项：Scene 段是固定结构（编号、成员、观察者、可见结果与决策 Hash），成员名单属第 2 级"Scene 核心"，因此当前只实现 Recall 与 InteractionBlock 两级的体积裁剪。Recall 的条数上限按 `min(实际召回条数, Context Profile recallResults)` 计算，超出这个范围的候选由记忆侧 SQL 限制决定，不在 Context 裁剪范围内。
+
 Model Profile 由 Host 控制 provider/model/context window/output reserve/safety reserve/token counter/renderer/tool schema/timeout/sampling/cache/`providerUserPartitionPolicyId`；Pack 只能选择 logical profile。`providerUserPartitionPolicyId` 表示 Provider 侧稳定、伪名化的业务 Principal 分区策略，不得直接使用 NPC/Character ID 充当外部用户身份。渲染后使用精确 Token Counter 或注册保守上界再次验证。必需内容或输出预留超限时参与者降级，不截断 JSON 或请求 Provider 自己报错。
 
 Context Profile 与 Model Profile 不兼容时返回 `MODEL_PROFILE_INCOMPATIBLE`，不静默降档。Phase 8 Scripted Provider 使用固定测试 Counter；真实模型 Counter 留到 Phase 11。

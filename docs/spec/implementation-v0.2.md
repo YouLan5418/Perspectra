@@ -264,7 +264,7 @@ Provider 支持强制 Tool Choice 时强制调用；不支持时使用严格 JSO
 
 ProposalAttempt 保存 modelCallId、contextHash、profileVersion、budgetDecisionId、responseHash 和终态，不默认保存完整 Prompt/Response。ActionRequest 是最终世界输入；历史重放不调用 Agent。
 
-最小安全上下文超过模型窗口时不静默删除 Current View、ReactionView 或 Critical Observation，而是返回 <code>CONTEXT_WINDOW_EXCEEDED</code>，该 NPC 本轮 unavailable。
+最小安全上下文超过模型窗口时先按冻结的裁剪优先级放弃非必需内容：第四级 Recall 与低相关历史摘要在前，第三级完整 InteractionBlock 与 Scene 次要细节在后。每次放弃以 <code>budget_trimmed</code> 记入 ContextReceipt，原始来源永久保留。只有第一、二级必需内容本身就超限时才返回 <code>CONTEXT_WINDOW_EXCEEDED</code>，该 NPC 本轮 unavailable。
 
 ## 7. 行动排序、冲突和原子性
 
@@ -467,7 +467,7 @@ Session Compaction 只生成带 source delivery range、Observation IDs、min/ma
 
 V0 只实现 TURN_DRIVEN，激活后锁定。每个已受理且非重复的玩家世界输入产生一个 Round 和一个 Tick；无效传输、未授权请求、行政事务、Genesis、fork 不推进 Tick。领域 rejected Action 已经消耗世界回合，因此仍推进 Tick。
 
-角色领域状态为 active、incapacitated、dead、departed；运行可用性为 provisioning、ready、session_lag、model_unavailable、budget_unavailable、offline、disabled。二者不互相伪装。
+角色领域状态为 active、incapacitated、dead、departed；运行可用性为 provisioning、ready、session_lag、model_unavailable、budget_unavailable、offline、disabled。二者不互相伪装。运行时产生的状态是临时的：处于 <code>session_lag</code> 的角色仍进入调度并在每一轮重新尝试准备，成功即自动回到 <code>ready</code>；只有 Host 设定的 provisioning、offline、disabled 持续拦住调度。
 
 创建、生命周期变化、复活和离场全部事件化。死亡不删除 Character、Session、Memory 或 PlayerBinding；普通行动由 Affordance 拒绝。新 NPC 提交后异步 Provision Session，ready 前存在于世界但不参与模型提案。用户断开不是世界事件。
 
