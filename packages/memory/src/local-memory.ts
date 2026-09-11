@@ -5,6 +5,8 @@ import {
   deterministicId,
   failWorld,
   hashWorldJson,
+  RECALL_KEYWORD_STRATEGY_ID,
+  RECALL_KEYWORD_TOKENIZER_ID,
   worldAddressKey,
   type CognitiveEpistemicKind,
   type CognitiveMemoryEntry,
@@ -12,17 +14,23 @@ import {
   type CognitiveMemoryReceipt,
   type CognitiveMemoryWatermark,
   type CognitiveRecallResult,
+  type CognitiveRecallResultV2,
   type CharacterId,
   type CharacterView,
   type ContextSourceRef,
   type ExtractiveL1Summary,
+  type RecallExclusionReasonV2,
+  type RecallKeywordRanking,
   type RecallQueryPlan,
+  type RecallQueryPlanV2,
   type RecallReceipt,
+  type RecallReceiptV2,
   type WorldAddress,
   type WorldHash,
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
+import { tokenizeKeywordText, type KeywordToken } from './ngram-tokenizer.ts'
 import {
   CognitionProjectionRebuilder,
   CharacterViewBuilder,
@@ -166,7 +174,27 @@ CREATE TABLE cognitive_memory_v2_recall_receipts (
 ) STRICT;
 `
 
-export const MEMORY_SCHEMA_VERSION = 5
+/**
+ * Versioned keyword index. Terms are a pure function of a captured entry's text, so the index is
+ * derived and disposable: it can always be rebuilt from the sources at the same as-of. The namespace
+ * row records which tokenizer built it, so a namespace indexed by an older tokenizer is rebuilt once
+ * instead of being matched with stale boundaries.
+ */
+const MEMORY_COGNITIVE_V2_KEYWORD_SCHEMA = `
+CREATE TABLE cognitive_memory_v2_terms (
+  namespace_key TEXT NOT NULL,
+  memory_id TEXT NOT NULL,
+  token TEXT NOT NULL,
+  token_kind TEXT NOT NULL CHECK(token_kind IN ('cjk-2', 'cjk-3', 'word')),
+  token_weight INTEGER NOT NULL CHECK(token_weight > 0),
+  source_seq INTEGER NOT NULL CHECK(source_seq >= 0),
+  PRIMARY KEY(namespace_key, memory_id, token)
+) STRICT;
+CREATE INDEX cognitive_memory_v2_terms_lookup ON cognitive_memory_v2_terms(namespace_key, token);
+ALTER TABLE cognitive_memory_v2_namespaces ADD COLUMN terms_tokenizer_id TEXT;
+`
+
+export const MEMORY_SCHEMA_VERSION = 6
 
 export const TENCENTDB_MEMORY_ENABLED = false
 
@@ -328,19 +356,27 @@ export class LocalMemoryStore {
       { version: 2, sql: MEMORY_RECONCILE_SCHEMA },
       { version: 3, sql: MEMORY_COGNITIVE_JOB_SCHEMA },
       { version: 4, sql: MEMORY_GOAL_SOURCE_SCHEMA },
-      { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_COGNITIVE_V2_SCHEMA },
+      { version: 5, sql: MEMORY_COGNITIVE_V2_SCHEMA },
+      { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_COGNITIVE_V2_KEYWORD_SCHEMA },
     ])
     this.#worldStore = worldStore
     this.#viewBuilder = new CharacterViewBuilder(worldStore)
   }
 
-  /** Rebuild, verify, capture, summarize, and receipt one Phase 8 character namespace at an exact World prefix. */
+  /**
+   * Rebuild, verify, capture, summarize, and receipt one Phase 8 character namespace at an exact World prefix.
+   *
+   * `keywordIndex` is set only by a world that declared the versioned keyword strategy. A world that did
+   * not keeps paying nothing for an index it never queries, and the index is built from the same captured
+   * sources inside this transaction, so it stays derived and reproducible.
+   */
   catchUpV2(
     address: WorldAddress,
     characterId: CharacterId,
     requiredAsOfSeq: number,
     correlationId: string,
     heartbeat?: () => void,
+    options?: { readonly keywordIndex?: boolean },
   ): CognitiveMemoryReceipt {
     if (!Number.isSafeInteger(requiredAsOfSeq) || requiredAsOfSeq < 0) {
       throw new RangeError('requiredAsOfSeq must be a non-negative safe integer')
@@ -411,6 +447,7 @@ export class LocalMemoryStore {
           source_map_hash = excluded.source_map_hash,
           source_bundle_hash = excluded.source_bundle_hash
       `).run(key, requiredAsOfSeq, requiredAsOfSeq, memoryEpoch, sourceMapHash, sourceBundleHash)
+      if (options?.keywordIndex === true) this.#ensureV2KeywordIndex(key, rows)
       const receiptId = deterministicId('cognitive-memory-receipt/v2', { address, characterId, requiredAsOfSeq, memoryEpoch })
       const receiptInput = {
         schemaVersion: 'cognitive-memory-receipt/v2' as const,
@@ -458,22 +495,45 @@ export class LocalMemoryStore {
       selectedSourceRefs, ranking, exclusionReasons: [] as const,
     }
     const receipt: RecallReceipt = { ...receiptInput, receiptHash: hashWorldJson('recall-receipt/v1', receiptInput) }
-    this.#db.exec('BEGIN IMMEDIATE')
-    try {
-      const existing = this.#db.prepare(`
-        SELECT receipt_hash FROM cognitive_memory_v2_recall_receipts WHERE receipt_id = ?
-      `).get(receiptId) as { receipt_hash: WorldHash } | undefined
-      if (existing !== undefined && existing.receipt_hash !== receipt.receiptHash) {
-        this.#unverifiedV2(plan.address, `recall:${plan.planId}`, 'Recall receipt identity is bound to another result')
-      }
-      this.#db.prepare(`
-        INSERT OR IGNORE INTO cognitive_memory_v2_recall_receipts(receipt_id, namespace_key, as_of_seq, receipt_hash, receipt_json)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(receiptId, key, plan.asOfWorldSeq, receipt.receiptHash, worldJsonText(receipt))
-      this.#db.exec('COMMIT')
-    } catch (error: unknown) {
-      rollbackAndThrow(this.#db, error)
+    this.#persistV2RecallReceipt(key, plan, receipt)
+    return { memories, receipt }
+  }
+
+  /**
+   * Recall through the versioned keyword strategy: any query token matches, then candidates rank by an
+   * integer relevance computed only from this namespace and as-of prefix. The result limit stays a hard
+   * limit, and the v2 receipt records how many matching candidates it withheld.
+   */
+  recallKeywords(plan: RecallQueryPlanV2): CognitiveRecallResultV2 {
+    const { key, watermark } = this.#assertV2KeywordPlan(plan)
+    const queryTokens = tokenizeKeywordText(plan.queryText)
+    const candidates = queryTokens.length === 0
+      ? []
+      : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens)
+    const selected = candidates.slice(0, plan.resultLimit)
+    const memories = this.#readV2KeywordEntries(key, selected.map(candidate => candidate.memoryId))
+    const ranking: RecallKeywordRanking[] = selected.map((candidate, index) => ({
+      memoryId: candidate.memoryId, rank: index + 1, score: candidate.score,
+      matchedTokens: candidate.matchedTokens, sourceRef: candidate.sourceRef,
+    }))
+    const receiptInput = {
+      schemaVersion: 'recall-receipt/v2' as const,
+      receiptId: deterministicId('recall-receipt/v2', {
+        address: plan.address, characterId: plan.characterId, planId: plan.planId,
+      }),
+      planHash: hashWorldJson('recall-query-plan/v2', plan),
+      strategyId: plan.strategyId, tokenizerId: plan.tokenizerId,
+      dictionaryEnabled: plan.dictionaryEnabled, dictionaryWatermark: plan.dictionaryWatermark,
+      watermark, matchedCount: candidates.length,
+      droppedByResultLimit: candidates.length - selected.length,
+      selectedSourceRefs: memories.map(memory => memory.sourceRef), ranking,
+      exclusionReasons: (candidates.length === 0
+        ? ['no_match']
+        : candidates.length > selected.length ? ['result_limit'] : []) as readonly RecallExclusionReasonV2[],
+      resultHash: hashWorldJson('cognitive-memory-recall-result/v3', { memories, ranking }),
     }
+    const receipt: RecallReceiptV2 = { ...receiptInput, receiptHash: hashWorldJson('recall-receipt/v2', receiptInput) }
+    this.#persistV2RecallReceipt(key, plan, receipt)
     return { memories, receipt }
   }
 
@@ -481,13 +541,48 @@ export class LocalMemoryStore {
    * Report how many candidates one Recall plan matches before its result limit is applied. Nothing durable
    * records the candidates a limited Recall drops, so this is how that gap is measured instead of guessed.
    */
-  recallDiagnostics(plan: RecallQueryPlan): RecallCandidateDiagnostics {
+  recallDiagnostics(plan: RecallQueryPlan | RecallQueryPlanV2): RecallCandidateDiagnostics {
+    if (plan.schemaVersion === 'recall-query-plan/v2') {
+      const { key } = this.#assertV2KeywordPlan(plan)
+      const queryTokens = tokenizeKeywordText(plan.queryText)
+      return {
+        schemaVersion: 'recall-candidates/v1', address: plan.address, characterId: plan.characterId,
+        asOfWorldSeq: plan.asOfWorldSeq, query: plan.queryText, limit: plan.resultLimit,
+        matchedCount: queryTokens.length === 0
+          ? 0
+          : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens).length,
+      }
+    }
     const { key } = this.#assertV2RecallPlan(plan)
     const terms = recallTerms(plan.query)
     const matchedCount = terms.length === 0 ? 0 : this.#countV2Recall(key, terms, plan.asOfWorldSeq)
     return {
       schemaVersion: 'recall-candidates/v1', address: plan.address, characterId: plan.characterId,
       asOfWorldSeq: plan.asOfWorldSeq, query: plan.query, matchedCount, limit: plan.limit,
+    }
+  }
+
+  /** Append one Recall receipt once, failing closed when the same identity already holds another result. */
+  #persistV2RecallReceipt(
+    key: string,
+    plan: { readonly planId: string; readonly address: WorldAddress; readonly asOfWorldSeq: number },
+    receipt: { readonly receiptId: string; readonly receiptHash: WorldHash },
+  ): void {
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      const existing = this.#db.prepare(`
+        SELECT receipt_hash FROM cognitive_memory_v2_recall_receipts WHERE receipt_id = ?
+      `).get(receipt.receiptId) as { receipt_hash: WorldHash } | undefined
+      if (existing !== undefined && existing.receipt_hash !== receipt.receiptHash) {
+        this.#unverifiedV2(plan.address, `recall:${plan.planId}`, 'Recall receipt identity is bound to another result')
+      }
+      this.#db.prepare(`
+        INSERT OR IGNORE INTO cognitive_memory_v2_recall_receipts(receipt_id, namespace_key, as_of_seq, receipt_hash, receipt_json)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(receipt.receiptId, key, plan.asOfWorldSeq, receipt.receiptHash, worldJsonText(receipt))
+      this.#db.exec('COMMIT')
+    } catch (error: unknown) {
+      rollbackAndThrow(this.#db, error)
     }
   }
 
@@ -547,13 +642,15 @@ export class LocalMemoryStore {
       this.#db.prepare(`DELETE FROM cognitive_memory_v2_summaries WHERE namespace_key = ?`).run(key)
       this.#db.prepare(`DELETE FROM cognitive_memory_v2_receipts WHERE namespace_key = ?`).run(key)
       this.#db.prepare(`DELETE FROM cognitive_memory_v2_recall_receipts WHERE namespace_key = ?`).run(key)
+      this.#db.prepare(`DELETE FROM cognitive_memory_v2_terms WHERE namespace_key = ?`).run(key)
       this.#db.prepare(`
         INSERT INTO cognitive_memory_v2_namespaces(
           namespace_key, verified_through_seq, captured_through_seq, memory_epoch, source_map_hash, source_bundle_hash
         ) VALUES (?, 0, 0, ?, ?, ?)
         ON CONFLICT(namespace_key) DO UPDATE SET
           verified_through_seq = 0, captured_through_seq = 0, memory_epoch = excluded.memory_epoch,
-          source_map_hash = excluded.source_map_hash, source_bundle_hash = excluded.source_bundle_hash
+          source_map_hash = excluded.source_map_hash, source_bundle_hash = excluded.source_bundle_hash,
+          terms_tokenizer_id = NULL
       `).run(key, nextEpoch, emptyHash, emptyHash)
       this.#db.exec('COMMIT')
       return nextEpoch
@@ -1016,6 +1113,191 @@ export class LocalMemoryStore {
       sourceRef: { sourceKind: 'world_event', sourceId: row.source_id, sourceSeq: row.source_seq, sourceHash: row.source_hash },
       captureHash: row.capture_hash,
     }))
+  }
+
+  /**
+   * Keep the keyword index in step with the captured sources. A namespace whose marker names another
+   * tokenizer is rebuilt once; otherwise only entries that have no terms yet are tokenized, so a normal
+   * catch-up never rewrites terms that are already correct.
+   */
+  #ensureV2KeywordIndex(key: string, rows: readonly CognitiveMemoryEntry[]): void {
+    if (this.#v2TermsTokenizer(key) !== RECALL_KEYWORD_TOKENIZER_ID) {
+      this.#db.prepare(`DELETE FROM cognitive_memory_v2_terms WHERE namespace_key = ?`).run(key)
+      for (const entry of rows) {
+        this.#insertV2Terms(key, entry.memoryId, entry.sourceRef.sourceSeq, entry.text)
+      }
+    } else {
+      const missing = this.#db.prepare(`
+        SELECT s.memory_id, s.source_seq, s.text_value FROM cognitive_memory_v2_sources s
+        WHERE s.namespace_key = ? AND NOT EXISTS (
+          SELECT 1 FROM cognitive_memory_v2_terms t
+          WHERE t.namespace_key = s.namespace_key AND t.memory_id = s.memory_id
+        )
+      `).all(key) as Array<{ memory_id: string; source_seq: number; text_value: string }>
+      for (const row of missing) this.#insertV2Terms(key, row.memory_id, row.source_seq, row.text_value)
+    }
+    this.#db.prepare(`UPDATE cognitive_memory_v2_namespaces SET terms_tokenizer_id = ? WHERE namespace_key = ?`)
+      .run(RECALL_KEYWORD_TOKENIZER_ID, key)
+  }
+
+  #insertV2Terms(key: string, memoryId: string, sourceSeq: number, text: string): void {
+    const insert = this.#db.prepare(`
+      INSERT OR IGNORE INTO cognitive_memory_v2_terms(namespace_key, memory_id, token, token_kind, token_weight, source_seq)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `)
+    for (const token of tokenizeKeywordText(text)) {
+      insert.run(key, memoryId, token.token, token.kind, token.weight, sourceSeq)
+    }
+  }
+
+  /** Which tokenizer built the terms of this namespace, or `null` when the index was never built. */
+  #v2TermsTokenizer(key: string): string | null {
+    const row = this.#db.prepare(`SELECT terms_tokenizer_id FROM cognitive_memory_v2_namespaces WHERE namespace_key = ?`)
+      .get(key) as { terms_tokenizer_id: string | null } | undefined
+    return row?.terms_tokenizer_id ?? null
+  }
+
+  #countV2Documents(key: string, asOfWorldSeq: number): number {
+    const row = this.#db.prepare(`
+      SELECT COUNT(*) AS total FROM cognitive_memory_v2_sources WHERE namespace_key = ? AND source_seq <= ?
+    `).get(key, asOfWorldSeq) as { total: number }
+    return row.total
+  }
+
+  /**
+   * Match candidates and rank them with statistics taken only from this namespace and as-of prefix, so
+   * another character's text or a later event cannot change this result. A token's rarity inside the
+   * prefix is what separates an entry that is about the query from one that merely shares a common word.
+   */
+  #readV2KeywordCandidates(
+    key: string,
+    asOfWorldSeq: number,
+    queryTokens: readonly KeywordToken[],
+  ): readonly {
+    readonly memoryId: string
+    readonly score: number
+    readonly matchedTokens: readonly string[]
+    readonly sourceRef: ContextSourceRef
+  }[] {
+    const documentCount = this.#countV2Documents(key, asOfWorldSeq)
+    const placeholders = queryTokens.map(() => '?').join(', ')
+    const rows = this.#db.prepare(`
+      SELECT t.memory_id, t.token, s.source_id, s.source_seq, s.source_hash
+      FROM cognitive_memory_v2_terms t
+      JOIN cognitive_memory_v2_sources s
+        ON s.namespace_key = t.namespace_key AND s.memory_id = t.memory_id
+      WHERE t.namespace_key = ? AND t.source_seq <= ? AND t.token IN (${placeholders})
+    `).all(key, asOfWorldSeq, ...queryTokens.map(token => token.token)) as Array<{
+      memory_id: string
+      token: string
+      source_id: string
+      source_seq: number
+      source_hash: WorldHash
+    }>
+    const weights = new Map(queryTokens.map(token => [token.token, token.weight]))
+    const documentsByToken = new Map<string, Set<string>>()
+    const matched = new Map<string, {
+      tokens: string[]
+      sourceId: string
+      sourceSeq: number
+      sourceHash: WorldHash
+    }>()
+    for (const row of rows) {
+      const documentIds = documentsByToken.get(row.token) ?? new Set<string>()
+      documentIds.add(row.memory_id)
+      documentsByToken.set(row.token, documentIds)
+      const document = matched.get(row.memory_id)
+      if (document === undefined) {
+        matched.set(row.memory_id, {
+          tokens: [row.token], sourceId: row.source_id, sourceSeq: row.source_seq, sourceHash: row.source_hash,
+        })
+      } else {
+        document.tokens.push(row.token)
+      }
+    }
+    return [...matched.entries()].map(([memoryId, document]) => ({
+      memoryId,
+      matchedTokens: [...document.tokens].sort(compareWorldText),
+      score: document.tokens.reduce((total, token) => total
+        + (documentCount + 1 - documentsByToken.get(token)!.size) * weights.get(token)!, 0),
+      sourceRef: {
+        sourceKind: 'world_event' as const, sourceId: document.sourceId,
+        sourceSeq: document.sourceSeq, sourceHash: document.sourceHash,
+      },
+    // Relevance, then recent first, then the canonical text order. Three stable passes rather than one
+    // chained comparator, because a chain would hide its last key behind two keys that never both tie.
+    })).sort((left, right) => compareWorldText(left.memoryId, right.memoryId))
+      .sort((left, right) => right.sourceRef.sourceSeq - left.sourceRef.sourceSeq)
+      .sort((left, right) => right.score - left.score)
+  }
+
+  /** Read the selected entries in ranking order. Every identity came from the term join above. */
+  #readV2KeywordEntries(key: string, memoryIds: readonly string[]): CognitiveMemoryEntry[] {
+    if (memoryIds.length === 0) return []
+    const placeholders = memoryIds.map(() => '?').join(', ')
+    const rows = this.#db.prepare(`
+      SELECT memory_id, memory_kind, epistemic_kind, text_value, metadata_json,
+             source_id, source_seq, source_hash, capture_hash
+      FROM cognitive_memory_v2_sources WHERE namespace_key = ? AND memory_id IN (${placeholders})
+    `).all(key, ...memoryIds) as Array<{
+      memory_id: string
+      memory_kind: CognitiveMemoryKind
+      epistemic_kind: Exclude<CognitiveEpistemicKind, 'derived_summary'>
+      text_value: string
+      metadata_json: string
+      source_id: string
+      source_seq: number
+      source_hash: WorldHash
+      capture_hash: WorldHash
+    }>
+    const byId = new Map(rows.map(row => [row.memory_id, row]))
+    return memoryIds.map(memoryId => {
+      const row = byId.get(memoryId)!
+      return {
+        memoryId: row.memory_id, memoryKind: row.memory_kind, epistemicKind: row.epistemic_kind,
+        text: row.text_value, metadata: parseWorldJson(row.metadata_json),
+        sourceRef: {
+          sourceKind: 'world_event', sourceId: row.source_id,
+          sourceSeq: row.source_seq, sourceHash: row.source_hash,
+        },
+        captureHash: row.capture_hash,
+      }
+    })
+  }
+
+  /**
+   * Validate a keyword plan and refuse one whose namespace has no keyword index. An unbuilt index means a
+   * world declared the strategy without a catch-up building it, so this degrades the participant for the
+   * Round instead of quietly returning an empty Recall that looks like "nothing was remembered".
+   */
+  #assertV2KeywordPlan(
+    plan: RecallQueryPlanV2,
+  ): { readonly key: string; readonly watermark: CognitiveMemoryWatermark } {
+    if (!Number.isSafeInteger(plan.asOfWorldSeq) || plan.asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
+    if (!Number.isSafeInteger(plan.resultLimit) || plan.resultLimit <= 0) throw new RangeError('resultLimit must be a positive safe integer')
+    if (plan.strategyId !== RECALL_KEYWORD_STRATEGY_ID) throw new TypeError('strategyId is unsupported')
+    if (plan.tokenizerId !== RECALL_KEYWORD_TOKENIZER_ID) throw new TypeError('tokenizerId is unsupported')
+    if (plan.dictionaryEnabled !== false) throw new TypeError('the keyword dictionary is not implemented')
+    const key = namespace(plan.address, plan.characterId)
+    if (this.#v2TermsTokenizer(key) !== RECALL_KEYWORD_TOKENIZER_ID) {
+      failWorld({
+        errorCode: 'MEMORY_CATCHUP_FAILED', category: 'runtime',
+        message: 'Cognitive Memory keyword index has not been built for this namespace', retryable: true,
+        correlationId: `recall:${plan.planId}`, address: plan.address,
+        details: { characterId: plan.characterId },
+      })
+    }
+    const watermark = this.cognitiveWatermark(plan.address, plan.characterId)
+    if (watermark === undefined || watermark.verifiedThroughSeq < plan.asOfWorldSeq
+      || watermark.capturedThroughSeq < plan.asOfWorldSeq) {
+      failWorld({
+        errorCode: 'MEMORY_CATCHUP_FAILED', category: 'runtime',
+        message: 'Cognitive Memory has not reached the required as-of sequence', retryable: true,
+        correlationId: `recall:${plan.planId}`, address: plan.address,
+        details: { characterId: plan.characterId, requiredAsOfSeq: plan.asOfWorldSeq },
+      })
+    }
+    return { key, watermark }
   }
 
   #replaceV2Summaries(

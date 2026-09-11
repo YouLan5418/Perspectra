@@ -1,4 +1,4 @@
-import { compareWorldText } from '@harness-world/contracts'
+import { compareWorldText, RECALL_KEYWORD_TOKENIZER_ID } from '@harness-world/contracts'
 
 /**
  * Versioned keyword tokenizer for Cognitive Memory recall.
@@ -15,7 +15,7 @@ import { compareWorldText } from '@harness-world/contracts'
  * Token boundaries are part of the frozen identifier: changing them changes Recall results, so a new
  * identifier is required and existing plans keep using the previous path.
  */
-export const KEYWORD_TOKENIZER_ID = 'cjk-ngram/v1'
+export const KEYWORD_TOKENIZER_ID = RECALL_KEYWORD_TOKENIZER_ID
 
 /** Shortest and longest CJK token this tokenizer produces. Single characters are deliberately absent. */
 export const CJK_NGRAM_MINIMUM = 2

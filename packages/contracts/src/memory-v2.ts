@@ -94,3 +94,74 @@ export interface ExtractiveL1Summary extends WorldJsonObject {
   readonly algorithmId: 'deterministic-extractive-l1/v1'
   readonly summaryHash: WorldHash
 }
+
+/**
+ * Identifiers of the versioned keyword Recall path. The contract names the versions; the Memory
+ * package implements them. An unknown identifier fails closed instead of falling back to another rule.
+ */
+export const RECALL_KEYWORD_STRATEGY_ID = 'cjk-ngram-stable/v1'
+export const RECALL_KEYWORD_TOKENIZER_ID = 'cjk-ngram/v1'
+export type RecallKeywordStrategyId = typeof RECALL_KEYWORD_STRATEGY_ID
+export type RecallKeywordTokenizerId = typeof RECALL_KEYWORD_TOKENIZER_ID
+
+/**
+ * Recall plan v2, coexisting with v1. A world that has not declared the new strategy keeps using v1,
+ * so its existing receipts stay rebuildable and an upgrade cannot change an already-prepared Round.
+ *
+ * `dictionaryEnabled` declares that the versioned proper-noun dictionary participates in ranking.
+ * Until that dictionary exists the Memory package rejects `true` rather than accepting a plan whose
+ * behaviour it cannot honour; the field is part of the shape now so the receipt format does not have
+ * to change when the dictionary lands.
+ */
+export interface RecallQueryPlanV2 extends WorldJsonObject {
+  readonly schemaVersion: 'recall-query-plan/v2'
+  readonly planId: string
+  readonly address: WorldAddress
+  readonly characterId: CharacterId
+  readonly asOfWorldSeq: number
+  readonly queryText: string
+  readonly strategyId: RecallKeywordStrategyId
+  readonly tokenizerId: RecallKeywordTokenizerId
+  readonly dictionaryEnabled: boolean
+  readonly dictionaryWatermark: number | null
+  readonly resultLimit: number
+}
+
+/** Why the keyword strategy withheld something a caller might have expected. */
+export const RECALL_EXCLUSION_REASONS_V2 = Object.freeze(['no_match', 'result_limit'] as const)
+export type RecallExclusionReasonV2 = typeof RECALL_EXCLUSION_REASONS_V2[number]
+
+export interface RecallKeywordRanking extends WorldJsonObject {
+  readonly memoryId: string
+  readonly rank: number
+  /** Integer relevance from this namespace and as-of prefix only; larger means more relevant. */
+  readonly score: number
+  readonly matchedTokens: readonly string[]
+  readonly sourceRef: ContextSourceRef
+}
+
+/** Recall receipt v2. It records what the result limit hid, which the v1 shape had no field for. */
+export interface RecallReceiptV2 extends WorldJsonObject {
+  readonly schemaVersion: 'recall-receipt/v2'
+  readonly receiptId: string
+  readonly planHash: WorldHash
+  readonly strategyId: RecallKeywordStrategyId
+  readonly tokenizerId: RecallKeywordTokenizerId
+  readonly dictionaryEnabled: boolean
+  readonly dictionaryWatermark: number | null
+  readonly watermark: CognitiveMemoryWatermark
+  /** Candidates that matched at least one query token, before the result limit was applied. */
+  readonly matchedCount: number
+  /** Candidates the result limit withheld; zero when everything that matched was returned. */
+  readonly droppedByResultLimit: number
+  readonly selectedSourceRefs: readonly ContextSourceRef[]
+  readonly ranking: readonly RecallKeywordRanking[]
+  readonly exclusionReasons: readonly RecallExclusionReasonV2[]
+  readonly resultHash: WorldHash
+  readonly receiptHash: WorldHash
+}
+
+export interface CognitiveRecallResultV2 extends WorldJsonObject {
+  readonly memories: readonly CognitiveMemoryEntry[]
+  readonly receipt: RecallReceiptV2
+}
