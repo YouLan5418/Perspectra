@@ -78,6 +78,7 @@ import {
 import { type CognitiveMemoryService, type CognitiveProposalContext, type MemorySourceRef } from '@harness-world/memory'
 import type { SceneActionAudience, SceneDecision, SceneDecisionService } from './scene-decision.ts'
 import type { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
+import { availabilityRecovery, retryableAvailability } from './runtime-availability.ts'
 import type { Phase8ContextPipeline } from './context-pipeline.ts'
 
 export type RoundParticipantRole = 'agent' | 'director'
@@ -1027,8 +1028,7 @@ export class RoundCoordinator {
         continue
       }
       const availabilityState = this.options.availability.get(this.#address, binding.actorId)?.state
-      if (availabilityState !== 'ready'
-        && !(availabilityState === 'provider_output_invalid' && this.options.providerQuality !== undefined)) {
+      if (!retryableAvailability(availabilityState, this.options.providerQuality !== undefined)) {
         frozen.push({ binding, status: 'runtime_unavailable', proposal: { participantId: binding.participantId, actions: [] } })
         continue
       }
@@ -1256,7 +1256,7 @@ export class RoundCoordinator {
         }
         frozen.push(this.#frozen(
           binding, 'proposed', proposal, cognitive,
-          availabilityState === 'provider_output_invalid' ? { state: 'ready', reason: null } : undefined,
+          availabilityRecovery(availabilityState),
           reflection, providerCall, providerQuality,
         ))
       } catch (error: unknown) {

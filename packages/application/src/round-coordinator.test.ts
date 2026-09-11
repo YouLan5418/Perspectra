@@ -1509,6 +1509,68 @@ describe('RoundCoordinator', () => {
     quality.close()
   })
 
+  it('retries a lagging participant once its Context preparation succeeds and returns it to ready', async () => {
+    const path = database('phase8-availability-recovery.sqlite')
+    const compiled = phase8SceneWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const address = compiled.manifest.address
+    const npcId = brandId('character:npc', 'CharacterId')
+    let providerCalls = 0
+    let preparationFails = true
+    const npc = participant('agent:recovery', 'agent', 1, provider(() => {
+      providerCalls += 1
+      return { participantId: 'agent:recovery', actions: [] }
+    }))
+    const configured = options(path, compiled, [npc])
+    configured.availability.set(address, npcId, 'session_lag', 'Memory catch-up is behind')
+    configured.availability.set(address, brandId('character:other', 'CharacterId'), 'disabled', 'Host removed it')
+    const sceneDecision = new SceneDecisionService(configured.store, configured.availability, 2)
+    const decision = sceneDecision.decide(address, brandId('character:player', 'CharacterId'), configured.store.head(address).headSeq)
+    expect(decision.schedulableCharacterIds).toContain(npcId)
+    expect(decision.schedulableCharacterIds).not.toContain(brandId('character:other', 'CharacterId'))
+    const contextPipeline = {
+      prepare: (
+        binding: RoundParticipant, context: ProposalContext, _history: unknown, _decision: unknown,
+        _asOf: number, heartbeat: () => void,
+      ) => {
+        heartbeat()
+        if (preparationFails) throw new Error('context offline')
+        return {
+          providerContext: {
+            ...context, agentContextVersion: 2, participantId: binding.participantId,
+            contextReceiptId: 'receipt:recovery', contextHash: hashWorldJson('context', { recovery: true }),
+            providerRequestHash: hashWorldJson('provider', { recovery: true }),
+            exactProviderRequest: {
+              schemaVersion: 'structured-provider-request/v1', model: 'scripted', messages: [], tools: {},
+              sampling: {}, user: 'opaque',
+            },
+          },
+          receipt: {
+            receiptId: 'receipt:recovery', contextHash: hashWorldJson('context', { recovery: true }),
+            providerRequestHash: hashWorldJson('provider', { recovery: true }),
+          },
+          memorySourceRefs: [], recallResultHash: hashWorldJson('recall', {}),
+        }
+      },
+    } as never
+    const coordinator = new RoundCoordinator({ ...configured, sceneDecision, contextPipeline })
+    const request = {
+      principalId: 'principal:player', action: { actionType: 'speak', parameters: { text: 'go' } },
+      correlationId: 'recovery',
+    }
+    try {
+      await coordinator.submit({ ...request, idempotencyKey: 'recovery-fail' })
+      expect(providerCalls).toBe(0)
+      expect(configured.availability.get(address, npcId)).toMatchObject({ state: 'session_lag' })
+      preparationFails = false
+      await coordinator.submit({ ...request, idempotencyKey: 'recovery-succeed' })
+      expect(providerCalls).toBe(1)
+      expect(configured.availability.get(address, npcId)).toMatchObject({ state: 'ready', reason: null })
+    } finally { close(configured, coordinator) }
+  })
+
   it('degrades ordinary Phase 8 Context failures but propagates integrity failures', async () => {
     const run = async (suffix: string, failure: () => never) => {
       const path = database(`phase8-context-${suffix}.sqlite`)
