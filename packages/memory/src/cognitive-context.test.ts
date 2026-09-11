@@ -6,6 +6,7 @@ import {
   brandId,
   failWorld,
   hashWorldJson,
+  RECALL_KEYWORD_STRATEGY_ID,
   type WorldAddress,
   type WorldEventDraft,
 } from '@harness-world/contracts'
@@ -134,8 +135,39 @@ describe('CognitiveMemoryService', () => {
     world.close()
   })
 
-  it('retries a world cognitive job after failure following a committed v2 Memory receipt', async () => {
-    const { world, memory: legacy, alice, worldPath, memoryPath } = await fixture()
+  it('serves the versioned keyword strategy when the world selects it, and stays frozen when it does not', async () => {
+    const { world, memory: legacy, alice, memoryPath } = await fixture()
+    legacy.close()
+    const keyword = new CognitiveMemoryService(memoryPath, world, undefined, 2, 'cjk-ngram/v1')
+    keyword.catchUpReceipt(address(), alice, 6)
+    // The default plan generation follows the selection, so a diagnostic describes the plan in use.
+    expect(keyword.diagnoseRecall(address(), alice, 'key', 6)).toMatchObject({ matchedCount: 1, limit: 10 })
+    expect(keyword.recall(address(), alice, 'key', 6)).toMatchObject([{ text: 'secret red key' }])
+    const recalled = keyword.recallWithReceipt({
+      schemaVersion: 'recall-query-plan/v2', planId: 'recall:keyword', address: address(), characterId: alice,
+      asOfWorldSeq: 6, queryText: 'key', strategyId: RECALL_KEYWORD_STRATEGY_ID,
+      tokenizerId: 'cjk-ngram/v1', dictionaryEnabled: false, dictionaryWatermark: null, resultLimit: 2,
+    })
+    expect(recalled.receipt).toMatchObject({
+      schemaVersion: 'recall-receipt/v2', tokenizerId: 'cjk-ngram/v1', matchedCount: 1,
+    })
+    // The round path builds its own plan generation, so preparing a stimulus must select it too.
+    const prepared = keyword.prepareStimulus({
+      address: address(), roundId: brandId('round:keyword-context', 'InteractionRoundId'),
+      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 6,
+      stimulus: { entries: [{ speech: 'key' }] }, correlationId: 'prepare:keyword',
+    })
+    expect(prepared.recallPlan).toMatchObject({ schemaVersion: 'recall-query-plan/v2', tokenizerId: 'cjk-ngram/v1' })
+    expect(prepared.recall?.receipt).toMatchObject({ schemaVersion: 'recall-receipt/v2', matchedCount: 1 })
+    // The same query through a service that selected nothing keeps the frozen generation and its result.
+    const frozen = new CognitiveMemoryService(memoryPath, world, undefined, 2)
+    expect(frozen.recall(address(), alice, 'secret red key', 6)).toMatchObject([{ text: 'secret red key' }])
+    keyword.close()
+    frozen.close()
+    world.close()
+  })
+
+  it('retries a world cognitive job after failure following a committed v2 Memory receipt', async () => {    const { world, memory: legacy, alice, worldPath, memoryPath } = await fixture()
     legacy.close()
     const leases = new WriterLeaseService(worldPath)
     const lease = leases.acquire(address(), 'cognitive:v2-worker')

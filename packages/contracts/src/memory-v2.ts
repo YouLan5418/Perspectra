@@ -174,3 +174,11 @@ export interface CognitiveRecallResultV2 extends WorldJsonObject {
   readonly memories: readonly CognitiveMemoryEntry[]
   readonly receipt: RecallReceiptV2
 }
+
+/**
+ * A consumer receives whichever version the producing Memory boundary selected, so both must be
+ * handled explicitly. A plan and its receipt always share one generation: a v2 plan is answered by a v2
+ * receipt, and a mismatch is an integrity fault rather than something to reinterpret.
+ */
+export type AnyRecallQueryPlan = RecallQueryPlan | RecallQueryPlanV2
+export type AnyCognitiveRecallResult = CognitiveRecallResult | CognitiveRecallResultV2

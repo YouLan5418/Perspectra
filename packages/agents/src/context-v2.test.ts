@@ -6,17 +6,21 @@ import {
   hashInteractionBlock,
   hashInteractionTail,
   hashWorldJson,
+  RECALL_KEYWORD_STRATEGY_ID,
+  RECALL_KEYWORD_TOKENIZER_ID,
   type CharacterCognitionView,
   type CharacterContinuityCheckpoint,
   type CharacterView,
   type CognitiveMemoryEntry,
   type CognitiveRecallResult,
+  type CognitiveRecallResultV2,
   type CognitionProjectionKind,
   type CognitionProjectionRecord,
   type ContextSourceRef,
   type InteractionBlock,
   type InteractionTail,
   type RecallQueryPlan,
+  type RecallQueryPlanV2,
   type WorldAddress,
   type WorldJsonObject,
 } from '@harness-world/contracts'
@@ -150,6 +154,40 @@ function recall(memoryCount = 2, asOfWorldSeq = 20): { plan: RecallQueryPlan; re
     exclusionReasons: [] as const,
   }
   return { plan, result: { memories, receipt: { ...receiptInput, receiptHash: hashWorldJson('recall-receipt/v1', receiptInput) } } }
+}
+
+/** The versioned keyword generation, shaped exactly as the Memory boundary writes it. */
+function keywordRecall(memoryCount = 2, asOfWorldSeq = 20): {
+  plan: RecallQueryPlanV2
+  result: CognitiveRecallResultV2
+} {
+  const memories = Array.from({ length: memoryCount }, (_, index) => memory(index))
+  const plan: RecallQueryPlanV2 = {
+    schemaVersion: 'recall-query-plan/v2', planId: 'recall:context-v2:keyword', address, characterId: alice,
+    asOfWorldSeq, queryText: 'rain', strategyId: RECALL_KEYWORD_STRATEGY_ID,
+    tokenizerId: RECALL_KEYWORD_TOKENIZER_ID, dictionaryEnabled: false, dictionaryWatermark: null, resultLimit: 10,
+  }
+  const watermark = {
+    schemaVersion: 'cognitive-memory-watermark/v2' as const, address, characterId: alice,
+    verifiedThroughSeq: asOfWorldSeq, capturedThroughSeq: asOfWorldSeq, memoryEpoch: 1,
+    sourceMapHash: hashWorldJson('source-map', { asOfWorldSeq }),
+  }
+  const ranking = memories.map((entry, index) => ({
+    memoryId: entry.memoryId, rank: index + 1, score: 100 - index,
+    matchedTokens: ['rain'], sourceRef: entry.sourceRef,
+  }))
+  const receiptInput = {
+    schemaVersion: 'recall-receipt/v2' as const,
+    receiptId: 'recall-receipt:context-v2:keyword',
+    planHash: hashWorldJson('recall-query-plan/v2', plan),
+    strategyId: plan.strategyId, tokenizerId: plan.tokenizerId,
+    dictionaryEnabled: false, dictionaryWatermark: null, watermark,
+    matchedCount: memories.length, droppedByResultLimit: 0,
+    selectedSourceRefs: memories.map(entry => entry.sourceRef), ranking,
+    exclusionReasons: [] as const,
+    resultHash: hashWorldJson('cognitive-memory-recall-result/v3', { memories, ranking }),
+  }
+  return { plan, result: { memories, receipt: { ...receiptInput, receiptHash: hashWorldJson('recall-receipt/v2', receiptInput) } } }
 }
 
 function request(overrides: Partial<CharacterContextRequest> = {}): CharacterContextRequest {
@@ -365,17 +403,20 @@ describe('CharacterContextAssembler v2', () => {
   it('verifies every component and Recall receipt Hash before assembly', () => {
     const assembler = new CharacterContextAssembler()
     const baseline = request()
+    const baselineRecall = baseline.recall as CognitiveRecallResult
     const invalid: Partial<CharacterContextRequest>[] = [
       { characterView: { ...baseline.characterView, bundleHash: manifestHash } },
       { cognition: { ...baseline.cognition, bundleHash: manifestHash } },
       { sceneDecision: { ...baseline.sceneDecision, decisionHash: manifestHash } },
       { tail: { ...baseline.tail, tailHash: manifestHash } },
-      { recall: { ...baseline.recall, receipt: { ...baseline.recall.receipt, planHash: manifestHash } } },
-      { recall: { ...baseline.recall, receipt: { ...baseline.recall.receipt, queryHash: manifestHash } } },
-      { recall: { ...baseline.recall, receipt: { ...baseline.recall.receipt, resultHash: manifestHash } } },
-      { recall: { ...baseline.recall, receipt: { ...baseline.recall.receipt, receiptHash: manifestHash } } },
-      { recall: { ...baseline.recall, receipt: { ...baseline.recall.receipt, selectedSourceRefs: [] } } },
-      { recall: { ...baseline.recall, receipt: { ...baseline.recall.receipt, ranking: [] } } },
+      { recall: { ...baselineRecall, receipt: { ...baselineRecall.receipt, planHash: manifestHash } } },
+      { recall: { ...baselineRecall, receipt: { ...baselineRecall.receipt, queryHash: manifestHash } } },
+      { recall: { ...baselineRecall, receipt: { ...baselineRecall.receipt, resultHash: manifestHash } } },
+      { recall: { ...baselineRecall, receipt: { ...baselineRecall.receipt, receiptHash: manifestHash } } },
+      { recall: { ...baselineRecall, receipt: { ...baselineRecall.receipt, selectedSourceRefs: [] } } },
+      { recall: { ...baselineRecall, receipt: { ...baselineRecall.receipt, ranking: [] } } },
+      // A plan and a receipt from different generations must never be reinterpreted as one another.
+      { recall: { ...baselineRecall, receipt: keywordRecall().result.receipt as never } },
       { stimulusHash: manifestHash },
       { affordanceHash: manifestHash },
     ]
@@ -387,6 +428,37 @@ describe('CharacterContextAssembler v2', () => {
     const cp = checkpoint()
     expect(() => assembler.assemble(request({ checkpoint: { ...cp, checkpointHash: manifestHash } })))
       .toThrowError(expect.objectContaining({ envelope: expect.objectContaining({ errorCode: 'CONTEXT_SOURCE_UNVERIFIED' }) }))
+  })
+
+  it('verifies a keyword Recall receipt against the memories the Context actually uses', () => {
+    const assembler = new CharacterContextAssembler()
+    const keyword = keywordRecall(3)
+    expect(assembler.assemble(request({ recallPlan: keyword.plan, recall: keyword.result })).segments)
+      .toHaveLength(CHARACTER_CONTEXT_SEGMENT_KINDS.length)
+    const receipt = keyword.result.receipt
+    const tampered = [
+      { ...receipt, planHash: manifestHash },
+      { ...receipt, resultHash: manifestHash },
+      { ...receipt, receiptHash: manifestHash },
+      { ...receipt, selectedSourceRefs: [] },
+      // Sequential ranks that name the returned memories in the wrong order.
+      { ...receipt, ranking: [...receipt.ranking].reverse().map((entry, index) => ({ ...entry, rank: index + 1 })) },
+      // Correct order but a rank sequence that does not start at one.
+      { ...receipt, ranking: receipt.ranking.map((entry, index) => ({ ...entry, rank: index + 2 })) },
+    ]
+    for (const mutated of tampered) {
+      expect(() => assembler.assemble(request({
+        recallPlan: keyword.plan, recall: { ...keyword.result, receipt: mutated as never },
+      }))).toThrowError(expect.objectContaining({
+        envelope: expect.objectContaining({ errorCode: 'CONTEXT_SOURCE_UNVERIFIED' }),
+      }))
+    }
+    // A v2 plan answered by a v1 receipt is refused before any field comparison.
+    expect(() => assembler.assemble(request({
+      recallPlan: keyword.plan, recall: { ...keyword.result, receipt: (request()).recall.receipt as never },
+    }))).toThrowError(expect.objectContaining({
+      envelope: expect.objectContaining({ errorCode: 'CONTEXT_SOURCE_UNVERIFIED' }),
+    }))
   })
 
   it('fails instead of trimming current cognition, Checkpoint core, Scene core, or duplicate affordances', () => {

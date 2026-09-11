@@ -21,6 +21,7 @@ import {
   type FaultInjector,
   type SessionId,
   type StoredRoundAuthority,
+  type RecallTokenizerId,
   type StoredWorldEvent,
   type TransactionId,
   type WorldAddress,
@@ -43,7 +44,11 @@ import {
   type PlayerRoundResult,
   type RulebookRegistry,
 } from '@harness-world/kernel'
-import { CognitiveMemoryService, type RecallCandidateDiagnostics, type RecalledMemory } from '@harness-world/memory'
+import {
+  CognitiveMemoryService,
+  type RecallCandidateDiagnostics,
+  type RecalledMemory,
+} from '@harness-world/memory'
 import {
   ContextReceiptStore,
   ContinuityCheckpointService,
@@ -141,6 +146,14 @@ export interface WorldApplicationOptions {
   readonly rulebooks?: RulebookRegistry
   readonly memoryPath?: string
   readonly contextPath?: string
+  /**
+   * Selects the versioned keyword Recall strategy for this instance, or leaves the frozen path in place
+   * when omitted. This is an explicit, recorded selection and not a silent upgrade: the effective
+   * strategy and tokenizer are written into every Recall receipt, so a rebuild that asked for a different
+   * one fails closed instead of quietly changing what a character is shown. It stays until a world can
+   * declare the strategy in its own content.
+   */
+  readonly recallTokenizer?: RecallTokenizerId
 }
 
 export interface SubmitTextRequest {
@@ -317,7 +330,10 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       )
       cognitiveMemory = !policies.contextEnabled
         ? undefined
-        : new CognitiveMemoryService(this.options.memoryPath!, store.store, this.options.faultInjector, policies.memoryVersion)
+        : new CognitiveMemoryService(
+          this.options.memoryPath!, store.store, this.options.faultInjector, policies.memoryVersion,
+          this.options.recallTokenizer,
+        )
       if (manifestUsesPhase8Contracts(manifest) && policies.contextEnabled && policies.memoryVersion === 2) {
         contextPipeline = new Phase8ContextPipeline({
           path: this.#contextPath!, store: store.store, memory: cognitiveMemory!,
@@ -1189,7 +1205,10 @@ export class WorldApplication {
               })
             }
             const memoryVersion = manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? 2 : 1
-            const memory = new CognitiveMemoryService(this.options.memoryPath, store, this.options.faultInjector, memoryVersion)
+            const memory = new CognitiveMemoryService(
+              this.options.memoryPath, store, this.options.faultInjector, memoryVersion,
+              this.options.recallTokenizer,
+            )
             try {
               memoryVerificationHash = memory.rebuildBranch(
                 address, manifest.characters.map(character => character.characterId), world.headSeq, correlationId,

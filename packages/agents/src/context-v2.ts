@@ -16,7 +16,8 @@ import {
   type CharacterContinuityCheckpoint,
   type CharacterId,
   type CharacterView,
-  type CognitiveRecallResult,
+  type AnyCognitiveRecallResult,
+  type AnyRecallQueryPlan,
   type ContextComponentHashes,
   type ContextExclusion,
   type ContextExclusionReason,
@@ -25,7 +26,6 @@ import {
   type ContextSourceRef,
   type InteractionTail,
   type Phase8ContextProfile,
-  type RecallQueryPlan,
   type RuntimeAvailabilityState,
   type WorldAddress,
   type WorldHash,
@@ -70,8 +70,8 @@ export interface CharacterContextRequest {
   readonly tail: InteractionTail
   readonly sceneDecision: CharacterSceneContext
   readonly sceneSourceRefs: readonly ContextSourceRef[]
-  readonly recallPlan: RecallQueryPlan
-  readonly recall: CognitiveRecallResult
+  readonly recallPlan: AnyRecallQueryPlan
+  readonly recall: AnyCognitiveRecallResult
   readonly stimulus: WorldJsonValue
   readonly stimulusHash: WorldHash
   readonly stimulusSourceRefs?: readonly ContextSourceRef[]
@@ -298,6 +298,61 @@ function withoutHash<T extends WorldJsonObject>(value: T, key: keyof T): WorldJs
   return Object.fromEntries(Object.entries(value).filter(([entryKey]) => entryKey !== key))
 }
 
+function failRecallIntegrity(request: CharacterContextRequest): never {
+  failWorld({
+    errorCode: 'CONTEXT_SOURCE_UNVERIFIED', category: 'integrity',
+    message: 'Context component Hash or Recall receipt is divergent', retryable: false,
+    correlationId: request.correlationId, address: request.address, roundId: request.roundId,
+  })
+}
+
+/**
+ * Re-derive the Recall proof a Context relies on, rather than trusting it.
+ *
+ * Both generations are handled because a plan and its receipt always come from one generation: a v2 plan
+ * is answered by a v2 receipt, and a mix is an integrity fault. A v2 receipt additionally has to agree
+ * with the memories the Context actually uses — the receipt Hash proves the receipt is unmodified, but
+ * only this check proves the ranking still names the returned memories in order.
+ */
+function assertRecallIntegrity(request: CharacterContextRequest): void {
+  const plan = request.recallPlan
+  const receipt = request.recall.receipt
+  if (plan.schemaVersion !== 'recall-query-plan/v2') {
+    if (receipt.schemaVersion !== 'recall-receipt/v1') failRecallIntegrity(request)
+    const ranking = request.recall.memories.map((memory, index) => ({
+      memoryId: memory.memoryId, rank: index + 1, sourceRef: memory.sourceRef,
+    }))
+    const { receiptHash: _receiptHash, ...receiptInput } = receipt
+    if (receipt.planHash !== hashWorldJson('recall-query-plan/v1', plan)
+      || receipt.queryHash !== hashWorldJson('recall-query/v1', { query: plan.query })
+      || receipt.resultHash !== hashWorldJson('cognitive-memory-recall-result/v2', {
+        memories: request.recall.memories, ranking,
+      })
+      || receipt.receiptHash !== hashWorldJson('recall-receipt/v1', receiptInput)
+      || hashWorldJson('recall-selected-source-refs/v1', receipt.selectedSourceRefs)
+        !== hashWorldJson('recall-selected-source-refs/v1', request.recall.memories.map(memory => memory.sourceRef))
+      || hashWorldJson('recall-ranking/v1', receipt.ranking) !== hashWorldJson('recall-ranking/v1', ranking)) {
+      failRecallIntegrity(request)
+    }
+    return
+  }
+  if (receipt.schemaVersion !== 'recall-receipt/v2') failRecallIntegrity(request)
+  const { receiptHash: _receiptHash, ...receiptInput } = receipt
+  const rankingDescribesReturnedMemories = receipt.ranking.length === request.recall.memories.length
+    && receipt.ranking.every((entry, index) => entry.rank === index + 1
+      && entry.memoryId === request.recall.memories[index]!.memoryId)
+  if (receipt.planHash !== hashWorldJson('recall-query-plan/v2', plan)
+    || receipt.resultHash !== hashWorldJson('cognitive-memory-recall-result/v3', {
+      memories: request.recall.memories, ranking: receipt.ranking,
+    })
+    || receipt.receiptHash !== hashWorldJson('recall-receipt/v2', receiptInput)
+    || hashWorldJson('recall-selected-source-refs/v1', receipt.selectedSourceRefs)
+      !== hashWorldJson('recall-selected-source-refs/v1', request.recall.memories.map(memory => memory.sourceRef))
+    || !rankingDescribesReturnedMemories) {
+    failRecallIntegrity(request)
+  }
+}
+
 function assertComponentHashes(request: CharacterContextRequest, affordances: readonly ContextAffordance[]): void {
   const viewHash = hashWorldJson('world-character-view', withoutHash(request.characterView, 'bundleHash'))
   const cognitionHash = hashWorldJson(
@@ -308,30 +363,11 @@ function assertComponentHashes(request: CharacterContextRequest, affordances: re
     ? null
     : hashContinuityCheckpoint(withoutHash(request.checkpoint, 'checkpointHash') as never)
   const { tailHash: _tailHash, ...tailInput } = request.tail
-  const planHash = hashWorldJson('recall-query-plan/v1', request.recallPlan)
-  const queryHash = hashWorldJson('recall-query/v1', { query: request.recallPlan.query })
-  const ranking = request.recall.memories.map((memory, index) => ({
-    memoryId: memory.memoryId, rank: index + 1, sourceRef: memory.sourceRef,
-  }))
-  const resultHash = hashWorldJson('cognitive-memory-recall-result/v2', {
-    memories: request.recall.memories, ranking,
-  })
-  const { receiptHash: _receiptHash, ...receiptInput } = request.recall.receipt
-  const receiptHash = hashWorldJson('recall-receipt/v1', receiptInput)
-  const selectedRefsHash = hashWorldJson('recall-selected-source-refs/v1', request.recall.receipt.selectedSourceRefs)
-  const memoryRefsHash = hashWorldJson('recall-selected-source-refs/v1', request.recall.memories.map(memory => memory.sourceRef))
-  const rankingHash = hashWorldJson('recall-ranking/v1', request.recall.receipt.ranking)
-  const expectedRankingHash = hashWorldJson('recall-ranking/v1', ranking)
+  assertRecallIntegrity(request)
   if (request.characterView.bundleHash !== viewHash || request.cognition.bundleHash !== cognitionHash
     || request.sceneDecision.decisionHash !== sceneHash
     || (request.checkpoint !== null && request.checkpoint.checkpointHash !== checkpointHash)
     || request.tail.tailHash !== hashInteractionTail(tailInput)
-    || request.recall.receipt.planHash !== planHash
-    || request.recall.receipt.queryHash !== queryHash
-    || request.recall.receipt.resultHash !== resultHash
-    || request.recall.receipt.receiptHash !== receiptHash
-    || selectedRefsHash !== memoryRefsHash
-    || rankingHash !== expectedRankingHash
     || request.stimulusHash !== hashWorldJson('context-stimulus/v1', request.stimulus)
     || request.affordanceHash !== hashWorldJson('context-affordances/v1', affordances)) {
     failWorld({

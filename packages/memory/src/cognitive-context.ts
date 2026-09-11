@@ -3,18 +3,20 @@ import {
   compareWorldText,
   deterministicId,
   hashWorldJson,
+  RECALL_KEYWORD_STRATEGY_ID,
   type ActionRequest,
+  type AnyCognitiveRecallResult,
+  type AnyRecallQueryPlan,
   type CharacterId,
   type CharacterView,
   type CognitiveMemoryReceipt,
   type CognitiveMemoryWatermark,
-  type CognitiveRecallResult,
   type ExtractiveL1Summary,
   type FaultInjector,
   type InteractionRoundId,
   type ManifestationProposal,
   type ProposalContext,
-  type RecallQueryPlan,
+  type RecallTokenizerId,
   type WorldAddress,
   type WorldHash,
   type WorldJsonObject,
@@ -55,8 +57,8 @@ export interface CognitiveProposalContext extends ProposalContext, WorldJsonObje
   readonly recallResultHash: WorldHash
   readonly capability: { readonly actorId: CharacterId; readonly allowedActionTypes: readonly string[] }
   readonly contextHash: WorldHash
-  readonly recallPlan?: RecallQueryPlan
-  readonly recall?: CognitiveRecallResult
+  readonly recallPlan?: AnyRecallQueryPlan
+  readonly recall?: AnyCognitiveRecallResult
 }
 
 export interface PrepareCognitiveContextRequest {
@@ -91,13 +93,18 @@ export interface PreparedCognitiveStimulus {
   readonly memoryRecall: readonly RecalledMemory[]
   readonly memorySourceRefs: readonly MemorySourceRef[]
   readonly recallResultHash: WorldHash
-  readonly recallPlan?: RecallQueryPlan
-  readonly recall?: CognitiveRecallResult
+  readonly recallPlan?: AnyRecallQueryPlan
+  readonly recall?: AnyCognitiveRecallResult
 }
 
 /** Phase 8 worker boundary: callers supply only an exact namespace and required World watermark. */
 export class CognitiveMemoryWorker {
-  constructor(private readonly memory: LocalMemoryStore, private readonly faultInjector?: FaultInjector) {}
+  constructor(
+    private readonly memory: LocalMemoryStore,
+    private readonly faultInjector?: FaultInjector,
+    /** Kept here so every catch-up of a selected world builds the keyword index in the same transaction. */
+    private readonly recallTokenizer?: RecallTokenizerId,
+  ) {}
 
   catchUp(address: WorldAddress, characterId: CharacterId, requiredAsOfSeq: number): CognitiveMemoryReceipt {
     return this.catchUpWithContext(
@@ -112,16 +119,21 @@ export class CognitiveMemoryWorker {
     correlationId: string,
     heartbeat?: () => void,
   ): CognitiveMemoryReceipt {
-    const receipt = this.memory.catchUpV2(address, characterId, requiredAsOfSeq, correlationId, heartbeat)
+    const receipt = this.memory.catchUpV2(
+      address, characterId, requiredAsOfSeq, correlationId, heartbeat,
+      this.recallTokenizer === undefined ? undefined : { keywordTokenizerId: this.recallTokenizer },
+    )
     this.faultInjector?.hit('memory.after-catchup-commit')
     return receipt
   }
 
-  recall(plan: RecallQueryPlan): CognitiveRecallResult {
-    return this.memory.recallV2(plan)
+  recall(plan: AnyRecallQueryPlan): AnyCognitiveRecallResult {
+    return plan.schemaVersion === 'recall-query-plan/v2'
+      ? this.memory.recallKeywords(plan)
+      : this.memory.recallV2(plan)
   }
 
-  recallDiagnostics(plan: RecallQueryPlan): RecallCandidateDiagnostics {
+  recallDiagnostics(plan: AnyRecallQueryPlan): RecallCandidateDiagnostics {
     return this.memory.recallDiagnostics(plan)
   }
 
@@ -149,10 +161,47 @@ export class CognitiveMemoryService {
     private readonly worldStore: WorldStore,
     private readonly faultInjector?: FaultInjector,
     readonly version: 1 | 2 = 1,
+    /**
+     * Selects the versioned keyword Recall strategy, or keeps the frozen path when omitted. The selection
+     * reaches the Recall receipt, so a rebuild that asks for a different one fails closed instead of
+     * silently changing what a character is shown.
+     */
+    readonly recallTokenizer?: RecallTokenizerId,
   ) {
     this.#memory = new LocalMemoryStore(path, worldStore)
     this.#views = new CharacterViewBuilder(worldStore)
-    this.#worker = version === 2 ? new CognitiveMemoryWorker(this.#memory, faultInjector) : undefined
+    this.#worker = version === 2 ? new CognitiveMemoryWorker(this.#memory, faultInjector, recallTokenizer) : undefined
+  }
+
+  /**
+   * Build the Recall plan this service selects. The plan generation follows the selection, and the plan
+   * identity follows the generation, so a world cannot silently reinterpret one generation's receipts as
+   * another's.
+   */
+  #recallPlan(
+    scope: { readonly address: WorldAddress; readonly characterId: CharacterId; readonly asOfWorldSeq: number },
+    planId: string,
+    query: string,
+  ): AnyRecallQueryPlan {
+    if (this.recallTokenizer === undefined) {
+      return {
+        schemaVersion: 'recall-query-plan/v1', planId, address: scope.address, characterId: scope.characterId,
+        asOfWorldSeq: scope.asOfWorldSeq, query, limit: DEFAULT_RECALL_LIMIT,
+        rankingAlgorithm: 'fts5-bm25-stable/v1',
+      }
+    }
+    return {
+      schemaVersion: 'recall-query-plan/v2', planId, address: scope.address, characterId: scope.characterId,
+      asOfWorldSeq: scope.asOfWorldSeq, queryText: query, strategyId: RECALL_KEYWORD_STRATEGY_ID,
+      tokenizerId: this.recallTokenizer, dictionaryEnabled: false, dictionaryWatermark: null,
+      resultLimit: DEFAULT_RECALL_LIMIT,
+    }
+  }
+
+  #executeRecall(plan: AnyRecallQueryPlan): AnyCognitiveRecallResult {
+    return plan.schemaVersion === 'recall-query-plan/v2'
+      ? this.#memory.recallKeywords(plan)
+      : this.#memory.recallV2(plan)
   }
 
   enqueue(address: WorldAddress, characterIds: readonly CharacterId[], asOfWorldSeq: number): void {
@@ -258,44 +307,46 @@ export class CognitiveMemoryService {
       request.address, request.characterId, request.asOfWorldSeq, request.correlationId,
       request.heartbeat,
     )
-    const v2Plan: RecallQueryPlan | undefined = this.version === 2 ? {
-      schemaVersion: 'recall-query-plan/v1',
-      planId: deterministicId('round-recall-plan/v1', {
-        address: request.address, roundId: request.roundId, participantId: request.participantId,
-      }),
-      address: request.address, characterId: request.characterId, asOfWorldSeq: request.asOfWorldSeq,
-      query, limit: DEFAULT_RECALL_LIMIT, rankingAlgorithm: 'fts5-bm25-stable/v1',
-    } : undefined
-    const v2Recall = v2Plan === undefined ? undefined : this.#memory.recallV2(v2Plan)
-    const memoryRecall = v2Recall === undefined
+    const plan = this.version === 2
+      ? this.#recallPlan(
+        { address: request.address, characterId: request.characterId, asOfWorldSeq: request.asOfWorldSeq },
+        deterministicId(
+          this.recallTokenizer === undefined ? 'round-recall-plan/v1' : 'round-recall-plan/v2',
+          { address: request.address, roundId: request.roundId, participantId: request.participantId },
+        ),
+        query,
+      )
+      : undefined
+    const receiptRecall = plan === undefined ? undefined : this.#executeRecall(plan)
+    const memoryRecall = receiptRecall === undefined
       ? this.#memory.recall(request.address, request.characterId, query, request.asOfWorldSeq)
-      : v2Recall.memories.map(memory => ({
+      : receiptRecall.memories.map(memory => ({
         memoryId: memory.memoryId, text: memory.text,
         metadata: { ...memory.metadata as WorldJsonObject, source: memory.sourceRef },
         sourceMaxSeq: memory.sourceRef.sourceSeq, captureHash: memory.captureHash,
       }))
-    const memorySourceRefs = (v2Recall === undefined
+    const memorySourceRefs = (receiptRecall === undefined
       ? memoryRecall.flatMap(memory => {
         const metadata = memory.metadata as WorldJsonObject
         return [metadata.source as MemorySourceRef]
       })
-      : v2Recall.receipt.selectedSourceRefs as readonly MemorySourceRef[])
+      : receiptRecall.receipt.selectedSourceRefs as readonly MemorySourceRef[])
       .toSorted((left, right) => compareWorldText(left.sourceKind, right.sourceKind) || compareWorldText(left.sourceId, right.sourceId))
-    const recallResultHash = v2Recall?.receipt.resultHash
+    const recallResultHash = receiptRecall?.receipt.resultHash
       ?? hashWorldJson('cognitive-memory-recall', { query, memories: memoryRecall, sources: memorySourceRefs })
     return {
       characterView,
       memoryRecall,
       memorySourceRefs,
       recallResultHash,
-      ...(v2Plan === undefined || v2Recall === undefined ? {} : { recallPlan: v2Plan, recall: v2Recall }),
+      ...(plan === undefined || receiptRecall === undefined ? {} : { recallPlan: plan, recall: receiptRecall }),
     }
   }
 
   recall(address: WorldAddress, characterId: CharacterId, query: string, asOfWorldSeq: number): RecalledMemory[] {
     this.catchUp(address, characterId, asOfWorldSeq, `memory-recall:${characterId}:${asOfWorldSeq}`)
     if (this.version === 2) {
-      return this.#memory.recallV2(this.#applicationRecallPlan(address, characterId, query, asOfWorldSeq))
+      return this.#executeRecall(this.#applicationRecallPlan(address, characterId, query, asOfWorldSeq))
         .memories.map(memory => ({
           memoryId: memory.memoryId, text: memory.text,
           metadata: {
@@ -328,18 +379,24 @@ export class CognitiveMemoryService {
     return this.recallDiagnostics(this.#applicationRecallPlan(address, characterId, query, asOfWorldSeq))
   }
 
-  /** The single default Recall plan, so a diagnostic can never describe a plan production does not use. */
+  /**
+   * The single default Recall plan, so a diagnostic can never describe a plan production does not use.
+   * Its identity follows the generation, for the same reason the round plan does.
+   */
   #applicationRecallPlan(
     address: WorldAddress,
     characterId: CharacterId,
     query: string,
     asOfWorldSeq: number,
-  ): RecallQueryPlan {
-    return {
-      schemaVersion: 'recall-query-plan/v1',
-      planId: deterministicId('application-recall-plan/v1', { address, characterId, query, asOfWorldSeq }),
-      address, characterId, asOfWorldSeq, query, limit: DEFAULT_RECALL_LIMIT, rankingAlgorithm: 'fts5-bm25-stable/v1',
-    }
+  ): AnyRecallQueryPlan {
+    return this.#recallPlan(
+      { address, characterId, asOfWorldSeq },
+      deterministicId(
+        this.recallTokenizer === undefined ? 'application-recall-plan/v1' : 'application-recall-plan/v2',
+        { address, characterId, query, asOfWorldSeq },
+      ),
+      query,
+    )
   }
 
   catchUpReceipt(
@@ -353,7 +410,7 @@ export class CognitiveMemoryService {
     return this.#worker!.catchUpWithContext(address, characterId, requiredAsOfSeq, correlationId, heartbeat)
   }
 
-  recallWithReceipt(plan: RecallQueryPlan): CognitiveRecallResult {
+  recallWithReceipt(plan: AnyRecallQueryPlan): AnyCognitiveRecallResult {
     if (this.version !== 2) throw new TypeError('Recall receipt requires Cognitive Memory version 2')
     this.catchUpReceipt(plan.address, plan.characterId, plan.asOfWorldSeq, `memory-recall:${plan.planId}`)
     return this.#worker!.recall(plan)
@@ -363,7 +420,7 @@ export class CognitiveMemoryService {
    * Measure how much one Recall plan's result limit drops. This runs the same idempotent catch-up a real
    * Recall does, then counts the candidates before the limit; no Receipt or result is written for the count.
    */
-  recallDiagnostics(plan: RecallQueryPlan): RecallCandidateDiagnostics {
+  recallDiagnostics(plan: AnyRecallQueryPlan): RecallCandidateDiagnostics {
     if (this.version !== 2) throw new TypeError('Recall diagnostics require Cognitive Memory version 2')
     this.catchUpReceipt(plan.address, plan.characterId, plan.asOfWorldSeq, `memory-diagnostics:${plan.planId}`)
     return this.#worker!.recallDiagnostics(plan)

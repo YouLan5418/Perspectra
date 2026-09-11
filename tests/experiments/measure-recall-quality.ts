@@ -21,16 +21,17 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { WorldApplication, type RoundParticipant } from '@harness-world/application'
-import { brandId, type CharacterId, type ProposalContext } from '@harness-world/contracts'
+import { brandId, type CharacterId, type ProposalContext, type RecallTokenizerId } from '@harness-world/contracts'
 import { isCjkText, tokenizeHybridText, tokenizeKeywordText } from '@harness-world/memory'
 import { cut } from 'jieba-wasm'
 import { adaptRainyRoadPack, compileRainyRoadPack, RAINY_ROAD_IDS } from '@harness-world/simulation'
 
-const [outputArgument, noiseArgument = '200'] = process.argv.slice(2)
+const [outputArgument, noiseArgument = '200', tokenizerArgument] = process.argv.slice(2)
 const noiseRounds = Number(noiseArgument)
 if (!outputArgument || !Number.isSafeInteger(noiseRounds) || noiseRounds < 10) {
-  throw new Error('usage: measure-recall-quality <new-directory> <noiseRounds>=10')
+  throw new Error('usage: measure-recall-quality <new-directory> <noiseRounds>=10 [recallTokenizerId]')
 }
+const recallTokenizer = tokenizerArgument === undefined ? undefined : tokenizerArgument as RecallTokenizerId
 const directory = resolve(outputArgument)
 if (existsSync(directory)) throw new Error('output directory must not already exist')
 mkdirSync(directory, { recursive: true })
@@ -114,6 +115,7 @@ const application = new WorldApplication({
   sessionPath: join(directory, 'session.sqlite'),
   memoryPath: join(directory, 'memory.sqlite'),
   modelBudgetTokens: 1_000_000,
+  ...(recallTokenizer === undefined ? {} : { recallTokenizer }),
   participants: () => [
     abstaining('agent:alice', RAINY_ROAD_IDS.alice, 2),
     abstaining('agent:bob', RAINY_ROAD_IDS.bob, 1),
@@ -190,7 +192,8 @@ function contextEvidence(participantId: string): {
 
 const roundMs: { tick: number; ms: number }[] = []
 try {
-  emit({ stage: 'activate', status: application.activate(compiled).status })
+  emit({ stage: 'activate', status: application.activate(compiled).status,
+    recallTokenizer: recallTokenizer ?? 'frozen' })
 
   const first = await say(IMPORTANT)
   roundMs.push(first)

@@ -215,7 +215,7 @@ describe('versioned keyword Recall', () => {
   })
 
   it('scopes matching and statistics to one character namespace', async () => {
-    const { world, memory } = await fixture()
+    const { memory } = await fixture()
     memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     const before = memory.recallKeywords(plan('钥匙')).receipt
     // Bob observes the same world; his namespace must not exist as a channel into Alice's ranking.
