@@ -1,12 +1,12 @@
 # ADR-0087：玩家受限即时成立权与角色关系交互
 
-- 状态：Proposed（仅供讨论；不授权生产实现或 Schema 迁移）
+- 状态：Accepted（2026-09-11 用户授权按 C0～C4 分阶段实施；未关闭阶段不得声明完成）
 - 日期：2026-09-11
 - Supersedes（局部，且仅在本 ADR Accepted 后生效）：ADR-0023 的“所有普通文本原样成为对白”、ADR-0085 的人工玩家单 Action 入口、ADR-0086 的交互目标仅限实体
 - Extends：ADR-0044、ADR-0057、ADR-0073、ADR-0077、ADR-0084～ADR-0086
 - 实施草案：[角色交互与玩家即时成立 V0.1](../spec/character-interactions-v0.1.md)
 
-> **提案边界：** 本 ADR 不改变 Manifest v1～v8、submit_actions/v1～v5、object-interactions/v1 或现有世界行为。文中版本号与持久化迁移均为分阶段候选，必须经过 Schema spike、评审和 Accepted 决定后才能实施。
+> **实施边界：** 本 ADR 不改写 Manifest v1～v8、submit_actions/v1～v5、object-interactions/v1 或现有世界行为。文中尚未由 C0 冻结的版本号与持久化迁移仍是分阶段候选；实现不得越过对应阶段门禁。
 
 ## 背景
 

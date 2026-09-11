@@ -3,8 +3,8 @@
 | 属性 | 值 |
 |---|---|
 | 决策 | [ADR-0087](../adr/ADR-0087-player-immediate-character-interactions.md) |
-| 状态 | Draft proposal；不授权生产实现、Schema 迁移或发布 |
-| 调研基线 | `wb-grouped-playtest` / `8a5a400`；工作区另有未提交 v8 试玩契约改动 |
+| 状态 | Accepted implementation target；C0 执行中，C1～C4 尚未实现或验收 |
+| 实施基线 | `codex/player-immediate-character-interactions`；v8 契约修复 `5d6b982`，文档与试玩证据 `26bc98c` |
 | 候选世界 / 模型协议 | Manifest v9；submit_actions/v6 仅在 C2 证明 v5 不能保持原语义时引入 |
 | 候选目录 / 玩家协议 | interaction-catalog/v2 / player-intent/v1 / player-submission/v2 |
 | 候选持久化 | World Schema v18 / Logical Authority v8 / Round Authority v5 均为占位候选；须先通过 Schema spike |
@@ -46,7 +46,7 @@
 | D-003 | 目标首次反应时点 | 玩家候选 S1 后、同一 Root Round phase 1 | 目标必须等下一 wave，体验慢一拍 |
 | D-004 | 自然语言解释耐久边界 | 原文先耐久受理，解释终态后再创建 Round | 同键重试可能得到不同 Action |
 
-ADR-0087 在 Proposed 状态下记录推荐值。进入生产实现前，四项必须在 Accepted ADR 中明确，不允许由代码默认值代替产品决定。
+ADR-0087 已于 2026-09-11 Accepted，上表四项成为实施约束，不允许由代码默认值改变产品决定。后续若改变方向，必须新增 superseding ADR。
 
 ## 3. 候选契约
 
@@ -643,7 +643,7 @@ Path P-004：当前 v8 门禁先形成可判定基线。
 
 ## 14. 交付检查
 
-- [ ] ADR-0087 经用户明确评审后才从 Proposed 改为 Accepted；
+- [x] ADR-0087 经用户明确评审并于 2026-09-11 从 Proposed 改为 Accepted；
 - [ ] C0 关闭当前 v8 工作区门禁并记录基线 commit；
 - [ ] Schema spike 冻结数据库、逻辑传输和 Authority 版本；
 - [ ] C1～C4 每阶段都有 Evidence → Finding → Path 与明确未完成项；
