@@ -47,3 +47,4 @@
 - [Phase 7 创作者运行手册](PHASE7-CREATOR-RUNBOOK.md)
 - [Phase 7 最小通用内容闭环报告](2026-08-25_阶段报告-Harness-Cordis-World-Phase-7-report.md)
 - [Phase 7 独立审查修复报告](2026-08-25_Phase-7独立审查修复报告.md)
+- [长期记忆 / 上下文压缩：第一批改动记录](2026-09-11_长期记忆压缩-第一批改动记录.md)
