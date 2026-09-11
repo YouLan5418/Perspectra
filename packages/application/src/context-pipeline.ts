@@ -22,12 +22,14 @@ import {
   deterministicId,
   hashWorldJson,
   type CharacterId,
+  type CharacterContinuityCheckpoint,
   type ActionRequest,
   type ContextExclusion,
   type ContextProfileId,
   type ContextReceipt,
   type CharacterCognitionView,
   type ContextSourceRef,
+  type InteractionTail,
   type ProposalContext,
   type ReactionProposalContext,
   type WorldHash,
@@ -380,6 +382,33 @@ export class Phase8ContextPipeline {
     }
   }
 
+  /**
+   * Resolve the Continuity baseline and the recent Tail for one preparation.
+   *
+   * The Tail floor is the baseline's source end, so the two always agree. While the committed blocks
+   * still fit the Profile, the baseline the Branch already holds is reused unchanged. Once more blocks
+   * have accumulated than the Profile keeps, the baseline advances to just before the retained window:
+   * the next Tail rebuild then reads the increment instead of the whole history, and the baseline stops
+   * being frozen at the first Round. The Character and the Reaction path both call this, so they cannot
+   * drift apart.
+   */
+  #continuity(
+    address: ProposalContext['address'],
+    characterId: CharacterId,
+    asOfWorldSeq: number,
+    maximumBlocks: number,
+  ): { readonly checkpoint: CharacterContinuityCheckpoint; readonly tail: InteractionTail } {
+    const existing = this.#checkpoints.latestAt(address, characterId, asOfWorldSeq)
+    const floor = existing?.sourceEndSeq ?? asOfWorldSeq
+    const rolling = this.#tails.rebuildRolling(address, characterId, floor, asOfWorldSeq, maximumBlocks)
+    return {
+      checkpoint: existing !== undefined && rolling.floor === floor
+        ? existing
+        : this.#checkpoints.rebuildAt(address, characterId, rolling.floor),
+      tail: rolling.tail,
+    }
+  }
+
   #prepareCharacter(
     binding: RoundParticipant,
     context: ProposalContext,
@@ -406,12 +435,9 @@ export class Phase8ContextPipeline {
       throw new TypeError('Cognitive Memory v2 did not produce a verified Recall receipt')
     }
     const selectedProfile = profileId(this.options.manifest, binding.actorId)
-    const checkpoint = this.#checkpoints.latestAt(context.address, binding.actorId, asOfWorldSeq)
-      ?? this.#checkpoints.rebuildAt(context.address, binding.actorId, asOfWorldSeq)
     const selectedProfileContract = PHASE8_CONTEXT_PROFILES.find(value => value.profileId === selectedProfile)!
-    const tail = this.#tails.rebuildAt(
-      context.address, binding.actorId, checkpoint.sourceEndSeq, asOfWorldSeq,
-      selectedProfileContract.recentInteractionBlocks,
+    const { checkpoint, tail } = this.#continuity(
+      context.address, binding.actorId, asOfWorldSeq, selectedProfileContract.recentInteractionBlocks,
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,
@@ -488,12 +514,9 @@ export class Phase8ContextPipeline {
       throw new TypeError('Reaction Context requires Cognitive Memory v2 Recall receipts')
     }
     const selectedProfile = profileId(this.options.manifest, binding.actorId)
-    const checkpoint = this.#checkpoints.latestAt(context.address, binding.actorId, asOfWorldSeq)
-      ?? this.#checkpoints.rebuildAt(context.address, binding.actorId, asOfWorldSeq)
     const selectedProfileContract = PHASE8_CONTEXT_PROFILES.find(profile => profile.profileId === selectedProfile)!
-    const tail = this.#tails.rebuildAt(
-      context.address, binding.actorId, checkpoint.sourceEndSeq, asOfWorldSeq,
-      selectedProfileContract.recentInteractionBlocks,
+    const { checkpoint, tail } = this.#continuity(
+      context.address, binding.actorId, asOfWorldSeq, selectedProfileContract.recentInteractionBlocks,
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,

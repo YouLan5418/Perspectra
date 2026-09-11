@@ -388,6 +388,51 @@ describe('Phase 8 continuity derivation', () => {
     world.close()
   })
 
+  it('advances the Tail floor past the blocks the retained window cannot hold', async () => {
+    const { world, memory } = await fixture()
+    const tails = new InteractionTailBuilder(world)
+    for (const [index, id] of ['second', 'third', 'fourth'].entries()) {
+      await commit(world, address(), brandId(`transaction:${id}`, 'TransactionId'), [{
+        eventType: 'observation.upsert', eventVersion: 1,
+        data: { id: `observation:alice:${id}`, value: { observerId: alice, content: `Alice round ${index}` } },
+      }])
+    }
+    const asOf = world.head(address()).headSeq
+    // Genesis already carries one visible Alice block, so four blocks are committed in total.
+    const everyBlock = tails.rebuildAt(address(), alice, 0, asOf, 10).blocks
+    expect(everyBlock).toHaveLength(4)
+
+    // While the window still fits, the floor does not move and the Tail keeps every block.
+    const fits = tails.rebuildRolling(address(), alice, 0, asOf, 4)
+    expect(fits.floor).toBe(0)
+    expect(fits.tail.blocks).toHaveLength(4)
+
+    // Once it cannot, the floor parks at the end of the last dropped block and only the window remains.
+    // This is what bounds the next rebuild to the increment instead of the whole history.
+    const rolling = tails.rebuildRolling(address(), alice, 0, asOf, 2)
+    expect(rolling.floor).toBe(everyBlock[1]!.endSeq)
+    expect(rolling.tail.afterSeq).toBe(rolling.floor)
+    expect(rolling.tail.blocks.map(block => block.roundId))
+      .toEqual(['round:third', 'round:fourth'])
+    expect(rolling.tail).toEqual(tails.rebuildAt(address(), alice, rolling.floor, asOf, 2))
+
+    // A floor that already fits is stable, so a caller that reuses its baseline keeps agreeing with it.
+    const stable = tails.rebuildRolling(address(), alice, rolling.floor, asOf, 2)
+    expect(stable.floor).toBe(rolling.floor)
+    expect(stable.tail).toEqual(rolling.tail)
+
+    // Zero blocks keeps nothing and parks the floor at the last committed block.
+    const none = tails.rebuildRolling(address(), alice, 0, asOf, 0)
+    expect(none.floor).toBe(everyBlock[3]!.endSeq)
+    expect(none.tail.blocks).toEqual([])
+
+    expect(() => tails.rebuildRolling(address(), alice, -1, asOf, 1)).toThrow(RangeError)
+    expect(() => tails.rebuildRolling(address(), alice, asOf, asOf - 1, 1)).toThrow(RangeError)
+    expect(() => tails.rebuildRolling(address(), alice, 0, asOf, -1)).toThrow(RangeError)
+    memory.close()
+    world.close()
+  })
+
   it('fails closed on malformed visible Observation history', async () => {
     const { world, memory } = await fixture()
     const beforeMalformed = world.head(address()).headSeq

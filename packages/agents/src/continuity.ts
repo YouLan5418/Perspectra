@@ -236,6 +236,17 @@ function observationFrom(event: StoredWorldEvent, characterId: CharacterId): Int
   return { observationId: data.id, content: value, sourceRef: sourceRef(event) }
 }
 
+/** A rebuilt Tail together with the floor it starts at. */
+export interface RollingInteractionTail {
+  /**
+   * Where the returned Tail starts. It is the caller's floor while the committed blocks still fit the
+   * Profile, and the end of the last dropped block once they do not — which is how a caller learns that
+   * the Continuity baseline it holds is no longer the right one.
+   */
+  readonly floor: number
+  readonly tail: InteractionTail
+}
+
 /** Rebuild a character-safe recent tail only from committed observations and Authority identities. */
 export class InteractionTailBuilder {
   constructor(private readonly world: WorldStore) {}
@@ -247,6 +258,49 @@ export class InteractionTailBuilder {
     asOfWorldSeq: number,
     maximumBlocks: number,
   ): InteractionTail {
+    const blocks = this.#blocksAt(address, characterId, afterSeq, asOfWorldSeq, maximumBlocks)
+    const selected = maximumBlocks === 0 ? [] : blocks.slice(-maximumBlocks)
+    const input = {
+      schemaVersion: 'interaction-tail/v1' as const,
+      address, characterId, afterSeq, asOfWorldSeq, blocks: selected,
+    }
+    return { ...input, tailHash: hashInteractionTail(input) }
+  }
+
+  /**
+   * Rebuild the Tail and advance its floor past whatever the Profile's block count cannot keep.
+   *
+   * A frozen floor is what makes every preparation re-read the whole history and drop almost all of it.
+   * Advancing the floor to just before the retained window bounds the next rebuild to the increment, and
+   * moves the Continuity baseline with it, which is what spec 10.4 means by a rebuild determined by Tail
+   * Block count. While the window still fits, the floor does not move and the caller's existing baseline
+   * stays valid.
+   */
+  rebuildRolling(
+    address: WorldAddress,
+    characterId: CharacterId,
+    afterSeq: number,
+    asOfWorldSeq: number,
+    maximumBlocks: number,
+  ): RollingInteractionTail {
+    const blocks = this.#blocksAt(address, characterId, afterSeq, asOfWorldSeq, maximumBlocks)
+    const dropped = Math.max(0, blocks.length - maximumBlocks)
+    const floor = dropped === 0 ? afterSeq : blocks[dropped - 1]!.endSeq
+    const input = {
+      schemaVersion: 'interaction-tail/v1' as const,
+      address, characterId, afterSeq: floor, asOfWorldSeq,
+      blocks: dropped === 0 ? blocks : blocks.slice(dropped),
+    }
+    return { floor, tail: { ...input, tailHash: hashInteractionTail(input) } }
+  }
+
+  #blocksAt(
+    address: WorldAddress,
+    characterId: CharacterId,
+    afterSeq: number,
+    asOfWorldSeq: number,
+    maximumBlocks: number,
+  ): InteractionBlock[] {
     if (!Number.isSafeInteger(afterSeq) || afterSeq < 0 || !Number.isSafeInteger(asOfWorldSeq)
       || asOfWorldSeq < afterSeq || !Number.isSafeInteger(maximumBlocks) || maximumBlocks < 0) {
       throw new RangeError('Interaction Tail bounds must be ordered non-negative safe integers')
@@ -278,11 +332,6 @@ export class InteractionTailBuilder {
       }
       blocks.push({ ...input, blockHash: hashInteractionBlock(input) })
     }
-    const selected = maximumBlocks === 0 ? [] : blocks.slice(-maximumBlocks)
-    const input = {
-      schemaVersion: 'interaction-tail/v1' as const,
-      address, characterId, afterSeq, asOfWorldSeq, blocks: selected,
-    }
-    return { ...input, tailHash: hashInteractionTail(input) }
+    return blocks
   }
 }

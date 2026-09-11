@@ -172,6 +172,56 @@ describe('Phase8ContextPipeline', () => {
     value.store.close()
   })
 
+  it('advances the Continuity baseline once the Tail window stops fitting', () => {
+    const value = fixture()
+    const pipeline = new Phase8ContextPipeline(value.options)
+    const address = value.spec.manifest.address
+    const alice = brandId('character:alice', 'CharacterId')
+    const segmentOf = (prepared: ReturnType<typeof pipeline.prepare>, index: number) => {
+      const message = prepared.providerContext.exactProviderRequest.messages[index]!
+      return JSON.parse(message.content) as { readonly segmentKind: string; readonly content: Record<string, unknown> }
+    }
+    const baselines: number[] = []
+    const tailSizes: number[] = []
+    for (let index = 0; index < 6; index += 1) {
+      const head = value.store.head(address)
+      value.store.commitRound({
+        address, transactionId: brandId(`transaction:window:${index}`, 'TransactionId'),
+        roundId: brandId(`round:window:${index}`, 'InteractionRoundId'),
+        expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
+        events: [{
+          eventType: 'observation.upsert', eventVersion: 1,
+          data: { id: `observation:alice:window:${index}`, value: { observerId: alice, content: `Round ${index}` } },
+        }],
+        outbox: [], cognitiveJobs: [{ characterId: alice }], correlationId: `window:${index}`,
+      })
+      const asOf = value.store.head(address).headSeq
+      const context = { ...proposal(value.spec), roundId: brandId(`round:window:${index}`, 'InteractionRoundId') }
+      const decision = new SceneDecisionService(value.store, value.availability, 2)
+        .decide(address, context.playerAction.actorId, asOf)
+      const prepared = pipeline.prepare(
+        participant(), context, value.store.readEvents(address), decision, decision.asOfSeq, () => undefined,
+      )
+      const checkpoint = segmentOf(prepared, 4)
+      expect(checkpoint.segmentKind).toBe('continuity_checkpoint')
+      baselines.push(checkpoint.content.asOfWorldSeq as number)
+      const tail = segmentOf(prepared, 5)
+      expect(tail.segmentKind).toBe('recent_interaction_tail')
+      tailSizes.push((tail.content.blocks as readonly unknown[]).length)
+    }
+    // A baseline that still fits the compact Profile's four blocks is reused, not rebuilt.
+    expect(baselines[1]).toBe(baselines[0])
+    // Once the window cannot hold what accumulated, the baseline moves with it instead of staying frozen
+    // at the first Round, which is what keeps the next Tail rebuild on the increment.
+    expect(baselines.at(-1)!).toBeGreaterThan(baselines[0]!)
+    expect(tailSizes.at(-1)).toBe(4)
+    expect(tailSizes.every(size => size <= 4)).toBe(true)
+    pipeline.close()
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
+  })
+
   it.each([6, 7] as const)('selects the versioned tool for Manifest %s', version => {
     const value = fixture()
     const manifest = {
