@@ -3,14 +3,14 @@
 | 属性 | 值 |
 |---|---|
 | 决策 | [ADR-0087](../adr/ADR-0087-player-immediate-character-interactions.md) |
-| 状态 | Accepted implementation target；C0 执行中，C1～C4 尚未实现或验收 |
+| 状态 | Accepted implementation target；C0 工程边界已冻结、真实 Provider 门禁待运行，C1～C4 尚未实现或验收 |
 | 实施基线 | `codex/player-immediate-character-interactions`；v8 契约修复 `5d6b982`，文档与试玩证据 `26bc98c` |
 | 候选世界 / 模型协议 | Manifest v9；submit_actions/v6 仅在 C2 证明 v5 不能保持原语义时引入 |
 | 候选目录 / 玩家协议 | interaction-catalog/v2 / player-intent/v1 / player-submission/v2 |
-| 候选持久化 | World Schema v18 / Logical Authority v8 / Round Authority v5 均为占位候选；须先通过 Schema spike |
+| 持久化切片 | C1/C2：World Schema v17、Logical Authority v7、Round Authority v5；C3：World Schema v18、Logical Authority v8、Context Schema v6 |
 | 首个试金石 | 玩家输入“我抓住 Alice 的手”，Alice 同轮选择 release、move、speak 或 abstain |
 
-> **前置门禁：** 当前工作区的 v8 表现 Schema 与真实模型复测结论尚未收口，并与本计划将修改的 Contracts、Context Pipeline 和试玩文件重叠。实施分支必须先明确保留现有改动的方式，并形成可复现的 v8 基线；不得在未区分两批改动时声称新阶段通过。
+> **前置门禁进度：** v8 表现 Schema 已在独立提交 `5d6b982` 收口，设计与证据在 `26bc98c` 隔离；完整工程门禁已通过。C0 的版本、DDL 与恢复所有权见 [`2026-09-11_角色交互-C0-Schema-Spike.md`](../2026-09-11_角色交互-C0-Schema-Spike.md)。真实 DeepSeek 20-call 门禁尚未运行，因此 C0 仍未关闭，不得提前进入 C1 生产实现。
 
 > **术语：** “即时成立”表示无需目标审批、在裁决顺序上先形成玩家候选 S1；不表示零延迟、提前显示或玩家阶段单独 COMMIT。玩家组与 NPC 结果仍由一个 Root Round 原子提交。
 
@@ -384,7 +384,7 @@ Memory 文案只能陈述可观察行为。例如“玩家牵住了 Alice 的手
 | P0 | `packages/contracts` | Resolution Authority、PlayerSubmission、Relation Event/Observation、候选 Round Authority 升级 | Hash 与历史协议漂移 |
 | P0 | `packages/kernel/src/world-spec.ts` | Manifest v9、interaction-catalog/v2、Registry Hash、严格解析 | 旧 Manifest 被隐式升级 |
 | P0 | `packages/kernel/src/interactions.ts` | 拆分目录解析、Affordance 与闭合 operation resolver；增加关系前缀重建 | 通用 interact 退化为任意效果 DSL |
-| P0 | `packages/kernel/src/rulebook.ts`、Registry | 接收可信 Authority；move/lifecycle 联动结束关系；由 C0 决定复用 Core Resolver 还是注册新 ID/版本 | 特权可伪造、历史 @3 被误用或版本 fallback |
+| P0 | `packages/kernel/src/rulebook.ts`、Registry | 接收可信 Authority；move/lifecycle 联动结束关系；复用 Core Resolver `builtin:speak-move@2`，仅由 Manifest v9 capability gate 开启新语义 | 特权可伪造、历史 @3 被误用或版本 fallback |
 | P0 | `packages/application/src/round-coordinator.ts` | 玩家组预裁定、S1、phase 0 组、Authority 与 provisional/final 绑定 | 候选与正式 Event 分歧 |
 | P0 | `packages/application/src/context-pipeline.ts` | 用 S1 生成 direct target Affordance，先裁剪再 Recall/Renderer | 提交前隐私泄漏 |
 | P1 | `packages/application/src/player-input.ts`、WorldApplication | player-intent/v1 状态机、clarification、Round enqueue | 重试改写、FIFO 旁路、额外延迟 |
@@ -406,8 +406,8 @@ Memory 文案只能陈述可观察行为。例如“玩家牵住了 Alice 的手
 - 预先声明发布目标 Provider、固定输入语料、每个 Provider 的调用样本数与允许无效率；不在看到结果后修改阈值；
 - 每个无效输出保存受限原文与精确校验路径，并归类为具体 Schema 构造、Validator 路径或 Provider 不遵循协议；
 - 绘制 Player Input、Round Inbox、ProviderCall、World Commit 的崩溃窗口；
-- 验证是否需要 World Schema v18、Context/ProviderCall migration 与 Logical v8；
-- 确定 Manifest v9 是否复用 Core Resolver，或使用新的 Rulebook ID/版本；明确排除 historical-only 的 `builtin:speak-move@3`；
+- 验证是否需要 World Schema v18、Context/ProviderCall migration 与 Logical v8；结论已冻结为 C1/C2 复用 World v17 / Logical v7，C3 引入 World v18 / Logical v8 / Context v6；
+- 确定 Manifest v9 是否复用 Core Resolver，或使用新的 Rulebook ID/版本；结论已冻结为复用 `builtin:speak-move@2`，并明确排除 historical-only 的 @3；
 - 通过纯函数原型验证 relation start/end/move-end 的 Event 前缀。
 
 当前观测只作为基线，不直接充当发布证明：
@@ -418,7 +418,7 @@ Memory 文案只能陈述可观察行为。例如“玩家牵住了 Alice 的手
 | qwen 修复前/后 | 均为 4/4 拒绝 | 若列为发布目标，当前门禁未通过；否则必须明确标为诊断或非支持路径 |
 | 移除组合子 A/B | 2/2 接受 | 支持最小移除决定，但样本不足以声称 Provider 普遍兼容 |
 
-验收：组合子去留、目标 Provider 矩阵、样本与阈值、版本、DDL、恢复所有权和迁移路径均有可判定答案；所有残留失败可归类；没有修改 Accepted ADR 原文。C1～C3 都是不可发布的内部工程门禁，只有 C3 关闭后 Manifest v9 才能成为发布候选，避免同一已发布 Manifest 版本被分阶段扩写语义。
+验收：组合子去留、目标 Provider 矩阵、样本与阈值、版本、DDL、恢复所有权和迁移路径均有可判定答案；所有残留失败可归类；没有修改 Accepted ADR 原文。工程答案与已通过的 relation 纯函数原型记录在 C0 Schema Spike，剩余阻断项仅是按预声明矩阵运行真实 Provider 证据。C1～C3 都是不可发布的内部工程门禁，只有 C3 关闭后 Manifest v9 才能成为发布候选，避免同一已发布 Manifest 版本被分阶段扩写语义。
 
 ### 9.2 C1：模型无关 hand_hold 闭环
 
@@ -520,8 +520,8 @@ Memory 文案只能陈述可观察行为。例如“玩家牵住了 Alice 的手
 - Player Intent received/prepared/dispatch_started/response_received/validated/round_enqueued 每个边界重启；
 - World `store.after-event-insert`、`store.before-commit`、`store.after-commit` 子进程硬终止；
 - 同键相同原文、同键不同原文、同解释不同结构化结果；
-- v17→候选 v18 原子 migration，旧二进制拒绝新库；
-- Logical v7 导入不补造 v8 数据，v8 round-trip 和篡改拒绝；
+- C1/C2 保持 v17；C3 执行 v17→v18 原子 migration，旧二进制拒绝新库；
+- C1/C2 Logical v7 保持同表形状 round-trip；C3 Logical v7 导入不补造 v8 的 Player Intent 数据，v8 round-trip 和篡改拒绝；
 - Live、Restart、Full Replay、Snapshot Replay、forkSeq 得到同一 active relation 集。
 
 ### 10.5 真实模型试玩
@@ -644,8 +644,8 @@ Path P-004：当前 v8 门禁先形成可判定基线。
 ## 14. 交付检查
 
 - [x] ADR-0087 经用户明确评审并于 2026-09-11 从 Proposed 改为 Accepted；
-- [ ] C0 关闭当前 v8 工作区门禁并记录基线 commit；
-- [ ] Schema spike 冻结数据库、逻辑传输和 Authority 版本；
+- [ ] C0 关闭真实 Provider 门禁；v8 工程基线已由 `5d6b982` 固定并通过完整 `check`；
+- [x] Schema spike 冻结数据库、逻辑传输、Context、Rulebook 和 Authority 版本；
 - [ ] C1～C4 每阶段都有 Evidence → Finding → Path 与明确未完成项；
 - [ ] 生产 `src` 逐文件 statements、branches、functions、lines 100%；
 - [ ] 高风险窗口使用真实子进程硬终止，不用普通 throw 替代；

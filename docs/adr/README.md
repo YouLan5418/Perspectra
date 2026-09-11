@@ -68,4 +68,4 @@
 | [0084](ADR-0084-player-manifestation-input.md) | 玩家自然语言外显表现输入 | 人工玩家可在唯一 Action 旁提交同构表现；翻译器不可信且不得绕过 Authority |
 | [0085](ADR-0085-bounded-action-groups.md) | 有界顺序行动组与逐步表现 | Manifest v7 显式启用最多两步、连续裁定、失败停止与闭合表现；旧协议保持原语义 |
 | [0086](ADR-0086-object-interactions.md) | 对象声明的物品交互 | Manifest v8、submit_actions/v5 与显式对象目录；拿取、放下、递交均确定性重验 |
-| [0087](ADR-0087-player-immediate-character-interactions.md) | 玩家受限即时成立权与角色关系交互 | **Proposed**；候选 Manifest v9 以 Host 派生权威、可解除 hand_hold 和耐久玩家解释验证“先成立、后反应” |
+| [0087](ADR-0087-player-immediate-character-interactions.md) | 玩家受限即时成立权与角色关系交互 | **Accepted**；Manifest v9 以 Host 派生权威、可解除 hand_hold 和耐久玩家解释验证“先成立、后反应”，按 C0～C4 门禁实施 |
