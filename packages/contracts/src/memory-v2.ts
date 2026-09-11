@@ -100,9 +100,18 @@ export interface ExtractiveL1Summary extends WorldJsonObject {
  * package implements them. An unknown identifier fails closed instead of falling back to another rule.
  */
 export const RECALL_KEYWORD_STRATEGY_ID = 'cjk-ngram-stable/v1'
-export const RECALL_KEYWORD_TOKENIZER_ID = 'cjk-ngram/v1'
 export type RecallKeywordStrategyId = typeof RECALL_KEYWORD_STRATEGY_ID
+/**
+ * Tokenizer versions. `cjk-ngram/v1` is the in-repo overlapping n-gram tokenizer and stays the
+ * dependency-free fallback; `jieba-hybrid/v1` adds real word boundaries from the pinned `jieba-wasm`
+ * segmenter on top of the same n-grams, which remain the recall floor so a partial mention of a longer
+ * or compound word still matches.
+ */
+export const RECALL_KEYWORD_TOKENIZER_ID = 'cjk-ngram/v1'
+export const RECALL_HYBRID_TOKENIZER_ID = 'jieba-hybrid/v1'
 export type RecallKeywordTokenizerId = typeof RECALL_KEYWORD_TOKENIZER_ID
+export type RecallHybridTokenizerId = typeof RECALL_HYBRID_TOKENIZER_ID
+export type RecallTokenizerId = RecallKeywordTokenizerId | RecallHybridTokenizerId
 
 /**
  * Recall plan v2, coexisting with v1. A world that has not declared the new strategy keeps using v1,
@@ -121,7 +130,7 @@ export interface RecallQueryPlanV2 extends WorldJsonObject {
   readonly asOfWorldSeq: number
   readonly queryText: string
   readonly strategyId: RecallKeywordStrategyId
-  readonly tokenizerId: RecallKeywordTokenizerId
+  readonly tokenizerId: RecallTokenizerId
   readonly dictionaryEnabled: boolean
   readonly dictionaryWatermark: number | null
   readonly resultLimit: number
@@ -146,7 +155,7 @@ export interface RecallReceiptV2 extends WorldJsonObject {
   readonly receiptId: string
   readonly planHash: WorldHash
   readonly strategyId: RecallKeywordStrategyId
-  readonly tokenizerId: RecallKeywordTokenizerId
+  readonly tokenizerId: RecallTokenizerId
   readonly dictionaryEnabled: boolean
   readonly dictionaryWatermark: number | null
   readonly watermark: CognitiveMemoryWatermark

@@ -5,6 +5,7 @@ import {
   deterministicId,
   failWorld,
   hashWorldJson,
+  RECALL_HYBRID_TOKENIZER_ID,
   RECALL_KEYWORD_STRATEGY_ID,
   RECALL_KEYWORD_TOKENIZER_ID,
   worldAddressKey,
@@ -25,11 +26,13 @@ import {
   type RecallQueryPlanV2,
   type RecallReceipt,
   type RecallReceiptV2,
+  type RecallTokenizerId,
   type WorldAddress,
   type WorldHash,
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
+import { tokenizeHybridText } from './hybrid-tokenizer.ts'
 import { tokenizeKeywordText, type KeywordToken } from './ngram-tokenizer.ts'
 import {
   CognitionProjectionRebuilder,
@@ -194,7 +197,27 @@ CREATE INDEX cognitive_memory_v2_terms_lookup ON cognitive_memory_v2_terms(names
 ALTER TABLE cognitive_memory_v2_namespaces ADD COLUMN terms_tokenizer_id TEXT;
 `
 
-export const MEMORY_SCHEMA_VERSION = 6
+/**
+ * Widens the term kinds for the segmenter-backed tokenizer and clears every marker, so each namespace
+ * rebuilds once with the tokenizer it uses. Recreating the table is safe because it holds derived data
+ * only: every row can be recomputed from the captured sources.
+ */
+const MEMORY_COGNITIVE_V2_HYBRID_SCHEMA = `
+DROP TABLE cognitive_memory_v2_terms;
+CREATE TABLE cognitive_memory_v2_terms (
+  namespace_key TEXT NOT NULL,
+  memory_id TEXT NOT NULL,
+  token TEXT NOT NULL,
+  token_kind TEXT NOT NULL CHECK(token_kind IN ('cjk-2', 'cjk-3', 'word', 'jieba-word')),
+  token_weight INTEGER NOT NULL CHECK(token_weight > 0),
+  source_seq INTEGER NOT NULL CHECK(source_seq >= 0),
+  PRIMARY KEY(namespace_key, memory_id, token)
+) STRICT;
+CREATE INDEX cognitive_memory_v2_terms_lookup ON cognitive_memory_v2_terms(namespace_key, token);
+UPDATE cognitive_memory_v2_namespaces SET terms_tokenizer_id = NULL;
+`
+
+export const MEMORY_SCHEMA_VERSION = 7
 
 export const TENCENTDB_MEMORY_ENABLED = false
 
@@ -330,6 +353,15 @@ function recallTerms(query: string): string {
 export const DEFAULT_RECALL_LIMIT = 10
 
 /**
+ * Tokenize one text with the versioned tokenizer the plan or the namespace selected. Unknown identifiers
+ * never reach this function: a plan is validated first, so an unknown tokenizer fails closed instead of
+ * silently falling back to another rule.
+ */
+function tokenizeFor(tokenizerId: RecallTokenizerId, text: string): readonly KeywordToken[] {
+  return tokenizerId === RECALL_HYBRID_TOKENIZER_ID ? tokenizeHybridText(text) : tokenizeKeywordText(text)
+}
+
+/**
  * How many candidates one Recall plan matches at its as-of, before the plan limit truncates them. This is a
  * diagnostic surface: it is never persisted, so it cannot change what a Recall or a Receipt records.
  */
@@ -357,7 +389,8 @@ export class LocalMemoryStore {
       { version: 3, sql: MEMORY_COGNITIVE_JOB_SCHEMA },
       { version: 4, sql: MEMORY_GOAL_SOURCE_SCHEMA },
       { version: 5, sql: MEMORY_COGNITIVE_V2_SCHEMA },
-      { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_COGNITIVE_V2_KEYWORD_SCHEMA },
+      { version: 6, sql: MEMORY_COGNITIVE_V2_KEYWORD_SCHEMA },
+      { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_COGNITIVE_V2_HYBRID_SCHEMA },
     ])
     this.#worldStore = worldStore
     this.#viewBuilder = new CharacterViewBuilder(worldStore)
@@ -366,9 +399,9 @@ export class LocalMemoryStore {
   /**
    * Rebuild, verify, capture, summarize, and receipt one Phase 8 character namespace at an exact World prefix.
    *
-   * `keywordIndex` is set only by a world that declared the versioned keyword strategy. A world that did
-   * not keeps paying nothing for an index it never queries, and the index is built from the same captured
-   * sources inside this transaction, so it stays derived and reproducible.
+   * `keywordTokenizerId` is set only by a world that declared the versioned keyword strategy. A world that
+   * did not keeps paying nothing for an index it never queries, and the index is built from the same
+   * captured sources inside this transaction, so it stays derived and reproducible.
    */
   catchUpV2(
     address: WorldAddress,
@@ -376,7 +409,7 @@ export class LocalMemoryStore {
     requiredAsOfSeq: number,
     correlationId: string,
     heartbeat?: () => void,
-    options?: { readonly keywordIndex?: boolean },
+    options?: { readonly keywordTokenizerId?: RecallTokenizerId },
   ): CognitiveMemoryReceipt {
     if (!Number.isSafeInteger(requiredAsOfSeq) || requiredAsOfSeq < 0) {
       throw new RangeError('requiredAsOfSeq must be a non-negative safe integer')
@@ -447,7 +480,9 @@ export class LocalMemoryStore {
           source_map_hash = excluded.source_map_hash,
           source_bundle_hash = excluded.source_bundle_hash
       `).run(key, requiredAsOfSeq, requiredAsOfSeq, memoryEpoch, sourceMapHash, sourceBundleHash)
-      if (options?.keywordIndex === true) this.#ensureV2KeywordIndex(key, rows)
+      if (options?.keywordTokenizerId !== undefined) {
+        this.#ensureV2KeywordIndex(key, rows, options.keywordTokenizerId)
+      }
       const receiptId = deterministicId('cognitive-memory-receipt/v2', { address, characterId, requiredAsOfSeq, memoryEpoch })
       const receiptInput = {
         schemaVersion: 'cognitive-memory-receipt/v2' as const,
@@ -506,7 +541,7 @@ export class LocalMemoryStore {
    */
   recallKeywords(plan: RecallQueryPlanV2): CognitiveRecallResultV2 {
     const { key, watermark } = this.#assertV2KeywordPlan(plan)
-    const queryTokens = tokenizeKeywordText(plan.queryText)
+    const queryTokens = tokenizeFor(plan.tokenizerId, plan.queryText)
     const candidates = queryTokens.length === 0
       ? []
       : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens)
@@ -544,7 +579,7 @@ export class LocalMemoryStore {
   recallDiagnostics(plan: RecallQueryPlan | RecallQueryPlanV2): RecallCandidateDiagnostics {
     if (plan.schemaVersion === 'recall-query-plan/v2') {
       const { key } = this.#assertV2KeywordPlan(plan)
-      const queryTokens = tokenizeKeywordText(plan.queryText)
+      const queryTokens = tokenizeFor(plan.tokenizerId, plan.queryText)
       return {
         schemaVersion: 'recall-candidates/v1', address: plan.address, characterId: plan.characterId,
         asOfWorldSeq: plan.asOfWorldSeq, query: plan.queryText, limit: plan.resultLimit,
@@ -1120,11 +1155,11 @@ export class LocalMemoryStore {
    * tokenizer is rebuilt once; otherwise only entries that have no terms yet are tokenized, so a normal
    * catch-up never rewrites terms that are already correct.
    */
-  #ensureV2KeywordIndex(key: string, rows: readonly CognitiveMemoryEntry[]): void {
-    if (this.#v2TermsTokenizer(key) !== RECALL_KEYWORD_TOKENIZER_ID) {
+  #ensureV2KeywordIndex(key: string, rows: readonly CognitiveMemoryEntry[], tokenizerId: RecallTokenizerId): void {
+    if (this.#v2TermsTokenizer(key) !== tokenizerId) {
       this.#db.prepare(`DELETE FROM cognitive_memory_v2_terms WHERE namespace_key = ?`).run(key)
       for (const entry of rows) {
-        this.#insertV2Terms(key, entry.memoryId, entry.sourceRef.sourceSeq, entry.text)
+        this.#insertV2Terms(key, entry.memoryId, entry.sourceRef.sourceSeq, entry.text, tokenizerId)
       }
     } else {
       const missing = this.#db.prepare(`
@@ -1134,18 +1169,26 @@ export class LocalMemoryStore {
           WHERE t.namespace_key = s.namespace_key AND t.memory_id = s.memory_id
         )
       `).all(key) as Array<{ memory_id: string; source_seq: number; text_value: string }>
-      for (const row of missing) this.#insertV2Terms(key, row.memory_id, row.source_seq, row.text_value)
+      for (const row of missing) {
+        this.#insertV2Terms(key, row.memory_id, row.source_seq, row.text_value, tokenizerId)
+      }
     }
     this.#db.prepare(`UPDATE cognitive_memory_v2_namespaces SET terms_tokenizer_id = ? WHERE namespace_key = ?`)
-      .run(RECALL_KEYWORD_TOKENIZER_ID, key)
+      .run(tokenizerId, key)
   }
 
-  #insertV2Terms(key: string, memoryId: string, sourceSeq: number, text: string): void {
+  #insertV2Terms(
+    key: string,
+    memoryId: string,
+    sourceSeq: number,
+    text: string,
+    tokenizerId: RecallTokenizerId,
+  ): void {
     const insert = this.#db.prepare(`
       INSERT OR IGNORE INTO cognitive_memory_v2_terms(namespace_key, memory_id, token, token_kind, token_weight, source_seq)
       VALUES (?, ?, ?, ?, ?, ?)
     `)
-    for (const token of tokenizeKeywordText(text)) {
+    for (const token of tokenizeFor(tokenizerId, text)) {
       insert.run(key, memoryId, token.token, token.kind, token.weight, sourceSeq)
     }
   }
@@ -1276,15 +1319,17 @@ export class LocalMemoryStore {
     if (!Number.isSafeInteger(plan.asOfWorldSeq) || plan.asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
     if (!Number.isSafeInteger(plan.resultLimit) || plan.resultLimit <= 0) throw new RangeError('resultLimit must be a positive safe integer')
     if (plan.strategyId !== RECALL_KEYWORD_STRATEGY_ID) throw new TypeError('strategyId is unsupported')
-    if (plan.tokenizerId !== RECALL_KEYWORD_TOKENIZER_ID) throw new TypeError('tokenizerId is unsupported')
+    if (plan.tokenizerId !== RECALL_KEYWORD_TOKENIZER_ID && plan.tokenizerId !== RECALL_HYBRID_TOKENIZER_ID) {
+      throw new TypeError('tokenizerId is unsupported')
+    }
     if (plan.dictionaryEnabled !== false) throw new TypeError('the keyword dictionary is not implemented')
     const key = namespace(plan.address, plan.characterId)
-    if (this.#v2TermsTokenizer(key) !== RECALL_KEYWORD_TOKENIZER_ID) {
+    if (this.#v2TermsTokenizer(key) !== plan.tokenizerId) {
       failWorld({
         errorCode: 'MEMORY_CATCHUP_FAILED', category: 'runtime',
         message: 'Cognitive Memory keyword index has not been built for this namespace', retryable: true,
         correlationId: `recall:${plan.planId}`, address: plan.address,
-        details: { characterId: plan.characterId },
+        details: { characterId: plan.characterId, tokenizerId: plan.tokenizerId },
       })
     }
     const watermark = this.cognitiveWatermark(plan.address, plan.characterId)

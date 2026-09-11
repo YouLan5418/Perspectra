@@ -5,7 +5,7 @@
 ## 权威边界
 
 - `../deepseek-harness-dsh-v0.1.1-rc.1` 是只读调研源码，不得从本仓库修改、复制内部实现或依赖其未发布路径。
-- Phase 0 只允许 `@deepseek-ai/cordis@4.0.1` 作为上游运行时依赖；Harness 接入必须通过后续 Bridge 包。
+- Phase 0 只允许 `@deepseek-ai/cordis@4.0.1` 作为上游运行时依赖；Harness 接入必须通过后续 Bridge 包。唯一例外是记忆检索的中文分词器 `jieba-wasm`（锁精确版本、只用已验证接口），由 [ADR-0089](docs/adr/ADR-0089-tokenizer-runtime-dependency.md) 授权，范围不得扩大。
 - World Event Log 是世界事实权威；Session、Projection、Memory 和 Telemetry 都不能反写或替代世界事实。
 
 ## 实现约束

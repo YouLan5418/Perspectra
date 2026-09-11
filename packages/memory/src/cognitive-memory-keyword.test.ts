@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   brandId,
+  RECALL_HYBRID_TOKENIZER_ID,
   RECALL_KEYWORD_STRATEGY_ID,
   RECALL_KEYWORD_TOKENIZER_ID,
   type CharacterId,
@@ -111,7 +112,7 @@ function texts(memory: LocalMemoryStore, query: string, resultLimit = 10): reado
 describe('versioned keyword Recall', () => {
   it('finds an important fact from a two-character noun the frozen path cannot match', async () => {
     const { memory } = await fixture()
-    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
 
     // The frozen path can only match a whole run, so this exact noun yields nothing there.
     expect(memory.recallDiagnostics({
@@ -130,7 +131,7 @@ describe('versioned keyword Recall', () => {
 
   it('ranks an entry that matches a rare token above one that only shares a common word', async () => {
     const { memory } = await fixture()
-    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     const receipt = memory.recallKeywords(plan('钥匙 放在')).receipt
     const scores = receipt.ranking.map(entry => entry.score)
     expect(scores).toEqual([...scores].sort((left, right) => right - left))
@@ -142,7 +143,7 @@ describe('versioned keyword Recall', () => {
 
   it('records what the result limit withheld instead of silently dropping it', async () => {
     const { memory } = await fixture()
-    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     const limited = memory.recallKeywords(plan('钥匙', 1)).receipt
     expect(limited).toMatchObject({ matchedCount: 2, droppedByResultLimit: 1, exclusionReasons: ['result_limit'] })
     expect(limited.selectedSourceRefs).toHaveLength(1)
@@ -156,7 +157,7 @@ describe('versioned keyword Recall', () => {
 
   it('records the versions it ran under and reports the same receipt for the same plan', async () => {
     const { memory } = await fixture()
-    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     const first = memory.recallKeywords(plan('钥匙')).receipt
     expect(first).toMatchObject({
       schemaVersion: 'recall-receipt/v2', strategyId: RECALL_KEYWORD_STRATEGY_ID,
@@ -167,9 +168,9 @@ describe('versioned keyword Recall', () => {
 
   it('keeps the index derived: a second catch-up indexes only what is new', async () => {
     const { world, memory } = await fixture()
-    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     await commit(world, 'later', [speech('observation:later', '新的钥匙串挂在墙上')])
-    memory.catchUpV2(address(), alice, 7, 'keyword:catchup:alice:later', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), alice, 7, 'keyword:catchup:alice:later', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     const recalled = memory.recallKeywords(plan('钥匙串', 10, alice, { asOfWorldSeq: 7 })).memories
     // The new entry carries the trigram as well as both bigrams, so it outranks the older mentions.
     expect(recalled.map(entry => entry.text)).toEqual([
@@ -190,16 +191,16 @@ describe('versioned keyword Recall', () => {
 
   it('rebuilds the index after a namespace reset', async () => {
     const { memory } = await fixture()
-    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     memory.resetCognitiveNamespace(address(), alice)
     expect(() => memory.recallKeywords(plan('钥匙'))).toThrow(/keyword index has not been built/u)
-    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice:after-reset', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice:after-reset', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     expect(texts(memory, '钥匙')).toHaveLength(2)
   })
 
   it('rejects a plan it cannot honour', async () => {
     const { memory } = await fixture()
-    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     expect(() => memory.recallKeywords(plan('钥匙', 10, alice, { asOfWorldSeq: -1 })))
       .toThrow(/asOfWorldSeq must be a non-negative safe integer/u)
     expect(() => memory.recallKeywords(plan('钥匙', 0))).toThrow(/resultLimit must be a positive safe integer/u)
@@ -215,20 +216,40 @@ describe('versioned keyword Recall', () => {
 
   it('scopes matching and statistics to one character namespace', async () => {
     const { world, memory } = await fixture()
-    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     const before = memory.recallKeywords(plan('钥匙')).receipt
     // Bob observes the same world; his namespace must not exist as a channel into Alice's ranking.
-    memory.catchUpV2(address(), bob, 6, 'keyword:catchup:bob', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), bob, 6, 'keyword:catchup:bob', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     expect(memory.recallKeywords(plan('钥匙')).receipt).toEqual(before)
     expect(memory.recallKeywords(plan('钥匙', 10, bob)).memories).toEqual([])
   })
 
   it('fails closed when the same plan identity is bound to another result', async () => {
     const { memory } = await fixture()
-    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordIndex: true })
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     const first = plan('钥匙')
     memory.recallKeywords(first)
     expect(() => memory.recallKeywords(plan('花盆', 10, alice, { planId: first.planId })))
       .toThrow(/Recall receipt identity is bound to another result/u)
+  })
+
+  it('serves the segmenter-backed tokenizer without losing a partial mention', async () => {
+    const { memory } = await fixture()
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:hybrid', undefined, { keywordTokenizerId: RECALL_HYBRID_TOKENIZER_ID })
+    const hybrid = { tokenizerId: RECALL_HYBRID_TOKENIZER_ID } as const
+    // The segmenter merges a compound into one word; the n-gram floor still matches the shorter query.
+    expect(memory.recallKeywords(plan('钥匙', 10, alice, hybrid)).memories.map(entry => entry.text)).toEqual([
+      `character:bob said: ${DECOY}`, `character:bob said: ${IMPORTANT}`,
+    ])
+    const word = memory.recallKeywords(plan('花盆', 10, alice, hybrid))
+    expect(word.receipt).toMatchObject({ tokenizerId: RECALL_HYBRID_TOKENIZER_ID, matchedCount: 1 })
+    expect(word.receipt.ranking[0]!.matchedTokens).toContain('花盆')
+  })
+
+  it('refuses a plan whose tokenizer is not the one this namespace was indexed with', async () => {
+    const { memory } = await fixture()
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
+    expect(() => memory.recallKeywords(plan('钥匙', 10, alice, { tokenizerId: RECALL_HYBRID_TOKENIZER_ID })))
+      .toThrow(/keyword index has not been built for this namespace/u)
   })
 })

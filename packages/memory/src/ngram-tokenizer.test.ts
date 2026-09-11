@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CJK_NGRAM_MAXIMUM,
   CJK_NGRAM_MINIMUM,
+  isCjkText,
   KEYWORD_TOKENIZER_ID,
   tokenizeKeywordText,
   type KeywordToken,
@@ -112,5 +113,16 @@ describe('versioned keyword tokenizer', () => {
     expect(tokenizeKeywordText('备用钥匙放在门口')).toEqual(once)
     const reversed = [...once].reverse()
     expect([...once].map(token => token.token).sort()).toEqual(reversed.map(token => token.token).sort())
+  })
+
+  it('recognises a whole CJK run and nothing else', () => {
+    expect(isCjkText('')).toBe(false)
+    expect(isCjkText('钥匙')).toBe(true)
+    expect(isCjkText('\u{20000}\u{20001}')).toBe(true)
+    expect(isCjkText('\u3042\u30a2')).toBe(true)
+    expect(isCjkText('\u1100\uac00')).toBe(true)
+    expect(isCjkText('钥a')).toBe(false)
+    expect(isCjkText('Alice')).toBe(false)
+    expect(isCjkText('钥匙 花盆')).toBe(false)
   })
 })

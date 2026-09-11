@@ -21,18 +21,18 @@ export const KEYWORD_TOKENIZER_ID = RECALL_KEYWORD_TOKENIZER_ID
 export const CJK_NGRAM_MINIMUM = 2
 export const CJK_NGRAM_MAXIMUM = 3
 
-export type KeywordTokenKind = 'cjk-2' | 'cjk-3' | 'word'
+export type KeywordTokenKind = 'cjk-2' | 'cjk-3' | 'word' | 'jieba-word'
 
 export interface KeywordToken {
   readonly token: string
   readonly kind: KeywordTokenKind
-  /** Kind bonus used by ranking: a longer CJK hit, or a Latin word, is stronger evidence than a bigram. */
+  /** Kind bonus used by ranking: a segmenter word or a longer CJK hit is stronger evidence than a bigram. */
   readonly weight: number
 }
 
 /** Kind bonuses are integers so ranking never depends on floating point or platform sorting. */
 const KIND_WEIGHT: Readonly<Record<KeywordTokenKind, number>> = Object.freeze({
-  'cjk-2': 1, 'cjk-3': 2, word: 3,
+  'cjk-2': 1, 'cjk-3': 2, word: 3, 'jieba-word': 4,
 })
 
 /**
@@ -47,6 +47,15 @@ function isCjkScript(codePoint: number): boolean {
     || (codePoint >= 0x3040 && codePoint <= 0x30ff)
     || (codePoint >= 0x1100 && codePoint <= 0x11ff)
     || (codePoint >= 0xac00 && codePoint <= 0xd7af)
+}
+
+/** True when every character of the text belongs to a CJK script range, and the text is not empty. */
+export function isCjkText(text: string): boolean {
+  if (text.length === 0) return false
+  for (const character of text) {
+    if (!isCjkScript(character.codePointAt(0)!)) return false
+  }
+  return true
 }
 
 /**
