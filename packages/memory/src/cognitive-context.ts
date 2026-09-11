@@ -21,7 +21,10 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { CharacterViewBuilder, type WorldStore } from '@harness-world/store-sqlite'
-import { LocalMemoryStore, memorySourceRef, type MemorySourceRef, type RecalledMemory } from './local-memory.ts'
+import {
+  DEFAULT_RECALL_LIMIT, LocalMemoryStore, memorySourceRef,
+  type MemorySourceRef, type RecallCandidateDiagnostics, type RecalledMemory,
+} from './local-memory.ts'
 
 function legacyRecallQuery(parameters: WorldJsonValue): string {
   if (typeof parameters === 'string') return parameters
@@ -116,6 +119,10 @@ export class CognitiveMemoryWorker {
 
   recall(plan: RecallQueryPlan): CognitiveRecallResult {
     return this.memory.recallV2(plan)
+  }
+
+  recallDiagnostics(plan: RecallQueryPlan): RecallCandidateDiagnostics {
+    return this.memory.recallDiagnostics(plan)
   }
 
   watermark(address: WorldAddress, characterId: CharacterId): CognitiveMemoryWatermark | undefined {
@@ -257,7 +264,7 @@ export class CognitiveMemoryService {
         address: request.address, roundId: request.roundId, participantId: request.participantId,
       }),
       address: request.address, characterId: request.characterId, asOfWorldSeq: request.asOfWorldSeq,
-      query, limit: 10, rankingAlgorithm: 'fts5-bm25-stable/v1',
+      query, limit: DEFAULT_RECALL_LIMIT, rankingAlgorithm: 'fts5-bm25-stable/v1',
     } : undefined
     const v2Recall = v2Plan === undefined ? undefined : this.#memory.recallV2(v2Plan)
     const memoryRecall = v2Recall === undefined
@@ -288,20 +295,51 @@ export class CognitiveMemoryService {
   recall(address: WorldAddress, characterId: CharacterId, query: string, asOfWorldSeq: number): RecalledMemory[] {
     this.catchUp(address, characterId, asOfWorldSeq, `memory-recall:${characterId}:${asOfWorldSeq}`)
     if (this.version === 2) {
-      return this.#memory.recallV2({
-        schemaVersion: 'recall-query-plan/v1',
-        planId: deterministicId('application-recall-plan/v1', { address, characterId, query, asOfWorldSeq }),
-        address, characterId, asOfWorldSeq, query, limit: 10, rankingAlgorithm: 'fts5-bm25-stable/v1',
-      }).memories.map(memory => ({
-        memoryId: memory.memoryId, text: memory.text,
-        metadata: {
-          ...memory.metadata as WorldJsonObject,
-          kind: memory.memoryKind, epistemicKind: memory.epistemicKind, source: memory.sourceRef,
-        },
-        sourceMaxSeq: memory.sourceRef.sourceSeq, captureHash: memory.captureHash,
-      }))
+      return this.#memory.recallV2(this.#applicationRecallPlan(address, characterId, query, asOfWorldSeq))
+        .memories.map(memory => ({
+          memoryId: memory.memoryId, text: memory.text,
+          metadata: {
+            ...memory.metadata as WorldJsonObject,
+            kind: memory.memoryKind, epistemicKind: memory.epistemicKind, source: memory.sourceRef,
+          },
+          sourceMaxSeq: memory.sourceRef.sourceSeq, captureHash: memory.captureHash,
+        }))
     }
     return this.#memory.recall(address, characterId, query, asOfWorldSeq)
+  }
+
+  /**
+   * Measure how many candidates the default Recall plan matches. This is the same plan and the same result
+   * limit a real Recall uses, so the difference is exactly what one Recall leaves unseen.
+   */
+  diagnoseRecall(
+    address: WorldAddress,
+    characterId: CharacterId,
+    query: string,
+    asOfWorldSeq: number,
+  ): RecallCandidateDiagnostics {
+    if (this.version !== 2) {
+      return {
+        schemaVersion: 'recall-candidates/v1', address, characterId, asOfWorldSeq, query,
+        matchedCount: this.#memory.countRecall(address, characterId, query, asOfWorldSeq),
+        limit: DEFAULT_RECALL_LIMIT,
+      }
+    }
+    return this.recallDiagnostics(this.#applicationRecallPlan(address, characterId, query, asOfWorldSeq))
+  }
+
+  /** The single default Recall plan, so a diagnostic can never describe a plan production does not use. */
+  #applicationRecallPlan(
+    address: WorldAddress,
+    characterId: CharacterId,
+    query: string,
+    asOfWorldSeq: number,
+  ): RecallQueryPlan {
+    return {
+      schemaVersion: 'recall-query-plan/v1',
+      planId: deterministicId('application-recall-plan/v1', { address, characterId, query, asOfWorldSeq }),
+      address, characterId, asOfWorldSeq, query, limit: DEFAULT_RECALL_LIMIT, rankingAlgorithm: 'fts5-bm25-stable/v1',
+    }
   }
 
   catchUpReceipt(
@@ -319,6 +357,16 @@ export class CognitiveMemoryService {
     if (this.version !== 2) throw new TypeError('Recall receipt requires Cognitive Memory version 2')
     this.catchUpReceipt(plan.address, plan.characterId, plan.asOfWorldSeq, `memory-recall:${plan.planId}`)
     return this.#worker!.recall(plan)
+  }
+
+  /**
+   * Measure how much one Recall plan's result limit drops. This runs the same idempotent catch-up a real
+   * Recall does, then counts the candidates before the limit; no Receipt or result is written for the count.
+   */
+  recallDiagnostics(plan: RecallQueryPlan): RecallCandidateDiagnostics {
+    if (this.version !== 2) throw new TypeError('Recall diagnostics require Cognitive Memory version 2')
+    this.catchUpReceipt(plan.address, plan.characterId, plan.asOfWorldSeq, `memory-diagnostics:${plan.planId}`)
+    return this.#worker!.recallDiagnostics(plan)
   }
 
   watermark(address: WorldAddress, characterId: CharacterId): CognitiveMemoryWatermark | undefined {

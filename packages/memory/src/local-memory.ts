@@ -290,6 +290,32 @@ function orderedSources(values: readonly CognitiveSourceCandidate[]): CognitiveS
   return [...values].sort((left, right) => left.sourceRef.sourceSeq - right.sourceRef.sourceSeq)
 }
 
+/**
+ * The FTS5 MATCH expression for one Recall query. Recall and its diagnostics share this so the counted
+ * candidate set can never drift from the set a real Recall ranks.
+ */
+function recallTerms(query: string): string {
+  return query.trim().split(/\s+/u).filter(Boolean).map(term => `"${term.replaceAll('"', '""')}"`).join(' AND ')
+}
+
+/** The result limit one Recall applies when the caller does not choose one. */
+export const DEFAULT_RECALL_LIMIT = 10
+
+/**
+ * How many candidates one Recall plan matches at its as-of, before the plan limit truncates them. This is a
+ * diagnostic surface: it is never persisted, so it cannot change what a Recall or a Receipt records.
+ */
+export interface RecallCandidateDiagnostics extends WorldJsonObject {
+  readonly schemaVersion: 'recall-candidates/v1'
+  readonly address: WorldAddress
+  readonly characterId: CharacterId
+  readonly asOfWorldSeq: number
+  readonly query: string
+  /** Candidates this query matches at this as-of, before `limit` is applied. */
+  readonly matchedCount: number
+  readonly limit: number
+}
+
 /** Local FTS5 memory with mandatory character/branch namespace and source closure checks. */
 export class LocalMemoryStore {
   readonly #db: DatabaseSync
@@ -417,21 +443,8 @@ export class LocalMemoryStore {
 
   /** Recall only from the Host-bound character namespace and persist the exact stable ranking receipt. */
   recallV2(plan: RecallQueryPlan): CognitiveRecallResult {
-    if (!Number.isSafeInteger(plan.asOfWorldSeq) || plan.asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
-    if (!Number.isSafeInteger(plan.limit) || plan.limit <= 0) throw new RangeError('limit must be a positive safe integer')
-    if (plan.rankingAlgorithm !== 'fts5-bm25-stable/v1') throw new TypeError('rankingAlgorithm is unsupported')
-    const key = namespace(plan.address, plan.characterId)
-    const watermark = this.cognitiveWatermark(plan.address, plan.characterId)
-    if (watermark === undefined || watermark.verifiedThroughSeq < plan.asOfWorldSeq
-      || watermark.capturedThroughSeq < plan.asOfWorldSeq) {
-      failWorld({
-        errorCode: 'MEMORY_CATCHUP_FAILED', category: 'runtime',
-        message: 'Cognitive Memory has not reached the required as-of sequence', retryable: true,
-        correlationId: `recall:${plan.planId}`, address: plan.address,
-        details: { characterId: plan.characterId, requiredAsOfSeq: plan.asOfWorldSeq },
-      })
-    }
-    const terms = plan.query.trim().split(/\s+/u).filter(Boolean).map(term => `"${term.replaceAll('"', '""')}"`).join(' AND ')
+    const { key, watermark } = this.#assertV2RecallPlan(plan)
+    const terms = recallTerms(plan.query)
     const memories = terms.length === 0 ? [] : this.#readV2Recall(key, terms, plan.asOfWorldSeq, plan.limit)
     const selectedSourceRefs = memories.map(memory => memory.sourceRef)
     const ranking = memories.map((memory, index) => ({ memoryId: memory.memoryId, rank: index + 1, sourceRef: memory.sourceRef }))
@@ -462,6 +475,20 @@ export class LocalMemoryStore {
       rollbackAndThrow(this.#db, error)
     }
     return { memories, receipt }
+  }
+
+  /**
+   * Report how many candidates one Recall plan matches before its result limit is applied. Nothing durable
+   * records the candidates a limited Recall drops, so this is how that gap is measured instead of guessed.
+   */
+  recallDiagnostics(plan: RecallQueryPlan): RecallCandidateDiagnostics {
+    const { key } = this.#assertV2RecallPlan(plan)
+    const terms = recallTerms(plan.query)
+    const matchedCount = terms.length === 0 ? 0 : this.#countV2Recall(key, terms, plan.asOfWorldSeq)
+    return {
+      schemaVersion: 'recall-candidates/v1', address: plan.address, characterId: plan.characterId,
+      asOfWorldSeq: plan.asOfWorldSeq, query: plan.query, matchedCount, limit: plan.limit,
+    }
   }
 
   cognitiveWatermark(address: WorldAddress, characterId: CharacterId): CognitiveMemoryWatermark | undefined {
@@ -658,10 +685,38 @@ export class LocalMemoryStore {
     }
   }
 
-  recall(address: WorldAddress, characterId: CharacterId, query: string, asOfWorldSeq: number, limit = 10): RecalledMemory[] {
+  /**
+   * Count the candidates this query matches in the local index before a v1 Recall's limit truncates them.
+   * It mirrors `recall`'s filters exactly, and writes nothing.
+   */
+  countRecall(address: WorldAddress, characterId: CharacterId, query: string, asOfWorldSeq: number): number {
+    if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
+    const terms = recallTerms(query)
+    if (terms.length === 0) return 0
+    const row = this.#db.prepare(`
+      SELECT COUNT(*) AS matched
+      FROM memory_fts f JOIN memory_entries e
+        ON e.namespace_key = f.namespace_key AND e.memory_id = f.memory_id
+      WHERE memory_fts MATCH ? AND e.namespace_key = ?
+        AND e.source_max_seq <= ?
+        AND (e.forgotten_seq IS NULL OR e.forgotten_seq > ?)
+        AND NOT EXISTS (
+          SELECT 1 FROM memory_sources s
+          LEFT JOIN memory_source_mappings m
+            ON m.namespace_key = s.namespace_key AND m.source_kind = s.source_kind AND m.source_id = s.source_id
+          WHERE s.namespace_key = e.namespace_key AND s.memory_id = e.memory_id
+            AND (m.source_id IS NULL OR m.source_seq != s.source_seq OR m.source_hash != s.source_hash OR s.source_seq > ?)
+        )
+    `).get(
+      terms, namespace(address, characterId), asOfWorldSeq, asOfWorldSeq, asOfWorldSeq,
+    ) as { matched: number }
+    return row.matched
+  }
+
+  recall(address: WorldAddress, characterId: CharacterId, query: string, asOfWorldSeq: number, limit = DEFAULT_RECALL_LIMIT): RecalledMemory[] {
     if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
     if (!Number.isSafeInteger(limit) || limit <= 0) throw new RangeError('limit must be a positive safe integer')
-    const terms = query.trim().split(/\s+/u).filter(Boolean).map(term => `"${term.replaceAll('"', '""')}"`).join(' AND ')
+    const terms = recallTerms(query)
     if (terms.length === 0) return []
     const key = namespace(address, characterId)
     const rows = this.#db.prepare(`
@@ -905,8 +960,38 @@ export class LocalMemoryStore {
     }))
   }
 
-  #readV2Recall(key: string, terms: string, asOfWorldSeq: number, limit: number): CognitiveMemoryEntry[] {
-    const rows = this.#db.prepare(`
+  /** Shared plan validation and watermark gate, so a diagnostic cannot describe a different candidate set. */
+  #assertV2RecallPlan(
+    plan: RecallQueryPlan,
+  ): { readonly key: string; readonly watermark: CognitiveMemoryWatermark } {
+    if (!Number.isSafeInteger(plan.asOfWorldSeq) || plan.asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
+    if (!Number.isSafeInteger(plan.limit) || plan.limit <= 0) throw new RangeError('limit must be a positive safe integer')
+    if (plan.rankingAlgorithm !== 'fts5-bm25-stable/v1') throw new TypeError('rankingAlgorithm is unsupported')
+    const key = namespace(plan.address, plan.characterId)
+    const watermark = this.cognitiveWatermark(plan.address, plan.characterId)
+    if (watermark === undefined || watermark.verifiedThroughSeq < plan.asOfWorldSeq
+      || watermark.capturedThroughSeq < plan.asOfWorldSeq) {
+      failWorld({
+        errorCode: 'MEMORY_CATCHUP_FAILED', category: 'runtime',
+        message: 'Cognitive Memory has not reached the required as-of sequence', retryable: true,
+        correlationId: `recall:${plan.planId}`, address: plan.address,
+        details: { characterId: plan.characterId, requiredAsOfSeq: plan.asOfWorldSeq },
+      })
+    }
+    return { key, watermark }
+  }
+
+  #countV2Recall(key: string, terms: string, asOfWorldSeq: number): number {
+    const row = this.#db.prepare(`
+      SELECT COUNT(*) AS matched
+      FROM cognitive_memory_v2_fts f JOIN cognitive_memory_v2_sources s
+        ON s.namespace_key = f.namespace_key AND s.memory_id = f.memory_id
+      WHERE cognitive_memory_v2_fts MATCH ? AND s.namespace_key = ? AND s.source_seq <= ?
+    `).get(terms, key, asOfWorldSeq) as { matched: number }
+    return row.matched
+  }
+
+  #readV2Recall(key: string, terms: string, asOfWorldSeq: number, limit: number): CognitiveMemoryEntry[] {    const rows = this.#db.prepare(`
       SELECT s.memory_id, s.memory_kind, s.epistemic_kind, s.text_value, s.metadata_json,
              s.source_id, s.source_seq, s.source_hash, s.capture_hash
       FROM cognitive_memory_v2_fts f JOIN cognitive_memory_v2_sources s

@@ -417,6 +417,12 @@ describe('three-role mystery Demo', () => {
       expect(await first.recall(MYSTERY_DEMO_IDS.alice, 'is_culprit', genesis.headSeq)).toEqual([])
       expect(await first.recall(MYSTERY_DEMO_IDS.detective, 'may_be_involved')).toHaveLength(1)
       expect(await first.recall(MYSTERY_DEMO_IDS.player, 'is_culprit')).toEqual([])
+      // The diagnostic reports the default limit and the candidate count each Recall was choosing from.
+      expect(await first.diagnoseRecall(MYSTERY_DEMO_IDS.bob, 'is_culprit'))
+        .toMatchObject({ schemaVersion: 'recall-candidates/v1', matchedCount: 1, limit: 10 })
+      expect(await first.diagnoseRecall(MYSTERY_DEMO_IDS.detective, 'may_be_involved'))
+        .toMatchObject({ matchedCount: 1 })
+      expect(await first.diagnoseRecall(MYSTERY_DEMO_IDS.player, 'is_culprit')).toMatchObject({ matchedCount: 0 })
       expect(new Set([
         genesis.views.alice.observations[0]?.value,
         genesis.views.bob.observations[0]?.value,

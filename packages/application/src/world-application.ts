@@ -43,7 +43,7 @@ import {
   type PlayerRoundResult,
   type RulebookRegistry,
 } from '@harness-world/kernel'
-import { CognitiveMemoryService, type RecalledMemory } from '@harness-world/memory'
+import { CognitiveMemoryService, type RecallCandidateDiagnostics, type RecalledMemory } from '@harness-world/memory'
 import {
   ContextReceiptStore,
   ContinuityCheckpointService,
@@ -869,17 +869,43 @@ export class WorldApplication {
     asOfWorldSeq?: number,
   ): Promise<RecalledMemory[]> {
     return this.#integrityGuard(address, 'memory.recall', branch => {
-      const memory = branch.agents.cognitiveMemory
-      if (memory === undefined) {
-        failWorld({
-          errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
-          message: 'Cognitive Memory is not enabled by this Manifest', retryable: false,
-          correlationId: `memory-recall:${characterId}`, address,
-        })
-      }
+      const memory = this.#requireCognitiveMemory(branch.agents.cognitiveMemory, address, characterId, 'recall')
       const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
       return memory.recall(address, characterId, query, asOf)
     })
+  }
+
+  /**
+   * Report how many Recall candidates this query matches before the default result limit, so an operator can
+   * see what one Recall leaves unseen. Reading this writes no Recall or Context record of its own.
+   */
+  async diagnoseMemoryRecall(
+    address: WorldAddress,
+    characterId: CharacterId,
+    query: string,
+    asOfWorldSeq?: number,
+  ): Promise<RecallCandidateDiagnostics> {
+    return this.#integrityGuard(address, 'memory.diagnose', branch => {
+      const memory = this.#requireCognitiveMemory(branch.agents.cognitiveMemory, address, characterId, 'diagnose')
+      const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
+      return memory.diagnoseRecall(address, characterId, query, asOf)
+    })
+  }
+
+  #requireCognitiveMemory(
+    memory: CognitiveMemoryService | undefined,
+    address: WorldAddress,
+    characterId: CharacterId,
+    operation: 'recall' | 'diagnose',
+  ): CognitiveMemoryService {
+    if (memory === undefined) {
+      failWorld({
+        errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
+        message: 'Cognitive Memory is not enabled by this Manifest', retryable: false,
+        correlationId: `memory-${operation}:${characterId}`, address,
+      })
+    }
+    return memory
   }
 
   /** Player-facing view access: a principal may read only the Character bound to it by the frozen Manifest. */

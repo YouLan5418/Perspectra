@@ -69,6 +69,10 @@ describe('CognitiveMemoryService', () => {
     })).toThrow('requires Cognitive Memory version 2')
     expect(legacy.watermark(address(), alice)).toBeUndefined()
     expect(legacy.summaries(address(), alice)).toEqual([])
+    expect(() => legacy.recallDiagnostics({
+      schemaVersion: 'recall-query-plan/v1', planId: 'legacy', address: address(), characterId: alice,
+      asOfWorldSeq: 6, query: 'secret', limit: 2, rankingAlgorithm: 'fts5-bm25-stable/v1',
+    })).toThrow('require Cognitive Memory version 2')
     legacy.close()
 
     const memory = new CognitiveMemoryService(memoryPath, world, undefined, 2)
@@ -80,6 +84,19 @@ describe('CognitiveMemoryService', () => {
       asOfWorldSeq: 6, query: 'secret', limit: 2, rankingAlgorithm: 'fts5-bm25-stable/v1',
     })
     expect(recalled.memories).toMatchObject([{ memoryKind: 'episodic', text: 'secret red key' }])
+    // The diagnostic reports the same candidate set the Receipt-recall ranked, and drops nothing itself.
+    expect(memory.recallDiagnostics({
+      schemaVersion: 'recall-query-plan/v1', planId: 'diagnostics:alice', address: address(), characterId: alice,
+      asOfWorldSeq: 6, query: 'secret', limit: 1, rankingAlgorithm: 'fts5-bm25-stable/v1',
+    })).toMatchObject({ schemaVersion: 'recall-candidates/v1', matchedCount: 1, limit: 1 })
+    expect(memory.recallDiagnostics({
+      schemaVersion: 'recall-query-plan/v1', planId: 'diagnostics:none', address: address(), characterId: alice,
+      asOfWorldSeq: 6, query: 'absent', limit: 1, rankingAlgorithm: 'fts5-bm25-stable/v1',
+    })).toMatchObject({ matchedCount: 0 })
+    // The convenience entry point measures the same default plan a real Recall applies.
+    expect(memory.diagnoseRecall(address(), alice, 'secret', 6))
+      .toMatchObject({ schemaVersion: 'recall-candidates/v1', matchedCount: 1, limit: 10 })
+    expect(memory.diagnoseRecall(address(), alice, 'absent', 6)).toMatchObject({ matchedCount: 0 })
     expect(memory.recall(address(), alice, 'secret', 6)).toMatchObject([{ text: 'secret red key', sourceMaxSeq: 3 }])
     const context = memory.prepare({
       address: address(), roundId: brandId('round:v2-context', 'InteractionRoundId'), tick: 2,

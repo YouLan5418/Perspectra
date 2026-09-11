@@ -363,4 +363,39 @@ describe('Cognitive Memory v2', () => {
     unopened.close()
     world.close()
   })
+
+  it('measures the Recall candidates a plan limit drops without writing any record', async () => {
+    const { path, world, memory } = await fixture()
+    await commit(world, 'diagnostics', Array.from({ length: 5 }, (_, index) => ({
+      eventType: 'observation.upsert', eventVersion: 1,
+      data: { id: `observation:signal:${index}`, value: { observerId: alice, content: `signal relay ${index}` } },
+    })))
+    const asOf = world.head(address()).headSeq
+    memory.catchUpV2(address(), alice, asOf, 'diagnostics:alice')
+    const wide = plan(alice, 'signal', asOf, 'plan:diagnostics:wide')
+    expect(memory.recallV2(wide).memories).toHaveLength(5)
+    expect(memory.recallDiagnostics(wide))
+      .toMatchObject({ schemaVersion: 'recall-candidates/v1', matchedCount: 5, limit: 10 })
+    // The narrowed plan returns two of the five, which is exactly the gap the diagnostic reports.
+    const narrow = { ...wide, planId: 'plan:diagnostics:narrow', limit: 2 }
+    expect(memory.recallV2(narrow).memories).toHaveLength(2)
+    expect(memory.recallDiagnostics(narrow)).toMatchObject({ matchedCount: 5, limit: 2 })
+    // A query nothing matches, and a query with no terms, both report zero instead of failing.
+    expect(memory.recallDiagnostics({ ...narrow, planId: 'plan:diagnostics:none', query: 'absent' }))
+      .toMatchObject({ matchedCount: 0 })
+    expect(memory.recallDiagnostics({ ...narrow, planId: 'plan:diagnostics:blank', query: '   ' }))
+      .toMatchObject({ matchedCount: 0 })
+    // Counting is not a Recall: the two diagnostic calls above added no Recall receipt of their own.
+    const raw = new DatabaseSync(path.memory)
+    const receipts = raw.prepare('SELECT COUNT(*) AS total FROM cognitive_memory_v2_recall_receipts')
+      .get() as { total: number }
+    raw.close()
+    expect(receipts.total).toBe(2)
+    memory.close()
+    const unopened = new LocalMemoryStore(path.memory, world)
+    expect(() => unopened.recallDiagnostics({ ...wide, planId: 'plan:diagnostics:behind', asOfWorldSeq: asOf + 1 }))
+      .toThrow('has not reached the required as-of')
+    unopened.close()
+    world.close()
+  })
 })
