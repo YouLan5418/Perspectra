@@ -398,6 +398,8 @@ export class Phase8ContextPipeline {
       playerAction: context.playerAction, candidateHash: context.candidateHash,
       ...(context.playerManifestation === undefined ? {} : { playerManifestation: context.playerManifestation }),
       allowedActionTypes: binding.allowedActionTypes, sceneDecision: decision,
+      // The Scene decision is the authority on who is present, so it is also the authority for this clue.
+      sceneCharacterIds: decision.observerIds,
       correlationId: `context:${context.roundId}:${binding.participantId}`, heartbeat,
     })
     if (prepared.recallPlan === undefined || prepared.recall === undefined) {
@@ -478,6 +480,7 @@ export class Phase8ContextPipeline {
       characterId: binding.actorId,
       asOfWorldSeq,
       stimulus: context.stimulus,
+      sceneCharacterIds: decision.observerIds,
       correlationId: `context:${context.roundId}:${binding.participantId}`,
       heartbeat,
     })

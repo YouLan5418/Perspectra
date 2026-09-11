@@ -16,6 +16,7 @@ import {
   type InteractionRoundId,
   type ManifestationProposal,
   type ProposalContext,
+  type RecallClue,
   type RecallTokenizerId,
   type WorldAddress,
   type WorldHash,
@@ -73,6 +74,8 @@ export interface PrepareCognitiveContextRequest {
   readonly candidateHash: WorldHash
   readonly allowedActionTypes: readonly string[]
   readonly sceneDecision: WorldJsonValue
+  /** Scene membership from the authoritative Scene decision, used only as a Recall clue. */
+  readonly sceneCharacterIds?: readonly CharacterId[]
   readonly correlationId: string
   readonly heartbeat?: () => void
 }
@@ -84,6 +87,8 @@ export interface PrepareCognitiveStimulusRequest {
   readonly characterId: CharacterId
   readonly asOfWorldSeq: number
   readonly stimulus: WorldJsonValue
+  /** Scene membership from the authoritative Scene decision, used only as a Recall clue. */
+  readonly sceneCharacterIds?: readonly CharacterId[]
   readonly correlationId: string
   readonly heartbeat?: () => void
 }
@@ -182,6 +187,7 @@ export class CognitiveMemoryService {
     scope: { readonly address: WorldAddress; readonly characterId: CharacterId; readonly asOfWorldSeq: number },
     planId: string,
     query: string,
+    clues: readonly RecallClue[],
   ): AnyRecallQueryPlan {
     if (this.recallTokenizer === undefined) {
       return {
@@ -194,8 +200,26 @@ export class CognitiveMemoryService {
       schemaVersion: 'recall-query-plan/v2', planId, address: scope.address, characterId: scope.characterId,
       asOfWorldSeq: scope.asOfWorldSeq, queryText: query, strategyId: RECALL_KEYWORD_STRATEGY_ID,
       tokenizerId: this.recallTokenizer, dictionaryEnabled: false, dictionaryWatermark: null,
-      resultLimit: DEFAULT_RECALL_LIMIT,
+      clues, resultLimit: DEFAULT_RECALL_LIMIT,
     }
+  }
+
+  /**
+   * Structural clues for one Recall: who is present according to the authoritative Scene decision, and
+   * which of this character's own objectives are still open. Nothing here widens permission — both
+   * sources are already visible to the character and rebuildable at the same as-of.
+   */
+  #recallClues(
+    scope: { readonly address: WorldAddress; readonly characterId: CharacterId; readonly asOfWorldSeq: number },
+    sceneCharacterIds: readonly CharacterId[] | undefined,
+  ): readonly RecallClue[] {
+    if (this.recallTokenizer === undefined) return []
+    const clues: RecallClue[] = []
+    for (const memberId of [...new Set(sceneCharacterIds ?? [])].sort(compareWorldText)) {
+      if (memberId === scope.characterId) continue
+      clues.push({ kind: 'present_character', sourceId: memberId, text: memberId })
+    }
+    return [...clues, ...this.#memory.openObjectiveClues(scope.address, scope.characterId, scope.asOfWorldSeq)]
   }
 
   #executeRecall(plan: AnyRecallQueryPlan): AnyCognitiveRecallResult {
@@ -267,6 +291,7 @@ export class CognitiveMemoryService {
       characterId: request.characterId,
       asOfWorldSeq: request.asOfWorldSeq,
       stimulus,
+      ...(request.sceneCharacterIds === undefined ? {} : { sceneCharacterIds: request.sceneCharacterIds }),
       correlationId: request.correlationId,
       ...(request.heartbeat === undefined ? {} : { heartbeat: request.heartbeat }),
     }
@@ -315,6 +340,10 @@ export class CognitiveMemoryService {
           { address: request.address, roundId: request.roundId, participantId: request.participantId },
         ),
         query,
+        this.#recallClues(
+          { address: request.address, characterId: request.characterId, asOfWorldSeq: request.asOfWorldSeq },
+          request.sceneCharacterIds,
+        ),
       )
       : undefined
     const receiptRecall = plan === undefined ? undefined : this.#executeRecall(plan)
@@ -396,6 +425,8 @@ export class CognitiveMemoryService {
         { address, characterId, query, asOfWorldSeq },
       ),
       query,
+      // This path has no Scene membership, so it stays keyword-only rather than guessing one.
+      [],
     )
   }
 

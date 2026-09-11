@@ -20,6 +20,7 @@ import {
   type CharacterView,
   type ContextSourceRef,
   type ExtractiveL1Summary,
+  type RecallClue,
   type RecallExclusionReasonV2,
   type RecallKeywordRanking,
   type RecallQueryPlan,
@@ -349,6 +350,11 @@ function recallTerms(query: string): string {
   return query.trim().split(/\s+/u).filter(Boolean).map(term => `"${term.replaceAll('"', '""')}"`).join(' AND ')
 }
 
+/** Canonical text of a CharacterGoal objective; capture and its recall clue must tokenize identically. */
+export function goalObjectiveText(value: WorldJsonValue): string {
+  return canonicalText(objectValue(value, 'CharacterGoal').objective as WorldJsonValue)
+}
+
 /** The result limit one Recall applies when the caller does not choose one. */
 export const DEFAULT_RECALL_LIMIT = 10
 
@@ -432,7 +438,7 @@ export class LocalMemoryStore {
         sourceRef: record.sourceRef,
         memoryKind: 'intention' as const,
         epistemicKind: 'self_intention' as const,
-        text: canonicalText(objectValue(record.value, 'CharacterGoal').objective as WorldJsonValue),
+        text: goalObjectiveText(record.value),
         metadata: { projectionId: record.id, status: objectValue(record.value, 'CharacterGoal').status as WorldJsonValue },
       })),
     ])
@@ -542,14 +548,16 @@ export class LocalMemoryStore {
   recallKeywords(plan: RecallQueryPlanV2): CognitiveRecallResultV2 {
     const { key, watermark } = this.#assertV2KeywordPlan(plan)
     const queryTokens = tokenizeFor(plan.tokenizerId, plan.queryText)
-    const candidates = queryTokens.length === 0
+    const clueTokens = plan.clues.flatMap(clue => tokenizeFor(plan.tokenizerId, clue.text))
+    const candidates = queryTokens.length === 0 && clueTokens.length === 0
       ? []
-      : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens)
+      : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens, clueTokens)
     const selected = candidates.slice(0, plan.resultLimit)
     const memories = this.#readV2KeywordEntries(key, selected.map(candidate => candidate.memoryId))
     const ranking: RecallKeywordRanking[] = selected.map((candidate, index) => ({
       memoryId: candidate.memoryId, rank: index + 1, score: candidate.score,
-      matchedTokens: candidate.matchedTokens, sourceRef: candidate.sourceRef,
+      matchedTokens: candidate.matchedTokens, clueMatched: candidate.clueMatched,
+      sourceRef: candidate.sourceRef,
     }))
     const receiptInput = {
       schemaVersion: 'recall-receipt/v2' as const,
@@ -559,6 +567,7 @@ export class LocalMemoryStore {
       planHash: hashWorldJson('recall-query-plan/v2', plan),
       strategyId: plan.strategyId, tokenizerId: plan.tokenizerId,
       dictionaryEnabled: plan.dictionaryEnabled, dictionaryWatermark: plan.dictionaryWatermark,
+      clueIds: plan.clues.map(clue => clue.sourceId),
       watermark, matchedCount: candidates.length,
       droppedByResultLimit: candidates.length - selected.length,
       selectedSourceRefs: memories.map(memory => memory.sourceRef), ranking,
@@ -580,12 +589,13 @@ export class LocalMemoryStore {
     if (plan.schemaVersion === 'recall-query-plan/v2') {
       const { key } = this.#assertV2KeywordPlan(plan)
       const queryTokens = tokenizeFor(plan.tokenizerId, plan.queryText)
+      const clueTokens = plan.clues.flatMap(clue => tokenizeFor(plan.tokenizerId, clue.text))
       return {
         schemaVersion: 'recall-candidates/v1', address: plan.address, characterId: plan.characterId,
         asOfWorldSeq: plan.asOfWorldSeq, query: plan.queryText, limit: plan.resultLimit,
-        matchedCount: queryTokens.length === 0
+        matchedCount: queryTokens.length === 0 && clueTokens.length === 0
           ? 0
-          : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens).length,
+          : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens, clueTokens).length,
       }
     }
     const { key } = this.#assertV2RecallPlan(plan)
@@ -621,8 +631,30 @@ export class LocalMemoryStore {
     }
   }
 
-  cognitiveWatermark(address: WorldAddress, characterId: CharacterId): CognitiveMemoryWatermark | undefined {
-    const row = this.#db.prepare(`
+  /**
+   * The open objectives of one character, read from the goals this namespace already captured rather
+   * than from a separate projection: the clue is then the same set the term index covers, at the same
+   * as-of, with no extra rebuild. A goal that is no longer active stops being a clue.
+   */
+  openObjectiveClues(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number): readonly RecallClue[] {
+    const rows = this.#db.prepare(`
+      SELECT source_id, text_value, metadata_json FROM cognitive_memory_v2_sources
+      WHERE namespace_key = ? AND source_seq <= ? AND source_type = 'character_goal'
+      ORDER BY source_seq, source_id
+    `).all(namespace(address, characterId), asOfWorldSeq) as Array<{
+      source_id: string
+      text_value: string
+      metadata_json: string
+    }>
+    const clues: RecallClue[] = []
+    for (const row of rows) {
+      if ((parseWorldJson(row.metadata_json) as WorldJsonObject).status !== 'active') continue
+      clues.push({ kind: 'open_objective', sourceId: row.source_id, text: row.text_value })
+    }
+    return clues
+  }
+
+  cognitiveWatermark(address: WorldAddress, characterId: CharacterId): CognitiveMemoryWatermark | undefined {    const row = this.#db.prepare(`
       SELECT verified_through_seq, captured_through_seq, memory_epoch, source_map_hash
       FROM cognitive_memory_v2_namespaces WHERE namespace_key = ?
     `).get(namespace(address, characterId)) as {
@@ -1211,33 +1243,45 @@ export class LocalMemoryStore {
    * Match candidates and rank them with statistics taken only from this namespace and as-of prefix, so
    * another character's text or a later event cannot change this result. A token's rarity inside the
    * prefix is what separates an entry that is about the query from one that merely shares a common word.
+   *
+   * Clue terms take part in matching so a memory the current situation points at is not missed, but only
+   * at the lowest weight tier, and a term the query already carries keeps the query's higher weight.
    */
   #readV2KeywordCandidates(
     key: string,
     asOfWorldSeq: number,
     queryTokens: readonly KeywordToken[],
+    clueTokens: readonly KeywordToken[],
   ): readonly {
     readonly memoryId: string
     readonly score: number
     readonly matchedTokens: readonly string[]
+    readonly clueMatched: boolean
     readonly sourceRef: ContextSourceRef
   }[] {
     const documentCount = this.#countV2Documents(key, asOfWorldSeq)
-    const placeholders = queryTokens.map(() => '?').join(', ')
+    const weights = new Map(queryTokens.map(token => [token.token, token.weight]))
+    const clueTerms = new Set<string>()
+    for (const token of clueTokens) {
+      if (weights.has(token.token)) continue
+      weights.set(token.token, 1)
+      clueTerms.add(token.token)
+    }
+    const terms = [...weights.keys()]
+    const placeholders = terms.map(() => '?').join(', ')
     const rows = this.#db.prepare(`
       SELECT t.memory_id, t.token, s.source_id, s.source_seq, s.source_hash
       FROM cognitive_memory_v2_terms t
       JOIN cognitive_memory_v2_sources s
         ON s.namespace_key = t.namespace_key AND s.memory_id = t.memory_id
       WHERE t.namespace_key = ? AND t.source_seq <= ? AND t.token IN (${placeholders})
-    `).all(key, asOfWorldSeq, ...queryTokens.map(token => token.token)) as Array<{
+    `).all(key, asOfWorldSeq, ...terms) as Array<{
       memory_id: string
       token: string
       source_id: string
       source_seq: number
       source_hash: WorldHash
     }>
-    const weights = new Map(queryTokens.map(token => [token.token, token.weight]))
     const documentsByToken = new Map<string, Set<string>>()
     const matched = new Map<string, {
       tokens: string[]
@@ -1263,6 +1307,7 @@ export class LocalMemoryStore {
       matchedTokens: [...document.tokens].sort(compareWorldText),
       score: document.tokens.reduce((total, token) => total
         + (documentCount + 1 - documentsByToken.get(token)!.size) * weights.get(token)!, 0),
+      clueMatched: document.tokens.some(token => clueTerms.has(token)),
       sourceRef: {
         sourceKind: 'world_event' as const, sourceId: document.sourceId,
         sourceSeq: document.sourceSeq, sourceHash: document.sourceHash,
@@ -1323,6 +1368,11 @@ export class LocalMemoryStore {
       throw new TypeError('tokenizerId is unsupported')
     }
     if (plan.dictionaryEnabled !== false) throw new TypeError('the keyword dictionary is not implemented')
+    for (const clue of plan.clues) {
+      if (clue.kind !== 'present_character' && clue.kind !== 'open_objective') {
+        throw new TypeError('clue kind is unsupported')
+      }
+    }
     const key = namespace(plan.address, plan.characterId)
     if (this.#v2TermsTokenizer(key) !== plan.tokenizerId) {
       failWorld({

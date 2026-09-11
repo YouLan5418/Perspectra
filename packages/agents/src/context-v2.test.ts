@@ -165,7 +165,8 @@ function keywordRecall(memoryCount = 2, asOfWorldSeq = 20): {
   const plan: RecallQueryPlanV2 = {
     schemaVersion: 'recall-query-plan/v2', planId: 'recall:context-v2:keyword', address, characterId: alice,
     asOfWorldSeq, queryText: 'rain', strategyId: RECALL_KEYWORD_STRATEGY_ID,
-    tokenizerId: RECALL_KEYWORD_TOKENIZER_ID, dictionaryEnabled: false, dictionaryWatermark: null, resultLimit: 10,
+    tokenizerId: RECALL_KEYWORD_TOKENIZER_ID, dictionaryEnabled: false, dictionaryWatermark: null,
+    clues: [], resultLimit: 10,
   }
   const watermark = {
     schemaVersion: 'cognitive-memory-watermark/v2' as const, address, characterId: alice,
@@ -174,14 +175,14 @@ function keywordRecall(memoryCount = 2, asOfWorldSeq = 20): {
   }
   const ranking = memories.map((entry, index) => ({
     memoryId: entry.memoryId, rank: index + 1, score: 100 - index,
-    matchedTokens: ['rain'], sourceRef: entry.sourceRef,
+    matchedTokens: ['rain'], clueMatched: false, sourceRef: entry.sourceRef,
   }))
   const receiptInput = {
     schemaVersion: 'recall-receipt/v2' as const,
     receiptId: 'recall-receipt:context-v2:keyword',
     planHash: hashWorldJson('recall-query-plan/v2', plan),
     strategyId: plan.strategyId, tokenizerId: plan.tokenizerId,
-    dictionaryEnabled: false, dictionaryWatermark: null, watermark,
+    dictionaryEnabled: false, dictionaryWatermark: null, clueIds: [], watermark,
     matchedCount: memories.length, droppedByResultLimit: 0,
     selectedSourceRefs: memories.map(entry => entry.sourceRef), ranking,
     exclusionReasons: [] as const,

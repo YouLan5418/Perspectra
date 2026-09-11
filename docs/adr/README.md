@@ -71,3 +71,4 @@
 | [0087](ADR-0087-player-immediate-character-interactions.md) | 玩家受限即时成立权与角色关系交互 | **Accepted**；Manifest v9 以 Host 派生权威、可解除 hand_hold 和耐久玩家解释验证“先成立、后反应”，按 C0～C4 门禁实施 |
 | [0088](ADR-0088-versioned-keyword-recall.md) | 版本化关键词召回与中文切分 | **Proposed**；以版本化二/三元切分与“命中任一词元”取代整段相同，专有名词词典只加权不参与索引且可按世界停用，排序与词典均限定 namespace/as-of 前缀，旧版本不原地替换 |
 | [0089](ADR-0089-tokenizer-runtime-dependency.md) | 记忆检索引入分词器运行时依赖 | **Proposed**；锁定 `jieba-wasm` 精确版本并只用已验证接口，选 WASM 以保跨平台同一制品，分词器只是可替换版本件，二元继续当召回下限 |
+| [0090](ADR-0090-structural-recall-clues.md) | 结构化线索召回（在场人物与未完成事项） | **Proposed**；线索只来自场景权威成员与角色自己的认知，只扩候选与加权、不改权限，线索为空时与纯关键词路径逐字节相同 |

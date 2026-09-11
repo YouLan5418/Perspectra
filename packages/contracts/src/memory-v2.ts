@@ -114,6 +114,20 @@ export type RecallHybridTokenizerId = typeof RECALL_HYBRID_TOKENIZER_ID
 export type RecallTokenizerId = RecallKeywordTokenizerId | RecallHybridTokenizerId
 
 /**
+ * One structural clue that widens Recall beyond the current stimulus. A clue is derived from an
+ * authorized, rebuildable source — the Scene's authoritative membership, or one of this character's own
+ * active records — and carries the searchable text that source implies. Clues never widen permission,
+ * as-of or source closure; they only add candidates at the lowest weight tier.
+ */
+export interface RecallClue extends WorldJsonObject {
+  readonly kind: 'present_character' | 'open_objective'
+  /** The authorized identity the clue came from: a Scene member or one of this character's records. */
+  readonly sourceId: string
+  /** Searchable text derived from that source, tokenized by the tokenizer the plan names. */
+  readonly text: string
+}
+
+/**
  * Recall plan v2, coexisting with v1. A world that has not declared the new strategy keeps using v1,
  * so its existing receipts stay rebuildable and an upgrade cannot change an already-prepared Round.
  *
@@ -133,6 +147,8 @@ export interface RecallQueryPlanV2 extends WorldJsonObject {
   readonly tokenizerId: RecallTokenizerId
   readonly dictionaryEnabled: boolean
   readonly dictionaryWatermark: number | null
+  /** Structural clues used for this Recall; empty means this Recall is keyword-only. */
+  readonly clues: readonly RecallClue[]
   readonly resultLimit: number
 }
 
@@ -146,6 +162,8 @@ export interface RecallKeywordRanking extends WorldJsonObject {
   /** Integer relevance from this namespace and as-of prefix only; larger means more relevant. */
   readonly score: number
   readonly matchedTokens: readonly string[]
+  /** True when this candidate matched at least one structural clue rather than only the query text. */
+  readonly clueMatched: boolean
   readonly sourceRef: ContextSourceRef
 }
 
@@ -158,6 +176,8 @@ export interface RecallReceiptV2 extends WorldJsonObject {
   readonly tokenizerId: RecallTokenizerId
   readonly dictionaryEnabled: boolean
   readonly dictionaryWatermark: number | null
+  /** The structural clues this Recall ran with, so an operator can explain what widened it. */
+  readonly clueIds: readonly string[]
   readonly watermark: CognitiveMemoryWatermark
   /** Candidates that matched at least one query token, before the result limit was applied. */
   readonly matchedCount: number

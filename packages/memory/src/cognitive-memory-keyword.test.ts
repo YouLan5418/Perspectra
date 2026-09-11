@@ -100,7 +100,7 @@ function plan(
     schemaVersion: 'recall-query-plan/v2', planId: `plan:${characterId}:${queryText}:${resultLimit}`,
     address: address(), characterId, asOfWorldSeq: 6,
     queryText, strategyId: RECALL_KEYWORD_STRATEGY_ID, tokenizerId: RECALL_KEYWORD_TOKENIZER_ID,
-    dictionaryEnabled: false, dictionaryWatermark: null, resultLimit,
+    dictionaryEnabled: false, dictionaryWatermark: null, clues: [], resultLimit,
     ...overrides,
   }
 }
@@ -251,5 +251,51 @@ describe('versioned keyword Recall', () => {
     memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     expect(() => memory.recallKeywords(plan('钥匙', 10, alice, { tokenizerId: RECALL_HYBRID_TOKENIZER_ID })))
       .toThrow(/keyword index has not been built for this namespace/u)
+  })
+
+  it('admits a candidate through a structural clue at the lowest weight', async () => {
+    const { memory } = await fixture()
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:clues', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
+    // Nothing in the corpus shares a token with this question, so keyword matching alone finds nothing.
+    expect(memory.recallKeywords(plan('完全无关的一句话')).receipt.matchedCount).toBe(0)
+    const receipt = memory.recallKeywords(plan('完全无关的一句话', 10, alice, {
+      planId: 'plan:clue', clues: [{ kind: 'present_character', sourceId: 'character:bob', text: '花盆' }],
+    })).receipt
+    expect(receipt).toMatchObject({ matchedCount: 1, clueIds: ['character:bob'] })
+    expect(receipt.ranking[0]).toMatchObject({ clueMatched: true, matchedTokens: ['花盆'] })
+    // The diagnostic must describe the same clue-widened candidate set the Recall ranked.
+    expect(memory.recallDiagnostics(plan('完全无关的一句话', 10, alice, {
+      planId: 'plan:clue:diagnostics', clues: [{ kind: 'present_character', sourceId: 'character:bob', text: '花盆' }],
+    })).matchedCount).toBe(1)
+  })
+
+  it('does not mark a term as clue-matched when the question already carried it', async () => {
+    const { memory } = await fixture()
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:clue-overlap', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
+    const receipt = memory.recallKeywords(plan('钥匙', 10, alice, {
+      clues: [{ kind: 'open_objective', sourceId: 'goal:overlap', text: '钥匙' }],
+    })).receipt
+    expect(receipt.matchedCount).toBe(2)
+    expect(receipt.ranking.every(entry => !entry.clueMatched)).toBe(true)
+  })
+
+  it('refuses an unknown clue kind instead of ignoring it', async () => {
+    const { memory } = await fixture()
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:bad-clue', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
+    expect(() => memory.recallKeywords(plan('钥匙', 10, alice, {
+      clues: [{ kind: 'invented' as never, sourceId: 'x', text: '钥匙' }],
+    }))).toThrow(/clue kind is unsupported/u)
+  })
+
+  it('treats an empty clue list as no clues at all', async () => {
+    const { memory } = await fixture()
+    memory.catchUpV2(address(), alice, 6, 'keyword:catchup:empty-clues', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
+    const baseline = memory.recallKeywords(plan('钥匙')).receipt
+    // A distinct plan identity, so this compares results rather than colliding with the first receipt.
+    const empty = memory.recallKeywords(plan('钥匙', 10, alice, {
+      planId: 'plan:empty-clues', clues: [],
+    })).receipt
+    expect(empty.ranking).toEqual(baseline.ranking)
+    expect(empty).toMatchObject({ matchedCount: baseline.matchedCount, clueIds: [] })
   })
 })
