@@ -551,7 +551,7 @@ export class LocalMemoryStore {
     const clueTokens = plan.clues.flatMap(clue => tokenizeFor(plan.tokenizerId, clue.text))
     const candidates = queryTokens.length === 0 && clueTokens.length === 0
       ? []
-      : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens, clueTokens)
+      : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens, clueTokens, this.#dictionaryFor(key, plan))
     const selected = candidates.slice(0, plan.resultLimit)
     const memories = this.#readV2KeywordEntries(key, selected.map(candidate => candidate.memoryId))
     const ranking: RecallKeywordRanking[] = selected.map((candidate, index) => ({
@@ -595,7 +595,7 @@ export class LocalMemoryStore {
         asOfWorldSeq: plan.asOfWorldSeq, query: plan.queryText, limit: plan.resultLimit,
         matchedCount: queryTokens.length === 0 && clueTokens.length === 0
           ? 0
-          : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens, clueTokens).length,
+          : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens, clueTokens, this.#dictionaryFor(key, plan)).length,
       }
     }
     const { key } = this.#assertV2RecallPlan(plan)
@@ -1225,11 +1225,37 @@ export class LocalMemoryStore {
     }
   }
 
+  /**
+   * The proper-noun terms this namespace may treat as names, derived only from identities its own
+   * captured sources already carry. Two consequences follow from that source: a name another character
+   * learned privately can never enter this dictionary, and the dictionary is a pure function of the
+   * as-of prefix, so the same watermark always yields the same one.
+   */
+  #dictionaryTerms(key: string, asOfWorldSeq: number, tokenizerId: RecallTokenizerId): ReadonlySet<string> {
+    const rows = this.#db.prepare(`
+      SELECT metadata_json FROM cognitive_memory_v2_sources WHERE namespace_key = ? AND source_seq <= ?
+    `).all(key, asOfWorldSeq) as Array<{ metadata_json: string }>
+    const terms = new Set<string>()
+    for (const row of rows) {
+      const speakerId = (parseWorldJson(row.metadata_json) as WorldJsonObject).speakerId
+      if (typeof speakerId !== 'string') continue
+      for (const token of tokenizeFor(tokenizerId, speakerId)) terms.add(token.token)
+    }
+    return terms
+  }
+
   /** Which tokenizer built the terms of this namespace, or `null` when the index was never built. */
   #v2TermsTokenizer(key: string): string | null {
     const row = this.#db.prepare(`SELECT terms_tokenizer_id FROM cognitive_memory_v2_namespaces WHERE namespace_key = ?`)
       .get(key) as { terms_tokenizer_id: string | null } | undefined
     return row?.terms_tokenizer_id ?? null
+  }
+
+  /** The dictionary a plan asks for: empty when the world disabled it, derived from its own sources when not. */
+  #dictionaryFor(key: string, plan: RecallQueryPlanV2): ReadonlySet<string> {
+    return plan.dictionaryEnabled
+      ? this.#dictionaryTerms(key, plan.asOfWorldSeq, plan.tokenizerId)
+      : new Set<string>()
   }
 
   #countV2Documents(key: string, asOfWorldSeq: number): number {
@@ -1246,12 +1272,16 @@ export class LocalMemoryStore {
    *
    * Clue terms take part in matching so a memory the current situation points at is not missed, but only
    * at the lowest weight tier, and a term the query already carries keeps the query's higher weight.
+   *
+   * `dictionaryTerms` are names the character may treat as proper nouns. They only raise a term's weight,
+   * never admit a candidate on their own, which is why a dictionary change cannot alter what is findable.
    */
   #readV2KeywordCandidates(
     key: string,
     asOfWorldSeq: number,
     queryTokens: readonly KeywordToken[],
     clueTokens: readonly KeywordToken[],
+    dictionaryTerms: ReadonlySet<string>,
   ): readonly {
     readonly memoryId: string
     readonly score: number
@@ -1306,7 +1336,8 @@ export class LocalMemoryStore {
       memoryId,
       matchedTokens: [...document.tokens].sort(compareWorldText),
       score: document.tokens.reduce((total, token) => total
-        + (documentCount + 1 - documentsByToken.get(token)!.size) * weights.get(token)!, 0),
+        + (documentCount + 1 - documentsByToken.get(token)!.size) * weights.get(token)!
+          * (dictionaryTerms.has(token) ? 2 : 1), 0),
       clueMatched: document.tokens.some(token => clueTerms.has(token)),
       sourceRef: {
         sourceKind: 'world_event' as const, sourceId: document.sourceId,
@@ -1367,7 +1398,6 @@ export class LocalMemoryStore {
     if (plan.tokenizerId !== RECALL_KEYWORD_TOKENIZER_ID && plan.tokenizerId !== RECALL_HYBRID_TOKENIZER_ID) {
       throw new TypeError('tokenizerId is unsupported')
     }
-    if (plan.dictionaryEnabled !== false) throw new TypeError('the keyword dictionary is not implemented')
     for (const clue of plan.clues) {
       if (clue.kind !== 'present_character' && clue.kind !== 'open_objective') {
         throw new TypeError('clue kind is unsupported')

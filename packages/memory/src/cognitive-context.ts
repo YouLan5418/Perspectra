@@ -172,6 +172,8 @@ export class CognitiveMemoryService {
      * silently changing what a character is shown.
      */
     readonly recallTokenizer?: RecallTokenizerId,
+    /** Whether the derived proper-noun dictionary participates in ranking; off unless a world asks. */
+    readonly recallDictionary = false,
   ) {
     this.#memory = new LocalMemoryStore(path, worldStore)
     this.#views = new CharacterViewBuilder(worldStore)
@@ -199,7 +201,9 @@ export class CognitiveMemoryService {
     return {
       schemaVersion: 'recall-query-plan/v2', planId, address: scope.address, characterId: scope.characterId,
       asOfWorldSeq: scope.asOfWorldSeq, queryText: query, strategyId: RECALL_KEYWORD_STRATEGY_ID,
-      tokenizerId: this.recallTokenizer, dictionaryEnabled: false, dictionaryWatermark: null,
+      tokenizerId: this.recallTokenizer,
+      dictionaryEnabled: this.recallDictionary,
+      dictionaryWatermark: this.recallDictionary ? scope.asOfWorldSeq : null,
       clues, resultLimit: DEFAULT_RECALL_LIMIT,
     }
   }

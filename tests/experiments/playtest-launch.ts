@@ -12,6 +12,8 @@ export interface PlaytestLaunchArguments {
   readonly actionGroups?: boolean
   /** Selects the versioned keyword Recall strategy for this playtest world, or leaves the frozen path. */
   readonly recallTokenizer?: RecallTokenizerId
+  /** Enables the derived proper-noun dictionary for this playtest world. */
+  readonly recallDictionary?: boolean
 }
 
 /** Parse the deliberately small, local-only creator playtest command line. */
@@ -19,6 +21,7 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
   let provider: 'ollama' | 'deepseek' = 'ollama'
   let packPath: string | undefined
   let recallTokenizer: RecallTokenizerId | undefined
+  let recallDictionary = false
   let dataDirectory: string | undefined
   let interactionsPath: string | undefined
   let actionGroups = false
@@ -40,6 +43,11 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
         throw new Error('--recall-keyword requires a registered tokenizer id')
       }
       recallTokenizer = value
+      continue
+    }
+    if (argument === '--recall-dictionary') {
+      if (recallDictionary) throw new Error('--recall-dictionary may be supplied only once')
+      recallDictionary = true
       continue
     }
     if (argument === '--interactions') {
@@ -65,6 +73,7 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
     provider,
     ...(actionGroups ? { actionGroups } : {}),
     ...(recallTokenizer === undefined ? {} : { recallTokenizer }),
+    ...(recallDictionary ? { recallDictionary } : {}),
     ...(interactionsPath === undefined ? {} : { interactionsPath }),
     ...(packPath === undefined ? {} : { packPath }),
     ...(dataDirectory === undefined ? {} : { dataDirectory }),

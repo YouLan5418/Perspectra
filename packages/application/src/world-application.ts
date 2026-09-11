@@ -154,6 +154,8 @@ export interface WorldApplicationOptions {
    * declare the strategy in its own content.
    */
   readonly recallTokenizer?: RecallTokenizerId
+  /** Whether the derived proper-noun dictionary participates in ranking; off unless a caller asks. */
+  readonly recallDictionary?: boolean
 }
 
 export interface SubmitTextRequest {
@@ -332,7 +334,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         ? undefined
         : new CognitiveMemoryService(
           this.options.memoryPath!, store.store, this.options.faultInjector, policies.memoryVersion,
-          this.options.recallTokenizer,
+          this.options.recallTokenizer, this.options.recallDictionary ?? false,
         )
       if (manifestUsesPhase8Contracts(manifest) && policies.contextEnabled && policies.memoryVersion === 2) {
         contextPipeline = new Phase8ContextPipeline({
@@ -1207,7 +1209,7 @@ export class WorldApplication {
             const memoryVersion = manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? 2 : 1
             const memory = new CognitiveMemoryService(
               this.options.memoryPath, store, this.options.faultInjector, memoryVersion,
-              this.options.recallTokenizer,
+              this.options.recallTokenizer, this.options.recallDictionary ?? false,
             )
             try {
               memoryVerificationHash = memory.rebuildBranch(

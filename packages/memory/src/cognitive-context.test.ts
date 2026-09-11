@@ -211,6 +211,16 @@ describe('CognitiveMemoryService', () => {
     // The same query through a service that selected nothing keeps the frozen generation and its result.
     const frozen = new CognitiveMemoryService(memoryPath, world, undefined, 2)
     expect(frozen.recall(address(), alice, 'secret red key', 6)).toMatchObject([{ text: 'secret red key' }])
+    // A world that asks for the derived dictionary records the watermark it was derived at.
+    const withDictionary = new CognitiveMemoryService(memoryPath, world, undefined, 2, 'cjk-ngram/v1', true)
+    const dictionaryContext = withDictionary.prepareStimulus({
+      address: address(), roundId: brandId('round:keyword-dictionary', 'InteractionRoundId'),
+      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 6,
+      stimulus: { entries: [{ speech: 'key' }] }, correlationId: 'prepare:keyword-dictionary',
+    })
+    expect(dictionaryContext.recallPlan).toMatchObject({ dictionaryEnabled: true, dictionaryWatermark: 6 })
+    expect(dictionaryContext.recall?.receipt).toMatchObject({ dictionaryEnabled: true, dictionaryWatermark: 6 })
+    withDictionary.close()
     keyword.close()
     frozen.close()
     world.close()

@@ -353,6 +353,7 @@ export interface PlaytestRuntimeOptions {
   readonly utilityModel?: string
   /** Selects the versioned keyword Recall strategy for this playtest world, or leaves the frozen path. */
   readonly recallTokenizer?: RecallTokenizerId
+  readonly recallDictionary?: boolean
 }
 
 export class WorldPlaytestRuntime implements PlaytestRuntime {
@@ -461,6 +462,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       contextPath: resolve(this.#dataDirectory, 'context.sqlite'),
       modelBudgetTokens: 64, leaseTtlMs: 180_000,
       ...(options.recallTokenizer === undefined ? {} : { recallTokenizer: options.recallTokenizer }),
+      ...(options.recallDictionary === undefined ? {} : { recallDictionary: options.recallDictionary }),
       participants: () => roundParticipants, reactionParticipants: () => reactionParticipants,
     })
   }

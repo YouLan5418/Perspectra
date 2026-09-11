@@ -21,6 +21,7 @@ async function main(): Promise<void> {
     ...(launch.interactionsPath === undefined ? {} : { interactionsPath: launch.interactionsPath }),
     ...(launch.actionGroups === undefined ? {} : { actionGroups: launch.actionGroups }),
     ...(launch.recallTokenizer === undefined ? {} : { recallTokenizer: launch.recallTokenizer }),
+    ...(launch.recallDictionary === undefined ? {} : { recallDictionary: launch.recallDictionary }),
     ...(packPath === undefined ? {} : { packPath }),
     ...(provider === 'ollama' && endpoint !== undefined ? { endpoint } : {}),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),

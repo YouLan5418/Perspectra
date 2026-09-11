@@ -84,6 +84,10 @@ async function fixture(): Promise<{
     speech('observation:mundane-a', MUNDANE),
     speech('observation:mundane-b', MUNDANE),
     speech('observation:decoy', DECOY),
+    // A note with no speaker: its metadata carries no name, so it must never be a dictionary term.
+    { eventType: 'observation.upsert', eventVersion: 1, data: {
+      id: 'observation:plain', value: { observerId: alice, content: 'a plain note about bob and a key' },
+    } },
   ])
   const memory = new LocalMemoryStore(path.memory, world)
   openMemories.push(memory)
@@ -170,8 +174,8 @@ describe('versioned keyword Recall', () => {
     const { world, memory } = await fixture()
     memory.catchUpV2(address(), alice, 6, 'keyword:catchup:alice', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
     await commit(world, 'later', [speech('observation:later', '新的钥匙串挂在墙上')])
-    memory.catchUpV2(address(), alice, 7, 'keyword:catchup:alice:later', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
-    const recalled = memory.recallKeywords(plan('钥匙串', 10, alice, { asOfWorldSeq: 7 })).memories
+    memory.catchUpV2(address(), alice, 8, 'keyword:catchup:alice:later', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
+    const recalled = memory.recallKeywords(plan('钥匙串', 10, alice, { asOfWorldSeq: 8 })).memories
     // The new entry carries the trigram as well as both bigrams, so it outranks the older mentions.
     expect(recalled.map(entry => entry.text)).toEqual([
       'character:bob said: 新的钥匙串挂在墙上',
@@ -208,8 +212,6 @@ describe('versioned keyword Recall', () => {
       .toThrow(/strategyId is unsupported/u)
     expect(() => memory.recallKeywords(plan('钥匙', 10, alice, { tokenizerId: 'other/v9' as never })))
       .toThrow(/tokenizerId is unsupported/u)
-    expect(() => memory.recallKeywords(plan('钥匙', 10, alice, { dictionaryEnabled: true })))
-      .toThrow(/keyword dictionary is not implemented/u)
     expect(() => memory.recallKeywords(plan('钥匙', 10, alice, { asOfWorldSeq: 9 })))
       .toThrow(/has not reached the required as-of sequence/u)
   })
@@ -297,5 +299,29 @@ describe('versioned keyword Recall', () => {
     })).receipt
     expect(empty.ranking).toEqual(baseline.ranking)
     expect(empty).toMatchObject({ matchedCount: baseline.matchedCount, clueIds: [] })
+  })
+})
+
+describe('versioned keyword Recall: derived name dictionary', () => {
+  it('boosts a candidate that mentions a name, and never changes what is findable', async () => {
+    const { memory } = await fixture()
+    memory.catchUpV2(address(), alice, 7, 'keyword:catchup:dictionary', undefined, { keywordTokenizerId: RECALL_KEYWORD_TOKENIZER_ID })
+    const off = memory.recallKeywords(plan('bob', 10, alice, { planId: 'plan:dictionary:off', asOfWorldSeq: 7 })).receipt
+    const on = memory.recallKeywords(plan('bob', 10, alice, {
+      planId: 'plan:dictionary:on', asOfWorldSeq: 7, dictionaryEnabled: true, dictionaryWatermark: 7,
+    })).receipt
+    // The choice is recorded, and the same question finds exactly the same memories either way.
+    expect(on).toMatchObject({ dictionaryEnabled: true, dictionaryWatermark: 7, matchedCount: off.matchedCount })
+    expect(on.ranking.map(entry => entry.memoryId).toSorted())
+      .toEqual(off.ranking.map(entry => entry.memoryId).toSorted())
+    expect(off).toMatchObject({ dictionaryEnabled: false, dictionaryWatermark: null })
+    // Every candidate matching the captured name doubles, so the ranking keeps its shape.
+    expect(on.ranking.map(entry => entry.score)).toEqual(off.ranking.map(entry => entry.score * 2))
+    // A question that matches no captured name is untouched, because the boost belongs to the name.
+    const chineseOff = memory.recallKeywords(plan('钥匙', 10, alice, { planId: 'plan:dict:cn:off', asOfWorldSeq: 7 })).receipt
+    const chineseOn = memory.recallKeywords(plan('钥匙', 10, alice, {
+      planId: 'plan:dict:cn:on', asOfWorldSeq: 7, dictionaryEnabled: true, dictionaryWatermark: 7,
+    })).receipt
+    expect(chineseOn.ranking).toEqual(chineseOff.ranking)
   })
 })
