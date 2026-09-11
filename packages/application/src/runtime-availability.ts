@@ -18,14 +18,22 @@ export const SCHEDULABLE_AVAILABILITY_STATES: readonly RuntimeAvailabilityState[
   ...SELF_CLEARING_AVAILABILITY_STATES, ...PROVIDER_QUALITY_AVAILABILITY_STATES,
 ]
 
+/**
+ * Whether any path may attempt this participant without an extra backoff signal: `ready`, plus the states
+ * whose cause clears on its own. Paths that cannot consult the Provider quality backoff use only this rule,
+ * so a Provider whose output was invalid is not re-called on every wave that has no backoff to gate it.
+ */
+export function alwaysRetryableAvailability(state: RuntimeAvailabilityState | undefined): boolean {
+  return state !== undefined && SELF_CLEARING_AVAILABILITY_STATES.includes(state)
+}
+
 /** Whether this Round may attempt the participant instead of skipping it at the availability gate. */
 export function retryableAvailability(
   state: RuntimeAvailabilityState | undefined,
   hasProviderQuality: boolean,
 ): boolean {
-  if (state === undefined) return false
-  if (SELF_CLEARING_AVAILABILITY_STATES.includes(state)) return true
-  return PROVIDER_QUALITY_AVAILABILITY_STATES.includes(state) && hasProviderQuality
+  if (alwaysRetryableAvailability(state)) return true
+  return state !== undefined && PROVIDER_QUALITY_AVAILABILITY_STATES.includes(state) && hasProviderQuality
 }
 
 /** The transition that returns a retried participant to `ready`, or `undefined` when it was already ready. */

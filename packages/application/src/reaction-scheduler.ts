@@ -1,4 +1,5 @@
 import { sortActionGroups, stepManifestation, resolveGroupAction } from './action-groups.ts'
+import { alwaysRetryableAvailability } from './runtime-availability.ts'
 import {
   ModelBudgetLedger,
   ProviderCallStore,
@@ -362,7 +363,7 @@ export class ReactionScheduler {
     if (currentCharacterLifecycle(history, claimed.characterId) !== 'active') {
       return { job: claimed, binding, unavailableReason: 'character lifecycle is not active' }
     }
-    if (this.options.availability.get(this.options.address, claimed.characterId)?.state !== 'ready') {
+    if (!alwaysRetryableAvailability(this.options.availability.get(this.options.address, claimed.characterId)?.state)) {
       return { job: claimed, binding, unavailableReason: 'character runtime is unavailable' }
     }
     const decision = this.options.sceneDecision.decideFromEvents(

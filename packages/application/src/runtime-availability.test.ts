@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RuntimeAvailabilityState } from '@harness-world/contracts'
 import {
-  SCHEDULABLE_AVAILABILITY_STATES, availabilityRecovery, retryableAvailability,
+  SCHEDULABLE_AVAILABILITY_STATES, alwaysRetryableAvailability, availabilityRecovery, retryableAvailability,
 } from './runtime-availability.ts'
 
 describe('runtime availability retry policy', () => {
@@ -9,6 +9,16 @@ describe('runtime availability retry policy', () => {
     expect([...SCHEDULABLE_AVAILABILITY_STATES].sort()).toEqual([
       'provider_output_invalid', 'ready', 'session_lag',
     ])
+  })
+
+  it('lets a path without a quality signal retry only the always-retryable states', () => {
+    for (const state of ['ready', 'session_lag'] as const) expect(alwaysRetryableAvailability(state)).toBe(true)
+    for (const state of [
+      'provider_output_invalid', 'provisioning', 'model_unavailable', 'budget_unavailable', 'offline', 'disabled',
+    ] as const) {
+      expect(alwaysRetryableAvailability(state)).toBe(false)
+    }
+    expect(alwaysRetryableAvailability(undefined)).toBe(false)
   })
 
   it('retries a self-clearing state with or without the Provider quality signal', () => {
