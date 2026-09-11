@@ -69,3 +69,4 @@
 | [0085](ADR-0085-bounded-action-groups.md) | 有界顺序行动组与逐步表现 | Manifest v7 显式启用最多两步、连续裁定、失败停止与闭合表现；旧协议保持原语义 |
 | [0086](ADR-0086-object-interactions.md) | 对象声明的物品交互 | Manifest v8、submit_actions/v5 与显式对象目录；拿取、放下、递交均确定性重验 |
 | [0087](ADR-0087-player-immediate-character-interactions.md) | 玩家受限即时成立权与角色关系交互 | **Accepted**；Manifest v9 以 Host 派生权威、可解除 hand_hold 和耐久玩家解释验证“先成立、后反应”，按 C0～C4 门禁实施 |
+| [0088](ADR-0088-versioned-keyword-recall.md) | 版本化关键词召回与中文切分 | **Proposed**；以版本化二/三元切分与“命中任一词元”取代整段相同，专有名词词典只加权不参与索引且可按世界停用，排序与词典均限定 namespace/as-of 前缀，旧版本不原地替换 |
