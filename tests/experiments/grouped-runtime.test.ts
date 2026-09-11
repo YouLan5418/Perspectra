@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { expect, it, vi } from 'vitest'
 import { canonicalCompiledWorldPackBytes, compileWorldPackSource, executeWorldPackCli } from '@harness-world/world-pack'
 import { WorldPlaytestRuntime } from './playtest-runtime.ts'
+import { createStepManifestationSchema } from '@harness-world/contracts'
 import { parsePlaytestLaunchArguments } from './playtest-launch.ts'
 
 it.each([4, 5] as const)('plays and reopens an expressive Pack through the v%s web Provider adapter', async version => {
@@ -29,6 +30,8 @@ it.each([4, 5] as const)('plays and reopens an expressive Pack through the v%s w
     const actorId = segments.find((value: any) => value.segmentKind === 'character_anchor').content.characterId
     const reminder = segments.find((value: any) => value.segmentKind === 'output_reminder').content
     expect(reminder.tool).toBe(`submit_actions/v${version}`)
+    const upstream = body.messages.map((message: { content: string }) => message.content).join('\n')
+    expect(upstream).toContain(JSON.stringify(createStepManifestationSchema('speak')))
     const reaction = reminder.maximumReflectionOperations === 0
     if (reaction) {
       reactionCalls++
@@ -68,9 +71,29 @@ it.each([4, 5] as const)('plays and reopens an expressive Pack through the v%s w
     expect((await runtime.state()).debug.headSeq).toBe(head)
     expect(fetchMock).toHaveBeenCalledTimes(calls)
     const evidence = readdirSync(join(dataDirectory, 'requests')).map(file => readFileSync(join(dataDirectory, 'requests', file), 'utf8')).join('\n')
-    expect(evidence).toContain('grouped-playtest/v1')
+    expect(evidence).toContain('grouped-playtest/v2')
     expect(evidence).not.toContain('TEST_SECRET_NOT_FOR_EVIDENCE')
     expect(evidence).not.toContain('invalid_model_output')
+    for (const content of [
+      JSON.stringify({ schemaVersion: version, decision: 'act', actions: [{
+        actionId: 'bad', actorId: 'character:alice', actionType: 'speak', actionVersion: 1,
+        parameters: { text: '这句不应提交。' }, manifestation: { independent: ['smile'], onSuccess: ['smile'] },
+      }] }),
+      '{' + 'x'.repeat(70_000),
+    ]) {
+      fetchMock.mockImplementation(async () => new Response(JSON.stringify({ model: 'test-model',
+        choices: [{ finish_reason: 'stop', message: { content, reasoning_content: 'PRIVATE_REASONING_NOT_FOR_EVIDENCE' } }],
+        usage: { prompt_tokens: 20, completion_tokens: 10 } })))
+      const state = await runtime.submit('/say 再试一次。')
+      expect(state.notice).toContain('无效动作格式')
+      const failures = readdirSync(join(dataDirectory, 'requests')).filter(file => file.endsWith('.invalid.json'))
+        .map(file => JSON.parse(readFileSync(join(dataDirectory, 'requests', file), 'utf8')))
+      expect(failures.some(failure => failure.rawOutput === content.slice(0, 65_536)
+        && failure.rawOutputTruncated === (content.length > 65_536))).toBe(true)
+      expect(failures.some(failure => failure.validationError === 'invalid or duplicate step cues')).toBe(true)
+      expect(JSON.stringify(failures)).not.toContain('PRIVATE_REASONING_NOT_FOR_EVIDENCE')
+      expect(JSON.stringify(failures)).not.toContain('TEST_SECRET_NOT_FOR_EVIDENCE')
+    }
   } finally {
     await runtime?.close()
     fetchMock.mockRestore()

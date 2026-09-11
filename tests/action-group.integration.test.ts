@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId } from '@harness-world/contracts'
+import { brandId, createStepManifestationSchema } from '@harness-world/contracts'
 import { WorldLogicalTransferService, WorldStore } from '@harness-world/store-sqlite'
 import { actionGroupWorld, groupOutput } from './fixtures/action-group-world.ts'
 
@@ -16,7 +16,12 @@ it('runs grouped Root and Reaction calls through real Context/Memory, and round-
     modelBudgetTokens: 20,
     participants: () => [{ participantId: 'agent:group', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
       allowedActionTypes: ['speak', 'move'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
-      provider: { propose: async () => groupOutput } }],
+      provider: { propose: async context => {
+        expect(context).toMatchObject({ exactProviderRequest: { tools: { actionGroup: { manifestation: { schemasByAction: {
+          speak: createStepManifestationSchema('speak'), move: createStepManifestationSchema('move'), take: createStepManifestationSchema('take'),
+        } } } } } })
+        return groupOutput
+      } } }],
     reactionParticipants: () => [{ participantId: 'agent:bob', role: 'agent', actorId: brandId('character:bob', 'CharacterId'),
       allowedActionTypes: ['speak', 'move'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
       provider: { propose: async () => { reactionCalls++; return { schemaVersion: 4, decision: 'act', actions: [{ actionId: 'bob:speak', actorId: 'character:bob', actionType: 'speak', actionVersion: 1, parameters: { text: 'he left' } }] } } } },

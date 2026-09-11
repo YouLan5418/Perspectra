@@ -1,6 +1,6 @@
 import { SubmitActionsValidator } from '@harness-world/agents'
 import {
-  ACTION_GROUP_CUES,
+  createStepManifestationSchema,
   type CharacterId,
   type SubmitActionsV4,
   type SubmitActionsV5,
@@ -9,12 +9,10 @@ import {
 import { byteHash, type ExperimentActionReference, type ExperimentMessage } from './compact-context.ts'
 
 export function groupedPlaytestRequest(input: readonly ExperimentMessage[], actorId: CharacterId, version: 4 | 5, reaction: boolean, references: readonly ExperimentActionReference[]) {
-  const cues = { type: 'array', maxItems: 8, uniqueItems: true, items: { type: 'string', enum: Object.keys(ACTION_GROUP_CUES) } }
-  const manifestation = { type: 'object', additionalProperties: false, required: ['independent', 'onSuccess'], properties: { independent: cues, onSuccess: cues } }
-  const action = (type: string, parameters: object) => ({ type: 'object', additionalProperties: false,
+  const action = (type: 'speak' | 'move' | 'take' | 'interact', parameters: object) => ({ type: 'object', additionalProperties: false,
     required: ['actionId', 'actorId', 'actionType', 'actionVersion', 'parameters'],
     properties: { actionId: { type: 'string', minLength: 1 }, actorId: { type: 'string', const: actorId },
-      actionType: { type: 'string', const: type }, actionVersion: { type: 'integer', const: 1 }, parameters, manifestation } })
+      actionType: { type: 'string', const: type }, actionVersion: { type: 'integer', const: 1 }, parameters, manifestation: createStepManifestationSchema(type) } })
   const schema = { type: 'object', additionalProperties: false, required: ['schemaVersion', 'decision', 'actions'], properties: {
     schemaVersion: { type: 'integer', const: version }, decision: { type: 'string', enum: ['act', 'abstain'] },
     actions: { type: 'array', maxItems: 2, items: { oneOf: [
@@ -26,10 +24,10 @@ export function groupedPlaytestRequest(input: readonly ExperimentMessage[], acto
     ] } },
     ...(!reaction ? { reflection: { type: 'object', additionalProperties: false, required: ['operations'], properties: { operations: { type: 'array', maxItems: 4, items: { type: 'object' } } } } } : {}),
   } }
-  const contract = `只扮演 ${actorId}，只返回符合此 JSON Schema 的对象，不输出思维过程：${JSON.stringify(schema)}。每个 actionId 在本次输出内唯一，使用完整 ID，不使用 L1/E1/R1 等短引用。最多一次 speak 加一次 move/${version === 5 ? 'interact' : 'take'}，按数组顺序执行；前步失败会跳过后步。可只提交一步或 abstain+空数组，不能重复无新意义的对白。组内不能获取新知识，不替其他角色决定反应。表现仅用闭合码，声音只能放在 speak.onSuccess，slow_walk 只能放在 move.onSuccess。${version === 5 ? 'interact 参数从 affordances.interactions 选择；give 只转移持有关系，不表示对方同意。' : ''}Reflection 如不确定完整正式操作格式应省略，不能使用旧短引用格式。公开地点：${JSON.stringify(references.filter(value => value.kind === 'location').map(value => ({ locationId: value.source, name: value.label })))}`
+  const contract = `只扮演 ${actorId}，只返回符合此 JSON Schema 的对象，不输出思维过程：${JSON.stringify(schema)}。每个 actionId 在本次输出内唯一，使用完整 ID，不使用 L1/E1/R1 等短引用。最多一次 speak 加一次 move/${version === 5 ? 'interact' : 'take'}，按数组顺序执行；前步失败会跳过后步。可只提交一步或 abstain+空数组，不能重复无新意义的对白。组内不能获取新知识，不替其他角色决定反应。没有表现时省略 manifestation；填写时 independent 与 onSuccess 合计至少一码且不得重复。表现仅用闭合码，声音只能放在 speak.onSuccess，slow_walk 只能放在 move.onSuccess。${version === 5 ? 'interact 参数从 affordances.interactions 选择；give 只转移持有关系，不表示对方同意。' : ''}Reflection 如不确定完整正式操作格式应省略，不能使用旧短引用格式。公开地点：${JSON.stringify(references.filter(value => value.kind === 'location').map(value => ({ locationId: value.source, name: value.label })))}`
   const messages = input.map(message => ({ role: message.role === 'developer' ? 'system' as const : message.role, content: message.content }))
   messages.splice(2, 0, { role: 'system', content: contract })
-  return { schema, renderer: 'grouped-playtest/v1', mode: 'full', messages, references: [], actionReferences: references,
+  return { schema, renderer: 'grouped-playtest/v2', mode: 'full', messages, references: [], actionReferences: references,
     sourceMessagesHash: byteHash(JSON.stringify(input)), renderedMessagesHash: byteHash(JSON.stringify(messages)) }
 }
 

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, hashWorldJson } from '@harness-world/contracts'
+import { brandId, createStepManifestationSchema, hashWorldJson } from '@harness-world/contracts'
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldLogicalTransferService, WorldStore } from '@harness-world/store-sqlite'
 import { interactionOutput, interactionWorld } from './fixtures/interaction-world.ts'
@@ -27,6 +27,9 @@ it('runs v5 Root and Reaction interactions with durable Context, ownership, retr
     allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000 })
   const app = new WorldApplication({ worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
     participants: () => [{ ...binding('npc'), provider: { propose: async context => {
+      expect(context).toMatchObject({ exactProviderRequest: { tools: { actionGroup: { manifestation: { schemasByAction: {
+        speak: createStepManifestationSchema('speak'), move: createStepManifestationSchema('move'), interact: createStepManifestationSchema('interact'),
+      } } } } } })
       const request = JSON.stringify(context)
       expect(request).toContain('submit_actions/v5')
       expect(request).toContain('core:')
@@ -36,6 +39,9 @@ it('runs v5 Root and Reaction interactions with durable Context, ownership, retr
       return rootCalls === 1 ? interactionOutput() : rootCalls === 2 ? interactionOutput('give', 'character:npc', 'entity:cup', { recipientId: 'character:player' }) : abstain
     } } }],
     reactionParticipants: () => [{ ...binding('bob'), provider: { propose: async context => {
+      expect(context).toMatchObject({ exactProviderRequest: { tools: { maximumReflectionOperations: 0, actionGroup: { manifestation: { schemasByAction: {
+        speak: createStepManifestationSchema('speak'), move: createStepManifestationSchema('move'), interact: createStepManifestationSchema('interact'),
+      } } } } } })
       expect(JSON.stringify(context)).toContain('submit_actions/v5')
       expect(JSON.stringify(context)).not.toContain('submit_actions/v2')
       reactionCalls++

@@ -325,6 +325,9 @@ class PlaytestModelProvider {
         status: 'invalid_model_output', reasonCode: error instanceof SyntaxError
           ? 'invalid_json' : 'proposal_schema_rejected', durationMs,
         ...(parsed === undefined ? {} : { model: parsed.model, usage: parsed.usage }),
+        validationError: (error instanceof Error ? error.message : String(error)).slice(0, 2048),
+        rawOutput: parsed?.content.slice(0, 65_536) ?? null,
+        rawOutputTruncated: parsed !== undefined && parsed.content.length > 65_536,
       }, null, 2), { flag: 'wx' })
       // Deliberately return a canonical but invalid marker so the coordinator's
       // durable Provider quality policy classifies this as schema-invalid rather

@@ -374,7 +374,12 @@ describe('player-facing playtest transcript', () => {
       } finally {
         store.close()
       }
-      expect(readdirSync(join(directory, 'requests')).some(name => name.endsWith('.invalid.json'))).toBe(true)
+      const invalidFiles = readdirSync(join(directory, 'requests')).filter(name => name.endsWith('.invalid.json'))
+      expect(invalidFiles.length).toBeGreaterThan(0)
+      const invalid = JSON.parse(readFileSync(join(directory, 'requests', invalidFiles[0]!), 'utf8'))
+      expect(invalid.rawOutput).toContain('invented')
+      expect(invalid.validationError).toEqual(expect.any(String))
+      expect(invalid.rawOutputTruncated).toBe(false)
     } finally {
       await runtime?.close()
       fetchMock.mockRestore()

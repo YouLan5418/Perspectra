@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { brandId, type CharacterId } from '@harness-world/contracts'
+import { Ajv } from 'ajv'
+import { ACTION_GROUP_CUES, brandId, type CharacterId } from '@harness-world/contracts'
 import { createExperimentActionReferences, type ExperimentMessage } from './compact-context.ts'
 import { groupedPlayerCommand, groupedPlaytestProposal, groupedPlaytestRequest } from './grouped-playtest.ts'
 
@@ -25,9 +26,59 @@ function step(actionType: string, parameters: Record<string, unknown>, manifesta
 }
 
 describe('grouped playtest request contract', () => {
+  it.each([4, 5] as const)('keeps the v%s schema permissive only for registered host-only residual rules', version => {
+    const request = groupedPlaytestRequest(contextMessages(), actorId, version, false, references)
+    const validate = new Ajv({ strict: false }).compile(request.schema)
+    const codes = Object.keys(ACTION_GROUP_CUES)
+    const variants: readonly (readonly [string, Record<string, unknown>])[] = [
+      ['speak', { text: '你好' }], ['move', { locationId: 'location:kitchen' }],
+      version === 4 ? ['take', { entityId: 'entity:cup' }]
+        : ['interact', { targetId: 'entity:cup', interactionId: 'core:take', arguments: {} }],
+    ]
+    for (const [actionType, parameters] of variants) {
+      // Each code is absent, independent, or onSuccess: 3^8 combinations per action.
+      for (let combination = 0; combination < 3 ** codes.length; combination++) {
+        let digits = combination
+        const manifestation = { independent: [] as string[], onSuccess: [] as string[] }
+        for (const code of codes) {
+          const placement = digits % 3
+          digits = Math.floor(digits / 3)
+          if (placement === 1) manifestation.independent.push(code)
+          if (placement === 2) manifestation.onSuccess.push(code)
+        }
+        const proposal = { schemaVersion: version, decision: 'act', actions: [step(actionType, parameters, manifestation)] }
+        let hostAccepted = true
+        try { groupedPlaytestProposal(proposal, actorId, 'agent:alice', version, false) } catch { hostAccepted = false }
+        const schemaAccepted = validate(proposal)
+        expect(schemaAccepted || !hostAccepted, JSON.stringify({ actionType, manifestation, errors: validate.errors })).toBe(true)
+        if (schemaAccepted && !hostAccepted) {
+          expect(manifestation.independent.length + manifestation.onSuccess.length).toBe(0)
+        }
+      }
+      for (const manifestation of [
+        { independent: ['smile', 'smile'], onSuccess: [] },
+        { independent: [], onSuccess: ['smile', 'smile'] },
+        { independent: ['unknown'], onSuccess: [] },
+      ]) {
+        const proposal = { schemaVersion: version, decision: 'act', actions: [step(actionType, parameters, manifestation)] }
+        expect(validate(proposal)).toBe(false)
+        expect(() => groupedPlaytestProposal(proposal, actorId, 'agent:alice', version, false)).toThrow()
+      }
+      for (const manifestation of [
+        { independent: [], onSuccess: [] },
+        { independent: ['smile'], onSuccess: ['smile'] },
+      ]) {
+        const proposal = { schemaVersion: version, decision: 'act', actions: [step(actionType, parameters, manifestation)] }
+        expect(validate(proposal)).toBe(true)
+        expect(() => groupedPlaytestProposal(proposal, actorId, 'agent:alice', version, false)).toThrow()
+      }
+      expect(validate({ schemaVersion: version, decision: 'act', actions: [step(actionType, parameters)] })).toBe(true)
+    }
+  }, 30_000)
+
   it('builds a v4 request that only exposes speak/move/take and no interact vocabulary', () => {
     const request = groupedPlaytestRequest(contextMessages(), actorId, 4, false, references)
-    expect(request.renderer).toBe('grouped-playtest/v1')
+    expect(request.renderer).toBe('grouped-playtest/v2')
     expect(request.mode).toBe('full')
     expect(request.messages).toHaveLength(contextMessages().length + 1)
     const contract = request.messages[2]!.content

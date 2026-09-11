@@ -17,6 +17,7 @@ import {
   PHASE8_CONTEXT_PROFILES,
   PHASE8_SUBMIT_ACTIONS_PROFILE,
   compareWorldText,
+  createStepManifestationSchema,
   deterministicId,
   hashWorldJson,
   type CharacterId,
@@ -138,8 +139,10 @@ const actionGroupTool = createProviderToolSchema('submit_actions/v4', {
     maximumSpeechActions: 1, maximumWorldOperations: 1, order: 'proposal',
     failure: 'stop_remaining_steps', interleaving: 'forbidden',
     newInformationRequiresNextCall: true,
-    manifestation: { independent: ['smile', 'frown', 'nod', 'shake_head', 'avert_gaze'],
-      onSuccess: ['smile', 'frown', 'nod', 'shake_head', 'avert_gaze', 'quiet_voice', 'trembling_voice', 'slow_walk'] },
+    manifestation: { optional: true, schemasByAction: {
+      speak: createStepManifestationSchema('speak'), move: createStepManifestationSchema('move'),
+      take: createStepManifestationSchema('take'),
+    } },
   },
 })
 const reactionActionGroupTool = createProviderToolSchema('submit_actions/v4', {
@@ -148,7 +151,11 @@ const reactionActionGroupTool = createProviderToolSchema('submit_actions/v4', {
 
 const interactionTool = createProviderToolSchema('submit_actions/v5', {
   ...actionGroupTool.schema as WorldJsonObject, schemaVersion: 'submit_actions/v5',
-  actionGroup: { ...(actionGroupTool.schema as WorldJsonObject).actionGroup as WorldJsonObject, allowedActionTypes: ['speak', 'move', 'interact'] },
+  actionGroup: { ...(actionGroupTool.schema as WorldJsonObject).actionGroup as WorldJsonObject, allowedActionTypes: ['speak', 'move', 'interact'],
+    manifestation: { optional: true, schemasByAction: {
+      speak: createStepManifestationSchema('speak'), move: createStepManifestationSchema('move'),
+      interact: createStepManifestationSchema('interact'),
+    } } },
   interact: { parameters: ['targetId', 'interactionId', 'arguments'], choices: 'context.affordances.interactions',
     execution: 'revalidate_current_state', give: 'possession_transfer_only_no_recipient_consent_or_reaction' },
 })
