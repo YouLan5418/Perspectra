@@ -137,6 +137,14 @@ function fixture(world = compiled()) {
   return { storage, spec, store, availability, memory, rulebook, options }
 }
 
+/**
+ * A world whose only recalled Memory is large enough that the compact Context Profile cannot render it within
+ * its 32 KiB request budget, so preparation has to give Tier 4 content up to fit.
+ */
+function oversizedWorld(): CompiledWorldSpec {
+  return compiled(`Will the rain stop? ${'rain '.repeat(7000)}`)
+}
+
 describe('Phase8ContextPipeline', () => {
   it('prepares a character through Memory, Checkpoint, Renderer and durable Receipt, then rebuilds identically', () => {
     const value = fixture()
@@ -580,8 +588,7 @@ describe('Phase8ContextPipeline', () => {
     value.store.close()
   })
 
-  it('gives up Tier 4 Recall instead of refusing to prepare an over-budget character', () => {
-    const prepare = (spec: CompiledWorldSpec) => {
+  it('gives up Tier 4 Recall instead of refusing to prepare an over-budget character', () => {    const prepare = (spec: CompiledWorldSpec) => {
       const value = fixture(spec)
       const pipeline = new Phase8ContextPipeline(value.options)
       const context = proposal(value.spec)
@@ -597,7 +604,7 @@ describe('Phase8ContextPipeline', () => {
       value.store.close()
       return { prepared, rebuilt }
     }
-    const oversized = prepare(compiled(`Will the rain stop? ${'rain '.repeat(7000)}`))
+    const oversized = prepare(oversizedWorld())
     const trimmed = oversized.prepared.receipt.exclusions.filter(entry => entry.reason === 'budget_trimmed')
     expect(trimmed.length).toBeGreaterThan(0)
     expect(trimmed.every(entry => entry.sourceRefHash !== null)).toBe(true)
@@ -605,5 +612,29 @@ describe('Phase8ContextPipeline', () => {
     // Nothing is given up while the request already fits the frozen Context Profile budget.
     expect(prepare(compiled()).prepared.receipt.exclusions.filter(entry => entry.reason === 'budget_trimmed'))
       .toEqual([])
+  })
+
+  it('keeps the World Event Log authoritative and reproduces the same trims after a restart', () => {
+    const value = fixture(oversizedWorld())
+    const address = value.spec.manifest.address
+    const context = proposal(value.spec)
+    const history = value.store.readEvents(address)
+    const eventHashes = history.map(event => event.eventHash)
+    const decision = new SceneDecisionService(value.store, value.availability, 2)
+      .decide(address, context.playerAction.actorId, value.store.head(address).headSeq)
+    const pipeline = new Phase8ContextPipeline(value.options)
+    const first = pipeline.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)
+    pipeline.close()
+    expect(first.receipt.exclusions.some(entry => entry.reason === 'budget_trimmed')).toBe(true)
+    // Preparing and trimming are read-only over the World: no Event is appended and the head does not move.
+    expect(value.store.readEvents(address).map(event => event.eventHash)).toEqual(eventHashes)
+    expect(value.store.head(address).headSeq).toBe(decision.asOfSeq)
+    // A restart over the same durable files picks the same drops and rebuilds the same Receipt bytes.
+    const reopened = new Phase8ContextPipeline(value.options)
+    expect(reopened.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)).toEqual(first)
+    reopened.close()
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
   })
 })
