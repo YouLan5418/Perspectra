@@ -118,17 +118,19 @@ NPC 可以自主提交一次发言加一次 move/interact，允许两种顺序�
 
 按 Ctrl+C 关闭，再用**相同 Pack、相同目录文件内容、相同扩展开关及相同 `$data`**重启，可继续同一世界。修改 Pack 或交互目录后使用新的试玩目录；Pack 内容修改还需提高 packVersion 并重新编译。不要用旧 v6 数据目录试图隐式升级到 v8。
 
-网页调试抽屉能看到 Head、Tick、Cycle 状态和调用次数。`$data\requests` 保存请求/响应证据，包含 renderer、Provider 输入、响应 proposal、模型用量和失败分类。新模式应出现 `grouped-playtest/v1`，响应 proposal 应为 schemaVersion 5。该目录可能含 NPC 私有上下文，仅供本机诊断；Key 不写入证据。
+网页调试抽屉能看到 Head、Tick、Cycle 状态和调用次数。`$data\requests` 保存请求/响应证据，包含 renderer、Provider 输入、响应 proposal、模型用量和失败分类。新模式应出现 `grouped-playtest/v2`，响应 proposal 应为 schemaVersion 5。该目录可能含 NPC 私有上下文，仅供本机诊断；Key 不写入证据。
 
 | 证据 | 用途 |
 | --- | --- |
 | `*.request.json` | 检查发给模型的交互候选、协议和输入哈希 |
 | `*.response.json` | 检查模型实际提案；提案仍可能被领域规则拒绝 |
-| `*.invalid.json` | JSON 或协议格式无效，没有被当作合法动作执行 |
+| `*.invalid.json` | JSON 或协议格式无效，没有被当作合法动作执行；`validationError` 为具体原因，`rawOutput` 为被拒输出的前 65,536 个字符，`rawOutputTruncated` 标明是否截断。Provider 响应无法解析时正文为 null |
 | `*.failure.json` | 传输失败或结果不明确，不自动重试 |
 | `world.sqlite` 中的 `entity.transferred` / `action.resolved` / Observation | 核查真实效果与接收范围；停服后再做离线诊断 |
 
 记录有问题的一轮：玩家输入、当时页面状态、相关请求文件名、预期与实际结果。不要把模型的完整私有上下文复制到公开反馈里。
+
+2026-09-10 表现码契约修复后，`grouped-playtest/v2` 按动作生成表现 schema：独立表现不含声音/步态；声音仅用于成功发言，步态仅用于成功移动；两个数组不能重复，也不能同时为空（没有表现时省略 `manifestation`）。无效提案仍整条拒绝。历史 `grouped-playtest/v1` 请求和失败证据不回写；重放请求得到的是新的模型输出，不能据此确定历史失败原文。
 
 ## 6. 编辑世界内容与旧模式区别
 

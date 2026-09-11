@@ -38,6 +38,10 @@ Phase 8.2 正确性门禁与 Phase 8.3 固定数据性能基线现已关闭，�
 
 对象交互的第一阶段见 [对象交互 V0.1](object-interactions-v0.1.md) 与 [ADR-0086](../adr/ADR-0086-object-interactions.md)：新世界通过对象目录提供拿取、放下和递交选项；工程门禁通过，任意条件/效果 DSL 与角色回应型交互尚未实现。
 
+## 角色交互与玩家即时成立
+
+[角色交互与玩家即时成立 V0.1](character-interactions-v0.1.md)与 [ADR-0087](../adr/ADR-0087-player-immediate-character-interactions.md)提出候选 Manifest v9：人工玩家可以在硬世界约束内先建立可解除的角色关系，目标通过同轮 ReactionView 和后续 Reaction Cycle 自主反制；自然语言先形成耐久、闭合的 PlayerSubmission，原始叙述不直接获得世界事实权威。当前为 Draft/Proposed，不授权实现或迁移。
+
 ## Memory 独立演进工作流
 
 [记忆模块策略演进规划](../2026-09-06_规划-记忆模块策略演进.md)与[记忆模块实施规格](memory-evolution-implementation-v0.1.md)以 `a2cc212` 为调研基线，规划 M0～M4：包内职责拆分、长历史评测、版本化多路召回、经历来源分组与恢复验收。当前为 Proposed，尚未实施；不占用现有 Phase 编号，不修改 Accepted ADR 或旧 Manifest 行为。

@@ -1,0 +1,14 @@
+{
+  "version": "object-interactions/v1",
+  "definitions": [
+    { "interactionId": "core:drop", "label": "放下", "operation": "drop" },
+    { "interactionId": "core:give", "label": "递交", "operation": "give" },
+    { "interactionId": "core:take", "label": "拿取", "operation": "take" },
+    { "interactionId": "home:stow-laptop", "label": "合上并收好笔记本", "operation": "take" }
+  ],
+  "bindings": [
+    { "entityId": "entity:keyboard", "interactionIds": ["core:drop", "core:give", "core:take"] },
+    { "entityId": "entity:laptop", "interactionIds": ["core:drop", "core:give", "core:take", "home:stow-laptop"] },
+    { "entityId": "entity:phone", "interactionIds": ["core:drop", "core:give", "core:take"] }
+  ]
+}
