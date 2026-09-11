@@ -10,6 +10,7 @@ import {
   type CharacterView,
   type ProposalContext,
   type ReactionProposalContext,
+  type RecallTokenizerId,
   type SubmitActionsV2,
   type SubmitActionsV3,
   type SubmitActionsV4,
@@ -350,6 +351,8 @@ export interface PlaytestRuntimeOptions {
   readonly apiKey?: string
   readonly utilityEndpoint?: string
   readonly utilityModel?: string
+  /** Selects the versioned keyword Recall strategy for this playtest world, or leaves the frozen path. */
+  readonly recallTokenizer?: RecallTokenizerId
 }
 
 export class WorldPlaytestRuntime implements PlaytestRuntime {
@@ -457,6 +460,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       memoryPath: resolve(this.#dataDirectory, 'memory.sqlite'),
       contextPath: resolve(this.#dataDirectory, 'context.sqlite'),
       modelBudgetTokens: 64, leaseTtlMs: 180_000,
+      ...(options.recallTokenizer === undefined ? {} : { recallTokenizer: options.recallTokenizer }),
       participants: () => roundParticipants, reactionParticipants: () => reactionParticipants,
     })
   }

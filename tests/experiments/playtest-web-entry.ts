@@ -20,6 +20,7 @@ async function main(): Promise<void> {
     provider,
     ...(launch.interactionsPath === undefined ? {} : { interactionsPath: launch.interactionsPath }),
     ...(launch.actionGroups === undefined ? {} : { actionGroups: launch.actionGroups }),
+    ...(launch.recallTokenizer === undefined ? {} : { recallTokenizer: launch.recallTokenizer }),
     ...(packPath === undefined ? {} : { packPath }),
     ...(provider === 'ollama' && endpoint !== undefined ? { endpoint } : {}),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),

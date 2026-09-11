@@ -1,15 +1,24 @@
+import {
+  RECALL_HYBRID_TOKENIZER_ID,
+  RECALL_KEYWORD_TOKENIZER_ID,
+  type RecallTokenizerId,
+} from '@harness-world/contracts'
+
 export interface PlaytestLaunchArguments {
   readonly provider: 'ollama' | 'deepseek'
   readonly packPath?: string
   readonly dataDirectory?: string
   readonly interactionsPath?: string
   readonly actionGroups?: boolean
+  /** Selects the versioned keyword Recall strategy for this playtest world, or leaves the frozen path. */
+  readonly recallTokenizer?: RecallTokenizerId
 }
 
 /** Parse the deliberately small, local-only creator playtest command line. */
 export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestLaunchArguments {
   let provider: 'ollama' | 'deepseek' = 'ollama'
   let packPath: string | undefined
+  let recallTokenizer: RecallTokenizerId | undefined
   let dataDirectory: string | undefined
   let interactionsPath: string | undefined
   let actionGroups = false
@@ -22,6 +31,15 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
     if (argument === '--action-groups') {
       if (actionGroups) throw new Error('--action-groups may be supplied only once')
       actionGroups = true
+      continue
+    }
+    if (argument === '--recall-keyword') {
+      if (recallTokenizer !== undefined) throw new Error('--recall-keyword may be supplied only once')
+      const value = args[++index]
+      if (value !== RECALL_KEYWORD_TOKENIZER_ID && value !== RECALL_HYBRID_TOKENIZER_ID) {
+        throw new Error('--recall-keyword requires a registered tokenizer id')
+      }
+      recallTokenizer = value
       continue
     }
     if (argument === '--interactions') {
@@ -46,6 +64,7 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
   return {
     provider,
     ...(actionGroups ? { actionGroups } : {}),
+    ...(recallTokenizer === undefined ? {} : { recallTokenizer }),
     ...(interactionsPath === undefined ? {} : { interactionsPath }),
     ...(packPath === undefined ? {} : { packPath }),
     ...(dataDirectory === undefined ? {} : { dataDirectory }),
