@@ -31,7 +31,7 @@ function paths() {
   }
 }
 
-function compiled(): CompiledWorldSpec {
+function compiled(observationText = 'Rain is heavy'): CompiledWorldSpec {
   const base = new WorldSpecCompiler().compile({
     schemaVersion: 2,
     address: { tenantId: 'tenant:pipeline', worldId: 'world:pipeline', branchId: 'branch:main' },
@@ -46,7 +46,7 @@ function compiled(): CompiledWorldSpec {
     ],
     scenes: [{ sceneId: 'scene:road', participantIds: ['character:player', 'character:alice'] }],
     goals: [], claims: [], observations: [{
-      observationId: 'observation:alice:rain', observerId: 'character:alice', value: { content: 'Rain is heavy' },
+      observationId: 'observation:alice:rain', observerId: 'character:alice', value: { content: observationText },
     }],
     playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
     plugins: [
@@ -118,9 +118,9 @@ function proposal(spec: CompiledWorldSpec): ProposalContext {
   }
 }
 
-function fixture() {
+function fixture(world = compiled()) {
   const storage = paths()
-  const spec = compiled()
+  const spec = world
   const store = new WorldStore(storage.world)
   new WorldBootstrap(store).activate(spec)
   const availability = new CharacterRuntimeAvailabilityService(storage.world)
@@ -578,5 +578,32 @@ describe('Phase8ContextPipeline', () => {
     value.memory.close()
     value.availability.close()
     value.store.close()
+  })
+
+  it('gives up Tier 4 Recall instead of refusing to prepare an over-budget character', () => {
+    const prepare = (spec: CompiledWorldSpec) => {
+      const value = fixture(spec)
+      const pipeline = new Phase8ContextPipeline(value.options)
+      const context = proposal(value.spec)
+      const history = value.store.readEvents(value.spec.manifest.address)
+      const address = value.spec.manifest.address
+      const decision = new SceneDecisionService(value.store, value.availability, 2)
+        .decide(address, context.playerAction.actorId, value.store.head(address).headSeq)
+      const prepared = pipeline.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)
+      const rebuilt = pipeline.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)
+      pipeline.close()
+      value.memory.close()
+      value.availability.close()
+      value.store.close()
+      return { prepared, rebuilt }
+    }
+    const oversized = prepare(compiled(`Will the rain stop? ${'rain '.repeat(7000)}`))
+    const trimmed = oversized.prepared.receipt.exclusions.filter(entry => entry.reason === 'budget_trimmed')
+    expect(trimmed.length).toBeGreaterThan(0)
+    expect(trimmed.every(entry => entry.sourceRefHash !== null)).toBe(true)
+    expect(oversized.rebuilt).toEqual(oversized.prepared)
+    // Nothing is given up while the request already fits the frozen Context Profile budget.
+    expect(prepare(compiled()).prepared.receipt.exclusions.filter(entry => entry.reason === 'budget_trimmed'))
+      .toEqual([])
   })
 })

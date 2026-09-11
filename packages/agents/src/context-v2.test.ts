@@ -252,6 +252,46 @@ describe('CharacterContextAssembler v2', () => {
     expect(new CharacterContextAssembler().assembleDetailed({ ...input, contextProfileId: 'deep' }).exclusions).toEqual([])
   })
 
+  it('keeps the untrimmed assembly byte-identical when no budget trim is requested', () => {
+    const assembler = new CharacterContextAssembler()
+    const recalled = recall(8)
+    const input = request({ tail: tail(6), recallPlan: recalled.plan, recall: recalled.result })
+    const omitted = assembler.assembleDetailed(input)
+    const zeroed = assembler.assembleDetailed({ ...input, budgetTrim: { tailBlocks: 0, recallItems: 0 } })
+    expect(zeroed.bundle.contextHash).toBe(omitted.bundle.contextHash)
+    expect(zeroed.componentHashes).toEqual(omitted.componentHashes)
+    expect(zeroed.includedSourceRefs).toEqual(omitted.includedSourceRefs)
+    expect(zeroed.exclusions).toEqual(omitted.exclusions)
+  })
+
+  it('records a budget trim apart from profile capacity and gives up Recall before whole Tail blocks', () => {
+    const assembler = new CharacterContextAssembler()
+    const recalled = recall(8)
+    const input = request({ tail: tail(6), recallPlan: recalled.plan, recall: recalled.result })
+    const atCapacity = assembler.assembleDetailed(input)
+    expect(atCapacity.exclusions.map(value => value.reason)).toEqual([
+      'profile_capacity', 'profile_capacity', 'profile_capacity', 'profile_capacity',
+    ])
+    const trimmed = assembler.assembleDetailed({ ...input, budgetTrim: { tailBlocks: 1, recallItems: 2 } })
+    expect(trimmed.exclusions.filter(value => value.reason === 'profile_capacity')).toHaveLength(4)
+    expect(trimmed.exclusions.filter(value => value.reason === 'budget_trimmed')).toHaveLength(3)
+    expect(trimmed.includedSourceRefs.length).toBeLessThan(atCapacity.includedSourceRefs.length)
+    const recallSegment = trimmed.bundle.segments.find(segment => segment.segmentKind === 'verified_recall')!
+    const tailSegment = trimmed.bundle.segments.find(segment => segment.segmentKind === 'recent_interaction_tail')!
+    expect(recallSegment.content as WorldJsonObject[]).toHaveLength(4)
+    expect((tailSegment.content as InteractionTail).blocks.map(value => value.roundId)).toEqual([
+      'round:tail:3', 'round:tail:4', 'round:tail:5',
+    ])
+  })
+
+  it('rejects a malformed budget trim before selecting any segment', () => {
+    const assembler = new CharacterContextAssembler()
+    expect(() => assembler.assembleDetailed(request({ budgetTrim: { tailBlocks: -1, recallItems: 0 } })))
+      .toThrow('Context budget trim requires non-negative safe integers')
+    expect(() => assembler.assembleDetailed(request({ budgetTrim: { tailBlocks: 0, recallItems: 1.5 } })))
+      .toThrow('Context budget trim requires non-negative safe integers')
+  })
+
   it('selects an empty Tail when a profile reserves zero recent blocks', () => {
     const input = tail(5)
     const selected = selectInteractionTail(input, 0)

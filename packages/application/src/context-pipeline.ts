@@ -1,5 +1,6 @@
 import {
   CharacterContextAssembler,
+  CharacterContextBudgetPlanner,
   ContextReceiptStore,
   ContinuityCheckpointService,
   DirectorContextAssembler,
@@ -420,7 +421,14 @@ export class Phase8ContextPipeline {
     const sceneRefs = sceneSources(history, decision)
     const cognition = this.#cognition.rebuildCharacterAt(context.address, binding.actorId, asOfWorldSeq)
     const character = this.options.manifest.characters.find(value => value.characterId === binding.actorId)!
-    const assembly = this.#assembler.assembleDetailed({
+    const { assembly, rendered } = new CharacterContextBudgetPlanner(
+      request => this.#assembler.assembleDetailed(request),
+      bundle => this.#renderer.renderCharacter({
+        context: bundle, contextProfileId: selectedProfile, renderer: rendererLock,
+        toolSchema: this.#characterTool, modelProfile: this.#model(context.address),
+        correlationId: `render:${context.roundId}:${binding.participantId}`,
+      }),
+    ).plan({
       address: context.address, roundId: context.roundId, participantId: binding.participantId,
       characterId: binding.actorId, controllerId: `provider:${binding.participantId}`, controllerEpoch: 1,
       baseHeadSeq: asOfWorldSeq, asOfWorldSeq, tick: context.tick, manifestHash: this.options.manifestHash,
@@ -437,11 +445,6 @@ export class Phase8ContextPipeline {
       } } : {}),
       runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
       correlationId: `context:${context.roundId}:${binding.participantId}`,
-    })
-    const rendered = this.#renderer.renderCharacter({
-      context: assembly.bundle, contextProfileId: selectedProfile, renderer: rendererLock,
-      toolSchema: this.#characterTool, modelProfile: this.#model(context.address),
-      correlationId: `render:${context.roundId}:${binding.participantId}`,
     })
     const receipt = this.#receipts.append({
       address: context.address, roundId: context.roundId, participantKind: 'character',
@@ -503,7 +506,14 @@ export class Phase8ContextPipeline {
       sourceKind: 'reaction_observation', sourceId: stimulus.observationId,
       sourceSeq: stimulus.sourceEventSeq, sourceHash: stimulus.sourceEventHash,
     }))
-    const assembly = this.#assembler.assembleDetailed({
+    const { assembly, rendered } = new CharacterContextBudgetPlanner(
+      request => this.#assembler.assembleDetailed(request),
+      bundle => this.#renderer.renderCharacter({
+        context: bundle, contextProfileId: selectedProfile, renderer: rendererLock,
+        toolSchema: this.#reactionCharacterTool, modelProfile: this.#model(context.address),
+        correlationId: `render:${context.roundId}:${binding.participantId}`,
+      }),
+    ).plan({
       address: context.address, roundId: context.roundId, participantId: binding.participantId,
       characterId: binding.actorId, controllerId: `provider:${binding.participantId}`, controllerEpoch: 1,
       baseHeadSeq: asOfWorldSeq, asOfWorldSeq, tick: context.tick, manifestHash: this.options.manifestHash,
@@ -521,11 +531,6 @@ export class Phase8ContextPipeline {
       affordances, affordanceHash,
       runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
       correlationId: `context:${context.roundId}:${binding.participantId}`,
-    })
-    const rendered = this.#renderer.renderCharacter({
-      context: assembly.bundle, contextProfileId: selectedProfile, renderer: rendererLock,
-      toolSchema: this.#reactionCharacterTool, modelProfile: this.#model(context.address),
-      correlationId: `render:${context.roundId}:${binding.participantId}`,
     })
     const receipt = this.#receipts.append({
       address: context.address, roundId: context.roundId, participantKind: 'character',

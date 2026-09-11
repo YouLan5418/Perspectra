@@ -19,6 +19,7 @@ import {
   type CognitiveRecallResult,
   type ContextComponentHashes,
   type ContextExclusion,
+  type ContextExclusionReason,
   type ContextProfileId,
   type ContextSegment,
   type ContextSourceRef,
@@ -79,6 +80,14 @@ export interface CharacterContextRequest {
   readonly affordances: readonly ContextAffordance[]
   readonly affordanceHash: WorldHash
   readonly runtimeAvailability: RuntimeAvailabilityState
+  /**
+   * Extra Tier 3/4 drops applied on top of the Context Profile so the rendered request fits the Model Profile
+   * budget. Recall is trimmed before Interaction Tail blocks, and only whole Tail blocks are ever dropped.
+   */
+  readonly budgetTrim?: {
+    readonly tailBlocks: number
+    readonly recallItems: number
+  }
   readonly correlationId: string
 }
 
@@ -113,7 +122,8 @@ const OUTPUT_REMINDER = Object.freeze({
 
 const compareText = compareWorldText
 
-function profile(profileId: ContextProfileId): Phase8ContextProfile {
+/** Resolve a frozen Context Profile, failing closed on an unknown identifier. */
+export function contextProfile(profileId: ContextProfileId): Phase8ContextProfile {
   const selected = PHASE8_CONTEXT_PROFILES.find(value => value.profileId === profileId)
   if (selected === undefined) throw new TypeError(`unknown Context Profile ${profileId}`)
   return selected
@@ -162,6 +172,26 @@ export function selectInteractionTail(tail: InteractionTail, maximumBlocks: numb
   const input = { ...tail, blocks }
   const { tailHash: _tailHash, ...base } = input
   return { ...base, tailHash: hashInteractionTail(base) }
+}
+
+type InteractionBlockValue = CharacterContextRequest['tail']['blocks'][number]
+type RecallMemoryValue = CharacterContextRequest['recall']['memories'][number]
+
+/** Record every observation of a dropped whole Tail block, so the drop stays auditable per source. */
+function blockExclusions(
+  blocks: readonly InteractionBlockValue[],
+  reason: ContextExclusionReason,
+): ContextExclusion[] {
+  return blocks.flatMap(block => block.observations.map(observation => ({
+    reason, sourceRefHash: sourceHash(observation.sourceRef),
+  })))
+}
+
+function memoryExclusions(
+  memories: readonly RecallMemoryValue[],
+  reason: ContextExclusionReason,
+): ContextExclusion[] {
+  return memories.map(memory => ({ reason, sourceRefHash: sourceHash(memory.sourceRef) }))
 }
 
 function cognitionEntries(cognition: CharacterCognitionView) {
@@ -320,7 +350,7 @@ export class CharacterContextAssembler {
 
   assembleDetailed(request: CharacterContextRequest): CharacterContextAssembly {
     assertScope(request)
-    const selectedProfile = profile(request.contextProfileId)
+    const selectedProfile = contextProfile(request.contextProfileId)
     const activeCognition = cognitionEntries(request.cognition)
     assertCapacity(request, selectedProfile, activeCognition)
     const affordances = [...request.affordances]
@@ -329,8 +359,19 @@ export class CharacterContextAssembler {
       throw new TypeError('Context affordances must be unique')
     }
     assertComponentHashes(request, affordances)
-    const selectedTail = selectInteractionTail(request.tail, selectedProfile.recentInteractionBlocks)
-    const selectedMemories = request.recall.memories.slice(0, selectedProfile.recallResults)
+    const budgetTrim = request.budgetTrim ?? { tailBlocks: 0, recallItems: 0 }
+    if (!Number.isSafeInteger(budgetTrim.tailBlocks) || budgetTrim.tailBlocks < 0
+      || !Number.isSafeInteger(budgetTrim.recallItems) || budgetTrim.recallItems < 0) {
+      throw new RangeError('Context budget trim requires non-negative safe integers')
+    }
+    const profileTail = selectInteractionTail(request.tail, selectedProfile.recentInteractionBlocks)
+    const profileMemories = request.recall.memories.slice(0, selectedProfile.recallResults)
+    const selectedTail = selectInteractionTail(
+      profileTail, Math.max(0, profileTail.blocks.length - budgetTrim.tailBlocks),
+    )
+    const selectedMemories = profileMemories.slice(
+      0, Math.max(0, profileMemories.length - budgetTrim.recallItems),
+    )
     const checkpointSources = request.checkpoint?.activeCognition.map(entry => entry.sourceRef) ?? []
     const selfSources = activeCognition.map(record => record.sourceRef)
     const recallSources = selectedMemories.map(memory => memory.sourceRef)
@@ -412,13 +453,15 @@ export class CharacterContextAssembler {
     }
     const bundle = { ...base, contextHash: hashCharacterContext(base) }
     const exclusions: ContextExclusion[] = [
-      ...request.tail.blocks.slice(0, request.tail.blocks.length - selectedTail.blocks.length)
-        .flatMap(block => block.observations.map(observation => ({
-          reason: 'profile_capacity' as const, sourceRefHash: sourceHash(observation.sourceRef),
-        }))),
-      ...request.recall.memories.slice(selectedMemories.length).map(memory => ({
-        reason: 'profile_capacity' as const, sourceRefHash: sourceHash(memory.sourceRef),
-      })),
+      ...blockExclusions(
+        request.tail.blocks.slice(0, request.tail.blocks.length - profileTail.blocks.length),
+        'profile_capacity',
+      ),
+      ...blockExclusions(
+        profileTail.blocks.slice(0, profileTail.blocks.length - selectedTail.blocks.length), 'budget_trimmed',
+      ),
+      ...memoryExclusions(request.recall.memories.slice(profileMemories.length), 'profile_capacity'),
+      ...memoryExclusions(profileMemories.slice(selectedMemories.length), 'budget_trimmed'),
     ]
     return {
       bundle,
