@@ -467,7 +467,7 @@ Session Compaction 只生成带 source delivery range、Observation IDs、min/ma
 
 V0 只实现 TURN_DRIVEN，激活后锁定。每个已受理且非重复的玩家世界输入产生一个 Round 和一个 Tick；无效传输、未授权请求、行政事务、Genesis、fork 不推进 Tick。领域 rejected Action 已经消耗世界回合，因此仍推进 Tick。
 
-角色领域状态为 active、incapacitated、dead、departed；运行可用性为 provisioning、ready、session_lag、model_unavailable、budget_unavailable、offline、disabled。二者不互相伪装。运行时产生的状态是临时的：处于 <code>session_lag</code> 的角色仍进入调度并在每一轮重新尝试准备，成功即自动回到 <code>ready</code>；只有 Host 设定的 provisioning、offline、disabled 持续拦住调度。
+角色领域状态为 active、incapacitated、dead、departed；运行可用性为 provisioning、ready、session_lag、model_unavailable、budget_unavailable、offline、disabled。二者不互相伪装。运行时产生的状态都是临时的，尝试成功即自动回到 <code>ready</code>：<code>session_lag</code> 与 <code>budget_unavailable</code> 每一轮重新尝试（模型预算账本按轮与按波重建，一轮没抢到额度不代表下一轮）；<code>model_unavailable</code> 与 <code>provider_output_invalid</code> 只在质量退避允许时重试，且提供方失败、超时与非法输出计入同一退避，避免持续故障的提供方被每轮重复调用。只有 Host 设定的 provisioning、offline、disabled 持续拦住调度。
 
 创建、生命周期变化、复活和离场全部事件化。死亡不删除 Character、Session、Memory 或 PlayerBinding；普通行动由 Affordance 拒绝。新 NPC 提交后异步 Provision Session，ready 前存在于世界但不参与模型提案。用户断开不是世界事件。
 

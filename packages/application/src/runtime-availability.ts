@@ -4,14 +4,22 @@ import type { RuntimeAvailabilityState } from '@harness-world/contracts'
  * States whose cause is expected to clear without a Host action. A participant in one of these states keeps
  * its place in scheduling and is retried every Round, so one failed preparation does not remove it from the
  * world for good. Host-set states (provisioning, offline, disabled) stay blocking.
+ *
+ * `budget_unavailable` belongs here: the Model budget ledger is rebuilt for every Round and every Reaction
+ * Wave, so losing one Round's race says nothing about the next Round.
  */
-const SELF_CLEARING_AVAILABILITY_STATES: readonly RuntimeAvailabilityState[] = ['ready', 'session_lag']
+const SELF_CLEARING_AVAILABILITY_STATES: readonly RuntimeAvailabilityState[] = [
+  'ready', 'session_lag', 'budget_unavailable',
+]
 
 /**
  * Provider-family states that are only retried while the quality backoff is present to decide when, so a
- * persistently failing Provider is not re-called every Round.
+ * persistently failing Provider is not re-called every Round. A Provider fault and an unusable response mean
+ * the same thing to a retry decision, so they share one backoff.
  */
-const PROVIDER_QUALITY_AVAILABILITY_STATES: readonly RuntimeAvailabilityState[] = ['provider_output_invalid']
+const PROVIDER_QUALITY_AVAILABILITY_STATES: readonly RuntimeAvailabilityState[] = [
+  'provider_output_invalid', 'model_unavailable',
+]
 
 /** States a Scene Decision may schedule. The Scene has no Provider quality signal, so it lists both groups. */
 export const SCHEDULABLE_AVAILABILITY_STATES: readonly RuntimeAvailabilityState[] = [

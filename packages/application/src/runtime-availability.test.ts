@@ -5,16 +5,18 @@ import {
 } from './runtime-availability.ts'
 
 describe('runtime availability retry policy', () => {
-  it('schedules every self-clearing state plus the Provider quality state', () => {
+  it('schedules every self-clearing state plus the Provider quality states', () => {
     expect([...SCHEDULABLE_AVAILABILITY_STATES].sort()).toEqual([
-      'provider_output_invalid', 'ready', 'session_lag',
+      'budget_unavailable', 'model_unavailable', 'provider_output_invalid', 'ready', 'session_lag',
     ])
   })
 
   it('lets a path without a quality signal retry only the always-retryable states', () => {
-    for (const state of ['ready', 'session_lag'] as const) expect(alwaysRetryableAvailability(state)).toBe(true)
+    for (const state of ['ready', 'session_lag', 'budget_unavailable'] as const) {
+      expect(alwaysRetryableAvailability(state)).toBe(true)
+    }
     for (const state of [
-      'provider_output_invalid', 'provisioning', 'model_unavailable', 'budget_unavailable', 'offline', 'disabled',
+      'provider_output_invalid', 'model_unavailable', 'provisioning', 'offline', 'disabled',
     ] as const) {
       expect(alwaysRetryableAvailability(state)).toBe(false)
     }
@@ -22,21 +24,21 @@ describe('runtime availability retry policy', () => {
   })
 
   it('retries a self-clearing state with or without the Provider quality signal', () => {
-    for (const state of ['ready', 'session_lag'] as const) {
+    for (const state of ['ready', 'session_lag', 'budget_unavailable'] as const) {
       expect(retryableAvailability(state, true)).toBe(true)
       expect(retryableAvailability(state, false)).toBe(true)
     }
   })
 
-  it('retries the Provider quality state only while that backoff is present', () => {
-    expect(retryableAvailability('provider_output_invalid', true)).toBe(true)
-    expect(retryableAvailability('provider_output_invalid', false)).toBe(false)
+  it('retries a Provider quality state only while that backoff is present', () => {
+    for (const state of ['provider_output_invalid', 'model_unavailable'] as const) {
+      expect(retryableAvailability(state, true)).toBe(true)
+      expect(retryableAvailability(state, false)).toBe(false)
+    }
   })
 
   it('keeps Host-set and unknown states out of scheduling', () => {
-    const blocked: readonly RuntimeAvailabilityState[] = [
-      'provisioning', 'model_unavailable', 'budget_unavailable', 'offline', 'disabled',
-    ]
+    const blocked: readonly RuntimeAvailabilityState[] = ['provisioning', 'offline', 'disabled']
     for (const state of blocked) {
       expect(retryableAvailability(state, true)).toBe(false)
       expect(retryableAvailability(state, false)).toBe(false)
@@ -44,11 +46,15 @@ describe('runtime availability retry policy', () => {
     expect(retryableAvailability(undefined, true)).toBe(false)
   })
 
-  it('returns a participant to ready only after it was retried', () => {
-    expect(availabilityRecovery('session_lag')).toEqual({ state: 'ready', reason: null })
-    expect(availabilityRecovery('provider_output_invalid')).toEqual({ state: 'ready', reason: null })
+  it('returns a participant to ready once it was retried', () => {
+    for (const state of [
+      'session_lag', 'budget_unavailable', 'provider_output_invalid', 'model_unavailable',
+    ] as const) {
+      expect(availabilityRecovery(state)).toEqual({ state: 'ready', reason: null })
+    }
     expect(availabilityRecovery('ready')).toBeUndefined()
     expect(availabilityRecovery(undefined)).toBeUndefined()
     expect(availabilityRecovery('offline')).toBeUndefined()
+    expect(availabilityRecovery('provisioning')).toBeUndefined()
   })
 })

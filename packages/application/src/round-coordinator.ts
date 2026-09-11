@@ -1168,6 +1168,13 @@ export class RoundCoordinator {
               { reason: failure },
             )
           }
+          if (failure !== 'budget_exhausted' && providerCall !== undefined && providerQuality !== undefined) {
+            // The Provider call ledger already records the exact failure; counting it here only escalates the
+            // shared retry backoff, so a broken Provider is not re-called on every eligible Round.
+            providerQuality = { ...providerQuality, state: this.options.providerQuality!.recordResponse(
+              this.#address, binding.participantId, providerCall.modelCallId, 'invalid',
+            ) }
+          }
           frozen.push(this.#frozen(
             binding, failure, { participantId: binding.participantId, actions: [] }, cognitive,
             availabilityForFailure[failure],
