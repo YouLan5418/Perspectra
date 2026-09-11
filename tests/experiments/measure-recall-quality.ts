@@ -58,12 +58,22 @@ const MUNDANE = [
 ]
 /** A late line that mentions the same noun as IMPORTANT, to separate importance from recency. */
 const LATE_DECOY = '门口那串钥匙我也看到了，挺旧的。'
+/**
+ * A fact that belongs to one person: Bob says it once and then never speaks again, so every memory
+ * carrying `character:bob` is about this. A question with no shared word can only reach it through the
+ * structural clue that Bob is present.
+ */
+const PERSON_FACT = '我把那本绝版书借给你了，下周三之前记得还我。'
+const PERSON_MARKER = '绝版书'
+/** A question sharing nothing with the fact, asked while Bob is present. */
+const UNRELATED_CUE = '嗯，随便吧。'
 /** Phrasings a player might use when the character is expected to surface the fact. */
 const CUES = [
   IMPORTANT,
   KEY_NOUN,
   `${KEY_NOUN}放在哪了？`,
   '我们要出门了，你有什么要提醒我的吗？',
+  UNRELATED_CUE,
 ]
 /**
  * Probes of IMPORTANT, from the shortest noun to the whole line, plus one token present in every
@@ -108,6 +118,29 @@ function abstaining(participantId: string, actorId: CharacterId, priority: numbe
   }
 }
 
+/** Speaks the person-linked fact once, then abstains, so exactly one memory carries that person's id. */
+function speakingOnce(participantId: string, actorId: CharacterId, priority: number, text: string): RoundParticipant {
+  let spoken = false
+  return {
+    participantId, role: 'agent', actorId, allowedActionTypes: ['move', 'speak', 'take'],
+    priority, estimatedTokens: 1, timeoutMs: 100,
+    provider: {
+      async propose(context) {
+        received.set(participantId, [...received.get(participantId) ?? [], context])
+        if (spoken) return { schemaVersion: 2, decision: 'abstain', actions: [] }
+        spoken = true
+        return {
+          schemaVersion: 2, decision: 'act',
+          actions: [{
+            actionId: 'action:bob:person-fact', actorId, actionType: 'speak', actionVersion: 1,
+            parameters: { text, addresseeIds: [], scope: 'scene_public', replyTo: null, declaredSpeechAct: 'assert' },
+          }],
+        }
+      },
+    },
+  }
+}
+
 const pack = await compileRainyRoadPack()
 const compiled = adaptRainyRoadPack(pack, ADDRESS)
 const application = new WorldApplication({
@@ -118,7 +151,7 @@ const application = new WorldApplication({
   ...(recallTokenizer === undefined ? {} : { recallTokenizer }),
   participants: () => [
     abstaining('agent:alice', RAINY_ROAD_IDS.alice, 2),
-    abstaining('agent:bob', RAINY_ROAD_IDS.bob, 1),
+    speakingOnce('agent:bob', RAINY_ROAD_IDS.bob, 1, PERSON_FACT),
   ],
 })
 
@@ -244,6 +277,8 @@ try {
 
   // Each cue is a real Round, so its Context is built by production exactly as it would be in play.
   for (const cue of CUES) {
+    // Measured before the cue Round commits, so the count cannot include the question's own words.
+    const keywordOnly = (await application.diagnoseMemoryRecall(ADDRESS, RAINY_ROAD_IDS.alice, cue)).matchedCount
     const round = await say(cue)
     const diagnostics = await application.diagnoseMemoryRecall(ADDRESS, RAINY_ROAD_IDS.alice, cue)
     const memories = await application.recallMemory(ADDRESS, RAINY_ROAD_IDS.alice, cue)
@@ -254,6 +289,7 @@ try {
       cue,
       productionQuery: productionQuery({ parameters: { text: cue } }),
       candidatesMatched: diagnostics.matchedCount,
+      keywordOnlyCandidates: keywordOnly,
       limit: diagnostics.limit,
       returned: memories.length,
       rankedByRecency: memories.map(memory => ({
@@ -263,6 +299,7 @@ try {
       })),
       contextRecalled: evidence?.recalled.length ?? null,
       contextCarriedMarker: evidence?.carriedMarker ?? false,
+      contextCarriedPersonFact: (evidence?.recalled ?? []).some(text => text.includes(PERSON_MARKER)),
     })
   }
 
