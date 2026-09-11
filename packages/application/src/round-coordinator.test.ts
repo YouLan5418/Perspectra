@@ -52,6 +52,7 @@ import { SceneDecisionService } from './scene-decision.ts'
 import type { Phase8ProviderContext } from './context-pipeline.ts'
 import { WorldApplication } from './world-application.ts'
 import { v5Manifest } from '../../../tests/reaction-fixture.ts'
+import { characterInteractionWorld } from '../../../tests/fixtures/character-interaction-world.ts'
 
 const directories: string[] = []
 
@@ -396,6 +397,23 @@ async function installCommittedRecoveryFixture(
 }
 
 describe('RoundCoordinator', () => {
+  it('binds v9 player-only provisional authority without optional Scene scheduling services', async () => {
+    const path = database('player-only-provisional.sqlite')
+    const compiled = characterInteractionWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const configured = options(path, compiled)
+    const coordinator = new RoundCoordinator(configured)
+    try {
+      await coordinator.submit({ idempotencyKey: 'speak', principalId: 'principal:player', correlationId: 'player-only',
+        action: { actionType: 'speak', parameters: { text: 'hello' } } })
+      const event = configured.store.readEvents(compiled.manifest.address).find(value => value.eventType === 'action.resolved')!
+      expect(configured.store.readRoundAuthority(compiled.manifest.address, event.transactionId)!.authority).toMatchObject({
+        schemaVersion: 5, playerProvisional: { binding: { version: 'player-provisional-resolution/v1', status: 'accepted' } },
+      })
+    } finally { close(configured, coordinator) }
+  })
   it('retains speech before a rejected move and resolves contested take groups without interleaving', async () => {
     const path = database('group-contention.sqlite')
     const base = manifestationWorld(true)

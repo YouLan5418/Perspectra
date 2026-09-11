@@ -1,4 +1,5 @@
 import { sortActionGroups, stepManifestation, resolveGroupAction } from './action-groups.ts'
+import { bindPlayerProvisional, verifyPlayerProvisional, type PlayerProvisional, type ProvisionalReactionInput } from './player-provisional.ts'
 import {
   SubmitActionsValidator,
   parseManifestationProposal,
@@ -586,7 +587,7 @@ export class RoundCoordinator {
       action: { actionType: playerAction.actionType, parameters: playerAction.parameters },
     })
     const playerObservationScope = playerBaseResolution.observationScope ?? { scope: 'scene_public' as const }
-    const playerAudience = this.options.sceneDecision?.version === 2
+    let playerAudience = this.options.sceneDecision?.version === 2
       ? this.options.sceneDecision.audienceForAction(
         this.#address,
         playerAction.actorId,
@@ -600,6 +601,25 @@ export class RoundCoordinator {
         },
       )
       : undefined
+    const provisionalMoveTarget = playerAction.actionType === 'move' ? (playerAction.parameters as WorldJsonObject).locationId : undefined
+    const provisional = this.#manifest.schemaVersion === 9 ? bindPlayerProvisional(
+      this.#address, head.headSeq, head.eventHash, playerAction, {
+        ...playerBaseResolution,
+        events: [
+          ...playerBaseResolution.events,
+          ...(playerBaseResolution.status === 'accepted' && typeof provisionalMoveTarget === 'string' && this.options.sceneDecision?.version === 2
+            ? this.options.sceneDecision.transitionForMove(this.#address, history, playerAction.actorId, provisionalMoveTarget, head.headSeq) : []),
+        ],
+      },
+    ) : undefined
+    const s1History = provisional === undefined ? history : [...history, ...provisional.binding.events.map(value => value.event)]
+    const s1Decision = provisional === undefined ? sceneDecision
+      : this.options.sceneDecision?.decideFromEvents(this.#address, playerAction.actorId, s1History, head.headSeq)
+    if (provisional !== undefined && playerObservationScope.scope === 'scene_public' && playerAudience !== undefined && s1Decision !== undefined) {
+      playerAudience = { ...playerAudience, fullContentCharacterIds: [...new Set([
+        ...playerAudience.fullContentCharacterIds, ...s1Decision.observerIds,
+      ])].sort(compareWorldText) }
+    }
     const proposalContext: ProposalContext = {
       address: this.#address,
       roundId,
@@ -609,6 +629,7 @@ export class RoundCoordinator {
       candidateHash: hashWorldJson('world-player-candidate-s1', {
         baseHeadSeq: head.headSeq,
         baseTick: head.tick,
+        ...(provisional === undefined ? {} : { provisionalResolutionHash: provisional.hash }),
         playerAction,
         ...(submission.manifestation === undefined ? {} : { playerManifestation: submission.manifestation }),
       }),
@@ -616,12 +637,15 @@ export class RoundCoordinator {
     const frozen = await this.#freezeParticipants(
       proposalContext,
       history,
-      sceneDecision?.schedulableCharacterIds,
+      provisional === undefined ? sceneDecision?.schedulableCharacterIds : [...new Set([
+        ...(sceneDecision?.schedulableCharacterIds ?? []), ...(s1Decision?.schedulableCharacterIds ?? []),
+      ])].sort(compareWorldText),
       sceneDecision,
       head.headSeq,
       playerAudience,
       playerBaseResolution.status,
       playerObservationScope.scope === 'scene_public',
+      provisional,
     )
     const ordered = this.#orderedActions(playerAction, frozen, submission.manifestation)
     const contextHash = hashWorldJson('round-proposal-context', {
@@ -794,7 +818,10 @@ export class RoundCoordinator {
       const resolvedEvents = manifestationResolution === undefined
         ? resolution.events
         : [...resolution.events, ...manifestationResolution.events]
-      const phase8Audience = this.options.sceneDecision?.version === 2
+      if (item.sourceRole === 'player' && provisional !== undefined) {
+        verifyPlayerProvisional(provisional, item.action, { ...resolution, events: resolvedEvents })
+      }
+      const phase8Audience = item.sourceRole === 'player' && provisional !== undefined ? playerAudience : this.options.sceneDecision?.version === 2
         ? this.options.sceneDecision.audienceForAction(
           this.#address,
           item.action.actorId,
@@ -937,6 +964,7 @@ export class RoundCoordinator {
       actions,
       resolutions,
       finalCandidateHash: candidateHash,
+      ...(provisional === undefined ? {} : { playerProvisional: provisional }),
     } as const
     this.#renewLease()
     if (frozen.some(value => value.providerCall?.state === 'validated')) {
@@ -1025,6 +1053,7 @@ export class RoundCoordinator {
     playerAudience?: SceneActionAudience,
     playerStatus: RulebookResolution['status'] = 'accepted',
     directorCanSeeFull = true,
+    provisional?: PlayerProvisional,
   ): Promise<FrozenParticipant[]> {
     const frozen: FrozenParticipant[] = []
     const actionIds = new Set<string>([context.playerAction.actionId])
@@ -1066,14 +1095,23 @@ export class RoundCoordinator {
       const visible = participantVisibleContext(
         context, binding, playerAudience, playerStatus, directorCanSeeFull,
       )
+      const reactionInput: ProvisionalReactionInput | undefined = provisional === undefined ? undefined : {
+        provisional,
+        visibility: visible.excludedStimulus === undefined ? 'full'
+          : visible.context.playerAction.actionType === 'private_interaction' ? 'occurrence_only' : 'none',
+      }
       let providerContext: ProposalContext | CognitiveProposalContext = visible.context
       let cognitive: FrozenParticipant['cognitive']
       if (this.options.contextPipeline !== undefined) {
         try {
           this.#renewLease()
+          const participantDecision = reactionInput?.visibility === 'full' && binding.role === 'agent'
+            ? this.options.sceneDecision!.decideFromEvents(this.#address, binding.actorId,
+              [...history, ...reactionInput.provisional.binding.events.map(value => value.event)], asOfWorldSeq)
+            : sceneDecision!
           const prepared = this.options.contextPipeline.prepare(
-            binding, visible.context, history as ReturnType<WorldStore['readEvents']>, sceneDecision!, asOfWorldSeq,
-            () => this.#renewLease(), visible.excludedStimulus,
+            binding, visible.context, history as ReturnType<WorldStore['readEvents']>, participantDecision, asOfWorldSeq,
+            () => this.#renewLease(), visible.excludedStimulus, reactionInput,
           )
           providerContext = prepared.providerContext
           cognitive = {

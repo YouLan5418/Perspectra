@@ -50,6 +50,7 @@ import {
 } from '@harness-world/store-sqlite'
 import type { RoundParticipant } from './round-coordinator.ts'
 import type { SceneDecision } from './scene-decision.ts'
+import { provisionalReactionView, type ProvisionalReactionInput } from './player-provisional.ts'
 
 export interface Phase8ProviderContext extends ProposalContext, WorldJsonObject {
   readonly agentContextVersion: 2
@@ -345,11 +346,12 @@ export class Phase8ContextPipeline {
     asOfWorldSeq: number,
     heartbeat: () => void,
     excludedStimulus?: ActionRequest,
+    provisional?: ProvisionalReactionInput,
   ): PreparedPhase8Participant {
     sceneContext(decision)
     return binding.role === 'director'
-      ? this.#prepareDirector(binding, context, history, decision, asOfWorldSeq, excludedStimulus)
-      : this.#prepareCharacter(binding, context, history, decision, asOfWorldSeq, heartbeat, excludedStimulus)
+      ? this.#prepareDirector(binding, context, history, decision, asOfWorldSeq, excludedStimulus, provisional)
+      : this.#prepareCharacter(binding, context, history, decision, asOfWorldSeq, heartbeat, excludedStimulus, provisional)
   }
 
   /** Build an exact Character Context from a frozen Observation bundle without a synthetic player Action. */
@@ -388,14 +390,19 @@ export class Phase8ContextPipeline {
     asOfWorldSeq: number,
     heartbeat: () => void,
     excludedStimulus?: ActionRequest,
+    provisional?: ProvisionalReactionInput,
   ): PreparedPhase8Participant {
-    const stimulus = context.playerManifestation === undefined
+    const legacyStimulus = context.playerManifestation === undefined
       ? context.playerAction
       : { action: context.playerAction, manifestation: context.playerManifestation }
+    const stimulus = provisional === undefined ? legacyStimulus : provisionalReactionView(provisional, history)
+    const recallAction = provisional === undefined ? context.playerAction : {
+      ...context.playerAction, actionType: 'context.provisional-stimulus', parameters: stimulus,
+    }
     const prepared = this.options.memory.prepare({
       address: context.address, roundId: context.roundId, tick: context.tick,
       participantId: binding.participantId, characterId: binding.actorId, asOfWorldSeq,
-      playerAction: context.playerAction, candidateHash: context.candidateHash,
+      playerAction: recallAction, candidateHash: context.candidateHash,
       ...(context.playerManifestation === undefined ? {} : { playerManifestation: context.playerManifestation }),
       allowedActionTypes: binding.allowedActionTypes, sceneDecision: decision,
       correlationId: `context:${context.roundId}:${binding.participantId}`, heartbeat,
@@ -412,7 +419,9 @@ export class Phase8ContextPipeline {
       selectedProfileContract.recentInteractionBlocks,
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
-      manifest: this.options.manifest, events: history, characterId: binding.actorId,
+      manifest: this.options.manifest,
+      events: provisional?.visibility === 'full' ? [...history, ...provisional.provisional.binding.events.map(value => value.event)] : history,
+      characterId: binding.actorId,
       resolutionAuthority: resolutionAuthority('agent', 'standard'),
     }).filter(value => binding.allowedActionTypes.includes(value.actionType))
       .map(value => contextAffordance(value, decision))
@@ -432,6 +441,10 @@ export class Phase8ContextPipeline {
       characterView: prepared.characterView, cognition, checkpoint, tail, sceneDecision: scene,
       sceneSourceRefs: sceneRefs, recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', stimulus),
+      ...(provisional === undefined ? {} : { stimulusSourceRefs: [
+        { sourceKind: 'round_stimulus', sourceId: 'player-provisional-resolution', sourceSeq: asOfWorldSeq, sourceHash: provisional.provisional.hash },
+        { sourceKind: 'round_stimulus', sourceId: 'player-provisional-view', sourceSeq: asOfWorldSeq, sourceHash: hashWorldJson('context-stimulus/v1', stimulus) },
+      ] }),
       affordances, affordanceHash,
       ...(manifestUsesActionGroups(this.options.manifest) ? { groupedOutput: {
         tool: manifestUsesInteractions(this.options.manifest) ? 'submit_actions/v5' as const : 'submit_actions/v4' as const,
@@ -459,7 +472,7 @@ export class Phase8ContextPipeline {
       ],
       contextHash: assembly.bundle.contextHash, providerRequestHash: rendered.providerRequestHash,
     })
-    return this.#result(context, binding, receipt, rendered.exactRequest, prepared.memorySourceRefs, prepared.recallResultHash, cognition)
+    return this.#result({ ...context, playerAction: recallAction }, binding, receipt, rendered.exactRequest, prepared.memorySourceRefs, prepared.recallResultHash, cognition)
   }
 
   #prepareReactionCharacter(
@@ -560,6 +573,7 @@ export class Phase8ContextPipeline {
     decision: SceneDecision,
     asOfWorldSeq: number,
     excludedStimulus?: ActionRequest,
+    provisional?: ProvisionalReactionInput,
   ): PreparedPhase8Participant {
     const scene = sceneContext(decision)
     const { publicEvents, targetSources } = directorSceneInputs(history, decision)
@@ -573,10 +587,14 @@ export class Phase8ContextPipeline {
       controllerId: `provider:${binding.participantId}`, controllerEpoch: 1,
       baseHeadSeq: asOfWorldSeq, asOfWorldSeq, tick: context.tick, manifestHash: this.options.manifestHash,
       contextProfileId: 'standard', sceneDecision: scene,
-      publicEntries: publicEvents.map(event => ({
+      publicEntries: [...publicEvents.map(event => ({
         entryId: `${event.eventType}:${event.seq}`, value: event.data,
         sourceRef: eventSource(event, 'scene_public_event'),
-      })),
+      })), ...(provisional === undefined ? [] : [{
+        entryId: 'player-provisional', value: provisionalReactionView(provisional, history),
+        sourceRef: { sourceKind: 'director_visible', sourceId: 'player-provisional', sourceSeq: asOfWorldSeq,
+          sourceHash: hashWorldJson('director-provisional-view/v1', provisionalReactionView(provisional, history)) },
+      }])],
       dramaticSignals: [], environmentAffordances: [...binding.allowedActionTypes],
       directiveTargets: targets, correlationId: `context:${context.roundId}:${binding.participantId}`,
     })
@@ -606,7 +624,10 @@ export class Phase8ContextPipeline {
       contextHash: assembly.context.contextHash, providerRequestHash: rendered.providerRequestHash,
     }
     const receipt = this.#receipts.append(receiptRequest)
-    return this.#result(context, binding, receipt, rendered.exactRequest, [], emptyHash)
+    const visibleContext = provisional === undefined ? context : { ...context, playerAction: {
+      ...context.playerAction, actionType: 'context.provisional-stimulus', parameters: provisionalReactionView(provisional, history),
+    } }
+    return this.#result(visibleContext, binding, receipt, rendered.exactRequest, [], emptyHash)
   }
 
   #result(
