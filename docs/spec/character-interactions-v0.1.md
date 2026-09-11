@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 决策 | [ADR-0087](../adr/ADR-0087-player-immediate-character-interactions.md) |
-| 状态 | Accepted implementation target；C0 真实 Provider 门禁待运行；C1 核心与 C2 同轮反应内部实现已落地，发布门禁未关闭；C3～C4 待实施 |
+| 状态 | Accepted implementation target；C0 真实 Provider 门禁待运行；C1 核心与 C2 同轮反应内部实现已落地；C3 契约切片已落地、耐久运行时待实施；C4 待实施；发布门禁未关闭 |
 | 实施基线 | `codex/player-immediate-character-interactions`；v8 契约修复 `5d6b982`，文档与试玩证据 `26bc98c` |
 | 候选世界 / 模型协议 | Manifest v9；submit_actions/v6 仅在 C2 证明 v5 不能保持原语义时引入 |
 | 候选目录 / 玩家协议 | interaction-catalog/v2 / player-intent/v1 / player-submission/v2 |
@@ -15,6 +15,8 @@
 > **执行进度补充：** 用户随后要求跳过不可用的 DeepSeek 子进程并继续实施，当前已有 C1 内部实现，详见 [`2026-09-11_角色交互-C1-实施记录.md`](../2026-09-11_角色交互-C1-实施记录.md)。上述前置门禁仍未关闭；此进度不构成 C1 正式验收或 Manifest v9 发布许可。
 
 > **C2 执行进度：** 已接入玩家候选 S1、按参与者裁剪的 Provisional ReactionView、S1 Affordance、ContextReceipt 绑定及提交前完整性校验，详见 [`2026-09-12_角色交互-C2-实施记录.md`](../2026-09-12_角色交互-C2-实施记录.md)。当前显式单 Action 入口复用 `submit_actions/v5`，无需 v6；未引入 C3 玩家双步输入。C0 真实模型门禁与 C4 专项恢复/发布验收仍独立保留。
+
+> **C3 执行进度：** 首个契约切片新增 `PlayerSubmissionV2`、Host 精确 Affordance 绑定、UTF-16 source span 校验和候选结构 Schema，详见 [`2026-09-12_角色交互-C3-契约切片记录.md`](../2026-09-12_角色交互-C3-契约切片记录.md)。尚未接入耐久受理、ProviderCall 或两步玩家 Round；`player-intent/v1` 激活门禁保持关闭，C3 阶段未完成。
 
 > **术语：** “即时成立”表示无需目标审批、在裁决顺序上先形成玩家候选 S1；不表示零延迟、提前显示或玩家阶段单独 COMMIT。玩家组与 NPC 结果仍由一个 Root Round 原子提交。
 
