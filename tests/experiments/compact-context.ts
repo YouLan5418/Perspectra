@@ -59,7 +59,7 @@ export function availableExperimentActionReferences(
     }))
 }
 
-const segmentKinds = [
+export const segmentKinds = [
   'world_public_anchor', 'character_anchor', 'continuity_checkpoint', 'recent_interaction_tail',
   'current_self_state', 'current_scene', 'verified_recall', 'current_stimulus', 'affordances', 'output_reminder',
 ] as const

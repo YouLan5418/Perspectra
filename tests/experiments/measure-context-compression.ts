@@ -24,6 +24,12 @@ import { join, resolve } from 'node:path'
 import { WorldApplication, type RoundParticipant } from '@harness-world/application'
 import { brandId, type CharacterId, type ProposalContext, type StoredWorldEvent } from '@harness-world/contracts'
 import { adaptRainyRoadPack, compileRainyRoadPack, RAINY_ROAD_IDS } from '@harness-world/simulation'
+import {
+  ContextCostTracker,
+  estimateCostCny,
+  summarizeContextCost,
+  type ContextCallCost,
+} from './context-cost.ts'
 
 const [outputArgument, roundsArgument = '60'] = process.argv.slice(2)
 const rounds = Number(roundsArgument)
@@ -86,6 +92,9 @@ function segmentOf(context: ProposalContext, kind: string): RenderedSegment | un
 
 /** An abstaining participant: it produces no world effect, but records the exact Context it received. */
 const received = new Map<string, ProposalContext[]>()
+/** What each call cost, so the run reports money alongside shape. */
+const costs: ContextCallCost[] = []
+const costTracker = new ContextCostTracker()
 function abstaining(participantId: string, actorId: CharacterId, priority: number): RoundParticipant {
   return {
     participantId, role: 'agent', actorId, allowedActionTypes: ['move', 'speak', 'take'],
@@ -93,6 +102,10 @@ function abstaining(participantId: string, actorId: CharacterId, priority: numbe
     provider: {
       async propose(context) {
         received.set(participantId, [...received.get(participantId) ?? [], context])
+        costs.push(costTracker.record({
+          roundId: context.roundId, participantId, tick: context.tick,
+          messages: renderedRequest(context),
+        }))
         return { schemaVersion: 2, decision: 'abstain', actions: [] }
       },
     },
@@ -184,6 +197,9 @@ try {
 
   // 1. The final Context, byte by byte, exactly as the provider request carried it.
   const messages = renderedRequest(finalContext)
+  writeFileSync(join(directory, 'final-context.json'), JSON.stringify(
+    messages.map(message => ({ role: message.role, content: message.content })), null, 1,
+  ))
   emit({
     stage: 'context-bytes',
     total: messages.reduce((sum, message) => sum + Buffer.byteLength(message.content), 0),
@@ -276,6 +292,43 @@ try {
   writeFileSync(join(directory, 'contexts.json'), JSON.stringify(
     contexts.map(context => renderedSegments(context).map(segment => segment.segmentKind)), null, 1,
   ))
+  writeFileSync(join(directory, 'call-costs.json'), JSON.stringify(costs, null, 1))
+
+  // 6. What the calls cost: the seven numbers a cost review needs, per call and for the run.
+  const last = costs.at(-1)
+  emit({
+    stage: 'last-call-cost',
+    roundId: last?.roundId ?? null,
+    tick: last?.tick ?? null,
+    totalInputTokens: last?.totalTokens ?? 0,
+    cachedTokens: last?.cachedTokens ?? 0,
+    missedTokens: last?.missedTokens ?? 0,
+    cacheHitRate: Number((last?.hitRate ?? 0).toFixed(4)),
+    cacheBreakpointSegment: last?.breakpointSegment ?? null,
+    cacheBreakpointMessageIndex: last?.breakpointMessageIndex ?? null,
+    newTokensThisRound: last?.newTokens ?? 0,
+    checkpointRebuilt: last?.checkpointAdvanced ?? false,
+    checkpointAsOfWorldSeq: last?.checkpointAsOfWorldSeq ?? null,
+  })
+  const summary = summarizeContextCost(costs)
+  emit({
+    stage: 'cost-summary',
+    calls: summary.calls,
+    totalInputTokens: summary.totalTokens,
+    cachedTokens: summary.cachedTokens,
+    missedTokens: summary.missedTokens,
+    cacheHitRate: Number(summary.hitRate.toFixed(4)),
+    medianNewTokensPerCall: summary.medianNewTokens,
+    checkpointRebuilds: summary.checkpointRebuilds,
+    breakpointSegments: summary.breakpointSegments,
+    // Input only, priced at DeepSeek Flash: 2 CNY per million missed, 0.04 per million cached.
+    inputCostCny: Number(estimateCostCny({
+      missedTokens: summary.missedTokens, cachedTokens: summary.cachedTokens, outputTokens: 0,
+    }).toFixed(4)),
+    offPeakInputCostCny: Number(estimateCostCny({
+      missedTokens: summary.missedTokens, cachedTokens: summary.cachedTokens, outputTokens: 0, offPeak: true,
+    }).toFixed(4)),
+  })
 } finally {
   await application.close()
 }

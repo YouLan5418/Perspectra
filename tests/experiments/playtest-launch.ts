@@ -14,6 +14,8 @@ export interface PlaytestLaunchArguments {
   readonly recallTokenizer?: RecallTokenizerId
   /** Enables the derived proper-noun dictionary for this playtest world. */
   readonly recallDictionary?: boolean
+  /** Sends the lean per-segment projection instead of the default compact one. */
+  readonly leanPrompt?: boolean
 }
 
 /** Parse the deliberately small, local-only creator playtest command line. */
@@ -22,6 +24,7 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
   let packPath: string | undefined
   let recallTokenizer: RecallTokenizerId | undefined
   let recallDictionary = false
+  let leanPrompt = false
   let dataDirectory: string | undefined
   let interactionsPath: string | undefined
   let actionGroups = false
@@ -50,6 +53,11 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
       recallDictionary = true
       continue
     }
+    if (argument === '--lean-prompt') {
+      if (leanPrompt) throw new Error('--lean-prompt may be supplied only once')
+      leanPrompt = true
+      continue
+    }
     if (argument === '--interactions') {
       if (interactionsPath !== undefined) throw new Error('--interactions may be supplied only once')
       const path = args[++index]
@@ -74,6 +82,7 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
     ...(actionGroups ? { actionGroups } : {}),
     ...(recallTokenizer === undefined ? {} : { recallTokenizer }),
     ...(recallDictionary ? { recallDictionary } : {}),
+    ...(leanPrompt ? { leanPrompt } : {}),
     ...(interactionsPath === undefined ? {} : { interactionsPath }),
     ...(packPath === undefined ? {} : { packPath }),
     ...(dataDirectory === undefined ? {} : { dataDirectory }),

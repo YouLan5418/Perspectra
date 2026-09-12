@@ -22,6 +22,7 @@ async function main(): Promise<void> {
     ...(launch.actionGroups === undefined ? {} : { actionGroups: launch.actionGroups }),
     ...(launch.recallTokenizer === undefined ? {} : { recallTokenizer: launch.recallTokenizer }),
     ...(launch.recallDictionary === undefined ? {} : { recallDictionary: launch.recallDictionary }),
+    ...(launch.leanPrompt === undefined ? {} : { promptMode: launch.leanPrompt ? 'lean' as const : 'compact' as const }),
     ...(packPath === undefined ? {} : { packPath }),
     ...(provider === 'ollama' && endpoint !== undefined ? { endpoint } : {}),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),
