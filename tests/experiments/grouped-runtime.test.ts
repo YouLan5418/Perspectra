@@ -77,7 +77,7 @@ it.each([4, 5] as const)('plays and reopens an expressive Pack through the v%s w
     for (const content of [
       JSON.stringify({ schemaVersion: version, decision: 'act', actions: [{
         actionId: 'bad', actorId: 'character:alice', actionType: 'speak', actionVersion: 1,
-        parameters: { text: '这句不应提交。' }, manifestation: { independent: ['smile'], onSuccess: ['smile'] },
+        parameters: { text: '这句不应提交。' }, manifestation: { independent: ['smile', 'smile'], onSuccess: [] },
       }] }),
       '{' + 'x'.repeat(70_000),
     ]) {

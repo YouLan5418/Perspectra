@@ -39,6 +39,8 @@ Actor 必须匹配 Host 授权；动作类型同时受参与者授权与组词�
 - independent 表示本次尝试中独立成立的自我表现，不能包含声音或步态。
 - onSuccess 仅在对应动作 accepted 时发生；quiet_voice/trembling_voice 绑定 speak，slow_walk 绑定 move。
 - 组内跳过的步骤不发生任何表现，包括其 independent。
+- 同一码同时出现在 independent 与 onSuccess 是重复陈述：independent 已表示无论成败都发生，因此该码只演一次，不使该步失败。单个列表内部的重复仍使该输出 schema-invalid。
+- 两个列表都为空等价于省略 manifestation，该步不发生任何表现。
 - 不接受自由 description、外观伤口、持有关系或其他角色的反应。未知表现使该 Provider 输出 schema-invalid，默认不重试。
 - 坐标、视野和物品能力均由正式规则定义，表现不得授予效果。
 

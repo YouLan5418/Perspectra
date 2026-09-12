@@ -201,9 +201,21 @@ export class SubmitActionsValidator {
           }
           const independent = parse(value.independent, true)
           const onSuccess = parse(value.onSuccess, false)
-          const all = [...independent, ...onSuccess]
-          if (all.length === 0 || all.length > 8 || new Set(all).size !== all.length) throw new TypeError('invalid or duplicate step cues')
-          manifestation = { independent, onSuccess }
+          // The model-facing schema cannot forbid a repeat across the two lists: uniqueItems covers one list
+          // only, and onSuccess's enum is a superset of independent's, so a repeat is schema-legal. The only
+          // code that can repeat is a universal one, which independent already declares plays whatever the
+          // outcome, so the repeat is that one cue restated rather than a second cue: drop it and play the cue
+          // once instead of failing the whole group. An empty pair means no manifestation, which is how every
+          // consumer already reads it. Repeats inside one list stay fatal, because the schema does forbid them.
+          const alwaysOn = new Set(independent)
+          const distinctOnSuccess = onSuccess.filter(cue => !alwaysOn.has(cue))
+          if (independent.length === 0 && distinctOnSuccess.length === 0) {
+            manifestation = null
+          } else {
+            const all = [...independent, ...distinctOnSuccess]
+            if (all.length > 8 || new Set(all).size !== all.length) throw new TypeError('invalid or duplicate step cues')
+            manifestation = { independent, onSuccess: distinctOnSuccess }
+          }
         }
         manifestations.push(manifestation)
         const { manifestation: _manifestation, ...bare } = action

@@ -26,7 +26,7 @@ function step(actionType: string, parameters: Record<string, unknown>, manifesta
 }
 
 describe('grouped playtest request contract', () => {
-  it.each([4, 5] as const)('keeps the v%s schema permissive only for registered host-only residual rules', version => {
+  it.each([4, 5] as const)('accepts exactly the placements the v%s schema accepts, with no host-only residual rule', version => {
     const request = groupedPlaytestRequest(contextMessages(), actorId, version, false, references)
     const validate = new Ajv({ strict: false }).compile(request.schema)
     const codes = Object.keys(ACTION_GROUP_CUES)
@@ -50,10 +50,10 @@ describe('grouped playtest request contract', () => {
         let hostAccepted = true
         try { groupedPlaytestProposal(proposal, actorId, 'agent:alice', version, false) } catch { hostAccepted = false }
         const schemaAccepted = validate(proposal)
-        expect(schemaAccepted || !hostAccepted, JSON.stringify({ actionType, manifestation, errors: validate.errors })).toBe(true)
-        if (schemaAccepted && !hostAccepted) {
-          expect(manifestation.independent.length + manifestation.onSuccess.length).toBe(0)
-        }
+        // The schema can no longer be more permissive than the host on this axis: a cue repeated across the
+        // two lists and an empty pair are both collapsed rather than failed, so the residual host-only rule
+        // set is empty and the two sides agree on every placement.
+        expect(hostAccepted, JSON.stringify({ actionType, manifestation, errors: validate.errors })).toBe(schemaAccepted)
       }
       for (const manifestation of [
         { independent: ['smile', 'smile'], onSuccess: [] },
@@ -69,8 +69,10 @@ describe('grouped playtest request contract', () => {
         { independent: ['smile'], onSuccess: ['smile'] },
       ]) {
         const proposal = { schemaVersion: version, decision: 'act', actions: [step(actionType, parameters, manifestation)] }
+        // Both are schema-legal, and the host now accepts them too: it collapses the repeat and the empty
+        // pair instead of failing the whole group. Nothing the schema allows is rejected any more.
         expect(validate(proposal)).toBe(true)
-        expect(() => groupedPlaytestProposal(proposal, actorId, 'agent:alice', version, false)).toThrow()
+        expect(() => groupedPlaytestProposal(proposal, actorId, 'agent:alice', version, false)).not.toThrow()
       }
       expect(validate({ schemaVersion: version, decision: 'act', actions: [step(actionType, parameters)] })).toBe(true)
     }
