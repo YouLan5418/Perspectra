@@ -98,3 +98,49 @@ it('lets a later Reaction wave release a committed relation with standard author
     } finally { store.close() }
   } finally { await app.close(); rmSync(root, { recursive: true, force: true }) }
 })
+
+it('keeps relation state stable across restart, snapshot replay, full replay and fork-as-of', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'character-recovery-matrix-'))
+  const worldPath = join(root, 'world.sqlite')
+  const sessionPath = join(root, 'session.sqlite')
+  const memoryPath = join(root, 'memory.sqlite')
+  const snapshotPath = join(root, 'snapshots.sqlite')
+  const compiled = characterInteractionWorld()
+  const parent = compiled.manifest.address
+  const creator = new WorldApplication({ worldPath, sessionPath, memoryPath, modelBudgetTokens: 20 })
+  creator.activate(compiled)
+  const hold = await creator.submit(parent, { idempotencyKey: 'matrix-hold', principalId: 'principal:player', correlationId: 'matrix-hold',
+    action: { actionType: 'interact', parameters: { targetId: 'character:npc', interactionId: 'core:hold-hand', arguments: {} } } })
+  const snapshot = await creator.createSnapshot(parent, snapshotPath, 'matrix:snapshot')
+  await creator.close()
+
+  const source = new WorldStore(worldPath)
+  const started = source.readEvents(parent).find(event => event.eventType === 'character.relation-started')!
+  const commit = source.committedRound(parent, started.transactionId)!
+  const before = { ...parent, branchId: brandId('branch:before-relation', 'BranchId') }
+  const after = { ...parent, branchId: brandId('branch:after-relation', 'BranchId') }
+  source.forkBranch(parent, before, commit.baseHeadSeq)
+  source.forkBranch(parent, after, hold.headSeq)
+  expect(currentCharacterRelations(source.readEvents(before))).toEqual([])
+  expect(currentCharacterRelations(source.readEvents(after))).toMatchObject([{ active: true }])
+  expect(source.readRoundAuthority(after, started.transactionId)?.authorityHash)
+    .toBe(source.readRoundAuthority(parent, started.transactionId)?.authorityHash)
+  source.close()
+
+  const restarted = new WorldApplication({ worldPath, sessionPath, memoryPath, modelBudgetTokens: 20 })
+  try {
+    await restarted.submit(parent, { idempotencyKey: 'matrix-release', principalId: 'principal:player', correlationId: 'matrix-release',
+      action: { actionType: 'interact', parameters: { targetId: (started.data as any).relationId,
+        interactionId: 'core:release-hand', arguments: {} } } })
+    const replay = new WorldStore(worldPath)
+    try {
+      expect(currentCharacterRelations(replay.readEvents(parent))).toMatchObject([{ active: false }])
+      expect(currentCharacterRelations(replay.readEvents(after))).toMatchObject([{ active: true }])
+      expect(currentCharacterRelations(replay.readEvents(before))).toEqual([])
+    } finally { replay.close() }
+    const restoredSnapshot = restarted.latestSnapshot(parent, snapshotPath)!
+    expect(restoredSnapshot).toEqual(snapshot.bundle)
+    expect(JSON.stringify(restoredSnapshot.units)).toContain('"status":"started"')
+    expect(JSON.stringify(restoredSnapshot.units)).not.toContain('"status":"ended"')
+  } finally { await restarted.close(); rmSync(root, { recursive: true, force: true }) }
+})

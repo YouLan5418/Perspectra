@@ -874,7 +874,11 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 
 > **命名提醒：** 这里的 **submit_actions/v4** 是**模型协议版本**，和 Pack 源格式 `worldpack-source/v4` 完全是两回事。Pack 源格式始终是 v4；启用行动组只改变生成的 Manifest 与模型协议。
 
-## 17. 对象交互（拿取/放下/递交）
+## 17. 对象与角色交互
+
+`--interactions` 根据目录版本生成两种严格隔离的 Manifest：`object-interactions/v1` 生成 Manifest v8；`interaction-catalog/v2` 生成 Manifest v9。两者都使用 `submit_actions/v5`，但 v2 在实体操作之外增加人工玩家发起的 `hold_hand` 与运行时生成的 `release_hand`。
+
+### 17.1 对象交互（拿取/放下/递交）
 
 默认规则只有 `take`，持有关系不成循环。启用对象交互后，模型用统一的 `interact` 动作执行**拿取 / 放下 / 递交**，且只在合法前置条件下成功：
 
@@ -931,7 +935,43 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 
 模型只能在 `affordances.interactions` 当前枚举出的候选里选择（同地点无人持有的物品、以及自己持有的物品；递交收件再按当前 Scene 可见角色裁剪）。这些候选是**提案输入，不是授权票据**——执行时会在最新事件前缀上重新验证。
 
-> 角色握手、递物邀请等「请求/接受/拒绝」协议属于第二阶段，尚未实现。
+### 17.2 角色即时交互（牵手/松手）
+
+Manifest v9 只增加一个最小角色关系：人工玩家可对目录中明确绑定的 active、同地点角色执行 `hold_hand`。合法效果先成为玩家候选 S1，不等待目标审批；目标随后可在同一 Root Round 中 `release_hand`、move、speak 或 abstain。这里的“即时”是裁决顺序，不是零延迟或提前显示。
+
+可直接使用随仓库提供的示例：
+
+```powershell
+$artifact = '.\examples\world-packs\ai-girls-awaken.worldpack.json'
+$catalog = '.\examples\world-packs\ai-girls-awaken.character-interactions.json'
+$data = 'D:\worlds\ai-girls-character-playtest'
+
+corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data `
+  --interactions $catalog
+```
+
+示例目录同时声明实体操作和角色操作。角色定义必须使用以下固定策略；创作者只能决定绑定目标与显示名称，不能放宽即时成立权、解除权或目标响应边界：
+
+```json
+{
+  "interactionId": "core:hold-hand",
+  "label": "牵住对方的手",
+  "targetKind": "character",
+  "operation": "hold_hand",
+  "initiationPolicy": {
+    "manualPlayer": "commit_then_react",
+    "autonomousCharacter": "forbidden"
+  }
+}
+```
+
+玩家可用显式命令提交，不依赖 Player Intent Provider：
+
+```text
+/interact character:gpt core:hold-hand
+```
+
+`release_hand` 不写入静态目录。关系成立后，Host 只向关系参与者动态枚举 `core:release-hand` 及不可猜测的 relationId；move 也会确定性结束关系。第三方即使猜中 relationId 仍会被 Rulebook 拒绝。当前 Creator 入口生成的 Manifest v9 保持 `playerInputPolicy=legacy-speech/v1`：普通文本仍是对白，不能把“我牵住她”写成自然语言后期待建立关系。`player-intent/v1` 的生产 Provider/Profile 接入仍属于发布门禁。
 
 `worldpack activate` 用于另一个 Host 的激活，写入 `<data-dir>/data/`；网页试玩写入 `<data-dir>/` 且使用不同地址和玩家绑定。两种入口不能通过相同目录互相接续。新 v7/v8 DeepSeek 模式不需要 Ollama 翻译玩家输入；普通文本只作为对白。
 
@@ -1046,6 +1086,7 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 | 世界能编译但玩法不存在 | `kind` 或自由文本不会自动生成规则 | 只依赖 Core `speak/move/take/reflect`，新硬语义需要受信规则实现 |
 | 一轮只能做一个动作 | 未启用有界行动组 | 用 `--action-groups`（见 §16） |
 | 拿取 / 放下 / 递交不可用 | 未启用对象交互 | 用 `--interactions <catalog>`（见 §17） |
+| 角色牵手不可用 | 目录仍是 `object-interactions/v1`、目标未绑定或不在同一地点 | 使用 `interaction-catalog/v2` 并核对 character binding（见 §17.2） |
 | 表现只能选固定码，不能写自由文案 | 已启用行动组或对象交互 | 新版使用闭合表现码；自由文案表现只存在于 Manifest v6 / submit_actions v3 |
 | `/take` 被拒绝 | v8 世界改用统一的 `interact` | 用 `/interact <物品ID> <交互ID> [收件角色ID]` |
 | 报错 `choose --action-groups or --interactions` | 同时传了两个互斥开关 | 二选一；两者都要求 `--pack` 与全新数据目录 |
@@ -1069,7 +1110,8 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 | --- | --- | --- | --- | --- | --- |
 | 无 | v6 | submit_actions/v3 | speak / move / take | 自由文案 `manifestation` | 表现型基础世界（§15） |
 | `--action-groups` | v7 | submit_actions/v4 | speak / move / take | 闭合表现码（§16） | 一轮最多两步顺序动作 |
-| `--interactions <catalog>` | v8 | submit_actions/v5 | speak / move / interact | 闭合表现码（§16） | 拿取 / 放下 / 递交（§17） |
+| `--interactions <object-interactions/v1>` | v8 | submit_actions/v5 | speak / move / interact | 闭合表现码（§16） | 拿取 / 放下 / 递交（§17.1） |
+| `--interactions <interaction-catalog/v2>` | v9 | submit_actions/v5 | speak / move / interact | 闭合表现码（§16） | 实体操作 + 玩家即时牵手/参与者解除（§17.2） |
 
 两个扩展都**不新增 Pack 源版本**，旧 Pack 文件、旧 Hash 与旧世界的语义保持不变；不会根据模型输出隐式升级。
 
@@ -1082,10 +1124,13 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 | E-003 | `packages/world-pack/src/contracts.ts` | v1～v4、认知词汇、Reaction 与 Manifestation 均有版本化类型 |
 | E-004 | `examples/world-packs/rainy-road-companions` | 完整 v2 角色认知、Memory 与多 Scene 参考数据 |
 | E-005 | `docs/CREATOR-PLAYTEST-RUNBOOK.md` | 已验证从脚手架到真实模型网页试玩的执行路径 |
+| E-006 | `examples/world-packs/ai-girls-awaken.character-interactions.json`、`compiler-v4.test.ts` | 仓库内 v2 目录被真实编译器适配为 Manifest v9，并固定保持 legacy speech 策略 |
 
 Finding F-001：E-001～E-004 证明创作者可以只改内容文件建立通用世界；是否需要外显表现决定选择 v3 或 v4，不能混合版本字段。
 
 Finding F-002：E-002～E-003 证明“可省略”不等于“不进入编译结果”；默认值会物化并参与 Pack Hash，因此手册必须精确记录默认值。
+
+Finding F-003：E-006 证明创作者可通过闭合目录启用角色关系能力，但目录不能自行开启自然语言 Player Intent，也不能改变 Host 派生的即时裁决权。
 
 Path P-001：生成 `expressive-social` → 只改登记文件 → `validate` → `test` → `compile` → `inspect` → 用独立数据目录进行真实模型网页试玩。
 
@@ -1097,4 +1142,5 @@ Path P-001：生成 `expressive-social` → 只改登记文件 → `validate` �
 - [角色外显表现 ADR](adr/ADR-0083-manifestation-observable-expression.md)
 - [有界行动组 ADR](adr/ADR-0085-bounded-action-groups.md)与[实施规格](spec/bounded-action-groups-v0.1.md)
 - [对象交互 ADR](adr/ADR-0086-object-interactions.md)与[实施规格](spec/object-interactions-v0.1.md)
+- [角色即时交互 ADR](adr/ADR-0087-player-immediate-character-interactions.md)与[实施规格](spec/character-interactions-v0.1.md)
 - [雨夜同行参考 Pack](../examples/world-packs/rainy-road-companions/worldpack.source.json)

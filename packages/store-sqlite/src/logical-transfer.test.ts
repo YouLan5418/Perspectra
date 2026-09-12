@@ -14,6 +14,8 @@ import { SessionOutboxWorker, WorldOutbox } from './outbox-worker.ts'
 import { WriterLeaseService } from './writer-lease.ts'
 import { WorldStore } from './world-store.ts'
 import { PlayerInputJobs } from './player-input-jobs.ts'
+import { WorldBootstrap } from '@harness-world/kernel'
+import { intentWorld } from '../../../tests/fixtures/player-intent-world.ts'
 
 const directories: string[] = []
 
@@ -31,9 +33,10 @@ describe('WorldLogicalTransferService', () => {
   it('round-trips v8 input authority, rejects its tampering and never invents it on v7 import', () => {
     const root = directory()
     const source = join(root, 'source.sqlite')
-    const address = fixtureAddress('logical-input')
+    const compiled = intentWorld()
+    const address = compiled.manifest.address
     const store = new WorldStore(source)
-    store.createBranch(address)
+    new WorldBootstrap(store, true).activate(compiled)
     store.close()
     const jobs = new PlayerInputJobs(source)
     const job = jobs.receive(address, 'p', 'key', { text: 'hello' }, 1)
@@ -69,6 +72,124 @@ describe('WorldLogicalTransferService', () => {
     const legacyJobs = new PlayerInputJobs(legacyTarget)
     expect(legacyJobs.read(address, 'key')).toBeUndefined()
     legacyJobs.close()
+  })
+
+  it('round-trips a recoverable Player Input Round and rejects broken authority, state path or Inbox binding', () => {
+    const root = directory()
+    const source = join(root, 'pending-input.sqlite')
+    const compiled = intentWorld()
+    const address = compiled.manifest.address
+    const store = new WorldStore(source)
+    new WorldBootstrap(store, true).activate(compiled)
+    const child = { ...address, branchId: brandId('branch:zz-logical-input-child', 'BranchId') }
+    store.forkBranch(address, child, store.head(address).headSeq)
+    store.close()
+    const leases = new WriterLeaseService(source)
+    const lease = leases.acquire(address, 'logical-input')
+    const childLease = leases.acquire(child, 'logical-input-child')
+    const jobs = new PlayerInputJobs(source)
+    const inbox = new RoundInbox(source)
+    let job = jobs.receive(address, 'principal:player', 'pending-input', { text: '/move location:next' }, 2)
+    let childJob = jobs.receive(child, 'principal:player', 'child-input', { text: 'child' }, 2)
+    jobs.claim(address, lease)
+    job = jobs.advance(job, lease, 'validated', { version: 'player-submission/v2', actions: [] })
+    const receipt = inbox.enqueue({ address, principalId: job.principalId, idempotencyKey: job.idempotencyKey,
+      correlationId: 'logical-input', playerInputId: job.inputId, input: { playerInputId: job.inputId } }, 2)
+    job = jobs.advance(job, lease, 'round_enqueued', receipt as unknown as never)
+    jobs.claim(child, childLease)
+    childJob = jobs.advance(childJob, childLease, 'validated', { version: 'player-submission/v2', actions: [] })
+    inbox.enqueue({ address: child, principalId: childJob.principalId, idempotencyKey: childJob.idempotencyKey,
+      correlationId: 'logical-input-child', playerInputId: childJob.inputId, input: { playerInputId: childJob.inputId } }, 2)
+    inbox.close()
+    jobs.close()
+    leases.close()
+
+    const service = new WorldLogicalTransferService(source)
+    const exportPath = join(root, 'pending-input.dshworld')
+    service.exportAuthority(exportPath, 'pending-input-export')
+    const target = join(root, 'pending-input-target.sqlite')
+    service.importAuthority(exportPath, target, 'pending-input-import')
+    const importedJobs = new PlayerInputJobs(target)
+    const importedInbox = new RoundInbox(target)
+    expect(importedJobs.read(address, job.idempotencyKey)).toEqual(job)
+    expect(importedJobs.read(child, childJob.idempotencyKey)).toEqual(childJob)
+    expect(importedInbox.readStatus(address, { idempotencyKey: job.idempotencyKey })).toMatchObject({ status: 'queued' })
+    importedInbox.close()
+    importedJobs.close()
+
+    const original = JSON.parse(readFileSync(exportPath, 'utf8')) as any
+    const attempt = (name: string, mutate: (copy: any) => void, expected: string) => {
+      const copy = structuredClone(original)
+      mutate(copy)
+      copy.bundleHash = hashWorldJson('logical-authority-export', copy.data)
+      const path = join(root, `${name}.dshworld`)
+      writeFileSync(path, JSON.stringify(copy))
+      expect(() => service.importAuthority(path, join(root, `${name}.sqlite`), `logical:${name}`)).toThrow(expected)
+    }
+    attempt('accepted-head', copy => {
+      const changed = { ...job, acceptedHeadHash: hashWorldJson('forged-input-head', {}) }
+      copy.data.tables.player_input_jobs[0].job_json = JSON.stringify(changed)
+      copy.data.tables.player_input_jobs[0].state_hash = hashWorldJson('player-input-state/v1', changed)
+    }, 'divergent Player Input authority')
+    attempt('accepted-head-beyond-branch', copy => {
+      const changed = { ...job, acceptedHeadSeq: job.acceptedHeadSeq + 100, acceptedHeadHash: hashWorldJson('future-input-head', {}) }
+      copy.data.tables.player_input_jobs[0].job_json = JSON.stringify(changed)
+      copy.data.tables.player_input_jobs[0].state_hash = hashWorldJson('player-input-state/v1', changed)
+    }, 'divergent Player Input authority')
+    attempt('accepted-head-beyond-fork', copy => {
+      const changed = { ...childJob, acceptedHeadSeq: childJob.acceptedHeadSeq + 100, acceptedHeadHash: hashWorldJson('future-child-input-head', {}) }
+      copy.data.tables.player_input_jobs[1].job_json = JSON.stringify(changed)
+      copy.data.tables.player_input_jobs[1].state_hash = hashWorldJson('player-input-state/v1', changed)
+    }, 'divergent Player Input authority')
+    attempt('missing-activation', copy => {
+      copy.data.tables.branch_activations = []
+    }, 'divergent Player Input authority')
+    attempt('state-path', copy => {
+      const changed = { ...job, records: { round_enqueued: job.records.round_enqueued! } }
+      copy.data.tables.player_input_jobs[0].job_json = JSON.stringify(changed)
+      copy.data.tables.player_input_jobs[0].state_hash = hashWorldJson('player-input-state/v1', changed)
+    }, 'divergent Player Input authority')
+    attempt('state-backtrack', copy => {
+      const changed = { ...job, records: { ...job.records, timed_out: {} } }
+      copy.data.tables.player_input_jobs[0].job_json = JSON.stringify(changed)
+      copy.data.tables.player_input_jobs[0].state_hash = hashWorldJson('player-input-state/v1', changed)
+    }, 'divergent Player Input authority')
+    attempt('missing-inbox', copy => { copy.data.tables.round_inbox = [] }, 'lost its Round Inbox item')
+    attempt('invalid-pending', copy => { copy.data.tables.round_inbox[0].input_hash = 'sha256:unexpected' }, 'invalid pending Round Inbox')
+    attempt('wrong-binding', copy => {
+      const round = copy.data.tables.round_inbox[0]
+      round.input_json = JSON.stringify({ playerInputId: 'player-input:forged' })
+      round.input_hash = hashWorldJson('player-round-input', { principalId: round.principal_id, input: JSON.parse(round.input_json) })
+    }, 'divergent Player Input Round binding')
+    for (const [name, input] of [['null-binding', null], ['array-binding', []], ['primitive-binding', 'forged']] as const) {
+      attempt(name, copy => {
+        const round = copy.data.tables.round_inbox[0]
+        round.input_json = JSON.stringify(input)
+        round.input_hash = hashWorldJson('player-round-input', { principalId: round.principal_id, input })
+      }, 'divergent Player Input Round binding')
+    }
+    attempt('receipt-shape', copy => {
+      const changed = { ...job, records: { ...job.records, round_enqueued: 'invalid' } }
+      copy.data.tables.player_input_jobs[0].job_json = JSON.stringify(changed)
+      copy.data.tables.player_input_jobs[0].state_hash = hashWorldJson('player-input-state/v1', changed)
+    }, 'divergent Player Input Round binding')
+    for (const [name, receiptValue] of [['receipt-null', null], ['receipt-array', []]] as const) {
+      attempt(name, copy => {
+        const changed = { ...job, records: { ...job.records, round_enqueued: receiptValue } }
+        copy.data.tables.player_input_jobs[0].job_json = JSON.stringify(changed)
+        copy.data.tables.player_input_jobs[0].state_hash = hashWorldJson('player-input-state/v1', changed)
+      }, 'divergent Player Input Round binding')
+    }
+    attempt('receipt-empty', copy => {
+      const changed = { ...job, records: { ...job.records, round_enqueued: {} } }
+      copy.data.tables.player_input_jobs[0].job_json = JSON.stringify(changed)
+      copy.data.tables.player_input_jobs[0].state_hash = hashWorldJson('player-input-state/v1', changed)
+    }, 'divergent Player Input Round binding')
+    attempt('receipt-binding', copy => {
+      const changed = { ...job, records: { ...job.records, round_enqueued: { ...(job.records.round_enqueued as any), roundId: 'round:wrong' } } }
+      copy.data.tables.player_input_jobs[0].job_json = JSON.stringify(changed)
+      copy.data.tables.player_input_jobs[0].state_hash = hashWorldJson('player-input-state/v1', changed)
+    }, 'divergent Player Input Round binding')
   })
 
   it('preserves quarantine authority and rejects a forged failure ledger', () => {
@@ -193,6 +314,13 @@ describe('WorldLogicalTransferService', () => {
     writeFileSync(tamperedInboxPath, JSON.stringify(tamperedInbox))
     expect(() => service.importAuthority(tamperedInboxPath, join(root, 'tampered-inbox.sqlite'), 'logical:inbox-tamper'))
       .toThrow('completed Round Inbox')
+    const missingCommit = JSON.parse(readFileSync(exportPath, 'utf8')) as any
+    missingCommit.data.tables.round_inbox[0].commit_transaction_id = 'transaction:missing'
+    missingCommit.bundleHash = hashWorldJson('logical-authority-export', missingCommit.data)
+    const missingCommitPath = join(root, 'missing-commit.dshworld')
+    writeFileSync(missingCommitPath, JSON.stringify(missingCommit))
+    expect(() => service.importAuthority(missingCommitPath, join(root, 'missing-commit.sqlite'), 'logical:commit-missing'))
+      .toThrow('completed Round Inbox')
     const tamperedAuthority = JSON.parse(readFileSync(exportPath, 'utf8')) as any
     tamperedAuthority.data.tables.round_authority[0].authority_json = JSON.stringify({ forged: true })
     tamperedAuthority.bundleHash = hashWorldJson('logical-authority-export', tamperedAuthority.data)
@@ -215,6 +343,23 @@ describe('WorldLogicalTransferService', () => {
     writeFileSync(malformedResultPath, JSON.stringify(malformedResult))
     expect(() => service.importAuthority(malformedResultPath, join(root, 'malformed-result.sqlite'), 'logical:result-shape'))
       .toThrow('completed Round Inbox')
+    const missingResult = JSON.parse(readFileSync(exportPath, 'utf8')) as any
+    missingResult.data.tables.round_inbox[0].result_json = null
+    missingResult.data.tables.round_inbox[0].result_hash = null
+    missingResult.bundleHash = hashWorldJson('logical-authority-export', missingResult.data)
+    const missingResultPath = join(root, 'missing-result.dshworld')
+    writeFileSync(missingResultPath, JSON.stringify(missingResult))
+    expect(() => service.importAuthority(missingResultPath, join(root, 'missing-result.sqlite'), 'logical:result-missing'))
+      .toThrow()
+    const failedInbox = JSON.parse(readFileSync(exportPath, 'utf8')) as any
+    failedInbox.data.tables.round_inbox[0].status = 'failed'
+    failedInbox.data.tables.round_inbox[0].commit_transaction_id = null
+    failedInbox.data.tables.round_inbox[0].commit_bundle_hash = null
+    failedInbox.bundleHash = hashWorldJson('logical-authority-export', failedInbox.data)
+    const failedInboxPath = join(root, 'failed-inbox.dshworld')
+    writeFileSync(failedInboxPath, JSON.stringify(failedInbox))
+    expect(() => service.importAuthority(failedInboxPath, join(root, 'failed-inbox.sqlite'), 'logical:failed-inbox'))
+      .toThrow('invalid completed Round Inbox')
     expect(() => service.exportAuthority(source, 'logical:alias')).toThrow('aliases the source')
     expect(() => service.importAuthority(exportPath, target, 'logical:exists')).toThrow('already exists')
     const audit = new OperationalAuditLog(`${source}.audit.sqlite`)

@@ -12,9 +12,11 @@ import {
   type WorldAddress,
 } from '@harness-world/contracts'
 import { createContextReceipt, openContextDatabase } from '@harness-world/agents'
+import { WorldApplication } from '@harness-world/application'
 import { LocalMemoryStore } from '@harness-world/memory'
 import {
   OperationalAuditLog,
+  PlayerInputJobs,
   readPragmaInteger,
   SessionDeliveryAdapter,
   SessionOutboxWorker,
@@ -23,6 +25,7 @@ import {
   WorldStore,
 } from '@harness-world/store-sqlite'
 import { DeploymentBackupService, type DeploymentDatabasePaths } from './deployment-backup.ts'
+import { intentWorld } from '../../../tests/fixtures/player-intent-world.ts'
 
 const roots: string[] = []
 
@@ -309,6 +312,57 @@ describe('DeploymentBackupService', () => {
     const restored = join(value.root, 'rich-restored')
     service.restore(artifact, restored, 'restore:rich')
     expect(service.validate(restored, 'validate:rich')).toEqual(manifest)
+  })
+
+  it('preserves completed Player Input and its validated ProviderCall through backup and restore', async () => {
+    const value = fixture(false)
+    const compiled = intentWorld()
+    const app = new WorldApplication({ ...value.paths, modelBudgetTokens: 20,
+      playerIntent: {
+        profile: { version: 'player-intent-profile/v1', providerId: 'fixture', modelId: 'fixture', timeoutMs: 1000, maxOutputTokens: 10 },
+        dispatch: async () => ({ version: 'player-intent-candidate/v1', decision: 'act', reason: 'none',
+          actions: [{ key: 'a', affordanceId: 'speak' }],
+          sourceSpans: [{ actionKey: 'a', startUtf16: 0, endUtf16: 2, text: '你好', kind: 'speech' }] }),
+      },
+    })
+    app.activate(compiled)
+    expect(await app.submitText(compiled.manifest.address, {
+      text: '你好', idempotencyKey: 'backup-input', principalId: 'principal:player', correlationId: 'backup-input',
+    })).toMatchObject({ status: 'submitted' })
+    await app.deliver(compiled.manifest.address, 'backup-input:deliver')
+    await app.close()
+
+    const service = new DeploymentBackupService(value.paths, () => Date.now() + 60_000)
+    const artifact = join(value.root, 'player-input-artifact')
+    const manifest = await service.backup(artifact, 'backup:player-input')
+    expect(manifest.watermarks.providerCalls).toContainEqual({ state: 'validated', count: 1 })
+    const restored = join(value.root, 'player-input-restored')
+    service.restore(artifact, restored, 'restore:player-input')
+    expect(service.validate(restored, 'validate:player-input')).toEqual(manifest)
+    const restoredJobs = new PlayerInputJobs(join(restored, 'world.sqlite'))
+    try {
+      expect(restoredJobs.read(compiled.manifest.address, 'backup-input')).toMatchObject({ status: 'completed' })
+    } finally { restoredJobs.close() }
+
+    const detached = new DatabaseSync(value.paths.worldPath)
+    detached.prepare('DELETE FROM player_input_jobs WHERE idempotency_key = ?').run('backup-input')
+    detached.close()
+    await expect(service.backup(join(value.root, 'detached-player-call'), 'backup:detached-player-call'))
+      .rejects.toThrow('Player Intent ProviderCall has no matching World input authority')
+  })
+
+  it('rejects backup while an accepted Player Input still needs work', async () => {
+    const value = fixture(false)
+    const compiled = intentWorld()
+    const app = new WorldApplication(value.paths)
+    app.activate(compiled)
+    await app.close()
+    const jobs = new PlayerInputJobs(value.paths.worldPath)
+    jobs.receive(compiled.manifest.address, 'principal:player', 'unfinished-input', { text: '你好' }, 2)
+    jobs.close()
+    const service = new DeploymentBackupService(value.paths, () => Date.now() + 60_000)
+    await expect(service.backup(join(value.root, 'unfinished-player-input'), 'backup:unfinished-player-input'))
+      .rejects.toThrow('deployment is not quiescent')
   })
 
   it('removes normal-failure partial artifacts before either ready marker is published', async () => {

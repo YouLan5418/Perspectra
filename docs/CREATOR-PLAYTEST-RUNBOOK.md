@@ -2,7 +2,7 @@
 
 > 当前入口是私有源码中的本机创作与试玩工具，不是在线创作者平台。网页只监听 `127.0.0.1`；Pack 不得包含 API Key、Provider 地址、系统提示或脚本。模型输出仍只是提案，最终动作必须经过 Rulebook 裁决。
 
-本次建议使用 **v4 Pack + `--interactions`**，同时体验两步行动组和物品交互。新模式中，玩家普通文本就是对白，移动和物品操作使用明确命令；DeepSeek 模式不再依赖 Ollama 翻译玩家输入。下文先走这条路径，旧世界的区别另列说明。
+本次建议使用 **v4 Pack + `--interactions`**。`object-interactions/v1` 生成 Manifest v8，体验两步行动组和物品交互；`interaction-catalog/v2` 生成 Manifest v9，并增加人工玩家即时牵手及参与者解除。两种新模式中玩家普通文本都是对白，移动和交互使用明确命令；DeepSeek 模式不再依赖 Ollama 翻译玩家输入。下文先走 v8 路径，v9 角色示例在 §3 单列。
 
 ## 1. 准备运行环境与模型
 
@@ -84,7 +84,19 @@ corepack pnpm@11.7.0 experience:web --pack $artifact --interactions $catalog --d
 
 **不需要预先执行 `worldpack activate`。** `experience:web` 自己激活世界，数据库直接在 `$data` 下。`worldpack activate` 是另一种 Host 入口，写入其目录的 `data/` 子目录，地址和玩家绑定也不同；不能把执行它当成网页试玩已激活。需要该入口时使用另一个目录。
 
-未带扩展开关的 v4 Pack 会生成旧 Manifest v6；只带 `--action-groups` 则是 Manifest v7 / submit_actions/v4，仍使用 `take`。`--interactions` 已包含两步能力，不能再同时带 `--action-groups`。
+未带扩展开关的 v4 Pack 会生成旧 Manifest v6；只带 `--action-groups` 则是 Manifest v7 / submit_actions/v4，仍使用 `take`。`--interactions` 已包含两步能力，不能再同时带 `--action-groups`。目录为 v1 时生成 Manifest v8，目录为 v2 时生成 Manifest v9；两者都保持 submit_actions/v5。
+
+要验证角色即时交互，可改用仓库自带的完整 v4 编译制品和 v2 目录，并使用新的数据目录：
+
+```powershell
+$artifact = '.\examples\world-packs\ai-girls-awaken.worldpack.json'
+$catalog = '.\examples\world-packs\ai-girls-awaken.character-interactions.json'
+$data = 'D:\worlds\ai-girls-character-playtest'
+
+corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --interactions $catalog --data-dir $data
+```
+
+此路径应显示 Manifest v9、submit_actions/v5 和 `playerInputMode=speech-and-explicit-commands`。Creator 入口有意保持 `legacy-speech/v1`：普通文本仍是对白，角色关系必须使用显式命令；这不代表 `player-intent/v1` 的生产 Provider 门禁已关闭。
 
 ## 4. 在网页中实际操作
 
@@ -102,6 +114,14 @@ corepack pnpm@11.7.0 experience:web --pack $artifact --interactions $catalog --d
 这是操作示例，不保证每条成功：NPC 可能先拿走票据，也可以不按玩家的请求归还。drop 需要玩家实际持有；give 还要求对方 active 且同地点。新模式的旧 `/take` 会被拒绝。`/say` 之后的文字以及普通非命令文本均作为发言；写“我拿起票据”不会自动拿取，括号中的动作也不会自动执行。
 
 NPC 可以自主提交一次发言加一次 move/interact，允许两种顺序，也可以只做一步或沉默。两步连续裁定，失败停止后续步骤，成功前缀保留。表现使用闭合码；玩家暂时没有新版表现输入槽，不要依赖旧的自然语言 Cue 翻译。
+
+Manifest v9 示例还可提交：
+
+```text
+/interact character:gpt core:hold-hand
+```
+
+成功后关系先进入同一 Root Round 的玩家候选 S1，GPT 随后独立选择松手、移动、说话或不反应。不要用玩家文本声明“她没有挣脱”“她永远服从”；这些内容不能替代目标自己的 Action，也不能建立心理或未来事实。关系参与者会获得动态 `core:release-hand` Affordance，第三方不会枚举 relationId。
 
 | 试玩场景 | 核查重点 |
 | --- | --- |
@@ -207,7 +227,7 @@ Pack 的 `packId + packVersion` 一旦激活，内容 Hash 就被锁定。修改
 - 所有非玩家角色暂时共用同一个模型与采样配置；还没有逐角色 Provider 配置界面。
 - 试玩页不支持热替换 Pack。修改内容后需重新编译并启动新世界。
 - v1/v2 Pack 可以加载；显式 v3/v4 `responsive/v1` 才会启用多 wave 自主反应，只有 v4 能启用外显表现。
-- 旧 v6 模式需要 Ollama 翻译自然语言动作，即使角色模型使用 DeepSeek；新 v7/v8 模式使用对白和明确命令，DeepSeek 路径不调用 Ollama。
+- 旧 v6 模式需要 Ollama 翻译自然语言动作，即使角色模型使用 DeepSeek；新 v7/v8/v9 模式使用对白和明确命令，DeepSeek 路径不调用 Ollama；Creator 的 v9 入口尚未启用自然语言 Player Intent Provider。
 - 出现 `PACK_REFERENCE_INVALID` 时，优先检查改名后的角色、地点、Scene、认知 basis 和玩家绑定引用。
 - 出现 `PACK_VERSION_DIVERGED` 时，说明同一 Pack 版本的内容已经改变，应提升版本并使用新数据目录。
 - 出现完整性错误或 quarantine 时，停止写入并按 [V0 本机运行与恢复手册](V0-LOCAL-RUNBOOK.md)处理。
@@ -223,11 +243,16 @@ Pack 的 `packId + packVersion` 一旦激活，内容 Hash 就被锁定。修改
 | E-003 | 网页运行时读取 compiled Pack，并按 Manifest 动态绑定 active、非 manual 角色 |
 | E-004 | Ollama/DeepSeek 只接收宿主组装的角色上下文，动作仍经 Inbox、Validator、Rulebook 和 World Commit |
 | E-005 | `grouped-runtime.test.ts` 通过实际 WorldPlaytestRuntime、编译 Pack、模拟 DeepSeek HTTP 响应，验证 v4/v5 根轮与反应、玩家物品循环、重开和证据不含 Key |
+| E-006 | `ai-girls-awaken.character-interactions.json` 经 `compiler-v4.test.ts` 适配为 Manifest v9，目录同时覆盖实体和角色目标 |
 
 Finding F-001：E-001～E-004 证明创作者无需修改 Kernel 即可编写并真实试玩一个多角色世界；这仍是本机开发者工作流，不等同于 GUI 创作者产品。
+
+Finding F-002：E-006 证明显式角色交互可在 Creator 路径激活，但自然语言 Player Intent 必须等生产 Provider/Profile 单独接入，不能由目录文案隐式开启。
 
 Path P-001：创建来源目录 → 编辑内容 → 校验与编译 → 选择本机部署侧 Provider → 打开网页试玩 → 根据真实体验修改并提升 Pack 版本。
 
 本轮验证使用 HTTP 响应替身，没有调用收费模型；远端模型可用性、自然语言选择质量和长期试玩体验由实际试玩确认。
 
 2026-09-10 完整 `corepack pnpm@11.7.0 check` 通过：966 项覆盖率测试、生产源文件四项逐文件 100% 覆盖率、P0～P6 集成、3 项性能测试和 39 项子进程硬终止测试。新网页适配器的完整流程另由 E-005 覆盖。
+
+2026-09-12 角色交互模型无关收尾后，完整 `check` 再次通过：107 个覆盖文件、1136 项覆盖率测试、四项全局及逐文件 100%，P0～P6、3 项性能测试和 49 项子进程硬终止测试；真实 Provider 长程试玩仍需另行执行。

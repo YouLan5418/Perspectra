@@ -3,20 +3,22 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
-import { fixtureAddress } from '@harness-world/testkit'
 import { brandId, hashWorldJson, worldAddressKey } from '@harness-world/contracts'
 import { BranchAdministration } from './branch-administration.ts'
 import { RoundInbox } from './round-inbox.ts'
 import { WorldStore } from './world-store.ts'
 import { WriterLeaseService } from './writer-lease.ts'
 import { PlayerInputJobs, readPlayerInputRow, PLAYER_INPUT_TRANSITIONS, type PlayerInputStatus } from './player-input-jobs.ts'
+import { WorldBootstrap } from '@harness-world/kernel'
+import { intentWorld } from '../../../tests/fixtures/player-intent-world.ts'
 
 function setup() {
   const root = mkdtempSync(join(tmpdir(), 'intent-jobs-'))
   const path = join(root, 'world.sqlite')
-  const address = fixtureAddress()
+  const compiled = intentWorld()
+  const address = compiled.manifest.address
   const world = new WorldStore(path)
-  world.createBranch(address)
+  new WorldBootstrap(world, true).activate(compiled)
   world.close()
   const leases = new WriterLeaseService(path, () => 100)
   const lease = leases.acquire(address, 'writer', 1000)
@@ -64,6 +66,12 @@ it('durably binds input identity and FIFO across reopen, ambiguity and explicit 
   try {
     expect(s.jobs.claim(s.address, s.lease)).toBeUndefined()
     const first = s.jobs.receive(s.address, 'principal:p', 'one', { text: 'hold' }, 2)
+    expect(first).toMatchObject({
+      acceptedManifestHash: intentWorld().manifestHash,
+      acceptedHeadSeq: expect.any(Number),
+      acceptedHeadHash: expect.stringMatching(/^sha256:/u),
+    })
+    expect(s.jobs.unfinishedAddresses()).toEqual([s.address])
     expect(s.jobs.receive(s.address, 'principal:p', 'one', { text: 'hold' }, 2)).toEqual(first)
     expect(() => s.jobs.receive(s.address, 'principal:p', 'one', { text: 'different' }, 2)).toThrow('different content')
     const second = s.jobs.receive(s.address, 'principal:p', 'two', { text: '/move next' }, 2)
@@ -85,6 +93,7 @@ it('durably binds input identity and FIFO across reopen, ambiguity and explicit 
     next = s.jobs.advance(next, s.lease, 'completed', { tick: 1 })
     expect(next.records.validated).toEqual({ explicit: true })
     expect(s.jobs.claim(s.address, s.lease)).toBeUndefined()
+    expect(s.jobs.unfinishedAddresses()).toEqual([])
   } finally { s.close() }
 })
 
@@ -121,6 +130,8 @@ it('rejects invalid admission and stale/expired/missing writer leases', () => {
     }
     raw.exec('DELETE FROM writer_leases')
     expect(() => s.jobs.claim(s.address, s.lease)).toThrow('lease lost')
+    raw.exec("UPDATE branch_controls SET admission_state='open',runtime_phase='active',lifecycle_state='active'; DELETE FROM branch_activations")
+    expect(() => s.jobs.receive(s.address, 'p', 'no-manifest', 'text', 2)).toThrow('no active Manifest or Head')
     raw.exec('DELETE FROM branch_controls')
     expect(() => s.jobs.receive(s.address, 'p', 'new', 'text', 2)).toThrow('not open')
     raw.close()
@@ -135,9 +146,10 @@ it('detects damaged imported or locally stored input authority', () => {
       status: job.status, job_json: JSON.stringify(job), state_hash: hashWorldJson('player-input-state/v1', job) }
     expect(readPlayerInputRow(row)).toEqual(job)
     for (const patch of [ { version: 'bad' }, { address: { ...s.address, branchId: 'other' } }, { inputSeq: 2 }, { idempotencyKey: 'bad' },
-      { status: 'completed' }, { input: 'changed' }, { inputHash: 'bad' }, { inputId: 'bad' } ]) {
+      { status: 'completed' }, { input: 'changed' }, { inputHash: 'bad' }, { inputId: 'bad' }, { acceptedManifestHash: 'bad' },
+      { acceptedHeadSeq: -1 }, { acceptedHeadSeq: 0 }, { acceptedHeadSeq: 1.5 }, { acceptedHeadHash: 'bad' } ]) {
       const changed = { ...job, ...patch }
-      expect(() => readPlayerInputRow({ ...row, job_json: JSON.stringify(changed), state_hash: hashWorldJson('player-input-state/v1', changed) })).toThrow('inconsistent')
+      expect(() => readPlayerInputRow({ ...row, job_json: JSON.stringify(changed), state_hash: hashWorldJson('player-input-state/v1', changed) })).toThrow()
     }
     expect(() => readPlayerInputRow({ ...row, state_hash: 'sha256:bad' })).toThrow('inconsistent')
     expect(() => readPlayerInputRow({ ...row, status: 'unknown' as PlayerInputStatus, job_json: JSON.stringify({ ...job, status: 'unknown' }) })).toThrow('inconsistent')

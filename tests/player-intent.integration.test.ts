@@ -1,10 +1,12 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, hashWorldJson, type WorldJsonValue } from '@harness-world/contracts'
-import { PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import { brandId, hashWorldJson, worldAddressKey, type WorldJsonValue } from '@harness-world/contracts'
+import { LocalJsonRpcRouter } from '@harness-world/operations'
+import { PlayerInputJobs, WorldLogicalTransferService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { intentWorld, intentFixtureProfile, intentFixtureRequest, intentFixtureResponse } from './fixtures/player-intent-world.ts'
 
 it.each([false, true])('durably interprets a full player group before NPC reaction, speech first=%s', speechFirst => {
@@ -66,6 +68,27 @@ async function runGroup(speechFirst: boolean) {
     const jobs = new PlayerInputJobs(path)
     expect(jobs.read(world.manifest.address, 'intent')?.status).toBe('completed')
     jobs.close()
+    const authorityPath = join(root, `intent-${speechFirst ? 'speech-first' : 'hold-first'}.dshworld`)
+    const importedPath = join(root, `intent-${speechFirst ? 'speech-first' : 'hold-first'}.sqlite`)
+    const transfer = new WorldLogicalTransferService(path)
+    transfer.exportAuthority(authorityPath, 'intent:completed-export')
+    transfer.importAuthority(authorityPath, importedPath, 'intent:completed-import')
+    const importedJobs = new PlayerInputJobs(importedPath)
+    expect(importedJobs.read(world.manifest.address, 'intent')?.records.completed).toEqual(result.status === 'submitted' ? result.result : undefined)
+    importedJobs.close()
+    if (speechFirst) {
+      const forged = JSON.parse(readFileSync(authorityPath, 'utf8')) as any
+      const row = forged.data.tables.player_input_jobs[0]
+      const changed = JSON.parse(row.job_json)
+      changed.records.completed = { ...changed.records.completed, tick: changed.records.completed.tick + 1 }
+      row.job_json = JSON.stringify(changed)
+      row.state_hash = hashWorldJson('player-input-state/v1', changed)
+      forged.bundleHash = hashWorldJson('logical-authority-export', forged.data)
+      const forgedPath = join(root, 'intent-completed-forged.dshworld')
+      writeFileSync(forgedPath, JSON.stringify(forged))
+      expect(() => transfer.importAuthority(forgedPath, join(root, 'intent-completed-forged.sqlite'), 'intent:completed-forged'))
+        .toThrow('divergent completed Player Input result')
+    }
   } finally { await app.close(); rmSync(root, { recursive: true, force: true }) }
 }
 
@@ -130,6 +153,104 @@ it.each(['player-input.after-received', 'player-input.after-call-prepared', 'pla
     } finally { await recovered.close(); rmSync(root, { recursive: true, force: true }) }
   },
 )
+
+it('discovers and completes an accepted player input after restart without a client retry', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'intent-background-restart-'))
+  const world = intentWorld()
+  const options = { worldPath: join(root, 'world.sqlite'), sessionPath: join(root, 'session.sqlite'),
+    memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
+    playerIntent: { profile: intentFixtureProfile, dispatch: async () => intentFixtureResponse },
+  }
+  const creator = new WorldApplication(options)
+  creator.activate(world)
+  await creator.close()
+  const jobs = new PlayerInputJobs(options.worldPath)
+  try {
+    const accepted = jobs.receive(world.manifest.address, 'principal:player', 'background', { text: '你好' }, 2)
+    expect(accepted.status).toBe('received')
+    expect(jobs.unfinishedAddresses()).toEqual([world.manifest.address])
+  } finally { jobs.close() }
+
+  let calls = 0
+  const recovered = new WorldApplication({ ...options, playerIntent: { ...options.playerIntent,
+    dispatch: async () => { calls++; return intentFixtureResponse },
+  } })
+  recovered.activate(world)
+  const router = new LocalJsonRpcRouter(options.worldPath, recovered)
+  let routerOpen = true
+  try {
+    let committed!: () => void
+    const completion = new Promise<void>(resolve => { committed = resolve })
+    router.subscribeNotifications(notification => { if (notification.method === 'round.committed') committed() })
+    expect(router.recoverAcceptedRounds('intent:background-recovery')).toBe(1)
+    await Promise.race([completion, new Promise((_, reject) => setTimeout(() => reject(new Error('background recovery timed out')), 2000))])
+    await router.close()
+    routerOpen = false
+    const probe = new PlayerInputJobs(options.worldPath)
+    try {
+      expect(probe.read(world.manifest.address, 'background')?.status).toBe('completed')
+      expect(probe.unfinishedAddresses()).toEqual([])
+      probe.receive(world.manifest.address, 'principal:player', 'background-counted', { text: '你好' }, 2)
+    } finally { probe.close() }
+    expect(await recovered.processAcceptedRounds(world.manifest.address, 'intent:background-counted')).toBe(1)
+    expect(calls).toBe(2)
+  } finally {
+    if (routerOpen) await router.close()
+    await recovered.close()
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+it.each(['Head', 'Manifest'] as const)('quarantines a self-consistent player-input record whose accepted %s was forged', async kind => {
+  const root = mkdtempSync(join(tmpdir(), 'intent-accepted-head-'))
+  const world = intentWorld()
+  const worldPath = join(root, 'world.sqlite')
+  const sessionPath = join(root, 'session.sqlite')
+  const memoryPath = join(root, 'memory.sqlite')
+  const creator = new WorldApplication({ worldPath, sessionPath, memoryPath })
+  creator.activate(world)
+  await creator.close()
+  const jobs = new PlayerInputJobs(worldPath)
+  const accepted = jobs.receive(world.manifest.address, 'principal:player', 'forged', { text: '你好' }, 2)
+  jobs.close()
+  const forged = kind === 'Head'
+    ? { ...accepted, acceptedHeadHash: hashWorldJson('forged-player-input-head', {}) }
+    : { ...accepted, acceptedManifestHash: hashWorldJson('forged-player-input-manifest', {}) }
+  const raw = new DatabaseSync(worldPath)
+  raw.prepare('UPDATE player_input_jobs SET job_json = ?, state_hash = ? WHERE address_key = ? AND input_seq = ?')
+    .run(JSON.stringify(forged), hashWorldJson('player-input-state/v1', forged), worldAddressKey(world.manifest.address), accepted.inputSeq)
+  raw.close()
+
+  const recovered = new WorldApplication({ worldPath, sessionPath, memoryPath, modelBudgetTokens: 20,
+    playerIntent: { profile: intentFixtureProfile, dispatch: async () => intentFixtureResponse },
+  })
+  recovered.activate(world)
+  try {
+    await expect(recovered.processNextBranchWork(world.manifest.address, 'intent:forged-head'))
+      .rejects.toThrow(`accepted ${kind}`)
+    expect(recovered.quarantineExplain(world.manifest.address)).toMatchObject({ runtimePhase: 'quarantined' })
+  } finally { await recovered.close(); rmSync(root, { recursive: true, force: true }) }
+})
+
+it('returns a terminal non-Round scheduling quantum when background interpretation needs clarification', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'intent-background-clarification-'))
+  const world = intentWorld()
+  const worldPath = join(root, 'world.sqlite')
+  const sessionPath = join(root, 'session.sqlite')
+  const memoryPath = join(root, 'memory.sqlite')
+  const creator = new WorldApplication({ worldPath, sessionPath, memoryPath })
+  creator.activate(world)
+  await creator.close()
+  const jobs = new PlayerInputJobs(worldPath)
+  jobs.receive(world.manifest.address, 'principal:player', 'background-clarification', { text: '你好' }, 2)
+  jobs.close()
+  const recovered = new WorldApplication({ worldPath, sessionPath, memoryPath })
+  try {
+    await expect(recovered.processNextBranchWork(world.manifest.address, 'intent:background-clarification')).resolves.toMatchObject({
+      status: 'player_input', inputStatus: 'clarification_required', round: null,
+    })
+  } finally { await recovered.close(); rmSync(root, { recursive: true, force: true }) }
+})
 
 it.each([
   { version: 'invalid' }, { providerId: '' }, { modelId: '' },

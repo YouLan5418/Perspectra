@@ -3,22 +3,22 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it, vi } from 'vitest'
-import { fixtureAddress } from '@harness-world/testkit'
 import { PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { brandId, hashWorldJson } from '@harness-world/contracts'
 import { PlayerIntentCallStore } from '@harness-world/agents'
 import { PlayerIntentWorker, type PlayerIntentWorkerOptions } from './player-intent-worker.ts'
 import { preparePlayerIntent } from './player-intent-preparation.ts'
-import { createCoreRulebookRegistry } from '@harness-world/kernel'
+import { createCoreRulebookRegistry, WorldBootstrap } from '@harness-world/kernel'
 import { intentWorld } from '../../../tests/fixtures/player-intent-world.ts'
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'intent-worker-'))
   const worldPath = join(root, 'world.sqlite')
   const contextPath = join(root, 'context.sqlite')
-  const address = fixtureAddress()
+  const compiled = intentWorld()
+  const address = compiled.manifest.address
   const world = new WorldStore(worldPath)
-  world.createBranch(address)
+  new WorldBootstrap(world, true).activate(compiled)
   world.close()
   const jobs = new PlayerInputJobs(worldPath)
   const leases = new WriterLeaseService(worldPath)

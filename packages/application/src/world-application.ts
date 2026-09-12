@@ -87,7 +87,7 @@ import {
 import { PlayerInputInterpreter, type PlayerInputInterpretation } from './player-input.ts'
 import { PlayerIntentWorker, type PlayerIntentProfile } from './player-intent-worker.ts'
 import { preparePlayerIntent } from './player-intent-preparation.ts'
-import { PlayerInputJobs, PLAYER_INPUT_TRANSITIONS } from '@harness-world/store-sqlite'
+import { PlayerInputJobs, PLAYER_INPUT_TRANSITIONS, type PlayerInputJob, type PlayerInputStatus } from '@harness-world/store-sqlite'
 import {
   RoundCoordinator,
   type AcceptedRoundStep,
@@ -460,9 +460,10 @@ function reactionWaveOf(step: Extract<ReactionWaveStep, { readonly status: 'wave
   }
 }
 
-/** One durable scheduling quantum (ADR-0079): at most one Wave, or at most one accepted player Round. */
+/** One durable scheduling quantum: one accepted Player Input transition chain, one Wave, one player Round, or idle. */
 export type BranchWorkStep =
   | { readonly status: 'idle' }
+  | { readonly status: 'player_input'; readonly inputId: string; readonly inputStatus: PlayerInputStatus; readonly round: PlayerRoundResult | null }
   | ({ readonly status: 'reaction_wave' } & ReactionWaveResult)
   | ({ readonly status: 'player_round' } & AcceptedRoundStep)
 
@@ -709,47 +710,67 @@ export class WorldApplication {
       const received = jobs.receive(address, request.principalId, request.idempotencyKey,
         { text: request.text, ...(action === undefined ? {} : { action }) }, manifest.roundQueueLimit)
       this.options.faultInjector?.hit('player-input.after-received')
-      const key = worldAddressKey(address)
-      const previous = this.#inputTails.get(key) ?? Promise.resolve()
-      const run = previous.catch(() => undefined).then(() => this.#integrityGuard(address, 'player-input.process', async branch => {
-        const worker = new PlayerIntentWorker({ worldPath: this.options.worldPath,
-          contextPath: contextPathFor(this.options) ?? `${this.options.worldPath}.context.sqlite`, address,
-          renewLease: () => { branch.kernel.renewWriterLease(); return branch.kernel.writerLease },
-          prepare: job => {
-            const current = runtimeManifestFromStoredRecord(branch.store.store.readManifest(address))
-            const head = branch.store.store.head(address)
-            const prepared = preparePlayerIntent(job, current, branch.store.store.readEvents(address, head.headSeq),
-              this.#rulebooks.resolve(current.rulebook.rulebookId, current.rulebook.version, request.correlationId, address),
-              this.options.playerIntent?.profile, this.options.modelBudgetTokens ?? 0)
-            return 'request' in prepared ? { ...prepared, request: { body: prepared.request, asOfWorldSeq: head.headSeq, baseHeadHash: head.eventHash } } : prepared
-          },
-          dispatch: (input, profile, signal) => this.options.playerIntent!.dispatch(input, profile, signal),
-          enqueue: job => branch.store.inbox.enqueue({ address, idempotencyKey: job.idempotencyKey, principalId: job.principalId,
-            correlationId: request.correlationId, playerInputId: job.inputId, input: { playerInputId: job.inputId } }, manifest.roundQueueLimit) as unknown as WorldJsonValue,
-          complete: async job => {
-            while (branch.store.inbox.readCompleted(address, job.idempotencyKey) === undefined) {
-              await branch.reactionWorker?.drain()
-              await branch.kernel.processNextAccepted(request.correlationId)
-            }
-            return branch.store.inbox.readCompleted(address, job.idempotencyKey)!
-          },
-          ...(this.options.faultInjector === undefined ? {} : { faultInjector: this.options.faultInjector }),
-        })
-        let current = jobs.read(address, received.idempotencyKey)!
-        while (PLAYER_INPUT_TRANSITIONS[current.status].length > 0) {
-          await worker.processNext()
-          current = jobs.read(address, received.idempotencyKey)!
-        }
-        if (current.status !== 'completed') {
-          return { status: 'clarification_required' as const, reason: (current.records[current.status] as { reason: string }).reason, candidates: [] }
-        }
-        const submission = current.records.validated as unknown as { actions: PlayerActionInput[] }
-        return { status: 'submitted' as const, action: { actionType: submission.actions[0]!.actionType, parameters: submission.actions[0]!.parameters },
-          result: parsePlayerRoundResult(current.records.completed!) }
-      }))
-      this.#inputTails.set(key, run)
-      try { return await run } finally { if (this.#inputTails.get(key) === run) this.#inputTails.delete(key) }
+      let current = jobs.read(address, received.idempotencyKey)!
+      while (PLAYER_INPUT_TRANSITIONS[current.status].length > 0) {
+        await this.#queueNextPlayerInput(address, request.correlationId)
+        current = jobs.read(address, received.idempotencyKey)!
+      }
+      if (current.status !== 'completed') {
+        return { status: 'clarification_required' as const, reason: (current.records[current.status] as { reason: string }).reason, candidates: [] }
+      }
+      const submission = current.records.validated as unknown as { actions: PlayerActionInput[] }
+      return { status: 'submitted' as const, action: { actionType: submission.actions[0]!.actionType, parameters: submission.actions[0]!.parameters },
+        result: parsePlayerRoundResult(current.records.completed!) }
     } finally { jobs.close(); store.close() }
+  }
+
+  #queueNextPlayerInput(address: WorldAddress, correlationId: string): Promise<PlayerInputJob | undefined> {
+    const key = worldAddressKey(address)
+    const previous = this.#inputTails.get(key) ?? Promise.resolve()
+    const run = previous.catch(() => undefined).then(() => this.#integrityGuard(address, 'player-input.process', branch =>
+      this.#playerIntentWorker(branch, address, correlationId).processNext()))
+    this.#inputTails.set(key, run)
+    return run.finally(() => { if (this.#inputTails.get(key) === run) this.#inputTails.delete(key) })
+  }
+
+  #playerIntentWorker(branch: MountedBranch, address: WorldAddress, correlationId: string): PlayerIntentWorker {
+    return new PlayerIntentWorker({ worldPath: this.options.worldPath,
+      contextPath: contextPathFor(this.options) ?? `${this.options.worldPath}.context.sqlite`, address,
+      renewLease: () => { branch.kernel.renewWriterLease(); return branch.kernel.writerLease },
+      prepare: job => {
+        const stored = branch.store.store.readManifest(address)!
+        if (stored.manifestHash !== job.acceptedManifestHash) {
+          failWorld({ errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', retryable: false, address,
+            correlationId, message: 'player input accepted Manifest no longer matches branch authority' })
+        }
+        const current = runtimeManifestFromStoredRecord(stored)
+        const history = branch.store.store.readEvents(address, job.acceptedHeadSeq)
+        const acceptedHash = history.at(-1)?.eventHash
+        if (history.length !== job.acceptedHeadSeq || acceptedHash !== job.acceptedHeadHash) {
+          failWorld({ errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', retryable: false, address,
+            correlationId, message: 'player input accepted Head no longer matches World Event authority' })
+        }
+        const prepared = preparePlayerIntent(job, current, history,
+          this.#rulebooks.resolve(current.rulebook.rulebookId, current.rulebook.version, correlationId, address),
+          this.options.playerIntent?.profile, this.options.modelBudgetTokens ?? 0)
+        return 'request' in prepared ? { ...prepared, request: { body: prepared.request,
+          asOfWorldSeq: job.acceptedHeadSeq, baseHeadHash: job.acceptedHeadHash } } : prepared
+      },
+      dispatch: (input, profile, signal) => this.options.playerIntent!.dispatch(input, profile, signal),
+      enqueue: job => {
+        const manifest = runtimeManifestFromStoredRecord(branch.store.store.readManifest(address))
+        return branch.store.inbox.enqueue({ address, idempotencyKey: job.idempotencyKey, principalId: job.principalId,
+          correlationId, playerInputId: job.inputId, input: { playerInputId: job.inputId } }, manifest.roundQueueLimit) as unknown as WorldJsonValue
+      },
+      complete: async job => {
+        while (branch.store.inbox.readCompleted(address, job.idempotencyKey) === undefined) {
+          await branch.reactionWorker?.drain()
+          await branch.kernel.processNextAccepted(correlationId)
+        }
+        return branch.store.inbox.readCompleted(address, job.idempotencyKey)!
+      },
+      ...(this.options.faultInjector === undefined ? {} : { faultInjector: this.options.faultInjector }),
+    })
   }
 
   async acceptRound(address: WorldAddress, request: SubmitCoordinatedRoundRequest) {
@@ -808,8 +829,11 @@ export class WorldApplication {
     })
   }
 
-  /** Execute at most one durable quantum: one frozen Wave, else one accepted player Round, else idle. */
+  /** Execute one FIFO input item first, else one frozen Wave, else one accepted player Round, else idle. */
   async processNextBranchWork(address: WorldAddress, correlationId: string): Promise<BranchWorkStep> {
+    const input = await this.#queueNextPlayerInput(address, correlationId)
+    if (input !== undefined) return { status: 'player_input', inputId: input.inputId, inputStatus: input.status,
+      round: input.status === 'completed' ? parsePlayerRoundResult(input.records.completed!) : null }
     const wave = await this.processNextReactionWave(address)
     if (wave.status === 'wave') return { ...wave, status: 'reaction_wave' }
     return this.#integrityGuard(address, 'round.process', async (branch) => {
@@ -823,7 +847,7 @@ export class WorldApplication {
     while (true) {
       const step = await this.processNextBranchWork(address, correlationId)
       if (step.status === 'idle') return processed
-      if (step.status === 'player_round') processed += 1
+      if (step.status === 'player_round' || (step.status === 'player_input' && step.round !== null)) processed += 1
     }
   }
 
@@ -1338,11 +1362,9 @@ export class WorldApplication {
     if (this.#closed) return
     this.#closed = true
     const pending = [...this.#branches.values()]
+    await Promise.allSettled(this.#inputTails.values())
     this.#branches.clear()
-    const settled = await Promise.allSettled(pending)
-    for (const result of settled) {
-      if (result.status === 'fulfilled') await result.value.lease.dispose()
-    }
+    await Promise.all(pending.map(branch => branch.then(value => value.lease.dispose(), () => undefined)))
   }
 
   get activeBranchCount(): number {
@@ -1407,7 +1429,7 @@ export class WorldApplication {
     try {
       return await pending
     } catch (error: unknown) {
-      if (this.#branches.get(key) === pending) this.#branches.delete(key)
+      this.#branches.delete(key)
       throw error
     }
   }

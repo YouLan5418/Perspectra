@@ -1,0 +1,75 @@
+{
+  "version": "interaction-catalog/v2",
+  "definitions": [
+    {
+      "interactionId": "core:drop",
+      "label": "放下",
+      "targetKind": "entity",
+      "operation": "drop",
+      "initiationPolicy": {
+        "manualPlayer": "standard",
+        "autonomousCharacter": "standard"
+      }
+    },
+    {
+      "interactionId": "core:give",
+      "label": "递交",
+      "targetKind": "entity",
+      "operation": "give",
+      "initiationPolicy": {
+        "manualPlayer": "standard",
+        "autonomousCharacter": "standard"
+      }
+    },
+    {
+      "interactionId": "core:hold-hand",
+      "label": "牵住对方的手",
+      "targetKind": "character",
+      "operation": "hold_hand",
+      "initiationPolicy": {
+        "manualPlayer": "commit_then_react",
+        "autonomousCharacter": "forbidden"
+      }
+    },
+    {
+      "interactionId": "core:take",
+      "label": "拿取",
+      "targetKind": "entity",
+      "operation": "take",
+      "initiationPolicy": {
+        "manualPlayer": "standard",
+        "autonomousCharacter": "standard"
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "targetId": "character:claude",
+      "interactionIds": ["core:hold-hand"]
+    },
+    {
+      "targetId": "character:deepseek",
+      "interactionIds": ["core:hold-hand"]
+    },
+    {
+      "targetId": "character:glm",
+      "interactionIds": ["core:hold-hand"]
+    },
+    {
+      "targetId": "character:gpt",
+      "interactionIds": ["core:hold-hand"]
+    },
+    {
+      "targetId": "entity:keyboard",
+      "interactionIds": ["core:drop", "core:give", "core:take"]
+    },
+    {
+      "targetId": "entity:laptop",
+      "interactionIds": ["core:drop", "core:give", "core:take"]
+    },
+    {
+      "targetId": "entity:phone",
+      "interactionIds": ["core:drop", "core:give", "core:take"]
+    }
+  ]
+}

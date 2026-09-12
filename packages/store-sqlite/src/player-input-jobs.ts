@@ -23,6 +23,10 @@ export interface PlayerInputJob extends WorldJsonObject {
   readonly principalId: string
   readonly input: WorldJsonValue
   readonly inputHash: WorldHash
+  /** Exact World authority accepted before interpretation; retries never move this prefix. */
+  readonly acceptedManifestHash: WorldHash
+  readonly acceptedHeadSeq: number
+  readonly acceptedHeadHash: WorldHash | 'genesis'
   readonly status: PlayerInputStatus
   /** Append-only state evidence; original input is never overwritten. */
   readonly records: WorldJsonObject
@@ -40,6 +44,9 @@ export function readPlayerInputRow(row: PlayerInputRow): PlayerInputJob {
     || hashWorldJson('player-input-state/v1', job) !== row.state_hash
     || hashWorldJson('player-input/v1', { principalId: job.principalId, input: job.input }) !== row.input_hash
     || job.inputHash !== row.input_hash
+    || !/^sha256:[0-9a-f]{64}$/u.test(job.acceptedManifestHash)
+    || !Number.isSafeInteger(job.acceptedHeadSeq) || job.acceptedHeadSeq < 1
+    || (job.acceptedHeadHash !== 'genesis' && !/^sha256:[0-9a-f]{64}$/u.test(job.acceptedHeadHash))
     || job.inputId !== deterministicId('player-input', { address: job.address, inputSeq: job.inputSeq, inputHash: job.inputHash })) {
     failWorld({ errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', retryable: false,
       message: 'player input authority is inconsistent', correlationId: 'player-input:read' })
@@ -78,17 +85,46 @@ export class PlayerInputJobs {
       if (control === undefined || control.admission_state !== 'open' || control.runtime_phase !== 'active' || control.lifecycle_state !== 'active') {
         this.#fail('BRANCH_DRAINING', address, 'player input admission is not open')
       }
+      const accepted = this.#db.prepare(`
+        WITH RECURSIVE lineage(address_key,parent_address_key,depth) AS (
+          SELECT address_key,parent_address_key,0 FROM branches WHERE address_key = ?
+          UNION ALL
+          SELECT b.address_key,b.parent_address_key,lineage.depth + 1 FROM branches b
+          JOIN lineage ON b.address_key = lineage.parent_address_key
+        )
+        SELECT a.manifest_hash,h.head_seq,h.event_hash FROM lineage
+        JOIN branch_activations a ON a.address_key = lineage.address_key
+        JOIN heads h ON h.address_key = ? ORDER BY lineage.depth LIMIT 1
+      `).get(key, key) as { manifest_hash: WorldHash; head_seq: number; event_hash: WorldHash | 'genesis' } | undefined
+      if (accepted === undefined) this.#fail('BRANCH_DRAINING', address, 'player input branch has no active Manifest or Head')
       const rows = this.#db.prepare('SELECT * FROM player_input_jobs WHERE address_key = ? ORDER BY input_seq').all(key) as unknown as PlayerInputRow[]
       const jobs = rows.map(readPlayerInputRow)
       if (jobs.filter(job => PLAYER_INPUT_TRANSITIONS[job.status].length > 0).length >= queueLimit) this.#fail('ROUND_QUEUE_FULL', address, 'player input queue is full')
       const inputSeq = (jobs.at(-1)?.inputSeq ?? 0) + 1
       const job: PlayerInputJob = { version: 'player-input-job/v1', inputId: deterministicId('player-input', { address, inputSeq, inputHash }),
-        address, inputSeq, idempotencyKey, principalId, input, inputHash, status: 'received', records: {} }
+        address, inputSeq, idempotencyKey, principalId, input, inputHash,
+        acceptedManifestHash: accepted.manifest_hash, acceptedHeadSeq: accepted.head_seq, acceptedHeadHash: accepted.event_hash,
+        status: 'received', records: {} }
       this.#db.prepare('INSERT INTO player_input_jobs(address_key,input_seq,idempotency_key,input_hash,status,job_json,state_hash) VALUES (?,?,?,?,?,?,?)')
         .run(key, inputSeq, idempotencyKey, inputHash, job.status, worldJsonText(job), hashWorldJson('player-input-state/v1', job))
       this.#db.exec('COMMIT')
       return this.read(address, idempotencyKey)!
     } catch (error) { rollbackAndThrow(this.#db, error) }
+  }
+
+  /** Discover active Branch FIFOs whose exact accepted input evidence still needs work. */
+  unfinishedAddresses(): WorldAddress[] {
+    return (this.#db.prepare(`
+      SELECT DISTINCT b.tenant_id,b.world_id,b.branch_id FROM player_input_jobs i
+      JOIN branches b ON b.address_key = i.address_key
+      JOIN branch_controls c ON c.address_key = i.address_key
+      WHERE i.status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued')
+        AND c.runtime_phase = 'active'
+      ORDER BY b.tenant_id,b.world_id,b.branch_id
+    `).all() as Array<{ tenant_id: string; world_id: string; branch_id: string }>).map(row => ({
+      tenantId: row.tenant_id as WorldAddress['tenantId'], worldId: row.world_id as WorldAddress['worldId'],
+      branchId: row.branch_id as WorldAddress['branchId'],
+    }))
   }
 
   /** Returns the earliest unfinished item; another input cannot overtake it. */

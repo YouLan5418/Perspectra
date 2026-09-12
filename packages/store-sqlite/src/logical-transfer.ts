@@ -14,12 +14,17 @@ import {
 } from '@harness-world/contracts'
 import { openWorldDatabase } from './world-store.ts'
 import { parseWorldJson } from './sqlite.ts'
-import { readPlayerInputRow, type PlayerInputRow } from './player-input-jobs.ts'
+import { PLAYER_INPUT_TRANSITIONS, readPlayerInputRow, type PlayerInputRow, type PlayerInputStatus } from './player-input-jobs.ts'
+import { coordinatedRoundId } from './round-inbox.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
 import { readReactionCycleById, readReactionCycleByRootTransaction, readReactionWaveSettlementHashByTransaction } from './reaction-cycle.ts'
 
 type SqlValue = string | number | null
 type SqlRow = Record<string, SqlValue>
+
+function canonicalText(value: WorldJsonValue): string {
+  return Buffer.from(canonicalizeWorldJson(value)).toString('utf8')
+}
 
 const TABLES = [
   'world_manifests', 'branches', 'heads', 'round_commits', 'round_authority', 'events',
@@ -209,7 +214,7 @@ export class WorldLogicalTransferService {
       this.#validateOutbox(db, correlationId)
       this.#validateCompletedInbox(db, correlationId)
       this.#validateFailures(db, correlationId)
-      for (const row of db.prepare('SELECT * FROM player_input_jobs').all() as unknown as PlayerInputRow[]) readPlayerInputRow(row)
+      this.#validatePlayerInputs(db, correlationId)
       db.exec('COMMIT')
       const provenance = { sourcePath: resolve(this.sourcePath), exportPath: resolve(exportPath), bundleHash: actualHash }
       this.#auditAt(targetPath, 'authority.import.completed', correlationId, provenance)
@@ -273,7 +278,20 @@ export class WorldLogicalTransferService {
     }
     if (table === 'round_inbox') {
       return db.prepare(`
-        SELECT ${COLUMNS.round_inbox.join(', ')} FROM round_inbox WHERE status = 'completed' ORDER BY rowid
+        SELECT address_key, inbox_seq, idempotency_key, input_hash, principal_id, input_json,
+          CASE WHEN status = 'completed' THEN 'completed' ELSE 'pending' END AS status,
+          CASE WHEN status = 'completed' THEN claim_owner_id ELSE NULL END AS claim_owner_id,
+          CASE WHEN status = 'completed' THEN claim_fencing_token ELSE NULL END AS claim_fencing_token,
+          CASE WHEN status = 'completed' THEN result_hash ELSE NULL END AS result_hash,
+          CASE WHEN status = 'completed' THEN result_json ELSE NULL END AS result_json,
+          CASE WHEN status = 'completed' THEN commit_transaction_id ELSE NULL END AS commit_transaction_id,
+          CASE WHEN status = 'completed' THEN commit_bundle_hash ELSE NULL END AS commit_bundle_hash
+        FROM round_inbox r
+        WHERE status = 'completed' OR EXISTS (
+          SELECT 1 FROM player_input_jobs p
+          WHERE p.address_key = r.address_key AND p.idempotency_key = r.idempotency_key
+        )
+        ORDER BY rowid
       `).all() as SqlRow[]
     }
     return db.prepare(`SELECT ${COLUMNS[table].join(', ')} FROM ${table} ORDER BY rowid`).all() as SqlRow[]
@@ -535,26 +553,137 @@ export class WorldLogicalTransferService {
       input_hash: WorldHash
       principal_id: string
       input_json: string
-      result_hash: WorldHash
-      result_json: string
-      commit_transaction_id: string
-      commit_bundle_hash: WorldHash
+      result_hash: WorldHash | null
+      result_json: string | null
+      commit_transaction_id: string | null
+      commit_bundle_hash: WorldHash | null
       status: string
     }>
     for (const row of rows) {
+      const inputValid = hashWorldJson('player-round-input', {
+        principalId: row.principal_id, input: parseWorldJson(row.input_json),
+      }) === row.input_hash
+      if (row.status === 'pending') {
+        if (!inputValid) {
+          this.#invalid('logical export contains an invalid pending Round Inbox item', correlationId)
+        }
+        continue
+      }
+      if (row.status !== 'completed') {
+        this.#invalid('logical export contains an invalid completed Round Inbox item', correlationId)
+      }
       const commit = db.prepare(`SELECT bundle_hash FROM round_commits WHERE transaction_id = ? AND address_key = ?`)
         .get(row.commit_transaction_id, row.address_key) as { bundle_hash: WorldHash } | undefined
-      const result = parseWorldJson(row.result_json)
+      const result = parseWorldJson(row.result_json!)
       const resultBundleHash = typeof result === 'object' && result !== null && !Array.isArray(result)
         ? (result as WorldJsonObject).bundleHash
         : undefined
-      if (
-        row.status !== 'completed'
-        || hashWorldJson('player-round-input', { principalId: row.principal_id, input: parseWorldJson(row.input_json) }) !== row.input_hash
-        || hashWorldJson('player-round-result', result) !== row.result_hash
-        || resultBundleHash !== row.commit_bundle_hash
-        || commit?.bundle_hash !== row.commit_bundle_hash
-      ) this.#invalid('logical export contains an invalid completed Round Inbox item', correlationId)
+      if (canonicalText({ inputValid, resultHash: hashWorldJson('player-round-result', result), resultBundleHash: resultBundleHash ?? null,
+        commitBundleHash: commit?.bundle_hash ?? null }) !== canonicalText({ inputValid: true, resultHash: row.result_hash,
+        resultBundleHash: row.commit_bundle_hash, commitBundleHash: row.commit_bundle_hash })) {
+        this.#invalid('logical export contains an invalid completed Round Inbox item', correlationId)
+      }
+    }
+  }
+
+  #validatePlayerInputs(db: DatabaseSync, correlationId: string): void {
+    const branches = db.prepare('SELECT address_key,parent_address_key,fork_seq,tenant_id,world_id,branch_id FROM branches').all() as Array<{
+      address_key: string; parent_address_key: string | null; fork_seq: number | null
+      tenant_id: string; world_id: string; branch_id: string
+    }>
+    const byKey = new Map(branches.map(branch => [branch.address_key, branch]))
+    const eventHashAt = (addressKey: string, seq: number): WorldHash | undefined => {
+      let key = addressKey
+      while (true) {
+        const local = db.prepare('SELECT event_hash FROM events WHERE address_key = ? AND seq = ?').get(key, seq) as { event_hash: WorldHash } | undefined
+        if (local !== undefined) return local.event_hash
+        const branch = byKey.get(key)!
+        if (branch.parent_address_key === null || seq > branch.fork_seq!) return undefined
+        key = branch.parent_address_key
+      }
+    }
+    const manifestHashFor = (addressKey: string): WorldHash | undefined => {
+      let key = addressKey
+      while (true) {
+        const activation = db.prepare('SELECT manifest_hash FROM branch_activations WHERE address_key = ?').get(key) as { manifest_hash: WorldHash } | undefined
+        if (activation !== undefined) return activation.manifest_hash
+        const parent = byKey.get(key)!.parent_address_key
+        if (parent === null) return undefined
+        key = parent
+      }
+    }
+    const followsRecordedPath = (status: PlayerInputStatus, recordKeys: readonly string[]): boolean => {
+      const remaining = new Set(recordKeys)
+      const visit = (current: PlayerInputStatus): boolean => {
+        if (current === status) return remaining.size === 0
+        for (const next of PLAYER_INPUT_TRANSITIONS[current]) {
+          if (!remaining.delete(next)) continue
+          if (visit(next)) return true
+          remaining.add(next)
+        }
+        return false
+      }
+      return visit('received')
+    }
+
+    for (const raw of db.prepare('SELECT * FROM player_input_jobs ORDER BY address_key,input_seq').all() as unknown as PlayerInputRow[]) {
+      const job = readPlayerInputRow(raw)
+      const recordKeys = Object.keys(job.records)
+      const head = db.prepare('SELECT head_seq FROM heads WHERE address_key = ?').get(raw.address_key) as { head_seq: number }
+      const authority = {
+        acceptedHeadWithinBranch: job.acceptedHeadSeq <= head.head_seq,
+        manifestMatches: manifestHashFor(raw.address_key) === job.acceptedManifestHash,
+        headMatches: eventHashAt(raw.address_key, job.acceptedHeadSeq) === job.acceptedHeadHash,
+        statePathMatches: followsRecordedPath(job.status, recordKeys) }
+      if (canonicalText(authority) !== canonicalText({ acceptedHeadWithinBranch: true,
+        manifestMatches: true, headMatches: true, statePathMatches: true })) {
+        this.#invalid('logical export contains divergent Player Input authority', correlationId)
+      }
+      const inbox = db.prepare(`
+        SELECT inbox_seq,input_hash,principal_id,input_json,status,result_hash,result_json FROM round_inbox
+        WHERE address_key = ? AND idempotency_key = ?
+      `).get(raw.address_key, job.idempotencyKey) as {
+        inbox_seq: number; input_hash: WorldHash; principal_id: string; input_json: string; status: 'pending' | 'completed'
+        result_hash: WorldHash | null; result_json: string | null
+      } | undefined
+      const mayHaveInbox = (['validated', 'round_enqueued', 'completed'] as PlayerInputStatus[]).includes(job.status)
+      if (inbox === undefined) {
+        if ((['round_enqueued', 'completed'] as PlayerInputStatus[]).includes(job.status)) {
+          this.#invalid('logical export Player Input lost its Round Inbox item', correlationId)
+        }
+        continue
+      }
+      const input = parseWorldJson(inbox.input_json)
+      if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+        this.#invalid('logical export contains a divergent Player Input Round binding', correlationId)
+      }
+      const boundInputId = (input as WorldJsonObject).playerInputId
+      const expectedRoundId = coordinatedRoundId(job.address, inbox.inbox_seq, job.idempotencyKey, inbox.input_hash)
+      const binding = { mayHaveInbox, principalMatches: inbox.principal_id === job.principalId,
+        inputMatches: boundInputId === job.inputId }
+      if (canonicalText(binding) !== canonicalText({ mayHaveInbox: true, principalMatches: true, inputMatches: true })) {
+        this.#invalid('logical export contains a divergent Player Input Round binding', correlationId)
+      }
+      if (job.status !== 'validated') {
+        const receipt = job.records.round_enqueued
+        if (typeof receipt !== 'object' || receipt === null || Array.isArray(receipt)) {
+          this.#invalid('logical export contains a divergent Player Input Round binding', correlationId)
+        }
+        if (canonicalText({ inboxSeq: (receipt as WorldJsonObject).inboxSeq ?? null, roundId: (receipt as WorldJsonObject).roundId ?? null })
+          !== canonicalText({ inboxSeq: inbox.inbox_seq, roundId: expectedRoundId })) {
+          this.#invalid('logical export contains a divergent Player Input Round binding', correlationId)
+        }
+      }
+      if (job.status === 'completed') {
+        const completed = { inboxStatus: inbox.status,
+          resultHash: hashWorldJson('player-round-result', job.records.completed!),
+          resultJson: canonicalText(job.records.completed!) }
+        const expected = { inboxStatus: 'completed', resultHash: inbox.result_hash,
+          resultJson: canonicalText(parseWorldJson(inbox.result_json!)) }
+        if (canonicalText(completed) !== canonicalText(expected)) {
+          this.#invalid('logical export contains a divergent completed Player Input result', correlationId)
+        }
+      }
     }
   }
 

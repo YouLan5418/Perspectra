@@ -18,7 +18,7 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { BranchAdministration, RoundInbox, WorldStore } from '@harness-world/store-sqlite'
+import { BranchAdministration, PlayerInputJobs, RoundInbox, WorldStore } from '@harness-world/store-sqlite'
 import type { BranchWorkStep, ReactionWaveResult, ReactionWaveStep } from '@harness-world/application'
 import { BranchWorkScheduler, SHUTDOWN_TIMEOUT_MS_DEFAULT, type BranchWorkWakeReason } from './branch-work-scheduler.ts'
 import { WorldHealthService } from './health.ts'
@@ -537,14 +537,16 @@ export class LocalJsonRpcRouter {
 
   #scanRunnableBranches(): WorldAddress[] {
     const inbox = new RoundInbox(this.worldPath)
+    const inputs = new PlayerInputJobs(this.worldPath)
     const store = new WorldStore(this.worldPath)
     try {
       const addresses = new Map<string, WorldAddress>()
-      for (const address of [...inbox.unfinishedAddresses(), ...store.activeReactionCycleAddresses()]) {
+      for (const address of [...inputs.unfinishedAddresses(), ...inbox.unfinishedAddresses(), ...store.activeReactionCycleAddresses()]) {
         addresses.set(worldAddressKey(address), address)
       }
       return [...addresses.values()]
     } finally {
+      inputs.close()
       inbox.close()
       store.close()
     }
@@ -556,6 +558,12 @@ export class LocalJsonRpcRouter {
       return
     }
     if (step.status === 'idle') return
+    if (step.status === 'player_input') {
+      if (step.round === null) return
+      this.metrics.increment('player_rounds_committed')
+      this.#notify('round.committed', { address, processed: 1, correlationId })
+      return
+    }
     this.metrics.increment('player_rounds_committed')
     this.#notify('round.committed', { address, processed: 1, correlationId })
     if (step.openedCycleId !== null) this.#announceCycleStart(address, step.openedCycleId, step.roundId)

@@ -83,7 +83,7 @@ interface ReadyBranch {
 export class BranchWorkScheduler {
   readonly #ready = new Map<string, ReadyBranch>()
   readonly #inFlight = new Map<string, Promise<void>>()
-  readonly #quanta: Record<BranchWorkStep['status'], number> = { idle: 0, player_round: 0, reaction_wave: 0 }
+  readonly #quanta: Record<BranchWorkStep['status'], number> = { idle: 0, player_input: 0, player_round: 0, reaction_wave: 0 }
   readonly #wakes: Record<BranchWorkWakeReason, number> = {
     'round.accepted': 0, 'reaction.active': 0, startup: 0, rescan: 0, explicit: 0,
   }

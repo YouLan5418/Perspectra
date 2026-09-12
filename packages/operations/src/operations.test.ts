@@ -291,6 +291,14 @@ describe('LocalJsonRpcRouter', () => {
     await application.processAcceptedRounds(parent, 'rpc:test-await-worker')
     await expect(router.handle(request('round.get', { address: parent, roundId: (submitted.result as { roundId: string }).roundId })))
       .resolves.toMatchObject({ result: { status: 'committed', result: { status: 'accepted', tick: 1 } } })
+    let schedulerSettled = false
+    for (let attempt = 0; attempt < 100 && !schedulerSettled; attempt++) {
+      const metrics = await router.handle(request('metrics.get'))
+      const scheduler = (metrics.result as any).branchWork
+      schedulerSettled = scheduler.readyBranches === 0 && scheduler.inFlightBranches === 0
+      if (!schedulerSettled) await new Promise(resolve => setTimeout(resolve, 1))
+    }
+    expect(schedulerSettled).toBe(true)
     const cancelAccepted = await application.acceptRound(parent, {
       idempotencyKey: 'rpc-cancel', principalId: 'principal:player',
       action: { actionType: 'speak', parameters: { text: 'cancel' } }, correlationId: 'rpc-cancel',
@@ -731,6 +739,24 @@ describe('worldctl grammar', () => {
     expect(directNotifications).toEqual([])
     await directRouter.close()
     await directApplication.close()
+
+    const inputFixture = fixture()
+    class TerminalInputWorldApplication extends WorldApplication {
+      override processNextBranchWork(): Promise<BranchWorkStep> {
+        return Promise.resolve({ status: 'player_input', inputId: 'player-input:terminal',
+          inputStatus: 'clarification_required', round: null })
+      }
+    }
+    const inputApplication = new TerminalInputWorldApplication({
+      worldPath: inputFixture.path, sessionPath: join(inputFixture.directory, 'input-session.sqlite'),
+    })
+    const inputRouter = new LocalJsonRpcRouter(inputFixture.path, inputApplication)
+    await expect(inputRouter.handle(request('round.process', {
+      address: inputFixture.parent, correlationId: 'round:terminal-input',
+    }))).resolves.toMatchObject({ result: { status: 'player_input', inputStatus: 'clarification_required', round: null } })
+    expect(inputRouter.metrics.snapshot().player_rounds_committed).toBe(0)
+    await inputRouter.close()
+    await inputApplication.close()
 
     const failedFixture = fixture()
     class FailingWorldApplication extends WorldApplication {

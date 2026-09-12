@@ -23,7 +23,7 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { CONTEXT_APPLICATION_ID, CONTEXT_SCHEMA_VERSION, ProviderCallStore } from '@harness-world/agents'
+import { CONTEXT_APPLICATION_ID, CONTEXT_SCHEMA_VERSION, PlayerIntentCallStore, ProviderCallStore } from '@harness-world/agents'
 import { MEMORY_APPLICATION_ID, MEMORY_SCHEMA_VERSION } from '@harness-world/memory'
 import {
   AUDIT_APPLICATION_ID,
@@ -33,6 +33,8 @@ import {
   SESSION_APPLICATION_ID,
   SESSION_SCHEMA_VERSION,
   SessionDeliveryAdapter,
+  readPlayerInputRow,
+  type PlayerInputRow,
   WORLD_APPLICATION_ID,
   WORLD_SCHEMA_VERSION,
   WorldStore,
@@ -131,6 +133,9 @@ const FILE_NAMES: Readonly<Record<DeploymentDatabaseRole, string>> = Object.free
 const PROVIDER_STATES = Object.freeze([
   'budget_exhausted', 'committed', 'discarded_after_quarantine', 'failed_before_dispatch',
   'invalid_response', 'provider_rejected', 'timed_out_ambiguous',
+] as const)
+const PLAYER_INTENT_PROVIDER_STATES = Object.freeze([
+  'validated', 'invalid_response', 'timed_out_ambiguous', 'failed_before_dispatch',
 ] as const)
 
 function bytesHash(bytes: Uint8Array): WorldHash {
@@ -273,6 +278,12 @@ function verifyWorldAndReaction(path: string, correlationId: string): void {
     } finally {
       world.close()
     }
+    const raw = openReadOnly(path)
+    try {
+      for (const row of raw.prepare('SELECT * FROM player_input_jobs ORDER BY address_key,input_seq').all() as unknown as PlayerInputRow[]) {
+        readPlayerInputRow(row)
+      }
+    } finally { raw.close() }
   } catch (cause: unknown) {
     error('BACKUP_INVALID', correlationId, `World authority or Reaction integrity failed: ${String(cause)}`)
   }
@@ -293,13 +304,19 @@ function verifySession(path: string, correlationId: string): void {
 
 function verifyProviderRows(path: string, correlationId: string): void {
   const raw = openReadOnly(path)
-  const ids = raw.prepare('SELECT model_call_id FROM provider_calls ORDER BY model_call_id').all() as Array<{ model_call_id: string }>
+  const ids = raw.prepare('SELECT model_call_id,purpose FROM provider_calls ORDER BY model_call_id')
+    .all() as Array<{ model_call_id: string; purpose: 'agent' | 'player_intent' }>
   raw.close()
   try {
     const calls = new ProviderCallStore(path)
+    const playerCalls = new PlayerIntentCallStore(path)
     try {
-      for (const row of ids) calls.read(row.model_call_id)
+      for (const row of ids) {
+        if (row.purpose === 'player_intent') playerCalls.read(row.model_call_id)
+        else calls.read(row.model_call_id)
+      }
     } finally {
+      playerCalls.close()
       calls.close()
     }
   } catch (cause: unknown) {
@@ -326,6 +343,7 @@ function verifyDeepViaScratch(paths: DeploymentDatabasePaths, correlationId: str
 function assertQuiet(world: DatabaseSync, nowMs: number, correlationId: string): void {
   const blockers = [
     count(world, `SELECT COUNT(*) AS value FROM round_inbox WHERE status IN ('pending', 'claimed')`),
+    count(world, `SELECT COUNT(*) AS value FROM player_input_jobs WHERE status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued')`),
     count(world, `SELECT COUNT(*) AS value FROM writer_leases WHERE expires_at_ms > ${nowMs}`),
     count(world, `SELECT COUNT(*) AS value FROM outbox WHERE critical = 1 AND delivery_status <> 'delivered'`),
     count(world, `SELECT COUNT(*) AS value FROM world_reaction_cycles WHERE status <> 'terminal'`),
@@ -412,11 +430,21 @@ function watermarks(paths: DeploymentDatabasePaths, nowMs: number, correlationId
     }
 
     const calls = databases.context.prepare(`
-      SELECT namespace_key, state, transaction_id, authority_hash FROM provider_calls ORDER BY model_call_id
-    `).all() as Array<{ namespace_key: string; state: string; transaction_id: string | null; authority_hash: string | null }>
+      SELECT purpose, work_id, namespace_key, state, transaction_id, authority_hash FROM provider_calls ORDER BY model_call_id
+    `).all() as Array<{ purpose: string; work_id: string; namespace_key: string; state: string; transaction_id: string | null; authority_hash: string | null }>
     for (const call of calls) {
-      if (!PROVIDER_STATES.includes(call.state as typeof PROVIDER_STATES[number])) {
+      const terminal = call.purpose === 'player_intent'
+        ? PLAYER_INTENT_PROVIDER_STATES.includes(call.state as typeof PLAYER_INTENT_PROVIDER_STATES[number])
+        : PROVIDER_STATES.includes(call.state as typeof PROVIDER_STATES[number])
+      if (!terminal) {
         error('BACKUP_INVALID', correlationId, `ProviderCall is unfinished: ${call.state}`)
+      }
+      if (call.purpose === 'player_intent') {
+        const matching = databases.world.prepare(`
+          SELECT COUNT(*) AS value FROM player_input_jobs
+          WHERE address_key = ? AND json_extract(job_json, '$.inputId') = ?
+        `).get(call.namespace_key, call.work_id) as { value: number }
+        invariant(matching.value === 1, correlationId, 'Player Intent ProviderCall has no matching World input authority')
       }
       if (call.state === 'committed') {
         const matching = databases.world.prepare(`

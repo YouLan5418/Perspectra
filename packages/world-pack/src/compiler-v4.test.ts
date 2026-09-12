@@ -124,6 +124,27 @@ describe('WorldPackCompilerV4', () => {
     } else expect(() => compiler.adaptToActionGroupWorldSpec(first, options)).toThrow('enabled manifestation')
   })
 
+  it('adapts the checked-in character-interaction catalog example to Manifest v9', async () => {
+    const pack = parseCompiledWorldPackV4(JSON.parse(await readFile(fileURLToPath(new URL(
+      '../../../examples/world-packs/ai-girls-awaken.worldpack.json', import.meta.url)), 'utf8')))
+    const interactionCatalog = JSON.parse(await readFile(fileURLToPath(new URL(
+      '../../../examples/world-packs/ai-girls-awaken.character-interactions.json', import.meta.url)), 'utf8'))
+    const world = adaptCompiledWorldPack(pack, {
+      address: {
+        tenantId: brandId('tenant:character-example', 'TenantId'), worldId: brandId('world:character-example', 'WorldId'),
+        branchId: brandId('branch:main', 'BranchId'),
+      },
+      principalId: 'principal:player', sessionId: brandId('session:player', 'SessionId'), interactionCatalog,
+    })
+    expect(world.manifest).toMatchObject({
+      schemaVersion: 9,
+      playerInputPolicy: { version: 'legacy-speech/v1' },
+      interactionCatalog: { version: 'interaction-catalog/v2', definitions: expect.arrayContaining([
+        expect.objectContaining({ operation: 'hold_hand', targetKind: 'character' }),
+      ]) },
+    })
+  })
+
   it('rejects profile changes, tampering, wrong envelopes, and unavailable sources', async () => {
     const root = await source()
     const compiler = new WorldPackCompilerV4()

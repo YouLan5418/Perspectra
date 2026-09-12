@@ -80,7 +80,7 @@ describe('BranchWorkScheduler', () => {
     expect(scheduler.snapshot()).toMatchObject({
       started: true, closing: false, readyBranches: 0, inFlightBranches: 0,
       rescanRequired: false, wakeOverflow: 0, failures: 0, scanFailures: 0, oldestReadyWaitMs: 0,
-      quanta: { idle: 1, player_round: 1, reaction_wave: 0 },
+      quanta: { idle: 1, player_input: 0, player_round: 1, reaction_wave: 0 },
       wakes: { explicit: 1, rescan: 0, startup: 0, 'reaction.active': 0, 'round.accepted': 0 },
     })
     await scheduler.stop()
@@ -129,7 +129,7 @@ describe('BranchWorkScheduler', () => {
     expect(failedBranches).toEqual(['branch:hooked'])
     expect(scheduler.snapshot()).toMatchObject({
       failures: 1, readyBranches: 0, oldestReadyWaitMs: 0,
-      quanta: { idle: 1, player_round: 0, reaction_wave: 1 },
+      quanta: { idle: 1, player_input: 0, player_round: 0, reaction_wave: 1 },
       wakes: { 'round.accepted': 1 },
     })
     await scheduler.stop()
