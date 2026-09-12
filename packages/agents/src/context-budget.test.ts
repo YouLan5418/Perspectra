@@ -9,7 +9,7 @@ import {
   type InteractionBlock,
 } from '@harness-world/contracts'
 import { CharacterContextBudgetPlanner } from './context-budget.ts'
-import type { CharacterContextAssembly, CharacterContextRequest } from './context-v2.ts'
+import type { CharacterContextAssembly, CharacterContextRequest, ContextDigestEntry } from './context-v2.ts'
 import type { RenderedProviderRequest } from './provider-request.ts'
 
 function source(seq: number, id: string): ContextSourceRef {
@@ -95,9 +95,9 @@ describe('CharacterContextBudgetPlanner', () => {
     new CharacterContextBudgetPlanner(fake.assemble, fake.render).plan(request('standard', 4, 5))
     expect(fake.assembled).toEqual([
       undefined,
-      { recallItems: 1, tailBlocks: 0 },
-      { recallItems: 2, tailBlocks: 0 },
-      { recallItems: 3, tailBlocks: 0 },
+      { digestItems: 0, recallItems: 1, tailBlocks: 0 },
+      { digestItems: 0, recallItems: 2, tailBlocks: 0 },
+      { digestItems: 0, recallItems: 3, tailBlocks: 0 },
     ])
   })
 
@@ -106,10 +106,10 @@ describe('CharacterContextBudgetPlanner', () => {
     new CharacterContextBudgetPlanner(fake.assemble, fake.render).plan(request('standard', 2, 5))
     expect(fake.assembled).toEqual([
       undefined,
-      { recallItems: 1, tailBlocks: 0 },
-      { recallItems: 2, tailBlocks: 0 },
-      { recallItems: 2, tailBlocks: 1 },
-      { recallItems: 2, tailBlocks: 2 },
+      { digestItems: 0, recallItems: 1, tailBlocks: 0 },
+      { digestItems: 0, recallItems: 2, tailBlocks: 0 },
+      { digestItems: 0, recallItems: 2, tailBlocks: 1 },
+      { digestItems: 0, recallItems: 2, tailBlocks: 2 },
     ])
   })
 
@@ -119,7 +119,24 @@ describe('CharacterContextBudgetPlanner', () => {
       .toThrow('Exact Provider request exceeds')
     // compact keeps at most 6 Recall entries and 4 Tail blocks, and the final attempt rethrows.
     expect(fake.assembled).toHaveLength(11)
-    expect(fake.assembled.at(-1)).toEqual({ recallItems: 6, tailBlocks: 4 })
+    expect(fake.assembled.at(-1)).toEqual({ digestItems: 0, recallItems: 6, tailBlocks: 4 })
+  })
+
+  it('gives up the earliest Rounds of the digest before any Recall entry', () => {
+    const fake = rendererFittingAt(3)
+    const base = request('standard', 4, 3)
+    const digest: ContextDigestEntry[] = [1, 3, 5].map((seq, index) => ({
+      summaryId: `memory-l1-summary/v1:${index}`, sourceStartSeq: seq, sourceEndSeq: seq + 1,
+      summaryHash: hashWorldJson('digest-entry', index), text: `过去的第${index}段经历`, sourceRefs: [],
+    }))
+    new CharacterContextBudgetPlanner(fake.assemble, fake.render).plan({ ...base, digest })
+    // The digest is the furthest-back content, so it is the first thing the frozen priority gives up.
+    expect(fake.assembled).toEqual([
+      undefined,
+      { digestItems: 1, recallItems: 0, tailBlocks: 0 },
+      { digestItems: 2, recallItems: 0, tailBlocks: 0 },
+      { digestItems: 3, recallItems: 0, tailBlocks: 0 },
+    ])
   })
 
   it('propagates a failure that no Tier 3/4 drop can resolve', () => {

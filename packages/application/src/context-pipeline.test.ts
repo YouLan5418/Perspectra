@@ -8,6 +8,7 @@ import {
   brandId,
   hashWorldJson,
   type AgentProvider,
+  type CharacterId,
   type ProposalContext,
   type ReactionProposalContext,
 } from '@harness-world/contracts'
@@ -145,6 +146,43 @@ function oversizedWorld(): CompiledWorldSpec {
   return compiled(`Will the rain stop? ${'rain '.repeat(7000)}`)
 }
 
+/** Commit one Round with a Tick event and a visible Memory for Alice, so the digest has Rounds to group. */
+function commitDigestRound(
+  value: ReturnType<typeof fixture>,
+  alice: CharacterId,
+  round: number,
+  text: string,
+): void {
+  const address = value.spec.manifest.address
+  const head = value.store.head(address)
+  value.store.commitRound({
+    address, transactionId: brandId(`transaction:digest:${round}`, 'TransactionId'),
+    roundId: brandId(`round:digest:${round}`, 'InteractionRoundId'),
+    expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
+    events: [
+      { eventType: 'observation.upsert', eventVersion: 1, data: {
+        id: `observation:alice:digest:${round}`, value: { observerId: alice, content: text },
+      } },
+      { eventType: 'world.tick-advanced', eventVersion: 1,
+        data: { tick: round, roundId: `round:digest:${round}` } },
+    ],
+    outbox: [], cognitiveJobs: [{ characterId: alice }], correlationId: `digest:${round}`,
+  })
+}
+
+/** The continuity segment of the Context a participant actually received. */
+function continuitySegment(prepared: ReturnType<Phase8ContextPipeline['prepare']>): {
+  readonly digest: readonly { readonly text: string }[]
+} {
+  const message = prepared.providerContext.exactProviderRequest.messages[4]!
+  const segment = JSON.parse(message.content) as {
+    readonly segmentKind: string
+    readonly content: { readonly digest: readonly { readonly text: string }[] }
+  }
+  expect(segment.segmentKind).toBe('continuity_checkpoint')
+  return segment.content
+}
+
 describe('Phase8ContextPipeline', () => {
   it('prepares a character through Memory, Checkpoint, Renderer and durable Receipt, then rebuilds identically', () => {
     const value = fixture()
@@ -204,7 +242,7 @@ describe('Phase8ContextPipeline', () => {
       )
       const checkpoint = segmentOf(prepared, 4)
       expect(checkpoint.segmentKind).toBe('continuity_checkpoint')
-      baselines.push(checkpoint.content.asOfWorldSeq as number)
+      baselines.push((checkpoint.content.checkpoint as { readonly asOfWorldSeq: number }).asOfWorldSeq)
       const tail = segmentOf(prepared, 5)
       expect(tail.segmentKind).toBe('recent_interaction_tail')
       tailSizes.push((tail.content.blocks as readonly unknown[]).length)
@@ -216,6 +254,54 @@ describe('Phase8ContextPipeline', () => {
     expect(baselines.at(-1)!).toBeGreaterThan(baselines[0]!)
     expect(tailSizes.at(-1)).toBe(4)
     expect(tailSizes.every(size => size <= 4)).toBe(true)
+    pipeline.close()
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
+  })
+
+  it('carries Rounds the Tail no longer holds into the continuity digest', () => {
+    const value = fixture()
+    const pipeline = new Phase8ContextPipeline(value.options)
+    const address = value.spec.manifest.address
+    const alice = brandId('character:alice', 'CharacterId')
+    for (let round = 1; round <= 12; round += 1) {
+      commitDigestRound(value, alice, round, `第${round}轮他说过一句要紧的话`)
+    }
+    const asOf = value.store.head(address).headSeq
+    const context = { ...proposal(value.spec), roundId: brandId('round:digest:last', 'InteractionRoundId') }
+    const decision = new SceneDecisionService(value.store, value.availability, 2)
+      .decide(address, context.playerAction.actorId, asOf)
+    const prepared = pipeline.prepare(
+      participant(), context, value.store.readEvents(address), decision, decision.asOfSeq, () => undefined,
+    )
+    // The compact Profile keeps four Tail blocks, so the earliest Rounds reach the model as digest text.
+    const digest = continuitySegment(prepared).digest
+    expect(digest.length).toBeGreaterThan(0)
+    expect(digest.map(entry => entry.text).join('\n')).toContain('第1轮他说过一句要紧的话')
+    pipeline.close()
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
+  })
+
+  it('stops taking digest groups once the profile byte budget is spent', () => {
+    const value = fixture()
+    const pipeline = new Phase8ContextPipeline(value.options)
+    const address = value.spec.manifest.address
+    const alice = brandId('character:alice', 'CharacterId')
+    // One group of four Rounds already exceeds the compact Profile's digest share of its request budget.
+    const long = '雨一直在下，路上看不见人。'.repeat(100)
+    for (let round = 1; round <= 12; round += 1) commitDigestRound(value, alice, round, long)
+    const asOf = value.store.head(address).headSeq
+    const context = { ...proposal(value.spec), roundId: brandId('round:digest:long', 'InteractionRoundId') }
+    const decision = new SceneDecisionService(value.store, value.availability, 2)
+      .decide(address, context.playerAction.actorId, asOf)
+    const prepared = pipeline.prepare(
+      participant(), context, value.store.readEvents(address), decision, decision.asOfSeq, () => undefined,
+    )
+    // A Summary is taken whole or not at all, so a group that does not fit is not truncated into the Context.
+    expect(continuitySegment(prepared).digest).toHaveLength(0)
     pipeline.close()
     value.memory.close()
     value.availability.close()

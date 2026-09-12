@@ -15,16 +15,23 @@ function isProviderBudgetExceeded(error: unknown): boolean {
 }
 
 /**
- * Split a total drop count into the Tier 4 Recall drops and the Tier 3 whole-block Tail drops that the frozen
- * trim priority prescribes: long-term Recall is given up before recent Interaction history.
+ * Split a total drop count into the drops the frozen trim priority prescribes. Tier 4 content goes first,
+ * and within it the earliest history goes before the most recent: the long-term digest covers the Rounds
+ * furthest back, then long-term Recall, and only then whole recent Interaction Tail blocks, which are Tier 3.
  */
 function splitBudgetTrim(
   dropped: number,
+  digestItems: number,
   recallItems: number,
   tailBlocks: number,
-): { readonly recallItems: number; readonly tailBlocks: number } {
-  const recallDrops = Math.min(dropped, recallItems)
-  return { recallItems: recallDrops, tailBlocks: Math.min(dropped - recallDrops, tailBlocks) }
+): { readonly digestItems: number; readonly recallItems: number; readonly tailBlocks: number } {
+  const digestDrops = Math.min(dropped, digestItems)
+  const recallDrops = Math.min(dropped - digestDrops, recallItems)
+  return {
+    digestItems: digestDrops,
+    recallItems: recallDrops,
+    tailBlocks: Math.min(dropped - digestDrops - recallDrops, tailBlocks),
+  }
 }
 
 /**
@@ -43,13 +50,14 @@ export class CharacterContextBudgetPlanner {
 
   plan(request: CharacterContextRequest): BudgetedCharacterContext {
     const selectedProfile = contextProfile(request.contextProfileId)
+    const digestItems = request.digest?.length ?? 0
     const recallItems = Math.min(request.recall.memories.length, selectedProfile.recallResults)
     const tailBlocks = Math.min(request.tail.blocks.length, selectedProfile.recentInteractionBlocks)
-    const maximumDrops = recallItems + tailBlocks
+    const maximumDrops = digestItems + recallItems + tailBlocks
     for (let dropped = 0; ; dropped += 1) {
       const assembly = this.assemble(dropped === 0
         ? request
-        : { ...request, budgetTrim: splitBudgetTrim(dropped, recallItems, tailBlocks) })
+        : { ...request, budgetTrim: splitBudgetTrim(dropped, digestItems, recallItems, tailBlocks) })
       try {
         return { assembly, rendered: this.render(assembly.bundle) }
       } catch (error: unknown) {

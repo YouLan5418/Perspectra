@@ -10,6 +10,7 @@ import {
   createProviderToolSchema,
   type CharacterSceneContext,
   type ContextAffordance,
+  type ContextDigestEntry,
   type CreateContextReceiptRequest,
   type ExactProviderRequest,
   type ProviderModelProfile,
@@ -175,6 +176,13 @@ function contextAffordance(value: { readonly actionType: string; readonly action
 }
 
 const compareText = compareWorldText
+
+/**
+ * The share of a Context Profile's request budget the long-term digest may take. The digest is Tier 4
+ * content, so it is bounded rather than given whatever fits: identity, scene, stimulus and affordances
+ * come first in the frozen trim priority, and a digest that ate their room would starve the Round.
+ */
+const DIGEST_BUDGET_DIVISOR = 8
 
 function defaultModelProfile(): ProviderModelProfile {
   return {
@@ -397,7 +405,12 @@ export class Phase8ContextPipeline {
     characterId: CharacterId,
     asOfWorldSeq: number,
     maximumBlocks: number,
-  ): { readonly checkpoint: CharacterContinuityCheckpoint; readonly tail: InteractionTail } {
+    maximumDigestBytes: number,
+  ): {
+    readonly checkpoint: CharacterContinuityCheckpoint
+    readonly tail: InteractionTail
+    readonly digest: readonly ContextDigestEntry[]
+  } {
     const existing = this.#checkpoints.latestAt(address, characterId, asOfWorldSeq)
     const floor = existing?.sourceEndSeq ?? asOfWorldSeq
     const rolling = this.#tails.rebuildRolling(address, characterId, floor, asOfWorldSeq, maximumBlocks)
@@ -406,7 +419,39 @@ export class Phase8ContextPipeline {
         ? existing
         : this.#checkpoints.rebuildAt(address, characterId, rolling.floor),
       tail: rolling.tail,
+      digest: this.#digest(address, characterId, rolling.floor, maximumDigestBytes),
     }
+  }
+
+  /**
+   * The L1 Summaries covering Rounds the Tail no longer carries, newest kept first when the byte budget
+   * runs out. A Summary is taken whole or not at all — a half Summary would be a second, shorter account
+   * of the same Rounds. The text is the Summary's own; nothing here re-derives or rewrites it.
+   */
+  #digest(
+    address: ProposalContext['address'],
+    characterId: CharacterId,
+    tailFloor: number,
+    maximumBytes: number,
+  ): readonly ContextDigestEntry[] {
+    const summaries = this.options.memory.summaries(address, characterId)
+      .filter(summary => summary.sourceEndSeq <= tailFloor)
+      .sort((left, right) => left.sourceStartSeq - right.sourceStartSeq)
+    const selected: ContextDigestEntry[] = []
+    let bytes = 0
+    for (let index = summaries.length - 1; index >= 0; index -= 1) {
+      const summary = summaries[index]!
+      const text = summary.extracts.join('\n')
+      const size = Buffer.byteLength(text, 'utf8')
+      if (bytes + size > maximumBytes) break
+      bytes += size
+      selected.unshift({
+        summaryId: summary.summaryId, sourceStartSeq: summary.sourceStartSeq,
+        sourceEndSeq: summary.sourceEndSeq, summaryHash: summary.summaryHash,
+        text, sourceRefs: summary.sourceRefs,
+      })
+    }
+    return selected
   }
 
   #prepareCharacter(
@@ -436,8 +481,10 @@ export class Phase8ContextPipeline {
     }
     const selectedProfile = profileId(this.options.manifest, binding.actorId)
     const selectedProfileContract = PHASE8_CONTEXT_PROFILES.find(value => value.profileId === selectedProfile)!
-    const { checkpoint, tail } = this.#continuity(
-      context.address, binding.actorId, asOfWorldSeq, selectedProfileContract.recentInteractionBlocks,
+    const { checkpoint, tail, digest } = this.#continuity(
+      context.address, binding.actorId, asOfWorldSeq,
+      selectedProfileContract.recentInteractionBlocks,
+      Math.floor(selectedProfileContract.maximumRequestBytes / DIGEST_BUDGET_DIVISOR),
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,
@@ -463,8 +510,9 @@ export class Phase8ContextPipeline {
       contextProfileId: selectedProfile,
       worldPublicAnchor: { metadata: this.options.manifest.metadata, timeMode: this.options.manifest.timeMode },
       characterAnchor: character,
-      characterView: prepared.characterView, cognition, checkpoint, tail, sceneDecision: scene,
-      sceneSourceRefs: sceneRefs, recallPlan: prepared.recallPlan, recall: prepared.recall,
+      characterView: prepared.characterView, cognition, checkpoint, tail, digest,
+      sceneDecision: scene, sceneSourceRefs: sceneRefs,
+      recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', stimulus),
       affordances, affordanceHash,
       ...(manifestUsesActionGroups(this.options.manifest) ? { groupedOutput: {
@@ -515,8 +563,10 @@ export class Phase8ContextPipeline {
     }
     const selectedProfile = profileId(this.options.manifest, binding.actorId)
     const selectedProfileContract = PHASE8_CONTEXT_PROFILES.find(profile => profile.profileId === selectedProfile)!
-    const { checkpoint, tail } = this.#continuity(
-      context.address, binding.actorId, asOfWorldSeq, selectedProfileContract.recentInteractionBlocks,
+    const { checkpoint, tail, digest } = this.#continuity(
+      context.address, binding.actorId, asOfWorldSeq,
+      selectedProfileContract.recentInteractionBlocks,
+      Math.floor(selectedProfileContract.maximumRequestBytes / DIGEST_BUDGET_DIVISOR),
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,
@@ -546,8 +596,9 @@ export class Phase8ContextPipeline {
       contextProfileId: selectedProfile,
       worldPublicAnchor: { metadata: this.options.manifest.metadata, timeMode: this.options.manifest.timeMode },
       characterAnchor: character,
-      characterView: prepared.characterView, cognition, checkpoint, tail, sceneDecision: scene,
-      sceneSourceRefs: sceneSources(history, decision), recallPlan: prepared.recallPlan, recall: prepared.recall,
+      characterView: prepared.characterView, cognition, checkpoint, tail, digest,
+      sceneDecision: scene, sceneSourceRefs: sceneSources(history, decision),
+      recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus: context.stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', context.stimulus),
       stimulusSourceRefs, maximumExternalActions: manifestUsesActionGroups(this.options.manifest) ? 2 : 1,
       ...(manifestUsesActionGroups(this.options.manifest) ? { groupedOutput: {

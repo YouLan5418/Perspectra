@@ -30,6 +30,7 @@ import {
   selectInteractionTail,
   type CharacterContextRequest,
   type ContextAffordance,
+  type ContextDigestEntry,
 } from './context-v2.ts'
 
 const alice = brandId('character:alice', 'CharacterId')
@@ -119,6 +120,20 @@ function tail(blockCount = 2, afterSeq = 0, asOfWorldSeq = 20): InteractionTail 
   const blocks = Array.from({ length: blockCount }, (_, index) => block(index))
   const base = { schemaVersion: 'interaction-tail/v1' as const, address, characterId: alice, afterSeq, asOfWorldSeq, blocks }
   return { ...base, tailHash: hashInteractionTail(base) }
+}
+
+/** One L1 Summary as the Context receives it: its identity, the range it covers, and the text to show. */
+function digestEntry(
+  sourceStartSeq: number,
+  sourceEndSeq: number,
+  text: string,
+  sourceRefs: readonly ContextSourceRef[],
+): ContextDigestEntry {
+  return {
+    summaryId: `memory-l1-summary/v1:${sourceStartSeq}`, sourceStartSeq, sourceEndSeq,
+    summaryHash: hashWorldJson('memory-l1-summary-entry', { sourceStartSeq, sourceEndSeq, text }),
+    text, sourceRefs,
+  }
 }
 
 function memory(index: number): CognitiveMemoryEntry {
@@ -296,7 +311,9 @@ describe('CharacterContextAssembler v2', () => {
     const recalled = recall(8)
     const input = request({ tail: tail(6), recallPlan: recalled.plan, recall: recalled.result })
     const omitted = assembler.assembleDetailed(input)
-    const zeroed = assembler.assembleDetailed({ ...input, budgetTrim: { tailBlocks: 0, recallItems: 0 } })
+    const zeroed = assembler.assembleDetailed({
+      ...input, budgetTrim: { tailBlocks: 0, recallItems: 0, digestItems: 0 },
+    })
     expect(zeroed.bundle.contextHash).toBe(omitted.bundle.contextHash)
     expect(zeroed.componentHashes).toEqual(omitted.componentHashes)
     expect(zeroed.includedSourceRefs).toEqual(omitted.includedSourceRefs)
@@ -311,7 +328,9 @@ describe('CharacterContextAssembler v2', () => {
     expect(atCapacity.exclusions.map(value => value.reason)).toEqual([
       'profile_capacity', 'profile_capacity', 'profile_capacity', 'profile_capacity',
     ])
-    const trimmed = assembler.assembleDetailed({ ...input, budgetTrim: { tailBlocks: 1, recallItems: 2 } })
+    const trimmed = assembler.assembleDetailed({
+      ...input, budgetTrim: { tailBlocks: 1, recallItems: 2, digestItems: 0 },
+    })
     expect(trimmed.exclusions.filter(value => value.reason === 'profile_capacity')).toHaveLength(4)
     expect(trimmed.exclusions.filter(value => value.reason === 'budget_trimmed')).toHaveLength(3)
     expect(trimmed.includedSourceRefs.length).toBeLessThan(atCapacity.includedSourceRefs.length)
@@ -323,12 +342,70 @@ describe('CharacterContextAssembler v2', () => {
     ])
   })
 
+  it('carries the long-term digest inside the continuity segment and counts its sources', () => {
+    const assembler = new CharacterContextAssembler()
+    const digest = [digestEntry(3, 5, '第 1 轮 ｜ 备用钥匙放在花盆下',
+      [source(3, 'event:digest:first'), source(4, 'event:digest:second')]),
+    digestEntry(6, 8, '第 5 轮 ｜ 车票在包里', [source(7, 'event:digest:third')])]
+    const withDigest = assembler.assembleDetailed(request({
+      checkpoint: checkpoint(10), tail: tail(2, 10), digest,
+    }))
+    const without = assembler.assembleDetailed(request({ checkpoint: checkpoint(10), tail: tail(2, 10) }))
+    const segment = withDigest.bundle.segments.find(value => value.segmentKind === 'continuity_checkpoint')!
+    const content = segment.content as { readonly digest: readonly { readonly text: string }[] }
+    expect(content.digest.map(entry => entry.text)).toEqual([
+      '第 1 轮 ｜ 备用钥匙放在花盆下', '第 5 轮 ｜ 车票在包里',
+    ])
+    // The Rounds it draws on join the audited source set, and the Context Hash covers the text.
+    expect(withDigest.includedSourceRefs.some(ref => ref.sourceId === 'event:digest:first')).toBe(true)
+    expect(without.includedSourceRefs.some(ref => ref.sourceId === 'event:digest:first')).toBe(false)
+    expect(withDigest.bundle.contextHash).not.toBe(without.bundle.contextHash)
+  })
+
+  it('refuses a digest that overlaps the Tail or is out of source order', () => {
+    const assembler = new CharacterContextAssembler()
+    const refused = 'Context digest overlaps the Interaction Tail or is out of source order'
+    // A digest may only carry Rounds the Tail does not, so nothing may reach past the Tail floor.
+    expect(() => assembler.assembleDetailed(request({
+      checkpoint: checkpoint(10), tail: tail(2, 10), digest: [digestEntry(9, 11, '越过尾巴', [])],
+    }))).toThrow(refused)
+    // Entries arrive oldest first, and a range that runs backwards is not a range.
+    expect(() => assembler.assembleDetailed(request({
+      checkpoint: checkpoint(10), tail: tail(2, 10),
+      digest: [digestEntry(6, 7, '较新', []), digestEntry(3, 4, '较旧', [])],
+    }))).toThrow(refused)
+    expect(() => assembler.assembleDetailed(request({
+      checkpoint: checkpoint(10), tail: tail(2, 10), digest: [digestEntry(6, 5, '倒序', [])],
+    }))).toThrow(refused)
+  })
+
+  it('gives up the earliest digest groups first and records every source they covered', () => {
+    const assembler = new CharacterContextAssembler()
+    const digest = [digestEntry(3, 5, '第 1 轮 ｜ 备用钥匙放在花盆下',
+      [source(3, 'event:digest:first'), source(4, 'event:digest:second')]),
+    digestEntry(6, 8, '第 5 轮 ｜ 车票在包里', [source(7, 'event:digest:third')])]
+    const input = request({ checkpoint: checkpoint(10), tail: tail(2, 10), digest })
+    const trimmed = assembler.assembleDetailed({
+      ...input, budgetTrim: { tailBlocks: 0, recallItems: 0, digestItems: 1 },
+    })
+    const segment = trimmed.bundle.segments.find(value => value.segmentKind === 'continuity_checkpoint')!
+    const content = segment.content as { readonly digest: readonly { readonly text: string }[] }
+    // The earliest group goes, the newest stays, and both of its sources stay auditable.
+    expect(content.digest.map(entry => entry.text)).toEqual(['第 5 轮 ｜ 车票在包里'])
+    expect(trimmed.exclusions.filter(value => value.reason === 'budget_trimmed')).toHaveLength(2)
+  })
+
   it('rejects a malformed budget trim before selecting any segment', () => {
     const assembler = new CharacterContextAssembler()
-    expect(() => assembler.assembleDetailed(request({ budgetTrim: { tailBlocks: -1, recallItems: 0 } })))
-      .toThrow('Context budget trim requires non-negative safe integers')
-    expect(() => assembler.assembleDetailed(request({ budgetTrim: { tailBlocks: 0, recallItems: 1.5 } })))
-      .toThrow('Context budget trim requires non-negative safe integers')
+    expect(() => assembler.assembleDetailed(request({
+      budgetTrim: { tailBlocks: -1, recallItems: 0, digestItems: 0 },
+    }))).toThrow('Context budget trim requires non-negative safe integers')
+    expect(() => assembler.assembleDetailed(request({
+      budgetTrim: { tailBlocks: 0, recallItems: 1.5, digestItems: 0 },
+    }))).toThrow('Context budget trim requires non-negative safe integers')
+    expect(() => assembler.assembleDetailed(request({
+      budgetTrim: { tailBlocks: 0, recallItems: 0, digestItems: 0.5 },
+    }))).toThrow('Context budget trim requires non-negative safe integers')
   })
 
   it('selects an empty Tail when a profile reserves zero recent blocks', () => {

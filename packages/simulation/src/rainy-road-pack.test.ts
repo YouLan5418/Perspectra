@@ -244,11 +244,14 @@ describe('Phase 8 rainy-road acceptance Pack source', () => {
       expect(JSON.stringify(evidence.contexts.get('agent:bob')?.[0])).toContain('late_because_helped_injured_stranger')
       const aliceContexts = evidence.contexts.get('agent:alice')!
       const bobContexts = evidence.contexts.get('agent:bob')!
-      expect(commonMessagePrefix(aliceContexts[0]!, aliceContexts[1]!)).toBe(5)
-      expect(commonMessagePrefix(bobContexts[0]!, bobContexts[1]!)).toBe(5)
+      // The reusable cache prefix is the four segments before the Continuity baseline: Host protocol,
+      // controller contract, world anchor and character anchor. The baseline now advances with the Tail
+      // window, so it is no longer stable across Rounds and cannot sit inside a cached prefix.
+      expect(commonMessagePrefix(aliceContexts[0]!, aliceContexts[1]!)).toBe(4)
+      expect(commonMessagePrefix(bobContexts[0]!, bobContexts[1]!)).toBe(4)
       expect(commonMessagePrefix(aliceContexts[0]!, bobContexts[0]!)).toBe(3)
-      expect(providerMessages(aliceContexts[0]!)[4]).toBe(providerMessages(aliceContexts[5]!)[4])
-      expect(providerMessages(aliceContexts[0]!)[5]).not.toBe(providerMessages(aliceContexts[5]!)[5])
+      expect(providerMessages(aliceContexts[0]!)[3]).toBe(providerMessages(aliceContexts[5]!)[3])
+      expect(providerMessages(aliceContexts[0]!)[4]).not.toBe(providerMessages(aliceContexts[5]!)[4])
 
       const callsBeforeReplay = new Map(evidence.calls)
       expect(await submit(1, {

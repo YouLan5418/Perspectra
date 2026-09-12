@@ -216,15 +216,17 @@ try {
     observationBytes: tailTexts.reduce((sum, text) => sum + Buffer.byteLength(text), 0),
   })
 
-  // 3. How far the Continuity Checkpoint's summary references reach, and what else it holds.
+  // 3. What the Continuity segment holds: the baseline, the Summaries it names, and the digest text.
   const checkpoint = segmentOf(finalContext, 'continuity_checkpoint')
-  const checkpointContent = checkpoint === undefined ? undefined : object(checkpoint.content)
+  const checkpointSegment = checkpoint === undefined ? undefined : object(checkpoint.content)
+  const checkpointContent = checkpointSegment === undefined ? undefined : object(checkpointSegment.checkpoint)
   const summaryRefs = (checkpointContent?.summaryRefs ?? []) as readonly unknown[]
   const refRanges = summaryRefs.map(ref => {
     const value = object(ref)
     return { start: Number(value.sourceStartSeq), end: Number(value.sourceEndSeq) }
   })
   const activeCognition = (checkpointContent?.activeCognition ?? []) as readonly unknown[]
+  const digest = (checkpointSegment?.digest ?? []) as readonly { readonly text: string }[]
   emit({
     stage: 'checkpoint',
     asOfWorldSeq: checkpointContent?.asOfWorldSeq ?? null,
@@ -236,8 +238,12 @@ try {
       ? null
       : { first: Math.min(...refRanges.map(range => range.start)), last: Math.max(...refRanges.map(range => range.end)) },
     activeCognition: activeCognition.length,
-    // Every reference carries identity, range and Hash. None of them carries the extracts text.
+    // Every reference carries identity, range and Hash; only the digest carries text to the model.
     textKeys: [...new Set(summaryRefs.flatMap(ref => Object.keys(object(ref))))].sort(),
+    // This is what the model can actually read about Rounds the Tail no longer holds.
+    digestEntries: digest.length,
+    digestBytes: digest.reduce((sum, entry) => sum + Buffer.byteLength(entry.text), 0),
+    digestCarriesMarker: digest.some(entry => entry.text.includes(MARKER)),
     bytes: checkpoint === undefined ? 0 : Buffer.byteLength(JSON.stringify(checkpoint.content)),
   })
 

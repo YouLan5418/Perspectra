@@ -38,6 +38,20 @@ export interface ContextAffordance extends WorldJsonObject {
   readonly actionVersion: number
 }
 
+/**
+ * One group of committed Rounds as the Context hands it to a model: the Summary's identity, the range it
+ * covers, and its text. The text is the L1 Summary's own, never a re-derivation, so this stays the only
+ * account of those Rounds and the Context layer can verify the identity it came with.
+ */
+export interface ContextDigestEntry extends WorldJsonObject {
+  readonly summaryId: string
+  readonly sourceStartSeq: number
+  readonly sourceEndSeq: number
+  readonly summaryHash: WorldHash
+  readonly text: string
+  readonly sourceRefs: readonly ContextSourceRef[]
+}
+
 export interface CharacterSceneContext extends WorldJsonObject {
   readonly schemaVersion: 'scene-decision/v2'
   readonly sceneId: string | null
@@ -81,12 +95,20 @@ export interface CharacterContextRequest {
   readonly affordanceHash: WorldHash
   readonly runtimeAvailability: RuntimeAvailabilityState
   /**
+   * Long-term digest: the L1 Summaries covering Rounds the recent Tail no longer carries. Entries arrive
+   * oldest first and are given up from the front when a request has to shrink, because the newest Rounds
+   * are the ones a character is most likely to need back.
+   */
+  readonly digest?: readonly ContextDigestEntry[]
+  /**
    * Extra Tier 3/4 drops applied on top of the Context Profile so the rendered request fits the Model Profile
-   * budget. Recall is trimmed before Interaction Tail blocks, and only whole Tail blocks are ever dropped.
+   * budget. Recall and digest are trimmed before Interaction Tail blocks, and only whole Tail blocks are
+   * ever dropped. The digest is the earliest content, so it is given up first.
    */
   readonly budgetTrim?: {
     readonly tailBlocks: number
     readonly recallItems: number
+    readonly digestItems: number
   }
   readonly correlationId: string
 }
@@ -192,6 +214,34 @@ function memoryExclusions(
   reason: ContextExclusionReason,
 ): ContextExclusion[] {
   return memories.map(memory => ({ reason, sourceRefHash: sourceHash(memory.sourceRef) }))
+}
+
+/** Record every source a dropped digest entry covered, so giving up a whole group stays auditable. */
+function digestExclusions(
+  entries: readonly ContextDigestEntry[],
+  reason: ContextExclusionReason,
+): ContextExclusion[] {
+  return entries.flatMap(entry => entry.sourceRefs.map(sourceRef => ({
+    reason, sourceRefHash: sourceHash(sourceRef),
+  })))
+}
+
+/**
+ * A digest carries only what the Tail does not, so every entry has to end at or before the Tail floor and
+ * the entries have to arrive oldest first. Naming a Round the Tail already carries would state the same
+ * Rounds twice, which is the one thing this channel must not do.
+ */
+function assertDigest(request: CharacterContextRequest, digest: readonly ContextDigestEntry[]): void {
+  const ordered = digest.every((entry, index) =>
+    index === 0 || digest[index - 1]!.sourceEndSeq <= entry.sourceStartSeq)
+  if (!ordered || digest.some(entry =>
+    entry.sourceEndSeq > request.tail.afterSeq || entry.sourceStartSeq > entry.sourceEndSeq)) {
+    failWorld({
+      errorCode: 'CONTEXT_SOURCE_UNVERIFIED', category: 'integrity',
+      message: 'Context digest overlaps the Interaction Tail or is out of source order', retryable: false,
+      correlationId: request.correlationId, address: request.address, roundId: request.roundId,
+    })
+  }
 }
 
 function cognitionEntries(cognition: CharacterCognitionView) {
@@ -395,9 +445,12 @@ export class CharacterContextAssembler {
       throw new TypeError('Context affordances must be unique')
     }
     assertComponentHashes(request, affordances)
-    const budgetTrim = request.budgetTrim ?? { tailBlocks: 0, recallItems: 0 }
+    const digest = request.digest ?? []
+    assertDigest(request, digest)
+    const budgetTrim = request.budgetTrim ?? { tailBlocks: 0, recallItems: 0, digestItems: 0 }
     if (!Number.isSafeInteger(budgetTrim.tailBlocks) || budgetTrim.tailBlocks < 0
-      || !Number.isSafeInteger(budgetTrim.recallItems) || budgetTrim.recallItems < 0) {
+      || !Number.isSafeInteger(budgetTrim.recallItems) || budgetTrim.recallItems < 0
+      || !Number.isSafeInteger(budgetTrim.digestItems) || budgetTrim.digestItems < 0) {
       throw new RangeError('Context budget trim requires non-negative safe integers')
     }
     const profileTail = selectInteractionTail(request.tail, selectedProfile.recentInteractionBlocks)
@@ -408,12 +461,16 @@ export class CharacterContextAssembler {
     const selectedMemories = profileMemories.slice(
       0, Math.max(0, profileMemories.length - budgetTrim.recallItems),
     )
+    // The earliest Rounds are the first to go, because the newest are the ones a character is likeliest to need.
+    const droppedDigest = digest.slice(0, Math.min(budgetTrim.digestItems, digest.length))
+    const selectedDigest = digest.slice(droppedDigest.length)
     const checkpointSources = request.checkpoint?.activeCognition.map(entry => entry.sourceRef) ?? []
     const selfSources = activeCognition.map(record => record.sourceRef)
     const recallSources = selectedMemories.map(memory => memory.sourceRef)
     const allSources = sortedUniqueSources([
       ...checkpointSources, ...sourcesOfTail(selectedTail), ...selfSources,
       ...request.sceneSourceRefs, ...recallSources,
+      ...selectedDigest.flatMap(entry => entry.sourceRefs),
     ])
     assertSourceScope(request, allSources)
     const consciousState = activeCognition.filter(record => (record.value as WorldJsonObject).awareness !== 'unrecognized')
@@ -450,7 +507,13 @@ export class CharacterContextAssembler {
       ['controller_contract', CONTROLLER_CONTRACT, []],
       ['world_public_anchor', safeValue(request.worldPublicAnchor), [manifestSource]],
       ['character_anchor', safeValue(request.characterAnchor), [manifestSource]],
-      ['continuity_checkpoint', safeValue(request.checkpoint), checkpointSources],
+      ['continuity_checkpoint', {
+        checkpoint: safeValue(request.checkpoint),
+        digest: selectedDigest.map(entry => ({
+          summaryId: entry.summaryId, sourceStartSeq: entry.sourceStartSeq,
+          sourceEndSeq: entry.sourceEndSeq, summaryHash: entry.summaryHash, text: entry.text,
+        })),
+      }, [...checkpointSources, ...selectedDigest.flatMap(entry => entry.sourceRefs)]],
       ['recent_interaction_tail', safeValue(selectedTail), sourcesOfTail(selectedTail)],
       ['current_self_state', {
         lifecycleState: request.characterView.lifecycleState,
@@ -498,6 +561,7 @@ export class CharacterContextAssembler {
       ),
       ...memoryExclusions(request.recall.memories.slice(profileMemories.length), 'profile_capacity'),
       ...memoryExclusions(profileMemories.slice(selectedMemories.length), 'budget_trimmed'),
+      ...digestExclusions(droppedDigest, 'budget_trimmed'),
     ]
     return {
       bundle,
