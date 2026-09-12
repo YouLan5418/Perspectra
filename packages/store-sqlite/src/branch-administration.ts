@@ -85,8 +85,10 @@ export class BranchAdministration {
         SELECT 1 AS present FROM writer_leases WHERE address_key = ? AND expires_at_ms > ?
       `).get(key, now)
       const unfinishedRound = this.#db.prepare(`
-        SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed') LIMIT 1
-      `).get(key)
+        SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed')
+        UNION ALL SELECT 1 FROM player_input_jobs WHERE address_key = ?
+          AND status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued') LIMIT 1
+      `).get(key, key)
       const openCycle = openReactionCycleId(this.#db, address)
       const criticalInflight = this.#db.prepare(`
         SELECT 1 FROM outbox WHERE address_key = ? AND critical = 1 AND delivery_status = 'inflight' LIMIT 1
@@ -228,8 +230,10 @@ export class BranchAdministration {
       SELECT 1 AS present FROM writer_leases WHERE address_key = ? AND expires_at_ms > ?
     `).get(addressKey, operationalTimeMs)
     const unfinishedRound = this.#db.prepare(`
-      SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed') LIMIT 1
-    `).get(addressKey)
+      SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed')
+      UNION ALL SELECT 1 FROM player_input_jobs WHERE address_key = ?
+        AND status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued') LIMIT 1
+    `).get(addressKey, addressKey)
     const unresolvedCriticalDelivery = this.#db.prepare(`
       SELECT 1 AS present FROM outbox
       WHERE address_key = ? AND critical = 1 AND delivery_status <> 'delivered' LIMIT 1

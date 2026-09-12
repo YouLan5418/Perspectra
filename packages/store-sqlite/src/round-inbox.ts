@@ -16,8 +16,10 @@ import {
 import { openWorldDatabase } from './world-store.ts'
 import { requestReactionCycleStopInTransaction } from './reaction-cycle.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
+import { PLAYER_INPUT_TRANSITIONS, readPlayerInputRow, type PlayerInputJob, type PlayerInputRow } from './player-input-jobs.ts'
 
 export interface EnqueueRoundRequest {
+  readonly playerInputId?: string
   readonly address: WorldAddress
   readonly idempotencyKey: string
   readonly principalId: string
@@ -96,6 +98,12 @@ function boundBundleHash(result: WorldJsonValue): WorldHash | undefined {
 export class RoundInbox {
   readonly #db: DatabaseSync
 
+  readPlayerInput(address: WorldAddress, key: string): PlayerInputJob | undefined {
+    const row = this.#db.prepare('SELECT * FROM player_input_jobs WHERE address_key = ? AND idempotency_key = ?')
+      .get(worldAddressKey(address), key) as PlayerInputRow | undefined
+    return row === undefined ? undefined : readPlayerInputRow(row)
+  }
+
   constructor(
     path: string,
     private readonly now: () => number = Date.now,
@@ -134,7 +142,17 @@ export class RoundInbox {
         }
       }
       this.#assertNotQuarantined(request.address, key, request.correlationId)
-      this.#assertAdmissionOpen(request.address, key, request.correlationId)
+      const pendingInput = (this.#db.prepare('SELECT * FROM player_input_jobs WHERE address_key = ? ORDER BY input_seq').all(key) as unknown as PlayerInputRow[])
+        .map(readPlayerInputRow).find(job => PLAYER_INPUT_TRANSITIONS[job.status].length > 0)
+      if (pendingInput !== undefined && (pendingInput.inputId !== request.playerInputId || pendingInput.status !== 'validated')) {
+        failWorld({ errorCode: 'BRANCH_DRAINING', category: 'admission', retryable: true, address: request.address,
+          correlationId: request.correlationId, message: 'earlier player input must reach a terminal or validated state before Round admission' })
+      }
+      const acceptedInput = pendingInput !== undefined && pendingInput.inputId === request.playerInputId
+        && pendingInput.idempotencyKey === request.idempotencyKey && pendingInput.principalId === request.principalId
+        && hashWorldJson('player-input-round-binding', request.input) === hashWorldJson('player-input-round-binding', { playerInputId: pendingInput.inputId })
+      if (request.playerInputId !== undefined && !acceptedInput) throw new TypeError('invalid durable player input binding')
+      this.#assertAdmissionOpen(request.address, key, request.correlationId, acceptedInput)
       const queued = this.#db.prepare(`
         SELECT COUNT(*) AS count FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed')
       `).get(key) as { count: number }
@@ -438,7 +456,7 @@ export class RoundInbox {
     }
   }
 
-  #assertAdmissionOpen(address: WorldAddress, key: string, correlationId: string): void {
+  #assertAdmissionOpen(address: WorldAddress, key: string, correlationId: string, acceptedInput: boolean): void {
     const control = this.#db.prepare(`
       SELECT admission_state, lifecycle_state FROM branch_controls WHERE address_key = ?
     `).get(key) as {
@@ -446,7 +464,7 @@ export class RoundInbox {
       lifecycle_state: 'active' | 'archived'
     } | undefined
     if (control === undefined) throw new Error(`unknown world branch ${key}`)
-    if (control.admission_state === 'open' && control.lifecycle_state === 'active') return
+    if ((control.admission_state === 'open' || acceptedInput) && control.lifecycle_state === 'active') return
     failWorld({
       errorCode: 'BRANCH_DRAINING',
       category: 'admin',

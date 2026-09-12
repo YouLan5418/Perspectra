@@ -29,6 +29,32 @@ function tables(db: DatabaseSync): string[] {
 }
 
 describe('Context database migration catalog', () => {
+  it('migrates legacy call identities without delimiter collisions or rewriting hashes', () => {
+    const path = database('legacy-calls.sqlite')
+    const db = openContextDatabase(path)
+    db.exec(`DROP INDEX provider_calls_work;
+      ALTER TABLE provider_calls DROP COLUMN purpose;
+      ALTER TABLE provider_calls DROP COLUMN work_id;
+      ALTER TABLE provider_calls DROP COLUMN request_json;
+      DROP TABLE player_intent_late_responses;
+      PRAGMA user_version = 5;`)
+    const insert = db.prepare(`INSERT INTO provider_calls(model_call_id,namespace_key,round_id,participant_id,
+      receipt_id,receipt_hash,controller_epoch,context_hash,provider_request_hash,state) VALUES (?,?,?,?,?,'receipt-hash',0,'context-hash','request-hash','prepared')`)
+    insert.run('call:1', 'namespace', 'round:a', 'b', 'receipt:1')
+    insert.run('call:2', 'namespace', 'round', 'a:b', 'receipt:2')
+    const original = db.prepare('SELECT * FROM provider_calls ORDER BY model_call_id').all()
+    db.close()
+    const migrated = openContextDatabase(path)
+    const rows = migrated.prepare('SELECT * FROM provider_calls ORDER BY model_call_id').all()
+    expect(rows.map(({ purpose, work_id, request_json, ...row }) => {
+      expect(purpose).toBe('round_participant')
+      expect(work_id).toBe(row.model_call_id)
+      expect(request_json).toBeNull()
+      return row
+    })).toEqual(original)
+    migrated.close()
+  })
+
   it('owns a fresh database and installs the complete contiguous schema', () => {
     const db = openContextDatabase(database('fresh.sqlite'))
     expect((db.prepare('PRAGMA application_id').get() as { application_id: number }).application_id)
@@ -38,6 +64,7 @@ describe('Context database migration catalog', () => {
     expect(tables(db)).toEqual([
       'context_receipts',
       'continuity_checkpoints',
+      'player_intent_late_responses',
       'provider_calls',
       'provider_quality_audit',
       'provider_quality_outcomes',
@@ -66,7 +93,7 @@ describe('Context database migration catalog', () => {
     const migrated = openContextDatabase(path)
     expect(migrated.prepare('SELECT checkpoint_id FROM continuity_checkpoints').get())
       .toEqual({ checkpoint_id: 'checkpoint:legacy' })
-    expect(tables(migrated)).toHaveLength(7)
+    expect(tables(migrated)).toHaveLength(8)
     migrated.close()
 
     const partialPath = database('legacy-v4-partial.sqlite')
@@ -74,7 +101,7 @@ describe('Context database migration catalog', () => {
     partial.exec('PRAGMA user_version = 4')
     partial.close()
     const repaired = openContextDatabase(partialPath)
-    expect(tables(repaired)).toHaveLength(7)
+    expect(tables(repaired)).toHaveLength(8)
     repaired.close()
   })
 

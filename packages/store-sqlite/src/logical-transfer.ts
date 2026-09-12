@@ -14,6 +14,7 @@ import {
 } from '@harness-world/contracts'
 import { openWorldDatabase } from './world-store.ts'
 import { parseWorldJson } from './sqlite.ts'
+import { readPlayerInputRow, type PlayerInputRow } from './player-input-jobs.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
 import { readReactionCycleById, readReactionCycleByRootTransaction, readReactionWaveSettlementHashByTransaction } from './reaction-cycle.ts'
 
@@ -24,10 +25,11 @@ const TABLES = [
   'world_manifests', 'branches', 'heads', 'round_commits', 'round_authority', 'events',
   'world_reaction_cycles', 'world_reaction_waves', 'world_reaction_jobs', 'world_reaction_job_stimuli',
   'outbox', 'branch_activations',
-  'outbox_session_counters', 'branch_controls', 'branch_failures', 'branch_audit_events', 'round_inbox_counters', 'round_inbox',
+  'outbox_session_counters', 'branch_controls', 'branch_failures', 'branch_audit_events', 'round_inbox_counters', 'round_inbox', 'player_input_jobs',
 ] as const
 
 const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
+  player_input_jobs: ['address_key', 'input_seq', 'idempotency_key', 'input_hash', 'status', 'job_json', 'state_hash', 'claim_owner_id', 'claim_fencing_token'],
   world_manifests: ['manifest_hash', 'manifest_json'],
   branches: ['address_key', 'tenant_id', 'world_id', 'branch_id', 'parent_address_key', 'fork_seq'],
   heads: ['address_key', 'head_seq', 'tick', 'event_hash'],
@@ -73,12 +75,12 @@ const COLUMNS: Record<(typeof TABLES)[number], readonly string[]> = {
 }
 
 interface LogicalAuthorityData extends WorldJsonObject {
-  readonly authorityVersion: 7
+  readonly authorityVersion: 8
   readonly tables: WorldJsonObject
 }
 
 interface LogicalAuthorityEnvelope extends WorldJsonObject {
-  readonly format: 'dshworld-authority/v7'
+  readonly format: 'dshworld-authority/v8'
   readonly data: LogicalAuthorityData
   readonly bundleHash: WorldHash
 }
@@ -86,6 +88,12 @@ interface LogicalAuthorityEnvelope extends WorldJsonObject {
 interface LegacyV6AuthorityEnvelope extends WorldJsonObject {
   readonly format: 'dshworld-authority/v6'
   readonly data: { readonly authorityVersion: 6; readonly tables: WorldJsonObject } & WorldJsonObject
+  readonly bundleHash: WorldHash
+}
+
+interface LegacyV7AuthorityEnvelope extends WorldJsonObject {
+  readonly format: 'dshworld-authority/v7'
+  readonly data: { readonly authorityVersion: 7; readonly tables: WorldJsonObject } & WorldJsonObject
   readonly bundleHash: WorldHash
 }
 
@@ -130,9 +138,9 @@ export class WorldLogicalTransferService {
         this.afterTableRead?.(table)
       }
       db.exec('COMMIT')
-      const data: LogicalAuthorityData = { authorityVersion: 7, tables }
+      const data: LogicalAuthorityData = { authorityVersion: 8, tables }
       const bundleHash = hashWorldJson('logical-authority-export', data)
-      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v7', data, bundleHash }
+      const envelope: LogicalAuthorityEnvelope = { format: 'dshworld-authority/v8', data, bundleHash }
       writeFileSync(targetPath, canonicalizeWorldJson(envelope), { flag: 'wx' })
       this.#audit('authority.export.completed', correlationId, { targetPath, bundleHash })
       return bundleHash
@@ -147,14 +155,15 @@ export class WorldLogicalTransferService {
   importAuthority(exportPath: string, targetPath: string, correlationId: string): WorldHash {
     this.#guardTarget(targetPath, correlationId)
     this.#audit('authority.import.requested', correlationId, { exportPath, targetPath })
-    let parsed: LogicalAuthorityEnvelope | LegacyV6AuthorityEnvelope | LegacyV5AuthorityEnvelope | LegacyAuthorityEnvelope
+    let parsed: LogicalAuthorityEnvelope | LegacyV7AuthorityEnvelope | LegacyV6AuthorityEnvelope | LegacyV5AuthorityEnvelope | LegacyAuthorityEnvelope
     try {
-      parsed = JSON.parse(readFileSync(exportPath, 'utf8')) as LogicalAuthorityEnvelope | LegacyV6AuthorityEnvelope | LegacyV5AuthorityEnvelope | LegacyAuthorityEnvelope
+      parsed = JSON.parse(readFileSync(exportPath, 'utf8')) as typeof parsed
       canonicalizeWorldJson(parsed)
     } catch (error: unknown) {
       this.#invalid('logical export is invalid', correlationId, error)
     }
-    if (!((parsed.format === 'dshworld-authority/v7' && parsed.data.authorityVersion === 7)
+    if (!((parsed.format === 'dshworld-authority/v8' && parsed.data.authorityVersion === 8)
+      || (parsed.format === 'dshworld-authority/v7' && parsed.data.authorityVersion === 7)
       || (parsed.format === 'dshworld-authority/v6' && parsed.data.authorityVersion === 6)
       || (parsed.format === 'dshworld-authority/v5' && parsed.data.authorityVersion === 5)
       || (parsed.format === 'dshworld-authority/v4' && parsed.data.authorityVersion === 4))) {
@@ -162,11 +171,15 @@ export class WorldLogicalTransferService {
     }
     const actualHash = hashWorldJson('logical-authority-export', parsed.data)
     if (actualHash !== parsed.bundleHash) this.#invalid('logical export hash is invalid', correlationId)
-    const envelope: LogicalAuthorityEnvelope = parsed.format === 'dshworld-authority/v7'
+    if (parsed.format !== 'dshworld-authority/v8' && Object.hasOwn(parsed.data.tables, 'player_input_jobs')) {
+      this.#invalid('legacy authority cannot contain player input jobs', correlationId)
+    }
+    const envelope: LogicalAuthorityEnvelope = parsed.format === 'dshworld-authority/v8'
       ? parsed
       : {
-          format: 'dshworld-authority/v7',
-          data: parsed.format === 'dshworld-authority/v6' ? this.#upgradeV6(parsed.data, correlationId) : this.#upgradeV5(
+          format: 'dshworld-authority/v8',
+          data: parsed.format === 'dshworld-authority/v7' ? { authorityVersion: 8, tables: { ...parsed.data.tables, player_input_jobs: [] } }
+            : parsed.format === 'dshworld-authority/v6' ? this.#upgradeV6(parsed.data, correlationId) : this.#upgradeV5(
             parsed.format === 'dshworld-authority/v4' ? this.#upgradeV4(parsed.data, correlationId) : parsed.data,
           ),
           bundleHash: parsed.bundleHash,
@@ -196,6 +209,7 @@ export class WorldLogicalTransferService {
       this.#validateOutbox(db, correlationId)
       this.#validateCompletedInbox(db, correlationId)
       this.#validateFailures(db, correlationId)
+      for (const row of db.prepare('SELECT * FROM player_input_jobs').all() as unknown as PlayerInputRow[]) readPlayerInputRow(row)
       db.exec('COMMIT')
       const provenance = { sourcePath: resolve(this.sourcePath), exportPath: resolve(exportPath), bundleHash: actualHash }
       this.#auditAt(targetPath, 'authority.import.completed', correlationId, provenance)
@@ -228,7 +242,7 @@ export class WorldLogicalTransferService {
   #upgradeV6(data: LegacyV6AuthorityEnvelope['data'], correlationId: string): LogicalAuthorityData {
     const cycles = data.tables.world_reaction_cycles
     if (!Array.isArray(cycles)) this.#invalid('logical table world_reaction_cycles is missing', correlationId)
-    return { authorityVersion: 7, tables: { ...data.tables, world_reaction_cycles: cycles.map(row => {
+    return { authorityVersion: 8, tables: { ...data.tables, player_input_jobs: [], world_reaction_cycles: cycles.map(row => {
       if (typeof row !== 'object' || row === null || Array.isArray(row)) return row
       if (Object.hasOwn(row, 'action_group_max_actions')) this.#invalid('v6 cannot contain action group extension', correlationId)
       return { ...row, action_group_max_actions: null }
@@ -237,9 +251,10 @@ export class WorldLogicalTransferService {
 
   #upgradeV5(data: LegacyV5AuthorityData): LogicalAuthorityData {
     return {
-      authorityVersion: 7,
+      authorityVersion: 8,
       tables: {
         ...data.tables,
+        player_input_jobs: [],
         world_reaction_cycles: [],
         world_reaction_waves: [],
         world_reaction_jobs: [],

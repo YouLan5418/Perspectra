@@ -22,6 +22,14 @@ export function worldAddressKey(address: WorldAddress): string {
 }
 
 export type FaultPoint =
+  | 'player-input.after-received'
+  | 'player-input.after-call-prepared'
+  | 'player-input.after-prepared'
+  | 'player-input.after-dispatch'
+  | 'player-input.after-response'
+  | 'player-input.after-validated'
+  | 'player-input.after-round-enqueue'
+  | 'player-input.after-world-commit'
   | 'store.after-event-insert'
   | 'store.before-commit'
   | 'store.after-commit'

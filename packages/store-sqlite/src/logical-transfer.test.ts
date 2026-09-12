@@ -13,6 +13,7 @@ import { SessionDeliveryAdapter } from './session-delivery.ts'
 import { SessionOutboxWorker, WorldOutbox } from './outbox-worker.ts'
 import { WriterLeaseService } from './writer-lease.ts'
 import { WorldStore } from './world-store.ts'
+import { PlayerInputJobs } from './player-input-jobs.ts'
 
 const directories: string[] = []
 
@@ -27,6 +28,49 @@ afterEach(() => {
 })
 
 describe('WorldLogicalTransferService', () => {
+  it('round-trips v8 input authority, rejects its tampering and never invents it on v7 import', () => {
+    const root = directory()
+    const source = join(root, 'source.sqlite')
+    const address = fixtureAddress('logical-input')
+    const store = new WorldStore(source)
+    store.createBranch(address)
+    store.close()
+    const jobs = new PlayerInputJobs(source)
+    const job = jobs.receive(address, 'p', 'key', { text: 'hello' }, 1)
+    jobs.close()
+    const service = new WorldLogicalTransferService(source)
+    const exportPath = join(root, 'input.dshworld')
+    service.exportAuthority(exportPath, 'input-export')
+    const target = join(root, 'target.sqlite')
+    service.importAuthority(exportPath, target, 'input-import')
+    const imported = new PlayerInputJobs(target)
+    expect(imported.read(address, 'key')).toEqual(job)
+    imported.close()
+    const original = JSON.parse(readFileSync(exportPath, 'utf8'))
+    const forged = structuredClone(original)
+    forged.data.tables.player_input_jobs[0].job_json = JSON.stringify({ ...job, input: { text: 'changed' } })
+    forged.bundleHash = hashWorldJson('logical-authority-export', forged.data)
+    const forgedPath = join(root, 'forged.dshworld')
+    writeFileSync(forgedPath, JSON.stringify(forged))
+    expect(() => service.importAuthority(forgedPath, join(root, 'forged.sqlite'), 'input-forged')).toThrow()
+    const legacy = structuredClone(original)
+    legacy.format = 'dshworld-authority/v7'
+    legacy.data.authorityVersion = 7
+    legacy.bundleHash = hashWorldJson('logical-authority-export', legacy.data)
+    const legacyPath = join(root, 'legacy.dshworld')
+    writeFileSync(legacyPath, JSON.stringify(legacy))
+    expect(() => service.importAuthority(legacyPath, join(root, 'invalid-legacy.sqlite'), 'legacy-invalid'))
+      .toThrow('legacy authority cannot contain player input jobs')
+    delete legacy.data.tables.player_input_jobs
+    legacy.bundleHash = hashWorldJson('logical-authority-export', legacy.data)
+    writeFileSync(legacyPath, JSON.stringify(legacy))
+    const legacyTarget = join(root, 'legacy.sqlite')
+    service.importAuthority(legacyPath, legacyTarget, 'legacy-import')
+    const legacyJobs = new PlayerInputJobs(legacyTarget)
+    expect(legacyJobs.read(address, 'key')).toBeUndefined()
+    legacyJobs.close()
+  })
+
   it('preserves quarantine authority and rejects a forged failure ledger', () => {
     const root = directory()
     const source = join(root, 'source.sqlite')
@@ -46,7 +90,7 @@ describe('WorldLogicalTransferService', () => {
     const exportPath = join(root, 'quarantined.dshworld')
     service.exportAuthority(exportPath, 'logical:quarantine-export')
     const envelope = JSON.parse(readFileSync(exportPath, 'utf8')) as any
-    expect(envelope).toMatchObject({ format: 'dshworld-authority/v7', data: { authorityVersion: 7 } })
+    expect(envelope).toMatchObject({ format: 'dshworld-authority/v8', data: { authorityVersion: 8 } })
     const target = join(root, 'quarantined-import.sqlite')
     service.importAuthority(exportPath, target, 'logical:quarantine-import')
     const imported = new BranchQuarantineService(target)
@@ -250,6 +294,7 @@ describe('WorldLogicalTransferService', () => {
     const legacy = structuredClone(envelope)
     legacy.format = 'dshworld-authority/v6'
     legacy.data.authorityVersion = 6
+    delete legacy.data.tables.player_input_jobs
     for (const row of legacy.data.tables.world_reaction_cycles) delete row.action_group_max_actions
     const legacyPath = join(root, 'legacy-v6.dshworld')
     const saveLegacy = () => {
@@ -263,7 +308,7 @@ describe('WorldLogicalTransferService', () => {
     expect(legacyStore.activeReactionCycle(address)).toEqual(expected)
     legacyStore.close()
     const v16 = new DatabaseSync(legacyTarget)
-    v16.exec('ALTER TABLE world_reaction_cycles DROP COLUMN action_group_max_actions; PRAGMA user_version = 16')
+    v16.exec('DROP TABLE player_input_jobs; ALTER TABLE world_reaction_cycles DROP COLUMN action_group_max_actions; PRAGMA user_version = 16')
     v16.close()
     const migrated = new WorldStore(legacyTarget)
     expect(migrated.activeReactionCycle(address)).toEqual(expected)
@@ -387,6 +432,7 @@ describe('WorldLogicalTransferService', () => {
     const v5 = structuredClone(current)
     v5.format = 'dshworld-authority/v5'
     v5.data.authorityVersion = 5
+    delete v5.data.tables.player_input_jobs
     delete v5.data.tables.world_reaction_cycles
     delete v5.data.tables.world_reaction_waves
     delete v5.data.tables.world_reaction_jobs
@@ -404,6 +450,7 @@ describe('WorldLogicalTransferService', () => {
     const legacy = structuredClone(current)
     legacy.format = 'dshworld-authority/v4'
     legacy.data.authorityVersion = 4
+    delete legacy.data.tables.player_input_jobs
     delete legacy.data.tables.round_authority
     for (const commit of legacy.data.tables.round_commits) delete commit.authority_hash
     legacy.bundleHash = hashWorldJson('logical-authority-export', legacy.data)

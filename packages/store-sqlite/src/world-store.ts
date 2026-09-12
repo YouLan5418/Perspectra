@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { PLAYER_INPUT_SCHEMA } from './player-input-schema.ts'
 import {
   brandId,
   compareWorldText,
@@ -545,7 +546,7 @@ CREATE INDEX world_reaction_job_stimuli_source
 CREATE INDEX events_type_range ON events(address_key, event_type, seq);
 `
 
-export const WORLD_SCHEMA_VERSION = 17
+export const WORLD_SCHEMA_VERSION = 18
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -565,7 +566,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 14, sql: WORLD_OUTBOX_RETRY_SCHEMA },
     { version: 15, sql: WORLD_PROVIDER_OUTPUT_AVAILABILITY_SCHEMA },
     { version: 16, sql: WORLD_REACTION_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: 'ALTER TABLE world_reaction_cycles ADD COLUMN action_group_max_actions INTEGER CHECK(action_group_max_actions = 2);' },
+    { version: 17, sql: 'ALTER TABLE world_reaction_cycles ADD COLUMN action_group_max_actions INTEGER CHECK(action_group_max_actions = 2);' },
+    { version: WORLD_SCHEMA_VERSION, sql: PLAYER_INPUT_SCHEMA },
   ])
 }
 
@@ -922,8 +924,10 @@ export class WorldStore {
         })
       }
       const unfinishedRound = this.#db.prepare(`
-        SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed') LIMIT 1
-      `).get(parentKey)
+        SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed')
+        UNION ALL SELECT 1 FROM player_input_jobs WHERE address_key = ?
+          AND status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued') LIMIT 1
+      `).get(parentKey, parentKey)
       if (unfinishedRound !== undefined) {
         failWorld({
           errorCode: 'BRANCH_DRAINING', category: 'admin',

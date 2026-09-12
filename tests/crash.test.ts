@@ -35,6 +35,7 @@ import {
 } from '@harness-world/testkit'
 import { phase8ProviderCrashWorld } from './fixtures/phase8-provider-world.ts'
 import { actionGroupWorld, groupOutput } from './fixtures/action-group-world.ts'
+import { intentWorld, intentFixtureProfile, intentFixtureRequest, intentFixtureResponse } from './fixtures/player-intent-world.ts'
 
 const directories: string[] = []
 const worker = fileURLToPath(new URL('./workers/crash-worker.ts', import.meta.url))
@@ -79,6 +80,35 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 describe('hard process termination recovery', () => {
+  it.each(['player-input.after-received', 'player-input.after-call-prepared', 'player-input.after-prepared',
+    'player-input.after-dispatch', 'player-input.after-response', 'player-input.after-validated', 'player-input.after-round-enqueue',
+    'store.before-commit', 'store.after-commit', 'player-input.after-world-commit'] as const)('recovers Player Intent after hard termination at %s', async point => {
+    const worldPath = database('intent-world.sqlite')
+    const sessionPath = `${worldPath}.session.sqlite`
+    const memoryPath = `${worldPath}.memory.sqlite`
+    const compiled = intentWorld()
+    const initial = new WorldApplication({ worldPath, sessionPath, memoryPath })
+    initial.activate(compiled)
+    await initial.close()
+    await hardKillAt(fileURLToPath(new URL('./workers/player-intent-crash-worker.ts', import.meta.url)), [worldPath, sessionPath, memoryPath, point])
+    const leaseDb = new DatabaseSync(worldPath, { readOnly: true })
+    const lease = leaseDb.prepare('SELECT expires_at_ms FROM writer_leases').get() as { expires_at_ms: number } | undefined
+    leaseDb.close()
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, (lease?.expires_at_ms ?? 0) - Date.now() + 20)))
+    let calls = 0
+    const app = new WorldApplication({ worldPath, sessionPath, memoryPath, runtimeOwnerId: 'intent:recovered', leaseTtlMs: 500, modelBudgetTokens: 20,
+      playerIntent: { profile: intentFixtureProfile, dispatch: async () => { calls++; return intentFixtureResponse } } })
+    try {
+      const result = await app.submitText(compiled.manifest.address, intentFixtureRequest)
+      expect(result.status).toBe(point === 'player-input.after-dispatch' ? 'clarification_required' : 'submitted')
+      expect(await app.submitText(compiled.manifest.address, intentFixtureRequest)).toEqual(result)
+      expect(calls).toBe(['player-input.after-received', 'player-input.after-call-prepared', 'player-input.after-prepared'].includes(point) ? 1 : 0)
+      const store = new WorldStore(worldPath)
+      expect(store.head(compiled.manifest.address).tick).toBe(point === 'player-input.after-dispatch' ? 0 : 1)
+      expect(store.readEvents(compiled.manifest.address).filter(event => event.eventType === 'character.speak')).toHaveLength(point === 'player-input.after-dispatch' ? 0 : 1)
+      store.close()
+    } finally { await app.close() }
+  })
   it.each(['provider.before-world-commit', 'store.before-commit', 'store.after-commit'] as const)('recovers a whole two-step action group after hard termination at %s', async point => {
     const worldPath = database('group-world.sqlite')
     const sessionPath = `${worldPath}.session.sqlite`

@@ -29,6 +29,7 @@ import {
 } from '@harness-world/contracts'
 import {
   currentEntityState,
+  createCoreRulebookRegistry,
   manifestationManifestRegistries,
   phase8ManifestRegistries,
   RulebookRegistry,
@@ -37,7 +38,7 @@ import {
   type CompiledWorldSpec,
   type RoundExecutionLane,
 } from '@harness-world/kernel'
-import { BranchAdministration, CharacterRuntimeAvailabilityService, CognitionProjectionRebuilder, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import { BranchAdministration, CharacterRuntimeAvailabilityService, CognitionProjectionRebuilder, PlayerInputJobs, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import {
   RoundCoordinator,
   compareActionOrderKey,
@@ -397,6 +398,57 @@ async function installCommittedRecoveryFixture(
 }
 
 describe('RoundCoordinator', () => {
+  it.each(['no-scene', 'public', 'rejected', 'move', 'private', 'self', 'invalid'] as const)('pre-adjudicates the complete durable player group: %s', async mode => {
+    const path = database(`intent-group-${mode}.sqlite`)
+    const compiled = characterInteractionWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const configured = options(path, compiled, mode === 'private' || mode === 'self' || mode === 'public' ? [{
+      participantId: 'agent:npc', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
+      allowedActionTypes: ['speak'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+      provider: { propose: async () => ({ schemaVersion: 5, decision: 'abstain', actions: [] }) },
+    }] : [])
+    const registry = new RulebookRegistry()
+    const core = createCoreRulebookRegistry().resolve(compiled.manifest.rulebook.rulebookId, compiled.manifest.rulebook.version, 'test')
+    registry.register(compiled.manifest.rulebook.rulebookId, compiled.manifest.rulebook.version, {
+      affordances: context => core.affordances(context),
+      resolve: context => mode === 'no-scene' || mode === 'public' ? { status: 'accepted', events: core.resolve(context).events } : mode === 'rejected' && context.actionId === 'player:first'
+        ? { status: 'rejected', reason: 'fixture rejection', events: [] }
+        : { ...core.resolve(context), ...(mode === 'private' || mode === 'self'
+          ? { observationScope: { scope: mode, ...(mode === 'private' ? { recipientIds: ['character:player'] } : {}) } } : {}) },
+    })
+    const coordinator = new RoundCoordinator({ ...configured, rulebooks: registry,
+      ...(mode === 'no-scene' ? {} : { sceneDecision: new SceneDecisionService(configured.store, configured.availability, 2) }) })
+    const jobs = new PlayerInputJobs(path)
+    try {
+      const address = compiled.manifest.address
+      let job = jobs.receive(address, 'principal:player', 'group', { text: 'hi bye' }, 2)
+      jobs.claim(address, coordinator.writerLease)
+      const actions = [
+        { actionId: 'player:first', actorId: 'character:player', actionType: 'speak', actionVersion: 1, parameters: { text: 'hi' } },
+        { actionId: 'player:second', actorId: 'character:player', actionType: mode === 'move' ? 'move' : 'speak', actionVersion: 1,
+          parameters: mode === 'move' ? { locationId: 'location:next' } : { text: 'bye' } },
+      ]
+      job = jobs.advance(job, coordinator.writerLease, 'validated', { version: mode === 'invalid' ? 'invalid' : 'player-submission/v2', actions })
+      configured.inbox.enqueue({ address, idempotencyKey: 'group', principalId: job.principalId, correlationId: 'test',
+        playerInputId: job.inputId, input: { playerInputId: job.inputId } }, 2)
+      if (mode === 'invalid') {
+        await expect(coordinator.processNextAccepted('test')).rejects.toThrow('no matching validated submission')
+        return
+      }
+      await coordinator.processNextAccepted('test')
+      const events = configured.store.readEvents(address)
+      const resolved = events.filter(event => event.eventType === 'action.resolved')
+      expect(resolved).toHaveLength(2)
+      expect((resolved[0]!.data as WorldJsonObject).accepted).toBe(mode !== 'rejected')
+      expect((resolved[1]!.data as WorldJsonObject).accepted).toBe(mode !== 'rejected')
+      expect(events.filter(event => event.eventType === 'character.moved')).toHaveLength(mode === 'move' ? 1 : 0)
+      const authority = configured.store.readRoundAuthority(address, resolved[0]!.transactionId)!.authority as any
+      expect(authority.participants[0].proposalHash).toBe(hashWorldJson('round-player-proposal', { actions }))
+    } finally { jobs.close(); close(configured, coordinator) }
+  })
+
   it('binds v9 player-only provisional authority without optional Scene scheduling services', async () => {
     const path = database('player-only-provisional.sqlite')
     const compiled = characterInteractionWorld()

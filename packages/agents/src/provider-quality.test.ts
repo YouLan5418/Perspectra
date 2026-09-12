@@ -154,7 +154,7 @@ describe('ProviderQualityStore', () => {
 
     const futurePath = database('future.sqlite')
     const future = new DatabaseSync(futurePath)
-    future.exec('PRAGMA user_version=6')
+    future.exec('PRAGMA user_version=7')
     future.close()
     expect(() => new ProviderQualityStore(futurePath)).toThrow('user_version mismatch')
   })

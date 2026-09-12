@@ -50,7 +50,7 @@ import {
 } from '@harness-world/store-sqlite'
 import type { RoundParticipant } from './round-coordinator.ts'
 import type { SceneDecision } from './scene-decision.ts'
-import { provisionalReactionView, type ProvisionalReactionInput } from './player-provisional.ts'
+import { provisionalReactionView, provisionalInputEvents, provisionalInputHash, type ProvisionalReactionInput } from './player-provisional.ts'
 
 export interface Phase8ProviderContext extends ProposalContext, WorldJsonObject {
   readonly agentContextVersion: 2
@@ -420,7 +420,7 @@ export class Phase8ContextPipeline {
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest,
-      events: provisional?.visibility === 'full' ? [...history, ...provisional.provisional.binding.events.map(value => value.event)] : history,
+      events: provisional === undefined ? history : [...history, ...provisionalInputEvents(provisional)],
       characterId: binding.actorId,
       resolutionAuthority: resolutionAuthority('agent', 'standard'),
     }).filter(value => binding.allowedActionTypes.includes(value.actionType))
@@ -442,7 +442,7 @@ export class Phase8ContextPipeline {
       sceneSourceRefs: sceneRefs, recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', stimulus),
       ...(provisional === undefined ? {} : { stimulusSourceRefs: [
-        { sourceKind: 'round_stimulus', sourceId: 'player-provisional-resolution', sourceSeq: asOfWorldSeq, sourceHash: provisional.provisional.hash },
+        { sourceKind: 'round_stimulus', sourceId: 'player-provisional-resolution', sourceSeq: asOfWorldSeq, sourceHash: provisionalInputHash(provisional) },
         { sourceKind: 'round_stimulus', sourceId: 'player-provisional-view', sourceSeq: asOfWorldSeq, sourceHash: hashWorldJson('context-stimulus/v1', stimulus) },
       ] }),
       affordances, affordanceHash,

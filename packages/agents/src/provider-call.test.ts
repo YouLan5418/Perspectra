@@ -188,7 +188,7 @@ describe('ProviderCallStore', () => {
 
     const futurePath = path()
     const future = new DatabaseSync(futurePath)
-    future.exec('PRAGMA user_version=6')
+    future.exec('PRAGMA user_version=7')
     future.close()
     expect(() => new ProviderCallStore(futurePath)).toThrow('user_version mismatch')
   })

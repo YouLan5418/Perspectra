@@ -110,6 +110,7 @@ describe('Phase 5 local operations acceptance', () => {
       const raw = new DatabaseSync(migratedPath)
       raw.exec(`
         DROP TABLE world_reaction_job_stimuli;
+        DROP TABLE player_input_jobs;
         DROP TABLE world_reaction_jobs;
         DROP TABLE world_reaction_waves;
         DROP TABLE world_reaction_cycles;

@@ -4,7 +4,7 @@ import { manifestUsesPhase8Contracts, type CompiledWorldManifestV9, type Compile
 
 /** Activates a compiled world through the Store's Tick 0 administrative transaction. */
 export class WorldBootstrap {
-  constructor(private readonly store: WorldStore) {}
+  constructor(private readonly store: WorldStore, private readonly playerIntentRuntime = false) {}
 
   activate(compiled: CompiledWorldSpec, correlationId = 'world-bootstrap'): ActivateBranchResult {
     if (compiled.manifest.rulebook.rulebookId === 'builtin:speak-move'
@@ -20,7 +20,7 @@ export class WorldBootstrap {
     const playerInputPolicy = compiled.manifest.schemaVersion === 9
       ? (compiled.manifest as CompiledWorldManifestV9).playerInputPolicy
       : undefined
-    if (playerInputPolicy?.version === 'player-intent/v1') {
+    if (playerInputPolicy?.version === 'player-intent/v1' && !this.playerIntentRuntime) {
       failWorld({
         errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
         message: 'player-intent/v1 activation requires the C3 durable interpreter', retryable: false,

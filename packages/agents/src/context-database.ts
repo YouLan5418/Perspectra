@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { openMigratedDatabase } from '@harness-world/store-sqlite'
 
 export const CONTEXT_APPLICATION_ID = 0x48435743
-export const CONTEXT_SCHEMA_VERSION = 5
+export const CONTEXT_SCHEMA_VERSION = 6
 
 const CONTINUITY_SCHEMA = `
 CREATE TABLE IF NOT EXISTS continuity_checkpoints (
@@ -111,6 +111,25 @@ const COMPLETE_CONTEXT_SCHEMA = [
   QUALITY_SCHEMA,
 ].join('\n')
 
+const PROVIDER_CALL_V2_SCHEMA = `
+ALTER TABLE provider_calls RENAME TO provider_calls_legacy;
+DROP INDEX provider_calls_round;
+${PROVIDER_CALL_SCHEMA.replace('round_id TEXT NOT NULL', 'round_id TEXT')
+  .replace('participant_id TEXT NOT NULL', 'participant_id TEXT')
+  .replace('receipt_id TEXT NOT NULL', 'receipt_id TEXT')
+  .replace('model_call_id TEXT PRIMARY KEY,', `model_call_id TEXT PRIMARY KEY,
+    purpose TEXT NOT NULL DEFAULT 'round_participant' CHECK(purpose IN ('round_participant','player_intent')),
+    work_id TEXT,
+    request_json TEXT,`)}
+INSERT INTO provider_calls SELECT model_call_id, 'round_participant', model_call_id, NULL,
+  namespace_key,round_id,participant_id,receipt_id,receipt_hash,controller_epoch,context_hash,provider_request_hash,
+  state,response_json,response_hash,proposal_json,proposal_hash,terminal_json,transaction_id,authority_hash FROM provider_calls_legacy;
+DROP TABLE provider_calls_legacy;
+CREATE UNIQUE INDEX provider_calls_work ON provider_calls(namespace_key,purpose,work_id);
+CREATE TABLE player_intent_late_responses(model_call_id TEXT NOT NULL,response_hash TEXT NOT NULL,
+  PRIMARY KEY(model_call_id,response_hash)) STRICT;
+`
+
 /**
  * Open the rebuildable Context database through one forward-only schema axis.
  *
@@ -125,6 +144,7 @@ export function openContextDatabase(path: string): DatabaseSync {
     { version: 2, sql: RECEIPT_SCHEMA },
     { version: 3, sql: PROVIDER_CALL_SCHEMA },
     { version: 4, sql: QUALITY_SCHEMA },
-    { version: CONTEXT_SCHEMA_VERSION, sql: COMPLETE_CONTEXT_SCHEMA },
+    { version: 5, sql: COMPLETE_CONTEXT_SCHEMA },
+    { version: CONTEXT_SCHEMA_VERSION, sql: PROVIDER_CALL_V2_SCHEMA },
   ])
 }

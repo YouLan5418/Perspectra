@@ -84,6 +84,7 @@ describe('CharacterRuntimeAvailabilityService', () => {
     legacy.exec(`
       PRAGMA foreign_keys=OFF;
       DROP TABLE world_reaction_job_stimuli;
+      DROP TABLE player_input_jobs;
       DROP TABLE world_reaction_jobs;
       DROP TABLE world_reaction_waves;
       DROP TABLE world_reaction_cycles;

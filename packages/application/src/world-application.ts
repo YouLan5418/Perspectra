@@ -85,6 +85,9 @@ import {
   type ForkAtHeadResult,
 } from './branch-operation-coordinator.ts'
 import { PlayerInputInterpreter, type PlayerInputInterpretation } from './player-input.ts'
+import { PlayerIntentWorker, type PlayerIntentProfile } from './player-intent-worker.ts'
+import { preparePlayerIntent } from './player-intent-preparation.ts'
+import { PlayerInputJobs, PLAYER_INPUT_TRANSITIONS } from '@harness-world/store-sqlite'
 import {
   RoundCoordinator,
   type AcceptedRoundStep,
@@ -130,6 +133,10 @@ function contextPathFor(options: Pick<WorldApplicationOptions, 'contextPath' | '
 }
 
 export interface WorldApplicationOptions {
+  readonly playerIntent?: {
+    readonly profile: PlayerIntentProfile
+    readonly dispatch: (request: WorldJsonValue, profile: PlayerIntentProfile, signal: AbortSignal) => Promise<WorldJsonValue>
+  }
   readonly worldPath: string
   readonly sessionPath: string
   readonly participants?: (address: WorldAddress) => readonly RoundParticipant[]
@@ -461,6 +468,7 @@ export type BranchWorkStep =
 
 /** Local composition root and the only production entrypoint into branch-owned state. */
 export class WorldApplication {
+  readonly #inputTails = new Map<string, Promise<unknown>>()
   readonly #root = new Context()
   readonly #branches = new Map<string, Promise<MountedBranch>>()
   readonly #rulebooks: RulebookRegistry
@@ -504,7 +512,7 @@ export class WorldApplication {
         `activate:${worldAddressKey(compiled.manifest.address)}`,
         this.options.memoryPath,
       )
-      return new WorldBootstrap(store).activate(compiled)
+      return new WorldBootstrap(store, true).activate(compiled)
     } finally {
       store.close()
     }
@@ -578,6 +586,12 @@ export class WorldApplication {
   }
 
   async submit(address: WorldAddress, request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
+    if (this.#intentEnabled(address)) {
+      const outcome = await this.#submitIntent(address, { ...request, text: JSON.stringify(request.action) }, request.action)
+      if (outcome.status === 'submitted') return outcome.result
+      failWorld({ errorCode: 'INVALID_REQUEST', category: 'admission', retryable: false, address,
+        correlationId: request.correlationId, message: outcome.reason })
+    }
     return this.#integrityGuard(address, 'round.submit', async (branch) => {
       if (branch.reactionWorker === undefined) return branch.kernel.submit(request)
       branch.kernel.accept(request)
@@ -595,6 +609,7 @@ export class WorldApplication {
 
   async submitText(address: WorldAddress, request: SubmitTextRequest): Promise<SubmitTextResult> {
     this.#assertOpen()
+    if (this.#intentEnabled(address)) return this.#submitIntent(address, request)
     for (const [name, value] of [
       ['text', request.text],
       ['idempotencyKey', request.idempotencyKey],
@@ -667,6 +682,74 @@ export class WorldApplication {
       action: interpretation.action,
     })
     return { status: 'submitted', action: interpretation.action, result }
+  }
+
+  #intentEnabled(address: WorldAddress): boolean {
+    this.#assertOpen()
+    const store = new WorldStore(this.options.worldPath)
+    try {
+      const stored = store.readManifest(address)
+      if (stored === undefined) return false
+      const manifest = runtimeManifestFromStored(stored.manifest)
+      return manifest.schemaVersion === 9 && (manifest.playerInputPolicy as { version: string } | undefined)?.version === 'player-intent/v1'
+    } finally { store.close() }
+  }
+
+  async #submitIntent(address: WorldAddress, request: SubmitTextRequest, action?: PlayerActionInput): Promise<SubmitTextResult> {
+    for (const name of ['text', 'idempotencyKey', 'principalId', 'correlationId'] as const) assertProtocolString(request[name], name)
+    const store = new WorldStore(this.options.worldPath)
+    const jobs = new PlayerInputJobs(this.options.worldPath)
+    try {
+      const manifest = runtimeManifestFromStoredRecord(store.readManifest(address))
+      if (!manifest.playerBindings.some(value => value.principalId === request.principalId)) {
+        failWorld({ errorCode: 'UNAUTHORIZED', category: 'admission', retryable: false, address,
+          correlationId: request.correlationId, message: 'principal has no PlayerBinding in this world' })
+      }
+      if (action !== undefined) parsePlayerActionInput(action)
+      const received = jobs.receive(address, request.principalId, request.idempotencyKey,
+        { text: request.text, ...(action === undefined ? {} : { action }) }, manifest.roundQueueLimit)
+      this.options.faultInjector?.hit('player-input.after-received')
+      const key = worldAddressKey(address)
+      const previous = this.#inputTails.get(key) ?? Promise.resolve()
+      const run = previous.catch(() => undefined).then(() => this.#integrityGuard(address, 'player-input.process', async branch => {
+        const worker = new PlayerIntentWorker({ worldPath: this.options.worldPath,
+          contextPath: contextPathFor(this.options) ?? `${this.options.worldPath}.context.sqlite`, address,
+          renewLease: () => { branch.kernel.renewWriterLease(); return branch.kernel.writerLease },
+          prepare: job => {
+            const current = runtimeManifestFromStoredRecord(branch.store.store.readManifest(address))
+            const head = branch.store.store.head(address)
+            const prepared = preparePlayerIntent(job, current, branch.store.store.readEvents(address, head.headSeq),
+              this.#rulebooks.resolve(current.rulebook.rulebookId, current.rulebook.version, request.correlationId, address),
+              this.options.playerIntent?.profile, this.options.modelBudgetTokens ?? 0)
+            return 'request' in prepared ? { ...prepared, request: { body: prepared.request, asOfWorldSeq: head.headSeq, baseHeadHash: head.eventHash } } : prepared
+          },
+          dispatch: (input, profile, signal) => this.options.playerIntent!.dispatch(input, profile, signal),
+          enqueue: job => branch.store.inbox.enqueue({ address, idempotencyKey: job.idempotencyKey, principalId: job.principalId,
+            correlationId: request.correlationId, playerInputId: job.inputId, input: { playerInputId: job.inputId } }, manifest.roundQueueLimit) as unknown as WorldJsonValue,
+          complete: async job => {
+            while (branch.store.inbox.readCompleted(address, job.idempotencyKey) === undefined) {
+              await branch.reactionWorker?.drain()
+              await branch.kernel.processNextAccepted(request.correlationId)
+            }
+            return branch.store.inbox.readCompleted(address, job.idempotencyKey)!
+          },
+          ...(this.options.faultInjector === undefined ? {} : { faultInjector: this.options.faultInjector }),
+        })
+        let current = jobs.read(address, received.idempotencyKey)!
+        while (PLAYER_INPUT_TRANSITIONS[current.status].length > 0) {
+          await worker.processNext()
+          current = jobs.read(address, received.idempotencyKey)!
+        }
+        if (current.status !== 'completed') {
+          return { status: 'clarification_required' as const, reason: (current.records[current.status] as { reason: string }).reason, candidates: [] }
+        }
+        const submission = current.records.validated as unknown as { actions: PlayerActionInput[] }
+        return { status: 'submitted' as const, action: { actionType: submission.actions[0]!.actionType, parameters: submission.actions[0]!.parameters },
+          result: parsePlayerRoundResult(current.records.completed!) }
+      }))
+      this.#inputTails.set(key, run)
+      try { return await run } finally { if (this.#inputTails.get(key) === run) this.#inputTails.delete(key) }
+    } finally { jobs.close(); store.close() }
   }
 
   async acceptRound(address: WorldAddress, request: SubmitCoordinatedRoundRequest) {

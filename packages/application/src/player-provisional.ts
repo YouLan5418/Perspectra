@@ -35,6 +35,17 @@ export type PlayerProvisional = ReturnType<typeof bindPlayerProvisional>
 export interface ProvisionalReactionInput {
   readonly provisional: PlayerProvisional
   readonly visibility: 'full' | 'occurrence_only' | 'none'
+  readonly steps?: readonly ProvisionalReactionInput[]
+}
+
+export function provisionalInputHash(input: ProvisionalReactionInput): WorldHash {
+  return input.steps === undefined ? input.provisional.hash
+    : hashWorldJson('player-provisional-group/v1', input.steps.map(step => step.provisional.hash))
+}
+
+export function provisionalInputEvents(input: ProvisionalReactionInput): readonly RulebookEvent[] {
+  return input.steps === undefined ? input.visibility === 'full' ? input.provisional.binding.events.map(value => value.event) : []
+    : input.steps.flatMap(provisionalInputEvents)
 }
 
 export function verifyPlayerProvisional(provisional: PlayerProvisional, action: ActionRequest, resolution: RulebookResolution): void {
@@ -51,6 +62,8 @@ export function verifyPlayerProvisional(provisional: PlayerProvisional, action: 
 
 /** Visibility is selected by Scene policy before Recall; opaque binding Hashes carry no action text. */
 export function provisionalReactionView(input: ProvisionalReactionInput, history: readonly RulebookEvent[]): WorldJsonObject {
+  if (input.steps !== undefined) return { version: 'provisional-reaction-group/v1', provisionalResolutionHash: provisionalInputHash(input),
+    steps: input.steps.map(step => provisionalReactionView(step, history)) }
   const { provisional, visibility } = input
   const binding = provisional.binding
   const identity = { version: 'provisional-reaction-view/v1', provisionalResolutionHash: provisional.hash, visibility }
