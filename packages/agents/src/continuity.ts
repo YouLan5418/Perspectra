@@ -236,15 +236,14 @@ function observationFrom(event: StoredWorldEvent, characterId: CharacterId): Int
   return { observationId: data.id, content: value, sourceRef: sourceRef(event) }
 }
 
-/** A rebuilt Tail together with the floor it starts at. */
-export interface RollingInteractionTail {
-  /**
-   * Where the returned Tail starts. It is the caller's floor while the committed blocks still fit the
-   * Profile, and the end of the last dropped block once they do not — which is how a caller learns that
-   * the Continuity baseline it holds is no longer the right one.
-   */
-  readonly floor: number
+/** The second layer of a Context: every block since a floor, and where that floor moves if the epoch is rebuilt. */
+export interface InteractionTailWindow {
+  /** Every committed block since the floor. It only ever grows, which is what keeps a prefix reusable. */
   readonly tail: InteractionTail
+  /** Where the floor comes to rest once the second layer outgrows its budget. */
+  readonly rebuiltFloor: number
+  /** The Tail that starts at `rebuiltFloor`, keeping the Profile's retained block count. */
+  readonly rebuiltTail: InteractionTail
 }
 
 /** Rebuild a character-safe recent tail only from committed observations and Authority identities. */
@@ -259,39 +258,50 @@ export class InteractionTailBuilder {
     maximumBlocks: number,
   ): InteractionTail {
     const blocks = this.#blocksAt(address, characterId, afterSeq, asOfWorldSeq, maximumBlocks)
-    const selected = maximumBlocks === 0 ? [] : blocks.slice(-maximumBlocks)
-    const input = {
-      schemaVersion: 'interaction-tail/v1' as const,
-      address, characterId, afterSeq, asOfWorldSeq, blocks: selected,
-    }
-    return { ...input, tailHash: hashInteractionTail(input) }
+    return this.#tailOf(address, characterId, afterSeq, asOfWorldSeq,
+      maximumBlocks === 0 ? [] : blocks.slice(-maximumBlocks))
   }
 
   /**
-   * Rebuild the Tail and advance its floor past whatever the Profile's block count cannot keep.
+   * Rebuild the second layer from a floor, and report where the floor moves if the epoch is rebuilt.
    *
-   * A frozen floor is what makes every preparation re-read the whole history and drop almost all of it.
-   * Advancing the floor to just before the retained window bounds the next rebuild to the increment, and
-   * moves the Continuity baseline with it, which is what spec 10.4 means by a rebuild determined by Tail
-   * Block count. While the window still fits, the floor does not move and the caller's existing baseline
-   * stays valid.
+   * A floor that never moves would make every preparation re-read the whole history and then discard
+   * almost all of it. A floor that moves every Round is just as bad in the other direction: the rendered
+   * prefix changes every time, so a Provider can reuse nothing. So the floor moves only when the appended
+   * blocks outgrow their budget, and then it comes to rest just before the Profile's retained window —
+   * which is what spec 10.4 means by a rebuild determined by Tail Block count.
    */
-  rebuildRolling(
+  rebuildWindow(
     address: WorldAddress,
     characterId: CharacterId,
     afterSeq: number,
     asOfWorldSeq: number,
-    maximumBlocks: number,
-  ): RollingInteractionTail {
-    const blocks = this.#blocksAt(address, characterId, afterSeq, asOfWorldSeq, maximumBlocks)
-    const dropped = Math.max(0, blocks.length - maximumBlocks)
-    const floor = dropped === 0 ? afterSeq : blocks[dropped - 1]!.endSeq
+    retainedBlocks: number,
+  ): InteractionTailWindow {
+    const blocks = this.#blocksAt(address, characterId, afterSeq, asOfWorldSeq, retainedBlocks)
+    const dropped = Math.max(0, blocks.length - retainedBlocks)
+    const rebuiltFloor = dropped === 0 ? afterSeq : blocks[dropped - 1]!.endSeq
+    return {
+      tail: this.#tailOf(address, characterId, afterSeq, asOfWorldSeq, blocks),
+      rebuiltFloor,
+      rebuiltTail: this.#tailOf(
+        address, characterId, rebuiltFloor, asOfWorldSeq, dropped === 0 ? blocks : blocks.slice(dropped),
+      ),
+    }
+  }
+
+  #tailOf(
+    address: WorldAddress,
+    characterId: CharacterId,
+    afterSeq: number,
+    asOfWorldSeq: number,
+    blocks: readonly InteractionBlock[],
+  ): InteractionTail {
     const input = {
       schemaVersion: 'interaction-tail/v1' as const,
-      address, characterId, afterSeq: floor, asOfWorldSeq,
-      blocks: dropped === 0 ? blocks : blocks.slice(dropped),
+      address, characterId, afterSeq, asOfWorldSeq, blocks,
     }
-    return { floor, tail: { ...input, tailHash: hashInteractionTail(input) } }
+    return { ...input, tailHash: hashInteractionTail(input) }
   }
 
   #blocksAt(

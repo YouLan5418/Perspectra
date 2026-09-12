@@ -210,9 +210,12 @@ try {
     })),
   })
 
-  // 2. What the recent Interaction Tail still carries, and what kind of Round it covers.
-  const tail = segmentOf(finalContext, 'recent_interaction_tail')
-  const blocks = tail === undefined ? [] : ((object(tail.content).blocks ?? []) as readonly unknown[])
+  // 2. What the recent Interaction Tail still carries, and what kind of Round it covers. The second layer
+  // arrives one message per block, so it is collected across messages rather than read from one segment.
+  const blocks = renderedSegments(finalContext)
+    .filter(segment => segment.segmentKind === 'recent_interaction_tail')
+    .flatMap(segment => Array.isArray(segment.content) ? segment.content : [segment.content])
+    .filter(block => block !== null && typeof block === 'object')
   const tailSeqs = blocks.flatMap(block => {
     const value = object(block)
     return [Number(value.startSeq), Number(value.endSeq)]

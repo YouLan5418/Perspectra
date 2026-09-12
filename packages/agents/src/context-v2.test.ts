@@ -291,18 +291,20 @@ describe('CharacterContextAssembler v2', () => {
     }
   })
 
-  it('trims only whole Tail blocks and lowest-ranked Recall entries at profile capacity', () => {
+  it('trims lowest-ranked Recall at profile capacity and leaves the second layer to its byte budget', () => {
     const assembler = new CharacterContextAssembler()
     const recalled = recall(7)
     const input = request({ tail: tail(5), recallPlan: recalled.plan, recall: recalled.result })
     const compact = assembler.assembleDetailed(input)
     const tailSegment = compact.bundle.segments.find(segment => segment.segmentKind === 'recent_interaction_tail')!
     const recallSegment = compact.bundle.segments.find(segment => segment.segmentKind === 'verified_recall')!
+    // The Profile's block count is what a rebuild keeps, not what one request may send: trimming here would
+    // slide the window every Round and invalidate the prefix a Provider could otherwise reuse.
     expect((tailSegment.content as InteractionTail).blocks.map(value => value.roundId)).toEqual([
-      'round:tail:1', 'round:tail:2', 'round:tail:3', 'round:tail:4',
+      'round:tail:0', 'round:tail:1', 'round:tail:2', 'round:tail:3', 'round:tail:4',
     ])
     expect(recallSegment.content as WorldJsonObject[]).toHaveLength(6)
-    expect(compact.exclusions).toHaveLength(2)
+    expect(compact.exclusions).toHaveLength(1)
     expect(new CharacterContextAssembler().assembleDetailed({ ...input, contextProfileId: 'deep' }).exclusions).toEqual([])
   })
 
@@ -326,19 +328,20 @@ describe('CharacterContextAssembler v2', () => {
     const input = request({ tail: tail(6), recallPlan: recalled.plan, recall: recalled.result })
     const atCapacity = assembler.assembleDetailed(input)
     expect(atCapacity.exclusions.map(value => value.reason)).toEqual([
-      'profile_capacity', 'profile_capacity', 'profile_capacity', 'profile_capacity',
+      'profile_capacity', 'profile_capacity',
     ])
     const trimmed = assembler.assembleDetailed({
       ...input, budgetTrim: { tailBlocks: 1, recallItems: 2, digestItems: 0 },
     })
-    expect(trimmed.exclusions.filter(value => value.reason === 'profile_capacity')).toHaveLength(4)
+    expect(trimmed.exclusions.filter(value => value.reason === 'profile_capacity')).toHaveLength(2)
     expect(trimmed.exclusions.filter(value => value.reason === 'budget_trimmed')).toHaveLength(3)
     expect(trimmed.includedSourceRefs.length).toBeLessThan(atCapacity.includedSourceRefs.length)
     const recallSegment = trimmed.bundle.segments.find(segment => segment.segmentKind === 'verified_recall')!
     const tailSegment = trimmed.bundle.segments.find(segment => segment.segmentKind === 'recent_interaction_tail')!
     expect(recallSegment.content as WorldJsonObject[]).toHaveLength(4)
+    // Only a budget drop ever shortens the second layer, and it drops from the oldest end.
     expect((tailSegment.content as InteractionTail).blocks.map(value => value.roundId)).toEqual([
-      'round:tail:3', 'round:tail:4', 'round:tail:5',
+      'round:tail:1', 'round:tail:2', 'round:tail:3', 'round:tail:4', 'round:tail:5',
     ])
   })
 

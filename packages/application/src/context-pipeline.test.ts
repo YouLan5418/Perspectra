@@ -186,6 +186,16 @@ function receivedSegment(
   return segment
 }
 
+/** Every block of the second layer a model was shown, across the messages it was spread over. */
+function receivedTailBlocks(prepared: ReturnType<Phase8ContextPipeline['prepare']>): readonly unknown[] {
+  return prepared.providerContext.exactProviderRequest.messages
+    .filter(message => message.content.includes('"segmentKind":"recent_interaction_tail"'))
+    .flatMap(message => {
+      const content = (JSON.parse(message.content) as { readonly content: unknown }).content
+      return Array.isArray(content) ? content as readonly unknown[] : [content]
+    })
+}
+
 /** The continuity segment of the Context a participant actually received. */
 function continuitySegment(prepared: ReturnType<Phase8ContextPipeline['prepare']>): {
   readonly digest: readonly { readonly text: string }[]
@@ -222,7 +232,7 @@ describe('Phase8ContextPipeline', () => {
     value.store.close()
   })
 
-  it('advances the Continuity baseline once the Tail window stops fitting', () => {
+  it('keeps the Continuity baseline frozen while the second layer fits its budget', () => {
     const value = fixture()
     const pipeline = new Phase8ContextPipeline(value.options)
     const address = value.spec.manifest.address
@@ -250,16 +260,14 @@ describe('Phase8ContextPipeline', () => {
       )
       const checkpoint = receivedSegment(prepared, 'continuity_checkpoint')
       baselines.push((checkpoint.content.checkpoint as { readonly asOfWorldSeq: number }).asOfWorldSeq)
-      const tail = receivedSegment(prepared, 'recent_interaction_tail')
-      tailSizes.push((tail.content.blocks as readonly unknown[]).length)
+      tailSizes.push(receivedTailBlocks(prepared).length)
     }
-    // A baseline that still fits the compact Profile's four blocks is reused, not rebuilt.
-    expect(baselines[1]).toBe(baselines[0])
-    // Once the window cannot hold what accumulated, the baseline moves with it instead of staying frozen
-    // at the first Round, which is what keeps the next Tail rebuild on the increment.
-    expect(baselines.at(-1)!).toBeGreaterThan(baselines[0]!)
-    expect(tailSizes.at(-1)).toBe(4)
-    expect(tailSizes.every(size => size <= 4)).toBe(true)
+    // The epoch stays put: one baseline serves every Round, which is exactly what keeps a Provider's
+    // prefix reusable. It moves only when the second layer outgrows its budget, not when it grows a block.
+    expect(baselines.at(-1)).toBe(baselines[0])
+    // Each Round appends exactly one block and nothing ever drops it: the second layer is bounded by its own
+    // byte budget, not by the Profile's block count, which is what a rebuild keeps.
+    expect(tailSizes).toEqual([0, 1, 2, 3, 4, 5])
     pipeline.close()
     value.memory.close()
     value.availability.close()

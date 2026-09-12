@@ -31,6 +31,7 @@ import {
   type CharacterCognitionView,
   type ContextSourceRef,
   type InteractionTail,
+  type Phase8ContextProfile,
   type ProposalContext,
   type ReactionProposalContext,
   type WorldHash,
@@ -176,6 +177,16 @@ function contextAffordance(value: { readonly actionType: string; readonly action
 }
 
 const compareText = compareWorldText
+
+/**
+ * How much of a Context Profile's request budget the second layer may take.
+ *
+ * The Profile's budget is a hard ceiling on the rendered request, and it is locked by the registry, so the
+ * second layer has to live inside it rather than beside it: half the budget for the appended history, the
+ * rest for the digest, the current state, the scene and the contracts. A layer that outgrew this would be
+ * trimmed back at render time, which is exactly the sliding window this design exists to remove.
+ */
+const EPOCH_BUDGET_DIVISOR = 2
 
 /**
  * The share of a Context Profile's request budget the long-term digest may take. The digest is Tier 4
@@ -391,21 +402,20 @@ export class Phase8ContextPipeline {
   }
 
   /**
-   * Resolve the Continuity baseline and the recent Tail for one preparation.
+   * Resolve the Continuity baseline, the second layer and the digest for one preparation.
    *
-   * The Tail floor is the baseline's source end, so the two always agree. While the committed blocks
-   * still fit the Profile, the baseline the Branch already holds is reused unchanged. Once more blocks
-   * have accumulated than the Profile keeps, the baseline advances to just before the retained window:
-   * the next Tail rebuild then reads the increment instead of the whole history, and the baseline stops
-   * being frozen at the first Round. The Character and the Reaction path both call this, so they cannot
-   * drift apart.
+   * The floor is the baseline's source end, so the two always agree. While the blocks appended since that
+   * floor fit their budget, the baseline is reused unchanged: the rendered prefix stays byte-identical, and
+   * a Provider can reuse everything from the two contracts to the end of the appended history. Only when
+   * the second layer outgrows its budget — or when there is no baseline yet — does the floor move once, to
+   * just before the Profile's retained window. The Character and the Reaction path both call this, so they
+   * cannot drift apart.
    */
   #continuity(
     address: ProposalContext['address'],
     characterId: CharacterId,
     asOfWorldSeq: number,
-    maximumBlocks: number,
-    maximumDigestBytes: number,
+    profile: Phase8ContextProfile,
   ): {
     readonly checkpoint: CharacterContinuityCheckpoint
     readonly tail: InteractionTail
@@ -413,13 +423,22 @@ export class Phase8ContextPipeline {
   } {
     const existing = this.#checkpoints.latestAt(address, characterId, asOfWorldSeq)
     const floor = existing?.sourceEndSeq ?? asOfWorldSeq
-    const rolling = this.#tails.rebuildRolling(address, characterId, floor, asOfWorldSeq, maximumBlocks)
+    const window = this.#tails.rebuildWindow(
+      address, characterId, floor, asOfWorldSeq, profile.recentInteractionBlocks,
+    )
+    const budget = Math.floor(profile.maximumRequestBytes / EPOCH_BUDGET_DIVISOR)
+    const rebuild = existing === undefined
+      || Buffer.byteLength(JSON.stringify(window.tail), 'utf8') > budget
+    const chosenFloor = rebuild ? window.rebuiltFloor : floor
     return {
-      checkpoint: existing !== undefined && rolling.floor === floor
+      checkpoint: existing !== undefined && chosenFloor === floor
         ? existing
-        : this.#checkpoints.rebuildAt(address, characterId, rolling.floor),
-      tail: rolling.tail,
-      digest: this.#digest(address, characterId, rolling.floor, maximumDigestBytes),
+        : this.#checkpoints.rebuildAt(address, characterId, chosenFloor),
+      tail: rebuild ? window.rebuiltTail : window.tail,
+      digest: this.#digest(
+        address, characterId, chosenFloor,
+        Math.floor(profile.maximumRequestBytes / DIGEST_BUDGET_DIVISOR),
+      ),
     }
   }
 
@@ -482,9 +501,7 @@ export class Phase8ContextPipeline {
     const selectedProfile = profileId(this.options.manifest, binding.actorId)
     const selectedProfileContract = PHASE8_CONTEXT_PROFILES.find(value => value.profileId === selectedProfile)!
     const { checkpoint, tail, digest } = this.#continuity(
-      context.address, binding.actorId, asOfWorldSeq,
-      selectedProfileContract.recentInteractionBlocks,
-      Math.floor(selectedProfileContract.maximumRequestBytes / DIGEST_BUDGET_DIVISOR),
+      context.address, binding.actorId, asOfWorldSeq, selectedProfileContract,
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,
@@ -564,9 +581,7 @@ export class Phase8ContextPipeline {
     const selectedProfile = profileId(this.options.manifest, binding.actorId)
     const selectedProfileContract = PHASE8_CONTEXT_PROFILES.find(profile => profile.profileId === selectedProfile)!
     const { checkpoint, tail, digest } = this.#continuity(
-      context.address, binding.actorId, asOfWorldSeq,
-      selectedProfileContract.recentInteractionBlocks,
-      Math.floor(selectedProfileContract.maximumRequestBytes / DIGEST_BUDGET_DIVISOR),
+      context.address, binding.actorId, asOfWorldSeq, selectedProfileContract,
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,

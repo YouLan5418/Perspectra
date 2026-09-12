@@ -453,7 +453,10 @@ export class CharacterContextAssembler {
       || !Number.isSafeInteger(budgetTrim.digestItems) || budgetTrim.digestItems < 0) {
       throw new RangeError('Context budget trim requires non-negative safe integers')
     }
-    const profileTail = selectInteractionTail(request.tail, selectedProfile.recentInteractionBlocks)
+    // The Profile's block count no longer bounds what is sent. It bounds how many blocks a rebuild keeps,
+    // and the second layer is bounded by its own byte budget instead — a Profile-sized window here would
+    // reintroduce the sliding that invalidates every reusable prefix.
+    const profileTail = request.tail
     const profileMemories = request.recall.memories.slice(0, selectedProfile.recallResults)
     const selectedTail = selectInteractionTail(
       profileTail, Math.max(0, profileTail.blocks.length - budgetTrim.tailBlocks),

@@ -421,7 +421,7 @@ describe('Phase 8 continuity derivation', () => {
     world.close()
   })
 
-  it('advances the Tail floor past the blocks the retained window cannot hold', async () => {
+  it('appends every committed block, and reports where the floor moves when the epoch is rebuilt', async () => {
     const { world, memory } = await fixture()
     const tails = new InteractionTailBuilder(world)
     for (const [index, id] of ['second', 'third', 'fourth'].entries()) {
@@ -435,33 +435,31 @@ describe('Phase 8 continuity derivation', () => {
     const everyBlock = tails.rebuildAt(address(), alice, 0, asOf, 10).blocks
     expect(everyBlock).toHaveLength(4)
 
-    // While the window still fits, the floor does not move and the Tail keeps every block.
-    const fits = tails.rebuildRolling(address(), alice, 0, asOf, 4)
-    expect(fits.floor).toBe(0)
-    expect(fits.tail.blocks).toHaveLength(4)
+    // The second layer keeps every block and never moves its floor: that is what keeps a prefix reusable.
+    const window = tails.rebuildWindow(address(), alice, 0, asOf, 2)
+    expect(window.tail.blocks).toHaveLength(4)
+    expect(window.tail.afterSeq).toBe(0)
 
-    // Once it cannot, the floor parks at the end of the last dropped block and only the window remains.
-    // This is what bounds the next rebuild to the increment instead of the whole history.
-    const rolling = tails.rebuildRolling(address(), alice, 0, asOf, 2)
-    expect(rolling.floor).toBe(everyBlock[1]!.endSeq)
-    expect(rolling.tail.afterSeq).toBe(rolling.floor)
-    expect(rolling.tail.blocks.map(block => block.roundId))
+    // Rebuilding the epoch parks the floor just before the Profile's retained window.
+    expect(window.rebuiltFloor).toBe(everyBlock[1]!.endSeq)
+    expect(window.rebuiltTail.afterSeq).toBe(window.rebuiltFloor)
+    expect(window.rebuiltTail.blocks.map(block => block.roundId))
       .toEqual(['round:third', 'round:fourth'])
-    expect(rolling.tail).toEqual(tails.rebuildAt(address(), alice, rolling.floor, asOf, 2))
+    expect(window.rebuiltTail).toEqual(tails.rebuildAt(address(), alice, window.rebuiltFloor, asOf, 2))
 
-    // A floor that already fits is stable, so a caller that reuses its baseline keeps agreeing with it.
-    const stable = tails.rebuildRolling(address(), alice, rolling.floor, asOf, 2)
-    expect(stable.floor).toBe(rolling.floor)
-    expect(stable.tail).toEqual(rolling.tail)
+    // A window that already fits keeps the floor exactly where the caller put it.
+    const fits = tails.rebuildWindow(address(), alice, 0, asOf, 4)
+    expect(fits.rebuiltFloor).toBe(0)
+    expect(fits.rebuiltTail.blocks).toHaveLength(4)
 
-    // Zero blocks keeps nothing and parks the floor at the last committed block.
-    const none = tails.rebuildRolling(address(), alice, 0, asOf, 0)
-    expect(none.floor).toBe(everyBlock[3]!.endSeq)
-    expect(none.tail.blocks).toEqual([])
+    // Zero retained blocks keeps none and parks the floor at the last committed block.
+    const none = tails.rebuildWindow(address(), alice, 0, asOf, 0)
+    expect(none.rebuiltFloor).toBe(everyBlock[3]!.endSeq)
+    expect(none.rebuiltTail.blocks).toEqual([])
 
-    expect(() => tails.rebuildRolling(address(), alice, -1, asOf, 1)).toThrow(RangeError)
-    expect(() => tails.rebuildRolling(address(), alice, asOf, asOf - 1, 1)).toThrow(RangeError)
-    expect(() => tails.rebuildRolling(address(), alice, 0, asOf, -1)).toThrow(RangeError)
+    expect(() => tails.rebuildWindow(address(), alice, -1, asOf, 1)).toThrow(RangeError)
+    expect(() => tails.rebuildWindow(address(), alice, asOf, asOf - 1, 1)).toThrow(RangeError)
+    expect(() => tails.rebuildWindow(address(), alice, 0, asOf, -1)).toThrow(RangeError)
     memory.close()
     world.close()
   })

@@ -11,6 +11,7 @@ import {
   type CharacterContextSegmentKind,
   type ContextProfileId,
   type ContextSegment,
+  type InteractionTail,
   type DirectorPlanningContext,
   type ProviderRequestHashInput,
   type WorldHash,
@@ -234,6 +235,36 @@ function renderOrder(bundle: CharacterContextBundle): readonly ContextSegment[] 
   return RENDER_ORDER.map(kind => byKind.get(kind)!)
 }
 
+/**
+ * Lay one Context segment out as messages.
+ *
+ * The second layer is the exception: it is sent one block per message. Were it one message, appending a
+ * Round would change that whole message and invalidate a Provider's cache from its first byte — which is
+ * the sliding window this layout exists to avoid. A block per message means a new Round only appends a
+ * message, and everything before it stays byte-identical.
+ */
+function segmentMessages(segment: ContextSegment): ProviderMessage[] {
+  if (segment.segmentKind !== 'recent_interaction_tail') {
+    return [{
+      role: 'user',
+      content: jsonString({ segmentKind: segment.segmentKind, content: segment.content, sourceRefs: segment.sourceRefs }),
+    }]
+  }
+  const tail = segment.content as unknown as InteractionTail
+  if (tail.blocks.length === 0) {
+    // An empty second layer still has to appear, so "every segment is present" stays a property of the wire.
+    return [{ role: 'user', content: jsonString({ segmentKind: 'recent_interaction_tail', content: [], sourceRefs: [] }) }]
+  }
+  return tail.blocks.map(block => ({
+    role: 'user' as const,
+    content: jsonString({
+      segmentKind: 'recent_interaction_tail',
+      content: block,
+      sourceRefs: block.observations.map(observation => observation.sourceRef),
+    }),
+  }))
+}
+
 /** Render every untrusted semantic segment as a JSON data leaf; only the first two fixed contracts get control roles. */
 export class StructuredPromptRenderer {
   renderCharacter(request: RenderCharacterRequest): RenderedProviderRequest {
@@ -248,17 +279,18 @@ export class StructuredPromptRenderer {
         correlationId: request.correlationId, address: request.context.address, roundId: request.context.roundId,
       })
     }
-    const ordered = renderOrder(request.context)
-    const messages: ProviderMessage[] = ordered.map((segment, index) => ({
-      role: index === 0 ? 'system' as const : index === 1 ? 'developer' as const : 'user' as const,
-      content: index === 0 || index === 1
-        ? jsonString(segment.content)
-        : jsonString({
-          segmentKind: segment.segmentKind,
-          content: segment.content,
-          sourceRefs: segment.sourceRefs,
-        }),
-    }))
+    const messages: ProviderMessage[] = []
+    for (const [index, segment] of renderOrder(request.context).entries()) {
+      if (index === 0) {
+        messages.push({ role: 'system', content: jsonString(segment.content) })
+        continue
+      }
+      if (index === 1) {
+        messages.push({ role: 'developer', content: jsonString(segment.content) })
+        continue
+      }
+      messages.push(...segmentMessages(segment))
+    }
     return render(
       request.context.contextHash, messages, request.contextProfileId,
       request.renderer, request.toolSchema, request.modelProfile, request.correlationId,

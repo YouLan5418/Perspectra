@@ -10,6 +10,7 @@ import {
   type ContextSourceRef,
   type DirectorPlanningContext,
   type WorldAddress,
+  type WorldJsonObject,
 } from '@harness-world/contracts'
 import {
   StructuredPromptRenderer,
@@ -28,13 +29,14 @@ function source(text = 'base'): ContextSourceRef {
   return { sourceKind: 'world_event', sourceId: `event:${text}`, sourceSeq: 1, sourceHash: hashWorldJson('source', { text }) }
 }
 
-function character(text = 'hello', sourceText = 'base'): CharacterContextBundle {
+function character(text = 'hello', sourceText = 'base', blocks: readonly WorldJsonObject[] = []): CharacterContextBundle {
   const segments = CHARACTER_CONTEXT_SEGMENT_KINDS.map((kind, index) => createContextSegment(
     kind,
     index === 0 ? { protocol: 'proposal_only' }
       : index === 1 ? { controller: 'character' }
-        : index === 9 ? { text }
-          : { value: index },
+        : index === 5 ? { schemaVersion: 'interaction-tail/v1', afterSeq: 0, asOfWorldSeq: 10, blocks }
+          : index === 9 ? { text }
+            : { value: index },
     index === 9 ? [source(sourceText)] : [],
   ))
   const base = {
@@ -112,6 +114,25 @@ describe('StructuredPromptRenderer', () => {
     // between two renders of the same Context.
     expect(Buffer.from(second.exactRequestBytes).equals(Buffer.from(first.exactRequestBytes))).toBe(true)
     expect(second.providerRequestHash).toBe(first.providerRequestHash)
+  })
+
+  it('sends the second layer one block per message so an appended Round only appends', () => {
+    const block = (tick: number) => ({
+      schemaVersion: 'interaction-block/v1', transactionId: `transaction:${tick}`,
+      roundId: `round:${tick}`, startSeq: tick, endSeq: tick, tick, authorityHash: null,
+      blockHash: hashWorldJson('interaction-block/v1', { tick }), observations: [],
+    })
+    const before = renderCharacter(character('hello', 'base', [block(1), block(2)]))
+    const after = renderCharacter(character('hello', 'base', [block(1), block(2), block(3)]))
+    // The Round that arrived is one new message, and every message before it is byte-identical — which is
+    // what a Provider's prefix cache needs. Were the Tail one message, its first byte would change.
+    expect(after.exactRequest.messages.length).toBe(before.exactRequest.messages.length + 1)
+    const shared = before.exactRequest.messages.findIndex((message, index) =>
+      message.content !== after.exactRequest.messages[index]!.content)
+    // Contracts, anchors, the baseline and both shared blocks are all reusable; everything after the new
+    // block is pushed one message later, which is the only cost of appending.
+    expect(shared).toBe(8)
+    expect(after.exactRequest.messages.length).toBe(14)
   })
 
   it('separates semantic Context mutations from Provider-only and transport-only mutations', () => {
