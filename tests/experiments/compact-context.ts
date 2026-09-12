@@ -96,7 +96,8 @@ export function renderExperiment(
   if (messages.length !== 12 || messages[0]?.role !== 'system' || messages[1]?.role !== 'developer') {
     throw new TypeError('experiment requires the known 12-segment Character Context')
   }
-  const currentSelfState = object(object(JSON.parse(messages[6]!.content)).content)
+  // Segments are found by name, not position: wire order is a caching decision and moves.
+  const currentSelfState = object(segment(messages, 'current_self_state').content)
   const currentLocationId = currentSelfState.locationId
   const availableActionReferences = availableExperimentActionReferences(actionReferences, currentLocationId)
   const references = new Map<string, string>()
@@ -127,8 +128,8 @@ export function renderExperiment(
       segment = index === 0 ? 'host_protocol' : 'controller_contract'
     } else {
       const data = object(JSON.parse(message.content))
-      segment = segmentKinds[index - 2]!
-      if (message.role !== 'user' || data.segmentKind !== segment || !('content' in data)) {
+      segment = typeof data.segmentKind === 'string' ? data.segmentKind : ''
+      if (message.role !== 'user' || !(segmentKinds as readonly string[]).includes(segment) || !('content' in data)) {
         throw new TypeError('unknown or reordered experiment segment')
       }
       content = JSON.stringify(mode === 'full' ? data : {

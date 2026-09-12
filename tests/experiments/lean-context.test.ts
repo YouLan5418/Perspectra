@@ -165,8 +165,9 @@ describe('renderLeanContext', () => {
 
   it('refuses anything that is not the known twelve segments', () => {
     expect(() => renderLeanContext(context().slice(0, 11))).toThrow('known 12-segment')
-    const reordered = context()
-    reordered[6] = segment('verified_recall', [])
-    expect(() => renderLeanContext(reordered)).toThrow('unknown or reordered segment')
+    // Order is free, but a substituted segment is not: the set still has to be the known twelve.
+    const substituted = context()
+    substituted[6] = segment('verified_recall', [])
+    expect(() => renderLeanContext(substituted)).toThrow('does not carry every segment exactly once')
   })
 })

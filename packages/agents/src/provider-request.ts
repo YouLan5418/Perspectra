@@ -8,7 +8,9 @@ import {
   hashProviderRequest,
   hashWorldJson,
   type CharacterContextBundle,
+  type CharacterContextSegmentKind,
   type ContextProfileId,
+  type ContextSegment,
   type DirectorPlanningContext,
   type ProviderRequestHashInput,
   type WorldHash,
@@ -196,6 +198,42 @@ function render(
   return { contextHash, exactRequest, exactRequestBytes, providerRequestHash: hashProviderRequest(hashInput) }
 }
 
+/**
+ * The order a Provider sees the twelve segments in.
+ *
+ * The Context's own segment order is a semantic contract — `character-controller/v2` fixes it and
+ * `contextHash` covers it — but the order messages are sent in is a rendering concern, and it decides how
+ * much of a request a Provider can reuse from the same character's previous call. This order puts the
+ * parts that never change first: the two fixed contracts, then the output contract, then the world and
+ * character anchors. The Continuity baseline and the recent Tail follow, and everything that differs every
+ * Round sits last. Nothing here needs to be cached.
+ */
+const RENDER_ORDER: readonly CharacterContextSegmentKind[] = Object.freeze([
+  'host_protocol',
+  'controller_contract',
+  'output_reminder',
+  'world_public_anchor',
+  'character_anchor',
+  'continuity_checkpoint',
+  'recent_interaction_tail',
+  'current_self_state',
+  'current_scene',
+  'verified_recall',
+  'current_stimulus',
+  'affordances',
+])
+
+/**
+ * Reorder the Context's segments for the wire.
+ *
+ * Nothing is validated here: the caller has already recomputed `contextHash`, which fixes every segment's
+ * presence, kind and contract order before a request is rendered.
+ */
+function renderOrder(bundle: CharacterContextBundle): readonly ContextSegment[] {
+  const byKind = new Map(bundle.segments.map(segment => [segment.segmentKind, segment]))
+  return RENDER_ORDER.map(kind => byKind.get(kind)!)
+}
+
 /** Render every untrusted semantic segment as a JSON data leaf; only the first two fixed contracts get control roles. */
 export class StructuredPromptRenderer {
   renderCharacter(request: RenderCharacterRequest): RenderedProviderRequest {
@@ -210,19 +248,17 @@ export class StructuredPromptRenderer {
         correlationId: request.correlationId, address: request.context.address, roundId: request.context.roundId,
       })
     }
-    const [host, controller, ...dataSegments] = request.context.segments
-    const messages: ProviderMessage[] = [
-      { role: 'system', content: jsonString(host!.content) },
-      { role: 'developer', content: jsonString(controller!.content) },
-      ...dataSegments.map(segment => ({
-        role: 'user' as const,
-        content: jsonString({
+    const ordered = renderOrder(request.context)
+    const messages: ProviderMessage[] = ordered.map((segment, index) => ({
+      role: index === 0 ? 'system' as const : index === 1 ? 'developer' as const : 'user' as const,
+      content: index === 0 || index === 1
+        ? jsonString(segment.content)
+        : jsonString({
           segmentKind: segment.segmentKind,
           content: segment.content,
           sourceRefs: segment.sourceRefs,
         }),
-      })),
-    ]
+    }))
     return render(
       request.context.contextHash, messages, request.contextProfileId,
       request.renderer, request.toolSchema, request.modelProfile, request.correlationId,

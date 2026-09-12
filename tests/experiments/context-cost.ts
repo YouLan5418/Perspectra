@@ -51,7 +51,8 @@ export function segmentNameOf(message: ProviderMessageLike, index: number): stri
 
 /** The Continuity baseline's watermark, when the message is the continuity segment and carries one. */
 function checkpointWatermarkOf(messages: readonly ProviderMessageLike[]): number | null {
-  const segment = messages[4]
+  // Found by name: the order segments are sent in is a caching decision and moves.
+  const segment = messages.find(message => message.content.includes('"segmentKind":"continuity_checkpoint"'))
   if (segment === undefined) return null
   try {
     const parsed = JSON.parse(segment.content) as { readonly content?: { readonly checkpoint?: unknown } }

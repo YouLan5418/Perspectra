@@ -170,17 +170,29 @@ function commitDigestRound(
   })
 }
 
+/** The segment a participant actually received, found by kind: wire order is a caching decision, not an index. */
+function receivedSegment(
+  prepared: ReturnType<Phase8ContextPipeline['prepare']>,
+  segmentKind: string,
+): { readonly segmentKind: string; readonly content: Record<string, unknown> } {
+  const message = prepared.providerContext.exactProviderRequest.messages
+    .find(candidate => candidate.content.includes(`"segmentKind":"${segmentKind}"`))
+  if (message === undefined) throw new TypeError(`the Context carried no ${segmentKind} segment`)
+  const segment = JSON.parse(message.content) as {
+    readonly segmentKind: string
+    readonly content: Record<string, unknown>
+  }
+  expect(segment.segmentKind).toBe(segmentKind)
+  return segment
+}
+
 /** The continuity segment of the Context a participant actually received. */
 function continuitySegment(prepared: ReturnType<Phase8ContextPipeline['prepare']>): {
   readonly digest: readonly { readonly text: string }[]
 } {
-  const message = prepared.providerContext.exactProviderRequest.messages[4]!
-  const segment = JSON.parse(message.content) as {
-    readonly segmentKind: string
-    readonly content: { readonly digest: readonly { readonly text: string }[] }
+  return receivedSegment(prepared, 'continuity_checkpoint').content as {
+    readonly digest: readonly { readonly text: string }[]
   }
-  expect(segment.segmentKind).toBe('continuity_checkpoint')
-  return segment.content
 }
 
 describe('Phase8ContextPipeline', () => {
@@ -215,10 +227,6 @@ describe('Phase8ContextPipeline', () => {
     const pipeline = new Phase8ContextPipeline(value.options)
     const address = value.spec.manifest.address
     const alice = brandId('character:alice', 'CharacterId')
-    const segmentOf = (prepared: ReturnType<typeof pipeline.prepare>, index: number) => {
-      const message = prepared.providerContext.exactProviderRequest.messages[index]!
-      return JSON.parse(message.content) as { readonly segmentKind: string; readonly content: Record<string, unknown> }
-    }
     const baselines: number[] = []
     const tailSizes: number[] = []
     for (let index = 0; index < 6; index += 1) {
@@ -240,11 +248,9 @@ describe('Phase8ContextPipeline', () => {
       const prepared = pipeline.prepare(
         participant(), context, value.store.readEvents(address), decision, decision.asOfSeq, () => undefined,
       )
-      const checkpoint = segmentOf(prepared, 4)
-      expect(checkpoint.segmentKind).toBe('continuity_checkpoint')
+      const checkpoint = receivedSegment(prepared, 'continuity_checkpoint')
       baselines.push((checkpoint.content.checkpoint as { readonly asOfWorldSeq: number }).asOfWorldSeq)
-      const tail = segmentOf(prepared, 5)
-      expect(tail.segmentKind).toBe('recent_interaction_tail')
+      const tail = receivedSegment(prepared, 'recent_interaction_tail')
       tailSizes.push((tail.content.blocks as readonly unknown[]).length)
     }
     // A baseline that still fits the compact Profile's four blocks is reused, not rebuilt.

@@ -210,6 +210,7 @@ export function renderLeanContext(
     throw new TypeError('lean rendering requires the known 12-segment Character Context')
   }
   const sizes: { segment: string; beforeBytes: number; afterBytes: number }[] = []
+  const seen = new Set<string>()
   const rendered = messages.map((message, index) => {
     let content: string
     let segment: string
@@ -218,17 +219,23 @@ export function renderLeanContext(
       segment = index === 0 ? 'host_protocol' : 'controller_contract'
     } else {
       const data = object(JSON.parse(message.content))
-      segment = segmentKinds[index - 2]!
-      if (message.role !== 'user' || data.segmentKind !== segment || !('content' in data)) {
+      segment = typeof data.segmentKind === 'string' ? data.segmentKind : ''
+      if (message.role !== 'user' || !(segmentKinds as readonly string[]).includes(segment) || !('content' in data)) {
         throw new TypeError('unknown or reordered segment')
       }
       const projector = PROJECTORS[segment]
       if (projector === undefined) throw new TypeError(`no lean projection for ${segment}`)
       content = JSON.stringify({ segmentKind: segment, content: projector(data.content) })
     }
+    // Only the data segments are counted: the two contracts are fixed and are not in `segmentKinds`.
+    if (index >= 2) seen.add(segment)
     sizes.push({ segment, beforeBytes: Buffer.byteLength(message.content), afterBytes: Buffer.byteLength(content) })
     return { role: message.role, content }
   })
+  // Order is free, but the set is not: every known segment exactly once, no substitutes, no duplicates.
+  if (seen.size !== segmentKinds.length) {
+    throw new TypeError('experiment Context does not carry every segment exactly once')
+  }
   return {
     renderer: LEAN_RENDERER,
     messages: rendered,
