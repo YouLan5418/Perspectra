@@ -20,6 +20,8 @@
 
 > **C3/C4 模型无关收尾（2026-09-12）：** 在原运行时切片上补齐受理时 Manifest/head Authority、启动扫描与 `player_input` 调度 quantum、Logical 输入/Inbox/Commit 闭包、backup/restore、fork/as-of、Snapshot/Full Replay 及 v2 Creator 示例；详见新增的 [`C3/C4 模型无关收尾报告`](../2026-09-12_角色交互-C3C4-模型无关收尾-report.md)。原 [`C3 运行时与 C4 恢复实施记录`](../2026-09-12_角色交互-C3运行时与C4恢复-report.md) 保留为当时基线。生产 Player Intent Provider/Profile 入口、C0 Provider 矩阵和 C4 长程真实模型试玩仍未关闭，因此不声明 Manifest v9 已具备发布资格。
 
+> **C0 Provider 门禁复跑（2026-09-13）：** C0 预声明的真实 Provider 门禁已在合并树上复跑并通过：`deepseek / deepseek-flash`，20 次调用 0 无效，`deepseekGatePassed: true`，脚本退出码 0。首次运行（24 次调用）无效率为 29.2%；两条被拒形态经对照 §4 的分类判定为**乙类契约缺口**（跨列表重复、空对），已在校验器侧归一化修复，见 [`2026-09-13_表现码跨列表重复归一化-修复说明.md`](../2026-09-13_表现码跨列表重复归一化-修复说明.md)。本条据此不再按"门禁未运行"记录。**边界：** 这是一次达到预声明最低样本量的运行，不是无效率的分布证明；要收紧结论需按 C0 固定语料继续累积多次运行。C3 生产 Player Intent 入口与 C4 长程真实模型试玩仍未关闭。
+
 > **术语：** “即时成立”表示无需目标审批、在裁决顺序上先形成玩家候选 S1；不表示零延迟、提前显示或玩家阶段单独 COMMIT。玩家组与 NPC 结果仍由一个 Root Round 原子提交。
 
 ## 1. 目标、成功标准与非目标
