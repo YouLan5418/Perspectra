@@ -90,8 +90,13 @@ export interface ExtractiveL1Summary extends WorldJsonObject {
   readonly sourceStartSeq: number
   readonly sourceEndSeq: number
   readonly sourceRefs: readonly ContextSourceRef[]
+  /**
+   * One entry per committed Round the Summary covers, carrying that Round's visible text. The field is a
+   * list so a Summary stays a pure function of the sources it names; the algorithm identifier below says
+   * how those entries were laid out.
+   */
   readonly extracts: readonly string[]
-  readonly algorithmId: 'deterministic-extractive-l1/v1'
+  readonly algorithmId: 'deterministic-rollup-l1/v2'
   readonly summaryHash: WorldHash
 }
 

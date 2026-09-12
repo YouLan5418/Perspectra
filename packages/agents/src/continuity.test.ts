@@ -15,6 +15,7 @@ import {
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { ContinuityCheckpointService, InteractionTailBuilder } from './continuity.ts'
+import { CONTEXT_SCHEMA_VERSION } from './context-database.ts'
 
 const directories: string[] = []
 const alice = brandId('character:alice', 'CharacterId')
@@ -219,7 +220,9 @@ describe('Phase 8 continuity derivation', () => {
     ]))
     expect(first.activeCognition.map(value => value.id)).not.toContain('relationship:alice:bob:old')
     expect(JSON.stringify(first)).not.toContain('AUTHOR_SECRET_SOURCE_CANARY')
-    expect(first.summaryRefs).toHaveLength(2)
+    // The genesis log carries no Tick event, so every Memory falls in one Round and one Summary: this is
+    // the one-summary case at the other end of the range from per-Round grouping.
+    expect(first.summaryRefs).toHaveLength(1)
     expect(JSON.stringify(first.summaryRefs)).not.toContain('Alice saw rain')
     expect(checkpoints.rebuildAt(address(), alice, head.headSeq)).toEqual(first)
     checkpoints.close()
@@ -228,7 +231,11 @@ describe('Phase 8 continuity derivation', () => {
     expect(reopened.latestAt(address(), alice, head.headSeq)).toEqual(first)
     expect(reopened.latestAt(address(), bob, head.headSeq)).toBeUndefined()
     const bobCheckpoint = reopened.rebuildAt(address(), bob, head.headSeq)
-    expect(bobCheckpoint).toMatchObject({ activeCognition: [], summaryRefs: [], sourceStartSeq: head.headSeq })
+    // Bob has exactly one visible Memory, and a group of one is still a Summary now, so the baseline
+    // reaches that Memory's source range without copying any of its text.
+    expect(bobCheckpoint).toMatchObject({ activeCognition: [] })
+    expect(bobCheckpoint.summaryRefs).toHaveLength(1)
+    expect(JSON.stringify(bobCheckpoint)).not.toContain('Bob hid a letter')
     reopened.reset(address(), alice)
     expect(reopened.latestAt(address(), alice, head.headSeq)).toBeUndefined()
     reopened.close()
@@ -331,7 +338,7 @@ describe('Phase 8 continuity derivation', () => {
 
     const wrongVersionPath = join(contextPath, '..', 'wrong-version.sqlite')
     const wrongVersionDb = new DatabaseSync(wrongVersionPath)
-    wrongVersionDb.exec('PRAGMA user_version=6')
+    wrongVersionDb.exec(`PRAGMA user_version=${CONTEXT_SCHEMA_VERSION + 1}`)
     wrongVersionDb.close()
     expect(() => new ContinuityCheckpointService(wrongVersionPath, world, memory)).toThrow('user_version mismatch')
     memory.close()
@@ -351,6 +358,32 @@ describe('Phase 8 continuity derivation', () => {
     const childCheckpoint = checkpoints.rebuildAt(child, alice, head.headSeq)
     expect(JSON.stringify(childCheckpoint)).not.toContain('FUTURE_CANARY')
     expect(childCheckpoint.address.branchId).toBe(child.branchId)
+    checkpoints.close()
+    memory.close()
+    world.close()
+  })
+
+  it('references one Summary per group of committed Rounds, in source order', async () => {
+    const { world, memory, contextPath } = await fixture()
+    // Five more Rounds, each closing with its Tick event, so the Memories span two Summary groups.
+    for (let round = 1; round <= 5; round += 1) {
+      await commit(world, address(), brandId(`transaction:round-${round}`, 'TransactionId'), [
+        { eventType: 'observation.upsert', eventVersion: 1, data: {
+          id: `observation:alice:round-${round}`, value: { observerId: alice, content: `Alice round ${round}` },
+        } },
+        { eventType: 'world.tick-advanced', eventVersion: 1,
+          data: { tick: round, roundId: `round:round-${round}` } },
+      ])
+    }
+    const asOf = world.head(address()).headSeq
+    memory.catchUpReceipt(address(), alice, asOf)
+    const checkpoints = new ContinuityCheckpointService(contextPath, world, memory)
+    const checkpoint = checkpoints.rebuildAt(address(), alice, asOf)
+    // The baseline names every group the character's history falls into, ordered by source range.
+    expect(checkpoint.summaryRefs.length).toBeGreaterThan(1)
+    const starts = checkpoint.summaryRefs.map(ref => ref.sourceStartSeq)
+    expect([...starts].sort((left, right) => left - right)).toEqual(starts)
+    expect(JSON.stringify(checkpoint.summaryRefs)).not.toContain('Alice round')
     checkpoints.close()
     memory.close()
     world.close()

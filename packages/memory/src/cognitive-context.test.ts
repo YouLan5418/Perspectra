@@ -80,7 +80,8 @@ describe('CognitiveMemoryService', () => {
     const memory = new CognitiveMemoryService(memoryPath, world, undefined, 2)
     const receipt = memory.catchUpReceipt(address(), alice, 6)
     expect(memory.watermark(address(), alice)).toEqual(receipt.watermark)
-    expect(memory.summaries(address(), alice)).toHaveLength(0)
+    // Even one Memory gets a Summary: the trailing group is no longer discarded for being small.
+    expect(memory.summaries(address(), alice)).toHaveLength(1)
     const recalled = memory.recallWithReceipt({
       schemaVersion: 'recall-query-plan/v1', planId: 'recall:alice', address: address(), characterId: alice,
       asOfWorldSeq: 6, query: 'secret', limit: 2, rankingAlgorithm: 'fts5-bm25-stable/v1',

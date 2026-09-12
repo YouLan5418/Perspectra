@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { openMigratedDatabase } from '@harness-world/store-sqlite'
 
 export const CONTEXT_APPLICATION_ID = 0x48435743
-export const CONTEXT_SCHEMA_VERSION = 5
+export const CONTEXT_SCHEMA_VERSION = 6
 
 const CONTINUITY_SCHEMA = `
 CREATE TABLE IF NOT EXISTS continuity_checkpoints (
@@ -112,12 +112,24 @@ const COMPLETE_CONTEXT_SCHEMA = [
 ].join('\n')
 
 /**
+ * A Continuity Checkpoint names Memory L1 Summaries by identity, source range and Hash, so a new Summary
+ * grouping makes every stored Checkpoint describe a baseline that can no longer be rebuilt at its own
+ * as-of. Checkpoints are derived data — the next preparation rebuilds one from the World prefix — so the
+ * stale rows go. Context Receipts and Provider call records stay: they describe Rounds that happened.
+ */
+const CONTINUITY_DIGEST_SCHEMA = `
+DELETE FROM continuity_checkpoints;
+`
+
+/**
  * Open the rebuildable Context database through one forward-only schema axis.
  *
  * Version 5 deliberately repeats every CREATE IF NOT EXISTS statement. Before this
  * catalog existed, opening one component in isolation could advance user_version
  * while leaving earlier component tables absent. The repair migration preserves
  * existing rows and makes every legacy 0.3.0 layout structurally complete.
+ *
+ * Version 6 drops Continuity Checkpoints whose Summary identities no longer exist.
  */
 export function openContextDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, CONTEXT_APPLICATION_ID, [
@@ -125,6 +137,7 @@ export function openContextDatabase(path: string): DatabaseSync {
     { version: 2, sql: RECEIPT_SCHEMA },
     { version: 3, sql: PROVIDER_CALL_SCHEMA },
     { version: 4, sql: QUALITY_SCHEMA },
-    { version: CONTEXT_SCHEMA_VERSION, sql: COMPLETE_CONTEXT_SCHEMA },
+    { version: 5, sql: COMPLETE_CONTEXT_SCHEMA },
+    { version: CONTEXT_SCHEMA_VERSION, sql: CONTINUITY_DIGEST_SCHEMA },
   ])
 }

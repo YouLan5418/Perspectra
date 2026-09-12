@@ -47,7 +47,7 @@ describe('Context database migration catalog', () => {
     db.close()
   })
 
-  it('repairs legacy component-first layouts without rewriting existing rows', () => {
+  it('repairs legacy component-first layouts and clears baselines that name replaced Summaries', () => {
     const path = database('legacy-v1.sqlite')
     const legacy = new DatabaseSync(path)
     legacy.exec(`
@@ -64,8 +64,9 @@ describe('Context database migration catalog', () => {
     `)
     legacy.close()
     const migrated = openContextDatabase(path)
-    expect(migrated.prepare('SELECT checkpoint_id FROM continuity_checkpoints').get())
-      .toEqual({ checkpoint_id: 'checkpoint:legacy' })
+    // Version 6 clears Checkpoints: they named L1 Summaries by identity, and the Summary grouping changed,
+    // so no stored baseline can be rebuilt at its own as-of. The table survives; the stale row does not.
+    expect(migrated.prepare('SELECT checkpoint_id FROM continuity_checkpoints').get()).toBeUndefined()
     expect(tables(migrated)).toHaveLength(7)
     migrated.close()
 

@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, type WorldAddress } from '@harness-world/contracts'
+import { CONTEXT_SCHEMA_VERSION } from './context-database.ts'
 import { ProviderQualityStore } from './provider-quality.ts'
 
 const directories: string[] = []
@@ -154,7 +155,7 @@ describe('ProviderQualityStore', () => {
 
     const futurePath = database('future.sqlite')
     const future = new DatabaseSync(futurePath)
-    future.exec('PRAGMA user_version=6')
+    future.exec(`PRAGMA user_version=${CONTEXT_SCHEMA_VERSION + 1}`)
     future.close()
     expect(() => new ProviderQualityStore(futurePath)).toThrow('user_version mismatch')
   })

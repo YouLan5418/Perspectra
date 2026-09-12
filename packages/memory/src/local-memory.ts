@@ -218,7 +218,18 @@ CREATE INDEX cognitive_memory_v2_terms_lookup ON cognitive_memory_v2_terms(names
 UPDATE cognitive_memory_v2_namespaces SET terms_tokenizer_id = NULL;
 `
 
-export const MEMORY_SCHEMA_VERSION = 7
+/**
+ * L1 Summaries used to be grouped by record count, which cut an arbitrary line through the middle of a
+ * committed Round and dropped a trailing group of one — so the newest Memories had no Summary at all.
+ * Summaries are derived data rebuilt on every catch-up, so dropping the old rows is enough: the next
+ * catch-up writes Round-grouped ones. Continuity Checkpoints name Summaries by identity, so they drop
+ * their own derived rows the same way.
+ */
+const MEMORY_COGNITIVE_V2_DIGEST_SCHEMA = `
+DELETE FROM cognitive_memory_v2_summaries;
+`
+
+export const MEMORY_SCHEMA_VERSION = 8
 
 export const TENCENTDB_MEMORY_ENABLED = false
 
@@ -342,6 +353,78 @@ function orderedSources(values: readonly CognitiveSourceCandidate[]): CognitiveS
   return [...values].sort((left, right) => left.sourceRef.sourceSeq - right.sourceRef.sourceSeq)
 }
 
+/** How many committed Rounds one L1 Summary covers. */
+const SUMMARY_ROUNDS_PER_GROUP = 4
+
+/** The sequence that closes one committed Round, together with the Tick it advanced to. */
+interface SummaryRound {
+  readonly endSeq: number
+  readonly tick: number
+}
+
+/** Reduce a captured Memory to one Summary line: the speech marker becomes a plain separator. */
+function digestText(text: string): string {
+  return text.replace(' said: ', '：')
+}
+
+/**
+ * The ordinal of the Round a sequence belongs to, as an index into `rounds`.
+ *
+ * The result is the first boundary at or after the sequence. When the sequence closes no Round — a
+ * catch-up that stops mid-Round, or a World whose log carries no Tick event — the ordinal clamps to the
+ * last known Round, so those Memories still form a Summary instead of none.
+ */
+function roundOrdinal(rounds: readonly SummaryRound[], sourceSeq: number): number {
+  let low = 0
+  let high = rounds.length
+  while (low < high) {
+    const middle = (low + high) >> 1
+    if (rounds[middle]!.endSeq >= sourceSeq) high = middle
+    else low = middle + 1
+  }
+  return Math.min(low, rounds.length - 1)
+}
+
+/**
+ * Group Memories, which arrive ordered by source sequence, into whole-Round Summaries.
+ *
+ * A group is a run of entries whose Round ordinals land in the same bucket of `SUMMARY_ROUNDS_PER_GROUP`.
+ * A trailing bucket that is not full still becomes a Summary: discarding it is why the newest Memories
+ * used to have no Summary at all, and why the Continuity baseline reached further than the Summaries did.
+ */
+function groupMemoriesByRounds(
+  entries: readonly CognitiveMemoryEntry[],
+  rounds: readonly SummaryRound[],
+): CognitiveMemoryEntry[][] {
+  const groups: CognitiveMemoryEntry[][] = []
+  let current: CognitiveMemoryEntry[] = []
+  let currentBucket = Number.NaN
+  for (const entry of entries) {
+    const bucket = Math.floor(roundOrdinal(rounds, entry.sourceRef.sourceSeq) / SUMMARY_ROUNDS_PER_GROUP)
+    if (current.length > 0 && bucket !== currentBucket) {
+      groups.push(current)
+      current = []
+    }
+    currentBucket = bucket
+    current.push(entry)
+  }
+  if (current.length > 0) groups.push(current)
+  return groups
+}
+
+/** One line per Round the group covers, in time order, so the reader gets the episode rather than a record dump. */
+function digestExtracts(group: readonly CognitiveMemoryEntry[], rounds: readonly SummaryRound[]): string[] {
+  const byRound = new Map<number, string[]>()
+  for (const entry of group) {
+    const ordinal = roundOrdinal(rounds, entry.sourceRef.sourceSeq)
+    byRound.set(ordinal, [...byRound.get(ordinal) ?? [], digestText(entry.text)])
+  }
+  return [...byRound].map(([ordinal, lines]) => {
+    const round = rounds[ordinal]
+    return round === undefined ? lines.join(' ｜ ') : `第 ${round.tick} 轮 ｜ ${lines.join(' ｜ ')}`
+  })
+}
+
 /**
  * The FTS5 MATCH expression for one Recall query. Recall and its diagnostics share this so the counted
  * candidate set can never drift from the set a real Recall ranks.
@@ -396,7 +479,8 @@ export class LocalMemoryStore {
       { version: 4, sql: MEMORY_GOAL_SOURCE_SCHEMA },
       { version: 5, sql: MEMORY_COGNITIVE_V2_SCHEMA },
       { version: 6, sql: MEMORY_COGNITIVE_V2_KEYWORD_SCHEMA },
-      { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_COGNITIVE_V2_HYBRID_SCHEMA },
+      { version: 7, sql: MEMORY_COGNITIVE_V2_HYBRID_SCHEMA },
+      { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_COGNITIVE_V2_DIGEST_SCHEMA },
     ])
     this.#worldStore = worldStore
     this.#viewBuilder = new CharacterViewBuilder(worldStore)
@@ -470,7 +554,9 @@ export class LocalMemoryStore {
       const memoryEpoch = current?.memory_epoch ?? 1
       for (const candidate of candidates) this.#captureV2Candidate(key, address, characterId, candidate, correlationId)
       const rows = this.#readV2Entries(key, requiredAsOfSeq)
-      const summaries = this.#replaceV2Summaries(key, address, characterId, rows)
+      const summaries = this.#replaceV2Summaries(
+        key, address, characterId, rows, this.#summaryRounds(address, requiredAsOfSeq),
+      )
       const watermark: CognitiveMemoryWatermark = {
         schemaVersion: 'cognitive-memory-watermark/v2', address, characterId,
         verifiedThroughSeq: requiredAsOfSeq, capturedThroughSeq: requiredAsOfSeq,
@@ -693,7 +779,7 @@ export class LocalMemoryStore {
       sourceStartSeq: row.source_start_seq, sourceEndSeq: row.source_end_seq,
       sourceRefs: parseWorldJson(row.source_refs_json) as readonly ContextSourceRef[],
       extracts: parseWorldJson(row.extracts_json) as readonly string[],
-      algorithmId: 'deterministic-extractive-l1/v1', summaryHash: row.summary_hash,
+      algorithmId: 'deterministic-rollup-l1/v2', summaryHash: row.summary_hash,
     }))
   }
 
@@ -1425,26 +1511,33 @@ export class LocalMemoryStore {
     return { key, watermark }
   }
 
+  /**
+   * Rebuild the namespace's L1 Summaries from the committed Rounds they cover.
+   *
+   * A group is a whole number of Rounds rather than a fixed record count, because `world.tick-advanced`
+   * is committed exactly once per Round and therefore names where one Round ends and the next begins.
+   * Grouping by record count cut an arbitrary line through the middle of a Round and discarded a
+   * trailing group of one, so the newest Memories had no Summary at all.
+   */
   #replaceV2Summaries(
     key: string,
     address: WorldAddress,
     characterId: CharacterId,
     entries: readonly CognitiveMemoryEntry[],
+    rounds: readonly SummaryRound[],
   ): ExtractiveL1Summary[] {
     this.#db.prepare(`DELETE FROM cognitive_memory_v2_summaries WHERE namespace_key = ?`).run(key)
     const summaries: ExtractiveL1Summary[] = []
-    for (let index = 0; index < entries.length; index += 8) {
-      const chunk = entries.slice(index, index + 8)
-      if (chunk.length < 2) continue
+    for (const chunk of groupMemoriesByRounds(entries, rounds)) {
       const sourceRefs = chunk.map(entry => entry.sourceRef)
-      const extracts = chunk.map(entry => entry.text)
+      const extracts = digestExtracts(chunk, rounds)
       const sourceStartSeq = sourceRefs[0]!.sourceSeq
       const sourceEndSeq = sourceRefs.at(-1)!.sourceSeq
       const summaryId = deterministicId('memory-l1-summary/v1', { address, characterId, sourceRefs })
       const summaryInput = {
         schemaVersion: 'memory-l1/v1' as const, summaryId, address, characterId,
         sourceStartSeq, sourceEndSeq, sourceRefs, extracts,
-        algorithmId: 'deterministic-extractive-l1/v1' as const,
+        algorithmId: 'deterministic-rollup-l1/v2' as const,
       }
       const summary: ExtractiveL1Summary = {
         ...summaryInput, summaryHash: hashWorldJson('memory-l1-summary/v1', summaryInput),
@@ -1460,6 +1553,23 @@ export class LocalMemoryStore {
       summaries.push(summary)
     }
     return summaries
+  }
+
+  /**
+   * The sequence that closes each committed Round, read from the World Event Log.
+   *
+   * A Summary groups whole Rounds, and the Tick event is the only durable statement of where one Round
+   * ends. It reads one event per Round rather than the whole log.
+   */
+  #summaryRounds(address: WorldAddress, asOfWorldSeq: number): SummaryRound[] {
+    return this.#worldStore.readEventsRange(address, 0, asOfWorldSeq, ['world.tick-advanced'])
+      .map(event => {
+        const data = objectValue(event.data, `world.tick-advanced@${event.seq}`)
+        if (!Number.isSafeInteger(data.tick) || (data.tick as number) < 0) {
+          throw new Error(`world.tick-advanced@${event.seq} requires a non-negative integer tick`)
+        }
+        return { endSeq: event.seq, tick: data.tick as number }
+      })
   }
 
   close(): void {

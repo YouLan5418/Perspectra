@@ -103,6 +103,66 @@ function plan(characterId: CharacterId, query: string, asOfWorldSeq = 8, planId 
 }
 
 describe('Cognitive Memory v2', () => {
+  it('groups L1 Summaries by committed Round rather than by record count', async () => {
+    const path = paths()
+    const world = new WorldStore(path.world)
+    world.createBranch(address())
+    await commit(world, 'genesis', [
+      { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
+    ])
+    // Six Rounds, each closing with its Tick event and carrying exactly one visible Memory for Alice.
+    for (let round = 1; round <= 6; round += 1) {
+      await commit(world, `round-${round}`, [
+        { eventType: 'observation.upsert', eventVersion: 1, data: {
+          id: `observation:alice:round-${round}`, value: { observerId: alice, content: `第${round}件小事` },
+        } },
+        { eventType: 'world.tick-advanced', eventVersion: 1,
+          data: { tick: round, roundId: `round:memory-v2:round-${round}` } },
+      ])
+    }
+    const head = world.head(address())
+    const memory = new LocalMemoryStore(path.memory, world)
+    memory.catchUpV2(address(), alice, head.headSeq, 'catchup:rounds')
+    const summaries = memory.cognitiveSummaries(address(), alice)
+    // Four Rounds make one Summary, and the trailing two still make one instead of being discarded for
+    // being an incomplete group — which is what used to leave the newest Memories without any Summary.
+    expect(summaries).toHaveLength(2)
+    expect(summaries[0]!.extracts).toEqual([
+      '第 1 轮 ｜ 第1件小事',
+      '第 2 轮 ｜ 第2件小事',
+      '第 3 轮 ｜ 第3件小事',
+      '第 4 轮 ｜ 第4件小事',
+    ])
+    // The cut is a Round boundary, not a record boundary: the last Summary covers Rounds 5 and 6.
+    expect(summaries[1]!.extracts).toEqual([
+      '第 5 轮 ｜ 第5件小事',
+      '第 6 轮 ｜ 第6件小事',
+    ])
+    expect(summaries[1]!.sourceStartSeq).toBeGreaterThan(summaries[0]!.sourceEndSeq)
+    memory.close()
+    world.close()
+  })
+
+  it('fails closed when a Tick event cannot name the Round it closes', async () => {
+    const path = paths()
+    const world = new WorldStore(path.world)
+    world.createBranch(address())
+    await commit(world, 'genesis', [
+      { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
+    ])
+    await commit(world, 'bad-tick', [
+      { eventType: 'observation.upsert', eventVersion: 1, data: {
+        id: 'observation:alice:bad-tick', value: { observerId: alice, content: '仍然有一条经历' },
+      } },
+      { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: 'soon' } },
+    ])
+    const memory = new LocalMemoryStore(path.memory, world)
+    expect(() => memory.catchUpV2(address(), alice, world.head(address()).headSeq, 'catchup:bad-tick'))
+      .toThrow('requires a non-negative integer tick')
+    memory.close()
+    world.close()
+  })
+
   it('captures only committed, observer-scoped manifestation content without promoting private affect', async () => {
     const path = paths()
     const world = new WorldStore(path.world)
@@ -227,9 +287,11 @@ describe('Cognitive Memory v2', () => {
     expect(memory.recallV2(plan(alice, '   ')).memories).toEqual([])
     expect(memory.cognitiveSummaries(address(), alice)).toMatchObject([{
       schemaVersion: 'memory-l1/v1', sourceStartSeq: 4, sourceEndSeq: 8,
-      algorithmId: 'deterministic-extractive-l1/v1',
+      algorithmId: 'deterministic-rollup-l1/v2',
     }])
-    expect(memory.cognitiveSummaries(address(), alice)[0]!.extracts).toContain('character:bob said: the bridge is closed')
+    // A captured speech reads as one Summary line: the speaker, then what was said.
+    expect(memory.cognitiveSummaries(address(), alice)[0]!.extracts.join('\n'))
+      .toContain('character:bob：the bridge is closed')
 
     memory.catchUpV2(address(), bob, 8, 'catchup:bob')
     expect(memory.recallV2(plan(bob, 'bridge')).memories).toEqual([])
