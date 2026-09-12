@@ -10,6 +10,7 @@ import {
   type CharacterView,
   type ProposalContext,
   type ReactionProposalContext,
+  type RecallTokenizerId,
   type SubmitActionsV2,
   type SubmitActionsV3,
   type SubmitActionsV4,
@@ -40,6 +41,7 @@ import {
   type ExperimentMessage,
 } from './compact-context.ts'
 import { groupedPlaytestRequest, groupedPlaytestProposal, groupedPlayerCommand } from './grouped-playtest.ts'
+import { renderLeanContext } from './lean-context.ts'
 import { comparisonMessages, comparisonResponse } from './provider-comparison.ts'
 import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
 import {
@@ -227,6 +229,8 @@ class PlaytestModelProvider {
     private readonly manifestationEnabled: boolean,
     private readonly groupVersion: 4 | 5 | undefined,
     private readonly actionReferences: ReturnType<typeof createExperimentActionReferences>,
+    /** How much of the assembled Context reaches the model: the default projection, or the lean one. */
+    private readonly promptMode: 'compact' | 'lean',
     private readonly evidenceDirectory: string,
     private readonly onStart: (call: CallTelemetry) => void,
     private readonly onFinish: (call: CallTelemetry, durationMs: number, status: 'act' | 'abstain' | 'invalid' | 'failed') => void,
@@ -238,7 +242,9 @@ class PlaytestModelProvider {
     const reaction = 'origin' in context && context.origin.kind === 'reaction' ? context.origin : null
     const outputMode = reaction === null ? 'external_actions' : 'speech_only'
     const grouped = this.groupVersion === undefined ? undefined : groupedPlaytestRequest(exact.messages, this.actorId, this.groupVersion, reaction !== null, this.actionReferences)
-    const rendered = grouped ?? renderExperiment(exact.messages, 'compact', outputMode, this.actionReferences)
+    const rendered = grouped ?? (this.promptMode === 'lean'
+      ? renderLeanContext(exact.messages, this.actionReferences)
+      : renderExperiment(exact.messages, 'compact', outputMode, this.actionReferences))
     const messages = grouped?.messages ?? comparisonMessages(rendered.messages, 'turn_taking', outputMode)
     if (this.manifestationEnabled && grouped === undefined) messages.push({ role: 'system', content: manifestationOutputContract })
     const ordinarySchema = outputMode === 'speech_only' ? speechSchema : externalActionSchemaFor(rendered.actionReferences)
@@ -350,6 +356,14 @@ export interface PlaytestRuntimeOptions {
   readonly apiKey?: string
   readonly utilityEndpoint?: string
   readonly utilityModel?: string
+  /** Selects the versioned keyword Recall strategy for this playtest world, or leaves the frozen path. */
+  readonly recallTokenizer?: RecallTokenizerId
+  readonly recallDictionary?: boolean
+  /**
+   * How much of the assembled Context reaches the model. `compact` is the default and drops a fixed list
+   * of machine keys; `lean` projects each segment instead, keeping only what a character can act on.
+   */
+  readonly promptMode?: 'compact' | 'lean'
 }
 
 export class WorldPlaytestRuntime implements PlaytestRuntime {
@@ -365,6 +379,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
   readonly #model: string
   readonly #dataDirectory: string
   readonly #actionReferences: ReturnType<typeof createExperimentActionReferences>
+  readonly #promptMode: 'compact' | 'lean'
   readonly #utilityIntent: OllamaUtilityIntentInterpreter
   readonly #utilityModel: string
   readonly #manifestationEnabled: boolean
@@ -410,6 +425,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     const evidenceDirectory = resolve(this.#dataDirectory, 'requests')
     mkdirSync(evidenceDirectory, { recursive: true })
     this.#actionReferences = createExperimentActionReferences(compiled.manifest)
+    this.#promptMode = options.promptMode ?? 'compact'
     this.#utilityModel = options.utilityModel?.trim() || OLLAMA_MODEL
     this.#utilityIntent = new OllamaUtilityIntentInterpreter(
       new URL('/api/chat', localEndpoint(options.utilityEndpoint ?? DEFAULT_ENDPOINT)),
@@ -445,6 +461,7 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
     })).map(item => ({ ...item, provider: new PlaytestModelProvider(
       item.participantId, item.actorId, this.#provider, endpoint, this.#model, apiKey, timeoutMs, manifestationEnabled, this.#groupVersion,
       this.#actionReferences,
+      this.#promptMode,
       evidenceDirectory, onStart, onFinish,
     ) }))
     const roundParticipants: RoundParticipant[] = providers.map(item => ({ ...item, role: 'agent',
@@ -457,6 +474,8 @@ export class WorldPlaytestRuntime implements PlaytestRuntime {
       memoryPath: resolve(this.#dataDirectory, 'memory.sqlite'),
       contextPath: resolve(this.#dataDirectory, 'context.sqlite'),
       modelBudgetTokens: 64, leaseTtlMs: 180_000,
+      ...(options.recallTokenizer === undefined ? {} : { recallTokenizer: options.recallTokenizer }),
+      ...(options.recallDictionary === undefined ? {} : { recallDictionary: options.recallDictionary }),
       participants: () => roundParticipants, reactionParticipants: () => reactionParticipants,
     })
   }

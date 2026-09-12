@@ -69,3 +69,8 @@
 | [0085](ADR-0085-bounded-action-groups.md) | 有界顺序行动组与逐步表现 | Manifest v7 显式启用最多两步、连续裁定、失败停止与闭合表现；旧协议保持原语义 |
 | [0086](ADR-0086-object-interactions.md) | 对象声明的物品交互 | Manifest v8、submit_actions/v5 与显式对象目录；拿取、放下、递交均确定性重验 |
 | [0087](ADR-0087-player-immediate-character-interactions.md) | 玩家受限即时成立权与角色关系交互 | **Accepted**；Manifest v9 以 Host 派生权威、可解除 hand_hold 和耐久玩家解释验证“先成立、后反应”，按 C0～C4 门禁实施 |
+| [0088](ADR-0088-versioned-keyword-recall.md) | 版本化关键词召回与中文切分 | **Proposed**；以版本化二/三元切分与“命中任一词元”取代整段相同，专有名词词典只加权不参与索引且可按世界停用，排序与词典均限定 namespace/as-of 前缀，旧版本不原地替换 |
+| [0089](ADR-0089-tokenizer-runtime-dependency.md) | 记忆检索引入分词器运行时依赖 | **Proposed**；锁定 `jieba-wasm` 精确版本并只用已验证接口，选 WASM 以保跨平台同一制品，分词器只是可替换版本件，二元继续当召回下限 |
+| [0090](ADR-0090-structural-recall-clues.md) | 结构化线索召回（在场人物与未完成事项） | **Proposed**；线索只来自场景权威成员与角色自己的认知，只扩候选与加权、不改权限，线索为空时与纯关键词路径逐字节相同 |
+| [0091](ADR-0091-summary-digest-in-context.md) | 把经历摘要正文接进角色上下文 | **Accepted**；摘要正文随连续性段给模型，只取 Tail 起点之前、从最近往前受档位预算约束；不生成第二套摘要，但 supersede ADR-0068 中"Checkpoint 段不含经历正文"的边界 |
+| [0092](ADR-0092-epoch-snapshot-append-only-history.md) | Epoch 快照与只追加的第二层 | **Proposed**；基线冻结、其后事件只追加，第二层预算为档位请求预算的一半、越界才整体前移一次；`recentInteractionBlocks` 数值不变但含义变为"重建时保留多少块" |

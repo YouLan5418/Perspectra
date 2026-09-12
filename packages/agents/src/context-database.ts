@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { openMigratedDatabase } from '@harness-world/store-sqlite'
 
 export const CONTEXT_APPLICATION_ID = 0x48435743
-export const CONTEXT_SCHEMA_VERSION = 6
+export const CONTEXT_SCHEMA_VERSION = 7
 
 const CONTINUITY_SCHEMA = `
 CREATE TABLE IF NOT EXISTS continuity_checkpoints (
@@ -131,12 +131,33 @@ CREATE TABLE player_intent_late_responses(model_call_id TEXT NOT NULL,response_h
 `
 
 /**
+ * A Continuity Checkpoint names Memory L1 Summaries by identity, source range and Hash, so a new Summary
+ * grouping makes every stored Checkpoint describe a baseline that can no longer be rebuilt at its own
+ * as-of. Checkpoints are derived data — the next preparation rebuilds one from the World prefix — so the
+ * stale rows go. Context Receipts and Provider call records stay: they describe Rounds that happened.
+ */
+const CONTINUITY_DIGEST_SCHEMA = `
+DELETE FROM continuity_checkpoints;
+`
+
+/**
  * Open the rebuildable Context database through one forward-only schema axis.
  *
  * Version 5 deliberately repeats every CREATE IF NOT EXISTS statement. Before this
  * catalog existed, opening one component in isolation could advance user_version
  * while leaving earlier component tables absent. The repair migration preserves
  * existing rows and makes every legacy 0.3.0 layout structurally complete.
+ *
+ * Version 6 rebuilds the Provider call ledger so one row can carry a Player Intent interpretation
+ * as well as a Round participation, and adds the late-response audit beside it.
+ *
+ * Version 7 drops Continuity Checkpoints whose Summary identities no longer exist.
+ *
+ * Versions 6 and 7 arrived from two branches that had both claimed version 6. Because
+ * openMigratedDatabase walks one user_version axis and skips any migration at or below the stored
+ * version, keeping a single version 6 would have silently dropped one of the two migrations on a
+ * database the other had already advanced. They touch disjoint tables, so both are kept and the
+ * axis moves to 7.
  */
 export function openContextDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, CONTEXT_APPLICATION_ID, [
@@ -145,6 +166,7 @@ export function openContextDatabase(path: string): DatabaseSync {
     { version: 3, sql: PROVIDER_CALL_SCHEMA },
     { version: 4, sql: QUALITY_SCHEMA },
     { version: 5, sql: COMPLETE_CONTEXT_SCHEMA },
-    { version: CONTEXT_SCHEMA_VERSION, sql: PROVIDER_CALL_V2_SCHEMA },
+    { version: 6, sql: PROVIDER_CALL_V2_SCHEMA },
+    { version: CONTEXT_SCHEMA_VERSION, sql: CONTINUITY_DIGEST_SCHEMA },
   ])
 }

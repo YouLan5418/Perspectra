@@ -11,12 +11,19 @@ describe('creator playtest launch arguments', () => {
     })
   })
 
+  it('accepts the context projection switch alongside the other playtest flags', () => {
+    expect(parsePlaytestLaunchArguments(['--lean-prompt'])).toEqual({ provider: 'ollama', leanPrompt: true })
+    expect(parsePlaytestLaunchArguments(['--pack', 'p.json', '--lean-prompt']))
+      .toMatchObject({ packPath: 'p.json', leanPrompt: true })
+  })
+
   it.each([
     ['--unknown'],
     ['--pack'],
     ['--pack', '--deepseek'],
     ['--pack', 'a', '--pack', 'b'],
     ['--data-dir', 'a', '--data-dir', 'b'],
+    ['--lean-prompt', '--lean-prompt'],
   ])('rejects an unsupported or ambiguous command line %#', (...args) => {
     expect(() => parsePlaytestLaunchArguments(args)).toThrow()
   })

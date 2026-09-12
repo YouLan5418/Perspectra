@@ -11,6 +11,7 @@ import {
   type WorldJsonObject,
 } from '@harness-world/contracts'
 import { createContextReceipt, type CreateContextReceiptRequest } from './context-receipt.ts'
+import { CONTEXT_SCHEMA_VERSION } from './context-database.ts'
 import { ProviderCallStore, type ProviderCallTerminalState } from './provider-call.ts'
 
 const address: WorldAddress = {
@@ -188,7 +189,7 @@ describe('ProviderCallStore', () => {
 
     const futurePath = path()
     const future = new DatabaseSync(futurePath)
-    future.exec('PRAGMA user_version=7')
+    future.exec(`PRAGMA user_version=${CONTEXT_SCHEMA_VERSION + 1}`)
     future.close()
     expect(() => new ProviderCallStore(futurePath)).toThrow('user_version mismatch')
   })

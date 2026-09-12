@@ -16,6 +16,7 @@ import {
   type RulebookEvent,
 } from '@harness-world/kernel'
 import { CharacterRuntimeAvailabilityService, WorldStore } from '@harness-world/store-sqlite'
+import { SCHEDULABLE_AVAILABILITY_STATES } from './runtime-availability.ts'
 
 export type SceneDecisionVersion = 1 | 2
 export type SceneObservationScope = 'scene_public' | 'direct' | 'private' | 'self'
@@ -304,9 +305,10 @@ export class SceneDecisionService {
       !hidden.has(characterId)
       && currentCharacterLifecycle(events, characterId) === 'active'
       && currentLocation(events, characterId) === playerLocation)
-    const schedulableCharacterIds = observerIds.filter(characterId =>
-      characterId !== player && ['ready', 'provider_output_invalid']
-        .includes(this.availability.get(address, characterId)?.state ?? ''))
+    const schedulableCharacterIds = observerIds.filter(characterId => {
+      const state = this.availability.get(address, characterId)?.state
+      return characterId !== player && state !== undefined && SCHEDULABLE_AVAILABILITY_STATES.includes(state)
+    })
     return {
       sceneId: scene.sceneId,
       observerIds,
@@ -342,9 +344,10 @@ export class SceneDecisionService {
       !hidden.has(characterId)
       && currentCharacterLifecycle(events, characterId) === 'active'
       && (scene.locationId === null || currentLocation(events, characterId) === scene.locationId))
-    const schedulableCharacterIds = observerIds.filter(characterId =>
-      characterId !== player && ['ready', 'provider_output_invalid']
-        .includes(this.availability.get(address, characterId)?.state ?? ''))
+    const schedulableCharacterIds = observerIds.filter(characterId => {
+      const state = this.availability.get(address, characterId)?.state
+      return characterId !== player && state !== undefined && SCHEDULABLE_AVAILABILITY_STATES.includes(state)
+    })
     const semantic = {
       schemaVersion: 'scene-decision/v2' as const,
       sceneId: scene?.sceneId ?? null,

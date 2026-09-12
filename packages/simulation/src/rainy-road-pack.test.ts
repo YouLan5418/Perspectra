@@ -244,9 +244,12 @@ describe('Phase 8 rainy-road acceptance Pack source', () => {
       expect(JSON.stringify(evidence.contexts.get('agent:bob')?.[0])).toContain('late_because_helped_injured_stranger')
       const aliceContexts = evidence.contexts.get('agent:alice')!
       const bobContexts = evidence.contexts.get('agent:bob')!
+      // The reusable cache prefix is the five segments before the Continuity baseline: Host protocol,
+      // controller contract, output contract, world anchor and character anchor. The baseline advances with
+      // the Tail window, so it is not stable across Rounds and cannot sit inside a cached prefix.
       expect(commonMessagePrefix(aliceContexts[0]!, aliceContexts[1]!)).toBe(5)
       expect(commonMessagePrefix(bobContexts[0]!, bobContexts[1]!)).toBe(5)
-      expect(commonMessagePrefix(aliceContexts[0]!, bobContexts[0]!)).toBe(3)
+      expect(commonMessagePrefix(aliceContexts[0]!, bobContexts[0]!)).toBe(4)
       expect(providerMessages(aliceContexts[0]!)[4]).toBe(providerMessages(aliceContexts[5]!)[4])
       expect(providerMessages(aliceContexts[0]!)[5]).not.toBe(providerMessages(aliceContexts[5]!)[5])
 

@@ -74,7 +74,32 @@ describe('Context database migration catalog', () => {
     db.close()
   })
 
-  it('repairs legacy component-first layouts without rewriting existing rows', () => {
+  it('still clears Continuity baselines on a database already at the Provider call version', () => {
+    const path = database('provider-call-v6.sqlite')
+    // Models a database the character-interaction binary had advanced to version 6: the Provider call ledger
+    // is already rebuilt, but Continuity Checkpoints still name the replaced Summary grouping. This is the
+    // case a single shared version 6 would have missed forever, because openMigratedDatabase skips every
+    // migration at or below the stored user_version.
+    const seed = openContextDatabase(path)
+    seed.exec("INSERT INTO continuity_checkpoints VALUES ('checkpoint:stale', 'namespace', 0, '{}', 'sha256:stale')")
+    expect(seed.prepare('SELECT checkpoint_id FROM continuity_checkpoints').get())
+      .toEqual({ checkpoint_id: 'checkpoint:stale' })
+    expect((seed.prepare('PRAGMA table_info(provider_calls)').all() as Array<{ name: string }>)
+      .map(column => column.name)).toContain('purpose')
+    seed.exec('PRAGMA user_version = 6')
+    seed.close()
+
+    const migrated = openContextDatabase(path)
+    expect((migrated.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)
+      .toBe(CONTEXT_SCHEMA_VERSION)
+    expect(migrated.prepare('SELECT checkpoint_id FROM continuity_checkpoints').get()).toBeUndefined()
+    // Version 6 must not replay: its rename would collide with the table the seed already left in the new shape.
+    expect((migrated.prepare('PRAGMA table_info(provider_calls)').all() as Array<{ name: string }>)
+      .map(column => column.name)).toContain('purpose')
+    migrated.close()
+  })
+
+  it('repairs legacy component-first layouts and clears baselines that name replaced Summaries', () => {
     const path = database('legacy-v1.sqlite')
     const legacy = new DatabaseSync(path)
     legacy.exec(`
@@ -91,8 +116,11 @@ describe('Context database migration catalog', () => {
     `)
     legacy.close()
     const migrated = openContextDatabase(path)
-    expect(migrated.prepare('SELECT checkpoint_id FROM continuity_checkpoints').get())
-      .toEqual({ checkpoint_id: 'checkpoint:legacy' })
+    // Version 7 clears Checkpoints: they named L1 Summaries by identity, and the Summary grouping changed,
+    // so no stored baseline can be rebuilt at its own as-of. The table survives; the stale row does not.
+    // The count still sees eight tables because version 6 added player_intent_late_responses. Asserting both
+    // is what catches a resolution that kept a single version 6 and silently dropped one of the migrations.
+    expect(migrated.prepare('SELECT checkpoint_id FROM continuity_checkpoints').get()).toBeUndefined()
     expect(tables(migrated)).toHaveLength(8)
     migrated.close()
 

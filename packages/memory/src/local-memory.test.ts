@@ -181,6 +181,33 @@ describe('LocalMemoryStore', () => {
     world.close()
   })
 
+  it('counts the candidates a limited v1 Recall drops without writing any record', async () => {
+    const path = paths()
+    const world = new WorldStore(path.world)
+    world.createBranch(address())
+    await commit(world, address(), 'count', [
+      observation('observation:1', characterA), observation('observation:2', characterA),
+    ])
+    const view = new CharacterViewBuilder(world).rebuildAt(address(), characterA, 2)
+    const memory = new LocalMemoryStore(path.memory, world)
+    reconcile(memory, view)
+    for (const [index, source] of view.observations.entries()) {
+      expect(memory.capture({
+        address: view.address, characterId: characterA, memoryId: `memory:signal:${index}`,
+        text: `signal relay ${index}`, metadata: {}, sources: [ref(source)],
+        asOfWorldSeq: 2, correlationId: `count:${index}`,
+      })).toBe('captured')
+    }
+    expect(memory.countRecall(address(), characterA, 'signal', 2)).toBe(2)
+    // A limit of one returns one of the two, which is exactly the gap the count reports.
+    expect(memory.recall(address(), characterA, 'signal', 2, 1)).toHaveLength(1)
+    expect(memory.countRecall(address(), characterA, 'absent', 2)).toBe(0)
+    expect(memory.countRecall(address(), characterA, '   ', 2)).toBe(0)
+    expect(() => memory.countRecall(address(), characterA, 'signal', -1)).toThrow(RangeError)
+    memory.close()
+    world.close()
+  })
+
   it('rejects future, summary, missing, divergent, cross-character, and cross-branch sources', async () => {
     const path = paths()
     const world = new WorldStore(path.world)

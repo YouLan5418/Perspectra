@@ -8,6 +8,7 @@ import {
   brandId,
   hashWorldJson,
   type AgentProvider,
+  type CharacterId,
   type ProposalContext,
   type ReactionProposalContext,
 } from '@harness-world/contracts'
@@ -31,7 +32,7 @@ function paths() {
   }
 }
 
-function compiled(): CompiledWorldSpec {
+function compiled(observationText = 'Rain is heavy'): CompiledWorldSpec {
   const base = new WorldSpecCompiler().compile({
     schemaVersion: 2,
     address: { tenantId: 'tenant:pipeline', worldId: 'world:pipeline', branchId: 'branch:main' },
@@ -46,7 +47,7 @@ function compiled(): CompiledWorldSpec {
     ],
     scenes: [{ sceneId: 'scene:road', participantIds: ['character:player', 'character:alice'] }],
     goals: [], claims: [], observations: [{
-      observationId: 'observation:alice:rain', observerId: 'character:alice', value: { content: 'Rain is heavy' },
+      observationId: 'observation:alice:rain', observerId: 'character:alice', value: { content: observationText },
     }],
     playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
     plugins: [
@@ -118,9 +119,9 @@ function proposal(spec: CompiledWorldSpec): ProposalContext {
   }
 }
 
-function fixture() {
+function fixture(world = compiled()) {
   const storage = paths()
-  const spec = compiled()
+  const spec = world
   const store = new WorldStore(storage.world)
   new WorldBootstrap(store).activate(spec)
   const availability = new CharacterRuntimeAvailabilityService(storage.world)
@@ -135,6 +136,73 @@ function fixture() {
     manifestHash: spec.manifestHash, rulebook,
   }
   return { storage, spec, store, availability, memory, rulebook, options }
+}
+
+/**
+ * A world whose only recalled Memory is large enough that the compact Context Profile cannot render it within
+ * its 32 KiB request budget, so preparation has to give Tier 4 content up to fit.
+ */
+function oversizedWorld(): CompiledWorldSpec {
+  return compiled(`Will the rain stop? ${'rain '.repeat(7000)}`)
+}
+
+/** Commit one Round with a Tick event and a visible Memory for Alice, so the digest has Rounds to group. */
+function commitDigestRound(
+  value: ReturnType<typeof fixture>,
+  alice: CharacterId,
+  round: number,
+  text: string,
+): void {
+  const address = value.spec.manifest.address
+  const head = value.store.head(address)
+  value.store.commitRound({
+    address, transactionId: brandId(`transaction:digest:${round}`, 'TransactionId'),
+    roundId: brandId(`round:digest:${round}`, 'InteractionRoundId'),
+    expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
+    events: [
+      { eventType: 'observation.upsert', eventVersion: 1, data: {
+        id: `observation:alice:digest:${round}`, value: { observerId: alice, content: text },
+      } },
+      { eventType: 'world.tick-advanced', eventVersion: 1,
+        data: { tick: round, roundId: `round:digest:${round}` } },
+    ],
+    outbox: [], cognitiveJobs: [{ characterId: alice }], correlationId: `digest:${round}`,
+  })
+}
+
+/** The segment a participant actually received, found by kind: wire order is a caching decision, not an index. */
+function receivedSegment(
+  prepared: ReturnType<Phase8ContextPipeline['prepare']>,
+  segmentKind: string,
+): { readonly segmentKind: string; readonly content: Record<string, unknown> } {
+  const message = prepared.providerContext.exactProviderRequest.messages
+    .find(candidate => candidate.content.includes(`"segmentKind":"${segmentKind}"`))
+  if (message === undefined) throw new TypeError(`the Context carried no ${segmentKind} segment`)
+  const segment = JSON.parse(message.content) as {
+    readonly segmentKind: string
+    readonly content: Record<string, unknown>
+  }
+  expect(segment.segmentKind).toBe(segmentKind)
+  return segment
+}
+
+/** Every block of the second layer a model was shown, across the messages it was spread over. */
+function receivedTailBlocks(prepared: ReturnType<Phase8ContextPipeline['prepare']>): readonly unknown[] {
+  return prepared.providerContext.exactProviderRequest.messages
+    .filter(message => message.content.includes('"segmentKind":"recent_interaction_tail"'))
+    .flatMap(message => {
+      const content = (JSON.parse(message.content) as { readonly content: unknown }).content
+      return Array.isArray(content) ? content as readonly unknown[] : [content]
+    })
+}
+
+/** The continuity segment of the Context a participant actually received. */
+function continuitySegment(prepared: ReturnType<Phase8ContextPipeline['prepare']>): {
+  readonly digest: readonly { readonly text: string }[]
+} {
+  return receivedSegment(prepared, 'continuity_checkpoint').content as {
+    readonly digest: readonly { readonly text: string }[]
+  }
 }
 
 describe('Phase8ContextPipeline', () => {
@@ -159,6 +227,96 @@ describe('Phase8ContextPipeline', () => {
     const reopened = new Phase8ContextPipeline(value.options)
     expect(reopened.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)).toEqual(first)
     reopened.close()
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
+  })
+
+  it('keeps the Continuity baseline frozen while the second layer fits its budget', () => {
+    const value = fixture()
+    const pipeline = new Phase8ContextPipeline(value.options)
+    const address = value.spec.manifest.address
+    const alice = brandId('character:alice', 'CharacterId')
+    const baselines: number[] = []
+    const tailSizes: number[] = []
+    for (let index = 0; index < 6; index += 1) {
+      const head = value.store.head(address)
+      value.store.commitRound({
+        address, transactionId: brandId(`transaction:window:${index}`, 'TransactionId'),
+        roundId: brandId(`round:window:${index}`, 'InteractionRoundId'),
+        expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
+        events: [{
+          eventType: 'observation.upsert', eventVersion: 1,
+          data: { id: `observation:alice:window:${index}`, value: { observerId: alice, content: `Round ${index}` } },
+        }],
+        outbox: [], cognitiveJobs: [{ characterId: alice }], correlationId: `window:${index}`,
+      })
+      const asOf = value.store.head(address).headSeq
+      const context = { ...proposal(value.spec), roundId: brandId(`round:window:${index}`, 'InteractionRoundId') }
+      const decision = new SceneDecisionService(value.store, value.availability, 2)
+        .decide(address, context.playerAction.actorId, asOf)
+      const prepared = pipeline.prepare(
+        participant(), context, value.store.readEvents(address), decision, decision.asOfSeq, () => undefined,
+      )
+      const checkpoint = receivedSegment(prepared, 'continuity_checkpoint')
+      baselines.push((checkpoint.content.checkpoint as { readonly asOfWorldSeq: number }).asOfWorldSeq)
+      tailSizes.push(receivedTailBlocks(prepared).length)
+    }
+    // The epoch stays put: one baseline serves every Round, which is exactly what keeps a Provider's
+    // prefix reusable. It moves only when the second layer outgrows its budget, not when it grows a block.
+    expect(baselines.at(-1)).toBe(baselines[0])
+    // Each Round appends exactly one block and nothing ever drops it: the second layer is bounded by its own
+    // byte budget, not by the Profile's block count, which is what a rebuild keeps.
+    expect(tailSizes).toEqual([0, 1, 2, 3, 4, 5])
+    pipeline.close()
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
+  })
+
+  it('carries Rounds the Tail no longer holds into the continuity digest', () => {
+    const value = fixture()
+    const pipeline = new Phase8ContextPipeline(value.options)
+    const address = value.spec.manifest.address
+    const alice = brandId('character:alice', 'CharacterId')
+    for (let round = 1; round <= 12; round += 1) {
+      commitDigestRound(value, alice, round, `第${round}轮他说过一句要紧的话`)
+    }
+    const asOf = value.store.head(address).headSeq
+    const context = { ...proposal(value.spec), roundId: brandId('round:digest:last', 'InteractionRoundId') }
+    const decision = new SceneDecisionService(value.store, value.availability, 2)
+      .decide(address, context.playerAction.actorId, asOf)
+    const prepared = pipeline.prepare(
+      participant(), context, value.store.readEvents(address), decision, decision.asOfSeq, () => undefined,
+    )
+    // The compact Profile keeps four Tail blocks, so the earliest Rounds reach the model as digest text.
+    const digest = continuitySegment(prepared).digest
+    expect(digest.length).toBeGreaterThan(0)
+    expect(digest.map(entry => entry.text).join('\n')).toContain('第1轮他说过一句要紧的话')
+    pipeline.close()
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
+  })
+
+  it('stops taking digest groups once the profile byte budget is spent', () => {
+    const value = fixture()
+    const pipeline = new Phase8ContextPipeline(value.options)
+    const address = value.spec.manifest.address
+    const alice = brandId('character:alice', 'CharacterId')
+    // One group of four Rounds already exceeds the compact Profile's digest share of its request budget.
+    const long = '雨一直在下，路上看不见人。'.repeat(100)
+    for (let round = 1; round <= 12; round += 1) commitDigestRound(value, alice, round, long)
+    const asOf = value.store.head(address).headSeq
+    const context = { ...proposal(value.spec), roundId: brandId('round:digest:long', 'InteractionRoundId') }
+    const decision = new SceneDecisionService(value.store, value.availability, 2)
+      .decide(address, context.playerAction.actorId, asOf)
+    const prepared = pipeline.prepare(
+      participant(), context, value.store.readEvents(address), decision, decision.asOfSeq, () => undefined,
+    )
+    // A Summary is taken whole or not at all, so a group that does not fit is not truncated into the Context.
+    expect(continuitySegment(prepared).digest).toHaveLength(0)
+    pipeline.close()
     value.memory.close()
     value.availability.close()
     value.store.close()
@@ -575,6 +733,56 @@ describe('Phase8ContextPipeline', () => {
       expect(prepared.receipt.contextProfileId).toBe(expected[index])
       pipeline.close()
     }
+    value.memory.close()
+    value.availability.close()
+    value.store.close()
+  })
+
+  it('gives up Tier 4 Recall instead of refusing to prepare an over-budget character', () => {    const prepare = (spec: CompiledWorldSpec) => {
+      const value = fixture(spec)
+      const pipeline = new Phase8ContextPipeline(value.options)
+      const context = proposal(value.spec)
+      const history = value.store.readEvents(value.spec.manifest.address)
+      const address = value.spec.manifest.address
+      const decision = new SceneDecisionService(value.store, value.availability, 2)
+        .decide(address, context.playerAction.actorId, value.store.head(address).headSeq)
+      const prepared = pipeline.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)
+      const rebuilt = pipeline.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)
+      pipeline.close()
+      value.memory.close()
+      value.availability.close()
+      value.store.close()
+      return { prepared, rebuilt }
+    }
+    const oversized = prepare(oversizedWorld())
+    const trimmed = oversized.prepared.receipt.exclusions.filter(entry => entry.reason === 'budget_trimmed')
+    expect(trimmed.length).toBeGreaterThan(0)
+    expect(trimmed.every(entry => entry.sourceRefHash !== null)).toBe(true)
+    expect(oversized.rebuilt).toEqual(oversized.prepared)
+    // Nothing is given up while the request already fits the frozen Context Profile budget.
+    expect(prepare(compiled()).prepared.receipt.exclusions.filter(entry => entry.reason === 'budget_trimmed'))
+      .toEqual([])
+  })
+
+  it('keeps the World Event Log authoritative and reproduces the same trims after a restart', () => {
+    const value = fixture(oversizedWorld())
+    const address = value.spec.manifest.address
+    const context = proposal(value.spec)
+    const history = value.store.readEvents(address)
+    const eventHashes = history.map(event => event.eventHash)
+    const decision = new SceneDecisionService(value.store, value.availability, 2)
+      .decide(address, context.playerAction.actorId, value.store.head(address).headSeq)
+    const pipeline = new Phase8ContextPipeline(value.options)
+    const first = pipeline.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)
+    pipeline.close()
+    expect(first.receipt.exclusions.some(entry => entry.reason === 'budget_trimmed')).toBe(true)
+    // Preparing and trimming are read-only over the World: no Event is appended and the head does not move.
+    expect(value.store.readEvents(address).map(event => event.eventHash)).toEqual(eventHashes)
+    expect(value.store.head(address).headSeq).toBe(decision.asOfSeq)
+    // A restart over the same durable files picks the same drops and rebuilds the same Receipt bytes.
+    const reopened = new Phase8ContextPipeline(value.options)
+    expect(reopened.prepare(participant(), context, history, decision, decision.asOfSeq, () => undefined)).toEqual(first)
+    reopened.close()
     value.memory.close()
     value.availability.close()
     value.store.close()

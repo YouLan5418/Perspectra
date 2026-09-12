@@ -481,6 +481,19 @@ describe('ReactionScheduler', () => {
     close(value)
   })
 
+  it('retries a self-clearing participant in a Wave instead of settling it as unavailable', async () => {
+    const alice = new Provider(output('character:alice', 'Alice answers.'))
+    const aliceBinding = binding('character:alice', alice)
+    const value = await fixture([aliceBinding])
+    value.availability.set(
+      value.spec.manifest.address, aliceBinding.actorId, 'session_lag', 'Memory catch-up is behind',
+    )
+    const result = await value.scheduler.runCurrentWave()
+    expect(result).toMatchObject({ wave: 1, actionCount: 1 })
+    expect(alice.calls).toBe(1)
+    close(value)
+  })
+
   it('settles all-abstain, Provider failure, and Rulebook rejection without invented world facts', async () => {
     const allAbstain = await fixture([binding('character:alice', new Provider(abstain()))])
     await expect(allAbstain.scheduler.runCurrentWave()).resolves.toMatchObject({ terminalReason: 'all_abstained', actionCount: 0 })

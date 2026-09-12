@@ -6,6 +6,8 @@ import {
   brandId,
   failWorld,
   hashWorldJson,
+  RECALL_KEYWORD_STRATEGY_ID,
+  type RecallQueryPlanV2,
   type WorldAddress,
   type WorldEventDraft,
 } from '@harness-world/contracts'
@@ -69,17 +71,35 @@ describe('CognitiveMemoryService', () => {
     })).toThrow('requires Cognitive Memory version 2')
     expect(legacy.watermark(address(), alice)).toBeUndefined()
     expect(legacy.summaries(address(), alice)).toEqual([])
+    expect(() => legacy.recallDiagnostics({
+      schemaVersion: 'recall-query-plan/v1', planId: 'legacy', address: address(), characterId: alice,
+      asOfWorldSeq: 6, query: 'secret', limit: 2, rankingAlgorithm: 'fts5-bm25-stable/v1',
+    })).toThrow('require Cognitive Memory version 2')
     legacy.close()
 
     const memory = new CognitiveMemoryService(memoryPath, world, undefined, 2)
     const receipt = memory.catchUpReceipt(address(), alice, 6)
     expect(memory.watermark(address(), alice)).toEqual(receipt.watermark)
-    expect(memory.summaries(address(), alice)).toHaveLength(0)
+    // Even one Memory gets a Summary: the trailing group is no longer discarded for being small.
+    expect(memory.summaries(address(), alice)).toHaveLength(1)
     const recalled = memory.recallWithReceipt({
       schemaVersion: 'recall-query-plan/v1', planId: 'recall:alice', address: address(), characterId: alice,
       asOfWorldSeq: 6, query: 'secret', limit: 2, rankingAlgorithm: 'fts5-bm25-stable/v1',
     })
     expect(recalled.memories).toMatchObject([{ memoryKind: 'episodic', text: 'secret red key' }])
+    // The diagnostic reports the same candidate set the Receipt-recall ranked, and drops nothing itself.
+    expect(memory.recallDiagnostics({
+      schemaVersion: 'recall-query-plan/v1', planId: 'diagnostics:alice', address: address(), characterId: alice,
+      asOfWorldSeq: 6, query: 'secret', limit: 1, rankingAlgorithm: 'fts5-bm25-stable/v1',
+    })).toMatchObject({ schemaVersion: 'recall-candidates/v1', matchedCount: 1, limit: 1 })
+    expect(memory.recallDiagnostics({
+      schemaVersion: 'recall-query-plan/v1', planId: 'diagnostics:none', address: address(), characterId: alice,
+      asOfWorldSeq: 6, query: 'absent', limit: 1, rankingAlgorithm: 'fts5-bm25-stable/v1',
+    })).toMatchObject({ matchedCount: 0 })
+    // The convenience entry point measures the same default plan a real Recall applies.
+    expect(memory.diagnoseRecall(address(), alice, 'secret', 6))
+      .toMatchObject({ schemaVersion: 'recall-candidates/v1', matchedCount: 1, limit: 10 })
+    expect(memory.diagnoseRecall(address(), alice, 'absent', 6)).toMatchObject({ matchedCount: 0 })
     expect(memory.recall(address(), alice, 'secret', 6)).toMatchObject([{ text: 'secret red key', sourceMaxSeq: 3 }])
     const context = memory.prepare({
       address: address(), roundId: brandId('round:v2-context', 'InteractionRoundId'), tick: 2,
@@ -117,8 +137,97 @@ describe('CognitiveMemoryService', () => {
     world.close()
   })
 
-  it('retries a world cognitive job after failure following a committed v2 Memory receipt', async () => {
-    const { world, memory: legacy, alice, worldPath, memoryPath } = await fixture()
+  it('derives structural clues from Scene membership and its own open objectives', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-cognitive-clues-'))
+    directories.push(directory)
+    const worldPath = join(directory, 'world.sqlite')
+    const memoryPath = join(directory, 'memory.sqlite')
+    const world = new WorldStore(worldPath)
+    world.createBranch(address())
+    const alice = brandId('character:alice', 'CharacterId')
+    const bob = brandId('character:bob', 'CharacterId')
+    const goal = (status: string) => ({
+      objective: { kind: 'narrative', value: 'Reach the station' }, priorityPermille: 700,
+      awareness: 'conscious', status, parentGoalKey: null, targetKeys: ['location:station'],
+      blockerKeys: [], basisRefs: [],
+      source: { sourceKind: 'worldpack-test/v2', sourceId: 'goal:clues', sourceHash: hashWorldJson('source', 'goal:clues') },
+    })
+    await world.commitRound({
+      address: address(), transactionId: brandId('transaction:clues', 'TransactionId'),
+      roundId: brandId('round:clues', 'InteractionRoundId'),
+      expectedHeadSeq: 0, expectedTick: 0, nextTick: 1,
+      events: [
+        { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:a' } },
+        { eventType: 'character.created', eventVersion: 1, data: { characterId: bob, locationId: 'location:a' } },
+        { eventType: 'character-goal.upsert', eventVersion: 1, data: { id: 'goal:open', characterId: alice, value: goal('active') } },
+        { eventType: 'character-goal.upsert', eventVersion: 1, data: { id: 'goal:closed', characterId: alice, value: goal('completed') } },
+      ],
+      outbox: [], cognitiveJobs: [{ characterId: alice }], correlationId: 'clues:fixture',
+    })
+    const memory = new CognitiveMemoryService(memoryPath, world, undefined, 2, 'cjk-ngram/v1')
+    memory.catchUpReceipt(address(), alice, 4)
+    const stimulus = {
+      address: address(), roundId: brandId('round:clues:context', 'InteractionRoundId'),
+      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 4,
+      stimulus: { entries: [{ speech: 'nothing in particular' }] }, correlationId: 'prepare:clues',
+    }
+    // Self is never a clue, duplicates collapse, and a finished objective is not an open one.
+    const prepared = memory.prepareStimulus({ ...stimulus, sceneCharacterIds: [alice, bob, bob] })
+    expect((prepared.recallPlan as RecallQueryPlanV2).clues).toEqual([
+      { kind: 'present_character', sourceId: bob, text: bob },
+      // The clue identity is the durable source the captured goal came from, not a private handle.
+      { kind: 'open_objective', sourceId: 'event:3', text: '{"kind":"narrative","value":"Reach the station"}' },
+    ])
+    // Without Scene membership the Recall stays keyword-only rather than guessing who is present.
+    const solo = memory.prepareStimulus({ ...stimulus, roundId: brandId('round:clues:solo', 'InteractionRoundId') })
+    expect((solo.recallPlan as RecallQueryPlanV2).clues).toHaveLength(1)
+    memory.close()
+    world.close()
+  })
+
+  it('serves the versioned keyword strategy when the world selects it, and stays frozen when it does not', async () => {
+    const { world, memory: legacy, alice, memoryPath } = await fixture()
+    legacy.close()
+    const keyword = new CognitiveMemoryService(memoryPath, world, undefined, 2, 'cjk-ngram/v1')
+    keyword.catchUpReceipt(address(), alice, 6)
+    // The default plan generation follows the selection, so a diagnostic describes the plan in use.
+    expect(keyword.diagnoseRecall(address(), alice, 'key', 6)).toMatchObject({ matchedCount: 1, limit: 10 })
+    expect(keyword.recall(address(), alice, 'key', 6)).toMatchObject([{ text: 'secret red key' }])
+    const recalled = keyword.recallWithReceipt({
+      schemaVersion: 'recall-query-plan/v2', planId: 'recall:keyword', address: address(), characterId: alice,
+      asOfWorldSeq: 6, queryText: 'key', strategyId: RECALL_KEYWORD_STRATEGY_ID,
+      tokenizerId: 'cjk-ngram/v1', dictionaryEnabled: false, dictionaryWatermark: null, clues: [], resultLimit: 2,
+    })
+    expect(recalled.receipt).toMatchObject({
+      schemaVersion: 'recall-receipt/v2', tokenizerId: 'cjk-ngram/v1', matchedCount: 1,
+    })
+    // The round path builds its own plan generation, so preparing a stimulus must select it too.
+    const prepared = keyword.prepareStimulus({
+      address: address(), roundId: brandId('round:keyword-context', 'InteractionRoundId'),
+      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 6,
+      stimulus: { entries: [{ speech: 'key' }] }, correlationId: 'prepare:keyword',
+    })
+    expect(prepared.recallPlan).toMatchObject({ schemaVersion: 'recall-query-plan/v2', tokenizerId: 'cjk-ngram/v1' })
+    expect(prepared.recall?.receipt).toMatchObject({ schemaVersion: 'recall-receipt/v2', matchedCount: 1 })
+    // The same query through a service that selected nothing keeps the frozen generation and its result.
+    const frozen = new CognitiveMemoryService(memoryPath, world, undefined, 2)
+    expect(frozen.recall(address(), alice, 'secret red key', 6)).toMatchObject([{ text: 'secret red key' }])
+    // A world that asks for the derived dictionary records the watermark it was derived at.
+    const withDictionary = new CognitiveMemoryService(memoryPath, world, undefined, 2, 'cjk-ngram/v1', true)
+    const dictionaryContext = withDictionary.prepareStimulus({
+      address: address(), roundId: brandId('round:keyword-dictionary', 'InteractionRoundId'),
+      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 6,
+      stimulus: { entries: [{ speech: 'key' }] }, correlationId: 'prepare:keyword-dictionary',
+    })
+    expect(dictionaryContext.recallPlan).toMatchObject({ dictionaryEnabled: true, dictionaryWatermark: 6 })
+    expect(dictionaryContext.recall?.receipt).toMatchObject({ dictionaryEnabled: true, dictionaryWatermark: 6 })
+    withDictionary.close()
+    keyword.close()
+    frozen.close()
+    world.close()
+  })
+
+  it('retries a world cognitive job after failure following a committed v2 Memory receipt', async () => {    const { world, memory: legacy, alice, worldPath, memoryPath } = await fixture()
     legacy.close()
     const leases = new WriterLeaseService(worldPath)
     const lease = leases.acquire(address(), 'cognitive:v2-worker')

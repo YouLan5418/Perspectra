@@ -1,5 +1,6 @@
 import {
   CharacterContextAssembler,
+  CharacterContextBudgetPlanner,
   ContextReceiptStore,
   ContinuityCheckpointService,
   DirectorContextAssembler,
@@ -9,6 +10,7 @@ import {
   createProviderToolSchema,
   type CharacterSceneContext,
   type ContextAffordance,
+  type ContextDigestEntry,
   type CreateContextReceiptRequest,
   type ExactProviderRequest,
   type ProviderModelProfile,
@@ -22,12 +24,15 @@ import {
   hashWorldJson,
   resolutionAuthority,
   type CharacterId,
+  type CharacterContinuityCheckpoint,
   type ActionRequest,
   type ContextExclusion,
   type ContextProfileId,
   type ContextReceipt,
   type CharacterCognitionView,
   type ContextSourceRef,
+  type InteractionTail,
+  type Phase8ContextProfile,
   type ProposalContext,
   type ReactionProposalContext,
   type WorldHash,
@@ -174,6 +179,23 @@ function contextAffordance(value: { readonly actionType: string; readonly action
 }
 
 const compareText = compareWorldText
+
+/**
+ * How much of a Context Profile's request budget the second layer may take.
+ *
+ * The Profile's budget is a hard ceiling on the rendered request, and it is locked by the registry, so the
+ * second layer has to live inside it rather than beside it: half the budget for the appended history, the
+ * rest for the digest, the current state, the scene and the contracts. A layer that outgrew this would be
+ * trimmed back at render time, which is exactly the sliding window this design exists to remove.
+ */
+const EPOCH_BUDGET_DIVISOR = 2
+
+/**
+ * The share of a Context Profile's request budget the long-term digest may take. The digest is Tier 4
+ * content, so it is bounded rather than given whatever fits: identity, scene, stimulus and affordances
+ * come first in the frozen trim priority, and a digest that ate their room would starve the Round.
+ */
+const DIGEST_BUDGET_DIVISOR = 8
 
 function defaultModelProfile(): ProviderModelProfile {
   return {
@@ -382,6 +404,78 @@ export class Phase8ContextPipeline {
     }
   }
 
+  /**
+   * Resolve the Continuity baseline, the second layer and the digest for one preparation.
+   *
+   * The floor is the baseline's source end, so the two always agree. While the blocks appended since that
+   * floor fit their budget, the baseline is reused unchanged: the rendered prefix stays byte-identical, and
+   * a Provider can reuse everything from the two contracts to the end of the appended history. Only when
+   * the second layer outgrows its budget — or when there is no baseline yet — does the floor move once, to
+   * just before the Profile's retained window. The Character and the Reaction path both call this, so they
+   * cannot drift apart.
+   */
+  #continuity(
+    address: ProposalContext['address'],
+    characterId: CharacterId,
+    asOfWorldSeq: number,
+    profile: Phase8ContextProfile,
+  ): {
+    readonly checkpoint: CharacterContinuityCheckpoint
+    readonly tail: InteractionTail
+    readonly digest: readonly ContextDigestEntry[]
+  } {
+    const existing = this.#checkpoints.latestAt(address, characterId, asOfWorldSeq)
+    const floor = existing?.sourceEndSeq ?? asOfWorldSeq
+    const window = this.#tails.rebuildWindow(
+      address, characterId, floor, asOfWorldSeq, profile.recentInteractionBlocks,
+    )
+    const budget = Math.floor(profile.maximumRequestBytes / EPOCH_BUDGET_DIVISOR)
+    const rebuild = existing === undefined
+      || Buffer.byteLength(JSON.stringify(window.tail), 'utf8') > budget
+    const chosenFloor = rebuild ? window.rebuiltFloor : floor
+    return {
+      checkpoint: existing !== undefined && chosenFloor === floor
+        ? existing
+        : this.#checkpoints.rebuildAt(address, characterId, chosenFloor),
+      tail: rebuild ? window.rebuiltTail : window.tail,
+      digest: this.#digest(
+        address, characterId, chosenFloor,
+        Math.floor(profile.maximumRequestBytes / DIGEST_BUDGET_DIVISOR),
+      ),
+    }
+  }
+
+  /**
+   * The L1 Summaries covering Rounds the Tail no longer carries, newest kept first when the byte budget
+   * runs out. A Summary is taken whole or not at all — a half Summary would be a second, shorter account
+   * of the same Rounds. The text is the Summary's own; nothing here re-derives or rewrites it.
+   */
+  #digest(
+    address: ProposalContext['address'],
+    characterId: CharacterId,
+    tailFloor: number,
+    maximumBytes: number,
+  ): readonly ContextDigestEntry[] {
+    const summaries = this.options.memory.summaries(address, characterId)
+      .filter(summary => summary.sourceEndSeq <= tailFloor)
+      .sort((left, right) => left.sourceStartSeq - right.sourceStartSeq)
+    const selected: ContextDigestEntry[] = []
+    let bytes = 0
+    for (let index = summaries.length - 1; index >= 0; index -= 1) {
+      const summary = summaries[index]!
+      const text = summary.extracts.join('\n')
+      const size = Buffer.byteLength(text, 'utf8')
+      if (bytes + size > maximumBytes) break
+      bytes += size
+      selected.unshift({
+        summaryId: summary.summaryId, sourceStartSeq: summary.sourceStartSeq,
+        sourceEndSeq: summary.sourceEndSeq, summaryHash: summary.summaryHash,
+        text, sourceRefs: summary.sourceRefs,
+      })
+    }
+    return selected
+  }
+
   #prepareCharacter(
     binding: RoundParticipant,
     context: ProposalContext,
@@ -405,18 +499,17 @@ export class Phase8ContextPipeline {
       playerAction: recallAction, candidateHash: context.candidateHash,
       ...(context.playerManifestation === undefined ? {} : { playerManifestation: context.playerManifestation }),
       allowedActionTypes: binding.allowedActionTypes, sceneDecision: decision,
+      // The Scene decision is the authority on who is present, so it is also the authority for this clue.
+      sceneCharacterIds: decision.observerIds,
       correlationId: `context:${context.roundId}:${binding.participantId}`, heartbeat,
     })
     if (prepared.recallPlan === undefined || prepared.recall === undefined) {
       throw new TypeError('Cognitive Memory v2 did not produce a verified Recall receipt')
     }
     const selectedProfile = profileId(this.options.manifest, binding.actorId)
-    const checkpoint = this.#checkpoints.latestAt(context.address, binding.actorId, asOfWorldSeq)
-      ?? this.#checkpoints.rebuildAt(context.address, binding.actorId, asOfWorldSeq)
     const selectedProfileContract = PHASE8_CONTEXT_PROFILES.find(value => value.profileId === selectedProfile)!
-    const tail = this.#tails.rebuildAt(
-      context.address, binding.actorId, checkpoint.sourceEndSeq, asOfWorldSeq,
-      selectedProfileContract.recentInteractionBlocks,
+    const { checkpoint, tail, digest } = this.#continuity(
+      context.address, binding.actorId, asOfWorldSeq, selectedProfileContract,
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest,
@@ -431,15 +524,23 @@ export class Phase8ContextPipeline {
     const sceneRefs = sceneSources(history, decision)
     const cognition = this.#cognition.rebuildCharacterAt(context.address, binding.actorId, asOfWorldSeq)
     const character = this.options.manifest.characters.find(value => value.characterId === binding.actorId)!
-    const assembly = this.#assembler.assembleDetailed({
+    const { assembly, rendered } = new CharacterContextBudgetPlanner(
+      request => this.#assembler.assembleDetailed(request),
+      bundle => this.#renderer.renderCharacter({
+        context: bundle, contextProfileId: selectedProfile, renderer: rendererLock,
+        toolSchema: this.#characterTool, modelProfile: this.#model(context.address),
+        correlationId: `render:${context.roundId}:${binding.participantId}`,
+      }),
+    ).plan({
       address: context.address, roundId: context.roundId, participantId: binding.participantId,
       characterId: binding.actorId, controllerId: `provider:${binding.participantId}`, controllerEpoch: 1,
       baseHeadSeq: asOfWorldSeq, asOfWorldSeq, tick: context.tick, manifestHash: this.options.manifestHash,
       contextProfileId: selectedProfile,
       worldPublicAnchor: { metadata: this.options.manifest.metadata, timeMode: this.options.manifest.timeMode },
       characterAnchor: character,
-      characterView: prepared.characterView, cognition, checkpoint, tail, sceneDecision: scene,
-      sceneSourceRefs: sceneRefs, recallPlan: prepared.recallPlan, recall: prepared.recall,
+      characterView: prepared.characterView, cognition, checkpoint, tail, digest,
+      sceneDecision: scene, sceneSourceRefs: sceneRefs,
+      recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', stimulus),
       ...(provisional === undefined ? {} : { stimulusSourceRefs: [
         { sourceKind: 'round_stimulus', sourceId: 'player-provisional-resolution', sourceSeq: asOfWorldSeq, sourceHash: provisionalInputHash(provisional) },
@@ -452,11 +553,6 @@ export class Phase8ContextPipeline {
       } } : {}),
       runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
       correlationId: `context:${context.roundId}:${binding.participantId}`,
-    })
-    const rendered = this.#renderer.renderCharacter({
-      context: assembly.bundle, contextProfileId: selectedProfile, renderer: rendererLock,
-      toolSchema: this.#characterTool, modelProfile: this.#model(context.address),
-      correlationId: `render:${context.roundId}:${binding.participantId}`,
     })
     const receipt = this.#receipts.append({
       address: context.address, roundId: context.roundId, participantKind: 'character',
@@ -490,6 +586,7 @@ export class Phase8ContextPipeline {
       characterId: binding.actorId,
       asOfWorldSeq,
       stimulus: context.stimulus,
+      sceneCharacterIds: decision.observerIds,
       correlationId: `context:${context.roundId}:${binding.participantId}`,
       heartbeat,
     })
@@ -497,12 +594,9 @@ export class Phase8ContextPipeline {
       throw new TypeError('Reaction Context requires Cognitive Memory v2 Recall receipts')
     }
     const selectedProfile = profileId(this.options.manifest, binding.actorId)
-    const checkpoint = this.#checkpoints.latestAt(context.address, binding.actorId, asOfWorldSeq)
-      ?? this.#checkpoints.rebuildAt(context.address, binding.actorId, asOfWorldSeq)
     const selectedProfileContract = PHASE8_CONTEXT_PROFILES.find(profile => profile.profileId === selectedProfile)!
-    const tail = this.#tails.rebuildAt(
-      context.address, binding.actorId, checkpoint.sourceEndSeq, asOfWorldSeq,
-      selectedProfileContract.recentInteractionBlocks,
+    const { checkpoint, tail, digest } = this.#continuity(
+      context.address, binding.actorId, asOfWorldSeq, selectedProfileContract,
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,
@@ -519,15 +613,23 @@ export class Phase8ContextPipeline {
       sourceKind: 'reaction_observation', sourceId: stimulus.observationId,
       sourceSeq: stimulus.sourceEventSeq, sourceHash: stimulus.sourceEventHash,
     }))
-    const assembly = this.#assembler.assembleDetailed({
+    const { assembly, rendered } = new CharacterContextBudgetPlanner(
+      request => this.#assembler.assembleDetailed(request),
+      bundle => this.#renderer.renderCharacter({
+        context: bundle, contextProfileId: selectedProfile, renderer: rendererLock,
+        toolSchema: this.#reactionCharacterTool, modelProfile: this.#model(context.address),
+        correlationId: `render:${context.roundId}:${binding.participantId}`,
+      }),
+    ).plan({
       address: context.address, roundId: context.roundId, participantId: binding.participantId,
       characterId: binding.actorId, controllerId: `provider:${binding.participantId}`, controllerEpoch: 1,
       baseHeadSeq: asOfWorldSeq, asOfWorldSeq, tick: context.tick, manifestHash: this.options.manifestHash,
       contextProfileId: selectedProfile,
       worldPublicAnchor: { metadata: this.options.manifest.metadata, timeMode: this.options.manifest.timeMode },
       characterAnchor: character,
-      characterView: prepared.characterView, cognition, checkpoint, tail, sceneDecision: scene,
-      sceneSourceRefs: sceneSources(history, decision), recallPlan: prepared.recallPlan, recall: prepared.recall,
+      characterView: prepared.characterView, cognition, checkpoint, tail, digest,
+      sceneDecision: scene, sceneSourceRefs: sceneSources(history, decision),
+      recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus: context.stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', context.stimulus),
       stimulusSourceRefs, maximumExternalActions: manifestUsesActionGroups(this.options.manifest) ? 2 : 1,
       ...(manifestUsesActionGroups(this.options.manifest) ? { groupedOutput: {
@@ -537,11 +639,6 @@ export class Phase8ContextPipeline {
       affordances, affordanceHash,
       runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
       correlationId: `context:${context.roundId}:${binding.participantId}`,
-    })
-    const rendered = this.#renderer.renderCharacter({
-      context: assembly.bundle, contextProfileId: selectedProfile, renderer: rendererLock,
-      toolSchema: this.#reactionCharacterTool, modelProfile: this.#model(context.address),
-      correlationId: `render:${context.roundId}:${binding.participantId}`,
     })
     const receipt = this.#receipts.append({
       address: context.address, roundId: context.roundId, participantKind: 'character',

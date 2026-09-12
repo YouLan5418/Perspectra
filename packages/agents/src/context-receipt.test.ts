@@ -14,6 +14,7 @@ import {
   createContextReceipt,
   type CreateContextReceiptRequest,
 } from './context-receipt.ts'
+import { CONTEXT_SCHEMA_VERSION } from './context-database.ts'
 
 const alice = brandId('character:alice', 'CharacterId')
 const address: WorldAddress = {
@@ -131,12 +132,13 @@ describe('ContextReceiptStore and ContextExplainService', () => {
     const upgraded = new ContextReceiptStore(upgradePath)
     upgraded.close()
     const check = new DatabaseSync(upgradePath)
-    expect((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(6)
+    expect((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)
+      .toBe(CONTEXT_SCHEMA_VERSION)
     check.close()
 
     const futurePath = path()
     const future = new DatabaseSync(futurePath)
-    future.exec('PRAGMA user_version=7')
+    future.exec(`PRAGMA user_version=${CONTEXT_SCHEMA_VERSION + 1}`)
     future.close()
     expect(() => new ContextReceiptStore(futurePath)).toThrow('user_version mismatch')
   })

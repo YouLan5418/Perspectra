@@ -17,6 +17,7 @@ import {
   PHASE8_REGISTRY_LOCKS,
   PHASE8_VOCABULARY_LOCKS,
   type AgentProvider,
+  type CharacterId,
   type FaultInjector,
   type FaultPoint,
   type InteractionRoundId,
@@ -321,6 +322,92 @@ function close(optionsValue: ReturnType<typeof options>, coordinator?: RoundCoor
   optionsValue.providerQuality?.close()
   optionsValue.leases.close()
   optionsValue.store.close()
+}
+
+/**
+ * A Phase 8 world with durable Provider call and quality boundaries, an authoritative Scene decision and a
+ * scripted Context receipt, so a Round can reach dispatch without a real Context pipeline.
+ */
+function phase8RetryFixture(
+  path: string,
+  compiled: CompiledWorldSpec,
+  participants: readonly RoundParticipant[],
+): {
+  readonly configured: ReturnType<typeof options>
+  readonly sceneDecision: never
+  readonly contextPipeline: never
+  readonly cognitiveMemory: never
+} {
+  const configured = options(path, compiled, participants)
+  const sceneDecision = {
+    decideFromEvents: (address: unknown, player: CharacterId, _events: unknown, asOfSeq: number) => {
+      const characterIds = compiled.manifest.characters.map(character => character.characterId)
+      return {
+        sceneId: 'scene:a', observerIds: [player, ...characterIds.filter(id => id !== player)],
+        schedulableCharacterIds: characterIds.filter(id => id !== player),
+        visibleResultCharacterIds: characterIds, asOfSeq,
+      }
+    },
+  } as never
+  const contextPipeline = {
+    prepare: (
+      binding: RoundParticipant, context: ProposalContext, _history: unknown, _decision: unknown,
+      asOf: number, heartbeat: () => void,
+    ) => {
+      heartbeat()
+      const cognition = new CognitionProjectionRebuilder(configured.store)
+        .rebuildCharacterAt(context.address, binding.actorId, asOf)
+      const receipt = createContextReceipt({
+        address: context.address, roundId: context.roundId, participantKind: 'character',
+        participantId: binding.participantId, subjectCharacterId: binding.actorId,
+        controllerId: `provider:${binding.participantId}`, controllerEpoch: 1,
+        baseHeadSeq: asOf, asOfWorldSeq: asOf, tick: context.tick, manifestHash: compiled.manifestHash,
+        contextProfileId: 'standard', contextProfileHash: hashWorldJson('profile', { id: 'standard' }),
+        versionLocks: {
+          contextSchema: 'character-controller/v2', contextReceiptSchema: 'context-receipt/v1',
+          sceneDecisionSchema: 'scene-decision/v2', memorySchema: 'cognitive-memory/v2',
+          checkpointSchema: 'continuity-checkpoint/v1', rendererSchema: 'structured-prompt-renderer/v1',
+        },
+        componentHashes: {
+          characterViewHash: cognition.bundleHash, sceneDecisionHash: hashWorldJson('scene', { asOf }),
+          checkpointHash: null, tailHash: hashWorldJson('tail', {}), recallHash: hashWorldJson('recall', {}),
+          affordanceHash: hashWorldJson('affordance', {}),
+        },
+        includedSourceRefs: [], exclusions: [],
+        contextHash: hashWorldJson('context', { candidateHash: context.candidateHash, asOf }),
+        providerRequestHash: hashWorldJson('provider', { candidateHash: context.candidateHash, asOf }),
+      })
+      return {
+        providerContext: {
+          ...context, agentContextVersion: 2, participantId: binding.participantId,
+          contextReceiptId: receipt.receiptId, contextHash: receipt.contextHash,
+          providerRequestHash: receipt.providerRequestHash,
+          exactProviderRequest: {
+            schemaVersion: 'structured-provider-request/v1', model: 'scripted', messages: [], tools: {},
+            sampling: {}, user: 'opaque',
+          },
+        },
+        receipt, cognition, memorySourceRefs: [], recallResultHash: hashWorldJson('recall', {}),
+      }
+    },
+  } as never
+  const cognitiveMemory = { processPending: () => ({ completed: 0, failed: [] }) } as never
+  return { configured, sceneDecision, contextPipeline, cognitiveMemory }
+}
+
+/** A scripted Phase 8 abstaining participant whose Provider fails only while `state.fail` is true. */
+function retryParticipant(actorId: CharacterId, state: { fail: boolean; calls: number }): RoundParticipant {
+  return {
+    participantId: 'agent:recovering', role: 'agent', actorId,
+    allowedActionTypes: ['speak', 'move'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+    provider: {
+      async propose() {
+        state.calls += 1
+        if (state.fail) throw new Error('provider offline')
+        return { schemaVersion: 2 as const, decision: 'abstain' as const, actions: [] }
+      },
+    },
+  }
 }
 
 async function installCommittedRecoveryFixture(
@@ -1577,6 +1664,128 @@ describe('RoundCoordinator', () => {
       reflectionInvalidStreak: 3, reflectionSuspensionRemaining: 3,
     })
     quality.close()
+  })
+
+  it('retries a lagging participant once its Context preparation succeeds and returns it to ready', async () => {
+    const path = database('phase8-availability-recovery.sqlite')
+    const compiled = phase8SceneWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const address = compiled.manifest.address
+    const npcId = brandId('character:npc', 'CharacterId')
+    let providerCalls = 0
+    let preparationFails = true
+    const npc = participant('agent:recovery', 'agent', 1, provider(() => {
+      providerCalls += 1
+      return { participantId: 'agent:recovery', actions: [] }
+    }))
+    const configured = options(path, compiled, [npc])
+    configured.availability.set(address, npcId, 'session_lag', 'Memory catch-up is behind')
+    configured.availability.set(address, brandId('character:other', 'CharacterId'), 'disabled', 'Host removed it')
+    const sceneDecision = new SceneDecisionService(configured.store, configured.availability, 2)
+    const decision = sceneDecision.decide(address, brandId('character:player', 'CharacterId'), configured.store.head(address).headSeq)
+    expect(decision.schedulableCharacterIds).toContain(npcId)
+    expect(decision.schedulableCharacterIds).not.toContain(brandId('character:other', 'CharacterId'))
+    const contextPipeline = {
+      prepare: (
+        binding: RoundParticipant, context: ProposalContext, _history: unknown, _decision: unknown,
+        _asOf: number, heartbeat: () => void,
+      ) => {
+        heartbeat()
+        if (preparationFails) throw new Error('context offline')
+        return {
+          providerContext: {
+            ...context, agentContextVersion: 2, participantId: binding.participantId,
+            contextReceiptId: 'receipt:recovery', contextHash: hashWorldJson('context', { recovery: true }),
+            providerRequestHash: hashWorldJson('provider', { recovery: true }),
+            exactProviderRequest: {
+              schemaVersion: 'structured-provider-request/v1', model: 'scripted', messages: [], tools: {},
+              sampling: {}, user: 'opaque',
+            },
+          },
+          receipt: {
+            receiptId: 'receipt:recovery', contextHash: hashWorldJson('context', { recovery: true }),
+            providerRequestHash: hashWorldJson('provider', { recovery: true }),
+          },
+          memorySourceRefs: [], recallResultHash: hashWorldJson('recall', {}),
+        }
+      },
+    } as never
+    const coordinator = new RoundCoordinator({ ...configured, sceneDecision, contextPipeline })
+    const request = {
+      principalId: 'principal:player', action: { actionType: 'speak', parameters: { text: 'go' } },
+      correlationId: 'recovery',
+    }
+    try {
+      await coordinator.submit({ ...request, idempotencyKey: 'recovery-fail' })
+      expect(providerCalls).toBe(0)
+      expect(configured.availability.get(address, npcId)).toMatchObject({ state: 'session_lag' })
+      preparationFails = false
+      await coordinator.submit({ ...request, idempotencyKey: 'recovery-succeed' })
+      expect(providerCalls).toBe(1)
+      expect(configured.availability.get(address, npcId)).toMatchObject({ state: 'ready', reason: null })
+    } finally { close(configured, coordinator) }
+  })
+
+  it('retries a participant after a Provider failure and counts the fault against its backoff', async () => {
+    const path = database('phase8-provider-failure-recovery.sqlite')
+    const compiled = phase8ReflectionWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const address = compiled.manifest.address
+    const actorId = brandId('character:npc', 'CharacterId')
+    const state = { fail: true, calls: 0 }
+    const fixtureValue = phase8RetryFixture(path, compiled, [retryParticipant(actorId, state)])
+    const { configured } = fixtureValue
+    const coordinator = new RoundCoordinator({ ...configured, ...fixtureValue })
+    const request = {
+      principalId: 'principal:player', action: { actionType: 'speak', parameters: { text: 'go' } },
+      correlationId: 'provider-recovery',
+    }
+    try {
+      await coordinator.submit({ ...request, idempotencyKey: 'provider-fail' })
+      expect(state.calls).toBe(1)
+      expect(configured.availability.get(address, actorId)).toMatchObject({ state: 'model_unavailable' })
+      expect(configured.providerQuality!.state(address, 'agent:recovering'))
+        .toMatchObject({ responseInvalidStreak: 1 })
+      state.fail = false
+      await coordinator.submit({ ...request, idempotencyKey: 'provider-recover' })
+      expect(state.calls).toBe(2)
+      expect(configured.availability.get(address, actorId)).toMatchObject({ state: 'ready', reason: null })
+      expect(configured.providerQuality!.state(address, 'agent:recovering'))
+        .toMatchObject({ responseInvalidStreak: 0 })
+    } finally { close(configured, coordinator) }
+  })
+
+  it('retries a participant that lost the Model budget race once a later Round has budget', async () => {
+    const path = database('phase8-budget-recovery.sqlite')
+    const compiled = phase8ReflectionWorld()
+    const setup = new WorldStore(path)
+    new WorldBootstrap(setup).activate(compiled)
+    setup.close()
+    const address = compiled.manifest.address
+    const actorId = brandId('character:npc', 'CharacterId')
+    const state = { fail: false, calls: 0 }
+    const fixtureValue = phase8RetryFixture(path, compiled, [retryParticipant(actorId, state)])
+    const { configured } = fixtureValue
+    const request = {
+      principalId: 'principal:player', action: { actionType: 'speak', parameters: { text: 'go' } },
+      correlationId: 'budget-recovery',
+    }
+    try {
+      const exhausted = new RoundCoordinator({ ...configured, ...fixtureValue, modelBudgetTokens: 0 })
+      await exhausted.submit({ ...request, idempotencyKey: 'budget-exhausted' })
+      expect(state.calls).toBe(0)
+      expect(configured.availability.get(address, actorId)).toMatchObject({ state: 'budget_unavailable' })
+      exhausted.close()
+      const funded = new RoundCoordinator({ ...configured, ...fixtureValue, modelBudgetTokens: 100 })
+      await funded.submit({ ...request, idempotencyKey: 'budget-funded' })
+      expect(state.calls).toBe(1)
+      expect(configured.availability.get(address, actorId)).toMatchObject({ state: 'ready', reason: null })
+      funded.close()
+    } finally { close(configured) }
   })
 
   it('degrades ordinary Phase 8 Context failures but propagates integrity failures', async () => {

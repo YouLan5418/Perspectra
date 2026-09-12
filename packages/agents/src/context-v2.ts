@@ -16,15 +16,16 @@ import {
   type CharacterContinuityCheckpoint,
   type CharacterId,
   type CharacterView,
-  type CognitiveRecallResult,
+  type AnyCognitiveRecallResult,
+  type AnyRecallQueryPlan,
   type ContextComponentHashes,
   type ContextExclusion,
+  type ContextExclusionReason,
   type ContextProfileId,
   type ContextSegment,
   type ContextSourceRef,
   type InteractionTail,
   type Phase8ContextProfile,
-  type RecallQueryPlan,
   type RuntimeAvailabilityState,
   type WorldAddress,
   type WorldHash,
@@ -35,6 +36,20 @@ import {
 export interface ContextAffordance extends WorldJsonObject {
   readonly actionType: string
   readonly actionVersion: number
+}
+
+/**
+ * One group of committed Rounds as the Context hands it to a model: the Summary's identity, the range it
+ * covers, and its text. The text is the L1 Summary's own, never a re-derivation, so this stays the only
+ * account of those Rounds and the Context layer can verify the identity it came with.
+ */
+export interface ContextDigestEntry extends WorldJsonObject {
+  readonly summaryId: string
+  readonly sourceStartSeq: number
+  readonly sourceEndSeq: number
+  readonly summaryHash: WorldHash
+  readonly text: string
+  readonly sourceRefs: readonly ContextSourceRef[]
 }
 
 export interface CharacterSceneContext extends WorldJsonObject {
@@ -69,8 +84,8 @@ export interface CharacterContextRequest {
   readonly tail: InteractionTail
   readonly sceneDecision: CharacterSceneContext
   readonly sceneSourceRefs: readonly ContextSourceRef[]
-  readonly recallPlan: RecallQueryPlan
-  readonly recall: CognitiveRecallResult
+  readonly recallPlan: AnyRecallQueryPlan
+  readonly recall: AnyCognitiveRecallResult
   readonly stimulus: WorldJsonValue
   readonly stimulusHash: WorldHash
   readonly stimulusSourceRefs?: readonly ContextSourceRef[]
@@ -79,6 +94,22 @@ export interface CharacterContextRequest {
   readonly affordances: readonly ContextAffordance[]
   readonly affordanceHash: WorldHash
   readonly runtimeAvailability: RuntimeAvailabilityState
+  /**
+   * Long-term digest: the L1 Summaries covering Rounds the recent Tail no longer carries. Entries arrive
+   * oldest first and are given up from the front when a request has to shrink, because the newest Rounds
+   * are the ones a character is most likely to need back.
+   */
+  readonly digest?: readonly ContextDigestEntry[]
+  /**
+   * Extra Tier 3/4 drops applied on top of the Context Profile so the rendered request fits the Model Profile
+   * budget. Recall and digest are trimmed before Interaction Tail blocks, and only whole Tail blocks are
+   * ever dropped. The digest is the earliest content, so it is given up first.
+   */
+  readonly budgetTrim?: {
+    readonly tailBlocks: number
+    readonly recallItems: number
+    readonly digestItems: number
+  }
   readonly correlationId: string
 }
 
@@ -113,7 +144,8 @@ const OUTPUT_REMINDER = Object.freeze({
 
 const compareText = compareWorldText
 
-function profile(profileId: ContextProfileId): Phase8ContextProfile {
+/** Resolve a frozen Context Profile, failing closed on an unknown identifier. */
+export function contextProfile(profileId: ContextProfileId): Phase8ContextProfile {
   const selected = PHASE8_CONTEXT_PROFILES.find(value => value.profileId === profileId)
   if (selected === undefined) throw new TypeError(`unknown Context Profile ${profileId}`)
   return selected
@@ -162,6 +194,54 @@ export function selectInteractionTail(tail: InteractionTail, maximumBlocks: numb
   const input = { ...tail, blocks }
   const { tailHash: _tailHash, ...base } = input
   return { ...base, tailHash: hashInteractionTail(base) }
+}
+
+type InteractionBlockValue = CharacterContextRequest['tail']['blocks'][number]
+type RecallMemoryValue = CharacterContextRequest['recall']['memories'][number]
+
+/** Record every observation of a dropped whole Tail block, so the drop stays auditable per source. */
+function blockExclusions(
+  blocks: readonly InteractionBlockValue[],
+  reason: ContextExclusionReason,
+): ContextExclusion[] {
+  return blocks.flatMap(block => block.observations.map(observation => ({
+    reason, sourceRefHash: sourceHash(observation.sourceRef),
+  })))
+}
+
+function memoryExclusions(
+  memories: readonly RecallMemoryValue[],
+  reason: ContextExclusionReason,
+): ContextExclusion[] {
+  return memories.map(memory => ({ reason, sourceRefHash: sourceHash(memory.sourceRef) }))
+}
+
+/** Record every source a dropped digest entry covered, so giving up a whole group stays auditable. */
+function digestExclusions(
+  entries: readonly ContextDigestEntry[],
+  reason: ContextExclusionReason,
+): ContextExclusion[] {
+  return entries.flatMap(entry => entry.sourceRefs.map(sourceRef => ({
+    reason, sourceRefHash: sourceHash(sourceRef),
+  })))
+}
+
+/**
+ * A digest carries only what the Tail does not, so every entry has to end at or before the Tail floor and
+ * the entries have to arrive oldest first. Naming a Round the Tail already carries would state the same
+ * Rounds twice, which is the one thing this channel must not do.
+ */
+function assertDigest(request: CharacterContextRequest, digest: readonly ContextDigestEntry[]): void {
+  const ordered = digest.every((entry, index) =>
+    index === 0 || digest[index - 1]!.sourceEndSeq <= entry.sourceStartSeq)
+  if (!ordered || digest.some(entry =>
+    entry.sourceEndSeq > request.tail.afterSeq || entry.sourceStartSeq > entry.sourceEndSeq)) {
+    failWorld({
+      errorCode: 'CONTEXT_SOURCE_UNVERIFIED', category: 'integrity',
+      message: 'Context digest overlaps the Interaction Tail or is out of source order', retryable: false,
+      correlationId: request.correlationId, address: request.address, roundId: request.roundId,
+    })
+  }
 }
 
 function cognitionEntries(cognition: CharacterCognitionView) {
@@ -268,6 +348,61 @@ function withoutHash<T extends WorldJsonObject>(value: T, key: keyof T): WorldJs
   return Object.fromEntries(Object.entries(value).filter(([entryKey]) => entryKey !== key))
 }
 
+function failRecallIntegrity(request: CharacterContextRequest): never {
+  failWorld({
+    errorCode: 'CONTEXT_SOURCE_UNVERIFIED', category: 'integrity',
+    message: 'Context component Hash or Recall receipt is divergent', retryable: false,
+    correlationId: request.correlationId, address: request.address, roundId: request.roundId,
+  })
+}
+
+/**
+ * Re-derive the Recall proof a Context relies on, rather than trusting it.
+ *
+ * Both generations are handled because a plan and its receipt always come from one generation: a v2 plan
+ * is answered by a v2 receipt, and a mix is an integrity fault. A v2 receipt additionally has to agree
+ * with the memories the Context actually uses — the receipt Hash proves the receipt is unmodified, but
+ * only this check proves the ranking still names the returned memories in order.
+ */
+function assertRecallIntegrity(request: CharacterContextRequest): void {
+  const plan = request.recallPlan
+  const receipt = request.recall.receipt
+  if (plan.schemaVersion !== 'recall-query-plan/v2') {
+    if (receipt.schemaVersion !== 'recall-receipt/v1') failRecallIntegrity(request)
+    const ranking = request.recall.memories.map((memory, index) => ({
+      memoryId: memory.memoryId, rank: index + 1, sourceRef: memory.sourceRef,
+    }))
+    const { receiptHash: _receiptHash, ...receiptInput } = receipt
+    if (receipt.planHash !== hashWorldJson('recall-query-plan/v1', plan)
+      || receipt.queryHash !== hashWorldJson('recall-query/v1', { query: plan.query })
+      || receipt.resultHash !== hashWorldJson('cognitive-memory-recall-result/v2', {
+        memories: request.recall.memories, ranking,
+      })
+      || receipt.receiptHash !== hashWorldJson('recall-receipt/v1', receiptInput)
+      || hashWorldJson('recall-selected-source-refs/v1', receipt.selectedSourceRefs)
+        !== hashWorldJson('recall-selected-source-refs/v1', request.recall.memories.map(memory => memory.sourceRef))
+      || hashWorldJson('recall-ranking/v1', receipt.ranking) !== hashWorldJson('recall-ranking/v1', ranking)) {
+      failRecallIntegrity(request)
+    }
+    return
+  }
+  if (receipt.schemaVersion !== 'recall-receipt/v2') failRecallIntegrity(request)
+  const { receiptHash: _receiptHash, ...receiptInput } = receipt
+  const rankingDescribesReturnedMemories = receipt.ranking.length === request.recall.memories.length
+    && receipt.ranking.every((entry, index) => entry.rank === index + 1
+      && entry.memoryId === request.recall.memories[index]!.memoryId)
+  if (receipt.planHash !== hashWorldJson('recall-query-plan/v2', plan)
+    || receipt.resultHash !== hashWorldJson('cognitive-memory-recall-result/v3', {
+      memories: request.recall.memories, ranking: receipt.ranking,
+    })
+    || receipt.receiptHash !== hashWorldJson('recall-receipt/v2', receiptInput)
+    || hashWorldJson('recall-selected-source-refs/v1', receipt.selectedSourceRefs)
+      !== hashWorldJson('recall-selected-source-refs/v1', request.recall.memories.map(memory => memory.sourceRef))
+    || !rankingDescribesReturnedMemories) {
+    failRecallIntegrity(request)
+  }
+}
+
 function assertComponentHashes(request: CharacterContextRequest, affordances: readonly ContextAffordance[]): void {
   const viewHash = hashWorldJson('world-character-view', withoutHash(request.characterView, 'bundleHash'))
   const cognitionHash = hashWorldJson(
@@ -278,30 +413,11 @@ function assertComponentHashes(request: CharacterContextRequest, affordances: re
     ? null
     : hashContinuityCheckpoint(withoutHash(request.checkpoint, 'checkpointHash') as never)
   const { tailHash: _tailHash, ...tailInput } = request.tail
-  const planHash = hashWorldJson('recall-query-plan/v1', request.recallPlan)
-  const queryHash = hashWorldJson('recall-query/v1', { query: request.recallPlan.query })
-  const ranking = request.recall.memories.map((memory, index) => ({
-    memoryId: memory.memoryId, rank: index + 1, sourceRef: memory.sourceRef,
-  }))
-  const resultHash = hashWorldJson('cognitive-memory-recall-result/v2', {
-    memories: request.recall.memories, ranking,
-  })
-  const { receiptHash: _receiptHash, ...receiptInput } = request.recall.receipt
-  const receiptHash = hashWorldJson('recall-receipt/v1', receiptInput)
-  const selectedRefsHash = hashWorldJson('recall-selected-source-refs/v1', request.recall.receipt.selectedSourceRefs)
-  const memoryRefsHash = hashWorldJson('recall-selected-source-refs/v1', request.recall.memories.map(memory => memory.sourceRef))
-  const rankingHash = hashWorldJson('recall-ranking/v1', request.recall.receipt.ranking)
-  const expectedRankingHash = hashWorldJson('recall-ranking/v1', ranking)
+  assertRecallIntegrity(request)
   if (request.characterView.bundleHash !== viewHash || request.cognition.bundleHash !== cognitionHash
     || request.sceneDecision.decisionHash !== sceneHash
     || (request.checkpoint !== null && request.checkpoint.checkpointHash !== checkpointHash)
     || request.tail.tailHash !== hashInteractionTail(tailInput)
-    || request.recall.receipt.planHash !== planHash
-    || request.recall.receipt.queryHash !== queryHash
-    || request.recall.receipt.resultHash !== resultHash
-    || request.recall.receipt.receiptHash !== receiptHash
-    || selectedRefsHash !== memoryRefsHash
-    || rankingHash !== expectedRankingHash
     || request.stimulusHash !== hashWorldJson('context-stimulus/v1', request.stimulus)
     || request.affordanceHash !== hashWorldJson('context-affordances/v1', affordances)) {
     failWorld({
@@ -320,7 +436,7 @@ export class CharacterContextAssembler {
 
   assembleDetailed(request: CharacterContextRequest): CharacterContextAssembly {
     assertScope(request)
-    const selectedProfile = profile(request.contextProfileId)
+    const selectedProfile = contextProfile(request.contextProfileId)
     const activeCognition = cognitionEntries(request.cognition)
     assertCapacity(request, selectedProfile, activeCognition)
     const affordances = [...request.affordances]
@@ -329,14 +445,35 @@ export class CharacterContextAssembler {
       throw new TypeError('Context affordances must be unique')
     }
     assertComponentHashes(request, affordances)
-    const selectedTail = selectInteractionTail(request.tail, selectedProfile.recentInteractionBlocks)
-    const selectedMemories = request.recall.memories.slice(0, selectedProfile.recallResults)
+    const digest = request.digest ?? []
+    assertDigest(request, digest)
+    const budgetTrim = request.budgetTrim ?? { tailBlocks: 0, recallItems: 0, digestItems: 0 }
+    if (!Number.isSafeInteger(budgetTrim.tailBlocks) || budgetTrim.tailBlocks < 0
+      || !Number.isSafeInteger(budgetTrim.recallItems) || budgetTrim.recallItems < 0
+      || !Number.isSafeInteger(budgetTrim.digestItems) || budgetTrim.digestItems < 0) {
+      throw new RangeError('Context budget trim requires non-negative safe integers')
+    }
+    // The Profile's block count no longer bounds what is sent. It bounds how many blocks a rebuild keeps,
+    // and the second layer is bounded by its own byte budget instead — a Profile-sized window here would
+    // reintroduce the sliding that invalidates every reusable prefix.
+    const profileTail = request.tail
+    const profileMemories = request.recall.memories.slice(0, selectedProfile.recallResults)
+    const selectedTail = selectInteractionTail(
+      profileTail, Math.max(0, profileTail.blocks.length - budgetTrim.tailBlocks),
+    )
+    const selectedMemories = profileMemories.slice(
+      0, Math.max(0, profileMemories.length - budgetTrim.recallItems),
+    )
+    // The earliest Rounds are the first to go, because the newest are the ones a character is likeliest to need.
+    const droppedDigest = digest.slice(0, Math.min(budgetTrim.digestItems, digest.length))
+    const selectedDigest = digest.slice(droppedDigest.length)
     const checkpointSources = request.checkpoint?.activeCognition.map(entry => entry.sourceRef) ?? []
     const selfSources = activeCognition.map(record => record.sourceRef)
     const recallSources = selectedMemories.map(memory => memory.sourceRef)
     const allSources = sortedUniqueSources([
       ...checkpointSources, ...sourcesOfTail(selectedTail), ...selfSources,
       ...request.sceneSourceRefs, ...recallSources,
+      ...selectedDigest.flatMap(entry => entry.sourceRefs),
     ])
     assertSourceScope(request, allSources)
     const consciousState = activeCognition.filter(record => (record.value as WorldJsonObject).awareness !== 'unrecognized')
@@ -373,7 +510,13 @@ export class CharacterContextAssembler {
       ['controller_contract', CONTROLLER_CONTRACT, []],
       ['world_public_anchor', safeValue(request.worldPublicAnchor), [manifestSource]],
       ['character_anchor', safeValue(request.characterAnchor), [manifestSource]],
-      ['continuity_checkpoint', safeValue(request.checkpoint), checkpointSources],
+      ['continuity_checkpoint', {
+        checkpoint: safeValue(request.checkpoint),
+        digest: selectedDigest.map(entry => ({
+          summaryId: entry.summaryId, sourceStartSeq: entry.sourceStartSeq,
+          sourceEndSeq: entry.sourceEndSeq, summaryHash: entry.summaryHash, text: entry.text,
+        })),
+      }, [...checkpointSources, ...selectedDigest.flatMap(entry => entry.sourceRefs)]],
       ['recent_interaction_tail', safeValue(selectedTail), sourcesOfTail(selectedTail)],
       ['current_self_state', {
         lifecycleState: request.characterView.lifecycleState,
@@ -412,13 +555,16 @@ export class CharacterContextAssembler {
     }
     const bundle = { ...base, contextHash: hashCharacterContext(base) }
     const exclusions: ContextExclusion[] = [
-      ...request.tail.blocks.slice(0, request.tail.blocks.length - selectedTail.blocks.length)
-        .flatMap(block => block.observations.map(observation => ({
-          reason: 'profile_capacity' as const, sourceRefHash: sourceHash(observation.sourceRef),
-        }))),
-      ...request.recall.memories.slice(selectedMemories.length).map(memory => ({
-        reason: 'profile_capacity' as const, sourceRefHash: sourceHash(memory.sourceRef),
-      })),
+      ...blockExclusions(
+        request.tail.blocks.slice(0, request.tail.blocks.length - profileTail.blocks.length),
+        'profile_capacity',
+      ),
+      ...blockExclusions(
+        profileTail.blocks.slice(0, profileTail.blocks.length - selectedTail.blocks.length), 'budget_trimmed',
+      ),
+      ...memoryExclusions(request.recall.memories.slice(profileMemories.length), 'profile_capacity'),
+      ...memoryExclusions(profileMemories.slice(selectedMemories.length), 'budget_trimmed'),
+      ...digestExclusions(droppedDigest, 'budget_trimmed'),
     ]
     return {
       bundle,

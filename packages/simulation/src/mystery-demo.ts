@@ -14,7 +14,7 @@ import {
   type WorldHash,
   type WorldJsonObject,
 } from '@harness-world/contracts'
-import type { RecalledMemory } from '@harness-world/memory'
+import type { RecallCandidateDiagnostics, RecalledMemory } from '@harness-world/memory'
 import {
   currentEntityState,
   WorldSpecCompiler,
@@ -354,6 +354,20 @@ export class MysteryDemoScenario {
   async recall(characterId: string, query: string, asOfWorldSeq?: number): Promise<RecalledMemory[]> {
     this.activate()
     return this.#application.recallMemory(
+      this.compiled.manifest.address,
+      brandId(characterId, 'CharacterId'),
+      query,
+      asOfWorldSeq,
+    )
+  }
+
+  async diagnoseRecall(
+    characterId: string,
+    query: string,
+    asOfWorldSeq?: number,
+  ): Promise<RecallCandidateDiagnostics> {
+    this.activate()
+    return this.#application.diagnoseMemoryRecall(
       this.compiled.manifest.address,
       brandId(characterId, 'CharacterId'),
       query,

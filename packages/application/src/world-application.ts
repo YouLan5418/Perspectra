@@ -22,6 +22,7 @@ import {
   type FaultInjector,
   type SessionId,
   type StoredRoundAuthority,
+  type RecallTokenizerId,
   type StoredWorldEvent,
   type TransactionId,
   type WorldAddress,
@@ -44,7 +45,11 @@ import {
   type PlayerRoundResult,
   type RulebookRegistry,
 } from '@harness-world/kernel'
-import { CognitiveMemoryService, type RecalledMemory } from '@harness-world/memory'
+import {
+  CognitiveMemoryService,
+  type RecallCandidateDiagnostics,
+  type RecalledMemory,
+} from '@harness-world/memory'
 import {
   ContextReceiptStore,
   ContinuityCheckpointService,
@@ -149,6 +154,16 @@ export interface WorldApplicationOptions {
   readonly rulebooks?: RulebookRegistry
   readonly memoryPath?: string
   readonly contextPath?: string
+  /**
+   * Selects the versioned keyword Recall strategy for this instance, or leaves the frozen path in place
+   * when omitted. This is an explicit, recorded selection and not a silent upgrade: the effective
+   * strategy and tokenizer are written into every Recall receipt, so a rebuild that asked for a different
+   * one fails closed instead of quietly changing what a character is shown. It stays until a world can
+   * declare the strategy in its own content.
+   */
+  readonly recallTokenizer?: RecallTokenizerId
+  /** Whether the derived proper-noun dictionary participates in ranking; off unless a caller asks. */
+  readonly recallDictionary?: boolean
 }
 
 export interface SubmitTextRequest {
@@ -325,7 +340,10 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       )
       cognitiveMemory = !policies.contextEnabled
         ? undefined
-        : new CognitiveMemoryService(this.options.memoryPath!, store.store, this.options.faultInjector, policies.memoryVersion)
+        : new CognitiveMemoryService(
+          this.options.memoryPath!, store.store, this.options.faultInjector, policies.memoryVersion,
+          this.options.recallTokenizer, this.options.recallDictionary ?? false,
+        )
       if (manifestUsesPhase8Contracts(manifest) && policies.contextEnabled && policies.memoryVersion === 2) {
         contextPipeline = new Phase8ContextPipeline({
           path: this.#contextPath!, store: store.store, memory: cognitiveMemory!,
@@ -978,17 +996,43 @@ export class WorldApplication {
     asOfWorldSeq?: number,
   ): Promise<RecalledMemory[]> {
     return this.#integrityGuard(address, 'memory.recall', branch => {
-      const memory = branch.agents.cognitiveMemory
-      if (memory === undefined) {
-        failWorld({
-          errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
-          message: 'Cognitive Memory is not enabled by this Manifest', retryable: false,
-          correlationId: `memory-recall:${characterId}`, address,
-        })
-      }
+      const memory = this.#requireCognitiveMemory(branch.agents.cognitiveMemory, address, characterId, 'recall')
       const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
       return memory.recall(address, characterId, query, asOf)
     })
+  }
+
+  /**
+   * Report how many Recall candidates this query matches before the default result limit, so an operator can
+   * see what one Recall leaves unseen. Reading this writes no Recall or Context record of its own.
+   */
+  async diagnoseMemoryRecall(
+    address: WorldAddress,
+    characterId: CharacterId,
+    query: string,
+    asOfWorldSeq?: number,
+  ): Promise<RecallCandidateDiagnostics> {
+    return this.#integrityGuard(address, 'memory.diagnose', branch => {
+      const memory = this.#requireCognitiveMemory(branch.agents.cognitiveMemory, address, characterId, 'diagnose')
+      const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
+      return memory.diagnoseRecall(address, characterId, query, asOf)
+    })
+  }
+
+  #requireCognitiveMemory(
+    memory: CognitiveMemoryService | undefined,
+    address: WorldAddress,
+    characterId: CharacterId,
+    operation: 'recall' | 'diagnose',
+  ): CognitiveMemoryService {
+    if (memory === undefined) {
+      failWorld({
+        errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
+        message: 'Cognitive Memory is not enabled by this Manifest', retryable: false,
+        correlationId: `memory-${operation}:${characterId}`, address,
+      })
+    }
+    return memory
   }
 
   /** Player-facing view access: a principal may read only the Character bound to it by the frozen Manifest. */
@@ -1272,7 +1316,10 @@ export class WorldApplication {
               })
             }
             const memoryVersion = manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? 2 : 1
-            const memory = new CognitiveMemoryService(this.options.memoryPath, store, this.options.faultInjector, memoryVersion)
+            const memory = new CognitiveMemoryService(
+              this.options.memoryPath, store, this.options.faultInjector, memoryVersion,
+              this.options.recallTokenizer, this.options.recallDictionary ?? false,
+            )
             try {
               memoryVerificationHash = memory.rebuildBranch(
                 address, manifest.characters.map(character => character.characterId), world.headSeq, correlationId,

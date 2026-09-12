@@ -236,6 +236,16 @@ function observationFrom(event: StoredWorldEvent, characterId: CharacterId): Int
   return { observationId: data.id, content: value, sourceRef: sourceRef(event) }
 }
 
+/** The second layer of a Context: every block since a floor, and where that floor moves if the epoch is rebuilt. */
+export interface InteractionTailWindow {
+  /** Every committed block since the floor. It only ever grows, which is what keeps a prefix reusable. */
+  readonly tail: InteractionTail
+  /** Where the floor comes to rest once the second layer outgrows its budget. */
+  readonly rebuiltFloor: number
+  /** The Tail that starts at `rebuiltFloor`, keeping the Profile's retained block count. */
+  readonly rebuiltTail: InteractionTail
+}
+
 /** Rebuild a character-safe recent tail only from committed observations and Authority identities. */
 export class InteractionTailBuilder {
   constructor(private readonly world: WorldStore) {}
@@ -247,6 +257,60 @@ export class InteractionTailBuilder {
     asOfWorldSeq: number,
     maximumBlocks: number,
   ): InteractionTail {
+    const blocks = this.#blocksAt(address, characterId, afterSeq, asOfWorldSeq, maximumBlocks)
+    return this.#tailOf(address, characterId, afterSeq, asOfWorldSeq,
+      maximumBlocks === 0 ? [] : blocks.slice(-maximumBlocks))
+  }
+
+  /**
+   * Rebuild the second layer from a floor, and report where the floor moves if the epoch is rebuilt.
+   *
+   * A floor that never moves would make every preparation re-read the whole history and then discard
+   * almost all of it. A floor that moves every Round is just as bad in the other direction: the rendered
+   * prefix changes every time, so a Provider can reuse nothing. So the floor moves only when the appended
+   * blocks outgrow their budget, and then it comes to rest just before the Profile's retained window —
+   * which is what spec 10.4 means by a rebuild determined by Tail Block count.
+   */
+  rebuildWindow(
+    address: WorldAddress,
+    characterId: CharacterId,
+    afterSeq: number,
+    asOfWorldSeq: number,
+    retainedBlocks: number,
+  ): InteractionTailWindow {
+    const blocks = this.#blocksAt(address, characterId, afterSeq, asOfWorldSeq, retainedBlocks)
+    const dropped = Math.max(0, blocks.length - retainedBlocks)
+    const rebuiltFloor = dropped === 0 ? afterSeq : blocks[dropped - 1]!.endSeq
+    return {
+      tail: this.#tailOf(address, characterId, afterSeq, asOfWorldSeq, blocks),
+      rebuiltFloor,
+      rebuiltTail: this.#tailOf(
+        address, characterId, rebuiltFloor, asOfWorldSeq, dropped === 0 ? blocks : blocks.slice(dropped),
+      ),
+    }
+  }
+
+  #tailOf(
+    address: WorldAddress,
+    characterId: CharacterId,
+    afterSeq: number,
+    asOfWorldSeq: number,
+    blocks: readonly InteractionBlock[],
+  ): InteractionTail {
+    const input = {
+      schemaVersion: 'interaction-tail/v1' as const,
+      address, characterId, afterSeq, asOfWorldSeq, blocks,
+    }
+    return { ...input, tailHash: hashInteractionTail(input) }
+  }
+
+  #blocksAt(
+    address: WorldAddress,
+    characterId: CharacterId,
+    afterSeq: number,
+    asOfWorldSeq: number,
+    maximumBlocks: number,
+  ): InteractionBlock[] {
     if (!Number.isSafeInteger(afterSeq) || afterSeq < 0 || !Number.isSafeInteger(asOfWorldSeq)
       || asOfWorldSeq < afterSeq || !Number.isSafeInteger(maximumBlocks) || maximumBlocks < 0) {
       throw new RangeError('Interaction Tail bounds must be ordered non-negative safe integers')
@@ -278,11 +342,6 @@ export class InteractionTailBuilder {
       }
       blocks.push({ ...input, blockHash: hashInteractionBlock(input) })
     }
-    const selected = maximumBlocks === 0 ? [] : blocks.slice(-maximumBlocks)
-    const input = {
-      schemaVersion: 'interaction-tail/v1' as const,
-      address, characterId, afterSeq, asOfWorldSeq, blocks: selected,
-    }
-    return { ...input, tailHash: hashInteractionTail(input) }
+    return blocks
   }
 }
