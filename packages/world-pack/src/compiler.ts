@@ -9,6 +9,8 @@ import {
   PHASE8_CONTEXT_PROFILES,
   PHASE8_REGISTRY_LOCKS,
   PHASE8_VOCABULARY_LOCKS,
+  type InteractionCatalogV3,
+  type InteractionPackageDescription,
   type WorldHash,
   type WorldEventDraft,
   type WorldJsonObject,
@@ -45,19 +47,30 @@ import {
   WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
   WORLD_PACK_COMPILED_SCHEMA_VERSION_V3,
   WORLD_PACK_COMPILED_SCHEMA_VERSION_V4,
+  WORLD_PACK_COMPILED_SCHEMA_VERSION_V5,
   WORLD_PACK_COMPILER_CONTRACT_VERSION_V2,
   WORLD_PACK_COMPILER_CONTRACT_VERSION_V3,
   WORLD_PACK_COMPILER_CONTRACT_VERSION_V4,
+  WORLD_PACK_COMPILER_CONTRACT_VERSION_V5,
   WORLD_PACK_COMPILER_VERSION_V2,
   WORLD_PACK_COMPILER_VERSION_V3,
   WORLD_PACK_COMPILER_VERSION_V4,
+  WORLD_PACK_COMPILER_VERSION_V5,
   WORLD_PACK_LIMITS_PROFILE_V2,
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V3,
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V4,
+  WORLD_PACK_SOURCE_SCHEMA_VERSION_V5,
   type CompiledWorldPackV3,
   type CompiledWorldPackV4,
+  type CompiledWorldPackV5,
   type CompiledWorldPackV2,
+  type WorldPackInteractionsSource,
+  type WorldPackSourceManifestV5,
+  type WorldPackCompileOptionsV5,
+  type WorldPackCompiledContentV5,
+  type WorldPackEntitySourceV2,
+  type WorldPackCharacterSourceV3,
   type CompiledWorldPack,
   type WorldPackAcceptanceAssertion,
   type WorldPackAssetLock,
@@ -92,11 +105,15 @@ import {
   parseCompiledWorldPackV3,
   parseCompiledWorldPackV4,
   parseWorldPackAssertionsSource,
+  compileInteractionCatalog,
   parseWorldPackCharactersSource,
   parseWorldPackCharactersSourceV2,
+  parseWorldPackCharactersSourceV3,
   parseWorldPackCognitionSourceV2,
   parseWorldPackDocumentsSourceV2,
   parseWorldPackEntitiesSource,
+  parseWorldPackEntitiesSourceV2,
+  parseWorldPackInteractionsSource,
   parseWorldPackLocationsSource,
   parseWorldPackMemorySourceV2,
   parseWorldPackPlayerSlotsSource,
@@ -107,6 +124,8 @@ import {
   parseWorldPackSourceManifestV2,
   parseWorldPackSourceManifestV3,
   parseWorldPackSourceManifestV4,
+  parseWorldPackSourceManifestV5,
+  parseCompiledWorldPackV5,
   parseWorldPackReactionSource,
   parseWorldPackManifestationSource,
   parseWorldPackWorldSource,
@@ -195,6 +214,26 @@ function packHashV3(unsigned: UnsignedCompiledWorldPackV3): WorldHash {
 
 function packHashV4(unsigned: UnsignedCompiledWorldPackV4): WorldHash {
   return hashWorldJson('compiled-world-pack/v4', unsigned)
+}
+
+interface UnsignedCompiledWorldPackV5 extends WorldJsonObject {
+  readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION_V5
+  readonly packId: CompiledWorldPackV5['packId']
+  readonly packVersion: string
+  readonly compiler: CompiledWorldPackV5['compiler']
+  readonly pluginLocks: CompiledWorldPackV5['pluginLocks']
+  readonly vocabularyLocks: CompiledWorldPackV5['vocabularyLocks']
+  readonly registryLocks: CompiledWorldPackV5['registryLocks']
+  readonly reaction: WorldPackReactionSource
+  readonly manifestation: WorldPackManifestationSource
+  readonly interactions: InteractionCatalogV3
+  readonly content: WorldPackCompiledContentV5
+  readonly assets: readonly WorldPackAssetLock[]
+  readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
+}
+
+function packHashV5(unsigned: UnsignedCompiledWorldPackV5): WorldHash {
+  return hashWorldJson('compiled-world-pack/v5', unsigned)
 }
 
 function isMemorySeedDocument(value: WorldPackDocumentSourceV2): boolean {
@@ -289,22 +328,28 @@ async function loadJson(root: string, sourcePath: string, manifestFile: string, 
   return parseStrictWorldJson(decodeUtf8(await loadBytes(root, sourcePath, manifestFile, budget, MAX_JSON_BYTES), sourcePath), sourcePath)
 }
 
-type AnyWorldPackSourceManifest = WorldPackSourceManifest | WorldPackSourceManifestV2 | WorldPackSourceManifestV3 | WorldPackSourceManifestV4
+type AnyWorldPackSourceManifest = WorldPackSourceManifest | WorldPackSourceManifestV2 | WorldPackSourceManifestV3 | WorldPackSourceManifestV4 | WorldPackSourceManifestV5
 
 function allDeclaredFiles(manifest: AnyWorldPackSourceManifest): readonly string[] {
   const phase8Files = manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V2
     || manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V3
     || manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V4
+    || manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V5
     ? [...manifest.cognitionFiles, ...manifest.memoryFiles, ...manifest.documentFiles]
     : []
   const phase9Files = manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V3
-    || manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V4 ? [manifest.reactionFile] : []
+    || manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V4
+    || manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V5 ? [manifest.reactionFile] : []
   const manifestationFiles = manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V4
+    || manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V5
     ? [manifest.manifestationFile]
     : []
+  const interactionFiles = manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V5
+    ? [manifest.interactionFile]
+    : []
   return [manifest.worldFile, ...manifest.characterFiles, ...manifest.locationFiles, ...manifest.entityFiles, ...manifest.sceneFiles,
-    ...manifest.playerSlotFiles, ...manifest.presentationFiles, ...phase8Files, ...phase9Files, ...manifestationFiles, ...manifest.markdownFiles, ...manifest.assetFiles,
-    ...manifest.assertionFiles]
+    ...manifest.playerSlotFiles, ...manifest.presentationFiles, ...phase8Files, ...phase9Files, ...manifestationFiles, ...interactionFiles,
+    ...manifest.markdownFiles, ...manifest.assetFiles, ...manifest.assertionFiles]
 }
 
 function validatePortablePaths(manifest: AnyWorldPackSourceManifest, file: string): void {
@@ -750,7 +795,7 @@ const COGNITION_EVENT_TYPES: Readonly<Record<CognitionSeedKind, string>> = Objec
   'open-loop': 'open-loop.upsert',
 })
 
-type Phase8CompatiblePack = CompiledWorldPackV2 | CompiledWorldPackV3 | CompiledWorldPackV4
+type Phase8CompatiblePack = CompiledWorldPackV2 | CompiledWorldPackV3 | CompiledWorldPackV4 | CompiledWorldPackV5
 
 function phase8CognitionId(pack: Phase8CompatiblePack, characterId: string, kind: CognitionSeedKind | 'portrayal', key: string): string {
   return deterministicId(`world-pack-${kind}-id/v2`, { packHash: pack.packHash, characterId, key })
@@ -942,7 +987,8 @@ function phase8GenesisCognition(pack: Phase8CompatiblePack): readonly WorldEvent
 async function compilePhase8Source(
   sourceDirectory: string,
   options: WorldPackCompileOptionsV2,
-  sourceVersion: 'v2' | 'v3' | 'v4',
+  sourceVersion: 'v2' | 'v3' | 'v4' | 'v5',
+  interactionPackages: readonly InteractionPackageDescription[] = [],
 ): Promise<Phase8CompatiblePack> {
     if (options.limitsProfile !== WORLD_PACK_LIMITS_PROFILE_V2) {
       failWorldPackContract('PACK_PROFILE_NOT_ALLOWED', 'compile-options', '/limitsProfile', `must be ${WORLD_PACK_LIMITS_PROFILE_V2}`)
@@ -958,28 +1004,45 @@ async function compilePhase8Source(
     const manifestFile = 'worldpack.source.json'
     const budget: SourceBudget = { bytes: 0 }
     const manifestInput = await loadJson(root, manifestFile, manifestFile, budget)
-    const manifest = sourceVersion === 'v4'
-      ? parseWorldPackSourceManifestV4(manifestInput, manifestFile)
-      : sourceVersion === 'v3'
-        ? parseWorldPackSourceManifestV3(manifestInput, manifestFile)
-        : parseWorldPackSourceManifestV2(manifestInput, manifestFile)
+    const manifest = sourceVersion === 'v5'
+      ? parseWorldPackSourceManifestV5(manifestInput, manifestFile)
+      : sourceVersion === 'v4'
+        ? parseWorldPackSourceManifestV4(manifestInput, manifestFile)
+        : sourceVersion === 'v3'
+          ? parseWorldPackSourceManifestV3(manifestInput, manifestFile)
+          : parseWorldPackSourceManifestV2(manifestInput, manifestFile)
     validatePortablePaths(manifest, manifestFile)
     const reaction: WorldPackReactionSource | undefined = manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V3
       || manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V4
+      || manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V5
       ? parseWorldPackReactionSource(await loadJson(root, manifest.reactionFile, manifestFile, budget), manifest.reactionFile)
       : undefined
     const manifestation: WorldPackManifestationSource | undefined = manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V4
+      || manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V5
       ? parseWorldPackManifestationSource(
         await loadJson(root, manifest.manifestationFile, manifestFile, budget), manifest.manifestationFile,
       )
+      : undefined
+    const interactionSelection: WorldPackInteractionsSource | undefined = manifest.sourceSchemaVersion === WORLD_PACK_SOURCE_SCHEMA_VERSION_V5
+      ? parseWorldPackInteractionsSource(await loadJson(root, manifest.interactionFile, manifestFile, budget), manifest.interactionFile)
       : undefined
     const world = parseWorldPackWorldSourceV2(await loadJson(root, manifest.worldFile, manifestFile, budget), manifest.worldFile)
     const locations: WorldPackLocationSource[] = []
     for (const file of [...manifest.locationFiles].sort(compareText)) locations.push(...parseWorldPackLocationsSource(await loadJson(root, file, manifestFile, budget), file).locations)
     const entities: WorldPackEntitySource[] = []
-    for (const file of [...manifest.entityFiles].sort(compareText)) entities.push(...parseWorldPackEntitiesSource(await loadJson(root, file, manifestFile, budget), file).entities)
+    for (const file of [...manifest.entityFiles].sort(compareText)) {
+      const input = await loadJson(root, file, manifestFile, budget)
+      entities.push(...(sourceVersion === 'v5'
+        ? parseWorldPackEntitiesSourceV2(input, file).entities
+        : parseWorldPackEntitiesSource(input, file).entities))
+    }
     const characters: WorldPackCharacterSourceV2[] = []
-    for (const file of [...manifest.characterFiles].sort(compareText)) characters.push(...parseWorldPackCharactersSourceV2(await loadJson(root, file, manifestFile, budget), file).characters)
+    for (const file of [...manifest.characterFiles].sort(compareText)) {
+      const input = await loadJson(root, file, manifestFile, budget)
+      characters.push(...(sourceVersion === 'v5'
+        ? parseWorldPackCharactersSourceV3(input, file).characters
+        : parseWorldPackCharactersSourceV2(input, file).characters))
+    }
     const scenes: WorldPackSceneSourceV2[] = []
     for (const file of [...manifest.sceneFiles].sort(compareText)) scenes.push(...parseWorldPackScenesSourceV2(await loadJson(root, file, manifestFile, budget), file).scenes)
     const playerSlots: WorldPackPlayerSlotSource[] = []
@@ -1055,6 +1118,27 @@ async function compilePhase8Source(
       content,
       assets,
       acceptanceAssertions,
+    }
+    if (manifestation !== undefined && reaction !== undefined && interactionSelection !== undefined) {
+      const unsigned: UnsignedCompiledWorldPackV5 = {
+        ...shared,
+        compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V5,
+        compiler: {
+          id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V5,
+          contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V5,
+          canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
+        },
+        reaction,
+        manifestation,
+        interactions: compileInteractionCatalog(
+          interactionSelection,
+          entities as readonly WorldPackEntitySourceV2[],
+          characters as readonly WorldPackCharacterSourceV3[],
+          interactionPackages,
+        ),
+        content: content as WorldPackCompiledContentV5,
+      }
+      return { ...unsigned, packHash: packHashV5(unsigned) }
     }
     if (manifestation !== undefined && reaction !== undefined) {
       const unsigned: UnsignedCompiledWorldPackV4 = {
@@ -1432,6 +1516,21 @@ export function verifyCompiledWorldPackV3(input: unknown): CompiledWorldPackV3 {
   return pack
 }
 
+/**
+ * Interaction compiler. It extends v4 only through the explicit `worldpack-source/v5` source
+ * version, and it never reinterprets a v1-v4 source or an already compiled v1-v4 Pack.
+ */
+export class WorldPackCompilerV5 {
+  async compile(
+    sourceDirectory: string,
+    options: WorldPackCompileOptionsV5 = { limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2, interactionPackages: [] },
+  ): Promise<CompiledWorldPackV5> {
+    return await compilePhase8Source(
+      sourceDirectory, options, 'v5', options.interactionPackages,
+    ) as CompiledWorldPackV5
+  }
+}
+
 /** Fail closed if any compiled v4 field differs from its content-derived identity. */
 export function verifyCompiledWorldPackV4(input: unknown): CompiledWorldPackV4 {
   const pack = parseCompiledWorldPackV4(input)
@@ -1459,4 +1558,34 @@ export function canonicalWorldPackBytesV3(input: unknown): Uint8Array {
 /** Canonical bytes for the immutable compiled worldpack/v4 artifact. */
 export function canonicalWorldPackBytesV4(input: unknown): Uint8Array {
   return canonicalizeWorldJson(verifyCompiledWorldPackV4(input))
+}
+
+/** Every catalog binding must name a target the compiled content actually declares. */
+function validateInteractionTargets(pack: CompiledWorldPackV5): void {
+  const entityIds = new Set(pack.content.entities.map(value => value.entityId))
+  const characterIds = new Set(pack.content.characters.map(value => value.characterId))
+  const definitionRefs = new Set(pack.interactions.definitions.map(entry => `${entry.ref.id}@${entry.ref.version}`))
+  for (const binding of pack.interactions.bindings) {
+    const declared = binding.targetRef.kind === 'entity' ? entityIds : binding.targetRef.kind === 'character' ? characterIds : undefined
+    if (declared === undefined || !declared.has(binding.targetRef.id)) {
+      failWorldPackContract('PACK_REFERENCE_INVALID', 'worldpack.json', '/interactions/bindings', `binding ${binding.bindingId} names an unknown ${binding.targetRef.kind} target`)
+    }
+    if (!definitionRefs.has(`${binding.definitionRef.id}@${binding.definitionRef.version}`)) {
+      failWorldPackContract('PACK_REFERENCE_INVALID', 'worldpack.json', '/interactions/bindings', `binding ${binding.bindingId} references a definition outside the catalog`)
+    }
+  }
+}
+
+export function verifyCompiledWorldPackV5(input: unknown): CompiledWorldPackV5 {
+  const pack = parseCompiledWorldPackV5(input)
+  const { packHash: claimedHash, ...unsigned } = pack
+  if (packHashV5(unsigned) !== claimedHash) failWorldPackContract('PACK_SOURCE_INVALID', 'worldpack.json', '/packHash', 'does not match the compiled v5 envelope content')
+  validateV2References(pack.content)
+  validateInteractionTargets(pack)
+  return pack
+}
+
+/** Canonical bytes for the immutable worldpack/v5 artifact. */
+export function canonicalWorldPackBytesV5(input: unknown): Uint8Array {
+  return canonicalizeWorldJson(verifyCompiledWorldPackV5(input))
 }

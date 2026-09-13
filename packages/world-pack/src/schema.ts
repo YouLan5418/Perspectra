@@ -15,6 +15,7 @@ import {
   assertProtocolString,
   brandId,
   canonicalizeWorldJson,
+  compareWorldText,
   hashWorldJson,
   PHASE8_REGISTRY_LOCKS,
   PHASE8_VOCABULARY_LOCKS,
@@ -23,7 +24,15 @@ import {
   TENSION_POLE_TENDENCIES,
   TENSION_STATUSES,
   type BrandedId,
+  type InteractionBindingV3,
+  type InteractionCatalogV3,
+  type InteractionDefinitionImplementation,
+  type InteractionDefinitionSpec,
+  type InteractionImplementationLock,
+  type InteractionPackageDescription,
+  type InteractionTargetRef,
   type WorldHash,
+  type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
@@ -60,12 +69,20 @@ import {
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V3,
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V4,
+  WORLD_PACK_SOURCE_SCHEMA_VERSION_V5,
+  WORLD_PACK_ENTITIES_SCHEMA_VERSION_V2,
+  WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V3,
+  WORLD_PACK_INTERACTIONS_SCHEMA_VERSION,
+  WORLD_PACK_COMPILED_SCHEMA_VERSION_V5,
+  WORLD_PACK_COMPILER_VERSION_V5,
+  WORLD_PACK_COMPILER_CONTRACT_VERSION_V5,
   WORLD_PACK_REACTION_SCHEMA_VERSION,
   WORLD_PACK_MANIFESTATION_SCHEMA_VERSION,
   type CompiledWorldPack,
   type CompiledWorldPackV2,
   type CompiledWorldPackV3,
   type CompiledWorldPackV4,
+  type CompiledWorldPackV5,
   type WorldPackAcceptanceAssertion,
   type WorldPackAffectSourceV2,
   type WorldPackAssertionsSource,
@@ -112,6 +129,13 @@ import {
   type WorldPackSourceManifestV2,
   type WorldPackSourceManifestV3,
   type WorldPackSourceManifestV4,
+  type WorldPackSourceManifestV5,
+  type WorldPackEntitiesSourceV2,
+  type WorldPackEntitySourceV2,
+  type WorldPackCharacterSourceV3,
+  type WorldPackCharactersSourceV3,
+  type WorldPackInteractionBindingSource,
+  type WorldPackInteractionsSource,
   type WorldPackReactionSource,
   type WorldPackManifestationSource,
   type WorldPackTensionPoleSourceV2,
@@ -134,6 +158,10 @@ const MAX_ENTITIES = 512
 const MAX_COGNITION_RECORDS_PER_KIND = 512
 const MAX_PORTRAYAL_TERMS = 128
 const MAX_DOCUMENTS = 512
+// Interaction limits profile interaction-limits/v1, frozen in the implementation contract.
+const MAX_INTERACTION_BINDINGS = 4096
+const MAX_INTERACTION_PACKAGES = 32
+const MAX_INTERACTION_DEFINITIONS = 128
 
 function pointer(base: string, field: string | number): string {
   const token = String(field).replaceAll('~', '~0').replaceAll('/', '~1')
@@ -482,6 +510,31 @@ export function parseWorldPackSourceManifestV4(input: unknown, file = 'worldpack
   }
   unique(explicitFiles, file, '')
   return { ...parsed, sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V4, manifestationFile }
+}
+
+/** V5 adds the world's interaction selection file. V1-V4 parsing and Hash are untouched. */
+export function parseWorldPackSourceManifestV5(input: unknown, file = 'worldpack.source.json'): WorldPackSourceManifestV5 {
+  const root = sourceDocument(input, file)
+  if (root.sourceSchemaVersion !== WORLD_PACK_SOURCE_SCHEMA_VERSION_V5) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/sourceSchemaVersion', `must be ${WORLD_PACK_SOURCE_SCHEMA_VERSION_V5}`)
+  }
+  const interactionFile = textAt(root.interactionFile, file, '/interactionFile')
+  const { interactionFile: _interactionFile, ...base } = root
+  const parsed = parseWorldPackSourceManifestV4({
+    ...base,
+    sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V4,
+  }, file)
+  const files = [
+    parsed.worldFile, ...parsed.characterFiles, ...parsed.locationFiles, ...parsed.entityFiles, ...parsed.sceneFiles,
+    ...parsed.playerSlotFiles, ...parsed.presentationFiles, ...parsed.cognitionFiles, ...parsed.memoryFiles,
+    ...parsed.documentFiles, ...parsed.markdownFiles, ...parsed.assetFiles, ...parsed.assertionFiles,
+    parsed.reactionFile, parsed.manifestationFile, interactionFile,
+  ]
+  if (files.length > MAX_EXPLICIT_FILES) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '', `must list at most ${MAX_EXPLICIT_FILES} files`)
+  }
+  unique(files, file, '')
+  return { ...parsed, sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V5, interactionFile }
 }
 
 /** Strict creator-selectable Reaction mode. Numeric safety limits are deliberately absent. */
@@ -952,21 +1005,124 @@ export function parseWorldPackLocationsSource(input: unknown, file = 'locations.
   return { schemaVersion: 'worldpack-locations/v1', locations }
 }
 
+function parseEntityCore(value: unknown, file: string, at: string): WorldPackEntitySource {
+  const entity = objectAt(value, file, at)
+  exactKeys(entity, ['entityId', 'locationId', 'kind'], [], file, at)
+  return {
+    entityId: textAt(entity.entityId, file, `${at}/entityId`),
+    locationId: textAt(entity.locationId, file, `${at}/locationId`),
+    kind: textAt(entity.kind, file, `${at}/kind`),
+  }
+}
+
+/** Author-declared bindings: identity and version only. A label never selects a definition. */
+function parseInteractionBindings(
+  value: unknown,
+  file: string,
+  at: string,
+): readonly WorldPackInteractionBindingSource[] {
+  const bindings = arrayAt(value, file, at).map((entry, index): WorldPackInteractionBindingSource => {
+    const slot = `${at}/${index}`
+    const binding = objectAt(entry, file, slot)
+    exactKeys(binding, ['bindingId', 'definition', 'config'], [], file, slot)
+    const definition = objectAt(binding.definition, file, `${slot}/definition`)
+    exactKeys(definition, ['id', 'version'], [], file, `${slot}/definition`)
+    const config = objectAt(binding.config, file, `${slot}/config`)
+    canonicalizeWorldJson(config as WorldJsonValue)
+    return {
+      bindingId: textAt(binding.bindingId, file, `${slot}/bindingId`),
+      definition: {
+        id: textAt(definition.id, file, `${slot}/definition/id`),
+        version: integerAt(definition.version, file, `${slot}/definition/version`, 1, Number.MAX_SAFE_INTEGER),
+      },
+      config: config as WorldJsonObject,
+    }
+  })
+  unique(bindings.map(binding => binding.bindingId), file, at)
+  return bindings
+}
+
 export function parseWorldPackEntitiesSource(input: unknown, file = 'entities.json'): WorldPackEntitiesSource {
   const root = sourceDocument(input, file); exactKeys(root, ['schemaVersion', 'entities'], [], file, '')
   if (root.schemaVersion !== 'worldpack-entities/v1') failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', 'must be worldpack-entities/v1')
-  const entities = arrayAt(root.entities, file, '/entities').map((entry, index): WorldPackEntitySource => {
-    const at = `/entities/${index}`; const value = objectAt(entry, file, at)
-    exactKeys(value, ['entityId', 'locationId', 'kind'], [], file, at)
-    return {
-      entityId: textAt(value.entityId, file, `${at}/entityId`),
-      locationId: textAt(value.locationId, file, `${at}/locationId`),
-      kind: textAt(value.kind, file, `${at}/kind`),
-    }
-  })
+  const entities = arrayAt(root.entities, file, '/entities').map((entry, index) => parseEntityCore(entry, file, `/entities/${index}`))
   if (entities.length > MAX_ENTITIES) failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/entities', `must contain at most ${MAX_ENTITIES} entities`)
   unique(entities.map(value => value.entityId), file, '/entities')
   return { schemaVersion: 'worldpack-entities/v1', entities }
+}
+
+/** V2 entities may declare interaction bindings. V1 file bytes and their Hash are untouched. */
+export function parseWorldPackEntitiesSourceV2(input: unknown, file = 'entities.json'): WorldPackEntitiesSourceV2 {
+  const root = sourceDocument(input, file); exactKeys(root, ['schemaVersion', 'entities'], [], file, '')
+  if (root.schemaVersion !== WORLD_PACK_ENTITIES_SCHEMA_VERSION_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must equal ${WORLD_PACK_ENTITIES_SCHEMA_VERSION_V2}`)
+  }
+  const entities = arrayAt(root.entities, file, '/entities').map((entry, index): WorldPackEntitySourceV2 => {
+    const at = `/entities/${index}`
+    const raw = objectAt(entry, file, at)
+    exactKeys(raw, ['entityId', 'locationId', 'kind'], ['interactionBindings'], file, at)
+    const { interactionBindings, ...core } = raw
+    const base = parseEntityCore(core, file, at)
+    return interactionBindings === undefined
+      ? base
+      : { ...base, interactionBindings: parseInteractionBindings(interactionBindings, file, `${at}/interactionBindings`) }
+  })
+  if (entities.length > MAX_ENTITIES) failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/entities', `must contain at most ${MAX_ENTITIES} entities`)
+  unique(entities.map(value => value.entityId), file, '/entities')
+  return { schemaVersion: WORLD_PACK_ENTITIES_SCHEMA_VERSION_V2, entities }
+}
+
+/** V3 characters may declare interaction bindings; every V2 field keeps its validation. */
+export function parseWorldPackCharactersSourceV3(input: unknown, file = 'characters.json'): WorldPackCharactersSourceV3 {
+  const document = sourceDocument(input, file)
+  exactKeys(document, ['schemaVersion', 'characters'], [], file, '')
+  if (document.schemaVersion !== WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V3) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must equal ${WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V3}`)
+  }
+  const rawCharacters = arrayAt(document.characters, file, '/characters')
+  if (rawCharacters.length > MAX_CHARACTERS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/characters', `must contain at most ${MAX_CHARACTERS} characters`)
+  }
+  const characters = rawCharacters.map((entry, index): WorldPackCharacterSourceV3 => {
+    const at = `/characters/${index}`
+    const raw = objectAt(entry, file, at)
+    const { interactionBindings, ...core } = raw
+    const base = parseCharacterV2(core, file, at)
+    return interactionBindings === undefined
+      ? base
+      : { ...base, interactionBindings: parseInteractionBindings(interactionBindings, file, `${at}/interactionBindings`) }
+  })
+  unique(characters.map(entry => entry.characterId), file, '/characters')
+  return { schemaVersion: WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V3, characters }
+}
+
+/** The world's explicit selection. It names identities; the compiler resolves the trusted locks. */
+export function parseWorldPackInteractionsSource(input: unknown, file = 'interactions.json'): WorldPackInteractionsSource {
+  const root = sourceDocument(input, file)
+  exactKeys(root, ['schemaVersion', 'packages', 'definitions'], [], file, '')
+  if (root.schemaVersion !== WORLD_PACK_INTERACTIONS_SCHEMA_VERSION) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must equal ${WORLD_PACK_INTERACTIONS_SCHEMA_VERSION}`)
+  }
+  const identity = (value: unknown, at: string): { readonly id: string; readonly version: number } => {
+    const row = objectAt(value, file, at)
+    exactKeys(row, ['id', 'version'], [], file, at)
+    return {
+      id: textAt(row.id, file, `${at}/id`),
+      version: integerAt(row.version, file, `${at}/version`, 1, Number.MAX_SAFE_INTEGER),
+    }
+  }
+  const packages = arrayAt(root.packages, file, '/packages').map((entry, index) => identity(entry, `/packages/${index}`))
+  const definitions = arrayAt(root.definitions, file, '/definitions').map((entry, index) => identity(entry, `/definitions/${index}`))
+  if (packages.length === 0) failWorldPackContract('PACK_SOURCE_INVALID', file, '/packages', 'must select at least one package')
+  if (packages.length > MAX_INTERACTION_PACKAGES) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/packages', `must select at most ${MAX_INTERACTION_PACKAGES} packages`)
+  }
+  if (definitions.length > MAX_INTERACTION_DEFINITIONS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/definitions', `must select at most ${MAX_INTERACTION_DEFINITIONS} definitions`)
+  }
+  unique(packages.map(pkg => `${pkg.id}@${pkg.version}`), file, '/packages')
+  unique(definitions.map(definition => `${definition.id}@${definition.version}`), file, '/definitions')
+  return { schemaVersion: WORLD_PACK_INTERACTIONS_SCHEMA_VERSION, packages, definitions }
 }
 
 function parseObservation(value: unknown, file: string, at: string): WorldPackInitialObservationSource {
@@ -1343,8 +1499,263 @@ export function parseCompiledWorldPackV4(input: unknown, file = 'worldpack.json'
   }
 }
 
-/** Convert a contract diagnostic into the stable world error code used by compiler and CLI boundaries. */
-export function worldPackErrorCode(code: WorldPackDiagnosticCode): 'PACK_SOURCE_INVALID' | 'PACK_REFERENCE_INVALID' | 'PACK_VERSION_DIVERGED' | 'PLUGIN_NOT_REGISTERED' | 'REGISTRY_HASH_MISMATCH' {
+function referenceAt(value: unknown, file: string, at: string): { readonly id: string; readonly version: number } {
+  const row = objectAt(value, file, at)
+  exactKeys(row, ['id', 'version'], [], file, at)
+  return {
+    id: textAt(row.id, file, `${at}/id`),
+    version: integerAt(row.version, file, `${at}/version`, 1, Number.MAX_SAFE_INTEGER),
+  }
+}
+
+function dependenciesAt(value: unknown, file: string, at: string): readonly { readonly id: string; readonly version: number }[] {
+  const refs = arrayAt(value, file, at).map((entry, index) => referenceAt(entry, file, `${at}/${index}`))
+  unique(refs.map(ref => `${ref.id}@${ref.version}`), file, at)
+  return refs
+}
+
+function implementationLockAt(value: unknown, file: string, at: string): InteractionImplementationLock {
+  const row = objectAt(value, file, at)
+  exactKeys(row, ['ref', 'implementationHash', 'dependencies'], [], file, at)
+  return {
+    ref: referenceAt(row.ref, file, `${at}/ref`),
+    implementationHash: hashAt(row.implementationHash, file, `${at}/implementationHash`),
+    dependencies: dependenciesAt(row.dependencies, file, `${at}/dependencies`),
+  }
+}
+
+/** Strict re-parse of the compiled interaction catalog. Activation still re-verifies it. */
+export function parseInteractionCatalogV3(input: unknown, file = 'worldpack.json'): InteractionCatalogV3 {
+  const root = objectAt(input, file, '')
+  exactKeys(root, ['version', 'packages', 'definitions', 'bindings'], [], file, '')
+  if (root.version !== 'interaction-catalog/v3') {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/version', 'must equal interaction-catalog/v3')
+  }
+  const packages = arrayAt(root.packages, file, '/packages').map((entry, index) => implementationLockAt(entry, file, `/packages/${index}`))
+  if (packages.length === 0) failWorldPackContract('PACK_SOURCE_INVALID', file, '/packages', 'must select at least one package')
+  if (packages.length > MAX_INTERACTION_PACKAGES) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/packages', `must select at most ${MAX_INTERACTION_PACKAGES} packages`)
+  }
+  unique(packages.map(value => `${value.ref.id}@${value.ref.version}`), file, '/packages')
+  const definitions = arrayAt(root.definitions, file, '/definitions').map((entry, index): InteractionCatalogV3['definitions'][number] => {
+    const at = `/definitions/${index}`
+    const row = objectAt(entry, file, at)
+    exactKeys(row, ['ref', 'definitionHash', 'implementationHash'], [], file, at)
+    return {
+      ref: referenceAt(row.ref, file, `${at}/ref`),
+      definitionHash: hashAt(row.definitionHash, file, `${at}/definitionHash`),
+      implementationHash: hashAt(row.implementationHash, file, `${at}/implementationHash`),
+    }
+  })
+  if (definitions.length > MAX_INTERACTION_DEFINITIONS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/definitions', `must select at most ${MAX_INTERACTION_DEFINITIONS} definitions`)
+  }
+  unique(definitions.map(value => `${value.ref.id}@${value.ref.version}`), file, '/definitions')
+  const bindings = arrayAt(root.bindings, file, '/bindings').map((entry, index): InteractionBindingV3 => {
+    const at = `/bindings/${index}`
+    const row = objectAt(entry, file, at)
+    exactKeys(row, ['bindingId', 'targetRef', 'definitionRef', 'config'], [], file, at)
+    const targetRef = objectAt(row.targetRef, file, `${at}/targetRef`)
+    exactKeys(targetRef, ['kind', 'id'], [], file, `${at}/targetRef`)
+    const kind = literalAt(targetRef.kind, ['character', 'entity', 'relation'] as const, file, `${at}/targetRef/kind`)
+    const config = objectAt(row.config, file, `${at}/config`)
+    canonicalizeWorldJson(config as WorldJsonValue)
+    return {
+      bindingId: textAt(row.bindingId, file, `${at}/bindingId`),
+      targetRef: { kind, id: textAt(targetRef.id, file, `${at}/targetRef/id`) },
+      definitionRef: referenceAt(row.definitionRef, file, `${at}/definitionRef`),
+      config: config as WorldJsonObject,
+    }
+  })
+  if (bindings.length > MAX_INTERACTION_BINDINGS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/bindings', `must contain at most ${MAX_INTERACTION_BINDINGS} bindings`)
+  }
+  unique(bindings.map(value => value.bindingId), file, '/bindings')
+  return { version: 'interaction-catalog/v3', packages, definitions, bindings }
+}
+
+/**
+ * Compile the world's interaction catalog from its author selection and the Host's trusted package
+ * descriptions. The author writes identities only; every lock and hash is resolved here, so a label
+ * can never select a definition and a world cannot invent a trusted implementation.
+ */
+export function compileInteractionCatalog(
+  selection: WorldPackInteractionsSource,
+  entities: readonly WorldPackEntitySourceV2[],
+  characters: readonly WorldPackCharacterSourceV3[],
+  packages: readonly InteractionPackageDescription[],
+  selectionFile = 'interactions.json',
+): InteractionCatalogV3 {
+  const installed = packages.map((entry, index): InteractionPackageDescription => {
+    const at = `/${index}`
+    const row = objectAt(entry, 'interaction-packages', at)
+    exactKeys(row, ['lock', 'definitions'], [], 'interaction-packages', at)
+    const lockRow = objectAt(row.lock, 'interaction-packages', `${at}/lock`)
+    exactKeys(lockRow, ['ref', 'implementationHash', 'dependencies'], [], 'interaction-packages', `${at}/lock`)
+    const definitions = arrayAt(row.definitions, 'interaction-packages', `${at}/definitions`).map((item, offset): InteractionDefinitionImplementation => {
+      const slot = `${at}/definitions/${offset}`
+      const definition = objectAt(item, 'interaction-packages', slot)
+      exactKeys(definition, ['spec', 'implementationHash'], [], 'interaction-packages', slot)
+      const spec = definition.spec as InteractionDefinitionSpec
+      if (spec === null || typeof spec !== 'object' || typeof spec.id !== 'string' || !Number.isSafeInteger(spec.version)) {
+        failWorldPackContract('PACK_SOURCE_INVALID', 'interaction-packages', `${slot}/spec`, 'must name a definition identity')
+      }
+      return {
+        spec,
+        implementationHash: hashAt(definition.implementationHash, 'interaction-packages', `${slot}/implementationHash`),
+      }
+    })
+    return { lock: implementationLockAt(lockRow, 'interaction-packages', `${at}/lock`), definitions }
+  })
+  unique(installed.map(entry => `${entry.lock.ref.id}@${entry.lock.ref.version}`), 'interaction-packages', '')
+  const provided = new Map<string, { description: InteractionPackageDescription; definition: InteractionDefinitionImplementation }>()
+  for (const description of installed) {
+    for (const definition of description.definitions) {
+      const identity = `${definition.spec.id}@${definition.spec.version}`
+      if (provided.has(identity)) failWorldPackContract('PACK_DUPLICATE_ID', 'interaction-packages', '', `duplicate installed definition ${identity}`)
+      provided.set(identity, { description, definition })
+    }
+  }
+  const selectedPackages = selection.packages.map(pkg => {
+    const identity = `${pkg.id}@${pkg.version}`
+    const found = installed.find(entry => `${entry.lock.ref.id}@${entry.lock.ref.version}` === identity)
+    if (found === undefined) failWorldPackContract('PLUGIN_NOT_REGISTERED', selectionFile, '/packages', `package ${identity} is not installed by the Host`)
+    return found.lock
+  })
+  const enabled = new Set(selectedPackages.map(lock => `${lock.ref.id}@${lock.ref.version}`))
+  const definitions = selection.definitions.map(ref => {
+    const identity = `${ref.id}@${ref.version}`
+    const found = provided.get(identity)
+    if (found === undefined) failWorldPackContract('PACK_REFERENCE_INVALID', selectionFile, '/definitions', `definition ${identity} is not provided by an installed package`)
+    if (!enabled.has(`${found.description.lock.ref.id}@${found.description.lock.ref.version}`)) {
+      failWorldPackContract('PACK_REFERENCE_INVALID', selectionFile, '/definitions', `definition ${identity} belongs to a package the world did not select`)
+    }
+    const targetKind = found.definition.spec.participantRoles.find(role => role.source.kind === 'primaryTarget')?.kind
+    return {
+      ref, definitionHash: hashWorldJson('interaction-definition/v1', found.definition.spec),
+      implementationHash: found.definition.implementationHash, targetKind,
+    }
+  })
+  const declared = new Map(definitions.map(entry => [`${entry.ref.id}@${entry.ref.version}`, entry]))
+  const bindings: InteractionBindingV3[] = []
+  const bind = (targetRef: InteractionTargetRef, source: WorldPackInteractionBindingSource, at: string): void => {
+    const identity = `${source.definition.id}@${source.definition.version}`
+    const definition = declared.get(identity)
+    if (definition === undefined) {
+      failWorldPackContract('PACK_REFERENCE_INVALID', selectionFile, at, `binding references definition ${identity}, which this world did not enable`)
+    }
+    if (definition.targetKind !== undefined && definition.targetKind !== targetRef.kind) {
+      failWorldPackContract('PACK_REFERENCE_INVALID', selectionFile, at, `binding target kind ${targetRef.kind} does not match the definition`)
+    }
+    bindings.push({
+      bindingId: source.bindingId,
+      targetRef,
+      definitionRef: { id: source.definition.id, version: source.definition.version },
+      config: bindingConfig(provided.get(identity)!.definition.spec, source.config, selectionFile, at),
+    })
+  }
+  for (const target of entities) for (const source of target.interactionBindings ?? []) {
+    bind({ kind: 'entity', id: target.entityId }, source, `/entities/${target.entityId}/${source.bindingId}`)
+  }
+  for (const target of characters) for (const source of target.interactionBindings ?? []) {
+    bind({ kind: 'character', id: target.characterId }, source, `/characters/${target.characterId}/${source.bindingId}`)
+  }
+  if (bindings.length > MAX_INTERACTION_BINDINGS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', selectionFile, '/bindings', `must declare at most ${MAX_INTERACTION_BINDINGS} bindings`)
+  }
+  unique(bindings.map(binding => binding.bindingId), selectionFile, '/bindings')
+  const ordered = [...bindings].sort((left, right) => compareWorldText(left.bindingId, right.bindingId))
+  return {
+    version: 'interaction-catalog/v3',
+    packages: [...selectedPackages].sort((left, right) => compareWorldText(`${left.ref.id}@${left.ref.version}`, `${right.ref.id}@${right.ref.version}`)),
+    definitions: definitions.map(({ targetKind: _targetKind, ...entry }) => entry),
+    bindings: ordered,
+  }
+}
+
+/** The config is the author's only lever, and it can only narrow what the definition already allows. */
+function bindingConfig(
+  spec: InteractionDefinitionSpec,
+  value: WorldJsonObject,
+  file: string,
+  at: string,
+): WorldJsonObject {
+  const row = objectAt(value, file, `${at}/config`)
+  exactKeys(row, spec.bindingConfigSchema.fields.map(field => field.name), [], file, `${at}/config`)
+  canonicalizeWorldJson(row as WorldJsonValue)
+  for (const field of spec.bindingConfigSchema.fields) {
+    const item = row[field.name]
+    if (field.type === 'boolean') {
+      if (typeof item !== 'boolean') failWorldPackContract('PACK_SOURCE_INVALID', file, `${at}/config/${field.name}`, 'must be a boolean')
+      continue
+    }
+    if (field.type === 'integer') {
+      integerAt(item, file, `${at}/config/${field.name}`, field.minimum, field.maximum)
+      continue
+    }
+    if (typeof item !== 'string' || Buffer.byteLength(item, 'utf8') > field.maxBytes
+      || (field.values.length > 0 && !field.values.includes(item))) {
+      failWorldPackContract('PACK_SOURCE_INVALID', file, `${at}/config/${field.name}`, 'must be a string inside the declared domain')
+    }
+  }
+  return row as WorldJsonObject
+}
+
+/** V5 adds the world's interaction catalog; the V4 envelope and its content validation are untouched. */
+export function parseCompiledWorldPackV5(input: unknown, file = 'worldpack.json'): CompiledWorldPackV5 {
+  const root = sourceDocument(input, file, MAX_COMPILED_BYTES)
+  if (root.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V5) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiledSchemaVersion', `must be ${WORLD_PACK_COMPILED_SCHEMA_VERSION_V5}`)
+  }
+  const interactions = parseInteractionCatalogV3(root.interactions, `${file}#/interactions`)
+  const { interactions: _interactions, content, ...withoutInteractions } = root
+  const envelope = objectAt(content, file, '/content')
+  // The V4 parser re-parses content with the V1/V2 file shapes, which cannot carry bindings. Hand it
+  // the binding-free projection and substitute the full V5 content afterwards; the target files are
+  // then re-parsed under their V2/V3 shapes below, so nothing is validated only once.
+  const stripped = {
+    ...envelope,
+    entities: arrayAt(envelope.entities, file, '/content/entities').map(entry => {
+      const { interactionBindings: _entityBindings, ...rest } = objectAt(entry, file, '/content/entities')
+      return rest
+    }),
+    characters: arrayAt(envelope.characters, file, '/content/characters').map(entry => {
+      const { interactionBindings: _characterBindings, ...rest } = objectAt(entry, file, '/content/characters')
+      return rest
+    }),
+  }
+  const base = parseCompiledWorldPackV4({
+    ...withoutInteractions,
+    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V4,
+    content: stripped,
+    compiler: {
+      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V4,
+      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V4,
+      canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
+    },
+  }, file)
+  return {
+    ...base,
+    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V5,
+    compiler: {
+      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V5,
+      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V5,
+      canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
+    },
+    interactions,
+    content: {
+      ...base.content,
+      entities: parseWorldPackEntitiesSourceV2(
+        { schemaVersion: WORLD_PACK_ENTITIES_SCHEMA_VERSION_V2, entities: envelope.entities }, `${file}#/content/entities`,
+      ).entities,
+      characters: parseWorldPackCharactersSourceV3(
+        { schemaVersion: WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V3, characters: envelope.characters }, `${file}#/content/characters`,
+      ).characters,
+    },
+  }
+}
+
+/** Convert a contract diagnostic into the stable world error code used by compiler and CLI boundaries. */export function worldPackErrorCode(code: WorldPackDiagnosticCode): 'PACK_SOURCE_INVALID' | 'PACK_REFERENCE_INVALID' | 'PACK_VERSION_DIVERGED' | 'PLUGIN_NOT_REGISTERED' | 'REGISTRY_HASH_MISMATCH' {
   if (code === 'PACK_REFERENCE_INVALID' || code === 'PACK_VERSION_DIVERGED'
     || code === 'PLUGIN_NOT_REGISTERED' || code === 'REGISTRY_HASH_MISMATCH') return code
   return 'PACK_SOURCE_INVALID'

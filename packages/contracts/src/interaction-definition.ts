@@ -102,7 +102,7 @@ export interface InteractionEffectImplementation {
   readonly validate: (context: InteractionExecutionContext, events: readonly WorldEventDraft[]) => void
 }
 
-export interface InteractionDefinitionImplementation {
+export interface InteractionDefinitionImplementation extends WorldJsonObject {
   readonly spec: InteractionDefinitionSpec
   readonly implementationHash: WorldHash
 }
@@ -116,6 +116,35 @@ export interface InteractionPackageImplementation {
 
 export interface InteractionWorldSelection extends WorldJsonObject {
   readonly address: WorldAddress
+  readonly packages: readonly InteractionImplementationLock[]
+  readonly definitions: readonly { readonly ref: InteractionRef; readonly definitionHash: WorldHash; readonly implementationHash: WorldHash }[]
+  readonly bindings: readonly InteractionBindingV3[]
+}
+
+/**
+ * Data-only projection of an installed package. Compiling a world needs the locks and the
+ * definition descriptions, never the rule or effect functions, so a compile step can accept this
+ * without depending on the runtime that installs the implementations.
+ */
+export interface InteractionPackageDescription extends WorldJsonObject {
+  readonly lock: InteractionImplementationLock
+  readonly definitions: readonly InteractionDefinitionImplementation[]
+}
+
+export function interactionPackageDescription(input: InteractionPackageImplementation): InteractionPackageDescription {
+  return {
+    lock: input.lock,
+    definitions: input.definitions.map(definition => ({ spec: definition.spec, implementationHash: definition.implementationHash })),
+  }
+}
+
+/**
+ * The compiled world's interaction catalog. It is the world selection without an address: the
+ * address is bound when a Host opens the world, so one compiled artifact can serve several
+ * addresses without recompiling.
+ */
+export interface InteractionCatalogV3 extends WorldJsonObject {
+  readonly version: 'interaction-catalog/v3'
   readonly packages: readonly InteractionImplementationLock[]
   readonly definitions: readonly { readonly ref: InteractionRef; readonly definitionHash: WorldHash; readonly implementationHash: WorldHash }[]
   readonly bindings: readonly InteractionBindingV3[]

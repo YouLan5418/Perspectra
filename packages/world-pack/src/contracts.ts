@@ -11,6 +11,8 @@ import type {
   CommitmentStatus,
   GoalObjectiveKind,
   GoalStatus,
+  InteractionCatalogV3,
+  InteractionPackageDescription,
   OpenLoopKind,
   OpenLoopStatus,
   Phase8RegistryLock,
@@ -50,6 +52,50 @@ export const WORLD_PACK_COMPILED_SCHEMA_VERSION_V4 = 'worldpack/v4' as const
 export const WORLD_PACK_COMPILER_VERSION_V4 = '0.4.0' as const
 export const WORLD_PACK_COMPILER_CONTRACT_VERSION_V4 = 'worldpack-compiler/v4' as const
 export const WORLD_PACK_MANIFESTATION_SCHEMA_VERSION = 'worldpack-manifestation/v1' as const
+export const WORLD_PACK_SOURCE_SCHEMA_VERSION_V5 = 'worldpack-source/v5' as const
+export const WORLD_PACK_COMPILED_SCHEMA_VERSION_V5 = 'worldpack/v5' as const
+export const WORLD_PACK_COMPILER_VERSION_V5 = '0.5.0' as const
+export const WORLD_PACK_COMPILER_CONTRACT_VERSION_V5 = 'worldpack-compiler/v5' as const
+export const WORLD_PACK_ENTITIES_SCHEMA_VERSION_V2 = 'worldpack-entities/v2' as const
+export const WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V3 = 'worldpack-characters/v3' as const
+export const WORLD_PACK_INTERACTIONS_SCHEMA_VERSION = 'worldpack-interactions/v1' as const
+
+/** Author-declared interaction binding. Identity and version, never a label, select the definition. */
+export interface WorldPackInteractionBindingSource extends WorldJsonObject {
+  readonly bindingId: string
+  readonly definition: { readonly id: string; readonly version: number }
+  readonly config: WorldJsonObject
+}
+
+export interface WorldPackEntitySourceV2 extends WorldJsonObject {
+  readonly entityId: string
+  readonly locationId: string
+  readonly kind: string
+  /** Absent means the target declares no interaction. An empty array is equivalent and allowed. */
+  readonly interactionBindings?: readonly WorldPackInteractionBindingSource[]
+}
+
+export interface WorldPackEntitiesSourceV2 extends WorldJsonObject {
+  readonly schemaVersion: typeof WORLD_PACK_ENTITIES_SCHEMA_VERSION_V2
+  readonly entities: readonly WorldPackEntitySourceV2[]
+}
+
+export interface WorldPackCharacterSourceV3 extends WorldPackCharacterSourceV2 {
+  /** Absent means the target declares no interaction. An empty array is equivalent and allowed. */
+  readonly interactionBindings?: readonly WorldPackInteractionBindingSource[]
+}
+
+export interface WorldPackCharactersSourceV3 extends WorldJsonObject {
+  readonly schemaVersion: typeof WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V3
+  readonly characters: readonly WorldPackCharacterSourceV3[]
+}
+
+/** The world's explicit package and definition selection. Trusted locks are resolved by the compiler. */
+export interface WorldPackInteractionsSource extends WorldJsonObject {
+  readonly schemaVersion: typeof WORLD_PACK_INTERACTIONS_SCHEMA_VERSION
+  readonly packages: readonly { readonly id: string; readonly version: number }[]
+  readonly definitions: readonly { readonly id: string; readonly version: number }[]
+}
 
 export interface WorldPackCompileOptions {
   readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE
@@ -165,6 +211,29 @@ export interface WorldPackSourceManifestV4 extends WorldJsonObject {
   readonly assertionFiles: readonly string[]
   readonly reactionFile: string
   readonly manifestationFile: string
+}
+
+/** V5 adds the world's interaction selection file; every V4 field keeps its meaning. */
+export interface WorldPackSourceManifestV5 extends WorldJsonObject {
+  readonly sourceSchemaVersion: typeof WORLD_PACK_SOURCE_SCHEMA_VERSION_V5
+  readonly packId: WorldPackId
+  readonly packVersion: string
+  readonly worldFile: string
+  readonly characterFiles: readonly string[]
+  readonly locationFiles: readonly string[]
+  readonly entityFiles: readonly string[]
+  readonly sceneFiles: readonly string[]
+  readonly playerSlotFiles: readonly string[]
+  readonly presentationFiles: readonly string[]
+  readonly cognitionFiles: readonly string[]
+  readonly memoryFiles: readonly string[]
+  readonly documentFiles: readonly string[]
+  readonly markdownFiles: readonly string[]
+  readonly assetFiles: readonly string[]
+  readonly assertionFiles: readonly string[]
+  readonly reactionFile: string
+  readonly manifestationFile: string
+  readonly interactionFile: string
 }
 
 export type WorldPackReactionSource =
@@ -551,6 +620,43 @@ export interface WorldPackCompilerIdentityV4 extends WorldJsonObject {
   readonly contractVersion: typeof WORLD_PACK_COMPILER_CONTRACT_VERSION_V4
   readonly canonicalJsonVersion: 'world-json/v1'
   readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE_V2
+}
+
+export interface WorldPackCompilerIdentityV5 extends WorldJsonObject {
+  readonly id: typeof WORLD_PACK_COMPILER_ID
+  readonly version: typeof WORLD_PACK_COMPILER_VERSION_V5
+  readonly contractVersion: typeof WORLD_PACK_COMPILER_CONTRACT_VERSION_V5
+  readonly canonicalJsonVersion: 'world-json/v1'
+  readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE_V2
+}
+
+/** V5 content carries the entity and character shapes that can declare interaction bindings. */
+export interface WorldPackCompiledContentV5 extends WorldPackCompiledContentV2 {
+  readonly entities: readonly WorldPackEntitySourceV2[]
+  readonly characters: readonly WorldPackCharacterSourceV3[]
+}
+
+export interface WorldPackCompileOptionsV5 {
+  readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE_V2
+  /** Trusted package descriptions installed by the Host; the world only selects among them. */
+  readonly interactionPackages: readonly InteractionPackageDescription[]
+}
+
+export interface CompiledWorldPackV5 extends WorldJsonObject {
+  readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION_V5
+  readonly packId: WorldPackId
+  readonly packVersion: string
+  readonly packHash: WorldHash
+  readonly compiler: WorldPackCompilerIdentityV5
+  readonly pluginLocks: readonly WorldPackPluginLock[]
+  readonly vocabularyLocks: readonly VocabularyLock[]
+  readonly registryLocks: readonly Phase8RegistryLock[]
+  readonly reaction: WorldPackReactionSource
+  readonly manifestation: WorldPackManifestationSource
+  readonly interactions: InteractionCatalogV3
+  readonly content: WorldPackCompiledContentV5
+  readonly assets: readonly WorldPackAssetLock[]
+  readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
 }
 
 export interface CompiledWorldPackV3 extends WorldJsonObject {

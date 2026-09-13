@@ -153,6 +153,7 @@ Host 必须在 Manifest 注册闭包可解析后才获取 Writer；新世界不�
 
 I0 Gate：旧黄金与补充黄金通过；首批范围/版本/角色/效果/表现/反应/空间/预算明确；ADR-0093 获明确接受确认；全量 check 完成并记录结果。各项已完成，2026-09-13 用户明确接受 ADR-0093，I0 Gate 关闭。
 I1 Gate：注册/闭包/角色/规则接口与物品闭环；缺依赖、Hash 漂移、未启用、跨角色参数组合拒绝。
+I2 Gate：只改内容可加物品；无字段组合越权；表现不能虚构持有、接触或支撑；持续可见状态单一来源；角色/Scene/Branch/as-of 隔离、预算与退出选项保留。**进度（2026-09-13）：** 作者声明与目录编译已落地，见 [I2-a 实施记录](../2026-09-13_交互抽象-I2a作者声明与目录编译.md)。"只改内容可加物品"已在编译层成立，"无字段组合越权"由 `bindingConfigSchema` 与目标 kind 校验覆盖；每角色选项视图与预算/退出选项、模型/Host 同源 Schema、表现与持续可见状态契约尚未接入，**I2 Gate 未关闭**。本轮实际分配 `worldpack-source/v5`、`worldpack/v5`、`worldpack-entities/v2`、`worldpack-characters/v3`、`worldpack-interactions/v1`、`interaction-catalog/v3`；第 7 章其余版本号与 Manifest v10 本轮未分配。
 I2～I5 仍按上位方案执行，不因 I0/I1 合格提前声明 UI、恢复或真实模型验收完成。
 
 ## 9. 迁移、恢复与诊断
