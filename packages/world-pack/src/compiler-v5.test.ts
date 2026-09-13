@@ -144,7 +144,8 @@ describe('WorldPackCompilerV5', () => {
 
   it('rejects an author selection the Host cannot satisfy', async () => {
     await expect(compile({ packageId: 'package:not-installed' })).rejects.toThrow(/not installed/u)
-    await expect(compile({ definitions: ['base:take', 'base:hold-hand'] })).rejects.toThrow(/not provided by an installed package/u)
+    // base:hug is a proposal example, not a shipped definition, so it is not provided.
+    await expect(compile({ definitions: ['base:take', 'base:hug'] })).rejects.toThrow(/not provided by an installed package/u)
     await expect(compile({ bindings: [
       { bindingId: 'binding:bundle-take', id: 'base:take', version: 2, config: {} },
     ] })).rejects.toThrow(/did not enable/u)

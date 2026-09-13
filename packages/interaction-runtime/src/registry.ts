@@ -5,6 +5,7 @@ import {
   type InteractionDefinitionImplementation,
   type InteractionDefinitionSpec, type InteractionEffectImplementation, type InteractionExecutionContext,
   type InteractionHostContext, type InteractionImplementationLock, type InteractionPackageImplementation,
+  type InteractionDerivedResolverImplementation,
   type InteractionPerformance, type InteractionPerformanceImplementation, type InteractionPerformancePolicyV1,
   type InteractionRef, type InteractionRequestV2, type InteractionRuleImplementation,
   type InteractionTargetRef, type InteractionViewContext, type InteractionViewOption,
@@ -166,7 +167,7 @@ function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec
     if (names.has(name) || ['__proto__', 'constructor', 'prototype'].includes(name)) throw new TypeError('duplicate or reserved role')
     names.add(name)
     target({ kind: role.kind, id: name })
-    const source = role.source as { kind: string; field?: string }
+    const source = role.source as { kind: string; field?: string; resolver?: InteractionRef }
     if (source?.kind === 'hostActor') {
       object(source, ['kind']); actors++
       if (name !== 'actor' || role.kind !== 'character') throw new TypeError('actor role must bind Host character')
@@ -174,7 +175,9 @@ function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec
     else if (source?.kind === 'argument') {
       object(source, ['kind', 'field'])
       if (!value.argumentSchema.fields.some(field => field.name === source.field && field.type === 'string')) throw new TypeError('role argument must name a string field')
-    } else throw new TypeError('unsupported role source in I1')
+    } else if (source?.kind === 'derived') {
+      object(source, ['kind', 'resolver']); reference(source.resolver)
+    } else throw new TypeError('unsupported role source')
     const distinct = list(role.distinctFrom, 8).map(text)
     if (new Set(distinct).size !== distinct.length || distinct.includes(name)) throw new TypeError('invalid distinct roles')
   }
@@ -189,7 +192,9 @@ function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec
 
 function definitionDependencies(spec: InteractionDefinitionSpec): readonly InteractionRef[] {
   return [spec.authorityPolicyRef, ...spec.preconditions, ...spec.spatialRequirementRefs, spec.effectBuilderRef,
-    ...spec.effectCapabilityRefs, spec.performancePolicyRef, ...spec.dependencyRefs]
+    ...spec.effectCapabilityRefs, spec.performancePolicyRef,
+    ...spec.participantRoles.flatMap(role => role.source.kind === 'derived' ? [role.source.resolver] : []),
+    ...spec.dependencyRefs]
 }
 
 /** Published package contract binds every component lock and definition description. */
@@ -198,6 +203,7 @@ export function interactionPackageHash(input: Omit<InteractionPackageImplementat
   return hashWorldJson('interaction-package-implementation/v1', {
     rules: ordered(input.rules, rule => key(rule.lock.ref)).map(rule => rule.lock),
     effects: ordered(input.effects, effect => key(effect.lock.ref)).map(effect => ({ lock: effect.lock, eventTypes: effect.eventTypes })),
+    resolvers: ordered(input.resolvers, entry => key(entry.lock.ref)).map(entry => entry.lock),
     performances: ordered(input.performances, entry => key(entry.lock.ref)).map(entry => ({ lock: entry.lock, policy: entry.policy })),
     definitions: ordered(input.definitions, def => key({ id: def.spec.id, version: def.spec.version })).map(def => ({ spec: def.spec, implementationHash: def.implementationHash })),
   })
@@ -222,6 +228,11 @@ export class InteractionRegistry {
       if (eventTypes.some(ref => ref.id === 'character.moved')) throw new TypeError('interaction cannot own movement')
       return Object.freeze({ lock: lock(effect.lock), eventTypes: immutable(eventTypes), build: effect.build, validate: effect.validate })
     })
+    const resolvers = list(input.resolvers, 128).map(value => {
+      const entry = value as InteractionDerivedResolverImplementation
+      if (typeof entry.resolve !== 'function') throw new TypeError('derived resolver implementation missing')
+      return Object.freeze({ lock: lock(entry.lock), resolve: entry.resolve })
+    })
     const performances = list(input.performances, 128).map(value => {
       const entry = value as InteractionPerformanceImplementation
       return Object.freeze({ lock: lock(entry.lock), policy: performancePolicy(entry.policy) })
@@ -230,12 +241,13 @@ export class InteractionRegistry {
       const def = value as InteractionDefinitionImplementation
       return Object.freeze({ spec: definition(def.spec), implementationHash: hash(def.implementationHash) })
     })
-    if (packageLock.implementationHash !== interactionPackageHash({ rules, effects, performances, definitions })) throw new TypeError('package component lock drift')
+    if (packageLock.implementationHash !== interactionPackageHash({ rules, effects, resolvers, performances, definitions })) throw new TypeError('package component lock drift')
     const identities = [key(packageLock.ref), ...rules.map(value => key(value.lock.ref)), ...effects.map(value => key(value.lock.ref)),
-      ...performances.map(value => key(value.lock.ref)), ...definitions.map(value => key({ id: value.spec.id, version: value.spec.version }))]
+      ...resolvers.map(value => key(value.lock.ref)), ...performances.map(value => key(value.lock.ref)),
+      ...definitions.map(value => key({ id: value.spec.id, version: value.spec.version }))]
     if (new Set(identities).size !== identities.length || identities.some(id => this.#identities.has(id))) throw new TypeError('duplicate registration')
     identities.forEach(id => this.#identities.add(id))
-    this.#packages.set(key(packageLock.ref), Object.freeze({ lock: packageLock, rules, effects, performances, definitions }))
+    this.#packages.set(key(packageLock.ref), Object.freeze({ lock: packageLock, rules, effects, resolvers, performances, definitions }))
   }
 
   freeze(input: InteractionWorldSelection): FrozenInteractionWorld {
@@ -245,6 +257,7 @@ export class InteractionRegistry {
     worldAddressKey(selection.address)
     const rules = new Map<string, InteractionRuleImplementation>()
     const effects = new Map<string, InteractionEffectImplementation>()
+    const resolvers = new Map<string, InteractionDerivedResolverImplementation>()
     const performances = new Map<string, InteractionPerformanceImplementation>()
     const definitions = new Map<string, InteractionDefinitionImplementation>()
     const nodes = new Map<string, readonly InteractionRef[]>()
@@ -256,6 +269,7 @@ export class InteractionRegistry {
       nodes.set(key(selected.ref), selected.dependencies)
       for (const rule of installed.rules) { rules.set(key(rule.lock.ref), rule); nodes.set(key(rule.lock.ref), rule.lock.dependencies) }
       for (const effect of installed.effects) { effects.set(key(effect.lock.ref), effect); nodes.set(key(effect.lock.ref), effect.lock.dependencies) }
+      for (const entry of installed.resolvers) { resolvers.set(key(entry.lock.ref), entry); nodes.set(key(entry.lock.ref), entry.lock.dependencies) }
       for (const entry of installed.performances) { performances.set(key(entry.lock.ref), entry); nodes.set(key(entry.lock.ref), entry.lock.dependencies) }
       for (const def of installed.definitions) definitions.set(key({ id: def.spec.id, version: def.spec.version }), def)
     }
@@ -268,6 +282,9 @@ export class InteractionRegistry {
       if (active.has(id)) throw new TypeError('duplicate definition selection')
       for (const ref of [found.spec.authorityPolicyRef, ...found.spec.preconditions, ...found.spec.spatialRequirementRefs]) if (!rules.has(key(ref))) throw new TypeError('rule or spatial capability missing')
       for (const ref of found.spec.effectCapabilityRefs) if (!effects.has(key(ref))) throw new TypeError('effect capability missing')
+      for (const role of found.spec.participantRoles) {
+        if (role.source.kind === 'derived' && !resolvers.has(key(role.source.resolver))) throw new TypeError('derived resolver missing')
+      }
       const policy = performances.get(key(found.spec.performancePolicyRef))
       if (policy === undefined) throw new TypeError('performance policy missing')
       // A cue that names a role the definition does not declare could describe an object nobody
@@ -307,7 +324,7 @@ export class InteractionRegistry {
       definitions: [...selection.definitions].sort((a, b) => compareWorldText(key(a.ref), key(b.ref))),
       bindings: [...selection.bindings].sort((a, b) => compareWorldText(a.bindingId, b.bindingId)),
     })
-    return new FrozenInteractionWorld(canonicalSelection, active, bindings, rules, effects, performances)
+    return new FrozenInteractionWorld(canonicalSelection, active, bindings, rules, effects, resolvers, performances)
   }
 }
 
@@ -321,6 +338,7 @@ export class FrozenInteractionWorld {
     private readonly bindings: ReadonlyMap<string, InteractionBindingV3>,
     private readonly rules: ReadonlyMap<string, InteractionRuleImplementation>,
     private readonly effects: ReadonlyMap<string, InteractionEffectImplementation>,
+    private readonly resolvers: ReadonlyMap<string, InteractionDerivedResolverImplementation>,
     private readonly performances: ReadonlyMap<string, InteractionPerformanceImplementation>,
   ) { this.definitionSetHash = hashWorldJson('interaction-world-selection/v1', selection) }
 
@@ -392,10 +410,26 @@ export class FrozenInteractionWorld {
     trace: { rule: InteractionRef; reason: string | null }[],
   ): string | null {
     for (const role of def.participantRoles) {
+      if (role.source.kind === 'derived') continue
       const ref = role.source.kind === 'hostActor' ? { kind: role.kind, id: host.actorId }
-        : role.source.kind === 'primaryTarget' ? targetRef : { kind: role.kind, id: text(args[role.source.field as string]) }
+        : role.source.kind === 'primaryTarget' ? targetRef : { kind: role.kind, id: text(args[role.source.field]) }
       roles[role.name] = ref
       if (!targets.has(targetKey(ref)) || (role.source.kind !== 'hostActor' && !authorized.has(targetKey(ref)))) return 'PARTICIPANT_NOT_AUTHORIZED'
+    }
+    // Derived roles come second, in declaration order, so a resolver sees only roles already bound
+    // and the resolution stays deterministic without needing a cycle check.
+    for (const role of def.participantRoles) {
+      if (role.source.kind !== 'derived') continue
+      const resolved = this.resolvers.get(key(role.source.resolver))!.resolve(
+        immutable({ host, definition: def, binding, arguments: args, roles: { ...roles } }),
+      )
+      if (resolved === null) return 'PARTICIPANT_NOT_AUTHORIZED'
+      const ref = target(resolved)
+      roles[role.name] = ref
+      // A derived role is a fact of a relation the Host already put in the snapshot, never a target
+      // the request names, so the snapshot is the control here. Demanding authorization as well
+      // would exclude the actor itself, which a Host never lists among the targets it authorizes.
+      if (!targets.has(targetKey(ref))) return 'PARTICIPANT_NOT_AUTHORIZED'
     }
     for (const role of def.participantRoles) {
       if (role.distinctFrom.some(other => targetKey(roles[other]!) === targetKey(roles[role.name]!))) return 'PARTICIPANT_ALIAS_FORBIDDEN'

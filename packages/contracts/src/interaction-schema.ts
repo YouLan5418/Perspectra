@@ -1,6 +1,5 @@
 import type {
   InteractionCharacterView, InteractionParameterSchema, InteractionPerformanceAcceptance,
-  InteractionPerformanceCueBinding,
 } from './interaction-definition.ts'
 import type { WorldJsonObject, WorldJsonValue } from './world-json.ts'
 

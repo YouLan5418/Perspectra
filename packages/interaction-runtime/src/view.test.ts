@@ -69,7 +69,7 @@ function definition(id: string, withRecipient: boolean, blocked: boolean): Inter
 
 function bundle() {
   const definitions = [definition('fixture:use', false, false), definition('fixture:give', true, false), definition('fixture:guarded', false, true)]
-  const contents = { rules: [publicRule, hiddenRule], effects: [transfer], performances: [noPerformance], definitions }
+  const contents = { rules: [publicRule, hiddenRule], effects: [transfer], resolvers: [], performances: [noPerformance], definitions }
   const lock: InteractionImplementationLock = {
     ref: ref('package:fixture'), dependencies: [], implementationHash: interactionPackageHash(contents),
   }
@@ -108,7 +108,7 @@ const states = {
 
 /** A world holding exactly one definition, for domain coverage that the shared bundle would blur. */
 function single(spec: InteractionDefinitionSpec): FrozenInteractionWorld {
-  const contents = { rules: [publicRule], effects: [transfer], performances: [noPerformance], definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }] }
+  const contents = { rules: [publicRule], effects: [transfer], resolvers: [], performances: [noPerformance], definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }] }
   const lock: InteractionImplementationLock = { ref: ref('package:single'), dependencies: [], implementationHash: interactionPackageHash(contents) }
   const registry = new InteractionRegistry()
   registry.install({ lock, ...contents })
@@ -262,7 +262,7 @@ describe('interaction performance contract', () => {
       policy: { version: 'interaction-performance/v1', accepted: accepted as never },
     }
     const contents = {
-      rules: [publicRule], effects: [transfer], performances: [policy],
+      rules: [publicRule], effects: [transfer], resolvers: [], performances: [policy],
       definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }],
     }
     const lock: InteractionImplementationLock = { ref: ref('package:perform'), dependencies: [], implementationHash: interactionPackageHash(contents) }
@@ -280,7 +280,7 @@ describe('interaction performance contract', () => {
   /** Same builder as `performing`, but for a definition whose arguments carry their own contract. */
   function argumentWorld(spec: InteractionDefinitionSpec, packageId: string): FrozenInteractionWorld {
     const contents = {
-      rules: [publicRule], effects: [transfer], performances: [noPerformance],
+      rules: [publicRule], effects: [transfer], resolvers: [], performances: [noPerformance],
       definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }],
     }
     const lock: InteractionImplementationLock = { ref: ref(packageId), dependencies: [], implementationHash: interactionPackageHash(contents) }
@@ -421,7 +421,7 @@ describe('interaction performance contract', () => {
     const orphan: InteractionDefinitionSpec = {
       ...base.definitions[0]!.spec, id: 'fixture:orphan', performancePolicyRef: ref('missing:policy'),
     }
-    const contents = { rules: base.rules, effects: base.effects, performances: base.performances, definitions: [{ spec: orphan, implementationHash: base.definitions[0]!.implementationHash }] }
+    const contents = { rules: base.rules, effects: base.effects, resolvers: base.resolvers, performances: base.performances, definitions: [{ spec: orphan, implementationHash: base.definitions[0]!.implementationHash }] }
     const lock: InteractionImplementationLock = { ref: ref('package:orphan'), dependencies: [], implementationHash: interactionPackageHash(contents) }
     const registry = new InteractionRegistry()
     registry.install({ lock, ...contents })
@@ -522,7 +522,7 @@ describe('character interaction view', () => {
       ...definition('fixture:freeform', true, false).spec,
       participantRoles: [actorRole, itemRole],
     }
-    const contents = { rules: [publicRule], effects: [transfer], performances: [noPerformance], definitions: [{ spec, implementationHash: implementation('fixture:freeform').implementationHash }] }
+    const contents = { rules: [publicRule], effects: [transfer], resolvers: [], performances: [noPerformance], definitions: [{ spec, implementationHash: implementation('fixture:freeform').implementationHash }] }
     const lock: InteractionImplementationLock = { ref: ref('package:freeform'), dependencies: [], implementationHash: interactionPackageHash(contents) }
     const registry = new InteractionRegistry()
     registry.install({ lock, ...contents })

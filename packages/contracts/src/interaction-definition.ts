@@ -23,10 +23,21 @@ export interface InteractionParameterSchema extends WorldJsonObject {
   readonly fields: readonly InteractionField[]
 }
 
+/**
+ * Where a role's object comes from. `derived` is the only source the request cannot name: a relation
+ * target already carries its participants, so a definition can bind "the other participant" without
+ * the model identifying them. The resolver is a registered, locked component like a rule.
+ */
+export type InteractionRoleSource =
+  | { readonly kind: 'hostActor' }
+  | { readonly kind: 'primaryTarget' }
+  | { readonly kind: 'argument'; readonly field: string }
+  | { readonly kind: 'derived'; readonly resolver: InteractionRef }
+
 export interface InteractionRole extends WorldJsonObject {
   readonly name: string
   readonly kind: InteractionTargetRef['kind']
-  readonly source: { readonly kind: 'hostActor' } | { readonly kind: 'primaryTarget' } | { readonly kind: 'argument'; readonly field: string }
+  readonly source: InteractionRoleSource
   readonly distinctFrom: readonly string[]
 }
 
@@ -127,6 +138,16 @@ export interface InteractionRuleImplementation {
   readonly check: (context: InteractionExecutionContext) => string | null
 }
 
+/**
+ * Resolves a derived role against the candidate snapshot. It sees only the roles resolved before it
+ * in declaration order, which keeps the resolution order deterministic and cycle-free by
+ * construction; returning null means the role cannot bind and the proposal is rejected.
+ */
+export interface InteractionDerivedResolverImplementation {
+  readonly lock: InteractionImplementationLock
+  readonly resolve: (context: InteractionExecutionContext) => InteractionTargetRef | null
+}
+
 /** A registered, locked policy. The runtime only narrows submitted cues against it. */
 export interface InteractionPerformanceImplementation {
   readonly lock: InteractionImplementationLock
@@ -150,6 +171,7 @@ export interface InteractionPackageImplementation {
   readonly lock: InteractionImplementationLock
   readonly rules: readonly InteractionRuleImplementation[]
   readonly effects: readonly InteractionEffectImplementation[]
+  readonly resolvers: readonly InteractionDerivedResolverImplementation[]
   readonly performances: readonly InteractionPerformanceImplementation[]
   readonly definitions: readonly InteractionDefinitionImplementation[]
 }
