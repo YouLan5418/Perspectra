@@ -159,3 +159,48 @@ export interface InteractionAdjudication extends WorldJsonObject {
   readonly trace: readonly { readonly rule: InteractionRef; readonly reason: string | null }[]
   readonly ruleTraceHash: WorldHash
 }
+
+/**
+ * The Host's read-only input for one character's view. It carries the same candidate snapshot the
+ * adjudication would use, so an option surviving here is still only a proposal: the real
+ * adjudication re-verifies it against the latest candidate prefix.
+ */
+export interface InteractionViewContext extends WorldJsonObject {
+  readonly address: WorldAddress
+  readonly manifestHash: WorldHash
+  readonly asOfWorldSeq: number
+  readonly characterId: CharacterId
+  readonly authority: RulebookResolutionAuthorityV1
+  readonly candidatePrefixHash: WorldHash
+  readonly targets: readonly { readonly ref: InteractionTargetRef; readonly state: WorldJsonObject }[]
+  readonly authorizedTargets: readonly InteractionTargetRef[]
+  /** Host-owned cropping policy identity; changes when the cropping rules change. */
+  readonly viewPolicyHash: WorldHash
+}
+
+export interface InteractionViewOption extends WorldJsonObject {
+  readonly targetRef: InteractionTargetRef
+  readonly bindingId: string
+  readonly definitionRef: InteractionRef
+  readonly arguments: WorldJsonObject
+}
+
+/**
+ * One character's view. Visible characters, visible items and attemptable options are three
+ * separate sets, so a visible target with no option still appears.
+ */
+export interface InteractionCharacterView extends WorldJsonObject {
+  readonly version: 'interaction-view/v1'
+  readonly address: WorldAddress
+  readonly characterId: CharacterId
+  readonly asOfWorldSeq: number
+  readonly manifestHash: WorldHash
+  readonly viewPolicyHash: WorldHash
+  readonly definitionSetHash: WorldHash
+  readonly characters: readonly InteractionTargetRef[]
+  readonly items: readonly InteractionTargetRef[]
+  readonly options: readonly InteractionViewOption[]
+  /** Options the plan accepted before the per-character budget was applied. */
+  readonly candidateCount: number
+  readonly selectedAffordanceHash: WorldHash
+}

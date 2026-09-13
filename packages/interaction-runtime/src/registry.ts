@@ -1,10 +1,12 @@
 import {
   compareWorldText, hashWorldJson, validateResolutionAuthority, worldAddressKey,
-  type InteractionAdjudication, type InteractionBindingV3, type InteractionDefinitionImplementation,
+  type InteractionAdjudication, type InteractionBindingV3, type InteractionCharacterView,
+  type InteractionDefinitionImplementation,
   type InteractionDefinitionSpec, type InteractionEffectImplementation, type InteractionExecutionContext,
   type InteractionHostContext, type InteractionImplementationLock, type InteractionPackageImplementation,
-  type InteractionRef, type InteractionRequestV2, type InteractionRuleImplementation, type InteractionTargetRef,
-  type InteractionWorldSelection, type WorldHash,
+  type InteractionRef, type InteractionRequestV2, type InteractionRuleImplementation,
+  type InteractionTargetRef, type InteractionViewContext, type InteractionViewOption,
+  type InteractionWorldSelection, type WorldHash, type WorldJsonObject, type WorldJsonValue,
 } from '@harness-world/contracts'
 import { immutable, integer, key, list, object, parameterSchema, parameters, reference, target, targetKey, text } from './validation.ts'
 
@@ -22,6 +24,77 @@ function refs(value: unknown, maximum: number): readonly InteractionRef[] {
 function lock(value: InteractionImplementationLock): InteractionImplementationLock {
   object(value, ['ref', 'implementationHash', 'dependencies'])
   return immutable({ ref: reference(value.ref), implementationHash: hash(value.implementationHash), dependencies: refs(value.dependencies, 64) })
+}
+
+/** Per-character public option budget, from the frozen interaction-limits/v1 profile. */
+const MAXIMUM_VIEW_OPTIONS = 128
+/** Per-binding argument combination budget, from the same profile. */
+const MAXIMUM_ARGUMENT_COMBINATIONS = 64
+
+function compareTargets(left: InteractionTargetRef, right: InteractionTargetRef): number {
+  return compareWorldText(left.kind, right.kind) || compareWorldText(left.id, right.id)
+}
+
+/** Stable order: definition identity, then target, then binding, then canonical argument bytes. */
+function compareViewOptions(left: InteractionViewOption, right: InteractionViewOption): number {
+  return compareWorldText(`${left.definitionRef.id}@${left.definitionRef.version}`, `${right.definitionRef.id}@${right.definitionRef.version}`)
+    || compareWorldText(targetKey(left.targetRef), targetKey(right.targetRef))
+    || compareWorldText(left.bindingId, right.bindingId)
+    || compareWorldText(JSON.stringify(left.arguments), JSON.stringify(right.arguments))
+}
+
+/** Validate the candidate snapshot and the authorization set the same way adjudication does. */
+function snapshot(host: InteractionHostContext): { readonly targets: ReadonlySet<string>; readonly authorized: ReadonlySet<string> } {
+  const targets = new Set<string>()
+  for (const entry of list(host.targets, 4096)) {
+    const row = object(entry, ['ref', 'state'])
+    const id = targetKey(target(row.ref))
+    if (row.state === null || typeof row.state !== 'object' || Array.isArray(row.state)) throw new TypeError('snapshot state must be an object')
+    if (targets.has(id)) throw new TypeError('duplicate snapshot target')
+    targets.add(id)
+  }
+  const keys = list(host.authorizedTargets, 4096).map(value => targetKey(target(value)))
+  const authorized = new Set(keys)
+  if (authorized.size !== keys.length || keys.some(id => !targets.has(id))) throw new TypeError('invalid target authorization set')
+  return { targets, authorized }
+}
+
+/**
+ * Every argument combination this definition can present, as exact field values. A string field
+ * that names an argument role takes its domain from the targets the Host authorized for that role,
+ * never from a free string; a field with a declared enum takes its own values. Combinations are
+ * produced jointly so the adapter cannot offer a cartesian product the plan would reject anyway.
+ */
+function argumentCombinations(
+  def: InteractionDefinitionSpec,
+  authorized: readonly InteractionTargetRef[],
+): readonly WorldJsonObject[] {
+  const domains: { readonly name: string; readonly values: readonly WorldJsonValue[] }[] = []
+  let combinations = 1
+  for (const field of def.argumentSchema.fields) {
+    let values: readonly WorldJsonValue[]
+    const role = def.participantRoles.find(entry => entry.source.kind === 'argument' && entry.source.field === field.name)
+    if (field.type === 'string' && role !== undefined) {
+      values = authorized.filter(ref => ref.kind === role.kind).map(ref => ref.id)
+    } else if (field.type === 'string') {
+      if (field.values.length === 0) throw new TypeError('argument field has no enumerable domain')
+      values = field.values
+    } else if (field.type === 'boolean') {
+      values = [false, true]
+    } else {
+      const size = field.maximum - field.minimum + 1
+      if (size > MAXIMUM_ARGUMENT_COMBINATIONS) throw new TypeError('argument domain exceeds the binding budget')
+      values = Array.from({ length: size }, (_, index) => field.minimum + index)
+    }
+    combinations *= values.length
+    if (combinations > MAXIMUM_ARGUMENT_COMBINATIONS) throw new TypeError('argument domain exceeds the binding budget')
+    domains.push({ name: field.name, values })
+  }
+  let rows: WorldJsonObject[] = [{}]
+  for (const domain of domains) {
+    rows = rows.flatMap(row => domain.values.map(value => ({ ...row, [domain.name]: value }) as WorldJsonObject))
+  }
+  return rows.map(row => immutable(row))
 }
 
 function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec {
@@ -189,17 +262,7 @@ export class FrozenInteractionWorld {
     if (binding === undefined || targetKey(binding.targetRef) !== targetKey(request.targetRef) || key(binding.definitionRef) !== key(request.definitionRef)) throw new TypeError('request does not match enabled binding')
     const def = this.definitions.get(key(binding.definitionRef))!.spec
     const args = parameters(def.argumentSchema, request.arguments)
-    const targets = new Set<string>()
-    for (const entry of list(host.targets, 4096)) {
-      const row = object(entry, ['ref', 'state'])
-      const id = targetKey(target(row.ref))
-      if (row.state === null || typeof row.state !== 'object' || Array.isArray(row.state)) throw new TypeError('snapshot state must be an object')
-      if (targets.has(id)) throw new TypeError('duplicate snapshot target')
-      targets.add(id)
-    }
-    const authorizationKeys = list(host.authorizedTargets, 4096).map(value => targetKey(target(value)))
-    const authorized = new Set(authorizationKeys)
-    if (authorized.size !== authorizationKeys.length || authorizationKeys.some(id => !targets.has(id))) throw new TypeError('invalid target authorization set')
+    const { targets, authorized } = snapshot(host)
     const roles: Record<string, InteractionTargetRef> = {}
     const trace: { rule: InteractionRef; reason: string | null }[] = []
     const finish = (reason: string, events: InteractionAdjudication['events'] = []): InteractionAdjudication => {
@@ -207,29 +270,113 @@ export class FrozenInteractionWorld {
       const data = { status: reason === 'accepted' ? 'accepted' as const : 'rejected' as const, reason, events, definitionSetHash: this.definitionSetHash, resolvedRoleBindingsHash, trace }
       return immutable({ ...data, ruleTraceHash: hashWorldJson('interaction-rule-trace/v1', { ...data, address: host.address, manifestHash: host.manifestHash, asOfWorldSeq: host.asOfWorldSeq, candidatePrefixHash: host.candidatePrefixHash, actionId: host.actionId, actorId: host.actorId, authority: host.authority, request }) })
     }
-    for (const role of def.participantRoles) {
-      const ref = role.source.kind === 'hostActor' ? { kind: role.kind, id: host.actorId }
-        : role.source.kind === 'primaryTarget' ? request.targetRef : { kind: role.kind, id: text(args[role.source.field]) }
-      roles[role.name] = ref
-      if (!targets.has(targetKey(ref)) || (role.source.kind !== 'hostActor' && !authorized.has(targetKey(ref)))) return finish('PARTICIPANT_NOT_AUTHORIZED')
-    }
-    for (const role of def.participantRoles) if (role.distinctFrom.some(other => targetKey(roles[other]!) === targetKey(roles[role.name]!))) return finish('PARTICIPANT_ALIAS_FORBIDDEN')
-    const context: InteractionExecutionContext = immutable({ host, definition: def, binding, arguments: args, roles })
-    for (const ref of [def.authorityPolicyRef, ...def.spatialRequirementRefs, ...def.preconditions]) {
-      const reason = this.rules.get(key(ref))!.check(context)
-      if (reason !== null) { text(reason); if (reason === 'accepted') throw new TypeError('reserved rejection reason') }
-      trace.push({ rule: ref, reason })
-      if (reason !== null) return finish(reason)
-    }
+    const plan = this.#plan(host, def, binding, request.targetRef, args, targets, authorized, roles, trace)
+    if (plan !== null) return finish(plan)
     const effect = this.effects.get(key(def.effectBuilderRef))!
-    const events = immutable(effect.build(context))
+    const events = immutable(effect.build(immutable({ host, definition: def, binding, arguments: args, roles })))
     list(events, def.limits.maximumEvents)
     if (events.length === 0) throw new TypeError('effect produced no event')
     for (const event of events) {
       object(event, ['eventType', 'eventVersion', 'data'])
       if (!effect.eventTypes.some(ref => ref.id === event.eventType && ref.version === event.eventVersion)) throw new TypeError('effect exceeded event closure')
     }
-    effect.validate(context, events)
+    effect.validate(immutable({ host, definition: def, binding, arguments: args, roles }), events)
     return finish('accepted', events)
+  }
+
+  /**
+   * Run the same rule plan the adjudication runs, without touching effects. It fills `roles` with
+   * whatever it resolved and `trace` with the rule results, and returns the rejection reason or
+   * null. Effects are never called: enumeration must not write state or mint relation identities.
+   */
+  #plan(
+    host: InteractionHostContext,
+    def: InteractionDefinitionSpec,
+    binding: InteractionBindingV3,
+    targetRef: InteractionTargetRef,
+    args: WorldJsonObject,
+    targets: ReadonlySet<string>,
+    authorized: ReadonlySet<string>,
+    roles: Record<string, InteractionTargetRef>,
+    trace: { rule: InteractionRef; reason: string | null }[],
+  ): string | null {
+    for (const role of def.participantRoles) {
+      const ref = role.source.kind === 'hostActor' ? { kind: role.kind, id: host.actorId }
+        : role.source.kind === 'primaryTarget' ? targetRef : { kind: role.kind, id: text(args[role.source.field as string]) }
+      roles[role.name] = ref
+      if (!targets.has(targetKey(ref)) || (role.source.kind !== 'hostActor' && !authorized.has(targetKey(ref)))) return 'PARTICIPANT_NOT_AUTHORIZED'
+    }
+    for (const role of def.participantRoles) {
+      if (role.distinctFrom.some(other => targetKey(roles[other]!) === targetKey(roles[role.name]!))) return 'PARTICIPANT_ALIAS_FORBIDDEN'
+    }
+    const context: InteractionExecutionContext = immutable({ host, definition: def, binding, arguments: args, roles })
+    for (const ref of [def.authorityPolicyRef, ...def.spatialRequirementRefs, ...def.preconditions]) {
+      const reason = this.rules.get(key(ref))!.check(context)
+      if (reason !== null) { text(reason); if (reason === 'accepted') throw new TypeError('reserved rejection reason') }
+      trace.push({ rule: ref, reason })
+      if (reason !== null) return reason
+    }
+    return null
+  }
+
+  /**
+   * One character's view. Visible characters, visible items and attemptable options are separate
+   * sets; an option is listed only when the same public rule plan the adjudication uses accepts it.
+   * The result is a proposal set, never an authorization: adjudication re-verifies the latest prefix.
+   */
+  view(input: InteractionViewContext): InteractionCharacterView {
+    const context = immutable(input)
+    object(context, ['address', 'manifestHash', 'asOfWorldSeq', 'characterId', 'authority', 'candidatePrefixHash', 'targets', 'authorizedTargets', 'viewPolicyHash'])
+    object(context.address, ['tenantId', 'worldId', 'branchId'])
+    if (worldAddressKey(context.address) !== worldAddressKey(this.selection.address)) throw new TypeError('interaction WorldAddress mismatch')
+    hash(context.manifestHash); hash(context.candidatePrefixHash); hash(context.viewPolicyHash)
+    integer(context.asOfWorldSeq, 0, Number.MAX_SAFE_INTEGER)
+    text(context.characterId); validateResolutionAuthority(context.authority)
+    const host: InteractionHostContext = immutable({
+      address: context.address, manifestHash: context.manifestHash, asOfWorldSeq: context.asOfWorldSeq,
+      candidatePrefixHash: context.candidatePrefixHash, actionId: 'action:affordance-only', actorId: context.characterId,
+      authority: context.authority, targets: context.targets, authorizedTargets: context.authorizedTargets,
+    })
+    const { targets, authorized } = snapshot(host)
+    const authorizedRefs = list(context.authorizedTargets, 4096).map(value => target(value))
+    const characters: InteractionTargetRef[] = []
+    const items: InteractionTargetRef[] = []
+    for (const entry of list(context.targets, 4096)) {
+      const row = object(entry, ['ref', 'state'])
+      const ref = target(row.ref)
+      if (ref.kind === 'character') characters.push(ref)
+      if (ref.kind === 'entity') items.push(ref)
+    }
+    const candidates: InteractionViewOption[] = []
+    for (const binding of this.bindings.values()) {
+      if (!authorized.has(targetKey(binding.targetRef))) continue
+      const def = this.definitions.get(key(binding.definitionRef))!.spec
+      for (const args of argumentCombinations(def, authorizedRefs)) {
+        const roles: Record<string, InteractionTargetRef> = {}
+        if (this.#plan(host, def, binding, binding.targetRef, args, targets, authorized, roles, []) !== null) continue
+        candidates.push({ targetRef: binding.targetRef, bindingId: binding.bindingId, definitionRef: binding.definitionRef, arguments: args })
+      }
+    }
+    const ordered = [...candidates].sort(compareViewOptions)
+    const options = ordered.slice(0, MAXIMUM_VIEW_OPTIONS)
+    const view: InteractionCharacterView = {
+      version: 'interaction-view/v1',
+      address: context.address,
+      characterId: context.characterId,
+      asOfWorldSeq: context.asOfWorldSeq,
+      manifestHash: context.manifestHash,
+      viewPolicyHash: context.viewPolicyHash,
+      definitionSetHash: this.definitionSetHash,
+      characters: characters.sort(compareTargets),
+      items: items.sort(compareTargets),
+      options,
+      candidateCount: ordered.length,
+      selectedAffordanceHash: hashWorldJson('interaction-affordance/v1', {
+        definitionSetHash: this.definitionSetHash, characterId: context.characterId,
+        asOfWorldSeq: context.asOfWorldSeq, candidatePrefixHash: context.candidatePrefixHash,
+        viewPolicyHash: context.viewPolicyHash, options,
+      }),
+    }
+    return immutable(view)
   }
 }
