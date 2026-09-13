@@ -4,10 +4,12 @@ import {
   brandId, createInteractionArgumentSchema, createInteractionRequestSchema, hashWorldJson,
   type CharacterId, type InteractionBindingV3, type InteractionDefinitionImplementation,
   type InteractionDefinitionSpec, type InteractionEffectImplementation, type InteractionImplementationLock,
-  type InteractionPackageImplementation, type InteractionParameterSchema, type InteractionRef,
+  type InteractionHostContext, type InteractionPackageImplementation, type InteractionParameterSchema,
+  type InteractionPerformanceImplementation, type InteractionRef,
   type InteractionRole, type InteractionRuleImplementation, type InteractionViewContext,
   type WorldAddress, type WorldEventDraft, type WorldJsonObject,
 } from '@harness-world/contracts'
+import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { InteractionRegistry, interactionPackageHash, type FrozenInteractionWorld } from './registry.ts'
 import { parameters } from './validation.ts'
 
@@ -34,6 +36,12 @@ const actorRole: InteractionRole = { name: 'actor', kind: 'character', source: {
 const itemRole: InteractionRole = { name: 'item', kind: 'entity', source: { kind: 'primaryTarget' }, distinctFrom: [] }
 const recipientRole: InteractionRole = { name: 'recipient', kind: 'character', source: { kind: 'argument', field: 'recipientId' }, distinctFrom: ['actor'] }
 
+/** The shared fixtures declare no manifestation; the performance tests build their own policy. */
+const noPerformance: InteractionPerformanceImplementation = {
+  lock: implementation('fixture:no-performance'),
+  policy: { version: 'interaction-performance/v1', accepted: [] },
+}
+
 const publicRule: InteractionRuleImplementation = { lock: implementation('fixture:public'), check: () => null }
 const hiddenRule: InteractionRuleImplementation = {
   lock: implementation('fixture:hidden'),
@@ -54,14 +62,14 @@ function definition(id: string, withRecipient: boolean, blocked: boolean): Inter
     bindingConfigSchema: { fields: blocked ? [{ name: 'blocked', type: 'boolean' }] : [] },
     authorityPolicyRef: ref('fixture:public'), preconditions: [...(blocked ? [ref('fixture:hidden')] : []), ref('fixture:public')],
     spatialRequirementRefs: [], effectBuilderRef: ref('fixture:effect'), effectCapabilityRefs: [ref('fixture:effect')],
-    dependencyRefs: [], limits: { maximumEvents: 1 },
+    dependencyRefs: [], performancePolicyRef: ref('fixture:no-performance'), limits: { maximumEvents: 1 },
   }
   return { spec, implementationHash: implementation(id).implementationHash }
 }
 
 function bundle() {
   const definitions = [definition('fixture:use', false, false), definition('fixture:give', true, false), definition('fixture:guarded', false, true)]
-  const contents = { rules: [publicRule, hiddenRule], effects: [transfer], definitions }
+  const contents = { rules: [publicRule, hiddenRule], effects: [transfer], performances: [noPerformance], definitions }
   const lock: InteractionImplementationLock = {
     ref: ref('package:fixture'), dependencies: [], implementationHash: interactionPackageHash(contents),
   }
@@ -100,7 +108,7 @@ const states = {
 
 /** A world holding exactly one definition, for domain coverage that the shared bundle would blur. */
 function single(spec: InteractionDefinitionSpec): FrozenInteractionWorld {
-  const contents = { rules: [publicRule], effects: [transfer], definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }] }
+  const contents = { rules: [publicRule], effects: [transfer], performances: [noPerformance], definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }] }
   const lock: InteractionImplementationLock = { ref: ref('package:single'), dependencies: [], implementationHash: interactionPackageHash(contents) }
   const registry = new InteractionRegistry()
   registry.install({ lock, ...contents })
@@ -113,6 +121,20 @@ function single(spec: InteractionDefinitionSpec): FrozenInteractionWorld {
     }],
     bindings: [{ bindingId: 'binding:single', targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: { id: spec.id, version: spec.version }, config: {} }],
   })
+}
+
+/** The adjudication-side counterpart of `context()`: same snapshot, one exact action. */
+function host(): InteractionHostContext {
+  return {
+    address, manifestHash, asOfWorldSeq: 4, candidatePrefixHash: prefixHash,
+    actionId: 'action:perform', actorId: actor,
+    authority: { version: 'resolution-authority/v1', sourceRole: 'player', adjudicationMode: 'standard' },
+    targets: [
+      { ref: { kind: 'character', id: actor }, state: states.character(actor) },
+      { ref: { kind: 'entity', id: 'entity:cup' }, state: states.entity('entity:cup') },
+    ],
+    authorizedTargets: [{ kind: 'entity', id: 'entity:cup' }],
+  }
 }
 
 function context(over: Partial<InteractionViewContext> = {}): InteractionViewContext {
@@ -147,7 +169,7 @@ describe('model schema and host validation share one source', () => {
     bindingConfigSchema: { fields: [] },
     authorityPolicyRef: ref('fixture:public'), preconditions: [ref('fixture:public')],
     spatialRequirementRefs: [], effectBuilderRef: ref('fixture:effect'), effectCapabilityRefs: [ref('fixture:effect')],
-    dependencyRefs: [], limits: { maximumEvents: 1 },
+    dependencyRefs: [], performancePolicyRef: ref('fixture:no-performance'), limits: { maximumEvents: 1 },
   }
 
   it('accepts every offered option and rejects a mismatched triple', () => {
@@ -216,6 +238,119 @@ describe('model schema and host validation share one source', () => {
     // The direction that must always hold: nothing the host accepts is schema-invalid.
     expect(validate({ label: 'ab' })).toBe(true)
     expect(() => parameters(free, { label: 'abcd' })).not.toThrow()
+  })
+})
+
+describe('interaction performance contract', () => {
+  const performRequest = (performance?: unknown) => ({
+    targetRef: { kind: 'entity', id: 'entity:cup' },
+    bindingId: 'binding:perform',
+    definitionRef: ref('fixture:perform'),
+    arguments: {},
+    ...(performance === undefined ? {} : { performance }),
+  })
+
+  function performing(
+    accepted: readonly { readonly cue: string; readonly placement: string; readonly requiresRole: string | null }[],
+  ): FrozenInteractionWorld {
+    const spec: InteractionDefinitionSpec = {
+      ...definition('fixture:perform', false, false).spec,
+      performancePolicyRef: ref('fixture:performance'),
+    }
+    const policy: InteractionPerformanceImplementation = {
+      lock: implementation('fixture:performance'),
+      policy: { version: 'interaction-performance/v1', accepted: accepted as never },
+    }
+    const contents = {
+      rules: [publicRule], effects: [transfer], performances: [policy],
+      definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }],
+    }
+    const lock: InteractionImplementationLock = { ref: ref('package:perform'), dependencies: [], implementationHash: interactionPackageHash(contents) }
+    const registry = new InteractionRegistry()
+    registry.install({ lock, ...contents })
+    return registry.freeze({
+      address, packages: [lock],
+      definitions: [{ ref: ref(spec.id), definitionHash: hashWorldJson('interaction-definition/v1', spec), implementationHash: implementation(spec.id).implementationHash }],
+      bindings: [{ bindingId: 'binding:perform', targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: ref(spec.id), config: {} }],
+    })
+  }
+
+  const universal = { cue: 'smile', placement: 'both', requiresRole: null } as const
+
+  it('accepts a declared cue and echoes it without adding an event', () => {
+    const world = performing([universal])
+    const plain = world.resolve(host(), performRequest())
+    const withCue = world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: [] }))
+    expect(withCue.events).toEqual(plain.events)
+    expect(plain.performance).toBeNull()
+    expect(withCue.performance).toEqual({ independent: ['smile'], onSuccess: [] })
+    expect(withCue.ruleTraceHash).not.toBe(plain.ruleTraceHash)
+  })
+
+  it('fails the whole proposal instead of dropping a cue the definition never sanctioned', () => {
+    const strict = performing([{ ...universal, placement: 'independent' }])
+    expect(() => strict.resolve(host(), performRequest({ independent: ['smile'], onSuccess: [] }))).not.toThrow()
+    expect(() => strict.resolve(host(), performRequest({ independent: [], onSuccess: ['smile'] }))).toThrow(/placement/u)
+    expect(() => strict.resolve(host(), performRequest({ independent: ['frown'], onSuccess: [] }))).toThrow(/outside the definition performance policy/u)
+    const noPolicy = performing([])
+    expect(() => noPolicy.resolve(host(), performRequest({ independent: ['smile'], onSuccess: [] }))).toThrow(/outside the definition performance policy/u)
+    expect(noPolicy.resolve(host(), performRequest()).performance).toBeNull()
+  })
+
+  it('reads a cue repeated across both lists as one restatement, as the frozen step rule does', () => {
+    const world = performing([universal])
+    const collapsed = world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: ['smile'] }))
+    const once = world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: [] }))
+    expect(collapsed.performance).toEqual(once.performance)
+    expect(() => world.resolve(host(), performRequest({ independent: ['smile', 'smile'], onSuccess: [] }))).toThrow(/duplicate performance cue/u)
+    expect(world.resolve(host(), performRequest({ independent: [], onSuccess: [] })).performance).toEqual({ independent: [], onSuccess: [] })
+  })
+
+  it('refuses to bind a voice or gait cue to an interaction step', () => {
+    for (const cue of ['quiet_voice', 'slow_walk', 'trembling_voice']) {
+      expect(() => performing([{ ...universal, cue }])).toThrow(/voice or gait/u)
+    }
+    expect(() => performing([{ ...universal, cue: 'not_a_cue' }])).toThrow(/unknown performance cue/u)
+    expect(() => performing([{ ...universal, cue: 'wink' }])).toThrow(/unknown performance cue/u)
+    expect(() => performing([universal, universal])).toThrow(/duplicate performance cue/u)
+    expect(() => performing([{ ...universal, placement: 'sometimes' }])).toThrow(/invalid performance placement/u)
+  })
+
+  it('refuses a cue that would describe a role the definition never declares', () => {
+    expect(() => performing([{ cue: 'smile', placement: 'both', requiresRole: 'bystander' }])).toThrow(/undeclared role/u)
+    expect(() => performing([{ cue: 'smile', placement: 'both', requiresRole: 'item' }])).not.toThrow()
+  })
+
+  it('binds the policy into the package lock and refuses an unknown policy version', () => {
+    const base = createBasicInteractionPackage()
+    const declared = [{ cue: 'smile' as const, placement: 'both' as const, requiresRole: null }]
+    const altered = { ...base, performances: [
+      { ...base.performances[0]!, policy: { version: 'interaction-performance/v1' as const, accepted: declared } },
+      { ...base.performances[0]!, lock: implementation('fixture:second-policy') },
+    ] }
+    expect(interactionPackageHash(altered)).not.toBe(base.lock.implementationHash)
+    // The component list is hashed by identity order, so a reordering must not move the lock.
+    expect(interactionPackageHash(altered)).toBe(interactionPackageHash({ ...altered, performances: [...altered.performances].reverse() }))
+    // A policy from a future version is refused outright rather than partly understood.
+    expect(() => new InteractionRegistry().install({
+      ...base, performances: [{ ...base.performances[0]!, policy: { version: 'interaction-performance/v2', accepted: [] } as never }],
+    })).toThrow(/unsupported performance policy/u)
+  })
+
+  it('refuses to enable a definition whose performance policy is not selected', () => {
+    const base = createBasicInteractionPackage()
+    const orphan: InteractionDefinitionSpec = {
+      ...base.definitions[0]!.spec, id: 'fixture:orphan', performancePolicyRef: ref('missing:policy'),
+    }
+    const contents = { rules: base.rules, effects: base.effects, performances: base.performances, definitions: [{ spec: orphan, implementationHash: base.definitions[0]!.implementationHash }] }
+    const lock: InteractionImplementationLock = { ref: ref('package:orphan'), dependencies: [], implementationHash: interactionPackageHash(contents) }
+    const registry = new InteractionRegistry()
+    registry.install({ lock, ...contents })
+    expect(() => registry.freeze({
+      address, packages: [lock],
+      definitions: [{ ref: ref(orphan.id), definitionHash: hashWorldJson('interaction-definition/v1', orphan), implementationHash: base.definitions[0]!.implementationHash }],
+      bindings: [{ bindingId: 'binding:orphan', targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: ref(orphan.id), config: {} }],
+    })).toThrow(/performance policy missing/u)
   })
 })
 
@@ -308,7 +443,7 @@ describe('character interaction view', () => {
       ...definition('fixture:freeform', true, false).spec,
       participantRoles: [actorRole, itemRole],
     }
-    const contents = { rules: [publicRule], effects: [transfer], definitions: [{ spec, implementationHash: implementation('fixture:freeform').implementationHash }] }
+    const contents = { rules: [publicRule], effects: [transfer], performances: [noPerformance], definitions: [{ spec, implementationHash: implementation('fixture:freeform').implementationHash }] }
     const lock: InteractionImplementationLock = { ref: ref('package:freeform'), dependencies: [], implementationHash: interactionPackageHash(contents) }
     const registry = new InteractionRegistry()
     registry.install({ lock, ...contents })
@@ -347,7 +482,7 @@ describe('character interaction view', () => {
       bindingConfigSchema: { fields: [] },
       authorityPolicyRef: ref('fixture:public'), preconditions: [ref('fixture:public')],
       spatialRequirementRefs: [], effectBuilderRef: ref('fixture:effect'), effectCapabilityRefs: [ref('fixture:effect')],
-      dependencyRefs: [], limits: { maximumEvents: 1 },
+      dependencyRefs: [], performancePolicyRef: ref('fixture:no-performance'), limits: { maximumEvents: 1 },
     }
     const view = single(spec).view(context())
     expect(view.candidateCount).toBe(12)
@@ -369,7 +504,7 @@ describe('character interaction view', () => {
       bindingConfigSchema: { fields: [] },
       authorityPolicyRef: ref('fixture:public'), preconditions: [ref('fixture:public')],
       spatialRequirementRefs: [], effectBuilderRef: ref('fixture:effect'), effectCapabilityRefs: [ref('fixture:effect')],
-      dependencyRefs: [], limits: { maximumEvents: 1 },
+      dependencyRefs: [], performancePolicyRef: ref('fixture:no-performance'), limits: { maximumEvents: 1 },
     }
     expect(() => single(spec).view(context())).toThrow(/exceeds the binding budget/u)
   })

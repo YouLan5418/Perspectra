@@ -80,7 +80,7 @@ it('requires every participant, immutable inputs and current prefix, while disab
   for (const value of [null, {}, { ...request(), extra: true }, { ...request(), bindingId: 'missing' }, { ...request(), targetRef: character('character:player') }, { ...request(), definitionRef: ref('base:drop') }, { ...request(), arguments: { actorId: 'other' } }]) expect(() => runtime.resolve(host(), value)).toThrow()
   const p = createBasicInteractionPackage(); const s = selection(p)
   expect(setup(p, { ...s, definitions: [...s.definitions].reverse(), bindings: [...s.bindings].reverse() }).definitionSetHash).toBe(runtime.definitionSetHash)
-  expect(interactionPackageHash({ ...p, rules: [...p.rules].reverse(), effects: [...p.effects].reverse(), definitions: [...p.definitions].reverse() })).toBe(p.lock.implementationHash)
+  expect(interactionPackageHash({ ...p, rules: [...p.rules].reverse(), effects: [...p.effects].reverse(), performances: [...p.performances].reverse(), definitions: [...p.definitions].reverse() })).toBe(p.lock.implementationHash)
   const disabled = setup(p, { ...s, definitions: [], bindings: [] })
   expect(() => disabled.resolve(host(), request())).toThrow('enabled binding')
   const mutable = structuredClone(s)
@@ -94,7 +94,7 @@ it('runs an independently registered state-domain fixture only when its package 
   const effectRef = ref('fixture:mark-effect')
   const definition = { ...base.definitions[0]!, spec: { ...base.definitions[0]!.spec, id: 'fixture:mark',
     effectBuilderRef: effectRef, effectCapabilityRefs: [effectRef], preconditions: [] } }
-  const fixture = relock({ lock: { ref: ref('package:fixture'), implementationHash: digest, dependencies: [base.lock.ref] }, rules: [], definitions: [definition], effects: [{
+  const fixture = relock({ lock: { ref: ref('package:fixture'), implementationHash: digest, dependencies: [base.lock.ref] }, rules: [], performances: [], definitions: [definition], effects: [{
     lock: { ref: effectRef, implementationHash: digest, dependencies: [] }, eventTypes: [ref('fixture.marked')],
     build: ctx => [{ eventType: 'fixture.marked', eventVersion: 1, data: { entityId: ctx.roles.item!.id, marked: true } }],
     validate: (ctx, events) => expect(events).toEqual([{ eventType: 'fixture.marked', eventVersion: 1, data: { entityId: ctx.roles.item!.id, marked: true } }]),

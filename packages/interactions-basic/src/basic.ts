@@ -1,8 +1,8 @@
 import {
   hashWorldJson, type InteractionDefinitionImplementation, type InteractionDefinitionSpec,
   type InteractionEffectImplementation, type InteractionExecutionContext, type InteractionImplementationLock,
-  type InteractionPackageImplementation, type InteractionRef, type InteractionRole,
-  type InteractionRuleImplementation, type WorldEventDraft, type WorldJsonObject,
+  type InteractionPackageImplementation, type InteractionPerformanceImplementation, type InteractionRef,
+  type InteractionRole, type InteractionRuleImplementation, type WorldEventDraft, type WorldJsonObject,
 } from '@harness-world/contracts'
 import { interactionPackageHash } from '@harness-world/interaction-runtime'
 
@@ -87,20 +87,31 @@ const actor: InteractionRole = { name: 'actor', kind: 'character', source: { kin
 const item: InteractionRole = { name: 'item', kind: 'entity', source: { kind: 'primaryTarget' }, distinctFrom: [] }
 const recipient: InteractionRole = { name: 'recipient', kind: 'character', source: { kind: 'argument', field: 'recipientId' }, distinctFrom: ['actor'] }
 
+/**
+ * The first batch declares no manifestation at all. take/drop/give are state transfers, so a cue
+ * attached to one of them would claim a self-expression the definition never sanctioned; the empty
+ * policy is what makes such a request a proposal failure instead of a silently ignored field.
+ */
+const noPerformance: InteractionPerformanceImplementation = {
+  lock: implementation('base:no-performance'),
+  policy: { version: 'interaction-performance/v1', accepted: [] },
+}
+
 function definition(id: string, preconditions: readonly string[], effectId: string, recipientRole: boolean): InteractionDefinitionImplementation {
   const spec: InteractionDefinitionSpec = { versionTag: 'interaction-definition/v1', id, version: 1,
     participantRoles: recipientRole ? [actor, item, recipient] : [actor, item],
     argumentSchema: { fields: recipientRole ? [{ name: 'recipientId', type: 'string', maxBytes: 1024, values: [] }] : [] },
     bindingConfigSchema: { fields: [] }, authorityPolicyRef: ref('base:actor-active'), preconditions: preconditions.map(ref),
     spatialRequirementRefs: [ref('space:co-location'), ref('space:scene-intersection')],
-    effectBuilderRef: ref(effectId), effectCapabilityRefs: [ref(effectId)], dependencyRefs: [], limits: { maximumEvents: 1 },
+    effectBuilderRef: ref(effectId), effectCapabilityRefs: [ref(effectId)], dependencyRefs: [],
+    performancePolicyRef: ref('base:no-performance'), limits: { maximumEvents: 1 },
   }
   return { spec, implementationHash: implementation(id).implementationHash }
 }
 
 /** I1 object slice. Contact definitions join in I3, through this same contract. */
 export function createBasicInteractionPackage(): InteractionPackageImplementation {
-  const contents = { rules, effects, definitions: [
+  const contents = { rules, effects, performances: [noPerformance], definitions: [
     definition('base:take', ['base:item-unheld'], 'base:take-effect', false),
     definition('base:drop', ['base:item-held'], 'base:drop-effect', false),
     definition('base:give', ['base:item-held', 'base:recipient-active'], 'base:give-effect', true),

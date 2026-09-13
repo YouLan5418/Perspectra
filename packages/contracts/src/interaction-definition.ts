@@ -1,3 +1,4 @@
+import type { ActionGroupCue } from './action-group.ts'
 import type { CharacterId } from './ids.ts'
 import type { WorldAddress, WorldEventDraft } from './protocol.ts'
 import type { RulebookResolutionAuthorityV1 } from './resolution-authority.ts'
@@ -43,7 +44,37 @@ export interface InteractionDefinitionSpec extends WorldJsonObject {
   readonly effectBuilderRef: InteractionRef
   readonly effectCapabilityRefs: readonly InteractionRef[]
   readonly dependencyRefs: readonly InteractionRef[]
+  /** Registered performance policy. It decides whether this definition accepts a manifestation at all. */
+  readonly performancePolicyRef: InteractionRef
   readonly limits: { readonly maximumEvents: number }
+}
+
+/**
+ * One cue a definition accepts. `placement` mirrors the frozen independent/onSuccess split, and
+ * `requiresRole` names the participant role whose state has to hold for the cue to mean anything:
+ * without it a cue could describe an object the actor does not actually hold, which is how a
+ * manifestation would smuggle in a fact nobody established.
+ */
+export interface InteractionPerformanceCueBinding extends WorldJsonObject {
+  readonly cue: ActionGroupCue
+  readonly placement: 'independent' | 'onSuccess' | 'both'
+  readonly requiresRole: string | null
+}
+
+/**
+ * `interaction-performance/v1` never redefines the cue vocabulary: it only narrows the existing
+ * eight codes to what one definition accepts, and where. The old table and its normalization are
+ * untouched, so an old world is never handed a new meaning.
+ */
+export interface InteractionPerformancePolicyV1 extends WorldJsonObject {
+  readonly version: 'interaction-performance/v1'
+  readonly accepted: readonly InteractionPerformanceCueBinding[]
+}
+
+/** The submitted manifestation. It reuses the frozen two-list shape, so normalization is shared. */
+export interface InteractionPerformance extends WorldJsonObject {
+  readonly independent: readonly ActionGroupCue[]
+  readonly onSuccess: readonly ActionGroupCue[]
 }
 
 export interface InteractionBindingV3 extends WorldJsonObject {
@@ -58,6 +89,8 @@ export interface InteractionRequestV2 extends WorldJsonObject {
   readonly bindingId: string
   readonly definitionRef: InteractionRef
   readonly arguments: WorldJsonObject
+  /** Absent means the step carries no manifestation. The Host re-verifies it against the policy. */
+  readonly performance?: InteractionPerformance
 }
 
 /** Supplied by the Host from one candidate prefix, never from the Action payload. */
@@ -94,6 +127,12 @@ export interface InteractionRuleImplementation {
   readonly check: (context: InteractionExecutionContext) => string | null
 }
 
+/** A registered, locked policy. The runtime only narrows submitted cues against it. */
+export interface InteractionPerformanceImplementation {
+  readonly lock: InteractionImplementationLock
+  readonly policy: InteractionPerformancePolicyV1
+}
+
 export interface InteractionEffectImplementation {
   readonly lock: InteractionImplementationLock
   readonly eventTypes: readonly InteractionRef[]
@@ -111,6 +150,7 @@ export interface InteractionPackageImplementation {
   readonly lock: InteractionImplementationLock
   readonly rules: readonly InteractionRuleImplementation[]
   readonly effects: readonly InteractionEffectImplementation[]
+  readonly performances: readonly InteractionPerformanceImplementation[]
   readonly definitions: readonly InteractionDefinitionImplementation[]
 }
 
@@ -158,6 +198,12 @@ export interface InteractionAdjudication extends WorldJsonObject {
   readonly resolvedRoleBindingsHash: WorldHash
   readonly trace: readonly { readonly rule: InteractionRef; readonly reason: string | null }[]
   readonly ruleTraceHash: WorldHash
+  /**
+   * The performance the policy accepted, or null. It contributes no events: the adjudication's
+   * events still come only from the effect builder, and turning an accepted performance into a
+   * memorable observation fact stays the Host's step, exactly as it does for the action group path.
+   */
+  readonly performance: InteractionPerformance | null
 }
 
 /**

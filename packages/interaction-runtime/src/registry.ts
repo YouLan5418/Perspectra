@@ -1,9 +1,11 @@
 import {
-  compareWorldText, hashWorldJson, validateResolutionAuthority, worldAddressKey,
+  ACTION_GROUP_CUES, compareWorldText, hashWorldJson, validateResolutionAuthority, worldAddressKey,
+  type ActionGroupCue,
   type InteractionAdjudication, type InteractionBindingV3, type InteractionCharacterView,
   type InteractionDefinitionImplementation,
   type InteractionDefinitionSpec, type InteractionEffectImplementation, type InteractionExecutionContext,
   type InteractionHostContext, type InteractionImplementationLock, type InteractionPackageImplementation,
+  type InteractionPerformance, type InteractionPerformanceImplementation, type InteractionPerformancePolicyV1,
   type InteractionRef, type InteractionRequestV2, type InteractionRuleImplementation,
   type InteractionTargetRef, type InteractionViewContext, type InteractionViewOption,
   type InteractionWorldSelection, type WorldHash, type WorldJsonObject, type WorldJsonValue,
@@ -24,6 +26,53 @@ function refs(value: unknown, maximum: number): readonly InteractionRef[] {
 function lock(value: InteractionImplementationLock): InteractionImplementationLock {
   object(value, ['ref', 'implementationHash', 'dependencies'])
   return immutable({ ref: reference(value.ref), implementationHash: hash(value.implementationHash), dependencies: refs(value.dependencies, 64) })
+}
+
+/**
+ * The policy narrows the already frozen eight-cue vocabulary; it never extends it. An interact step
+ * cannot carry a voice or gait cue, because those belong to speak and move by the frozen table, so
+ * declaring one is an install error rather than a runtime rejection.
+ */
+function performancePolicy(value: unknown): InteractionPerformancePolicyV1 {
+  const root = object(value, ['version', 'accepted'])
+  if (root.version !== 'interaction-performance/v1') throw new TypeError('unsupported performance policy')
+  const seen = new Set<string>()
+  for (const input of list(root.accepted, 8)) {
+    const row = object(input, ['cue', 'placement', 'requiresRole'])
+    const cue = text(row.cue)
+    if (seen.has(cue)) throw new TypeError('duplicate performance cue')
+    seen.add(cue)
+    if (!Object.hasOwn(ACTION_GROUP_CUES, cue)) throw new TypeError('unknown performance cue')
+    if (ACTION_GROUP_CUES[cue as ActionGroupCue].actionType !== null) throw new TypeError('interaction performance cannot bind a voice or gait cue')
+    if (row.placement !== 'independent' && row.placement !== 'onSuccess' && row.placement !== 'both') throw new TypeError('invalid performance placement')
+    if (row.requiresRole !== null) text(row.requiresRole)
+  }
+  return immutable(value as InteractionPerformancePolicyV1)
+}
+
+/**
+ * Narrow a submitted manifestation to what the policy accepted. A cue outside the policy, or in a
+ * placement the policy does not allow, fails the whole proposal rather than being dropped: silently
+ * discarding a performance would tell the world something happened that did not.
+ */
+export function resolvePerformance(policy: InteractionPerformancePolicyV1, value: unknown): InteractionPerformance {
+  const root = object(value, ['independent', 'onSuccess'])
+  const accepted = new Map(policy.accepted.map(entry => [entry.cue, entry]))
+  const read = (input: unknown, placement: 'independent' | 'onSuccess'): readonly ActionGroupCue[] => list(input, 8).map(text).map(code => {
+    const entry = accepted.get(code as ActionGroupCue)
+    if (entry === undefined) throw new TypeError('cue is outside the definition performance policy')
+    if (entry.placement !== 'both' && entry.placement !== placement) throw new TypeError('cue placement is not allowed here')
+    return code as ActionGroupCue
+  })
+  const independent = read(root.independent, 'independent')
+  const onSuccess = read(root.onSuccess, 'onSuccess')
+  // A cue accepted in both lists is one restatement of the same self-expression, read exactly the
+  // way the frozen step normalization reads it, so it plays once instead of failing the step.
+  const alwaysOn = new Set(independent)
+  const distinctOnSuccess = onSuccess.filter(cue => !alwaysOn.has(cue))
+  const all = [...independent, ...distinctOnSuccess]
+  if (new Set(all).size !== all.length) throw new TypeError('duplicate performance cue')
+  return immutable(all.length === 0 ? { independent: [], onSuccess: [] } : { independent, onSuccess: distinctOnSuccess })
 }
 
 /** Per-character public option budget, from the frozen interaction-limits/v1 profile. */
@@ -98,7 +147,7 @@ function argumentCombinations(
 }
 
 function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec {
-  object(value, ['versionTag', 'id', 'version', 'participantRoles', 'argumentSchema', 'bindingConfigSchema', 'authorityPolicyRef', 'preconditions', 'spatialRequirementRefs', 'effectBuilderRef', 'effectCapabilityRefs', 'dependencyRefs', 'limits'])
+  object(value, ['versionTag', 'id', 'version', 'participantRoles', 'argumentSchema', 'bindingConfigSchema', 'authorityPolicyRef', 'preconditions', 'spatialRequirementRefs', 'effectBuilderRef', 'effectCapabilityRefs', 'dependencyRefs', 'performancePolicyRef', 'limits'])
   if (value.versionTag !== 'interaction-definition/v1') throw new TypeError('unsupported definition contract')
   reference({ id: value.id, version: value.version })
   parameterSchema(value.argumentSchema); parameterSchema(value.bindingConfigSchema)
@@ -124,7 +173,7 @@ function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec
   }
   if (actors !== 1 || primary !== 1) throw new TypeError('one actor and primary target required')
   for (const role of value.participantRoles) if (role.distinctFrom.some(name => !names.has(name))) throw new TypeError('unknown distinct role')
-  reference(value.authorityPolicyRef); reference(value.effectBuilderRef)
+  reference(value.authorityPolicyRef); reference(value.effectBuilderRef); reference(value.performancePolicyRef)
   refs(value.preconditions, 16); refs(value.spatialRequirementRefs, 16); refs(value.effectCapabilityRefs, 16); refs(value.dependencyRefs, 64)
   if (!value.effectCapabilityRefs.some(ref => key(ref) === key(value.effectBuilderRef))) throw new TypeError('effect capability missing')
   object(value.limits, ['maximumEvents']); integer(value.limits.maximumEvents, 1, 16)
@@ -132,7 +181,8 @@ function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec
 }
 
 function definitionDependencies(spec: InteractionDefinitionSpec): readonly InteractionRef[] {
-  return [spec.authorityPolicyRef, ...spec.preconditions, ...spec.spatialRequirementRefs, spec.effectBuilderRef, ...spec.effectCapabilityRefs, ...spec.dependencyRefs]
+  return [spec.authorityPolicyRef, ...spec.preconditions, ...spec.spatialRequirementRefs, spec.effectBuilderRef,
+    ...spec.effectCapabilityRefs, spec.performancePolicyRef, ...spec.dependencyRefs]
 }
 
 /** Published package contract binds every component lock and definition description. */
@@ -141,6 +191,7 @@ export function interactionPackageHash(input: Omit<InteractionPackageImplementat
   return hashWorldJson('interaction-package-implementation/v1', {
     rules: ordered(input.rules, rule => key(rule.lock.ref)).map(rule => rule.lock),
     effects: ordered(input.effects, effect => key(effect.lock.ref)).map(effect => ({ lock: effect.lock, eventTypes: effect.eventTypes })),
+    performances: ordered(input.performances, entry => key(entry.lock.ref)).map(entry => ({ lock: entry.lock, policy: entry.policy })),
     definitions: ordered(input.definitions, def => key({ id: def.spec.id, version: def.spec.version })).map(def => ({ spec: def.spec, implementationHash: def.implementationHash })),
   })
 }
@@ -164,15 +215,20 @@ export class InteractionRegistry {
       if (eventTypes.some(ref => ref.id === 'character.moved')) throw new TypeError('interaction cannot own movement')
       return Object.freeze({ lock: lock(effect.lock), eventTypes: immutable(eventTypes), build: effect.build, validate: effect.validate })
     })
+    const performances = list(input.performances, 128).map(value => {
+      const entry = value as InteractionPerformanceImplementation
+      return Object.freeze({ lock: lock(entry.lock), policy: performancePolicy(entry.policy) })
+    })
     const definitions = list(input.definitions, 128).map(value => {
       const def = value as InteractionDefinitionImplementation
       return Object.freeze({ spec: definition(def.spec), implementationHash: hash(def.implementationHash) })
     })
-    if (packageLock.implementationHash !== interactionPackageHash({ rules, effects, definitions })) throw new TypeError('package component lock drift')
-    const identities = [key(packageLock.ref), ...rules.map(value => key(value.lock.ref)), ...effects.map(value => key(value.lock.ref)), ...definitions.map(value => key({ id: value.spec.id, version: value.spec.version }))]
+    if (packageLock.implementationHash !== interactionPackageHash({ rules, effects, performances, definitions })) throw new TypeError('package component lock drift')
+    const identities = [key(packageLock.ref), ...rules.map(value => key(value.lock.ref)), ...effects.map(value => key(value.lock.ref)),
+      ...performances.map(value => key(value.lock.ref)), ...definitions.map(value => key({ id: value.spec.id, version: value.spec.version }))]
     if (new Set(identities).size !== identities.length || identities.some(id => this.#identities.has(id))) throw new TypeError('duplicate registration')
     identities.forEach(id => this.#identities.add(id))
-    this.#packages.set(key(packageLock.ref), Object.freeze({ lock: packageLock, rules, effects, definitions }))
+    this.#packages.set(key(packageLock.ref), Object.freeze({ lock: packageLock, rules, effects, performances, definitions }))
   }
 
   freeze(input: InteractionWorldSelection): FrozenInteractionWorld {
@@ -182,6 +238,7 @@ export class InteractionRegistry {
     worldAddressKey(selection.address)
     const rules = new Map<string, InteractionRuleImplementation>()
     const effects = new Map<string, InteractionEffectImplementation>()
+    const performances = new Map<string, InteractionPerformanceImplementation>()
     const definitions = new Map<string, InteractionDefinitionImplementation>()
     const nodes = new Map<string, readonly InteractionRef[]>()
     for (const requested of list(selection.packages, 32)) {
@@ -192,6 +249,7 @@ export class InteractionRegistry {
       nodes.set(key(selected.ref), selected.dependencies)
       for (const rule of installed.rules) { rules.set(key(rule.lock.ref), rule); nodes.set(key(rule.lock.ref), rule.lock.dependencies) }
       for (const effect of installed.effects) { effects.set(key(effect.lock.ref), effect); nodes.set(key(effect.lock.ref), effect.lock.dependencies) }
+      for (const entry of installed.performances) { performances.set(key(entry.lock.ref), entry); nodes.set(key(entry.lock.ref), entry.lock.dependencies) }
       for (const def of installed.definitions) definitions.set(key({ id: def.spec.id, version: def.spec.version }), def)
     }
     const active = new Map<string, InteractionDefinitionImplementation>()
@@ -203,6 +261,15 @@ export class InteractionRegistry {
       if (active.has(id)) throw new TypeError('duplicate definition selection')
       for (const ref of [found.spec.authorityPolicyRef, ...found.spec.preconditions, ...found.spec.spatialRequirementRefs]) if (!rules.has(key(ref))) throw new TypeError('rule or spatial capability missing')
       for (const ref of found.spec.effectCapabilityRefs) if (!effects.has(key(ref))) throw new TypeError('effect capability missing')
+      const policy = performances.get(key(found.spec.performancePolicyRef))
+      if (policy === undefined) throw new TypeError('performance policy missing')
+      // A cue that names a role the definition does not declare could describe an object nobody
+      // verified, which is exactly how a manifestation would smuggle in an unestablished fact.
+      for (const entry of policy.policy.accepted) {
+        if (entry.requiresRole !== null && !found.spec.participantRoles.some(role => role.name === entry.requiresRole)) {
+          throw new TypeError('performance cue names an undeclared role')
+        }
+      }
       active.set(id, found); nodes.set(id, definitionDependencies(found.spec))
     }
     const done = new Set<string>(); const visiting = new Set<string>()
@@ -233,7 +300,7 @@ export class InteractionRegistry {
       definitions: [...selection.definitions].sort((a, b) => compareWorldText(key(a.ref), key(b.ref))),
       bindings: [...selection.bindings].sort((a, b) => compareWorldText(a.bindingId, b.bindingId)),
     })
-    return new FrozenInteractionWorld(canonicalSelection, active, bindings, rules, effects)
+    return new FrozenInteractionWorld(canonicalSelection, active, bindings, rules, effects, performances)
   }
 }
 
@@ -247,6 +314,7 @@ export class FrozenInteractionWorld {
     private readonly bindings: ReadonlyMap<string, InteractionBindingV3>,
     private readonly rules: ReadonlyMap<string, InteractionRuleImplementation>,
     private readonly effects: ReadonlyMap<string, InteractionEffectImplementation>,
+    private readonly performances: ReadonlyMap<string, InteractionPerformanceImplementation>,
   ) { this.definitionSetHash = hashWorldJson('interaction-world-selection/v1', selection) }
 
   resolve(inputHost: InteractionHostContext, input: unknown): InteractionAdjudication {
@@ -256,23 +324,32 @@ export class FrozenInteractionWorld {
     if (worldAddressKey(host.address) !== worldAddressKey(this.selection.address)) throw new TypeError('interaction WorldAddress mismatch')
     hash(host.manifestHash); hash(host.candidatePrefixHash); integer(host.asOfWorldSeq, 0, Number.MAX_SAFE_INTEGER)
     text(host.actionId); text(host.actorId); validateResolutionAuthority(host.authority)
-    const root = object(input, ['targetRef', 'bindingId', 'definitionRef', 'arguments'])
-    const request = immutable({ targetRef: target(root.targetRef), bindingId: text(root.bindingId), definitionRef: reference(root.definitionRef), arguments: root.arguments }) as InteractionRequestV2
+    if (input === null || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('expected closed object')
+    const required = ['targetRef', 'bindingId', 'definitionRef', 'arguments']
+    const root = object(input, Object.hasOwn(input, 'performance') ? [...required, 'performance'] : required)
+    const request = immutable({
+      targetRef: target(root.targetRef), bindingId: text(root.bindingId), definitionRef: reference(root.definitionRef),
+      arguments: root.arguments, ...(root.performance === undefined ? {} : { performance: root.performance }),
+    }) as InteractionRequestV2
     const binding = this.bindings.get(request.bindingId)
     if (binding === undefined || targetKey(binding.targetRef) !== targetKey(request.targetRef) || key(binding.definitionRef) !== key(request.definitionRef)) throw new TypeError('request does not match enabled binding')
     const def = this.definitions.get(key(binding.definitionRef))!.spec
     const args = parameters(def.argumentSchema, request.arguments)
+    const policy = this.performances.get(key(def.performancePolicyRef))!.policy
+    const performance = request.performance === undefined ? null : resolvePerformance(policy, request.performance)
     const { targets, authorized } = snapshot(host)
     const roles: Record<string, InteractionTargetRef> = {}
     const trace: { rule: InteractionRef; reason: string | null }[] = []
-    const finish = (reason: string, events: InteractionAdjudication['events'] = []): InteractionAdjudication => {
+    const finish = (reason: string, events: InteractionAdjudication['events'] = [], accepted: InteractionPerformance | null = null): InteractionAdjudication => {
       const resolvedRoleBindingsHash = hashWorldJson('interaction-role-bindings/v1', roles)
-      const data = { status: reason === 'accepted' ? 'accepted' as const : 'rejected' as const, reason, events, definitionSetHash: this.definitionSetHash, resolvedRoleBindingsHash, trace }
+      const data = { status: reason === 'accepted' ? 'accepted' as const : 'rejected' as const, reason, events, definitionSetHash: this.definitionSetHash, resolvedRoleBindingsHash, trace, performance: accepted }
       return immutable({ ...data, ruleTraceHash: hashWorldJson('interaction-rule-trace/v1', { ...data, address: host.address, manifestHash: host.manifestHash, asOfWorldSeq: host.asOfWorldSeq, candidatePrefixHash: host.candidatePrefixHash, actionId: host.actionId, actorId: host.actorId, authority: host.authority, request }) })
     }
     const plan = this.#plan(host, def, binding, request.targetRef, args, targets, authorized, roles, trace)
     if (plan !== null) return finish(plan)
     const effect = this.effects.get(key(def.effectBuilderRef))!
+    // The execution context deliberately excludes `performance`: a manifestation that reached an
+    // effect builder could shape world state, and the whole point is that it cannot.
     const events = immutable(effect.build(immutable({ host, definition: def, binding, arguments: args, roles })))
     list(events, def.limits.maximumEvents)
     if (events.length === 0) throw new TypeError('effect produced no event')
@@ -281,7 +358,7 @@ export class FrozenInteractionWorld {
       if (!effect.eventTypes.some(ref => ref.id === event.eventType && ref.version === event.eventVersion)) throw new TypeError('effect exceeded event closure')
     }
     effect.validate(immutable({ host, definition: def, binding, arguments: args, roles }), events)
-    return finish('accepted', events)
+    return finish('accepted', events, performance)
   }
 
   /**
