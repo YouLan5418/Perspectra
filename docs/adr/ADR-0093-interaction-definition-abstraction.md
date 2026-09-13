@@ -1,8 +1,8 @@
 # ADR-0093：交互定义抽象、按需交互包与目标自声明
 
-- 状态：Proposed（待接受）
+- 状态：Accepted（2026-09-13 用户明确确认；按 V0.2 与 I0-B 契约分阶段实施，工程验收另记）
 - 日期：2026-09-13
-- 修订：2026-09-13，方案 V0.2；仍为 Proposed，I0 仅黄金基线部分已完成
+- 修订：2026-09-13，接受记录及 [实施契约](../spec/interaction-definition-v0.1.md)；I0 Gate 已关闭
 - Extends：[ADR-0034](ADR-0034-contract-registries.md)、[ADR-0044](ADR-0044-round-authority-ledger.md)、[ADR-0050](ADR-0050-rulebook-registry-mystery-boundary.md)、[ADR-0057](ADR-0057-creator-extension-runtime-author.md)、[ADR-0077](ADR-0077-bounded-autonomous-reaction-cycle.md)、[ADR-0078](ADR-0078-reaction-policy-manifest-version-gate.md)、[ADR-0081](ADR-0081-deployment-backup-restore-set.md)、[ADR-0083](ADR-0083-manifestation-observable-expression.md)、[ADR-0085](ADR-0085-bounded-action-groups.md)
 - 局部 supersede（仅对新版本生效，不改写既有 ADR）：[ADR-0086](ADR-0086-object-interactions.md) 的固定 operation 与包外目录入口、[ADR-0087](ADR-0087-player-immediate-character-interactions.md) 的 `hand_hold` 专用关系实现
 - 上位契约：[通用内容架构总纲 §9、§11](../spec/general-content-architecture-v0.1.md)、[交互抽象与按需交互包方案](../2026-09-13_方案-交互抽象与按需交互包-v0.2-report.md)
@@ -68,7 +68,7 @@ ADR-0086 与 ADR-0087 明确规定了首版闭集，本 ADR 不否定它：那�
 
 ## 验证
 
-I0～I5 的阶段 Gate 见方案 V0.2 §14。I0-A 的编译黄金已冻结；I0-B 契约、运行期补充黄金和版本表尚未完成，不得先进入 I1。结构性承诺包括：
+I0～I5 的阶段 Gate 见方案 V0.2 §14。I0-A 的编译黄金已冻结；I0-B 契约、运行期补充黄金和版本表已完成，用户明确确认接受后进入 I1；见 [I0-B 记录](../2026-09-13_交互抽象-I0B运行黄金与契约准备.md)。结构性承诺包括：
 
 - 未注册、未启用、Hash 漂移、重复注册的包与定义全部在 Writer Lease 或入站受理前失败。
 - 一个物品完成 take → give → drop → take 闭环，且通用 Kernel 中不出现这三个交互名分支。
@@ -80,7 +80,7 @@ I0～I5 的阶段 Gate 见方案 V0.2 §14。I0-A 的编译黄金已冻结；I0-
 - 角色槽非法组合、表现虚构持有/支撑、缺空间能力、反应依据无观察来源全部拒绝；新旧策略的次序和预算分别可重放。
 - 补充旧运行期 Event/Authority、模型 Schema/归一化与表现状态黄金；039b590 的原 expected 不因修订更换。未来确需数据库迁移时，单独说明字面量哨兵的变化并保留旧库兼容验证。
 
-## 待决项
+## 待决项（接受前历史记录）
 
 以下必须在 I0-B 完成并进入生产实现前裁定；本文仍为 Proposed：
 
@@ -89,3 +89,12 @@ I0～I5 的阶段 Gate 见方案 V0.2 §14。I0-A 的编译黄金已冻结；I0-
 3. **ADR-0092 在本基线仍为 Proposed。** 本 ADR 不承担其接受与否，也不因其代码已存在而视其为 Accepted。
 
 4. **角色、表现、反应与空间契约。** 冻结方案 V0.2 的类型、来源规则、策略版本、资源上限及首批实现范围；示例不等于动作目录。
+
+## 2026-09-13 接受裁定
+
+用户明确同意 [I0-B 记录第 6 节](../2026-09-13_交互抽象-I0B运行黄金与契约准备.md) 所列接受修改；历史待决项及原决定保留，以下裁定解决对应问题：
+
+1. 首批迁移 base:take、base:drop、base:give、base:hold-hand、base:end-contact；其他例子后续另议。
+2. Manifest v10 先交互，世界级记忆策略后续升版。
+3. 角色、效果、表现、反应、空间、预算和版本按 [I0-B 实施契约](../spec/interaction-definition-v0.1.md) 冻结。
+4. ADR-0092 保持原状态。I1～I5 仍须逐阶段通过工程门禁，接受不代表功能已实现。

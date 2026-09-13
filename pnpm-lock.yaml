@@ -72,6 +72,21 @@ importers:
 
   packages/contracts: {}
 
+  packages/interaction-runtime:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
+  packages/interactions-basic:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/interaction-runtime':
+        specifier: workspace:*
+        version: link:../interaction-runtime
+
   packages/kernel:
     dependencies:
       '@harness-world/contracts':

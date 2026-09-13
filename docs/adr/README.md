@@ -74,4 +74,4 @@
 | [0090](ADR-0090-structural-recall-clues.md) | 结构化线索召回（在场人物与未完成事项） | **Proposed**；线索只来自场景权威成员与角色自己的认知，只扩候选与加权、不改权限，线索为空时与纯关键词路径逐字节相同 |
 | [0091](ADR-0091-summary-digest-in-context.md) | 把经历摘要正文接进角色上下文 | **Accepted**；摘要正文随连续性段给模型，只取 Tail 起点之前、从最近往前受档位预算约束；不生成第二套摘要，但 supersede ADR-0068 中"Checkpoint 段不含经历正文"的边界 |
 | [0092](ADR-0092-epoch-snapshot-append-only-history.md) | Epoch 快照与只追加的第二层 | **Proposed**；基线冻结、其后事件只追加，第二层预算为档位请求预算的一半、越界才整体前移一次；`recentInteractionBlocks` 数值不变但含义变为"重建时保留多少块" |
-| [0093](ADR-0093-interaction-definition-abstraction.md) | 交互定义抽象、按需交互包与目标自声明 | **Proposed**；方案 V0.2：交互定义、目标绑定、参与者角色、表现/持续状态和来源化反应；仅 I0 黄金部分已实施，通用 Kernel 不再新增动作名分支；局部 supersede ADR-0086 的固定 operation 与包外目录入口、ADR-0087 的 `hand_hold` 专用关系实现，仅对新版本生效 |
+| [0093](ADR-0093-interaction-definition-abstraction.md) | 交互定义抽象、按需交互包与目标自声明 | **Accepted**；2026-09-13 用户明确确认，首批迁移已有五类动作，v10 先交互；I0 Gate 关闭，I1～I5 按阶段验收 |

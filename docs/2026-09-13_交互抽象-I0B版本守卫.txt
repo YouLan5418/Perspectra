@@ -1,0 +1,48 @@
+packages\application\src\context-pipeline.ts:139:  type: 'object', schemaVersion: 'submit_director_plan/v1', maximumDirectives: 8,
+packages\application\src\player-intent-preparation.ts:25:    return { directSubmission: { version: 'player-submission/v2', sourceText: source, sourceTextHash: hashWorldJson('player-source-text/v1', source),
+packages\application\src\reaction-scheduler.ts:619:        ...(this.options.manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
+packages\application\src\reaction-scheduler.ts:667:        ...(this.options.manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
+packages\application\src\reaction-scheduler.ts:684:        ...(this.options.manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
+packages\application\src\reaction-scheduler.ts:812:      schemaVersion: this.options.manifest.schemaVersion === 9 ? 5 : manifestUsesActionGroups(this.options.manifest) ? 4 : 3,
+packages\application\src\round-coordinator.ts:1002:      schemaVersion: this.#manifest.schemaVersion === 9 ? 5 : manifestUsesActionGroups(this.#manifest) ? 4 : 2,
+packages\application\src\round-coordinator.ts:554:      && (this.#manifest.schemaVersion !== 9 || intentSubmission === undefined || inputJob!.principalId !== claimed.principalId
+packages\application\src\round-coordinator.ts:556:        || intentSubmission.version !== 'player-submission/v2' || intentSubmission.actions.some(value => value.actorId !== binding.characterId))) {
+packages\application\src\round-coordinator.ts:618:    const provisional = this.#manifest.schemaVersion === 9 ? bindPlayerProvisional(
+packages\application\src\round-coordinator.ts:770:      ...(this.#manifest.schemaVersion === 9 ? { resolutionAuthority: resolutionAuthority(
+packages\application\src\round-coordinator.ts:885:        ...(this.#manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
+packages\application\src\world-application.ts:713:      return manifest.schemaVersion === 9 && (manifest.playerInputPolicy as { version: string } | undefined)?.version === 'player-intent/v1'
+packages\contracts\src\player-submission.ts:14:  readonly version: 'player-submission/v2'
+packages\contracts\src\player-submission.ts:162:    version: 'player-submission/v2', sourceText: binding.sourceText,
+packages\kernel\src\interactions.ts:89:  return manifest.schemaVersion === 8 || manifest.schemaVersion === 9
+packages\kernel\src\interactions.ts:93:  return manifest.schemaVersion === 9
+packages\kernel\src\world-bootstrap.ts:20:    const playerInputPolicy = compiled.manifest.schemaVersion === 9
+packages\kernel\src\world-spec.ts:190:  readonly schemaVersion: 7
+packages\kernel\src\world-spec.ts:200:  readonly schemaVersion: 8
+packages\kernel\src\world-spec.ts:216:  readonly schemaVersion: 9
+packages\kernel\src\world-spec.ts:228:  return manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9
+packages\kernel\src\world-spec.ts:246:  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4 && root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9) throw new TypeError('stored Manifest schemaVersion is unsupported')
+packages\kernel\src\world-spec.ts:247:  if (root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && Object.hasOwn(root, 'reactionPolicy')) {
+packages\kernel\src\world-spec.ts:250:  if (root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && Object.hasOwn(root, 'manifestationPolicy')) {
+packages\kernel\src\world-spec.ts:253:  if (root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9) {
+packages\kernel\src\world-spec.ts:259:  if (root.schemaVersion === 8) {
+packages\kernel\src\world-spec.ts:263:  } else if (root.schemaVersion === 9) {
+packages\kernel\src\world-spec.ts:291:  if (root.schemaVersion === 3 || root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9) {
+packages\kernel\src\world-spec.ts:293:    const phase8 = root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9
+packages\kernel\src\world-spec.ts:303:    if (contentPack.schemaVersion !== (phase8 ? 2 : 1)) throw new TypeError('stored Manifest contentPack schemaVersion is unsupported')
+packages\kernel\src\world-spec.ts:359:  if (root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9) parseReactionPolicy(root.reactionPolicy)
+packages\kernel\src\world-spec.ts:360:  if (root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9) parseManifestationPolicy(root.manifestationPolicy)
+packages\kernel\src\world-spec.ts:371:  return manifest.schemaVersion === 5 || manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9
+packages\kernel\src\world-spec.ts:383:  return manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9
+packages\kernel\src\world-spec.ts:392:  return manifest.schemaVersion === 4 || manifest.schemaVersion === 5 || manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9
+packages\kernel\src\world-spec.ts:49:  readonly schemaVersion: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+packages\store-sqlite\src\world-store.ts:1001:    if (request.reactionCycle !== undefined && (request.reactionCycle.allowedActionTypes.includes('interact@1' as never) !== [8, 9].includes((activeManifest?.manifest as WorldJsonObject | undefined)?.schemaVersion as number))) throw new TypeError('Reaction Cycle interaction capability does not match Manifest')
+packages\store-sqlite\src\world-store.ts:642:    && root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7
+packages\store-sqlite\src\world-store.ts:643:    && root.schemaVersion !== 8 && root.schemaVersion !== 9) return
+packages\store-sqlite\src\world-store.ts:998:      && ![7, 8, 9].includes((activeManifest?.manifest as WorldJsonObject | undefined)?.schemaVersion as number)) {
+packages\world-pack\src\compiler.ts:1273:    const manifest = { ...base.manifest, schemaVersion: 7 as const, actionGroupPolicy, specHash }
+packages\world-pack\src\compiler.ts:1287:    const manifest = { ...base.manifest, schemaVersion: 8 as const, interactionCatalog, specHash, registries: interactionManifestRegistries() }
+packages\world-pack\src\compiler.ts:1314:      schemaVersion: 9,
+packages\world-pack\src\compiler.ts:1459:/** Canonical bytes for the immutable compiled worldpack/v4 artifact. */
+packages\world-pack\src\contracts.ts:48:export const WORLD_PACK_SOURCE_SCHEMA_VERSION_V4 = 'worldpack-source/v4' as const
+packages\world-pack\src\contracts.ts:49:export const WORLD_PACK_COMPILED_SCHEMA_VERSION_V4 = 'worldpack/v4' as const
+packages\world-pack\src\creator-cli.ts:138:    sourceSchemaVersion: 'worldpack-source/v4',

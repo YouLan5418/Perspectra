@@ -1,0 +1,11 @@
+{
+  "name": "@harness-world/interactions-basic",
+  "version": "0.3.1",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@harness-world/contracts": "workspace:*",
+    "@harness-world/interaction-runtime": "workspace:*"
+  }
+}
