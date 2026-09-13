@@ -1,7 +1,7 @@
 import {
   deterministicId, hashWorldJson,
   type InteractionDefinitionImplementation, type InteractionDefinitionSpec,
-  type InteractionDerivedResolverImplementation,
+  type InteractionDerivedResolverImplementation, type InteractionLifecycleHandlerImplementation,
   type InteractionEffectImplementation, type InteractionExecutionContext, type InteractionImplementationLock,
   type InteractionPackageImplementation, type InteractionPerformanceImplementation, type InteractionRef,
   type InteractionRole, type InteractionRuleImplementation, type WorldEventDraft, type WorldJsonObject,
@@ -163,6 +163,51 @@ const resolvers: readonly InteractionDerivedResolverImplementation[] = [
     ? null : { kind: 'character', id: participant(context, 'targetId')! } },
 ]
 
+type Lifecycle = Parameters<InteractionLifecycleHandlerImplementation['build']>[0]
+
+function participantState(context: Lifecycle, id: unknown): WorldJsonObject | undefined {
+  return typeof id === 'string'
+    ? context.host.targets.find(entry => entry.ref.kind === 'character' && entry.ref.id === id)?.state
+    : undefined
+}
+
+/** Out of reach means either participant is gone, inactive, or no longer sharing a place and scene. */
+function outOfReach(context: Lifecycle, state: WorldJsonObject): boolean {
+  const initiator = participantState(context, state.initiatorId)
+  const target = participantState(context, state.targetId)
+  if (initiator === undefined || target === undefined) return true
+  if (initiator.lifecycle !== 'active' || target.lifecycle !== 'active') return true
+  const scenes = Array.isArray(initiator.sceneIds) ? initiator.sceneIds : []
+  const others = Array.isArray(target.sceneIds) ? target.sceneIds : []
+  return initiator.locationId !== target.locationId || !others.some(scene => scenes.includes(scene))
+}
+
+/**
+ * The step the Host runs after a move. Contact ends once its two participants are no longer in each
+ * other's reach; the generic runtime never learns what contact means, it only enforces phase order,
+ * event closure and the fold budget, and this handler reads the relation generically rather than by
+ * relation kind.
+ */
+const endOnMove: InteractionLifecycleHandlerImplementation = {
+  lock: implementation('contact:end-on-move'),
+  phase: 'relation-end',
+  eventTypes: [ref('character.relation-ended')],
+  build: context => context.host.targets
+    .filter(entry => entry.ref.kind === 'relation' && entry.state.active === true && outOfReach(context, entry.state))
+    .map(entry => ({
+      eventType: 'character.relation-ended', eventVersion: 1,
+      data: {
+        relationId: entry.ref.id,
+        endedByCharacterId: entry.state.initiatorId as string,
+        reason: participantState(context, entry.state.initiatorId)?.lifecycle === 'active'
+          && participantState(context, entry.state.targetId)?.lifecycle === 'active'
+          ? 'participant_moved' : 'participant_unavailable',
+      },
+    })),
+}
+
+const lifecycle: readonly InteractionLifecycleHandlerImplementation[] = [endOnMove]
+
 const effects: readonly InteractionEffectImplementation[] = [
   effect('base:take-effect', context => ({ holderId: context.roles.actor!.id, locationId: null })),
   effect('base:drop-effect', context => ({ holderId: null, locationId: state(context, 'actor').locationId as string })),
@@ -210,19 +255,20 @@ const contactTargetRole: InteractionRole = { name: 'target', kind: 'character', 
  * event never means consent - it means the relation exists and either side may end it.
  */
 function contactDefinition(id: string, roles: readonly InteractionRole[], preconditions: readonly string[],
-  spatial: readonly string[], effectId: string, authority: string): InteractionDefinitionImplementation {
+  spatial: readonly string[], effectId: string, authority: string,
+  lifecycleRefs: readonly InteractionRef[] = []): InteractionDefinitionImplementation {
   const spec: InteractionDefinitionSpec = { versionTag: 'interaction-definition/v1', id, version: 1,
     participantRoles: roles, argumentSchema: { fields: [] }, bindingConfigSchema: { fields: [] },
     authorityPolicyRef: ref(authority), preconditions: preconditions.map(ref), spatialRequirementRefs: spatial.map(ref),
     effectBuilderRef: ref(effectId), effectCapabilityRefs: [ref(effectId)], dependencyRefs: [],
-    performancePolicyRef: ref('base:no-performance'), lifecycleRefs: [], limits: { maximumEvents: 1 },
+    performancePolicyRef: ref('base:no-performance'), lifecycleRefs, limits: { maximumEvents: 1 },
   }
   return { spec, implementationHash: implementation(id).implementationHash }
 }
 
 /** I1 object slice plus the I3 contact slice, through the same contract. */
 export function createBasicInteractionPackage(): InteractionPackageImplementation {
-  const contents = { rules, effects, resolvers, lifecycle: [], performances: [noPerformance], definitions: [
+  const contents = { rules, effects, resolvers, lifecycle, performances: [noPerformance], definitions: [
     definition('base:take', ['base:item-unheld'], 'base:take-effect', false),
     definition('base:drop', ['base:item-held'], 'base:drop-effect', false),
     definition('base:give', ['base:item-held', 'base:recipient-active'], 'base:give-effect', true),
@@ -231,7 +277,7 @@ export function createBasicInteractionPackage(): InteractionPackageImplementatio
       [], 'contact:start-effect', 'base:player-immediate'),
     contactDefinition('base:end-contact', [actor, contactRole, initiatorRole, contactTargetRole],
       ['contact:active', 'contact:participant'],
-      [], 'contact:end-effect', 'base:actor-active'),
+      [], 'contact:end-effect', 'base:actor-active', [ref('contact:end-on-move')]),
   ] }
   return { lock: { ref: ref('package:interactions-basic'), dependencies: [], implementationHash: interactionPackageHash(contents) }, ...contents }
 }

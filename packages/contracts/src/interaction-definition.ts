@@ -163,11 +163,17 @@ export type InteractionLifecyclePhase = typeof INTERACTION_LIFECYCLE_PHASES[numb
  * returns the events it adds; returning none means it has nothing to do on this fold. Like an
  * effect it declares the event types it may produce, so a pack cannot reach outside its domain.
  */
+export interface InteractionLifecycleContext extends WorldJsonObject {
+  readonly host: InteractionHostContext
+  /** Candidate events so far, including what earlier fold steps produced. */
+  readonly events: readonly WorldEventDraft[]
+}
+
 export interface InteractionLifecycleHandlerImplementation {
   readonly lock: InteractionImplementationLock
   readonly phase: InteractionLifecyclePhase
   readonly eventTypes: readonly InteractionRef[]
-  readonly build: (context: InteractionExecutionContext, events: readonly WorldEventDraft[]) => readonly WorldEventDraft[]
+  readonly build: (context: InteractionLifecycleContext) => readonly WorldEventDraft[]
 }
 
 /** A registered, locked policy. The runtime only narrows submitted cues against it. */

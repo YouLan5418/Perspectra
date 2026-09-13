@@ -279,6 +279,76 @@ describe('contact relation domain', () => {
     expect(held.resolve(incomplete, request('base:end-contact', shared, 'binding:held-release')).reason).toBe('PARTICIPANT_NOT_AUTHORIZED')
   })
 
+  it('ends a relation once its participants are no longer in reach, without an interaction', () => {
+    const held = runtime()
+    // The Host runs the world fold after a move and hands in the post-move snapshot: alice left.
+    const moved = host(true, {
+      targets: [
+        { ref: { kind: 'character', id: actor }, state: character(actor) },
+        { ref: alice, state: character('character:alice', 'location:elsewhere') },
+        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
+      ],
+      authorizedTargets: [alice, shared],
+    })
+    const ended = held.fold(moved, [])
+    expect(ended).toHaveLength(1)
+    expect(ended[0]).toEqual({ eventType: 'character.relation-ended', eventVersion: 1,
+      data: { relationId: 'relation:held', endedByCharacterId: actor, reason: 'participant_moved' } })
+    // Still together: the fold has nothing to end, and a fold with no relation is equally quiet.
+    expect(held.fold(host(true), [])).toEqual([])
+    const withoutRelation = host(true, {
+      targets: [
+        { ref: { kind: 'character', id: actor }, state: character(actor) },
+        { ref: alice, state: character('character:alice') },
+      ],
+      authorizedTargets: [alice],
+    })
+    expect(held.fold(withoutRelation, [])).toEqual([])
+  })
+
+  it('ends a relation whose participant is no longer active, and rejects a fold outside this World', () => {
+    const held = runtime()
+    const gone = host(true, {
+      targets: [
+        { ref: { kind: 'character', id: actor }, state: character(actor) },
+        { ref: alice, state: { lifecycle: 'departed', locationId: 'location:hall', sceneIds: ['scene:hall'] } },
+        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
+      ],
+      authorizedTargets: [alice, shared],
+    })
+    expect((held.fold(gone, [])[0]!.data as { reason: string }).reason).toBe('participant_unavailable')
+    expect(() => held.fold({ ...gone, address: { ...address, worldId: brandId('world:other', 'WorldId') } }, [])).toThrow(/WorldAddress/u)
+    expect(() => held.fold({ ...gone, authorizedTargets: [{ kind: 'entity', id: 'entity:missing' }] }, [])).toThrow(/authorization set/u)
+  })
+
+  it('treats a relation it cannot read as out of reach rather than guessing', () => {
+    const held = runtime()
+    const malformed = host(true, {
+      targets: [
+        { ref: { kind: 'character', id: actor }, state: character(actor) },
+        { ref: alice, state: character('character:alice') },
+        // A participant id that is not a string, and a pair whose other side never made the snapshot.
+        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: 42, targetId: 'character:alice', active: true } },
+        { ref: { kind: 'relation', id: 'relation:ghost' },
+          state: { relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:nobody', active: true } },
+      ],
+      authorizedTargets: [alice, shared],
+    })
+    const ended = held.fold(malformed, [])
+    expect(ended.map(event => event.data).map(data => (data as { relationId: string }).relationId).sort())
+      .toEqual(['relation:ghost', 'relation:held'])
+    // Characters without a scene list share no scene, so a same-location pair is still out of reach.
+    const sceneless = host(true, {
+      targets: [
+        { ref: { kind: 'character', id: actor }, state: { lifecycle: 'active', locationId: 'location:hall' } },
+        { ref: alice, state: { lifecycle: 'active', locationId: 'location:hall' } },
+        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
+      ],
+      authorizedTargets: [alice, shared],
+    })
+    expect(held.fold(sceneless, [])).toHaveLength(1)
+  })
+
   it('refuses to enable a contact definition whose derived resolver is not installed', () => {
     const registry = new InteractionRegistry()
     const stripped = { ...pack, resolvers: [], lock: { ...pack.lock } as InteractionImplementationLock }

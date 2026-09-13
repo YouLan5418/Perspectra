@@ -82,6 +82,8 @@ export function resolvePerformance(policy: InteractionPerformancePolicyV1, value
 
 /** Fold budget from the frozen interaction-limits/v1 profile: exceeding it fails the whole group. */
 const MAXIMUM_LIFECYCLE_CALLS = 256
+/** A world fold runs without a definition, so it uses the per-action event scale from the profile. */
+const MAXIMUM_LIFECYCLE_EVENTS = 16
 /** Per-character public option budget, from the frozen interaction-limits/v1 profile. */
 const MAXIMUM_VIEW_OPTIONS = 128
 /** Per-binding argument combination budget, from the same profile. */
@@ -364,6 +366,8 @@ export class InteractionRegistry {
 export class FrozenInteractionWorld {
   readonly definitionSetHash: WorldHash
 
+  readonly #worldLifecyclePlan: readonly InteractionLifecycleHandlerImplementation[]
+
   constructor(
     readonly selection: InteractionWorldSelection,
     private readonly definitions: ReadonlyMap<string, InteractionDefinitionImplementation>,
@@ -373,7 +377,13 @@ export class FrozenInteractionWorld {
     private readonly resolvers: ReadonlyMap<string, InteractionDerivedResolverImplementation>,
     private readonly handlers: ReadonlyMap<string, InteractionLifecycleHandlerImplementation>,
     private readonly performances: ReadonlyMap<string, InteractionPerformanceImplementation>,
-  ) { this.definitionSetHash = hashWorldJson('interaction-world-selection/v1', selection) }
+  ) {
+    this.definitionSetHash = hashWorldJson('interaction-world-selection/v1', selection)
+    // The world fold is the union of every enabled definition's handlers: the Host runs it after an
+    // action that belongs to no definition, and each handler decides from the snapshot whether it
+    // applies at all.
+    this.#worldLifecyclePlan = this.#lifecyclePlan([...definitions.values()].flatMap(entry => entry.spec.lifecycleRefs))
+  }
 
   resolve(inputHost: InteractionHostContext, input: unknown): InteractionAdjudication {
     const host = immutable(inputHost)
@@ -427,12 +437,21 @@ export class FrozenInteractionWorld {
     // The fold runs only after the action's own candidate exists, and every step sees what the steps
     // before it produced. Each handler runs at most once per fold, so "once per handler, instance and
     // source event" holds by construction rather than by a visited set.
-    const foldSteps = this.#lifecyclePlan(def)
-    if (foldSteps.length > MAXIMUM_LIFECYCLE_CALLS) throw new TypeError('lifecycle fold exceeds the budget')
-    let folded: readonly WorldEventDraft[] = events
-    for (const handler of foldSteps) {
-      const added = immutable(handler.build(resolved, folded))
-      list(added, def.limits.maximumEvents)
+    return finish('accepted', this.#fold(host, this.#lifecyclePlan(def.lifecycleRefs), events, def.limits.maximumEvents), performance)
+  }
+
+  /**
+   * Run the frozen phase plan over a candidate event set. Each handler runs at most once per fold,
+   * which holds by construction because the plan is a set sorted once. A handler that adds nothing
+   * leaves the candidates untouched rather than re-emitting them.
+   */
+  #fold(host: InteractionHostContext, plan: readonly InteractionLifecycleHandlerImplementation[],
+    events: readonly WorldEventDraft[], maximumEvents: number): readonly WorldEventDraft[] {
+    if (plan.length > MAXIMUM_LIFECYCLE_CALLS) throw new TypeError('lifecycle fold exceeds the budget')
+    let folded = events
+    for (const handler of plan) {
+      const added = immutable(handler.build(immutable({ host, events: folded })))
+      list(added, maximumEvents)
       for (const event of added) {
         object(event, ['eventType', 'eventVersion', 'data'])
         if (!handler.eventTypes.some(ref => ref.id === event.eventType && ref.version === event.eventVersion)) {
@@ -441,14 +460,14 @@ export class FrozenInteractionWorld {
       }
       if (added.length > 0) folded = immutable([...folded, ...added])
     }
-    return finish('accepted', folded, performance)
+    return folded
   }
 
   /**
-   * The handlers one action runs, in the frozen order. Only handler dependencies join the closure:
-   * a rule or effect a handler happens to share is not a fold step.
+   * The handlers a set of references reaches, in the frozen order. Only handler dependencies join the
+   * closure: a rule or effect a handler happens to share is not a fold step.
    */
-  #lifecyclePlan(def: InteractionDefinitionSpec): readonly InteractionLifecycleHandlerImplementation[] {
+  #lifecyclePlan(refs: readonly InteractionRef[]): readonly InteractionLifecycleHandlerImplementation[] {
     const selected = new Map<string, InteractionLifecycleHandlerImplementation>()
     const collect = (handler: InteractionLifecycleHandlerImplementation): void => {
       const id = key(handler.lock.ref)
@@ -459,8 +478,25 @@ export class FrozenInteractionWorld {
         if (next !== undefined) collect(next)
       }
     }
-    for (const ref of def.lifecycleRefs) collect(this.handlers.get(key(ref))!)
+    for (const ref of refs) collect(this.handlers.get(key(ref))!)
     return [...selected.values()].sort(compareLifecycleHandlers)
+  }
+
+  /**
+   * Run the world's fold outside any interaction. A move is not an interaction, yet it ends relations
+   * whose participants left each other's reach, so the Host runs this after such an action and hands
+   * in the post-action snapshot.
+   */
+  fold(inputHost: InteractionHostContext, events: readonly WorldEventDraft[]): readonly WorldEventDraft[] {
+    const host = immutable(inputHost)
+    object(host, ['address', 'manifestHash', 'asOfWorldSeq', 'candidatePrefixHash', 'actionId', 'actorId', 'authority', 'targets', 'authorizedTargets'])
+    object(host.address, ['tenantId', 'worldId', 'branchId'])
+    if (worldAddressKey(host.address) !== worldAddressKey(this.selection.address)) throw new TypeError('interaction WorldAddress mismatch')
+    hash(host.manifestHash); hash(host.candidatePrefixHash); integer(host.asOfWorldSeq, 0, Number.MAX_SAFE_INTEGER)
+    text(host.actionId); text(host.actorId); validateResolutionAuthority(host.authority)
+    snapshot(host)
+    list(events, MAXIMUM_LIFECYCLE_EVENTS)
+    return this.#fold(host, this.#worldLifecyclePlan, immutable(events), MAXIMUM_LIFECYCLE_EVENTS)
   }
 
   /**
