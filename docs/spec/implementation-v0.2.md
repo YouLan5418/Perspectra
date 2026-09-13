@@ -3,10 +3,12 @@
 > 文档版本：1.0.0  
 > 日期：2026-08-21  
 > 状态：实现前最终收敛基线  
-> 上游架构：[V0 技术设计 1.1.0](./2026-08-21_技术设计-Harness-Cordis-World-V0-report.md)  
-> 源码调研：[Harness / Cordis 源码调研报告](./2026-08-21_源码调研-Harness-Cordis-report.md)  
-> 外部复核输入：[其他模型意见汇总](./新建文本文档.txt)  
+> 上游架构：V0 技术设计 1.1.0（外部文档 `2026-08-21_技术设计-Harness-Cordis-World-V0-report.md`）  
+> 源码调研：Harness / Cordis 源码调研报告（外部文档 `2026-08-21_源码调研-Harness-Cordis-report.md`）  
+> 外部复核输入：其他模型意见汇总（外部文档 `2026-08-21_其他模型意见汇总.md`）  
 > 调研源码：<code>deepseek-harness-dsh-v0.1.1-rc.1</code>
+
+> 上游输入可见性：上面列出的上游架构、源码调研与外部复核输入三份文档，加上被「V0 技术设计 1.1.0」引用为架构上下文的《项目上下文与架构决策说明（修订版）》，以及调研源码目录，全部位于本仓库之外的机器目录，**从未纳入版本控制**。因此这里只记文件名、不提供仓库内链接；证据表中的 E-007～E-009 以这些外部文件为准，复核时需另行取得。上游设计稿是否入库不由本文决定，此处只如实记录现状。
 
 > 实现警告：本文是设计和实现契约，不表示代码已经完成。当前没有执行 WorldStore 压测、Session 原子幂等 Adapter 原型、TencentDB 契约测试、跨平台 Golden Hash、子进程崩溃矩阵或真实模型成本基准。任何 P0 验证失败都必须先修订 ADR，不能用弱化不变量的方式绕过。
 
@@ -24,7 +26,7 @@ Accepted ADR
 → 源码调研报告
 ~~~
 
-若本文与 V0 技术设计 1.1.0 冲突，以本文为准；没有被本文修改的 1.1.0 条款继续有效。本文不修改 Harness/Cordis 源码，也不创建文中规划的 ADR 文件。
+若本文与 V0 技术设计 1.1.0 冲突，以本文为准；没有被本文修改的 1.1.0 条款继续有效。本文不修改 Harness/Cordis 源码，也不创建文中规划的 ADR 文件。优先级链中除 Accepted ADR 与本文之外的三份文档都在仓库外，无法从本仓库点开或校验版本（见文首「上游输入可见性」）。
 
 V0.2 在本文中仍然表示 V0 的设计收敛版本，不代表对外发布的产品版本。
 
@@ -917,8 +919,8 @@ ADR Accepted 后不得直接修改同一决定；改变方向创建新 ADR super
 | E-005 | Harness Session SQLite Backend 使用 Node 内置 node:sqlite DatabaseSync | <code>packages/session/session-persistence-sqlite/src/schema.ts</code>、<code>store.ts</code> |
 | E-006 | 源码根 package 固定 pnpm 11.7.0，Node engine 为 22.19 或 24+，项目使用 ESM | <code>deepseek-harness-dsh-v0.1.1-rc.1/package.json</code> |
 | E-007 | Harness 已有 Provider/Adapter、LLM Replay、CLI/Headless/JSON-RPC 和 SQLite 能力 | 源码调研报告、<code>packages/*</code>、<code>apps/*</code> |
-| E-008 | 外部复核集中指出玩家路径、Round 活性、Observation、Hash、WorldSpec、投递顺序和演进缺口 | <code>新建文本文档.txt</code> |
-| E-009 | V0 技术设计已确立 WorldLog 权威、单 Writer、TURN_DRIVEN、时态 Projection 和 Memory 非权威边界 | <code>2026-08-21_技术设计-Harness-Cordis-World-V0-report.md</code> |
+| E-008 | 外部复核集中指出玩家路径、Round 活性、Observation、Hash、WorldSpec、投递顺序和演进缺口 | <code>2026-08-21_其他模型意见汇总.md</code>（仓库外） |
+| E-009 | V0 技术设计已确立 WorldLog 权威、单 Writer、TURN_DRIVEN、时态 Projection 和 Memory 非权威边界 | <code>2026-08-21_技术设计-Harness-Cordis-World-V0-report.md</code>（仓库外） |
 
 ### 27.2 Findings
 
@@ -1010,9 +1012,11 @@ Path P-003：从持久化历史恢复或创建子 Branch。
 ## 29. 只读复核命令
 
 ~~~powershell
+# $root 视本机实际布局而定：它同时容纳本仓库、调研源码与仓库外的上游文档
 $root = 'D:\DeepSeek Harness'
 $src = Join-Path $root 'deepseek-harness-dsh-v0.1.1-rc.1'
-$doc = Join-Path $root '2026-08-21_实施规格-Harness-Cordis-World-V0.2-report.md'
+# $doc 指向仓库内的权威文件；仓库外那份《实施规格》是它入库前的原件，已不再单独维护
+$doc = Join-Path $root 'harness-cordis-world-v0\docs\spec\implementation-v0.2.md'
 
 Get-Content -LiteralPath (Join-Path $src 'package.json') -Raw -Encoding UTF8
 Select-String -Path "$src\vendor\cordis\src\context.ts","$src\vendor\cordis\src\reflect.ts","$src\vendor\cordis\src\events.ts" -Pattern 'isolate\(|symbols\.isolate|Context\.filter|global'
