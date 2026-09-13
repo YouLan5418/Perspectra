@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import { Ajv } from 'ajv'
 import {
-  brandId, hashWorldJson,
+  brandId, createInteractionArgumentSchema, createInteractionRequestSchema, hashWorldJson,
   type CharacterId, type InteractionBindingV3, type InteractionDefinitionImplementation,
   type InteractionDefinitionSpec, type InteractionEffectImplementation, type InteractionImplementationLock,
-  type InteractionPackageImplementation, type InteractionRef, type InteractionRole,
-  type InteractionRuleImplementation, type InteractionViewContext,
+  type InteractionPackageImplementation, type InteractionParameterSchema, type InteractionRef,
+  type InteractionRole, type InteractionRuleImplementation, type InteractionViewContext,
   type WorldAddress, type WorldEventDraft, type WorldJsonObject,
 } from '@harness-world/contracts'
 import { InteractionRegistry, interactionPackageHash, type FrozenInteractionWorld } from './registry.ts'
+import { parameters } from './validation.ts'
 
 const address: WorldAddress = {
   tenantId: brandId('tenant:view', 'TenantId'),
@@ -132,6 +134,90 @@ function context(over: Partial<InteractionViewContext> = {}): InteractionViewCon
     viewPolicyHash, targets, authorizedTargets, ...over,
   }
 }
+
+describe('model schema and host validation share one source', () => {
+  const configured: InteractionDefinitionSpec = {
+    versionTag: 'interaction-definition/v1', id: 'fixture:configured', version: 1,
+    participantRoles: [actorRole, itemRole],
+    argumentSchema: { fields: [
+      { name: 'tone', type: 'string', maxBytes: 16, values: ['soft', 'firm'] },
+      { name: 'strict', type: 'boolean' },
+      { name: 'attempts', type: 'integer', minimum: 1, maximum: 3 },
+    ] },
+    bindingConfigSchema: { fields: [] },
+    authorityPolicyRef: ref('fixture:public'), preconditions: [ref('fixture:public')],
+    spatialRequirementRefs: [], effectBuilderRef: ref('fixture:effect'), effectCapabilityRefs: [ref('fixture:effect')],
+    dependencyRefs: [], limits: { maximumEvents: 1 },
+  }
+
+  it('accepts every offered option and rejects a mismatched triple', () => {
+    const view = instantiate().view(context())
+    const validate = new Ajv({ strict: false }).compile(createInteractionRequestSchema(view))
+    for (const option of view.options) {
+      expect(validate(option), JSON.stringify(option)).toBe(true)
+    }
+    const first = view.options[0]!
+    const other = view.options.find(option => option.bindingId !== first.bindingId)!
+    // A right target with someone else's binding and definition is a cartesian mix, not an option.
+    expect(validate({ ...first, bindingId: other.bindingId, definitionRef: other.definitionRef })).toBe(false)
+    expect(validate({ ...first, targetRef: { kind: 'entity', id: 'entity:door' } })).toBe(false)
+    expect(validate({ ...first, arguments: { ...first.arguments, extra: true } })).toBe(false)
+    expect(validate({ targetRef: first.targetRef, bindingId: first.bindingId })).toBe(false)
+  })
+
+  it('rejects an argument value outside the domain the view offered', () => {
+    const view = instantiate().view(context())
+    const give = view.options.find(option => option.definitionRef.id === 'fixture:give')!
+    const validate = new Ajv({ strict: false }).compile(createInteractionRequestSchema(view))
+    expect(validate(give)).toBe(true)
+    expect(validate({ ...give, arguments: { recipientId: 'character:mallory' } })).toBe(false)
+    expect(validate({ ...give, arguments: {} })).toBe(false)
+  })
+
+  it('accepts nothing when the character has nothing to attempt', () => {
+    const view = instantiate().view(context({ authorizedTargets: [] }))
+    expect(view.options).toEqual([])
+    const validate = new Ajv({ strict: false }).compile(createInteractionRequestSchema(view))
+    expect(validate({ targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:cup-use', definitionRef: ref('fixture:use'), arguments: {} })).toBe(false)
+  })
+
+  it('keeps every host-accepted argument set schema-valid across the field sweep', () => {
+    const validate = new Ajv({ strict: false }).compile(createInteractionArgumentSchema(configured.argumentSchema))
+    const candidates: readonly unknown[] = [
+      { tone: 'soft', strict: true, attempts: 1 },
+      { tone: 'firm', strict: false, attempts: 3 },
+      { tone: 'loud', strict: true, attempts: 1 },
+      { tone: 'soft', strict: 'yes', attempts: 1 },
+      { tone: 'soft', strict: true, attempts: 0 },
+      { tone: 'soft', strict: true, attempts: 4 },
+      { tone: 'soft', strict: true, attempts: 1.5 },
+      { tone: 'soft', strict: true },
+      { tone: 'soft', strict: true, attempts: 1, extra: 1 },
+      {},
+    ]
+    let accepted = 0
+    for (const candidate of candidates) {
+      let hostAccepts = true
+      try { parameters(configured.argumentSchema, candidate) } catch { hostAccepts = false }
+      if (hostAccepts) accepted++
+      expect(hostAccepts && !validate(candidate), JSON.stringify(candidate)).toBe(false)
+    }
+    // The sweep is only evidence if it actually exercises both sides.
+    expect(accepted).toBe(2)
+    expect(validate({ tone: 'soft', strict: true, attempts: 1 })).toBe(true)
+  })
+
+  it('treats a free string as a byte bound, which is the safe direction', () => {
+    const free: InteractionParameterSchema = { fields: [{ name: 'label', type: 'string', maxBytes: 4, values: [] }] }
+    const validate = new Ajv({ strict: false }).compile(createInteractionArgumentSchema(free))
+    // Four Chinese characters are twelve UTF-8 bytes, so the host rejects what the schema allows.
+    expect(validate({ label: '中文中文' })).toBe(true)
+    expect(() => parameters(free, { label: '中文中文' })).toThrow(/parameter/u)
+    // The direction that must always hold: nothing the host accepts is schema-invalid.
+    expect(validate({ label: 'ab' })).toBe(true)
+    expect(() => parameters(free, { label: 'abcd' })).not.toThrow()
+  })
+})
 
 describe('character interaction view', () => {
   it('lists visible characters, visible items and options as three separate sets', () => {
