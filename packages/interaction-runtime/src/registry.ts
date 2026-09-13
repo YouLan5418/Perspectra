@@ -1,15 +1,15 @@
 import {
-  ACTION_GROUP_CUES, compareWorldText, hashWorldJson, validateResolutionAuthority, worldAddressKey,
+  ACTION_GROUP_CUES, INTERACTION_LIFECYCLE_PHASES, compareWorldText, hashWorldJson, validateResolutionAuthority, worldAddressKey,
   type ActionGroupCue,
   type InteractionAdjudication, type InteractionBindingV3, type InteractionCharacterView,
   type InteractionDefinitionImplementation,
   type InteractionDefinitionSpec, type InteractionEffectImplementation, type InteractionExecutionContext,
   type InteractionHostContext, type InteractionImplementationLock, type InteractionPackageImplementation,
-  type InteractionDerivedResolverImplementation,
+  type InteractionDerivedResolverImplementation, type InteractionLifecycleHandlerImplementation,
   type InteractionPerformance, type InteractionPerformanceImplementation, type InteractionPerformancePolicyV1,
   type InteractionRef, type InteractionRequestV2, type InteractionRuleImplementation,
   type InteractionTargetRef, type InteractionViewContext, type InteractionViewOption,
-  type InteractionWorldSelection, type WorldHash, type WorldJsonObject, type WorldJsonValue,
+  type InteractionWorldSelection, type WorldEventDraft, type WorldHash, type WorldJsonObject, type WorldJsonValue,
 } from '@harness-world/contracts'
 import { immutable, integer, key, list, object, parameterSchema, parameters, reference, target, targetKey, text } from './validation.ts'
 
@@ -80,10 +80,18 @@ export function resolvePerformance(policy: InteractionPerformancePolicyV1, value
     : { independent, onSuccess: distinctOnSuccess })
 }
 
+/** Fold budget from the frozen interaction-limits/v1 profile: exceeding it fails the whole group. */
+const MAXIMUM_LIFECYCLE_CALLS = 256
 /** Per-character public option budget, from the frozen interaction-limits/v1 profile. */
 const MAXIMUM_VIEW_OPTIONS = 128
 /** Per-binding argument combination budget, from the same profile. */
 const MAXIMUM_ARGUMENT_COMBINATIONS = 64
+
+/** The frozen fold order: phase first, then exact handler id to break ties inside a phase. */
+function compareLifecycleHandlers(left: InteractionLifecycleHandlerImplementation, right: InteractionLifecycleHandlerImplementation): number {
+  return INTERACTION_LIFECYCLE_PHASES.indexOf(left.phase) - INTERACTION_LIFECYCLE_PHASES.indexOf(right.phase)
+    || compareWorldText(key(left.lock.ref), key(right.lock.ref))
+}
 
 function compareTargets(left: InteractionTargetRef, right: InteractionTargetRef): number {
   return compareWorldText(left.kind, right.kind) || compareWorldText(left.id, right.id)
@@ -155,7 +163,7 @@ function argumentCombinations(
 }
 
 function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec {
-  object(value, ['versionTag', 'id', 'version', 'participantRoles', 'argumentSchema', 'bindingConfigSchema', 'authorityPolicyRef', 'preconditions', 'spatialRequirementRefs', 'effectBuilderRef', 'effectCapabilityRefs', 'dependencyRefs', 'performancePolicyRef', 'limits'])
+  object(value, ['versionTag', 'id', 'version', 'participantRoles', 'argumentSchema', 'bindingConfigSchema', 'authorityPolicyRef', 'preconditions', 'spatialRequirementRefs', 'effectBuilderRef', 'effectCapabilityRefs', 'dependencyRefs', 'performancePolicyRef', 'lifecycleRefs', 'limits'])
   if (value.versionTag !== 'interaction-definition/v1') throw new TypeError('unsupported definition contract')
   reference({ id: value.id, version: value.version })
   parameterSchema(value.argumentSchema); parameterSchema(value.bindingConfigSchema)
@@ -184,7 +192,7 @@ function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec
   if (actors !== 1 || primary !== 1) throw new TypeError('one actor and primary target required')
   for (const role of value.participantRoles) if (role.distinctFrom.some(name => !names.has(name))) throw new TypeError('unknown distinct role')
   reference(value.authorityPolicyRef); reference(value.effectBuilderRef); reference(value.performancePolicyRef)
-  refs(value.preconditions, 16); refs(value.spatialRequirementRefs, 16); refs(value.effectCapabilityRefs, 16); refs(value.dependencyRefs, 64)
+  refs(value.preconditions, 16); refs(value.spatialRequirementRefs, 16); refs(value.effectCapabilityRefs, 16); refs(value.dependencyRefs, 64); refs(value.lifecycleRefs, 16)
   if (!value.effectCapabilityRefs.some(ref => key(ref) === key(value.effectBuilderRef))) throw new TypeError('effect capability missing')
   object(value.limits, ['maximumEvents']); integer(value.limits.maximumEvents, 1, 16)
   return immutable(value)
@@ -194,7 +202,7 @@ function definitionDependencies(spec: InteractionDefinitionSpec): readonly Inter
   return [spec.authorityPolicyRef, ...spec.preconditions, ...spec.spatialRequirementRefs, spec.effectBuilderRef,
     ...spec.effectCapabilityRefs, spec.performancePolicyRef,
     ...spec.participantRoles.flatMap(role => role.source.kind === 'derived' ? [role.source.resolver] : []),
-    ...spec.dependencyRefs]
+    ...spec.lifecycleRefs, ...spec.dependencyRefs]
 }
 
 /** Published package contract binds every component lock and definition description. */
@@ -204,6 +212,7 @@ export function interactionPackageHash(input: Omit<InteractionPackageImplementat
     rules: ordered(input.rules, rule => key(rule.lock.ref)).map(rule => rule.lock),
     effects: ordered(input.effects, effect => key(effect.lock.ref)).map(effect => ({ lock: effect.lock, eventTypes: effect.eventTypes })),
     resolvers: ordered(input.resolvers, entry => key(entry.lock.ref)).map(entry => entry.lock),
+    lifecycle: ordered(input.lifecycle, entry => key(entry.lock.ref)).map(entry => ({ lock: entry.lock, phase: entry.phase, eventTypes: entry.eventTypes })),
     performances: ordered(input.performances, entry => key(entry.lock.ref)).map(entry => ({ lock: entry.lock, policy: entry.policy })),
     definitions: ordered(input.definitions, def => key({ id: def.spec.id, version: def.spec.version })).map(def => ({ spec: def.spec, implementationHash: def.implementationHash })),
   })
@@ -233,6 +242,14 @@ export class InteractionRegistry {
       if (typeof entry.resolve !== 'function') throw new TypeError('derived resolver implementation missing')
       return Object.freeze({ lock: lock(entry.lock), resolve: entry.resolve })
     })
+    const lifecycle = list(input.lifecycle, 64).map(value => {
+      const entry = value as InteractionLifecycleHandlerImplementation
+      if (typeof entry.build !== 'function') throw new TypeError('lifecycle handler implementation missing')
+      if (!(INTERACTION_LIFECYCLE_PHASES as readonly string[]).includes(entry.phase)) throw new TypeError('unknown lifecycle phase')
+      const eventTypes = refs(entry.eventTypes, 16)
+      if (eventTypes.some(ref => ref.id === 'character.moved')) throw new TypeError('lifecycle cannot own movement')
+      return Object.freeze({ lock: lock(entry.lock), phase: entry.phase, eventTypes: immutable(eventTypes), build: entry.build })
+    })
     const performances = list(input.performances, 128).map(value => {
       const entry = value as InteractionPerformanceImplementation
       return Object.freeze({ lock: lock(entry.lock), policy: performancePolicy(entry.policy) })
@@ -241,13 +258,14 @@ export class InteractionRegistry {
       const def = value as InteractionDefinitionImplementation
       return Object.freeze({ spec: definition(def.spec), implementationHash: hash(def.implementationHash) })
     })
-    if (packageLock.implementationHash !== interactionPackageHash({ rules, effects, resolvers, performances, definitions })) throw new TypeError('package component lock drift')
+    if (packageLock.implementationHash !== interactionPackageHash({ rules, effects, resolvers, lifecycle, performances, definitions })) throw new TypeError('package component lock drift')
     const identities = [key(packageLock.ref), ...rules.map(value => key(value.lock.ref)), ...effects.map(value => key(value.lock.ref)),
-      ...resolvers.map(value => key(value.lock.ref)), ...performances.map(value => key(value.lock.ref)),
+      ...resolvers.map(value => key(value.lock.ref)), ...lifecycle.map(value => key(value.lock.ref)),
+      ...performances.map(value => key(value.lock.ref)),
       ...definitions.map(value => key({ id: value.spec.id, version: value.spec.version }))]
     if (new Set(identities).size !== identities.length || identities.some(id => this.#identities.has(id))) throw new TypeError('duplicate registration')
     identities.forEach(id => this.#identities.add(id))
-    this.#packages.set(key(packageLock.ref), Object.freeze({ lock: packageLock, rules, effects, resolvers, performances, definitions }))
+    this.#packages.set(key(packageLock.ref), Object.freeze({ lock: packageLock, rules, effects, resolvers, lifecycle, performances, definitions }))
   }
 
   freeze(input: InteractionWorldSelection): FrozenInteractionWorld {
@@ -257,6 +275,7 @@ export class InteractionRegistry {
     worldAddressKey(selection.address)
     const rules = new Map<string, InteractionRuleImplementation>()
     const effects = new Map<string, InteractionEffectImplementation>()
+    const handlers = new Map<string, InteractionLifecycleHandlerImplementation>()
     const resolvers = new Map<string, InteractionDerivedResolverImplementation>()
     const performances = new Map<string, InteractionPerformanceImplementation>()
     const definitions = new Map<string, InteractionDefinitionImplementation>()
@@ -270,6 +289,7 @@ export class InteractionRegistry {
       for (const rule of installed.rules) { rules.set(key(rule.lock.ref), rule); nodes.set(key(rule.lock.ref), rule.lock.dependencies) }
       for (const effect of installed.effects) { effects.set(key(effect.lock.ref), effect); nodes.set(key(effect.lock.ref), effect.lock.dependencies) }
       for (const entry of installed.resolvers) { resolvers.set(key(entry.lock.ref), entry); nodes.set(key(entry.lock.ref), entry.lock.dependencies) }
+      for (const entry of installed.lifecycle) { handlers.set(key(entry.lock.ref), entry); nodes.set(key(entry.lock.ref), entry.lock.dependencies) }
       for (const entry of installed.performances) { performances.set(key(entry.lock.ref), entry); nodes.set(key(entry.lock.ref), entry.lock.dependencies) }
       for (const def of installed.definitions) definitions.set(key({ id: def.spec.id, version: def.spec.version }), def)
     }
@@ -285,6 +305,7 @@ export class InteractionRegistry {
       for (const role of found.spec.participantRoles) {
         if (role.source.kind === 'derived' && !resolvers.has(key(role.source.resolver))) throw new TypeError('derived resolver missing')
       }
+      for (const ref of found.spec.lifecycleRefs) if (!handlers.has(key(ref))) throw new TypeError('lifecycle handler missing')
       const policy = performances.get(key(found.spec.performancePolicyRef))
       if (policy === undefined) throw new TypeError('performance policy missing')
       // A cue that names a role the definition does not declare could describe an object nobody
@@ -305,6 +326,17 @@ export class InteractionRegistry {
       visiting.add(id); dependencies.forEach(ref => visit(key(ref))); visiting.delete(id); done.add(id)
     }
     nodes.forEach((_, id) => visit(id))
+    // The frozen order is phase first, then exact handler id. A dependency that would have to run
+    // later in that order makes the plan unachievable, so activation refuses it rather than letting
+    // the fold run out of order at resolution time.
+    const order = [...handlers.values()].sort(compareLifecycleHandlers).map(handler => key(handler.lock.ref))
+    const position = new Map(order.map((id, index) => [id, index]))
+    for (const id of order) {
+      for (const dependency of handlers.get(id)!.lock.dependencies) {
+        const other = position.get(key(dependency))
+        if (other !== undefined && other > position.get(id)!) throw new TypeError(`lifecycle order is unachievable for ${id}`)
+      }
+    }
     const bindings = new Map<string, InteractionBindingV3>()
     for (const value of list(selection.bindings, 4096)) {
       const row = object(value, ['bindingId', 'targetRef', 'definitionRef', 'config'])
@@ -324,7 +356,7 @@ export class InteractionRegistry {
       definitions: [...selection.definitions].sort((a, b) => compareWorldText(key(a.ref), key(b.ref))),
       bindings: [...selection.bindings].sort((a, b) => compareWorldText(a.bindingId, b.bindingId)),
     })
-    return new FrozenInteractionWorld(canonicalSelection, active, bindings, rules, effects, resolvers, performances)
+    return new FrozenInteractionWorld(canonicalSelection, active, bindings, rules, effects, resolvers, handlers, performances)
   }
 }
 
@@ -339,6 +371,7 @@ export class FrozenInteractionWorld {
     private readonly rules: ReadonlyMap<string, InteractionRuleImplementation>,
     private readonly effects: ReadonlyMap<string, InteractionEffectImplementation>,
     private readonly resolvers: ReadonlyMap<string, InteractionDerivedResolverImplementation>,
+    private readonly handlers: ReadonlyMap<string, InteractionLifecycleHandlerImplementation>,
     private readonly performances: ReadonlyMap<string, InteractionPerformanceImplementation>,
   ) { this.definitionSetHash = hashWorldJson('interaction-world-selection/v1', selection) }
 
@@ -389,8 +422,45 @@ export class FrozenInteractionWorld {
       object(event, ['eventType', 'eventVersion', 'data'])
       if (!effect.eventTypes.some(ref => ref.id === event.eventType && ref.version === event.eventVersion)) throw new TypeError('effect exceeded event closure')
     }
-    effect.validate(immutable({ host, definition: def, binding, arguments: args, roles }), events)
-    return finish('accepted', events, performance)
+    const resolved = immutable({ host, definition: def, binding, arguments: args, roles })
+    effect.validate(resolved, events)
+    // The fold runs only after the action's own candidate exists, and every step sees what the steps
+    // before it produced. Each handler runs at most once per fold, so "once per handler, instance and
+    // source event" holds by construction rather than by a visited set.
+    const foldSteps = this.#lifecyclePlan(def)
+    if (foldSteps.length > MAXIMUM_LIFECYCLE_CALLS) throw new TypeError('lifecycle fold exceeds the budget')
+    let folded: readonly WorldEventDraft[] = events
+    for (const handler of foldSteps) {
+      const added = immutable(handler.build(resolved, folded))
+      list(added, def.limits.maximumEvents)
+      for (const event of added) {
+        object(event, ['eventType', 'eventVersion', 'data'])
+        if (!handler.eventTypes.some(ref => ref.id === event.eventType && ref.version === event.eventVersion)) {
+          throw new TypeError(`lifecycle handler ${key(handler.lock.ref)} exceeded its event closure`)
+        }
+      }
+      if (added.length > 0) folded = immutable([...folded, ...added])
+    }
+    return finish('accepted', folded, performance)
+  }
+
+  /**
+   * The handlers one action runs, in the frozen order. Only handler dependencies join the closure:
+   * a rule or effect a handler happens to share is not a fold step.
+   */
+  #lifecyclePlan(def: InteractionDefinitionSpec): readonly InteractionLifecycleHandlerImplementation[] {
+    const selected = new Map<string, InteractionLifecycleHandlerImplementation>()
+    const collect = (handler: InteractionLifecycleHandlerImplementation): void => {
+      const id = key(handler.lock.ref)
+      if (selected.has(id)) return
+      selected.set(id, handler)
+      for (const dependency of handler.lock.dependencies) {
+        const next = this.handlers.get(key(dependency))
+        if (next !== undefined) collect(next)
+      }
+    }
+    for (const ref of def.lifecycleRefs) collect(this.handlers.get(key(ref))!)
+    return [...selected.values()].sort(compareLifecycleHandlers)
   }
 
   /**

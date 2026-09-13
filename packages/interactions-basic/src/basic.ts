@@ -192,7 +192,7 @@ function definition(id: string, preconditions: readonly string[], effectId: stri
     bindingConfigSchema: { fields: [] }, authorityPolicyRef: ref('base:actor-active'), preconditions: preconditions.map(ref),
     spatialRequirementRefs: [ref('space:co-location'), ref('space:scene-intersection')],
     effectBuilderRef: ref(effectId), effectCapabilityRefs: [ref(effectId)], dependencyRefs: [],
-    performancePolicyRef: ref('base:no-performance'), limits: { maximumEvents: 1 },
+    performancePolicyRef: ref('base:no-performance'), lifecycleRefs: [], limits: { maximumEvents: 1 },
   }
   return { spec, implementationHash: implementation(id).implementationHash }
 }
@@ -215,14 +215,14 @@ function contactDefinition(id: string, roles: readonly InteractionRole[], precon
     participantRoles: roles, argumentSchema: { fields: [] }, bindingConfigSchema: { fields: [] },
     authorityPolicyRef: ref(authority), preconditions: preconditions.map(ref), spatialRequirementRefs: spatial.map(ref),
     effectBuilderRef: ref(effectId), effectCapabilityRefs: [ref(effectId)], dependencyRefs: [],
-    performancePolicyRef: ref('base:no-performance'), limits: { maximumEvents: 1 },
+    performancePolicyRef: ref('base:no-performance'), lifecycleRefs: [], limits: { maximumEvents: 1 },
   }
   return { spec, implementationHash: implementation(id).implementationHash }
 }
 
 /** I1 object slice plus the I3 contact slice, through the same contract. */
 export function createBasicInteractionPackage(): InteractionPackageImplementation {
-  const contents = { rules, effects, resolvers, performances: [noPerformance], definitions: [
+  const contents = { rules, effects, resolvers, lifecycle: [], performances: [noPerformance], definitions: [
     definition('base:take', ['base:item-unheld'], 'base:take-effect', false),
     definition('base:drop', ['base:item-held'], 'base:drop-effect', false),
     definition('base:give', ['base:item-held', 'base:recipient-active'], 'base:give-effect', true),

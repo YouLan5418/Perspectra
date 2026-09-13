@@ -57,6 +57,8 @@ export interface InteractionDefinitionSpec extends WorldJsonObject {
   readonly dependencyRefs: readonly InteractionRef[]
   /** Registered performance policy. It decides whether this definition accepts a manifestation at all. */
   readonly performancePolicyRef: InteractionRef
+  /** Registered fold handlers this action runs, in the frozen phase order. */
+  readonly lifecycleRefs: readonly InteractionRef[]
   readonly limits: { readonly maximumEvents: number }
 }
 
@@ -148,6 +150,26 @@ export interface InteractionDerivedResolverImplementation {
   readonly resolve: (context: InteractionExecutionContext) => InteractionTargetRef | null
 }
 
+/**
+ * The frozen fold order. A handler declares exactly one phase, and its declared dependencies may
+ * never point at a later phase, so a reverse dependency is rejectable at activation instead of being
+ * a runtime surprise. The first phase is the action's own candidate; the last is full validation.
+ */
+export const INTERACTION_LIFECYCLE_PHASES = Object.freeze(['spatial', 'relation-end', 'observation'] as const)
+export type InteractionLifecyclePhase = typeof INTERACTION_LIFECYCLE_PHASES[number]
+
+/**
+ * A registered, locked step in the post-action fold. It receives the action's candidate events and
+ * returns the events it adds; returning none means it has nothing to do on this fold. Like an
+ * effect it declares the event types it may produce, so a pack cannot reach outside its domain.
+ */
+export interface InteractionLifecycleHandlerImplementation {
+  readonly lock: InteractionImplementationLock
+  readonly phase: InteractionLifecyclePhase
+  readonly eventTypes: readonly InteractionRef[]
+  readonly build: (context: InteractionExecutionContext, events: readonly WorldEventDraft[]) => readonly WorldEventDraft[]
+}
+
 /** A registered, locked policy. The runtime only narrows submitted cues against it. */
 export interface InteractionPerformanceImplementation {
   readonly lock: InteractionImplementationLock
@@ -172,6 +194,7 @@ export interface InteractionPackageImplementation {
   readonly rules: readonly InteractionRuleImplementation[]
   readonly effects: readonly InteractionEffectImplementation[]
   readonly resolvers: readonly InteractionDerivedResolverImplementation[]
+  readonly lifecycle: readonly InteractionLifecycleHandlerImplementation[]
   readonly performances: readonly InteractionPerformanceImplementation[]
   readonly definitions: readonly InteractionDefinitionImplementation[]
 }
