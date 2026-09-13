@@ -1,4 +1,7 @@
-import type { InteractionCharacterView, InteractionParameterSchema } from './interaction-definition.ts'
+import type {
+  InteractionCharacterView, InteractionParameterSchema, InteractionPerformanceAcceptance,
+  InteractionPerformanceCueBinding,
+} from './interaction-definition.ts'
 import type { WorldJsonObject, WorldJsonValue } from './world-json.ts'
 
 /**
@@ -29,10 +32,33 @@ export function createInteractionArgumentSchema(schema: InteractionParameterSche
   }
 }
 
+const identity = (ref: { readonly id: string; readonly version: number }): string => `${ref.id}@${ref.version}`
+
 const targetSchema = (kind: string, id: string): WorldJsonObject => ({
   type: 'object', additionalProperties: false, required: ['kind', 'id'],
   properties: { kind: { const: kind }, id: { const: id } },
 })
+
+/**
+ * The manifestation a definition is willing to accept. A placement that allows no cue is expressed
+ * as `maxItems: 0` rather than an empty `enum`, because draft-07 requires `enum` to have at least one
+ * entry; both mean the empty list is the only legal value there, which is exactly what the Host
+ * accepts for a definition whose policy declares no cue.
+ */
+function performanceSchema(acceptance: InteractionPerformanceAcceptance): WorldJsonObject {
+  const cues = (placement: 'independent' | 'onSuccess'): readonly string[] =>
+    acceptance.accepted.filter(entry => entry.placement === 'both' || entry.placement === placement).map(entry => entry.cue)
+  const list = (placement: 'independent' | 'onSuccess'): WorldJsonObject => {
+    const allowed = cues(placement)
+    return allowed.length === 0
+      ? { type: 'array', maxItems: 0 }
+      : { type: 'array', maxItems: 8, uniqueItems: true, items: { type: 'string', enum: allowed } }
+  }
+  return {
+    type: 'object', additionalProperties: false, required: ['independent', 'onSuccess'],
+    properties: { independent: list('independent'), onSuccess: list('onSuccess') },
+  }
+}
 
 function argumentsSchema(arguments_: WorldJsonObject): WorldJsonObject {
   const names = Object.keys(arguments_).sort()
@@ -55,6 +81,7 @@ function argumentsSchema(arguments_: WorldJsonObject): WorldJsonObject {
  */
 export function createInteractionRequestSchema(view: InteractionCharacterView): WorldJsonObject {
   if (view.options.length === 0) return { not: {} }
+  const acceptance = new Map(view.performances.map(entry => [identity(entry.definitionRef), entry]))
   // Each branch is self-contained: giving the union a top-level `properties` as well would only
   // invite the two levels to disagree about what an option looks like.
   return {
@@ -70,6 +97,9 @@ export function createInteractionRequestSchema(view: InteractionCharacterView): 
           properties: { id: { const: option.definitionRef.id }, version: { const: option.definitionRef.version } },
         },
         arguments: argumentsSchema(option.arguments),
+        // Declared unconditionally: the Host accepts the empty pair even when the policy names no
+        // cue, so omitting the field here would make the schema refuse a request the Host allows.
+        performance: performanceSchema(acceptance.get(identity(option.definitionRef))!),
       },
     })),
   }

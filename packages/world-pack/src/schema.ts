@@ -160,6 +160,7 @@ const MAX_PORTRAYAL_TERMS = 128
 const MAX_DOCUMENTS = 512
 // Interaction limits profile interaction-limits/v1, frozen in the implementation contract.
 const MAX_INTERACTION_BINDINGS = 4096
+const MAX_INTERACTION_CONFIG_BYTES = 4096
 const MAX_INTERACTION_PACKAGES = 32
 const MAX_INTERACTION_DEFINITIONS = 128
 
@@ -1697,6 +1698,11 @@ function bindingConfig(
       || (field.values.length > 0 && !field.values.includes(item))) {
       failWorldPackContract('PACK_SOURCE_INVALID', file, `${at}/config/${field.name}`, 'must be a string inside the declared domain')
     }
+  }
+  // The runtime also bounds the whole encoded config, not just each field, so the compiler has to
+  // report the same limit here instead of letting a pack compile into something freeze() refuses.
+  if (Buffer.byteLength(JSON.stringify(row), 'utf8') > MAX_INTERACTION_CONFIG_BYTES) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, `${at}/config`, `must encode at most ${MAX_INTERACTION_CONFIG_BYTES} bytes`)
   }
   return row as WorldJsonObject
 }

@@ -66,13 +66,17 @@ export function resolvePerformance(policy: InteractionPerformancePolicyV1, value
   })
   const independent = read(root.independent, 'independent')
   const onSuccess = read(root.onSuccess, 'onSuccess')
-  // A cue accepted in both lists is one restatement of the same self-expression, read exactly the
-  // way the frozen step normalization reads it, so it plays once instead of failing the step.
+  // Each list is judged on its own first. Collapsing the cross-list restatement before this would
+  // hide a repeat inside one list, which the frozen schema marks uniqueItems and therefore refuses.
+  if (new Set(independent).size !== independent.length) throw new TypeError('duplicate performance cue')
+  if (new Set(onSuccess).size !== onSuccess.length) throw new TypeError('duplicate performance cue')
+  // A cue in both lists is one restatement of the same self-expression, read exactly the way the
+  // frozen step normalization reads it, so it plays once instead of failing the step.
   const alwaysOn = new Set(independent)
   const distinctOnSuccess = onSuccess.filter(cue => !alwaysOn.has(cue))
-  const all = [...independent, ...distinctOnSuccess]
-  if (new Set(all).size !== all.length) throw new TypeError('duplicate performance cue')
-  return immutable(all.length === 0 ? { independent: [], onSuccess: [] } : { independent, onSuccess: distinctOnSuccess })
+  return immutable(independent.length === 0 && distinctOnSuccess.length === 0
+    ? { independent: [], onSuccess: [] }
+    : { independent, onSuccess: distinctOnSuccess })
 }
 
 /** Per-character public option budget, from the frozen interaction-limits/v1 profile. */
@@ -124,7 +128,10 @@ function argumentCombinations(
     let values: readonly WorldJsonValue[]
     const role = def.participantRoles.find(entry => entry.source.kind === 'argument' && entry.source.field === field.name)
     if (field.type === 'string' && role !== undefined) {
+      // A role is not a licence to exceed the field's own contract: the declared enum and the byte
+      // bound still apply, so the view can never offer a value the request validator would refuse.
       values = authorized.filter(ref => ref.kind === role.kind).map(ref => ref.id)
+        .filter(id => (field.values.length === 0 || field.values.includes(id)) && Buffer.byteLength(id, 'utf8') <= field.maxBytes)
     } else if (field.type === 'string') {
       if (field.values.length === 0) throw new TypeError('argument field has no enumerable domain')
       values = field.values
@@ -346,7 +353,14 @@ export class FrozenInteractionWorld {
       return immutable({ ...data, ruleTraceHash: hashWorldJson('interaction-rule-trace/v1', { ...data, address: host.address, manifestHash: host.manifestHash, asOfWorldSeq: host.asOfWorldSeq, candidatePrefixHash: host.candidatePrefixHash, actionId: host.actionId, actorId: host.actorId, authority: host.authority, request }) })
     }
     const plan = this.#plan(host, def, binding, request.targetRef, args, targets, authorized, roles, trace)
-    if (plan !== null) return finish(plan)
+    if (plan !== null) {
+      // independent expression holds for the attempt itself, and the frozen step rule keeps it when
+      // the action fails; only onSuccess is cancelled. Erasing both would deny what the character
+      // visibly did while trying.
+      return finish(plan, [], performance !== null && performance.independent.length > 0
+        ? { independent: performance.independent, onSuccess: [] }
+        : null)
+    }
     const effect = this.effects.get(key(def.effectBuilderRef))!
     // The execution context deliberately excludes `performance`: a manifestation that reached an
     // effect builder could shape world state, and the whole point is that it cannot.
@@ -436,6 +450,16 @@ export class FrozenInteractionWorld {
     }
     const ordered = [...candidates].sort(compareViewOptions)
     const options = ordered.slice(0, MAXIMUM_VIEW_OPTIONS)
+    // The model has to be told what each offered definition accepts as a manifestation, otherwise
+    // the generated schema would have to either omit the field or guess.
+    const offered = new Map<string, InteractionRef>()
+    for (const option of options) offered.set(key(option.definitionRef), option.definitionRef)
+    const performances = [...offered.values()]
+      .sort((left, right) => compareWorldText(key(left), key(right)))
+      .map(definitionRef => ({
+        definitionRef,
+        accepted: this.performances.get(key(this.definitions.get(key(definitionRef))!.spec.performancePolicyRef))!.policy.accepted,
+      }))
     const view: InteractionCharacterView = {
       version: 'interaction-view/v1',
       address: context.address,
@@ -447,6 +471,7 @@ export class FrozenInteractionWorld {
       characters: characters.sort(compareTargets),
       items: items.sort(compareTargets),
       options,
+      performances,
       candidateCount: ordered.length,
       selectedAffordanceHash: hashWorldJson('interaction-affordance/v1', {
         definitionSetHash: this.definitionSetHash, characterId: context.characterId,

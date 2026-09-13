@@ -303,4 +303,33 @@ describe('WorldPackCompilerV5', () => {
     await expect(run({ strict: true, attempts: 2, tone: 'loud' })).rejects.toThrow(/declared domain/u)
     await expect(run({ strict: true, attempts: 2 })).rejects.toThrow(/is required|is not allowed/u)
   }, 60_000)
+
+  it('reports the encoded config budget the runtime enforces, not only per-field bounds', async () => {
+    // Four legal 1024-byte fields. Every field passes on its own, but the encoded object is 5161
+    // bytes, which the runtime refuses; the compiler has to say so rather than emit a catalog that
+    // freeze() will reject later.
+    const spec = {
+      versionTag: 'interaction-definition/v1', id: 'fixture:bulk', version: 1,
+      participantRoles: [
+        { name: 'actor', kind: 'character', source: { kind: 'hostActor' }, distinctFrom: [] },
+        { name: 'item', kind: 'entity', source: { kind: 'primaryTarget' }, distinctFrom: [] },
+      ],
+      argumentSchema: { fields: [] },
+      bindingConfigSchema: { fields: ['a', 'b', 'c', 'd'].map(name => ({ name, type: 'string', maxBytes: 1024, values: [] })) },
+      authorityPolicyRef: { id: 'base:actor-active', version: 1 },
+      preconditions: [], spatialRequirementRefs: [],
+      effectBuilderRef: { id: 'base:take-effect', version: 1 }, effectCapabilityRefs: [{ id: 'base:take-effect', version: 1 }],
+      dependencyRefs: [], performancePolicyRef: { id: 'base:no-performance', version: 1 }, limits: { maximumEvents: 1 },
+    }
+    const description = [{
+      lock: { ref: { id: 'package:bulk', version: 1 }, implementationHash: hashWorldJson('fixture/lock/v1', { id: 'bulk' }), dependencies: [] },
+      definitions: [{ spec, implementationHash: hashWorldJson('fixture/impl/v1', { id: 'bulk' }) }],
+    }] as unknown as readonly InteractionPackageDescription[]
+    const bulk = { a: '中'.repeat(340), b: '中'.repeat(340), c: '中'.repeat(340), d: '中'.repeat(340) }
+    await expect(new WorldPackCompilerV5().compile(await source({
+      packageId: 'package:bulk',
+      bindings: [{ bindingId: 'binding:bulk', id: 'fixture:bulk', version: 1, config: bulk }],
+      definitions: ['fixture:bulk'],
+    }), { limitsProfile: 'worldpack-limits/v2', interactionPackages: description })).rejects.toThrow(/encode at most 4096 bytes/u)
+  }, 60_000)
 })

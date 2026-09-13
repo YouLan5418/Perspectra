@@ -277,6 +277,22 @@ describe('interaction performance contract', () => {
 
   const universal = { cue: 'smile', placement: 'both', requiresRole: null } as const
 
+  /** Same builder as `performing`, but for a definition whose arguments carry their own contract. */
+  function argumentWorld(spec: InteractionDefinitionSpec, packageId: string): FrozenInteractionWorld {
+    const contents = {
+      rules: [publicRule], effects: [transfer], performances: [noPerformance],
+      definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }],
+    }
+    const lock: InteractionImplementationLock = { ref: ref(packageId), dependencies: [], implementationHash: interactionPackageHash(contents) }
+    const registry = new InteractionRegistry()
+    registry.install({ lock, ...contents })
+    return registry.freeze({
+      address, packages: [lock],
+      definitions: [{ ref: ref(spec.id), definitionHash: hashWorldJson('interaction-definition/v1', spec), implementationHash: implementation(spec.id).implementationHash }],
+      bindings: [{ bindingId: `binding:${spec.id}`, targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: ref(spec.id), config: {} }],
+    })
+  }
+
   it('accepts a declared cue and echoes it without adding an event', () => {
     const world = performing([universal])
     const plain = world.resolve(host(), performRequest())
@@ -335,6 +351,69 @@ describe('interaction performance contract', () => {
     expect(() => new InteractionRegistry().install({
       ...base, performances: [{ ...base.performances[0]!, policy: { version: 'interaction-performance/v2', accepted: [] } as never }],
     })).toThrow(/unsupported performance policy/u)
+  })
+
+  it('declares the accepted manifestation instead of forbidding the field', () => {
+    const view = performing([universal]).view(context())
+    const validate = new Ajv({ strict: false }).compile(createInteractionRequestSchema(view))
+    const option = view.options.find(entry => entry.definitionRef.id === 'fixture:perform')!
+    expect(validate({ ...option, performance: { independent: ['smile'], onSuccess: [] } })).toBe(true)
+    expect(validate({ ...option, performance: { independent: ['frown'], onSuccess: [] } })).toBe(false)
+    expect(validate({ ...option, performance: { independent: [], onSuccess: ['smile'] } })).toBe(true)
+    expect(validate(option)).toBe(true)
+    expect(validate({ ...option, performance: { independent: ['smile', 'smile'], onSuccess: [] } })).toBe(false)
+    // A placement-restricted cue appears only in the list it was declared for.
+    const restricted = performing([{ cue: 'smile', placement: 'independent', requiresRole: null }]).view(context())
+    const narrow = new Ajv({ strict: false }).compile(createInteractionRequestSchema(restricted))
+    const narrowOption = restricted.options[0]!
+    expect(narrow({ ...narrowOption, performance: { independent: ['smile'], onSuccess: [] } })).toBe(true)
+    expect(narrow({ ...narrowOption, performance: { independent: [], onSuccess: ['smile'] } })).toBe(false)
+    expect(narrow({ ...narrowOption, performance: { independent: [], onSuccess: [] } })).toBe(true)
+    // A definition that accepts no cue still accepts the empty pair, exactly as the Host does.
+    const plain = instantiate().view(context()).options[0]!
+    const none = new Ajv({ strict: false }).compile(createInteractionRequestSchema(instantiate().view(context())))
+    expect(none({ ...plain, performance: { independent: [], onSuccess: [] } })).toBe(true)
+    expect(none({ ...plain, performance: { independent: ['smile'], onSuccess: [] } })).toBe(false)
+  })
+
+  it('offers only recipients the definition argument contract itself allows', () => {
+    const constrained: InteractionDefinitionSpec = {
+      ...definition('fixture:give', true, false).spec,
+      argumentSchema: { fields: [{ name: 'recipientId', type: 'string', maxBytes: 1024, values: ['character:bob'] }] },
+    }
+    const view = argumentWorld(constrained, 'package:constrained').view(context())
+    const offers = view.options.filter(entry => entry.definitionRef.id === 'fixture:give')
+    // alice is authorized and co-located, but the field only ever names bob.
+    expect(offers.map(entry => entry.arguments.recipientId)).toEqual(['character:bob'])
+    const validate = new Ajv({ strict: false }).compile(createInteractionRequestSchema(view))
+    expect(validate({ ...offers[0]!, arguments: { recipientId: 'character:alice' } })).toBe(false)
+    expect(offers.every(entry => validate(entry))).toBe(true)
+  })
+
+  it('keeps independent expression when the action fails and cancels only onSuccess', () => {
+    const world = performing([universal, { cue: 'nod', placement: 'both', requiresRole: null }])
+    const submitted = { independent: ['smile'], onSuccess: ['nod'] }
+    const accepted = world.resolve(host(), performRequest(submitted))
+    expect(accepted.status).toBe('accepted')
+    expect(accepted.performance).toEqual(submitted)
+    // The same attempt against a prefix where the item is unavailable fails the action, but the
+    // character still visibly smiled while trying; only the success-bound cue is cancelled.
+    const rejected = world.resolve({ ...host(), authorizedTargets: [] },
+      { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:perform', definitionRef: ref('fixture:perform'), arguments: {}, performance: submitted })
+    expect(rejected.status).toBe('rejected')
+    expect(rejected.performance).toEqual({ independent: ['smile'], onSuccess: [] })
+    expect(rejected.events).toEqual([])
+    const withheld = world.resolve({ ...host(), authorizedTargets: [] },
+      { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:perform', definitionRef: ref('fixture:perform'), arguments: {}, performance: { independent: [], onSuccess: ['nod'] } })
+    expect(withheld.performance).toBeNull()
+  })
+
+  it('refuses a repeat inside one list before collapsing the cross-list restatement', () => {
+    const world = performing([universal])
+    expect(() => world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: ['smile', 'smile'] }))).toThrow(/duplicate performance cue/u)
+    expect(() => world.resolve(host(), performRequest({ independent: ['smile', 'smile'], onSuccess: [] }))).toThrow(/duplicate performance cue/u)
+    expect(world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: ['smile'] })).performance)
+      .toEqual({ independent: ['smile'], onSuccess: [] })
   })
 
   it('refuses to enable a definition whose performance policy is not selected', () => {

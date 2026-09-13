@@ -224,6 +224,12 @@ export interface InteractionViewContext extends WorldJsonObject {
   readonly viewPolicyHash: WorldHash
 }
 
+/** What one offered definition accepts as a manifestation, so the model schema can constrain it. */
+export interface InteractionPerformanceAcceptance extends WorldJsonObject {
+  readonly definitionRef: InteractionRef
+  readonly accepted: readonly InteractionPerformanceCueBinding[]
+}
+
 export interface InteractionViewOption extends WorldJsonObject {
   readonly targetRef: InteractionTargetRef
   readonly bindingId: string
@@ -246,6 +252,8 @@ export interface InteractionCharacterView extends WorldJsonObject {
   readonly characters: readonly InteractionTargetRef[]
   readonly items: readonly InteractionTargetRef[]
   readonly options: readonly InteractionViewOption[]
+  /** One entry per definition that appears in `options`, ordered by definition identity. */
+  readonly performances: readonly InteractionPerformanceAcceptance[]
   /** Options the plan accepted before the per-character budget was applied. */
   readonly candidateCount: number
   readonly selectedAffordanceHash: WorldHash
