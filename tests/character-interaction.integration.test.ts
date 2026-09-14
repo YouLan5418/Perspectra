@@ -53,6 +53,9 @@ it.each(['abstain', 'failure'] as const)('commits player hold despite NPC %s, th
     const authorityStore = new WorldStore(worldPath)
     const authority = authorityStore.readRoundAuthority(compiled.manifest.address, action.transactionId)!
     authorityStore.close()
+    // A v9 round keeps Authority 5 and carries no frozen trace: the new binding is v10's alone.
+    expect((authority.authority.resolutions as readonly Record<string, unknown>[])
+      .every(entry => entry.interaction === undefined)).toBe(true)
     expect(authority.authority).toMatchObject({ schemaVersion: 5, actions: [expect.objectContaining({
       sourceRole: 'player', resolutionAuthority: { version: 'resolution-authority/v1', sourceRole: 'player', adjudicationMode: 'manual_player_immediate' },
     })] })

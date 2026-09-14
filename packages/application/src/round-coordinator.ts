@@ -917,6 +917,9 @@ export class RoundCoordinator {
         entropyRefs: [],
         conflictingActionId: null,
         ...(manifestationResolution === undefined ? {} : { manifestation: manifestationResolution }),
+        // The frozen path binds the definition set and the resolved role bindings it actually used, so a
+        // durable Authority can prove which lock produced this action rather than only which verb ran.
+        ...(resolution.interactionTrace === undefined ? {} : { interaction: resolution.interactionTrace }),
       })
       if (item.sourceRole === 'player' && playerResolution === undefined) playerResolution = resolution
       events.push(...resolvedEvents, {
@@ -1008,7 +1011,8 @@ export class RoundCoordinator {
     }
     const cognitiveCharacterIds = [...cognitiveCharacters].sort(compareWorldText)
     const authority = {
-      schemaVersion: manifestUsesHostAuthority(this.#manifest) ? 5 : manifestUsesActionGroups(this.#manifest) ? 4 : 2,
+      schemaVersion: manifestUsesFrozenInteractions(this.#manifest) ? 6
+        : manifestUsesHostAuthority(this.#manifest) ? 5 : manifestUsesActionGroups(this.#manifest) ? 4 : 2,
       roundId,
       baseHeadSeq: head.headSeq,
       baseTick: head.tick,

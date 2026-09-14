@@ -9,6 +9,7 @@ import { WorldApplication } from '@harness-world/application'
 import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
 import { currentCharacterRelations } from '@harness-world/kernel'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { InteractionRegistry } from '@harness-world/interaction-runtime'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
@@ -137,9 +138,29 @@ describe('an independent pack on the interaction path', () => {
       // The umbrella moved, which it could only do through the frozen path resolving the proposal.
       const store = new WorldStore(worldPath)
       const events = store.readEvents(compiled.manifest.address)
+      const resolved = events.find(event => event.eventType === 'action.resolved'
+        && (event.data as { actionType: string }).actionType === 'interact')!
+      const authority = store.readRoundAuthority(compiled.manifest.address, resolved.transactionId)!.authority
       store.close()
       expect(events.filter(event => event.eventType === 'entity.transferred'
         && (event.data as { characterId: string }).characterId === 'character:companion')).toHaveLength(1)
+      // A v10 round records Authority 6: the definition set and the resolved role bindings behind the
+      // action, so the durable record proves which lock produced it rather than only which verb ran.
+      expect(authority.schemaVersion).toBe(6)
+      const resolutions = authority.resolutions as readonly Record<string, unknown>[]
+      const interaction = resolutions.find(entry => entry.interaction !== undefined)!.interaction as Record<string, string>
+      expect(Object.keys(interaction).sort()).toEqual(['definitionSetHash', 'resolvedRoleBindingsHash', 'ruleTraceHash'])
+      for (const value of Object.values(interaction)) expect(value).toMatch(/^sha256:[0-9a-f]{64}$/u)
+      // It is the frozen world's own trace, not the Host restating it: the definition set hash equals
+      // an independently frozen world built from the same compiled selection.
+      const registry = new InteractionRegistry()
+      registry.install(createBasicInteractionPackage())
+      const frozen = registry.freeze({
+        address: runtimeOptions().address, packages: pack.interactions.packages,
+        definitions: pack.interactions.definitions, bindings: pack.interactions.bindings,
+      })
+      expect(interaction.definitionSetHash).toBe(frozen.definitionSetHash)
+      expect(interaction.ruleTraceHash).not.toBe(resolutions.find(entry => entry.ruleTraceHash !== undefined)!.ruleTraceHash)
     } finally {
       await app.close()
       rmSync(root, { recursive: true, force: true })
@@ -168,8 +189,19 @@ describe('an independent pack on the interaction path', () => {
         reactionParticipants: () => [{
           participantId: 'agent:companion', role: 'agent', actorId: 'character:companion' as never,
           allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
-          provider: { propose: async (context: unknown) => { calls.push('companion'); shown = JSON.stringify(context)
-            return { schemaVersion: 6, decision: 'abstain', actions: [] } } },
+          provider: { propose: async (context: unknown) => {
+            calls.push('companion')
+            shown = JSON.stringify(context)
+            // The wave answers by acting, through the same frozen protocol the root round offered.
+            return { schemaVersion: 6 as const, decision: 'act' as const, actions: [{
+              actionId: 'action:companion-warm', actorId: 'character:companion',
+              actionType: 'interact', actionVersion: 2, parameters: {
+                targetRef: { kind: 'entity', id: 'entity:thermos' },
+                bindingId: 'binding:thermos-take',
+                definitionRef: { id: 'base:take', version: 1 }, arguments: {},
+              },
+            }] }
+          } },
         }],
       })
       try {
@@ -187,6 +219,19 @@ describe('an independent pack on the interaction path', () => {
         // context that dropped them would leave a character unable to act on what it just witnessed.
         expect(shown).toContain('binding:umbrella-take')
         expect(shown).toMatch(/actionVersion\\":2/u)
+        // The wave's own round writes Authority 6 as well, carrying the trace of what it resolved.
+        const store = new WorldStore(join(root, 'world.sqlite'))
+        let authority: Record<string, unknown> | undefined
+        try {
+          const reaction = store.readEvents(compiled.manifest.address).find(event => event.eventType === 'action.resolved'
+            && (event.data as { participantId?: string }).participantId === 'agent:companion')!
+          authority = store.readRoundAuthority(compiled.manifest.address, reaction.transactionId)!.authority
+          expect(store.readEvents(compiled.manifest.address).filter(event => event.eventType === 'entity.transferred'
+            && (event.data as { characterId: string }).characterId === 'character:companion')).toHaveLength(1)
+        } finally { store.close() }
+        expect(authority!.schemaVersion).toBe(6)
+        expect((authority!.resolutions as readonly Record<string, unknown>[])
+          .some(entry => entry.interaction !== undefined)).toBe(true)
         // Read the durable declaration: a Cycle records the world operation it may carry, and for this
         // Manifest that is the frozen one at version 2.
         const cycles = new DatabaseSync(join(root, 'world.sqlite'), { readOnly: true })

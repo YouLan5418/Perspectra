@@ -21,9 +21,13 @@ export function bindPlayerProvisional(
       contentHash: hashWorldJson('player-provisional-event/v1', { actionId: action.actionId, draftOrdinal, event }),
     })),
     observationScope: scope,
+    // The frozen path's own trace travels with the provisional binding, so the hash below covers the
+    // definition set and role bindings the proposal was resolved against and not only its outcome.
+    ...(resolution.interactionTrace === undefined ? {} : { interaction: resolution.interactionTrace }),
     ruleTraceHash: hashWorldJson('player-provisional-rule-trace/v1', {
       action, resolutionAuthority: authority, status: resolution.status, reason: resolution.reason ?? null,
       events: resolution.events, observationScope: scope,
+      ...(resolution.interactionTrace === undefined ? {} : { interaction: resolution.interactionTrace }),
     }),
   }
   // Detach the frozen authority from all mutable Resolver and Provider object references.

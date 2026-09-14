@@ -718,6 +718,9 @@ export class ReactionScheduler {
         entropyRefs: [],
         conflictingActionId: null,
         ...(manifestationResolution === undefined ? {} : { manifestation: manifestationResolution }),
+        // The frozen path binds the definition set and the resolved role bindings it actually used, so a
+        // durable Authority can prove which lock produced this action rather than only which verb ran.
+        ...(resolution.interactionTrace === undefined ? {} : { interaction: resolution.interactionTrace }),
       })
       outcomeByJob.set(item.jobId, resolution.status === 'accepted' ? 'proposed' : 'rejected')
       events.push(...resolvedEvents, {
@@ -825,7 +828,8 @@ export class ReactionScheduler {
       }
     })
     const authority = {
-      schemaVersion: manifestUsesHostAuthority(this.options.manifest) ? 5 : manifestUsesActionGroups(this.options.manifest) ? 4 : 3,
+      schemaVersion: manifestUsesFrozenInteractions(this.options.manifest) ? 6
+        : manifestUsesHostAuthority(this.options.manifest) ? 5 : manifestUsesActionGroups(this.options.manifest) ? 4 : 3,
       origin: {
         kind: 'reaction', cycleId: cycle.cycle.cycleId,
         rootRoundId: cycle.cycle.rootRoundId, wave: cycle.waves.at(-1)!.wave,
