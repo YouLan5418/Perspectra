@@ -496,6 +496,7 @@ function parseStoredInteractionSelection(root: Record<string, unknown>): void {
   if (definitions.length > MAXIMUM_STORED_INTERACTION_DEFINITIONS) throw new TypeError(`${path}.definitions is outside the frozen selection budget`)
   unique(definitions.map(entry => `${entry.ref.id}@${entry.ref.version}`), `${path}.definitions`)
   const enabled = new Set(definitions.map(entry => `${entry.ref.id}@${entry.ref.version}`))
+  const enabledIds = new Set(definitions.map(entry => entry.ref.id))
   const entityIds = new Set(arrayAt(root.entities, 'StoredWorldManifest.entities')
     .map(value => textAt(objectAt(value, 'StoredWorldManifest.entity').entityId, 'StoredWorldManifest.entity.entityId')))
   const characterIds = new Set(arrayAt(root.characters, 'StoredWorldManifest.characters')
@@ -512,8 +513,14 @@ function parseStoredInteractionSelection(root: Record<string, unknown>): void {
     const targetRef: InteractionTargetRef = { kind: targetRow.kind, id: textAt(targetRow.id, `${at}.targetRef.id`) }
     const definitionRef = referenceAt(row.definitionRef, `${at}.definitionRef`)
     if (!enabled.has(`${definitionRef.id}@${definitionRef.version}`)) throw new TypeError(`${at} references a definition the world did not enable`)
-    const declared = targetRef.kind === 'entity' ? entityIds : targetRef.kind === 'character' ? characterIds : undefined
-    if (declared === undefined || !declared.has(targetRef.id)) throw new TypeError(`${at} names an unknown ${targetRef.kind} target`)
+    if (targetRef.kind === 'relation') {
+      // The id names the relation class - a definition this world enabled - not an instance, which a
+      // static Manifest could never enumerate.
+      if (!enabledIds.has(targetRef.id)) throw new TypeError(`${at} names relation class ${targetRef.id}, which the world did not enable`)
+    } else {
+      const declared = targetRef.kind === 'entity' ? entityIds : characterIds
+      if (!declared.has(targetRef.id)) throw new TypeError(`${at} names an unknown ${targetRef.kind} target`)
+    }
     const config = objectAt(row.config, `${at}.config`)
     canonicalizeWorldJson(config as WorldJsonValue)
     return { bindingId: textAt(row.bindingId, `${at}.bindingId`), targetRef, definitionRef, config: config as WorldJsonObject }

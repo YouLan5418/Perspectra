@@ -99,6 +99,38 @@ function compareTargets(left: InteractionTargetRef, right: InteractionTargetRef)
   return compareWorldText(left.kind, right.kind) || compareWorldText(left.id, right.id)
 }
 
+/**
+ * Whether a request addresses the target its binding was declared for.
+ *
+ * An entity or character binding names its target directly. A relation binding names the *class* its
+ * id identifies - the definition whose instances it may address - so the request names an instance
+ * and the instance carries the class it belongs to. That class is a fact the Host already put in the
+ * snapshot, so this cannot be decided from the request alone, and a forged instance id carries no
+ * class at all.
+ */
+function addressesBinding(binding: InteractionBindingV3, targetRef: InteractionTargetRef, host: InteractionHostContext): boolean {
+  if (binding.targetRef.kind !== 'relation') return targetKey(binding.targetRef) === targetKey(targetRef)
+  if (targetRef.kind !== 'relation') return false
+  const entry = host.targets.find(value => value.ref.kind === 'relation' && value.ref.id === targetRef.id)
+  return entry !== undefined && (entry.state as WorldJsonObject).interactionId === binding.targetRef.id
+}
+
+/** The refs a binding can currently address: itself, or every authorized instance of its class. */
+function bindingTargets(
+  binding: InteractionBindingV3,
+  host: InteractionHostContext,
+  authorized: ReadonlySet<string>,
+): readonly InteractionTargetRef[] {
+  if (binding.targetRef.kind !== 'relation') {
+    return authorized.has(targetKey(binding.targetRef)) ? [binding.targetRef] : []
+  }
+  return host.targets
+    .filter(entry => entry.ref.kind === 'relation' && authorized.has(targetKey(entry.ref))
+      && (entry.state as WorldJsonObject).interactionId === binding.targetRef.id)
+    .map(entry => entry.ref)
+    .sort(compareTargets)
+}
+
 /** Stable order: definition identity, then target, then binding, then canonical argument bytes. */
 function compareViewOptions(left: InteractionViewOption, right: InteractionViewOption): number {
   return compareWorldText(`${left.definitionRef.id}@${left.definitionRef.version}`, `${right.definitionRef.id}@${right.definitionRef.version}`)
@@ -348,6 +380,17 @@ export class InteractionRegistry {
       if (def === undefined) throw new TypeError('binding definition not enabled')
       const targetRef = target(row.targetRef)
       if (!def.spec.participantRoles.some(role => role.source.kind === 'primaryTarget' && role.kind === targetRef.kind)) throw new TypeError('binding target kind mismatch')
+      if (targetRef.kind === 'relation') {
+        // The id names a class, not an instance: the definition whose relations this binding may
+        // address. That definition has to be enabled, and it has to actually create relations, or the
+        // binding could never address anything and would be a silent no-op in the option list.
+        const creator = [...active.values()].find(entry => entry.spec.id === targetRef.id)
+        if (creator === undefined) throw new TypeError('relation binding names a definition the world did not enable')
+        const creatorEffect = effects.get(key(creator.spec.effectBuilderRef))
+        if (creatorEffect === undefined || !creatorEffect.eventTypes.some(entry => entry.id === 'character.relation-started')) {
+          throw new TypeError('relation binding names a definition that creates no relation')
+        }
+      }
       const id = text(row.bindingId)
       if (bindings.has(id)) throw new TypeError('duplicate binding')
       const config = parameters(def.spec.bindingConfigSchema, row.config)
@@ -401,12 +444,13 @@ export class FrozenInteractionWorld {
       arguments: root.arguments, ...(root.performance === undefined ? {} : { performance: root.performance }),
     }) as InteractionRequestV2
     const binding = this.bindings.get(request.bindingId)
-    if (binding === undefined || targetKey(binding.targetRef) !== targetKey(request.targetRef) || key(binding.definitionRef) !== key(request.definitionRef)) throw new TypeError('request does not match enabled binding')
+    if (binding === undefined || key(binding.definitionRef) !== key(request.definitionRef)) throw new TypeError('request does not match enabled binding')
+    const { targets, authorized } = snapshot(host)
+    if (!addressesBinding(binding, request.targetRef, host)) throw new TypeError('request does not match enabled binding')
     const def = this.definitions.get(key(binding.definitionRef))!.spec
     const args = parameters(def.argumentSchema, request.arguments)
     const policy = this.performances.get(key(def.performancePolicyRef))!.policy
     const performance = request.performance === undefined ? null : resolvePerformance(policy, request.performance)
-    const { targets, authorized } = snapshot(host)
     const roles: Record<string, InteractionTargetRef> = {}
     const trace: { rule: InteractionRef; reason: string | null }[] = []
     const finish = (reason: string, events: InteractionAdjudication['events'] = [], accepted: InteractionPerformance | null = null): InteractionAdjudication => {
@@ -593,12 +637,15 @@ export class FrozenInteractionWorld {
     }
     const candidates: InteractionViewOption[] = []
     for (const binding of this.bindings.values()) {
-      if (!authorized.has(targetKey(binding.targetRef))) continue
+      const addressable = bindingTargets(binding, host, authorized)
+      if (addressable.length === 0) continue
       const def = this.definitions.get(key(binding.definitionRef))!.spec
-      for (const args of argumentCombinations(def, authorizedRefs)) {
-        const roles: Record<string, InteractionTargetRef> = {}
-        if (this.#plan(host, def, binding, binding.targetRef, args, targets, authorized, roles, []) !== null) continue
-        candidates.push({ targetRef: binding.targetRef, bindingId: binding.bindingId, definitionRef: binding.definitionRef, arguments: args })
+      for (const targetRef of addressable) {
+        for (const args of argumentCombinations(def, authorizedRefs)) {
+          const roles: Record<string, InteractionTargetRef> = {}
+          if (this.#plan(host, def, binding, targetRef, args, targets, authorized, roles, []) !== null) continue
+          candidates.push({ targetRef, bindingId: binding.bindingId, definitionRef: binding.definitionRef, arguments: args })
+        }
       }
     }
     const ordered = [...candidates].sort(compareViewOptions)

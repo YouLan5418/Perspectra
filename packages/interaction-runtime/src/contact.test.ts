@@ -19,7 +19,10 @@ const prefixHash = hashWorldJson('contact/prefix/v1', {})
 
 const ref = (id: string): InteractionRef => ({ id, version: 1 })
 const alice = { kind: 'character', id: 'character:alice' } as const
+// A relation binding names the class its definition creates; a request and the snapshot name the
+// instance. The pair is only reachable through the class it belongs to.
 const shared = { kind: 'relation', id: 'relation:held' } as const
+const relationClass = { kind: 'relation', id: 'base:hold-hand' } as const
 
 const playerImmediate: RulebookResolutionAuthorityV1 = {
   version: 'resolution-authority/v1', sourceRole: 'player', adjudicationMode: 'manual_player_immediate',
@@ -36,7 +39,7 @@ function selection(lock: InteractionImplementationLock = pack.lock): Interaction
       bindingId: `binding:cup-${id}`, targetRef: { kind: 'entity' as const, id: 'entity:cup' }, definitionRef: ref(id), config: {},
     })),
     { bindingId: 'binding:alice-hold', targetRef: alice, definitionRef: ref('base:hold-hand'), config: {} },
-    { bindingId: 'binding:held-release', targetRef: shared, definitionRef: ref('base:end-contact'), config: {} },
+    { bindingId: 'binding:held-release', targetRef: relationClass, definitionRef: ref('base:end-contact'), config: {} },
   ]
   return {
     address, packages: [lock],
@@ -361,6 +364,64 @@ describe('contact relation domain', () => {
       authorizedTargets: [alice, shared],
     })
     expect(held.fold(sceneless, [])).toHaveLength(1)
+  })
+
+  it('addresses a relation instance only through the class its binding names', () => {
+    const held = runtime()
+    // The instance is real and active, but this binding belongs to another class of relation.
+    const wrongClass = host(true, {
+      targets: [
+        { ref: { kind: 'character', id: actor }, state: character(actor) },
+        { ref: alice, state: character('character:alice') },
+        { ref: shared, state: { interactionId: 'base:other', initiatorId: actor, targetId: 'character:alice', active: true } },
+      ],
+      authorizedTargets: [alice, shared],
+    })
+    expect(() => held.resolve(wrongClass, request('base:end-contact', shared, 'binding:held-release')))
+      .toThrow(/does not match enabled binding/u)
+    // A forged instance id carries no class at all, so it cannot borrow one.
+    expect(() => held.resolve(host(true), request('base:end-contact', { kind: 'relation', id: 'relation:ghost' }, 'binding:held-release')))
+      .toThrow(/does not match enabled binding/u)
+    // A relation binding is not a licence to name a character through it either.
+    expect(() => held.resolve(host(true), request('base:end-contact', alice, 'binding:held-release')))
+      .toThrow(/does not match enabled binding/u)
+  })
+
+  it('offers the release once per authorized active instance of the bound class', () => {
+    const held = runtime()
+    const viewContext = (relationActive: boolean) => {
+      const value = host(relationActive)
+      return {
+        address, manifestHash, asOfWorldSeq: value.asOfWorldSeq, characterId: actor, authority: playerImmediate,
+        candidatePrefixHash: prefixHash, viewPolicyHash: hashWorldJson('contact/view-policy/v1', {}),
+        targets: value.targets, authorizedTargets: value.authorizedTargets,
+      }
+    }
+    const releases = (relationActive: boolean) => held.view(viewContext(relationActive)).options
+      .filter(option => option.definitionRef.id === 'base:end-contact')
+    expect(releases(true)).toEqual([
+      { targetRef: shared, bindingId: 'binding:held-release', definitionRef: ref('base:end-contact'), arguments: {} },
+    ])
+    // An inactive relation is no longer something either side can release, so it is not offered.
+    expect(releases(false)).toEqual([])
+  })
+
+  it('refuses a relation binding whose class cannot be resolved', () => {
+    const registry = new InteractionRegistry()
+    registry.install(pack)
+    const withClass = (id: string) => {
+      const base = selection()
+      return {
+        ...base,
+        bindings: [...base.bindings.filter(entry => entry.bindingId !== 'binding:held-release'),
+          { bindingId: 'binding:held-release', targetRef: { kind: 'relation' as const, id },
+            definitionRef: ref('base:end-contact'), config: {} }],
+      }
+    }
+    // base:take is enabled, but it transfers items and creates no relation to address.
+    expect(() => registry.freeze(withClass('base:take'))).toThrow(/creates no relation/u)
+    // A class the world never enabled cannot be addressed either.
+    expect(() => registry.freeze(withClass('base:hug'))).toThrow(/did not enable/u)
   })
 
   it('refuses to enable a contact definition whose derived resolver is not installed', () => {

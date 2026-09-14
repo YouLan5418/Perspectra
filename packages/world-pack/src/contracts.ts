@@ -90,11 +90,24 @@ export interface WorldPackCharactersSourceV3 extends WorldJsonObject {
   readonly characters: readonly WorldPackCharacterSourceV3[]
 }
 
+/**
+ * A binding to a relation *class*. `relationClass` names the definition whose relation instances the
+ * bound definition may address; an instance is never named here, because a relation id is derived at
+ * runtime from the source Action and the pair.
+ */
+export interface WorldPackRelationBindingSource extends WorldJsonObject {
+  readonly bindingId: string
+  readonly relationClass: string
+  readonly definition: { readonly id: string; readonly version: number }
+  readonly config: WorldJsonObject
+}
+
 /** The world's explicit package and definition selection. Trusted locks are resolved by the compiler. */
 export interface WorldPackInteractionsSource extends WorldJsonObject {
   readonly schemaVersion: typeof WORLD_PACK_INTERACTIONS_SCHEMA_VERSION
   readonly packages: readonly { readonly id: string; readonly version: number }[]
   readonly definitions: readonly { readonly id: string; readonly version: number }[]
+  readonly relationBindings?: readonly WorldPackRelationBindingSource[]
 }
 
 export interface WorldPackCompileOptions {

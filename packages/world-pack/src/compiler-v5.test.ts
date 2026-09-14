@@ -53,6 +53,10 @@ interface SourceOptions {
   readonly packageVersion?: number
   readonly characters?: unknown
   readonly reactionMode?: 'disabled' | 'responsive'
+  readonly relationBindings?: readonly {
+    readonly bindingId: string; readonly relationClass: string
+    readonly id: string; readonly version: number; readonly config: Record<string, unknown>
+  }[]
 }
 
 /** A real v5 source: the v4 example on the V2/V3 target files plus an explicit selection. */
@@ -94,6 +98,12 @@ async function source(options: SourceOptions = {}): Promise<string> {
     schemaVersion: 'worldpack-interactions/v1',
     packages: [{ id: options.packageId ?? 'package:interactions-basic', version: options.packageVersion ?? 1 }],
     definitions: (options.definitions ?? ['base:take', 'base:drop', 'base:give']).map(id => ({ id, version: 1 })),
+    ...(options.relationBindings === undefined ? {} : {
+      relationBindings: options.relationBindings.map(binding => ({
+        bindingId: binding.bindingId, relationClass: binding.relationClass,
+        definition: { id: binding.id, version: binding.version }, config: binding.config,
+      })),
+    }),
   }))
   return root
 }
@@ -259,12 +269,21 @@ describe('WorldPackCompilerV5', () => {
     expect(() => verifyCompiledWorldPackV5(missingTarget)).toThrow(/unknown entity target/u)
     const missingDefinition = retamper(draft => { (draft.interactions as { definitions: unknown[] }).definitions = [] })
     expect(() => verifyCompiledWorldPackV5(missingDefinition)).toThrow(/outside the catalog/u)
-    // A relation target has no declared set of its own in this slice, so it fails closed too.
-    const relationTarget = retamper(draft => {
+    // A relation target names a class: an id the catalog does not enable is refused, and one it does
+    // enable is legal without ever naming an instance.
+    const unknownClass = retamper(draft => {
       const interactions = draft.interactions as { bindings: { targetRef: { kind: string; id: string } }[] }
       interactions.bindings[0]!.targetRef = { kind: 'relation', id: 'relation:any' }
     })
-    expect(() => verifyCompiledWorldPackV5(relationTarget)).toThrow(/unknown relation target/u)
+    expect(() => verifyCompiledWorldPackV5(unknownClass)).toThrow(/relation class relation:any/u)
+    // This check is about the reference only; whether the named class actually creates relations is
+    // the runtime's business, and freeze() refuses one that does not.
+    const relationClass = retamper(draft => {
+      const interactions = draft.interactions as { bindings: { targetRef: { kind: string; id: string } }[] }
+      interactions.bindings[0]!.targetRef = { kind: 'relation', id: 'base:take' }
+    })
+    expect(verifyCompiledWorldPackV5(relationClass).interactions.bindings[0]!.targetRef)
+      .toEqual({ kind: 'relation', id: 'base:take' })
     // A character target is legal once the binding actually names a compiled character.
     const characterTarget = retamper(draft => {
       const interactions = draft.interactions as { bindings: { targetRef: { kind: string; id: string } }[] }
@@ -449,12 +468,12 @@ describe('Manifest v10 binding for a compiled worldpack/v5', () => {
       const bindings = selection(draft).bindings as Record<string, unknown>[]
       bindings[0]!.targetRef = { kind: 'character', id: 'character:ghost' }
     }))).toThrow(/names an unknown character target/u)
-    // A relation instance cannot be named by a static Manifest, so it fails closed like any other
-    // target the world does not declare.
+    // A relation binding names a class. An id the world did not enable is refused, because a static
+    // Manifest could never name an instance and must not pretend to.
     expect(() => runtimeManifestFromStored(stored(draft => {
       const bindings = selection(draft).bindings as Record<string, unknown>[]
       bindings[0]!.targetRef = { kind: 'relation', id: 'relation:any' }
-    }))).toThrow(/names an unknown relation target/u)
+    }))).toThrow(/names relation class relation:any, which the world did not enable/u)
     expect(() => runtimeManifestFromStored(stored(draft => {
       const bindings = selection(draft).bindings as Record<string, unknown>[]
       bindings[0]!.config = null
@@ -481,6 +500,115 @@ describe('Manifest v10 binding for a compiled worldpack/v5', () => {
     // two must agree byte for byte.
     expect(spec.manifest).toEqual(viaCompiler.manifest)
     expect(spec.manifestHash).toBe(viaCompiler.manifestHash)
+  }, 60_000)
+
+  it('binds a relation class, so the release action is addressable at all', async () => {
+    const characters = JSON.parse(await readFile(
+      fileURLToPath(new URL('../../../examples/world-packs/rainy-road-companions/characters.json', import.meta.url)), 'utf8',
+    )) as { readonly characters: readonly Record<string, unknown>[] }
+    const pack = await compile({
+      bindings: [{ bindingId: 'binding:bundle-take', id: 'base:take', version: 1, config: {} }],
+      definitions: ['base:take', 'base:hold-hand', 'base:end-contact'],
+      characters: {
+        schemaVersion: 'worldpack-characters/v3',
+        characters: characters.characters.map(character => character.characterId === 'character:alice'
+          ? { ...character, interactionBindings: [{ bindingId: 'binding:alice-hold', definition: { id: 'base:hold-hand', version: 1 }, config: {} }] }
+          : character),
+      },
+      relationBindings: [
+        { bindingId: 'binding:release', relationClass: 'base:hold-hand', id: 'base:end-contact', version: 1, config: {} },
+      ],
+    })
+    expect(pack.interactions.bindings.find(entry => entry.bindingId === 'binding:release')!.targetRef)
+      .toEqual({ kind: 'relation', id: 'base:hold-hand' })
+    // Compilation is only worth anything if the runtime accepts the same bytes, so the strong check is
+    // that freeze() addresses an instance through the class the author named - and only that class.
+    const registry = new InteractionRegistry()
+    registry.install(createBasicInteractionPackage())
+    const frozen = registry.freeze({
+      address, packages: pack.interactions.packages,
+      definitions: pack.interactions.definitions, bindings: pack.interactions.bindings,
+    })
+    const held = { kind: 'relation' as const, id: 'relation:held' }
+    const host = (interactionId: string) => ({
+      address, manifestHash: pack.packHash, asOfWorldSeq: 0, candidatePrefixHash: pack.packHash,
+      actionId: 'action:release', actorId: brandId('character:player', 'CharacterId'),
+      authority: { version: 'resolution-authority/v1', sourceRole: 'player', adjudicationMode: 'manual_player_immediate' } as never,
+      targets: [
+        { ref: { kind: 'character' as const, id: 'character:player' }, state: { lifecycle: 'active', locationId: 'location:road-shelter', sceneIds: ['scene:shelter'] } },
+        { ref: { kind: 'character' as const, id: 'character:alice' }, state: { lifecycle: 'active', locationId: 'location:road-shelter', sceneIds: ['scene:shelter'] } },
+        { ref: held, state: { interactionId, initiatorId: 'character:player', targetId: 'character:alice', active: true } },
+      ],
+      authorizedTargets: [
+        { kind: 'character' as const, id: 'character:alice' }, held,
+      ],
+    })
+    const release = {
+      targetRef: held, bindingId: 'binding:release', definitionRef: { id: 'base:end-contact', version: 1 }, arguments: {},
+    }
+    expect(frozen.resolve(host('base:hold-hand') as never, release).status).toBe('accepted')
+    // A relation of another class is not addressable through this binding, so the request is refused
+    // instead of ending somebody else's relation.
+    expect(() => frozen.resolve(host('base:other') as never, release)).toThrow(/does not match enabled binding/u)
+    // The stored view re-reads the class reference too, so the release binding survives a round trip.
+    const spec = new WorldPackCompilerV5().adaptToWorldSpec(pack, runtimeOptions())
+    expect(runtimeManifestFromStored(spec.manifest as unknown as WorldJsonValue).schemaVersion).toBe(10)
+  }, 60_000)
+
+  it('refuses a relation class the world did not enable', async () => {
+    await expect(compile({
+      bindings: [{ bindingId: 'binding:bundle-take', id: 'base:take', version: 1, config: {} }],
+      definitions: ['base:take', 'base:hold-hand', 'base:end-contact'],
+      relationBindings: [
+        { bindingId: 'binding:release', relationClass: 'base:hug', id: 'base:end-contact', version: 1, config: {} },
+      ],
+    })).rejects.toThrow(/relation class base:hug is not an enabled definition/u)
+  }, 60_000)
+
+  it('reads the relation binding source strictly', async () => {
+    const root = await source({
+      bindings: [{ bindingId: 'binding:bundle-take', id: 'base:take', version: 1, config: {} }],
+      definitions: ['base:take', 'base:hold-hand', 'base:end-contact'],
+      relationBindings: [
+        { bindingId: 'binding:release', relationClass: 'base:hold-hand', id: 'base:end-contact', version: 1, config: {} },
+      ],
+    })
+    const raw = JSON.parse(await readFile(join(root, 'interactions.json'), 'utf8')) as Record<string, unknown>
+    const parsed = parseWorldPackInteractionsSource(raw)
+    expect(parsed.relationBindings).toEqual([{
+      bindingId: 'binding:release', relationClass: 'base:hold-hand',
+      definition: { id: 'base:end-contact', version: 1 }, config: {},
+    }])
+    // Absent means none, which is how every world authored before this stayed valid.
+    expect(parseWorldPackInteractionsSource({
+      schemaVersion: 'worldpack-interactions/v1',
+      packages: [{ id: 'package:interactions-basic', version: 1 }], definitions: [],
+    }).relationBindings).toEqual([])
+    const withBinding = (mutate: (draft: Record<string, unknown>) => void): unknown => {
+      const draft = JSON.parse(JSON.stringify(raw)) as Record<string, unknown>
+      mutate(draft)
+      return draft
+    }
+    const first = (draft: Record<string, unknown>) => (draft.relationBindings as Record<string, unknown>[])[0]!
+    expect(() => parseWorldPackInteractionsSource(withBinding(draft => { first(draft).extra = true })))
+      .toThrow(/extra: is not allowed/u)
+    expect(() => parseWorldPackInteractionsSource(withBinding(draft => { first(draft).bindingId = '' })))
+      .toThrow(/bindingId/u)
+    expect(() => parseWorldPackInteractionsSource(withBinding(draft => { first(draft).definition = { id: 'base:take', version: 0 } })))
+      .toThrow(/safe integer from 1/u)
+    expect(() => parseWorldPackInteractionsSource(withBinding(draft => { first(draft).config = null })))
+      .toThrow(/\/config: must be an object/u)
+    expect(() => parseWorldPackInteractionsSource(withBinding(draft => {
+      draft.relationBindings = [first(draft), first(draft)]
+    }))).toThrow(/contains duplicate values/u)
+    expect(() => parseWorldPackInteractionsSource(withBinding(draft => { draft.relationBindings = 'no' })))
+      .toThrow(/must be an array/u)
+    expect(() => parseWorldPackInteractionsSource(withBinding(draft => {
+      draft.relationBindings = Array.from({ length: 4097 }, (_, index) => ({
+        bindingId: `binding:r${index}`, relationClass: 'base:hold-hand',
+        definition: { id: 'base:end-contact', version: 1 }, config: {},
+      }))
+    }))).toThrow(/at most 4096 relation bindings/u)
   }, 60_000)
 
   it('refuses the legacy interact and take verbs on the v10 path instead of falling back', async () => {

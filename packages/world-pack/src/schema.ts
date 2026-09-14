@@ -135,6 +135,7 @@ import {
   type WorldPackCharacterSourceV3,
   type WorldPackCharactersSourceV3,
   type WorldPackInteractionBindingSource,
+  type WorldPackRelationBindingSource,
   type WorldPackInteractionsSource,
   type WorldPackReactionSource,
   type WorldPackManifestationSource,
@@ -1100,7 +1101,7 @@ export function parseWorldPackCharactersSourceV3(input: unknown, file = 'charact
 /** The world's explicit selection. It names identities; the compiler resolves the trusted locks. */
 export function parseWorldPackInteractionsSource(input: unknown, file = 'interactions.json'): WorldPackInteractionsSource {
   const root = sourceDocument(input, file)
-  exactKeys(root, ['schemaVersion', 'packages', 'definitions'], [], file, '')
+  exactKeys(root, ['schemaVersion', 'packages', 'definitions'], ['relationBindings'], file, '')
   if (root.schemaVersion !== WORLD_PACK_INTERACTIONS_SCHEMA_VERSION) {
     failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must equal ${WORLD_PACK_INTERACTIONS_SCHEMA_VERSION}`)
   }
@@ -1123,7 +1124,26 @@ export function parseWorldPackInteractionsSource(input: unknown, file = 'interac
   }
   unique(packages.map(pkg => `${pkg.id}@${pkg.version}`), file, '/packages')
   unique(definitions.map(definition => `${definition.id}@${definition.version}`), file, '/definitions')
-  return { schemaVersion: WORLD_PACK_INTERACTIONS_SCHEMA_VERSION, packages, definitions }
+  const relationBindings = root.relationBindings === undefined
+    ? []
+    : arrayAt(root.relationBindings, file, '/relationBindings').map((entry, index): WorldPackRelationBindingSource => {
+      const at = `/relationBindings/${index}`
+      const row = objectAt(entry, file, at)
+      exactKeys(row, ['bindingId', 'relationClass', 'definition', 'config'], [], file, at)
+      const config = objectAt(row.config, file, `${at}/config`)
+      canonicalizeWorldJson(config as WorldJsonValue)
+      return {
+        bindingId: textAt(row.bindingId, file, `${at}/bindingId`),
+        relationClass: textAt(row.relationClass, file, `${at}/relationClass`),
+        definition: identity(row.definition, `${at}/definition`),
+        config: config as WorldJsonObject,
+      }
+    })
+  if (relationBindings.length > MAX_INTERACTION_BINDINGS) {
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/relationBindings', `must declare at most ${MAX_INTERACTION_BINDINGS} relation bindings`)
+  }
+  unique(relationBindings.map(binding => binding.bindingId), file, '/relationBindings')
+  return { schemaVersion: WORLD_PACK_INTERACTIONS_SCHEMA_VERSION, packages, definitions, relationBindings }
 }
 
 function parseObservation(value: unknown, file: string, at: string): WorldPackInitialObservationSource {
@@ -1660,6 +1680,15 @@ export function compileInteractionCatalog(
   }
   for (const target of characters) for (const source of target.interactionBindings ?? []) {
     bind({ kind: 'character', id: target.characterId }, source, `/characters/${target.characterId}/${source.bindingId}`)
+  }
+  // A relation binding names a class rather than an instance. The class has to be a definition this
+  // world enabled, because that is what the runtime checks an addressed instance against.
+  for (const source of selection.relationBindings ?? []) {
+    const at = `/relationBindings/${source.bindingId}`
+    if (!definitions.some(entry => entry.ref.id === source.relationClass)) {
+      failWorldPackContract('PACK_REFERENCE_INVALID', selectionFile, at, `relation class ${source.relationClass} is not an enabled definition`)
+    }
+    bind({ kind: 'relation', id: source.relationClass }, source, at)
   }
   if (bindings.length > MAX_INTERACTION_BINDINGS) {
     failWorldPackContract('PACK_LIMIT_EXCEEDED', selectionFile, '/bindings', `must declare at most ${MAX_INTERACTION_BINDINGS} bindings`)

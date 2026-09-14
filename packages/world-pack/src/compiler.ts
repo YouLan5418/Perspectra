@@ -1653,10 +1653,18 @@ function validateInteractionTargets(pack: CompiledWorldPackV5): void {
   const entityIds = new Set(pack.content.entities.map(value => value.entityId))
   const characterIds = new Set(pack.content.characters.map(value => value.characterId))
   const definitionRefs = new Set(pack.interactions.definitions.map(entry => `${entry.ref.id}@${entry.ref.version}`))
+  const definitionIds = new Set(pack.interactions.definitions.map(entry => entry.ref.id))
   for (const binding of pack.interactions.bindings) {
-    const declared = binding.targetRef.kind === 'entity' ? entityIds : binding.targetRef.kind === 'character' ? characterIds : undefined
-    if (declared === undefined || !declared.has(binding.targetRef.id)) {
-      failWorldPackContract('PACK_REFERENCE_INVALID', 'worldpack.json', '/interactions/bindings', `binding ${binding.bindingId} names an unknown ${binding.targetRef.kind} target`)
+    if (binding.targetRef.kind === 'relation') {
+      // The id names the class: a definition the catalog enabled and whose instances may be addressed.
+      if (!definitionIds.has(binding.targetRef.id)) {
+        failWorldPackContract('PACK_REFERENCE_INVALID', 'worldpack.json', '/interactions/bindings', `binding ${binding.bindingId} names relation class ${binding.targetRef.id}, which the catalog does not enable`)
+      }
+    } else {
+      const declared = binding.targetRef.kind === 'entity' ? entityIds : characterIds
+      if (!declared.has(binding.targetRef.id)) {
+        failWorldPackContract('PACK_REFERENCE_INVALID', 'worldpack.json', '/interactions/bindings', `binding ${binding.bindingId} names an unknown ${binding.targetRef.kind} target`)
+      }
     }
     if (!definitionRefs.has(`${binding.definitionRef.id}@${binding.definitionRef.version}`)) {
       failWorldPackContract('PACK_REFERENCE_INVALID', 'worldpack.json', '/interactions/bindings', `binding ${binding.bindingId} references a definition outside the catalog`)

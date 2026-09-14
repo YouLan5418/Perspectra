@@ -33,8 +33,8 @@
 |---|---|
 | Definition | versionTag、id、version、participantRoles、argumentSchema、bindingConfigSchema、preconditions、effectBuilderRef、effectCapabilityRefs、authorityPolicyRef、observationPolicyRef、performancePolicyRef、reactionEvidencePolicyRef、spatialRequirementRefs、lifecycleRefs、dependencyRefs、limits |
 | DefinitionLock | id、version、definitionHash、implementationHash |
-| Binding | bindingId、targetRef、definitionRef、config；所有字段必需，空 config 为 {} |
-| TargetRef | kind（entity/character/relation）、id；运行时关系引用需验证耐久来源 |
+| Binding | bindingId、targetRef、definitionRef、config；所有字段必需，空 config 为 {}。relation 绑定的类必须是本世界已启用的定义，且其效果必须声明 character.relation-started，否则激活失败 |
+| TargetRef | kind（entity/character/relation）、id。entity/character 的 id 指名目标本身；relation 的 id 指名**创建该类关系的定义 id**，不指名实例——实例身份由来源 Action 在运行期派生，静态 Manifest 不可能枚举，见 [ADR-0095](../adr/ADR-0095-relation-class-binding.md) |
 | Request parameters | targetRef、bindingId、definitionRef（id/version）、arguments；禁止额外字段 |
 | Role slot | name、kind、source、distinctFrom；首批每槽恰好一个对象，不开放任意数量数组 |
 | source | hostActor、primaryTarget、argument（严格字段名）、derived（精确 resolver 引用）；不接受自由表达式或 propertyPath |
