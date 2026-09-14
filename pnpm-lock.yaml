@@ -54,6 +54,9 @@ importers:
       '@harness-world/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@harness-world/interactions-basic':
+        specifier: workspace:*
+        version: link:../interactions-basic
       '@harness-world/kernel':
         specifier: workspace:*
         version: link:../kernel

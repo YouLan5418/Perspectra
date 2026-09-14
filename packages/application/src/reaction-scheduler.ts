@@ -97,6 +97,8 @@ export interface ReactionContextPreparer {
 export interface ReactionSchedulerOptions {
   readonly address: WorldAddress
   readonly manifest: CompiledWorldManifest
+  /** The Host's own identity of the locked Manifest. A frozen resolution binds it into its trace. */
+  readonly manifestHash: WorldHash
   readonly store: WorldStore
   readonly availability: CharacterRuntimeAvailabilityService
   readonly sceneDecision: SceneDecisionService
@@ -617,6 +619,8 @@ export class ReactionScheduler {
         events: actionPrefix,
         characterId: item.action.actorId,
         actionId: item.action.actionId,
+        manifestHash: this.options.manifestHash,
+        asOfWorldSeq: baseHeadSeq,
         ...(manifestUsesHostAuthority(this.options.manifest) ? { resolutionAuthority: actionAuthority } : {}),
         action: { actionType: item.action.actionType, parameters: item.action.parameters },
       }))

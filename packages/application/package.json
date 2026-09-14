@@ -8,6 +8,7 @@
     "@deepseek-ai/cordis": "4.0.1",
     "@harness-world/agents": "workspace:*",
     "@harness-world/contracts": "workspace:*",
+    "@harness-world/interactions-basic": "workspace:*",
     "@harness-world/kernel": "workspace:*",
     "@harness-world/memory": "workspace:*",
     "@harness-world/presentation": "workspace:*",

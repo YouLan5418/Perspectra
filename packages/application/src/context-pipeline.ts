@@ -515,6 +515,8 @@ export class Phase8ContextPipeline {
       manifest: this.options.manifest,
       events: provisional === undefined ? history : [...history, ...provisionalInputEvents(provisional)],
       characterId: binding.actorId,
+      manifestHash: this.options.manifestHash,
+      asOfWorldSeq,
       resolutionAuthority: resolutionAuthority('agent', 'standard'),
     }).filter(value => binding.allowedActionTypes.includes(value.actionType))
       .map(value => contextAffordance(value, decision))
@@ -600,6 +602,7 @@ export class Phase8ContextPipeline {
     )
     const affordances: ContextAffordance[] = this.options.rulebook.affordances({
       manifest: this.options.manifest, events: history, characterId: binding.actorId,
+      manifestHash: this.options.manifestHash, asOfWorldSeq,
       resolutionAuthority: resolutionAuthority('agent', 'standard'),
     }).filter(value => (manifestUsesActionGroups(this.options.manifest) ? ['speak', 'move', manifestUsesInteractions(this.options.manifest) ? 'interact' : 'take'].includes(value.actionType) : value.actionType === 'speak') && value.actionVersion === 1
       && binding.allowedActionTypes.includes(value.actionType))

@@ -181,6 +181,8 @@ export class WorldKernel {
       events: history,
       characterId: binding.characterId,
       actionId,
+      manifestHash: this.options.runtimeLane.manifestHash,
+      asOfWorldSeq: head.headSeq,
       resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
       action,
     })

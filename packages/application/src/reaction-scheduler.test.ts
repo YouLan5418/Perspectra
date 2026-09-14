@@ -299,7 +299,7 @@ async function fixture(
   const providerCalls = new ProviderCallStore(paths.context)
   const contexts = new Contexts(spec.manifestHash)
   const schedulerOptions: ReactionSchedulerOptions = {
-    address: spec.manifest.address, manifest: spec.manifest, store, availability,
+    address: spec.manifest.address, manifest: spec.manifest, manifestHash: spec.manifestHash, store, availability,
     sceneDecision: new SceneDecisionService(store, availability, 2),
     contextPipeline: contexts, providerCalls, rulebooks: createCoreRulebookRegistry(),
     participants, writer: new LeasePort(leases, spec.manifest.address, lease), now: () => now.value,
@@ -514,7 +514,7 @@ describe('ReactionScheduler', () => {
   it('contains unavailable participants and invalid Provider output as durable terminal outcomes', async () => {
     const missing = await fixture([binding('character:alice', new Provider(abstain()))])
     const scheduler = new ReactionScheduler({
-      address: missing.spec.manifest.address, manifest: missing.spec.manifest, store: missing.store,
+      address: missing.spec.manifest.address, manifest: missing.spec.manifest, manifestHash: missing.spec.manifestHash, store: missing.store,
       availability: missing.availability, sceneDecision: new SceneDecisionService(missing.store, missing.availability, 2),
       contextPipeline: missing.contexts, providerCalls: missing.providerCalls,
       rulebooks: createCoreRulebookRegistry(), participants: [],

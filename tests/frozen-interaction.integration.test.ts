@@ -1,13 +1,20 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { WorldApplication } from '@harness-world/application'
 import { brandId, hashWorldJson, type RulebookResolutionAuthorityV1 } from '@harness-world/contracts'
 import {
   FrozenInteractionRulebook,
   createCoreRulebookRegistry,
+  SpeakMoveRulebook,
+  currentCharacterRelations,
   interactionHostSnapshot,
   runtimeManifestFromStored,
   type CompiledWorldManifestV10,
   type RulebookEvent,
 } from '@harness-world/kernel'
+import { WorldStore } from '@harness-world/store-sqlite'
 import {
   basicInteractionPackage,
   frozenGenesisEvents,
@@ -308,4 +315,67 @@ describe('the fixture itself', () => {
     expect(hashWorldJson('compiled-world-manifest', world.manifest)).toBe(world.manifestHash)
     expect(address.branchId).toBe(brandId('branch:main', 'BranchId'))
   })
+})
+
+describe('a v10 world through the production entry point', () => {
+  it('closes the relation a move ended, exactly once, without a Kernel-side contact branch', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'frozen-interaction-'))
+    const worldPath = join(root, 'world.sqlite')
+    const compiled = frozenInteractionWorld()
+    const app = new WorldApplication({
+      worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'),
+      modelBudgetTokens: 20,
+    })
+    let relationId = ''
+    try {
+      app.activate(compiled)
+      // The precondition the release and the fold both rest on: the pair shares a Location and a Scene.
+      const opening = new WorldStore(worldPath)
+      try {
+        const events = opening.readEvents(compiled.manifest.address)
+        const location = (id: string): unknown => events.filter(event => event.eventType === 'character.created'
+          && (event.data as { characterId: string }).characterId === id).at(-1)?.data
+        expect((location('character:player') as { locationId: string }).locationId).toBe('location:room')
+        expect((location('character:npc') as { locationId: string }).locationId).toBe('location:room')
+        expect(events.some(event => event.eventType === 'scene.upsert'
+          && (event.data as { sceneId: string }).sceneId === 'scene:room'
+          && ((event.data as { value: { participantIds: readonly string[] } }).value.participantIds).includes('character:npc'))).toBe(true)
+      } finally { opening.close() }
+
+      // One player interaction through the frozen path: the pair is holding hands.
+      await app.submit(compiled.manifest.address, { idempotencyKey: 'hold', principalId: 'principal:player',
+        correlationId: 'frozen-hold', action: { actionType: 'interact', parameters: {
+          targetRef: { kind: 'character', id: 'character:npc' }, bindingId: 'binding:character:npc:base:hold-hand',
+          definitionRef: { id: 'base:hold-hand', version: 1 }, arguments: {},
+        } } })
+      const afterHold = new WorldStore(worldPath)
+      try {
+        const relations = currentCharacterRelations(afterHold.readEvents(compiled.manifest.address))
+        expect(relations).toHaveLength(1)
+        expect(relations[0]!.active).toBe(true)
+        relationId = relations[0]!.relationId
+      } finally { afterHold.close() }
+
+      // A move is not an interaction: the world fold is what ends the relation, and it runs once.
+      await app.submit(compiled.manifest.address, { idempotencyKey: 'move', principalId: 'principal:player',
+        correlationId: 'frozen-move', action: { actionType: 'move', parameters: { locationId: 'location:next' } } })
+    } finally { await app.close() }
+    try {
+      const store = new WorldStore(worldPath)
+      const events = store.readEvents(compiled.manifest.address)
+      store.close()
+      expect(currentCharacterRelations(events).filter(relation => relation.active)).toEqual([])
+      const endings = events.filter(event => event.eventType === 'character.relation-ended')
+      // Exactly one ending: a second fold over the same candidate set would emit it again.
+      expect(endings).toHaveLength(1)
+      // The Kernel cannot be the source of that ending. For a v10 Manifest its move emits the movement
+      // and nothing about relations, so what ended the contact above can only be the frozen fold.
+      expect(new SpeakMoveRulebook().resolve(compiled.manifest, events, 'character:player', {
+        actionType: 'move', parameters: { locationId: 'location:room' },
+      }).events.map(event => event.eventType)).toEqual(['character.moved'])
+      expect(endings[0]!.data).toEqual({
+        relationId, endedByCharacterId: 'character:player', reason: 'participant_moved',
+      })
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  }, 60_000)
 })

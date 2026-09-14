@@ -12,6 +12,7 @@ import {
   worldAddressKey,
   type CharacterId,
   type RuntimeAvailabilityState,
+  type InteractionPackageImplementation,
   type InteractionRoundId,
   type ReactionCycleId,
   type ReactionCycleStatus,
@@ -28,6 +29,7 @@ import {
   type WorldAddress,
   type WorldJsonValue,
 } from '@harness-world/contracts'
+import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import {
   WorldBootstrap,
   WorldSpecCompiler,
@@ -138,6 +140,14 @@ function contextPathFor(options: Pick<WorldApplicationOptions, 'contextPath' | '
   return options.contextPath ?? (options.memoryPath === undefined ? undefined : `${options.memoryPath}.context.sqlite`)
 }
 
+/**
+ * The first-batch trusted pack, installed unless a Host says otherwise. It is the Host's decision, not
+ * the world's: a world names locks and can only select what the Host already installed.
+ */
+const DEFAULT_INTERACTION_PACKAGES: readonly InteractionPackageImplementation[] = Object.freeze([
+  createBasicInteractionPackage(),
+])
+
 export interface WorldApplicationOptions {
   readonly playerIntent?: {
     readonly profile: PlayerIntentProfile
@@ -153,6 +163,12 @@ export interface WorldApplicationOptions {
   readonly leaseTtlMs?: number
   readonly faultInjector?: FaultInjector
   readonly rulebooks?: RulebookRegistry
+  /**
+   * The trusted interaction packages this Host installs. A v10 world selects among them by lock and can
+   * never add one, so a Host that installs nothing refuses to activate a v10 world rather than opening
+   * a world whose actions it cannot resolve. Omitted means the first-batch basic package.
+   */
+  readonly interactionPackages?: readonly InteractionPackageImplementation[]
   readonly memoryPath?: string
   readonly contextPath?: string
   /**
@@ -425,6 +441,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         const schedulerOptions: ReactionSchedulerOptions = {
           address: scope.address,
           manifest,
+          manifestHash: scope.manifestHash,
           store: store.store,
           availability: store.availability,
           sceneDecision: sceneDecision!,
@@ -496,8 +513,11 @@ export class WorldApplication {
   readonly runtimeMetrics = new ApplicationRuntimeMetrics()
   #closed = false
 
+  readonly #interactionPackages: readonly InteractionPackageImplementation[]
+
   constructor(private readonly options: WorldApplicationOptions) {
-    this.#rulebooks = options.rulebooks ?? createCoreRulebookRegistry()
+    this.#interactionPackages = options.interactionPackages ?? DEFAULT_INTERACTION_PACKAGES
+    this.#rulebooks = options.rulebooks ?? createCoreRulebookRegistry({ interactionPackages: this.#interactionPackages })
     this.runtimeRegistry = new WorldRuntimeRegistry(this.#root, new WorldBranchComponentFactory({
       ...options,
       rulebooks: this.#rulebooks,
@@ -532,7 +552,7 @@ export class WorldApplication {
         `activate:${worldAddressKey(compiled.manifest.address)}`,
         this.options.memoryPath,
       )
-      return new WorldBootstrap(store, true).activate(compiled)
+      return new WorldBootstrap(store, true, this.#interactionPackages.length > 0).activate(compiled)
     } finally {
       store.close()
     }
@@ -653,7 +673,8 @@ export class WorldApplication {
     const interpretation = await this.#durableReadGuard(address, 'round.interpret', () => {
       const store = new WorldStore(this.options.worldPath)
       try {
-        const manifest = runtimeManifestFromStoredRecord(store.readManifest(address))
+        const record = store.readManifest(address)!
+        const manifest = runtimeManifestFromStoredRecord(record)
         const binding = manifest.playerBindings.find(value => value.principalId === request.principalId)
         if (binding === undefined) {
           failWorld({
@@ -668,11 +689,14 @@ export class WorldApplication {
           request.correlationId,
           address,
         )
-        const events = store.readEvents(address)
+        const head = store.head(address)
+        const events = store.readEvents(address, head.headSeq)
         return new PlayerInputInterpreter().interpret(request.text, resolver.affordances({
           manifest,
           events,
           characterId: binding.characterId,
+          manifestHash: record.manifestHash,
+          asOfWorldSeq: head.headSeq,
           resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
         }))
       } finally {
@@ -771,7 +795,8 @@ export class WorldApplication {
         }
         const prepared = preparePlayerIntent(job, current, history,
           this.#rulebooks.resolve(current.rulebook.rulebookId, current.rulebook.version, correlationId, address),
-          this.options.playerIntent?.profile, this.options.modelBudgetTokens ?? 0)
+          this.options.playerIntent?.profile, this.options.modelBudgetTokens ?? 0,
+          stored.manifestHash, job.acceptedHeadSeq)
         return 'request' in prepared ? { ...prepared, request: { body: prepared.request,
           asOfWorldSeq: job.acceptedHeadSeq, baseHeadHash: job.acceptedHeadHash } } : prepared
       },

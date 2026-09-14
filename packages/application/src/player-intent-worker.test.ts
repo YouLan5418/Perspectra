@@ -112,11 +112,13 @@ it('fails closed on lost PlayerBinding and tolerates an empty interaction afford
   try {
     const world = intentWorld()
     const resolver = createCoreRulebookRegistry().resolve(world.manifest.rulebook.rulebookId, world.manifest.rulebook.version, 'test', world.manifest.address)
-    expect(() => preparePlayerIntent(s.job, world.manifest, [], resolver, undefined, 0)).toThrow('lost its PlayerBinding')
+    expect(() => preparePlayerIntent(s.job, world.manifest, [], resolver, undefined, 0, world.manifestHash, 0))
+      .toThrow('lost its PlayerBinding')
     const prepared = s.options.prepare(s.job)
     if (!('profile' in prepared)) throw new Error('fixture requires profile')
     const result = preparePlayerIntent({ ...s.job, principalId: 'principal:player' }, world.manifest, [],
-      { ...resolver, affordances: () => [{ actionType: 'interact', actionVersion: 1, parameters: {} }] } as typeof resolver, prepared.profile, 10)
+      { ...resolver, affordances: () => [{ actionType: 'interact', actionVersion: 1, parameters: {} }] } as typeof resolver,
+      prepared.profile, 10, world.manifestHash, 0)
     expect('request' in result && result.binding.affordances).toEqual([])
   } finally { s.close() }
 })

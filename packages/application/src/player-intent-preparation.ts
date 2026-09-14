@@ -1,5 +1,5 @@
 import { createPlayerIntentCandidateSchema, deterministicId, hashWorldJson, resolutionAuthority,
-  type PlayerIntentAffordance, type PlayerSubmissionV2, type WorldJsonObject } from '@harness-world/contracts'
+  type PlayerIntentAffordance, type PlayerSubmissionV2, type WorldHash, type WorldJsonObject } from '@harness-world/contracts'
 import { parsePlayerActionInput, type CompiledWorldManifest, type RulebookEvent, type RulebookResolver } from '@harness-world/kernel'
 import type { PlayerInputJob } from '@harness-world/store-sqlite'
 import { PlayerInputInterpreter } from './player-input.ts'
@@ -7,13 +7,15 @@ import type { PlayerIntentProfile, PreparedPlayerIntent } from './player-intent-
 
 /** Called only after PlayerBinding authorization, on the head selected by the durable input FIFO. */
 export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorldManifest, events: readonly RulebookEvent[],
-  resolver: RulebookResolver, profile: PlayerIntentProfile | undefined, budget: number):
+  resolver: RulebookResolver, profile: PlayerIntentProfile | undefined, budget: number,
+  manifestHash: WorldHash, asOfWorldSeq: number):
   PreparedPlayerIntent | { directSubmission: PlayerSubmissionV2 } | { clarification: string } {
   const actor = manifest.playerBindings.find(value => value.principalId === job.principalId)
   if (actor === undefined) throw new TypeError('player input lost its PlayerBinding')
   const input = job.input as WorldJsonObject
   const sourceText = input.text as string
-  const context = { manifest, events, characterId: actor.characterId, resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate') }
+  const context = { manifest, events, characterId: actor.characterId, manifestHash, asOfWorldSeq,
+    resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate') }
   const afforded = resolver.affordances(context)
   if (Object.hasOwn(input, 'action') || sourceText.startsWith('/')) {
     const explicit = Object.hasOwn(input, 'action') ? { status: 'resolved' as const, action: parsePlayerActionInput(input.action!) }
