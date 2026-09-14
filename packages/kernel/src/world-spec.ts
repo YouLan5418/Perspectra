@@ -576,7 +576,7 @@ function parseReactionPolicy(value: unknown): ReactionPolicyV1 {
   if (policy.mode === 'responsive') {
     exactKeys(policy, ['version', 'mode', 'profile'], 'StoredWorldManifest.reactionPolicy')
     if (policy.version !== 'reaction-policy/v1') throw new TypeError('stored Manifest reactionPolicy version is unsupported')
-    if (policy.profile !== 'responsive/v1') throw new TypeError('stored Manifest reactionPolicy profile is unsupported')
+    if (policy.profile !== 'responsive/v1' && policy.profile !== 'responsive/v2') throw new TypeError('stored Manifest reactionPolicy profile is unsupported')
     return policy as ReactionPolicyV1
   }
   throw new TypeError('stored Manifest reactionPolicy mode is unsupported')

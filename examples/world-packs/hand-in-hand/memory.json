@@ -16,6 +16,13 @@
         "雨",
         "伞"
       ]
+    },
+    {
+      "characterId": "character:friend",
+      "profile": "standard",
+      "attentionTopics": [
+        "雨"
+      ]
     }
   ]
 }

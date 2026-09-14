@@ -546,7 +546,16 @@ CREATE INDEX world_reaction_job_stimuli_source
 CREATE INDEX events_type_range ON events(address_key, event_type, seq);
 `
 
-export const WORLD_SCHEMA_VERSION = 18
+/**
+ * Responsive/v2 records why an observation was weighed, on the stimulus it was admitted as. It is a
+ * nullable column rather than a second table: v1 rows keep storing nothing, so their bytes and entry
+ * hashes are untouched, and a reader sees the basis on the row it belongs to.
+ */
+export const WORLD_REACTION_EVIDENCE_SCHEMA = `
+ALTER TABLE world_reaction_job_stimuli ADD COLUMN evidence_json TEXT;
+`
+
+export const WORLD_SCHEMA_VERSION = 19
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -567,7 +576,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 15, sql: WORLD_PROVIDER_OUTPUT_AVAILABILITY_SCHEMA },
     { version: 16, sql: WORLD_REACTION_SCHEMA },
     { version: 17, sql: 'ALTER TABLE world_reaction_cycles ADD COLUMN action_group_max_actions INTEGER CHECK(action_group_max_actions = 2);' },
-    { version: WORLD_SCHEMA_VERSION, sql: PLAYER_INPUT_SCHEMA },
+    { version: 18, sql: PLAYER_INPUT_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_REACTION_EVIDENCE_SCHEMA },
   ])
 }
 

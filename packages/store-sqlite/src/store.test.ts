@@ -197,7 +197,7 @@ describe('SQLite ownership helpers', () => {
   })
 })
 
-describe('World schema v17', () => {
+describe('World schema v18', () => {
   it('freezes the formal four-table Reaction schema, constraints, indexes, and Golden hash', async () => {
     const path = database('world-v16.sqlite')
     const firstAddress = fixtureAddress('reaction-schema-a')
@@ -213,7 +213,7 @@ describe('World schema v17', () => {
 
     const raw = new DatabaseSync(path)
     raw.exec('PRAGMA foreign_keys = ON')
-    expect(readPragmaInteger(raw, 'user_version')).toBe(18)
+    expect(readPragmaInteger(raw, 'user_version')).toBe(WORLD_SCHEMA_VERSION)
     const names = (worldSchemaRows(raw) as Array<{ readonly name: string }>).map(row => row.name)
     expect(names).toEqual(expect.arrayContaining([
       'events_type_range',
@@ -228,8 +228,8 @@ describe('World schema v17', () => {
       'world_reaction_waves_reaction_round',
       'world_reaction_waves_result_transaction',
     ]))
-    expect(hashWorldJson('world-sqlite-schema/v17', (worldSchemaRows(raw) as { name: string }[]).filter(row => row.name !== 'player_input_jobs')))
-      .toBe('sha256:b3f741a73b8b6aedc884ea044ae1297243541796b8c5fc3ded32607bf1dc1319')
+    expect(hashWorldJson('world-sqlite-schema/v18', (worldSchemaRows(raw) as { name: string }[]).filter(row => row.name !== 'player_input_jobs')))
+      .toBe('sha256:fca11e7158047f7bdfe074fa0c7e7d13fd80fe977863521bbfb0e9d49b8553af')
 
     insertReactionCycle(raw, {
       cycleId: 'cycle:valid',

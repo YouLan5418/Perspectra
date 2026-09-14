@@ -25,6 +25,16 @@ const runtimeOptions = () => ({
   sessionId: 'session:hand-in-hand' as never,
 })
 
+/**
+ * The pack declares responsive/v2, so every active non-manual character needs a participant binding or
+ * the world refuses to mount. These abstain: the cases below are about what the world records.
+ */
+const quietParticipants = () => ['character:companion', 'character:friend'].map(actorId => ({
+  participantId: `agent:${actorId}`, role: 'agent' as const, actorId: actorId as never,
+  allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
+  provider: { propose: async () => ({ schemaVersion: 6 as const, decision: 'abstain' as const, actions: [] }) },
+}))
+
 /** One player interaction in the frozen request shape the world's own selection defines. */
 const interact = (bindingId: string, targetRef: WorldJsonObject, definitionId: string, args: WorldJsonObject = {}) => ({
   actionType: 'interact',
@@ -48,7 +58,7 @@ describe('an independent pack on the interaction path', () => {
     const worldPath = join(root, 'world.sqlite')
     const app = new WorldApplication({
       worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'),
-      modelBudgetTokens: 20,
+      modelBudgetTokens: 20, reactionParticipants: quietParticipants,
     })
     let relationId = ''
     try {
@@ -102,7 +112,7 @@ describe('an independent pack on the interaction path', () => {
     let proposals = 0
     const app = new WorldApplication({
       worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'),
-      modelBudgetTokens: 20,
+      modelBudgetTokens: 20, reactionParticipants: quietParticipants,
       participants: () => [{
         participantId: 'agent:companion', role: 'agent' as const, actorId: 'character:companion' as never,
         allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
@@ -172,6 +182,65 @@ describe('an independent pack on the interaction path', () => {
     }
   }, 60_000)
 
+  it('records why each observer was weighed, and weighs the affected one first', async () => {
+    // Responsive/v2 exists to answer "why is this character being asked?" on the durable record. Three
+    // rounds put both classes and both entry kinds in the same world: a take and a speech reach the
+    // companion as a witness, and handing them the umbrella reaches them as the one it landed on.
+    const compiled = adaptCompiledWorldPack(
+      await compileWorldPackSource(packDirectory, packages) as CompiledWorldPackV5, runtimeOptions())
+    const root = mkdtempSync(join(tmpdir(), 'hand-in-hand-v2-'))
+    const worldPath = join(root, 'world.sqlite')
+    const app = new WorldApplication({
+      worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'),
+      modelBudgetTokens: 20, reactionParticipants: quietParticipants,
+    })
+    try {
+      app.activate(compiled)
+      const submit = (key: string, action: { readonly actionType: string; readonly parameters: WorldJsonObject }) =>
+        app.submit(compiled.manifest.address, {
+          idempotencyKey: key, principalId: 'principal:player', correlationId: `hand-in-hand:v2:${key}`, action,
+        })
+      await submit('take', interact('binding:umbrella-take', { kind: 'entity', id: 'entity:shared-umbrella' }, 'base:take'))
+      await submit('speak', { actionType: 'speak', parameters: { text: '雨小了。' } })
+      // Handing it to the character whose id sorts *last*, so the class order and the id order disagree:
+      // otherwise this round would pass whichever comparator ran, which is not a test of the ordering.
+      await submit('give', interact('binding:umbrella-give', { kind: 'entity', id: 'entity:shared-umbrella' }, 'base:give',
+        { recipientId: 'character:friend' }))
+    } finally { await app.close() }
+    try {
+      const raw = new DatabaseSync(worldPath, { readOnly: true })
+      const rows = raw.prepare(`
+        SELECT j.cycle_id AS cycle, j.character_id AS observer, j.budget_ordinal AS ordinal, s.evidence_json AS evidence
+        FROM world_reaction_jobs j JOIN world_reaction_job_stimuli s ON s.job_id = j.job_id
+        ORDER BY j.cycle_id, j.budget_ordinal
+      `).all() as unknown as { readonly cycle: string; readonly observer: string; readonly ordinal: number; readonly evidence: string }[]
+      const cycles = raw.prepare('SELECT DISTINCT profile_id FROM world_reaction_cycles').all() as unknown as { readonly profile_id: string }[]
+      raw.close()
+      // Every cycle this world opened says which profile it opened under.
+      expect(cycles.map(entry => entry.profile_id)).toEqual(['responsive/v2'])
+      const parsed = rows.map(row => ({ ...row, value: JSON.parse(row.evidence) as WorldJsonObject }))
+      expect(parsed.length).toBeGreaterThan(0)
+      for (const row of parsed) {
+        expect(row.value.version).toBe('reaction-evidence/v1')
+        expect(row.value.observerCharacterId).toBe(row.observer)
+        expect(typeof row.value.actionId).toBe('string')
+      }
+      // The speech has no definition, so its evidence names the action itself.
+      const speech = parsed.find(row => (row.value.entry as WorldJsonObject).kind === 'action')!
+      expect(speech.value.entry).toMatchObject({ actionType: 'speak', actionVersion: 1 })
+      expect(speech.value.roleClass).toBe('witness')
+      // The hand-over names the definition lock that adjudicated it, and lands on its recipient.
+      const handed = parsed.find(row => row.value.roleClass === 'direct')!
+      expect(handed.observer).toBe('character:friend')
+      expect(handed.value.entry).toEqual({ kind: 'definition', definitionRef: { id: 'base:give', version: 1 } })
+      // And that round weighs the character the effect landed on before the one who only saw it.
+      const ordering = parsed.filter(row => row.cycle === handed.cycle)
+      expect(ordering.map(row => [row.observer, row.value.roleClass]))
+        .toEqual([['character:friend', 'direct'], ['character:companion', 'witness']])
+      expect(ordering[0]!.ordinal).toBeLessThan(ordering[1]!.ordinal)
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  }, 60_000)
+
   it('opens a Reaction Cycle on a v10 world at the frozen action version', async () => {
     // A Cycle records which world operation it may carry, at the version its Manifest addresses. The
     // frozen path addresses a binding and a definition lock, so a v10 Cycle declares interact@2 rather
@@ -191,7 +260,9 @@ describe('an independent pack on the interaction path', () => {
       const app = new WorldApplication({
         worldPath: join(root, 'world.sqlite'), sessionPath: join(root, 'session.sqlite'),
         memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
-        reactionParticipants: () => [{
+        reactionParticipants: () => [
+          ...quietParticipants().filter(entry => entry.actorId !== 'character:companion'),
+          {
           participantId: 'agent:companion', role: 'agent', actorId: 'character:companion' as never,
           allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
           provider: { propose: async (context: unknown) => {

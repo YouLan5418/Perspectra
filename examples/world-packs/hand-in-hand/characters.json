@@ -32,6 +32,17 @@
           "config": {}
         }
       ]
+    },
+    {
+      "characterId": "character:friend",
+      "displayName": "候车的人",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:ridge-shelter",
+      "portrayal": {
+        "summary": "也在这个雨棚下等雨停的陌生人。",
+        "speakingStyle": "客气，保持距离。"
+      }
     }
   ]
 }

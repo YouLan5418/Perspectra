@@ -5,6 +5,7 @@ import type {
   ReactionJobId,
   TransactionId,
 } from './ids.ts'
+import type { InteractionRef } from './interaction-definition.ts'
 import type { WorldAddress } from './protocol.ts'
 import type { StableCallBudgetPlan } from './stable-call-budget.ts'
 import type { WorldHash, WorldJsonObject, WorldJsonValue } from './world-json.ts'
@@ -34,6 +35,42 @@ export type ReactionPolicyV1 =
       readonly mode: 'responsive'
       readonly profile: 'responsive/v1'
     }
+  /**
+   * The profile that classifies each observer before it weighs them. It is selected by the world, not by
+   * a runtime switch: a world that declared v1 must keep its candidate order and its budget hash, and a
+   * host option could not promise that across machines.
+   */
+  | {
+      readonly version: 'reaction-policy/v1'
+      readonly mode: 'responsive'
+      readonly profile: 'responsive/v2'
+    }
+
+export type ReactionProfileId = 'responsive/v1' | 'responsive/v2'
+
+/**
+ * What an observer is to the action that reached them. `self` is the actor, and a self-stimulus never
+ * appends a call to its own cycle; `direct` means the effect landed on the observer; `addressee` means
+ * the action named them without landing on them; `witness` is everyone else who could see it.
+ */
+export type ReactionRoleClass = 'self' | 'direct' | 'addressee' | 'witness'
+
+/**
+ * Why one observer is being weighed. The entry identity is a definition when a definition adjudicated
+ * the action - the frozen path always has one - and the action itself otherwise, since speech and
+ * movement are not resolved by a registered definition.
+ */
+export interface ReactionEvidenceV1 extends WorldJsonObject {
+  readonly version: 'reaction-evidence/v1'
+  readonly sourceEventOrdinal: number
+  readonly observationId: string
+  readonly observerCharacterId: CharacterId
+  readonly actionId: string
+  readonly entry:
+    | { readonly kind: 'definition'; readonly definitionRef: InteractionRef }
+    | { readonly kind: 'action'; readonly actionType: string; readonly actionVersion: number }
+  readonly roleClass: ReactionRoleClass
+}
 
 /** One Observation from the committing Root Round that may stimulate a character. */
 export interface ReactionStimulusDraft extends WorldJsonObject {
@@ -41,10 +78,15 @@ export interface ReactionStimulusDraft extends WorldJsonObject {
   readonly observationOrdinal: number
   readonly observationId: string
   readonly observerCharacterId: CharacterId
+  /** Present under responsive/v2, absent under v1, whose stored bytes stay as they were. */
+  readonly roleClass?: ReactionRoleClass
+  readonly evidence?: ReactionEvidenceV1
 }
 
 /** One candidate used to freeze the initial wave before any Provider dispatch. */
 export interface ReactionCandidateDraft extends WorldJsonObject {
+  /** Present under responsive/v2: the strongest class among this candidate's stimuli. */
+  readonly roleClass?: ReactionRoleClass
   readonly characterId: CharacterId
   readonly estimatedTokens: number
   readonly stimuli: readonly ReactionStimulusDraft[]
@@ -53,7 +95,7 @@ export interface ReactionCandidateDraft extends WorldJsonObject {
 /** Manifest-locked responsive/v1 limits attached atomically to one Root Round commit. */
 export interface ReactionCycleDraft extends WorldJsonObject {
   readonly policyVersion: 'reaction-policy/v1'
-  readonly profileId: 'responsive/v1'
+  readonly profileId: ReactionProfileId
   readonly maxWaves: number
   readonly maxNpcCalls: number
   readonly maxCallsPerCharacter: number
@@ -77,7 +119,7 @@ export interface StoredReactionCycle extends WorldJsonObject {
   readonly rootTransactionId: TransactionId
   readonly createdAtSeq: number
   readonly policyVersion: 'reaction-policy/v1'
-  readonly profileId: 'responsive/v1'
+  readonly profileId: ReactionProfileId
   readonly maxWaves: number
   readonly maxNpcCalls: number
   readonly maxCallsPerCharacter: number
@@ -159,6 +201,12 @@ export interface StoredReactionStimulus extends WorldJsonObject {
   readonly observationId: string
   readonly sourceEventHash: WorldHash
   readonly stimulusEntryHash: WorldHash
+  /**
+   * Why this observation was weighed, under responsive/v2. Absent under v1, whose stored bytes and
+   * entry hash stay exactly as they were; present it joins the hash, so a stimulus cannot be re-read
+   * with a different basis than the one it was admitted on.
+   */
+  readonly evidence?: ReactionEvidenceV1
 }
 
 export interface StoredReactionCycleBundle extends WorldJsonObject {
@@ -178,7 +226,7 @@ export interface ReactionCycleView extends WorldJsonObject {
   readonly address: WorldAddress
   readonly rootRoundId: InteractionRoundId
   readonly policyVersion: 'reaction-policy/v1'
-  readonly profileId: 'responsive/v1'
+  readonly profileId: ReactionProfileId
   readonly status: ReactionCycleStatus
   readonly stopReason: ReactionCycleStopReason | null
   readonly terminalReason: ReactionCycleTerminalReason | null

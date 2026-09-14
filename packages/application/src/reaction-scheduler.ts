@@ -52,6 +52,7 @@ import {
   manifestationPolicyFromManifest,
   manifestUsesActionGroups,
   manifestUsesHostAuthority,
+  reactionPolicyFromManifest,
   manifestInteractionLabel,
   manifestInteractionVerb,
   manifestUsesFrozenInteractions,
@@ -781,6 +782,9 @@ export class ReactionScheduler {
             critical: true,
           })
         }
+        // A stimulus for the next wave is recorded as its own Observation is: the class and the evidence
+        // are the Root Round's step, and a wave-two stimulus that carried neither would read as one whose
+        // basis was never established. See the record for what remains open here.
         const next = this.#bindings.get(observerId)
         if (next !== undefined && estimatedTokens.has(observerId) && observerId !== item.action.actorId) {
           const stimuli = candidateStimuli.get(observerId) ?? []
@@ -795,7 +799,7 @@ export class ReactionScheduler {
       characterId,
       estimatedTokens: estimatedTokens.get(characterId)!,
       stimuli,
-    })).sort((left, right) => compareWorldText(left.characterId, right.characterId))
+    }))
     const participants = executed.map(value => {
       const proposalHash = hashWorldJson('round-participant-proposal', value.proposal)
       return {

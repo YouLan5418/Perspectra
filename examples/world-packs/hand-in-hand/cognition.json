@@ -52,6 +52,31 @@
           ]
         }
       ]
+    },
+    {
+      "characterId": "character:friend",
+      "observations": [
+        {
+          "key": "observation:friend-rain",
+          "content": "雨一时半会儿停不了。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 350
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:friend-wait",
+          "objective": {
+            "kind": "narrative",
+            "value": "等雨停。"
+          },
+          "priorityPermille": 400,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:friend-rain"
+          ]
+        }
+      ]
     }
   ]
 }

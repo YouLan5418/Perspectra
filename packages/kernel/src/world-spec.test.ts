@@ -283,7 +283,8 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
       [{ ...v5, reactionPolicy: { version: 'reaction-policy/v1', mode: 'unknown' } }, 'mode'],
       [{ ...v5, reactionPolicy: { version: 'reaction-policy/v1', mode: 'responsive' } }, 'missing or unknown'],
       [{ ...v5, reactionPolicy: { version: 'reaction-policy/v2', mode: 'responsive', profile: 'responsive/v1' } }, 'version'],
-      [{ ...v5, reactionPolicy: { version: 'reaction-policy/v1', mode: 'responsive', profile: 'responsive/v2' } }, 'profile'],
+      // v2 is a real profile now; a version that does not exist is still refused.
+      [{ ...v5, reactionPolicy: { version: 'reaction-policy/v1', mode: 'responsive', profile: 'responsive/v3' } }, 'profile'],
       [{ ...v5, reactionPolicy: { ...responsivePolicy, extra: true } }, 'missing or unknown'],
       [{ ...v5, manifestationPolicy: enabledManifestation }, 'requires schemaVersion 6'],
       [{ ...v6, manifestationPolicy: null }, 'manifestationPolicy must be an object'],

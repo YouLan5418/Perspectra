@@ -83,7 +83,7 @@ describe('interaction abstraction baseline', () => {
     // which passes for any value, and that is how the two branches once moved CONTEXT_SCHEMA_VERSION
     // to 6 independently without any test noticing. A new workstream that needs a bump must change
     // this line in its own commit and state why.
-    expect(WORLD_SCHEMA_VERSION).toBe(18)
+    expect(WORLD_SCHEMA_VERSION).toBe(19)
     expect(CONTEXT_SCHEMA_VERSION).toBe(7)
   })
 })

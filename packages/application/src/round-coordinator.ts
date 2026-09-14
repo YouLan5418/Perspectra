@@ -1,4 +1,5 @@
 import { sortActionGroups, stepManifestation, resolveGroupAction } from './action-groups.ts'
+import { reactionEvidence, reactionRoleClass, speechAddressees, strongestClass } from './reaction-evidence.ts'
 import { bindPlayerProvisional, verifyPlayerProvisional, provisionalInputEvents, type PlayerProvisional, type ProvisionalReactionInput } from './player-provisional.ts'
 import {
   SubmitActionsValidator,
@@ -34,6 +35,8 @@ import {
   type SubmitActionsV5,
   type SubmitActionsV6,
   type ActionGroupBinding,
+  type ReactionEvidenceV1,
+  type ReactionRoleClass,
   type CharacterId,
   type InteractionRoundId,
   type ManifestationProposal,
@@ -112,6 +115,8 @@ const RESPONSIVE_V1_MAX_WAVES = 3
 const RESPONSIVE_V1_MAX_NPC_CALLS = 8
 const RESPONSIVE_V1_MAX_CALLS_PER_CHARACTER = 2
 const REACTION_CYCLE_DEADLINE_MS = 30_000
+
+
 
 /** Durable effect of committing exactly one accepted player Round; the Host scheduling quantum. */
 export interface AcceptedRoundStep {
@@ -819,6 +824,8 @@ export class RoundCoordinator {
       observerId: CharacterId
       actorId: CharacterId
       sourceRole: 'player' | RoundParticipantRole
+      roleClass: ReactionRoleClass
+      evidence: ReactionEvidenceV1
     }[] = []
     const stoppedGroups = new Set<string>()
     for (const [ordinal, item] of ordered.entries()) {
@@ -974,12 +981,21 @@ export class RoundCoordinator {
             ...(relations.length === 0 ? {} : { relations }),
           },
         }
+        // Every observer is classified from facts that already exist, by the derivation the Reaction
+        // Round uses as well, so a wave-two stimulus is not a special case of a wave-one one.
+        const roleClass = reactionRoleClass({ actorId: item.action.actorId, observerId,
+          affectedCharacterIds: resolution.affectedCharacterIds, addresseeIds: speechAddressees(resolution) })
+        const evidence = reactionEvidence({ actionId: item.action.actionId, actionType: item.action.actionType,
+          actionVersion: item.action.actionVersion, actorId: item.action.actorId, observerId, resolution,
+          roleClass, sourceEventOrdinal: events.length, observationId })
         reactionStimuli.push({
           sourceEventOrdinal: events.length,
           observationId,
           observerId,
           actorId: item.action.actorId,
           sourceRole: item.sourceRole,
+          roleClass,
+          evidence,
         })
         events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id: observationId, value: observation } })
         if (observerId === binding.characterId) {
@@ -1683,14 +1699,19 @@ export class RoundCoordinator {
       observerId: CharacterId
       actorId: CharacterId
       sourceRole: 'player' | RoundParticipantRole
+      roleClass: ReactionRoleClass
+      evidence: ReactionEvidenceV1
     }[],
     rootParticipantActorIds: ReadonlySet<CharacterId>,
   ): ReactionCycleDraft | undefined {
     const policy = reactionPolicyFromManifest(this.#manifest)
     if (policy.mode !== 'responsive') return undefined
+    // The profile decides whether the classification is recorded at all. A v1 world stores the same
+    // bytes it stored before, which is what keeps its budget hash and its recovery path intact.
+    const recordsEvidence = policy.profile === 'responsive/v2'
     const reactionParticipants = this.options.reactionParticipants ?? []
     const playerCharacters = new Set(this.#manifest.playerBindings.map(binding => binding.characterId))
-    const stimuliByObserver = new Map<CharacterId, { sourceEventOrdinal: number; observationOrdinal: number; observationId: string; observerCharacterId: CharacterId }[]>()
+    const stimuliByObserver = new Map<CharacterId, ReactionCycleDraft['candidates'][number]['stimuli'][number][]>()
     for (const stimulus of stimuli) {
       if (stimulus.observerId === stimulus.actorId
         || (stimulus.sourceRole === 'player' && rootParticipantActorIds.has(stimulus.observerId))) continue
@@ -1704,6 +1725,7 @@ export class RoundCoordinator {
         observationOrdinal: 0,
         observationId: stimulus.observationId,
         observerCharacterId: stimulus.observerId,
+        ...(recordsEvidence ? { roleClass: stimulus.roleClass, evidence: stimulus.evidence } : {}),
       })
     }
     const candidates = reactionParticipants
@@ -1712,8 +1734,9 @@ export class RoundCoordinator {
         characterId: participant.actorId,
         estimatedTokens: participant.estimatedTokens,
         stimuli: stimuliByObserver.get(participant.actorId)!,
+        // The planner owns the whole ordering, so it is handed the class rather than a pre-sorted list.
+        ...(recordsEvidence ? { roleClass: strongestClass(stimuliByObserver.get(participant.actorId)!) } : {}),
       }))
-      .sort((left, right) => compareWorldText(left.characterId, right.characterId))
     if (candidates.length === 0) return undefined
     const maximumEstimate = Math.max(...candidates.map(candidate => candidate.estimatedTokens))
     const initialTokenBudget = Math.min(
@@ -1722,7 +1745,7 @@ export class RoundCoordinator {
     )
     return {
       policyVersion: 'reaction-policy/v1',
-      profileId: 'responsive/v1',
+      profileId: policy.profile,
       maxWaves: RESPONSIVE_V1_MAX_WAVES,
       maxNpcCalls: RESPONSIVE_V1_MAX_NPC_CALLS,
       maxCallsPerCharacter: RESPONSIVE_V1_MAX_CALLS_PER_CHARACTER,

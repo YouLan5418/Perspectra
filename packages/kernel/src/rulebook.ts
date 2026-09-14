@@ -30,6 +30,16 @@ export interface RulebookResolution {
    */
   readonly interactionTrace?: WorldJsonObject
   /**
+   * The definition that adjudicated this action, when one did. Speech and movement are not resolved by
+   * a registered definition, so a reaction evidence entry falls back to the action's own identity.
+   */
+  readonly definitionRef?: { readonly id: string; readonly version: number }
+  /**
+   * The characters the frozen plan's declared affected slots resolved to, empty when the action did not
+   * happen. A reaction role class reads `direct` from this rather than from scanning an event.
+   */
+  readonly affectedCharacterIds?: readonly string[]
+  /**
    * The frozen plan's resolved role bindings by role name, when the action has a frozen plan. A Host
    * needs the names - not only their hash - to state which character an effect landed on, which is what
    * a reaction role class is read from.

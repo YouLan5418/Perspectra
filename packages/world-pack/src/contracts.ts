@@ -251,7 +251,7 @@ export interface WorldPackSourceManifestV5 extends WorldJsonObject {
 
 export type WorldPackReactionSource =
   | { readonly schemaVersion: typeof WORLD_PACK_REACTION_SCHEMA_VERSION; readonly mode: 'disabled' }
-  | { readonly schemaVersion: typeof WORLD_PACK_REACTION_SCHEMA_VERSION; readonly mode: 'responsive'; readonly profile: 'responsive/v1' }
+  | { readonly schemaVersion: typeof WORLD_PACK_REACTION_SCHEMA_VERSION; readonly mode: 'responsive'; readonly profile: 'responsive/v1' | 'responsive/v2' }
 
 export type WorldPackManifestationSource =
   | { readonly schemaVersion: typeof WORLD_PACK_MANIFESTATION_SCHEMA_VERSION; readonly mode: 'disabled' }
@@ -705,7 +705,7 @@ export interface CompiledWorldPackV4 extends WorldJsonObject {
 
 export interface WorldPackReactionInspection extends WorldJsonObject {
   readonly mode: 'disabled' | 'responsive'
-  readonly profile: 'responsive/v1' | null
+  readonly profile: 'responsive/v1' | 'responsive/v2' | null
   readonly maximumWaves: 3
   readonly maximumNpcCalls: 8
   readonly maximumCallsPerCharacter: 2

@@ -14,6 +14,7 @@ import {
   type InteractionRoundId,
   type ReactionCandidateDraft,
   type ReactionCycleDraft,
+  type ReactionEvidenceV1,
   type ReactionCycleId,
   type ReactionCycleView,
   type ReactionCycleStopReason,
@@ -193,10 +194,41 @@ export function hashReactionCycleBundle(input: ReactionCycleBundleContent): Worl
   })
 }
 
+/**
+ * One stimulus row. Both writers go through here so the evidence column has a single definition, and so
+ * a v1 stimulus stores a null rather than a column that happens to be absent.
+ */
+function insertStimulus(db: DatabaseSync, stimulus: StoredReactionStimulus): void {
+  db.prepare(`
+    INSERT INTO world_reaction_job_stimuli(
+      job_id, address_key, stimulus_ordinal, observer_character_id, source_round_id,
+      source_transaction_id, source_event_seq, source_event_ordinal, observation_ordinal,
+      observation_id, source_event_hash, stimulus_entry_hash, evidence_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    stimulus.jobId,
+    worldAddressKey(stimulus.address),
+    stimulus.stimulusOrdinal,
+    stimulus.observerCharacterId,
+    stimulus.sourceRoundId,
+    stimulus.sourceTransactionId,
+    stimulus.sourceEventSeq,
+    stimulus.sourceEventOrdinal,
+    stimulus.observationOrdinal,
+    stimulus.observationId,
+    stimulus.sourceEventHash,
+    stimulus.stimulusEntryHash,
+    stimulus.evidence === undefined ? null : worldJsonText(stimulus.evidence),
+  )
+}
+
 function validatePolicy(draft: ReactionCycleDraft): void {
   canonicalizeWorldJson(draft)
-  if (draft.policyVersion !== 'reaction-policy/v1' || draft.profileId !== 'responsive/v1') {
-    throw new TypeError('Reaction Cycle policy must be reaction-policy/v1 responsive/v1')
+  // The profile is the world's choice and the Cycle records which one it opened under, so the store
+  // keeps the closed list of frozen alternatives rather than preferring one of them.
+  if (draft.policyVersion !== 'reaction-policy/v1'
+    || (draft.profileId !== 'responsive/v1' && draft.profileId !== 'responsive/v2')) {
+    throw new TypeError('Reaction Cycle policy must be reaction-policy/v1 responsive/v1 or responsive/v2')
   }
   safeInteger(draft.maxWaves, 'reactionCycle.maxWaves', 1, 3)
   safeInteger(draft.maxNpcCalls, 'reactionCycle.maxNpcCalls', 1, 8)
@@ -279,6 +311,7 @@ function prepareStimuli(
       observationOrdinal: source.observationOrdinal,
       observationId: source.observationId,
       sourceEventHash: event.eventHash,
+      ...(source.evidence === undefined ? {} : { evidence: source.evidence }),
     }
   })
   const stimulusHash = hashStimulusBundle(characterId, partial)
@@ -349,6 +382,7 @@ export function prepareInitialReactionCycle(input: PrepareInitialReactionCycleIn
   const budgetPlan = planStableCallBudget(preparedCandidates.map(value => ({
     wave: 1,
     characterId: value.candidate.characterId,
+    ...(value.candidate.roleClass === undefined ? {} : { roleClass: value.candidate.roleClass }),
     stimulusHash: value.stimulusHash,
     jobId: value.jobId,
     estimatedTokens: value.candidate.estimatedTokens,
@@ -518,28 +552,7 @@ export function insertInitialReactionCycle(db: DatabaseSync, bundle: StoredReact
       job.stateHash,
     )
   }
-  for (const stimulus of bundle.stimuli) {
-    db.prepare(`
-      INSERT INTO world_reaction_job_stimuli(
-        job_id, address_key, stimulus_ordinal, observer_character_id, source_round_id,
-        source_transaction_id, source_event_seq, source_event_ordinal, observation_ordinal,
-        observation_id, source_event_hash, stimulus_entry_hash
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      stimulus.jobId,
-      worldAddressKey(stimulus.address),
-      stimulus.stimulusOrdinal,
-      stimulus.observerCharacterId,
-      stimulus.sourceRoundId,
-      stimulus.sourceTransactionId,
-      stimulus.sourceEventSeq,
-      stimulus.sourceEventOrdinal,
-      stimulus.observationOrdinal,
-      stimulus.observationId,
-      stimulus.sourceEventHash,
-      stimulus.stimulusEntryHash,
-    )
-  }
+  for (const stimulus of bundle.stimuli) insertStimulus(db, stimulus)
 }
 
 function worldHash(value: string, name: string): WorldHash {
@@ -631,6 +644,7 @@ interface StimulusRow {
   readonly observation_id: string
   readonly source_event_hash: string
   readonly stimulus_entry_hash: string
+  readonly evidence_json: string | null
 }
 
 function parseBudgetPlan(text: string, expectedHash: string): StableCallBudgetPlan {
@@ -674,7 +688,8 @@ function readReactionCycle(
   const interactionAlternatives = [['speak@1', 'move@1', 'interact@1'], ['speak@1', 'move@1', 'interact@2']]
   if (!Array.isArray(allowed) || (worldJsonText(allowed) !== worldJsonText(expected)
     && !(maximumActions === 2 && interactionAlternatives.some(value => worldJsonText(allowed) === worldJsonText(value))))
-    || row.policy_version !== 'reaction-policy/v1' || row.profile_id !== 'responsive/v1'
+    || row.policy_version !== 'reaction-policy/v1'
+    || (row.profile_id !== 'responsive/v1' && row.profile_id !== 'responsive/v2')
     || row.max_actions_per_call !== 1 || (maximumActions !== 1 && maximumActions !== 2)) {
     throw new Error('Reaction Cycle policy row is malformed')
   }
@@ -833,6 +848,9 @@ function readReactionCycle(
       observationOrdinal: stimulusRow.observation_ordinal,
       observationId: stimulusRow.observation_id,
       sourceEventHash: worldHash(stimulusRow.source_event_hash, 'Reaction stimulus source_event_hash'),
+      ...(stimulusRow.evidence_json === null
+        ? {}
+        : { evidence: parseWorldJson(stimulusRow.evidence_json) as ReactionEvidenceV1 }),
     }
     const stimulus = {
       ...stimulusWithoutHash,
@@ -1247,6 +1265,9 @@ function prepareContinuationStimuli(
       observationOrdinal: source.observationOrdinal,
       observationId: source.observationId,
       sourceEventHash: event.eventHash,
+      // A continuation stimulus stores no evidence. The Reaction Round does not classify its own observers
+      // yet, so this path has one shape - and a branch that spread a field nothing produces would be a
+      // line no world can reach. See the I4-d record for what remains open.
     }
   })
   const stimulusHash = hashStimulusBundle(candidate.characterId, partial)
@@ -1583,19 +1604,7 @@ export function applyPreparedReactionWaveSettlement(
         job.providerCallId, job.providerRequestHash, job.proposalHash, job.resultTransactionId, job.jobHash, job.stateHash,
       )
     }
-    for (const stimulus of continuation.stimuli) {
-      db.prepare(`
-        INSERT INTO world_reaction_job_stimuli(
-          job_id, address_key, stimulus_ordinal, observer_character_id, source_round_id,
-          source_transaction_id, source_event_seq, source_event_ordinal, observation_ordinal,
-          observation_id, source_event_hash, stimulus_entry_hash
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        stimulus.jobId, addressKey, stimulus.stimulusOrdinal, stimulus.observerCharacterId, stimulus.sourceRoundId,
-        stimulus.sourceTransactionId, stimulus.sourceEventSeq, stimulus.sourceEventOrdinal,
-        stimulus.observationOrdinal, stimulus.observationId, stimulus.sourceEventHash, stimulus.stimulusEntryHash,
-      )
-    }
+    for (const stimulus of continuation.stimuli) insertStimulus(db, stimulus)
   }
 }
 

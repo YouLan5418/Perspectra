@@ -453,7 +453,12 @@ describe('WorldLogicalTransferService', () => {
     expect(legacyStore.activeReactionCycle(address)).toEqual(expected)
     legacyStore.close()
     const v16 = new DatabaseSync(legacyTarget)
-    v16.exec('DROP TABLE player_input_jobs; ALTER TABLE world_reaction_cycles DROP COLUMN action_group_max_actions; PRAGMA user_version = 16')
+    // A v16 database is one without anything later versions added, so the simulation has to remove the
+    // reaction-evidence column too or reopening would re-add it and fail.
+    v16.exec('DROP TABLE player_input_jobs;'
+      + ' ALTER TABLE world_reaction_cycles DROP COLUMN action_group_max_actions;'
+      + ' ALTER TABLE world_reaction_job_stimuli DROP COLUMN evidence_json;'
+      + ' PRAGMA user_version = 16')
     v16.close()
     const migrated = new WorldStore(legacyTarget)
     expect(migrated.activeReactionCycle(address)).toEqual(expected)

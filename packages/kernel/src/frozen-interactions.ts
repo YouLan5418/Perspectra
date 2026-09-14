@@ -5,6 +5,7 @@ import {
   type InteractionCharacterView,
   type InteractionHostContext,
   type InteractionPackageImplementation,
+  type InteractionRef,
   type InteractionTargetRef,
   type InteractionViewOption,
   type RulebookResolutionAuthorityV1,
@@ -296,10 +297,15 @@ export class FrozenInteractionRulebook {
         ruleTraceHash: adjudication.ruleTraceHash,
       }
       const resolvedRoles = adjudication.resolvedRoles
+      // The request named the definition lock it addresses, so the evidence can report the same entry
+      // the adjudication resolved rather than a second derivation of it.
+      const definitionRef = (parsed.request as { definitionRef: InteractionRef }).definitionRef
+      const affectedCharacterIds = adjudication.affectedCharacterIds
       return adjudication.status === 'accepted'
-        ? { status: 'accepted', events: adjudication.events, observationScope: { scope: 'scene_public' }, interactionTrace, resolvedRoles }
+        ? { status: 'accepted', events: adjudication.events, observationScope: { scope: 'scene_public' },
+            interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds }
         : { ...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason),
-            observationScope: { scope: 'self' }, interactionTrace, resolvedRoles }
+            observationScope: { scope: 'self' }, interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds }
     }
     const resolution = this.#legacy.resolve(manifest, context.events, context.characterId, action, {
       actionId: context.actionId, resolutionAuthority: authority,

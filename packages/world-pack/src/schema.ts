@@ -554,8 +554,10 @@ export function parseWorldPackReactionSource(input: unknown, file = 'reaction.js
     failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', `must be ${WORLD_PACK_REACTION_SCHEMA_VERSION}`)
   }
   if (root.mode !== 'responsive') failWorldPackContract('PACK_SOURCE_INVALID', file, '/mode', 'must be disabled or responsive')
-  if (root.profile !== 'responsive/v1') failWorldPackContract('PACK_SOURCE_INVALID', file, '/profile', 'must be responsive/v1')
-  return { schemaVersion: WORLD_PACK_REACTION_SCHEMA_VERSION, mode: 'responsive', profile: 'responsive/v1' }
+  if (root.profile !== 'responsive/v1' && root.profile !== 'responsive/v2') {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/profile', 'must be responsive/v1 or responsive/v2')
+  }
+  return { schemaVersion: WORLD_PACK_REACTION_SCHEMA_VERSION, mode: 'responsive', profile: root.profile }
 }
 
 /** Strict creator-selectable observable manifestation capability. */

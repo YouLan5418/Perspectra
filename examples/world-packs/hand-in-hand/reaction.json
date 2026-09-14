@@ -1,4 +1,5 @@
 {
   "schemaVersion": "worldpack-reaction/v1",
-  "mode": "disabled"
+  "mode": "responsive",
+  "profile": "responsive/v2"
 }

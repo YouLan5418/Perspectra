@@ -25,6 +25,11 @@ function candidate(
   }
 }
 
+/** The same reservation, with the class a responsive/v2 world records on each candidate. */
+function ranked(jobId: string, characterId: string, roleClass: 'direct' | 'addressee' | 'witness'): StableCallBudgetCandidate {
+  return { ...candidate(jobId, brandId(characterId, 'CharacterId')), roleClass }
+}
+
 function limits(overrides: Partial<StableCallBudgetLimits> = {}): StableCallBudgetLimits {
   return {
     remainingCalls: 8,
@@ -101,5 +106,26 @@ describe('planStableCallBudget', () => {
       candidate('job:one', supplementary, 1, 1, 'same'),
       candidate('job:two', supplementary, 1, 1, 'same'),
     ], limits())).toThrow('one character and wave')
+  })
+
+  it('weighs a candidate by what it was to the action, and refuses a class it does not know', () => {
+    // `character:a` sorts first by id, so an id-only order would reach it first however the class reads:
+    // the class has to be the first term for this pair to come back the other way round.
+    const plan = planStableCallBudget([
+      ranked('job:witness', 'character:a', 'witness'),
+      ranked('job:direct', 'character:b', 'direct'),
+      ranked('job:addressee', 'character:c', 'addressee'),
+    ], limits())
+    expect(plan.decisions.map(decision => decision.candidate.jobId))
+      .toEqual(['job:direct', 'job:addressee', 'job:witness'])
+    // A candidate with no class sorts as v1 always has, so an old world's reservation order is unchanged.
+    const mixed = planStableCallBudget([
+      ranked('job:direct', 'character:b', 'direct'),
+      candidate('job:plain', brandId('character:a', 'CharacterId')),
+    ], limits())
+    expect(mixed.decisions.map(decision => decision.candidate.jobId)).toEqual(['job:plain', 'job:direct'])
+    expect(() => planStableCallBudget([
+      { ...candidate('job:bogus'), roleClass: 'observer' as never },
+    ], limits())).toThrow(/not one of the frozen classes/u)
   })
 })

@@ -77,3 +77,4 @@
 | [0093](ADR-0093-interaction-definition-abstraction.md) | 交互定义抽象、按需交互包与目标自声明 | **Accepted**；2026-09-13 用户明确确认，首批迁移已有五类动作，v10 先交互；I0 Gate 关闭，I1～I5 按阶段验收 |
 | [0094](ADR-0094-communication-scenes-and-propagation.md) | 通信 Scene 与跨边界传播 | **Proposed**；物理与通信成员隔离，按媒介授权观察，统一反应预算；方向已确认，具体契约与工程门禁待完成 |
 | [0095](ADR-0095-relation-class-binding.md) | 关系目标按类绑定 | **Accepted**；`kind: relation` 绑定的 id 指名创建该类关系的定义，不指名实例；实例由来源 Action 在运行期派生。2026-09-14 用户裁定，见 [缺口记录](../2026-09-14_交互抽象-I4b前置-关系目标绑定缺口.md) |
+| [0096](ADR-0096-reaction-evidence-policy-and-responsive-v2.md) | 反应依据策略与响应式 v2 | **Accepted**；`direct` 由受锁策略声明的受影响角色槽读出并核对耐久 Observation；失败不落在任何人身上且默认可观察；`responsive/v2` 由世界选择；证据落库（World SQLite 19） |
