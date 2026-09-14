@@ -10,6 +10,7 @@ import {
   type WorldAddress,
   type WorldHash,
   type WorldJsonObject,
+  type InteractionRoundId,
 } from '@harness-world/contracts'
 import {
   SpeakMoveRulebook,
@@ -29,6 +30,11 @@ export interface RulebookResolutionContext {
   readonly manifestHash?: WorldHash
   /** The world sequence the candidate prefix sits at. A frozen resolution binds it into its trace. */
   readonly asOfWorldSeq?: number
+  /**
+   * The Round the action belongs to. A step that states cues needs it, because a manifestation is a
+   * Round-scoped fact; a resolution that produces none never reads it.
+   */
+  readonly roundId?: InteractionRoundId
   readonly action: PlayerActionInput
 }
 
@@ -94,7 +100,7 @@ class CoreRulebookResolver implements RulebookResolver {
     if (manifestUsesFrozenInteractions(context.manifest)) {
       return this.#frozen.resolve({
         manifest: context.manifest, events: context.events, characterId: context.characterId,
-        actionId: context.actionId, manifestHash: context.manifestHash,
+        actionId: context.actionId, manifestHash: context.manifestHash, roundId: context.roundId,
         asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
       }, context.action)
     }
@@ -115,7 +121,7 @@ class CoreRulebookResolver implements RulebookResolver {
     if (manifestUsesFrozenInteractions(context.manifest)) {
       return this.#frozen.affordances({
         manifest: context.manifest, events: context.events, characterId: context.characterId,
-        actionId: undefined, manifestHash: context.manifestHash,
+        actionId: undefined, manifestHash: context.manifestHash, roundId: context.roundId,
         asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
       })
     }

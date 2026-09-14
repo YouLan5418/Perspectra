@@ -1,4 +1,6 @@
 import {
+  ACTION_GROUP_CUES,
+  type ActionGroupCue,
   type CharacterId,
   type InteractionRoundId,
   type ManifestationCueProposal,
@@ -8,6 +10,26 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { worldJsonObject, type RulebookEvent } from './rulebook.ts'
+
+/**
+ * A step's closed-vocabulary cues, read as the proposal the manifestation resolver takes. It lives here
+ * rather than beside the action-group code because a frozen interaction step produces the same fact: one
+ * mapping, so the two paths cannot end up describing the same expression differently.
+ *
+ * `cueId` is positional: a step states codes, and the fact records the order they were stated in.
+ */
+export function stepManifestation(
+  value: { readonly independent: readonly ActionGroupCue[]; readonly onSuccess: readonly ActionGroupCue[] } | null,
+  accepted: boolean,
+): ManifestationProposal | undefined {
+  if (value === null) return undefined
+  const codes = [...value.independent, ...(accepted ? value.onSuccess : [])]
+  if (codes.length === 0) return undefined
+  return { cues: codes.map((code, index) => ({
+    cueId: `cue:${index}`, channel: ACTION_GROUP_CUES[code].channel,
+    description: ACTION_GROUP_CUES[code].description, persistence: 'event_only',
+  })) }
+}
 
 export interface ManifestationCueResolution extends WorldJsonObject {
   readonly cueId: string

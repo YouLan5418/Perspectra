@@ -540,7 +540,18 @@ export class FrozenInteractionWorld {
     const def = this.definitions.get(key(binding.definitionRef))!.spec
     const args = parameters(def.argumentSchema, request.arguments)
     const policy = this.performances.get(key(def.performancePolicyRef))!.policy
-    const performance = request.performance === undefined ? null : resolvePerformance(policy, request.performance)
+    let performance: InteractionPerformance | null = null
+    let refusedPerformance = false
+    if (request.performance !== undefined) {
+      try {
+        performance = resolvePerformance(policy, request.performance)
+      } catch {
+        // A caller cannot know this definition's locked policy, so a step it does not accept is a refused
+        // proposal rather than a Host fault, and the plan must not run on a step nobody agreed to. The
+        // narrowing has one failure mode - it refuses - so there is nothing here to tell apart.
+        refusedPerformance = true
+      }
+    }
     const roles: Record<string, InteractionTargetRef> = {}
     const trace: { rule: InteractionRef; reason: string | null }[] = []
     const finish = (reason: string, events: InteractionAdjudication['events'] = [], accepted: InteractionPerformance | null = null): InteractionAdjudication => {
@@ -561,6 +572,7 @@ export class FrozenInteractionWorld {
         affectedCharacterIds: affectedCharacters(evidence.policy.directRoles, resolvedRoles, status),
         ruleTraceHash: hashWorldJson('interaction-rule-trace/v1', { ...data, address: host.address, manifestHash: host.manifestHash, asOfWorldSeq: host.asOfWorldSeq, candidatePrefixHash: host.candidatePrefixHash, actionId: host.actionId, actorId: host.actorId, authority: host.authority, request }) })
     }
+    if (refusedPerformance) return finish('PERFORMANCE_NOT_ACCEPTED')
     const plan = this.#plan(host, def, binding, request.targetRef, args, targets, authorized, roles, trace)
     if (plan !== null) {
       // independent expression holds for the attempt itself, and the frozen step rule keeps it when

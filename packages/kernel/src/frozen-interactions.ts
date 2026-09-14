@@ -12,6 +12,10 @@ import {
   type WorldHash,
   type WorldJsonObject,
   type WorldJsonValue,
+  ACTION_GROUP_CUES,
+  type ActionGroupCue,
+  brandId,
+  type InteractionRoundId,
 } from '@harness-world/contracts'
 import { FrozenInteractionWorld, InteractionRegistry } from '@harness-world/interaction-runtime'
 import { currentCharacterRelations, currentSceneStates } from './interactions.ts'
@@ -26,6 +30,7 @@ import {
   type RulebookEvent,
   type RulebookResolution,
 } from './rulebook.ts'
+import { stepManifestation, resolveManifestation } from './manifestation.ts'
 import { manifestUsesFrozenInteractions, type CompiledWorldManifest, type CompiledWorldManifestV10 } from './world-spec.ts'
 
 /** Structurally the Rulebook registry's `ActionAffordance`; declared here to keep the import acyclic. */
@@ -144,6 +149,12 @@ export interface FrozenInteractionContext {
   readonly events: readonly RulebookEvent[]
   readonly characterId: string
   readonly actionId: string | undefined
+  /**
+   * The Round an accepted performance is recorded against, since a manifestation is a Round-scoped fact.
+   * Absent only where a resolution can never produce one - the Host's affordance probes - and then a step
+   * that states cues is refused instead of being recorded without a Round.
+   */
+  readonly roundId: InteractionRoundId | undefined
   readonly manifestHash: WorldHash | undefined
   readonly asOfWorldSeq: number | undefined
   readonly resolutionAuthority: RulebookResolutionAuthorityV1 | undefined
@@ -162,13 +173,15 @@ function frozenRequest(
   host: InteractionHostContext,
 ): { readonly request: WorldJsonObject } | { readonly reason: string } {
   const row = worldJsonObject(parameters)
-  if (row === undefined || !exactKeys(row, ['targetRef', 'bindingId', 'definitionRef', 'arguments'])) {
-    // A manifestation on an interaction step is refused rather than dropped: the Host still owes the
-    // step that turns an accepted performance into an observation fact, and accepting one now would
-    // claim something happened that nobody recorded.
-    return { reason: row !== undefined && Object.hasOwn(row, 'performance')
-      ? 'INTERACTION_PERFORMANCE_NOT_SUPPORTED' : 'INVALID_INTERACTION_PARAMETERS' }
+  // A step may state its cues. They are checked here for the vocabulary and shape an interaction may
+  // carry at all; whether this definition accepts them is the runtime's decision against its own locked
+  // policy, which comes back as a refusal rather than an exception.
+  const required = ['targetRef', 'bindingId', 'definitionRef', 'arguments']
+  if (row === undefined || !exactKeys(row, Object.hasOwn(row, 'performance') ? [...required, 'performance'] : required)) {
+    return { reason: 'INVALID_INTERACTION_PARAMETERS' }
   }
+  const performance = row.performance === undefined ? undefined : stepCues(row.performance)
+  if (row.performance !== undefined && performance === undefined) return { reason: 'INVALID_INTERACTION_PARAMETERS' }
   // `exactKeys` above already proved all four names are present, so every value check below is about
   // the value itself: a missing key never reaches here and never needs its own branch.
   const bindingId = text(row.bindingId)
@@ -208,7 +221,35 @@ function frozenRequest(
   return { request: {
     targetRef: { kind, id }, bindingId: binding.bindingId,
     definitionRef: binding.definitionRef, arguments: argumentsValue,
+    ...(performance === undefined ? {} : { performance }),
   } }
+}
+
+/**
+ * A step's cues, as far as the Host boundary can judge them: the closed vocabulary, minus the voice and
+ * gait cues an interaction step may not carry at all, in lists that state no cue twice. Anything else -
+ * an unknown code, a cue that needs an action the step is not, a shape the resolver would refuse - is a
+ * malformed proposal and belongs on the rejection side of this boundary.
+ */
+function stepCues(value: WorldJsonValue): { readonly independent: readonly ActionGroupCue[]; readonly onSuccess: readonly ActionGroupCue[] } | undefined {
+  const row = worldJsonObject(value)
+  if (row === undefined || !exactKeys(row, ['independent', 'onSuccess'])) return undefined
+  const read = (input: WorldJsonValue): readonly ActionGroupCue[] | undefined => {
+    if (!Array.isArray(input) || input.length > 8) return undefined
+    const codes: ActionGroupCue[] = []
+    for (const entry of input) {
+      const code = text(entry)
+      const cue = code === undefined ? undefined : ACTION_GROUP_CUES[code as ActionGroupCue]
+      // Speech and gait cues name an action of their own, so an interaction is never their step.
+      if (cue === undefined || cue.actionType !== null) return undefined
+      codes.push(code as ActionGroupCue)
+    }
+    if (new Set(codes).size !== codes.length) return undefined
+    return codes
+  }
+  const independent = read(row.independent as WorldJsonValue)
+  const onSuccess = read(row.onSuccess as WorldJsonValue)
+  return independent === undefined || onSuccess === undefined ? undefined : { independent, onSuccess }
 }
 
 /**
@@ -308,10 +349,24 @@ export class FrozenInteractionRulebook {
       // that keeps a refused attempt private declares that, and everyone else observes it as they would
       // observe a success. The rejection fact is written either way.
       const observationScope = adjudication.observationScope
+      // An accepted performance is the Host's step to record: the runtime hands over what the definition's
+      // policy accepted and contributes no events of its own, and the same shared mapping the action-group
+      // path uses turns the cues into the fact. A step nobody declared reads as no step at all.
+      const manifestation = stepManifestation(adjudication.performance, adjudication.status === 'accepted')
+      if (manifestation !== undefined && context.roundId === undefined) {
+        // A step that plays cues has to say which Round it belongs to. This is Host wiring rather than
+        // model input: a request that states cues cannot reach here from a Host that withheld the Round.
+        throw new TypeError('a manifested interaction step requires the Round it belongs to')
+      }
+      const manifested = manifestation === undefined ? [] : resolveManifestation({
+        roundId: context.roundId!, actionId: context.actionId, actorId: brandId(context.characterId, 'CharacterId'),
+        manifestation, events: context.events,
+      }).events
       return adjudication.status === 'accepted'
-        ? { status: 'accepted', events: adjudication.events, observationScope,
+        ? { status: 'accepted', events: [...adjudication.events, ...manifested], observationScope,
             interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds }
         : { ...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason),
+            events: [...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason).events, ...manifested],
             observationScope, interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds }
     }
     const resolution = this.#legacy.resolve(manifest, context.events, context.characterId, action, {

@@ -639,6 +639,7 @@ export class ReactionScheduler {
         actionId: item.action.actionId,
         manifestHash: this.options.manifestHash,
         asOfWorldSeq: baseHeadSeq,
+        roundId,
         ...(manifestUsesHostAuthority(this.options.manifest) ? { resolutionAuthority: actionAuthority } : {}),
         action: { actionType: item.action.actionType, parameters: item.action.parameters },
       }))

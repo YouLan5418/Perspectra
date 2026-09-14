@@ -20,15 +20,7 @@ export function sortActionGroups<T extends GroupOrderedAction>(items: readonly T
 }
 
 /** Closed vocabulary is rendered only after adjudication. Never inspect or execute free text. */
-export function stepManifestation(value: StepManifestation | null, accepted: boolean): ManifestationProposal | undefined {
-  if (value === null) return undefined
-  const codes = [...value.independent, ...(accepted ? value.onSuccess : [])]
-  if (codes.length === 0) return undefined
-  return { cues: codes.map((code, index) => ({
-    cueId: `cue:${index}`, channel: ACTION_GROUP_CUES[code].channel,
-    description: ACTION_GROUP_CUES[code].description, persistence: 'event_only',
-  })) }
-}
+export { stepManifestation } from '@harness-world/kernel'
 
 /** The set belongs to a single deterministic candidate fold, never to durable idempotency. */
 export function resolveGroupAction(

@@ -6,6 +6,9 @@ import { WorldApplication } from '@harness-world/application'
 import {
   brandId, hashWorldJson,
   type InteractionPackageImplementation, type RulebookResolutionAuthorityV1,
+  type WorldJsonValue,
+  type WorldJsonObject,
+  type StoredWorldEvent,
 } from '@harness-world/contracts'
 import {
   FrozenInteractionRulebook,
@@ -40,7 +43,8 @@ function rulebook(): FrozenInteractionRulebook {
 function context(actionId: string, events: readonly RulebookEvent[] = origin, over: Record<string, unknown> = {}) {
   return {
     manifest: world.manifest, events, characterId: 'character:player',
-    actionId, manifestHash: world.manifestHash, asOfWorldSeq: 4, resolutionAuthority: authority, ...over,
+    actionId, manifestHash: world.manifestHash, asOfWorldSeq: 4, resolutionAuthority: authority,
+    roundId: brandId('round:frozen-interaction', 'InteractionRoundId'), ...over,
   }
 }
 
@@ -174,9 +178,30 @@ describe('the frozen interaction path', () => {
       definitionRef: { id: 'base:take', version: 1 }, arguments: {} })).toBe('INVALID_INTERACTION_PARAMETERS')
     expect(reject({ targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
       definitionRef: { id: 'base:drop', version: 1 }, arguments: {} })).toBe('INVALID_INTERACTION_PARAMETERS')
-    expect(reject({ targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
-      definitionRef: { id: 'base:take', version: 1 }, arguments: {}, performance: { independent: [], onSuccess: [] } }))
-      .toBe('INTERACTION_PERFORMANCE_NOT_SUPPORTED')
+    // What an interaction step may carry at all is decided here: the closed vocabulary, no cue that names
+    // an action of its own, and no cue stated twice inside one list.
+    const takeWith = (performance: WorldJsonValue) => ({ targetRef: { kind: 'entity', id: 'entity:cup' },
+      bindingId: 'binding:entity:cup:base:take', definitionRef: { id: 'base:take', version: 1 }, arguments: {}, performance })
+    for (const performance of [
+      { independent: ['slow_walk'], onSuccess: [] },
+      { independent: ['quiet_voice'], onSuccess: [] },
+      { independent: ['unknown_cue'], onSuccess: [] },
+      { independent: ['frown', 'frown'], onSuccess: [] },
+      { independent: ['frown'], onSuccess: ['frown', 'frown'] },
+      { independent: 'frown', onSuccess: [] },
+      { independent: ['frown'] },
+      { independent: ['frown'], onSuccess: [], extra: true },
+      { independent: ['frown', 'smile', 'nod', 'shake_head', 'avert_gaze', 'frown', 'smile', 'nod', 'shake_head'], onSuccess: [] },
+      { independent: ['frown', 42], onSuccess: [] },
+      { independent: ['frown', null], onSuccess: [] },
+    ]) expect(reject(takeWith(performance))).toBe('INVALID_INTERACTION_PARAMETERS')
+    // A step that states no cue states nothing, exactly as an empty step reads on the action-group path.
+    expect(path.resolve(context('action:empty-step'), { actionType: 'interact', parameters: takeWith({ independent: [], onSuccess: [] }) }).status)
+      .toBe('accepted')
+    // A well-formed step this definition's own locked policy does not accept is a refused proposal, and
+    // the caller is told so rather than meeting an exception from inside the trusted runtime.
+    expect(path.resolve(context('action:refused-step'), { actionType: 'interact', parameters: takeWith({ independent: ['frown'], onSuccess: [] }) }))
+      .toMatchObject({ status: 'rejected', reason: 'PERFORMANCE_NOT_ACCEPTED' })
     expect(reject({ targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
       definitionRef: { id: 'base:take', version: 1 } })).toBe('INVALID_INTERACTION_PARAMETERS')
     expect(reject(null)).toBe('INVALID_INTERACTION_PARAMETERS')
@@ -434,6 +459,72 @@ describe('a v10 world through the production entry point', () => {
       expect(refusalOfHold.map(entry => entry.observerId)).toEqual(['character:player'])
       expect(refusalOfHold[0]!.content.status).toBe('rejected')
     } finally { rmSync(root, { recursive: true, force: true }) }
+  }, 60_000)
+
+  it('records an accepted step as an observation fact, and nothing else about the round changes', async () => {
+    // A hand-over is the one first-batch definition that sanctions a self-expression. The step it accepts
+    // becomes a fact every observer can see, while the effect itself is built as if the step were not
+    // stated - which is the whole point of keeping the performance out of the execution context.
+    const compiled = frozenInteractionWorld()
+    const run = async (performance?: WorldJsonObject): Promise<readonly StoredWorldEvent[]> => {
+      const root = mkdtempSync(join(tmpdir(), 'frozen-performance-'))
+      const app = new WorldApplication({ worldPath: join(root, 'world.sqlite'),
+        sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20 })
+      try {
+        app.activate(compiled)
+        const submit = (key: string, parameters: WorldJsonObject) => app.submit(compiled.manifest.address, {
+          idempotencyKey: key, principalId: 'principal:player', correlationId: `frozen-${key}`,
+          action: { actionType: 'interact', parameters: parameters as never },
+        })
+        await submit('take', { targetRef: { kind: 'entity', id: 'entity:cup' },
+          bindingId: 'binding:entity:cup:base:take', definitionRef: { id: 'base:take', version: 1 }, arguments: {} })
+        await submit('give', { targetRef: { kind: 'entity', id: 'entity:cup' },
+          bindingId: 'binding:entity:cup:base:give', definitionRef: { id: 'base:give', version: 1 },
+          arguments: { recipientId: 'character:npc' }, ...(performance === undefined ? {} : { performance }) })
+      } finally { await app.close() }
+      const store = new WorldStore(join(root, 'world.sqlite'))
+      try { return store.readEvents(compiled.manifest.address) } finally { store.close(); rmSync(root, { recursive: true, force: true }) }
+    }
+    const plain = await run()
+    const expressed = await run({ independent: ['frown'], onSuccess: ['smile'] })
+    // The effect is the one the same hand-over builds without a step: the ids differ because the input
+    // does, but what the world recorded happening is the same fact.
+    const effectOf = (events: readonly StoredWorldEvent[]) => events
+      .filter(event => event.eventType === 'entity.transferred').map(event => event.data)
+    expect(effectOf(expressed)).toEqual(effectOf(plain))
+    const manifested = expressed.filter(event => event.eventType === 'character.manifested')
+    expect(manifested).toHaveLength(1)
+    expect(manifested[0]!.data).toMatchObject({ characterId: 'character:player', actionId: expect.any(String) })
+    expect((manifested[0]!.data as { readonly cues: readonly { readonly description: string }[] }).cues
+      .map(cue => cue.description)).toEqual(['微微皱眉', '微微一笑'])
+    // Everyone who observed the hand-over observes the expression with it.
+    const observed = expressed.filter(event => event.eventType === 'observation.upsert')
+      .map(event => (event.data as { readonly value: { readonly observerId: string; readonly content: WorldJsonObject } }).value)
+      .filter(value => value.content.manifestation !== undefined)
+    expect(observed.map(value => value.observerId).sort()).toContain('character:npc')
+    expect(plain.some(event => event.eventType === 'character.manifested')).toBe(false)
+    // A refused hand-over still plays what its author said plays whatever the outcome, and cancels the
+    // rest: an expression that only rides on success cannot be claimed by an attempt that failed. The
+    // recipient here is one the snapshot does not hold, so the plan refuses while the attempt stands.
+    const path = rulebook()
+    // A step that plays cues needs the Round it belongs to. A Host that withheld the Round gets told so
+    // rather than a fact recorded against nothing.
+    expect(() => path.resolve({ ...context('action:no-round'), roundId: undefined },
+      { actionType: 'interact', parameters: { targetRef: { kind: 'entity', id: 'entity:cup' },
+        bindingId: 'binding:entity:cup:base:give', definitionRef: { id: 'base:give', version: 1 },
+        arguments: { recipientId: 'character:npc' }, performance: { independent: ['frown'], onSuccess: [] } } }))
+      .toThrow('a manifested interaction step requires the Round it belongs to')
+    const take = path.resolve(context('action:step-take'),
+      { actionType: 'interact', parameters: { targetRef: { kind: 'entity', id: 'entity:cup' },
+        bindingId: 'binding:entity:cup:base:take', definitionRef: { id: 'base:take', version: 1 }, arguments: {} } })
+    const refused = path.resolve(context('action:step-refused', [...origin, ...take.events]),
+      { actionType: 'interact', parameters: { targetRef: { kind: 'entity', id: 'entity:cup' },
+        bindingId: 'binding:entity:cup:base:give', definitionRef: { id: 'base:give', version: 1 },
+        arguments: { recipientId: 'character:missing' }, performance: { independent: ['nod'], onSuccess: ['smile'] } } })
+    expect(refused.status).toBe('rejected')
+    expect(refused.events.map(event => event.eventType)).toEqual(['action.rejected', 'character.manifested'])
+    expect((refused.events[1]!.data as { readonly cues: readonly { readonly description: string }[] }).cues
+      .map(cue => cue.description)).toEqual(['点了点头'])
   }, 60_000)
 
   it('closes the relation a move ended, exactly once, without a Kernel-side contact branch', async () => {

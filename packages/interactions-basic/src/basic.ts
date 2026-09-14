@@ -7,6 +7,8 @@ import {
   type InteractionEffectImplementation, type InteractionExecutionContext, type InteractionImplementationLock,
   type InteractionPackageImplementation, type InteractionPerformanceImplementation, type InteractionRef,
   type InteractionRole, type InteractionRuleImplementation, type WorldEventDraft, type WorldJsonObject,
+  ACTION_GROUP_CUES,
+  type ActionGroupCue,
 } from '@harness-world/contracts'
 import { interactionPackageHash } from '@harness-world/interaction-runtime'
 
@@ -231,13 +233,28 @@ const item: InteractionRole = { name: 'item', kind: 'entity', source: { kind: 'p
 const recipient: InteractionRole = { name: 'recipient', kind: 'character', source: { kind: 'argument', field: 'recipientId' }, distinctFrom: ['actor'] }
 
 /**
- * The first batch declares no manifestation at all. take/drop/give are state transfers, so a cue
- * attached to one of them would claim a self-expression the definition never sanctioned; the empty
- * policy is what makes such a request a proposal failure instead of a silently ignored field.
+ * Most of the first batch declares no manifestation at all. take and drop are state transfers nobody
+ * else is part of, and a contact is its own expression, so a cue attached to them would claim a
+ * self-expression the definition never sanctioned; the empty policy is what makes such a request a
+ * proposal failure instead of a silently ignored field.
  */
 const noPerformance: InteractionPerformanceImplementation = {
   lock: implementation('base:no-performance'),
   policy: { version: 'interaction-performance/v1', accepted: [] },
+}
+
+/**
+ * What a hand-over may be accompanied by. The closed vocabulary minus the voice and gait cues: those
+ * name an action of their own - a way of speaking or walking - so an interaction step is never their
+ * step. `both` means the cue may be stated as playing whatever the outcome, or only when the hand-over
+ * succeeds; which of the two an author picks is part of the proposal.
+ */
+const expressiveCues = (Object.entries(ACTION_GROUP_CUES) as readonly [ActionGroupCue, { readonly actionType: string | null }][])
+  .filter(([, cue]) => cue.actionType === null).map(([code]) => code)
+const expressive: InteractionPerformanceImplementation = {
+  lock: implementation('base:expressive'),
+  policy: { version: 'interaction-performance/v1',
+    accepted: expressiveCues.map(cue => ({ cue, placement: 'both' as const, requiresRole: null })) },
 }
 
 /**
@@ -268,14 +285,15 @@ const directRecipient = evidence('base:direct-recipient', ['recipient'])
 const directTarget = evidence('base:direct-target', ['target'])
 const directParticipants = evidence('base:direct-participants', ['initiator', 'target'])
 
-function definition(id: string, preconditions: readonly string[], effectId: string, recipientRole: boolean): InteractionDefinitionImplementation {
+function definition(id: string, preconditions: readonly string[], effectId: string, recipientRole: boolean,
+  performanceRef = 'base:no-performance'): InteractionDefinitionImplementation {
   const spec: InteractionDefinitionSpec = { versionTag: 'interaction-definition/v1', id, version: 1,
     participantRoles: recipientRole ? [actor, item, recipient] : [actor, item],
     argumentSchema: { fields: recipientRole ? [{ name: 'recipientId', type: 'string', maxBytes: 1024, values: [] }] : [] },
     bindingConfigSchema: { fields: [] }, authorityPolicyRef: ref('base:actor-active'), preconditions: preconditions.map(ref),
     spatialRequirementRefs: [ref('space:co-location'), ref('space:scene-intersection')],
     effectBuilderRef: ref(effectId), effectCapabilityRefs: [ref(effectId)], dependencyRefs: [],
-    performancePolicyRef: ref('base:no-performance'),
+    performancePolicyRef: ref(performanceRef),
     reactionEvidencePolicyRef: recipientRole ? ref('base:direct-recipient') : ref('base:no-direct'),
     observationPolicyRef: ref('base:public-outcome'),
     lifecycleRefs: [], limits: { maximumEvents: 1 },
@@ -311,12 +329,12 @@ function contactDefinition(id: string, roles: readonly InteractionRole[], precon
 
 /** I1 object slice plus the I3 contact slice, through the same contract. */
 export function createBasicInteractionPackage(): InteractionPackageImplementation {
-  const contents = { rules, effects, resolvers, lifecycle, performances: [noPerformance],
+  const contents = { rules, effects, resolvers, lifecycle, performances: [noPerformance, expressive],
     reactionEvidence: [noDirect, directRecipient, directTarget, directParticipants],
     observation: [publicOutcome, privateRefusal], definitions: [
     definition('base:take', ['base:item-unheld'], 'base:take-effect', false),
     definition('base:drop', ['base:item-held'], 'base:drop-effect', false),
-    definition('base:give', ['base:item-held', 'base:recipient-active'], 'base:give-effect', true),
+    definition('base:give', ['base:item-held', 'base:recipient-active'], 'base:give-effect', true, 'base:expressive'),
     contactDefinition('base:hold-hand', [actor, targetRole],
       ['base:actor-active', 'space:co-location', 'space:scene-intersection', 'contact:unpaired'],
       [], 'contact:start-effect', 'base:player-immediate', 'base:direct-target'),

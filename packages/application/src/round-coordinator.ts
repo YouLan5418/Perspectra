@@ -607,6 +607,7 @@ export class RoundCoordinator {
       actionId: playerAction.actionId,
       manifestHash: this.options.runtimeLane.manifestHash,
       asOfWorldSeq: head.headSeq,
+      roundId,
       resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
       action: { actionType: playerAction.actionType, parameters: playerAction.parameters },
     })
@@ -644,7 +645,7 @@ export class RoundCoordinator {
         const prefix = [...history, ...playerSteps.flatMap(step => step.provisional!.binding.events.map(value => value.event))]
         const { resolution } = resolveGroupAction(extra, 'player', true, stopped, () => this.#rulebook.resolve({
           manifest: this.#manifest, events: prefix, characterId: extra.actorId, actionId: extra.actionId,
-          manifestHash: this.options.runtimeLane.manifestHash, asOfWorldSeq: head.headSeq,
+          manifestHash: this.options.runtimeLane.manifestHash, asOfWorldSeq: head.headSeq, roundId,
           resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
           action: { actionType: extra.actionType, parameters: extra.parameters },
         }))
@@ -843,6 +844,7 @@ export class RoundCoordinator {
           actionId: item.action.actionId,
           manifestHash: this.options.runtimeLane.manifestHash,
           asOfWorldSeq: head.headSeq,
+          roundId,
           resolutionAuthority: actionAuthority,
           action: { actionType: item.action.actionType, parameters: item.action.parameters },
         }))

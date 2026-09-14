@@ -338,14 +338,18 @@ describe('interaction performance contract', () => {
     expect(withCue.ruleTraceHash).not.toBe(plain.ruleTraceHash)
   })
 
-  it('fails the whole proposal instead of dropping a cue the definition never sanctioned', () => {
+  it('refuses the whole proposal instead of dropping a cue the definition never sanctioned', () => {
+    // A caller cannot know this definition's policy, so every refusal is a refused proposal - and the
+    // plan must not run on a step nobody agreed to. Nothing is dropped either: the attempt does not
+    // happen, which is why a cue outside the policy cannot be half-performed.
+    const refused = (world: FrozenInteractionWorld, request: unknown) =>
+      expect(world.resolve(host(), request)).toMatchObject({ status: 'rejected', reason: 'PERFORMANCE_NOT_ACCEPTED' })
     const strict = performing([{ ...universal, placement: 'independent' }])
-    expect(() => strict.resolve(host(), performRequest({ independent: ['smile'], onSuccess: [] }))).not.toThrow()
-    expect(() => strict.resolve(host(), performRequest({ independent: [], onSuccess: ['smile'] }))).toThrow(/placement/u)
-    expect(() => strict.resolve(host(), performRequest({ independent: ['frown'], onSuccess: [] }))).toThrow(/outside the definition performance policy/u)
-    const noPolicy = performing([])
-    expect(() => noPolicy.resolve(host(), performRequest({ independent: ['smile'], onSuccess: [] }))).toThrow(/outside the definition performance policy/u)
-    expect(noPolicy.resolve(host(), performRequest()).performance).toBeNull()
+    expect(strict.resolve(host(), performRequest({ independent: ['smile'], onSuccess: [] })).status).toBe('accepted')
+    refused(strict, performRequest({ independent: [], onSuccess: ['smile'] }))
+    refused(strict, performRequest({ independent: ['frown'], onSuccess: [] }))
+    refused(performing([]), performRequest({ independent: ['smile'], onSuccess: [] }))
+    expect(performing([]).resolve(host(), performRequest()).performance).toBeNull()
   })
 
   it('reads a cue repeated across both lists as one restatement, as the frozen step rule does', () => {
@@ -353,7 +357,9 @@ describe('interaction performance contract', () => {
     const collapsed = world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: ['smile'] }))
     const once = world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: [] }))
     expect(collapsed.performance).toEqual(once.performance)
-    expect(() => world.resolve(host(), performRequest({ independent: ['smile', 'smile'], onSuccess: [] }))).toThrow(/duplicate performance cue/u)
+    // A repeat inside one list is what a step may not state, and refusing it is not a collapse.
+    expect(world.resolve(host(), performRequest({ independent: ['smile', 'smile'], onSuccess: [] })))
+      .toMatchObject({ status: 'rejected', reason: 'PERFORMANCE_NOT_ACCEPTED' })
     expect(world.resolve(host(), performRequest({ independent: [], onSuccess: [] })).performance).toEqual({ independent: [], onSuccess: [] })
   })
 
@@ -445,8 +451,13 @@ describe('interaction performance contract', () => {
 
   it('refuses a repeat inside one list before collapsing the cross-list restatement', () => {
     const world = performing([universal])
-    expect(() => world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: ['smile', 'smile'] }))).toThrow(/duplicate performance cue/u)
-    expect(() => world.resolve(host(), performRequest({ independent: ['smile', 'smile'], onSuccess: [] }))).toThrow(/duplicate performance cue/u)
+    for (const step of [
+      { independent: ['smile'], onSuccess: ['smile', 'smile'] },
+      { independent: ['smile', 'smile'], onSuccess: [] },
+    ]) {
+      expect(world.resolve(host(), performRequest(step)))
+        .toMatchObject({ status: 'rejected', reason: 'PERFORMANCE_NOT_ACCEPTED' })
+    }
     expect(world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: ['smile'] })).performance)
       .toEqual({ independent: ['smile'], onSuccess: [] })
   })
