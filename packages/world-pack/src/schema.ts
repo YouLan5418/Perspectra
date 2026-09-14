@@ -1134,6 +1134,11 @@ export function parseWorldPackInteractionsSource(input: unknown, file = 'interac
       exactKeys(row, ['bindingId', 'relationClass', 'definition', 'config'], [], file, at)
       const config = objectAt(row.config, file, `${at}/config`)
       canonicalizeWorldJson(config as WorldJsonValue)
+      // The runtime bounds every binding's encoded config, relation bindings included, so the compiler
+      // has to report the same limit here rather than let a pack compile into something freeze() refuses.
+      if (Buffer.byteLength(JSON.stringify(config), 'utf8') > MAX_INTERACTION_CONFIG_BYTES) {
+        failWorldPackContract('PACK_LIMIT_EXCEEDED', file, `${at}/config`, `must encode at most ${MAX_INTERACTION_CONFIG_BYTES} bytes`)
+      }
       return {
         bindingId: textAt(row.bindingId, file, `${at}/bindingId`),
         relationClass: textAt(row.relationClass, file, `${at}/relationClass`),
