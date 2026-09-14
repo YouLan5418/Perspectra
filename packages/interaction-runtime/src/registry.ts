@@ -675,7 +675,14 @@ export class FrozenInteractionWorld {
       }
     }
     const ordered = [...candidates].sort(compareViewOptions)
-    const options = ordered.slice(0, MAXIMUM_VIEW_OPTIONS)
+    // A relation-target option is the actor's own way out of a relation it is in, so it is kept
+    // whatever the budget is and wherever the stable order happened to put it - the sort must not be
+    // what preserves it. The frozen profile says these are never silently dropped: if they alone do not
+    // fit, the view fails, and the world has to limit its content or its instances instead.
+    const exits = ordered.filter(option => option.targetRef.kind === 'relation')
+    if (exits.length > MAXIMUM_VIEW_OPTIONS) throw new TypeError('the required exit options exceed the view budget')
+    const remainder = ordered.filter(option => option.targetRef.kind !== 'relation')
+    const options = [...exits, ...remainder.slice(0, MAXIMUM_VIEW_OPTIONS - exits.length)].sort(compareViewOptions)
     // The model has to be told what each offered definition accepts as a manifestation, otherwise
     // the generated schema would have to either omit the field or guess.
     const offered = new Map<string, InteractionRef>()

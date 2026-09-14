@@ -387,6 +387,46 @@ describe('contact relation domain', () => {
       .toThrow(/does not match enabled binding/u)
   })
 
+  it('keeps every own release within the option budget, and fails rather than truncating', () => {
+    const registry = new InteractionRegistry()
+    registry.install(pack)
+    const base = selection()
+    const entities = Array.from({ length: 130 }, (_, index) => `entity:item-${String(index).padStart(3, '0')}`)
+    const relations = Array.from({ length: 132 }, (_, index) => `relation:pair-${String(index).padStart(3, '0')}`)
+    const held = registry.freeze({
+      ...base,
+      bindings: [...base.bindings.filter(entry => entry.bindingId !== 'binding:held-release'),
+        ...entities.map(id => ({ bindingId: `binding:${id}`, targetRef: { kind: 'entity' as const, id },
+          definitionRef: ref('base:take'), config: {} })),
+        { bindingId: 'binding:held-release', targetRef: relationClass, definitionRef: ref('base:end-contact'), config: {} }],
+    })
+    const view = (relationIds: readonly string[]) => {
+      const value = host(true, {
+        targets: [
+          { ref: { kind: 'character', id: actor }, state: character(actor) },
+          { ref: alice, state: character('character:alice') },
+          ...entities.map(id => ({ ref: { kind: 'entity' as const, id }, state: { holderId: null, locationId: 'location:hall' } })),
+          ...relationIds.map(id => ({ ref: { kind: 'relation' as const, id },
+            state: { interactionId: 'base:hold-hand', initiatorId: actor, targetId: 'character:alice', active: true } })),
+        ],
+        authorizedTargets: [alice, ...entities.map(id => ({ kind: 'entity' as const, id })),
+          ...relationIds.map(id => ({ kind: 'relation' as const, id }))],
+      })
+      return held.view({ address, manifestHash, asOfWorldSeq: value.asOfWorldSeq, characterId: actor,
+        authority: playerImmediate, candidatePrefixHash: prefixHash,
+        viewPolicyHash: hashWorldJson('contact/view-policy/v1', {}),
+        targets: value.targets, authorizedTargets: value.authorizedTargets })
+    }
+    // 130 takeable items plus three releases is more options than the budget allows. Every release is
+    // still offered: the budget decides what else is shown, never whether the actor can get out.
+    const withinBudget = view(relations.slice(0, 3))
+    expect(withinBudget.options).toHaveLength(128)
+    expect(withinBudget.options.filter(option => option.definitionRef.id === 'base:end-contact')).toHaveLength(3)
+    expect(withinBudget.candidateCount).toBe(133)
+    // Once the exits alone do not fit, the view fails instead of quietly dropping one.
+    expect(() => view(relations)).toThrow(/exit options exceed the view budget/u)
+  })
+
   it('offers the release once per authorized active instance of the bound class', () => {
     const held = runtime()
     const viewContext = (relationActive: boolean) => {
