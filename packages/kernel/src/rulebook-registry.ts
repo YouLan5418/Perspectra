@@ -1,11 +1,14 @@
 import { availableInteractions, manifestUsesCharacterInteractions, manifestUsesInteractions } from './interactions.ts'
+import { FrozenInteractionRulebook } from './frozen-interactions.ts'
 import {
   assertProtocolString,
   failWorld,
   validateResolutionAuthority,
   type CharacterId,
+  type InteractionPackageImplementation,
   type RulebookResolutionAuthorityV1,
   type WorldAddress,
+  type WorldHash,
   type WorldJsonObject,
 } from '@harness-world/contracts'
 import {
@@ -14,7 +17,7 @@ import {
   type RulebookEvent,
   type RulebookResolution,
 } from './rulebook.ts'
-import type { CompiledWorldManifest } from './world-spec.ts'
+import { manifestUsesFrozenInteractions, type CompiledWorldManifest } from './world-spec.ts'
 
 export interface RulebookResolutionContext {
   readonly manifest: CompiledWorldManifest
@@ -22,6 +25,10 @@ export interface RulebookResolutionContext {
   readonly characterId: CharacterId | string
   readonly actionId?: string
   readonly resolutionAuthority?: RulebookResolutionAuthorityV1
+  /** The Host's own identity of the locked Manifest. A frozen resolution binds it into its trace. */
+  readonly manifestHash?: WorldHash
+  /** The world sequence the candidate prefix sits at. A frozen resolution binds it into its trace. */
+  readonly asOfWorldSeq?: number
   readonly action: PlayerActionInput
 }
 
@@ -75,8 +82,22 @@ export class RulebookRegistry {
 
 class CoreRulebookResolver implements RulebookResolver {
   readonly #legacy = new SpeakMoveRulebook()
+  readonly #frozen: FrozenInteractionRulebook
+
+  constructor(interactionPackages: readonly InteractionPackageImplementation[]) {
+    this.#frozen = new FrozenInteractionRulebook(interactionPackages)
+  }
 
   resolve(context: RulebookResolutionContext): RulebookResolution {
+    // The frozen path owns the whole action, so it is dispatched before any v9 requirement is checked:
+    // the two versions share an authority-bearing context but nothing about how an action resolves.
+    if (manifestUsesFrozenInteractions(context.manifest)) {
+      return this.#frozen.resolve({
+        manifest: context.manifest, events: context.events, characterId: context.characterId,
+        actionId: context.actionId, manifestHash: context.manifestHash,
+        asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
+      }, context.action)
+    }
     if (manifestUsesCharacterInteractions(context.manifest)
       && (context.actionId === undefined || context.resolutionAuthority === undefined)) {
       throw new TypeError('Manifest v9 Rulebook resolution requires Host authority and actionId')
@@ -91,6 +112,13 @@ class CoreRulebookResolver implements RulebookResolver {
   }
 
   affordances(context: Omit<RulebookResolutionContext, 'action' | 'actionId'>): readonly ActionAffordance[] {
+    if (manifestUsesFrozenInteractions(context.manifest)) {
+      return this.#frozen.affordances({
+        manifest: context.manifest, events: context.events, characterId: context.characterId,
+        actionId: undefined, manifestHash: context.manifestHash,
+        asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
+      })
+    }
     if (manifestUsesCharacterInteractions(context.manifest) && context.resolutionAuthority === undefined) {
       throw new TypeError('Manifest v9 affordances require Host authority')
     }
@@ -110,10 +138,21 @@ class CoreRulebookResolver implements RulebookResolver {
   }
 }
 
+export interface CoreRulebookOptions {
+  /**
+   * The trusted interaction packages the Host installs. A world selects among them and can never add
+   * one, so an empty list is a valid Host: every v10 world then fails closed at activation.
+   */
+  readonly interactionPackages?: readonly InteractionPackageImplementation[]
+}
+
 /** Generic application registry: only product-neutral speak/move/take rules. */
-export function createCoreRulebookRegistry(): RulebookRegistry {
+export function createCoreRulebookRegistry(options: CoreRulebookOptions = {}): RulebookRegistry {
   const registry = new RulebookRegistry()
-  registry.register('builtin:speak-move', 1, new CoreRulebookResolver())
-  registry.register('builtin:speak-move', 2, new CoreRulebookResolver())
+  // One resolver backs both versions: the Manifest schemaVersion, not the registry key, decides which
+  // path an action takes, and a shared instance installs each package exactly once.
+  const resolver = new CoreRulebookResolver(options.interactionPackages ?? [])
+  registry.register('builtin:speak-move', 1, resolver)
+  registry.register('builtin:speak-move', 2, resolver)
   return registry
 }

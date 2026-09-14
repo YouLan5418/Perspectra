@@ -22,6 +22,13 @@ export interface RulebookResolution {
   readonly status: 'accepted' | 'rejected'
   readonly events: readonly WorldEventDraft[]
   readonly reason?: string
+  /**
+   * The frozen path's rule trace: the definition set, the resolved role bindings and the trace hash
+   * that binds them to the World, the Manifest, the candidate prefix and the authority. It is absent on
+   * every path that has no frozen rule plan, which is every Manifest before v10, and it is what a Host
+   * binds into durable Round Authority.
+   */
+  readonly interactionTrace?: WorldJsonObject
   /** Maximum audience granted by the Rulebook; Scene policy may only narrow it. */
   readonly observationScope?: {
     readonly scope: 'scene_public' | 'direct' | 'private' | 'self'

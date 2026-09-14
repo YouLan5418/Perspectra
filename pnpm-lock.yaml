@@ -92,6 +92,9 @@ importers:
       '@harness-world/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@harness-world/interaction-runtime':
+        specifier: workspace:*
+        version: link:../interaction-runtime
       '@harness-world/store-sqlite':
         specifier: workspace:*
         version: link:../store-sqlite

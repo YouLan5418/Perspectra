@@ -258,9 +258,18 @@ export function currentCharacterRelations(events: readonly RulebookEvent[]): rea
   return [...relations.values()].sort((left, right) => compareWorldText(left.relationId, right.relationId))
 }
 
-interface SceneState {
+export interface SceneState {
+  readonly sceneId: string
   readonly lifecycle: 'created' | 'active' | 'closed'
   readonly participantIds: readonly string[]
+}
+
+/**
+ * The frozen Scene facts of one Event prefix. It is shared by the closed catalog path and the frozen
+ * interaction path, because both read the same Scene vocabulary and neither owns it.
+ */
+export function currentSceneStates(events: readonly RulebookEvent[]): readonly SceneState[] {
+  return currentScenes(events)
 }
 
 function currentScenes(events: readonly RulebookEvent[]): readonly SceneState[] {
@@ -275,7 +284,7 @@ function currentScenes(events: readonly RulebookEvent[]): readonly SceneState[] 
         || new Set(value.participantIds).size !== value.participantIds.length || scenes.has(data.sceneId)) {
         throw new TypeError('scene prefix is malformed')
       }
-      scenes.set(data.sceneId, { lifecycle: value.lifecycle, participantIds: value.participantIds as string[] })
+      scenes.set(data.sceneId, { sceneId: data.sceneId, lifecycle: value.lifecycle, participantIds: value.participantIds as string[] })
       continue
     }
     if (!event.eventType.startsWith('scene.')) continue
@@ -284,7 +293,7 @@ function currentScenes(events: readonly RulebookEvent[]): readonly SceneState[] 
     if (typeof data?.sceneId !== 'string') throw new TypeError('scene prefix is malformed')
     if (event.eventType === 'scene.created') {
       if (scenes.has(data.sceneId)) throw new TypeError('scene prefix is malformed')
-      scenes.set(data.sceneId, { lifecycle: 'created', participantIds: [] })
+      scenes.set(data.sceneId, { sceneId: data.sceneId, lifecycle: 'created', participantIds: [] })
       continue
     }
     const scene = scenes.get(data.sceneId)

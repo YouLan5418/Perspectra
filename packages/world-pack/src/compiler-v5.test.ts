@@ -94,17 +94,18 @@ async function source(options: SourceOptions = {}): Promise<string> {
   await writeFile(join(root, 'characters.json'), JSON.stringify({
     ...(options.characters ?? characters), schemaVersion: 'worldpack-characters/v3',
   }, null, 2))
-  await writeFile(join(root, 'interactions.json'), canonicalizeWorldJson({
+  const selectionDocument: Record<string, unknown> = {
     schemaVersion: 'worldpack-interactions/v1',
     packages: [{ id: options.packageId ?? 'package:interactions-basic', version: options.packageVersion ?? 1 }],
     definitions: (options.definitions ?? ['base:take', 'base:drop', 'base:give']).map(id => ({ id, version: 1 })),
-    ...(options.relationBindings === undefined ? {} : {
-      relationBindings: options.relationBindings.map(binding => ({
-        bindingId: binding.bindingId, relationClass: binding.relationClass,
-        definition: { id: binding.id, version: binding.version }, config: binding.config,
-      })),
-    }),
-  }))
+  }
+  if (options.relationBindings !== undefined) {
+    selectionDocument.relationBindings = options.relationBindings.map(binding => ({
+      bindingId: binding.bindingId, relationClass: binding.relationClass,
+      definition: { id: binding.id, version: binding.version }, config: binding.config,
+    }))
+  }
+  await writeFile(join(root, 'interactions.json'), canonicalizeWorldJson(selectionDocument as WorldJsonValue))
   return root
 }
 
