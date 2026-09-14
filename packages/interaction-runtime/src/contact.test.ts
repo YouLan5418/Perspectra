@@ -366,6 +366,29 @@ describe('contact relation domain', () => {
     expect(held.fold(sceneless, [])).toHaveLength(1)
   })
 
+  it('hands the resolved role bindings over as exactly the data behind their hash', () => {
+    const held = runtime()
+    const adjudication = held.resolve(host(), request('base:take', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:take'))
+    expect(adjudication.status).toBe('accepted')
+    expect(adjudication.resolvedRoles).toEqual({
+      actor: { kind: 'character', id: actor }, item: { kind: 'entity', id: 'entity:cup' },
+    })
+    // Handing them over is not a second account of them: this is the very data the hash covers, which
+    // is what lets a Host read "who did this land on" from the same resolution it already trusts.
+    expect(hashWorldJson('interaction-role-bindings/v1', adjudication.resolvedRoles))
+      .toBe(adjudication.resolvedRoleBindingsHash)
+    // A domain rejection still reports what the plan bound, so a failed attempt can be told apart from
+    // one that never got that far.
+    const rejected = held.resolve(host(), request('base:end-contact', shared, 'binding:held-release'))
+    expect(rejected.status).toBe('rejected')
+    expect(rejected.resolvedRoles).toEqual({
+      actor: { kind: 'character', id: actor }, contact: shared,
+      initiator: { kind: 'character', id: actor }, target: { kind: 'character', id: 'character:alice' },
+    })
+    expect(hashWorldJson('interaction-role-bindings/v1', rejected.resolvedRoles))
+      .toBe(rejected.resolvedRoleBindingsHash)
+  })
+
   it('addresses a relation instance only through the class its binding names', () => {
     const held = runtime()
     // The instance is real and active, but this binding belongs to another class of relation.

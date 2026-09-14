@@ -295,10 +295,11 @@ export class FrozenInteractionRulebook {
         resolvedRoleBindingsHash: adjudication.resolvedRoleBindingsHash,
         ruleTraceHash: adjudication.ruleTraceHash,
       }
+      const resolvedRoles = adjudication.resolvedRoles
       return adjudication.status === 'accepted'
-        ? { status: 'accepted', events: adjudication.events, observationScope: { scope: 'scene_public' }, interactionTrace }
+        ? { status: 'accepted', events: adjudication.events, observationScope: { scope: 'scene_public' }, interactionTrace, resolvedRoles }
         : { ...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason),
-            observationScope: { scope: 'self' }, interactionTrace }
+            observationScope: { scope: 'self' }, interactionTrace, resolvedRoles }
     }
     const resolution = this.#legacy.resolve(manifest, context.events, context.characterId, action, {
       actionId: context.actionId, resolutionAuthority: authority,

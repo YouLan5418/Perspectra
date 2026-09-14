@@ -69,6 +69,22 @@ describe('the frozen interaction path', () => {
     expect(stayed.events.map(event => event.eventType)).toEqual(['character.speak'])
   })
 
+  it('reports the role bindings a frozen resolution used, by name', () => {
+    const path = rulebook()
+    const resolution = path.resolve(context('action:names'), {
+      actionType: 'interact', parameters: {
+        targetRef: { kind: 'character', id: 'character:npc' }, bindingId: 'binding:character:npc:base:hold-hand',
+        definitionRef: { id: 'base:hold-hand', version: 1 }, arguments: {},
+      },
+    })
+    expect(resolution.status).toBe('accepted')
+    // Names, not only their hash: a Host stating which role an effect landed on has to be able to ask
+    // about a slot, and a hash cannot answer that.
+    expect(resolution.resolvedRoles).toEqual({
+      actor: { kind: 'character', id: 'character:player' }, target: { kind: 'character', id: 'character:npc' },
+    })
+  })
+
   it('resolves every first-batch definition through the world selection', () => {
     const path = rulebook()
     const take = path.resolve(context('action:take'), {

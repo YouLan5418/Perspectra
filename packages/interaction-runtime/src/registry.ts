@@ -461,7 +461,9 @@ export class FrozenInteractionWorld {
     const finish = (reason: string, events: InteractionAdjudication['events'] = [], accepted: InteractionPerformance | null = null): InteractionAdjudication => {
       const resolvedRoleBindingsHash = hashWorldJson('interaction-role-bindings/v1', roles)
       const data = { status: reason === 'accepted' ? 'accepted' as const : 'rejected' as const, reason, events, definitionSetHash: this.definitionSetHash, resolvedRoleBindingsHash, trace, performance: accepted }
-      return immutable({ ...data, ruleTraceHash: hashWorldJson('interaction-rule-trace/v1', { ...data, address: host.address, manifestHash: host.manifestHash, asOfWorldSeq: host.asOfWorldSeq, candidatePrefixHash: host.candidatePrefixHash, actionId: host.actionId, actorId: host.actorId, authority: host.authority, request }) })
+      // `resolvedRoles` sits beside the hash rather than inside the hashed payload, so handing the
+      // bindings over cannot change any trace hash.
+      return immutable({ ...data, resolvedRoles: roles, ruleTraceHash: hashWorldJson('interaction-rule-trace/v1', { ...data, address: host.address, manifestHash: host.manifestHash, asOfWorldSeq: host.asOfWorldSeq, candidatePrefixHash: host.candidatePrefixHash, actionId: host.actionId, actorId: host.actorId, authority: host.authority, request }) })
     }
     const plan = this.#plan(host, def, binding, request.targetRef, args, targets, authorized, roles, trace)
     if (plan !== null) {

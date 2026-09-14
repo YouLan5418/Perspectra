@@ -29,6 +29,12 @@ export interface RulebookResolution {
    * binds into durable Round Authority.
    */
   readonly interactionTrace?: WorldJsonObject
+  /**
+   * The frozen plan's resolved role bindings by role name, when the action has a frozen plan. A Host
+   * needs the names - not only their hash - to state which character an effect landed on, which is what
+   * a reaction role class is read from.
+   */
+  readonly resolvedRoles?: { readonly [name: string]: { readonly kind: string; readonly id: string } }
   /** Maximum audience granted by the Rulebook; Scene policy may only narrow it. */
   readonly observationScope?: {
     readonly scope: 'scene_public' | 'direct' | 'private' | 'self'
