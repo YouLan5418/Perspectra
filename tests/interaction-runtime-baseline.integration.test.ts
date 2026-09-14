@@ -29,7 +29,7 @@ it.each([7, 8, 9] as const)('freezes v%s runtime events, authority, Root/Reactio
   const clock = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
   const root = mkdtempSync(join(tmpdir(), 'interaction-runtime-baseline-'))
   const worldPath = join(root, 'world.sqlite')
-  const compiled = version === 7 ? actionGroupWorld(true) : version === 8 ? interactionWorld(true) : characterInteractionWorld(true)
+  const compiled = version === 7 ? actionGroupWorld(true) : version === 8 ? interactionWorld(true) : characterInteractionWorld('responsive/v1')
   const calls: { lane: string; actorId: string; tools: WorldJsonValue }[] = []
   let rootCalls = 0
   const protocol = version === 7 ? 4 : 5

@@ -1,6 +1,6 @@
 import {
   hashWorldJson, type InteractionBindingV3, type InteractionCatalogV3,
-  type InteractionPackageImplementation, type WorldJsonObject,
+  type InteractionPackageImplementation, type ReactionProfileId, type WorldJsonObject,
 } from '@harness-world/contracts'
 import {
   characterInteractionManifestRegistries,
@@ -20,8 +20,8 @@ const ref = (id: string): { readonly id: string; readonly version: number } => (
  * definitions including the release, which only became bindable once a relation target could name a
  * class (ADR-0095).
  */
-export function frozenInteractionWorld(responsive = false): CompiledWorldSpec {
-  const base = characterInteractionWorld(responsive)
+export function frozenInteractionWorld(profile?: ReactionProfileId): CompiledWorldSpec {
+  const base = characterInteractionWorld(profile)
   const entityBindings: InteractionBindingV3[] = ['entity:cup', 'entity:other'].flatMap(entityId =>
     ['base:take', 'base:drop', 'base:give'].map(id => ({
       bindingId: `binding:${entityId}:${id}`, targetRef: { kind: 'entity' as const, id: entityId },

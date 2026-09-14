@@ -782,11 +782,24 @@ function readReactionCycle(
   if (waves.length === 0 || waves.length > cycle.maxWaves) throw new Error('Reaction Cycle wave count is invalid')
 
   const jobRows = db.prepare(`SELECT * FROM world_reaction_jobs WHERE cycle_id = ?`).all(cycleId) as unknown as JobRow[]
-  jobRows.sort((left, right) => compareWorldText(
-    `${left.wave}\u001f${left.character_id}\u001f${left.stimulus_hash}\u001f${left.job_id}`,
-    `${right.wave}\u001f${right.character_id}\u001f${right.stimulus_hash}\u001f${right.job_id}`,
-  ))
-  const jobs = jobRows.map((jobRow): StoredReactionJob => {
+  // A Job's place is the place its frozen budget decision gave it. The two agree only while every
+  // candidate in a Wave shares a class - under responsive/v2 the plan weighs the class first - and the
+  // plan is what reserved the calls and what the write path hashed into the Cycle authority. Ordering
+  // the rows by id here instead would hand each Wave another Wave's decisions, and would recompute the
+  // authority of a Root Round with a different Wave-one Job order than the one it committed with.
+  const planOrdinal = new Map<string, number>()
+  for (const wave of waves) {
+    for (const [index, decision] of wave.budgetPlan.decisions.entries()) {
+      planOrdinal.set(decision.candidate.jobId, index)
+    }
+  }
+  const placed = jobRows.map(row => {
+    const ordinal = planOrdinal.get(row.job_id)
+    if (ordinal === undefined) throw new Error('Reaction wave budget decisions do not match Jobs')
+    return { row, ordinal }
+  })
+  placed.sort((left, right) => left.row.wave - right.row.wave || left.ordinal - right.ordinal)
+  const jobs = placed.map(entry => entry.row).map((jobRow): StoredReactionJob => {
     const job: StoredReactionJob = {
       jobId: brandId(jobRow.job_id, 'ReactionJobId'),
       address,
@@ -1265,9 +1278,9 @@ function prepareContinuationStimuli(
       observationOrdinal: source.observationOrdinal,
       observationId: source.observationId,
       sourceEventHash: event.eventHash,
-      // A continuation stimulus stores no evidence. The Reaction Round does not classify its own observers
-      // yet, so this path has one shape - and a branch that spread a field nothing produces would be a
-      // line no world can reach. See the I4-d record for what remains open.
+      // A continuation stimulus carries what the Reaction Round classified, and nothing when that round
+      // stated no basis - a v1 world stores the same bytes here as it did before the profile existed.
+      ...(source.evidence === undefined ? {} : { evidence: source.evidence }),
     }
   })
   const stimulusHash = hashStimulusBundle(candidate.characterId, partial)
@@ -1425,6 +1438,7 @@ export function prepareReactionWaveSettlement(
   const budgetPlan = planStableCallBudget(candidates.map(value => ({
     wave: nextWaveNumber,
     characterId: value.candidate.characterId,
+    ...(value.candidate.roleClass === undefined ? {} : { roleClass: value.candidate.roleClass }),
     stimulusHash: value.stimulusHash,
     jobId: value.jobId,
     estimatedTokens: value.candidate.estimatedTokens,

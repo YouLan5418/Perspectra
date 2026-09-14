@@ -221,6 +221,71 @@ describe('hard process termination recovery', () => {
     final.close()
   })
 
+  it.each(['store.before-commit', 'store.after-commit'] as const)('recovers a v10 Reaction Wave after hard termination at %s', async point => {
+    // The Wave is the Reaction entry's commit window: it carries Authority 6, the frozen fold's own
+    // candidate events, and - under this world's profile - the basis each observer was weighed on. It
+    // has to be committed with its Root Round's Cycle or not at all, and a restart must not ask the
+    // model again for an answer that was already recorded.
+    const worldPath = database('frozen-reaction-world.sqlite')
+    const sessionPath = `${worldPath}.session.sqlite`
+    const memoryPath = `${worldPath}.memory.sqlite`
+    const compiled = frozenInteractionWorld('responsive/v2')
+    const initial = new WorldApplication({ worldPath, sessionPath, memoryPath })
+    initial.activate(compiled)
+    await initial.close()
+    await hardKillAt(fileURLToPath(new URL('./workers/action-group-crash-worker.ts', import.meta.url)),
+      [worldPath, sessionPath, memoryPath, point, 'frozen-reaction'])
+    const interrupted = new WorldStore(worldPath)
+    const events = interrupted.readEvents(compiled.manifest.address)
+    // The Root Round committed before the pause was armed; what the pause caught is the Wave.
+    expect(events.filter(event => event.eventType === 'character.relation-started')).toHaveLength(1)
+    expect(events.filter(event => event.eventType === 'entity.transferred'))
+      .toHaveLength(point === 'store.after-commit' ? 1 : 0)
+    const interruptedCycle = interrupted.activeReactionCycle(compiled.manifest.address)!
+    expect(interruptedCycle.waves[0]!.status).toBe(point === 'store.after-commit' ? 'committed' : 'frozen')
+    interrupted.close()
+    const leaseDb = new DatabaseSync(worldPath, { readOnly: true })
+    const lease = leaseDb.prepare('SELECT expires_at_ms FROM writer_leases').get() as { readonly expires_at_ms: number }
+    leaseDb.close()
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, lease.expires_at_ms - Date.now() + 20)))
+    let calls = 0
+    const recovered = new WorldApplication({ worldPath, sessionPath, memoryPath,
+      runtimeOwnerId: 'reaction:recovered', leaseTtlMs: 500, modelBudgetTokens: 10,
+      reactionParticipants: () => [
+        { participantId: 'agent:npc', role: 'agent' as const,
+          actorId: brandId('character:npc', 'CharacterId'), allowedActionTypes: ['speak', 'move', 'interact'],
+          priority: 1, estimatedTokens: 1, timeoutMs: 100,
+          provider: { propose: async () => {
+            calls++
+            return { schemaVersion: 6 as const, decision: 'act' as const, actions: [{
+              actionId: 'action:npc-cup', actorId: brandId('character:npc', 'CharacterId'),
+              actionType: 'interact', actionVersion: 2, parameters: {
+                targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
+                definitionRef: { id: 'base:take', version: 1 }, arguments: {},
+              } }] }
+          } } },
+        { participantId: 'agent:bob', role: 'agent' as const,
+          actorId: brandId('character:bob', 'CharacterId'), allowedActionTypes: ['speak', 'move', 'interact'],
+          priority: 1, estimatedTokens: 1, timeoutMs: 100,
+          provider: { propose: async () => ({ schemaVersion: 6 as const, decision: 'abstain' as const, actions: [] }) } },
+      ] })
+    recovered.activate(compiled)
+    await recovered.processReactionCycles(compiled.manifest.address)
+    await recovered.close()
+    // The recorded answer is replayed, not re-earned.
+    expect(calls).toBe(0)
+    const final = new WorldStore(worldPath)
+    const settled = final.readReactionCycle(compiled.manifest.address, interruptedCycle.cycle.cycleId)!
+    expect(settled.cycle.status).toBe('terminal')
+    expect(settled.waves[0]!.status).toBe('committed')
+    // The Wave happened exactly once either way: one cup, one take, no second transfer.
+    const transferred = final.readEvents(compiled.manifest.address)
+      .filter(event => event.eventType === 'entity.transferred'
+        && (event.data as { readonly characterId?: string }).characterId === 'character:npc')
+    expect(transferred).toHaveLength(1)
+    final.close()
+  }, 60_000)
+
   it('leaves a non-ready backup artifact after hard termination and recovers the stale host lock', async () => {
     const value = deploymentFixture()
     const partial = join(value.root, 'partial-backup')

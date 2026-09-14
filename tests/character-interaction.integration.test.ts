@@ -72,7 +72,7 @@ it.each(['abstain', 'failure'] as const)('commits player hold despite NPC %s, th
 it('lets a later Reaction wave release a committed relation with standard authority', async () => {
   const root = mkdtempSync(join(tmpdir(), 'character-reaction-'))
   const worldPath = join(root, 'world.sqlite')
-  const compiled = characterInteractionWorld(true)
+  const compiled = characterInteractionWorld('responsive/v1')
   const app = new WorldApplication({ worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
     reactionParticipants: () => [{ participantId: 'agent:npc', role: 'agent', actorId: brandId('character:npc', 'CharacterId'),
       allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,

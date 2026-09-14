@@ -1353,8 +1353,8 @@ describe('WorldStore Reaction Cycle authority', () => {
     corrupted.close()
   })
 
-  it('rejects a renumbered stimulus and a Job that diverges from its frozen budget decision', async () => {
-    for (const mode of ['stimulus-ordinal', 'budget-decision'] as const) {
+  it('rejects a renumbered stimulus, a Job that diverges from its frozen budget decision, and an orphan Job', async () => {
+    for (const mode of ['stimulus-ordinal', 'budget-decision', 'orphaned-job'] as const) {
       const { path, address } = fixture()
       const store = new WorldStore(path)
       store.createBranch(address)
@@ -1367,6 +1367,20 @@ describe('WorldStore Reaction Cycle authority', () => {
         const changed: StoredReactionStimulus = { ...source, stimulusOrdinal: 1 }
         raw.prepare(`UPDATE world_reaction_job_stimuli SET stimulus_ordinal = 1, stimulus_entry_hash = ? WHERE job_id = ?`)
           .run(hashReactionStimulusEntry(changed), changed.jobId)
+      } else if (mode === 'orphaned-job') {
+        // A Job row no budget decision names. It is intact in every other respect, so the only thing
+        // wrong with it is that the frozen plan never placed it - which is what the reader must notice
+        // rather than leave out of the bundle it rebuilds the Cycle authority from.
+        const source = bundle.jobs[0]!
+        const orphaned: StoredReactionJob = { ...source, jobId: brandId('reaction-job:orphaned', 'ReactionJobId') }
+        const orphanedJobHash = hashWorldJson('reaction-job/v1', {
+          jobId: orphaned.jobId, address: orphaned.address, cycleId: orphaned.cycleId, wave: orphaned.wave,
+          characterId: orphaned.characterId, stimulusHash: orphaned.stimulusHash,
+          budgetDecision: orphaned.budgetDecision, budgetOrdinal: orphaned.budgetOrdinal, reservedTokens: orphaned.reservedTokens,
+        })
+        raw.prepare('DELETE FROM world_reaction_job_stimuli WHERE job_id = ?').run(source.jobId)
+        raw.prepare(`UPDATE world_reaction_jobs SET job_id = ?, job_hash = ?, state_hash = ? WHERE job_id = ?`)
+          .run(orphaned.jobId, orphanedJobHash, hashReactionJobState({ ...orphaned, jobHash: orphanedJobHash }), source.jobId)
       } else {
         const source = bundle.jobs[0]!
         const changed: StoredReactionJob = { ...source, budgetOrdinal: 1 }
@@ -1385,7 +1399,9 @@ describe('WorldStore Reaction Cycle authority', () => {
       }
       raw.close()
       const corrupted = new WorldStore(path)
-      expect(() => corrupted.readReactionCycle(address, bundle.cycle.cycleId)).toThrow()
+      const read = () => corrupted.readReactionCycle(address, bundle.cycle.cycleId)
+      if (mode === 'orphaned-job') expect(read).toThrow('Reaction wave budget decisions do not match Jobs')
+      else expect(read).toThrow()
       corrupted.close()
     }
   })

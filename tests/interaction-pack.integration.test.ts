@@ -238,7 +238,84 @@ describe('an independent pack on the interaction path', () => {
       expect(ordering.map(row => [row.observer, row.value.roleClass]))
         .toEqual([['character:friend', 'direct'], ['character:companion', 'witness']])
       expect(ordering[0]!.ordinal).toBeLessThan(ordering[1]!.ordinal)
+      // Reading that Root Round back re-derives its bundle hash - the Cycle authority included - from
+      // the durable rows. The hand-over is the round whose plan weighs the class before the id, so a
+      // reader that rebuilt the Cycle authority in id order would call this committed round divergent.
+      const store = new WorldStore(worldPath)
+      try {
+        const handOver = store.readEvents(compiled.manifest.address)
+          .filter(event => event.eventType === 'entity.transferred').at(-1)!
+        expect(store.committedRound(compiled.manifest.address, handOver.transactionId)?.transactionId)
+          .toBe(handOver.transactionId)
+      } finally { store.close() }
     } finally { rmSync(root, { recursive: true, force: true }) }
+  }, 60_000)
+
+  it('classifies the observers a Wave weighs, so a later Wave is ordered by it', async () => {
+    // A Wave weighs its own observers, and the two reactions here are the only actors: each names the
+    // other. The private word makes the one it names an addressee; the speech into the open air makes
+    // the other a witness. The classes therefore order the second Wave the opposite way to the
+    // character ids - which is the only way to tell the class from the id order it supersedes, since
+    // the first Wave has both as witnesses and so falls back to those ids.
+    const compiled = adaptCompiledWorldPack(
+      await compileWorldPackSource(packDirectory, packages) as CompiledWorldPackV5, runtimeOptions())
+    const root = mkdtempSync(join(tmpdir(), 'hand-in-hand-wave-two-'))
+    const worldPath = join(root, 'world.sqlite')
+    let calls = 0
+    const app = new WorldApplication({
+      worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'),
+      modelBudgetTokens: 20,
+      reactionParticipants: () => quietParticipants().map(binding => ({
+        ...binding,
+        provider: { propose: async (context: unknown) => {
+          calls++
+          const { characterId } = (context as { stimulus: { characterId: string } }).stimulus
+          return characterId === 'character:companion'
+            ? { schemaVersion: 6 as const, decision: 'act' as const, actions: [{
+                actionId: `action:companion-${calls}`, actorId: 'character:companion' as never,
+                actionType: 'speak', actionVersion: 1,
+                parameters: { text: '壶里有热水。', scope: 'direct', addresseeIds: ['character:friend'] },
+              }] }
+            : { schemaVersion: 6 as const, decision: 'act' as const, actions: [{
+                actionId: `action:friend-${calls}`, actorId: 'character:friend' as never,
+                actionType: 'speak', actionVersion: 1, parameters: { text: '雨小了。' },
+              }] }
+        } },
+      })),
+    })
+    try {
+      app.activate(compiled)
+      // The Root Round reaches both as witnesses of one public speech, so both open the Cycle.
+      await app.submit(compiled.manifest.address, {
+        idempotencyKey: 'wave-two', principalId: 'principal:player', correlationId: 'hand-in-hand:wave-two',
+        action: { actionType: 'speak', parameters: { text: '雨小了。' } },
+      })
+      await app.processReactionCycles(compiled.manifest.address)
+    } finally { await app.close() }
+    const raw = new DatabaseSync(worldPath, { readOnly: true })
+    let rows: readonly { readonly wave: number; readonly observer: string; readonly evidence: string | null }[]
+    try {
+      rows = raw.prepare(`
+        SELECT j.wave AS wave, j.character_id AS observer, s.evidence_json AS evidence
+        FROM world_reaction_jobs j JOIN world_reaction_job_stimuli s ON s.job_id = j.job_id
+        ORDER BY j.wave, j.budget_ordinal
+      `).all() as unknown as typeof rows
+    } finally { raw.close() }
+    // Two Waves and no third: by then each of them has spent its frozen per-character call allowance.
+    expect([...new Set(rows.map(row => row.wave))]).toEqual([1, 2])
+    // Every stimulus in both Waves states the basis it was admitted on, and it is its own observer's.
+    for (const row of rows) expect(row.evidence).not.toBeNull()
+    const parsed = rows.map(row => ({ ...row, value: JSON.parse(row.evidence!) as WorldJsonObject }))
+    for (const row of parsed) {
+      expect(row.value).toMatchObject({ version: 'reaction-evidence/v1', observerCharacterId: row.observer })
+    }
+    // A speech is not adjudicated by a definition, so its evidence names the action itself.
+    expect(parsed.at(-1)!.value.entry).toEqual({ kind: 'action', actionType: 'speak', actionVersion: 1 })
+    expect(parsed.map(row => [row.wave, row.observer, row.value.roleClass])).toEqual([
+      [1, 'character:companion', 'witness'], [1, 'character:friend', 'witness'],
+      [2, 'character:friend', 'addressee'], [2, 'character:companion', 'witness'],
+    ])
+    expect(calls).toBe(4)
   }, 60_000)
 
   it('opens a Reaction Cycle on a v10 world at the frozen action version', async () => {

@@ -72,6 +72,9 @@ import type {
   ReactionContextBinding,
 } from './context-pipeline.ts'
 import { compareActionOrderKey, sortActionOrderKeys } from './round-coordinator.ts'
+import {
+  reactionEvidence, reactionRoleClass, recordsReactionEvidence, speechAddressees, strongestClass,
+} from './reaction-evidence.ts'
 import type { SceneDecisionService } from './scene-decision.ts'
 
 export interface ReactionParticipantBinding extends ReactionContextBinding {
@@ -623,6 +626,9 @@ export class ReactionScheduler {
     const cognitiveCharacters = new Set<CharacterId>()
     let candidateHash = candidateHashInput
     const stoppedGroups = new Set<string>()
+    // This round weighs its own observers under the same profile the Root Round read, so a wave-two
+    // stimulus is classified by the rule its wave-one counterpart was, not by a second one.
+    const recordsEvidence = recordsReactionEvidence(reactionPolicyFromManifest(this.options.manifest))
     for (const [ordinal, item] of actions.entries()) {
       const actionPrefix = [...history, ...events]
       const actionAuthority = resolutionAuthority('agent', 'standard')
@@ -763,6 +769,13 @@ export class ReactionScheduler {
           },
         }
         const sourceEventOrdinal = events.length
+        // The same two calls the Root Round makes, from the same facts: a wave-two stimulus therefore
+        // carries the basis it was admitted on rather than reading as one whose basis was never stated.
+        const roleClass = reactionRoleClass({ actorId: item.action.actorId, observerId,
+          affectedCharacterIds: resolution.affectedCharacterIds, addresseeIds: speechAddressees(resolution) })
+        const evidence = reactionEvidence({ actionId: item.action.actionId, actionType: item.action.actionType,
+          actionVersion: item.action.actionVersion, actorId: item.action.actorId, observerId, resolution,
+          roleClass, sourceEventOrdinal, observationId })
         events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id: observationId, value: observation } })
         cognitiveCharacters.add(observerId)
         const player = this.options.manifest.playerBindings.find(value => value.characterId === observerId)
@@ -783,12 +796,13 @@ export class ReactionScheduler {
           })
         }
         // A stimulus for the next wave is recorded as its own Observation is: the class and the evidence
-        // are the Root Round's step, and a wave-two stimulus that carried neither would read as one whose
-        // basis was never established. See the record for what remains open here.
+        // are this round's step, and a wave-two stimulus that carried neither would read as one whose
+        // basis was never established.
         const next = this.#bindings.get(observerId)
         if (next !== undefined && estimatedTokens.has(observerId) && observerId !== item.action.actorId) {
           const stimuli = candidateStimuli.get(observerId) ?? []
-          stimuli.push({ sourceEventOrdinal, observationOrdinal: 0, observationId, observerCharacterId: observerId })
+          stimuli.push({ sourceEventOrdinal, observationOrdinal: 0, observationId, observerCharacterId: observerId,
+            ...(recordsEvidence ? { roleClass, evidence } : {}) })
           candidateStimuli.set(observerId, stimuli)
         }
       }
@@ -798,6 +812,8 @@ export class ReactionScheduler {
     const nextWaveCandidates = [...candidateStimuli].map(([characterId, stimuli]) => ({
       characterId,
       estimatedTokens: estimatedTokens.get(characterId)!,
+      // The planner owns the whole ordering, so it is handed the class rather than a pre-sorted list.
+      ...(recordsEvidence ? { roleClass: strongestClass(stimuli) } : {}),
       stimuli,
     }))
     const participants = executed.map(value => {
@@ -879,6 +895,9 @@ export class ReactionScheduler {
     const plan = planStableCallBudget(candidates.map(candidate => ({
       wave: wave + 1,
       characterId: candidate.characterId,
+      // The preview has to weigh the candidates in the order the Store will, or "something still
+      // reserves" could disagree with the plan the committed Wave is built from.
+      ...(candidate.roleClass === undefined ? {} : { roleClass: candidate.roleClass }),
       stimulusHash: hashWorldJson('reaction-preview-stimulus/v1', candidate.stimuli),
       jobId: deterministicId('reaction-preview-job/v1', { wave: wave + 1, characterId: candidate.characterId }),
       estimatedTokens: candidate.estimatedTokens,
