@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, createErrorEnvelope, hashWorldJson, type SubmitActionsV2 } from '@harness-world/contracts'
+import { brandId, createErrorEnvelope, hashWorldJson, type SubmitActionsV2, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
 import { openContextDatabase } from '@harness-world/agents'
 import { CognitiveMemoryService, LocalMemoryStore } from '@harness-world/memory'
@@ -36,7 +36,7 @@ import {
 import { phase8ProviderCrashWorld } from './fixtures/phase8-provider-world.ts'
 import { actionGroupWorld, groupOutput } from './fixtures/action-group-world.ts'
 import { frozenInteractionWorld } from './fixtures/frozen-interaction-world.ts'
-import { intentWorld, intentFixtureProfile, intentFixtureRequest, intentFixtureResponse } from './fixtures/player-intent-world.ts'
+import { frozenIntentWorld, intentWorld, intentFixtureProfile, intentFixtureRequest, intentFixtureResponse } from './fixtures/player-intent-world.ts'
 
 const directories: string[] = []
 const worker = fileURLToPath(new URL('./workers/crash-worker.ts', import.meta.url))
@@ -110,6 +110,60 @@ describe('hard process termination recovery', () => {
       store.close()
     } finally { await app.close() }
   })
+  it.each(['store.before-commit', 'store.after-commit'] as const)('recovers an interpreted frozen interaction after hard termination at %s', async point => {
+    // Player Intent is the fourth entry I4's third boundary names, and on a v10 world it reaches the
+    // frozen definition instead of a catalog entry. Its recovery is the same promise as the other three:
+    // the durable interpretation is replayed, the world commits once, and the model is not asked again.
+    const worldPath = database('intent-frozen-world.sqlite')
+    const sessionPath = `${worldPath}.session.sqlite`
+    const memoryPath = `${worldPath}.memory.sqlite`
+    const compiled = frozenIntentWorld('responsive/v2')
+    const initial = new WorldApplication({ worldPath, sessionPath, memoryPath })
+    initial.activate(compiled)
+    await initial.close()
+    await hardKillAt(fileURLToPath(new URL('./workers/player-intent-crash-worker.ts', import.meta.url)),
+      [worldPath, sessionPath, memoryPath, point, 'frozen'])
+    const leaseDb = new DatabaseSync(worldPath, { readOnly: true })
+    const lease = leaseDb.prepare('SELECT expires_at_ms FROM writer_leases').get() as { readonly expires_at_ms: number } | undefined
+    leaseDb.close()
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, (lease?.expires_at_ms ?? 0) - Date.now() + 20)))
+    let calls = 0
+    const app = new WorldApplication({ worldPath, sessionPath, memoryPath, runtimeOwnerId: 'intent:recovered',
+      leaseTtlMs: 500, modelBudgetTokens: 20,
+      reactionParticipants: () => ['character:npc', 'character:bob'].map(actorId => ({
+        participantId: `agent:${actorId}`, role: 'agent' as const, actorId: brandId(actorId, 'CharacterId'),
+        allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
+        provider: { propose: async () => ({ schemaVersion: 6 as const, decision: 'abstain' as const, actions: [] }) },
+      })),
+      playerIntent: { profile: intentFixtureProfile, dispatch: async (raw: WorldJsonValue) => {
+        calls++
+        const offered = (raw as { body: { affordances: readonly { affordanceId: string; parameters: WorldJsonObject }[] } })
+          .body.affordances
+        const take = offered.find(entry => entry.parameters.bindingId === 'binding:entity:cup:base:take')!
+        return { version: 'player-intent-candidate/v1', decision: 'act', reason: 'none',
+          actions: [{ key: 't', affordanceId: take.affordanceId }],
+          sourceSpans: [{ actionKey: 't', startUtf16: 0, endUtf16: 4, text: '拿起杯子', kind: 'action' }] }
+      } } })
+    const request = { text: '拿起杯子', principalId: 'principal:player', idempotencyKey: 'intent:frozen', correlationId: 'intent:frozen' }
+    try {
+      const result = await app.submitText(compiled.manifest.address, request)
+      expect(result.status).toBe('submitted')
+      // The same input twice is one commit, and the interpretation is durable rather than re-earned.
+      expect(await app.submitText(compiled.manifest.address, request)).toEqual(result)
+      expect(calls).toBe(0)
+    } finally { await app.close() }
+    const store = new WorldStore(worldPath)
+    const events = store.readEvents(compiled.manifest.address)
+    expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
+    const resolved = events.find(event => event.eventType === 'action.resolved')!
+    expect(resolved.data).toMatchObject({ actionType: 'interact', accepted: true, sourceRole: 'player' })
+    const authority = store.readRoundAuthority(compiled.manifest.address, resolved.transactionId)!.authority
+    store.close()
+    expect(authority.schemaVersion).toBe(6)
+    expect((authority.resolutions as readonly Record<string, unknown>[])
+      .some(entry => entry.interaction !== undefined)).toBe(true)
+  }, 60_000)
+
   it.each(['provider.before-world-commit', 'store.before-commit', 'store.after-commit'] as const)('recovers a whole two-step action group after hard termination at %s', async point => {
     const worldPath = database('group-world.sqlite')
     const sessionPath = `${worldPath}.session.sqlite`

@@ -1,5 +1,6 @@
-import { hashWorldJson } from '@harness-world/contracts'
+import { hashWorldJson, type ReactionProfileId, type WorldJsonObject } from '@harness-world/contracts'
 import { characterInteractionWorld } from './character-interaction-world.ts'
+import { frozenInteractionWorld } from './frozen-interaction-world.ts'
 
 export function intentWorld() {
   const base = characterInteractionWorld()
@@ -7,6 +8,20 @@ export function intentWorld() {
   const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
   const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.manifest-locked'
     ? { ...event, data: { manifestHash, genesisPlanHash: manifest.genesisPlanHash } } : event)
+  return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
+}
+
+/**
+ * The same frozen v10 world, asked to interpret free text instead of taking an explicit command. Its
+ * interactions are offered to the intent provider at the version the world adjudicates them, which is
+ * what makes an interpreted interaction reachable on the frozen path at all.
+ */
+export function frozenIntentWorld(profile?: ReactionProfileId) {
+  const base = frozenInteractionWorld(profile)
+  const manifest = { ...base.manifest, playerInputPolicy: { version: 'player-intent/v1' as const } }
+  const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+  const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.manifest-locked'
+    ? { ...event, data: { ...event.data as WorldJsonObject, manifestHash } } : event)
   return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
 }
 

@@ -21,7 +21,11 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
     const explicit = Object.hasOwn(input, 'action') ? { status: 'resolved' as const, action: parsePlayerActionInput(input.action!) }
       : new PlayerInputInterpreter().interpret(sourceText, afforded)
     if (explicit.status === 'clarification_required') return { clarification: explicit.reason }
-    const action = { ...explicit.action, actionVersion: 1, actorId: actor.characterId,
+    // An explicit command carries no version of its own, so it takes the one the affordance it exercises
+    // is offered at - the same rule the interpreted path follows.
+    const offered = afforded.find(value => value.actionType === explicit.action.actionType)
+    if (offered === undefined) return { clarification: 'action is not currently afforded' }
+    const action = { ...explicit.action, actionVersion: offered.actionVersion, actorId: actor.characterId,
       actionId: deterministicId('action', { version: 'player-intent-action/v1', address: job.address, inputId: job.inputId, ordinal: 0 }) }
     const source = action.actionType === 'speak' ? (action.parameters as WorldJsonObject).text as string : sourceText
     return { directSubmission: { version: 'player-submission/v2', sourceText: source, sourceTextHash: hashWorldJson('player-source-text/v1', source),
@@ -32,7 +36,12 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
   if (profile === undefined) return { clarification: 'player_intent_provider_unavailable' }
   const choices: PlayerIntentAffordance[] = []
   for (const affordance of afforded) {
-    if (affordance.actionType === 'speak') choices.push({ affordanceId: 'speak', actionType: 'speak', actionVersion: 1, parameters: {} })
+    // The version is the affordance's own, not this adapter's: a frozen world offers its interactions at
+    // version 2 with a request that names a binding and a definition lock, and a world that adjudicates
+    // them through a catalog offers version 1. Speech and movement are 1 either way.
+    if (affordance.actionType === 'speak') {
+      choices.push({ affordanceId: 'speak', actionType: 'speak', actionVersion: 1, parameters: {} })
+    }
     if (affordance.actionType === 'move') {
       for (const location of manifest.locations) {
         const parameters = { locationId: location.locationId }
@@ -44,7 +53,9 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
     if (affordance.actionType === 'interact') {
       for (const interaction of affordance.interactions ?? []) {
         const { label: _, ...parameters } = interaction
-        choices.push({ affordanceId: deterministicId('intent-affordance', { actionType: 'interact', parameters }), actionType: 'interact', actionVersion: 1, parameters })
+        const offered: { actionType: 'interact'; actionVersion: 1 | 2; parameters: WorldJsonObject } =
+          { actionType: 'interact', actionVersion: affordance.actionVersion === 2 ? 2 : 1, parameters }
+        choices.push({ affordanceId: deterministicId('intent-affordance', { actionType: 'interact', parameters }), ...offered })
       }
     }
   }

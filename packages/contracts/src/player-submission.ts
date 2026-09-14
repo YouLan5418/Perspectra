@@ -24,7 +24,12 @@ export interface PlayerSubmissionV2 extends WorldJsonObject {
 export interface PlayerIntentAffordance extends WorldJsonObject {
   readonly affordanceId: string
   readonly actionType: 'speak' | 'move' | 'interact'
-  readonly actionVersion: 1
+  /**
+   * The version of the operation this choice addresses. An interaction a world does not adjudicate
+   * through a definition is 1, and a frozen one is 2 because its request names a binding and a
+   * definition lock rather than a catalog entry. Speech and movement are always 1.
+   */
+  readonly actionVersion: 1 | 2
   readonly parameters: WorldJsonObject
 }
 
@@ -74,6 +79,41 @@ function text(value: unknown): string {
   return assertProtocolString(value, 'player intent identifier')
 }
 
+/**
+ * The exact parameters of one interaction choice, by the version it addresses. A v1 choice names a
+ * catalog entry; a frozen one names the binding and the definition lock it addresses, and both are
+ * checked here so a model cannot reach a shape the world's own boundary would refuse later.
+ */
+function interactParameters(version: 1 | 2, value: unknown): void {
+  if (version === 1) {
+    const parameters = object(value, ['targetId', 'interactionId', 'arguments'])
+    text(parameters.targetId)
+    text(parameters.interactionId)
+    // Exact dynamic choices (including give recipient) are supplied by the Host.
+    arguments_(parameters.arguments)
+    return
+  }
+  const parameters = object(value, ['targetRef', 'bindingId', 'definitionRef', 'arguments'])
+  const targetRef = object(parameters.targetRef, ['kind', 'id'])
+  if (!['entity', 'character', 'relation'].includes(targetRef.kind as string)) {
+    throw new TypeError('player intent interaction target kind is unsupported')
+  }
+  text(targetRef.id)
+  text(parameters.bindingId)
+  const definitionRef = object(parameters.definitionRef, ['id', 'version'])
+  text(definitionRef.id)
+  if (!Number.isSafeInteger(definitionRef.version) || (definitionRef.version as number) < 1) {
+    throw new TypeError('player intent interaction definition version must be a positive safe integer')
+  }
+  arguments_(parameters.arguments)
+}
+
+function arguments_(value: unknown): void {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError('player intent interaction arguments must be an object')
+  }
+}
+
 /** A pure Host binding boundary, not admission or a substitute for Rulebook revalidation. */
 export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentBinding):
   | { readonly status: 'clarification_required'; readonly reason: 'ambiguous' | 'not_afforded' | 'unsupported' }
@@ -91,19 +131,17 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
   for (const choice of binding.affordances) {
     object(choice, ['affordanceId', 'actionType', 'actionVersion', 'parameters'])
     text(choice.affordanceId)
-    if (choices.has(choice.affordanceId) || choice.actionVersion !== 1
+    if (choices.has(choice.affordanceId)
       || !['speak', 'move', 'interact'].includes(choice.actionType)) throw new TypeError('player intent affordance is invalid')
-    const parameters = object(choice.parameters, choice.actionType === 'speak' ? []
-      : choice.actionType === 'move' ? ['locationId'] : ['targetId', 'interactionId', 'arguments'])
-    if (choice.actionType === 'move') text(parameters.locationId)
-    if (choice.actionType === 'interact') {
-      text(parameters.targetId)
-      text(parameters.interactionId)
-      // Exact dynamic choices (including give recipient) are supplied by the Host.
-      if (typeof parameters.arguments !== 'object' || parameters.arguments === null || Array.isArray(parameters.arguments)) {
-        throw new TypeError('player intent interaction arguments must be an object')
-      }
+    const version = choice.actionVersion
+    // The version belongs to the action type: only a frozen interaction addresses anything above 1, and
+    // it addresses exactly 2 - it names a binding and a definition lock, which is the frozen request.
+    if (choice.actionType === 'interact' ? version !== 1 && version !== 2 : version !== 1) {
+      throw new TypeError('player intent affordance version is unsupported')
     }
+    if (choice.actionType === 'speak') object(choice.parameters, [])
+    if (choice.actionType === 'move') text(object(choice.parameters, ['locationId']).locationId)
+    if (choice.actionType === 'interact') interactParameters(version, choice.parameters)
     choices.set(choice.affordanceId, choice)
   }
   const candidate = object(value, ['version', 'decision', 'reason', 'actions', 'sourceSpans'])
@@ -127,7 +165,7 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
     keys.push(key)
     return {
       actionId: deterministicId('action', { version: 'player-intent-action/v1', address: binding.address, inputId: binding.inputId, ordinal }),
-      actorId: binding.actorId, actionType: choice.actionType, actionVersion: 1, parameters: choice.parameters,
+      actorId: binding.actorId, actionType: choice.actionType, actionVersion: choice.actionVersion, parameters: choice.parameters,
     }
   })
   if (actions.length === 2 && actions.filter(action => action.actionType === 'speak').length !== 1) {

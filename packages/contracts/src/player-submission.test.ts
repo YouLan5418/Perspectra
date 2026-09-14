@@ -2,7 +2,8 @@ import Ajv from 'ajv'
 import { describe, expect, it } from 'vitest'
 import { brandId } from './ids.ts'
 import { hashWorldJson } from './world-json.ts'
-import { bindPlayerIntentCandidate, createPlayerIntentCandidateSchema, type PlayerIntentBinding } from './player-submission.ts'
+import { bindPlayerIntentCandidate, createPlayerIntentCandidateSchema,
+  type PlayerIntentAffordance, type PlayerIntentBinding } from './player-submission.ts'
 
 function binding(): PlayerIntentBinding {
   return {
@@ -133,4 +134,33 @@ describe('player submission Host binding', () => {
     expect(validate(unknown)).toBe(true)
     expect(() => bindPlayerIntentCandidate(unknown, binding())).toThrow('not uniquely afforded')
   })
+
+  it('binds a frozen interaction choice at its own version, and refuses one it cannot read', () => {
+    const take: PlayerIntentAffordance = { affordanceId: 'take', actionType: 'interact', actionVersion: 2, parameters: {
+      targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
+      definitionRef: { id: 'base:take', version: 1 }, arguments: {},
+    } }
+    const say: PlayerIntentAffordance = { affordanceId: 'say', actionType: 'speak', actionVersion: 1, parameters: {} }
+    const frozen = { ...binding(), sourceText: '拿起杯子', affordances: [take, say] }
+    const value = { ...candidate(), actions: [{ key: 'a', affordanceId: 'take' }],
+      sourceSpans: [{ actionKey: 'a', startUtf16: 0, endUtf16: 4, text: '拿起杯子', kind: 'action' }] }
+    const result = bindPlayerIntentCandidate(value, frozen)
+    if (result.status !== 'validated') throw new Error('expected validated')
+    // The produced action carries the version the choice named, and the frozen request it named with it.
+    expect(result.submission.actions[0]!.actionVersion).toBe(2)
+    expect(result.submission.actions[0]!.parameters).toEqual(take.parameters)
+    for (const [name, mutate] of [
+      ['a version no action type addresses', (choice: any) => { choice.actionVersion = 3 }],
+      ['speech at a version above one', (choice: any) => { choice.actionType = 'speak'; choice.parameters = {}; choice.actionVersion = 2 }],
+      ['a target kind that is not addressable', (choice: any) => { choice.parameters.targetRef.kind = 'room' }],
+      ['a definition version of zero', (choice: any) => { choice.parameters.definitionRef.version = 0 }],
+      ['arguments that are not an object', (choice: any) => { choice.parameters.arguments = [] }],
+    ] as const) {
+      const broken = structuredClone(take) as unknown as Record<string, unknown>
+      mutate(broken as any)
+      expect(() => bindPlayerIntentCandidate(value,
+        { ...frozen, affordances: [broken as unknown as PlayerIntentAffordance] }), name).toThrow()
+    }
+  })
+
 })

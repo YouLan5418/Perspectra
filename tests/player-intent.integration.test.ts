@@ -4,10 +4,10 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, hashWorldJson, worldAddressKey, type WorldJsonValue } from '@harness-world/contracts'
+import { brandId, hashWorldJson, worldAddressKey, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { LocalJsonRpcRouter } from '@harness-world/operations'
 import { PlayerInputJobs, WorldLogicalTransferService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { intentWorld, intentFixtureProfile, intentFixtureRequest, intentFixtureResponse } from './fixtures/player-intent-world.ts'
+import { frozenIntentWorld, intentWorld, intentFixtureProfile, intentFixtureRequest, intentFixtureResponse } from './fixtures/player-intent-world.ts'
 
 it.each([false, true])('durably interprets a full player group before NPC reaction, speech first=%s', speechFirst => {
   return runGroup(speechFirst)
@@ -343,4 +343,66 @@ it('resumes a failed in-process FIFO predecessor before its queued fallback', as
     expect((await second).status).toBe('submitted')
     expect((await app.submitText(world.manifest.address, intentFixtureRequest)).status).toBe('submitted')
   } finally { await app.close(); rmSync(root, { recursive: true, force: true }) }
+})
+
+it('interprets free text into a frozen interaction, with Authority 6 and one commit', async () => {
+  // The whole interpreted path on a v10 world: the provider is offered the world's own options at the
+  // version the world adjudicates them, its choice becomes an interact@2 request, and the world resolves
+  // it through the frozen definition rather than a catalog entry.
+  const root = mkdtempSync(join(tmpdir(), 'player-intent-frozen-'))
+  const world = frozenIntentWorld('responsive/v2')
+  const path = join(root, 'world.sqlite')
+  const request = { text: '拿起杯子', principalId: 'principal:player', idempotencyKey: 'intent:frozen', correlationId: 'intent:frozen' }
+  let calls = 0
+  let shown = ''
+  const app = new WorldApplication({ worldPath: path, sessionPath: join(root, 'session.sqlite'),
+    memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
+    // The world is responsive, so every active non-manual character needs a binding. Both abstain: this
+    // case is about the interpreted input reaching the frozen world, not about what answers it.
+    reactionParticipants: () => ['character:npc', 'character:bob'].map(actorId => ({
+      participantId: `agent:${actorId}`, role: 'agent' as const, actorId: brandId(actorId, 'CharacterId'),
+      allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
+      provider: { propose: async () => ({ schemaVersion: 6 as const, decision: 'abstain' as const, actions: [] }) },
+    })),
+    playerIntent: { profile: intentFixtureProfile, dispatch: async (raw: WorldJsonValue) => {
+      calls++
+      const offered = (raw as { body: { affordances: readonly {
+        affordanceId: string; actionType: string; parameters: WorldJsonObject }[] } }).body.affordances
+      shown = JSON.stringify(offered)
+      // The world offers several interactions here, so the choice names the one it means rather than
+      // taking the first: a refused take and an accepted hand-hold are both on the list.
+      const take = offered.find(entry => entry.parameters.bindingId === 'binding:entity:cup:base:take')!
+      return { version: 'player-intent-candidate/v1', decision: 'act', reason: 'none',
+        actions: [{ key: 't', affordanceId: take.affordanceId }],
+        sourceSpans: [{ actionKey: 't', startUtf16: 0, endUtf16: 4, text: '拿起杯子', kind: 'action' }] }
+    } },
+  })
+  try {
+    app.activate(world)
+    const result = await app.submitText(world.manifest.address, request)
+    expect(result.status).toBe('submitted')
+    // What the model could pick: the frozen request shape, at the frozen version.
+    expect(shown).toContain('binding:entity:cup:base:take')
+    expect(shown).toContain('"actionVersion":2')
+    expect(shown).toContain('"definitionRef"')
+    // The world's own view decides what is attemptable, and this adapter forwards it: the cup is on the
+    // floor, so putting it down was never offered and picking it up was.
+    expect(shown).toContain('binding:entity:cup:base:take')
+    expect(shown).not.toContain('binding:entity:cup:base:drop')
+    // The same input twice is one commit, and does not ask the provider again.
+    expect(await app.submitText(world.manifest.address, request)).toEqual(result)
+    expect(calls).toBe(1)
+  } finally { await app.close() }
+  const store = new WorldStore(path)
+  try {
+    const events = store.readEvents(world.manifest.address)
+    expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
+    const resolved = events.find(event => event.eventType === 'action.resolved')!
+    expect(resolved.data).toMatchObject({ actionType: 'interact', accepted: true, sourceRole: 'player' })
+    const authority = store.readRoundAuthority(world.manifest.address, resolved.transactionId)!.authority
+    expect(authority.schemaVersion).toBe(6)
+    expect((authority.resolutions as readonly Record<string, unknown>[])
+      .some(entry => entry.interaction !== undefined)).toBe(true)
+  } finally { store.close() }
+  rmSync(root, { recursive: true, force: true })
 })
