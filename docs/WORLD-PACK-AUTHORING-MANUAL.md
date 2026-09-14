@@ -5,6 +5,8 @@
 > **当前推荐版本：** 需要角色表情、姿态、语气等外显表现的新世界使用 `worldpack-source/v4`，从 `expressive-social` 模板开始。只需连续对白时仍可使用 v3；不要让 AI 混用不同版本的文件形状。
 >
 > **可选扩展：** 需要「一轮两步动作」或「拿取/放下/递交物品」的新世界，**仍然使用同一个 `worldpack-source/v4`**，只是在激活和试玩时追加一个开关，见 §16 有界行动组与 §17 对象交互。扩展会改变生成的 Manifest 与模型协议，但不新增 Pack 源版本。
+>
+> **交互字段（新源版本）：** 需要把交互包与每个定义、每条绑定**冻结进世界**（定义锁、每定义各自的表现与观察策略、`submit_actions/v7`）的新世界，使用 `worldpack-source/v5`，见 §17.3。它与上面那条目录扩展路线**互斥**：v5 世界不接受 `--interactions`。
 
 > **严格格式：** Schema 会拒绝未知字段、错误枚举、重复 ID、越界数字和未登记文件。不能通过“多写一个看起来合理的字段”扩展系统。
 
@@ -57,6 +59,7 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 | `worldpack init --profile responsive-social` | v3 | 复杂认知、Memory、Scene v2、NPC 连续反应 | 不需要非语言表现时使用 |
 | `worldpack init --profile expressive-social` | v4 | v3 全部能力，加上可观察的表情、视线、姿态、手势、声音与外观变化 | **表现型新世界推荐起点** |
 | `examples/world-packs/rainy-road-companions` | v2 | Phase 8 完整认知参考 | 查阅字段；直接复制时没有 Reaction Cycle |
+| `examples/world-packs/hand-in-hand` | **v5** | 定义锁交互（交互包选择、定义与绑定、关系类解除）、`responsive/v2` | **交互字段新世界推荐起点**（§17.3） |
 
 `expressive-social` 复制“雨夜同行”的完整结构，同时加入 Reaction 与 Manifestation 配置。创作者应保留文件形状，替换世界内容、角色、地点和交叉引用。
 
@@ -136,6 +139,17 @@ my-world/
 ## 6. 声明文件清单
 
 `worldpack.source.json` 是唯一入口。v4 的所有字段都必须出现；暂时不用的类别也要写成空数组。
+
+v5 在 v4 的字段之外**多一个 `interactionFile`**（指向 `interactions.json`），其余字段形状相同：
+
+```json
+{
+  "sourceSchemaVersion": "worldpack-source/v5",
+  "interactionFile": "interactions.json"
+}
+```
+
+`interactions.json` 的形状与含义见 §17.3；`reactionFile` 与 `manifestationFile` 在 v5 里同样可用。
 
 ```json
 {
@@ -876,9 +890,18 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 
 ## 17. 对象与角色交互
 
-`--interactions` 根据目录版本生成两种严格隔离的 Manifest：`object-interactions/v1` 生成 Manifest v8；`interaction-catalog/v2` 生成 Manifest v9。两者都使用 `submit_actions/v5`，但 v2 在实体操作之外增加人工玩家发起的 `hold_hand` 与运行时生成的 `release_hand`。
+这一章有**两条互斥的路线**，先选一条再读下去：
+
+| 路线 | Pack 源 | 交互词汇从哪来 | 生成的 Manifest / 协议 | 读哪一节 |
+| --- | --- | --- | --- | --- |
+| 目录扩展 | `worldpack-source/v4`（不变） | 激活时传的 `--interactions` 目录 | v8 / v9，`submit_actions/v5` | §17.1、§17.2 |
+| **定义锁** | **`worldpack-source/v5`** | **Pack 自己的 `interactions.json`** | **v10，`submit_actions/v7`** | **§17.3** |
+
+两者不能混：v5 世界把自己的选择冻结进去，因此不接受 `--interactions`，也不会被低版本编译器重新解释。
 
 ### 17.1 对象交互（拿取/放下/递交）
+
+> 本节属于**目录扩展**路线（v4 源 + `--interactions`）。要把交互冻结进世界请读 §17.3。
 
 默认规则只有 `take`，持有关系不成循环。启用对象交互后，模型用统一的 `interact` 动作执行**拿取 / 放下 / 递交**，且只在合法前置条件下成功：
 
@@ -975,6 +998,113 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 
 `worldpack activate` 用于另一个 Host 的激活，写入 `<data-dir>/data/`；网页试玩写入 `<data-dir>/` 且使用不同地址和玩家绑定。两种入口不能通过相同目录互相接续。新 v7/v8 DeepSeek 模式不需要 Ollama 翻译玩家输入；普通文本只作为对白。
 
+### 17.3 定义锁与新协议（`worldpack-source/v5` → Manifest v10 → `submit_actions/v7`）
+
+§17.1、§17.2 是**目录扩展**：源仍是 v4，交互词汇由激活时的目录给出。本路线是**定义锁**：交互包
+与其中每个定义、每条绑定在选择时**冻结进世界**，世界不再回看目录，模型协议升到 `submit_actions/v7`。
+
+**你要声明什么。** v5 源多一个入口 `interactionFile`，指向 `interactions.json`：
+
+```json
+{
+  "schemaVersion": "worldpack-interactions/v1",
+  "packages": [{ "id": "package:interactions-basic", "version": 1 }],
+  "definitions": [
+    { "id": "base:take", "version": 1 },
+    { "id": "base:give", "version": 1 },
+    { "id": "base:hold-hand", "version": 1 },
+    { "id": "base:end-contact", "version": 1 }
+  ],
+  "relationBindings": [{
+    "bindingId": "binding:release",
+    "relationClass": "base:hold-hand",
+    "definition": { "id": "base:end-contact", "version": 1 },
+    "config": {}
+  }]
+}
+```
+
+- `packages`：选择 Host **已安装**的受信包。没装的包会被拒绝（`is not installed by the Host`）。
+- `definitions`：选择要启用的定义。**只能选，不能改**——角色槽、前置条件、效果、它接受哪些表现
+  cue、谁可以观察到它的成败，全部是包内受锁策略的声明。
+- `relationBindings`：唯一一种"名字不是实例"的绑定。它写**关系类**（`base:hold-hand`），运行中的
+  具体关系实例由世界按这个类匹配，作者永远不需要知道也不应该写某个实例 ID。
+- 物品与角色的绑定写在实体与角色文件里（形状与 §17.1 相同）。
+
+**包拥有、而 Pack 不能改的两件事。** 这是本路线最容易误解的地方：
+
+| 属性 | 谁声明 | 怎么改 |
+| --- | --- | --- |
+| 一个定义接受哪些表现 cue | 包内受锁的 `interaction-performance/v1` 策略 | 改包（Host 侧的受信实现），不是改 Pack |
+| 成功与失败分别谁可以观察到 | 包内受锁的 `interaction-observation-policy/v1` 策略 | 同上 |
+
+两条策略都进选择锁与 Hash，所以同一个世界不会在不同 Host 上表现不同。
+
+**模型会看到什么。** v7 的交互步骤用绑定的身份地址，而不是目录条目：
+
+```json
+{ "actionId": "a1", "actorId": "character:npc", "actionType": "interact", "actionVersion": 2,
+  "parameters": { "targetRef": { "kind": "entity", "id": "entity:umbrella" },
+    "bindingId": "binding:umbrella-give",
+    "definitionRef": { "id": "base:give", "version": 1 },
+    "arguments": { "recipientId": "character:friend" } },
+  "manifestation": { "independent": ["frown"], "onSuccess": ["smile"] } }
+```
+
+- `manifestation` 是可选的**步骤**。cue 取自闭合词表，且**不含声音/步态 cue**（那两类自带动作）。
+  每个定义接受哪些 cue 由它自己的策略决定，模型会在上下文里拿到这份清单，不必猜。
+- 越界的 cue、越界的绑定或越界的定义锁**整条步骤被拒绝**，不会被悄悄丢弃。
+- 被接受的表现会成为**观察事实**（`character.manifested`）：同一场景里看得见这次动作的角色都会看到
+  它是怎么做的，而不只是发生了。
+- 失败的可观察性由定义声明：有的失败整个场景都看得见，有的只有行动者自己知道；事实层照常记
+  `action.rejected`，策略只决定通知谁。
+
+**上限。** 冻结 profile `interaction-limits/v1`（完整表见[实施契约 §6](spec/interaction-definition-v0.1.md)）：
+
+| 资源 | 上限 |
+| --- | --- |
+| 每世界启用包 / 定义 / 绑定 | 32 / 128 / 4096 |
+| 单 config Canonical JSON | 4096 字节 |
+| 每定义角色槽 / 参数字段 / config 字段 | 8 / 8 / 8 |
+| 每定义前置规则 / 依赖引用 / 生命周期处理器 | 16 / 64 / 16 |
+| 单角色公开选项 / 每绑定参数组合 | 128 / 64 |
+| 每动作主效果事件 / fold 累计事件 | 16 / 64 |
+
+**超限是确定性失败，不截断。** 唯一按预算裁剪的是普通公开选项，而裁剪前的真实数量由
+`candidateCount` 如实报出；本人解除关系的入口永远保留，放不下就明确失败而不是删掉它。
+
+**编译与运行。**
+
+```powershell
+corepack pnpm@11.7.0 worldpack validate examples\world-packs\hand-in-hand
+corepack pnpm@11.7.0 worldpack test     examples\world-packs\hand-in-hand
+corepack pnpm@11.7.0 worldpack compile  examples\world-packs\hand-in-hand --out D:\worlds\hand.wp.json
+corepack pnpm@11.7.0 worldpack inspect  D:\worlds\hand.wp.json
+corepack pnpm@11.7.0 worldpack activate D:\worlds\hand.wp.json --data-dir D:\worlds\hand-data
+```
+
+`compile` 需要 Host 的已装包清单，命令行入口会带上默认安装（含 `package:interactions-basic@1`）；
+它**不需要** `--interactions`，v5 世界也不接受那个开关。
+
+**对照示例。** `examples/world-packs/hand-in-hand` 是只为这条路线写的小世界：两个旅人在山脊雨棚下
+躲雨、共用一把伞、一个保温壶。它示范了从 v4 复制、升级源版本、加 `interactions.json`、给同行者一条
+角色绑定（牵手）、给关系类一条解除绑定，并在 `reaction.json` 里选 `responsive/v2`。按上面的命令编译
+并激活后可以观察到：递交落在收件人而不是地点；走到别处时由**世界的 fold**结束牵手（不是内核按接触名
+分支）；带 cue 的递交在落库事件里留下一条 `character.manifested`。
+
+**用真实模型驱动它。** 网页试玩（`experience:web`）说的是旧实验协议（v4/v5 词表），**尚未接上 v7**。
+要跑真实模型请用付费实验门禁：
+
+```powershell
+$env:DEEPSEEK_API_KEY = '<你的 key>'
+node --import tsx tests/experiments/v10-provider-gate.ts --model deepseek-flash
+```
+
+它把生产的上下文与 v7 契约原样发给端点，再把答案原样交给世界校验。真实适配器有两条前置（门禁里已
+实现，缘由见 [I5-d 记录](2026-09-14_交互抽象-I5d冻结路径的真实模型门禁.md)）：Host 的 `tools` 是
+**契约描述**，要由适配器渲染成 JSON Schema；组装出的上下文里有一段 `role: 'developer'`，端点不认，
+需要映射。
+
 ## 18. 声明验收意图
 
 `assertions.json` 的格式是：
@@ -1042,6 +1172,8 @@ corepack pnpm@11.7.0 worldpack inspect D:\worlds\my-world.worldpack.json
 
 `validate` 会检查严格 JSON、版本、文件路径、引用、权限、容量与 Profile。`compile` 生成不可变、内容寻址的制品。`inspect` 只读取制品，不回看来源目录。
 
+`worldpack-source/v5` 的 Pack 走同一组命令，但 `compile` 会按 Host 的安装清单核对它选的交互包（默认安装已包含 `package:interactions-basic@1`），因此不需要也不接受 `--interactions`；激活同样直接读 Pack 自己的选择（见 §17.3）。
+
 同一个 `packId + packVersion` 必须永远对应同一内容。已经试玩 `1.0.0` 后又修改内容，应改为 `1.0.1`，并使用新的数据目录：
 
 ```powershell
@@ -1090,6 +1222,12 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 | 表现只能选固定码，不能写自由文案 | 已启用行动组或对象交互 | 新版使用闭合表现码；自由文案表现只存在于 Manifest v6 / submit_actions v3 |
 | `/take` 被拒绝 | v8 世界改用统一的 `interact` | 用 `/interact <物品ID> <交互ID> [收件角色ID]` |
 | 报错 `choose --action-groups or --interactions` | 同时传了两个互斥开关 | 二选一；两者都要求 `--pack` 与全新数据目录 |
+| 报错 `package … is not installed by the Host` | v5 的 `interactions.json` 选了 Host 没装的包 | 只选已装包；默认安装含 `package:interactions-basic@1` |
+| 交互步骤被拒 `PERFORMANCE_NOT_ACCEPTED` | 该步骤带了这条定义策略不接受的 cue | 从上下文给出的、那条定义接受的 cue 里选；或这一步不带表现 |
+| 交互步骤被拒 `INVALID_INTERACTION_PARAMETERS` | 地址不是被提供的选项（bindingId/targetRef/definitionRef 的组合不符），或带了声音/步态 cue | 只提交上下文提供的选项；交互步骤不承载声音/步态 |
+| 报错 `the required exit options exceed the view budget` | 本人可解除的关系太多，128 项放不下退出入口 | 减少当前关系实例或内容；系统**不会**静默删掉退出入口 |
+| 表现怎么写都被拒 | 这条定义没有声明任何 cue | 换用声明了表现策略的定义（如 `base:give`），或在包里改策略（§17.3） |
+| `--interactions` 用在 v5 世界上被拒 | v5 世界自带冻结选择，不再读目录 | 去掉 `--interactions`；交互词汇在 Pack 的 `interactions.json` 里 |
 
 全局安全上限：最多 256 个角色、512 个地点、512 个物品、每类每角色最多 512 条认知、512 个 Document；每个源 JSON 最大 1 MiB，完整编译制品最大 16 MiB。
 
@@ -1101,6 +1239,7 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 | v2 | Character v2、Scene v2、完整 Cognition/Memory/Document | 无 | 无 | Phase 8 历史世界或字段参考 |
 | v3 | 与 v2 内容形状一致 | 有 | 无 | 只需连续对白的新世界 |
 | v4 | 与 v3 内容形状一致 | 有 | 有，显式开关 | **需要非语言表现的新世界** |
+| v5 | 与 v4 一致，另加 `interactionFile` | 有（可用 `responsive/v2`） | 有 | **需要定义锁交互的新世界**（§17.3） |
 
 不要把 v1 的 `initialClaims`、`initialGoals` 写进 Character v2。v2/v3/v4 将这些内容集中放在 `cognition.json`。系统不会隐式升级旧 Pack，也不会在解析失败时退回其他版本。
 
@@ -1112,8 +1251,9 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 | `--action-groups` | v7 | submit_actions/v4 | speak / move / take | 闭合表现码（§16） | 一轮最多两步顺序动作 |
 | `--interactions <object-interactions/v1>` | v8 | submit_actions/v5 | speak / move / interact | 闭合表现码（§16） | 拿取 / 放下 / 递交（§17.1） |
 | `--interactions <interaction-catalog/v2>` | v9 | submit_actions/v5 | speak / move / interact | 闭合表现码（§16） | 实体操作 + 玩家即时牵手/参与者解除（§17.2） |
+| **（v5 源，无开关）** | **v10** | **submit_actions/v7** | speak / move / interact@2 | 闭合表现码，**按定义**决定接受哪些 | **定义锁交互**：包与定义冻结进世界，表现落成观察事实（§17.3） |
 
-两个扩展都**不新增 Pack 源版本**，旧 Pack 文件、旧 Hash 与旧世界的语义保持不变；不会根据模型输出隐式升级。
+上面的 `--action-groups` 与 `--interactions` 两个扩展**不新增 Pack 源版本**；`worldpack-source/v5` 是**新增的源版本**，它把选择写进 Pack 自己。三种路线的旧 Pack 文件、旧 Hash 与旧世界的语义都保持不变，系统不会根据模型输出隐式升级，也不会把 v4 的 Pack 当 v5 解释。
 
 ## 23. Evidence → Finding → Path
 

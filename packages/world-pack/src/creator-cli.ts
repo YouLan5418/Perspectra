@@ -9,6 +9,7 @@ import {
   compareWorldText,
   createErrorEnvelope,
   deterministicId,
+  type InteractionPackageDescription,
   WorldError,
   type ErrorEnvelope,
   type WorldJsonObject,
@@ -204,19 +205,28 @@ async function activate(compiledPackPath: string, dataDirectoryInput: string, ac
   }
 }
 
+/**
+ * The Host's installed interaction packages, which a `worldpack-source/v5` Pack selects from. They are a
+ * parameter rather than a constant because only the Host knows what it installs: this library compiles a
+ * selection against whatever it is handed, and the process entry hands it the default install.
+ */
+export interface WorldPackCliOptions {
+  readonly interactionPackages?: readonly InteractionPackageDescription[]
+}
+
 /** Execute one local creator command and return one canonical JSON line. */
-export async function executeWorldPackCli(args: readonly string[]): Promise<string> {
+export async function executeWorldPackCli(args: readonly string[], options: WorldPackCliOptions = {}): Promise<string> {
   const invocation = parseWorldPackCliInvocation(args)
   if (invocation.command === 'init') {
     const directory = await scaffold(invocation.profile, invocation.directory)
     return output({ command: 'init', status: 'created', profile: invocation.profile, directory })
   }
   if (invocation.command === 'validate') {
-    const pack = await compileWorldPackSource(invocation.sourceDirectory)
+    const pack = await compileWorldPackSource(invocation.sourceDirectory, options.interactionPackages)
     return output({ command: 'validate', status: 'valid', packId: pack.packId, packVersion: pack.packVersion, packHash: pack.packHash })
   }
   if (invocation.command === 'compile') {
-    const pack = await compileWorldPackSource(invocation.sourceDirectory)
+    const pack = await compileWorldPackSource(invocation.sourceDirectory, options.interactionPackages)
     const outputPath = resolve(invocation.outputPath)
     await mkdir(dirname(outputPath), { recursive: true })
     await writeFile(outputPath, canonicalCompiledWorldPackBytes(pack))
@@ -226,7 +236,8 @@ export async function executeWorldPackCli(args: readonly string[]): Promise<stri
     return output({ command: 'inspect', status: 'inspected', inspection: await new WorldPackInspector().inspect(invocation.compiledPackPath) })
   }
   if (invocation.command === 'test') {
-    return output({ command: 'test', report: await new WorldPackTestRunner().run(invocation.sourceDirectory) })
+    return output({ command: 'test', report: await new WorldPackTestRunner()
+      .run(invocation.sourceDirectory, options.interactionPackages) })
   }
   return output(await activate(invocation.compiledPackPath, invocation.dataDirectory, invocation.actionGroups, invocation.interactionsPath))
 }

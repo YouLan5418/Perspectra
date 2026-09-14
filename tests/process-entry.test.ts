@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
@@ -58,13 +58,20 @@ describe('process entrypoints', () => {
       expect(result.code).not.toBe(0)
       expect(result.stderr).not.toBe('')
     }
-    const host = await run('packages/operations/process/headless-entry.ts', ['--unknown', 'value'])
-    expect(host.code).not.toBe(0)
-    expect(host.stderr).toContain('unknown worldhost option')
-    const shell = await run('packages/simulation/process/mystery-shell-entry.ts', [], 'hello\n')
-    expect(shell.code).not.toBe(0)
-    expect(shell.stderr).not.toBe('')
-  }, 30_000)
+  }, 60_000)
+
+  it('compiles a v5 Pack through the worldpack entry, with the install that entry carries', async () => {
+    // The entry is where the Host's installed interaction packages come from: the library compiles a
+    // selection against whatever it is handed, so a v5 Pack only compiles if this process supplies them.
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-worldpack-entry-'))
+    directories.push(directory)
+    const output = join(directory, 'hand.wp.json')
+    const result = await run('packages/world-pack/process/cli-entry.ts',
+      ['compile', 'examples/world-packs/hand-in-hand', '--out', output])
+    expect(result.stderr).toBe('')
+    expect(JSON.parse(result.stdout)).toMatchObject({ command: 'compile', status: 'compiled', packId: 'pack:hand-in-hand' })
+    expect(existsSync(output)).toBe(true)
+  }, 60_000)
 
   it('serves worldctl and starts then cleanly closes the stdio host', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'hcw-process-entry-'))

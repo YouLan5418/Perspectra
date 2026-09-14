@@ -5,8 +5,10 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   createErrorEnvelope,
+  interactionPackageDescription,
   WorldError,
 } from '@harness-world/contracts'
+import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import {
   executeWorldPackCli,
   parseWorldPackCliInvocation,
@@ -96,6 +98,20 @@ describe('World Pack creator CLI', () => {
     await executeWorldPackCli(['compile', source, '--out', divergentArtifact])
     await expect(executeWorldPackCli(['activate', divergentArtifact, '--data-dir', runtime]))
       .rejects.toMatchObject({ envelope: { errorCode: 'PACK_VERSION_DIVERGED' } })
+  })
+
+  it('compiles a v5 Pack against the packages the Host installed, and refuses one it did not', async () => {
+    // A `worldpack-source/v5` Pack carries a selection, so compiling it needs the Host's install list: the
+    // library compiles against what it is handed, and the CLI has to be handed something. Both halves are
+    // checked here, because a CLI that silently compiled a selection against nothing would put the failure
+    // at activation instead of at the author's desk.
+    const source = fileURLToPath(new URL('../../../examples/world-packs/hand-in-hand/', import.meta.url))
+    const installed = [interactionPackageDescription(createBasicInteractionPackage())]
+    expect(parsed(await executeWorldPackCli(['validate', source], { interactionPackages: installed })))
+      .toMatchObject({ command: 'validate', status: 'valid', packId: 'pack:hand-in-hand' })
+    expect(parsed(await executeWorldPackCli(['test', source], { interactionPackages: installed })))
+      .toMatchObject({ command: 'test', report: { assertionIds: ['assertion:companion-knows-the-umbrella'] } })
+    await expect(executeWorldPackCli(['validate', source])).rejects.toThrow(/is not installed by the Host/u)
   })
 
   it('scaffolds and validates the frozen social reference Pack', async () => {

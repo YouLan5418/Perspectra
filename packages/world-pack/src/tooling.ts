@@ -176,8 +176,8 @@ export class WorldPackInspector {
 
 /** Deterministic compile/adapt test; declared runtime assertions remain Testkit inputs. */
 export class WorldPackTestRunner {
-  async run(sourceDirectory: string): Promise<WorldPackTestReport> {
-    const pack = await compileWorldPackSource(sourceDirectory)
+  async run(sourceDirectory: string, interactionPackages: readonly InteractionPackageDescription[] = []): Promise<WorldPackTestReport> {
+    const pack = await compileWorldPackSource(sourceDirectory, interactionPackages)
     const compiled = adaptCompiledWorldPack(pack, {
       address: {
         tenantId: brandId('tenant:world-pack-test', 'TenantId'),

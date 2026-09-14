@@ -4,6 +4,8 @@
 
 本次建议使用 **v4 Pack + `--interactions`**。`object-interactions/v1` 生成 Manifest v8，体验两步行动组和物品交互；`interaction-catalog/v2` 生成 Manifest v9，并增加人工玩家即时牵手及参与者解除。两种新模式中玩家普通文本都是对白，移动和交互使用明确命令；DeepSeek 模式不再依赖 Ollama 翻译玩家输入。下文先走 v8 路径，v9 角色示例在 §3 单列。
 
+**交互字段（`worldpack-source/v5` → Manifest v10 → `submit_actions/v7`）不走网页试玩。** 它把交互包与定义冻结进世界，词汇与表现策略由 Pack 自己声明；`experience:web` 说的是旧实验协议，尚未接上 v7。要跑这条路线请看 [字段手册 §17.3](WORLD-PACK-AUTHORING-MANUAL.md) 与 §8 的说明。
+
 ## 1. 准备运行环境与模型
 
 所有命令在仓库根目录执行，使用 Node 22.19+ 或 24+ 和项目固定的 pnpm：
@@ -225,6 +227,7 @@ Pack 的 `packId + packVersion` 一旦激活，内容 Hash 就被锁定。修改
 
 - `worldpack test` 当前验证确定性编译和 WorldSpec 适配，并如实返回 `assertionsExecuted: 0`；真实多轮行为由仓库测试和手动网页试玩验证。
 - 所有非玩家角色暂时共用同一个模型与采样配置；还没有逐角色 Provider 配置界面。
+- **v5（定义锁）世界目前只用付费实验门禁驱动真实模型**：`node --import tsx tests/experiments/v10-provider-gate.ts --model deepseek-flash`（`DEEPSEEK_API_KEY` 只走环境变量）。网页试玩尚未接上 `submit_actions/v7`；真实适配器还需要把 Host 的 `tools` 契约渲染成 JSON Schema，并把上下文里的 `developer` role 映射成端点认识的 role——两条都写在 [I5-d 记录](2026-09-14_交互抽象-I5d冻结路径的真实模型门禁.md) 里。
 - 试玩页不支持热替换 Pack。修改内容后需重新编译并启动新世界。
 - v1/v2 Pack 可以加载；显式 v3/v4 `responsive/v1` 才会启用多 wave 自主反应，只有 v4 能启用外显表现。
 - 旧 v6 模式需要 Ollama 翻译自然语言动作，即使角色模型使用 DeepSeek；新 v7/v8/v9 模式使用对白和明确命令，DeepSeek 路径不调用 Ollama；Creator 的 v9 入口尚未启用自然语言 Player Intent Provider。
