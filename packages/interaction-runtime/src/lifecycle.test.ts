@@ -36,7 +36,7 @@ const base: InteractionEffectImplementation = {
 function handler(id: string, phase: InteractionLifecycleHandlerImplementation['phase'],
   dependencies: readonly string[], order: number, eventType = id): InteractionLifecycleHandlerImplementation {
   return { lock: { ref: ref(id), dependencies: dependencies.map(ref), implementationHash: hashWorldJson('fixture-release/v1', { id }) },
-    phase, eventTypes: [ref(eventType)],
+    phase, consumes: [], eventTypes: [ref(eventType)],
     build: (): readonly WorldEventDraft[] => [{ eventType, eventVersion: 1, data: { order } }] }
 }
 
@@ -146,6 +146,41 @@ describe('lifecycle fold', () => {
     expect(() => world(samePhase)).toThrow(/unachievable/u)
   })
 
+  it('hands a handler only the instances its own definitions created, and refuses to end others', () => {
+    const relation = { kind: 'relation' as const, id: 'relation:held' }
+    const base = host()
+    const together = {
+      ...base,
+      targets: [...base.targets, { ref: relation,
+        state: { interactionId: 'base:hold-hand', initiatorId: actor, targetId: 'character:alice', active: true } }],
+      authorizedTargets: [...base.authorizedTargets, relation],
+    }
+    const seen: string[] = []
+    const sweep: InteractionLifecycleHandlerImplementation = {
+      ...handler('fixture:sweep', 'relation-end', [], 1),
+      consumes: [ref('fixture:mine')],
+      eventTypes: [ref('character.relation-ended')],
+      build: context => {
+        for (const entry of context.host.targets) if (entry.ref.kind === 'relation') seen.push(entry.ref.id)
+        return []
+      },
+    }
+    world([sweep], ['fixture:sweep']).fold(together, [])
+    // The relation belongs to a definition this handler did not declare, so it never sees it.
+    expect(seen).toEqual([])
+    // Declaring the right definition puts it in scope.
+    world([{ ...sweep, consumes: [ref('base:hold-hand')] }], ['fixture:sweep']).fold(together, [])
+    expect(seen).toEqual(['relation:held'])
+    // Emitting an end for a relation the fold did not hand it is refused outright.
+    const greedy: InteractionLifecycleHandlerImplementation = {
+      ...sweep,
+      eventTypes: [ref('character.relation-ended')],
+      build: () => [{ eventType: 'character.relation-ended', eventVersion: 1,
+        data: { relationId: 'relation:elsewhere', endedByCharacterId: actor, reason: 'released' } }],
+    }
+    expect(() => world([greedy], ['fixture:sweep']).fold(together, [])).toThrow(/outside its declared scope/u)
+  })
+
   it('refuses a handler the definition references but the package does not provide', () => {
     const orphan = packageOf([], 'package:lifecycle', ['fixture:missing'])
     const registry = new InteractionRegistry()
@@ -158,12 +193,12 @@ describe('lifecycle fold', () => {
 
   it('refuses a handler that reaches outside its declared event closure or its budget', () => {
     const outside: InteractionLifecycleHandlerImplementation = {
-      lock: lock('fixture:outside'), phase: 'observation', eventTypes: [ref('fixture.allowed')],
+      lock: lock('fixture:outside'), phase: 'observation', consumes: [], eventTypes: [ref('fixture.allowed')],
       build: () => [{ eventType: 'fixture.other', eventVersion: 1, data: {} }],
     }
     expect(() => world([outside]).resolve(host(), request())).toThrow(/exceeded its event closure/u)
     const overBudget: InteractionLifecycleHandlerImplementation = {
-      lock: lock('fixture:many'), phase: 'observation', eventTypes: [ref('fixture.many')],
+      lock: lock('fixture:many'), phase: 'observation', consumes: [], eventTypes: [ref('fixture.many')],
       build: () => Array.from({ length: 5 }, () => ({ eventType: 'fixture.many', eventVersion: 1, data: {} })),
     }
     expect(() => world([overBudget]).resolve(host(), request())).toThrow(/array outside limits/u)

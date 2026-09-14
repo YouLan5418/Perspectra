@@ -75,3 +75,4 @@
 | [0091](ADR-0091-summary-digest-in-context.md) | 把经历摘要正文接进角色上下文 | **Accepted**；摘要正文随连续性段给模型，只取 Tail 起点之前、从最近往前受档位预算约束；不生成第二套摘要，但 supersede ADR-0068 中"Checkpoint 段不含经历正文"的边界 |
 | [0092](ADR-0092-epoch-snapshot-append-only-history.md) | Epoch 快照与只追加的第二层 | **Proposed**；基线冻结、其后事件只追加，第二层预算为档位请求预算的一半、越界才整体前移一次；`recentInteractionBlocks` 数值不变但含义变为"重建时保留多少块" |
 | [0093](ADR-0093-interaction-definition-abstraction.md) | 交互定义抽象、按需交互包与目标自声明 | **Accepted**；2026-09-13 用户明确确认，首批迁移已有五类动作，v10 先交互；I0 Gate 关闭，I1～I5 按阶段验收 |
+| [0094](ADR-0094-communication-scenes-and-propagation.md) | 通信 Scene 与跨边界传播 | **Proposed**；物理与通信成员隔离，按媒介授权观察，统一反应预算；方向已确认，具体契约与工程门禁待完成 |

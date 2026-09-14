@@ -214,7 +214,7 @@ export function interactionPackageHash(input: Omit<InteractionPackageImplementat
     rules: ordered(input.rules, rule => key(rule.lock.ref)).map(rule => rule.lock),
     effects: ordered(input.effects, effect => key(effect.lock.ref)).map(effect => ({ lock: effect.lock, eventTypes: effect.eventTypes })),
     resolvers: ordered(input.resolvers, entry => key(entry.lock.ref)).map(entry => entry.lock),
-    lifecycle: ordered(input.lifecycle, entry => key(entry.lock.ref)).map(entry => ({ lock: entry.lock, phase: entry.phase, eventTypes: entry.eventTypes })),
+    lifecycle: ordered(input.lifecycle, entry => key(entry.lock.ref)).map(entry => ({ lock: entry.lock, phase: entry.phase, consumes: entry.consumes, eventTypes: entry.eventTypes })),
     performances: ordered(input.performances, entry => key(entry.lock.ref)).map(entry => ({ lock: entry.lock, policy: entry.policy })),
     definitions: ordered(input.definitions, def => key({ id: def.spec.id, version: def.spec.version })).map(def => ({ spec: def.spec, implementationHash: def.implementationHash })),
   })
@@ -248,9 +248,10 @@ export class InteractionRegistry {
       const entry = value as InteractionLifecycleHandlerImplementation
       if (typeof entry.build !== 'function') throw new TypeError('lifecycle handler implementation missing')
       if (!(INTERACTION_LIFECYCLE_PHASES as readonly string[]).includes(entry.phase)) throw new TypeError('unknown lifecycle phase')
+      const consumes = refs(entry.consumes, 16)
       const eventTypes = refs(entry.eventTypes, 16)
       if (eventTypes.some(ref => ref.id === 'character.moved')) throw new TypeError('lifecycle cannot own movement')
-      return Object.freeze({ lock: lock(entry.lock), phase: entry.phase, eventTypes: immutable(eventTypes), build: entry.build })
+      return Object.freeze({ lock: lock(entry.lock), phase: entry.phase, consumes: immutable(consumes), eventTypes: immutable(eventTypes), build: entry.build })
     })
     const performances = list(input.performances, 128).map(value => {
       const entry = value as InteractionPerformanceImplementation
@@ -450,12 +451,24 @@ export class FrozenInteractionWorld {
     if (plan.length > MAXIMUM_LIFECYCLE_CALLS) throw new TypeError('lifecycle fold exceeds the budget')
     let folded = events
     for (const handler of plan) {
-      const added = immutable(handler.build(immutable({ host, events: folded })))
+      // The handler sees only the instances its own definitions created. Everything that is not a
+      // relation passes through: it may need the characters and items around them.
+      // Compared by definition id: a relation instance records the id that created it, not a version,
+      // and the instance can only exist because the Host already admitted that exact compiled definition.
+      const consumed = new Set(handler.consumes.map(entry => reference(entry).id))
+      const scoped = immutable({ ...host, targets: host.targets.filter(entry => entry.ref.kind !== 'relation'
+        || (typeof entry.state.interactionId === 'string' && consumed.has(entry.state.interactionId))) })
+      const added = immutable(handler.build(immutable({ host: scoped, events: folded })))
       list(added, maximumEvents)
       for (const event of added) {
         object(event, ['eventType', 'eventVersion', 'data'])
         if (!handler.eventTypes.some(ref => ref.id === event.eventType && ref.version === event.eventVersion)) {
           throw new TypeError(`lifecycle handler ${key(handler.lock.ref)} exceeded its event closure`)
+        }
+        if (event.eventType === 'character.relation-ended') {
+          const data = event.data as WorldJsonObject
+          const inside = scoped.targets.some(entry => entry.ref.kind === 'relation' && entry.ref.id === data.relationId)
+          if (!inside) throw new TypeError(`lifecycle handler ${key(handler.lock.ref)} ended a relation outside its declared scope`)
         }
       }
       if (added.length > 0) folded = immutable([...folded, ...added])

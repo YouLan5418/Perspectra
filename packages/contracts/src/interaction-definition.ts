@@ -172,6 +172,12 @@ export interface InteractionLifecycleContext extends WorldJsonObject {
 export interface InteractionLifecycleHandlerImplementation {
   readonly lock: InteractionImplementationLock
   readonly phase: InteractionLifecyclePhase
+  /**
+   * The definitions whose instances this handler may consume. The fold hands it only relation targets
+   * those definitions created, and refuses any end event naming a relation outside that set, so a
+   * handler cannot sweep up whatever happens to be active.
+   */
+  readonly consumes: readonly InteractionRef[]
   readonly eventTypes: readonly InteractionRef[]
   readonly build: (context: InteractionLifecycleContext) => readonly WorldEventDraft[]
 }

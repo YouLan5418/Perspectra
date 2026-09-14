@@ -191,19 +191,27 @@ function outOfReach(context: Lifecycle, state: WorldJsonObject): boolean {
 const endOnMove: InteractionLifecycleHandlerImplementation = {
   lock: implementation('contact:end-on-move'),
   phase: 'relation-end',
+  // It may only consume contact this pack establishes; the fold enforces that, so a handler cannot
+  // sweep up whatever else happens to be active in the world.
+  consumes: [ref('base:hold-hand')],
   eventTypes: [ref('character.relation-ended')],
   build: context => context.host.targets
     .filter(entry => entry.ref.kind === 'relation' && entry.state.active === true && outOfReach(context, entry.state))
-    .map(entry => ({
-      eventType: 'character.relation-ended', eventVersion: 1,
-      data: {
+    .flatMap(entry => {
+      const initiator = participantState(context, entry.state.initiatorId)
+      const target = participantState(context, entry.state.targetId)
+      // A relation whose recorded participants cannot be named is a malformed fact. It fails closed
+      // rather than emitting an end event that credits somebody who is not a character at all.
+      const ender = initiator !== undefined ? entry.state.initiatorId : target !== undefined ? entry.state.targetId : undefined
+      if (typeof ender !== 'string') return []
+      return [{ eventType: 'character.relation-ended' as const, eventVersion: 1, data: {
         relationId: entry.ref.id,
-        endedByCharacterId: entry.state.initiatorId as string,
-        reason: participantState(context, entry.state.initiatorId)?.lifecycle === 'active'
-          && participantState(context, entry.state.targetId)?.lifecycle === 'active'
+        endedByCharacterId: ender,
+        reason: initiator !== undefined && target !== undefined
+          && initiator.lifecycle === 'active' && target.lifecycle === 'active'
           ? 'participant_moved' : 'participant_unavailable',
-      },
-    })),
+      } }]
+    }),
 }
 
 const lifecycle: readonly InteractionLifecycleHandlerImplementation[] = [endOnMove]

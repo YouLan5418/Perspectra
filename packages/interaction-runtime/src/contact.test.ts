@@ -58,7 +58,7 @@ function host(relationActive = false, over: Partial<InteractionHostContext> = {}
     { ref: { kind: 'character' as const, id: actor }, state: character(actor) },
     { ref: alice, state: character('character:alice') },
     { ref: { kind: 'entity' as const, id: 'entity:cup' }, state: { holderId: null, locationId: 'location:hall' } },
-    { ref: shared, state: { relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: relationActive } },
+    { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: relationActive } },
   ]
   const authorizedTargets = over.authorizedTargets ?? [
     alice, { kind: 'entity', id: 'entity:cup' }, shared,
@@ -121,7 +121,7 @@ describe('contact relation domain', () => {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: character('character:alice') },
-        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: 'character:alice', targetId: actor, active: true } },
+        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: 'character:alice', targetId: actor, active: true } },
       ],
       authorizedTargets: [alice, shared],
     })
@@ -135,7 +135,7 @@ describe('contact relation domain', () => {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: character('character:alice', 'location:elsewhere') },
-        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
+        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
       ],
       authorizedTargets: [alice, shared],
     })
@@ -163,7 +163,7 @@ describe('contact relation domain', () => {
     const broken = host(true, {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
-        { ref: shared, state: { relationKind: 'hand_hold', active: true } },
+        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', active: true } },
       ],
       authorizedTargets: [shared],
     })
@@ -218,7 +218,7 @@ describe('contact relation domain', () => {
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: character('character:alice') },
         { ref: { kind: 'relation', id: 'relation:other' },
-          state: { relationKind: 'hand_hold', initiatorId: 'character:carol', targetId: 'character:dave', active: true } },
+          state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: 'character:carol', targetId: 'character:dave', active: true } },
       ],
       authorizedTargets: [alice, { kind: 'relation', id: 'relation:other' }],
     })
@@ -264,7 +264,7 @@ describe('contact relation domain', () => {
     const outside = host(true, {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
-        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: 'character:ghost', targetId: 'character:alice', active: true } },
+        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: 'character:ghost', targetId: 'character:alice', active: true } },
       ],
       authorizedTargets: [shared],
     })
@@ -272,7 +272,7 @@ describe('contact relation domain', () => {
     const incomplete = host(true, {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
-        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: actor, active: true } },
+        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, active: true } },
       ],
       authorizedTargets: [shared],
     })
@@ -286,7 +286,7 @@ describe('contact relation domain', () => {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: character('character:alice', 'location:elsewhere') },
-        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
+        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
       ],
       authorizedTargets: [alice, shared],
     })
@@ -312,7 +312,7 @@ describe('contact relation domain', () => {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: { lifecycle: 'departed', locationId: 'location:hall', sceneIds: ['scene:hall'] } },
-        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
+        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
       ],
       authorizedTargets: [alice, shared],
     })
@@ -328,21 +328,35 @@ describe('contact relation domain', () => {
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: character('character:alice') },
         // A participant id that is not a string, and a pair whose other side never made the snapshot.
-        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: 42, targetId: 'character:alice', active: true } },
+        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: 42, targetId: 'character:alice', active: true } },
         { ref: { kind: 'relation', id: 'relation:ghost' },
-          state: { relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:nobody', active: true } },
+          state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:nobody', active: true } },
       ],
       authorizedTargets: [alice, shared],
     })
     const ended = held.fold(malformed, [])
-    expect(ended.map(event => event.data).map(data => (data as { relationId: string }).relationId).sort())
+    expect(ended.map(event => (event.data as { relationId: string }).relationId).sort())
       .toEqual(['relation:ghost', 'relation:held'])
+    // The end event must credit a real participant: the unusable side is skipped, not copied through.
+    for (const event of ended) {
+      expect(typeof (event.data as { endedByCharacterId: unknown }).endedByCharacterId).toBe('string')
+      expect(['character:player', 'character:alice']).toContain((event.data as { endedByCharacterId: string }).endedByCharacterId)
+    }
+    const unreadable = host(true, {
+      targets: [
+        { ref: { kind: 'character', id: actor }, state: character(actor) },
+        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: 42, targetId: 43, active: true } },
+      ],
+      authorizedTargets: [shared],
+    })
+    // Neither participant can be named, so the relation produces no event at all.
+    expect(held.fold(unreadable, [])).toEqual([])
     // Characters without a scene list share no scene, so a same-location pair is still out of reach.
     const sceneless = host(true, {
       targets: [
         { ref: { kind: 'character', id: actor }, state: { lifecycle: 'active', locationId: 'location:hall' } },
         { ref: alice, state: { lifecycle: 'active', locationId: 'location:hall' } },
-        { ref: shared, state: { relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
+        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
       ],
       authorizedTargets: [alice, shared],
     })
