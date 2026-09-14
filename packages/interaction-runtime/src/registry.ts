@@ -82,6 +82,11 @@ export function resolvePerformance(policy: InteractionPerformancePolicyV1, value
 
 /** Fold budget from the frozen interaction-limits/v1 profile: exceeding it fails the whole group. */
 const MAXIMUM_LIFECYCLE_CALLS = 256
+/**
+ * Cumulative event budget from the same profile: one action's events including everything the fold
+ * adds. The per-handler bound alone is not a bound on the group, so this is checked as the fold grows.
+ */
+const MAXIMUM_TOTAL_LIFECYCLE_EVENTS = 64
 /** A world fold runs without a definition, so it uses the per-action event scale from the profile. */
 const MAXIMUM_LIFECYCLE_EVENTS = 16
 /** Per-character public option budget, from the frozen interaction-limits/v1 profile. */
@@ -515,7 +520,12 @@ export class FrozenInteractionWorld {
           if (!inside) throw new TypeError(`lifecycle handler ${key(handler.lock.ref)} ended a relation outside its declared scope`)
         }
       }
-      if (added.length > 0) folded = immutable([...folded, ...added])
+      if (added.length > 0) {
+        folded = immutable([...folded, ...added])
+        // Each handler stayed inside its own bound, but the group is what the profile caps. A fold that
+        // stopped at its own step budget would still hand back a candidate set nobody authorized.
+        if (folded.length > MAXIMUM_TOTAL_LIFECYCLE_EVENTS) throw new TypeError('lifecycle fold exceeds the total event budget')
+      }
     }
     return folded
   }
@@ -537,6 +547,22 @@ export class FrozenInteractionWorld {
     }
     for (const ref of refs) collect(this.handlers.get(key(ref))!)
     return [...selected.values()].sort(compareLifecycleHandlers)
+  }
+
+  /**
+   * Whether a submitted argument object is well-formed for the definition a binding selects. The Host
+   * asks this at its own request boundary, so a malformed proposal becomes a rejection there instead of
+   * an exception from inside adjudication. It applies the same frozen schema `resolve` validates
+   * against, and it touches no rule and no effect.
+   */
+  acceptsArguments(bindingId: string, value: unknown): boolean {
+    const binding = this.bindings.get(bindingId)
+    if (binding === undefined) return false
+    const def = this.definitions.get(key(binding.definitionRef))!.spec
+    try {
+      parameters(def.argumentSchema, value)
+      return true
+    } catch { return false }
   }
 
   /**

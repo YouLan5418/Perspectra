@@ -51,7 +51,8 @@ function spec(lifecycleRefs: readonly string[], id = 'fixture:fold'): Interactio
 }
 
 function packageOf(lifecycle: readonly InteractionLifecycleHandlerImplementation[], id = 'package:lifecycle',
-  referenced = lifecycle.map(entry => entry.lock.ref.id), definitionId = id === 'package:lifecycle' ? 'fixture:fold' : id): InteractionPackageImplementation {
+  referenced = lifecycle.map(entry => entry.lock.ref.id), definitionId = id === 'package:lifecycle' ? 'fixture:fold' : id,
+  maximumEvents = 4): InteractionPackageImplementation {
   // Component identities are world-wide, so every package suffixes its shared pieces with its own id.
   const names = { rule: `fixture:accept:${id}`, effect: `fixture:base-effect:${id}`, policy: `fixture:no-performance:${id}` }
   const contents = {
@@ -60,7 +61,7 @@ function packageOf(lifecycle: readonly InteractionLifecycleHandlerImplementation
       build: (): readonly WorldEventDraft[] => [{ eventType: `fixture.base:${id}`, eventVersion: 1, data: { order: 0 } }] }],
     resolvers: [], lifecycle,
     performances: [{ lock: lock(names.policy), policy: { version: 'interaction-performance/v1' as const, accepted: [] } }],
-    definitions: [{ spec: { ...spec(referenced, definitionId),
+    definitions: [{ spec: { ...spec(referenced, definitionId), limits: { maximumEvents },
       authorityPolicyRef: ref(names.rule), preconditions: [ref(names.rule)],
       effectBuilderRef: ref(names.effect), effectCapabilityRefs: [ref(names.effect)],
       performancePolicyRef: ref(names.policy) }, implementationHash: hashWorldJson('fixture-impl/v1', { id }) }],
@@ -68,8 +69,9 @@ function packageOf(lifecycle: readonly InteractionLifecycleHandlerImplementation
   return { lock: { ref: ref(id), dependencies: [], implementationHash: interactionPackageHash(contents) }, ...contents }
 }
 
-function world(lifecycle: readonly InteractionLifecycleHandlerImplementation[], referenced = lifecycle.map(entry => entry.lock.ref.id)): FrozenInteractionWorld {
-  const pack = packageOf(lifecycle, 'package:lifecycle', referenced)
+function world(lifecycle: readonly InteractionLifecycleHandlerImplementation[], referenced = lifecycle.map(entry => entry.lock.ref.id),
+  maximumEvents = 4): FrozenInteractionWorld {
+  const pack = packageOf(lifecycle, 'package:lifecycle', referenced, 'fixture:fold', maximumEvents)
   const registry = new InteractionRegistry()
   registry.install(pack)
   const selection: InteractionWorldSelection = {
@@ -211,6 +213,23 @@ describe('lifecycle fold', () => {
     expect(() => new InteractionRegistry().install(packageOf([mover]))).toThrow(/cannot own movement/u)
     expect(() => new InteractionRegistry().install({ ...packageOf([]), lifecycle: [{ ...handler('fixture:x', 'spatial', [], 1), build: null as never }] }))
       .toThrow(/lifecycle handler implementation missing/u)
+  })
+
+  it('fails the whole fold when the cumulative event budget is exceeded, not only each step', () => {
+    // The per-handler bound and the group bound are different numbers in the profile. A step that stays
+    // inside its own limit can still push the group past the frozen 64, and a fold that returned the
+    // oversized candidate set would hand back events nobody authorized.
+    const wide = (id: string, count: number): InteractionLifecycleHandlerImplementation => ({
+      lock: lock(id), phase: 'observation', consumes: [], eventTypes: [ref(`fixture.${id}`)],
+      build: () => Array.from({ length: count }, (_, index) => ({ eventType: `fixture.${id}`, eventVersion: 1, data: { index } })),
+    })
+    // The profile's own per-action ceiling is 16, so a step can never exceed that on its own.
+    const atCeiling = [wide('fixture:w0', 16), wide('fixture:w1', 16), wide('fixture:w2', 16), wide('fixture:w3', 15)]
+    // 63 from the steps plus the one the main effect produced is exactly the frozen ceiling of 64.
+    expect(world(atCeiling, undefined, 16).resolve(host(), request()).events).toHaveLength(64)
+    // One more step event crosses it, and the whole group fails rather than being truncated.
+    expect(() => world([...atCeiling, wide('fixture:w4', 1)], undefined, 16).resolve(host(), request()))
+      .toThrow(/total event budget/u)
   })
 
   it('fails the whole fold when the plan exceeds the frozen call budget', () => {

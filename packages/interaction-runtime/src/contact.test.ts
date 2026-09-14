@@ -406,6 +406,16 @@ describe('contact relation domain', () => {
     expect(releases(false)).toEqual([])
   })
 
+  it('answers whether a binding would accept an argument object, from the same frozen schema', () => {
+    const held = runtime()
+    expect(held.acceptsArguments('binding:cup-base:take', {})).toBe(true)
+    expect(held.acceptsArguments('binding:cup-base:give', { recipientId: 'character:alice' })).toBe(true)
+    expect(held.acceptsArguments('binding:cup-base:take', { unexpected: true })).toBe(false)
+    expect(held.acceptsArguments('binding:cup-base:give', {})).toBe(false)
+    // A binding this world never enabled has no definition to ask, so nothing is accepted through it.
+    expect(held.acceptsArguments('binding:missing', {})).toBe(false)
+  })
+
   it('refuses a relation binding whose class cannot be resolved', () => {
     const registry = new InteractionRegistry()
     registry.install(pack)

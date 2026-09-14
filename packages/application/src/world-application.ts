@@ -31,6 +31,7 @@ import {
 } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import {
+  FrozenInteractionRulebook,
   WorldBootstrap,
   WorldSpecCompiler,
   createCoreRulebookRegistry,
@@ -514,10 +515,18 @@ export class WorldApplication {
   #closed = false
 
   readonly #interactionPackages: readonly InteractionPackageImplementation[]
+  /**
+   * One frozen path for the whole application: the registry adjudicates through it, and activation uses
+   * it to prove a world's selection closes against the Host's declared install. A caller that supplies
+   * its own `rulebooks` keeps responsibility for that registry, but activation still validates against
+   * the packages declared here, which is why both live on the same instance.
+   */
+  readonly #frozenInteractions: FrozenInteractionRulebook
 
   constructor(private readonly options: WorldApplicationOptions) {
     this.#interactionPackages = options.interactionPackages ?? DEFAULT_INTERACTION_PACKAGES
-    this.#rulebooks = options.rulebooks ?? createCoreRulebookRegistry({ interactionPackages: this.#interactionPackages })
+    this.#frozenInteractions = new FrozenInteractionRulebook(this.#interactionPackages)
+    this.#rulebooks = options.rulebooks ?? createCoreRulebookRegistry({ frozenInteractions: this.#frozenInteractions })
     this.runtimeRegistry = new WorldRuntimeRegistry(this.#root, new WorldBranchComponentFactory({
       ...options,
       rulebooks: this.#rulebooks,
@@ -552,7 +561,7 @@ export class WorldApplication {
         `activate:${worldAddressKey(compiled.manifest.address)}`,
         this.options.memoryPath,
       )
-      return new WorldBootstrap(store, true, this.#interactionPackages.length > 0).activate(compiled)
+      return new WorldBootstrap(store, true, this.#frozenInteractions).activate(compiled)
     } finally {
       store.close()
     }

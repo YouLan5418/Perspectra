@@ -155,6 +155,7 @@ export interface FrozenInteractionContext {
  * whose structure the frozen world can refuse on its own terms.
  */
 function frozenRequest(
+  world: FrozenInteractionWorld,
   manifest: CompiledWorldManifestV10,
   parameters: WorldJsonValue,
   host: InteractionHostContext,
@@ -199,7 +200,10 @@ function frozenRequest(
     return { reason: 'INVALID_INTERACTION_PARAMETERS' }
   }
   const argumentsValue = row.arguments as WorldJsonValue
-  if (worldJsonObject(argumentsValue) === undefined) return { reason: 'INVALID_INTERACTION_PARAMETERS' }
+  // The arguments are checked against the same frozen schema adjudication uses, so a proposal that
+  // does not fit its definition is refused here instead of throwing from inside the trusted runtime.
+  // A missing binding or a drifted lock still throws: those are integrity failures, not proposals.
+  if (!world.acceptsArguments(binding.bindingId, argumentsValue)) return { reason: 'INVALID_INTERACTION_ARGUMENTS' }
   return { request: {
     targetRef: { kind, id }, bindingId: binding.bindingId,
     definitionRef: binding.definitionRef, arguments: argumentsValue,
@@ -222,6 +226,17 @@ export class FrozenInteractionRulebook {
 
   constructor(packages: readonly InteractionPackageImplementation[]) {
     for (const entry of packages) this.#registry.install(entry)
+  }
+
+  /**
+   * Freeze the world a Manifest selects, so a Host that is about to write Genesis proves the selection
+   * actually closes against what it installed. Registering a version is not the same as being able to
+   * resolve it, and a count of installed packages says nothing about whether they are the right ones.
+   * `resolve` and `affordances` reuse the same cached world.
+   */
+  adopt(manifest: CompiledWorldManifest, manifestHash: WorldHash): void {
+    if (!manifestUsesFrozenInteractions(manifest)) throw new TypeError('the frozen interaction Rulebook only serves Manifest v10')
+    this.#world(manifest, manifestHash)
   }
 
   #world(manifest: CompiledWorldManifestV10, manifestHash: WorldHash): FrozenInteractionWorld {
@@ -268,12 +283,13 @@ export class FrozenInteractionRulebook {
     if (context.actionId === undefined) throw new TypeError('Manifest v10 resolution requires an actionId')
     const authority = this.#authority(context)
     if (action.actionType === 'interact') {
+      const world = this.#world(manifest, context.manifestHash!)
       const host = this.#host(context, context.actionId, authority)
-      const parsed = frozenRequest(manifest, action.parameters, host)
+      const parsed = frozenRequest(world, manifest, action.parameters, host)
       if ('reason' in parsed) {
         return { ...rejectRulebookResolution(context.characterId, 'interact', parsed.reason), observationScope: { scope: 'self' } }
       }
-      const adjudication = this.#world(manifest, context.manifestHash!).resolve(host, parsed.request)
+      const adjudication = world.resolve(host, parsed.request)
       const interactionTrace: WorldJsonObject = {
         definitionSetHash: adjudication.definitionSetHash,
         resolvedRoleBindingsHash: adjudication.resolvedRoleBindingsHash,

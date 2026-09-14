@@ -84,8 +84,8 @@ class CoreRulebookResolver implements RulebookResolver {
   readonly #legacy = new SpeakMoveRulebook()
   readonly #frozen: FrozenInteractionRulebook
 
-  constructor(interactionPackages: readonly InteractionPackageImplementation[]) {
-    this.#frozen = new FrozenInteractionRulebook(interactionPackages)
+  constructor(options: CoreRulebookOptions) {
+    this.#frozen = options.frozenInteractions ?? new FrozenInteractionRulebook(options.interactionPackages ?? [])
   }
 
   resolve(context: RulebookResolutionContext): RulebookResolution {
@@ -144,6 +144,11 @@ export interface CoreRulebookOptions {
    * one, so an empty list is a valid Host: every v10 world then fails closed at activation.
    */
   readonly interactionPackages?: readonly InteractionPackageImplementation[]
+  /**
+   * A frozen path the Host already built, so one instance both resolves actions and proves a
+   * selection closes before Genesis is written. Omitted means one is built from `interactionPackages`.
+   */
+  readonly frozenInteractions?: FrozenInteractionRulebook
 }
 
 /** Generic application registry: only product-neutral speak/move/take rules. */
@@ -151,7 +156,7 @@ export function createCoreRulebookRegistry(options: CoreRulebookOptions = {}): R
   const registry = new RulebookRegistry()
   // One resolver backs both versions: the Manifest schemaVersion, not the registry key, decides which
   // path an action takes, and a shared instance installs each package exactly once.
-  const resolver = new CoreRulebookResolver(options.interactionPackages ?? [])
+  const resolver = new CoreRulebookResolver(options)
   registry.register('builtin:speak-move', 1, resolver)
   registry.register('builtin:speak-move', 2, resolver)
   return registry

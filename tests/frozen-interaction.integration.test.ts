@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, hashWorldJson, type RulebookResolutionAuthorityV1 } from '@harness-world/contracts'
+import {
+  brandId, hashWorldJson,
+  type InteractionPackageImplementation, type RulebookResolutionAuthorityV1,
+} from '@harness-world/contracts'
 import {
   FrozenInteractionRulebook,
   createCoreRulebookRegistry,
@@ -14,6 +17,7 @@ import {
   type CompiledWorldManifestV10,
   type RulebookEvent,
 } from '@harness-world/kernel'
+import { interactionPackageHash } from '@harness-world/interaction-runtime'
 import { WorldStore } from '@harness-world/store-sqlite'
 import {
   basicInteractionPackage,
@@ -133,10 +137,20 @@ describe('the frozen interaction path', () => {
       { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 42, definitionRef: { id: 'base:take', version: 1 }, arguments: {} },
       { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take', definitionRef: { id: 'base:take' }, arguments: {} },
       { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take', definitionRef: null, arguments: {} },
-      { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take', definitionRef: { id: 'base:take', version: 1 }, arguments: null },
       { targetRef: null, bindingId: 'binding:entity:cup:base:take', definitionRef: { id: 'base:take', version: 1 }, arguments: {} },
       { targetRef: { kind: 'entity', id: '' }, bindingId: 'binding:entity:cup:base:take', definitionRef: { id: 'base:take', version: 1 }, arguments: {} },
     ]) expect(reject(broken)).toBe('INVALID_INTERACTION_PARAMETERS')
+    // Arguments are checked against the definition's own frozen schema at this boundary, so a payload
+    // that does not fit it is a rejection here rather than an exception from inside the trusted runtime.
+    for (const badArguments of [null, { unexpected: true }, { recipientId: 'character:npc' }]) {
+      expect(reject({ targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
+        definitionRef: { id: 'base:take', version: 1 }, arguments: badArguments })).toBe('INVALID_INTERACTION_ARGUMENTS')
+    }
+    // A definition that does take an argument still accepts a well-formed one through the same check.
+    expect(path.resolve(context('action:give'), { actionType: 'interact', parameters: {
+      targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
+      definitionRef: { id: 'base:take', version: 1 }, arguments: {},
+    } }).status).toBe('accepted')
     // A character named through the release binding is not a relation, so there is no instance to read
     // a class from and no binding it could have addressed.
     expect(reject({ targetRef: { kind: 'character', id: 'character:npc' }, bindingId: 'binding:release',
@@ -155,6 +169,16 @@ describe('the frozen interaction path', () => {
     })
     expect(elsewhere.status).toBe('rejected')
     expect(elsewhere.reason).toBe('PARTICIPANT_NOT_AUTHORIZED')
+  })
+
+  it('freezes a selection on demand so activation can prove it closes', () => {
+    const path = rulebook()
+    // Adopting is what a Host does before it writes Genesis, and it leaves the world cached for the
+    // resolution that follows.
+    expect(() => path.adopt(world.manifest, world.manifestHash)).not.toThrow()
+    expect(path.resolve(context('action:adopted'), { actionType: 'speak', parameters: { text: '好' } }).status).toBe('accepted')
+    expect(() => path.adopt({ ...world.manifest, schemaVersion: 9 } as never, world.manifestHash))
+      .toThrow(/only serves Manifest v10/u)
   })
 
   it('refuses to resolve without the Host facts the frozen trace binds', () => {
@@ -377,5 +401,28 @@ describe('a v10 world through the production entry point', () => {
         relationId, endedByCharacterId: 'character:player', reason: 'participant_moved',
       })
     } finally { rmSync(root, { recursive: true, force: true }) }
+  }, 60_000)
+
+  it('refuses to open a v10 world whose selection this Host cannot resolve', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'frozen-unrelated-'))
+    const worldPath = join(root, 'world.sqlite')
+    const compiled = frozenInteractionWorld()
+    // A real, installable package that is simply not the one this world selected. Counting installed
+    // packages would call this Host ready; freezing the selection says otherwise.
+    const { lock: _lock, ...contents } = basicInteractionPackage
+    const unrelated: InteractionPackageImplementation = { ...contents, lock: {
+      ref: { id: 'package:unrelated', version: 1 }, dependencies: [], implementationHash: interactionPackageHash(contents),
+    } }
+    const app = new WorldApplication({
+      worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'),
+      modelBudgetTokens: 20, interactionPackages: [unrelated],
+    })
+    try {
+      expect(() => app.activate(compiled)).toThrow(/cannot resolve the interaction selection/u)
+    } finally { await app.close() }
+    // Refused before Genesis, so the branch is still unactivated and nothing was written.
+    const store = new WorldStore(worldPath)
+    try { expect(store.readManifest(compiled.manifest.address)).toBeUndefined() } finally { store.close() }
+    rmSync(root, { recursive: true, force: true })
   }, 60_000)
 })

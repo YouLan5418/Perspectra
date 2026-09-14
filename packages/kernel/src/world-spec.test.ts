@@ -13,6 +13,7 @@ import {
 } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldBootstrap } from './world-bootstrap.ts'
+import { FrozenInteractionRulebook } from './frozen-interactions.ts'
 import {
   manifestationManifestRegistries,
   reactionPolicyFromManifest,
@@ -648,11 +649,18 @@ describe('WorldBootstrap frozen interaction gate', () => {
       ...compiled,
       manifest: { ...compiled.manifest, schemaVersion: 10 },
     } as unknown as CompiledWorldSpec
-    expect(() => new WorldBootstrap(store, false, false).activate(v10))
+    expect(() => new WorldBootstrap(store, false).activate(v10))
       .toThrow('Manifest v10 requires the frozen interaction runtime')
-    // Declaring the runtime present removes the gate, so a refusal from here must have another cause.
-    expect(() => new WorldBootstrap(store, false, true).activate(v10))
-      .not.toThrow(/frozen interaction runtime/u)
+    // With a runtime present the gate is replaced by a real check, and a Host that installed the wrong
+    // package is refused for that reason instead: an installed count is not a resolvable selection.
+    const runtime = new FrozenInteractionRulebook([])
+    expect(() => new WorldBootstrap(store, false, runtime).activate(v10))
+      .toThrow(/cannot resolve the interaction selection/u)
+    // A runtime that fails without an Error is still a refusal with a diagnosis, not a bare crash.
+    expect(() => new WorldBootstrap(store, false, { adopt: () => { throw 'not an error' } } as never).activate(v10))
+      .toThrow(/cannot resolve the interaction selection/u)
+    // Nothing was written, so the branch is still unactivated.
+    expect(store.readManifest(compiled.manifest.address)).toBeUndefined()
     store.close()
   })
 })
