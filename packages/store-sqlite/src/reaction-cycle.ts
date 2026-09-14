@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import {
   assertProtocolString,
+  assertReactionEvidenceBinding,
   brandId,
   canonicalizeWorldJson,
   compareWorldText,
@@ -376,6 +377,13 @@ export function prepareInitialReactionCycle(input: PrepareInitialReactionCycleIn
     if (seenCharacters.has(candidate.characterId)) throw new TypeError('Reaction Cycle contains duplicate candidate characters')
     seenCharacters.add(candidate.characterId)
     safeInteger(candidate.estimatedTokens, 'reaction candidate estimatedTokens', 1)
+    // The world's profile decides whether this Cycle states why each observer was weighed, and the
+    // evidence a stimulus carries has to be that stimulus's own. Checked here, before anything is hashed.
+    assertReactionEvidenceBinding({
+      profileId: input.draft.profileId,
+      candidateRoleClass: candidate.roleClass,
+      stimuli: candidate.stimuli,
+    })
     const prepared = prepareStimuli(input, cycleId, candidate.characterId, candidate.stimuli)
     return { candidate, ...prepared }
   })
@@ -917,6 +925,13 @@ function readReactionCycle(
         || (decision.status === 'reserved' ? decision.candidate.estimatedTokens : 0) !== job.reservedTokens) {
         throw new Error('Reaction Job diverges from its frozen budget decision')
       }
+      // Rows are re-checked, not only re-hashed: the entry hash covers the evidence as it was stored, so
+      // a record that disagrees with its own stimulus would hash consistently and still be wrong.
+      assertReactionEvidenceBinding({
+        profileId: cycle.profileId,
+        candidateRoleClass: decision.candidate.roleClass,
+        stimuli: stimuli.filter(stimulus => stimulus.jobId === job.jobId),
+      })
     }
   }
   const bundle = { cycle, waves, jobs, stimuli }
@@ -1408,18 +1423,27 @@ export function prepareReactionWaveSettlement(
   const committedWave = { ...committedWaveSeed, stateHash: hashReactionWaveState(committedWaveSeed) }
 
   const nextWaveNumber = draft.wave + 1
-  const candidates = draft.nextWaveCandidates!.map(candidate => ({
-    candidate,
-    ...prepareContinuationStimuli(
-      address,
-      bundle.cycle.cycleId,
-      nextWaveNumber,
-      reactionRoundId,
-      resultTransactionId,
-      events,
+  const candidates = draft.nextWaveCandidates!.map(candidate => {
+    // The continuation is the same boundary as the opening Wave: a later Wave's stimulus states the same
+    // basis a first one does, under the same profile.
+    assertReactionEvidenceBinding({
+      profileId: bundle.cycle.profileId,
+      candidateRoleClass: candidate.roleClass,
+      stimuli: candidate.stimuli,
+    })
+    return {
       candidate,
-    ),
-  }))
+      ...prepareContinuationStimuli(
+        address,
+        bundle.cycle.cycleId,
+        nextWaveNumber,
+        reactionRoundId,
+        resultTransactionId,
+        events,
+        candidate,
+      ),
+    }
+  })
   const currentSettled = new Map(jobs.map(job => [job.settled.jobId, job.settled] as const))
   const effectiveJobs = bundle.jobs.map(job => currentSettled.get(job.jobId) ?? job)
   const dispatchedJobs = effectiveJobs.filter(job => job.status === 'settled' && job.providerCallId !== null)

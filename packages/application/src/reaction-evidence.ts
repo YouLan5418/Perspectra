@@ -1,4 +1,10 @@
-import { type CharacterId, type ReactionEvidenceV1, type ReactionPolicyV1, type ReactionRoleClass } from '@harness-world/contracts'
+import {
+  strongestReactionRoleClass,
+  type CharacterId,
+  type ReactionEvidenceV1,
+  type ReactionPolicyV1,
+  type ReactionRoleClass,
+} from '@harness-world/contracts'
 import type { RulebookResolution } from '@harness-world/kernel'
 
 /** The addressees a speech named. Any other action names nobody, so its observers are never addressees. */
@@ -58,13 +64,6 @@ export function reactionEvidence(input: {
 }
 
 /**
- * Responsive/v2's candidate order: what an observer was to the action, before who they are. `self` is
- * ranked last because it never reaches a candidate - an actor is excluded from its own stimuli - but a
- * total order needs every class to have a place.
- */
-const REACTION_ROLE_RANK: { readonly [key in ReactionRoleClass]: number } = { direct: 0, addressee: 1, witness: 2, self: 3 }
-
-/**
  * Whether this world's profile records why an observer was weighed. It is one predicate rather than a
  * conjunction at each call site, so the disabled case is answered here instead of being a branch a
  * running wave could never take.
@@ -76,9 +75,9 @@ export function recordsReactionEvidence(policy: ReactionPolicyV1): boolean {
 /**
  * The strongest class among a candidate's observations, which is the one it is weighed by. Callers hand
  * this to the budget planner, which owns the ordering; a caller does not sort with it, because a plan
- * that re-sorted later would silently override whatever order a draft happened to be in.
+ * that re-sorted later would silently override whatever order a draft happened to be in. The rank itself
+ * lives with the contract, so the persistence boundary can check a candidate the same way.
  */
 export function strongestClass(stimuli: readonly { readonly roleClass?: ReactionRoleClass }[]): ReactionRoleClass {
-  return [...stimuli]
-    .sort((left, right) => REACTION_ROLE_RANK[left.roleClass!] - REACTION_ROLE_RANK[right.roleClass!])[0]!.roleClass!
+  return strongestReactionRoleClass(stimuli.map(stimulus => stimulus.roleClass!))
 }

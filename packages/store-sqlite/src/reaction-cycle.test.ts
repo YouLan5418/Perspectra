@@ -10,8 +10,12 @@ import {
   hashWorldJson,
   WorldError,
   type CommitRoundRequest,
+  type CharacterId,
   type ReactionCycleDraft,
   type ReactionCycleId,
+  type ReactionEvidenceV1,
+  type ReactionRoleClass,
+  type ReactionStimulusDraft,
   type ReactionWaveSettlementDraft,
   type StoredReactionJob,
   type StoredReactionStimulus,
@@ -108,6 +112,136 @@ function request(address: WorldAddress, reactionCycle = reactionDraft()): Commit
     correlationId: 'reaction:root',
   }
 }
+
+/**
+ * A responsive/v2 draft whose two candidates each state a class and the evidence behind it, over the
+ * two Observations `request` commits. The mutations below are applied to a copy of it.
+ */
+function evidenceV2Draft(): ReactionCycleDraft {
+  const stimulus = (characterId: CharacterId, observationId: string, sourceEventOrdinal: number,
+    roleClass: ReactionRoleClass): ReactionStimulusDraft => ({
+    sourceEventOrdinal, observationOrdinal: 0, observationId, observerCharacterId: characterId, roleClass,
+    evidence: { version: 'reaction-evidence/v1', sourceEventOrdinal, observationId, observerCharacterId: characterId,
+      actionId: 'action:frozen-hold', entry: { kind: 'definition', definitionRef: { id: 'base:hold-hand', version: 1 } },
+      roleClass },
+  })
+  return {
+    ...reactionDraft({ profileId: 'responsive/v2' }),
+    candidates: [
+      { characterId: privateUse, estimatedTokens: 2, roleClass: 'direct',
+        stimuli: [stimulus(privateUse, 'observation:private', 1, 'direct')] },
+      { characterId: supplementary, estimatedTokens: 2, roleClass: 'witness',
+        stimuli: [stimulus(supplementary, 'observation:supplementary', 0, 'witness')] },
+    ] as ReactionCycleDraft['candidates'],
+  }
+}
+
+type MutableEvidenceStimulus = {
+  observerCharacterId: string
+  observationId: string
+  sourceEventOrdinal: number
+  roleClass?: string
+  evidence?: Record<string, unknown>
+}
+type MutableEvidenceDraft = {
+  profileId: string
+  candidates: { characterId: string; roleClass?: string; stimuli: MutableEvidenceStimulus[] }[]
+}
+
+const FIRST = 0 as const
+const evidenceMutations: readonly {
+  readonly name: string
+  readonly expected: string
+  readonly mutate: (draft: MutableEvidenceDraft) => void
+}[] = [
+  { name: 'a v2 candidate with no class', expected: 'a responsive/v2 candidate states the class it was weighed by',
+    mutate: draft => { delete draft.candidates[FIRST]!.roleClass } },
+  { name: 'a v2 candidate with a class that is not one of them', expected: 'candidate.roleClass is not one of the frozen classes',
+    mutate: draft => { draft.candidates[FIRST]!.roleClass = 'observer' } },
+  { name: 'a v2 stimulus with no evidence', expected: 'a responsive/v2 stimulus states why it was weighed',
+    mutate: draft => { delete draft.candidates[FIRST]!.stimuli[FIRST]!.evidence } },
+  { name: 'a v2 stimulus whose class disagrees with its evidence',
+    expected: 'a stimulus states one class for itself and another in its evidence',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.roleClass = 'witness' } },
+  { name: 'evidence that is not an object', expected: 'Reaction evidence must be an object',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence = 'reaction-evidence/v1' as never } },
+  { name: 'evidence with an extra field',
+    expected: 'Reaction evidence must have exactly actionId, entry, observationId, observerCharacterId, roleClass, sourceEventOrdinal, version',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.confidence = 1 } },
+  { name: 'evidence at an unsupported version', expected: 'Reaction evidence version is unsupported',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.version = 'reaction-evidence/v2' } },
+  { name: 'evidence naming another event ordinal',
+    expected: 'Reaction evidence sourceEventOrdinal diverges from its stimulus',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.sourceEventOrdinal = 0 } },
+  { name: 'evidence naming another Observation',
+    expected: 'Reaction evidence observationId diverges from its stimulus',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.observationId = 'observation:supplementary' } },
+  { name: 'evidence naming another observer', expected: 'Reaction evidence observer diverges from its stimulus',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.observerCharacterId = supplementary } },
+  { name: 'evidence that is not a class', expected: 'Reaction evidence roleClass is not one of the frozen classes',
+    mutate: draft => {
+      draft.candidates[FIRST]!.stimuli[FIRST]!.roleClass = 'nobody'
+      draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.roleClass = 'nobody'
+    } },
+  { name: 'evidence naming no action', expected: 'Reaction evidence actionId must be a non-empty, unpadded string',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.actionId = '' } },
+  { name: 'an entry of an unsupported kind', expected: 'Reaction evidence entry kind is unsupported',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.entry = { kind: 'spell' } } },
+  { name: 'a definition entry carrying an action field',
+    expected: 'Reaction evidence entry must have exactly definitionRef, kind',
+    mutate: draft => {
+      const entry = draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.entry as Record<string, unknown>
+      entry.actionType = 'speak'
+    } },
+  { name: 'a definition reference that is not an object',
+    expected: 'Reaction evidence definitionRef must be an object',
+    mutate: draft => {
+      const entry = draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.entry as Record<string, unknown>
+      entry.definitionRef = 'base:hold-hand'
+    } },
+  { name: 'a definition reference with an extra field',
+    expected: 'Reaction evidence definitionRef must have exactly id, version',
+    mutate: draft => {
+      const entry = draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.entry as { definitionRef: Record<string, unknown> }
+      entry.definitionRef.pinned = true
+    } },
+  { name: 'a definition reference naming no definition',
+    expected: 'Reaction evidence definitionRef.id must be a non-empty, unpadded string',
+    mutate: draft => {
+      const entry = draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.entry as { definitionRef: Record<string, unknown> }
+      entry.definitionRef.id = ''
+    } },
+  { name: 'a definition reference at version zero',
+    expected: 'Reaction evidence definitionRef.version must be a positive safe integer',
+    mutate: draft => {
+      const entry = draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.entry as { definitionRef: Record<string, unknown> }
+      entry.definitionRef.version = 0
+    } },
+  { name: 'an action entry with no action type',
+    expected: 'Reaction evidence actionType must be a non-empty, unpadded string',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.entry = { kind: 'action', actionType: '', actionVersion: 1 } } },
+  { name: 'an action entry at version zero',
+    expected: 'Reaction evidence actionVersion must be a positive safe integer',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.entry = { kind: 'action', actionType: 'speak', actionVersion: 0 } } },
+  { name: 'a candidate weighed by a weaker class than its stimuli',
+    expected: 'a candidate is weighed by the strongest class among its stimuli',
+    mutate: draft => { draft.candidates[FIRST]!.roleClass = 'witness' } },
+]
+
+const v1EvidenceMutations: readonly {
+  readonly name: string
+  readonly expected: string
+  readonly mutate: (draft: MutableEvidenceDraft) => void
+}[] = [
+  { name: 'a v1 candidate that states a class', expected: 'a responsive/v1 candidate states no role class',
+    mutate: draft => { draft.candidates[FIRST]!.roleClass = 'direct' } },
+  { name: 'a v1 stimulus that states a class', expected: 'a responsive/v1 stimulus states no role class and no evidence',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.roleClass = 'direct' } },
+  { name: 'a v1 stimulus that carries evidence', expected: 'a responsive/v1 stimulus states no role class and no evidence',
+    mutate: draft => {
+      draft.candidates[FIRST]!.stimuli[FIRST]!.evidence = { version: 'reaction-evidence/v1' }
+    } },
+]
 
 function prepareInput(overrides: Partial<PrepareInitialReactionCycleInput> = {}): PrepareInitialReactionCycleInput {
   const address = fixture().address
@@ -374,6 +508,15 @@ describe('WorldStore Reaction Cycle authority', () => {
     ['source identity mismatch', [
       { sourceEventOrdinal: 0, observationOrdinal: 0, observationId: 'other', observerCharacterId: privateUse },
     ], [{ eventType: 'observation.upsert', eventVersion: 1, data: { id: 'next', value: { observerId: privateUse } } }], 'identity or observer diverges'],
+    // A continuation is the same boundary as the opening Wave, so a v1 Cycle refuses a record it has no
+    // profile for just as the opening one does.
+    ['v1 stimulus that states a class', [
+      { sourceEventOrdinal: 0, observationOrdinal: 0, observationId: 'next', observerCharacterId: privateUse, roleClass: 'direct' },
+    ], [{ eventType: 'observation.upsert', eventVersion: 1, data: { id: 'next', value: { observerId: privateUse } } }], 'states no role class and no evidence'],
+    ['v1 stimulus that carries evidence', [
+      { sourceEventOrdinal: 0, observationOrdinal: 0, observationId: 'next', observerCharacterId: privateUse,
+        evidence: { version: 'reaction-evidence/v1' } },
+    ], [{ eventType: 'observation.upsert', eventVersion: 1, data: { id: 'next', value: { observerId: privateUse } } }], 'states no role class and no evidence'],
   ] as const)('rejects a next-Wave candidate with %s', async (_label, stimuli, events, expected) => {
     const value = await settlementFixture()
     const head = value.store.head(value.address)
@@ -390,13 +533,63 @@ describe('WorldStore Reaction Cycle authority', () => {
       reactionSettlement: {
         ...value.settlement,
         terminalReason: null,
-        nextWaveCandidates: [{ characterId: privateUse, estimatedTokens: 1, stimuli }],
+        nextWaveCandidates: [{ characterId: privateUse, estimatedTokens: 1, stimuli: stimuli as never }],
       },
       writerFencingToken: value.writer.fencingToken,
       correlationId: `continuation-invalid:${_label}`,
     })).rejects.toThrow(expected)
     value.store.close()
     value.leases.close()
+  })
+
+  it('refuses a next-Wave candidate the Cycle profile has no record for', async () => {
+    const { path, address } = fixture()
+    const store = new WorldStore(path)
+    store.createBranch(address)
+    const leases = new WriterLeaseService(path)
+    const writer = leases.acquire(address, 'reaction-worker:continuation-evidence', 1_000)
+    await store.commitRound({ ...request(address, evidenceV2Draft()), writerFencingToken: writer.fencingToken })
+    const cycle = store.activeReactionCycle(address)!.cycle
+    const claimed = store.claimNextReactionJob(address, writer.ownerId, writer.fencingToken, 500)!
+    const job = store.bindReactionJobProvider(
+      address, claimed.jobId, writer.ownerId, writer.fencingToken, claimed.claimFencingToken, {
+        contextReceiptId: 'context-receipt:continuation-evidence',
+        contextReceiptHash: hashWorldJson('context-receipt:test', 'continuation-evidence'),
+        providerCallId: 'provider-call:continuation-evidence',
+        providerRequestHash: hashWorldJson('provider-request:test', 'continuation-evidence'),
+      })
+    const head = store.head(address)
+    // The Cycle states why each observer was weighed, so a later Wave's candidate has to as well.
+    await expect(store.commitRound({
+      address,
+      transactionId: brandId('transaction:continuation-evidence', 'TransactionId'),
+      roundId: brandId('round:continuation-evidence', 'InteractionRoundId'),
+      expectedHeadSeq: head.headSeq,
+      expectedTick: head.tick,
+      nextTick: head.tick + 1,
+      events: [{ eventType: 'observation.upsert', eventVersion: 1,
+        data: { id: 'next', value: { observerId: privateUse } } }],
+      outbox: [],
+      authority: { schemaVersion: 1, origin: 'reaction', cycleId: cycle.cycleId, wave: 1 },
+      reactionSettlement: {
+        cycleId: cycle.cycleId,
+        wave: 1,
+        terminalReason: null,
+        jobs: [{
+          jobId: job.jobId, claimOwnerId: job.claimOwnerId, claimFencingToken: job.claimFencingToken,
+          expectedStateHash: job.stateHash, outcome: 'proposed' as const,
+          proposalHash: hashWorldJson('reaction-proposal:test', 'continuation-evidence'),
+        }],
+        nextWaveCandidates: [{
+          characterId: privateUse, estimatedTokens: 1, roleClass: 'witness',
+          stimuli: [{ sourceEventOrdinal: 0, observationOrdinal: 0, observationId: 'next', observerCharacterId: privateUse }],
+        }],
+      },
+      writerFencingToken: writer.fencingToken,
+      correlationId: 'continuation-evidence',
+    })).rejects.toThrow('a responsive/v2 stimulus states why it was weighed')
+    store.close()
+    leases.close()
   })
 
   it('preserves player preemption as the terminal reason when the frozen Wave settles', async () => {
@@ -1350,6 +1543,49 @@ describe('WorldStore Reaction Cycle authority', () => {
     raw.close()
     const corrupted = new WorldStore(path)
     expect(() => corrupted.readReactionCycle(address, cycleId)).toThrow()
+    corrupted.close()
+  })
+
+  it('refuses evidence that its own profile does not account for, or that disagrees with its stimulus', () => {
+    // The profile decides whether a Cycle states why each observer was weighed, and the evidence has to
+    // be this stimulus's own. Every case below is accepted by the hash layer - the entry hash covers
+    // whatever it is handed - so without this boundary a self-consistent lie becomes durable authority.
+    for (const { name, expected, mutate } of evidenceMutations) {
+      const draft = structuredClone(evidenceV2Draft()) as unknown as MutableEvidenceDraft
+      mutate(draft)
+      expect(() => prepareInitialReactionCycle(prepareInput({ draft: draft as unknown as ReactionCycleDraft })),
+        name).toThrow(expected)
+    }
+    for (const { name, expected, mutate } of v1EvidenceMutations) {
+      const draft = structuredClone(reactionDraft()) as unknown as MutableEvidenceDraft
+      mutate(draft)
+      expect(() => prepareInitialReactionCycle(prepareInput({ draft: draft as unknown as ReactionCycleDraft })),
+        name).toThrow(expected)
+    }
+  })
+
+  it('rejects a stored Cycle whose evidence was rewritten to a self-consistent lie', async () => {
+    const { path, address } = fixture()
+    const store = new WorldStore(path)
+    store.createBranch(address)
+    await store.commitRound(request(address, evidenceV2Draft()))
+    const bundle = store.activeReactionCycle(address)!
+    store.close()
+    // The observer inside the evidence is changed to the other character and the entry hash is rebuilt,
+    // so the row is internally consistent and only wrong about which stimulus it belongs to.
+    const raw = new DatabaseSync(path)
+    const row = raw.prepare('SELECT job_id, evidence_json FROM world_reaction_job_stimuli LIMIT 1').get() as
+      { readonly job_id: string; readonly evidence_json: string }
+    const stored = bundle.stimuli.find(stimulus => stimulus.jobId === row.job_id)!
+    const lied = { ...JSON.parse(row.evidence_json) as Record<string, string>, observerCharacterId: supplementary }
+    const changed = { ...stored, evidence: lied as unknown as ReactionEvidenceV1 }
+    const { stimulusEntryHash: _discarded, ...withoutHash } = changed
+    raw.prepare('UPDATE world_reaction_job_stimuli SET evidence_json = ?, stimulus_entry_hash = ? WHERE job_id = ?')
+      .run(JSON.stringify(lied), hashReactionStimulusEntry(withoutHash), row.job_id)
+    raw.close()
+    const corrupted = new WorldStore(path)
+    expect(() => corrupted.readReactionCycle(address, bundle.cycle.cycleId))
+      .toThrow('Reaction evidence observer diverges from its stimulus')
     corrupted.close()
   })
 

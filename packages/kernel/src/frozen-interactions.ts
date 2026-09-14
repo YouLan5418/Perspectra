@@ -288,6 +288,9 @@ export class FrozenInteractionRulebook {
       const host = this.#host(context, context.actionId, authority)
       const parsed = frozenRequest(world, manifest, action.parameters, host)
       if ('reason' in parsed) {
+        // A request that never named a definition has no policy to consult, and naming the reason to the
+        // whole Scene would disclose the catalog: whether a binding exists, and for which target. This is
+        // not the definition's failure to disclose, so it stays with the actor.
         return { ...rejectRulebookResolution(context.characterId, 'interact', parsed.reason), observationScope: { scope: 'self' } }
       }
       const adjudication = world.resolve(host, parsed.request)
@@ -301,11 +304,15 @@ export class FrozenInteractionRulebook {
       // the adjudication resolved rather than a second derivation of it.
       const definitionRef = (parsed.request as { definitionRef: InteractionRef }).definitionRef
       const affectedCharacterIds = adjudication.affectedCharacterIds
+      // Who may observe the outcome is the definition's own answer, for the status it reached: a world
+      // that keeps a refused attempt private declares that, and everyone else observes it as they would
+      // observe a success. The rejection fact is written either way.
+      const observationScope = adjudication.observationScope
       return adjudication.status === 'accepted'
-        ? { status: 'accepted', events: adjudication.events, observationScope: { scope: 'scene_public' },
+        ? { status: 'accepted', events: adjudication.events, observationScope,
             interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds }
         : { ...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason),
-            observationScope: { scope: 'self' }, interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds }
+            observationScope, interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds }
     }
     const resolution = this.#legacy.resolve(manifest, context.events, context.characterId, action, {
       actionId: context.actionId, resolutionAuthority: authority,

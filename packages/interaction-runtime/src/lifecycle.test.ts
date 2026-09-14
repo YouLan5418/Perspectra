@@ -47,6 +47,7 @@ function spec(lifecycleRefs: readonly string[], id = 'fixture:fold'): Interactio
     authorityPolicyRef: ref('fixture:accept'), preconditions: [ref('fixture:accept')], spatialRequirementRefs: [],
     effectBuilderRef: ref('fixture:base-effect'), effectCapabilityRefs: [ref('fixture:base-effect')], dependencyRefs: [],
     performancePolicyRef: ref('fixture:no-performance'), reactionEvidencePolicyRef: ref('fixture:no-direct'),
+    observationPolicyRef: ref('fixture:public-outcome'),
     lifecycleRefs: lifecycleRefs.map(ref), limits: { maximumEvents: 4 },
   }
 }
@@ -56,7 +57,8 @@ function packageOf(lifecycle: readonly InteractionLifecycleHandlerImplementation
   maximumEvents = 4): InteractionPackageImplementation {
   // Component identities are world-wide, so every package suffixes its shared pieces with its own id.
   const names = { rule: `fixture:accept:${id}`, effect: `fixture:base-effect:${id}`,
-    policy: `fixture:no-performance:${id}`, evidence: `fixture:no-direct:${id}` }
+    policy: `fixture:no-performance:${id}`, evidence: `fixture:no-direct:${id}`,
+    observation: `fixture:public-outcome:${id}` }
   const contents = {
     rules: [{ ...accept, lock: lock(names.rule) }],
     effects: [{ ...base, lock: lock(names.effect), eventTypes: [ref(`fixture.base:${id}`)],
@@ -64,10 +66,13 @@ function packageOf(lifecycle: readonly InteractionLifecycleHandlerImplementation
     resolvers: [], lifecycle,
     performances: [{ lock: lock(names.policy), policy: { version: 'interaction-performance/v1' as const, accepted: [] } }],
     reactionEvidence: [{ lock: lock(names.evidence), policy: { version: 'interaction-reaction-evidence/v1' as const, directRoles: [] } }],
+    observation: [{ lock: lock(names.observation),
+      policy: { version: 'interaction-observation-policy/v1' as const, onAccepted: 'scene_public' as const, onRejected: 'self' as const } }],
     definitions: [{ spec: { ...spec(referenced, definitionId), limits: { maximumEvents },
       authorityPolicyRef: ref(names.rule), preconditions: [ref(names.rule)],
       effectBuilderRef: ref(names.effect), effectCapabilityRefs: [ref(names.effect)],
-      performancePolicyRef: ref(names.policy), reactionEvidencePolicyRef: ref(names.evidence) },
+      performancePolicyRef: ref(names.policy), reactionEvidencePolicyRef: ref(names.evidence),
+      observationPolicyRef: ref(names.observation) },
       implementationHash: hashWorldJson('fixture-impl/v1', { id }) }],
   }
   return { lock: { ref: ref(id), dependencies: [], implementationHash: interactionPackageHash(contents) }, ...contents }

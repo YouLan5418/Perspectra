@@ -1,4 +1,5 @@
 import { assertProtocolString, type CharacterId } from './ids.ts'
+import { REACTION_ROLE_RANK } from './reaction-evidence.ts'
 import type { ReactionRoleClass } from './reaction-cycle.ts'
 import { compareWorldText, hashWorldJson, type WorldHash, type WorldJsonObject } from './world-json.ts'
 
@@ -14,12 +15,6 @@ export interface StableCallBudgetCandidate extends WorldJsonObject {
    */
   readonly roleClass?: ReactionRoleClass
 }
-
-/**
- * The frozen class order. The planner owns the whole ordering, so it owns the rank too: a caller
- * supplies what the observer was, not a number that could drift from the class it stands for.
- */
-const ROLE_CLASS_RANK: { readonly [key in ReactionRoleClass]: number } = { direct: 0, addressee: 1, witness: 2, self: 3 }
 
 export interface StableCallBudgetUsage extends WorldJsonObject {
   readonly characterId: CharacterId
@@ -68,7 +63,7 @@ function worldHash(value: string, name: string): WorldHash {
 
 function normalizeCandidate(candidate: StableCallBudgetCandidate): StableCallBudgetCandidate {
   const roleClass = candidate.roleClass
-  if (roleClass !== undefined && !Object.hasOwn(ROLE_CLASS_RANK, roleClass)) {
+  if (roleClass !== undefined && !Object.hasOwn(REACTION_ROLE_RANK, roleClass)) {
     throw new TypeError('candidate.roleClass is not one of the frozen classes')
   }
   return {
@@ -83,7 +78,7 @@ function normalizeCandidate(candidate: StableCallBudgetCandidate): StableCallBud
 
 /** What an observer was, before who they are. A v1 candidate carries no class and sorts as it did. */
 function classRank(candidate: StableCallBudgetCandidate): number {
-  return candidate.roleClass === undefined ? 0 : ROLE_CLASS_RANK[candidate.roleClass]
+  return candidate.roleClass === undefined ? 0 : REACTION_ROLE_RANK[candidate.roleClass]
 }
 
 function compareCandidate(left: StableCallBudgetCandidate, right: StableCallBudgetCandidate): number {

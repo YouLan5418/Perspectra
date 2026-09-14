@@ -126,6 +126,41 @@ describe('the frozen interaction path', () => {
     })
   })
 
+  it('lets the definition say who may observe a refusal, and records it either way', () => {
+    const path = rulebook()
+    const take = (events: readonly RulebookEvent[], actionId: string): ReturnType<FrozenInteractionRulebook['resolve']> =>
+      path.resolve(context(actionId, events), { actionType: 'interact', parameters: {
+        targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
+        definitionRef: { id: 'base:take', version: 1 }, arguments: {},
+      } })
+    // A shared cup cannot be taken twice, and being told no is something the Scene can see happen.
+    const first = take(origin, 'action:first-take')
+    expect(first.status).toBe('accepted')
+    expect(first.observationScope).toEqual({ scope: 'scene_public' })
+    const refusedTake = take([...origin, ...first.events], 'action:refused-take')
+    expect(refusedTake.status).toBe('rejected')
+    expect(refusedTake.observationScope).toEqual({ scope: 'scene_public' })
+    // The fact is written either way; the policy only decides who is told.
+    expect(refusedTake.events.map(event => event.eventType)).toEqual(['action.rejected'])
+    // A refused attempt to take someone's hand is not something the Scene is told about - but the pair
+    // already holding hands is why it fails, so the attempt is refused for that reason and recorded.
+    const paired = [...origin, relationStarted('base:hold-hand')]
+    const refusedHold = path.resolve(context('action:refused-hold', paired), { actionType: 'interact', parameters: {
+      targetRef: { kind: 'character', id: 'character:npc' }, bindingId: 'binding:character:npc:base:hold-hand',
+      definitionRef: { id: 'base:hold-hand', version: 1 }, arguments: {},
+    } })
+    expect(refusedHold.status).toBe('rejected')
+    expect(refusedHold.observationScope).toEqual({ scope: 'self' })
+    expect(refusedHold.events.map(event => event.eventType)).toEqual(['action.rejected'])
+    // A request that never named a definition has no policy to consult, and the reason names the catalog.
+    const unbound = path.resolve(context('action:unbound'), { actionType: 'interact', parameters: {
+      targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:missing',
+      definitionRef: { id: 'base:take', version: 1 }, arguments: {},
+    } })
+    expect(unbound.reason).toBe('INTERACTION_NOT_BOUND')
+    expect(unbound.observationScope).toEqual({ scope: 'self' })
+  })
+
   it('answers an unroutable proposal with a rejection instead of throwing the round', () => {
     const path = rulebook()
     const reject = (parameters: unknown): string => {
@@ -358,6 +393,49 @@ describe('the fixture itself', () => {
 })
 
 describe('a v10 world through the production entry point', () => {
+  it('shows the Scene a refusal its author made public, and keeps the private one to the actor', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'frozen-refusal-'))
+    const worldPath = join(root, 'world.sqlite')
+    const compiled = frozenInteractionWorld()
+    const app = new WorldApplication({
+      worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'),
+      modelBudgetTokens: 20,
+    })
+    const submit = (key: string, parameters: Record<string, unknown>) => app.submit(compiled.manifest.address, {
+      idempotencyKey: key, principalId: 'principal:player', correlationId: `frozen-${key}`,
+      action: { actionType: 'interact', parameters: parameters as never },
+    })
+    const take = { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
+      definitionRef: { id: 'base:take', version: 1 }, arguments: {} }
+    const hold = { targetRef: { kind: 'character', id: 'character:npc' }, bindingId: 'binding:character:npc:base:hold-hand',
+      definitionRef: { id: 'base:hold-hand', version: 1 }, arguments: {} }
+    try {
+      app.activate(compiled)
+      // Two refusals of the same shape, decided by two different declarations: the cup is already taken,
+      // and the pair already holds hands.
+      await submit('take', take)
+      await submit('take-again', take)
+      await submit('hold', hold)
+      await submit('hold-again', hold)
+    } finally { await app.close() }
+    try {
+      const store = new WorldStore(worldPath)
+      const observations = store.readEvents(compiled.manifest.address)
+        .filter(event => event.eventType === 'observation.upsert')
+        .map(event => (event.data as { readonly value: { readonly observerId: string; readonly content: Record<string, unknown> } }).value)
+      store.close()
+      // The public refusal reaches everyone in the Scene, which is what makes it witnessable at all.
+      const refusalOfTake = observations.filter(entry => entry.content.reason === 'ITEM_NOT_AVAILABLE')
+      expect(refusalOfTake.map(entry => entry.observerId).sort())
+        .toEqual(['character:bob', 'character:npc', 'character:player'])
+      expect(refusalOfTake.every(entry => entry.content.status === 'rejected')).toBe(true)
+      // The private one reaches nobody but the actor, and it is still an Observation bound to the action.
+      const refusalOfHold = observations.filter(entry => entry.content.reason === 'CONTACT_ALREADY_ACTIVE')
+      expect(refusalOfHold.map(entry => entry.observerId)).toEqual(['character:player'])
+      expect(refusalOfHold[0]!.content.status).toBe('rejected')
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  }, 60_000)
+
   it('closes the relation a move ended, exactly once, without a Kernel-side contact branch', async () => {
     const root = mkdtempSync(join(tmpdir(), 'frozen-interaction-'))
     const worldPath = join(root, 'world.sqlite')

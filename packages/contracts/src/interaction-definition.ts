@@ -50,6 +50,12 @@ export interface InteractionDefinitionSpec extends WorldJsonObject {
   readonly argumentSchema: InteractionParameterSchema
   readonly bindingConfigSchema: InteractionParameterSchema
   readonly authorityPolicyRef: InteractionRef
+  /**
+   * Registered observation policy. It says who may observe this definition's outcome, accepted and
+   * rejected alike. Required, like every other policy ref: a definition with no answer would leave the
+   * Host to invent one, and the answer differs per world.
+   */
+  readonly observationPolicyRef: InteractionRef
   readonly preconditions: readonly InteractionRef[]
   readonly spatialRequirementRefs: readonly InteractionRef[]
   readonly effectBuilderRef: InteractionRef
@@ -211,6 +217,33 @@ export interface InteractionReactionEvidenceImplementation {
   readonly policy: InteractionReactionEvidencePolicyV1
 }
 
+/**
+ * Who may observe the outcome of an attempt, declared by the definition rather than decided by the Host.
+ * The same refused hand-over is public in one world and private in another, and only the world's own
+ * content can say which; a Host default would make every world disclose the same thing.
+ *
+ * The facts are written either way - a rejection still records `action.rejected` and still ends the
+ * attempt - so this decides who is told, not what happened.
+ */
+export interface InteractionObservationPolicyV1 extends WorldJsonObject {
+  readonly version: 'interaction-observation-policy/v1'
+  /** The scope an accepted outcome is observed at. */
+  readonly onAccepted: InteractionObservationScope
+  /** The scope a rejected one is observed at. */
+  readonly onRejected: InteractionObservationScope
+}
+
+/**
+ * The scopes a definition can declare. `direct`/`private` are absent on purpose: those name recipients,
+ * and a definition has no way to know who they would be before the action is submitted.
+ */
+export type InteractionObservationScope = 'scene_public' | 'self'
+
+export interface InteractionObservationPolicyImplementation {
+  readonly lock: InteractionImplementationLock
+  readonly policy: InteractionObservationPolicyV1
+}
+
 export interface InteractionEffectImplementation {
   readonly lock: InteractionImplementationLock
   readonly eventTypes: readonly InteractionRef[]
@@ -232,6 +265,7 @@ export interface InteractionPackageImplementation {
   readonly lifecycle: readonly InteractionLifecycleHandlerImplementation[]
   readonly performances: readonly InteractionPerformanceImplementation[]
   readonly reactionEvidence: readonly InteractionReactionEvidenceImplementation[]
+  readonly observation: readonly InteractionObservationPolicyImplementation[]
   readonly definitions: readonly InteractionDefinitionImplementation[]
 }
 
@@ -298,6 +332,12 @@ export interface InteractionAdjudication extends WorldJsonObject {
    * memorable observation fact stays the Host's step, exactly as it does for the action group path.
    */
   readonly performance: InteractionPerformance | null
+  /**
+   * Who may observe this outcome, read from the definition's observation policy for the status it
+   * reached. It is the definition's answer rather than the Host's, and like the resolved roles it sits
+   * beside the hashed adjudication: exposing it must not move any trace hash.
+   */
+  readonly observationScope: { readonly scope: InteractionObservationScope }
 }
 
 /**

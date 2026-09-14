@@ -1,6 +1,7 @@
 import {
   deterministicId, hashWorldJson,
   type InteractionReactionEvidenceImplementation,
+  type InteractionObservationPolicyImplementation, type InteractionObservationScope,
   type InteractionDefinitionImplementation, type InteractionDefinitionSpec,
   type InteractionDerivedResolverImplementation, type InteractionLifecycleHandlerImplementation,
   type InteractionEffectImplementation, type InteractionExecutionContext, type InteractionImplementationLock,
@@ -248,6 +249,20 @@ const evidence = (id: string, directRoles: readonly string[]): InteractionReacti
   lock: implementation(id), policy: { version: 'interaction-reaction-evidence/v1', directRoles },
 })
 
+/**
+ * Who may observe an outcome. The two item-and-contact policies say the same thing about a success, and
+ * differ on a refusal: taking a shared thing and being told no is something the people in the Scene can
+ * see happen, while a refused attempt to take someone's hand is not something the person holding it - or
+ * anyone else - is told about. Neither closes the fact: a refusal still records `action.rejected`.
+ */
+const observation = (id: string, onAccepted: InteractionObservationScope,
+  onRejected: InteractionObservationScope): InteractionObservationPolicyImplementation => ({
+  lock: implementation(id), policy: { version: 'interaction-observation-policy/v1', onAccepted, onRejected },
+})
+
+const publicOutcome = observation('base:public-outcome', 'scene_public', 'scene_public')
+const privateRefusal = observation('base:private-refusal', 'scene_public', 'self')
+
 const noDirect = evidence('base:no-direct', [])
 const directRecipient = evidence('base:direct-recipient', ['recipient'])
 const directTarget = evidence('base:direct-target', ['target'])
@@ -262,6 +277,7 @@ function definition(id: string, preconditions: readonly string[], effectId: stri
     effectBuilderRef: ref(effectId), effectCapabilityRefs: [ref(effectId)], dependencyRefs: [],
     performancePolicyRef: ref('base:no-performance'),
     reactionEvidencePolicyRef: recipientRole ? ref('base:direct-recipient') : ref('base:no-direct'),
+    observationPolicyRef: ref('base:public-outcome'),
     lifecycleRefs: [], limits: { maximumEvents: 1 },
   }
   return { spec, implementationHash: implementation(id).implementationHash }
@@ -287,6 +303,7 @@ function contactDefinition(id: string, roles: readonly InteractionRole[], precon
     authorityPolicyRef: ref(authority), preconditions: preconditions.map(ref), spatialRequirementRefs: spatial.map(ref),
     effectBuilderRef: ref(effectId), effectCapabilityRefs: [ref(effectId)], dependencyRefs: [],
     performancePolicyRef: ref('base:no-performance'), reactionEvidencePolicyRef: ref(evidenceRef),
+    observationPolicyRef: ref('base:private-refusal'),
     lifecycleRefs, limits: { maximumEvents: 1 },
   }
   return { spec, implementationHash: implementation(id).implementationHash }
@@ -295,7 +312,8 @@ function contactDefinition(id: string, roles: readonly InteractionRole[], precon
 /** I1 object slice plus the I3 contact slice, through the same contract. */
 export function createBasicInteractionPackage(): InteractionPackageImplementation {
   const contents = { rules, effects, resolvers, lifecycle, performances: [noPerformance],
-    reactionEvidence: [noDirect, directRecipient, directTarget, directParticipants], definitions: [
+    reactionEvidence: [noDirect, directRecipient, directTarget, directParticipants],
+    observation: [publicOutcome, privateRefusal], definitions: [
     definition('base:take', ['base:item-unheld'], 'base:take-effect', false),
     definition('base:drop', ['base:item-held'], 'base:drop-effect', false),
     definition('base:give', ['base:item-held', 'base:recipient-active'], 'base:give-effect', true),
