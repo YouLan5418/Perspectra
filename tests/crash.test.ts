@@ -35,6 +35,7 @@ import {
 } from '@harness-world/testkit'
 import { phase8ProviderCrashWorld } from './fixtures/phase8-provider-world.ts'
 import { actionGroupWorld, groupOutput } from './fixtures/action-group-world.ts'
+import { frozenInteractionWorld } from './fixtures/frozen-interaction-world.ts'
 import { intentWorld, intentFixtureProfile, intentFixtureRequest, intentFixtureResponse } from './fixtures/player-intent-world.ts'
 
 const directories: string[] = []
@@ -179,6 +180,43 @@ describe('hard process termination recovery', () => {
     const events = final.readEvents(compiled.manifest.address)
     expect(events.filter(e => e.eventType === 'entity.transferred')).toHaveLength(1)
     expect(events.filter(e => e.eventType === 'character.speak' && JSON.stringify(e.data).includes('done'))).toHaveLength(1)
+    expect(final.head(compiled.manifest.address).tick).toBe(1)
+    final.close()
+  })
+
+  it.each(['store.before-commit', 'store.after-commit'] as const)('recovers a v10 frozen interaction after hard termination at %s', async point => {
+    const worldPath = database('frozen-world.sqlite')
+    const sessionPath = `${worldPath}.session.sqlite`
+    const memoryPath = `${worldPath}.memory.sqlite`
+    const compiled = frozenInteractionWorld()
+    const initial = new WorldApplication({ worldPath, sessionPath, memoryPath })
+    initial.activate(compiled)
+    await initial.close()
+    await hardKillAt(fileURLToPath(new URL('./workers/action-group-crash-worker.ts', import.meta.url)),
+      [worldPath, sessionPath, memoryPath, point, 'frozen'])
+    // A committed round carries exactly one relation. An interrupted one carries none and no partial
+    // candidate events either: the frozen fold's output is committed with the action or not at all.
+    const interrupted = new WorldStore(worldPath)
+    const started = interrupted.readEvents(compiled.manifest.address)
+      .filter(event => event.eventType === 'character.relation-started')
+    expect(started).toHaveLength(point === 'store.after-commit' ? 1 : 0)
+    interrupted.close()
+    const leaseDb = new DatabaseSync(worldPath, { readOnly: true })
+    const lease = leaseDb.prepare('SELECT expires_at_ms FROM writer_leases').get() as { expires_at_ms: number }
+    leaseDb.close()
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, lease.expires_at_ms - Date.now() + 20)))
+    const recovered = new WorldApplication({ worldPath, sessionPath, memoryPath,
+      runtimeOwnerId: 'frozen:recovered', leaseTtlMs: 500, modelBudgetTokens: 10 })
+    const request = { idempotencyKey: 'group:crash', principalId: 'principal:player', correlationId: 'frozen:recovery',
+      action: { actionType: 'interact', parameters: { targetRef: { kind: 'character', id: 'character:npc' },
+        bindingId: 'binding:character:npc:base:hold-hand', definitionRef: { id: 'base:hold-hand', version: 1 }, arguments: {} } } }
+    await recovered.submit(compiled.manifest.address, request)
+    // The replay is idempotent: a second submission of the same input does not hold a second hand.
+    await recovered.submit(compiled.manifest.address, request)
+    await recovered.close()
+    const final = new WorldStore(worldPath)
+    const events = final.readEvents(compiled.manifest.address)
+    expect(events.filter(event => event.eventType === 'character.relation-started')).toHaveLength(1)
     expect(final.head(compiled.manifest.address).tick).toBe(1)
     final.close()
   })
