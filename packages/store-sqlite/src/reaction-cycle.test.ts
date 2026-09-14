@@ -22,6 +22,7 @@ import {
   type StoredReactionWave,
   type WorldAddress,
   type WorldEventDraft,
+  type WorldJsonObject,
 } from '@harness-world/contracts'
 import {
   hashReactionJobState,
@@ -88,6 +89,9 @@ function reactionDraft(overrides: Partial<ReactionCycleDraft> = {}): ReactionCyc
 }
 
 function request(address: WorldAddress, reactionCycle = reactionDraft()): CommitRoundRequest {
+  const observedAction = reactionCycle.profileId === 'responsive/v2'
+    ? { actionId: 'action:frozen-hold' }
+    : {}
   return {
     address,
     transactionId: brandId('transaction:reaction-root', 'TransactionId'),
@@ -99,12 +103,14 @@ function request(address: WorldAddress, reactionCycle = reactionDraft()): Commit
       {
         eventType: 'observation.upsert',
         eventVersion: 1,
-        data: { id: 'observation:supplementary', value: { observerId: supplementary, content: 'first' } },
+        data: { id: 'observation:supplementary', value: { observerId: supplementary,
+          content: reactionCycle.profileId === 'responsive/v2' ? { actionType: 'interact' } : 'first', ...observedAction } },
       },
       {
         eventType: 'observation.upsert',
         eventVersion: 1,
-        data: { id: 'observation:private', value: { observerId: privateUse, content: 'second' } },
+        data: { id: 'observation:private', value: { observerId: privateUse,
+          content: reactionCycle.profileId === 'responsive/v2' ? { actionType: 'interact' } : 'second', ...observedAction } },
       },
     ],
     outbox: [],
@@ -185,6 +191,10 @@ const evidenceMutations: readonly {
     } },
   { name: 'evidence naming no action', expected: 'Reaction evidence actionId must be a non-empty, unpadded string',
     mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.actionId = '' } },
+  { name: 'evidence naming another action', expected: 'Reaction evidence actionId diverges from its source Observation',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.actionId = 'action:other' } },
+  { name: 'evidence naming another action identity', expected: 'Reaction evidence action identity diverges from its source Observation',
+    mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.entry = { kind: 'action', actionType: 'speak', actionVersion: 1 } } },
   { name: 'an entry of an unsupported kind', expected: 'Reaction evidence entry kind is unsupported',
     mutate: draft => { draft.candidates[FIRST]!.stimuli[FIRST]!.evidence!.entry = { kind: 'spell' } } },
   { name: 'a definition entry carrying an action field',
@@ -245,7 +255,8 @@ const v1EvidenceMutations: readonly {
 
 function prepareInput(overrides: Partial<PrepareInitialReactionCycleInput> = {}): PrepareInitialReactionCycleInput {
   const address = fixture().address
-  const events = request(address).events.map((draft, eventOrdinal) => ({
+  const draft = overrides.draft ?? reactionDraft()
+  const events = request(address, draft).events.map((draft, eventOrdinal) => ({
     draft,
     eventOrdinal,
     seq: eventOrdinal + 1,
@@ -257,7 +268,7 @@ function prepareInput(overrides: Partial<PrepareInitialReactionCycleInput> = {})
     rootTransactionId: brandId('transaction:prepare', 'TransactionId'),
     finalHeadSeq: 2,
     finalHeadHash: events[1]!.eventHash,
-    draft: reactionDraft(),
+    draft,
     events,
     ...overrides,
   }
@@ -1562,22 +1573,42 @@ describe('WorldStore Reaction Cycle authority', () => {
       expect(() => prepareInitialReactionCycle(prepareInput({ draft: draft as unknown as ReactionCycleDraft })),
         name).toThrow(expected)
     }
+    const wrongEntry = prepareInput({ draft: evidenceV2Draft() })
+    const source = wrongEntry.events[1]!
+    const sourceData = structuredClone(source.draft.data) as WorldJsonObject
+    const sourceValue = sourceData.value as WorldJsonObject
+    const content = sourceValue.content as WorldJsonObject
+    const data = { ...sourceData, value: { ...sourceValue, content: { ...content, actionType: 'speak' } } }
+    expect(() => prepareInitialReactionCycle({ ...wrongEntry, events: [wrongEntry.events[0]!, {
+      ...source, draft: { ...source.draft, data },
+    }] })).toThrow('Reaction evidence definition entry diverges from its source Observation')
+
+    const hiddenEntry = prepareInput({ draft: evidenceV2Draft() })
+    const hiddenSource = hiddenEntry.events[1]!
+    const hiddenData = structuredClone(hiddenSource.draft.data) as WorldJsonObject
+    const hiddenValue = hiddenData.value as WorldJsonObject
+    expect(() => prepareInitialReactionCycle({ ...hiddenEntry, events: [hiddenEntry.events[0]!, {
+      ...hiddenSource,
+      draft: { ...hiddenSource.draft, data: { ...hiddenData, value: {
+        ...hiddenValue, content: { actionType: 'private_interaction', contentVisibility: 'occurrence_only' },
+      } } },
+    }] })).not.toThrow()
   })
 
-  it('rejects a stored Cycle whose evidence was rewritten to a self-consistent lie', async () => {
+  it('rejects a stored Cycle whose action evidence was rewritten to a self-consistent lie', async () => {
     const { path, address } = fixture()
     const store = new WorldStore(path)
     store.createBranch(address)
     await store.commitRound(request(address, evidenceV2Draft()))
     const bundle = store.activeReactionCycle(address)!
     store.close()
-    // The observer inside the evidence is changed to the other character and the entry hash is rebuilt,
-    // so the row is internally consistent and only wrong about which stimulus it belongs to.
+    // The action inside the evidence is changed and the entry hash is rebuilt, so the row is internally
+    // consistent and only wrong about which action its source Observation records.
     const raw = new DatabaseSync(path)
     const row = raw.prepare('SELECT job_id, evidence_json FROM world_reaction_job_stimuli LIMIT 1').get() as
       { readonly job_id: string; readonly evidence_json: string }
     const stored = bundle.stimuli.find(stimulus => stimulus.jobId === row.job_id)!
-    const lied = { ...JSON.parse(row.evidence_json) as Record<string, string>, observerCharacterId: supplementary }
+    const lied = { ...JSON.parse(row.evidence_json) as Record<string, string>, actionId: 'action:other' }
     const changed = { ...stored, evidence: lied as unknown as ReactionEvidenceV1 }
     const { stimulusEntryHash: _discarded, ...withoutHash } = changed
     raw.prepare('UPDATE world_reaction_job_stimuli SET evidence_json = ?, stimulus_entry_hash = ? WHERE job_id = ?')
@@ -1585,7 +1616,7 @@ describe('WorldStore Reaction Cycle authority', () => {
     raw.close()
     const corrupted = new WorldStore(path)
     expect(() => corrupted.readReactionCycle(address, bundle.cycle.cycleId))
-      .toThrow('Reaction evidence observer diverges from its stimulus')
+      .toThrow('Reaction evidence actionId diverges from its source Observation')
     corrupted.close()
   })
 

@@ -301,6 +301,7 @@ function prepareStimuli(
     if (data.id !== source.observationId || value.observerId !== characterId) {
       throw new TypeError('Reaction stimulus identity or observer diverges from its source Observation')
     }
+    assertEvidenceSourceAction(source.evidence, value)
     return {
       address: input.address,
       stimulusOrdinal,
@@ -902,6 +903,7 @@ function readReactionCycle(
       || sourceValue?.observerId !== stimulus.observerCharacterId) {
       throw new Error('Reaction stimulus source binding is divergent')
     }
+    assertEvidenceSourceAction(stimulus.evidence, sourceValue!)
     return stimulus
   })
   for (const job of jobs) {
@@ -1282,6 +1284,7 @@ function prepareContinuationStimuli(
     if (data.id !== source.observationId || value.observerId !== candidate.characterId) {
       throw new TypeError('Reaction stimulus identity or observer diverges from its source Observation')
     }
+    assertEvidenceSourceAction(source.evidence, value)
     return {
       address,
       stimulusOrdinal,
@@ -1309,6 +1312,24 @@ function prepareContinuationStimuli(
       const withoutHash = { jobId, ...value }
       return { ...withoutHash, stimulusEntryHash: hashReactionStimulusEntry(withoutHash) }
     }),
+  }
+}
+
+/** Evidence names the action observed by its source Observation, not merely any well-formed action. */
+function assertEvidenceSourceAction(evidence: ReactionEvidenceV1 | undefined, observation: WorldJsonObject): void {
+  if (evidence !== undefined && evidence.actionId !== observation.actionId) {
+    throw new TypeError('Reaction evidence actionId diverges from its source Observation')
+  }
+  if (evidence === undefined) return
+  const content = objectValue(observation.content as WorldJsonValue, 'Reaction evidence source Observation content')
+  // An occurrence-only Observation deliberately withholds the operation identity. Its actionId still
+  // binds the evidence to the exact occurrence, but the hidden identity cannot be reconstructed here.
+  if (content.actionType === 'private_interaction') return
+  if (evidence.entry.kind === 'action' && evidence.entry.actionType !== content.actionType) {
+    throw new TypeError('Reaction evidence action identity diverges from its source Observation')
+  }
+  if (evidence.entry.kind === 'definition' && content.actionType !== 'interact') {
+    throw new TypeError('Reaction evidence definition entry diverges from its source Observation')
   }
 }
 
