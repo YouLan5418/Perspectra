@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "profile": "standard",
+      "attentionTopics": [
+        "雨",
+        "同行者"
+      ]
+    },
+    {
+      "characterId": "character:companion",
+      "profile": "standard",
+      "attentionTopics": [
+        "雨",
+        "伞"
+      ]
+    }
+  ]
+}

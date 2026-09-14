@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "worldpack-entities/v2",
+  "entities": [
+    {
+      "entityId": "entity:shared-umbrella",
+      "locationId": "location:ridge-shelter",
+      "kind": "umbrella",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:umbrella-take",
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:umbrella-drop",
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:umbrella-give",
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:thermos",
+      "locationId": "location:ridge-shelter",
+      "kind": "thermos",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:thermos-take",
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    }
+  ]
+}

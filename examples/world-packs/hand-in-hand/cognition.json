@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [
+        {
+          "key": "observation:player-rain",
+          "content": "雨没有要停的样子。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 400
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:player-wait-out-storm",
+          "objective": {
+            "kind": "narrative",
+            "value": "等雨小一点再走。"
+          },
+          "priorityPermille": 600,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:player-rain"
+          ]
+        }
+      ]
+    },
+    {
+      "characterId": "character:companion",
+      "observations": [
+        {
+          "key": "observation:companion-rain",
+          "content": "雨打在雨棚上。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 400
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:companion-keep-dry",
+          "objective": {
+            "kind": "narrative",
+            "value": "别让两个人都淋湿。"
+          },
+          "priorityPermille": 600,
+          "targetKeys": [
+            "entity:shared-umbrella"
+          ],
+          "basisKeys": [
+            "observation:companion-rain"
+          ]
+        }
+      ]
+    }
+  ]
+}

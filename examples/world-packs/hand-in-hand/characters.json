@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "旅人",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:ridge-shelter",
+      "portrayal": {
+        "summary": "在雨里走了很久的人。",
+        "speakingStyle": "由玩家决定。"
+      }
+    },
+    {
+      "characterId": "character:companion",
+      "displayName": "同行者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:ridge-shelter",
+      "portrayal": {
+        "summary": "和你一起躲雨的人，话不多。",
+        "speakingStyle": "短句，少解释。"
+      },
+      "interactionBindings": [
+        {
+          "bindingId": "binding:companion-hold",
+          "definition": {
+            "id": "base:hold-hand",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    }
+  ]
+}

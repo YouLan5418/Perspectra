@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    {
+      "locationId": "location:ridge-shelter",
+      "name": "山脊雨棚"
+    },
+    {
+      "locationId": "location:ridge-path",
+      "name": "山脊小路"
+    }
+  ]
+}

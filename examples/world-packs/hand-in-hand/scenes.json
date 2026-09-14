@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "worldpack-scenes/v2",
+  "scenes": [
+    {
+      "sceneId": "scene:ridge-shelter",
+      "lifecycle": "active",
+      "locationId": "location:ridge-shelter",
+      "participantIds": [
+        "character:companion",
+        "character:player"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "worldpack-world/v1",
+  "title": "山脊上的两只手",
+  "description": "两个旅人在山脊下躲雨，一起看着同一场雨。",
+  "timeMode": "TURN_DRIVEN",
+  "roundQueueLimit": 16,
+  "coreProfiles": {
+    "rulebook": {
+      "rulebookId": "builtin:speak-move",
+      "version": 2
+    },
+    "sceneDecision": {
+      "pluginId": "builtin:scene-decision",
+      "version": "2.0.0"
+    },
+    "agentContext": {
+      "pluginId": "builtin:agent-context",
+      "version": "2.0.0"
+    },
+    "presentation": {
+      "profileId": "builtin:deterministic-presentation",
+      "version": "1.0.0"
+    }
+  },
+  "initialFacts": [
+    {
+      "factId": "fact:storm-over-the-ridge",
+      "proposition": {
+        "subject": "location:ridge-shelter",
+        "predicate": "storm_ongoing",
+        "object": true
+      },
+      "initialAudience": [
+        "character:player",
+        "character:companion"
+      ]
+    }
+  ]
+}
