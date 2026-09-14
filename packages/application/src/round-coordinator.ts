@@ -34,6 +34,7 @@ import {
   type SubmitActionsV4,
   type SubmitActionsV5,
   type SubmitActionsV6,
+  type SubmitActionsV7,
   type ActionGroupBinding,
   type ReactionEvidenceV1,
   type ReactionRoleClass,
@@ -103,7 +104,7 @@ export interface RoundParticipant {
   readonly priority: number
   readonly estimatedTokens: number
   readonly timeoutMs: number
-  readonly provider: { propose(context: ProposalContext): Promise<Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6> }
+  readonly provider: { propose(context: ProposalContext): Promise<Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7> }
 }
 
 export interface ReactionParticipantDraftBinding {
@@ -1255,15 +1256,15 @@ export class RoundCoordinator {
       let providerCall = cognitive?.receipt === undefined || this.options.providerCalls === undefined
         ? undefined
         : this.options.providerCalls.prepare(cognitive.receipt)
-      let providerOutput: Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | undefined
+      let providerOutput: Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7 | undefined
       if (providerCall?.state === 'dispatch_started') {
         providerCall = this.options.providerCalls!.markTerminal(providerCall.modelCallId, 'timed_out_ambiguous', {
           reason: 'provider dispatch had no durable terminal result',
         })
       } else if (providerCall?.state === 'response_received') {
-        providerOutput = providerCall.response as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6
+        providerOutput = providerCall.response as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7
       } else if (providerCall?.state === 'validated') {
-        providerOutput = providerCall.proposal as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6
+        providerOutput = providerCall.proposal as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7
       }
       if (providerCall !== undefined && !['prepared', 'response_received', 'validated'].includes(providerCall.state)) {
         let failure = participantFailureForCallState[providerCall.state]!
@@ -1344,7 +1345,7 @@ export class RoundCoordinator {
             maxReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
           }
           const validated = manifestUsesActionGroups(this.#manifest)
-            ? (manifestUsesFrozenInteractions(this.#manifest) ? this.#validator.validateV6(providerOutput, validatorAuthorization)
+            ? (manifestUsesFrozenInteractions(this.#manifest) ? this.#validator.validateV7(providerOutput, validatorAuthorization)
               : manifestUsesInteractions(this.#manifest) ? this.#validator.validateV5(providerOutput, validatorAuthorization) : this.#validator.validateV4(providerOutput, validatorAuthorization))
             : manifestationPolicyFromManifest(this.#manifest).mode === 'enabled'
             ? this.#validator.validateV3(providerOutput, validatorAuthorization)

@@ -308,6 +308,7 @@ export interface ReactionAgentProvider {
     import('./cognition-projection.ts').SubmitActionsV2 | import('./cognition-projection.ts').SubmitActionsV3
     | import('./action-group.ts').SubmitActionsV4 | import('./action-group.ts').SubmitActionsV5
     | import('./action-group.ts').SubmitActionsV6
+    | import('./action-group.ts').SubmitActionsV7
   >
 }
 

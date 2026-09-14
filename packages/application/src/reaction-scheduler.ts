@@ -37,6 +37,7 @@ import {
   type SubmitActionsV4,
   type SubmitActionsV5,
   type SubmitActionsV6,
+  type SubmitActionsV7,
   type ActionGroupBinding,
   type ManifestationProposal,
   type TransactionId,
@@ -492,15 +493,15 @@ export class ReactionScheduler {
       return { ...prepared, outcome: 'runtime_unavailable', proposal: empty }
     }
     let providerCall = prepared.providerCall
-    let output: SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | undefined
+    let output: SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7 | undefined
     if (providerCall.state === 'dispatch_started') {
       providerCall = this.options.providerCalls.markTerminal(providerCall.modelCallId, 'timed_out_ambiguous', {
         reason: 'Reaction Provider dispatch had no durable response',
       })
     } else if (providerCall.state === 'response_received') {
-      output = providerCall.response as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6
+      output = providerCall.response as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7
     } else if (providerCall.state === 'validated') {
-      output = providerCall.proposal as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6
+      output = providerCall.proposal as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7
     }
     if (providerCall.state === 'committed') {
       failWorld({
@@ -548,7 +549,7 @@ export class ReactionScheduler {
         correlationId: `reaction:${prepared.job.cycleId}:${prepared.job.wave}:${prepared.job.jobId}`,
       }
       const validated = manifestUsesActionGroups(this.options.manifest)
-        ? (manifestUsesFrozenInteractions(this.options.manifest) ? this.#validator.validateV6(output, authorization)
+        ? (manifestUsesFrozenInteractions(this.options.manifest) ? this.#validator.validateV7(output, authorization)
           : manifestUsesInteractions(this.options.manifest) ? this.#validator.validateV5(output, authorization) : this.#validator.validateV4(output, authorization))
         : manifestationPolicyFromManifest(this.options.manifest).mode === 'enabled'
         ? this.#validator.validateV3(output, authorization)

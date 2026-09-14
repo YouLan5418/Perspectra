@@ -30,7 +30,7 @@ const application = new WorldApplication({ worldPath, sessionPath, memoryPath,
     { participantId: 'agent:npc', role: 'agent' as const,
       actorId: brandId('character:npc', 'CharacterId'), allowedActionTypes: ['speak', 'move', 'interact'],
       priority: 1, estimatedTokens: 1, timeoutMs: 100,
-      provider: { propose: async () => ({ schemaVersion: 6 as const, decision: 'act' as const, actions: [{
+      provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'act' as const, actions: [{
         actionId: 'action:npc-cup', actorId: brandId('character:npc', 'CharacterId'),
         actionType: 'interact', actionVersion: 2, parameters: {
           targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
@@ -39,7 +39,7 @@ const application = new WorldApplication({ worldPath, sessionPath, memoryPath,
     { participantId: 'agent:bob', role: 'agent' as const,
       actorId: brandId('character:bob', 'CharacterId'), allowedActionTypes: ['speak', 'move', 'interact'],
       priority: 1, estimatedTokens: 1, timeoutMs: 100,
-      provider: { propose: async () => ({ schemaVersion: 6 as const, decision: 'abstain' as const, actions: [] }) } },
+      provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'abstain' as const, actions: [] }) } },
   ] } : {}),
   faultInjector,
 })

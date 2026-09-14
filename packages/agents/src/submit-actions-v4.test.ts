@@ -107,4 +107,24 @@ describe('submit_actions/v6', () => {
       manifestation: { independent: [], onSuccess: [] } }, speak]), authorization))
       .toThrow('submit_actions/v6 interaction manifestation is not supported')
   })
+
+  it('takes a step on a frozen interaction under v7, where the Host records one', () => {
+    const step = { ...interact, manifestation: { independent: ['frown'], onSuccess: ['smile'] } }
+    const payload7 = (actions: unknown[] = [step, speak]) => ({ schemaVersion: 7, decision: 'act', actions })
+    const result = validator.validateV7(payload7(), authorization)
+    expect(result.proposal.actions).toEqual([interact, speak])
+    expect(result.proposal.actionGroup?.version).toBe('bounded-action-group/v2')
+    // The step is the action group's, positionally: the policy that decides whether it is accepted
+    // belongs to the definition the step addresses, and that answer is the world's.
+    expect(result.proposal.actionGroup?.manifestations).toEqual([{ independent: ['frown'], onSuccess: ['smile'] }, null])
+    // v6 keeps refusing the shape it was published with, so the two protocols cannot borrow it.
+    expect(() => validator.validateV6({ ...payload7(), schemaVersion: 6 }, authorization))
+      .toThrow('submit_actions/v6 interaction manifestation is not supported')
+    expect(() => validator.validateV7({ ...payload7(), schemaVersion: 6 }, authorization)).toThrow('must be 7')
+    // Everything v6 refused for other reasons stays refused: the version is the only thing that moved.
+    expect(() => validator.validateV7(payload7([{ ...step, actionVersion: 1 }, speak]), authorization))
+      .toThrow('interact actionVersion must be 2')
+    expect(() => validator.validateV7(payload7([{ ...step, manifestation: { independent: ['slow_walk'], onSuccess: [] } }, speak]),
+      authorization).proposal.actionGroup?.manifestations).toBeDefined()
+  })
 })

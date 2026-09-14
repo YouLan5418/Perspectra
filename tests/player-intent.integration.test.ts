@@ -362,7 +362,7 @@ it('interprets free text into a frozen interaction, with Authority 6 and one com
     reactionParticipants: () => ['character:npc', 'character:bob'].map(actorId => ({
       participantId: `agent:${actorId}`, role: 'agent' as const, actorId: brandId(actorId, 'CharacterId'),
       allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
-      provider: { propose: async () => ({ schemaVersion: 6 as const, decision: 'abstain' as const, actions: [] }) },
+      provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'abstain' as const, actions: [] }) },
     })),
     playerIntent: { profile: intentFixtureProfile, dispatch: async (raw: WorldJsonValue) => {
       calls++

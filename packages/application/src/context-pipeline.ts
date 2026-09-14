@@ -174,24 +174,34 @@ const reactionInteractionTool = createProviderToolSchema('submit_actions/v5', {
 
 // The frozen path addresses a binding and a definition lock rather than a catalog entry, so its
 // interaction step is versioned above 1 and its group declares the matching policy.
-const frozenInteractionTool = createProviderToolSchema('submit_actions/v6', {
-  ...interactionTool.schema as WorldJsonObject, schemaVersion: 'submit_actions/v6',
+//
+// V7 is v6 with the interaction step's cues: the schema states the closed vocabulary, and which of those
+// cues the definition behind an offered option actually accepts is stated per definition in
+// `interactions.performanceAcceptances` - a step outside its own definition's policy is refused as a
+// proposal rather than quietly dropped.
+const frozenInteractionTool = createProviderToolSchema('submit_actions/v7', {
+  ...interactionTool.schema as WorldJsonObject, schemaVersion: 'submit_actions/v7',
   actionGroup: { ...(interactionTool.schema as WorldJsonObject).actionGroup as WorldJsonObject,
     version: 'bounded-action-group/v2',
     manifestation: { optional: true, schemasByAction: {
       speak: createStepManifestationSchema('speak'), move: createStepManifestationSchema('move'),
+      interact: createStepManifestationSchema('interact'),
     } } },
   interact: { parameters: ['targetRef', 'bindingId', 'definitionRef', 'arguments'],
     choices: 'context.affordances.interactions',
+    performanceAcceptances: 'context.affordances.performances',
     execution: 'revalidate_current_bound_prefix',
     give: 'possession_transfer_only_no_recipient_consent_or_reaction' },
 })
-const reactionFrozenInteractionTool = createProviderToolSchema('submit_actions/v6', {
+const reactionFrozenInteractionTool = createProviderToolSchema('submit_actions/v7', {
   ...frozenInteractionTool.schema as WorldJsonObject, maximumReflectionOperations: 0,
 })
 
-function contextAffordance(value: { readonly actionType: string; readonly actionVersion: number; readonly interactions?: readonly WorldJsonObject[] }, decision: SceneDecision): ContextAffordance {
+function contextAffordance(value: { readonly actionType: string; readonly actionVersion: number;
+  readonly interactions?: readonly WorldJsonObject[]
+  readonly performances?: readonly WorldJsonObject[] }, decision: SceneDecision): ContextAffordance {
   return { actionType: value.actionType, actionVersion: value.actionVersion,
+    ...(value.performances === undefined ? {} : { performances: value.performances }),
     ...(value.interactions === undefined ? {} : { interactions: value.interactions.filter(choice => {
       const recipient = (choice.arguments as WorldJsonObject).recipientId
       return recipient === undefined || decision.observerIds.includes(recipient as CharacterId)

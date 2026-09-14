@@ -133,7 +133,7 @@ describe('hard process termination recovery', () => {
       reactionParticipants: () => ['character:npc', 'character:bob'].map(actorId => ({
         participantId: `agent:${actorId}`, role: 'agent' as const, actorId: brandId(actorId, 'CharacterId'),
         allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
-        provider: { propose: async () => ({ schemaVersion: 6 as const, decision: 'abstain' as const, actions: [] }) },
+        provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'abstain' as const, actions: [] }) },
       })),
       playerIntent: { profile: intentFixtureProfile, dispatch: async (raw: WorldJsonValue) => {
         calls++
@@ -311,7 +311,7 @@ describe('hard process termination recovery', () => {
           priority: 1, estimatedTokens: 1, timeoutMs: 100,
           provider: { propose: async () => {
             calls++
-            return { schemaVersion: 6 as const, decision: 'act' as const, actions: [{
+            return { schemaVersion: 7 as const, decision: 'act' as const, actions: [{
               actionId: 'action:npc-cup', actorId: brandId('character:npc', 'CharacterId'),
               actionType: 'interact', actionVersion: 2, parameters: {
                 targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
@@ -321,7 +321,7 @@ describe('hard process termination recovery', () => {
         { participantId: 'agent:bob', role: 'agent' as const,
           actorId: brandId('character:bob', 'CharacterId'), allowedActionTypes: ['speak', 'move', 'interact'],
           priority: 1, estimatedTokens: 1, timeoutMs: 100,
-          provider: { propose: async () => ({ schemaVersion: 6 as const, decision: 'abstain' as const, actions: [] }) } },
+          provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'abstain' as const, actions: [] }) } },
       ] })
     recovered.activate(compiled)
     await recovered.processReactionCycles(compiled.manifest.address)

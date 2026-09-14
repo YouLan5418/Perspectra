@@ -121,7 +121,7 @@ Host 不给同步受信任函数提供抢占沙箱；规则执行预算计结构
 | 世界级记忆策略 | 后续另行版本化，本次不分配编号 | 保持现有 Memory 行为 |
 | 作者 / 编译 Pack | worldpack-source/v5 / worldpack/v5 | v1～v4 解析与 Hash 不变 |
 | 编译交互目录 | interaction-catalog/v3 | 原 v1/v2 不转换 |
-| 交互 Action / 模型 | interact@2 / submit_actions/v6 | interact@1 / submit_actions/v1～v5 |
+| 交互 Action / 模型 | interact@2 / submit_actions/v7（交互步骤可带表现） | interact@1 / submit_actions/v1～v5；v6 保留其原解析（对交互步骤的表现仍拒绝） |
 | 行动组 | bounded-action-group/v2，允许新交互版本及定义锁 | v1 原行为 |
 | Authority | Round Authority schemaVersion 6，显式角色/定义/依据绑定 | v1～v5 原解析 |
 | 玩家提交 / 意图准备 | player-submission/v3；准备记录显式绑定新参数结构和视图 Hash | 已有 player-submission/v2 原恢复 |

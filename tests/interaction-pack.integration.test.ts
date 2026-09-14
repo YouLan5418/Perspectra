@@ -32,7 +32,7 @@ const runtimeOptions = () => ({
 const quietParticipants = () => ['character:companion', 'character:friend'].map(actorId => ({
   participantId: `agent:${actorId}`, role: 'agent' as const, actorId: actorId as never,
   allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
-  provider: { propose: async () => ({ schemaVersion: 6 as const, decision: 'abstain' as const, actions: [] }) },
+  provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'abstain' as const, actions: [] }) },
 }))
 
 /** One player interaction in the frozen request shape the world's own selection defines. */
@@ -122,11 +122,12 @@ describe('an independent pack on the interaction path', () => {
           const request = context as { exactProviderRequest: { tools: { actionGroup: {
             manifestation: { schemasByAction: Record<string, unknown> },
           } } } }
+          // V7 is the version that closed v6's omission, so an interaction step states its cues too.
           expect(Object.keys(request.exactProviderRequest.tools.actionGroup.manifestation.schemasByAction).sort())
-            .toEqual(['move', 'speak'])
+            .toEqual(['interact', 'move', 'speak'])
           // The character reaches for the shared umbrella, naming the binding and the definition lock
           // the world declared rather than a catalog entry.
-          return { schemaVersion: 6 as const, decision: 'act' as const, actions: [{
+          return { schemaVersion: 7 as const, decision: 'act' as const, actions: [{
             actionId: 'action:companion-take', actorId: 'character:companion',
             actionType: 'interact', actionVersion: 2, parameters: {
               targetRef: { kind: 'entity', id: 'entity:shared-umbrella' },
@@ -149,7 +150,7 @@ describe('an independent pack on the interaction path', () => {
       // arrive escaped.
       expect(shown).toContain('binding:umbrella-take')
       expect(shown).toMatch(/actionVersion\\":2/u)
-      expect(shown).toContain('submit_actions/v6')
+      expect(shown).toContain('submit_actions/v7')
       // The umbrella moved, which it could only do through the frozen path resolving the proposal.
       const store = new WorldStore(worldPath)
       const events = store.readEvents(compiled.manifest.address)
@@ -180,6 +181,77 @@ describe('an independent pack on the interaction path', () => {
       await app.close()
       rmSync(root, { recursive: true, force: true })
     }
+  }, 60_000)
+
+  it('lets a model state how it does it, and records the expression as a fact', async () => {
+    // V7 is the protocol that closed v6's omission, so a model-driven interaction step may state cues.
+    // What the model is told is the closed vocabulary plus, per offered definition, what that definition
+    // accepts - the definition owns that answer, and a step outside its policy is refused as a proposal.
+    const compiled = adaptCompiledWorldPack(
+      await compileWorldPackSource(packDirectory, packages) as CompiledWorldPackV5, runtimeOptions())
+    const root = mkdtempSync(join(tmpdir(), 'hand-in-hand-step-'))
+    const worldPath = join(root, 'world.sqlite')
+    let shown = ''
+    let schemas: Record<string, { readonly properties: { readonly independent: { readonly enum: readonly string[] } } }> = {}
+    const app = new WorldApplication({
+      worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'),
+      modelBudgetTokens: 20,
+      // The pack is responsive, so both scripted characters need a binding. They abstain: what this case
+      // asks is what the round's own model-driven step does.
+      reactionParticipants: quietParticipants,
+      participants: () => [{
+        participantId: 'agent:companion', role: 'agent' as const, actorId: 'character:companion' as never,
+        allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
+        provider: { propose: async (context: unknown) => {
+          shown = JSON.stringify(context)
+          schemas = (context as { exactProviderRequest: { tools: { actionGroup: { manifestation: {
+            schemasByAction: typeof schemas } } } } }).exactProviderRequest.tools.actionGroup.manifestation.schemasByAction
+          return { schemaVersion: 7 as const, decision: 'act' as const, actions: [{
+            actionId: 'action:companion-step', actorId: 'character:companion' as never,
+            actionType: 'interact', actionVersion: 2, parameters: {
+              targetRef: { kind: 'entity', id: 'entity:shared-umbrella' },
+              bindingId: 'binding:umbrella-give',
+              definitionRef: { id: 'base:give', version: 1 }, arguments: { recipientId: 'character:friend' },
+            },
+            manifestation: { independent: ['frown'], onSuccess: ['smile'] },
+          }] }
+        } },
+      }],
+    })
+    const submit = (key: string, action: { readonly actionType: string; readonly parameters: WorldJsonObject }) =>
+      app.submit(compiled.manifest.address, {
+        idempotencyKey: key, principalId: 'principal:player', correlationId: `hand-in-hand:${key}`, action,
+      })
+    try {
+      app.activate(compiled)
+      // The umbrella has to be in the companion's hands for the hand-over to be the companion's to make.
+      await submit('take', interact('binding:umbrella-take', { kind: 'entity', id: 'entity:shared-umbrella' }, 'base:take'))
+      await submit('hand-over', interact('binding:umbrella-give', { kind: 'entity', id: 'entity:shared-umbrella' },
+        'base:give', { recipientId: 'character:companion' }))
+      await submit('step', { actionType: 'speak', parameters: { text: '拿着吧。' } })
+    } finally { await app.close() }
+    // The vocabulary an interaction step may state, and the one it may not: a voice or gait cue names an
+    // action of its own, so an interaction is never its step.
+    expect(shown).toContain('submit_actions/v7')
+    const store = new WorldStore(worldPath)
+    const events = store.readEvents(compiled.manifest.address)
+    store.close()
+    const descriptions = (event: { readonly data: unknown }) =>
+      (event.data as { readonly cues: readonly { readonly description: string }[] }).cues.map(cue => cue.description)
+    // The provider states its step on every round, so the earlier refused attempts left their own
+    // expression: an attempt that failed still does what plays whatever the outcome, and only the
+    // hand-over that happened plays the rest.
+    const manifested = events.filter(event => event.eventType === 'character.manifested')
+    const cueLists = manifested.map(descriptions)
+    expect(cueLists.filter(cues => cues.length === 2)).toHaveLength(1)
+    expect(cueLists.every(cues => cues[0] === '微微皱眉')).toBe(true)
+    // Everyone who could see the hand-over was told how it was done, not just that it happened.
+    const observed = events.filter(event => event.eventType === 'observation.upsert')
+      .map(event => (event.data as { readonly value: { readonly observerId: string; readonly content: WorldJsonObject } }).value)
+      .filter(value => value.content.manifestation !== undefined)
+    const done = observed.filter(value =>
+      (value.content.manifestation as { readonly cues: readonly unknown[] }).cues.length === 2)
+    expect(done.map(value => value.observerId).sort()).toEqual(['character:companion', 'character:friend', 'character:player'])
   }, 60_000)
 
   it('records why each observer was weighed, and weighs the affected one first', async () => {
@@ -271,12 +343,12 @@ describe('an independent pack on the interaction path', () => {
           calls++
           const { characterId } = (context as { stimulus: { characterId: string } }).stimulus
           return characterId === 'character:companion'
-            ? { schemaVersion: 6 as const, decision: 'act' as const, actions: [{
+            ? { schemaVersion: 7 as const, decision: 'act' as const, actions: [{
                 actionId: `action:companion-${calls}`, actorId: 'character:companion' as never,
                 actionType: 'speak', actionVersion: 1,
                 parameters: { text: '壶里有热水。', scope: 'direct', addresseeIds: ['character:friend'] },
               }] }
-            : { schemaVersion: 6 as const, decision: 'act' as const, actions: [{
+            : { schemaVersion: 7 as const, decision: 'act' as const, actions: [{
                 actionId: `action:friend-${calls}`, actorId: 'character:friend' as never,
                 actionType: 'speak', actionVersion: 1, parameters: { text: '雨小了。' },
               }] }
@@ -346,7 +418,7 @@ describe('an independent pack on the interaction path', () => {
             calls.push('companion')
             shown = JSON.stringify(context)
             // The wave answers by acting, through the same frozen protocol the root round offered.
-            return { schemaVersion: 6 as const, decision: 'act' as const, actions: [{
+            return { schemaVersion: 7 as const, decision: 'act' as const, actions: [{
               actionId: 'action:companion-warm', actorId: 'character:companion',
               actionType: 'interact', actionVersion: 2, parameters: {
                 targetRef: { kind: 'entity', id: 'entity:thermos' },

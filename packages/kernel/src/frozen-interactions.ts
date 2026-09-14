@@ -16,6 +16,7 @@ import {
   type ActionGroupCue,
   brandId,
   type InteractionRoundId,
+  type InteractionPerformanceAcceptance,
 } from '@harness-world/contracts'
 import { FrozenInteractionWorld, InteractionRegistry } from '@harness-world/interaction-runtime'
 import { currentCharacterRelations, currentSceneStates } from './interactions.ts'
@@ -38,6 +39,16 @@ export interface FrozenActionAffordance {
   readonly actionType: string
   readonly actionVersion: number
   readonly interactions?: readonly WorldJsonObject[]
+  /**
+   * What the definitions behind those options accept as a step, one entry per definition, ordered by
+   * definition identity. Only definitions that accept something appear: an absent entry and an empty one
+   * would mean the same thing to a caller, and the model does not need to be told about either.
+   *
+   * It is here rather than on each option because it is exactly what a definition's locked policy says -
+   * per definition, not per target - and because an option is what a caller turns into request
+   * parameters, where a field that is not part of the request would be a trap.
+   */
+  readonly performances?: readonly InteractionPerformanceAcceptance[]
 }
 
 /** What the Host hands the frozen runtime: every candidate target, and the ones this actor may address. */
@@ -412,6 +423,7 @@ export class FrozenInteractionRulebook {
       {
         actionType: 'interact', actionVersion: 2,
         interactions: view.options.map((option: InteractionViewOption) => ({ ...option })),
+        performances: view.performances.filter(entry => entry.accepted.length > 0),
       },
     ]
   }

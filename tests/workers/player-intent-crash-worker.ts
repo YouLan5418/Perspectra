@@ -24,7 +24,7 @@ const app = new WorldApplication({ worldPath, sessionPath, memoryPath, runtimeOw
   ...(frozen ? { reactionParticipants: () => ['character:npc', 'character:bob'].map(actorId => ({
     participantId: `agent:${actorId}`, role: 'agent' as const, actorId: brandId(actorId, 'CharacterId'),
     allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 100,
-    provider: { propose: async () => ({ schemaVersion: 6 as const, decision: 'abstain' as const, actions: [] }) },
+    provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'abstain' as const, actions: [] }) },
   })) } : {}),
   playerIntent: { profile: intentFixtureProfile, dispatch }, faultInjector: new IpcPauseFaultInjector(point as FaultPoint) })
 app.activate(compiled)

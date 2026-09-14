@@ -82,3 +82,16 @@ export interface SubmitActionsV6 extends WorldJsonObject {
   readonly actions: readonly WorldJsonObject[]
   readonly reflection?: import('./cognition-projection.ts').ReflectionBatch
 }
+
+/**
+ * V7 is V6 with the last omission gone: a frozen interaction step may carry a step manifestation, now
+ * that the Host records an accepted one as an observation fact. It is a new version rather than a
+ * widening of V6, because a world that locked V6 has a protocol that refuses the shape, and refusing
+ * something is a semantic a later version may not quietly take back.
+ */
+export interface SubmitActionsV7 extends WorldJsonObject {
+  readonly schemaVersion: 7
+  readonly decision: 'act' | 'abstain'
+  readonly actions: readonly WorldJsonObject[]
+  readonly reflection?: import('./cognition-projection.ts').ReflectionBatch
+}

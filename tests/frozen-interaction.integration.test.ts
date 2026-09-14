@@ -165,6 +165,26 @@ describe('the frozen interaction path', () => {
     expect(unbound.observationScope).toEqual({ scope: 'self' })
   })
 
+  it('tells the model which cues the offered definition accepts, and only when it accepts any', () => {
+    const path = rulebook()
+    const take = path.resolve(context('action:view-take'),
+      { actionType: 'interact', parameters: { targetRef: { kind: 'entity', id: 'entity:cup' },
+        bindingId: 'binding:entity:cup:base:take', definitionRef: { id: 'base:take', version: 1 }, arguments: {} } })
+    // Nothing is in anyone's hands yet, so the only option is a take, and a take sanctions no step.
+    const before = path.affordances(context('action:view-before'))
+      .find(affordance => affordance.actionType === 'interact')!
+    expect(before.interactions!.map(option => (option as { readonly bindingId: string }).bindingId))
+      .toContain('binding:entity:cup:base:take')
+    expect(before.performances).toEqual([])
+    // With the cup in hand the hand-over is offered, and its definition is the one that takes cues.
+    const after = path.affordances(context('action:view-after', [...origin, ...take.events]))
+      .find(affordance => affordance.actionType === 'interact')!
+    expect(after.performances).toHaveLength(1)
+    expect(after.performances![0]!.definitionRef).toEqual({ id: 'base:give', version: 1 })
+    expect(after.performances![0]!.accepted.map(entry => `${entry.cue}:${entry.placement}`))
+      .toEqual(['smile:both', 'frown:both', 'nod:both', 'shake_head:both', 'avert_gaze:both'])
+  })
+
   it('answers an unroutable proposal with a rejection instead of throwing the round', () => {
     const path = rulebook()
     const reject = (parameters: unknown): string => {

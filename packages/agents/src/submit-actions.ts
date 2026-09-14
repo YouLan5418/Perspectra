@@ -191,7 +191,16 @@ export class SubmitActionsValidator {
     return this.#validateGroup(payload, authorization, 6)
   }
 
-  #validateGroup(payload: unknown, authorization: SubmitActionsV2Authorization, version: 4 | 5 | 6): { readonly proposal: ActionGroupProposal; readonly reflectionOperations?: readonly ReflectionOperation[] } {
+  /**
+   * V7 is v6 with its one omission closed: a frozen interaction step may carry a step manifestation, now
+   * that the Host records an accepted one as an observation fact. V6 keeps refusing the shape, because a
+   * protocol version that refused something is not quietly widened by a later one.
+   */
+  validateV7(payload: unknown, authorization: SubmitActionsV2Authorization): { readonly proposal: ActionGroupProposal; readonly reflectionOperations?: readonly ReflectionOperation[] } {
+    return this.#validateGroup(payload, authorization, 7)
+  }
+
+  #validateGroup(payload: unknown, authorization: SubmitActionsV2Authorization, version: 4 | 5 | 6 | 7): { readonly proposal: ActionGroupProposal; readonly reflectionOperations?: readonly ReflectionOperation[] } {
     try {
       canonicalizeWorldJson(payload as WorldJsonValue)
       const root = record(payload, 'submit_actions')
@@ -244,15 +253,15 @@ export class SubmitActionsValidator {
       })
       // The frozen protocol is the only one whose world operation is versioned above 1.
       const parsed = actions(rawActions, authorization,
-        actionType => version === 6 && actionType === 'interact' ? 2 : 1)
+        actionType => version >= 6 && actionType === 'interact' ? 2 : 1)
       if ((root.decision === 'act') !== (parsed.length > 0)) throw new TypeError('inconsistent decision')
       if (parsed.some(action => !['speak', 'move', version === 4 ? 'take' : 'interact'].includes(action.actionType))) throw new TypeError('unsupported group action')
       if (parsed.length === 2 && parsed.filter(action => action.actionType === 'speak').length !== 1) throw new TypeError('group requires exactly one speech and one world operation')
       const reflection = this.#validateV2({ schemaVersion: 2, decision: root.decision, actions: rawActions,
         ...(root.reflection === undefined ? {} : { reflection: root.reflection }) }, authorization,
-      actionType => version === 6 && actionType === 'interact' ? 2 : 1)
+      actionType => version >= 6 && actionType === 'interact' ? 2 : 1)
       return { proposal: { participantId: authorization.participantId, actions: parsed,
-        actionGroup: { version: version === 6 ? 'bounded-action-group/v2' : 'bounded-action-group/v1', manifestations } },
+        actionGroup: { version: version >= 6 ? 'bounded-action-group/v2' : 'bounded-action-group/v1', manifestations } },
         ...(reflection.reflectionOperations === undefined ? {} : { reflectionOperations: reflection.reflectionOperations }) }
     } catch (error: unknown) {
       invalid(error, authorization)
