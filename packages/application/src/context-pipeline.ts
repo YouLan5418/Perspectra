@@ -177,7 +177,10 @@ const reactionInteractionTool = createProviderToolSchema('submit_actions/v5', {
 const frozenInteractionTool = createProviderToolSchema('submit_actions/v6', {
   ...interactionTool.schema as WorldJsonObject, schemaVersion: 'submit_actions/v6',
   actionGroup: { ...(interactionTool.schema as WorldJsonObject).actionGroup as WorldJsonObject,
-    version: 'bounded-action-group/v2' },
+    version: 'bounded-action-group/v2',
+    manifestation: { optional: true, schemasByAction: {
+      speak: createStepManifestationSchema('speak'), move: createStepManifestationSchema('move'),
+    } } },
   interact: { parameters: ['targetRef', 'bindingId', 'definitionRef', 'arguments'],
     choices: 'context.affordances.interactions',
     execution: 'revalidate_current_bound_prefix',

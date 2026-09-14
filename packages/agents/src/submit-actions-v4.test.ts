@@ -81,17 +81,30 @@ describe('submit_actions/v6', () => {
     expect(validator.validateV6({ schemaVersion: 6, decision: 'abstain', actions: [] }, authorization).proposal.actions).toEqual([])
   })
 
-  it('refuses a version above its own, the take verb, and the neighbouring schema version', () => {
+  it('requires each frozen action at its exact version and refuses the neighbouring schema version', () => {
     expect(() => validator.validateV6(payload6([{ ...interact, actionVersion: 3 }, speak]), authorization))
-      .toThrow('actionVersion must be a safe integer from 1 through 2')
+      .toThrow('interact actionVersion must be 2')
+    expect(() => validator.validateV6(payload6([{ ...interact, actionVersion: 1 }, speak]), authorization))
+      .toThrow('interact actionVersion must be 2')
+    expect(() => validator.validateV6(payload6([{ ...interact, actionType: 'move', actionVersion: 2 }, speak]), authorization))
+      .toThrow('move actionVersion must be 1')
     // `take` is authorized here on purpose, so the refusal comes from the protocol rather than from
     // the participant's own allowance.
-    expect(() => validator.validateV6(payload6([{ ...interact, actionType: 'take' }, speak]),
+    expect(() => validator.validateV6(payload6([{ ...interact, actionType: 'take', actionVersion: 1 }, speak]),
       { ...authorization, allowedActionTypes: ['speak', 'move', 'interact', 'take'] }))
       .toThrow('unsupported group action')
     expect(() => validator.validateV6({ ...payload6(), schemaVersion: 5 }, authorization)).toThrow('must be 6')
     // V5 still refuses version 2, so the two protocols cannot borrow each other's steps.
     expect(() => validator.validateV5({ ...payload6(), schemaVersion: 5 }, authorization))
-      .toThrow('actionVersion must be a safe integer from 1 through 1')
+      .toThrow('interact actionVersion must be 1')
+  })
+
+  it('refuses legacy manifestation on a frozen interaction step', () => {
+    expect(() => validator.validateV6(payload6([{ ...interact,
+      manifestation: { independent: ['smile'], onSuccess: [] } }, speak]), authorization))
+      .toThrow('submit_actions/v6 interaction manifestation is not supported')
+    expect(() => validator.validateV6(payload6([{ ...interact,
+      manifestation: { independent: [], onSuccess: [] } }, speak]), authorization))
+      .toThrow('submit_actions/v6 interaction manifestation is not supported')
   })
 })

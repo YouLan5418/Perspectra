@@ -109,6 +109,11 @@ describe('an independent pack on the interaction path', () => {
         provider: { propose: async (context: unknown) => {
           proposals++
           shown = JSON.stringify(context)
+          const request = context as { exactProviderRequest: { tools: { actionGroup: {
+            manifestation: { schemasByAction: Record<string, unknown> },
+          } } } }
+          expect(Object.keys(request.exactProviderRequest.tools.actionGroup.manifestation.schemasByAction).sort())
+            .toEqual(['move', 'speak'])
           // The character reaches for the shared umbrella, naming the binding and the definition lock
           // the world declared rather than a catalog entry.
           return { schemaVersion: 6 as const, decision: 'act' as const, actions: [{
