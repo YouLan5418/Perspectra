@@ -345,6 +345,46 @@ it('resumes a failed in-process FIFO predecessor before its queued fallback', as
   } finally { await app.close(); rmSync(root, { recursive: true, force: true }) }
 })
 
+it('takes an explicit command on a v10 world at the frozen version', async () => {
+  // The explicit-command path states the action in the player's own text, so the version is not in the
+  // text at all: the Host reads it from the affordance the command exercises. A v10 world's affordance is
+  // `interact@2`, so the command has to become that - and the world has to accept it.
+  const root = mkdtempSync(join(tmpdir(), 'player-intent-explicit-'))
+  const world = frozenIntentWorld('responsive/v2')
+  const path = join(root, 'world.sqlite')
+  const command = `/act interact ${JSON.stringify({ targetRef: { kind: 'entity', id: 'entity:cup' },
+    bindingId: 'binding:entity:cup:base:take', definitionRef: { id: 'base:take', version: 1 }, arguments: {} })}`
+  let interpreted = 0
+  const app = new WorldApplication({ worldPath: path, sessionPath: join(root, 'session.sqlite'),
+    memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
+    reactionParticipants: () => ['character:npc', 'character:bob'].map(actorId => ({
+      participantId: `agent:${actorId}`, role: 'agent' as const, actorId: brandId(actorId, 'CharacterId'),
+      allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
+      provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'abstain' as const, actions: [] }) },
+    })),
+    playerIntent: { profile: intentFixtureProfile, dispatch: async () => {
+      interpreted++
+      return intentFixtureResponse
+    } },
+  })
+  try {
+    app.activate(world)
+    const result = await app.submitText(world.manifest.address,
+      { text: command, principalId: 'principal:player', idempotencyKey: 'explicit-frozen', correlationId: 'explicit-frozen' })
+    expect(result.status).toBe('submitted')
+    // An explicit command is not an interpretation: the provider is never asked.
+    expect(interpreted).toBe(0)
+  } finally { await app.close() }
+  const store = new WorldStore(path)
+  try {
+    const events = store.readEvents(world.manifest.address)
+    const resolved = events.find(event => event.eventType === 'action.resolved')!
+    expect(resolved.data).toMatchObject({ actionType: 'interact', accepted: true, sourceRole: 'player' })
+    expect(store.readRoundAuthority(world.manifest.address, resolved.transactionId)!.authority.schemaVersion).toBe(6)
+  } finally { store.close() }
+  rmSync(root, { recursive: true, force: true })
+})
+
 it('interprets free text into a frozen interaction, with Authority 6 and one commit', async () => {
   // The whole interpreted path on a v10 world: the provider is offered the world's own options at the
   // version the world adjudicates them, its choice becomes an interact@2 request, and the world resolves

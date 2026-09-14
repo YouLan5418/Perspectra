@@ -9,6 +9,7 @@ import { brandId } from '@harness-world/contracts'
 import { openContextDatabase } from '@harness-world/agents'
 import { LocalMemoryStore } from '@harness-world/memory'
 import { SessionDeliveryAdapter, WorldStore } from '@harness-world/store-sqlite'
+import { frozenInteractionWorld } from './fixtures/frozen-interaction-world.ts'
 
 const directories: string[] = []
 const root = process.cwd()
@@ -84,6 +85,23 @@ describe('process entrypoints', () => {
     const host = await run('packages/operations/process/headless-entry.ts', [worldPath, sessionPath])
     expect(host).toMatchObject({ code: 0, stdout: '', stderr: '' })
   })
+
+  it('serves a v10 world through the local entry', async () => {
+    // The entry opens whatever world is stored, and a v10 world stores its frozen selection with it. The
+    // way to know the entry still speaks to it is to ask the entry about a world this Host activated.
+    const directory = mkdtempSync(join(tmpdir(), 'hcw-process-v10-'))
+    directories.push(directory)
+    const worldPath = join(directory, 'world.sqlite')
+    const compiled = frozenInteractionWorld()
+    const app = new WorldApplication({ worldPath, sessionPath: join(directory, 'session.sqlite'),
+      memoryPath: join(directory, 'memory.sqlite') })
+    try {
+      app.activate(compiled)
+    } finally { await app.close() }
+    const health = await run('packages/operations/process/cli-entry.ts', [worldPath, 'health'])
+    expect(health).toMatchObject({ code: 0, stderr: '' })
+    expect(JSON.parse(health.stdout)).toMatchObject({ jsonrpc: '2.0', result: { status: 'ready' } })
+  }, 60_000)
 
   it('creates, validates, and restores an offline deployment through worlddeploy', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'hcw-worlddeploy-entry-'))

@@ -259,6 +259,49 @@ describe('the frozen limits, met and exceeded', () => {
     expect(() => resolveFold(4)).toThrow(/total event budget/u)
   })
 
+  it('takes a world fold plan of 256 steps and refuses the step that would pass it', () => {
+    // The world's own plan is the union of every enabled definition's handlers, so crossing 256 needs more
+    // than one package: a package holds 64 handlers, and a definition may name 16 of them. Four packages of
+    // 64 is the bound exactly, and a fifth handler is one step past it.
+    const packageOf = (index: number) => {
+      // Component identities are world-wide, so each package suffixes its own pieces: two packages that
+      // both registered `capacity:accept` would be a duplicate registration, not a bigger plan.
+      const own = (name: string) => `capacity:p${index}-${name}`
+      const rule: InteractionRuleImplementation = { lock: impl(own('accept')), check: () => null }
+      const effect: InteractionEffectImplementation = { ...transfer, lock: impl(own('effect')) }
+      const ids = Array.from({ length: 64 }, (_, step) => own(`h${step}`))
+      const lifecycle: InteractionLifecycleHandlerImplementation[] = ids.map(id =>
+        ({ lock: impl(id), phase: 'observation', consumes: [], eventTypes: [ref(`capacity.${id}`)], build: () => [] }))
+      const definitions = Array.from({ length: 4 }, (_, chunk) => definition(own(`d${chunk}`), {
+        lifecycleRefs: ids.slice(chunk * 16, chunk * 16 + 16).map(ref),
+        authorityPolicyRef: ref(own('accept')), effectBuilderRef: ref(own('effect')),
+        effectCapabilityRefs: [ref(own('effect'))], preconditions: [ref(own('accept'))],
+        performancePolicyRef: ref(own('no-performance')), reactionEvidencePolicyRef: ref(own('no-direct')),
+        observationPolicyRef: ref(own('public-outcome')),
+      }))
+      const contents = { rules: [rule], effects: [effect], resolvers: [], lifecycle,
+        performances: [{ lock: impl(own('no-performance')), policy: noPerformance.policy }],
+        reactionEvidence: [{ lock: impl(own('no-direct')), policy: noDirect.policy }],
+        observation: [{ lock: impl(own('public-outcome')), policy: publicOutcome.policy }], definitions }
+      const lock: InteractionImplementationLock = { ref: ref(`package:capacity-plan-${index}`),
+        dependencies: [], implementationHash: interactionPackageHash(contents) }
+      return { lock, ...contents, definitions }
+    }
+    const worldOf = (packages: number) => {
+      const built = Array.from({ length: packages }, (_, index) => packageOf(index))
+      const registry = new InteractionRegistry()
+      for (const pkg of built) registry.install(pkg)
+      const definitions = built.flatMap(pkg => pkg.definitions)
+      return registry.freeze({ address, packages: built.map(pkg => pkg.lock),
+        definitions: definitions.map(def => ({ ref: { id: def.spec.id, version: def.spec.version },
+          definitionHash: hashWorldJson('interaction-definition/v1', def.spec), implementationHash: def.implementationHash })),
+        bindings: definitions.map(def => ({ bindingId: `binding:${def.spec.id}`,
+          targetRef: { kind: 'entity' as const, id: 'entity:cup' }, definitionRef: { id: def.spec.id, version: def.spec.version }, config: {} })) })
+    }
+    expect(worldOf(4).fold(host('action:capacity-plan'), [])).toEqual([])
+    expect(() => worldOf(5).fold(host('action:capacity-plan'), [])).toThrow(/lifecycle fold exceeds the budget/u)
+  })
+
   it('builds 16 effect events and refuses 17 under the same declaration', () => {
     const sixteen: InteractionEffectImplementation = { ...transfer, build: () =>
       Array.from({ length: 16 }, () => ({ eventType: 'entity.transferred', eventVersion: 1, data: {} })) }

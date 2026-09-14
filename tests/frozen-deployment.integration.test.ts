@@ -6,6 +6,7 @@ import { WorldApplication } from '@harness-world/application'
 import { brandId } from '@harness-world/contracts'
 import { currentCharacterRelations } from '@harness-world/kernel'
 import {
+  BranchAdministration, ProjectionRebuilder, SnapshotStore,
   WorldArchiveService, WorldLogicalTransferService, WorldStore,
 } from '@harness-world/store-sqlite'
 import { frozenInteractionWorld } from './fixtures/frozen-interaction-world.ts'
@@ -101,6 +102,70 @@ describe('a v10 world outside its own round', () => {
         .toEqual([{ relationId: currentCharacterRelations(events2)[0]!.relationId,
           endedByCharacterId: 'character:player', reason: 'participant_moved' }])
       expect(currentCharacterRelations(events2).filter(relation => relation.active)).toEqual([])
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  }, 60_000)
+
+  it('rebuilds a projection and snapshots a v10 world without losing its frozen facts', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'frozen-snapshot-'))
+    const worldPath = join(root, 'world.sqlite')
+    try {
+      const seed = app(worldPath, root)
+      try {
+        seed.activate(compiled)
+        await submit(seed, 'seed-hold')
+      } finally { await seed.close() }
+      const store = new WorldStore(worldPath)
+      const head = store.head(address)
+      const projection = new ProjectionRebuilder(store).rebuildAt(address, head.headSeq)
+      store.close()
+      // The projection is derived from the log, so what the frozen round produced is in it - a projection
+      // that skipped those events would still produce a hash, and an empty world.
+      const observations = (projection as { readonly observations: readonly unknown[] }).observations
+      expect(observations.length).toBeGreaterThan(0)
+      expect(JSON.stringify(projection)).toContain('character:player')
+      const snapshots = new SnapshotStore(join(root, 'snapshots.sqlite'))
+      try {
+        const snapshot = snapshots.create(address, head.headSeq, { projection }, 'frozen:snapshot')
+        expect(snapshot.bundle.bundleHash).toMatch(/^sha256:/u)
+        // The same sequence rebuilds to the same projection: a snapshot of a v10 world is reproducible
+        // rather than merely written down.
+        const again = new WorldStore(worldPath)
+        try {
+          expect(new ProjectionRebuilder(again).rebuildAt(address, head.headSeq)).toEqual(projection)
+        } finally { again.close() }
+      } finally { snapshots.close() }
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  }, 60_000)
+
+  it('refuses to archive a v10 branch until its critical delivery is drained, then archives it', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'frozen-archive-'))
+    const worldPath = join(root, 'world.sqlite')
+    try {
+      let before: readonly string[] = []
+      const seed = app(worldPath, root)
+      try {
+        seed.activate(compiled)
+        await submit(seed, 'seed-hold')
+        const read = new WorldStore(worldPath)
+        try { before = read.readEvents(address).map(event => event.eventHash) } finally { read.close() }
+        // The player's own observation is a critical delivery. The store's archive refuses while one is
+        // pending - that guard is the same for a v10 world as for any other - and the Host's own archive is
+        // the step that drains first and then closes the branch.
+        const admin = new BranchAdministration(worldPath)
+        try {
+          admin.setAdmission(address, 'draining', 'archive window', 'frozen:archive-early')
+          expect(() => admin.archive(address, 'world complete', 'frozen:archive-blocked'))
+            .toThrow(/critical delivery/u)
+        } finally { admin.close() }
+        await seed.archive(address, 'world complete', 'frozen:archive')
+      } finally { await seed.close() }
+      const archived = new WorldStore(worldPath)
+      try {
+        expect(() => archived.assertAdmissionOpen(address, 'frozen:after-archive')).toThrow()
+        expect(archived.readEvents(address).map(event => event.eventHash)).toEqual(before)
+        const resolved = archived.readEvents(address).find(event => event.eventType === 'action.resolved')!
+        expect(archived.readRoundAuthority(address, resolved.transactionId)!.authority.schemaVersion).toBe(6)
+      } finally { archived.close() }
     } finally { rmSync(root, { recursive: true, force: true }) }
   }, 60_000)
 
