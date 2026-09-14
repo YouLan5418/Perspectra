@@ -64,3 +64,34 @@ it('gates object interactions to v5 and retains the one-world-operation bound', 
   expect(() => validator.validateV5({ ...v5, actions: [interact, { ...move, actionId: 'other' }] }, authorization)).toThrow('exactly one speech')
   expect(() => validator.validateV5({ ...v5, schemaVersion: 4 }, authorization)).toThrow('must be 5')
 })
+
+describe('submit_actions/v6', () => {
+  // The frozen protocol: the interaction step names a binding and a definition lock, which is why its
+  // action version is above one and why the group it produces declares the v2 policy.
+  const authorization = { ...auth, allowedActionTypes: ['speak', 'move', 'interact'] }
+  const interact = { actionId: 'i', actorId, actionType: 'interact', actionVersion: 2,
+    parameters: { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:cup-take',
+      definitionRef: { id: 'base:take', version: 1 }, arguments: {} } }
+  const payload6 = (actions: unknown[] = [interact, speak]) => ({ schemaVersion: 6, decision: 'act', actions })
+
+  it('accepts the frozen step and declares the policy it was validated under', () => {
+    const result = validator.validateV6(payload6(), authorization)
+    expect(result.proposal.actions).toEqual([interact, speak])
+    expect(result.proposal.actionGroup?.version).toBe('bounded-action-group/v2')
+    expect(validator.validateV6({ schemaVersion: 6, decision: 'abstain', actions: [] }, authorization).proposal.actions).toEqual([])
+  })
+
+  it('refuses a version above its own, the take verb, and the neighbouring schema version', () => {
+    expect(() => validator.validateV6(payload6([{ ...interact, actionVersion: 3 }, speak]), authorization))
+      .toThrow('actionVersion must be a safe integer from 1 through 2')
+    // `take` is authorized here on purpose, so the refusal comes from the protocol rather than from
+    // the participant's own allowance.
+    expect(() => validator.validateV6(payload6([{ ...interact, actionType: 'take' }, speak]),
+      { ...authorization, allowedActionTypes: ['speak', 'move', 'interact', 'take'] }))
+      .toThrow('unsupported group action')
+    expect(() => validator.validateV6({ ...payload6(), schemaVersion: 5 }, authorization)).toThrow('must be 6')
+    // V5 still refuses version 2, so the two protocols cannot borrow each other's steps.
+    expect(() => validator.validateV5({ ...payload6(), schemaVersion: 5 }, authorization))
+      .toThrow('actionVersion must be a safe integer from 1 through 1')
+  })
+})

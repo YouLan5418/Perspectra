@@ -1,5 +1,6 @@
 import { cp, mkdtemp, rm } from 'node:fs/promises'
 import { mkdtempSync, rmSync } from 'node:fs'
+import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -88,10 +89,67 @@ describe('an independent pack on the interaction path', () => {
     } finally { rmSync(root, { recursive: true, force: true }) }
   }, 60_000)
 
-  it('cannot yet open a Reaction Cycle on a v10 world, which is a known gap', async () => {
-    // Pinned deliberately: a cycle declares which action versions it may carry, and that declaration
-    // still speaks the v9 vocabulary, so a responsive v10 world refuses to open one. Whoever closes
-    // this gap will have to change this expectation on purpose.
+  it('lets a model-driven character act through the frozen protocol', async () => {
+    // The whole chain, in one case: the world's own selection is offered to a model as interact@2 with
+    // the binding it must name, the tool contract is v6, the answer is validated against it, and the
+    // frozen world turns the accepted proposal into a transfer.
+    const pack = await compileWorldPackSource(packDirectory, packages) as CompiledWorldPackV5
+    const compiled = adaptCompiledWorldPack(pack, runtimeOptions())
+    const root = mkdtempSync(join(tmpdir(), 'hand-in-hand-agent-'))
+    const worldPath = join(root, 'world.sqlite')
+    let shown = ''
+    let proposals = 0
+    const app = new WorldApplication({
+      worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'),
+      modelBudgetTokens: 20,
+      participants: () => [{
+        participantId: 'agent:companion', role: 'agent' as const, actorId: 'character:companion' as never,
+        allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
+        provider: { propose: async (context: unknown) => {
+          proposals++
+          shown = JSON.stringify(context)
+          // The character reaches for the shared umbrella, naming the binding and the definition lock
+          // the world declared rather than a catalog entry.
+          return { schemaVersion: 6 as const, decision: 'act' as const, actions: [{
+            actionId: 'action:companion-take', actorId: 'character:companion',
+            actionType: 'interact', actionVersion: 2, parameters: {
+              targetRef: { kind: 'entity', id: 'entity:shared-umbrella' },
+              bindingId: 'binding:umbrella-take',
+              definitionRef: { id: 'base:take', version: 1 }, arguments: {},
+            },
+          }] }
+        } },
+      }],
+    })
+    try {
+      app.activate(compiled)
+      await app.submit(compiled.manifest.address, {
+        idempotencyKey: 'agent-take', principalId: 'principal:player', correlationId: 'hand-in-hand:agent',
+        action: { actionType: 'speak', parameters: { text: '伞给你。' } },
+      })
+      expect(proposals).toBeGreaterThan(0)
+      // What the model was shown: the frozen option at version 2, carrying the binding it must name.
+      // The affordance segment is embedded as a JSON string inside the provider request, so its quotes
+      // arrive escaped.
+      expect(shown).toContain('binding:umbrella-take')
+      expect(shown).toMatch(/actionVersion\\":2/u)
+      expect(shown).toContain('submit_actions/v6')
+      // The umbrella moved, which it could only do through the frozen path resolving the proposal.
+      const store = new WorldStore(worldPath)
+      const events = store.readEvents(compiled.manifest.address)
+      store.close()
+      expect(events.filter(event => event.eventType === 'entity.transferred'
+        && (event.data as { characterId: string }).characterId === 'character:companion')).toHaveLength(1)
+    } finally {
+      await app.close()
+      rmSync(root, { recursive: true, force: true })
+    }
+  }, 60_000)
+
+  it('opens a Reaction Cycle on a v10 world at the frozen action version', async () => {
+    // A Cycle records which world operation it may carry, at the version its Manifest addresses. The
+    // frozen path addresses a binding and a definition lock, so a v10 Cycle declares interact@2 rather
+    // than borrowing the v9 label - and until that declaration existed, no v10 Cycle could open at all.
     const scratch = await mkdtemp(join(tmpdir(), 'hand-in-hand-responsive-'))
     const root = mkdtempSync(join(tmpdir(), 'hand-in-hand-reaction-'))
     try {
@@ -102,21 +160,41 @@ describe('an independent pack on the interaction path', () => {
       const compiled = adaptCompiledWorldPack(
         await compileWorldPackSource(scratch, packages) as CompiledWorldPackV5, runtimeOptions())
       expect(compiled.manifest.schemaVersion).toBe(10)
+      const calls: string[] = []
+      let shown = ''
       const app = new WorldApplication({
         worldPath: join(root, 'world.sqlite'), sessionPath: join(root, 'session.sqlite'),
         memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
         reactionParticipants: () => [{
           participantId: 'agent:companion', role: 'agent', actorId: 'character:companion' as never,
-          allowedActionTypes: ['speak', 'move'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
-          provider: { propose: async () => ({ schemaVersion: 5, decision: 'abstain', actions: [] }) },
+          allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
+          provider: { propose: async (context: unknown) => { calls.push('companion'); shown = JSON.stringify(context)
+            return { schemaVersion: 6, decision: 'abstain', actions: [] } } },
         }],
       })
       try {
         app.activate(compiled)
-        await expect(app.submit(compiled.manifest.address, {
-          idempotencyKey: 'reaction-gap', principalId: 'principal:player', correlationId: 'hand-in-hand:reaction-gap',
+        await app.submit(compiled.manifest.address, {
+          idempotencyKey: 'reaction', principalId: 'principal:player', correlationId: 'hand-in-hand:reaction',
           action: { actionType: 'speak', parameters: { text: '雨小了。' } },
-        })).rejects.toThrow(/interaction capability does not match Manifest/u)
+        })
+        expect(await app.listReactionCycles(compiled.manifest.address)).toHaveLength(1)
+        // The Root Round opens the Cycle; the wave itself is driven the way every other reaction
+        // consumer drives it, one durable quantum at a time.
+        await app.processReactionCycles(compiled.manifest.address)
+        expect(calls.length).toBeGreaterThan(0)
+        // The wave offers the same frozen options the root round does, at the same version. A reaction
+        // context that dropped them would leave a character unable to act on what it just witnessed.
+        expect(shown).toContain('binding:umbrella-take')
+        expect(shown).toMatch(/actionVersion\\":2/u)
+        // Read the durable declaration: a Cycle records the world operation it may carry, and for this
+        // Manifest that is the frozen one at version 2.
+        const cycles = new DatabaseSync(join(root, 'world.sqlite'), { readOnly: true })
+        try {
+          const row = cycles.prepare('SELECT allowed_action_types_json FROM world_reaction_cycles').get() as
+            { readonly allowed_action_types_json: string }
+          expect(JSON.parse(row.allowed_action_types_json)).toEqual(['speak@1', 'move@1', 'interact@2'])
+        } finally { cycles.close() }
       } finally { await app.close() }
     } finally {
       rmSync(root, { recursive: true, force: true })

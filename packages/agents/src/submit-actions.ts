@@ -133,7 +133,12 @@ export function parseManifestationProposal(value: unknown): ManifestationProposa
   }
 }
 
-function actions(value: unknown, authorization: SubmitActionsAuthorization): ActionRequest[] {
+/**
+ * `maximumActionVersion` is the highest `name@version` this protocol may carry. A group whose
+ * world-operation addressing changed - the frozen path names a binding and a definition lock rather
+ * than a catalog entry - declares the next version, and the validator refuses anything above it.
+ */
+function actions(value: unknown, authorization: SubmitActionsAuthorization, maximumActionVersion = 1): ActionRequest[] {
   if (!Array.isArray(value)) throw new TypeError('submit_actions.actions must be an array')
   if (!Number.isSafeInteger(authorization.maxActions) || authorization.maxActions < 0) throw new TypeError('maxActions must be a non-negative safe integer')
   if (value.length > authorization.maxActions) throw new TypeError('submit_actions exceeds maxActions')
@@ -145,9 +150,12 @@ function actions(value: unknown, authorization: SubmitActionsAuthorization): Act
     const actionType = text(action.actionType, 'actionType')
     if (actorId !== authorization.actorId) throw new TypeError('action actorId is not authorized')
     if (!authorization.allowedActionTypes.includes(actionType)) throw new TypeError('action type is not authorized')
-    if (action.actionVersion !== 1) throw new TypeError('actionVersion must be 1')
+    const actionVersion = action.actionVersion
+    if (!Number.isSafeInteger(actionVersion) || (actionVersion as number) < 1 || (actionVersion as number) > maximumActionVersion) {
+      throw new TypeError(`actionVersion must be a safe integer from 1 through ${maximumActionVersion}`)
+    }
     canonicalizeWorldJson(action.parameters as WorldJsonValue)
-    return { actionId, actorId, actionType, actionVersion: 1, parameters: action.parameters as WorldJsonValue }
+    return { actionId, actorId, actionType, actionVersion: actionVersion as number, parameters: action.parameters as WorldJsonValue }
   })
   if (new Set(parsed.map(action => action.actionId)).size !== parsed.length) throw new TypeError('actionId values must be unique')
   return parsed
@@ -173,7 +181,12 @@ export class SubmitActionsValidator {
     return this.#validateGroup(payload, authorization, 5)
   }
 
-  #validateGroup(payload: unknown, authorization: SubmitActionsV2Authorization, version: 4 | 5): { readonly proposal: ActionGroupProposal; readonly reflectionOperations?: readonly ReflectionOperation[] } {
+  /** The frozen interaction protocol: the same group shape, addressing a binding and a definition. */
+  validateV6(payload: unknown, authorization: SubmitActionsV2Authorization): { readonly proposal: ActionGroupProposal; readonly reflectionOperations?: readonly ReflectionOperation[] } {
+    return this.#validateGroup(payload, authorization, 6)
+  }
+
+  #validateGroup(payload: unknown, authorization: SubmitActionsV2Authorization, version: 4 | 5 | 6): { readonly proposal: ActionGroupProposal; readonly reflectionOperations?: readonly ReflectionOperation[] } {
     try {
       canonicalizeWorldJson(payload as WorldJsonValue)
       const root = record(payload, 'submit_actions')
@@ -221,14 +234,16 @@ export class SubmitActionsValidator {
         const { manifestation: _manifestation, ...bare } = action
         return bare
       })
-      const parsed = actions(rawActions, authorization)
+      // The frozen protocol is the only one whose world operation is versioned above 1.
+      const parsed = actions(rawActions, authorization, version === 6 ? 2 : 1)
       if ((root.decision === 'act') !== (parsed.length > 0)) throw new TypeError('inconsistent decision')
-      if (parsed.some(action => !['speak', 'move', version === 5 ? 'interact' : 'take'].includes(action.actionType))) throw new TypeError('unsupported group action')
+      if (parsed.some(action => !['speak', 'move', version === 4 ? 'take' : 'interact'].includes(action.actionType))) throw new TypeError('unsupported group action')
       if (parsed.length === 2 && parsed.filter(action => action.actionType === 'speak').length !== 1) throw new TypeError('group requires exactly one speech and one world operation')
       const reflection = this.validateV2({ schemaVersion: 2, decision: root.decision, actions: rawActions,
-        ...(root.reflection === undefined ? {} : { reflection: root.reflection }) }, authorization)
+        ...(root.reflection === undefined ? {} : { reflection: root.reflection }) }, authorization,
+      version === 6 ? 2 : 1)
       return { proposal: { participantId: authorization.participantId, actions: parsed,
-        actionGroup: { version: 'bounded-action-group/v1', manifestations } },
+        actionGroup: { version: version === 6 ? 'bounded-action-group/v2' : 'bounded-action-group/v1', manifestations } },
         ...(reflection.reflectionOperations === undefined ? {} : { reflectionOperations: reflection.reflectionOperations }) }
     } catch (error: unknown) {
       invalid(error, authorization)
@@ -248,14 +263,19 @@ export class SubmitActionsValidator {
     }
   }
 
-  validateV2(payload: unknown, authorization: SubmitActionsV2Authorization): ValidatedSubmitActionsV2 {
+  /**
+   * `maximumActionVersion` exists because a grouped protocol reuses this parser for its own steps: a
+   * group whose world operation is versioned above 1 hands its version in rather than restating the
+   * whole action and reflection contract. The default keeps the standalone v2 contract at version 1.
+   */
+  validateV2(payload: unknown, authorization: SubmitActionsV2Authorization, maximumActionVersion = 1): ValidatedSubmitActionsV2 {
     try {
       canonicalizeWorldJson(payload as WorldJsonValue)
       const root = record(payload, 'submit_actions')
       exactWithOptional(root, ['schemaVersion', 'decision', 'actions'], ['reflection'], 'submit_actions')
       if (root.schemaVersion !== 2) throw new TypeError('submit_actions.schemaVersion must be 2')
       if (root.decision !== 'act' && root.decision !== 'abstain') throw new TypeError('submit_actions.decision must be act or abstain')
-      const parsedActions = actions(root.actions, authorization)
+      const parsedActions = actions(root.actions, authorization, maximumActionVersion)
       if ((root.decision === 'act') !== (parsedActions.length > 0)) throw new TypeError('submit_actions decision and actions are inconsistent')
       if (!Number.isSafeInteger(authorization.maxReflectionOperations) || authorization.maxReflectionOperations < 0) {
         throw new TypeError('maxReflectionOperations must be a non-negative safe integer')

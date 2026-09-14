@@ -32,6 +32,7 @@ import {
   type SubmitActionsV3,
   type SubmitActionsV4,
   type SubmitActionsV5,
+  type SubmitActionsV6,
   type ActionGroupBinding,
   type CharacterId,
   type InteractionRoundId,
@@ -57,6 +58,8 @@ import {
   manifestationPolicyFromManifest,
   manifestUsesActionGroups,
   manifestUsesHostAuthority,
+  manifestInteractionLabel,
+  manifestUsesFrozenInteractions,
   manifestUsesInteractions,
   parsePlayerActionInput,
   parsePlayerRoundResult,
@@ -97,7 +100,7 @@ export interface RoundParticipant {
   readonly priority: number
   readonly estimatedTokens: number
   readonly timeoutMs: number
-  readonly provider: { propose(context: ProposalContext): Promise<Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5> }
+  readonly provider: { propose(context: ProposalContext): Promise<Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6> }
 }
 
 export interface ReactionParticipantDraftBinding {
@@ -1230,15 +1233,15 @@ export class RoundCoordinator {
       let providerCall = cognitive?.receipt === undefined || this.options.providerCalls === undefined
         ? undefined
         : this.options.providerCalls.prepare(cognitive.receipt)
-      let providerOutput: Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | undefined
+      let providerOutput: Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | undefined
       if (providerCall?.state === 'dispatch_started') {
         providerCall = this.options.providerCalls!.markTerminal(providerCall.modelCallId, 'timed_out_ambiguous', {
           reason: 'provider dispatch had no durable terminal result',
         })
       } else if (providerCall?.state === 'response_received') {
-        providerOutput = providerCall.response as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5
+        providerOutput = providerCall.response as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6
       } else if (providerCall?.state === 'validated') {
-        providerOutput = providerCall.proposal as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5
+        providerOutput = providerCall.proposal as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6
       }
       if (providerCall !== undefined && !['prepared', 'response_received', 'validated'].includes(providerCall.state)) {
         let failure = participantFailureForCallState[providerCall.state]!
@@ -1319,7 +1322,8 @@ export class RoundCoordinator {
             maxReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
           }
           const validated = manifestUsesActionGroups(this.#manifest)
-            ? (manifestUsesInteractions(this.#manifest) ? this.#validator.validateV5(providerOutput, validatorAuthorization) : this.#validator.validateV4(providerOutput, validatorAuthorization))
+            ? (manifestUsesFrozenInteractions(this.#manifest) ? this.#validator.validateV6(providerOutput, validatorAuthorization)
+              : manifestUsesInteractions(this.#manifest) ? this.#validator.validateV5(providerOutput, validatorAuthorization) : this.#validator.validateV4(providerOutput, validatorAuthorization))
             : manifestationPolicyFromManifest(this.#manifest).mode === 'enabled'
             ? this.#validator.validateV3(providerOutput, validatorAuthorization)
             : this.#validator.validateV2(providerOutput, validatorAuthorization)
@@ -1719,7 +1723,9 @@ export class RoundCoordinator {
       maxNpcCalls: RESPONSIVE_V1_MAX_NPC_CALLS,
       maxCallsPerCharacter: RESPONSIVE_V1_MAX_CALLS_PER_CHARACTER,
       maxActionsPerCall: manifestUsesActionGroups(this.#manifest) ? 2 : 1,
-      allowedActionTypes: manifestUsesInteractions(this.#manifest) ? ['speak@1', 'move@1', 'interact@1'] : manifestUsesActionGroups(this.#manifest) ? ['speak@1', 'move@1', 'take@1'] : ['speak@1'],
+      allowedActionTypes: manifestUsesActionGroups(this.#manifest)
+        ? ['speak@1', 'move@1', manifestInteractionLabel(this.#manifest)]
+        : ['speak@1'],
       initialTokenBudget,
       deadlineAtMs: Date.now() + REACTION_CYCLE_DEADLINE_MS,
       candidates,

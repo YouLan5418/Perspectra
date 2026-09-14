@@ -36,6 +36,7 @@ import {
   type SubmitActionsV3,
   type SubmitActionsV4,
   type SubmitActionsV5,
+  type SubmitActionsV6,
   type ActionGroupBinding,
   type ManifestationProposal,
   type TransactionId,
@@ -51,6 +52,9 @@ import {
   manifestationPolicyFromManifest,
   manifestUsesActionGroups,
   manifestUsesHostAuthority,
+  manifestInteractionLabel,
+  manifestInteractionVerb,
+  manifestUsesFrozenInteractions,
   manifestUsesInteractions,
   resolveManifestation,
   type CompiledWorldManifest,
@@ -194,7 +198,7 @@ export class ReactionScheduler {
         throw new TypeError(`Reaction participant ${binding.actorId} is absent from the Manifest`)
       }
       if (!binding.allowedActionTypes.includes('speak') || binding.allowedActionTypes.some(value =>
-        !(manifestUsesActionGroups(options.manifest) ? ['speak', 'move', manifestUsesInteractions(options.manifest) ? 'interact' : 'take'] : ['speak']).includes(value))) {
+        !(manifestUsesActionGroups(options.manifest) ? ['speak', 'move', manifestInteractionVerb(options.manifest)] : ['speak']).includes(value))) {
         throw new TypeError('Reaction v1 participants must allow only speak')
       }
       if (!Number.isSafeInteger(binding.timeoutMs) || binding.timeoutMs <= 0) {
@@ -227,7 +231,13 @@ export class ReactionScheduler {
   async runCurrentWave(): Promise<ReactionWaveResult | undefined> {
     const initial = this.options.store.activeReactionCycle(this.options.address)
     if (initial === undefined || initial.cycle.status === 'terminal') return undefined
-    if ((initial.cycle.allowedActionTypes.includes('interact@1' as never) !== manifestUsesInteractions(this.options.manifest)) || initial.cycle.maxActionsPerCall !== (manifestUsesActionGroups(this.options.manifest) ? 2 : 1)) {
+    // The Cycle has to declare exactly what this Manifest's protocol offers: a single-action Cycle
+    // speaks, and a two-action one adds the world operation at the version its Manifest addresses.
+    const expectedActionTypes: readonly string[] = initial.cycle.maxActionsPerCall === 1
+      ? ['speak@1']
+      : ['speak@1', 'move@1', manifestInteractionLabel(this.options.manifest)]
+    if ((initial.cycle.allowedActionTypes as readonly string[]).join(',') !== expectedActionTypes.join(',')
+      || initial.cycle.maxActionsPerCall !== (manifestUsesActionGroups(this.options.manifest) ? 2 : 1)) {
       throw new Error('Reaction Cycle action policy differs from Manifest')
     }
     const wave = initial.waves.at(-1)!
@@ -478,15 +488,15 @@ export class ReactionScheduler {
       return { ...prepared, outcome: 'runtime_unavailable', proposal: empty }
     }
     let providerCall = prepared.providerCall
-    let output: SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | undefined
+    let output: SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | undefined
     if (providerCall.state === 'dispatch_started') {
       providerCall = this.options.providerCalls.markTerminal(providerCall.modelCallId, 'timed_out_ambiguous', {
         reason: 'Reaction Provider dispatch had no durable response',
       })
     } else if (providerCall.state === 'response_received') {
-      output = providerCall.response as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5
+      output = providerCall.response as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6
     } else if (providerCall.state === 'validated') {
-      output = providerCall.proposal as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5
+      output = providerCall.proposal as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6
     }
     if (providerCall.state === 'committed') {
       failWorld({
@@ -534,7 +544,8 @@ export class ReactionScheduler {
         correlationId: `reaction:${prepared.job.cycleId}:${prepared.job.wave}:${prepared.job.jobId}`,
       }
       const validated = manifestUsesActionGroups(this.options.manifest)
-        ? (manifestUsesInteractions(this.options.manifest) ? this.#validator.validateV5(output, authorization) : this.#validator.validateV4(output, authorization))
+        ? (manifestUsesFrozenInteractions(this.options.manifest) ? this.#validator.validateV6(output, authorization)
+          : manifestUsesInteractions(this.options.manifest) ? this.#validator.validateV5(output, authorization) : this.#validator.validateV4(output, authorization))
         : manifestationPolicyFromManifest(this.options.manifest).mode === 'enabled'
         ? this.#validator.validateV3(output, authorization)
         : this.#validator.validateV2(output, authorization)

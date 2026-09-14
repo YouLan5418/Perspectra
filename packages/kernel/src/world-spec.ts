@@ -1,3 +1,4 @@
+import { manifestUsesInteractions } from './interactions.ts'
 import {
   parseInteractionCatalog,
   type InteractionCatalogV1,
@@ -253,6 +254,25 @@ export interface CompiledWorldManifestV10 extends CompiledWorldManifest {
   readonly interactionCatalog: InteractionCatalogV3
   readonly actionGroupPolicy: { readonly version: 'bounded-action-group/v2' }
   readonly playerInputPolicy?: PlayerInputPolicyV1
+}
+
+/**
+ * The world-operation verb this Manifest offers a model. v8 introduced `interact` as the way to touch
+ * an object; v7 and earlier used `take` as a bare action name, and the frozen path keeps the verb while
+ * addressing it differently.
+ */
+export function manifestInteractionVerb(manifest: CompiledWorldManifest): 'take' | 'interact' {
+  return manifestUsesInteractions(manifest) || manifestUsesFrozenInteractions(manifest) ? 'interact' : 'take'
+}
+
+/**
+ * The exact `name@version` a Reaction Cycle declares for this Manifest's world operation. The version
+ * is the Manifest's, not the verb's: the frozen path addresses a binding and a definition lock, so a
+ * cycle that carries it has to say so rather than borrow the v9 label.
+ */
+export function manifestInteractionLabel(manifest: CompiledWorldManifest): 'take@1' | 'interact@1' | 'interact@2' {
+  if (manifestUsesFrozenInteractions(manifest)) return 'interact@2'
+  return manifestUsesInteractions(manifest) ? 'interact@1' : 'take@1'
 }
 
 /** The frozen-interaction path. Only v10 uses it; v1-v9 keep their own catalog semantics. */

@@ -42,6 +42,8 @@ import {
 import {
   manifestationPolicyFromManifest,
   manifestUsesActionGroups,
+  manifestInteractionVerb,
+  manifestUsesFrozenInteractions,
   manifestUsesInteractions,
   manifestUsesPhase8Contracts,
   type CompiledWorldManifest,
@@ -168,6 +170,21 @@ const interactionTool = createProviderToolSchema('submit_actions/v5', {
 })
 const reactionInteractionTool = createProviderToolSchema('submit_actions/v5', {
   ...interactionTool.schema as WorldJsonObject, maximumReflectionOperations: 0,
+})
+
+// The frozen path addresses a binding and a definition lock rather than a catalog entry, so its
+// interaction step is versioned above 1 and its group declares the matching policy.
+const frozenInteractionTool = createProviderToolSchema('submit_actions/v6', {
+  ...interactionTool.schema as WorldJsonObject, schemaVersion: 'submit_actions/v6',
+  actionGroup: { ...(interactionTool.schema as WorldJsonObject).actionGroup as WorldJsonObject,
+    version: 'bounded-action-group/v2' },
+  interact: { parameters: ['targetRef', 'bindingId', 'definitionRef', 'arguments'],
+    choices: 'context.affordances.interactions',
+    execution: 'revalidate_current_bound_prefix',
+    give: 'possession_transfer_only_no_recipient_consent_or_reaction' },
+})
+const reactionFrozenInteractionTool = createProviderToolSchema('submit_actions/v6', {
+  ...frozenInteractionTool.schema as WorldJsonObject, maximumReflectionOperations: 0,
 })
 
 function contextAffordance(value: { readonly actionType: string; readonly actionVersion: number; readonly interactions?: readonly WorldJsonObject[] }, decision: SceneDecision): ContextAffordance {
@@ -352,12 +369,35 @@ export class Phase8ContextPipeline {
     this.#tails = new InteractionTailBuilder(options.store)
     this.#cognition = new CognitionProjectionRebuilder(options.store)
     this.#modelProfile = options.modelProfile ?? defaultModelProfile()
-    this.#characterTool = manifestUsesInteractions(options.manifest) ? interactionTool : manifestUsesActionGroups(options.manifest) ? actionGroupTool : manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
+    this.#characterTool = manifestUsesFrozenInteractions(options.manifest) ? frozenInteractionTool
+      : manifestUsesInteractions(options.manifest) ? interactionTool : manifestUsesActionGroups(options.manifest) ? actionGroupTool : manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
       ? manifestationCharacterTool
       : characterTool
-    this.#reactionCharacterTool = manifestUsesInteractions(options.manifest) ? reactionInteractionTool : manifestUsesActionGroups(options.manifest) ? reactionActionGroupTool : manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
+    this.#reactionCharacterTool = manifestUsesFrozenInteractions(options.manifest) ? reactionFrozenInteractionTool
+      : manifestUsesInteractions(options.manifest) ? reactionInteractionTool : manifestUsesActionGroups(options.manifest) ? reactionActionGroupTool : manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
       ? manifestationReactionCharacterTool
       : reactionCharacterTool
+  }
+
+  /** The grouped-output contract this Manifest's action group speaks, and its exact version. */
+  #groupedTool(): 'submit_actions/v4' | 'submit_actions/v5' | 'submit_actions/v6' {
+    if (manifestUsesFrozenInteractions(this.options.manifest)) return 'submit_actions/v6'
+    return manifestUsesInteractions(this.options.manifest) ? 'submit_actions/v5' : 'submit_actions/v4'
+  }
+
+  /**
+   * Whether this Manifest's group protocol offers an affordance, at the exact action version that
+   * protocol carries. The frozen path's interaction step is version 2, because the request names a
+   * binding and a definition lock; every earlier Manifest carries version 1 and the verb its world
+   * operation uses.
+   */
+  #afforded(value: { readonly actionType: string; readonly actionVersion: number }): boolean {
+    if (manifestUsesFrozenInteractions(this.options.manifest)) {
+      if (value.actionType === 'interact') return value.actionVersion === 2
+      return value.actionVersion === 1 && (value.actionType === 'speak' || value.actionType === 'move')
+    }
+    if (!manifestUsesActionGroups(this.options.manifest)) return value.actionType === 'speak' && value.actionVersion === 1
+    return value.actionVersion === 1 && ['speak', 'move', manifestInteractionVerb(this.options.manifest)].includes(value.actionType)
   }
 
   prepare(
@@ -550,7 +590,7 @@ export class Phase8ContextPipeline {
       ] }),
       affordances, affordanceHash,
       ...(manifestUsesActionGroups(this.options.manifest) ? { groupedOutput: {
-        tool: manifestUsesInteractions(this.options.manifest) ? 'submit_actions/v5' as const : 'submit_actions/v4' as const,
+        tool: this.#groupedTool(),
         maximumReflectionOperations: 4 as const,
       } } : {}),
       runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
@@ -604,8 +644,7 @@ export class Phase8ContextPipeline {
       manifest: this.options.manifest, events: history, characterId: binding.actorId,
       manifestHash: this.options.manifestHash, asOfWorldSeq,
       resolutionAuthority: resolutionAuthority('agent', 'standard'),
-    }).filter(value => (manifestUsesActionGroups(this.options.manifest) ? ['speak', 'move', manifestUsesInteractions(this.options.manifest) ? 'interact' : 'take'].includes(value.actionType) : value.actionType === 'speak') && value.actionVersion === 1
-      && binding.allowedActionTypes.includes(value.actionType))
+    }).filter(value => this.#afforded(value) && binding.allowedActionTypes.includes(value.actionType))
       .map(value => contextAffordance(value, decision))
       .sort((left, right) => compareText(left.actionType, right.actionType))
     const affordanceHash = hashWorldJson('context-affordances/v1', affordances)
@@ -636,7 +675,7 @@ export class Phase8ContextPipeline {
       stimulus: context.stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', context.stimulus),
       stimulusSourceRefs, maximumExternalActions: manifestUsesActionGroups(this.options.manifest) ? 2 : 1,
       ...(manifestUsesActionGroups(this.options.manifest) ? { groupedOutput: {
-        tool: manifestUsesInteractions(this.options.manifest) ? 'submit_actions/v5' as const : 'submit_actions/v4' as const,
+        tool: this.#groupedTool(),
         maximumReflectionOperations: 0 as const,
       } } : {}),
       affordances, affordanceHash,

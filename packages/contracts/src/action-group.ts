@@ -71,3 +71,14 @@ export interface SubmitActionsV5 extends WorldJsonObject {
   readonly actions: readonly WorldJsonObject[]
   readonly reflection?: import('./cognition-projection.ts').ReflectionBatch
 }
+
+/**
+ * V6 carries the frozen interaction protocol: the same group shape, whose interaction step names a
+ * binding and a definition lock and is therefore versioned above one.
+ */
+export interface SubmitActionsV6 extends WorldJsonObject {
+  readonly schemaVersion: 6
+  readonly decision: 'act' | 'abstain'
+  readonly actions: readonly WorldJsonObject[]
+  readonly reflection?: import('./cognition-projection.ts').ReflectionBatch
+}
