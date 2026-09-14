@@ -56,6 +56,7 @@ import {
   manifestUsesPhase8Contracts,
   manifestationPolicyFromManifest,
   manifestUsesActionGroups,
+  manifestUsesHostAuthority,
   manifestUsesInteractions,
   parsePlayerActionInput,
   parsePlayerRoundResult,
@@ -551,7 +552,7 @@ export class RoundCoordinator {
     const intentSubmission = typeof claimed.input === 'object' && claimed.input !== null && !Array.isArray(claimed.input)
       && Object.hasOwn(claimed.input, 'playerInputId') ? inputJob?.records.validated as PlayerSubmissionV2 | undefined : undefined
     if (typeof claimed.input === 'object' && claimed.input !== null && Object.hasOwn(claimed.input, 'playerInputId')
-      && (this.#manifest.schemaVersion !== 9 || intentSubmission === undefined || inputJob!.principalId !== claimed.principalId
+      && (!manifestUsesHostAuthority(this.#manifest) || intentSubmission === undefined || inputJob!.principalId !== claimed.principalId
         || (claimed.input as WorldJsonObject).playerInputId !== inputJob!.inputId
         || intentSubmission.version !== 'player-submission/v2' || intentSubmission.actions.some(value => value.actorId !== binding.characterId))) {
       throw new TypeError('player input Round has no matching validated submission')
@@ -615,7 +616,7 @@ export class RoundCoordinator {
       )
       : undefined
     const provisionalMoveTarget = playerAction.actionType === 'move' ? (playerAction.parameters as WorldJsonObject).locationId : undefined
-    const provisional = this.#manifest.schemaVersion === 9 ? bindPlayerProvisional(
+    const provisional = manifestUsesHostAuthority(this.#manifest) ? bindPlayerProvisional(
       this.#address, head.headSeq, head.eventHash, playerAction, {
         ...playerBaseResolution,
         events: [
@@ -767,7 +768,7 @@ export class RoundCoordinator {
       actionId: item.action.actionId,
       participantId: item.participantId,
       sourceRole: item.sourceRole,
-      ...(this.#manifest.schemaVersion === 9 ? { resolutionAuthority: resolutionAuthority(
+      ...(manifestUsesHostAuthority(this.#manifest) ? { resolutionAuthority: resolutionAuthority(
         item.sourceRole,
         item.sourceRole === 'player' ? 'manual_player_immediate' : 'standard',
       ) } : {}),
@@ -882,7 +883,7 @@ export class RoundCoordinator {
       const candidateHashBefore = candidateHash
       const ruleTraceHash = hashWorldJson('round-rule-trace', {
         rulebook: this.#manifest.rulebook,
-        ...(this.#manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
+        ...(manifestUsesHostAuthority(this.#manifest) ? { resolutionAuthority: actionAuthority } : {}),
         action: item.action,
         status: skipped ? 'skipped' : resolution.status,
         reason: resolution.reason ?? null,
@@ -999,7 +1000,7 @@ export class RoundCoordinator {
     }
     const cognitiveCharacterIds = [...cognitiveCharacters].sort(compareWorldText)
     const authority = {
-      schemaVersion: this.#manifest.schemaVersion === 9 ? 5 : manifestUsesActionGroups(this.#manifest) ? 4 : 2,
+      schemaVersion: manifestUsesHostAuthority(this.#manifest) ? 5 : manifestUsesActionGroups(this.#manifest) ? 4 : 2,
       roundId,
       baseHeadSeq: head.headSeq,
       baseTick: head.tick,

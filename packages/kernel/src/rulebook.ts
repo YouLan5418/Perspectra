@@ -1,6 +1,6 @@
 import { endCharacterRelations, manifestUsesCharacterInteractions, manifestUsesInteractions, resolveInteraction, type InteractionResolutionContext } from './interactions.ts'
 import { compareWorldText, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
-import { manifestUsesPhase8Contracts, type CompiledWorldManifest } from './world-spec.ts'
+import { manifestUsesFrozenInteractions, manifestUsesPhase8Contracts, type CompiledWorldManifest } from './world-spec.ts'
 
 export interface PlayerActionInput extends WorldJsonObject {
   readonly actionType: string
@@ -166,6 +166,15 @@ export class SpeakMoveRulebook {
   ): RulebookResolution | undefined {
     const lifecycle = currentCharacterLifecycle(events, characterId)
     if (lifecycle !== 'active') return rejectRulebookResolution(characterId, action.actionType, `character lifecycle ${lifecycle ?? 'missing'} cannot act`)
+    if (manifestUsesFrozenInteractions(manifest)) {
+      // The frozen path owns both: `interact` resolves through the world's package selection, and
+      // `take` is one of its definitions rather than a built-in verb. Reaching this class at all for
+      // those two means the caller did not route through the frozen resolver, so refuse rather than
+      // silently falling back to the closed catalog's semantics.
+      if (action.actionType === 'interact' || action.actionType === 'take') {
+        return rejectRulebookResolution(characterId, action.actionType, 'Manifest v10 resolves interact and take through the frozen interaction path')
+      }
+    }
     if (manifestUsesInteractions(manifest)) {
       if (action.actionType === 'interact') return resolveInteraction(manifest, events, characterId, action.parameters, interactionContext)
       if (action.actionType === 'take') return rejectRulebookResolution(characterId, 'take', 'use interact in Manifest v8/v9')

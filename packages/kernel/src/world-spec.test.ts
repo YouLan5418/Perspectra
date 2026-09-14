@@ -294,7 +294,7 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
   })
 
   it.each([
-    [{ schemaVersion: 10 }, 'schemaVersion'],
+    [{ schemaVersion: 11 }, 'schemaVersion'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: null }, 'runtimePolicy'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'offline', playerInitialAvailability: 'ready' } }, 'npcInitialAvailability'],
     [{ ...new WorldSpecCompiler().compile(specV2()).manifest, runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'offline' } }, 'playerInitialAvailability'],
@@ -635,5 +635,24 @@ describe('WorldSpecCompiler and WorldBootstrap', () => {
     const value = spec() as Record<string, WorldJsonValue | undefined>
     value.plugins = undefined
     expect(() => new WorldSpecCompiler().compile(value)).toThrow('does not support undefined')
+  })
+})
+
+describe('WorldBootstrap frozen interaction gate', () => {
+  it('refuses a v10 Manifest until the frozen interaction runtime is present', () => {
+    const store = new WorldStore(database('v10-gate.sqlite'))
+    // The Manifest only has to be recognisable as v10: the gate runs before any selection parsing,
+    // so a world is refused even when nothing about its catalog could be resolved yet.
+    const compiled = new WorldSpecCompiler().compile(specV2())
+    const v10 = {
+      ...compiled,
+      manifest: { ...compiled.manifest, schemaVersion: 10 },
+    } as unknown as CompiledWorldSpec
+    expect(() => new WorldBootstrap(store, false, false).activate(v10))
+      .toThrow('Manifest v10 requires the frozen interaction runtime')
+    // Declaring the runtime present removes the gate, so a refusal from here must have another cause.
+    expect(() => new WorldBootstrap(store, false, true).activate(v10))
+      .not.toThrow(/frozen interaction runtime/u)
+    store.close()
   })
 })

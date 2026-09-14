@@ -640,7 +640,7 @@ function assertManifestEvents(manifest: WorldJsonValue, events: readonly WorldEv
   const root = manifest as WorldJsonObject
   if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4
     && root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7
-    && root.schemaVersion !== 8 && root.schemaVersion !== 9) return
+    && root.schemaVersion !== 8 && root.schemaVersion !== 9 && root.schemaVersion !== 10) return
   const registries = root.registries
   if (typeof registries !== 'object' || registries === null || Array.isArray(registries)) throw new TypeError('compiled manifest registries are malformed')
   const eventRegistry = (registries as WorldJsonObject).events
@@ -995,10 +995,10 @@ export class WorldStore {
     const activeManifest = this.#readManifestByKey(addressKey)
     if (activeManifest !== undefined) assertManifestEvents(activeManifest.manifest, request.events)
     if (request.reactionCycle?.maxActionsPerCall === 2
-      && ![7, 8, 9].includes((activeManifest?.manifest as WorldJsonObject | undefined)?.schemaVersion as number)) {
+      && ![7, 8, 9, 10].includes((activeManifest?.manifest as WorldJsonObject | undefined)?.schemaVersion as number)) {
       throw new TypeError('two-action Reaction Cycle requires Manifest v7')
     }
-    if (request.reactionCycle !== undefined && (request.reactionCycle.allowedActionTypes.includes('interact@1' as never) !== [8, 9].includes((activeManifest?.manifest as WorldJsonObject | undefined)?.schemaVersion as number))) throw new TypeError('Reaction Cycle interaction capability does not match Manifest')
+    if (request.reactionCycle !== undefined && (request.reactionCycle.allowedActionTypes.includes('interact@1' as never) !== [8, 9, 10].includes((activeManifest?.manifest as WorldJsonObject | undefined)?.schemaVersion as number))) throw new TypeError('Reaction Cycle interaction capability does not match Manifest')
     const authorityHash = request.authority === undefined ? null : hashWorldJson('world-round-authority', request.authority)
     const requestHash = hashWorldJson('world-round-commit-request', {
       address: request.address,

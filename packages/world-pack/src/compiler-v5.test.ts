@@ -12,6 +12,7 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { SpeakMoveRulebook, characterInteractionManifestRegistries, runtimeManifestFromStored } from '@harness-world/kernel'
 import { InteractionRegistry } from '@harness-world/interaction-runtime'
 import {
   WorldPackCompilerV5,
@@ -51,6 +52,7 @@ interface SourceOptions {
   readonly packageId?: string
   readonly packageVersion?: number
   readonly characters?: unknown
+  readonly reactionMode?: 'disabled' | 'responsive'
 }
 
 /** A real v5 source: the v4 example on the V2/V3 target files plus an explicit selection. */
@@ -67,9 +69,9 @@ async function source(options: SourceOptions = {}): Promise<string> {
     manifestationFile: 'manifestation.json',
     interactionFile: 'interactions.json',
   }))
-  await writeFile(join(root, 'reaction.json'), canonicalizeWorldJson({
-    schemaVersion: 'worldpack-reaction/v1', mode: 'responsive', profile: 'responsive/v1',
-  }))
+  await writeFile(join(root, 'reaction.json'), canonicalizeWorldJson(options.reactionMode === 'disabled'
+    ? { schemaVersion: 'worldpack-reaction/v1', mode: 'disabled' }
+    : { schemaVersion: 'worldpack-reaction/v1', mode: 'responsive', profile: 'responsive/v1' }))
   await writeFile(join(root, 'manifestation.json'), canonicalizeWorldJson({
     schemaVersion: 'worldpack-manifestation/v1', mode: 'enabled',
   }))
@@ -231,10 +233,14 @@ describe('WorldPackCompilerV5', () => {
       packId: 'pack:interaction-wheel', entityCount: 1,
       manifestation: { mode: 'enabled' }, reaction: { mode: 'responsive' },
     })
-    // Manifest v10 binding is not wired yet, so adaptation must fail closed rather than guess.
-    expect(() => adaptCompiledWorldPack(pack, {
-      address, principalId: 'principal:player', sessionId: brandId('session:worldpack-v5', 'SessionId'),
-    })).toThrow(/not wired yet/u)
+    // The v5 Pack owns its selection, so it binds to v10 and refuses a second one, whichever
+    // second one the caller tries to impose.
+    for (const override of [{ interactionCatalog: { version: 'interaction-catalog/v2' } }, { actionGroups: 'bounded/v1' }] as const) {
+      expect(() => adaptCompiledWorldPack(pack, {
+        address, principalId: 'principal:player', sessionId: brandId('session:worldpack-v5', 'SessionId'),
+        ...override,
+      })).toThrow(/carries its own interaction selection/u)
+    }
     expect(() => parseCompiledWorldPackV5({ ...pack, compiledSchemaVersion: 'worldpack/v4' })).toThrow(/compiledSchemaVersion/u)
   }, 60_000)
 
@@ -332,5 +338,226 @@ describe('WorldPackCompilerV5', () => {
       bindings: [{ bindingId: 'binding:bulk', id: 'fixture:bulk', version: 1, config: bulk }],
       definitions: ['fixture:bulk'],
     }), { limitsProfile: 'worldpack-limits/v2', interactionPackages: description })).rejects.toThrow(/encode at most 4096 bytes/u)
+  }, 60_000)
+})
+
+const runtimeOptions = () => ({
+  address, principalId: 'principal:player', sessionId: brandId('session:worldpack-v5', 'SessionId'),
+})
+
+/** Build a real v10 Manifest, then hand back a deep copy the caller may tamper with. */
+async function compiledV10(): Promise<Record<string, unknown>> {
+  const pack = await compile()
+  const spec = new WorldPackCompilerV5().adaptToWorldSpec(pack, runtimeOptions())
+  return JSON.parse(JSON.stringify(spec.manifest)) as Record<string, unknown>
+}
+
+describe('Manifest v10 binding for a compiled worldpack/v5', () => {
+  it('binds the pack selection to v10 and re-reads the same bytes as a stored Manifest', async () => {
+    const pack = await compile()
+    const spec = new WorldPackCompilerV5().adaptToWorldSpec(pack, runtimeOptions())
+    expect(spec.manifest.schemaVersion).toBe(10)
+    expect(spec.manifest.actionGroupPolicy).toEqual({ version: 'bounded-action-group/v2' })
+    // The catalog is carried over verbatim: the package locks the world has to resolve are the ones
+    // the compiler already committed to, not a re-derivation.
+    expect(spec.manifest.interactionCatalog).toEqual(pack.interactions)
+    expect(spec.manifest.registries).toEqual(characterInteractionManifestRegistries())
+    expect(spec.manifest.rulebook).toEqual(pack.content.world.coreProfiles.rulebook)
+    // Content, reaction and manifestation policy are the v6 shape, so only execution changed.
+    expect(spec.manifest.characters).toHaveLength(pack.content.characters.length)
+    expect(spec.manifest.reactionPolicy).toEqual(pack.reaction.mode === 'disabled'
+      ? { version: 'reaction-policy/v1', mode: 'disabled' }
+      : { version: 'reaction-policy/v1', mode: 'responsive', profile: pack.reaction.profile })
+    expect(spec.manifest.manifestationPolicy).toEqual({ version: 'manifestation-policy/v1', mode: 'enabled' })
+    expect(spec.manifestHash).toMatch(/^sha256:[0-9a-f]{64}$/u)
+    expect(spec.genesisEvents[0]).toEqual({ eventType: 'world.created', eventVersion: 1, data: { specHash: spec.manifest.specHash } })
+    // A v10 stored Manifest re-reads its own selection rather than trusting it.
+    const stored = runtimeManifestFromStored(spec.manifest as unknown as WorldJsonValue)
+    expect(stored.schemaVersion).toBe(10)
+    expect(runtimeManifestFromStored(spec.manifest as unknown as WorldJsonValue)).toEqual(stored)
+  }, 60_000)
+
+  it('moves the spec hash when only the selection changes', async () => {
+    const narrow = await compile({
+      bindings: [{ bindingId: 'binding:bundle-take', id: 'base:take', version: 1, config: {} }],
+    })
+    const wide = await compile()
+    const narrowSpec = new WorldPackCompilerV5().adaptToWorldSpec(narrow, runtimeOptions())
+    const wideSpec = new WorldPackCompilerV5().adaptToWorldSpec(wide, runtimeOptions())
+    expect(narrowSpec.manifest.specHash).not.toBe(wideSpec.manifest.specHash)
+    expect(narrowSpec.manifestHash).not.toBe(wideSpec.manifestHash)
+  }, 60_000)
+
+  it('re-reads every reference of a stored v10 selection and refuses each tampered one', async () => {
+    const base = await compiledV10()
+    const stored = (mutate: (draft: Record<string, unknown>) => void): WorldJsonValue => {
+      const draft = JSON.parse(JSON.stringify(base)) as Record<string, unknown>
+      mutate(draft)
+      return draft as WorldJsonValue
+    }
+    const selection = (draft: Record<string, unknown>): Record<string, unknown> => draft.interactionCatalog as Record<string, unknown>
+    const definitionLock = (overrides: Record<string, unknown> = {}) => ({
+      ref: { id: 'package:interactions-basic', version: 1 }, implementationHash: `sha256:${'a'.repeat(64)}`,
+      dependencies: [], ...overrides,
+    })
+
+    expect(() => runtimeManifestFromStored(stored(draft => { selection(draft).version = 'interaction-catalog/v2' })))
+      .toThrow(/interaction-catalog\/v3/u)
+    expect(() => runtimeManifestFromStored(stored(draft => { selection(draft).packages = [] })))
+      .toThrow(/outside the frozen selection budget/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      selection(draft).packages = Array.from({ length: 33 }, () => definitionLock())
+    }))).toThrow(/outside the frozen selection budget/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      selection(draft).packages = [definitionLock(), definitionLock()]
+    }))).toThrow(/duplicate identifiers/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      selection(draft).packages = [{ ...definitionLock(), extra: true }]
+    }))).toThrow(/missing or unknown fields/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      selection(draft).packages = [definitionLock({ dependencies: [{ id: 'package:x', version: 1 }, { id: 'package:x', version: 1 }] })]
+    }))).toThrow(/duplicate identifiers/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      selection(draft).packages = [definitionLock({ ref: { id: 'package:x', version: 0 } })]
+    }))).toThrow(/positive safe integer/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      const definitions = selection(draft).definitions as Record<string, unknown>[]
+      definitions[0]!.extra = true
+    }))).toThrow(/missing or unknown fields/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      selection(draft).definitions = Array.from({ length: 129 }, (_, index) => ({
+        ref: { id: `base:d${index}`, version: 1 }, definitionHash: `sha256:${'b'.repeat(64)}`, implementationHash: `sha256:${'c'.repeat(64)}`,
+      }))
+    }))).toThrow(/outside the frozen selection budget/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      const definitions = selection(draft).definitions as Record<string, unknown>[]
+      definitions[1] = { ...definitions[0]! }
+    }))).toThrow(/duplicate identifiers/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      const bindings = selection(draft).bindings as Record<string, unknown>[]
+      bindings[0]!.targetRef = { kind: 'unknown', id: 'entity:ticket-bundle' }
+    }))).toThrow(/kind is unknown/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      const bindings = selection(draft).bindings as Record<string, unknown>[]
+      bindings[0]!.definitionRef = { id: 'base:take', version: 2 }
+    }))).toThrow(/did not enable/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      const bindings = selection(draft).bindings as Record<string, unknown>[]
+      bindings[0]!.targetRef = { kind: 'entity', id: 'entity:ghost' }
+    }))).toThrow(/names an unknown entity target/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      const bindings = selection(draft).bindings as Record<string, unknown>[]
+      bindings[0]!.targetRef = { kind: 'character', id: 'character:ghost' }
+    }))).toThrow(/names an unknown character target/u)
+    // A relation instance cannot be named by a static Manifest, so it fails closed like any other
+    // target the world does not declare.
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      const bindings = selection(draft).bindings as Record<string, unknown>[]
+      bindings[0]!.targetRef = { kind: 'relation', id: 'relation:any' }
+    }))).toThrow(/names an unknown relation target/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      const bindings = selection(draft).bindings as Record<string, unknown>[]
+      bindings[0]!.config = null
+    }))).toThrow(/config must be an object/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      const bindings = selection(draft).bindings as Record<string, unknown>[]
+      bindings[1]!.bindingId = bindings[0]!.bindingId
+    }))).toThrow(/duplicate identifiers/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      selection(draft).bindings = Array.from({ length: 4097 }, (_, index) => ({
+        bindingId: `binding:b${index}`, targetRef: { kind: 'entity', id: 'entity:ticket-bundle' },
+        definitionRef: { id: 'base:take', version: 1 }, config: {},
+      }))
+    }))).toThrow(/outside the frozen selection budget/u)
+    expect(() => runtimeManifestFromStored(stored(draft => { selection(draft).extra = true })))
+      .toThrow(/missing or unknown fields/u)
+  }, 60_000)
+
+  it('reaches the v10 binding through the shared tooling entry point', async () => {
+    const spec = adaptCompiledWorldPack(await compile(), runtimeOptions())
+    expect(spec.manifest.schemaVersion).toBe(10)
+    const viaCompiler = new WorldPackCompilerV5().adaptToWorldSpec(await compile(), runtimeOptions())
+    // The tooling path selects the versioned compiler rather than reimplementing the binding, so the
+    // two must agree byte for byte.
+    expect(spec.manifest).toEqual(viaCompiler.manifest)
+    expect(spec.manifestHash).toBe(viaCompiler.manifestHash)
+  }, 60_000)
+
+  it('refuses the legacy interact and take verbs on the v10 path instead of falling back', async () => {
+    const pack = await compile()
+    const manifest = new WorldPackCompilerV5().adaptToWorldSpec(pack, runtimeOptions()).manifest
+    const rulebook = new SpeakMoveRulebook()
+    const events = [{
+      eventType: 'character.created', eventVersion: 1,
+      data: { characterId: 'character:player', locationId: 'location:road-shelter', lifecycleState: 'active' },
+    }]
+    // Both verbs belong to the frozen path in v10, so the shared Rulebook refuses rather than
+    // quietly resolving them through the closed catalog it no longer owns.
+    for (const actionType of ['interact', 'take']) {
+      const resolution = rulebook.resolve(manifest, events, 'character:player', { actionType, parameters: {} })
+      expect(resolution.status).toBe('rejected')
+      expect(resolution.reason).toContain('frozen interaction path')
+    }
+    expect(rulebook.resolve(manifest, events, 'character:player', { actionType: 'speak', parameters: { text: '走吧' } }).status)
+      .toBe('accepted')
+    // A move still comes from the shared Rulebook, and it names no relation: closing relations is the
+    // frozen lifecycle plan's step, not the move's.
+    const target = manifest.locations.find(location => location.locationId !== 'location:road-shelter')!.locationId
+    const move = rulebook.resolve(manifest, events, 'character:player', { actionType: 'move', parameters: { locationId: target } })
+    expect(move.status).toBe('accepted')
+    expect(move.events.map(event => event.eventType)).toEqual(['character.moved'])
+  }, 60_000)
+
+  it('carries a disabled reaction policy and a non-active character into v10 unchanged', async () => {
+    const characters = JSON.parse(await readFile(
+      fileURLToPath(new URL('../../../examples/world-packs/rainy-road-companions/characters.json', import.meta.url)), 'utf8',
+    )) as { readonly characters: readonly Record<string, unknown>[] }
+    const pack = await compile({
+      reactionMode: 'disabled',
+      characters: {
+        schemaVersion: 'worldpack-characters/v3',
+        characters: characters.characters.map(character => character.characterId === 'character:bob'
+          ? { ...character, lifecycle: 'departed' } : character),
+      },
+    })
+    const spec = new WorldPackCompilerV5().adaptToWorldSpec(pack, runtimeOptions())
+    expect(spec.manifest.reactionPolicy).toEqual({ version: 'reaction-policy/v1', mode: 'disabled' })
+    expect(spec.manifest.characters.find(character => character.characterId === 'character:bob')!.lifecycle).toBe('departed')
+    // A character that is not active gets the Genesis transition rather than being started active.
+    const transitions = spec.genesisEvents.filter(event => event.eventType === 'character.lifecycle-changed')
+    expect(transitions).toHaveLength(1)
+    expect((transitions[0]!.data as { lifecycleState: string }).lifecycleState).toBe('departed')
+  }, 60_000)
+
+  it('keeps the v10 shape closed against the neighbouring versions', async () => {
+    const base = await compiledV10()
+    const stored = (mutate: (draft: Record<string, unknown>) => void): WorldJsonValue => {
+      const draft = JSON.parse(JSON.stringify(base)) as Record<string, unknown>
+      mutate(draft)
+      return draft as WorldJsonValue
+    }
+    // v10 keeps the v9-era Host authority but not the v1 action group policy, and it does not accept
+    // the v9 catalog either.
+    expect(() => runtimeManifestFromStored(stored(draft => { draft.actionGroupPolicy = { version: 'bounded-action-group/v1' } })))
+      .toThrow(/unsupported action group policy/u)
+    expect(() => runtimeManifestFromStored(stored(draft => { draft.manifestationPolicy = { version: 'manifestation-policy/v1', mode: 'disabled' } })))
+      .toThrow(/manifestation enabled/u)
+    expect(() => runtimeManifestFromStored(stored(draft => { draft.interactionCatalog = { version: 'interaction-catalog/v2', packages: [], definitions: [], bindings: [] } })))
+      .toThrow(/interaction-catalog\/v3/u)
+    expect(() => runtimeManifestFromStored(stored(draft => { draft.playerInputPolicy = { version: 'nonsense/v1' } })))
+      .toThrow(/playerInputPolicy version is unsupported/u)
+    expect(() => runtimeManifestFromStored(stored(draft => { draft.schemaVersion = 9 })))
+      .toThrow(/unsupported action group policy/u)
+    // Re-read as v9 the v3 catalog is not a version the v9 path can even parse, and the older
+    // object-interactions catalog is refused by name rather than silently upcast.
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      draft.schemaVersion = 9
+      draft.actionGroupPolicy = { version: 'bounded-action-group/v1' }
+    }))).toThrow(/invalid interaction catalog/u)
+    expect(() => runtimeManifestFromStored(stored(draft => {
+      draft.schemaVersion = 9
+      draft.actionGroupPolicy = { version: 'bounded-action-group/v1' }
+      draft.interactionCatalog = { version: 'object-interactions/v1', definitions: [], bindings: [] }
+    }))).toThrow(/Manifest v9 requires interaction-catalog\/v2/u)
   }, 60_000)
 })

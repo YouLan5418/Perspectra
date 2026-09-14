@@ -11,6 +11,11 @@ import {
   PHASE8_REGISTRY_LOCKS,
   PHASE8_VOCABULARY_LOCKS,
   type CharacterId,
+  type InteractionBindingV3,
+  type InteractionCatalogV3,
+  type InteractionImplementationLock,
+  type InteractionRef,
+  type InteractionTargetRef,
   type Phase8RegistryLock,
   type ReactionPolicyV1,
   type SessionId,
@@ -46,7 +51,7 @@ export interface ManifestRegistries extends WorldJsonObject {
 }
 
 export interface CompiledWorldManifest extends WorldJsonObject {
-  readonly schemaVersion: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+  readonly schemaVersion: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
   readonly address: WorldAddress
   readonly specHash: WorldHash
   readonly genesisPlanHash: WorldHash
@@ -225,7 +230,43 @@ export interface CompiledWorldManifestV9 extends CompiledWorldManifest {
 }
 
 export function manifestUsesActionGroups(manifest: CompiledWorldManifest): boolean {
-  return manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9
+  return manifest.schemaVersion === 7 || manifest.schemaVersion === 8
+    || manifest.schemaVersion === 9 || manifest.schemaVersion === 10
+}
+
+/**
+ * V10 replaces the closed interaction catalog with the frozen package selection. The catalog names
+ * the packages, definition locks and bindings the Host must resolve before it may write, so a v10
+ * world cannot be activated against a runtime that does not carry those exact implementations.
+ *
+ * The relation vocabulary is unchanged from v9. What changes is who owns the semantics: the new path
+ * derives every ending from the lifecycle handlers the selected definitions declare, so `move`
+ * carries no relation knowledge of its own.
+ */
+export interface CompiledWorldManifestV10 extends CompiledWorldManifest {
+  readonly schemaVersion: 10
+  readonly characters: readonly ContentPackCharacterSpecV2[]
+  readonly scenes: readonly SceneSpecV2[]
+  readonly contentPack: ContentPackManifestBindingV2
+  readonly reactionPolicy: ReactionPolicyV1
+  readonly manifestationPolicy: ManifestationPolicyV1
+  readonly interactionCatalog: InteractionCatalogV3
+  readonly actionGroupPolicy: { readonly version: 'bounded-action-group/v2' }
+  readonly playerInputPolicy?: PlayerInputPolicyV1
+}
+
+/** The frozen-interaction path. Only v10 uses it; v1-v9 keep their own catalog semantics. */
+export function manifestUsesFrozenInteractions(manifest: CompiledWorldManifest): manifest is CompiledWorldManifestV10 {
+  return manifest.schemaVersion === 10
+}
+
+/**
+ * The Host-authority era: v9 introduced the Rulebook context that carries `actionId` and a proven
+ * `resolutionAuthority`, and v10 keeps it. Everything else about how a v9 and a v10 world resolve an
+ * action differs, which is exactly why the two predicate names are kept apart.
+ */
+export function manifestUsesHostAuthority(manifest: CompiledWorldManifest): boolean {
+  return manifest.schemaVersion === 9 || manifest.schemaVersion === 10
 }
 
 export interface CompiledWorldSpec {
@@ -243,20 +284,28 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   canonicalizeWorldJson(value)
   const root = objectAt(value, 'StoredWorldManifest')
   if (root.schemaVersion === 1) return new WorldSpecCompiler().compile(value).manifest
-  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4 && root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9) throw new TypeError('stored Manifest schemaVersion is unsupported')
-  if (root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && Object.hasOwn(root, 'reactionPolicy')) {
+  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4 && root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && root.schemaVersion !== 10) throw new TypeError('stored Manifest schemaVersion is unsupported')
+  if (root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && root.schemaVersion !== 10 && Object.hasOwn(root, 'reactionPolicy')) {
     throw new TypeError('stored Manifest reactionPolicy requires schemaVersion 5 or 6')
   }
-  if (root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && Object.hasOwn(root, 'manifestationPolicy')) {
+  if (root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && root.schemaVersion !== 10 && Object.hasOwn(root, 'manifestationPolicy')) {
     throw new TypeError('stored Manifest manifestationPolicy requires schemaVersion 6')
   }
-  if (root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9) {
+  if (root.schemaVersion === 10) {
+    const policy = objectAt(root.actionGroupPolicy, 'actionGroupPolicy')
+    exactKeys(policy, ['version'], 'actionGroupPolicy')
+    if (policy.version !== 'bounded-action-group/v2') throw new TypeError('unsupported action group policy')
+    if (objectAt(root.manifestationPolicy, 'manifestationPolicy').mode !== 'enabled') throw new TypeError('action groups require manifestation enabled')
+  } else if (root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9) {
     const policy = objectAt(root.actionGroupPolicy, 'actionGroupPolicy')
     exactKeys(policy, ['version'], 'actionGroupPolicy')
     if (policy.version !== 'bounded-action-group/v1') throw new TypeError('unsupported action group policy')
     if (objectAt(root.manifestationPolicy, 'manifestationPolicy').mode !== 'enabled') throw new TypeError('action groups require manifestation enabled')
   } else if (Object.hasOwn(root, 'actionGroupPolicy')) throw new TypeError('actionGroupPolicy requires Manifest v7')
-  if (root.schemaVersion === 8) {
+  if (root.schemaVersion === 10) {
+    parseStoredInteractionSelection(root)
+    if (Object.hasOwn(root, 'playerInputPolicy')) parsePlayerInputPolicy(root.playerInputPolicy)
+  } else if (root.schemaVersion === 8) {
     if (Object.hasOwn(root, 'playerInputPolicy')) throw new TypeError('playerInputPolicy requires Manifest v9')
     parseInteractionCatalog(root.interactionCatalog as WorldJsonValue, arrayAt(root.entities, 'StoredWorldManifest.entities')
       .map(value => textAt(objectAt(value, 'StoredWorldManifest.entity').entityId, 'StoredWorldManifest.entity.entityId')))
@@ -288,9 +337,9 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   arrayAt(root.locations, 'StoredWorldManifest.locations')
   arrayAt(root.characters, 'StoredWorldManifest.characters')
   arrayAt(root.playerBindings, 'StoredWorldManifest.playerBindings')
-  if (root.schemaVersion === 3 || root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9) {
+  if (root.schemaVersion === 3 || root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9 || root.schemaVersion === 10) {
     const contentPack = objectAt(root.contentPack, 'StoredWorldManifest.contentPack')
-    const phase8 = root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9
+    const phase8 = root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9 || root.schemaVersion === 10
     exactKeys(contentPack, phase8
       ? [
           'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
@@ -356,8 +405,8 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
       arrayAt(contentPack.markdown, 'StoredWorldManifest.contentPack.markdown')
     }
   }
-  if (root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9) parseReactionPolicy(root.reactionPolicy)
-  if (root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9) parseManifestationPolicy(root.manifestationPolicy)
+  if (root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9 || root.schemaVersion === 10) parseReactionPolicy(root.reactionPolicy)
+  if (root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9 || root.schemaVersion === 10) parseManifestationPolicy(root.manifestationPolicy)
   return value as CompiledWorldManifest
 }
 
@@ -368,7 +417,7 @@ const HISTORICAL_REACTION_POLICY: ReactionPolicyV1 = Object.freeze({
 
 /** Resolve the effective policy without mutating or re-hashing historical Manifest bytes. */
 export function reactionPolicyFromManifest(manifest: CompiledWorldManifest): ReactionPolicyV1 {
-  return manifest.schemaVersion === 5 || manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9
+  return manifest.schemaVersion === 5 || manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9 || manifest.schemaVersion === 10
     ? (manifest as CompiledWorldManifestV5 | CompiledWorldManifestV6).reactionPolicy
     : HISTORICAL_REACTION_POLICY
 }
@@ -380,7 +429,7 @@ const HISTORICAL_MANIFESTATION_POLICY: ManifestationPolicyV1 = Object.freeze({
 
 /** Resolve the exact provider-output capability without changing historical Manifest bytes. */
 export function manifestationPolicyFromManifest(manifest: CompiledWorldManifest): ManifestationPolicyV1 {
-  return manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9
+  return manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9 || manifest.schemaVersion === 10
     ? (manifest as CompiledWorldManifestV6).manifestationPolicy
     : HISTORICAL_MANIFESTATION_POLICY
 }
@@ -388,8 +437,89 @@ export function manifestationPolicyFromManifest(manifest: CompiledWorldManifest)
 /** Manifest v5/v6 deliberately retain every Phase 8 execution contract from v4. */
 export function manifestUsesPhase8Contracts(
   manifest: CompiledWorldManifest,
-): manifest is CompiledWorldManifestV4 | CompiledWorldManifestV5 | CompiledWorldManifestV6 | CompiledWorldManifestV7 | CompiledWorldManifestV8 | CompiledWorldManifestV9 {
-  return manifest.schemaVersion === 4 || manifest.schemaVersion === 5 || manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9
+): manifest is CompiledWorldManifestV4 | CompiledWorldManifestV5 | CompiledWorldManifestV6 | CompiledWorldManifestV7 | CompiledWorldManifestV8 | CompiledWorldManifestV9 | CompiledWorldManifestV10 {
+  return manifest.schemaVersion === 4 || manifest.schemaVersion === 5 || manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9 || manifest.schemaVersion === 10
+}
+
+/** Definition and package identity is an id plus a positive integer version, never a label. */
+function referenceAt(value: unknown, path: string): InteractionRef {
+  const row = objectAt(value, path)
+  exactKeys(row, ['id', 'version'], path)
+  const version = row.version
+  if (!Number.isSafeInteger(version) || (version as number) < 1) throw new TypeError(`${path}.version must be a positive safe integer`)
+  return { id: textAt(row.id, `${path}.id`), version: version as number }
+}
+
+function implementationLockAt(value: unknown, path: string): InteractionImplementationLock {
+  const row = objectAt(value, path)
+  exactKeys(row, ['ref', 'implementationHash', 'dependencies'], path)
+  const dependencies = arrayAt(row.dependencies, `${path}.dependencies`)
+    .map((entry, index) => referenceAt(entry, `${path}.dependencies[${index}]`))
+  unique(dependencies.map(entry => `${entry.id}@${entry.version}`), `${path}.dependencies`)
+  return {
+    ref: referenceAt(row.ref, `${path}.ref`),
+    implementationHash: hashAt(row.implementationHash, `${path}.implementationHash`),
+    dependencies,
+  }
+}
+
+const MAXIMUM_STORED_INTERACTION_PACKAGES = 32
+const MAXIMUM_STORED_INTERACTION_DEFINITIONS = 128
+const MAXIMUM_STORED_INTERACTION_BINDINGS = 4096
+
+/**
+ * The v10 stored Manifest carries the frozen world selection the Host has to resolve before it may
+ * write. Every reference is re-read here rather than trusted: a stored Manifest is bytes, and this
+ * view is what decides whether the world opens at all. A binding target that the world does not
+ * declare is refused, which is also what keeps a static Manifest from naming a relation instance it
+ * could not have derived.
+ */
+function parseStoredInteractionSelection(root: Record<string, unknown>): void {
+  const path = 'StoredWorldManifest.interactionCatalog'
+  const catalog = objectAt(root.interactionCatalog, path)
+  exactKeys(catalog, ['version', 'packages', 'definitions', 'bindings'], path)
+  if (catalog.version !== 'interaction-catalog/v3') throw new TypeError('Manifest v10 requires interaction-catalog/v3')
+  const packages = arrayAt(catalog.packages, `${path}.packages`)
+    .map((entry, index) => implementationLockAt(entry, `${path}.packages[${index}]`))
+  if (packages.length === 0 || packages.length > MAXIMUM_STORED_INTERACTION_PACKAGES) throw new TypeError(`${path}.packages is outside the frozen selection budget`)
+  unique(packages.map(entry => `${entry.ref.id}@${entry.ref.version}`), `${path}.packages`)
+  const definitions = arrayAt(catalog.definitions, `${path}.definitions`).map((entry, index) => {
+    const at = `${path}.definitions[${index}]`
+    const row = objectAt(entry, at)
+    exactKeys(row, ['ref', 'definitionHash', 'implementationHash'], at)
+    return {
+      ref: referenceAt(row.ref, `${at}.ref`),
+      definitionHash: hashAt(row.definitionHash, `${at}.definitionHash`),
+      implementationHash: hashAt(row.implementationHash, `${at}.implementationHash`),
+    }
+  })
+  if (definitions.length > MAXIMUM_STORED_INTERACTION_DEFINITIONS) throw new TypeError(`${path}.definitions is outside the frozen selection budget`)
+  unique(definitions.map(entry => `${entry.ref.id}@${entry.ref.version}`), `${path}.definitions`)
+  const enabled = new Set(definitions.map(entry => `${entry.ref.id}@${entry.ref.version}`))
+  const entityIds = new Set(arrayAt(root.entities, 'StoredWorldManifest.entities')
+    .map(value => textAt(objectAt(value, 'StoredWorldManifest.entity').entityId, 'StoredWorldManifest.entity.entityId')))
+  const characterIds = new Set(arrayAt(root.characters, 'StoredWorldManifest.characters')
+    .map(value => textAt(objectAt(value, 'StoredWorldManifest.character').characterId, 'StoredWorldManifest.character.characterId')))
+  const bindings = arrayAt(catalog.bindings, `${path}.bindings`).map((entry, index): InteractionBindingV3 => {
+    const at = `${path}.bindings[${index}]`
+    const row = objectAt(entry, at)
+    exactKeys(row, ['bindingId', 'targetRef', 'definitionRef', 'config'], at)
+    const targetRow = objectAt(row.targetRef, `${at}.targetRef`)
+    exactKeys(targetRow, ['kind', 'id'], `${at}.targetRef`)
+    if (targetRow.kind !== 'entity' && targetRow.kind !== 'character' && targetRow.kind !== 'relation') {
+      throw new TypeError(`${at}.targetRef.kind is unknown`)
+    }
+    const targetRef: InteractionTargetRef = { kind: targetRow.kind, id: textAt(targetRow.id, `${at}.targetRef.id`) }
+    const definitionRef = referenceAt(row.definitionRef, `${at}.definitionRef`)
+    if (!enabled.has(`${definitionRef.id}@${definitionRef.version}`)) throw new TypeError(`${at} references a definition the world did not enable`)
+    const declared = targetRef.kind === 'entity' ? entityIds : targetRef.kind === 'character' ? characterIds : undefined
+    if (declared === undefined || !declared.has(targetRef.id)) throw new TypeError(`${at} names an unknown ${targetRef.kind} target`)
+    const config = objectAt(row.config, `${at}.config`)
+    canonicalizeWorldJson(config as WorldJsonValue)
+    return { bindingId: textAt(row.bindingId, `${at}.bindingId`), targetRef, definitionRef, config: config as WorldJsonObject }
+  })
+  if (bindings.length > MAXIMUM_STORED_INTERACTION_BINDINGS) throw new TypeError(`${path}.bindings is outside the frozen selection budget`)
+  unique(bindings.map(entry => entry.bindingId), `${path}.bindings`)
 }
 
 function parsePlayerInputPolicy(value: unknown): PlayerInputPolicyV1 {

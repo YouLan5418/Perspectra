@@ -27,6 +27,7 @@ import {
   type CompiledWorldManifestV5,
   type CompiledWorldManifestV6,
   type CompiledWorldManifestV9,
+  type CompiledWorldManifestV10,
   type CompiledWorldManifestV7,
   type CompiledWorldManifestV3,
   type CompiledWorldSpec,
@@ -1528,6 +1529,93 @@ export class WorldPackCompilerV5 {
     return await compilePhase8Source(
       sourceDirectory, options, 'v5', options.interactionPackages,
     ) as CompiledWorldPackV5
+  }
+
+  /**
+   * Bind a compiled v5 Pack to Manifest V10. The world's own package selection replaces the closed
+   * catalog, and the interaction action version moves to 2 because its step arguments now name a
+   * binding and a definition lock rather than a catalog entry.
+   *
+   * Nothing else about the world changes: content, reaction policy and manifestation policy carry
+   * over from the v6 shape, so a v10 world is a v6 world whose interaction execution was replaced
+   * rather than a new content vocabulary.
+   */
+  adaptToWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
+    const pack = verifyCompiledWorldPackV5(packInput)
+    const player = pack.content.playerSlots[0]!
+    const characters: readonly ContentPackCharacterSpecV2[] = pack.content.characters.map(character => ({
+      characterId: character.characterId, name: character.displayName, locationId: character.initialLocationId,
+      controllerClass: character.controllerClass, pronouns: character.pronouns,
+      lifecycle: character.lifecycle, portrayal: character.portrayal,
+    }))
+    const scenes: readonly SceneSpecV2[] = pack.content.scenes.map(scene => ({ ...scene }))
+    const actionGroupPolicy = { version: 'bounded-action-group/v2' as const }
+    const normalizedRuntime = {
+      schemaVersion: 10 as const,
+      address: options.address,
+      metadata: { title: pack.content.world.title, description: pack.content.world.description },
+      timeMode: 'TURN_DRIVEN' as const,
+      roundQueueLimit: pack.content.world.roundQueueLimit,
+      runtimePolicy: { npcInitialAvailability: 'ready' as const, playerInitialAvailability: 'ready' as const },
+      rulebook: pack.content.world.coreProfiles.rulebook,
+      registries: characterInteractionManifestRegistries(),
+      locations: pack.content.locations,
+      entities: pack.content.entities,
+      characters,
+      scenes,
+      goals: [], claims: [], observations: [],
+      playerBindings: [{ principalId: options.principalId, characterId: player.characterId, sessionId: options.sessionId }],
+      plugins: [
+        pack.content.world.coreProfiles.sceneDecision,
+        pack.content.world.coreProfiles.agentContext,
+        { pluginId: pack.content.world.coreProfiles.presentation.profileId, version: pack.content.world.coreProfiles.presentation.version },
+      ],
+      contentPack: contentPackBindingV2(pack),
+      reactionPolicy: pack.reaction.mode === 'disabled'
+        ? { version: 'reaction-policy/v1' as const, mode: 'disabled' as const }
+        : { version: 'reaction-policy/v1' as const, mode: 'responsive' as const, profile: pack.reaction.profile },
+      manifestationPolicy: { version: 'manifestation-policy/v1' as const, mode: pack.manifestation.mode },
+      interactionCatalog: pack.interactions,
+      actionGroupPolicy,
+    }
+    // The selection and the action group policy are the whole of what v10 adds, so the spec hash
+    // commits to them beside the v6 spec rather than restating the entire runtime underneath.
+    const { interactionCatalog, ...withoutSelection } = normalizedRuntime
+    const specHash = hashWorldJson('world-pack-runtime-spec/interactions-v2', {
+      baseSpecHash: hashWorldJson('world-pack-runtime-spec/v4', withoutSelection),
+      interactionCatalog,
+    })
+    const genesisPlanHash = hashWorldJson('world-pack-genesis-semantic-plan/v5', {
+      address: options.address, packHash: pack.packHash, characters, scenes,
+      cognition: pack.content.cognition, initialFacts: pack.content.world.initialFacts,
+      memorySeedDocuments: pack.content.documents.filter(isMemorySeedDocument),
+    })
+    const manifest: CompiledWorldManifestV10 = {
+      ...normalizedRuntime, specHash, genesisPlanHash,
+      canonicalVersion: 'world-json/v1', hashVersion: 'sha256/v1',
+    }
+    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
+    const genesisEvents: readonly WorldEventDraft[] = [
+      { eventType: 'world.created', eventVersion: 1, data: { specHash } },
+      { eventType: 'world.manifest-locked', eventVersion: 1, data: { manifestHash, genesisPlanHash } },
+      ...pack.content.locations.map(value => ({ eventType: 'location.upsert', eventVersion: 1, data: value })),
+      ...pack.content.entities.map(value => ({ eventType: 'entity.upsert', eventVersion: 1, data: value })),
+      ...characters.flatMap(value => [
+        { eventType: 'character.created', eventVersion: 1, data: { ...value, lifecycleState: 'active' } },
+        ...(value.lifecycle === 'active' ? [] : [{
+          eventType: 'character.lifecycle-changed', eventVersion: 1,
+          data: { characterId: value.characterId, lifecycleState: value.lifecycle, transition: 'world-pack-genesis/v2' },
+        }]),
+      ]),
+      ...scenes.map(value => ({
+        eventType: 'scene.upsert', eventVersion: 1,
+        data: { sceneId: value.sceneId, value: { lifecycle: value.lifecycle, locationId: value.locationId, participantIds: value.participantIds } },
+      })),
+      ...phase8GenesisCognition(pack),
+      { eventType: 'player.binding.upsert', eventVersion: 1, data: normalizedRuntime.playerBindings[0]! },
+      { eventType: 'world.lifecycle-changed', eventVersion: 1, data: { lifecycleState: 'active' } },
+    ]
+    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
   }
 }
 

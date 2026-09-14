@@ -33,11 +33,24 @@ export interface StepManifestation extends WorldJsonObject {
   readonly onSuccess: readonly ActionGroupCue[]
 }
 
-export interface ActionGroupBinding extends WorldJsonObject {
+export interface ActionGroupBindingV1 extends WorldJsonObject {
   readonly version: 'bounded-action-group/v1'
   /** Aligned with original proposalOrdinal; null means no performance for this step. */
   readonly manifestations: readonly (StepManifestation | null)[]
 }
+
+/**
+ * V2 exists because the frozen interaction path addresses a definition lock and a binding identity
+ * the closed catalog could not name, so its step arguments are a different shape. The manifestation
+ * vocabulary is unchanged; a v2 group is accepted only where the Manifest declares the v2 policy, so
+ * a v1 world never sees the new action version and a v2 world never silently accepts the old one.
+ */
+export interface ActionGroupBindingV2 extends WorldJsonObject {
+  readonly version: 'bounded-action-group/v2'
+  readonly manifestations: readonly (StepManifestation | null)[]
+}
+
+export type ActionGroupBinding = ActionGroupBindingV1 | ActionGroupBindingV2
 
 export interface ActionGroupProposal extends WorldJsonObject {
   readonly participantId: string

@@ -50,6 +50,7 @@ import {
   characterRelationObservations,
   manifestationPolicyFromManifest,
   manifestUsesActionGroups,
+  manifestUsesHostAuthority,
   manifestUsesInteractions,
   resolveManifestation,
   type CompiledWorldManifest,
@@ -616,7 +617,7 @@ export class ReactionScheduler {
         events: actionPrefix,
         characterId: item.action.actorId,
         actionId: item.action.actionId,
-        ...(this.options.manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
+        ...(manifestUsesHostAuthority(this.options.manifest) ? { resolutionAuthority: actionAuthority } : {}),
         action: { actionType: item.action.actionType, parameters: item.action.parameters },
       }))
       const moveTarget = item.action.actionType === 'move' ? (item.action.parameters as WorldJsonObject).locationId : undefined
@@ -664,7 +665,7 @@ export class ReactionScheduler {
       const candidateHashBefore = candidateHash
       const ruleTraceHash = hashWorldJson('round-rule-trace', {
         rulebook: this.options.manifest.rulebook,
-        ...(this.options.manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
+        ...(manifestUsesHostAuthority(this.options.manifest) ? { resolutionAuthority: actionAuthority } : {}),
         action: item.action,
         status: skipped ? 'skipped' : resolution.status,
         reason: resolution.reason ?? null,
@@ -681,7 +682,7 @@ export class ReactionScheduler {
         actionId: item.action.actionId,
         participantId: item.participantId,
         sourceRole: 'agent',
-        ...(this.options.manifest.schemaVersion === 9 ? { resolutionAuthority: actionAuthority } : {}),
+        ...(manifestUsesHostAuthority(this.options.manifest) ? { resolutionAuthority: actionAuthority } : {}),
         actorId: item.action.actorId,
         actionType: item.action.actionType,
         actionVersion: item.action.actionVersion,
@@ -809,7 +810,7 @@ export class ReactionScheduler {
       }
     })
     const authority = {
-      schemaVersion: this.options.manifest.schemaVersion === 9 ? 5 : manifestUsesActionGroups(this.options.manifest) ? 4 : 3,
+      schemaVersion: manifestUsesHostAuthority(this.options.manifest) ? 5 : manifestUsesActionGroups(this.options.manifest) ? 4 : 3,
       origin: {
         kind: 'reaction', cycleId: cycle.cycle.cycleId,
         rootRoundId: cycle.cycle.rootRoundId, wave: cycle.waves.at(-1)!.wave,

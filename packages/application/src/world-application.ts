@@ -32,6 +32,7 @@ import {
   WorldBootstrap,
   WorldSpecCompiler,
   createCoreRulebookRegistry,
+  manifestUsesHostAuthority,
   manifestUsesPhase8Contracts,
   parsePlayerRoundResult,
   parsePlayerActionInput,
@@ -710,7 +711,7 @@ export class WorldApplication {
       const stored = store.readManifest(address)
       if (stored === undefined) return false
       const manifest = runtimeManifestFromStored(stored.manifest)
-      return manifest.schemaVersion === 9 && (manifest.playerInputPolicy as { version: string } | undefined)?.version === 'player-intent/v1'
+      return manifestUsesHostAuthority(manifest) && (manifest.playerInputPolicy as { version: string } | undefined)?.version === 'player-intent/v1'
     } finally { store.close() }
   }
 

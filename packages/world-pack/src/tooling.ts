@@ -101,9 +101,12 @@ async function readCompiledPack(path: string): Promise<AnyCompiledWorldPack> {
 /** Bind the immutable envelope through its exact versioned compiler. */
 export function adaptCompiledWorldPack(pack: AnyCompiledWorldPack, options: WorldPackRuntimeOptions) {
   if (pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V5) {
-    // The catalog is compiled, but binding it to Manifest v10 and the production entry points is I3/I4.
-    // Fail closed instead of letting a v1 compiler reinterpret a v5 Pack.
-    throw new TypeError('compiled worldpack/v5 requires the interaction Manifest binding, which is not wired yet')
+    // A v5 Pack carries its own frozen selection, so it binds to v10 and nothing else: letting a
+    // lower compiler reinterpret it would drop the package locks the world has to resolve.
+    if (options.interactionCatalog !== undefined || options.actionGroups !== undefined) {
+      throw new TypeError('a compiled worldpack/v5 Pack carries its own interaction selection')
+    }
+    return new WorldPackCompilerV5().adaptToWorldSpec(pack, options)
   }
   if (options.interactionCatalog !== undefined) {
     if (pack.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) throw new TypeError('object interactions require a v4 Pack')
