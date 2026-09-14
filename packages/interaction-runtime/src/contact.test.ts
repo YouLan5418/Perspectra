@@ -366,6 +366,50 @@ describe('contact relation domain', () => {
     expect(held.fold(sceneless, [])).toHaveLength(1)
   })
 
+  it('reads what an effect landed on from the definition’s own declared slots', () => {
+    const held = runtime()
+    // The affected-slot policy is the definition's, not the Host's: give names its recipient, and the
+    // actor is not one of them.
+    const holding = host(false, {
+      targets: [
+        { ref: { kind: 'character', id: actor }, state: character(actor) },
+        { ref: alice, state: character('character:alice') },
+        { ref: { kind: 'entity', id: 'entity:cup' }, state: { holderId: actor, locationId: null } },
+      ],
+      authorizedTargets: [alice, { kind: 'entity', id: 'entity:cup' }],
+    })
+    const given = held.resolve(holding, request('base:give', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:give',
+      { recipientId: 'character:alice' }))
+    expect(given.status).toBe('accepted')
+    expect(given.affectedCharacterIds).toEqual(['character:alice'])
+    // Holding names only the other side, so the actor never appears as affected by their own act.
+    const held2 = held.resolve(host(), request('base:hold-hand', alice, 'binding:alice-hold'))
+    expect(held2.status).toBe('accepted')
+    expect(held2.affectedCharacterIds).toEqual(['character:alice'])
+    // take declares no affected slot at all: the actor is the only character involved.
+    const taken = held.resolve(host(), request('base:take', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:take'))
+    expect(taken.affectedCharacterIds).toEqual([])
+    // Ending a relation affects both of its parties, which the pack declares as two slots.
+    const released = held.resolve(host(true), request('base:end-contact', shared, 'binding:held-release'))
+    expect(released.affectedCharacterIds).toEqual([actor, 'character:alice'].sort())
+  })
+
+  it('lands an effect on nobody when the action did not happen', () => {
+    const held = runtime()
+    // The relation is inactive, so the release is refused; a witness of that failure must not be able
+    // to read it as an effect that landed on somebody.
+    const refused = held.resolve(host(false), request('base:end-contact', shared, 'binding:held-release'))
+    expect(refused.status).toBe('rejected')
+    expect(refused.affectedCharacterIds).toEqual([])
+    // The slots it did bind are still reported, so "did not happen" and "never got that far" differ.
+    expect(refused.resolvedRoles.contact).toEqual(shared)
+    // A refused give binds no recipient at all, so it names nobody as affected either.
+    const noRecipient = held.resolve(host(), request('base:give', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:give',
+      { recipientId: 'character:alice' }))
+    expect(noRecipient.status).toBe('rejected')
+    expect(noRecipient.affectedCharacterIds).toEqual([])
+  })
+
   it('hands the resolved role bindings over as exactly the data behind their hash', () => {
     const held = runtime()
     const adjudication = held.resolve(host(), request('base:take', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:take'))

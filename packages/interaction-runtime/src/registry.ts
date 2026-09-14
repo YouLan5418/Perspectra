@@ -117,6 +117,29 @@ function compareLifecycleHandlers(left: InteractionLifecycleHandlerImplementatio
     || compareWorldText(key(left.lock.ref), key(right.lock.ref))
 }
 
+/**
+ * What an effect landed on, from the definition's own declared slots.
+ *
+ * Only an accepted action has landed on anybody: a rejection means nothing happened, which is the same
+ * reason the spec forbids reading an onlooker of a failed attempt as `direct`. Beyond that this needs
+ * no shape checking, and the absence is deliberate rather than an omission. A policy slot is validated
+ * at activation to be a character role, an accepted plan has bound every declared role, and a plan only
+ * accepts a ref the candidate snapshot contains - so a bound slot is a character, and a branch asking
+ * again would be one no correct world can take.
+ *
+ * The list is sorted and deduplicated so no two readers see a different order of the same fact.
+ */
+function affectedCharacters(
+  directRoles: readonly string[],
+  roles: { readonly [name: string]: InteractionTargetRef },
+  status: InteractionAdjudication['status'],
+): readonly string[] {
+  if (status !== 'accepted') return []
+  const ids = new Set<string>()
+  for (const name of directRoles) ids.add(roles[name]!.id)
+  return [...ids].sort(compareWorldText)
+}
+
 function compareTargets(left: InteractionTargetRef, right: InteractionTargetRef): number {
   return compareWorldText(left.kind, right.kind) || compareWorldText(left.id, right.id)
 }
@@ -440,7 +463,7 @@ export class InteractionRegistry {
       definitions: [...selection.definitions].sort((a, b) => compareWorldText(key(a.ref), key(b.ref))),
       bindings: [...selection.bindings].sort((a, b) => compareWorldText(a.bindingId, b.bindingId)),
     })
-    return new FrozenInteractionWorld(canonicalSelection, active, bindings, rules, effects, resolvers, handlers, performances)
+    return new FrozenInteractionWorld(canonicalSelection, active, bindings, rules, effects, resolvers, handlers, performances, reactionEvidence)
   }
 }
 
@@ -459,6 +482,7 @@ export class FrozenInteractionWorld {
     private readonly resolvers: ReadonlyMap<string, InteractionDerivedResolverImplementation>,
     private readonly handlers: ReadonlyMap<string, InteractionLifecycleHandlerImplementation>,
     private readonly performances: ReadonlyMap<string, InteractionPerformanceImplementation>,
+    private readonly reactionEvidence: ReadonlyMap<string, InteractionReactionEvidenceImplementation>,
   ) {
     this.definitionSetHash = hashWorldJson('interaction-world-selection/v1', selection)
     // The world fold is the union of every enabled definition's handlers: the Host runs it after an
@@ -494,9 +518,16 @@ export class FrozenInteractionWorld {
     const finish = (reason: string, events: InteractionAdjudication['events'] = [], accepted: InteractionPerformance | null = null): InteractionAdjudication => {
       const resolvedRoleBindingsHash = hashWorldJson('interaction-role-bindings/v1', roles)
       const data = { status: reason === 'accepted' ? 'accepted' as const : 'rejected' as const, reason, events, definitionSetHash: this.definitionSetHash, resolvedRoleBindingsHash, trace, performance: accepted }
-      // `resolvedRoles` sits beside the hash rather than inside the hashed payload, so handing the
-      // bindings over cannot change any trace hash.
-      return immutable({ ...data, resolvedRoles: roles, ruleTraceHash: hashWorldJson('interaction-rule-trace/v1', { ...data, address: host.address, manifestHash: host.manifestHash, asOfWorldSeq: host.asOfWorldSeq, candidatePrefixHash: host.candidatePrefixHash, actionId: host.actionId, actorId: host.actorId, authority: host.authority, request }) })
+      const resolvedRoles = immutable({ ...roles })
+      const status = data.status
+      // Activation already proved every enabled definition names a policy that resolved, so this lookup
+      // has an answer and a fallback here would be a branch no enabled world can take.
+      const evidence = this.reactionEvidence.get(key(def.reactionEvidencePolicyRef))!
+      // `resolvedRoles` and `affectedCharacterIds` sit beside the hash rather than inside the hashed
+      // payload, so handing them over cannot change any trace hash.
+      return immutable({ ...data, resolvedRoles,
+        affectedCharacterIds: affectedCharacters(evidence.policy.directRoles, resolvedRoles, status),
+        ruleTraceHash: hashWorldJson('interaction-rule-trace/v1', { ...data, address: host.address, manifestHash: host.manifestHash, asOfWorldSeq: host.asOfWorldSeq, candidatePrefixHash: host.candidatePrefixHash, actionId: host.actionId, actorId: host.actorId, authority: host.authority, request }) })
     }
     const plan = this.#plan(host, def, binding, request.targetRef, args, targets, authorized, roles, trace)
     if (plan !== null) {

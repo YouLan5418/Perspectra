@@ -287,6 +287,12 @@ export interface InteractionAdjudication extends WorldJsonObject {
    */
   readonly resolvedRoles: { readonly [name: string]: InteractionTargetRef }
   /**
+   * The characters this action's effect landed on, read from the definition's affected-slot policy
+   * against the roles that were actually bound. It is what `direct` means, and it is empty on a
+   * rejection: nothing landed on anyone when nothing happened.
+   */
+  readonly affectedCharacterIds: readonly string[]
+  /**
    * The performance the policy accepted, or null. It contributes no events: the adjudication's
    * events still come only from the effect builder, and turning an accepted performance into a
    * memorable observation fact stays the Host's step, exactly as it does for the action group path.
