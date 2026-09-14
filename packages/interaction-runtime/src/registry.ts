@@ -1,5 +1,6 @@
 import {
   ACTION_GROUP_CUES, INTERACTION_LIFECYCLE_PHASES, compareWorldText, hashWorldJson, validateResolutionAuthority, worldAddressKey,
+  type InteractionReactionEvidenceImplementation, type InteractionReactionEvidencePolicyV1,
   type ActionGroupCue,
   type InteractionAdjudication, type InteractionBindingV3, type InteractionCharacterView,
   type InteractionDefinitionImplementation,
@@ -49,6 +50,22 @@ function performancePolicy(value: unknown): InteractionPerformancePolicyV1 {
     if (row.requiresRole !== null) text(row.requiresRole)
   }
   return immutable(value as InteractionPerformancePolicyV1)
+}
+
+/**
+ * The affected role slots a definition declares. An empty list is a real answer - it says this
+ * definition's effect lands on nobody as an observer - so it is validated for shape only.
+ */
+function reactionEvidencePolicy(value: unknown): InteractionReactionEvidencePolicyV1 {
+  const root = object(value, ['version', 'directRoles'])
+  if (root.version !== 'interaction-reaction-evidence/v1') throw new TypeError('unsupported reaction evidence policy')
+  const seen = new Set<string>()
+  for (const input of list(root.directRoles, 8)) {
+    const name = text(input)
+    if (seen.has(name)) throw new TypeError('duplicate direct role')
+    seen.add(name)
+  }
+  return immutable(value as InteractionReactionEvidencePolicyV1)
 }
 
 /**
@@ -202,7 +219,7 @@ function argumentCombinations(
 }
 
 function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec {
-  object(value, ['versionTag', 'id', 'version', 'participantRoles', 'argumentSchema', 'bindingConfigSchema', 'authorityPolicyRef', 'preconditions', 'spatialRequirementRefs', 'effectBuilderRef', 'effectCapabilityRefs', 'dependencyRefs', 'performancePolicyRef', 'lifecycleRefs', 'limits'])
+  object(value, ['versionTag', 'id', 'version', 'participantRoles', 'argumentSchema', 'bindingConfigSchema', 'authorityPolicyRef', 'preconditions', 'spatialRequirementRefs', 'effectBuilderRef', 'effectCapabilityRefs', 'dependencyRefs', 'performancePolicyRef', 'reactionEvidencePolicyRef', 'lifecycleRefs', 'limits'])
   if (value.versionTag !== 'interaction-definition/v1') throw new TypeError('unsupported definition contract')
   reference({ id: value.id, version: value.version })
   parameterSchema(value.argumentSchema); parameterSchema(value.bindingConfigSchema)
@@ -230,7 +247,7 @@ function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec
   }
   if (actors !== 1 || primary !== 1) throw new TypeError('one actor and primary target required')
   for (const role of value.participantRoles) if (role.distinctFrom.some(name => !names.has(name))) throw new TypeError('unknown distinct role')
-  reference(value.authorityPolicyRef); reference(value.effectBuilderRef); reference(value.performancePolicyRef)
+  reference(value.authorityPolicyRef); reference(value.effectBuilderRef); reference(value.performancePolicyRef); reference(value.reactionEvidencePolicyRef)
   refs(value.preconditions, 16); refs(value.spatialRequirementRefs, 16); refs(value.effectCapabilityRefs, 16); refs(value.dependencyRefs, 64); refs(value.lifecycleRefs, 16)
   if (!value.effectCapabilityRefs.some(ref => key(ref) === key(value.effectBuilderRef))) throw new TypeError('effect capability missing')
   object(value.limits, ['maximumEvents']); integer(value.limits.maximumEvents, 1, 16)
@@ -239,7 +256,7 @@ function definition(value: InteractionDefinitionSpec): InteractionDefinitionSpec
 
 function definitionDependencies(spec: InteractionDefinitionSpec): readonly InteractionRef[] {
   return [spec.authorityPolicyRef, ...spec.preconditions, ...spec.spatialRequirementRefs, spec.effectBuilderRef,
-    ...spec.effectCapabilityRefs, spec.performancePolicyRef,
+    ...spec.effectCapabilityRefs, spec.performancePolicyRef, spec.reactionEvidencePolicyRef,
     ...spec.participantRoles.flatMap(role => role.source.kind === 'derived' ? [role.source.resolver] : []),
     ...spec.lifecycleRefs, ...spec.dependencyRefs]
 }
@@ -253,6 +270,7 @@ export function interactionPackageHash(input: Omit<InteractionPackageImplementat
     resolvers: ordered(input.resolvers, entry => key(entry.lock.ref)).map(entry => entry.lock),
     lifecycle: ordered(input.lifecycle, entry => key(entry.lock.ref)).map(entry => ({ lock: entry.lock, phase: entry.phase, consumes: entry.consumes, eventTypes: entry.eventTypes })),
     performances: ordered(input.performances, entry => key(entry.lock.ref)).map(entry => ({ lock: entry.lock, policy: entry.policy })),
+    reactionEvidence: ordered(input.reactionEvidence, entry => key(entry.lock.ref)).map(entry => ({ lock: entry.lock, policy: entry.policy })),
     definitions: ordered(input.definitions, def => key({ id: def.spec.id, version: def.spec.version })).map(def => ({ spec: def.spec, implementationHash: def.implementationHash })),
   })
 }
@@ -294,18 +312,22 @@ export class InteractionRegistry {
       const entry = value as InteractionPerformanceImplementation
       return Object.freeze({ lock: lock(entry.lock), policy: performancePolicy(entry.policy) })
     })
+    const reactionEvidence = list(input.reactionEvidence, 128).map(value => {
+      const entry = value as InteractionReactionEvidenceImplementation
+      return Object.freeze({ lock: lock(entry.lock), policy: reactionEvidencePolicy(entry.policy) })
+    })
     const definitions = list(input.definitions, 128).map(value => {
       const def = value as InteractionDefinitionImplementation
       return Object.freeze({ spec: definition(def.spec), implementationHash: hash(def.implementationHash) })
     })
-    if (packageLock.implementationHash !== interactionPackageHash({ rules, effects, resolvers, lifecycle, performances, definitions })) throw new TypeError('package component lock drift')
+    if (packageLock.implementationHash !== interactionPackageHash({ rules, effects, resolvers, lifecycle, performances, reactionEvidence, definitions })) throw new TypeError('package component lock drift')
     const identities = [key(packageLock.ref), ...rules.map(value => key(value.lock.ref)), ...effects.map(value => key(value.lock.ref)),
       ...resolvers.map(value => key(value.lock.ref)), ...lifecycle.map(value => key(value.lock.ref)),
-      ...performances.map(value => key(value.lock.ref)),
+      ...performances.map(value => key(value.lock.ref)), ...reactionEvidence.map(value => key(value.lock.ref)),
       ...definitions.map(value => key({ id: value.spec.id, version: value.spec.version }))]
     if (new Set(identities).size !== identities.length || identities.some(id => this.#identities.has(id))) throw new TypeError('duplicate registration')
     identities.forEach(id => this.#identities.add(id))
-    this.#packages.set(key(packageLock.ref), Object.freeze({ lock: packageLock, rules, effects, resolvers, lifecycle, performances, definitions }))
+    this.#packages.set(key(packageLock.ref), Object.freeze({ lock: packageLock, rules, effects, resolvers, lifecycle, performances, reactionEvidence, definitions }))
   }
 
   freeze(input: InteractionWorldSelection): FrozenInteractionWorld {
@@ -318,6 +340,7 @@ export class InteractionRegistry {
     const handlers = new Map<string, InteractionLifecycleHandlerImplementation>()
     const resolvers = new Map<string, InteractionDerivedResolverImplementation>()
     const performances = new Map<string, InteractionPerformanceImplementation>()
+    const reactionEvidence = new Map<string, InteractionReactionEvidenceImplementation>()
     const definitions = new Map<string, InteractionDefinitionImplementation>()
     const nodes = new Map<string, readonly InteractionRef[]>()
     for (const requested of list(selection.packages, 32)) {
@@ -331,6 +354,7 @@ export class InteractionRegistry {
       for (const entry of installed.resolvers) { resolvers.set(key(entry.lock.ref), entry); nodes.set(key(entry.lock.ref), entry.lock.dependencies) }
       for (const entry of installed.lifecycle) { handlers.set(key(entry.lock.ref), entry); nodes.set(key(entry.lock.ref), entry.lock.dependencies) }
       for (const entry of installed.performances) { performances.set(key(entry.lock.ref), entry); nodes.set(key(entry.lock.ref), entry.lock.dependencies) }
+      for (const entry of installed.reactionEvidence) { reactionEvidence.set(key(entry.lock.ref), entry); nodes.set(key(entry.lock.ref), entry.lock.dependencies) }
       for (const def of installed.definitions) definitions.set(key({ id: def.spec.id, version: def.spec.version }), def)
     }
     const active = new Map<string, InteractionDefinitionImplementation>()
@@ -354,6 +378,15 @@ export class InteractionRegistry {
         if (entry.requiresRole !== null && !found.spec.participantRoles.some(role => role.name === entry.requiresRole)) {
           throw new TypeError('performance cue names an undeclared role')
         }
+      }
+      // The same argument for the affected slots: a slot the definition does not declare names nobody,
+      // and a slot that is not a character can never be the observer an effect landed on.
+      const evidence = reactionEvidence.get(key(found.spec.reactionEvidencePolicyRef))
+      if (evidence === undefined) throw new TypeError('reaction evidence policy missing')
+      for (const name of evidence.policy.directRoles) {
+        const role = found.spec.participantRoles.find(entry => entry.name === name)
+        if (role === undefined) throw new TypeError('reaction evidence policy names an undeclared role')
+        if (role.kind !== 'character') throw new TypeError('reaction evidence policy names a role that is not a character')
       }
       active.set(id, found); nodes.set(id, definitionDependencies(found.spec))
     }

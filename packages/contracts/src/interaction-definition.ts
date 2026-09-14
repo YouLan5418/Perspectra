@@ -57,6 +57,13 @@ export interface InteractionDefinitionSpec extends WorldJsonObject {
   readonly dependencyRefs: readonly InteractionRef[]
   /** Registered performance policy. It decides whether this definition accepts a manifestation at all. */
   readonly performancePolicyRef: InteractionRef
+  /**
+   * Registered reaction-evidence policy. It names the role slots whose bound character an accepted
+   * effect is read as landing on, which is what `direct` means; every earlier class is derived from the
+   * observer's own position. Required, like the performance policy: a definition with no answer would
+   * make a Host invent one.
+   */
+  readonly reactionEvidencePolicyRef: InteractionRef
   /** Registered fold handlers this action runs, in the frozen phase order. */
   readonly lifecycleRefs: readonly InteractionRef[]
   readonly limits: { readonly maximumEvents: number }
@@ -82,6 +89,17 @@ export interface InteractionPerformanceCueBinding extends WorldJsonObject {
 export interface InteractionPerformancePolicyV1 extends WorldJsonObject {
   readonly version: 'interaction-performance/v1'
   readonly accepted: readonly InteractionPerformanceCueBinding[]
+}
+
+/**
+ * Which role slots an effect lands on. It is declared and locked rather than inferred: a Host that read
+ * "an affected character" out of an event's arbitrary fields would be guessing, and the guess would be
+ * invisible in the published contract. The slots name character roles, because only a character can be
+ * the observer an effect landed on.
+ */
+export interface InteractionReactionEvidencePolicyV1 extends WorldJsonObject {
+  readonly version: 'interaction-reaction-evidence/v1'
+  readonly directRoles: readonly string[]
 }
 
 /** The submitted manifestation. It reuses the frozen two-list shape, so normalization is shared. */
@@ -188,6 +206,11 @@ export interface InteractionPerformanceImplementation {
   readonly policy: InteractionPerformancePolicyV1
 }
 
+export interface InteractionReactionEvidenceImplementation {
+  readonly lock: InteractionImplementationLock
+  readonly policy: InteractionReactionEvidencePolicyV1
+}
+
 export interface InteractionEffectImplementation {
   readonly lock: InteractionImplementationLock
   readonly eventTypes: readonly InteractionRef[]
@@ -208,6 +231,7 @@ export interface InteractionPackageImplementation {
   readonly resolvers: readonly InteractionDerivedResolverImplementation[]
   readonly lifecycle: readonly InteractionLifecycleHandlerImplementation[]
   readonly performances: readonly InteractionPerformanceImplementation[]
+  readonly reactionEvidence: readonly InteractionReactionEvidenceImplementation[]
   readonly definitions: readonly InteractionDefinitionImplementation[]
 }
 

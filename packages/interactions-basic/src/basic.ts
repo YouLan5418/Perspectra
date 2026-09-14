@@ -1,5 +1,6 @@
 import {
   deterministicId, hashWorldJson,
+  type InteractionReactionEvidenceImplementation,
   type InteractionDefinitionImplementation, type InteractionDefinitionSpec,
   type InteractionDerivedResolverImplementation, type InteractionLifecycleHandlerImplementation,
   type InteractionEffectImplementation, type InteractionExecutionContext, type InteractionImplementationLock,
@@ -238,6 +239,20 @@ const noPerformance: InteractionPerformanceImplementation = {
   policy: { version: 'interaction-performance/v1', accepted: [] },
 }
 
+/**
+ * Which slots an effect lands on. The empty list is a real answer for take and drop: the actor is the
+ * only character involved, and the actor is `self` before any slot is consulted. Declaring a slot the
+ * definition does not have, or one that is not a character, is refused at activation.
+ */
+const evidence = (id: string, directRoles: readonly string[]): InteractionReactionEvidenceImplementation => ({
+  lock: implementation(id), policy: { version: 'interaction-reaction-evidence/v1', directRoles },
+})
+
+const noDirect = evidence('base:no-direct', [])
+const directRecipient = evidence('base:direct-recipient', ['recipient'])
+const directTarget = evidence('base:direct-target', ['target'])
+const directParticipants = evidence('base:direct-participants', ['initiator', 'target'])
+
 function definition(id: string, preconditions: readonly string[], effectId: string, recipientRole: boolean): InteractionDefinitionImplementation {
   const spec: InteractionDefinitionSpec = { versionTag: 'interaction-definition/v1', id, version: 1,
     participantRoles: recipientRole ? [actor, item, recipient] : [actor, item],
@@ -245,7 +260,9 @@ function definition(id: string, preconditions: readonly string[], effectId: stri
     bindingConfigSchema: { fields: [] }, authorityPolicyRef: ref('base:actor-active'), preconditions: preconditions.map(ref),
     spatialRequirementRefs: [ref('space:co-location'), ref('space:scene-intersection')],
     effectBuilderRef: ref(effectId), effectCapabilityRefs: [ref(effectId)], dependencyRefs: [],
-    performancePolicyRef: ref('base:no-performance'), lifecycleRefs: [], limits: { maximumEvents: 1 },
+    performancePolicyRef: ref('base:no-performance'),
+    reactionEvidencePolicyRef: recipientRole ? ref('base:direct-recipient') : ref('base:no-direct'),
+    lifecycleRefs: [], limits: { maximumEvents: 1 },
   }
   return { spec, implementationHash: implementation(id).implementationHash }
 }
@@ -263,29 +280,31 @@ const contactTargetRole: InteractionRole = { name: 'target', kind: 'character', 
  * event never means consent - it means the relation exists and either side may end it.
  */
 function contactDefinition(id: string, roles: readonly InteractionRole[], preconditions: readonly string[],
-  spatial: readonly string[], effectId: string, authority: string,
+  spatial: readonly string[], effectId: string, authority: string, evidenceRef: string,
   lifecycleRefs: readonly InteractionRef[] = []): InteractionDefinitionImplementation {
   const spec: InteractionDefinitionSpec = { versionTag: 'interaction-definition/v1', id, version: 1,
     participantRoles: roles, argumentSchema: { fields: [] }, bindingConfigSchema: { fields: [] },
     authorityPolicyRef: ref(authority), preconditions: preconditions.map(ref), spatialRequirementRefs: spatial.map(ref),
     effectBuilderRef: ref(effectId), effectCapabilityRefs: [ref(effectId)], dependencyRefs: [],
-    performancePolicyRef: ref('base:no-performance'), lifecycleRefs, limits: { maximumEvents: 1 },
+    performancePolicyRef: ref('base:no-performance'), reactionEvidencePolicyRef: ref(evidenceRef),
+    lifecycleRefs, limits: { maximumEvents: 1 },
   }
   return { spec, implementationHash: implementation(id).implementationHash }
 }
 
 /** I1 object slice plus the I3 contact slice, through the same contract. */
 export function createBasicInteractionPackage(): InteractionPackageImplementation {
-  const contents = { rules, effects, resolvers, lifecycle, performances: [noPerformance], definitions: [
+  const contents = { rules, effects, resolvers, lifecycle, performances: [noPerformance],
+    reactionEvidence: [noDirect, directRecipient, directTarget, directParticipants], definitions: [
     definition('base:take', ['base:item-unheld'], 'base:take-effect', false),
     definition('base:drop', ['base:item-held'], 'base:drop-effect', false),
     definition('base:give', ['base:item-held', 'base:recipient-active'], 'base:give-effect', true),
     contactDefinition('base:hold-hand', [actor, targetRole],
       ['base:actor-active', 'space:co-location', 'space:scene-intersection', 'contact:unpaired'],
-      [], 'contact:start-effect', 'base:player-immediate'),
+      [], 'contact:start-effect', 'base:player-immediate', 'base:direct-target'),
     contactDefinition('base:end-contact', [actor, contactRole, initiatorRole, contactTargetRole],
       ['contact:active', 'contact:participant'],
-      [], 'contact:end-effect', 'base:actor-active', [ref('contact:end-on-move')]),
+      [], 'contact:end-effect', 'base:actor-active', 'base:direct-participants', [ref('contact:end-on-move')]),
   ] }
   return { lock: { ref: ref('package:interactions-basic'), dependencies: [], implementationHash: interactionPackageHash(contents) }, ...contents }
 }

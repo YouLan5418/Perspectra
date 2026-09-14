@@ -46,7 +46,8 @@ function spec(lifecycleRefs: readonly string[], id = 'fixture:fold'): Interactio
     participantRoles: [actorRole, itemRole], argumentSchema: { fields: [] }, bindingConfigSchema: { fields: [] },
     authorityPolicyRef: ref('fixture:accept'), preconditions: [ref('fixture:accept')], spatialRequirementRefs: [],
     effectBuilderRef: ref('fixture:base-effect'), effectCapabilityRefs: [ref('fixture:base-effect')], dependencyRefs: [],
-    performancePolicyRef: ref('fixture:no-performance'), lifecycleRefs: lifecycleRefs.map(ref), limits: { maximumEvents: 4 },
+    performancePolicyRef: ref('fixture:no-performance'), reactionEvidencePolicyRef: ref('fixture:no-direct'),
+    lifecycleRefs: lifecycleRefs.map(ref), limits: { maximumEvents: 4 },
   }
 }
 
@@ -54,17 +55,20 @@ function packageOf(lifecycle: readonly InteractionLifecycleHandlerImplementation
   referenced = lifecycle.map(entry => entry.lock.ref.id), definitionId = id === 'package:lifecycle' ? 'fixture:fold' : id,
   maximumEvents = 4): InteractionPackageImplementation {
   // Component identities are world-wide, so every package suffixes its shared pieces with its own id.
-  const names = { rule: `fixture:accept:${id}`, effect: `fixture:base-effect:${id}`, policy: `fixture:no-performance:${id}` }
+  const names = { rule: `fixture:accept:${id}`, effect: `fixture:base-effect:${id}`,
+    policy: `fixture:no-performance:${id}`, evidence: `fixture:no-direct:${id}` }
   const contents = {
     rules: [{ ...accept, lock: lock(names.rule) }],
     effects: [{ ...base, lock: lock(names.effect), eventTypes: [ref(`fixture.base:${id}`)],
       build: (): readonly WorldEventDraft[] => [{ eventType: `fixture.base:${id}`, eventVersion: 1, data: { order: 0 } }] }],
     resolvers: [], lifecycle,
     performances: [{ lock: lock(names.policy), policy: { version: 'interaction-performance/v1' as const, accepted: [] } }],
+    reactionEvidence: [{ lock: lock(names.evidence), policy: { version: 'interaction-reaction-evidence/v1' as const, directRoles: [] } }],
     definitions: [{ spec: { ...spec(referenced, definitionId), limits: { maximumEvents },
       authorityPolicyRef: ref(names.rule), preconditions: [ref(names.rule)],
       effectBuilderRef: ref(names.effect), effectCapabilityRefs: [ref(names.effect)],
-      performancePolicyRef: ref(names.policy) }, implementationHash: hashWorldJson('fixture-impl/v1', { id }) }],
+      performancePolicyRef: ref(names.policy), reactionEvidencePolicyRef: ref(names.evidence) },
+      implementationHash: hashWorldJson('fixture-impl/v1', { id }) }],
   }
   return { lock: { ref: ref(id), dependencies: [], implementationHash: interactionPackageHash(contents) }, ...contents }
 }

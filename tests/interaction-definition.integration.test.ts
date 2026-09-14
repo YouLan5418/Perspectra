@@ -97,7 +97,7 @@ it('runs an independently registered state-domain fixture only when its package 
   const effectRef = ref('fixture:mark-effect')
   const definition = { ...base.definitions[0]!, spec: { ...base.definitions[0]!.spec, id: 'fixture:mark',
     effectBuilderRef: effectRef, effectCapabilityRefs: [effectRef], preconditions: [] } }
-  const fixture = relock({ lock: { ref: ref('package:fixture'), implementationHash: digest, dependencies: [base.lock.ref] }, rules: [], resolvers: [], lifecycle: [], performances: [], definitions: [definition], effects: [{
+  const fixture = relock({ lock: { ref: ref('package:fixture'), implementationHash: digest, dependencies: [base.lock.ref] }, rules: [], resolvers: [], lifecycle: [], performances: [], reactionEvidence: [], definitions: [definition], effects: [{
     lock: { ref: effectRef, implementationHash: digest, dependencies: [] }, eventTypes: [ref('fixture.marked')],
     build: ctx => [{ eventType: 'fixture.marked', eventVersion: 1, data: { entityId: ctx.roles.item!.id, marked: true } }],
     validate: (ctx, events) => expect(events).toEqual([{ eventType: 'fixture.marked', eventVersion: 1, data: { entityId: ctx.roles.item!.id, marked: true } }]),
