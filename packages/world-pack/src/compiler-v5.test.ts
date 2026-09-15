@@ -372,6 +372,33 @@ async function compiledV10(): Promise<Record<string, unknown>> {
   return JSON.parse(JSON.stringify(spec.manifest)) as Record<string, unknown>
 }
 
+describe('the world’s own player input policy', () => {
+  it('carries what the world declared, and reads a world that declared nothing as the legacy route', async () => {
+    const root = await source()
+    const bound = async () => new WorldPackCompilerV5().adaptToWorldSpec(
+      await compileWorldPackSource(root, packages), runtimeOptions())
+    // A pack written before this field means the legacy route, and says so in the identity it commits to.
+    const legacy = await bound()
+    expect(legacy.manifest.playerInputPolicy).toEqual({ version: 'legacy-speech/v1' })
+    // A world may ask for the Host's durable interpreter instead. The Manifest then says which route it
+    // wants, which is what makes a Host without one refuse to activate rather than read text as speech.
+    const world = JSON.parse(await readFile(join(root, 'world.json'), 'utf8')) as Record<string, unknown>
+    const write = async (playerInputPolicy: unknown) =>
+      await writeFile(join(root, 'world.json'), JSON.stringify({ ...world, playerInputPolicy }))
+    await write({ version: 'player-intent/v1' })
+    const intent = await bound()
+    expect(intent.manifest.playerInputPolicy).toEqual({ version: 'player-intent/v1' })
+    expect(intent.manifestHash).not.toBe(legacy.manifestHash)
+    // A version this contract does not define is refused rather than defaulted to either route.
+    await write({ version: 'free-text/v9' })
+    await expect(bound()).rejects.toThrow(/legacy-speech\/v1 or player-intent\/v1/u)
+    await write({ version: 'player-intent/v1', extra: true })
+    await expect(bound()).rejects.toThrow()
+    await write('player-intent/v1')
+    await expect(bound()).rejects.toThrow()
+  }, 60_000)
+})
+
 describe('Manifest v10 binding for a compiled worldpack/v5', () => {
   it('binds the pack selection to v10 and re-reads the same bytes as a stored Manifest', async () => {
     const pack = await compile()

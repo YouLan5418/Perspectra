@@ -73,6 +73,17 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
   return { binding, profile, budgetAvailable: budget >= profile.maxOutputTokens,
     request: { version: 'player-intent-request/v2', manifestHash: hashWorldJson('compiled-world-manifest', manifest),
       prefixHash: hashWorldJson('player-intent-prefix/v1', events.map(event => ({ ...event }))),
-      contract: 'Interpret only the player intent. Select exact affordances. Preserve source UTF-16 spans and order. Do not turn narration about another character into speech or effects. State a step only when the player\'s words name one, and only from the cues the chosen affordance accepts. If uncertain, require clarification.',
+      // The contract is the Host's own words to the interpreter, and it states the rules a real model has
+      // actually broken: an offset counted in UTF-16 units of the source text, a span that is `speech`
+      // only when the action speaks, and a step drawn from the cues that choice accepts. The two former
+      // ones cost the player a whole turn each time, and the world is right to refuse them.
+      contract: 'Interpret only the player intent. Select exact affordances by their affordanceId. '
+        + 'For every action give one or more source spans that slice the source text verbatim: startUtf16 '
+        + 'and endUtf16 are UTF-16 offsets counted from the beginning of the source text, endUtf16 minus '
+        + 'startUtf16 must equal the length of text, text must equal exactly what lies between those offsets, '
+        + 'and the spans must be in order. A span is kind "speech" only when the action speaks, and "action" otherwise - never "speech" for a movement or an '
+        + 'interaction. Do not turn narration about another character into speech or effects. State a '
+        + "performance only when the player's words state one, and only with cues the chosen affordance "
+        + 'lists under performances. If uncertain, require clarification.',
       sourceText, affordances: choices, responseSchema: createPlayerIntentCandidateSchema() } }
 }

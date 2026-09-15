@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
 import { parsePlaytestLaunchArguments } from './playtest-launch.ts'
+import { FrozenWorldPlaytestRuntime, isFrozenPackDirectory } from './playtest-frozen-runtime.ts'
 import { createPlaytestServer } from './playtest-server.ts'
 import { defaultPlaytestDirectory, WorldPlaytestRuntime } from './playtest-runtime.ts'
 
@@ -15,7 +16,15 @@ async function main(): Promise<void> {
   const utilityModel = process.env.HCW_UTILITY_MODEL
   const model = provider === 'deepseek' ? (process.env.HCW_DEEPSEEK_MODEL?.trim() || 'deepseek-v4-flash') : process.env.HCW_OLLAMA_MODEL
   const apiKey = provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY : undefined
-  const runtime = await WorldPlaytestRuntime.create({
+  // A v5 Pack is the frozen path: the same page, driven by the protocol production offers that world.
+  // Anything else keeps the older line, whose own renderer and utility interpreter are untouched.
+  const frozen = packPath !== undefined && isFrozenPackDirectory(packPath)
+  const runtime = frozen ? await FrozenWorldPlaytestRuntime.create({
+    dataDirectory, provider, packPath,
+    ...(model === undefined ? {} : { model }),
+    ...(apiKey === undefined ? {} : { apiKey }),
+    ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),
+  }) : await WorldPlaytestRuntime.create({
     dataDirectory,
     provider,
     ...(launch.interactionsPath === undefined ? {} : { interactionsPath: launch.interactionsPath }),

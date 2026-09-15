@@ -1577,6 +1577,8 @@ export class WorldPackCompilerV5 {
       manifestationPolicy: { version: 'manifestation-policy/v1' as const, mode: pack.manifestation.mode },
       interactionCatalog: pack.interactions,
       actionGroupPolicy,
+      // The world's own answer about player input, or the legacy route a pack that says nothing means.
+      playerInputPolicy: pack.content.world.playerInputPolicy ?? { version: 'legacy-speech/v1' as const },
     }
     // The selection and the action group policy are the whole of what v10 adds, so the spec hash
     // commits to them beside the v6 spec rather than restating the entire runtime underneath.

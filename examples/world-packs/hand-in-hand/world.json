@@ -35,5 +35,8 @@
         "character:companion"
       ]
     }
-  ]
+  ],
+  "playerInputPolicy": {
+    "version": "player-intent/v1"
+  }
 }

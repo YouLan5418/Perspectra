@@ -975,7 +975,8 @@ export function parseWorldPackWorldSource(input: unknown, file = 'world.json'): 
 /** Parse the Phase 8 world source while keeping the v1 file shape and selecting only Phase 8 Core profiles. */
 export function parseWorldPackWorldSourceV2(input: unknown, file = 'world.json'): WorldPackWorldSource {
   const root = sourceDocument(input, file)
-  exactKeys(root, ['schemaVersion', 'title'], ['description', 'timeMode', 'roundQueueLimit', 'coreProfiles', 'initialFacts'], file, '')
+  exactKeys(root, ['schemaVersion', 'title'],
+    ['description', 'timeMode', 'roundQueueLimit', 'coreProfiles', 'initialFacts', 'playerInputPolicy'], file, '')
   if (root.schemaVersion !== 'worldpack-world/v1') {
     failWorldPackContract('PACK_SOURCE_INVALID', file, '/schemaVersion', 'must be worldpack-world/v1')
   }
@@ -992,7 +993,25 @@ export function parseWorldPackWorldSourceV2(input: unknown, file = 'world.json')
     roundQueueLimit: root.roundQueueLimit === undefined ? 8 : integerAt(root.roundQueueLimit, file, '/roundQueueLimit', 1, 1024),
     coreProfiles: phase8ProfileAt(root.coreProfiles, file, '/coreProfiles'),
     initialFacts: facts,
+    ...(root.playerInputPolicy === undefined ? {}
+      : { playerInputPolicy: playerInputPolicyAt(root.playerInputPolicy, file, '/playerInputPolicy') }),
   }
+}
+
+/**
+ * How the world says a player's input becomes an action. A version outside the closed set is refused
+ * rather than defaulted: a world that asks for an interpreter this contract does not define must not be
+ * opened as if it had asked for the legacy route.
+ */
+function playerInputPolicyAt(value: unknown, file: string, at: string):
+  { readonly version: 'legacy-speech/v1' | 'player-intent/v1' } {
+  const root = objectAt(value, file, at)
+  exactKeys(root, ['version'], [], file, at)
+  const version = textAt(root.version, file, `${at}/version`)
+  if (version !== 'legacy-speech/v1' && version !== 'player-intent/v1') {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, `${at}/version`, 'must be legacy-speech/v1 or player-intent/v1')
+  }
+  return { version }
 }
 
 export function parseWorldPackLocationsSource(input: unknown, file = 'locations.json'): WorldPackLocationsSource {

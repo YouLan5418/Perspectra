@@ -449,6 +449,13 @@ export interface WorldPackWorldSource extends WorldJsonObject {
   readonly roundQueueLimit: number
   readonly coreProfiles: WorldPackCoreProfiles
   readonly initialFacts: readonly WorldPackInitialFactSource[]
+  /**
+   * How a player's input becomes an action, declared by the world rather than chosen by a Host. Absent
+   * means `legacy-speech/v1`, which is what every pack written before this field says; `player-intent/v1`
+   * asks the Host for its durable interpreter, and a Host that has none refuses to activate the world
+   * instead of opening one whose player input it cannot address.
+   */
+  readonly playerInputPolicy?: { readonly version: 'legacy-speech/v1' | 'player-intent/v1' }
 }
 
 export interface WorldPackLocationSource extends WorldJsonObject {
