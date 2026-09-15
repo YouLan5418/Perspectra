@@ -110,6 +110,39 @@ describe('the web playtest on a frozen world', () => {
     } finally { await runtime.close() }
   }, 60_000)
 
+  it('completes a queued input when it is retried under its own key', async () => {
+    // What a retry has to be: the same words under the same key. The store is idempotent by key, so the
+    // turn lands once - not twice, which is what a fresh key for the same sentence would do.
+    const { asked, server } = scriptedEndpoint(takesBinding('binding:umbrella-take'))
+    const root = mkdtempSync(join(tmpdir(), 'frozen-playtest-retry-'))
+    roots.push(root)
+    const runtime = await play(asked, server, root)
+    try {
+      const key = 'web-playtest:retry-of-one-input'
+      const first = await runtime.submit('我把共用的伞拿起来。', key)
+      const rounds = (first.debug as { headSeq: number }).headSeq
+      const again = await runtime.submit('我把共用的伞拿起来。', key)
+      // The same input twice is one commit: the head does not move a second time.
+      expect((again.debug as { headSeq: number }).headSeq).toBe(rounds)
+      expect(runtime.address).toBeDefined()
+    } finally { await runtime.close() }
+  }, 60_000)
+
+  it('says an input that never reached the world can be retried', async () => {
+    // The other half of the failure notice: an input the world never received is the one case where saying
+    // it again is the right advice. The text is what the player reads, so it is pinned here.
+    const { asked, server } = scriptedEndpoint(takesBinding('binding:umbrella-take'))
+    const root = mkdtempSync(join(tmpdir(), 'frozen-playtest-refused-'))
+    roots.push(root)
+    const runtime = await play(asked, server, root)
+    await runtime.close()
+    await expect(runtime.submit('我把共用的伞拿起来。')).rejects.toThrow()
+    const state = await runtime.state()
+    expect(state.error).toBe(true)
+    expect(state.notice).toContain('没有被世界受理')
+    expect(state.notice).toContain('重新说一次')
+  }, 60_000)
+
   it('keeps the world when the page is stopped and started again on the same directory', async () => {
     const first = scriptedEndpoint(takesBinding('binding:umbrella-take'))
     const root = mkdtempSync(join(tmpdir(), 'frozen-playtest-restart-'))

@@ -179,7 +179,11 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     }
   }
 
-  async submit(text: string): Promise<PlaytestState> {
+  /**
+   * One player turn. A caller that is retrying an input the world already recorded passes that input's own
+   * key: the store is idempotent by key, so the retry completes the queued input instead of adding another.
+   */
+  async submit(text: string, idempotencyKey?: string): Promise<PlaytestState> {
     if (this.#busy) throw new PlaytestBusyError('请等待当前行动完成。')
     if (this.#paused) {
       this.#notice = 'NPC 已暂停：这次输入没有提交。恢复后再试。'
@@ -189,7 +193,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     this.#error = false
     this.#notice = ''
     this.#phaseLabel = text.startsWith('/') ? '正在执行命令' : '正在理解玩家输入'
-    const key = `web-playtest:${randomUUID()}`
+    const key = idempotencyKey ?? `web-playtest:${randomUUID()}`
     try {
       this.#lastPlayerIntent = text.startsWith('/') ? 'command' : 'natural-language'
       const result = await this.#application.submitText(this.#address, { text, idempotencyKey: key,
