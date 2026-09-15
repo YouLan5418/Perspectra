@@ -219,6 +219,7 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
     throw new TypeError('player intent action group is invalid')
   }
   const keys: string[] = []
+  let requiresClarification = false
   const chosen: { readonly key: string; readonly choice: PlayerIntentAffordance
     readonly performance: StepManifestation | undefined }[] = []
   for (const raw of candidate.actions) {
@@ -233,7 +234,7 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
     // for an action that cannot carry one at all, because such a choice declares no accepted cues.
     if (performance !== undefined
       && ![...performance.independent, ...performance.onSuccess].every(cue => found.accepted.includes(cue))) {
-      return { status: 'clarification_required', reason: 'not_afforded' }
+      requiresClarification = true
     }
     keys.push(key)
     chosen.push({ key, choice: found.choice, performance })
@@ -274,6 +275,9 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
       actions[actions.indexOf(action)] = { ...action, parameters: { text: spans[0]!.text } }
     }
   }
+  // A semantic clarification must not turn an otherwise malformed Provider response into a valid result.
+  // Validate every action and source span first, then give the player-facing answer for an unoffered step.
+  if (requiresClarification) return { status: 'clarification_required', reason: 'not_afforded' }
   const submission: PlayerSubmissionV2 = {
     version: 'player-submission/v2', sourceText: binding.sourceText,
     sourceTextHash: hashWorldJson('player-source-text/v1', binding.sourceText), actions, sourceSpans,

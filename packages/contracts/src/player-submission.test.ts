@@ -191,6 +191,14 @@ describe('player submission Host binding', () => {
       .toEqual({ status: 'clarification_required', reason: 'not_afforded' })
     expect(bindPlayerIntentCandidate(ask({ independent: ['nod'], onSuccess: [] }, 'take'), host))
       .toEqual({ status: 'clarification_required', reason: 'not_afforded' })
+    const malformedAfterUnoffered = ask({ independent: ['shake_head'], onSuccess: [] })
+    malformedAfterUnoffered.actions.push({ key: 'b', affordanceId: 'missing' })
+    expect(() => bindPlayerIntentCandidate(malformedAfterUnoffered, host))
+      .toThrow('not uniquely afforded')
+    const malformedSpanAfterUnoffered = ask({ independent: ['shake_head'], onSuccess: [] })
+    malformedSpanAfterUnoffered.sourceSpans[0].text = '不是原文'
+    expect(() => bindPlayerIntentCandidate(malformedSpanAfterUnoffered, host))
+      .toThrow('source span is invalid')
     for (const [name, performance] of [
       ['a voice cue', { independent: ['quiet_voice'], onSuccess: [] }],
       ['a gait cue', { independent: [], onSuccess: ['slow_walk'] }],
