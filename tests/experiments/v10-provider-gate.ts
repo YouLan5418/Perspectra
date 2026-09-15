@@ -1,20 +1,22 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
+import { brandId, interactionPackageDescription, type SubmitActionsV7, type WorldJsonObject } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createChatProvider, type ChatCallObservation } from '@harness-world/provider-chat'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 
 /**
- * Paid/manual experiment, and deliberately not part of the automatic suite: one real model driving a
- * frozen v10 world through the protocol production offers it.
+ * Paid/manual experiment, deliberately not part of the automatic suite: one real model driving a frozen
+ * v10 world through the protocol production offers it, over the **production adapter** - the one the web
+ * entry uses, not a copy kept in step by hand.
  *
- * It sends the Host's own `exactProviderRequest` - the assembled messages and the v7 tool schema - to
+ * It sends the Host's own `exactProviderRequest` - the assembled messages and the v7 tool description - to
  * the endpoint, so what the model sees is what a world would show it, and it returns the tool payload
- * unchanged so the world's own validator and resolution judge it. The point is not a score; it is
- * evidence that a real model, given the frozen vocabulary and each definition's accepted cues, can act
- * through `interact@2` and have its expression recorded as a fact.
+ * unchanged so the world's own validator and resolution judge it. The point is not a score; it is evidence
+ * that a real model, given the frozen vocabulary and each definition's accepted cues, can act through
+ * `interact@2` and have its expression recorded as a fact.
  *
  * Usage: DEEPSEEK_API_KEY=... node --import tsx tests/experiments/v10-provider-gate.ts [--model <id>]
  */
@@ -33,119 +35,26 @@ const compiled = adaptCompiledWorldPack(
     branchId: brandId('branch:main', 'BranchId') },
   principalId: 'principal:player', sessionId: brandId('session:v10-gate', 'SessionId') })
 
-interface ExactRequest {
-  readonly messages: readonly { readonly role: string; readonly content: string }[]
-  readonly tools: WorldJsonObject
-}
-interface ToolCallResponse {
-  readonly choices?: readonly { readonly message?: { readonly content?: string | null
-    readonly tool_calls?: readonly { readonly function?: { readonly name?: string; readonly arguments?: string } }[] }
-  readonly finish_reason?: string }[]
-  readonly usage?: WorldJsonObject
-  readonly error?: WorldJsonObject
-}
-
 /** What the model saw, and what it answered, for the record. Every attempt counts, answered or not. */
-const evidence: WorldJsonObject[] = []
+const calls: ChatCallObservation[] = []
 let attempts = 0
+const provider = createChatProvider({ endpoint, model, apiKey, style: 'tool', timeoutMs: 60_000,
+  maxOutputTokens: 2_048, onCall: observation => calls.push(observation) })
 
-/**
- * The wire schema a real endpoint needs. The Host's `tools` payload is a description of the contract -
- * `type: object` plus the group's policy - not a JSON Schema a model can bind to, so an adapter has to
- * render one. It is derived from what the context itself offers: the options the character may address,
- * and per definition the cues that definition accepts, which is the same list the world judges a step
- * against. Nothing here is invented by the adapter; it spells the world's own answer out.
- */
-function frozenWireSchema(tools: WorldJsonObject, messages: readonly { readonly role: string; readonly content: string }[]) {
-  interface Offered { readonly actionType: string; readonly interactions?: readonly WorldJsonObject[]
-    readonly performances?: readonly WorldJsonObject[] }
-  const offered: Offered[] = []
-  for (const message of messages) {
-    try {
-      const segment = JSON.parse(message.content) as { readonly segmentKind?: string
-        readonly content?: readonly Offered[] }
-      if (segment.segmentKind === 'affordances' && Array.isArray(segment.content)) offered.push(...segment.content)
-    } catch { /* a message that is not a JSON segment is prose, and prose is not an offer */ }
-  }
-  const interact = offered.find(entry => entry.actionType === 'interact')
-  // The union, because one schema covers every option a step might address: the per-definition answer sits
-  // beside each option in the context, and the world refuses a step outside the definition it addressed.
-  const cues = [...new Set((interact?.performances ?? []).flatMap(entry =>
-    (entry.accepted as readonly { readonly cue: string }[]).map(accepted => accepted.cue)))].sort()
-  const actorId = (tools as { readonly actorId?: string }).actorId
-  const actor = actorId === undefined ? {} : { const: actorId }
-  const identity = { actionId: { type: 'string', minLength: 1 }, actorId: { type: 'string', ...actor } }
-  const speak = { type: 'object', additionalProperties: false,
-    required: ['actionId', 'actorId', 'actionType', 'actionVersion', 'parameters'],
-    properties: { ...identity, actionType: { type: 'string', const: 'speak' }, actionVersion: { type: 'integer', const: 1 },
-      parameters: { type: 'object', additionalProperties: false, required: ['text'],
-        properties: { text: { type: 'string', minLength: 1, maxLength: 500 } } } } }
-  const option = (choice: WorldJsonObject) => ({
-    type: 'object', additionalProperties: false,
-    required: ['targetRef', 'bindingId', 'definitionRef', 'arguments'],
-    properties: {
-      targetRef: { type: 'object', additionalProperties: false, required: ['kind', 'id'],
-        properties: { kind: { type: 'string', const: (choice.targetRef as WorldJsonObject).kind },
-          id: { type: 'string', const: (choice.targetRef as WorldJsonObject).id } } },
-      bindingId: { type: 'string', const: choice.bindingId },
-      definitionRef: { type: 'object', additionalProperties: false, required: ['id', 'version'],
-        properties: { id: { type: 'string', const: (choice.definitionRef as WorldJsonObject).id },
-          version: { type: 'integer', const: (choice.definitionRef as WorldJsonObject).version } } },
-      arguments: { type: 'object', additionalProperties: false,
-        ...(Object.keys(choice.arguments as WorldJsonObject).length === 0 ? {} : {
-          required: Object.keys(choice.arguments as WorldJsonObject),
-          properties: Object.fromEntries(Object.entries(choice.arguments as WorldJsonObject)
-            .map(([key, value]) => [key, { type: typeof value, const: value }])) }) },
-    },
-  })
-  const steps = (interact?.interactions ?? []).map(option)
-  const interactStep = { type: 'object', additionalProperties: false,
-    required: ['actionId', 'actorId', 'actionType', 'actionVersion', 'parameters'],
-    properties: { ...identity, actionType: { type: 'string', const: 'interact' }, actionVersion: { type: 'integer', const: 2 },
-      parameters: steps.length === 1 ? steps[0] : { oneOf: steps },
-      ...(cues.length === 0 ? {} : { manifestation: { type: 'object', additionalProperties: false,
-        required: ['independent', 'onSuccess'],
-        properties: { independent: { type: 'array', maxItems: 8, uniqueItems: true, items: { type: 'string', enum: cues } },
-          onSuccess: { type: 'array', maxItems: 8, uniqueItems: true, items: { type: 'string', enum: cues } } } } }) } }
-  const variants = interact === undefined ? [speak] : [speak, interactStep]
-  return { type: 'object', additionalProperties: false, required: ['schemaVersion', 'decision', 'actions'],
-    properties: { schemaVersion: { type: 'integer', const: 7 }, decision: { type: 'string', enum: ['act', 'abstain'] },
-      actions: { type: 'array', maxItems: 2, items: { oneOf: variants } } } }
-}
-
-async function ask(context: unknown): Promise<import('@harness-world/contracts').SubmitActionsV7> {
-  const exact = (context as { exactProviderRequest: ExactRequest }).exactProviderRequest
-  // The Host's assembled context uses a `developer` segment for the character-controller contract. The
-  // endpoint knows system/user/assistant/tool only, so a real adapter has to map it - and that mapping is
-  // the adapter's business, not the world's: nothing about what the model is told changes.
-  const messages = exact.messages.map(message => message.role === 'developer'
-    ? { ...message, role: 'system' } : message)
-  const schema = frozenWireSchema(exact.tools, messages)
-  const body = JSON.stringify({ model, messages, stream: false, thinking: { type: 'disabled' },
-    temperature: 0.3, max_tokens: 2048,
-    tools: [{ type: 'function', function: { name: 'submit_actions',
-      description: 'Submit exactly the actions this character takes, in the shape this schema states.',
-      parameters: schema } }],
-    tool_choice: { type: 'function', function: { name: 'submit_actions' } } })
-  const ordinal = attempts + 1
+/** Every answer is written beside the request that produced it, so a failure can be read afterwards. */
+async function ask(context: unknown): Promise<SubmitActionsV7> {
   attempts += 1
-  writeFileSync(resolve(dataDirectory, `${String(ordinal).padStart(3, '0')}.request.json`),
-    JSON.stringify({ model, exactTools: exact.tools, wireSchema: schema, messages }, null, 2), { flag: 'wx' })
-  const response = await fetch(endpoint, { method: 'POST', redirect: 'error',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
-    body, signal: AbortSignal.timeout(60_000) })
-  const parsed = await response.json() as ToolCallResponse
-  writeFileSync(resolve(dataDirectory, `${String(ordinal).padStart(3, '0')}.response.json`),
-    JSON.stringify(parsed, null, 2), { flag: 'wx' })
-  if (!response.ok) {
-    evidence.push({ ordinal, status: `HTTP ${response.status}`, error: parsed.error ?? null })
-    throw new Error(`DeepSeek returned HTTP ${response.status}: ${JSON.stringify(parsed.error)}`)
-  }
-  const message = parsed.choices?.[0]?.message
-  const raw = message?.tool_calls?.[0]?.function?.arguments ?? message?.content ?? ''
-  evidence.push({ ordinal, status: 'ok', finishReason: parsed.choices?.[0]?.finish_reason ?? null,
-    usage: parsed.usage ?? null, answer: raw })
-  return JSON.parse(raw) as import('@harness-world/contracts').SubmitActionsV7
+  const ordinal = String(attempts).padStart(3, '0')
+  writeFileSync(resolve(dataDirectory, `${ordinal}.exact-request.json`),
+    JSON.stringify((context as { readonly exactProviderRequest?: unknown }).exactProviderRequest, null, 2), { flag: 'wx' })
+  // The Host consumes a provider failure as an availability state, so the reason is printed here: without
+  // it an operator sees "the character did nothing" and has nowhere to look.
+  const answer = await provider.propose(context).catch((error: unknown) => {
+    console.error(`attempt ${ordinal} failed:`, error instanceof Error ? error.message : error)
+    throw error
+  })
+  writeFileSync(resolve(dataDirectory, `${ordinal}.answer.json`), JSON.stringify(answer, null, 2), { flag: 'wx' })
+  return answer as SubmitActionsV7
 }
 
 const participant = {
@@ -191,9 +100,10 @@ const handsOver = events.filter(event => event.eventType === 'entity.transferred
   && typeof (event.data as { readonly toHolderId?: string }).toHolderId === 'string')
 const heldHands = events.filter(event => event.eventType === 'character.relation-ended').length
 const outcome = {
-  protocol: 'submit_actions/v7 over Manifest v10',
-  calls: evidence.length,
-  answers: evidence.map(entry => entry.finishReason),
+  protocol: 'submit_actions/v7 over Manifest v10, through @harness-world/provider-chat',
+  calls: calls.length,
+  failures: calls.filter(call => call.status === 'failed').length,
+  durationsMs: calls.map(call => call.durationMs),
   // The claim this gate exists to make: a real model addressed a frozen definition at its exact version,
   // the world accepted it, and a step it stated was recorded as a fact everyone could observe.
   acceptedFrozenSteps: accepted.length,

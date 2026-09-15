@@ -1,0 +1,10 @@
+{
+  "name": "@harness-world/provider-chat",
+  "version": "0.3.1",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@harness-world/contracts": "workspace:*"
+  }
+}

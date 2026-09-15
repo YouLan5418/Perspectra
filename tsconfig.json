@@ -30,7 +30,8 @@
       "@harness-world/testkit": ["./packages/testkit/src/index.ts"],
       "@harness-world/world-pack": ["./packages/world-pack/src/index.ts"],
       "@harness-world/interaction-runtime": ["./packages/interaction-runtime/src/index.ts"],
-      "@harness-world/interactions-basic": ["./packages/interactions-basic/src/index.ts"]
+      "@harness-world/interactions-basic": ["./packages/interactions-basic/src/index.ts"],
+      "@harness-world/provider-chat": ["./packages/provider-chat/src/index.ts"]
     }
   },
   "include": ["packages/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]

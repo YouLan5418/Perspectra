@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@harness-world/interactions-basic': `${root}packages/interactions-basic/src/index.ts`,
+      '@harness-world/provider-chat': `${root}packages/provider-chat/src/index.ts`,
       '@harness-world/interaction-runtime': `${root}packages/interaction-runtime/src/index.ts`,
       '@harness-world/agents': `${root}packages/agents/src/index.ts`,
       '@harness-world/application': `${root}packages/application/src/index.ts`,
@@ -40,6 +41,7 @@ export default defineConfig({
         'packages/kernel/src/**/*.ts',
         'packages/memory/src/**/*.ts',
         'packages/operations/src/**/*.ts',
+        'packages/provider-chat/src/**/*.ts',
         'packages/presentation/src/**/*.ts',
         'packages/runtime-cordis/src/**/*.ts',
         'packages/store-sqlite/src/**/*.ts',

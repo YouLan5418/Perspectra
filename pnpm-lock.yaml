@@ -138,6 +138,12 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/provider-chat:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/runtime-cordis:
     dependencies:
       '@deepseek-ai/cordis':
