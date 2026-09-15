@@ -138,12 +138,12 @@ describe('the adapter a real endpoint is called through', () => {
 
 describe('the interpretation call the Host dispatches', () => {
   it('renders the Host’s request, honours its profile and passes its cancellation through', async () => {
-    const { sent, fetchImpl } = endpoint(toolAnswer({ version: 'player-intent-candidate/v2' }))
+    const { sent, fetchImpl } = endpoint(toolAnswer({ version: 'player-intent-candidate/v3' }))
     const provider = createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'configured',
       fetch: fetchImpl })
     const controller = new AbortController()
     expect(await provider.dispatch(intentRequest, profile, controller.signal))
-      .toEqual({ version: 'player-intent-candidate/v2' })
+      .toEqual({ version: 'player-intent-candidate/v3' })
     const body = sent[0]!.body
     expect(body.model).toBe('deepseek-flash')
     expect(body.max_tokens).toBe(64)
@@ -155,7 +155,7 @@ describe('the interpretation call the Host dispatches', () => {
   })
 
   it('falls back to its own model and limits where the profile states none', async () => {
-    const { sent, fetchImpl } = endpoint(toolAnswer({ version: 'player-intent-candidate/v2' }))
+    const { sent, fetchImpl } = endpoint(toolAnswer({ version: 'player-intent-candidate/v3' }))
     const provider = createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'configured',
       maxOutputTokens: 128, fetch: fetchImpl })
     await provider.dispatch(intentRequest, { modelId: '', timeoutMs: 1_000 }, AbortSignal.timeout(1_000))

@@ -57,10 +57,9 @@ function interpretation(asked: Asked, choose: (offered: readonly Offered[]) => O
   const user = JSON.parse(asked.messages[asked.messages.length - 1]!.content) as {
     readonly sourceText: string; readonly affordances: readonly Offered[] }
   const chosen = choose(user.affordances)
-  return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
-    actions: [{ key: 'a', affordanceId: chosen.affordanceId }],
-    sourceSpans: [{ actionKey: 'a', startUtf16: 0, endUtf16: user.sourceText.length,
-      text: user.sourceText, kind: 'action' }] }
+  // The interpreter copies the player's own words; the Host is what turns them into offsets.
+  return { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
+    actions: [{ key: 'a', affordanceId: chosen.affordanceId, quotes: [user.sourceText] }] }
 }
 
 /** The option whose binding the player's words named, which is what a real interpreter would select. */

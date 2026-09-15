@@ -320,9 +320,9 @@ describe('DeploymentBackupService', () => {
     const app = new WorldApplication({ ...value.paths, modelBudgetTokens: 20,
       playerIntent: {
         profile: { version: 'player-intent-profile/v1', providerId: 'fixture', modelId: 'fixture', timeoutMs: 1000, maxOutputTokens: 10 },
-        dispatch: async () => ({ version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
-          actions: [{ key: 'a', affordanceId: 'speak' }],
-          sourceSpans: [{ actionKey: 'a', startUtf16: 0, endUtf16: 2, text: '你好', kind: 'speech' }] }),
+        dispatch: async () => ({ version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
+          actions: [{ key: 'a', affordanceId: 'speak', quotes: ['你好'] }],
+          }),
       },
     })
     app.activate(compiled)

@@ -27,16 +27,12 @@ async function runGroup(speechFirst: boolean) {
         const request = (raw as any).body
         const hold = request.affordances.find((a: any) => a.actionType === 'interact')
         expect(request.sourceText).toBe(source)
-        const actions = [{ key: 'h', affordanceId: hold.affordanceId }, { key: 's', affordanceId: 'speak' }]
-        if (speechFirst) actions.reverse()
-        const spans = speechFirst ? [
-          { actionKey: 's', startUtf16: 0, endUtf16: 2, text: '别走', kind: 'speech' },
-          { actionKey: 'h', startUtf16: 3, endUtf16: 8, text: '我牵她的手', kind: 'action' },
-        ] : [
-          { actionKey: 'h', startUtf16: 0, endUtf16: 5, text: '我牵她的手', kind: 'action' },
-          { actionKey: 's', startUtf16: 6, endUtf16: 8, text: '别走', kind: 'speech' },
-        ]
-        return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none', actions, sourceSpans: spans }
+        // The words each action is named by, in the order the player said them: the Host finds them in
+        // the source, so the interpreter never states an offset.
+        const holdQuote = { key: 'h', affordanceId: hold.affordanceId, quotes: ['我牵她的手'] }
+        const sayQuote = { key: 's', affordanceId: 'speak', quotes: ['别走'] }
+        const actions = speechFirst ? [sayQuote, holdQuote] : [holdQuote, sayQuote]
+        return { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none', actions }
       } },
     participants: () => [{ participantId: 'agent:npc', role: 'agent', actorId: brandId('character:npc', 'CharacterId'), allowedActionTypes: ['speak', 'interact'],
       priority: 1, estimatedTokens: 1, timeoutMs: 1000, provider: { propose: async context => {
@@ -103,7 +99,7 @@ it.each(['missing', 'budget', 'invalid', 'clarify', 'timeout', 'throw'] as const
       dispatch: async () => { calls++
         if (mode === 'timeout') return new Promise<WorldJsonValue>(() => {})
         if (mode === 'throw') throw new Error('provider failure')
-        if (mode === 'clarify') return { version: 'player-intent-candidate/v2', decision: 'clarification_required', reason: 'ambiguous', actions: [], sourceSpans: [] }
+        if (mode === 'clarify') return { version: 'player-intent-candidate/v3', decision: 'clarification_required', reason: 'ambiguous', actions: [] }
         return { unknown: true }
       },
     } }),
@@ -136,8 +132,8 @@ it.each(['player-input.after-received', 'player-input.after-call-prepared', 'pla
     let calls = 0
     const options = { worldPath: join(root, 'world.sqlite'), sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
       playerIntent: { profile: { version: 'player-intent-profile/v1' as const, providerId: 'fixture', modelId: 'intent/v1', maxOutputTokens: 10, timeoutMs: 1000 },
-        dispatch: async () => { calls++; return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
-          actions: [{ key: 'a', affordanceId: 'speak' }], sourceSpans: [{ actionKey: 'a', startUtf16: 0, endUtf16: 2, text: '你好', kind: 'speech' }] } } },
+        dispatch: async () => { calls++; return { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
+          actions: [{ key: 'a', affordanceId: 'speak', quotes: ['你好'] }] } } },
     }
     const request = { text: '你好', principalId: 'principal:player', idempotencyKey: 'restart', correlationId: 'restart' }
     const interrupted = new WorldApplication({ ...options, faultInjector: { hit(actual) { if (actual === point) throw new Error('cut') } } })
@@ -423,9 +419,8 @@ it('interprets free text into a frozen interaction, with Authority 6 and one com
       // The world offers several interactions here, so the choice names the one it means rather than
       // taking the first: a refused take and an accepted hand-hold are both on the list.
       const take = offered.find(entry => entry.parameters.bindingId === 'binding:entity:cup:base:take')!
-      return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
-        actions: [{ key: 't', affordanceId: take.affordanceId }],
-        sourceSpans: [{ actionKey: 't', startUtf16: 0, endUtf16: 4, text: '拿起杯子', kind: 'action' }] }
+      return { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
+        actions: [{ key: 't', affordanceId: take.affordanceId, quotes: ['拿起杯子'] }] }
     } },
   })
   try {
@@ -485,9 +480,9 @@ it('lets the player say how they do it, out of what that definition accepts', as
         protocol = body.version
         offered = body.affordances
         const give = body.affordances.find(entry => entry.parameters.bindingId === 'binding:entity:cup:base:give')!
-        return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
-          actions: [{ key: 'g', affordanceId: give.affordanceId, ...(step === undefined ? {} : { performance: step }) }],
-          sourceSpans: [{ actionKey: 'g', startUtf16: 0, endUtf16: source.length, text: source, kind: 'action' }] }
+        return { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
+          actions: [{ key: 'g', affordanceId: give.affordanceId, quotes: [source],
+            ...(step === undefined ? {} : { performance: step }) }] }
       } },
     })
     try {
@@ -563,9 +558,9 @@ it('asks the player again instead of dropping a cue that definition does not acc
       // The cup on the floor: taking it is afforded, but its definition accepts no expression at all.
       const take = offered.find(entry => entry.parameters.bindingId === 'binding:entity:other:base:take')!
       expect(take).not.toHaveProperty('performances')
-      return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
-        actions: [{ key: 't', affordanceId: take.affordanceId, performance: { independent: ['frown'], onSuccess: [] } }],
-        sourceSpans: [{ actionKey: 't', startUtf16: 0, endUtf16: 4, text: '拿起杯子', kind: 'action' }] }
+      return { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
+        actions: [{ key: 't', affordanceId: take.affordanceId, performance: { independent: ['frown'], onSuccess: [] },
+          quotes: ['拿起杯子'] }] }
     } },
   })
   let result

@@ -56,29 +56,27 @@ export interface PlayerIntentBinding {
 const REASONS = ['none', 'ambiguous', 'not_afforded', 'unsupported'] as const
 
 /**
- * Deliberately no actor, final ActionId, arbitrary parameters, or narration fields. V2 adds one thing: a
- * step the player states for the interaction they chose, drawn from the same closed vocabulary and the
- * same schema the model is handed, so how the player does it is declared rather than narrated into a
- * fact. A v1 candidate is still accepted - it simply cannot state one.
+ * Deliberately no actor, final ActionId, arbitrary parameters, or narration fields. V2 added the step a
+ * player states for the interaction they chose, drawn from the same closed vocabulary and schema the model
+ * is handed, so how the player does it is declared rather than narrated into a fact.
+ *
+ * V3 removes the offsets. A candidate says which words of the player's own text name each action, and the
+ * Host locates them: a model asked to count UTF-16 units gets that arithmetic wrong - measured, repeatedly
+ * - and a wrong offset is indistinguishable from a sentence nobody said, while a verbatim quote is
+ * something the Host can check and place itself.
  */
 export function createPlayerIntentCandidateSchema() {
   return {
-    type: 'object', additionalProperties: false, required: ['version', 'decision', 'reason', 'actions', 'sourceSpans'],
+    type: 'object', additionalProperties: false, required: ['version', 'decision', 'reason', 'actions'],
     properties: {
-      version: { const: 'player-intent-candidate/v2' },
+      version: { const: 'player-intent-candidate/v3' },
       decision: { enum: ['act', 'clarification_required'] },
       reason: { enum: REASONS },
       actions: { type: 'array', maxItems: 2, items: {
-        type: 'object', additionalProperties: false, required: ['key', 'affordanceId'],
+        type: 'object', additionalProperties: false, required: ['key', 'affordanceId', 'quotes'],
         properties: { key: { type: 'string', minLength: 1 }, affordanceId: { type: 'string', minLength: 1 },
-          performance: createStepManifestationSchema('interact') },
-      } },
-      sourceSpans: { type: 'array', items: {
-        type: 'object', additionalProperties: false, required: ['actionKey', 'startUtf16', 'endUtf16', 'text', 'kind'],
-        properties: {
-          actionKey: { type: 'string', minLength: 1 }, startUtf16: { type: 'integer', minimum: 0 },
-          endUtf16: { type: 'integer', minimum: 1 }, text: { type: 'string', minLength: 1 }, kind: { enum: ['speech', 'action'] },
-        },
+          performance: createStepManifestationSchema('interact'),
+          quotes: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string', minLength: 1 } } },
       } },
     },
   }
@@ -126,6 +124,20 @@ function acceptedCues(choice: Record<string, unknown>): readonly ActionGroupCue[
     throw new TypeError('only a frozen interaction choice declares accepted cues')
   }
   return cueList(choice.performances, Object.keys(ACTION_GROUP_CUES).length)
+}
+
+/** The words one action names, as the Host will look them up in the player's own text. */
+function quoteList(value: unknown): readonly string[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 8) {
+    throw new TypeError('player intent action requires the words it names')
+  }
+  const quotes = value.map(raw => {
+    if (typeof raw !== 'string' || raw.length === 0) throw new TypeError('player intent quote is invalid')
+    return raw
+  })
+  // One quote twice states nothing the first did not, and the second could only match words already spent.
+  if (new Set(quotes).size !== quotes.length) throw new TypeError('player intent quote is repeated')
+  return quotes
 }
 
 function step(value: unknown): StepManifestation {
@@ -203,15 +215,14 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
     if (choice.actionType === 'interact') interactParameters(version, choice.parameters)
     choices.set(choice.affordanceId, { choice, accepted: acceptedCues(raw) })
   }
-  const candidate = object(value, ['version', 'decision', 'reason', 'actions', 'sourceSpans'])
-  // V2 is the only readable version: the Host publishes exactly this schema in the request it dispatches,
-  // so a v1 candidate is a caller that ignored the contract it was handed rather than an older peer to be
-  // tolerated. The version moved because the shape did - v1 could not state a step at all.
-  if (candidate.version !== 'player-intent-candidate/v2' || !REASONS.includes(candidate.reason as never)
-    || !Array.isArray(candidate.actions) || !Array.isArray(candidate.sourceSpans)) throw new TypeError('player intent candidate is invalid')
+  const candidate = object(value, ['version', 'decision', 'reason', 'actions'])
+  // V3 is the only readable version: the Host publishes exactly this schema in the request it dispatches, so
+  // an older candidate is a caller that ignored the contract it was handed rather than a peer to tolerate.
+  if (candidate.version !== 'player-intent-candidate/v3' || !REASONS.includes(candidate.reason as never)
+    || !Array.isArray(candidate.actions)) throw new TypeError('player intent candidate is invalid')
   if (candidate.decision === 'clarification_required') {
-    if (candidate.reason === 'none' || candidate.actions.length !== 0 || candidate.sourceSpans.length !== 0) {
-      throw new TypeError('clarification cannot contain actions or spans')
+    if (candidate.reason === 'none' || candidate.actions.length !== 0) {
+      throw new TypeError('clarification cannot contain actions')
     }
     return { status: 'clarification_required', reason: candidate.reason as 'ambiguous' | 'not_afforded' | 'unsupported' }
   }
@@ -221,13 +232,16 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
   const keys: string[] = []
   let requiresClarification = false
   const chosen: { readonly key: string; readonly choice: PlayerIntentAffordance
-    readonly performance: StepManifestation | undefined }[] = []
+    readonly performance: StepManifestation | undefined; readonly quotes: readonly string[] }[] = []
   for (const raw of candidate.actions) {
-    const action = exactWithOptional(raw, ['key', 'affordanceId'], ['performance'])
+    const action = exactWithOptional(raw, ['key', 'affordanceId', 'quotes'], ['performance'])
     const key = text(action.key)
     const found = choices.get(text(action.affordanceId))
     if (keys.includes(key) || found === undefined) throw new TypeError('player intent action is not uniquely afforded')
     const performance = action.performance === undefined ? undefined : step(action.performance)
+    // What the player actually wrote, named by the action it belongs to: finding these in the source is what
+    // makes a candidate checkable rather than merely well-formed.
+    const quotes = quoteList(action.quotes)
     // A step the choice does not accept is not quietly dropped - dropping it would do something the player
     // did not say - and it does not fail the action either: the player is asked again, which is the answer
     // this boundary already gives for an action that is not currently afforded. This covers a step stated
@@ -237,7 +251,7 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
       requiresClarification = true
     }
     keys.push(key)
-    chosen.push({ key, choice: found.choice, performance })
+    chosen.push({ key, choice: found.choice, performance, quotes })
   }
   const actions: ActionRequest[] = chosen.map((entry, ordinal) => ({
     actionId: deterministicId('action', { version: 'player-intent-action/v1', address: binding.address, inputId: binding.inputId, ordinal }),
@@ -250,30 +264,27 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
   if (actions.length === 2 && actions.filter(action => action.actionType === 'speak').length !== 1) {
     throw new TypeError('two player actions require exactly one speak')
   }
+  // The Host places each quote rather than being told where it is. Searching on from the previous one is
+  // what keeps the actions in the order the player spoke them, and a quote nobody wrote is refused here
+  // instead of becoming a span pointing at words that were never said.
   let previousEnd = 0
-  let previousOrdinal = -1
-  const sourceSpans: PlayerSourceSpanV1[] = candidate.sourceSpans.map(raw => {
-    const span = object(raw, ['actionKey', 'startUtf16', 'endUtf16', 'text', 'kind'])
-    const ordinal = keys.indexOf(text(span.actionKey))
-    const start = span.startUtf16 as number
-    const end = span.endUtf16 as number
-    if (ordinal < 0 || ordinal < previousOrdinal || !Number.isSafeInteger(start) || !Number.isSafeInteger(end)
-      || start < previousEnd || end <= start || end > binding.sourceText.length
-      || typeof span.text !== 'string' || binding.sourceText.slice(start, end) !== span.text) throw new TypeError('player intent source span is invalid')
+  const sourceSpans: PlayerSourceSpanV1[] = []
+  for (const [ordinal, entry] of chosen.entries()) {
     const action = actions[ordinal]!
-    if (span.kind !== (action.actionType === 'speak' ? 'speech' : 'action')) throw new TypeError('player intent source span kind is invalid')
-    previousEnd = end
-    previousOrdinal = ordinal
-    return { actionId: action.actionId, startUtf16: start, endUtf16: end, text: span.text, kind: span.kind as 'speech' | 'action' }
-  })
-  for (const action of actions) {
-    const spans = sourceSpans.filter(span => span.actionId === action.actionId)
-    if (spans.length === 0) throw new TypeError('every player action requires a source span')
-    if (action.actionType === 'speak') {
-      // Joining disconnected quotes could invent a sentence not present in the source.
-      if (spans.length !== 1) throw new TypeError('player speech requires one contiguous source span')
-      actions[actions.indexOf(action)] = { ...action, parameters: { text: spans[0]!.text } }
+    for (const quote of entry.quotes) {
+      const start = binding.sourceText.indexOf(quote, previousEnd)
+      if (start < 0) throw new TypeError('player intent quote is not in the player text')
+      previousEnd = start + quote.length
+      sourceSpans.push({ actionId: action.actionId, startUtf16: start, endUtf16: previousEnd, text: quote,
+        kind: action.actionType === 'speak' ? 'speech' : 'action' })
     }
+  }
+  for (const action of actions) {
+    if (action.actionType !== 'speak') continue
+    const spans = sourceSpans.filter(span => span.actionId === action.actionId)
+    // A speech is one contiguous quote: joining two of them would invent a sentence nobody said.
+    if (spans.length !== 1) throw new TypeError('player speech requires one contiguous quote')
+    actions[actions.indexOf(action)] = { ...action, parameters: { text: spans[0]!.text } }
   }
   // A semantic clarification must not turn an otherwise malformed Provider response into a valid result.
   // Validate every action and source span first, then give the player-facing answer for an unoffered step.

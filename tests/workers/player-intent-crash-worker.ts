@@ -14,9 +14,8 @@ const dispatch = async (raw: WorldJsonValue): Promise<WorldJsonValue> => {
   const offered = (raw as { body: { affordances: readonly { affordanceId: string; parameters: WorldJsonObject }[] } })
     .body.affordances
   const take = offered.find(entry => entry.parameters.bindingId === 'binding:entity:cup:base:take')!
-  return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
-    actions: [{ key: 't', affordanceId: take.affordanceId }],
-    sourceSpans: [{ actionKey: 't', startUtf16: 0, endUtf16: 4, text: '拿起杯子', kind: 'action' }] }
+  return { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
+    actions: [{ key: 't', affordanceId: take.affordanceId, quotes: ['拿起杯子'] }] }
 }
 // A responsive world refuses to mount without a binding for every active non-manual character, and both
 // of them abstain: what this worker is here to interrupt is the interpreted input, not the reaction.

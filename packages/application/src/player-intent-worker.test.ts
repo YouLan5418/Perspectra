@@ -32,8 +32,8 @@ function fixture() {
         affordances: [{ affordanceId: 'speak', actionType: 'speak', actionVersion: 1, parameters: {} }],
         interpretationProfile: 'fixture/v1', interpretationReceiptHash: hashWorldJson('fixture', {}) },
     }),
-    dispatch: async () => ({ version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
-      actions: [{ key: 'a', affordanceId: 'speak' }], sourceSpans: [{ actionKey: 'a', startUtf16: 0, endUtf16: 2, text: 'hi', kind: 'speech' }] }),
+    dispatch: async () => ({ version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
+      actions: [{ key: 'a', affordanceId: 'speak', quotes: ['hi'] }] }),
     enqueue: () => ({ roundId: 'r' }), complete: async () => ({ tick: 1 }),
   }
   return { root, jobs, job, lease, options, close() { jobs.close(); leases.close(); rmSync(root, { recursive: true, force: true }) } }

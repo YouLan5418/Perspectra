@@ -25,6 +25,8 @@ const turns = [
   '我把伞递给同行者，递的时候笑一下。',
   '我牵住同行者的手。',
   '我们走到山脊小路上吧。',
+  // The sentence a real player typed and lost a turn on: the interpreter used to have to count its offsets.
+  '发生了什么？',
 ]
 const turnIndex = process.argv.indexOf('--turns')
 const limit = turnIndex === -1 ? turns.length : Number(process.argv[turnIndex + 1] ?? turns.length)

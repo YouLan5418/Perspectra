@@ -140,9 +140,9 @@ describe('hard process termination recovery', () => {
         const offered = (raw as { body: { affordances: readonly { affordanceId: string; parameters: WorldJsonObject }[] } })
           .body.affordances
         const take = offered.find(entry => entry.parameters.bindingId === 'binding:entity:cup:base:take')!
-        return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
-          actions: [{ key: 't', affordanceId: take.affordanceId }],
-          sourceSpans: [{ actionKey: 't', startUtf16: 0, endUtf16: 4, text: '拿起杯子', kind: 'action' }] }
+        return { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
+          actions: [{ key: 't', affordanceId: take.affordanceId, quotes: ['拿起杯子'] }],
+          }
       } } })
     const request = { text: '拿起杯子', principalId: 'principal:player', idempotencyKey: 'intent:frozen', correlationId: 'intent:frozen' }
     try {
