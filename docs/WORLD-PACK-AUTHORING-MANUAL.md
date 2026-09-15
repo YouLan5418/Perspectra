@@ -60,6 +60,7 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 | `worldpack init --profile expressive-social` | v4 | v3 全部能力，加上可观察的表情、视线、姿态、手势、声音与外观变化 | **表现型新世界推荐起点** |
 | `examples/world-packs/rainy-road-companions` | v2 | Phase 8 完整认知参考 | 查阅字段；直接复制时没有 Reaction Cycle |
 | `examples/world-packs/hand-in-hand` | **v5** | 定义锁交互（交互包选择、定义与绑定、关系类解除）、`responsive/v2` | **交互字段新世界推荐起点**（§17.3） |
+| `examples/world-packs/ai-girls-awaken-v10` | **v5** | 四角色长上下文世界、自然语言 Player Intent、物品与牵手交互、`responsive/v2` | **玩家与创作者综合试玩包**；旧 `ai-girls-awaken` 保留为兼容黄金 |
 
 `expressive-social` 复制“雨夜同行”的完整结构，同时加入 Reaction 与 Manifestation 配置。创作者应保留文件形状，替换世界内容、角色、地点和交叉引用。
 
@@ -1105,7 +1106,11 @@ corepack pnpm@11.7.0 worldpack activate D:\worlds\hand.wp.json --data-dir D:\wor
 并激活后可以观察到：递交落在收件人而不是地点；走到别处时由**世界的 fold**结束牵手（不是内核按接触名
 分支）；带 cue 的递交在落库事件里留下一条 `character.manifested`。
 
-**用真实模型驱动它。** 网页试玩（`experience:web`）说的是旧实验协议（v4/v5 词表），**尚未接上 v7**。
+**用真实模型驱动它。** 网页试玩会识别 `worldpack-source/v5` 目录并使用 Manifest v10、`submit_actions/v7` 和生产 `provider-chat` 适配器：
+
+```powershell
+corepack pnpm@11.7.0 experience:web --deepseek --pack examples\world-packs\ai-girls-awaken-v10 --data-dir D:\worlds\ai-girls-awaken-v10-playtest
+```
 要跑真实模型请用付费实验门禁：
 
 ```powershell

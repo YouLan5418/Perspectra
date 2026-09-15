@@ -15,7 +15,7 @@ describe('provider diagnostic comparison', () => {
   })
   it('extracts only approved response fields, never vendor headers or reasoning', () => {
     const response = comparisonResponse('deepseek', {
-      model: 'deepseek-v4-flash', choices: [{ finish_reason: 'stop', message: { content: '{}', reasoning_content: 'PRIVATE' } }],
+      model: 'deepseek-flash', choices: [{ finish_reason: 'stop', message: { content: '{}', reasoning_content: 'PRIVATE' } }],
       usage: { prompt_tokens: 3, completion_tokens: 4, prompt_cache_hit_tokens: 2, prompt_cache_miss_tokens: 1 },
       headers: { authorization: 'SECRET' },
     })

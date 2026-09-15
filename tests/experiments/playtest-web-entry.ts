@@ -14,7 +14,7 @@ async function main(): Promise<void> {
     ?? (process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim() || defaultPlaytestDirectory())
   const endpoint = process.env.HCW_OLLAMA_ENDPOINT
   const utilityModel = process.env.HCW_UTILITY_MODEL
-  const model = provider === 'deepseek' ? (process.env.HCW_DEEPSEEK_MODEL?.trim() || 'deepseek-v4-flash') : process.env.HCW_OLLAMA_MODEL
+  const model = provider === 'deepseek' ? (process.env.HCW_DEEPSEEK_MODEL?.trim() || 'deepseek-flash') : process.env.HCW_OLLAMA_MODEL
   const apiKey = provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY : undefined
   // A v5 Pack is the frozen path: the same page, driven by the protocol production offers that world.
   // Anything else keeps the older line, whose own renderer and utility interpreter are untouched.

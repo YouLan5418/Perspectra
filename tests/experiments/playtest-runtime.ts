@@ -54,7 +54,7 @@ import {
 const DEFAULT_ENDPOINT = 'http://127.0.0.1:11434'
 const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions'
 const OLLAMA_MODEL = 'qwen3.5:4b'
-const DEEPSEEK_MODEL = 'deepseek-v4-flash'
+const DEEPSEEK_MODEL = 'deepseek-flash'
 
 export type PlaytestProviderKind = 'ollama' | 'deepseek'
 

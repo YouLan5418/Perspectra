@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "worldpack-entities/v2",
+  "entities": [
+    {
+      "entityId": "entity:laptop",
+      "locationId": "location:workspace",
+      "kind": "laptop",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:laptop-take",
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:laptop-drop",
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:laptop-give",
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:phone",
+      "locationId": "location:bedroom",
+      "kind": "phone",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:phone-take",
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:phone-drop",
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:phone-give",
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:keyboard",
+      "locationId": "location:workspace",
+      "kind": "keyboard",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:keyboard-take",
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:keyboard-drop",
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:keyboard-give",
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    }
+  ]
+}

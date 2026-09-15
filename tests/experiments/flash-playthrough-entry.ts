@@ -30,7 +30,7 @@ async function main() {
   const args = process.argv.slice(2)
   if (args.length > 1 || (args.length === 1 && args[0] !== '--ollama')) throw new Error('unsupported experiment argument')
   const vendor = args[0] === '--ollama' ? 'ollama' : 'deepseek'
-  const model = vendor === 'ollama' ? 'qwen3.5:4b' : 'deepseek-v4-flash'
+  const model = vendor === 'ollama' ? 'qwen3.5:4b' : 'deepseek-flash'
   const timeoutMs = vendor === 'ollama' ? 120_000 : 30_000
   const promptVariant = process.env.HCW_FLASH_PROMPT ?? 'ownership_clear'
   if (promptVariant !== 'ownership_clear' && promptVariant !== 'turn_taking') throw new Error('unsupported experiment prompt')

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "worldpack-interactions/v1",
+  "packages": [
+    { "id": "package:interactions-basic", "version": 1 }
+  ],
+  "definitions": [
+    { "id": "base:take", "version": 1 },
+    { "id": "base:drop", "version": 1 },
+    { "id": "base:give", "version": 1 },
+    { "id": "base:hold-hand", "version": 1 },
+    { "id": "base:end-contact", "version": 1 }
+  ],
+  "relationBindings": [
+    {
+      "bindingId": "binding:release-hand",
+      "relationClass": "base:hold-hand",
+      "definition": { "id": "base:end-contact", "version": 1 },
+      "config": {}
+    }
+  ]
+}

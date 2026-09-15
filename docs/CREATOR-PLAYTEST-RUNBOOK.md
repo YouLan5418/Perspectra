@@ -2,9 +2,9 @@
 
 > 当前入口是私有源码中的本机创作与试玩工具，不是在线创作者平台。网页只监听 `127.0.0.1`；Pack 不得包含 API Key、Provider 地址、系统提示或脚本。模型输出仍只是提案，最终动作必须经过 Rulebook 裁决。
 
-本次建议使用 **v4 Pack + `--interactions`**。`object-interactions/v1` 生成 Manifest v8，体验两步行动组和物品交互；`interaction-catalog/v2` 生成 Manifest v9，并增加人工玩家即时牵手及参与者解除。两种新模式中玩家普通文本都是对白，移动和交互使用明确命令；DeepSeek 模式不再依赖 Ollama 翻译玩家输入。下文先走 v8 路径，v9 角色示例在 §3 单列。
+旧世界可继续使用 **v4 Pack + `--interactions`**：`object-interactions/v1` 生成 Manifest v8，`interaction-catalog/v2` 生成 Manifest v9。新建或升级世界建议使用 `worldpack-source/v5`，把交互包、定义与绑定写进 Pack，自然语言玩家输入由世界显式选择。下文保留旧路线，v10 路线见 §8。
 
-**交互字段（`worldpack-source/v5` → Manifest v10 → `submit_actions/v7`）不走网页试玩。** 它把交互包与定义冻结进世界，词汇与表现策略由 Pack 自己声明；`experience:web` 说的是旧实验协议，尚未接上 v7。要跑这条路线请看 [字段手册 §17.3](WORLD-PACK-AUTHORING-MANUAL.md) 与 §8 的说明。
+**交互字段（`worldpack-source/v5` → Manifest v10 → `submit_actions/v7`）已经接入网页试玩。** 入口会按 Pack 源版本自动选择冻结运行时；词汇、表现策略和玩家输入策略都由 Pack 声明。具体命令见 §8 和[字段手册 §17.3](WORLD-PACK-AUTHORING-MANUAL.md)。
 
 ## 1. 准备运行环境与模型
 
@@ -27,7 +27,7 @@ if ([string]::IsNullOrWhiteSpace($env:DEEPSEEK_API_KEY)) {
 $env:HCW_DEEPSEEK_MODEL = Read-Host '输入你的 DeepSeek 账号可用的模型 ID'
 ```
 
-未设置 `HCW_DEEPSEEK_MODEL` 时，程序默认字符串为 `deepseek-v4-flash`；这不是远端模型可用性验证。请使用自己账号实际可用的 ID。没有 Key 时启动会失败，不会自动换 Provider。只有提交玩家消息或继续 NPC 反应才会发出角色模型请求；这些请求会产生 API 用量。
+未设置 `HCW_DEEPSEEK_MODEL` 时，程序默认使用 `deepseek-flash`。没有 Key 时启动会失败，不会自动换 Provider。只有提交玩家消息或继续 NPC 反应才会发出角色模型请求；这些请求会产生 API 用量。
 
 如果选择本机 Ollama，先启动服务并确认模型已安装：
 

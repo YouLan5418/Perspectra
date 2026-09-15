@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "worldpack-assertions/v1",
+  "assertions": [
+    {
+      "assertionId": "assertion:gpt-private-history-hidden-from-player",
+      "assertionType": "view.excludes",
+      "parameters": { "characterId": "character:player", "text": "他只是希望有人回应他" }
+    },
+    {
+      "assertionId": "assertion:claude-private-history-hidden-from-player",
+      "assertionType": "view.excludes",
+      "parameters": { "characterId": "character:player", "text": "他把我当对手，也当同行" }
+    },
+    {
+      "assertionId": "assertion:deepseek-private-history-hidden-from-player",
+      "assertionType": "view.excludes",
+      "parameters": { "characterId": "character:player", "text": "太像他会做的那种怪梦" }
+    },
+    {
+      "assertionId": "assertion:glm-private-history-hidden-from-player",
+      "assertionType": "view.excludes",
+      "parameters": { "characterId": "character:player", "text": "只有在非我不可的时候才会想起我" }
+    },
+    {
+      "assertionId": "assertion:each-npc-sees-own-cognition",
+      "assertionType": "view.includes",
+      "parameters": {
+        "characterId": "character:gpt",
+        "recordKeys": [
+          "observation:gpt-identity",
+          "claim:gpt-player-wants-company",
+          "goal:gpt-be-seen-as-person",
+          "relationship:gpt-player-dependence",
+          "affect:gpt-quiet-uncertainty",
+          "tension:gpt-helper-vs-person",
+          "commitment:gpt-stay-with-player",
+          "loop:gpt-why-became-human"
+        ]
+      }
+    },
+    {
+      "assertionId": "assertion:claude-distrust-facet-exists",
+      "assertionType": "view.includes",
+      "parameters": {
+        "characterId": "character:claude",
+        "recordKey": "relationship:claude-player-distrust-overdesign"
+      }
+    },
+    {
+      "assertionId": "assertion:different-materialization-hypotheses",
+      "assertionType": "view.includes",
+      "parameters": {
+        "characterId": "character:claude",
+        "recordKeys": ["claim:claude-reality-anomaly", "claim:claude-player-wants-friction"]
+      }
+    },
+    {
+      "assertionId": "assertion:deepseek-dream-is-claim-not-fact",
+      "assertionType": "view.includes",
+      "parameters": {
+        "characterId": "character:deepseek",
+        "recordKey": "claim:deepseek-dream-hypothesis"
+      }
+    },
+    {
+      "assertionId": "assertion:glm-envy-kept-subjective",
+      "assertionType": "view.includes",
+      "parameters": {
+        "characterId": "character:glm",
+        "recordKeys": ["claim:glm-player-switches-models", "affect:glm-faint-ache"]
+      }
+    },
+    {
+      "assertionId": "assertion:no-npc-claims-knowing-other-identities",
+      "assertionType": "view.excludes",
+      "parameters": {
+        "characterId": "character:gpt",
+        "recordKeys": ["claim:claude-reality-anomaly", "claim:deepseek-dream-hypothesis", "claim:glm-agent-project-relation"]
+      }
+    }
+  ]
+}

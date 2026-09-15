@@ -116,6 +116,25 @@ async function compile(options: SourceOptions = {}) {
 }
 
 describe('WorldPackCompilerV5', () => {
+  it('compiles the upgraded model-girls world as a playable frozen world', async () => {
+    const pack = await compileWorldPackSource(fileURLToPath(new URL(
+      '../../../examples/world-packs/ai-girls-awaken-v10/', import.meta.url,
+    )), packages) as Awaited<ReturnType<WorldPackCompilerV5['compile']>>
+    expect(pack.packId).toBe('pack:ai-girls-awaken')
+    expect(pack.packVersion).toBe('2.0.0')
+    expect(pack.compiledSchemaVersion).toBe('worldpack/v5')
+    expect(pack.reaction).toEqual({ schemaVersion: 'worldpack-reaction/v1', mode: 'responsive', profile: 'responsive/v2' })
+    expect(pack.interactions.definitions.map(entry => entry.ref.id)).toEqual([
+      'base:take', 'base:drop', 'base:give', 'base:hold-hand', 'base:end-contact',
+    ])
+    expect(pack.interactions.bindings).toHaveLength(14)
+    const compiled = adaptCompiledWorldPack(pack, {
+      address, principalId: 'principal:worldpack-v5', sessionId: brandId('session:worldpack-v5', 'SessionId'),
+    })
+    expect(compiled.manifest.schemaVersion).toBe(10)
+    expect(compiled.manifest.playerInputPolicy).toEqual({ version: 'player-intent/v1' })
+  }, 60_000)
+
   it('compiles the author selection into an interaction catalog with resolved locks', async () => {
     const pack = await compile()
     expect(pack.compiledSchemaVersion).toBe('worldpack/v5')

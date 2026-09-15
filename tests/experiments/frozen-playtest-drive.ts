@@ -9,7 +9,8 @@ import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
  * and the world is closed and reopened in the middle of the session - so what is exercised is the playtest
  * a person gets, restart included, rather than a shorter path written for the experiment.
  *
- * Usage: DEEPSEEK_API_KEY=... node --import tsx tests/experiments/frozen-playtest-drive.ts [--model <id>] [--turns N]
+ * Usage: DEEPSEEK_API_KEY=... node --import tsx tests/experiments/frozen-playtest-drive.ts
+ *   [--model <id>] [--pack <v5 source directory>] [--scenario hand-in-hand|ai-girls] [--turns N]
  */
 const modelIndex = process.argv.indexOf('--model')
 const model = modelIndex === -1 ? 'deepseek-flash' : (process.argv[modelIndex + 1] ?? 'deepseek-flash')
@@ -17,10 +18,22 @@ const apiKey = process.env.DEEPSEEK_API_KEY?.trim()
 if (apiKey === undefined || apiKey.length === 0) throw new TypeError('DeepSeek credential unavailable')
 const dataDirectory = resolve('.tmp', `frozen-playtest-drive-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}`)
 mkdirSync(dataDirectory, { recursive: true })
-const packPath = resolve('examples/world-packs/hand-in-hand')
+const packIndex = process.argv.indexOf('--pack')
+const packPath = resolve(packIndex === -1
+  ? 'examples/world-packs/hand-in-hand'
+  : (process.argv[packIndex + 1] ?? 'examples/world-packs/hand-in-hand'))
+const scenarioIndex = process.argv.indexOf('--scenario')
+const scenario = scenarioIndex === -1 ? 'hand-in-hand' : (process.argv[scenarioIndex + 1] ?? 'hand-in-hand')
+if (scenario !== 'hand-in-hand' && scenario !== 'ai-girls') throw new TypeError('unknown frozen playtest scenario')
 
 /** The player's own words. Two of them state how it is done, which is what a step is for. */
-const turns = [
+const turns = scenario === 'ai-girls' ? [
+  '我拿起床边的手机。',
+  '我把手机递给DeepSeek，递的时候笑了一下。',
+  '我轻轻牵住DeepSeek的手。',
+  '我们一起去客厅吧。',
+  '发生了什么？',
+] : [
   '我把共用的伞拿起来。',
   '我把伞递给同行者，递的时候笑一下。',
   '我牵住同行者的手。',
@@ -78,6 +91,8 @@ const expressions = events.filter(event => event.eventType === 'character.manife
     .cues.map(cue => cue.description))
 const outcome = {
   dataDirectory,
+  packPath,
+  scenario,
   protocol: 'the web playtest runtime, submit_actions/v7 over Manifest v10',
   playerInputMode: 'interpreted-free-text',
   address,
