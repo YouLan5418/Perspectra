@@ -32,16 +32,29 @@ interface Offered { readonly affordanceId: string; readonly actionType: string
  * answers with the option the test's chooser names - which is what an interpreter does with the player's
  * words, and why the chooser is the test's to state rather than the adapter's to guess.
  */
-function scriptedEndpoint(choose: (offered: readonly Offered[]) => Offered) {
+function scriptedEndpoint(choose: (offered: readonly Offered[]) => Offered, speakOnce = false) {
   const asked: Asked[] = []
+  const spoken = new Set<string>()
   const server = createServer((request, response) => {
     let body = ''
     request.on('data', chunk => { body += chunk })
     request.on('end', () => {
       const parsed = JSON.parse(body) as Asked
       asked.push(parsed)
-      const answer = JSON.stringify(parsed.format).includes('player-intent-candidate')
-        ? interpretation(parsed, choose) : { schemaVersion: 7, decision: 'abstain', actions: [] }
+      let answer
+      if (JSON.stringify(parsed.format).includes('player-intent-candidate')) {
+        answer = interpretation(parsed, choose)
+      } else if (speakOnce) {
+        const variants = ((parsed.format.properties as any).actions.items.oneOf ?? [
+          (parsed.format.properties as any).actions.items]) as any[]
+        const speech = variants.find(variant => variant.properties.actionType.const === 'speak')
+        const actorId = speech?.properties.actorId.const as string | undefined
+        if (actorId !== undefined && !spoken.has(actorId)) {
+          spoken.add(actorId)
+          answer = { schemaVersion: 7, decision: 'act', actions: [{ actionId: `action:scripted:${actorId}`,
+            actorId, actionType: 'speak', actionVersion: 1, parameters: { text: '我听见了。' } }] }
+        } else answer = { schemaVersion: 7, decision: 'abstain', actions: [] }
+      } else answer = { schemaVersion: 7, decision: 'abstain', actions: [] }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
     })
@@ -96,8 +109,8 @@ describe('the web playtest on a frozen world', () => {
       expect(state.error).toBe(false)
       expect(state.debug).toMatchObject({ outputProtocol: 'submit_actions/v7', manifestVersion: 10,
         playerInputMode: 'interpreted-free-text' })
-      // Three calls: the interpreter read the player, and both characters were asked what they do.
-      expect(asked.length).toBeGreaterThanOrEqual(1)
+      // Root participation asks both characters. They abstain here, so this fixture opens no Reaction Cycle.
+      expect(asked.filter(call => !JSON.stringify(call.format).includes('player-intent-candidate'))).toHaveLength(2)
       const character = asked.find(call => !JSON.stringify(call.format).includes('player-intent-candidate'))!
       const schema = JSON.stringify(character.format)
       // The model is handed the world's own contract: the frozen protocol, the group's steps, its cues.
@@ -110,6 +123,20 @@ describe('the web playtest on a frozen world', () => {
         + '"bindingId":"binding:companion-hold-hand","definitionRef":{"id":"base:hold-hand","version":1},"arguments":{}}')
       expect(command.error).toBe(false)
       expect(asked.filter(call => JSON.stringify(call.format).includes('player-intent-candidate')).length).toBe(before)
+    } finally { await runtime.close() }
+  }, 60_000)
+
+  it('drives a Root-opened Reaction Cycle to a terminal wave before returning to the player', async () => {
+    const { asked, server } = scriptedEndpoint(takesBinding('binding:umbrella-take'), true)
+    const root = mkdtempSync(join(tmpdir(), 'frozen-playtest-reaction-drain-'))
+    roots.push(root)
+    const runtime = await play(asked, server, root)
+    try {
+      const state = await runtime.submit('我把共用的伞拿起来。')
+      const characterCalls = asked.filter(call => !JSON.stringify(call.format).includes('player-intent-candidate'))
+      // Two Root calls produce speech and open the Cycle; later calls can only come from a driven Wave.
+      expect(characterCalls.length).toBeGreaterThan(2)
+      expect(state.debug).toMatchObject({ cycleStatus: 'terminal' })
     } finally { await runtime.close() }
   }, 60_000)
 

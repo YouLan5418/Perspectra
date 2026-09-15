@@ -75,6 +75,10 @@ describe('local playtest server', () => {
     const accepted = await fetch(`${url}/api/submit`, auth({ method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"text":" hello "}' }))
     expect(accepted.status).toBe(200)
     expect(submit).toHaveBeenCalledWith('hello')
+    const multiline = await fetch(`${url}/api/submit`, auth({ method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: '第一行\r\n第二行\n\t第三行' }) }))
+    expect(multiline.status).toBe(200)
+    expect(submit).toHaveBeenLastCalledWith('第一行 第二行 第三行')
     expect((await fetch(`${url}/api/pause`, auth({ method: 'POST' }))).status).toBe(200)
     expect((await fetch(`${url}/api/resume`, auth({ method: 'POST' }))).status).toBe(200)
     expect(pause).toHaveBeenCalledOnce()

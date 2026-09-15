@@ -202,6 +202,10 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       if (result.status === 'clarification_required') {
         this.#notice = `${result.reason}（这次输入没有提交；换一种说法，或用 /act 显式命令。）`
         this.#lastPlayerIntent = 'clarification'
+      } else {
+        // submitText completes the player's durable Root. This in-process playtest has no BranchWorkScheduler
+        // behind it, so it must also drive the Cycle that Root opened before returning control to the page.
+        await this.#drainReactions()
       }
     } catch (error: unknown) {
       this.#error = true
@@ -246,11 +250,35 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   async resume(): Promise<PlaytestState> {
     this.#paused = false
     this.#notice = '已恢复。'
+    this.#busy = true
+    try {
+      await this.#drainReactions()
+    } finally {
+      this.#busy = false
+      this.#phaseLabel = '可以输入'
+      await this.#refresh().catch(() => {})
+    }
     return this.state()
   }
 
   async close(): Promise<void> {
     await this.#application.close()
+  }
+
+  /** Drain the bounded Cycle in this Host; production Hosts do the same work one scheduler quantum at a time. */
+  async #drainReactions(): Promise<void> {
+    for (let quantum = 0; quantum < 8; quantum += 1) {
+      if (this.#paused) {
+        this.#notice = 'NPC 已在波次边界暂停。'
+        return
+      }
+      this.#phaseLabel = 'NPC 正在继续反应'
+      const step = await this.#application.processNextReactionWave(this.#address)
+      if (step.status !== 'wave') return
+      await this.#refresh()
+      if (step.terminalReason !== null) return
+    }
+    throw new Error('frozen playtest reaction drain exceeded eight quanta')
   }
 
   async #refresh(): Promise<void> {

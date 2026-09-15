@@ -72,7 +72,10 @@ function submittedText(value: unknown): string {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('请求格式无效')
   const record = value as Record<string, unknown>
   if (Object.keys(record).length !== 1 || typeof record.text !== 'string') throw new TypeError('请求必须只包含 text')
-  const text = record.text.trim()
+  // The composer is multiline for editing, while protocol strings deliberately exclude controls. This
+  // local presentation adapter turns visual line breaks and pasted tabs into ordinary word boundaries;
+  // the World boundary remains strict and still receives a control-free string.
+  const text = record.text.replace(/[\t\r\n]+/gu, ' ').trim()
   if (text.length === 0 || text.length > 2_000) throw new RangeError('请输入 1 至 2000 个字符')
   return text
 }
