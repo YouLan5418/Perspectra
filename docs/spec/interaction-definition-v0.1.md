@@ -125,7 +125,7 @@ Host 不给同步受信任函数提供抢占沙箱；规则执行预算计结构
 | 行动组 | bounded-action-group/v2，允许新交互版本及定义锁 | v1 原行为 |
 | Authority | Round Authority schemaVersion 6，显式角色/定义/依据绑定 | v1～v5 原解析 |
 | 玩家提交 / 意图准备 | player-submission/v3；准备记录显式绑定新参数结构和视图 Hash | 已有 player-submission/v2 原恢复 |
-| 玩家意图解释 | player-intent-request/v2 + player-intent-candidate/v2：交互步骤可带表现，选项视图带该选择接受的 cue | candidate/v1、request/v1 留在历史记录里，不再被解析 |
+| 玩家意图解释 | player-intent-request/v2 + player-intent-candidate/v3：候选只交**原文引用**（quotes），偏移由宿主定位；交互步骤可带表现，选项视图带该选择接受的 cue | candidate/v1、v2 与 request/v1 留在历史记录里，不再被解析 |
 | 反应 | 新 profile responsive/v2，证据版本 reaction-evidence/v1 | responsive/v1 不变 |
 | 表现 | interaction-performance/v1 | 旧八 cue 与旧归一化不变 |
 | World / Context SQLite | 本期先保持 18 / 7；新增列/表需单独迁移决定 | 黄金哨兵不改 |
