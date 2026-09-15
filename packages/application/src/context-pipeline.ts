@@ -393,8 +393,8 @@ export class Phase8ContextPipeline {
   }
 
   /** The grouped-output contract this Manifest's action group speaks, and its exact version. */
-  #groupedTool(): 'submit_actions/v4' | 'submit_actions/v5' | 'submit_actions/v6' {
-    if (manifestUsesFrozenInteractions(this.options.manifest)) return 'submit_actions/v6'
+  #groupedTool(): 'submit_actions/v4' | 'submit_actions/v5' | 'submit_actions/v7' {
+    if (manifestUsesFrozenInteractions(this.options.manifest)) return 'submit_actions/v7'
     return manifestUsesInteractions(this.options.manifest) ? 'submit_actions/v5' : 'submit_actions/v4'
   }
 

@@ -192,6 +192,7 @@ describe('an independent pack on the interaction path', () => {
     const root = mkdtempSync(join(tmpdir(), 'hand-in-hand-step-'))
     const worldPath = join(root, 'world.sqlite')
     let shown = ''
+    let proposals = 0
     let schemas: Record<string, { readonly properties: { readonly independent: { readonly enum: readonly string[] } } }> = {}
     const app = new WorldApplication({
       worldPath, sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'),
@@ -203,6 +204,7 @@ describe('an independent pack on the interaction path', () => {
         participantId: 'agent:companion', role: 'agent' as const, actorId: 'character:companion' as never,
         allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
         provider: { propose: async (context: unknown) => {
+          proposals += 1
           shown = JSON.stringify(context)
           schemas = (context as { exactProviderRequest: { tools: { actionGroup: { manifestation: {
             schemasByAction: typeof schemas } } } } }).exactProviderRequest.tools.actionGroup.manifestation.schemasByAction
@@ -210,8 +212,9 @@ describe('an independent pack on the interaction path', () => {
             actionId: 'action:companion-step', actorId: 'character:companion' as never,
             actionType: 'interact', actionVersion: 2, parameters: {
               targetRef: { kind: 'entity', id: 'entity:shared-umbrella' },
-              bindingId: 'binding:umbrella-give',
-              definitionRef: { id: 'base:give', version: 1 }, arguments: { recipientId: 'character:friend' },
+              bindingId: proposals === 1 ? 'binding:umbrella-take' : 'binding:umbrella-give',
+              definitionRef: { id: proposals === 1 ? 'base:take' : 'base:give', version: 1 },
+              arguments: proposals === 1 ? {} : { recipientId: 'character:friend' },
             },
             manifestation: { independent: ['frown'], onSuccess: ['smile'] },
           }] }
@@ -233,8 +236,17 @@ describe('an independent pack on the interaction path', () => {
     // The vocabulary an interaction step may state, and the one it may not: a voice or gait cue names an
     // action of its own, so an interaction is never its step.
     expect(shown).toContain('submit_actions/v7')
+    expect(shown).not.toContain('submit_actions/v6')
     const store = new WorldStore(worldPath)
     const events = store.readEvents(compiled.manifest.address)
+    const refusedAction = events.find(event => event.eventType === 'action.resolved'
+      && (event.data as { readonly reason?: string }).reason === 'PERFORMANCE_NOT_ACCEPTED')!
+    const refusedAuthority = store.readRoundAuthority(compiled.manifest.address, refusedAction.transactionId)!.authority
+    const failedAttempt = events.find(event => event.eventType === 'action.resolved'
+      && typeof (event.data as { readonly reason?: unknown }).reason === 'string'
+      && (event.data as { readonly reason: string }).reason !== 'PERFORMANCE_NOT_ACCEPTED')!
+    const failedReason = (failedAttempt.data as { readonly reason: string }).reason
+    const failedAuthority = store.readRoundAuthority(compiled.manifest.address, failedAttempt.transactionId)!.authority
     store.close()
     const descriptions = (event: { readonly data: unknown }) =>
       (event.data as { readonly cues: readonly { readonly description: string }[] }).cues.map(cue => cue.description)
@@ -243,8 +255,18 @@ describe('an independent pack on the interaction path', () => {
     // hand-over that happened plays the rest.
     const manifested = events.filter(event => event.eventType === 'character.manifested')
     const cueLists = manifested.map(descriptions)
+    expect(manifested).toHaveLength(2)
     expect(cueLists.filter(cues => cues.length === 2)).toHaveLength(1)
     expect(cueLists.every(cues => cues[0] === '微微皱眉')).toBe(true)
+    expect(events.some(event => event.eventType === 'action.rejected'
+      && (event.data as { readonly reason?: string }).reason === 'PERFORMANCE_NOT_ACCEPTED')).toBe(true)
+    const refusedResolution = (refusedAuthority.resolutions as readonly Record<string, unknown>[])
+      .find(value => value.reason === 'PERFORMANCE_NOT_ACCEPTED')!
+    expect(refusedResolution).not.toHaveProperty('manifestation')
+    const failedResolution = (failedAuthority.resolutions as readonly Record<string, unknown>[])
+      .find(value => value.reason === failedReason)!
+    expect(failedResolution).toMatchObject({ manifestation: { status: 'accepted' } })
+    expect(failedResolution.candidateHashAfter).not.toBe(failedResolution.candidateHashBefore)
     // Everyone who could see the hand-over was told how it was done, not just that it happened.
     const observed = events.filter(event => event.eventType === 'observation.upsert')
       .map(event => (event.data as { readonly value: { readonly observerId: string; readonly content: WorldJsonObject } }).value)

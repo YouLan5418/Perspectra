@@ -59,6 +59,12 @@ describe('process entrypoints', () => {
       expect(result.code).not.toBe(0)
       expect(result.stderr).not.toBe('')
     }
+    const host = await run('packages/operations/process/headless-entry.ts', ['--unknown', 'value'])
+    expect(host.code).not.toBe(0)
+    expect(host.stderr).toContain('unknown worldhost option')
+    const shell = await run('packages/simulation/process/mystery-shell-entry.ts', [], 'hello\n')
+    expect(shell.code).not.toBe(0)
+    expect(shell.stderr).not.toBe('')
   }, 60_000)
 
   it('compiles a v5 Pack through the worldpack entry, with the install that entry carries', async () => {

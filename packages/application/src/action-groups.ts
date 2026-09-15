@@ -1,4 +1,4 @@
-import { ACTION_GROUP_CUES, compareWorldText, type ActionGroupBinding, type ActionRequest, type ManifestationProposal, type StepManifestation } from '@harness-world/contracts'
+import { compareWorldText, type ActionGroupBinding, type ActionRequest, type StepManifestation, type WorldJsonObject } from '@harness-world/contracts'
 import type { RulebookResolution } from '@harness-world/kernel'
 
 interface GroupOrderedAction {
@@ -21,6 +21,22 @@ export function sortActionGroups<T extends GroupOrderedAction>(items: readonly T
 
 /** Closed vocabulary is rendered only after adjudication. Never inspect or execute free text. */
 export { stepManifestation } from '@harness-world/kernel'
+
+/**
+ * The model protocol keeps a step manifestation beside the Action, while the frozen interaction
+ * contract carries it inside the request that the definition adjudicates. Bridge the two only for
+ * that Rulebook call: the durable Action Group remains the source representation, and the definition's
+ * locked performance policy gets the final say before any manifestation fact can be emitted.
+ */
+export function bindFrozenInteractionPerformance(
+  action: ActionRequest,
+  performance: StepManifestation | null,
+): ActionRequest {
+  if (action.actionType !== 'interact' || performance === null) return action
+  const parameters = action.parameters
+  if (parameters === null || typeof parameters !== 'object' || Array.isArray(parameters)) return action
+  return { ...action, parameters: { ...(parameters as WorldJsonObject), performance } }
+}
 
 /** The set belongs to a single deterministic candidate fold, never to durable idempotency. */
 export function resolveGroupAction(

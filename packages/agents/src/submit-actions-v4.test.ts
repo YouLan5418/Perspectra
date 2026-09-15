@@ -126,5 +126,11 @@ describe('submit_actions/v6', () => {
       .toThrow('interact actionVersion must be 2')
     expect(() => validator.validateV7(payload7([{ ...step, manifestation: { independent: ['slow_walk'], onSuccess: [] } }, speak]),
       authorization).proposal.actionGroup?.manifestations).toBeDefined()
+    expect(() => validator.validateV7(payload7([{ ...interact,
+      parameters: { ...interact.parameters, performance: { independent: ['frown'], onSuccess: [] } } }]), authorization))
+      .toThrow('interaction performance belongs in action.manifestation')
+    expect(() => validator.validateV6(payload6([{ ...interact,
+      parameters: { ...interact.parameters, performance: { independent: ['frown'], onSuccess: [] } } }]), authorization))
+      .toThrow('interaction performance belongs in action.manifestation')
   })
 })

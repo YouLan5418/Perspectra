@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { brandId, type ActionGroupBinding } from '@harness-world/contracts'
-import { resolveGroupAction, sortActionGroups, stepManifestation } from './action-groups.ts'
+import { bindFrozenInteractionPerformance, resolveGroupAction, sortActionGroups, stepManifestation } from './action-groups.ts'
 
 const group: ActionGroupBinding = { version: 'bounded-action-group/v1', manifestations: [null, null] }
 const action = { actionId: 'a', actorId: brandId('a', 'CharacterId'), actionType: 'move', actionVersion: 1, parameters: {} }
@@ -31,5 +31,16 @@ describe('bounded action groups', () => {
     expect(stepManifestation({ independent: [], onSuccess: ['slow_walk'] }, false)).toBeUndefined()
     expect(stepManifestation({ independent: ['frown'], onSuccess: ['slow_walk'] }, false)?.cues).toHaveLength(1)
     expect(stepManifestation({ independent: ['frown'], onSuccess: ['slow_walk'] }, true)?.cues).toHaveLength(2)
+  })
+  it('bridges a frozen interaction step into the definition-owned request only when possible', () => {
+    const performance = { independent: ['frown'], onSuccess: ['smile'] } as const
+    const interact = { ...action, actionType: 'interact', actionVersion: 2,
+      parameters: { targetRef: { kind: 'entity', id: 'entity:cup' }, arguments: {} } }
+    expect(bindFrozenInteractionPerformance(interact, performance).parameters)
+      .toMatchObject({ targetRef: { id: 'entity:cup' }, performance })
+    expect(bindFrozenInteractionPerformance(interact, null)).toBe(interact)
+    expect(bindFrozenInteractionPerformance(action, performance)).toBe(action)
+    const malformed = { ...interact, parameters: null }
+    expect(bindFrozenInteractionPerformance(malformed, performance)).toBe(malformed)
   })
 })

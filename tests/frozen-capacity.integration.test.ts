@@ -59,8 +59,7 @@ const handlersFor = (count: number): InteractionLifecycleHandlerImplementation[]
   Array.from({ length: count }, (_, index) => ({ lock: impl(`capacity:handler-${index}`), phase: 'observation' as const,
     consumes: [], eventTypes: [ref(`capacity.handler-${index}`)], build: () => [] }))
 
-function definition(id: string, over: Partial<InteractionDefinitionSpec> = {},
-  effect: InteractionEffectImplementation = transfer): InteractionDefinitionImplementation {
+function definition(id: string, over: Partial<InteractionDefinitionSpec> = {}): InteractionDefinitionImplementation {
   const spec: InteractionDefinitionSpec = {
     versionTag: 'interaction-definition/v1', id, version: 1,
     participantRoles: [actorRole, itemRole], argumentSchema: { fields: [] }, bindingConfigSchema: { fields: [] },
@@ -119,7 +118,7 @@ function host(actionId: string): InteractionHostContext {
 
 /** Resolve one action against a definition whose declaration and effect builder disagree or not. */
 function resolveWith(effect: InteractionEffectImplementation, maximumEvents: number): () => unknown {
-  const target = definition('capacity:events', { limits: { maximumEvents } }, effect)
+  const target = definition('capacity:events', { limits: { maximumEvents } })
   const { registry, lock } = installed([target], { effects: [effect] })
   const world = registry.freeze({ address, packages: [lock], definitions: [
     { ref: ref(target.spec.id), definitionHash: hashWorldJson('interaction-definition/v1', target.spec), implementationHash: target.implementationHash },
@@ -244,7 +243,7 @@ describe('the frozen limits, met and exceeded', () => {
       const effect: InteractionEffectImplementation = { ...transfer, build: () =>
         Array.from({ length: 16 }, () => ({ eventType: 'entity.transferred', eventVersion: 1, data: {} })) }
       const refs = namedRefs('capacity:fold', steps)
-      const target = definition('capacity:fold', { limits: { maximumEvents: 16 }, lifecycleRefs: refs }, effect)
+      const target = definition('capacity:fold', { limits: { maximumEvents: 16 }, lifecycleRefs: refs })
       const { registry, lock } = installed([target],
         { effects: [effect], lifecycle: Array.from({ length: steps }, (_, index) => step(index, 16)) })
       const world = registry.freeze({ address, packages: [lock], definitions: [

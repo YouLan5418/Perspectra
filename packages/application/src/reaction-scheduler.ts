@@ -1,4 +1,4 @@
-import { sortActionGroups, stepManifestation, resolveGroupAction } from './action-groups.ts'
+import { bindFrozenInteractionPerformance, sortActionGroups, stepManifestation, resolveGroupAction } from './action-groups.ts'
 import { alwaysRetryableAvailability } from './runtime-availability.ts'
 import {
   ModelBudgetLedger,
@@ -632,8 +632,12 @@ export class ReactionScheduler {
     const recordsEvidence = recordsReactionEvidence(reactionPolicyFromManifest(this.options.manifest))
     for (const [ordinal, item] of actions.entries()) {
       const actionPrefix = [...history, ...events]
+      const groupPerformance = item.actionGroup?.manifestations[item.proposalOrdinal] ?? null
+      const rulebookAction = manifestUsesFrozenInteractions(this.options.manifest)
+        ? bindFrozenInteractionPerformance(item.action, groupPerformance)
+        : item.action
       const actionAuthority = resolutionAuthority('agent', 'standard')
-      const { resolution: baseResolution, skipped } = resolveGroupAction(item.action, item.participantId, item.actionGroup !== undefined, stoppedGroups, () => this.#rulebook.resolve({
+      const { resolution: baseResolution, skipped } = resolveGroupAction(rulebookAction, item.participantId, item.actionGroup !== undefined, stoppedGroups, () => this.#rulebook.resolve({
         manifest: this.options.manifest,
         events: actionPrefix,
         characterId: item.action.actorId,
@@ -642,7 +646,7 @@ export class ReactionScheduler {
         asOfWorldSeq: baseHeadSeq,
         roundId,
         ...(manifestUsesHostAuthority(this.options.manifest) ? { resolutionAuthority: actionAuthority } : {}),
-        action: { actionType: item.action.actionType, parameters: item.action.parameters },
+        action: { actionType: rulebookAction.actionType, parameters: rulebookAction.parameters },
       }))
       const moveTarget = item.action.actionType === 'move' ? (item.action.parameters as WorldJsonObject).locationId : undefined
       const resolution = baseResolution.status === 'accepted' && typeof moveTarget === 'string'
@@ -650,8 +654,10 @@ export class ReactionScheduler {
           this.options.address, actionPrefix, item.actorId, moveTarget, baseHeadSeq + events.length,
         )] } : baseResolution
       const performance = item.actionGroup === undefined ? item.manifestation
-        : skipped ? undefined : stepManifestation(item.actionGroup.manifestations[item.proposalOrdinal]!, resolution.status === 'accepted')
-      const manifestation = performance === undefined ? undefined : {
+        : skipped || (manifestUsesFrozenInteractions(this.options.manifest) && item.action.actionType === 'interact')
+          ? undefined
+          : stepManifestation(groupPerformance, resolution.status === 'accepted')
+      const hostManifestation = performance === undefined ? undefined : {
         proposal: performance,
         resolution: resolveManifestation({
           roundId,
@@ -661,10 +667,11 @@ export class ReactionScheduler {
           events: actionPrefix,
         }),
       }
+      const manifestation = hostManifestation ?? resolution.manifestation
       const manifestationResolution = manifestation?.resolution
-      const resolvedEvents = manifestationResolution === undefined
+      const resolvedEvents = hostManifestation === undefined
         ? resolution.events
-        : [...resolution.events, ...manifestationResolution.events]
+        : [...resolution.events, ...hostManifestation.resolution.events]
       const audience = this.options.sceneDecision.audienceForAction(
         this.options.address,
         item.action.actorId,

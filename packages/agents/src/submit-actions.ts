@@ -212,6 +212,12 @@ export class SubmitActionsValidator {
       const rawActions = root.actions.map((entry, index) => {
         const action = record(entry, `actions[${index}]`)
         exactWithOptional(action, ['actionId', 'actorId', 'actionType', 'actionVersion', 'parameters'], ['manifestation'], 'action')
+        if (version >= 6 && action.actionType === 'interact') {
+          const interaction = record(action.parameters, `actions[${index}].parameters`)
+          if (Object.hasOwn(interaction, 'performance')) {
+            throw new TypeError(`submit_actions/v${version} interaction performance belongs in action.manifestation`)
+          }
+        }
         let manifestation: StepManifestation | null = null
         if (action.manifestation !== undefined) {
           if (version === 6 && action.actionType === 'interact') {

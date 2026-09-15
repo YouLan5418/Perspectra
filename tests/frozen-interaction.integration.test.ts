@@ -542,6 +542,10 @@ describe('a v10 world through the production entry point', () => {
         bindingId: 'binding:entity:cup:base:give', definitionRef: { id: 'base:give', version: 1 },
         arguments: { recipientId: 'character:missing' }, performance: { independent: ['nod'], onSuccess: ['smile'] } } })
     expect(refused.status).toBe('rejected')
+    expect(refused.manifestation).toMatchObject({
+      proposal: { cues: [{ cueId: 'cue:0', description: '点了点头' }] },
+      resolution: { status: 'accepted', cueResolutions: [{ cueId: 'cue:0', status: 'accepted' }] },
+    })
     expect(refused.events.map(event => event.eventType)).toEqual(['action.rejected', 'character.manifested'])
     expect((refused.events[1]!.data as { readonly cues: readonly { readonly description: string }[] }).cues
       .map(cue => cue.description)).toEqual(['点了点头'])

@@ -1,5 +1,6 @@
 import { endCharacterRelations, manifestUsesCharacterInteractions, manifestUsesInteractions, resolveInteraction, type InteractionResolutionContext } from './interactions.ts'
-import { compareWorldText, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
+import { compareWorldText, type ManifestationProposal, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
+import type { ManifestationResolution } from './manifestation.ts'
 import { manifestUsesFrozenInteractions, manifestUsesPhase8Contracts, type CompiledWorldManifest } from './world-spec.ts'
 
 export interface PlayerActionInput extends WorldJsonObject {
@@ -22,6 +23,11 @@ export interface RulebookResolution {
   readonly status: 'accepted' | 'rejected'
   readonly events: readonly WorldEventDraft[]
   readonly reason?: string
+  /** A performance adjudicated inside a frozen definition, returned so the Host records its Authority. */
+  readonly manifestation?: {
+    readonly proposal: ManifestationProposal
+    readonly resolution: ManifestationResolution
+  }
   /**
    * The frozen path's rule trace: the definition set, the resolved role bindings and the trace hash
    * that binds them to the World, the Manifest, the candidate prefix and the authority. It is absent on

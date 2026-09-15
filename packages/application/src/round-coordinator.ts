@@ -1,4 +1,4 @@
-import { sortActionGroups, stepManifestation, resolveGroupAction } from './action-groups.ts'
+import { bindFrozenInteractionPerformance, sortActionGroups, stepManifestation, resolveGroupAction } from './action-groups.ts'
 import { reactionEvidence, reactionRoleClass, speechAddressees, strongestClass } from './reaction-evidence.ts'
 import { bindPlayerProvisional, verifyPlayerProvisional, provisionalInputEvents, type PlayerProvisional, type ProvisionalReactionInput } from './player-provisional.ts'
 import {
@@ -832,11 +832,15 @@ export class RoundCoordinator {
     const stoppedGroups = new Set<string>()
     for (const [ordinal, item] of ordered.entries()) {
       const actionPrefix = [...history, ...events]
+      const groupPerformance = item.actionGroup?.manifestations[item.proposalOrdinal] ?? null
+      const rulebookAction = manifestUsesFrozenInteractions(this.#manifest)
+        ? bindFrozenInteractionPerformance(item.action, groupPerformance)
+        : item.action
       const actionAuthority = resolutionAuthority(
         item.sourceRole,
         item.sourceRole === 'player' ? 'manual_player_immediate' : 'standard',
       )
-      const { resolution: baseResolution, skipped } = resolveGroupAction(item.action, item.participantId, item.actionGroup !== undefined, stoppedGroups, () => item.sourceRole === 'player'
+      const { resolution: baseResolution, skipped } = resolveGroupAction(rulebookAction, item.participantId, item.actionGroup !== undefined, stoppedGroups, () => item.sourceRole === 'player'
         ? playerSteps.find(step => step.action.actionId === item.action.actionId)!.resolution
         : this.#rulebook.resolve({
           manifest: this.#manifest,
@@ -847,7 +851,7 @@ export class RoundCoordinator {
           asOfWorldSeq: head.headSeq,
           roundId,
           resolutionAuthority: actionAuthority,
-          action: { actionType: item.action.actionType, parameters: item.action.parameters },
+          action: { actionType: rulebookAction.actionType, parameters: rulebookAction.parameters },
         }))
       const moveTarget = item.action.actionType === 'move'
         ? (item.action.parameters as WorldJsonObject).locationId
@@ -866,8 +870,10 @@ export class RoundCoordinator {
         }
         : baseResolution
       const performance = item.actionGroup === undefined ? item.manifestation
-        : skipped ? undefined : stepManifestation(item.actionGroup.manifestations[item.proposalOrdinal]!, resolution.status === 'accepted')
-      const manifestation = performance === undefined ? undefined : {
+        : skipped || (manifestUsesFrozenInteractions(this.#manifest) && item.action.actionType === 'interact')
+          ? undefined
+          : stepManifestation(groupPerformance, resolution.status === 'accepted')
+      const hostManifestation = performance === undefined ? undefined : {
         proposal: performance,
         resolution: resolveManifestation({
           roundId,
@@ -877,10 +883,11 @@ export class RoundCoordinator {
           events: actionPrefix,
         }),
       }
+      const manifestation = hostManifestation ?? resolution.manifestation
       const manifestationResolution = manifestation?.resolution
-      const resolvedEvents = manifestationResolution === undefined
+      const resolvedEvents = hostManifestation === undefined
         ? resolution.events
-        : [...resolution.events, ...manifestationResolution.events]
+        : [...resolution.events, ...hostManifestation.resolution.events]
       if (item.sourceRole === 'player' && provisional !== undefined) {
         verifyPlayerProvisional(playerSteps.find(step => step.action.actionId === item.action.actionId)!.provisional!, item.action, { ...resolution, events: resolvedEvents })
       }

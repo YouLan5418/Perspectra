@@ -90,7 +90,7 @@ export interface CharacterContextRequest {
   readonly stimulusHash: WorldHash
   readonly stimulusSourceRefs?: readonly ContextSourceRef[]
   readonly maximumExternalActions?: 1 | 2
-  readonly groupedOutput?: { readonly tool: 'submit_actions/v4' | 'submit_actions/v5' | 'submit_actions/v6'; readonly maximumReflectionOperations: 0 | 4 }
+  readonly groupedOutput?: { readonly tool: 'submit_actions/v4' | 'submit_actions/v5' | 'submit_actions/v6' | 'submit_actions/v7'; readonly maximumReflectionOperations: 0 | 4 }
   readonly affordances: readonly ContextAffordance[]
   readonly affordanceHash: WorldHash
   readonly runtimeAvailability: RuntimeAvailabilityState

@@ -369,16 +369,20 @@ export class FrozenInteractionRulebook {
         // model input: a request that states cues cannot reach here from a Host that withheld the Round.
         throw new TypeError('a manifested interaction step requires the Round it belongs to')
       }
-      const manifested = manifestation === undefined ? [] : resolveManifestation({
+      const manifestationResolution = manifestation === undefined ? undefined : resolveManifestation({
         roundId: context.roundId!, actionId: context.actionId, actorId: brandId(context.characterId, 'CharacterId'),
         manifestation, events: context.events,
-      }).events
+      })
+      const manifested = manifestationResolution?.events ?? []
+      const resolvedManifestation = manifestationResolution === undefined ? {} : {
+        manifestation: { proposal: manifestation!, resolution: manifestationResolution },
+      }
       return adjudication.status === 'accepted'
         ? { status: 'accepted', events: [...adjudication.events, ...manifested], observationScope,
-            interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds }
+            interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds, ...resolvedManifestation }
         : { ...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason),
             events: [...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason).events, ...manifested],
-            observationScope, interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds }
+            observationScope, interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds, ...resolvedManifestation }
     }
     const resolution = this.#legacy.resolve(manifest, context.events, context.characterId, action, {
       actionId: context.actionId, resolutionAuthority: authority,
