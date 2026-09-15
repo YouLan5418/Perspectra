@@ -125,12 +125,18 @@ Host 不给同步受信任函数提供抢占沙箱；规则执行预算计结构
 | 行动组 | bounded-action-group/v2，允许新交互版本及定义锁 | v1 原行为 |
 | Authority | Round Authority schemaVersion 6，显式角色/定义/依据绑定 | v1～v5 原解析 |
 | 玩家提交 / 意图准备 | player-submission/v3；准备记录显式绑定新参数结构和视图 Hash | 已有 player-submission/v2 原恢复 |
+| 玩家意图解释 | player-intent-request/v2 + player-intent-candidate/v2：交互步骤可带表现，选项视图带该选择接受的 cue | candidate/v1、request/v1 留在历史记录里，不再被解析 |
 | 反应 | 新 profile responsive/v2，证据版本 reaction-evidence/v1 | responsive/v1 不变 |
 | 表现 | interaction-performance/v1 | 旧八 cue 与旧归一化不变 |
 | World / Context SQLite | 本期先保持 18 / 7；新增列/表需单独迁移决定 | 黄金哨兵不改 |
 
 Host 必须在 Manifest 注册闭包可解析后才获取 Writer；新世界不能用旧 Resolver 兜底。
 版本号登记不是声称解析器已支持。各生产入口按 I1～I4 接通，未完成闭包不向普通激活入口公开新世界。
+
+**（2026-09-15 补充）** 玩家声明表现落在**冻结请求已有的第五个键** `performance` 上，所以 `interact@2`
+与 `player-submission/v2` 的结构都没有变：变的是意图解释协议（上面的 `player-intent-*` 行），因为
+解释器需要一个新的输出字段和一份"这个选择接受哪些 cue"的清单。显式命令（`/act interact {...}`）
+在 I4-e 之后本来就能带这个键，本轮只把解释路径补齐，并把两条路径都写进作者手册。
 
 | 守卫模块 | 必查面 |
 |---|---|

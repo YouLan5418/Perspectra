@@ -1059,6 +1059,19 @@ corepack pnpm@11.7.0 experience:web --deepseek --pack $artifact --data-dir $data
 - 失败的可观察性由定义声明：有的失败整个场景都看得见，有的只有行动者自己知道；事实层照常记
   `action.rejected`，策略只决定通知谁。
 
+**玩家也能说是怎么做的。** 两条玩家路径都能带这一步，用的是同一个键和同一份清单：
+
+- **显式命令**：`/act interact {"targetRef":…,"bindingId":…,"definitionRef":…,"arguments":…,"performance":{"independent":["frown"],"onSuccess":["smile"]}}`。
+  这个第五个键是冻结请求本来就接受的可选键（模型那一步也走它），`interact@2` 没有新版本。
+- **自由文本（Player Intent）**：解释器多一个输出字段 `actions[].performance`（`player-intent-candidate/v2`），
+  它同时会看到每个选择**接受哪些 cue**（选项上的 `performances`；不接受任何 cue 的选择没有这个字段——
+  "没有清单"与"清单为空"是同一个意思，所以不出现空数组）。玩家说"我皱着眉把杯子递给他"，解释器就填这个字段。
+- **清单外即澄清，不静默丢弃、也不连累整条动作。** 玩家说了一个该定义不接受的 cue 时，宿主在提交前
+  就回 `clarification_required / not_afforded`，玩家可以换一种说法；世界不会因此拒掉"递杯子"这件事本身。
+  这条与模型不同：模型的越界 cue 是**整条交互被拒**（`PERFORMANCE_NOT_ACCEPTED`），因为模型已经被
+  告知过清单，它是有意越界的提案。
+- 玩家这一步同样成为**观察事实**，与模型那一步没有任何区别：同一场景里看得见的人都会看到它是怎么做的。
+
 **上限。** 冻结 profile `interaction-limits/v1`（完整表见[实施契约 §6](spec/interaction-definition-v0.1.md)）：
 
 | 资源 | 上限 |

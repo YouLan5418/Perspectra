@@ -228,9 +228,10 @@ Pack 的 `packId + packVersion` 一旦激活，内容 Hash 就被锁定。修改
 - `worldpack test` 当前验证确定性编译和 WorldSpec 适配，并如实返回 `assertionsExecuted: 0`；真实多轮行为由仓库测试和手动网页试玩验证。
 - 所有非玩家角色暂时共用同一个模型与采样配置；还没有逐角色 Provider 配置界面。
 - **v5（定义锁）世界目前只用付费实验门禁驱动真实模型**：`node --import tsx tests/experiments/v10-provider-gate.ts --model deepseek-flash`（`DEEPSEEK_API_KEY` 只走环境变量）。网页试玩尚未接上 `submit_actions/v7`；真实适配器还需要把 Host 的 `tools` 契约渲染成 JSON Schema，并把上下文里的 `developer` role 映射成端点认识的 role——两条都写在 [I5-d 记录](2026-09-14_交互抽象-I5d冻结路径的真实模型门禁.md) 里。
+- **玩家在 v5 世界上可以声明"怎么做"**：显式命令走 `/act interact` 的第五个键 `performance`（冻结请求本来就有，不需要新版本），自由文本走解释器的 `actions[].performance`（`player-intent-candidate/v2`，见[字段手册 §17.3](WORLD-PACK-AUTHORING-MANUAL.md)）。说得越出定义的接受清单不会被丢掉，宿主会要求澄清。
 - 试玩页不支持热替换 Pack。修改内容后需重新编译并启动新世界。
 - v1/v2 Pack 可以加载；显式 v3/v4 `responsive/v1` 才会启用多 wave 自主反应，只有 v4 能启用外显表现。
-- 旧 v6 模式需要 Ollama 翻译自然语言动作，即使角色模型使用 DeepSeek；新 v7/v8/v9 模式使用对白和明确命令，DeepSeek 路径不调用 Ollama；Creator 的 v9 入口尚未启用自然语言 Player Intent Provider。
+- 旧 v6 模式需要 Ollama 翻译自然语言动作，即使角色模型使用 DeepSeek；新 v7/v8/v9 模式使用对白和明确命令，DeepSeek 路径不调用 Ollama；Creator 的 v9 入口尚未启用自然语言 Player Intent Provider（所以上面的自由文本表现只在仓库测试里被驱动，显式命令那条不需要 Provider）。
 - 出现 `PACK_REFERENCE_INVALID` 时，优先检查改名后的角色、地点、Scene、认知 basis 和玩家绑定引用。
 - 出现 `PACK_VERSION_DIVERGED` 时，说明同一 Pack 版本的内容已经改变，应提升版本并使用新数据目录。
 - 出现完整性错误或 quarantine 时，停止写入并按 [V0 本机运行与恢复手册](V0-LOCAL-RUNBOOK.md)处理。
