@@ -32,7 +32,7 @@ function fixture() {
         affordances: [{ affordanceId: 'speak', actionType: 'speak', actionVersion: 1, parameters: {} }],
         interpretationProfile: 'fixture/v1', interpretationReceiptHash: hashWorldJson('fixture', {}) },
     }),
-    dispatch: async () => ({ version: 'player-intent-candidate/v1', decision: 'act', reason: 'none',
+    dispatch: async () => ({ version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
       actions: [{ key: 'a', affordanceId: 'speak' }], sourceSpans: [{ actionKey: 'a', startUtf16: 0, endUtf16: 2, text: 'hi', kind: 'speech' }] }),
     enqueue: () => ({ roundId: 'r' }), complete: async () => ({ tick: 1 }),
   }
@@ -99,8 +99,10 @@ it.each(['request', 'response'])('rejects a self-consistent Context %s that diff
     const job = s.jobs.read(s.job.address, 'input')!
     const callId = (job.records.prepared as { modelCallId: string }).modelCallId
     const db = new DatabaseSync(s.options.contextPath)
+    // The tampered row stays self-consistent under the tag in force, so the refusal that fires is the
+    // World-evidence one rather than the store's own conflict check.
     if (kind === 'request') db.prepare('UPDATE provider_calls SET request_json = ?, provider_request_hash = ? WHERE model_call_id = ?')
-      .run('{}', hashWorldJson('player-intent-request/v1', {}), callId)
+      .run('{}', hashWorldJson('player-intent-request/v2', {}), callId)
     else s.jobs.advance(job, s.lease, 'response_received', { responseHash: 'sha256:different' })
     db.close()
     await expect(new PlayerIntentWorker(s.options).processNext()).rejects.toThrow('diverges from World authority')

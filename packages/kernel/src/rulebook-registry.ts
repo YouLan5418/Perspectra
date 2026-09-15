@@ -6,6 +6,7 @@ import {
   validateResolutionAuthority,
   type CharacterId,
   type InteractionPackageImplementation,
+  type InteractionPerformanceAcceptance,
   type RulebookResolutionAuthorityV1,
   type WorldAddress,
   type WorldHash,
@@ -42,6 +43,13 @@ export interface ActionAffordance {
   readonly actionType: string
   readonly actionVersion: number
   readonly interactions?: readonly WorldJsonObject[]
+  /**
+   * What the definitions behind those options accept as a step, one entry per definition. It rides here
+   * rather than on each option for the reason the frozen affordance states: it is the definition's own
+   * answer, and an option is what a caller turns into request parameters. A rulebook that never saw a
+   * locked policy leaves it absent, which is the same answer as "nothing here accepts a step".
+   */
+  readonly performances?: readonly InteractionPerformanceAcceptance[]
 }
 
 /** One exact, versioned deterministic rules implementation. */

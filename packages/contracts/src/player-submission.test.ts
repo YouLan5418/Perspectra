@@ -20,7 +20,7 @@ function binding(): PlayerIntentBinding {
 
 function candidate(): any {
   return {
-    version: 'player-intent-candidate/v1', decision: 'act', reason: 'none',
+    version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
     actions: [{ key: 'a', affordanceId: 'hold' }, { key: 'b', affordanceId: 'say' }],
     sourceSpans: [
       { actionKey: 'a', startUtf16: 0, endUtf16: 6, text: '我牵住她的手', kind: 'action' },
@@ -68,12 +68,12 @@ describe('player submission Host binding', () => {
   })
 
   it.each(['ambiguous', 'not_afforded', 'unsupported'])('returns %s without inventing an Action', reason => {
-    expect(bindPlayerIntentCandidate({ version: 'player-intent-candidate/v1', decision: 'clarification_required', reason, actions: [], sourceSpans: [] },
+    expect(bindPlayerIntentCandidate({ version: 'player-intent-candidate/v2', decision: 'clarification_required', reason, actions: [], sourceSpans: [] },
       { ...binding(), affordances: [] })).toEqual({ status: 'clarification_required', reason })
   })
 
   const mutations: [string, (value: any) => void][] = [
-    ['version', v => { v.version = 'v2' }], ['unknown reason', v => { v.reason = 'free narration' }],
+    ['version', v => { v.version = 'player-intent-candidate/v1' }], ['unknown reason', v => { v.reason = 'free narration' }],
     ['non-array actions', v => { v.actions = {} }], ['non-array spans', v => { v.sourceSpans = null }],
     ['unknown decision', v => { v.decision = 'say' }], ['act reason', v => { v.reason = 'ambiguous' }],
     ['zero actions', v => { v.actions = [] }], ['three actions', v => { v.actions.push(v.actions[0]) }],
@@ -121,8 +121,11 @@ describe('player submission Host binding', () => {
   it('publishes a closed structural schema and keeps semantic checks at the Host boundary', () => {
     const validate = new Ajv({ strict: true }).compile(createPlayerIntentCandidateSchema())
     expect(validate(candidate())).toBe(true)
-    expect(validate({ version: 'player-intent-candidate/v1', decision: 'clarification_required', reason: 'ambiguous', actions: [], sourceSpans: [] })).toBe(true)
-    for (const property of ['actorId', 'parameters', 'actionId', 'resolutionAuthority', 'manifestation']) {
+    expect(validate({ version: 'player-intent-candidate/v2', decision: 'clarification_required', reason: 'ambiguous', actions: [], sourceSpans: [] })).toBe(true)
+    // The published schema is the only readable version: the Host hands it to the interpreter in the very
+    // request it hashes, so the version this rejects is the one it never accepted a response for.
+    expect(validate({ version: 'player-intent-candidate/v1', decision: 'clarification_required', reason: 'ambiguous', actions: [], sourceSpans: [] })).toBe(false)
+    for (const property of ['actorId', 'parameters', 'actionId', 'resolutionAuthority', 'manifestation', 'performance']) {
       const value = candidate()
       value.actions[0][property] = 'forged'
       expect(validate(value)).toBe(false)
@@ -160,6 +163,59 @@ describe('player submission Host binding', () => {
       mutate(broken as any)
       expect(() => bindPlayerIntentCandidate(value,
         { ...frozen, affordances: [broken as unknown as PlayerIntentAffordance] }), name).toThrow()
+    }
+  })
+
+  it('states how the chosen interaction is done, out of what that definition accepts and nothing else', () => {
+    const give = (): PlayerIntentAffordance => ({ affordanceId: 'give', actionType: 'interact', actionVersion: 2,
+      parameters: { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:give',
+        definitionRef: { id: 'base:give', version: 1 }, arguments: { recipientId: 'character:npc' } },
+      performances: ['frown', 'smile', 'nod'] })
+    // A definition that accepts nothing is offered without a list, and one cue on such a choice is refused
+    // the same way a cue outside the list is: what the player asked for is not among the afforded options.
+    const take = (): PlayerIntentAffordance => ({ affordanceId: 'take', actionType: 'interact', actionVersion: 2,
+      parameters: { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
+        definitionRef: { id: 'base:take', version: 1 }, arguments: {} } })
+    const source = '我皱着眉把杯子递给他'
+    const host = { ...binding(), sourceText: source, affordances: [give(), take()] }
+    const ask = (performance: unknown, affordanceId = 'give') => ({ ...candidate(),
+      actions: [{ key: 'a', affordanceId, performance }],
+      sourceSpans: [{ actionKey: 'a', startUtf16: 0, endUtf16: source.length, text: source, kind: 'action' }] })
+    const result = bindPlayerIntentCandidate(ask({ independent: ['frown'], onSuccess: ['smile'] }), host)
+    if (result.status !== 'validated') throw new Error('expected validated')
+    // The step joins the frozen request, which is where the definition that owns the policy reads it, and
+    // that request keeps the shape it always had: the step is the fifth key it already accepts.
+    expect(result.submission.actions[0]!.parameters).toEqual({ ...give().parameters,
+      performance: { independent: ['frown'], onSuccess: ['smile'] } })
+    expect(bindPlayerIntentCandidate(ask({ independent: ['shake_head'], onSuccess: [] }), host))
+      .toEqual({ status: 'clarification_required', reason: 'not_afforded' })
+    expect(bindPlayerIntentCandidate(ask({ independent: ['nod'], onSuccess: [] }, 'take'), host))
+      .toEqual({ status: 'clarification_required', reason: 'not_afforded' })
+    for (const [name, performance] of [
+      ['a voice cue', { independent: ['quiet_voice'], onSuccess: [] }],
+      ['a gait cue', { independent: [], onSuccess: ['slow_walk'] }],
+      ['an unknown cue', { independent: ['bow'], onSuccess: [] }],
+      ['a cue repeated in one list', { independent: ['nod', 'nod'], onSuccess: [] }],
+      ['a list longer than the schema allows', { independent: Array.from({ length: 9 }, () => 'nod' as const), onSuccess: [] }],
+      ['a list that is not an array', { independent: 'nod', onSuccess: [] }],
+      ['a missing list', { independent: ['nod'] }],
+      ['a field the step does not have', { independent: [], onSuccess: [], placement: 'both' }],
+      ['a step that is not an object', 'nod'],
+    ] as const) {
+      expect(() => bindPlayerIntentCandidate(ask(performance), host), name).toThrow()
+    }
+    for (const [name, choice, reason] of [
+      ['a catalog entry offering cues', { affordanceId: 'take', actionType: 'interact', actionVersion: 1,
+        parameters: { targetId: 'entity:cup', interactionId: 'core:take', arguments: {} }, performances: ['nod'] },
+        'only a frozen interaction choice declares accepted cues'],
+      ['an unknown accepted cue', { ...give(), performances: ['bow'] }, 'unknown cue'],
+      ['a voice cue accepted', { ...give(), performances: ['quiet_voice'] }, 'voice or gait cue'],
+      ['the same accepted cue twice', { ...give(), performances: ['nod', 'nod'] }, 'duplicate player intent cue'],
+      ['cues accepted on speech', { affordanceId: 'say', actionType: 'speak', actionVersion: 1, parameters: {}, performances: ['nod'] },
+        'only a frozen interaction choice declares accepted cues'],
+    ] as const) {
+      expect(() => bindPlayerIntentCandidate(ask({ independent: [], onSuccess: [] }),
+        { ...host, affordances: [choice as PlayerIntentAffordance] }), name).toThrow(reason)
     }
   })
 

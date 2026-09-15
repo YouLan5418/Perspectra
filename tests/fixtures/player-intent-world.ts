@@ -26,6 +26,6 @@ export function frozenIntentWorld(profile?: ReactionProfileId) {
 }
 
 export const intentFixtureProfile = { version: 'player-intent-profile/v1' as const, providerId: 'fixture', modelId: 'intent/v1', maxOutputTokens: 10, timeoutMs: 100 }
-export const intentFixtureResponse = { version: 'player-intent-candidate/v1', decision: 'act', reason: 'none',
+export const intentFixtureResponse = { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
   actions: [{ key: 'a', affordanceId: 'speak' }], sourceSpans: [{ actionKey: 'a', startUtf16: 0, endUtf16: 2, text: '你好', kind: 'speech' }] }
 export const intentFixtureRequest = { text: '你好', principalId: 'principal:player', idempotencyKey: 'intent:crash', correlationId: 'intent:crash' }

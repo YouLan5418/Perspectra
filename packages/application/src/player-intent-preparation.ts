@@ -1,5 +1,5 @@
 import { createPlayerIntentCandidateSchema, deterministicId, hashWorldJson, resolutionAuthority,
-  type PlayerIntentAffordance, type PlayerSubmissionV2, type WorldHash, type WorldJsonObject } from '@harness-world/contracts'
+  type ActionGroupCue, type PlayerIntentAffordance, type PlayerSubmissionV2, type WorldHash, type WorldJsonObject } from '@harness-world/contracts'
 import { parsePlayerActionInput, type CompiledWorldManifest, type RulebookEvent, type RulebookResolver } from '@harness-world/kernel'
 import type { PlayerInputJob } from '@harness-world/store-sqlite'
 import { PlayerInputInterpreter } from './player-input.ts'
@@ -53,8 +53,16 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
     if (affordance.actionType === 'interact') {
       for (const interaction of affordance.interactions ?? []) {
         const { label: _, ...parameters } = interaction
-        const offered: { actionType: 'interact'; actionVersion: 1 | 2; parameters: WorldJsonObject } =
-          { actionType: 'interact', actionVersion: affordance.actionVersion === 2 ? 2 : 1, parameters }
+        const definitionRef = parameters.definitionRef as { readonly id: string; readonly version: number }
+        // What the definition accepts rides with the choice, so the interpreter can only state a step the
+        // world would take; the adjudication is still the definition's, and a cue stated without cover here
+        // is refused with a clarification rather than silently dropped.
+        const acceptance = (affordance.performances ?? []).find(entry =>
+          entry.definitionRef.id === definitionRef.id && entry.definitionRef.version === definitionRef.version)
+        const offered: { actionType: 'interact'; actionVersion: 1 | 2; parameters: WorldJsonObject
+          performances?: readonly ActionGroupCue[] } =
+          { actionType: 'interact', actionVersion: affordance.actionVersion === 2 ? 2 : 1, parameters,
+            ...(acceptance === undefined ? {} : { performances: acceptance.accepted.map(value => value.cue) }) }
         choices.push({ affordanceId: deterministicId('intent-affordance', { actionType: 'interact', parameters }), ...offered })
       }
     }
@@ -63,8 +71,8 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
     affordances: choices, interpretationProfile: `${profile.providerId}/${profile.modelId}/${profile.version}`,
     interpretationReceiptHash: hashWorldJson('player-intent-unprepared/v1', job.inputId) }
   return { binding, profile, budgetAvailable: budget >= profile.maxOutputTokens,
-    request: { version: 'player-intent-request/v1', manifestHash: hashWorldJson('compiled-world-manifest', manifest),
+    request: { version: 'player-intent-request/v2', manifestHash: hashWorldJson('compiled-world-manifest', manifest),
       prefixHash: hashWorldJson('player-intent-prefix/v1', events.map(event => ({ ...event }))),
-      contract: 'Interpret only the player intent. Select exact affordances. Preserve source UTF-16 spans and order. Do not turn narration about another character into speech or effects. If uncertain, require clarification.',
+      contract: 'Interpret only the player intent. Select exact affordances. Preserve source UTF-16 spans and order. Do not turn narration about another character into speech or effects. State a step only when the player\'s words name one, and only from the cues the chosen affordance accepts. If uncertain, require clarification.',
       sourceText, affordances: choices, responseSchema: createPlayerIntentCandidateSchema() } }
 }

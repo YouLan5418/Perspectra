@@ -36,7 +36,7 @@ async function runGroup(speechFirst: boolean) {
           { actionKey: 'h', startUtf16: 0, endUtf16: 5, text: '我牵她的手', kind: 'action' },
           { actionKey: 's', startUtf16: 6, endUtf16: 8, text: '别走', kind: 'speech' },
         ]
-        return { version: 'player-intent-candidate/v1', decision: 'act', reason: 'none', actions, sourceSpans: spans }
+        return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none', actions, sourceSpans: spans }
       } },
     participants: () => [{ participantId: 'agent:npc', role: 'agent', actorId: brandId('character:npc', 'CharacterId'), allowedActionTypes: ['speak', 'interact'],
       priority: 1, estimatedTokens: 1, timeoutMs: 1000, provider: { propose: async context => {
@@ -103,7 +103,7 @@ it.each(['missing', 'budget', 'invalid', 'clarify', 'timeout', 'throw'] as const
       dispatch: async () => { calls++
         if (mode === 'timeout') return new Promise<WorldJsonValue>(() => {})
         if (mode === 'throw') throw new Error('provider failure')
-        if (mode === 'clarify') return { version: 'player-intent-candidate/v1', decision: 'clarification_required', reason: 'ambiguous', actions: [], sourceSpans: [] }
+        if (mode === 'clarify') return { version: 'player-intent-candidate/v2', decision: 'clarification_required', reason: 'ambiguous', actions: [], sourceSpans: [] }
         return { unknown: true }
       },
     } }),
@@ -136,7 +136,7 @@ it.each(['player-input.after-received', 'player-input.after-call-prepared', 'pla
     let calls = 0
     const options = { worldPath: join(root, 'world.sqlite'), sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
       playerIntent: { profile: { version: 'player-intent-profile/v1' as const, providerId: 'fixture', modelId: 'intent/v1', maxOutputTokens: 10, timeoutMs: 1000 },
-        dispatch: async () => { calls++; return { version: 'player-intent-candidate/v1', decision: 'act', reason: 'none',
+        dispatch: async () => { calls++; return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
           actions: [{ key: 'a', affordanceId: 'speak' }], sourceSpans: [{ actionKey: 'a', startUtf16: 0, endUtf16: 2, text: '你好', kind: 'speech' }] } } },
     }
     const request = { text: '你好', principalId: 'principal:player', idempotencyKey: 'restart', correlationId: 'restart' }
@@ -374,6 +374,14 @@ it('takes an explicit command on a v10 world at the frozen version', async () =>
     expect(result.status).toBe('submitted')
     // An explicit command is not an interpretation: the provider is never asked.
     expect(interpreted).toBe(0)
+    // The same command states how it is done, because the step is the frozen request's own optional key -
+    // which is what makes the documented `/act` form and the model's step the same contract.
+    const stepped = await app.submitText(world.manifest.address, { text: `/act interact ${JSON.stringify({
+      targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:give',
+      definitionRef: { id: 'base:give', version: 1 }, arguments: { recipientId: 'character:npc' },
+      performance: { independent: ['frown'], onSuccess: ['smile'] } })}`,
+      principalId: 'principal:player', idempotencyKey: 'explicit-frozen-step', correlationId: 'explicit-frozen-step' })
+    expect(stepped.status).toBe('submitted')
   } finally { await app.close() }
   const store = new WorldStore(path)
   try {
@@ -381,6 +389,9 @@ it('takes an explicit command on a v10 world at the frozen version', async () =>
     const resolved = events.find(event => event.eventType === 'action.resolved')!
     expect(resolved.data).toMatchObject({ actionType: 'interact', accepted: true, sourceRole: 'player' })
     expect(store.readRoundAuthority(world.manifest.address, resolved.transactionId)!.authority.schemaVersion).toBe(6)
+    expect(events.filter(event => event.eventType === 'character.manifested')
+      .map(event => (event.data as { readonly cues: readonly { readonly description: string }[] }).cues
+        .map(cue => cue.description))).toEqual([['微微皱眉', '微微一笑']])
   } finally { store.close() }
   rmSync(root, { recursive: true, force: true })
 })
@@ -412,7 +423,7 @@ it('interprets free text into a frozen interaction, with Authority 6 and one com
       // The world offers several interactions here, so the choice names the one it means rather than
       // taking the first: a refused take and an accepted hand-hold are both on the list.
       const take = offered.find(entry => entry.parameters.bindingId === 'binding:entity:cup:base:take')!
-      return { version: 'player-intent-candidate/v1', decision: 'act', reason: 'none',
+      return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
         actions: [{ key: 't', affordanceId: take.affordanceId }],
         sourceSpans: [{ actionKey: 't', startUtf16: 0, endUtf16: 4, text: '拿起杯子', kind: 'action' }] }
     } },
@@ -445,4 +456,128 @@ it('interprets free text into a frozen interaction, with Authority 6 and one com
       .some(entry => entry.interaction !== undefined)).toBe(true)
   } finally { store.close() }
   rmSync(root, { recursive: true, force: true })
+})
+
+it('lets the player say how they do it, out of what that definition accepts', async () => {
+  // The interpreted path carries a step now: the interpreter is offered what each choice's definition
+  // accepts, the player's words become one of those cues, and the definition that locked the policy
+  // adjudicates it - the same path a model's step takes. The paired run states nothing, so the only
+  // difference between the two worlds is what the player said.
+  const run = async (step: WorldJsonObject | undefined) => {
+    const root = mkdtempSync(join(tmpdir(), 'player-intent-step-'))
+    const world = frozenIntentWorld('responsive/v2')
+    const path = join(root, 'world.sqlite')
+    let protocol = ''
+    let offered: readonly { readonly affordanceId: string; readonly actionType: string
+      readonly parameters: WorldJsonObject; readonly performances?: readonly string[] }[] = []
+    const source = '我把杯子递给他'
+    const app = new WorldApplication({ worldPath: path, sessionPath: join(root, 'session.sqlite'),
+      memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
+      reactionParticipants: () => ['character:npc', 'character:bob'].map(actorId => ({
+        participantId: `agent:${actorId}`, role: 'agent' as const, actorId: brandId(actorId, 'CharacterId'),
+        allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
+        provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'abstain' as const, actions: [] }) },
+      })),
+      playerIntent: { profile: intentFixtureProfile, dispatch: async (raw: WorldJsonValue) => {
+        const body = (raw as { body: { version: string
+          affordances: readonly { readonly affordanceId: string; readonly actionType: string
+            readonly parameters: WorldJsonObject; readonly performances?: readonly string[] }[] } }).body
+        protocol = body.version
+        offered = body.affordances
+        const give = body.affordances.find(entry => entry.parameters.bindingId === 'binding:entity:cup:base:give')!
+        return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
+          actions: [{ key: 'g', affordanceId: give.affordanceId, ...(step === undefined ? {} : { performance: step }) }],
+          sourceSpans: [{ actionKey: 'g', startUtf16: 0, endUtf16: source.length, text: source, kind: 'action' }] }
+      } },
+    })
+    try {
+      app.activate(world)
+      // The cup has to be in the player's hands for the hand-over to be the player's to make.
+      await app.submit(world.manifest.address, { idempotencyKey: 'take', principalId: 'principal:player',
+        correlationId: 'intent-step:take', action: { actionType: 'interact', parameters: {
+          targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
+          definitionRef: { id: 'base:take', version: 1 }, arguments: {} } as never } })
+      const result = await app.submitText(world.manifest.address, { text: source, principalId: 'principal:player',
+        idempotencyKey: 'give', correlationId: 'intent-step:give' })
+      expect(result.status).toBe('submitted')
+    } finally { await app.close() }
+    const store = new WorldStore(path)
+    try {
+      const events = store.readEvents(world.manifest.address)
+      // A take moves the cup too, so the hand-over is the last of the two rounds, not the first.
+      const transferred = events.filter(event => event.eventType === 'entity.transferred').at(-1)!
+      const give = events.find(event => event.eventType === 'action.resolved'
+        && event.transactionId === transferred.transactionId)!
+      return { protocol, offered, events,
+        authority: store.readRoundAuthority(world.manifest.address, give.transactionId)!.authority }
+    } finally { store.close(); rmSync(root, { recursive: true, force: true }) }
+  }
+  const described = (events: readonly { readonly eventType: string; readonly data: unknown }[]) =>
+    events.filter(event => event.eventType === 'character.manifested')
+      .map(event => (event.data as { readonly cues: readonly { readonly description: string }[] }).cues
+        .map(cue => cue.description))
+  const expressed = await run({ independent: ['frown'], onSuccess: ['smile'] })
+  // What the interpreter was told: the protocol that carries a step, and per choice exactly what that
+  // choice accepts. A definition that accepts nothing is offered without a list rather than with an empty
+  // one, so a caller that sees no list knows not to state anything.
+  expect(expressed.protocol).toBe('player-intent-request/v2')
+  const give = expressed.offered.find(entry => entry.parameters.bindingId === 'binding:entity:cup:base:give')!
+  // The other cup is on the floor, so its take is still offered - and take accepts nothing, which is
+  // offered as no list at all rather than as an empty one.
+  const take = expressed.offered.find(entry => entry.parameters.bindingId === 'binding:entity:other:base:take')!
+  expect(give.performances).toContain('frown')
+  expect(take.performances).toBeUndefined()
+  // The player's words became the world's own fact: an accepted step, recorded with the hand-over.
+  expect(described(expressed.events)).toEqual([['微微皱眉', '微微一笑']])
+  const resolution = (expressed.authority.resolutions as readonly Record<string, unknown>[])
+    .find(entry => entry.manifestation !== undefined)!
+  expect(resolution.manifestation).toMatchObject({ status: 'accepted' })
+  expect(resolution.candidateHashAfter).not.toBe(resolution.candidateHashBefore)
+  // Everyone who could see the hand-over was told how it was done, not just that it happened.
+  const observed = expressed.events.filter(event => event.eventType === 'observation.upsert')
+    .map(event => (event.data as { readonly value: { readonly observerId: string; readonly content: WorldJsonObject } }).value)
+    .filter(value => value.content.manifestation !== undefined)
+  expect(observed.map(value => value.observerId).sort())
+    .toEqual(['character:bob', 'character:npc', 'character:player'])
+  // And saying nothing is still a way to do it: the paired world records the same hand-over, as the same
+  // effect, with no step - which is what keeps a step an expression rather than a mechanic.
+  const plain = await run(undefined)
+  expect(described(plain.events)).toEqual([])
+  const handOver = (events: readonly { readonly eventType: string; readonly data: unknown }[]) =>
+    events.filter(event => event.eventType === 'entity.transferred').at(-1)!.data
+  expect(handOver(plain.events)).toEqual(handOver(expressed.events))
+})
+
+it('asks the player again instead of dropping a cue that definition does not accept', async () => {
+  // The interpreter is told what each choice accepts, so a cue outside the list is a caller that ignored
+  // what it was shown. Dropping it would do something the player did not say, and failing the action would
+  // refuse an interaction that is otherwise afforded - so the player is asked again, and nothing is spent.
+  const root = mkdtempSync(join(tmpdir(), 'player-intent-refused-'))
+  const world = frozenIntentWorld()
+  const path = join(root, 'world.sqlite')
+  const app = new WorldApplication({ worldPath: path, sessionPath: join(root, 'session.sqlite'),
+    memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
+    playerIntent: { profile: intentFixtureProfile, dispatch: async (raw: WorldJsonValue) => {
+      const offered = (raw as { body: { affordances: readonly { readonly affordanceId: string
+        readonly parameters: WorldJsonObject }[] } }).body.affordances
+      // The cup on the floor: taking it is afforded, but its definition accepts no expression at all.
+      const take = offered.find(entry => entry.parameters.bindingId === 'binding:entity:other:base:take')!
+      expect(take).not.toHaveProperty('performances')
+      return { version: 'player-intent-candidate/v2', decision: 'act', reason: 'none',
+        actions: [{ key: 't', affordanceId: take.affordanceId, performance: { independent: ['frown'], onSuccess: [] } }],
+        sourceSpans: [{ actionKey: 't', startUtf16: 0, endUtf16: 4, text: '拿起杯子', kind: 'action' }] }
+    } },
+  })
+  let result
+  try {
+    app.activate(world)
+    result = await app.submitText(world.manifest.address, { text: '拿起杯子', principalId: 'principal:player',
+      idempotencyKey: 'refused-step', correlationId: 'refused-step' })
+  } finally { await app.close() }
+  expect(result).toMatchObject({ status: 'clarification_required', reason: 'not_afforded' })
+  const store = new WorldStore(path)
+  try {
+    // The refusal is the Host's, before any Round: the world records nothing about it.
+    expect(store.readEvents(world.manifest.address).some(event => event.eventType === 'action.resolved')).toBe(false)
+  } finally { store.close(); rmSync(root, { recursive: true, force: true }) }
 })

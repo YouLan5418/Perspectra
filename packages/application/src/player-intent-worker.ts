@@ -86,7 +86,7 @@ export class PlayerIntentWorker {
           call = calls.prepare(job.address, job.inputId, frozen as unknown as WorldJsonValue)
         }
         const { modelCallId: _, ...frozen } = prepared
-        if (call.requestHash !== hashWorldJson('player-intent-request/v1', frozen as unknown as WorldJsonValue)
+        if (call.requestHash !== hashWorldJson('player-intent-request/v2', frozen as unknown as WorldJsonValue)
           || (job.status === 'response_received' && (job.records.response_received as { responseHash: string }).responseHash !== call.responseHash)) {
           failWorld({ errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', retryable: false,
             address: job.address, correlationId: job.inputId, message: 'player interpretation diverges from World authority' })

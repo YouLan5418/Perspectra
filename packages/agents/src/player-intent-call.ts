@@ -20,7 +20,7 @@ export class PlayerIntentCallStore {
   close(): void { this.#db.close() }
 
   prepare(address: WorldAddress, inputId: string, request: WorldJsonValue): PlayerIntentCall {
-    const requestHash = hashWorldJson('player-intent-request/v1', request)
+    const requestHash = hashWorldJson('player-intent-request/v2', request)
     const modelCallId = deterministicId('player-intent-call/v1', { address, inputId })
     this.#db.prepare(`INSERT OR IGNORE INTO provider_calls(model_call_id,purpose,work_id,request_json,namespace_key,
       receipt_hash,controller_epoch,context_hash,provider_request_hash,state) VALUES (?,'player_intent',?,?,?, ?,0,?,?,'prepared')`)
@@ -36,7 +36,7 @@ export class PlayerIntentCallStore {
     if (row === undefined) return undefined
     const request = parseWorldJson(row.request_json)
     const response = row.response_json === null ? null : parseWorldJson(row.response_json)
-    if (hashWorldJson('player-intent-request/v1', request) !== row.provider_request_hash
+    if (hashWorldJson('player-intent-request/v2', request) !== row.provider_request_hash
       || (response === null ? row.response_hash !== null : hashWorldJson('player-intent-response/v1', response) !== row.response_hash)) this.#conflict()
     return { modelCallId, state: row.state, request, requestHash: row.provider_request_hash, response, responseHash: row.response_hash }
   }
