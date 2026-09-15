@@ -227,7 +227,17 @@ Pack 的 `packId + packVersion` 一旦激活，内容 Hash 就被锁定。修改
 
 - `worldpack test` 当前验证确定性编译和 WorldSpec 适配，并如实返回 `assertionsExecuted: 0`；真实多轮行为由仓库测试和手动网页试玩验证。
 - 所有非玩家角色暂时共用同一个模型与采样配置；还没有逐角色 Provider 配置界面。
-- **v5（定义锁）世界目前只用付费实验门禁驱动真实模型**：`node --import tsx tests/experiments/v10-provider-gate.ts --model deepseek-flash`（`DEEPSEEK_API_KEY` 只走环境变量）。网页试玩尚未接上 `submit_actions/v7`；真实适配器还需要把 Host 的 `tools` 契约渲染成 JSON Schema，并把上下文里的 `developer` role 映射成端点认识的 role——两条都写在 [I5-d 记录](2026-09-14_交互抽象-I5d冻结路径的真实模型门禁.md) 里。
+- **v5（定义锁）世界现在可以网页试玩了。** 入口按包的源版本自动识别：`worldpack.source.json` 是 `worldpack-source/v5` 就走冻结路径（`submit_actions/v7`），否则保持旧线。真实模型用 `--deepseek`（`DEEPSEEK_API_KEY` 只走环境变量）：
+
+```powershell
+$env:DEEPSEEK_API_KEY = '<你的 key>'
+corepack pnpm@11.7.0 experience:web --deepseek --pack examples\world-packs\hand-in-hand
+```
+
+  页面与旧线完全一样；区别在下面三件事：模型看到的是世界自己装配的请求（Host 不再重渲染上下文），玩家的自由文本由**世界声明的解释线**理解（`playerInputPolicy: player-intent/v1`），而玩家也可以随时用 `/act interact {"targetRef":…,"bindingId":…,"definitionRef":…,"arguments":…,"performance":{"independent":["frown"],"onSuccess":["smile"]}}` 显式表达同一步。
+- **想不看浏览器就跑一轮真实模型**：`node --import tsx tests/experiments/frozen-playtest-drive.ts --model deepseek-flash`。它走的就是网页运行时本身（同一类、同一数据目录约定），四轮里会**关闭进程再用同一目录打开**，所以重启也一起验了。数据目录里有 `outcome.json` 与耐久记录。
+- **想只验冻结协议**：`node --import tsx tests/experiments/v10-provider-gate.ts --model deepseek-flash`（同样只读环境变量）。它现在跑的就是网页入口用的那个生产适配器。
+- **已知残余**：解释器偶发把 span 的偏移写错（声明的 `text` 比区间多一个标点），世界会拒绝并请玩家换一种说法——这是解释线的精度问题，不是世界放宽校验的理由。见 [I7 记录](2026-09-15_交互抽象-I7真实模型试玩线四步.md) §5。
 - **玩家在 v5 世界上可以声明"怎么做"**：显式命令走 `/act interact` 的第五个键 `performance`（冻结请求本来就有，不需要新版本），自由文本走解释器的 `actions[].performance`（`player-intent-candidate/v2`，见[字段手册 §17.3](WORLD-PACK-AUTHORING-MANUAL.md)）。说得越出定义的接受清单不会被丢掉，宿主会要求澄清。
 - 试玩页不支持热替换 Pack。修改内容后需重新编译并启动新世界。
 - v1/v2 Pack 可以加载；显式 v3/v4 `responsive/v1` 才会启用多 wave 自主反应，只有 v4 能启用外显表现。
