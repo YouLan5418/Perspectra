@@ -27,7 +27,8 @@ function tools(over: WorldJsonObject = {}): WorldJsonObject {
 /** What the world offers this character: two interactions, one of them taking cues and one taking none. */
 const affordanceSegment: readonly WorldJsonObject[] = [
   { actionType: 'speak', actionVersion: 1 },
-  { actionType: 'move', actionVersion: 1 },
+  { actionType: 'move', actionVersion: 1,
+    destinations: [{ locationId: 'location:bedroom', name: '卧室' }, { locationId: 'location:workspace', name: '工作间' }] },
   { actionType: 'interact', actionVersion: 2,
     performances: [{ definitionRef: { id: 'base:give', version: 1 },
       accepted: [{ cue: 'smile', placement: 'both', requiresRole: null },
@@ -85,6 +86,22 @@ describe('the wire schema an endpoint can bind to', () => {
       manifestation: { independent: ['smile'], onSuccess: ['quiet_voice'] } }] })).toBe(true)
     expect(validate({ schemaVersion: 7, decision: 'act', actions: [{ actionId: 'a1', actorId: 'character:companion',
       actionType: 'move', actionVersion: 1, parameters: { text: 'not a location' } }] })).toBe(false)
+    // A move names one of the places the world offered: an invented id is not in the schema at all, which is
+    // the whole point - the call that named one used to be paid for and then refused.
+    expect(validate({ schemaVersion: 7, decision: 'act', actions: [{ actionId: 'a1', actorId: 'character:companion',
+      actionType: 'move', actionVersion: 1, parameters: { locationId: 'location:workspace' } }] })).toBe(true)
+    expect(validate({ schemaVersion: 7, decision: 'act', actions: [{ actionId: 'a1', actorId: 'character:companion',
+      actionType: 'move', actionVersion: 1, parameters: { locationId: 'location:study' } }] })).toBe(false)
+    // A destination the world named without a name is still a destination: the id closes the set and the
+    // description falls back to the id itself.
+    const unnamed = actionGroupWireSchema(exact({ messages: [
+      segment('character_anchor', { characterId: 'character:companion' }),
+      segment('affordances', [{ actionType: 'move', actionVersion: 1,
+        destinations: [{ locationId: 'location:cellar' }, 'not a place'] }]),
+    ] }))
+    const schema = JSON.stringify(unnamed)
+    expect(schema).toContain('"enum":["location:cellar"]')
+    expect(schema).toContain('"description":"location:cellar"')
   })
 
   it('states no cue list where no offered definition accepts one', () => {
@@ -92,6 +109,18 @@ describe('the wire schema an endpoint can bind to', () => {
       segment('affordances', [{ actionType: 'interact', actionVersion: 2, performances: [] }])] }))
     expect(validate({ schemaVersion: 7, decision: 'act', actions: [{ actionId: 'a1', actorId: 'character:companion',
       actionType: 'interact', actionVersion: 2, parameters: {}, manifestation: { independent: [], onSuccess: [] } }] })).toBe(false)
+  })
+
+  it('leaves movement open where the Host offered no destinations', () => {
+    // A world whose rulebook hands out no list keeps the free-form shape: the adapter states what it was
+    // given and invents nothing.
+    const open = actionGroupWireSchema(exact({ messages: [
+      segment('character_anchor', { characterId: 'character:companion' }),
+      segment('affordances', [{ actionType: 'move', actionVersion: 1 }]),
+    ] }))
+    const validate = new Ajv({ strict: false }).compile(open)
+    expect(validate({ schemaVersion: 7, decision: 'act', actions: [{ actionId: 'a1', actorId: 'character:companion',
+      actionType: 'move', actionVersion: 1, parameters: { locationId: 'location:anywhere' } }] })).toBe(true)
   })
 
   it('renders what a Host that said less still says', () => {

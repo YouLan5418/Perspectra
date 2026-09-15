@@ -199,8 +199,10 @@ const reactionFrozenInteractionTool = createProviderToolSchema('submit_actions/v
 
 function contextAffordance(value: { readonly actionType: string; readonly actionVersion: number;
   readonly interactions?: readonly WorldJsonObject[]
+  readonly destinations?: readonly { readonly locationId: string; readonly name: string }[]
   readonly performances?: readonly WorldJsonObject[] }, decision: SceneDecision): ContextAffordance {
   return { actionType: value.actionType, actionVersion: value.actionVersion,
+    ...(value.destinations === undefined ? {} : { destinations: value.destinations }),
     ...(value.performances === undefined ? {} : { performances: value.performances }),
     ...(value.interactions === undefined ? {} : { interactions: value.interactions.filter(choice => {
       const recipient = (choice.arguments as WorldJsonObject).recipientId

@@ -54,6 +54,35 @@ describe('the frozen interaction path', () => {
     expect(runtimeManifestFromStored(world.manifest).schemaVersion).toBe(10)
   })
 
+  it('offers a move only the places the character may actually go', () => {
+    // The model used to be given nothing here, so it invented a destination and the world refused a call that
+    // had already been paid for. The list is asked of the move rule, not restated: everything offered is a
+    // move the world accepts, the place the character is standing in is not a move, and nothing else exists.
+    const path = rulebook()
+    const current = world.manifest.characters.find(character => character.characterId === 'character:player')!.locationId
+    const move = path.affordances(context('action:affordance-view')).find(entry => entry.actionType === 'move')!
+    const offered = (move.destinations ?? []).map(place => place.locationId)
+    expect(offered.length).toBeGreaterThan(0)
+    expect(offered).not.toContain(current)
+    expect([...offered].sort()).toEqual(world.manifest.locations
+      .map(location => location.locationId).filter(locationId => locationId !== current).sort())
+    for (const locationId of offered) {
+      const resolved = path.resolve(context('action:affordance-probe'),
+        { actionType: 'move', parameters: { locationId } })
+      expect(resolved.status, locationId).toBe('accepted')
+    }
+    // A world with nowhere to go states no list at all: an empty one would be the same answer, and the
+    // adapter reads "no list" as "nothing to offer" for the same reason it does for accepted cues.
+    const only = world.manifest.characters.find(character => character.characterId === 'character:player')!.locationId!
+    const nowhere = path.affordances({ ...context('action:affordance-nowhere'),
+      manifest: { ...world.manifest, locations: world.manifest.locations.filter(location => location.locationId === only) } })
+    expect(nowhere.find(entry => entry.actionType === 'move')).not.toHaveProperty('destinations')
+
+    // The place it is standing in is refused, so offering it would have been a lie.
+    expect(path.resolve(context('action:affordance-here'),
+      { actionType: 'move', parameters: { locationId: current } }).status).toBe('rejected')
+  })
+
   it('closes relations through the world fold, and only the classes its handlers declare', () => {
     const path = rulebook()
     const held = [...origin, relationStarted('base:hold-hand')]

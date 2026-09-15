@@ -66,6 +66,9 @@ function interpretation(asked: Asked, choose: (offered: readonly Offered[]) => O
 const takesBinding = (binding: string) => (offered: readonly Offered[]) =>
   offered.find(entry => entry.parameters.bindingId === binding)!
 
+/** The move option, which carries the places the world offered rather than a place to invent. */
+const moving = (offered: readonly Offered[]) => offered.find(entry => entry.actionType === 'move')!
+
 async function listening(server: Server): Promise<number> {
   await new Promise<void>(ready => server.listen(0, '127.0.0.1', () => ready()))
   const address = server.address()
@@ -107,6 +110,24 @@ describe('the web playtest on a frozen world', () => {
         + '"bindingId":"binding:companion-hold-hand","definitionRef":{"id":"base:hold-hand","version":1},"arguments":{}}')
       expect(command.error).toBe(false)
       expect(asked.filter(call => JSON.stringify(call.format).includes('player-intent-candidate')).length).toBe(before)
+    } finally { await runtime.close() }
+  }, 60_000)
+
+  it('walks a character somewhere, because the world said where it may go', async () => {
+    // Before the destinations were offered, a move named an id the model invented and the world refused it
+    // after the call was paid for. Now the option carries the world's own places and the step lands.
+    const { asked, server } = scriptedEndpoint(moving)
+    const root = mkdtempSync(join(tmpdir(), 'frozen-playtest-move-'))
+    roots.push(root)
+    const runtime = await play(asked, server, root)
+    try {
+      const state = await runtime.submit('我们走到另一个地方去吧。')
+      expect(state.error).toBe(false)
+      expect(state.notice).toBe('')
+      expect(state.transcript.some(line => line.text.includes('移动到了另一个地点'))).toBe(true)
+      // The model was handed the destinations, which is what made the choice possible at all.
+      const shown = asked.find(call => JSON.stringify(call.format).includes('locationId'))!
+      expect(JSON.stringify(shown.format)).toContain('"enum":["location:')
     } finally { await runtime.close() }
   }, 60_000)
 

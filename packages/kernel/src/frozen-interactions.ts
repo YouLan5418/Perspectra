@@ -40,6 +40,12 @@ export interface FrozenActionAffordance {
   readonly actionVersion: number
   readonly interactions?: readonly WorldJsonObject[]
   /**
+   * Where this character may go, from the world's own locations, for a `move` option. A model that has to
+   * invent a destination invents one that does not exist - measured, in a real playtest: the world refused
+   * the move and the call was spent - so the places are stated rather than guessed at.
+   */
+  readonly destinations?: readonly { readonly locationId: string; readonly name: string }[]
+  /**
    * What the definitions behind those options accept as a step, one entry per definition, ordered by
    * definition identity. Only definitions that accept something appear: an absent entry and an empty one
    * would mean the same thing to a caller, and the model does not need to be told about either.
@@ -421,9 +427,17 @@ export class FrozenInteractionRulebook {
       viewPolicyHash: hashWorldJson('interaction-view-policy/v1', { manifestHash: context.manifestHash!, manifestVersion: 10 }),
       ...interactionHostSnapshot(manifest, context.events, context.characterId),
     })
+    // The move rule itself decides where this character may go - a target that is not a location, or the one
+    // it is standing in, is not a move - so the options are asked of it rather than restated here.
+    const destinations = manifest.locations
+      .filter(location => this.#legacy.resolve(manifest, context.events, context.characterId, {
+        actionType: 'move', parameters: { locationId: location.locationId },
+      }, { actionId: 'action:affordance-probe', resolutionAuthority: authority }).status === 'accepted')
+      .map(location => ({ locationId: location.locationId, name: location.name }))
     return [
       { actionType: 'speak', actionVersion: 1 },
-      { actionType: 'move', actionVersion: 1 },
+      { actionType: 'move', actionVersion: 1,
+        ...(destinations.length === 0 ? {} : { destinations }) },
       {
         actionType: 'interact', actionVersion: 2,
         interactions: view.options.map((option: InteractionViewOption) => ({ ...option })),

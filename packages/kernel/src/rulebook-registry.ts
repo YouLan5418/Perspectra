@@ -50,6 +50,8 @@ export interface ActionAffordance {
    * locked policy leaves it absent, which is the same answer as "nothing here accepts a step".
    */
   readonly performances?: readonly InteractionPerformanceAcceptance[]
+  /** Where a `move` may go, from the world's own locations. Absent means the rulebook offers no list. */
+  readonly destinations?: readonly { readonly locationId: string; readonly name: string }[]
 }
 
 /** One exact, versioned deterministic rules implementation. */

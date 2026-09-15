@@ -40,6 +40,8 @@ const turns = scenario === 'ai-girls' ? [
   '我们走到山脊小路上吧。',
   // The sentence a real player typed and lost a turn on: the interpreter used to have to count its offsets.
   '发生了什么？',
+  // An instruction to a character, not the player: this is the move that used to name a place nobody offered.
+  '你去客厅看看情况吧。',
 ]
 const turnIndex = process.argv.indexOf('--turns')
 const limit = turnIndex === -1 ? turns.length : Number(process.argv[turnIndex + 1] ?? turns.length)

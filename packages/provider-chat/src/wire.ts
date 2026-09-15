@@ -60,30 +60,61 @@ function segmentContent(parsed: readonly WorldJsonObject[], kind: string): unkno
   return found?.content
 }
 
+interface OfferedAffordance {
+  readonly actionType?: unknown
+  readonly interactions?: readonly WorldJsonObject[]
+  readonly performances?: readonly WorldJsonObject[]
+  /** Where a `move` may go, as the world stated it, one entry per location. */
+  readonly destinations?: readonly WorldJsonObject[]
+}
+
 interface OfferedInteraction {
   readonly interactions?: readonly WorldJsonObject[]
   readonly performances?: readonly WorldJsonObject[]
 }
 
-/** The interaction options the context itself offers, which is where a step's exact choices come from. */
-function offeredInteraction(parsed: readonly WorldJsonObject[]): OfferedInteraction {
-  const content = segmentContent(parsed, 'affordances')
-  const entry = Array.isArray(content) ? content.map(object).find(value => value?.actionType === 'interact') : undefined
+/** The options the context itself offers, which is where a step's exact choices and destinations come from. */
+function offeredEntry(parsed: readonly WorldJsonObject[], actionType: string, kind: string): OfferedAffordance {
+  const content = segmentContent(parsed, kind)
+  const entry = Array.isArray(content) ? content.map(object).find(value => value?.actionType === actionType) : undefined
   return entry ?? {}
 }
+
+const offeredInteraction = (parsed: readonly WorldJsonObject[]): OfferedInteraction =>
+  offeredEntry(parsed, 'interact', 'affordances')
 
 /**
  * The parameters each protocol action takes. This is `submit_actions/v7`'s own vocabulary rather than a
  * world's: the Host states which action types a group allows and, for an interaction, the exact request
  * keys through the options it offers; what speech and movement carry is fixed by the protocol.
  */
+/** Movement's own request shape: a place, named. */
+const MOVE_PARAMETERS: WorldJsonObject = { type: 'object', additionalProperties: false,
+  required: ['locationId'], properties: { locationId: { type: 'string', minLength: 1 } } }
+
 const STEP_PARAMETERS: Readonly<Record<string, WorldJsonObject>> = {
   speak: { type: 'object', additionalProperties: false, required: ['text'],
     properties: { text: { type: 'string', minLength: 1, maxLength: 500 } } },
-  move: { type: 'object', additionalProperties: false, required: ['locationId'],
-    properties: { locationId: { type: 'string', minLength: 1 } } },
+  move: MOVE_PARAMETERS,
   take: { type: 'object', additionalProperties: false, required: ['entityId'],
     properties: { entityId: { type: 'string', minLength: 1 } } },
+}
+
+/**
+ * Where a move may go: the world's own destinations, as a closed set. A model left to name a place it was
+ * never shown names one that does not exist, and the world refuses the call after it was paid for. The names
+ * travel in the description, because an id is what the request needs and the name is what a model chooses by.
+ */
+function moveParameters(offer: OfferedAffordance | undefined): WorldJsonObject {
+  const places = (offer?.destinations ?? []).flatMap(entry => {
+    const locationId = text(entry.locationId)
+    return locationId === undefined ? [] : [{ locationId, name: text(entry.name) }]
+  })
+  if (places.length === 0) return MOVE_PARAMETERS
+  return { type: 'object', additionalProperties: false, required: ['locationId'],
+    properties: { locationId: { type: 'string', enum: places.map(place => place.locationId),
+      description: places.map(place => place.name === undefined ? place.locationId
+        : `${place.locationId} (${place.name})`).join(', ') } } }
 }
 
 /** A `const` for a value the Host stated, and nothing where it stated none. */
@@ -164,6 +195,7 @@ export function actionGroupWireSchema(exact: ExactProviderRequest): WorldJsonObj
     .filter((value): value is string => value !== undefined)
   const declaredCues = object(object(group.manifestation)?.schemasByAction) ?? {}
   const offer = offeredInteraction(parsed)
+  const moveOffer = offeredEntry(parsed, 'move', 'affordances')
   const steps = (offer.interactions ?? []).map(optionSchema)
   const interactCues = acceptedInteractCues(offer)
   const actorId = anchoredActor(parsed)
@@ -175,7 +207,7 @@ export function actionGroupWireSchema(exact: ExactProviderRequest): WorldJsonObj
     // all: such an action type is left out of the union rather than rendered as an impossible one.
     const parameters = frozen
       ? (steps.length === 0 ? undefined : steps.length === 1 ? steps[0]! : { oneOf: steps })
-      : STEP_PARAMETERS[actionType]
+      : actionType === 'move' ? moveParameters(moveOffer) : STEP_PARAMETERS[actionType]
     // An action type the protocol does not define a request shape for is not offered rather than guessed.
     if (parameters === undefined) continue
     const declared = object(declaredCues[actionType])
