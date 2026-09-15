@@ -6,6 +6,7 @@ import { brandId, interactionPackageDescription, type CharacterId, type SubmitAc
   type WorldAddress } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { createChatProvider, type ChatCallObservation } from '@harness-world/provider-chat'
+import { PlayerInputJobs } from '@harness-world/store-sqlite'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
 import { defaultPlaytestDirectory, playtestModelCharacters, playerTranscript } from './playtest-runtime.ts'
@@ -63,6 +64,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   readonly #provider: 'deepseek' | 'ollama'
   readonly #manifestVersion: number
   readonly #intentEnabled: boolean
+  readonly #dataDirectory: string
   #transcript: PlaytestState['transcript'] = []
   #debug: Record<string, unknown> = {}
   #busy = false
@@ -77,6 +79,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   private constructor(options: FrozenPlaytestOptions, compiled: ReturnType<typeof adaptCompiledWorldPack>,
     intentEnabled: boolean) {
     this.#address = compiled.manifest.address
+    this.#dataDirectory = options.dataDirectory
     this.#manifestVersion = compiled.manifest.schemaVersion
     this.#intentEnabled = intentEnabled
     const binding = compiled.manifest.playerBindings[0]
@@ -198,7 +201,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       }
     } catch (error: unknown) {
       this.#error = true
-      this.#notice = '本轮失败，详情只保留在本机终端。'
+      this.#notice = await this.#whatBecameOf(key)
       console.error('Frozen playtest turn failed:', error instanceof Error ? error.message : 'unknown error')
       throw error
     } finally {
@@ -207,6 +210,27 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       await this.#refresh().catch(() => {})
     }
     return this.state()
+  }
+
+  /**
+   * What actually became of an input whose turn failed.
+   *
+   * A turn can fail after the input was durably recorded - a Host that lost its writer lease while the page
+   * sat idle, an interrupted process - and the durable input queue completes it later. Telling the player
+   * to say it another way then invites a second submission, and the world does the same thing twice; so the
+   * player is told the state instead. An input the world never received is the case where retrying is right.
+   */
+  async #whatBecameOf(idempotencyKey: string): Promise<string> {
+    const jobs = new PlayerInputJobs(resolve(this.#dataDirectory, 'world.sqlite'))
+    try {
+      const job = jobs.read(this.#address, idempotencyKey)
+      if (job === undefined) return '本轮失败，这条输入没有被世界受理；可以重新说一次。'
+      return job.status === 'completed'
+        ? '这一轮其实已经完成了，请看转录。'
+        : `你的输入已被世界记录（状态 ${job.status}），它会在世界能写入时完成——请不要重发。`
+    } catch {
+      return '本轮失败，详情只保留在本机终端。'
+    } finally { jobs.close() }
   }
 
   async pause(): Promise<PlaytestState> {

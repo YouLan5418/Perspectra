@@ -788,7 +788,9 @@ export class WorldApplication {
   #playerIntentWorker(branch: MountedBranch, address: WorldAddress, correlationId: string): PlayerIntentWorker {
     return new PlayerIntentWorker({ worldPath: this.options.worldPath,
       contextPath: contextPathFor(this.options) ?? `${this.options.worldPath}.context.sqlite`, address,
-      renewLease: () => { branch.kernel.renewWriterLease(); return branch.kernel.writerLease },
+      // The worker renews this as its heartbeat, starting before the interpretation is dispatched, so
+      // this is where a Host that was idle takes its lease back rather than failing the player's turn.
+      renewLease: () => { branch.kernel.refreshWriterLease(); return branch.kernel.writerLease },
       prepare: job => {
         const stored = branch.store.store.readManifest(address)!
         if (stored.manifestHash !== job.acceptedManifestHash) {

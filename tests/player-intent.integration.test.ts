@@ -341,6 +341,28 @@ it('resumes a failed in-process FIFO predecessor before its queued fallback', as
   } finally { await app.close(); rmSync(root, { recursive: true, force: true }) }
 })
 
+it('takes the writer lease back when the page was idle past its deadline', async () => {
+  // The rhythm of a real playtest: a person reads for a while, comes back, and types. The writer lease
+  // lapses in between, and a renewal only works on a live lease - so the Host ensures its own before it
+  // processes the input, rather than failing the player's turn with WRITER_LEASE_LOST.
+  const root = mkdtempSync(join(tmpdir(), 'player-intent-idle-'))
+  const world = frozenIntentWorld()
+  const path = join(root, 'world.sqlite')
+  const app = new WorldApplication({ worldPath: path, sessionPath: join(root, 'session.sqlite'),
+    memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20, leaseTtlMs: 1_000,
+    playerIntent: { profile: intentFixtureProfile, dispatch: async () => intentFixtureResponse } })
+  const request = (key: string) => ({ text: '你好', principalId: 'principal:player',
+    idempotencyKey: key, correlationId: key })
+  try {
+    app.activate(world)
+    expect((await app.submitText(world.manifest.address, request('idle-first'))).status).toBe('submitted')
+    await new Promise(done => setTimeout(done, 1_200))
+    // The lease has lapsed by now: the next input is still the player's, and it still lands.
+    expect((await app.submitText(world.manifest.address, request('idle-after'))).status).toBe('submitted')
+  } finally { await app.close() }
+  rmSync(root, { recursive: true, force: true })
+})
+
 it('takes an explicit command on a v10 world at the frozen version', async () => {
   // The explicit-command path states the action in the player's own text, so the version is not in the
   // text at all: the Host reads it from the affordance the command exercises. A v10 world's affordance is

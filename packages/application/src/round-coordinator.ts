@@ -467,6 +467,14 @@ export class RoundCoordinator {
   /** Renew the writer lease; called by the reaction system before long operations. */
   renewWriterLease(): void { this.#renewLease() }
 
+  /**
+   * Ensure this Host is still the writer, taking the lease again if it lapsed while idle. A renewal only
+   * works on a live lease, so a Host that paused longer than the TTL - a person reading, a page left open -
+   * would otherwise fail its next turn with WRITER_LEASE_LOST. `acquire` refuses a live lease another owner
+   * holds, so this can never take a branch someone else is writing.
+   */
+  refreshWriterLease(): void { this.#refreshLease() }
+
   /** Finish every Round admitted before an administrative draining barrier. */
   drainAccepted(correlationId: string): Promise<number> {
     if (this.#closed) return Promise.reject(new Error('RoundCoordinator is closed'))
