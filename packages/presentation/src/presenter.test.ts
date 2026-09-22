@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { DeterministicPresenter } from './presenter.ts'
 
 describe('DeterministicPresenter', () => {
+  it('renders published silent narration without inventing spoken words', () => {
+    const presenter = new DeterministicPresenter()
+    const observation = { observationId: 'narration', value: { observerId: 'player', content: {
+      actorId: 'alice', actionType: 'speak', status: 'accepted',
+      speech: { characterId: 'alice', text: '', narration: '把笑意藏进衣领。' },
+    } } }
+    expect(presenter.render(observation, { locale: 'zh-CN' }).text).toBe('角色 alice：（把笑意藏进衣领。）')
+    expect(presenter.render(observation).text).toBe('alice: *把笑意藏进衣领。*')
+  })
+
   it('renders stable English and Chinese player action templates', () => {
     const presenter = new DeterministicPresenter()
     const accepted = { observationType: 'player-action-result', actionType: 'move', status: 'accepted', reason: null } as const

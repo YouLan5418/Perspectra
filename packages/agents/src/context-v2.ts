@@ -83,6 +83,7 @@ export interface CharacterContextRequest {
   readonly checkpoint: CharacterContinuityCheckpoint | null
   readonly tail: InteractionTail
   readonly sceneDecision: CharacterSceneContext
+  readonly sceneItems?: WorldJsonObject
   readonly sceneSourceRefs: readonly ContextSourceRef[]
   readonly recallPlan: AnyRecallQueryPlan
   readonly recall: AnyCognitiveRecallResult
@@ -525,7 +526,7 @@ export class CharacterContextAssembler {
         consciousState,
         latentGuidance,
       }, selfSources],
-      ['current_scene', request.sceneDecision, request.sceneSourceRefs],
+      ['current_scene', { ...request.sceneDecision, ...(request.sceneItems === undefined ? {} : { items: request.sceneItems }) }, request.sceneSourceRefs],
       ['verified_recall', selectedMemories.map(memory => ({
         memoryKind: memory.memoryKind, epistemicKind: memory.epistemicKind,
         text: memory.text, metadata: safeValue(memory.metadata),

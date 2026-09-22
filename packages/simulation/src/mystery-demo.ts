@@ -237,6 +237,7 @@ export function mysteryPlayerInvestigation(snapshot: MysteryDemoSnapshot): Chara
 }
 
 export type MysteryPlayerTurn =
+  | { readonly status: 'service_failed'; readonly reason: string }
   | Extract<InvestigationIntentResult, { readonly status: 'clarification_required' }>
   | {
     readonly status: 'submitted'

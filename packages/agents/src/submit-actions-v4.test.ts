@@ -40,7 +40,7 @@ describe('submit_actions/v4', () => {
   it('rejects invalid shapes, unsupported combinations and narration masquerading as a cue', () => {
     const invalid = [null, { ...payload(), schemaVersion: 3 }, { ...payload(), decision: 'other' },
       { ...payload(), actions: null }, payload([move, speak, move]), payload([]),
-      payload([move, { ...move, actionId: 'other' }]), payload([speak, { ...speak, actionId: 'other' }]),
+      payload([move, { ...move, actionId: 'other' }]),
       payload([{ ...speak, actionType: 'other' }]), { ...payload(), manifestation: {} },
       { ...payload(), reflection: { operations: [{}] } },
       ...[null, {},
@@ -61,7 +61,7 @@ it('gates object interactions to v5 and retains the one-world-operation bound', 
   expect(validator.validateV5(v5, authorization).proposal.actions).toEqual([interact, speak])
   expect(() => validator.validateV4({ ...v5, schemaVersion: 4 }, authorization)).toThrow('unsupported group action')
   expect(() => validator.validateV5({ ...v5, actions: [{ ...interact, actionType: 'take' }] }, authorization)).toThrow('unsupported group action')
-  expect(() => validator.validateV5({ ...v5, actions: [interact, { ...move, actionId: 'other' }] }, authorization)).toThrow('exactly one speech')
+  expect(() => validator.validateV5({ ...v5, actions: [interact, { ...move, actionId: 'other' }] }, authorization)).toThrow('at most one world operation')
   expect(() => validator.validateV5({ ...v5, schemaVersion: 4 }, authorization)).toThrow('must be 5')
 })
 

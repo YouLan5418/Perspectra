@@ -1,3 +1,4 @@
+import { characterVisibleItems } from './character-visible-items.ts'
 import {
   CharacterContextAssembler,
   CharacterContextBudgetPlanner,
@@ -145,7 +146,7 @@ const actionGroupTool = createProviderToolSchema('submit_actions/v4', {
   maximumReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
   actionGroup: {
     version: 'bounded-action-group/v1', allowedActionTypes: ['speak', 'move', 'take'],
-    maximumSpeechActions: 1, maximumWorldOperations: 1, order: 'proposal',
+    maximumSpeechActions: 2, maximumWorldOperations: 1, order: 'proposal',
     failure: 'stop_remaining_steps', interleaving: 'forbidden',
     newInformationRequiresNextCall: true,
     manifestation: { optional: true, schemasByAction: {
@@ -596,6 +597,7 @@ export class Phase8ContextPipeline {
       worldPublicAnchor: { metadata: this.options.manifest.metadata, timeMode: this.options.manifest.timeMode },
       characterAnchor: character,
       characterView: prepared.characterView, cognition, checkpoint, tail, digest,
+      sceneItems: characterVisibleItems(this.options.manifest, history, binding.actorId, decision.observerIds),
       sceneDecision: scene, sceneSourceRefs: sceneRefs,
       recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', stimulus),
@@ -685,6 +687,7 @@ export class Phase8ContextPipeline {
       worldPublicAnchor: { metadata: this.options.manifest.metadata, timeMode: this.options.manifest.timeMode },
       characterAnchor: character,
       characterView: prepared.characterView, cognition, checkpoint, tail, digest,
+      sceneItems: characterVisibleItems(this.options.manifest, history, binding.actorId, decision.observerIds),
       sceneDecision: scene, sceneSourceRefs: sceneSources(history, decision),
       recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus: context.stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', context.stimulus),

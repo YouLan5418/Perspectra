@@ -76,6 +76,8 @@ function payloadOf(value: unknown, style: ChatStyle): WorldJsonValue {
 }
 
 export interface ChatProvider {
+  /** One already prepared prototype decision; no tool orchestration or implicit retries. */
+  decide(request: ChatCall, signal: AbortSignal): Promise<WorldJsonValue>
   /** A character call: the Host's exact assembled request, rendered for one endpoint. */
   propose(context: unknown): Promise<WorldJsonValue>
   /** An interpretation call, with the Host's own profile limits. */
@@ -131,6 +133,10 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
   }
 
   return {
+    async decide(request: ChatCall, signal: AbortSignal): Promise<WorldJsonValue> {
+      return await send(request, options.model, options.timeoutMs ?? 60_000,
+        options.maxOutputTokens ?? 2_048, 'character', signal)
+    },
     async propose(context: unknown): Promise<WorldJsonValue> {
       const exact = (context as { readonly exactProviderRequest?: ExactProviderRequest }).exactProviderRequest
       if (exact === undefined) throw new ChatTransportError('character call carries no exact provider request')

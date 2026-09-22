@@ -1,5 +1,5 @@
 import { bindFrozenInteractionPerformance, sortActionGroups, stepManifestation, resolveGroupAction } from './action-groups.ts'
-import { reactionEvidence, reactionRoleClass, speechAddressees, strongestClass } from './reaction-evidence.ts'
+import { reactionEvidence, reactionRoleClass, speechAddressees, strongestClass, triggersReaction } from './reaction-evidence.ts'
 import { bindPlayerProvisional, verifyPlayerProvisional, provisionalInputEvents, type PlayerProvisional, type ProvisionalReactionInput } from './player-provisional.ts'
 import {
   SubmitActionsValidator,
@@ -833,6 +833,7 @@ export class RoundCoordinator {
       observationId: string
       observerId: CharacterId
       actorId: CharacterId
+      triggersReaction: boolean
       sourceRole: 'player' | RoundParticipantRole
       roleClass: ReactionRoleClass
       evidence: ReactionEvidenceV1
@@ -1012,6 +1013,7 @@ export class RoundCoordinator {
           observerId,
           actorId: item.action.actorId,
           sourceRole: item.sourceRole,
+          triggersReaction: triggersReaction(resolution, roleClass),
           roleClass,
           evidence,
         })
@@ -1716,6 +1718,7 @@ export class RoundCoordinator {
       observationId: string
       observerId: CharacterId
       actorId: CharacterId
+      triggersReaction: boolean
       sourceRole: 'player' | RoundParticipantRole
       roleClass: ReactionRoleClass
       evidence: ReactionEvidenceV1
@@ -1731,7 +1734,7 @@ export class RoundCoordinator {
     const playerCharacters = new Set(this.#manifest.playerBindings.map(binding => binding.characterId))
     const stimuliByObserver = new Map<CharacterId, ReactionCycleDraft['candidates'][number]['stimuli'][number][]>()
     for (const stimulus of stimuli) {
-      if (stimulus.observerId === stimulus.actorId
+      if (!stimulus.triggersReaction || stimulus.observerId === stimulus.actorId
         || (stimulus.sourceRole === 'player' && rootParticipantActorIds.has(stimulus.observerId))) continue
       let bucket = stimuliByObserver.get(stimulus.observerId)
       if (bucket === undefined) {

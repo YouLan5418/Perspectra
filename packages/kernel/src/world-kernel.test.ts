@@ -170,7 +170,6 @@ describe('SpeakMoveRulebook', () => {
       { text: 'x', scope: 'private', addresseeIds: ['character:bob', 'character:bob'] },
       { text: 'x', replyTo: '' },
       { text: 'x', declaredSpeechAct: ' padded ' },
-      { text: 'x', extra: true },
     ]) {
       expect(rulebook.resolve(manifest as never, history, 'character:player', {
         actionType: 'speak', parameters: parameters as never,

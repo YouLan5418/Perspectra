@@ -9,8 +9,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint packages tests vitest.config.ts",
-    "test": "vitest run",
+    "lint": "oxlint packages tests vitest.config.ts vitest.prototype.config.ts",
+    "test": "vitest run --config vitest.prototype.config.ts",
     "test:coverage": "vitest run --coverage --exclude tests/crash.test.ts --exclude tests/p8-performance.integration.test.ts",
     "test:p0": "vitest run tests/p0.integration.test.ts",
     "test:p1": "vitest run tests/p1.integration.test.ts",
@@ -35,7 +35,9 @@
     "demo:mystery:turn": "node --import tsx packages/simulation/process/mystery-turn-entry.ts",
     "demo:mystery:shell": "node --import tsx packages/simulation/process/mystery-shell-entry.ts",
     "demo:mystery:drill": "node --import tsx packages/simulation/process/mystery-drill-entry.ts",
-    "check": "corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test:coverage && corepack pnpm@11.7.0 test:p0 && corepack pnpm@11.7.0 test:p1 && corepack pnpm@11.7.0 test:p2 && corepack pnpm@11.7.0 test:p3 && corepack pnpm@11.7.0 test:p4 && corepack pnpm@11.7.0 test:p5 && corepack pnpm@11.7.0 test:p6 && corepack pnpm@11.7.0 test:p8:performance && corepack pnpm@11.7.0 test:crash"
+    "check": "corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test",
+    "test:related": "vitest run --config vitest.config.ts",
+    "test:legacy": "vitest run --config vitest.config.ts --exclude tests/crash.test.ts --exclude tests/p8-performance.integration.test.ts"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.1"

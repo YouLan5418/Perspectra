@@ -262,7 +262,7 @@ export class SubmitActionsValidator {
         actionType => version >= 6 && actionType === 'interact' ? 2 : 1)
       if ((root.decision === 'act') !== (parsed.length > 0)) throw new TypeError('inconsistent decision')
       if (parsed.some(action => !['speak', 'move', version === 4 ? 'take' : 'interact'].includes(action.actionType))) throw new TypeError('unsupported group action')
-      if (parsed.length === 2 && parsed.filter(action => action.actionType === 'speak').length !== 1) throw new TypeError('group requires exactly one speech and one world operation')
+      if (parsed.filter(action => action.actionType !== 'speak').length > 1) throw new TypeError('group permits at most one world operation')
       const reflection = this.#validateV2({ schemaVersion: 2, decision: root.decision, actions: rawActions,
         ...(root.reflection === undefined ? {} : { reflection: root.reflection }) }, authorization,
       actionType => version >= 6 && actionType === 'interact' ? 2 : 1)

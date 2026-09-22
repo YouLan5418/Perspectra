@@ -163,6 +163,35 @@ describe('Cognitive Memory v2', () => {
     world.close()
   })
 
+  it('keeps silent narration as attributed communication and only in the recipient memory', async () => {
+    const path = paths()
+    const world = new WorldStore(path.world)
+    world.createBranch(address())
+    await commit(world, 'narration', [
+      { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
+      { eventType: 'character.created', eventVersion: 1, data: { characterId: bob, locationId: 'location:road' } },
+      { eventType: 'observation.upsert', eventVersion: 1, data: {
+        id: 'observation:narration', value: { observerId: alice, content: {
+          actionType: 'speak', actorId: bob,
+          speech: { characterId: bob, text: '', narration: '铜钥匙已经在我口袋里。' },
+        } },
+      } },
+    ])
+    const memory = new LocalMemoryStore(path.memory, world)
+    try {
+      memory.catchUpV2(address(), alice, 3, 'narration:alice')
+      const memories = memory.recallV2(plan(alice, '铜钥匙已经在我口袋里', 3)).memories
+      expect(memories).toMatchObject([{
+        memoryKind: 'communication', epistemicKind: 'reported_speech',
+        text: 'character:bob published narration (not an adjudicated outcome): 铜钥匙已经在我口袋里。',
+        metadata: { speakerId: bob, narration: '铜钥匙已经在我口袋里。' },
+      }])
+      memory.catchUpV2(address(), bob, 3, 'narration:bob')
+      expect(memory.recallV2(plan(bob, '铜钥匙已经在我口袋里', 3)).memories).toEqual([])
+      expect(world.readEvents(address()).some(event => event.eventType === 'entity.transferred')).toBe(false)
+    } finally { memory.close(); world.close() }
+  })
+
   it('captures only committed, observer-scoped manifestation content without promoting private affect', async () => {
     const path = paths()
     const world = new WorldStore(path.world)

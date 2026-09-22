@@ -64,7 +64,7 @@ describe('CharacterViewBuilder', () => {
       { eventType: 'goal.upsert', eventVersion: 1, data: { id: 'goal:b', value: { characterId: characterB, goal: 'B_GOAL' } } },
       { eventType: 'visibility.upsert', eventVersion: 1, data: { id: 'visibility:a:shared', value: { observerId: characterA, sceneId: 'scene:shared', visible: true } } },
       { eventType: 'visibility.upsert', eventVersion: 1, data: { id: 'visibility:b:shared', value: { observerId: characterB, sceneId: 'scene:shared', visible: false } } },
-      { eventType: 'character.speak', eventVersion: 1, data: { characterId: characterA, text: 'hello' } },
+      { eventType: 'character.speak', eventVersion: 1, data: { characterId: characterA, text: 'hello', narration: 'A_EXPRESSION' } },
       { eventType: 'action.rejected', eventVersion: 1, data: { characterId: characterA, actionType: 'move', reason: 'HIDDEN_REASON' } },
       { eventType: 'character.moved', eventVersion: 1, data: { characterId: characterA, toLocationId: 'location:b' } },
     ])
@@ -90,7 +90,7 @@ describe('CharacterViewBuilder', () => {
     expect(viewA.goals.map(record => record.id)).toEqual(['goal:a'])
     expect(viewA.visibility.map(record => record.id)).toEqual(['visibility:a:shared'])
     expect(viewA.selfObservations.map(value => value.content)).toEqual([
-      { actionType: 'speak', text: 'hello' },
+      { actionType: 'speak', text: 'hello', narration: 'A_EXPRESSION' },
       { actionType: 'move', status: 'rejected' },
       { actionType: 'move', locationId: 'location:b' },
     ])

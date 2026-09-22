@@ -1,17 +1,24 @@
+import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, interactionPackageDescription, type CharacterId, type SubmitActionsV7,
+import { brandId, interactionPackageDescription, type ActionRequest, type CharacterId, type SubmitActionsV7, type WorldJsonObject,
   type WorldAddress } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
-import { createChatProvider, type ChatCallObservation } from '@harness-world/provider-chat'
-import { PlayerInputJobs } from '@harness-world/store-sqlite'
+import { actionGroupCall, createChatProvider, prototypeTurnCall, type ChatCallObservation, type ExactProviderRequest } from '@harness-world/provider-chat'
+import { CharacterRuntimeAvailabilityService, PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import { createCoreRulebookRegistry } from '@harness-world/kernel'
+import { PrototypeCharacterTurn, type PrototypeTurnRequest, type PrototypeTurnResult } from '../../packages/application/src/prototype-character-turn.ts'
+import { characterExecutionResult, expressionAfterExecution } from '../../packages/application/src/character-execution-result.ts'
+import type { CompiledWorldManifest } from '@harness-world/kernel'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
 import { defaultPlaytestDirectory, playtestModelCharacters, playerTranscript } from './playtest-runtime.ts'
 
 export interface FrozenPlaytestOptions {
+  /** false only for historical batch experiments. New playtests use single-character activations. */
+  readonly singleCharacterActivations?: boolean
   readonly dataDirectory: string
   /** The v5 Pack directory: the world the author wrote, compiled here with the Host's installed packages. */
   readonly packPath: string
@@ -22,6 +29,8 @@ export interface FrozenPlaytestOptions {
   readonly apiKey?: string
   readonly utilityEndpoint?: string
   readonly timeoutMs?: number
+  /** One explicitly selected NPC: Root item operation commits normally, then gets one continuation. */
+  readonly performNpcId?: string
 }
 
 const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions'
@@ -40,15 +49,8 @@ export function isFrozenPackDirectory(packPath: string): boolean {
   }
 }
 
-/**
- * The web playtest for a frozen world: the same page and the same server as the older line, driven by the
- * protocol production offers a v5 Pack - `submit_actions/v7` through the Host's own assembled request, and
- * the durable player interpretation whose schema the Host dispatches. Nothing here re-renders the context
- * or invents a reference scheme: what the model receives is what the world assembled, and what it answers
- * is what the world's validator judges.
- *
- * A player types free text when the world declared `player-intent/v1`, and explicit commands either way:
- * `/act interact {"targetRef":…,"arguments":…}` is the same request a model's step is bound to.
+/** The prototype web host: player submission commits first, then bounded sequential NPC activations.
+ * Historical batch mode remains available only for comparison experiments.
  */
 export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   readonly #application: WorldApplication
@@ -61,6 +63,9 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   readonly #npcNames: readonly string[]
   readonly #model: string
   readonly #intentModel: string
+  readonly #singleCharacterActivations: boolean
+  readonly #characterIds: readonly CharacterId[]
+  #activationCycle: Awaited<ReturnType<typeof runPrototypeActivations>> | undefined
   readonly #provider: 'deepseek' | 'ollama'
   readonly #manifestVersion: number
   readonly #intentEnabled: boolean
@@ -75,9 +80,17 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   #providerCalls = 0
   #lastCall: ChatCallObservation | null = null
   #lastPlayerIntent: string | null = null
+  #rootInProgress = false
+  #pendingPerform: ActionRequest | undefined
+  #performContinuation: PrototypeTurnResult | undefined
+  #performAfterSeq = 0
+  #continuationController: AbortController | undefined
+  #performReactionContinuation: { operationId: string; calls: number; stage: string } | undefined
+  readonly #decideContinuation: (request: PrototypeTurnRequest, signal: AbortSignal) => Promise<unknown>
 
   private constructor(options: FrozenPlaytestOptions, compiled: ReturnType<typeof adaptCompiledWorldPack>,
     intentEnabled: boolean) {
+    this.#singleCharacterActivations = options.singleCharacterActivations !== false
     this.#address = compiled.manifest.address
     this.#dataDirectory = options.dataDirectory
     this.#manifestVersion = compiled.manifest.schemaVersion
@@ -106,6 +119,11 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }),
       style: options.provider === 'ollama' ? 'format' : 'tool', timeoutMs, onCall })
     const characters = playtestModelCharacters(compiled.manifest, this.#playerId)
+    this.#characterIds = characters.map(character => character.actorId)
+    if (options.performNpcId !== undefined && !characters.some(character => character.actorId === options.performNpcId)) {
+      throw new TypeError('performNpcId must identify an NPC in this Pack')
+    }
+    this.#decideContinuation = (request, signal) => provider.decide(prototypeTurnCall(request), signal)
     this.#npcNames = characters.map(character => character.name)
     // The adapter returns what the model stated, unjudged; the Host's participant type names the frozen
     // protocol's payload, and the world's validator is what decides whether that is what it got.
@@ -115,13 +133,80 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       participantId: character.participantId, role: 'agent' as const, actorId: character.actorId,
       allowedActionTypes: ['speak', 'move', 'interact'],
       priority: characters.length - index, estimatedTokens: 1, timeoutMs: timeoutMs + 5_000,
-      provider: { propose },
+      provider: { propose: async (context: unknown): Promise<SubmitActionsV7> => {
+        if (!this.#rootInProgress && character.actorId === options.performNpcId && this.#pendingPerform !== undefined) {
+          const operation = this.#pendingPerform
+          const store = new WorldStore(resolve(this.#dataDirectory, 'world.sqlite'))
+          let result
+          let diagnosticReason: string | undefined
+          try {
+            const events = store.readEvents(this.#address)
+            const resolved = events.findLast(event => event.eventType === 'action.resolved' && event.seq > this.#performAfterSeq
+              && (event.data as Record<string, unknown>).actionId === operation.actionId
+              && (event.data as Record<string, unknown>).actorId === character.actorId)?.data as Record<string, unknown> | undefined
+            diagnosticReason = typeof resolved?.reason === 'string' ? resolved.reason : undefined
+            if (resolved !== undefined) result = characterExecutionResult({
+              manifest: store.readManifest(this.#address)!.manifest as CompiledWorldManifest, events,
+              actorId: character.actorId, action: operation,
+              status: resolved.accepted === true ? 'accepted' : 'rejected', reason: typeof resolved.reason === 'string' ? resolved.reason : null,
+            })
+          } finally { store.close() }
+          if (result !== undefined) {
+            this.#pendingPerform = undefined
+            const exact = (context as { exactProviderRequest: ExactProviderRequest }).exactProviderRequest
+            const messages = exact.messages.map(message => {
+              if (diagnosticReason === undefined) return message
+              try {
+                const content = JSON.parse(message.content, (key, value: unknown) =>
+                  key === 'reason' && value === diagnosticReason ? '该次请求未满足执行条件，没有执行成功。' : value)
+                return { ...message, content: JSON.stringify(content) }
+              } catch { return message }
+            })
+            const call = actionGroupCall({ ...exact, tools: { ...exact.tools,
+              actionGroup: { ...(exact.tools.actionGroup as WorldJsonObject), allowedActionTypes: ['speak'] } },
+              messages: [...messages, { role: 'user', content: JSON.stringify({
+                executionResult: result, attemptedAction: { actionType: operation.actionType, parameters: operation.parameters },
+                instruction: expressionAfterExecution,
+              }) }] })
+            this.#performReactionContinuation = { operationId: operation.actionId, calls: 1, stage: 'dispatched_in_reaction' }
+            const output = await provider.decide(call, AbortSignal.timeout(timeoutMs)) as SubmitActionsV7
+            if (output.actions.some(action => action.actionType !== 'speak')) throw new TypeError('continuation only permits expression or abstain')
+            this.#performReactionContinuation.stage = 'submitted_to_existing_validator'
+            return output
+          }
+        }
+        if (!this.#rootInProgress || character.actorId !== options.performNpcId) return propose(context)
+        const exact = (context as { exactProviderRequest: ExactProviderRequest }).exactProviderRequest
+        const call = actionGroupCall(exact)
+        const output = await provider.decide({ ...call,
+          schema: { ...call.schema, anyOf: [
+            { properties: { actions: { not: { contains: { properties: {
+              actionType: { const: 'interact' }, parameters: { properties: {
+                targetRef: { properties: { kind: { const: 'entity' } }, required: ['kind'] } }, required: ['targetRef'] },
+            }, required: ['actionType', 'parameters'] } } } } },
+            { properties: { actions: { maxItems: 1 } } },
+          ] },
+          description: call.description + ' 本次若选择物品交互 interact，只提交该交互，不附带成功后的对白或表现。'
+            + '世界提交后，你会收到真实结果，并获得一次自由续写或 abstain 的机会。',
+        }, AbortSignal.timeout(timeoutMs)) as SubmitActionsV7
+        const interaction = output?.actions?.find(action => action.actionType === 'interact')
+        if (interaction !== undefined) {
+          const parameters = interaction.parameters as { targetRef?: { kind?: string } }
+          if (parameters.targetRef?.kind === 'entity') {
+            if (output.actions.length !== 1) throw new TypeError('perform must not contain a prewritten expression')
+            if ('performance' in parameters) throw new TypeError('perform must not contain a legacy performance')
+            this.#pendingPerform = interaction as ActionRequest
+          }
+        }
+        return output
+      } },
     }))
     // The Host's interpretation profile is a contract with the world, and its deadline ceiling is part of
     // it: a longer call deadline is the adapter's business, not something to state in the profile.
     const intentProfile = { version: 'player-intent-profile/v1' as const, providerId: 'chat-completions',
       modelId: this.#intentModel, maxOutputTokens: 1_024, timeoutMs: Math.min(timeoutMs, 60_000) }
     this.#application = new WorldApplication({
+      externalCharacterActivations: this.#singleCharacterActivations,
       worldPath: resolve(options.dataDirectory, 'world.sqlite'),
       sessionPath: resolve(options.dataDirectory, 'session.sqlite'),
       memoryPath: resolve(options.dataDirectory, 'memory.sqlite'),
@@ -129,7 +214,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       // The world's model budget has to cover the interpreter's own output ceiling, or the Host refuses to
       // dispatch an interpretation at all: the profile states the ceiling, this is what pays for it.
       modelBudgetTokens: 8_192, leaseTtlMs: 180_000,
-      participants: () => participants, reactionParticipants: () => participants,
+      participants: () => this.#singleCharacterActivations ? [] : participants,
+      reactionParticipants: () => this.#singleCharacterActivations ? [] : participants,
       // The interpreter is the Host's; whether the world wants it is the world's own declaration, and a
       // world that declared the legacy route simply keeps reading free text as speech.
       playerIntent: { profile: intentProfile,
@@ -195,17 +281,30 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     this.#phaseLabel = text.startsWith('/') ? '正在执行命令' : '正在理解玩家输入'
     const key = idempotencyKey ?? `web-playtest:${randomUUID()}`
     try {
+      this.#pendingPerform = undefined
+      this.#performContinuation = undefined
+      this.#performReactionContinuation = undefined
+      this.#activationCycle = undefined
+      this.#rootInProgress = true
+      this.#performAfterSeq = (await this.#application.head(this.#address)).headSeq
       this.#lastPlayerIntent = text.startsWith('/') ? 'command' : 'natural-language'
       const result = await this.#application.submitText(this.#address, { text, idempotencyKey: key,
         principalId: this.#principalId, correlationId: key })
+      this.#rootInProgress = false
       // A clarification is a durable answer, not a failure: nothing was spent and the world did not move.
-      if (result.status === 'clarification_required') {
+      if (result.status === 'service_failed') {
+        this.#error = true
+        this.#notice = '模型服务暂时无法完成请求，这次输入没有提交。请检查服务可用性后重试；无需改写输入。'
+        this.#lastPlayerIntent = 'service-failed'
+      } else if (result.status === 'clarification_required') {
         this.#notice = `${result.reason}（这次输入没有提交；换一种说法，或用 /act 显式命令。）`
         this.#lastPlayerIntent = 'clarification'
       } else {
         // submitText completes the player's durable Root. This in-process playtest has no BranchWorkScheduler
         // behind it, so it must also drive the Cycle that Root opened before returning control to the page.
         await this.#drainReactions()
+        if (this.#singleCharacterActivations) await this.#activateCharacters()
+        else await this.#continuePerformedItem()
       }
     } catch (error: unknown) {
       this.#error = true
@@ -213,6 +312,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       console.error('Frozen playtest turn failed:', error instanceof Error ? error.message : 'unknown error')
       throw error
     } finally {
+      this.#rootInProgress = false
       this.#busy = false
       this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
       await this.#refresh().catch(() => {})
@@ -243,6 +343,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
 
   async pause(): Promise<PlaytestState> {
     this.#paused = true
+    this.#continuationController?.abort()
     this.#notice = 'NPC 已暂停：暂停期间的输入不会推进世界。'
     return this.state()
   }
@@ -262,7 +363,52 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   }
 
   async close(): Promise<void> {
+    this.#continuationController?.abort()
     await this.#application.close()
+  }
+
+  async #activateCharacters(): Promise<void> {
+    await this.#application.release(this.#address)
+    const path = resolve(this.#dataDirectory, 'world.sqlite')
+    const store = new WorldStore(path), leases = new WriterLeaseService(path)
+    const availability = new CharacterRuntimeAvailabilityService(path)
+    this.#continuationController = new AbortController()
+    try {
+      if (this.#paused) return
+      const turn = new PrototypeCharacterTurn({ address: this.#address, store, leases, availability,
+        rulebooks: createCoreRulebookRegistry({ interactionPackages: [createBasicInteractionPackage()] }),
+        decide: this.#decideContinuation })
+      this.#phaseLabel = '角色正在处理场景与行动结果'
+      this.#activationCycle = await runPrototypeActivations({ store, address: this.#address, turn,
+        afterSeq: this.#performAfterSeq, characterIds: this.#characterIds, signal: this.#continuationController.signal })
+      if (this.#activationCycle.terminalReason === 'failed') {
+        this.#error = true
+        this.#notice = '玩家输入已提交；部分角色处理失败，已提交的行动保留。请查看转录。'
+      }
+    } finally { this.#continuationController = undefined; availability.close(); leases.close(); store.close() }
+  }
+
+  async #continuePerformedItem(): Promise<void> {
+    const action = this.#pendingPerform
+    this.#pendingPerform = undefined
+    if (action === undefined || this.#paused) return
+    // Existing frozen waves must finish before another commit changes their base Head.
+    // Release the idle application's writer before the bounded continuation, then remount on refresh.
+    await this.#application.release(this.#address)
+    const path = resolve(this.#dataDirectory, 'world.sqlite')
+    const store = new WorldStore(path)
+    const leases = new WriterLeaseService(path)
+    const availability = new CharacterRuntimeAvailabilityService(path)
+    try {
+      this.#continuationController = new AbortController()
+      const turn = new PrototypeCharacterTurn({ address: this.#address, store, leases, availability,
+        rulebooks: createCoreRulebookRegistry({ interactionPackages: [createBasicInteractionPackage()] }),
+        decide: this.#decideContinuation })
+      this.#phaseLabel = '角色正在依据执行结果继续表达'
+      this.#performContinuation = await turn.run(action.actorId, { signal: this.#continuationController.signal,
+        continuationOf: { actionId: action.actionId, afterSeq: this.#performAfterSeq,
+        action: { actionType: action.actionType, parameters: action.parameters } } })
+    } finally { this.#continuationController = undefined; availability.close(); leases.close(); store.close() }
   }
 
   /** Drain the bounded Cycle in this Host; production Hosts do the same work one scheduler quantum at a time. */
@@ -291,11 +437,14 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     const active = cycles.find(cycle => cycle.status !== 'terminal')
     this.#debug = {
       headSeq: head.headSeq, tick: head.tick, manifestVersion: this.#manifestVersion,
-      outputProtocol: 'submit_actions/v7',
+      outputProtocol: this.#singleCharacterActivations ? 'perform/publish/abstain' : 'submit_actions/v7',
+      activationCycle: this.#activationCycle ?? null,
       cycleStatus: active?.status ?? cycles[0]?.status ?? null,
       currentWave: active?.currentWave ?? cycles[0]?.currentWave ?? null,
       terminalReason: active?.terminalReason ?? cycles[0]?.terminalReason ?? null,
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),
+      performContinuation: this.#performContinuation ?? null,
+      performReactionContinuation: this.#performReactionContinuation ?? null,
     }
   }
 }

@@ -74,7 +74,7 @@ import type {
 } from './context-pipeline.ts'
 import { compareActionOrderKey, sortActionOrderKeys } from './round-coordinator.ts'
 import {
-  reactionEvidence, reactionRoleClass, recordsReactionEvidence, speechAddressees, strongestClass,
+  reactionEvidence, reactionRoleClass, recordsReactionEvidence, speechAddressees, strongestClass, triggersReaction,
 } from './reaction-evidence.ts'
 import type { SceneDecisionService } from './scene-decision.ts'
 
@@ -808,7 +808,8 @@ export class ReactionScheduler {
         // are this round's step, and a wave-two stimulus that carried neither would read as one whose
         // basis was never established.
         const next = this.#bindings.get(observerId)
-        if (next !== undefined && estimatedTokens.has(observerId) && observerId !== item.action.actorId) {
+        if (next !== undefined && estimatedTokens.has(observerId) && observerId !== item.action.actorId
+          && triggersReaction(resolution, roleClass)) {
           const stimuli = candidateStimuli.get(observerId) ?? []
           stimuli.push({ sourceEventOrdinal, observationOrdinal: 0, observationId, observerCharacterId: observerId,
             ...(recordsEvidence ? { roleClass, evidence } : {}) })

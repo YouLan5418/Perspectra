@@ -27,6 +27,29 @@ function candidate(): any {
 }
 
 describe('player submission Host binding', () => {
+  it('binds player narration and dialogue from exact quotes without inventing a world effect', () => {
+    const sourceText = '我有点尴尬地笑了笑，说“GPT，你可以不说话吗？”'
+    const host = { ...binding(), sourceText, affordances: [
+      ...binding().affordances,
+      { affordanceId: 'narrate', actionType: 'speak' as const, actionVersion: 1 as const, parameters: { text: '', narration: '' } },
+    ] }
+    const input = { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none', actions: [
+      { key: 'gesture', affordanceId: 'narrate', quotes: ['我有点尴尬地笑了笑'] },
+      { key: 'words', affordanceId: 'say', quotes: ['GPT，你可以不说话吗？'] },
+    ] }
+    const result = bindPlayerIntentCandidate(input, host)
+    if (result.status !== 'validated') throw new Error('expected publication')
+    expect(result.submission.actions.map(action => action.parameters)).toEqual([
+      { text: '', narration: '我有点尴尬地笑了笑' }, { text: 'GPT，你可以不说话吗？' },
+    ])
+    expect(result.submission.sourceSpans.map(span => span.kind)).toEqual(['narration', 'speech'])
+    expect(result.submission.actions.every(action => action.actorId === host.actorId && action.actionType === 'speak')).toBe(true)
+    expect(() => bindPlayerIntentCandidate({ ...input, actions: [{ ...input.actions[0], quotes: ['她握住了我的手'] }] }, host)).toThrow('not in the player text')
+    expect(() => bindPlayerIntentCandidate(input, { ...host, affordances: [
+      { affordanceId: 'narrate', actionType: 'speak', actionVersion: 1, parameters: { text: '', narration: 'invented' } },
+    ] })).toThrow('empty publication template')
+  })
+
   it('binds exact choices, local keys and UTF-16 spans without propagating unmapped narration', () => {
     const host = binding()
     const value = candidate()
@@ -74,7 +97,7 @@ describe('player submission Host binding', () => {
     ['actor spoof', v => { v.actions[0].actorId = 'character:alice' }], ['action id spoof', v => { v.actions[0].actionId = 'evil' }],
     ['parameters spoof', v => { v.actions[0].parameters = { cannotEscape: true } }],
     ['unknown choice', v => { v.actions[0].affordanceId = 'unavailable' }], ['duplicate key', v => { v.actions[1].key = 'a' }],
-    ['two world actions', v => { v.actions[1].affordanceId = 'move' }], ['two speech actions', v => { v.actions[0].affordanceId = 'say' }],
+    ['two world actions', v => { v.actions[1].affordanceId = 'move' }],
     ['key wrong type', v => { v.actions[0].key = 3 }], ['key whitespace', v => { v.actions[0].key = ' a' }],
     ['empty key', v => { v.actions[0].key = '' }], ['null action', v => { v.actions[0] = null }],
     ['array action', v => { v.actions[0] = [] }], ['primitive action', v => { v.actions[0] = true }],
@@ -113,6 +136,9 @@ describe('player submission Host binding', () => {
   it('publishes a closed structural schema and keeps semantic checks at the Host boundary', () => {
     const validate = new Ajv({ strict: true }).compile(createPlayerIntentCandidateSchema())
     expect(validate(candidate())).toBe(true)
+    const withOldCues = candidate()
+    withOldCues.actions[0].performance = { independent: ['smile'], onSuccess: [] }
+    expect(validate(withOldCues)).toBe(false)
     expect(validate({ version: 'player-intent-candidate/v3', decision: 'clarification_required', reason: 'ambiguous', actions: [] })).toBe(true)
     // The published schema is the only readable version: the Host hands it to the interpreter in the very
     // request it hashes, so the version this rejects is the one it never accepted a response for.

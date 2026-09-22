@@ -147,14 +147,19 @@ function phase8Speech(
   parameters: Record<string, WorldJsonValue> | undefined,
 ): RulebookResolution {
   const text = parameters?.text
+  const narration = parameters?.narration
   const scope = parameters?.scope ?? 'scene_public'
   const addresseeIds = parameters?.addresseeIds ?? []
   const recipients = Array.isArray(addresseeIds) ? addresseeIds : []
   const replyTo = parameters?.replyTo ?? null
   const declaredSpeechAct = parameters?.declaredSpeechAct ?? null
-  const allowedKeys = new Set(['text', 'addresseeIds', 'scope', 'replyTo', 'declaredSpeechAct'])
-  const parameterKeys = parameters === undefined ? [] : Object.keys(parameters)
-  const validText = typeof text === 'string' && text.length > 0
+  // Publishing expression proves only that this character communicated it. Narrative
+  // content is never interpreted as a state patch or a successful interaction.
+  // Only the named publication fields below are emitted; extra model annotations
+  // have no effect and need not discard an otherwise valid expression.
+  const validNarration = narration === undefined || typeof narration === 'string'
+  const validText = typeof text === 'string'
+    && (text.trim().length > 0 || (typeof narration === 'string' && narration.trim().length > 0))
   const validScope = scope === 'scene_public' || scope === 'direct' || scope === 'private' || scope === 'self'
   const validAddressees = Array.isArray(addresseeIds)
     && addresseeIds.every(value => typeof value === 'string'
@@ -166,16 +171,16 @@ function phase8Speech(
     : recipients.length === 0
   const validOptionalText = (value: WorldJsonValue): boolean => value === null
     || (typeof value === 'string' && value.length > 0 && value.trim() === value)
-  if (!validText || !validScope || !validAddressees || !validAddressing
-    || !validOptionalText(replyTo) || !validOptionalText(declaredSpeechAct)
-    || parameterKeys.some(key => !allowedKeys.has(key))) {
+  if (!validText || !validNarration || !validScope || !validAddressees || !validAddressing
+    || !validOptionalText(replyTo) || !validOptionalText(declaredSpeechAct)) {
     return rejectRulebookResolution(characterId, 'speak', 'speak parameters are invalid for Manifest v4')
   }
   return {
     status: 'accepted',
     events: [{
       eventType: 'character.speak', eventVersion: 1,
-      data: { characterId, text, addresseeIds: recipients, scope, replyTo, declaredSpeechAct },
+      data: { characterId, text, ...(narration === undefined ? {} : { narration }),
+        addresseeIds: recipients, scope, replyTo, declaredSpeechAct },
     }],
     observationScope: {
       scope,

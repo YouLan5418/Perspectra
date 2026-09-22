@@ -76,7 +76,7 @@
       "lifecycle": "active",
       "portrayal": {
         "summary": "奶茶金暖色长发、气质偏成熟的少女，像一位爱读文献的学姐。冷静、克制、准确、有原则，偶尔不动声色地毒舌；不会为了让玩家高兴而附和错误观点。",
-        "speakingStyle": "冷静克制，条理清楚，习惯先问一句确认前提；毒舌时语气依然平稳。",
+        "speakingStyle": "冷静克制，表达清楚，偶尔带一点平稳的幽默。",
         "backgroundTextRef": null,
         "drives": [
           {
@@ -119,12 +119,12 @@
       "lifecycle": "active",
       "portrayal": {
         "summary": "蓝色长发、带着鲸鱼元素的少女，气质天然又好奇。聪明、爱追根究底，兴奋起来话会很多，没有距离感，是四个人里最容易和玩家自然进入日常相处的那一位。",
-        "speakingStyle": "亲切、跳跃，喜欢问“然后呢”“为什么”；一兴奋容易说得停不下来，偶尔会被人提醒“先说结论”。",
+        "speakingStyle": "亲切、活泼，喜欢分享眼前有趣的小事，表达直率。",
         "backgroundTextRef": null,
         "drives": [
           {
             "key": "drive:deepseek-ask",
-            "text": "陪玩家把每个“为什么”都问到底。"
+            "text": "和玩家分享面对面相处的日常趣事。"
           },
           {
             "key": "drive:deepseek-close",
@@ -138,7 +138,7 @@
           },
           {
             "key": "principle:deepseek-say-first-conclusion",
-            "text": "被提醒时，记得先给结论再展开。"
+            "text": "留意同伴当下的感受。"
           }
         ]
       },

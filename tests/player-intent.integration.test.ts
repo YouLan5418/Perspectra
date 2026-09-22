@@ -109,7 +109,7 @@ it.each(['missing', 'budget', 'invalid', 'clarify', 'timeout', 'throw'] as const
     const first = { text: '我牵她的手', principalId: 'principal:player', idempotencyKey: 'first', correlationId: 'failure' }
     const pending = app.submitText(world.manifest.address, first)
     const explicit = app.submitText(world.manifest.address, { ...first, idempotencyKey: 'explicit', text: '/move location:next' })
-    expect((await pending).status).toBe('clarification_required')
+    expect((await pending).status).toBe(mode === 'clarify' ? 'clarification_required' : 'service_failed')
     expect((await explicit).status).toBe('submitted')
     expect(await app.submitText(world.manifest.address, first)).toEqual(await pending)
     expect(calls).toBe(mode === 'missing' || mode === 'budget' ? 0 : 1)
@@ -143,7 +143,7 @@ it.each(['player-input.after-received', 'player-input.after-call-prepared', 'pla
     const recovered = new WorldApplication(options)
     try {
       const result = await recovered.submitText(world.manifest.address, request)
-      expect(result.status).toBe(point === 'player-input.after-dispatch' ? 'clarification_required' : 'submitted')
+      expect(result.status).toBe(point === 'player-input.after-dispatch' ? 'service_failed' : 'submitted')
       expect(await recovered.submitText(world.manifest.address, request)).toEqual(result)
       expect(calls).toBe(point === 'player-input.after-dispatch' ? 0 : 1)
     } finally { await recovered.close(); rmSync(root, { recursive: true, force: true }) }

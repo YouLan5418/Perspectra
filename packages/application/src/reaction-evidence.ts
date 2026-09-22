@@ -81,3 +81,11 @@ export function recordsReactionEvidence(policy: ReactionPolicyV1): boolean {
 export function strongestClass(stimuli: readonly { readonly roleClass?: ReactionRoleClass }[]): ReactionRoleClass {
   return strongestReactionRoleClass(stimuli.map(stimulus => stimulus.roleClass!))
 }
+
+/** Ordinary unaddressed nonverbal publication remains observable, but does not itself wake bystanders. */
+export function triggersReaction(resolution: RulebookResolution, roleClass: ReactionRoleClass): boolean {
+  if (roleClass !== 'witness') return true
+  const speech = resolution.events.find(event => event.eventType === 'character.speak')?.data as { narration?: string; text?: string } | undefined
+  return !(speech !== undefined && typeof speech.narration === 'string'
+    && speech.narration.trim().length > 0 && typeof speech.text === 'string' && speech.text.trim().length === 0)
+}

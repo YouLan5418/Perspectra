@@ -34,5 +34,5 @@
       "@harness-world/provider-chat": ["./packages/provider-chat/src/index.ts"]
     }
   },
-  "include": ["packages/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
+  "include": ["packages/**/*.ts", "tests/**/*.ts", "vitest*.config.ts"]
 }

@@ -91,7 +91,8 @@ function selfState(events: readonly StoredWorldEvent[], characterId: CharacterId
       observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: 'move', locationId } })
     }
     if (event.eventType === 'character.speak' && typeof data.text === 'string') {
-      observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: 'speak', text: data.text } })
+      observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: 'speak', text: data.text,
+        ...(typeof data.narration === 'string' ? { narration: data.narration } : {}) } })
     }
     if (event.eventType === 'action.rejected' && typeof data.actionType === 'string') {
       observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: data.actionType, status: 'rejected' } })

@@ -4,3 +4,4 @@ export { ChatTransportError, createChatProvider,
   type ChatCallObservation, type ChatCallProfile, type ChatProvider, type ChatProviderOptions,
   type ChatStyle } from './provider.ts'
 export { objectValue, textValue } from './value.ts'
+export { prototypeTurnCall } from './prototype-turn.ts'

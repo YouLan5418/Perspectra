@@ -75,6 +75,8 @@ describe('player-facing playtest transcript', () => {
           content: { status: 'accepted', speech: { characterId: player, text: 'player speech' } } } },
         { kind: 'observation', id: 'observation:5', sourceSeq: 7, value: { observerId: player,
           content: { status: 'accepted', actorId: 'character:bob', actionType: 'move' } } },
+        { kind: 'observation', id: 'observation:expression', sourceSeq: 9, value: { observerId: player,
+          content: { status: 'accepted', speech: { characterId: 'character:bob', text: '', narration: '指尖蜷起，又慢慢松开。' } } } },
         { kind: 'observation', id: 'observation:6', sourceSeq: 8, value: { observerId: player,
           content: { status: 'accepted', actorId: 'character:bob', actionType: 'take' } } },
       ],
@@ -90,6 +92,7 @@ describe('player-facing playtest transcript', () => {
       { seq: 4, speaker: 'Bob', text: '（避开玩家的视线，声音压得很低）\nvisible speech', player: false },
       { seq: 7, speaker: 'Bob', text: '移动到了另一个地点。', player: false },
       { seq: 8, speaker: 'Bob', text: '拿取了一个物品。', player: false },
+      { seq: 9, speaker: 'Bob', text: '（指尖蜷起，又慢慢松开。）', player: false },
     ])
     expect(JSON.stringify(transcript)).not.toMatch(/REJECTED_CANARY|PRIVATE_CLAIM_CANARY/)
   })

@@ -1,4 +1,4 @@
-import { ACTION_GROUP_CUES, createStepManifestationSchema,
+import { ACTION_GROUP_CUES,
   type ActionGroupCue, type StepManifestation } from './action-group.ts'
 import { assertProtocolString, type CharacterId } from './ids.ts'
 import type { ActionRequest, WorldAddress } from './protocol.ts'
@@ -9,7 +9,7 @@ export interface PlayerSourceSpanV1 extends WorldJsonObject {
   readonly startUtf16: number
   readonly endUtf16: number
   readonly text: string
-  readonly kind: 'speech' | 'action'
+  readonly kind: 'speech' | 'narration' | 'action'
 }
 
 export interface PlayerSubmissionV2 extends WorldJsonObject {
@@ -75,7 +75,6 @@ export function createPlayerIntentCandidateSchema() {
       actions: { type: 'array', maxItems: 2, items: {
         type: 'object', additionalProperties: false, required: ['key', 'affordanceId', 'quotes'],
         properties: { key: { type: 'string', minLength: 1 }, affordanceId: { type: 'string', minLength: 1 },
-          performance: createStepManifestationSchema('interact'),
           quotes: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string', minLength: 1 } } },
       } },
     },
@@ -210,7 +209,12 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
     if (choice.actionType === 'interact' ? version !== 1 && version !== 2 : version !== 1) {
       throw new TypeError('player intent affordance version is unsupported')
     }
-    if (choice.actionType === 'speak') object(choice.parameters, [])
+    if (choice.actionType === 'speak') {
+      if (Object.hasOwn(choice.parameters, 'narration')) {
+        const publication = object(choice.parameters, ['text', 'narration'])
+        if (publication.text !== '' || publication.narration !== '') throw new TypeError('narration choice must be an empty publication template')
+      } else object(choice.parameters, [])
+    }
     if (choice.actionType === 'move') text(object(choice.parameters, ['locationId']).locationId)
     if (choice.actionType === 'interact') interactParameters(version, choice.parameters)
     choices.set(choice.affordanceId, { choice, accepted: acceptedCues(raw) })
@@ -261,8 +265,8 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
     parameters: entry.performance === undefined
       ? entry.choice.parameters : { ...entry.choice.parameters, performance: entry.performance },
   }))
-  if (actions.length === 2 && actions.filter(action => action.actionType === 'speak').length !== 1) {
-    throw new TypeError('two player actions require exactly one speak')
+  if (actions.filter(action => action.actionType !== 'speak').length > 1) {
+    throw new TypeError('player input permits at most one world operation')
   }
   // The Host places each quote rather than being told where it is. Searching on from the previous one is
   // what keeps the actions in the order the player spoke them, and a quote nobody wrote is refused here
@@ -276,7 +280,7 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
       if (start < 0) throw new TypeError('player intent quote is not in the player text')
       previousEnd = start + quote.length
       sourceSpans.push({ actionId: action.actionId, startUtf16: start, endUtf16: previousEnd, text: quote,
-        kind: action.actionType === 'speak' ? 'speech' : 'action' })
+        kind: action.actionType === 'speak' ? (Object.hasOwn(entry.choice.parameters, 'narration') ? 'narration' : 'speech') : 'action' })
     }
   }
   for (const action of actions) {
@@ -284,7 +288,8 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
     const spans = sourceSpans.filter(span => span.actionId === action.actionId)
     // A speech is one contiguous quote: joining two of them would invent a sentence nobody said.
     if (spans.length !== 1) throw new TypeError('player speech requires one contiguous quote')
-    actions[actions.indexOf(action)] = { ...action, parameters: { text: spans[0]!.text } }
+    actions[actions.indexOf(action)] = { ...action, parameters: spans[0]!.kind === 'narration'
+      ? { text: '', narration: spans[0]!.text } : { text: spans[0]!.text } }
   }
   // A semantic clarification must not turn an otherwise malformed Provider response into a valid result.
   // Validate every action and source span first, then give the player-facing answer for an unoffered step.

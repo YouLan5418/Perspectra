@@ -63,7 +63,7 @@ const give = (over: WorldJsonObject = {}): WorldJsonObject => ({ actionId: 'a1',
     arguments: { recipientId: 'character:friend' } }, ...over })
 
 describe('the wire schema an endpoint can bind to', () => {
-  it('renders the group declaration, the offered options and the accepted cues', () => {
+  it('renders execution options and free expression without cue menus', () => {
     const validate = compiled(exact())
     expect(validate({ schemaVersion: 7, decision: 'act', actions: [give()] })).toBe(true)
     expect(validate({ schemaVersion: 7, decision: 'abstain', actions: [] })).toBe(true)
@@ -75,15 +75,14 @@ describe('the wire schema an endpoint can bind to', () => {
     expect(validate({ schemaVersion: 7, decision: 'act',
       actions: [give({ manifestation: { independent: ['nod'], onSuccess: [] } })] })).toBe(false)
     expect(validate({ schemaVersion: 7, decision: 'act',
-      actions: [give({ manifestation: { independent: ['smile'], onSuccess: ['frown'] } })] })).toBe(true)
+      actions: [give({ manifestation: { independent: ['smile'], onSuccess: ['frown'] } })] })).toBe(false)
     // The other offered option is the same step shape with the Host's own arguments left out of it.
     expect(validate({ schemaVersion: 7, decision: 'act', actions: [{ actionId: 'a1', actorId: 'character:companion',
       actionType: 'interact', actionVersion: 2, parameters: { targetRef: { kind: 'entity', id: 'entity:cup' },
         bindingId: 'binding:cup-take', definitionRef: { id: 'base:take', version: 1 }, arguments: {} } }] })).toBe(true)
-    // Speech keeps the protocol's own parameters and the whole closed vocabulary for its own step.
+    // Speech and observable narration share a publication; expression is not a cue menu.
     expect(validate({ schemaVersion: 7, decision: 'act', actions: [{ actionId: 'a1', actorId: 'character:companion',
-      actionType: 'speak', actionVersion: 1, parameters: { text: '雨小了。' },
-      manifestation: { independent: ['smile'], onSuccess: ['quiet_voice'] } }] })).toBe(true)
+      actionType: 'speak', actionVersion: 1, parameters: { text: '雨小了。', narration: '指尖停在伞柄上，她抬眼望了望天。' } }] })).toBe(true)
     expect(validate({ schemaVersion: 7, decision: 'act', actions: [{ actionId: 'a1', actorId: 'character:companion',
       actionType: 'move', actionVersion: 1, parameters: { text: 'not a location' } }] })).toBe(false)
     // A move names one of the places the world offered: an invented id is not in the schema at all, which is
@@ -102,6 +101,21 @@ describe('the wire schema an endpoint can bind to', () => {
     const schema = JSON.stringify(unnamed)
     expect(schema).toContain('"enum":["location:cellar"]')
     expect(schema).toContain('"description":"location:cellar"')
+  })
+
+  it('allows silent expression while preserving actor and interaction authority', () => {
+    const validate = compiled(exact())
+    const expression = (parameters: WorldJsonObject) => ({ schemaVersion: 7, decision: 'act', actions: [{
+      actionId: 'expression', actorId: 'character:companion', actionType: 'speak', actionVersion: 1, parameters,
+    }] })
+    expect(validate(expression({ text: '', narration: '她把笑意藏进衣领，轻轻晃了晃脚尖。' }))).toBe(true)
+    expect(validate(expression({ text: '' }))).toBe(false)
+    expect(validate(expression({ text: '', narration: '' }))).toBe(false)
+    expect(validate(expression({ text: '', narration: { locationId: 'elsewhere' } }))).toBe(false)
+    expect(validate(expression({ text: '', narration: '抿唇', locationId: 'elsewhere' }))).toBe(false)
+    const forged = give({ parameters: { ...(give().parameters as WorldJsonObject), bindingId: 'unoffered' } })
+    expect(validate({ schemaVersion: 7, decision: 'act', actions: [forged] })).toBe(false)
+    expect(JSON.stringify(actionGroupWireSchema(exact()))).not.toContain('manifestation')
   })
 
   it('states no cue list where no offered definition accepts one', () => {
@@ -163,7 +177,7 @@ describe('the wire schema an endpoint can bind to', () => {
         actionGroup: { version: 'bounded-action-group/v2', allowedActionTypes: ['speak', 'interact', 7] } },
     })
     const validate = new Ajv({ strict: false }).compile(sparse)
-    expect(JSON.stringify(sparse)).toContain('"enum":["nod"]')
+    expect(JSON.stringify(sparse)).not.toContain('manifestation')
     // An option that names no target or arguments is still an option: its consts are simply not stated.
     expect(validate({ schemaVersion: 7, decision: 'act', actions: [{ actionId: 'a1', actorId: 'character:any',
       actionType: 'interact', actionVersion: 2, parameters: { targetRef: { kind: 'entity', id: 'entity:any' },

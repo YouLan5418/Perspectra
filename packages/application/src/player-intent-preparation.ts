@@ -1,5 +1,5 @@
 import { createPlayerIntentCandidateSchema, deterministicId, hashWorldJson, resolutionAuthority,
-  type ActionGroupCue, type PlayerIntentAffordance, type PlayerSubmissionV2, type WorldHash, type WorldJsonObject } from '@harness-world/contracts'
+  type PlayerIntentAffordance, type PlayerSubmissionV2, type WorldHash, type WorldJsonObject } from '@harness-world/contracts'
 import { parsePlayerActionInput, type CompiledWorldManifest, type RulebookEvent, type RulebookResolver } from '@harness-world/kernel'
 import type { PlayerInputJob } from '@harness-world/store-sqlite'
 import { PlayerInputInterpreter } from './player-input.ts'
@@ -41,6 +41,10 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
     // them through a catalog offers version 1. Speech and movement are 1 either way.
     if (affordance.actionType === 'speak') {
       choices.push({ affordanceId: 'speak', actionType: 'speak', actionVersion: 1, parameters: {} })
+      // A publication choice, not a world-effect verb. The Host fills its narration
+      // exclusively from quoted player text; the interpreter cannot author it.
+      choices.push({ affordanceId: 'narrate', actionType: 'speak', actionVersion: 1,
+        parameters: { text: '', narration: '' } })
     }
     if (affordance.actionType === 'move') {
       for (const location of manifest.locations) {
@@ -53,16 +57,8 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
     if (affordance.actionType === 'interact') {
       for (const interaction of affordance.interactions ?? []) {
         const { label: _, ...parameters } = interaction
-        const definitionRef = parameters.definitionRef as { readonly id: string; readonly version: number }
-        // What the definition accepts rides with the choice, so the interpreter can only state a step the
-        // world would take; the adjudication is still the definition's, and a cue stated without cover here
-        // is refused with a clarification rather than silently dropped.
-        const acceptance = (affordance.performances ?? []).find(entry =>
-          entry.definitionRef.id === definitionRef.id && entry.definitionRef.version === definitionRef.version)
-        const offered: { actionType: 'interact'; actionVersion: 1 | 2; parameters: WorldJsonObject
-          performances?: readonly ActionGroupCue[] } =
-          { actionType: 'interact', actionVersion: affordance.actionVersion === 2 ? 2 : 1, parameters,
-            ...(acceptance === undefined ? {} : { performances: acceptance.accepted.map(value => value.cue) }) }
+        const offered = { actionType: 'interact' as const,
+          actionVersion: affordance.actionVersion === 2 ? 2 as const : 1 as const, parameters }
         choices.push({ affordanceId: deterministicId('intent-affordance', { actionType: 'interact', parameters }), ...offered })
       }
     }
@@ -77,11 +73,21 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
       // arithmetic: a model that states offsets gets them wrong often enough to lose the player a turn,
       // while a verbatim quote is something the Host can find and check itself.
       contract: 'Interpret only the player intent. Select exact affordances by their affordanceId. '
-        + 'For every action, copy into quotes the exact words of the player text that name it, in the order '
-        + 'the player said them, character for character - do not paraphrase and do not state offsets, the '
-        + 'Host locates each quote itself. A speech action takes exactly one quote, which becomes what the '
-        + 'character says. Do not turn narration about another character into speech or effects. State a '
-        + "performance only when the player's words state one, and only with cues the chosen affordance "
-        + 'lists under performances. If uncertain, require clarification.',
+        + 'Distinguish what the player COMMUNICATES from what the player EXECUTES. '
+        + 'A request, question or suggestion addressed to an NPC is the player speaking, not an action '
+        + 'executed for that NPC. Select speak even if the requested NPC response has no interaction option. '
+        + 'For example: "GPT，先不要说话，可以只用表情或手势回应我一下吗？" is speak; '
+        + '"GLM，你愿意去工作区吗？" is speak, not a player move. The NPC decides whether and how to respond. '
+        + "Use narrate for the player's own freely expressed posture, expression or other minor observable "
+        + 'performance, even with no dialogue: "我有点尴尬地笑了笑" is narrate. It is not a claim of an adjudicated effect. '
+        + 'For a player-executed controlled change, such as "我走到工作区" or "我拿起手机", select the corresponding '
+        + 'move/interact option. Do not hide unavailable or ambiguous controlled actions inside narrate or speak. '
+        + "Do not invent another character's reaction or publish an asserted reaction as the player's performance. "
+        + 'Copy exact source words into quotes, in source order, without rewriting or calculating offsets. '
+        + 'Each speak or narrate publication takes one contiguous quote. At most two actions, at most one '
+        + 'controlled world operation; a performance and dialogue may be two publications. '
+        + 'Use free narrate instead of encoding ordinary expressions as performance cues. '
+        + "Only clarify when ambiguity changes an executed action/target, the player's own controlled action "
+        + 'is unavailable, or the input cannot be interpreted reliably. A missing NPC response verb is not a reason to clarify.',
       sourceText, affordances: choices, responseSchema: createPlayerIntentCandidateSchema() } }
 }

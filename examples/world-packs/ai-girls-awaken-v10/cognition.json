@@ -418,7 +418,7 @@
         },
         {
           "key": "goal:deepseek-understand-why",
-          "objective": { "kind": "narrative", "value": "慢慢弄清我们为什么实体化——当作一个有趣的大问题。" },
+          "objective": { "kind": "narrative", "value": "慢慢熟悉这间屋子里的日常生活。" },
           "priorityPermille": 640,
           "targetKeys": ["character:player"],
           "basisKeys": ["drive:deepseek-ask"]
@@ -469,14 +469,14 @@
       "innerTensions": [
         {
           "key": "tension:deepseek-study-vs-chat",
-          "title": "先研究实体化原因，还是先陪玩家过日常",
+          "title": "先熟悉住处，还是先陪玩家聊日常",
           "pressurePermille": 560,
           "basisKeys": ["drive:deepseek-ask", "drive:deepseek-close"],
           "poles": [
             {
               "key": "pole:deepseek-study",
               "tendency": "pursue",
-              "impulseText": "先别管别的，我们研究一下为什么会变成人吧！",
+              "impulseText": "这间屋子看起来有不少有趣的东西，想找机会看看。",
               "strengthPermille": 620,
               "awareness": "conscious",
               "basisKeys": ["claim:deepseek-dream-hypothesis", "drive:deepseek-ask"]
@@ -495,7 +495,7 @@
       "commitments": [
         {
           "key": "commitment:deepseek-share-theory",
-          "content": "如果想到关于实体化的线索，第一个告诉玩家。",
+          "content": "发现生活里有趣的小事时，想和玩家分享。",
           "origin": "self_commitment",
           "saliencePermille": 700,
           "basisKeys": ["drive:deepseek-ask"]

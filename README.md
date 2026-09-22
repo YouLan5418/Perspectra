@@ -1,180 +1,126 @@
-# Harness / Cordis World V0
+# Cordis World
 
-> 当前状态：私有源码 `v0.3.0` 已完成远程四格 CI 并发布 Tag；Phase 8.1 独立审查加固已形成本机 `0.3.1` 候选。未发布 npm 或 GitHub Release；Harness/TencentDB Bridge、真实模型 API 与远程访问保持禁用。
+**一个面向多角色扮演的、由玩家推动的 AI 世界实验项目。**
 
-这是一个独立的、事件溯源的 TURN_DRIVEN 世界模拟内核原型，用 Cordis 管理 Branch 运行时生命周期，用 Node 内置 SQLite 验证耐久原子性、幂等投递、forkSeq 时态重建和无模型确定性闭环。
+Cordis World 希望让多个角色在同一个世界里，以各自的经历、记忆和可见信息作出反应，而不只是由一个模型轮流模仿所有人。玩家的一次输入可以触发有限轮 NPC 连锁回应；没有新输入、反应周期结束后，世界重新静止。
 
-## 快速验证
+项目当前处于**实验与重构阶段**。首要目标是让角色更自然、玩法更自由，同时避免关键世界状态和角色知识相互串台。它还不是完整的在线游戏平台，也不承诺现有实验协议或世界包长期兼容。
 
-前置条件是 Node 22.19.x 或 24+，以及可用的 Corepack。
+## 我们想解决什么
+
+传统自由文本角色扮演可以非常生动，但在多角色、长时间互动中容易出现一些问题：角色知道自己不曾听见的秘密；有人只是在对白里说拿走了钥匙，系统便将其当作真实转移；NPC 之间的反应要等玩家再输入一句话才会继续。
+
+Cordis World 尝试在**叙事自由**与**关键因果的一致性**之间建立适度边界：
+
+- **独立的角色视角**：各角色只接收自己获授权的观察、记忆和认知；说出一个主张不代表主张自动成为世界真相。
+- **角色主体性**：角色自行决定是否回应、怎么回应、想尝试什么行为；调度不应把它们变成只负责填台词的演员。
+- **有限的连续反应**：一条玩家输入可开启有上限的反应周期；NPC 能回应其他 NPC 刚刚产生的、自己确实观察到的新事件。
+- **关键状态有依据**：移动、物品归属等影响后续逻辑的变化由规则裁定后提交；自由的台词、神态和叙述不必全部被编码成精确事件。
+- **按玩法扩展**：世界包描述角色和内容；新的确需要规则与状态的玩法可以通过交互定义和受信任领域代码扩展，而不是不断向核心枚举添加题材动作。
+
+这些是项目目标，**不代表目前每项体验都已达到预期**。当前的重点是用真实模型试玩验证角色自然度，减少过重输出协议、冗余调度与基础设施对体验的影响。
+
+## 当前能体验什么
+
+仓库包含本机浏览器试玩入口、Ollama/DeepSeek 模型适配、多个示例世界包、角色受限视角、记忆与有限反应周期。已有版本支持外显表现、物品及角色交互；其具体可用范围取决于世界包和运行时协议。
+
+**建议先从真实模型试玩开始，而不是先运行完整工程验收。** 以下命令均在仓库根目录执行；需要 Node.js 22.19+ 或 24+ 与项目锁定的 pnpm。
 
 ```powershell
 corepack pnpm@11.7.0 install --frozen-lockfile
-corepack pnpm@11.7.0 check
+
+# 本机 Ollama（需提前启动 Ollama 并准备可用模型）
+corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/prototype-local
+
+# 或显式使用 DeepSeek；需先为当前进程设置 DEEPSEEK_API_KEY
+corepack pnpm@11.7.0 experience:web:flash --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/prototype-deepseek
 ```
 
-`check` 依次运行类型检查、Lint、逐文件 100% 覆盖率、P0～P6 集成测试和子进程硬崩溃测试。
+启动后，打开终端打印的**本机**浏览器地址。网页只监听回环地址，不是可公开访问的在线服务。远程模型请求可能产生费用；不要把 API Key 写进世界包、命令示例或提交记录。
 
-已存在 World 数据库时，可通过本机 stdio CLI 查询健康状态：
+体验其他世界包时，可为实验入口指定 Pack 与独立数据目录：
 
 ```powershell
-corepack pnpm@11.7.0 worldctl -- D:\path\to\world.sqlite health
+corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/my-playtest
 ```
 
-需要长驻本机进程时，可启动 newline-delimited JSON-RPC stdio Host；它不会开启任何网络监听：
+本原型目前以 v10 的 FrozenWorldPlaytestRuntime 为实测入口。旧 WorldPlaytestRuntime 的 compact/lean 适配器尚未跟进新的 Context 呈现，不作为当前支持入口。不同版本的世界包可能采用不同模型输出协议和启动路径。若示例不适用于当前分支，以 [创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md) 的对应版本说明为准；不要在同一数据目录中混用不兼容世界版本。真实模型试玩需要人工观察角色是否自然、是否重复、是否无故沉默，自动化测试不能代替这一环节。
+
+## 运行方式
+
+世界采用玩家推动的回合机制。一次玩家输入开启一个 Root Round，已获授权的新观察可以继续触发有界 NPC Reaction Round；周期结束后世界停止自主推进。
+
+```text
+玩家输入
+   │
+   ▼
+角色可见上下文 ──► 各 Character Agent 自主提案
+                         │
+                         ▼
+                 规则裁定与世界提交
+                         │
+              ┌──────────┴──────────┐
+              ▼                     ▼
+        玩家可见结果            授权观察与记忆
+                                    │
+                                    ▼
+                            有界后续反应
+```
+
+**模型的提案不等于世界事实。** 影响后续玩法的关键状态变化需要可信规则裁定；角色的猜测、感情表达和一般舞台表现不因此升级成客观真相。我们不追求把每个眼神、姿态或修饰词都变成可验证的状态字段。
+
+已有实现包含更严格的事件、版本、恢复及表现协议。这些属于当前代码与历史实验的状态，**不是未来必须保留的设计承诺**；项目正在评估哪些机制真正帮助了游玩体验。
+
+## 创作与扩展
+
+World Pack 主要用于描述世界内容：人物、地点、物品、认知设定、场景与叙事材料。已有交互目录与定义机制允许世界选择具体交互。对于新玩法，优先复用现有能力；只有出现新的重要状态和裁定逻辑时，才引入受信任的领域实现。
+
+目标是**小核心、丰富世界**，而不是预先在核心中定义所有玩法。当前 Pack 格式和扩展接口仍可能在实验阶段调整，请参考 [World Pack 字段手册](docs/WORLD-PACK-AUTHORING-MANUAL.md) 与 [试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md) 了解本分支已落地的功能；规划文档中的接口不一定已经可用。
+
+可用作参考的内容包括 `examples/world-packs/ai-girls-awaken-v10`、`hand-in-hand` 和 `rainy-road-companions`。
+
+## 开发与验证
+
+项目使用 TypeScript、Cordis 与 SQLite。主要目录：
+
+| 路径 | 当前职责 |
+| --- | --- |
+| `packages/agents` | 角色上下文、模型提案及相关适配 |
+| `packages/application` | 回合与反应流程的应用层协调 |
+| `packages/kernel`、`packages/contracts` | 世界规则和必要的共享契约 |
+| `packages/store-sqlite` | 当前实现中的世界状态与持久化 |
+| `packages/memory` | 角色记忆与召回 |
+| `packages/interaction-runtime`、`packages/interactions-basic` | 当前交互定义及基础能力 |
+| `packages/world-pack` | 世界内容校验、编译与创作者工具 |
+| `tests/experiments` | 真实模型与网页试玩入口 |
+
+这是**现有代码布局**，不代表未来必须维持同样数量的包与基础设施。开发原则见 [AGENTS.md](AGENTS.md)：优先修复可复现的体验问题，为新抽象设立复杂度预算，只在相应风险真实存在时增加验证。
+
+日常改动先做类型检查与相关测试：
 
 ```powershell
-corepack pnpm@11.7.0 worldhost -- --config D:\path\to\world-host.yml
+corepack pnpm@11.7.0 typecheck
+corepack pnpm@11.7.0 test
 ```
 
-配置优先级为 CLI > 环境变量 > YAML > 默认值；也可继续使用兼容入口 `worldhost <world.sqlite> <session.sqlite>`。Host 使用 `instance.lock` 与数据库 Writer Lease 共同阻止多实例误写，详情见[本机运行与恢复手册](docs/V0-LOCAL-RUNBOOK.md)。
+本原型工作树的 `check` 已调整为类型检查、Lint 和少量核心测试，不含覆盖率门槛、旧全量或硬崩溃门禁；按需命令见 [基线说明](docs/PROTOTYPE-BASELINE.md)。检查通过不代表角色体验已经验证。涉及权威事实、权限隔离、事务提交等高风险修改时，仍应执行有针对性的严格回归验证。
 
-运行无模型的悬疑 Demo 固定开场（再次执行会从同一 SQLite 幂等恢复）：
+## 文档与项目状态
 
-```powershell
-corepack pnpm@11.7.0 demo:mystery D:\path\to\mystery-world.sqlite D:\path\to\mystery-session.sqlite
-```
+- [当前自由表达实现与实测](docs/PROTOTYPE-PLAYTEST-02.md)：已落地范围、失败样本和下一步。
+- [玩家输入与反应链诊断](docs/PROTOTYPE-PLAYTEST-03.md)：玩家表达实测、反复唤醒与主动沉默的证据。
+- [人设与最小调度规则对照](docs/PROTOTYPE-PLAYTEST-04.md)：顺序实验结果与尚未解决的重复反应。
+- [反应周期上下文审计](docs/PROTOTYPE-PLAYTEST-05.md)：逐次检查自身回应历史、触发观察及 abstain 提示。
+- [自身历史呈现对照](docs/PROTOTYPE-PLAYTEST-06.md)：单独突出已发布表达后的真实模型结果。
+- [abstain 语义与扩大预算实验](docs/PROTOTYPE-PLAYTEST-07.md)：区分不发布内容、非语言表达与周期终止原因。
+- [单次交互与结果后续写](docs/PROTOTYPE-PLAYTEST-08.md)：独立执行切片、成功/拒绝实测及尚未接入群体试玩的边界。
+- [角色可读结果与网页最小集成](docs/PROTOTYPE-PLAYTEST-09.md)：选定 GPT 的物品交互，提交后复用现有 Reaction 续写的实测与启用方式。
+- [连续互动与事实分叉审计](docs/PROTOTYPE-PLAYTEST-10.md)：连续拿取、递交与跨场景试玩；反馈及时性、归属误判传播及续写越界的证据。
+- [当前状态与续写边界对照](docs/PROTOTYPE-PLAYTEST-11.md)：区分可见状态、上次观察与对白，修正服务失败提示；实现与尚未通过的模型行为验收。
 
-命令只输出玩家可见视图和公开物品状态；Bob 的私有凶手 Claim 不会出现在终端结果中。
+- [创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)：入口、世界版本与常见问题。
+- [主线真实模型体验记录](docs/REAL-MODEL-EXPERIENCE.md)：历史试玩环境、观察与限制。
+- [2026-09-10 真实模型试玩问题记录](docs/2026-09-10_真实模型试玩记录-v8拒绝原因与契约缺口.md)：复杂输出协议导致角色整轮提案被拒的实测案例。
+- [ADR 索引](docs/adr/README.md)：历史架构选择及其背景。部分决策正在复核，不应将“Accepted”直接等同于当前产品方向。
 
-固定开场后，可以用同一数据库逐轮提交自然语言或显式调查命令：
-
-```powershell
-corepack pnpm@11.7.0 demo:mystery:turn D:\path\to\mystery-world.sqlite D:\path\to\mystery-session.sqlite turn:inspect "检查一下书桌"
-```
-
-每轮都必须提供唯一幂等键；未知或歧义输入返回 `clarification_required`，不会猜测或提交世界事实。该结果会独立耐久并审计，但不会创建 Round 或推进 Tick。
-
-也可以在同一进程、同一 mounted world 中连续输入普通对白、通用命令或调查语法：
-
-```powershell
-corepack pnpm@11.7.0 demo:mystery:shell D:\path\to\mystery-world.sqlite D:\path\to\mystery-session.sqlite
-```
-
-悬疑只是一项架构试金石。调查 Resolver 位于 Demo 组合根，通用 Kernel 只内建 `speak/move/take`；普通文本通过正式 `WorldApplication.submitText` 进入同一 Inbox、Validator、Rulebook 和 Authority 管线。
-
-六种本机降级演练可用全新数据库路径运行，例如：
-
-```powershell
-corepack pnpm@11.7.0 demo:mystery:drill agent-timeout D:\path\to\drill-world.sqlite D:\path\to\drill-session.sqlite
-```
-
-可选模式为 `agent-failure`、`agent-timeout`、`budget-exhausted`、`director-fallback`、`memory-catchup-failure` 和 `session-dead-letter`。输出只含玩家结果、terminal、Health、Audit/Metric 摘要与恢复步骤。
-
-## 创建一个非悬疑世界
-
-以下命令会生成一个可编辑的酒馆社交 Pack，编译成不可变制品，激活到独立数据目录，再进入持续对话：
-
-```powershell
-corepack pnpm@11.7.0 worldpack init --profile social D:\worlds\my-tavern
-corepack pnpm@11.7.0 worldpack validate D:\worlds\my-tavern
-corepack pnpm@11.7.0 worldpack compile D:\worlds\my-tavern --out D:\worlds\my-tavern.worldpack.json
-corepack pnpm@11.7.0 worldpack activate D:\worlds\my-tavern.worldpack.json --data-dir D:\worlds\my-tavern-data
-corepack pnpm@11.7.0 worldappctl chat --data-dir D:\worlds\my-tavern-data
-```
-
-Pack 是严格数据而不是脚本。创作者可以修改角色、地点、物品、初始认知、Scene 和呈现文本，但不能由 Pack 注入代码、网络端点、任意事件或系统权限。完整说明见[Phase 7 创作者运行手册](docs/PHASE7-CREATOR-RUNBOOK.md)。
-
-Phase 8 的 v2 Pack 可进一步声明多 Scene、角色关系、情绪、矛盾、承诺、开放问题、Memory Profile 和版本化 Context。可从仓库的“雨夜同行”参考内容开始：
-
-```powershell
-corepack pnpm@11.7.0 worldpack validate examples/world-packs/rainy-road-companions
-corepack pnpm@11.7.0 worldpack test examples/world-packs/rainy-road-companions
-```
-
-统一 Creator CLI 会按显式 Schema 精确选择 v1/v2 Compiler，不会隐式升级旧 Pack。字段、隐私、Scene 迁移与当前 Provider 边界见 [Phase 8 创作者运行手册](docs/PHASE8-CREATOR-RUNBOOK.md)。
-
-## 使用基础契约
-
-```typescript
-import { canonicalizeWorldJson, hashWorldJson } from '@harness-world/contracts'
-
-const bytes = canonicalizeWorldJson({ message: 'hello', tick: 1 })
-const hash = hashWorldJson('example', { byteLength: bytes.byteLength })
-console.log(hash)
-```
-
-## Workspace
-
-| 包 | 责任 |
-|---|---|
-| `@harness-world/application` | WorldApplication 组合根、统一 Round、Branch 排空与真实 Runtime 组件 |
-| `@harness-world/contracts` | 品牌 ID、WorldAddress、Canonical JSON、Hash、错误和 Registry |
-| `@harness-world/agents` | ContextAssembler、submit_actions、HarnessAgentPort、预算、Director Scheduler 与 Replay |
-| `@harness-world/kernel` | WorldSpec Compiler、Tick 0 Genesis、PlayerBinding、通用 Rulebook Registry/Resolver 与 WorldKernel |
-| `@harness-world/memory` | 本地 SQLite FTS5 Memory、source mapping、as-of 防火墙和认知规则 |
-| `@harness-world/operations` | 无网络监听的本机 CLI/JSON-RPC、Health 和固定基数 Metrics |
-| `@harness-world/presentation` | 只消费已授权 Observation 的确定性模板渲染器 |
-| `@harness-world/runtime-cordis` | BranchRuntimeSlot、Cordis Service/Listener/Dispose 隔离 |
-| `@harness-world/store-sqlite` | World/Session/Projection、Branch Barrier、Snapshot、Audit、Backup 与逻辑 Transfer |
-| `@harness-world/simulation` | Scripted Agent、三种 Director、无模型 Round 闭环、Demo-owned 调查 Resolver 与三角色悬疑 Scenario |
-| `@harness-world/testkit` | 确定性 Fixture、FaultInjector 和硬终止 Harness |
-| `@harness-world/world-pack` | 严格内容来源、确定性编译、制品检查与本机创作者工作流 |
-
-## 已验证行为
-
-- 同一 Branch 只复用一个活动 Runtime Slot，不同 Branch 的 Service 和 Listener 不泄漏。
-- Session Inbox、Observation append 和 cursor 推进同事务提交；重复相同 Delivery 返回 `already_applied`，分歧 fail-closed。
-- World Event、Tick、Head、Round Commit 和 Outbox 同事务提交；COMMIT 前终止不留部分状态，COMMIT 后终止可幂等恢复。
-- forkSeq 重建不会读取父分支未来 Observation、Claim、Goal 或 Visibility。
-- Scripted/Rule/Noop 路径不需要模型或网络，重启与重放产生相同 Bundle Hash。
-- WorldSpec 严格编译为稳定 Manifest 与 Genesis Plan；Tick 0 激活可幂等重放。
-- 数据库 Writer Lease 使用单调 fencing token；耐久 Round Inbox 与 Branch FIFO 保持每条玩家输入独立成 Tick。
-- 无 Agent 玩家 `character.speak`、move 和领域拒绝均可提交；提交后、Inbox 完成前失败可用相同 transaction/hash 恢复。
-- CharacterView 在同一 asOfSeq 组合 Scene、Visibility、Self Observation、Observation、Claim 与 Goal，并按角色 fail-closed 裁剪。
-- Outbox Worker 为每个 Session 分配连续序号；Receipt 可恢复，任一已分配序号的 Dead Letter 都阻止同 Session 越序。
-- Deterministic Presenter 只渲染授权内容，不参与 World Event、Projection 或权威 Bundle Hash。
-- Agent Context 固定 WorldAddress/CharacterView/Capability；`submit_actions` 对 actor、action type、版本和数量严格校验。
-- Harness Bridge 默认禁用且只通过 `HarnessAgentPort` 注入；预算、失败和超时均降级为空提案，不阻塞玩家。
-- Director Scheduler 为确定性纯逻辑，Model Replay 只读取已记录的精确 request/response Hash。
-- Local Memory 只接受当前角色、当前 Branch 且不晚于 as-of 边界的已提交来源；Summary、未来和跨 namespace 来源均 fail-closed。
-- KnowledgeRule 与 `character.reflect` 只从 CharacterView 推导 Claim；Session Compaction 保留原始事件并绑定来源范围与 Hash。
-- Branch fork 继承 Manifest、限制最大深度 8；Admission Barrier 和 archive 阻止新写入，但不物理删除历史。
-- Snapshot Unit/Bundle 同 as-of 绑定并只做派生退休；WorldLog、幂等账本和投递账本不截断。
-- SQLite Backup/Restore 保持原 Event Hash；authority-only `.dshworld` 逻辑包排除 Session、Memory、Audit 和进程状态。
-- World/Branch/Archive/Transfer 请求写 append-only sidecar Audit；Health 与固定基数 Metrics 不参与权威状态。
-- `round.submit` 只完成耐久受理并返回稳定 `roundId`；`round.get` 查询 queued/processing/committed/failed/cancelled，queued 取消使用事务 CAS。
-- JSON-RPC 同时支持进程内路由与 newline-delimited stdio Headless 循环；CLI 的 `--wait` 只轮询耐久状态，没有 TCP、Pipe、Socket 或远程监听。
-- 生产 Cordis Slot 持有真实 Store、Kernel、Agent 和 Director 组件；Branch Fiber 统一释放资源，不再以 Probe 代替生产组件。
-- 玩家、NPC Agent 与 Director 候选在同一 Round 中经过严格校验、稳定排序和逐动作重裁决，并只执行一次 WorldStore 提交。
-- 三角色悬疑 Scenario 已冻结私有初始知识和差异化观察；Bob 通过 `take` Proposal 取得钥匙，重启后 Event、Authority 与 CharacterView Hash 保持不变。
-- Branch 行政操作先关闭 Gate，再排空已耐久受理的 FIFO，最后执行 fork/archive；新输入不能混入维护窗口。
-- `WorldApplication` 贯穿 Runtime、Outbox、Session 与 Presenter；父分支归档后子分支可继续提交，重启和幂等回放不再次调用 Provider。
-- Application JSON-RPC/CLI 覆盖激活、Round、Head、CharacterView、投递、渲染、fork/archive、Snapshot、Backup 和 Transfer；数据库 Writer 身份默认按进程实例隔离。
-- Rulebook 采用精确版本注册；Core 只注册通用 v1/v2，悬疑 v3/v4 只由 Demo 组合根显式加载，旧世界 Golden 与生命周期保持兼容。
-- 新 Demo 的 Scene 调度从耐久 Projection 决断；Cognitive Memory v2 按角色、Branch 和 as-of capture Observation/Claim/Goal 并绑定每参与者 Authority。
-- 普通对白、通用命令与调查语法可以在同一个连续 shell 中交错；clarification 不创建 Round。
-- 六种降级 Drill 均验证玩家 Tick 前进、terminal/Audit/Metric/Health、零调用重放和恢复后的重新参与。
-- 非悬疑社交参考切片只使用 Core v2、Scene、Cognitive Memory 与通用文本输入，证明横向能力不依赖调查规则。
-- World Pack v2 可声明七类时态主观状态、多 Scene、Memory Profile 与文档受众，并编译为锁定 Registry/Vocabulary 的 Manifest v4。
-- Cognitive Memory v2、唯一 L1 Summary、Continuity Checkpoint、Interaction Tail 和 Context Receipt 可在精确 as-of 水位重建 Agent 输入。
-- `contextHash` 与 `providerRequestHash` 分离语义选择和精确消息布局；缓存未命中不改变权限、结果或权威 Hash。
-- Scripted Provider 经过耐久 prepared/dispatch/result/Authority/commit 生命周期；dispatch 后歧义不自动重发，世界效果保持 at-most-once。
-- “雨夜同行”六轮 Fixture 验证私语、离场/合流、转述、关系 Reflection、Memory/fork 隔离、缓存前缀与可恢复降级，且不新增题材 Action。
-
-## 文档
-
-- [冻结实施规格](docs/spec/implementation-v0.2.md)
-- [ADR 索引](docs/adr/README.md)
-- [Phase 0 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-0-report.md)
-- [Phase 1 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-1-report.md)
-- [Phase 2 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-2-report.md)
-- [Phase 3 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-3-report.md)
-- [Phase 4 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-4-report.md)
-- [Phase 5 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-5-report.md)
-- [Phase 6 阶段报告](docs/2026-08-22_阶段报告-Harness-Cordis-World-Phase-6-report.md)
-- [Phase 6 独立审查修复报告](docs/2026-08-22_Phase-6独立审查修复报告.md)
-- [异步 Round 与本机 Headless 进度报告](docs/2026-08-23_进度报告-异步Round与本机Headless-report.md)
-- [三角色悬疑 Demo 首个可执行切片](docs/2026-08-23_进度报告-三角色悬疑Demo首个可执行切片.md)
-- [悬疑 Demo Phase 2：多轮调查与真相揭露闭环](docs/2026-08-23_阶段报告-悬疑Demo-Phase-2.md)
-- [悬疑 Demo 架构纠偏与四项欠账闭环](docs/2026-08-23_阶段报告-悬疑Demo架构纠偏与四项欠账闭环.md)
-- [V0 本机运行与恢复手册](docs/V0-LOCAL-RUNBOOK.md)
-- [V0 Release Closure 报告](docs/2026-08-24_V0-Release-Closure-report.md)
-- [下一阶段：通用内容与真实运行验证](docs/2026-08-24_下一阶段计划-通用内容与真实运行验证.md)
-- [Phase 7 创作者运行手册](docs/PHASE7-CREATOR-RUNBOOK.md)
-- [Phase 7 最小通用内容闭环报告](docs/2026-08-25_阶段报告-Harness-Cordis-World-Phase-7-report.md)
-- [Phase 8 创作者运行手册](docs/PHASE8-CREATOR-RUNBOOK.md)
-- [Phase 8 完成与 0.3.0 候选报告](docs/2026-08-29_阶段报告-Harness-Cordis-World-Phase-8-report.md)
-- [Phase 8.1 独立审查加固与 0.3.1 候选报告](docs/2026-08-30_阶段报告-Harness-Cordis-World-Phase-8.1-report.md)
-
-遇到 `SESSION_DELIVERY_DIVERGED`、`BUNDLE_HASH_MISMATCH` 或其他 integrity 错误时不得重试覆盖数据；调用方应停止写入并进入受控诊断流程。
+当前优先事项是恢复与提升角色自然度、减少不必要的模型输出约束，并在保留角色认知隔离和关键事实一致性的基础上简化实现。**更完整的工程证明不等于更好的角色扮演体验。**

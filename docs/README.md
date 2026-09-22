@@ -1,6 +1,8 @@
 # 项目文档
 
-先阅读[冻结实施规格](spec/implementation-v0.2.md)，再按主题查阅 [ADR 索引](adr/README.md)。Phase 0～6 功能闭环、[并发与权威边界加固计划](2026-08-22_V0并发与权威边界加固计划.md)和 [Phase 6 架构闭合计划](2026-08-22_实施计划-Harness-Cordis-World-Phase-6.md)均已通过本机验收。
+先读 [当前原型契约](2026-09-19_原型契约-自由叙述与声明式交互-v0.1-report.md) 与 [基线说明](PROTOTYPE-BASELINE.md)，开发约束见根目录 AGENTS.md。
+
+以下是历史文档索引，完成声明属于对应旧版本，不是本原型验收。历史阅读入口：[冻结实施规格](spec/implementation-v0.2.md)，再按主题查阅 [ADR 索引](adr/README.md)。Phase 0～6 功能闭环、[并发与权威边界加固计划](2026-08-22_V0并发与权威边界加固计划.md)和 [Phase 6 架构闭合计划](2026-08-22_实施计划-Harness-Cordis-World-Phase-6.md)均已通过本机验收。
 
 - [规格来源与固定 Hash](spec/README.md)
 - [Phase 0 实现与验证报告](2026-08-22_阶段报告-Harness-Cordis-World-Phase-0-report.md)

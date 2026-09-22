@@ -180,7 +180,8 @@ export function playerTranscript(
   return view.observations.flatMap(observation => {
     const content = object(object(observation.value)?.content)
     const speech = object(content?.speech)
-    const stage = manifestationText(content?.manifestation)
+    const stage = typeof speech?.narration === 'string' && speech.narration.length > 0
+      ? speech.narration : manifestationText(content?.manifestation)
     if (content?.status !== 'accepted') return []
     if (typeof speech?.characterId !== 'string' || typeof speech.text !== 'string') {
       if (content?.actionType === 'interact' && typeof content.actorId === 'string') {
@@ -202,7 +203,7 @@ export function playerTranscript(
     return [{
       seq: observation.sourceSeq,
       speaker: names.get(speech.characterId) ?? speech.characterId,
-      text: stage === undefined ? speech.text : `（${stage}）\n${speech.text}`,
+      text: stage === undefined ? speech.text : [`（${stage}）`, speech.text].filter(Boolean).join('\n'),
       player: speech.characterId === playerId,
     }]
   }).sort((left, right) => left.seq - right.seq)

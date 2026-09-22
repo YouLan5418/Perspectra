@@ -1105,16 +1105,20 @@ export class LocalMemoryStore {
         let metadata: WorldJsonValue = { observationId: data.id }
         if (speechValue !== undefined) {
           const speech = objectValue(speechValue, `observation.upsert@${event.seq}.value.content.speech`)
-          if (typeof speech.characterId !== 'string' || typeof speech.text !== 'string') {
+          if (typeof speech.characterId !== 'string' || typeof speech.text !== 'string'
+            || (speech.narration !== undefined && typeof speech.narration !== 'string')) {
             throw new Error('communication observation speech requires characterId and text')
           }
           memoryKind = 'communication'
           epistemicKind = 'reported_speech'
-          text = `${speech.characterId} said: ${speech.text}`
+          text = (speech.text.length === 0 ? '' : `${speech.characterId} said: ${speech.text}`)
+            + (typeof speech.narration === 'string' && speech.narration.length > 0
+              ? `${speech.text.length === 0 ? '' : '; '}${speech.characterId} published narration (not an adjudicated outcome): ${speech.narration}` : '')
             + (manifestation === undefined ? '' : `; ${manifestation.characterId} appeared: ${manifestation.text}`)
           metadata = {
             observationId: data.id,
             speakerId: speech.characterId,
+            ...(speech.narration === undefined ? {} : { narration: speech.narration }),
             ...(manifestation === undefined ? {} : { manifestation: manifestation.value }),
           }
         } else if (manifestation !== undefined) {

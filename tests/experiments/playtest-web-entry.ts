@@ -21,6 +21,7 @@ async function main(): Promise<void> {
   const frozen = packPath !== undefined && isFrozenPackDirectory(packPath)
   const runtime = frozen ? await FrozenWorldPlaytestRuntime.create({
     dataDirectory, provider, packPath,
+    ...(process.env.HCW_PERFORM_NPC_ID === undefined ? {} : { performNpcId: process.env.HCW_PERFORM_NPC_ID }),
     ...(model === undefined ? {} : { model }),
     ...(apiKey === undefined ? {} : { apiKey }),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),

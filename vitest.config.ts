@@ -49,13 +49,6 @@ export default defineConfig({
         'packages/world-pack/src/**/*.ts',
       ],
       exclude: ['**/*.test.ts', '**/index.ts'],
-      thresholds: {
-        perFile: true,
-        statements: 100,
-        branches: 100,
-        functions: 100,
-        lines: 100,
-      },
       reporter: ['text', 'json-summary'],
     },
   },

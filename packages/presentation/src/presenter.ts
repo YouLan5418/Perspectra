@@ -109,9 +109,13 @@ export class DeterministicPresenter {
       || cueDescriptions.some(value => typeof value !== 'string')
     )
     if (manifestationMalformed) return new TextDecoder().decode(canonicalizeWorldJson(payload))
-    const stage = typeof manifestation?.description === 'string'
+    const stage = typeof speechValue?.narration === 'string' && speechValue.narration.length > 0
+      ? speechValue.narration : typeof manifestation?.description === 'string'
       ? manifestation.description
       : manifestation === undefined ? null : (cueDescriptions as string[]).join(locale === 'zh-CN' ? '，' : ', ')
+    if (speech === '' && stage !== null) {
+      return locale === 'zh-CN' ? `角色 ${actorId}：（${stage}）` : `${actorId}: *${stage}*`
+    }
     if (locale === 'zh-CN') {
       const action = speech !== null
         ? `角色 ${actorId} 说："${speech}"`

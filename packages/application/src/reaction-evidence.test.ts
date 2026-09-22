@@ -7,12 +7,24 @@ import {
   reactionRoleClass,
   speechAddressees,
   strongestClass,
+  triggersReaction,
 } from './reaction-evidence.ts'
 
 const actor = 'character:actor'
 const observer: CharacterId = brandId('character:observer', 'CharacterId')
 
 describe('reaction evidence', () => {
+  it('only suppresses unaddressed bystander expressions, retaining direct effects and dialogue', () => {
+    const expression = { events: [{ eventType: 'character.speak', eventVersion: 1,
+      data: { text: '', narration: '轻轻点头。' } }] } as unknown as RulebookResolution
+    expect(triggersReaction(expression, 'witness')).toBe(false)
+    expect(triggersReaction(expression, 'addressee')).toBe(true)
+    expect(triggersReaction(expression, 'direct')).toBe(true)
+    const dialogue = { events: [{ eventType: 'character.speak', eventVersion: 1,
+      data: { text: '大家听我说。', narration: '抬起头。' } }] } as unknown as RulebookResolution
+    expect(triggersReaction(dialogue, 'witness')).toBe(true)
+    expect(triggersReaction({ events: [] } as unknown as RulebookResolution, 'witness')).toBe(true)
+  })
   it('classifies an observer from who acted, what landed on them, and who was named', () => {
     const base = { actorId: actor, observerId: observer, affectedCharacterIds: undefined, addresseeIds: [] }
     // The actor is self before anything else is asked, so an action never appends a call to its own doer.

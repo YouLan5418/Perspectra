@@ -63,14 +63,12 @@ function segmentContent(parsed: readonly WorldJsonObject[], kind: string): unkno
 interface OfferedAffordance {
   readonly actionType?: unknown
   readonly interactions?: readonly WorldJsonObject[]
-  readonly performances?: readonly WorldJsonObject[]
   /** Where a `move` may go, as the world stated it, one entry per location. */
   readonly destinations?: readonly WorldJsonObject[]
 }
 
 interface OfferedInteraction {
   readonly interactions?: readonly WorldJsonObject[]
-  readonly performances?: readonly WorldJsonObject[]
 }
 
 /** The options the context itself offers, which is where a step's exact choices and destinations come from. */
@@ -94,7 +92,15 @@ const MOVE_PARAMETERS: WorldJsonObject = { type: 'object', additionalProperties:
 
 const STEP_PARAMETERS: Readonly<Record<string, WorldJsonObject>> = {
   speak: { type: 'object', additionalProperties: false, required: ['text'],
-    properties: { text: { type: 'string', minLength: 1, maxLength: 500 } } },
+    properties: {
+      text: { type: 'string', maxLength: 2000, description: '角色实际说出的对白；纯表现时留空。' },
+      narration: { type: 'string', maxLength: 2000,
+        description: '自由描写自身可观察的表情、语气、姿态和细微动作。不是状态修改，也不能替其他角色决定反应。' },
+    },
+    anyOf: [
+      { properties: { text: { minLength: 1 } } },
+      { required: ['narration'], properties: { narration: { minLength: 1 } } },
+    ] },
   move: MOVE_PARAMETERS,
   take: { type: 'object', additionalProperties: false, required: ['entityId'],
     properties: { entityId: { type: 'string', minLength: 1 } } },
@@ -149,32 +155,6 @@ function optionSchema(choice: WorldJsonObject): WorldJsonObject {
   }
 }
 
-/** A cue list, as the schema that keeps a model inside the vocabulary the world will judge it against. */
-function cueList(cues: readonly string[]): WorldJsonObject {
-  return { type: 'array', maxItems: 8, uniqueItems: true, items: { type: 'string', enum: cues } }
-}
-
-function manifestationSchema(cues: readonly string[]): WorldJsonObject {
-  return { type: 'object', additionalProperties: false, required: ['independent', 'onSuccess'],
-    properties: { independent: cueList(cues), onSuccess: cueList(cues) } }
-}
-
-/**
- * The cues the definitions behind the offered options accept, as the union a model may state. A
- * definition's answer is per definition, so this union is the only list a model can use without proposing
- * something the world would refuse; with no offered definition accepting anything, a step states nothing.
- */
-function acceptedInteractCues(offer: OfferedInteraction): readonly string[] {
-  const accepted = new Set<string>()
-  for (const entry of offer.performances ?? []) {
-    for (const binding of Array.isArray(entry.accepted) ? entry.accepted : []) {
-      const cue = text(object(binding)?.cue)
-      if (cue !== undefined) accepted.add(cue)
-    }
-  }
-  return [...accepted].sort()
-}
-
 /** The actor this call belongs to, from the character anchor the Host assembled for it. */
 function anchoredActor(parsed: readonly WorldJsonObject[]): string | undefined {
   return text(object(segmentContent(parsed, 'character_anchor'))?.characterId)
@@ -182,10 +162,10 @@ function anchoredActor(parsed: readonly WorldJsonObject[]): string | undefined {
 
 /**
  * The wire schema a real endpoint needs. The Host's `tools` payload describes the contract - the group's
- * policy, the closed cue vocabulary per action, and where the options live - rather than being a JSON
+ * policy and where the execution options live - rather than being a JSON
  * Schema a model can bind to, so an adapter has to render one. Nothing here is invented: the action types
- * come from the group's declaration, the interaction options from the affordances the context offers, the
- * cues from the definitions behind them, and the actor from its own character anchor.
+ * come from the group's declaration, interaction options from authorized affordances, and the actor
+ * from its own character anchor. The prototype publishes free expression instead of cue policies.
  */
 export function actionGroupWireSchema(exact: ExactProviderRequest): WorldJsonObject {
   const tools = exact.tools
@@ -193,11 +173,9 @@ export function actionGroupWireSchema(exact: ExactProviderRequest): WorldJsonObj
   const group = object(tools.actionGroup) ?? {}
   const allowed = (Array.isArray(group.allowedActionTypes) ? group.allowedActionTypes : []).map(text)
     .filter((value): value is string => value !== undefined)
-  const declaredCues = object(object(group.manifestation)?.schemasByAction) ?? {}
   const offer = offeredInteraction(parsed)
   const moveOffer = offeredEntry(parsed, 'move', 'affordances')
   const steps = (offer.interactions ?? []).map(optionSchema)
-  const interactCues = acceptedInteractCues(offer)
   const actorId = anchoredActor(parsed)
   const maximum = typeof tools.maximumExternalActions === 'number' ? tools.maximumExternalActions : 2
   const variants: WorldJsonObject[] = []
@@ -210,10 +188,6 @@ export function actionGroupWireSchema(exact: ExactProviderRequest): WorldJsonObj
       : actionType === 'move' ? moveParameters(moveOffer) : STEP_PARAMETERS[actionType]
     // An action type the protocol does not define a request shape for is not offered rather than guessed.
     if (parameters === undefined) continue
-    const declared = object(declaredCues[actionType])
-    const manifestation = frozen
-      ? (interactCues.length > 0 ? manifestationSchema(interactCues) : undefined)
-      : declared
     variants.push({
       type: 'object', additionalProperties: false,
       required: ['actionId', 'actorId', 'actionType', 'actionVersion', 'parameters'],
@@ -223,7 +197,6 @@ export function actionGroupWireSchema(exact: ExactProviderRequest): WorldJsonObj
         actionType: { type: 'string', const: actionType },
         actionVersion: { type: 'integer', const: frozen ? 2 : 1 },
         parameters,
-        ...(manifestation === undefined ? {} : { manifestation }),
       },
     })
   }
@@ -248,6 +221,17 @@ export function actionGroupDescription(exact: ExactProviderRequest): string {
   return 'Submit exactly the actions this character takes, in the shape this schema states.'
     + ` At most ${maximum} step(s), in proposal order`
     + `${group.failure === 'stop_remaining_steps' ? '; a step the world rejects ends the rest' : ''}.`
+    + ' 被唤醒只是获得一次处理新信息的机会，不是要求你表演一次回应。由你决定是否补充内容或尝试行动。'
+    + ' 情况 A：你决定不再补充内容、也不尝试行动，返回 {"schemaVersion":7,"decision":"abstain","actions":[]}。'
+    + ' abstain 不发布表达，不需要用一段等待、注视或沉默的描写来代替空行动。'
+    + ' 情况 B：你决定用沉默、注视、微笑等方式传达回应，这是一次非语言表达，应返回 act 并通过 speak 的 narration 发布；有权观察的人可以感知它。'
+    + ' 你此前已经发布的表达不会因为 abstain 而消失；是否有新内容值得表达由你结合当前信息决定。'
+    + ' 每组最多一次改变世界状态的操作；其余可以是连续表达。'
+    + ' speak 发布表达：text 是对白，narration 是自由的外显叙述；纯表现可以 text 为空。'
+    + ' 不需要为每个眼神或动作选择表现码，也不要求每次都附带表现。'
+    + ' narration 只是你发布的描述，不是移动、物品转移或接触成功的证明。'
+    + ' 当前提案尚未执行；不要在本次表达里预写未裁定交互的成功结果，也不要替其他角色决定回应。'
+    + ' 改变受控状态仍须使用 move 或声明的 interact；拿不到的物品不能靠旁白变成已持有。'
 }
 
 /** One prepared character call, ready to send. */

@@ -150,6 +150,8 @@ const DEFAULT_INTERACTION_PACKAGES: readonly InteractionPackageImplementation[] 
 ])
 
 export interface WorldApplicationOptions {
+  /** Prototype Host owns bounded NPC activations after player commits; no legacy batch bindings. */
+  readonly externalCharacterActivations?: boolean
   readonly playerIntent?: {
     readonly profile: PlayerIntentProfile
     readonly dispatch: (request: WorldJsonValue, profile: PlayerIntentProfile, signal: AbortSignal) => Promise<WorldJsonValue>
@@ -198,6 +200,7 @@ export interface PlayerChatScope {
 }
 
 export type SubmitTextResult =
+  | { readonly status: 'service_failed'; readonly reason: string }
   | Extract<PlayerInputInterpretation, { readonly status: 'clarification_required' }>
   | { readonly status: 'submitted'; readonly action: PlayerActionInput; readonly result: PlayerRoundResult }
 
@@ -389,7 +392,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         : new SceneDecisionService(store.store, store.availability, policies.sceneVersion)
       const reactionBindings = this.options.reactionParticipants?.(scope.address) ?? []
       const reactionPolicy = reactionPolicyFromManifest(manifest)
-      if (reactionPolicy.mode === 'responsive') {
+      if (reactionPolicy.mode === 'responsive' && !this.options.externalCharacterActivations) {
         const responsiveManifest = manifest as CompiledWorldManifestV5
         const requiredActors = responsiveManifest.characters
           .filter(character => !players.has(character.characterId)
@@ -434,7 +437,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         throw error
       }
       let reactionWorker: ReactionCycleWorker | undefined
-      if (reactionPolicy.mode === 'responsive') {
+      if (reactionPolicy.mode === 'responsive' && !this.options.externalCharacterActivations) {
         const writerPort: ReactionWriterLeasePort = {
           current: () => kernel.writerLease,
           renew: () => { kernel.renewWriterLease(); return kernel.writerLease },
@@ -767,8 +770,15 @@ export class WorldApplication {
         await this.#queueNextPlayerInput(address, request.correlationId)
         current = jobs.read(address, received.idempotencyKey)!
       }
+      if (current.status !== 'completed' && current.status !== 'clarification_required') {
+        return { status: 'service_failed', reason: current.status }
+      }
       if (current.status !== 'completed') {
-        return { status: 'clarification_required' as const, reason: (current.records[current.status] as { reason: string }).reason, candidates: [] }
+        const reason = (current.records[current.status] as { reason: string }).reason
+        if (['player_intent_provider_unavailable', 'invalid_player_intent_profile', 'budget_exhausted'].includes(reason)) {
+          return { status: 'service_failed', reason }
+        }
+        return { status: 'clarification_required' as const, reason, candidates: [] }
       }
       const submission = current.records.validated as unknown as { actions: PlayerActionInput[] }
       return { status: 'submitted' as const, action: { actionType: submission.actions[0]!.actionType, parameters: submission.actions[0]!.parameters },

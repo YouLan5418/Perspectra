@@ -1,0 +1,236 @@
+import { characterVisibleItems } from './character-visible-items.ts'
+import { randomUUID } from 'node:crypto'
+import { brandId, resolutionAuthority, type CharacterId, type WorldAddress, type WorldEventDraft,
+  type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
+import { characterRelationObservations, currentCharacterLifecycle,
+  type CompiledWorldManifest, type RulebookRegistry } from '@harness-world/kernel'
+import { CognitionProjectionRebuilder, CharacterViewBuilder, CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import { SceneDecisionService } from './scene-decision.ts'
+import { characterExecutionResult, expressionAfterExecution } from './character-execution-result.ts'
+
+export interface PrototypeTurnRequest {
+  readonly context: WorldJsonObject
+  readonly continuation: boolean
+  readonly result?: WorldJsonObject
+}
+
+export interface PrototypeTurnResult {
+  readonly status: 'published' | 'abstained' | 'budget_exhausted' | 'interrupted' | 'failed'
+  readonly calls: number
+  readonly performResult?: WorldJsonObject
+  readonly failure?: 'provider_failed' | 'invalid_output'
+}
+
+function object(value: unknown): WorldJsonObject {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('expected object')
+  return value as WorldJsonObject
+}
+
+function keys(value: WorldJsonObject, allowed: readonly string[]): void {
+  if (Object.keys(value).some(key => !allowed.includes(key))) throw new TypeError('unexpected decision field')
+}
+
+/** One isolated activation, not a scheduler. Call only on a branch with no unfinished Reaction Cycle.
+ * Uses the existing Rulebook, atomic WorldStore commit, scene audiences and character observations.
+ * Intermediate model work is ephemeral; a committed operation is never rolled back for a failed reply.
+ */
+export class PrototypeCharacterTurn {
+  #busy = false
+  readonly #manifest: CompiledWorldManifest
+  readonly #manifestHash
+  readonly #scene: SceneDecisionService
+  readonly #view: CharacterViewBuilder
+
+  constructor(private readonly options: {
+    readonly address: WorldAddress
+    readonly store: WorldStore
+    readonly leases: WriterLeaseService
+    readonly availability: CharacterRuntimeAvailabilityService
+    readonly rulebooks: RulebookRegistry
+    readonly decide: (request: PrototypeTurnRequest, signal: AbortSignal) => Promise<unknown>
+  }) {
+    const stored = options.store.readManifest(options.address)
+    if (stored === undefined || (stored.manifest as WorldJsonObject).schemaVersion !== 10) {
+      throw new TypeError('single-turn prototype requires an activated v10 world')
+    }
+    this.#manifest = stored.manifest as CompiledWorldManifest
+    this.#manifestHash = stored.manifestHash
+    this.#scene = new SceneDecisionService(options.store, options.availability, 2)
+    this.#view = new CharacterViewBuilder(options.store)
+  }
+
+  async run(characterId: CharacterId, options: { readonly signal?: AbortSignal; readonly maxCalls?: 1 | 2;
+    readonly stimulus?: readonly WorldJsonObject[];
+    readonly continuationOf?: { readonly actionId: string; readonly afterSeq?: number;
+      readonly action: { readonly actionType: string; readonly parameters: WorldJsonValue } } } = {}): Promise<PrototypeTurnResult> {
+    if (this.#busy) throw new Error('single-turn prototype is busy')
+    if (this.options.store.activeReactionCycle(this.options.address) !== undefined) {
+      throw new Error('finish the existing Reaction Cycle before using the isolated prototype')
+    }
+    if (!this.#manifest.characters.some(character => character.characterId === characterId)
+      || this.#manifest.playerBindings.some(binding => binding.characterId === characterId)) {
+      throw new TypeError('activation requires a declared NPC')
+    }
+    this.#busy = true
+    const ownerId = `prototype-turn:${randomUUID()}`
+    const signal = options.signal === undefined ? AbortSignal.timeout(120_000)
+      : AbortSignal.any([options.signal, AbortSignal.timeout(120_000)])
+    let lease: ReturnType<WriterLeaseService['acquire']> | undefined
+    let calls = 0
+    let performResult: WorldJsonObject | undefined
+    let modelFailure: PrototypeTurnResult['failure']
+    const done = (status: PrototypeTurnResult['status']): PrototypeTurnResult => ({ status, calls,
+      ...(performResult === undefined ? {} : { performResult }) })
+    try {
+      lease = this.options.leases.acquire(this.options.address, ownerId, 180_000)
+      if (options.continuationOf !== undefined) {
+        const prior = this.options.store.readEvents(this.options.address).findLast(event => event.eventType === 'action.resolved'
+          && event.seq > (options.continuationOf!.afterSeq ?? 0)
+          && object(event.data).actionId === options.continuationOf!.actionId && object(event.data).actorId === characterId
+          && object(event.data).actionType === options.continuationOf!.action.actionType)
+        if (prior === undefined) return done('failed')
+        const resolved = object(prior.data)
+        performResult = { operationId: options.continuationOf.actionId, action: options.continuationOf.action,
+          status: resolved.accepted === true ? 'accepted' : 'rejected', reason: resolved.reason ?? null, eventRefs: [prior.seq] }
+      }
+      for (let step = options.continuationOf === undefined ? 0 : 1; step < (options.continuationOf === undefined ? (options.maxCalls ?? 2) : 2); step += 1) {
+        signal.throwIfAborted()
+        const head = this.options.store.head(this.options.address)
+        const history = this.options.store.readEvents(this.options.address, head.headSeq)
+        if (currentCharacterLifecycle(history, characterId) !== 'active') return done('interrupted')
+        const rules = this.options.rulebooks.resolve(this.#manifest.rulebook.rulebookId,
+          this.#manifest.rulebook.version, ownerId, this.options.address)
+        const ruleContext = { manifest: this.#manifest, manifestHash: this.#manifestHash,
+          events: history, characterId, asOfWorldSeq: head.headSeq,
+          resolutionAuthority: resolutionAuthority('agent', 'standard') }
+        const view = this.#view.rebuildAt(this.options.address, characterId, head.headSeq)
+        const scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
+        const character = this.#manifest.characters.find(value => value.characterId === characterId)!
+        // Do not copy scene member records or other characters' anchors into a model request.
+        const context: WorldJsonObject = {
+          character,
+          stimulus: options.stimulus ?? [],
+          cognition: new CognitionProjectionRebuilder(this.options.store).rebuildCharacterAt(this.options.address, characterId, head.headSeq),
+          scene: { locationId: view.locationId, people: scene.observerIds.map(id => ({ characterId: id,
+            name: this.#manifest.characters.find(value => value.characterId === id)?.name ?? id })) },
+          observations: view.observations.slice(-16).map(record => {
+            const value = object(record.value)
+            if (value.content === null || typeof value.content !== 'object' || Array.isArray(value.content)) return record
+            const content = object(value.content)
+            if (typeof content.reason !== 'string') return record
+            const { reason, ...rest } = content
+            const feedback = characterExecutionResult({ manifest: this.#manifest, events: history, actorId: characterId,
+              action: { actionType: String(content.actionType), parameters: {} }, status: String(content.status), reason })
+            return { ...record, value: { ...value, content: { ...rest, resultDescription: feedback.description! } } }
+          }), selfObservations: view.selfObservations.slice(-8),
+          claims: view.claims, goals: view.goals,
+          items: characterVisibleItems(this.#manifest, history, characterId, scene.observerIds),
+          affordances: rules.affordances(ruleContext).filter(value => step === 0 || value.actionType === 'speak')
+            .map(value => ({ actionType: value.actionType,
+              ...(value.destinations === undefined ? {} : { destinations: value.destinations }),
+              ...(value.interactions === undefined ? {} : { interactions: value.interactions }) })),
+        }
+        calls += 1
+        modelFailure = 'provider_failed'
+        const visibleResult = performResult === undefined ? undefined : characterExecutionResult({
+          manifest: this.#manifest, events: history, actorId: characterId,
+          action: object(performResult.action) as { actionType: string; parameters: WorldJsonValue },
+          status: String(performResult.status), reason: typeof performResult.reason === 'string' ? performResult.reason : null })
+        const raw = await this.options.decide({ context, continuation: step !== 0,
+          ...(visibleResult === undefined ? {} : { result: { ...visibleResult, instruction: expressionAfterExecution, action: performResult!.action! } }) }, signal)
+        modelFailure = undefined
+        signal.throwIfAborted()
+        // A changed world means this output is stale, including a change while awaiting the model.
+        if (this.options.store.head(this.options.address).headSeq !== head.headSeq) return done('interrupted')
+        lease = this.options.leases.renew(this.options.address, ownerId, lease.fencingToken, 180_000)
+        modelFailure = 'invalid_output'
+        const decision = object(raw)
+        if (decision.decision === 'abstain') {
+          keys(decision, ['decision'])
+          return done('abstained')
+        }
+        let action: { actionType: string; parameters: WorldJsonValue }
+        if (decision.decision === 'publish') {
+          keys(decision, ['decision', 'speech', 'narration', 'addresseeIds'])
+          for (const key of ['speech', 'narration']) {
+            if (decision[key] !== undefined && (typeof decision[key] !== 'string' || decision[key].length > 2000)) {
+              throw new TypeError('expression must be a string of at most 2000 characters')
+            }
+          }
+          action = { actionType: 'speak', parameters: { text: decision.speech ?? '', narration: decision.narration ?? '',
+            ...(decision.addresseeIds === undefined ? {} : { addresseeIds: decision.addresseeIds }) } }
+        } else if (decision.decision === 'perform' && step === 0) {
+          keys(decision, ['decision', 'actionType', 'parameters'])
+          if (decision.actionType !== 'move' && decision.actionType !== 'interact') throw new TypeError('unsupported operation')
+          const parameters = object(decision.parameters)
+          keys(parameters, decision.actionType === 'move' ? ['locationId']
+            : ['targetRef', 'bindingId', 'definitionRef', 'arguments'])
+          action = { actionType: decision.actionType, parameters }
+        } else throw new TypeError('one operation followed by expression or abstain only')
+        modelFailure = undefined
+        const roundId = brandId(`${ownerId}:${step}`, 'InteractionRoundId')
+        const actionId = `${roundId}:action`
+        const resolution = rules.resolve({ ...ruleContext, action, roundId, actionId })
+        const events: WorldEventDraft[] = [...resolution.events]
+        if (resolution.status === 'accepted' && action.actionType === 'move') {
+          events.push(...this.#scene.transitionForMove(this.options.address, history, characterId,
+            object(action.parameters).locationId as string, head.headSeq))
+        }
+        events.push({ eventType: 'action.resolved', eventVersion: 1, data: { roundId, actionId,
+          participantId: ownerId, actorId: characterId, actionType: action.actionType,
+          sourceRole: 'agent', order: 0, accepted: resolution.status === 'accepted', reason: resolution.reason ?? null } })
+        const audience = this.#scene.audienceForAction(this.options.address, characterId, history, head.headSeq,
+          { scope: resolution.observationScope?.scope ?? 'scene_public',
+            ...(resolution.observationScope?.recipientIds === undefined ? {} : {
+              recipientIds: resolution.observationScope.recipientIds.map(id => brandId(id, 'CharacterId')) }) })
+        const speech = resolution.events.find(event => event.eventType === 'character.speak')
+        const transfer = resolution.events.find(event => event.eventType === 'entity.transferred')
+        const relations = characterRelationObservations(history, resolution.events)
+        const movement = resolution.events.find(event => event.eventType === 'character.moved')
+        const arrived = movement === undefined ? [] : this.#scene.audienceForAction(this.options.address,
+          characterId, [...history, ...events], head.headSeq + events.length).fullContentCharacterIds
+        const full = new Set([...audience.fullContentCharacterIds, ...arrived, characterId])
+        const outbox = []
+        for (const observerId of new Set([...full, ...audience.occurrenceOnlyCharacterIds])) {
+          const id = `${actionId}:observer:${observerId}`
+          const content: WorldJsonObject = full.has(observerId) ? {
+            actorId: characterId, actionType: action.actionType, status: resolution.status,
+            resultDescription: String(characterExecutionResult({ manifest: this.#manifest, events: [...history, ...resolution.events], actorId: characterId,
+              action, status: resolution.status, reason: resolution.reason ?? null }).description)
+              .replaceAll('你', observerId === characterId ? '你' : '行动者'),
+            ...(speech === undefined ? {} : { speech: speech.data }),
+            ...(transfer === undefined ? {} : { interaction: transfer.data }),
+            ...(movement === undefined ? {} : { movement: movement.data }),
+            ...(relations.length === 0 ? {} : { relations }),
+          } : { actorId: characterId, actionType: 'private_interaction', status: resolution.status, contentVisibility: 'occurrence_only' }
+          const value = { observerId, actionId, content }
+          events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id, value } })
+          const player = this.#manifest.playerBindings.find(binding => binding.characterId === observerId)
+          if (player !== undefined) outbox.push({ deliveryId: brandId(`${id}:delivery`, 'DeliveryId'),
+            sessionId: player.sessionId, payload: { observationType: 'prototype-character-turn', observationId: id, value }, critical: true })
+        }
+        events.push({ eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } })
+        await this.options.store.commitRound({ address: this.options.address,
+          transactionId: brandId(`${roundId}:commit`, 'TransactionId'), roundId,
+          expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
+          events, outbox, writerFencingToken: lease.fencingToken, correlationId: ownerId,
+          // This experiment does not fabricate a legacy batch Authority or provider-replay receipt.
+          authority: { actorId: characterId, actionId, action, status: resolution.status,
+            reason: resolution.reason ?? null, resolutionAuthority: ruleContext.resolutionAuthority },
+        })
+        if (action.actionType === 'speak') return done(resolution.status === 'accepted' ? 'published' : 'failed')
+        performResult = { operationId: actionId, action, status: resolution.status, reason: resolution.reason ?? null,
+          eventRefs: resolution.events.map((_, index) => head.headSeq + index + 1) }
+      }
+      return done('budget_exhausted')
+    } catch (error) {
+      if (signal.aborted) return done('interrupted')
+      // Storage, lease, context and Rulebook faults remain visible to the caller.
+      if (modelFailure === undefined) throw error
+      return { ...done('failed'), failure: modelFailure }
+    } finally {
+      if (lease !== undefined) this.options.leases.release(this.options.address, ownerId, lease.fencingToken)
+      this.#busy = false
+    }
+  }
+}
