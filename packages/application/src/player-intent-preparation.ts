@@ -86,6 +86,10 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
         + 'Copy exact source words into quotes, in source order, without rewriting or calculating offsets. '
         + 'Each speak or narrate publication takes one contiguous quote. At most two actions, at most one '
         + 'controlled world operation; a performance and dialogue may be two publications. '
+        + 'For a performance followed by movement, put narrate before move. For example, '
+        + '"我轻轻笑了笑，走进后室看看有没有锁。" can use narrate quote "我轻轻笑了笑" then '
+        + 'move quote "走进后室看看有没有锁"; the latter expresses an intention to look, not a found result. '
+        + 'Do not attach words before and after the move to one noncontiguous narrate quote, or omit a meaningful later clause. '
         + 'Use free narrate instead of encoding ordinary expressions as performance cues. '
         + "Only clarify when ambiguity changes an executed action/target, the player's own controlled action "
         + 'is unavailable, or the input cannot be interpreted reliably. A missing NPC response verb is not a reason to clarify.',

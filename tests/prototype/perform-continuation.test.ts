@@ -53,6 +53,36 @@ it('commits perform before continuation, then publishes the result-aware express
     .toBeLessThan(events.find(event => event.eventType === 'character.speak')!.seq)
 })
 
+it('can execute a second bounded operation after seeing the first result, then publish after the second', async () => {
+  let calls = 0
+  const drop = { decision: 'perform', actionType: 'interact', parameters: {
+    targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:drop',
+    definitionRef: { id: 'base:drop', version: 1 }, arguments: {},
+  } }
+  const f = fixture(async request => {
+    calls++
+    if (calls === 1) { expect(request.canPerform).toBe(true); return take }
+    if (calls === 2) {
+      expect(request.result?.status).toBe('accepted')
+      expect(request.canPerform).toBe(true)
+      expect(JSON.stringify(prototypeTurnCall(request).schema)).toContain('"const":"perform"')
+      expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBe(npc)
+      return drop
+    }
+    expect(request.result?.status).toBe('accepted')
+    expect(request.canPerform).toBe(false)
+    expect(JSON.stringify(prototypeTurnCall(request).schema)).not.toContain('"const":"perform"')
+    expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBeNull()
+    return { decision: 'publish', speech: '拿起来看了看，又放回原处。' }
+  })
+  expect(await f.turn.run(npc, { maxCalls: 3 })).toMatchObject({ status: 'published', calls: 3,
+    performResult: { status: 'accepted', action: { parameters: { definitionRef: { id: 'base:drop' } } } } })
+  const events = f.store.readEvents(f.address)
+  const transfers = events.filter(event => event.eventType === 'entity.transferred')
+  expect(transfers).toHaveLength(2)
+  expect(transfers[1]!.seq).toBeLessThan(events.find(event => event.eventType === 'character.speak')!.seq)
+})
+
 it('returns a real rejection before the character reacts, without changing possession', async () => {
   let calls = 0
   const f = fixture(async request => {
@@ -65,6 +95,21 @@ it('returns a real rejection before the character reacts, without changing posse
   })
   expect(await f.turn.run(npc)).toMatchObject({ status: 'published', performResult: { status: 'rejected' } })
   expect(f.store.readEvents(f.address).some(event => event.eventType === 'entity.transferred')).toBe(false)
+})
+
+it('rechecks a stale item proposal against the latest possession before execution', async () => {
+  let calls = 0
+  const f = fixture(async request => {
+    calls++
+    if (request.continuation) return { decision: 'abstain' }
+    return take
+  })
+  expect(await f.turn.run(npc)).toMatchObject({ status: 'abstained', performResult: { status: 'accepted' } })
+  expect(await f.turn.run(npc)).toMatchObject({ status: 'abstained', performResult: { status: 'rejected' } })
+  expect(calls).toBe(4)
+  const events = f.store.readEvents(f.address)
+  expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
+  expect(currentEntityState(events, 'entity:cup')?.holderId).toBe(npc)
 })
 
 it.each(['throw', 'second-operation', 'mixed-draft', 'abstain', 'cancel'] as const)(
@@ -113,6 +158,7 @@ it('refreshes the scene after moving and publishes only to the new audience', as
     if (++calls === 1) return { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:next' } }
     expect(currentLocation(f.store.readEvents(f.address), npc)).toBe('location:next')
     expect((request.context.scene as WorldJsonObject).locationId).toBe('location:next')
+    expect(JSON.stringify(prototypeTurnCall(request).schema)).not.toContain('addresseeIds')
     return { decision: 'publish', narration: '环顾四周。' }
   })
   expect(await f.turn.run(npc)).toMatchObject({ status: 'published' })
@@ -142,7 +188,10 @@ it('keeps another character private observations out of both model calls', async
 it('supports a pure expression without invoking perform or a continuation', async () => {
   const f = fixture(async () => ({ decision: 'publish', narration: '轻轻笑了笑。' }))
   expect(await f.turn.run(npc)).toEqual({ status: 'published', calls: 1 })
-  expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBeNull()
+  const events = f.store.readEvents(f.address)
+  expect(currentEntityState(events, 'entity:cup')?.holderId).toBeNull()
+  expect(events.filter(event => ['entity.transferred', 'character.moved', 'character.relation-started'].includes(event.eventType)))
+    .toHaveLength(0)
 })
 
 it('ignores a late first decision when activation has been cancelled', async () => {
@@ -151,4 +200,43 @@ it('ignores a late first decision when activation has been cancelled', async () 
   const before = f.store.head(f.address).headSeq
   expect(await f.turn.run(npc, { signal: controller.signal })).toMatchObject({ status: 'interrupted', calls: 1 })
   expect(f.store.head(f.address).headSeq).toBe(before)
+})
+
+it.each(['before-perform', 'after-perform'] as const)(
+  'drops a late provider answer on timeout %s without undoing committed effects', async stage => {
+    const f = fixture(async (_request, signal) => {
+      if (stage === 'after-perform' && f.store.readEvents(f.address).some(event => event.eventType === 'entity.transferred')) {
+        await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))
+        return { decision: 'publish', speech: '迟到的回答。' }
+      }
+      if (stage === 'before-perform') {
+        await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))
+      }
+      return take
+    })
+    const before = f.store.head(f.address).headSeq
+    const result = await f.turn.run(npc, { signal: AbortSignal.timeout(25) })
+    expect(result).toMatchObject({ status: 'interrupted', calls: stage === 'before-perform' ? 1 : 2 })
+    const events = f.store.readEvents(f.address)
+    expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(stage === 'before-perform' ? 0 : 1)
+    expect(events.some(event => event.eventType === 'character.speak')).toBe(false)
+    if (stage === 'before-perform') expect(f.store.head(f.address).headSeq).toBe(before)
+    else expect(result.performResult).toMatchObject({ status: 'accepted' })
+  })
+
+it('publishes a directed continuation to a visible addressee after an executed operation', async () => {
+  const f = fixture(async request => {
+    if (!request.continuation) return take
+    const schema = prototypeTurnCall(request).schema as WorldJsonObject
+    const publish = (schema.oneOf as WorldJsonObject[]).find(value =>
+      (value.properties as WorldJsonObject).decision !== undefined
+      && ((value.properties as WorldJsonObject).decision as WorldJsonObject).const === 'publish')!
+    const recipients = ((publish.properties as WorldJsonObject).addresseeIds as WorldJsonObject).items as WorldJsonObject
+    expect(recipients.enum).toContain('character:player')
+    return { decision: 'publish', speech: '我到了。', addresseeIds: ['character:player'] }
+  })
+  const result = await f.turn.run(npc)
+  expect(result).toMatchObject({ status: 'published', calls: 2, performResult: { status: 'accepted' } })
+  const speech = f.store.readEvents(f.address).findLast(event => event.eventType === 'character.speak')!
+  expect(speech.data).toMatchObject({ addresseeIds: ['character:player'], scope: 'direct' })
 })

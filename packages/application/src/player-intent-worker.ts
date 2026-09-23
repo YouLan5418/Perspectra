@@ -145,9 +145,10 @@ export class PlayerIntentWorker {
         if (job.status === 'dispatch_started') advance('response_received', { responseHash: call.responseHash })
         let outcome: ReturnType<typeof bindPlayerIntentCandidate>
         try { outcome = bindPlayerIntentCandidate(call.response, prepared.binding) }
-        catch {
+        catch (error) {
           calls.finish(call.modelCallId, 'response_received', 'invalid_response')
-          advance('invalid_response', { reason: 'candidate_validation_failed', candidates: [] })
+          advance('invalid_response', { reason: error instanceof TypeError && error.message === 'player intent quote is out of source order'
+            ? 'candidate_source_order_invalid' : 'candidate_validation_failed', candidates: [] })
           return job
         }
         if (outcome.status === 'clarification_required') {

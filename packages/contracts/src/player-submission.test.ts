@@ -84,6 +84,24 @@ describe('player submission Host binding', () => {
     expect(bindPlayerIntentCandidate(single, binding())).toMatchObject({ submission: { actions: [{ actionType: 'move', parameters: { locationId: 'location:next' } }] } })
   })
 
+  it('keeps a performance before movement, and rejects the recorded reverse-order candidate', () => {
+    const host = { ...binding(), sourceText: '我把钥匙握在手心，走进后室看看有没有能配它的锁。', affordances: [
+      { affordanceId: 'narrate', actionType: 'speak' as const, actionVersion: 1 as const, parameters: { text: '', narration: '' } },
+      binding().affordances[2]!,
+    ] }
+    const move = { key: 'move', affordanceId: 'move', quotes: ['走进后室看看有没有能配它的锁'] }
+    const narrate = { key: 'narrate', affordanceId: 'narrate', quotes: ['我把钥匙握在手心'] }
+    const input = { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none', actions: [narrate, move] }
+    const result = bindPlayerIntentCandidate(input, host)
+    if (result.status !== 'validated') throw new Error('expected validated')
+    expect(result.submission.actions.map(action => action.actionType)).toEqual(['speak', 'move'])
+    expect(result.submission.sourceSpans.map(span => span.startUtf16)).toEqual([0, host.sourceText.indexOf('走进后室')])
+    expect(() => bindPlayerIntentCandidate({ ...input, actions: [move, narrate] }, host)).toThrow('out of source order')
+    expect(() => bindPlayerIntentCandidate({ ...input, actions: [
+      { ...narrate, quotes: ['我把钥匙握在手心', '看看有没有能配它的锁'] }, move,
+    ] }, host)).toThrow()
+  })
+
   it.each(['ambiguous', 'not_afforded', 'unsupported'])('returns %s without inventing an Action', reason => {
     expect(bindPlayerIntentCandidate({ version: 'player-intent-candidate/v3', decision: 'clarification_required', reason, actions: [] },
       { ...binding(), affordances: [] })).toEqual({ status: 'clarification_required', reason })

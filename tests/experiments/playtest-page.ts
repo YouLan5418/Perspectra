@@ -8,7 +8,7 @@ export const PLAYTEST_PAGE = `<!doctype html>
     :root { color-scheme: dark; font-family: Inter, "Segoe UI", sans-serif; background:#0d1117; color:#e6edf3; }
     * { box-sizing:border-box; }
     body { margin:0; min-height:100vh; background:radial-gradient(circle at top,#172339 0,#0d1117 48%); }
-    main { width:min(880px,100%); min-height:100vh; margin:auto; padding:24px 18px; display:grid; grid-template-rows:auto 1fr auto auto; gap:14px; }
+    main { width:min(880px,100%); min-height:100vh; margin:auto; padding:24px 18px; display:grid; grid-template-rows:auto auto 1fr auto auto; gap:14px; }
     header { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
     h1 { margin:0; font-size:20px; font-weight:650; }
     .subtle { color:#8b949e; font-size:13px; }
@@ -38,6 +38,7 @@ export const PLAYTEST_PAGE = `<!doctype html>
 <body>
 <main>
   <header><div><h1 id="world-title">本机世界试玩</h1><div class="subtle">创作者 World Pack · 多角色真实模型</div></div><div id="status">正在连接</div></header>
+  <div id="scene" class="subtle" aria-live="polite"></div>
   <section id="transcript" aria-live="polite"><div class="empty">世界正在醒来……</div></section>
   <div>
     <form id="composer"><textarea id="input" maxlength="2000" placeholder="说些什么，或写下角色的动作与神态……" required></textarea><button id="send" type="submit">发送</button></form>
@@ -58,6 +59,7 @@ export const PLAYTEST_PAGE = `<!doctype html>
   const pause = document.querySelector('#pause');
   const debug = document.querySelector('#debug');
   const worldTitle = document.querySelector('#world-title');
+  const scene = document.querySelector('#scene');
   let latest = null;
   const api = async (path, options = {}) => {
     const response = await fetch(path, { ...options, headers: { 'x-playtest-token': token, ...(options.headers || {}) } });
@@ -70,9 +72,12 @@ export const PLAYTEST_PAGE = `<!doctype html>
     latest = state;
     worldTitle.textContent = state.world.title;
     document.title = state.world.title + ' · Harness World 试玩';
-    input.placeholder = state.world.npcNames.length === 0
+    const present = state.world.currentScene?.presentNpcNames ?? state.world.npcNames;
+    scene.textContent = state.world.currentScene
+      ? '当前：' + state.world.currentScene.locationName + ' · ' + (present.length ? '在场：' + present.join('、') : '眼前没有其他角色') : '';
+    input.placeholder = present.length === 0
       ? '说些什么，或写下角色的动作与神态……'
-      : '对 ' + state.world.npcNames.join('、') + ' 说些什么，或写下动作与神态……';
+      : '对 ' + present.join('、') + ' 说些什么，或写下动作与神态……';
     status.className = state.error ? 'error' : state.busy ? 'busy' : '';
     status.textContent = state.error ? '发生错误' : state.busy ? state.phaseLabel : state.paused ? 'NPC 已暂停' : '可以输入';
     send.disabled = state.busy;
@@ -88,8 +93,17 @@ export const PLAYTEST_PAGE = `<!doctype html>
   document.querySelector('#composer').addEventListener('submit', async event => {
     event.preventDefault(); const text = input.value.trim(); if (!text || latest?.busy) return;
     input.value=''; notice.textContent='正在提交，NPC 可能需要几十秒……'; send.disabled=true;
-    try { render(await api('/api/submit', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({text}) })); }
-    catch (error) { notice.textContent=error.message; await refresh(); }
+    try {
+      const state = await api('/api/submit', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({text}) });
+      render(state);
+      if (state.paused || ['model-output-invalid', 'service-failed', 'clarification'].includes(state.debug?.lastPlayerIntent)) {
+        input.value = text;
+      }
+    } catch (error) {
+      await refresh();
+      input.value = text;
+      notice.textContent = '请求状态暂时无法确认；原文已保留。请先查看转录，避免重复提交。' + error.message;
+    }
   });
   pause.addEventListener('click', async () => {
     try { render(await api(latest?.paused ? '/api/resume' : '/api/pause', {method:'POST'})); }

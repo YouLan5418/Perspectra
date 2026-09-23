@@ -2,7 +2,7 @@ import { runPrototypeActivations } from '../../packages/application/src/prototyp
 import { mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
-import { WorldApplication } from '@harness-world/application'
+import { SceneDecisionService, WorldApplication } from '@harness-world/application'
 import { brandId, interactionPackageDescription, type ActionRequest, type CharacterId, type SubmitActionsV7, type WorldJsonObject,
   type WorldAddress } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
@@ -61,6 +61,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   readonly #title: string
   readonly #playerName: string
   readonly #npcNames: readonly string[]
+  readonly #locationNames: ReadonlyMap<string, string>
+  readonly #sceneVersion: 1 | 2
   readonly #model: string
   readonly #intentModel: string
   readonly #singleCharacterActivations: boolean
@@ -71,6 +73,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   readonly #intentEnabled: boolean
   readonly #dataDirectory: string
   #transcript: PlaytestState['transcript'] = []
+  #currentScene: NonNullable<PlaytestState['world']['currentScene']> | undefined
   #debug: Record<string, unknown> = {}
   #busy = false
   #paused = false
@@ -100,6 +103,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     this.#principalId = binding.principalId
     this.#playerId = binding.characterId
     this.#names = new Map(compiled.manifest.characters.map(character => [character.characterId, character.name]))
+    this.#locationNames = new Map(compiled.manifest.locations.map(location => [location.locationId, location.name]))
+    this.#sceneVersion = compiled.manifest.contentPack?.runtimeCapabilities.sceneDecisionVersion === 2 ? 2 : 1
     this.#title = compiled.manifest.metadata.title
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
     this.#provider = options.provider
@@ -257,7 +262,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     return {
       busy: this.#busy, paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#transcript,
-      world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames },
+      world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames,
+        ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }) },
       debug: { ...this.#debug, provider: this.#provider, model: this.#model, intentModel: this.#intentModel,
         providerCalls: this.#providerCalls, paused: this.#paused, lastPlayerIntent: this.#lastPlayerIntent,
         playerInputMode: this.#intentEnabled ? 'interpreted-free-text' : 'legacy-speech',
@@ -294,17 +300,27 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       // A clarification is a durable answer, not a failure: nothing was spent and the world did not move.
       if (result.status === 'service_failed') {
         this.#error = true
-        this.#notice = '模型服务暂时无法完成请求，这次输入没有提交。请检查服务可用性后重试；无需改写输入。'
-        this.#lastPlayerIntent = 'service-failed'
+        if (result.reason === 'candidate_source_order_invalid') {
+          this.#notice = '模型把你的动作按与原文不符的顺序排列，这次输入没有提交。原文已保留；可以拆成“先表现、再移动”两句重试。'
+          this.#lastPlayerIntent = 'model-output-invalid'
+        } else if (result.reason === 'invalid_response') {
+          this.#notice = '模型返回的输入解释格式无效，这次输入没有提交。原文已保留；可以重试或拆成两句。'
+          this.#lastPlayerIntent = 'model-output-invalid'
+        } else {
+          this.#notice = '模型服务暂时无法完成请求，这次输入没有提交。请检查服务可用性后重试；无需改写输入。'
+          this.#lastPlayerIntent = 'service-failed'
+        }
       } else if (result.status === 'clarification_required') {
         this.#notice = `${result.reason}（这次输入没有提交；换一种说法，或用 /act 显式命令。）`
         this.#lastPlayerIntent = 'clarification'
       } else {
+        const playerNotice = this.#playerResolutionNotice(key, result.result.headSeq)
         // submitText completes the player's durable Root. This in-process playtest has no BranchWorkScheduler
         // behind it, so it must also drive the Cycle that Root opened before returning control to the page.
         await this.#drainReactions()
         if (this.#singleCharacterActivations) await this.#activateCharacters()
         else await this.#continuePerformedItem()
+        if (playerNotice !== undefined) this.#notice = [playerNotice, this.#notice].filter(Boolean).join(' ')
       }
     } catch (error: unknown) {
       this.#error = true
@@ -318,6 +334,38 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       await this.#refresh().catch(() => {})
     }
     return this.state()
+  }
+
+  /** The round result names only its first action; report any later player action rejected in the same commit. */
+  #playerResolutionNotice(idempotencyKey: string, headSeq: number): string | undefined {
+    if (!this.#intentEnabled) return undefined
+    const worldPath = resolve(this.#dataDirectory, 'world.sqlite')
+    const jobs = new PlayerInputJobs(worldPath)
+    const world = new WorldStore(worldPath)
+    try {
+      const validated = jobs.read(this.#address, idempotencyKey)?.records.validated as {
+        sourceText?: string
+        actions?: readonly { actionId: string; actionType: string }[]
+        sourceSpans?: readonly { actionId: string; endUtf16: number; text: string }[]
+      } | undefined
+      if (validated?.actions === undefined) return undefined
+      const resolutions = new Map(world.readEvents(this.#address, headSeq)
+        .filter(event => event.eventType === 'action.resolved' && (event.data as WorldJsonObject).sourceRole === 'player')
+        .map(event => { const data = event.data as WorldJsonObject; return [data.actionId, data] as const }))
+      const failed = validated.actions.filter(action => resolutions.get(action.actionId)?.accepted !== true)
+      const accepted = validated.actions.length - failed.length
+      const details = failed.map(action => {
+        const quote = validated.sourceSpans?.filter(span => span.actionId === action.actionId).map(span => span.text).join('')
+        const reason = resolutions.get(action.actionId)?.reason
+        return `“${quote || action.actionType}”未执行${typeof reason === 'string' ? `（${reason}）` : ''}`
+      }).join('；')
+      const lastEnd = Math.max(0, ...(validated.sourceSpans ?? []).map(span => span.endUtf16))
+      const trailing = validated.sourceText?.slice(lastEnd).replace(/^[\s\p{P}]+|[\s\p{P}]+$/gu, '') ?? ''
+      const omitted = trailing === '' ? '' : `句尾“${trailing.length > 80 ? `${trailing.slice(0, 80)}…` : trailing}”没有映射到本次动作或表达。`
+      if (failed.length === 0 && omitted === '') return undefined
+      const rejected = failed.length === 0 ? '' : `${accepted > 0 ? '玩家输入已部分提交' : '玩家动作未成功'}：${details}。`
+      return `${rejected}${omitted}请以转录和当前场景为准。`
+    } finally { world.close(); jobs.close() }
   }
 
   /**
@@ -381,9 +429,19 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       this.#phaseLabel = '角色正在处理场景与行动结果'
       this.#activationCycle = await runPrototypeActivations({ store, address: this.#address, turn,
         afterSeq: this.#performAfterSeq, characterIds: this.#characterIds, signal: this.#continuationController.signal })
-      if (this.#activationCycle.terminalReason === 'failed') {
+      const terminal = this.#activationCycle.terminalReason
+      if (terminal === 'failed' || terminal === 'interrupted') {
+        const last = this.#activationCycle.activations.at(-1)?.result
+        const committed = last?.performResult !== undefined
+        const cause = terminal === 'interrupted' ? '角色处理被打断或超时'
+          : last?.failure === 'invalid_output' ? '角色返回格式无效'
+            : last?.failure === 'provider_failed' ? '角色模型服务未完成请求' : '角色处理失败'
         this.#error = true
-        this.#notice = '玩家输入已提交；部分角色处理失败，已提交的行动保留。请查看转录。'
+        this.#notice = `玩家输入已提交；${cause}。${committed
+          ? '交互结果已提交，后续表达未完成；请看转录中的实际结果。'
+          : '本次未完成的角色行动或表达没有提交。'}`
+      } else if (terminal === 'call_limit' || terminal === 'wave_limit' || terminal === 'character_limit') {
+        this.#notice = '玩家输入已提交；本轮角色反应达到预算上限，剩余反应没有继续执行。'
       }
     } finally { this.#continuationController = undefined; availability.close(); leases.close(); store.close() }
   }
@@ -434,6 +492,26 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       this.#application.listReactionCycles(this.#address, { limit: 10 }),
     ])
     this.#transcript = playerTranscript(view, this.#names, this.#playerId)
+    const worldPath = resolve(this.#dataDirectory, 'world.sqlite')
+    const world = new WorldStore(worldPath)
+    try {
+      const availability = new CharacterRuntimeAvailabilityService(worldPath)
+      try {
+        const scene = new SceneDecisionService(world, availability, this.#sceneVersion)
+          .decideFromEvents(this.#address, this.#playerId,
+            world.readEvents(this.#address, view.asOfWorldSeq), view.asOfWorldSeq)
+        this.#currentScene = {
+          locationName: view.locationId === null ? '未知地点'
+            : this.#locationNames.get(view.locationId) ?? view.locationId,
+          presentNpcNames: scene.observerIds.filter(id => id !== this.#playerId)
+            .map(id => this.#names.get(id) ?? id),
+        }
+      } finally {
+        availability.close()
+      }
+    } finally {
+      world.close()
+    }
     const active = cycles.find(cycle => cycle.status !== 'terminal')
     this.#debug = {
       headSeq: head.headSeq, tick: head.tick, manifestVersion: this.#manifestVersion,

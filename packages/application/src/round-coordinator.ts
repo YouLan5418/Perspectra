@@ -971,6 +971,20 @@ export class RoundCoordinator {
       const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
       const publicInteraction = resolution.events.find(event => event.eventType === 'entity.transferred')
       const relations = characterRelationObservations(actionPrefix, resolution.events)
+      const playerMovement = item.sourceRole === 'player' && resolution.status === 'accepted'
+        && this.options.sceneDecision?.version === 2
+        ? resolvedEvents.find(event => event.eventType === 'character.moved') : undefined
+      const playerMovementData = playerMovement?.data as {
+        readonly characterId: CharacterId
+        readonly fromLocationId: string | null
+        readonly toLocationId: string
+      } | undefined
+      // Arrival witnesses learn the destination; departure witnesses learn the origin. Only the actor gets both.
+      const departureObservers = playerMovement === undefined ? undefined : new Set(this.options.sceneDecision!
+        .decideFromEvents(this.#address, item.action.actorId, actionPrefix, head.headSeq + events.length).observerIds)
+      const arrivalObservers = playerMovement === undefined ? undefined : new Set(this.options.sceneDecision!
+        .decideFromEvents(this.#address, item.action.actorId, [...actionPrefix, ...resolvedEvents],
+          head.headSeq + events.length + resolvedEvents.length).observerIds)
       const occurrenceOnly = new Set(phase8Audience?.occurrenceOnlyCharacterIds ?? [])
       const observerIds = phase8Audience === undefined
         ? this.options.sceneDecision?.decideFromEvents(
@@ -978,6 +992,8 @@ export class RoundCoordinator {
         ).visibleResultCharacterIds ?? [binding.characterId]
         : [...phase8Audience.fullContentCharacterIds, ...phase8Audience.occurrenceOnlyCharacterIds]
       for (const observerId of observerIds) {
+        const seesDeparture = observerId === item.action.actorId || departureObservers?.has(observerId) === true
+        const seesArrival = observerId === item.action.actorId || arrivalObservers?.has(observerId) === true
         const observationId = this.options.sceneDecision === undefined
           ? deterministicId('observation:coordinated-round', { roundId, actionId: item.action.actionId })
           : deterministicId('observation:scene-result', { roundId, actionId: item.action.actionId, observerId })
@@ -997,6 +1013,13 @@ export class RoundCoordinator {
             ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
             ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
             ...(publicInteraction === undefined ? {} : { interaction: publicInteraction.data }),
+            ...(playerMovementData === undefined || (!seesDeparture && !seesArrival) ? {} : {
+              movement: {
+                characterId: playerMovementData.characterId,
+                ...(seesDeparture ? { fromLocationId: playerMovementData.fromLocationId } : {}),
+                ...(seesArrival ? { toLocationId: playerMovementData.toLocationId } : {}),
+              },
+            }),
             ...(relations.length === 0 ? {} : { relations }),
           },
         }

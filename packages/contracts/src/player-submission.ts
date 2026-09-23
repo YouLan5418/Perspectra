@@ -277,7 +277,10 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
     const action = actions[ordinal]!
     for (const quote of entry.quotes) {
       const start = binding.sourceText.indexOf(quote, previousEnd)
-      if (start < 0) throw new TypeError('player intent quote is not in the player text')
+      if (start < 0) {
+        if (binding.sourceText.includes(quote)) throw new TypeError('player intent quote is out of source order')
+        throw new TypeError('player intent quote is not in the player text')
+      }
       previousEnd = start + quote.length
       sourceSpans.push({ actionId: action.actionId, startUtf16: start, endUtf16: previousEnd, text: quote,
         kind: action.actionType === 'speak' ? (Object.hasOwn(entry.choice.parameters, 'narration') ? 'narration' : 'speech') : 'action' })

@@ -11,6 +11,7 @@ import { characterExecutionResult, expressionAfterExecution } from './character-
 export interface PrototypeTurnRequest {
   readonly context: WorldJsonObject
   readonly continuation: boolean
+  readonly canPerform?: boolean
   readonly result?: WorldJsonObject
 }
 
@@ -59,7 +60,7 @@ export class PrototypeCharacterTurn {
     this.#view = new CharacterViewBuilder(options.store)
   }
 
-  async run(characterId: CharacterId, options: { readonly signal?: AbortSignal; readonly maxCalls?: 1 | 2;
+  async run(characterId: CharacterId, options: { readonly signal?: AbortSignal; readonly maxCalls?: 1 | 2 | 3;
     readonly stimulus?: readonly WorldJsonObject[];
     readonly continuationOf?: { readonly actionId: string; readonly afterSeq?: number;
       readonly action: { readonly actionType: string; readonly parameters: WorldJsonValue } } } = {}): Promise<PrototypeTurnResult> {
@@ -93,8 +94,10 @@ export class PrototypeCharacterTurn {
         performResult = { operationId: options.continuationOf.actionId, action: options.continuationOf.action,
           status: resolved.accepted === true ? 'accepted' : 'rejected', reason: resolved.reason ?? null, eventRefs: [prior.seq] }
       }
-      for (let step = options.continuationOf === undefined ? 0 : 1; step < (options.continuationOf === undefined ? (options.maxCalls ?? 2) : 2); step += 1) {
+      const maxCalls = options.continuationOf === undefined ? (options.maxCalls ?? 2) : 2
+      for (let step = options.continuationOf === undefined ? 0 : 1; step < maxCalls; step += 1) {
         signal.throwIfAborted()
+        const canPerform = options.continuationOf === undefined && (step === 0 || (step === 1 && maxCalls === 3))
         const head = this.options.store.head(this.options.address)
         const history = this.options.store.readEvents(this.options.address, head.headSeq)
         if (currentCharacterLifecycle(history, characterId) !== 'active') return done('interrupted')
@@ -125,7 +128,7 @@ export class PrototypeCharacterTurn {
           }), selfObservations: view.selfObservations.slice(-8),
           claims: view.claims, goals: view.goals,
           items: characterVisibleItems(this.#manifest, history, characterId, scene.observerIds),
-          affordances: rules.affordances(ruleContext).filter(value => step === 0 || value.actionType === 'speak')
+          affordances: rules.affordances(ruleContext).filter(value => canPerform || value.actionType === 'speak')
             .map(value => ({ actionType: value.actionType,
               ...(value.destinations === undefined ? {} : { destinations: value.destinations }),
               ...(value.interactions === undefined ? {} : { interactions: value.interactions }) })),
@@ -136,8 +139,11 @@ export class PrototypeCharacterTurn {
           manifest: this.#manifest, events: history, actorId: characterId,
           action: object(performResult.action) as { actionType: string; parameters: WorldJsonValue },
           status: String(performResult.status), reason: typeof performResult.reason === 'string' ? performResult.reason : null })
-        const raw = await this.options.decide({ context, continuation: step !== 0,
-          ...(visibleResult === undefined ? {} : { result: { ...visibleResult, instruction: expressionAfterExecution, action: performResult!.action! } }) }, signal)
+        const raw = await this.options.decide({ context, continuation: step !== 0, canPerform,
+          ...(visibleResult === undefined ? {} : { result: { ...visibleResult,
+            instruction: canPerform
+              ? '你已看到上次执行的真实结果。还可以申请一次受控交互，或直接表达或 abstain；未执行的后续状态变化不能写成既成事实。'
+              : expressionAfterExecution, action: performResult!.action! } }) }, signal)
         modelFailure = undefined
         signal.throwIfAborted()
         // A changed world means this output is stale, including a change while awaiting the model.
@@ -157,16 +163,21 @@ export class PrototypeCharacterTurn {
               throw new TypeError('expression must be a string of at most 2000 characters')
             }
           }
+          const addresseeIds = decision.addresseeIds ?? []
+          if (!Array.isArray(addresseeIds) || addresseeIds.some(id => typeof id !== 'string'
+            || id === characterId || !scene.observerIds.includes(brandId(id, 'CharacterId')))) {
+            throw new TypeError('addressee must be another visible character')
+          }
           action = { actionType: 'speak', parameters: { text: decision.speech ?? '', narration: decision.narration ?? '',
-            ...(decision.addresseeIds === undefined ? {} : { addresseeIds: decision.addresseeIds }) } }
-        } else if (decision.decision === 'perform' && step === 0) {
+            ...(addresseeIds.length === 0 ? {} : { scope: 'direct', addresseeIds }) } }
+        } else if (decision.decision === 'perform' && canPerform) {
           keys(decision, ['decision', 'actionType', 'parameters'])
           if (decision.actionType !== 'move' && decision.actionType !== 'interact') throw new TypeError('unsupported operation')
           const parameters = object(decision.parameters)
           keys(parameters, decision.actionType === 'move' ? ['locationId']
             : ['targetRef', 'bindingId', 'definitionRef', 'arguments'])
           action = { actionType: decision.actionType, parameters }
-        } else throw new TypeError('one operation followed by expression or abstain only')
+        } else throw new TypeError('operation budget exhausted; publish or abstain only')
         modelFailure = undefined
         const roundId = brandId(`${ownerId}:${step}`, 'InteractionRoundId')
         const actionId = `${roundId}:action`
@@ -187,11 +198,21 @@ export class PrototypeCharacterTurn {
         const transfer = resolution.events.find(event => event.eventType === 'entity.transferred')
         const relations = characterRelationObservations(history, resolution.events)
         const movement = resolution.events.find(event => event.eventType === 'character.moved')
+        const movementData = movement?.data as { readonly characterId: CharacterId;
+          readonly fromLocationId: string | null; readonly toLocationId: string } | undefined
+        // The same move reaches both scenes, but neither scene alone grants the whole route.
+        const departureObservers = movement === undefined ? undefined : new Set(this.#scene
+          .decideFromEvents(this.options.address, characterId, history, head.headSeq).observerIds)
+        const arrivalObservers = movement === undefined ? undefined : new Set(this.#scene
+          .decideFromEvents(this.options.address, characterId, [...history, ...events],
+            head.headSeq + events.length).observerIds)
         const arrived = movement === undefined ? [] : this.#scene.audienceForAction(this.options.address,
           characterId, [...history, ...events], head.headSeq + events.length).fullContentCharacterIds
         const full = new Set([...audience.fullContentCharacterIds, ...arrived, characterId])
         const outbox = []
         for (const observerId of new Set([...full, ...audience.occurrenceOnlyCharacterIds])) {
+          const seesDeparture = observerId === characterId || departureObservers?.has(observerId) === true
+          const seesArrival = observerId === characterId || arrivalObservers?.has(observerId) === true
           const id = `${actionId}:observer:${observerId}`
           const content: WorldJsonObject = full.has(observerId) ? {
             actorId: characterId, actionType: action.actionType, status: resolution.status,
@@ -200,7 +221,11 @@ export class PrototypeCharacterTurn {
               .replaceAll('你', observerId === characterId ? '你' : '行动者'),
             ...(speech === undefined ? {} : { speech: speech.data }),
             ...(transfer === undefined ? {} : { interaction: transfer.data }),
-            ...(movement === undefined ? {} : { movement: movement.data }),
+            ...(movementData === undefined || (!seesDeparture && !seesArrival) ? {} : { movement: {
+              characterId: movementData.characterId,
+              ...(seesDeparture ? { fromLocationId: movementData.fromLocationId } : {}),
+              ...(seesArrival ? { toLocationId: movementData.toLocationId } : {}),
+            } }),
             ...(relations.length === 0 ? {} : { relations }),
           } : { actorId: characterId, actionType: 'private_interaction', status: resolution.status, contentVisibility: 'occurrence_only' }
           const value = { observerId, actionId, content }

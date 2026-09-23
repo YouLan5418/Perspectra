@@ -771,7 +771,10 @@ export class WorldApplication {
         current = jobs.read(address, received.idempotencyKey)!
       }
       if (current.status !== 'completed' && current.status !== 'clarification_required') {
-        return { status: 'service_failed', reason: current.status }
+        const detail = current.status === 'invalid_response'
+          ? (current.records.invalid_response as { reason?: string } | undefined)?.reason : undefined
+        return { status: 'service_failed', reason: detail === 'candidate_source_order_invalid'
+          ? 'candidate_source_order_invalid' : current.status }
       }
       if (current.status !== 'completed') {
         const reason = (current.records[current.status] as { reason: string }).reason

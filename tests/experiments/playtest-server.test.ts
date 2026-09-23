@@ -52,6 +52,8 @@ describe('local playtest server', () => {
     const page = await response.text()
     expect(page).toBe(PLAYTEST_PAGE)
     expect(page).toContain('本机世界试玩')
+    expect(page).toContain('id="scene"')
+    expect(page).toContain('state.world.currentScene')
     expect(page).toContain('state.world.title')
     expect(page).not.toContain(token)
     expect(page).not.toMatch(/https?:\/\//)
