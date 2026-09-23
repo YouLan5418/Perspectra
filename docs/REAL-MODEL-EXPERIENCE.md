@@ -1,5 +1,7 @@
 # 主线真实模型体验入口
 
+> 历史记录（2026-09-05）：下文 `experience:ollama`、`experience:ollama:dialogue`、`experience:flash` 命令已在 G4 原型分支移除。当前试玩请使用[创作者与真实模型试玩指南](CREATOR-PLAYTEST-RUNBOOK.md)中的 v5 网页入口。
+
 > 手动实验，不是正式 Provider 产品接口，也不是 P9 Release 完成声明。模型只能提案；Renderer 的真实 wire bytes 保存在本机实验 sidecar，生产 Model Profile 仍未正式表达这些模型与采样参数。不要把该入口用于真实用户数据。Harness / TencentDB 仍禁用。
 
 ## 合并与当前范围
