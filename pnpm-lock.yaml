@@ -167,9 +167,6 @@ importers:
       '@harness-world/kernel':
         specifier: workspace:*
         version: link:../kernel
-      '@harness-world/memory':
-        specifier: workspace:*
-        version: link:../memory
       '@harness-world/operations':
         specifier: workspace:*
         version: link:../operations

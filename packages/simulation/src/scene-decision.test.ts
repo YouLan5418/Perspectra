@@ -3,10 +3,41 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SceneDecisionService } from '@harness-world/application'
-import { brandId, WorldError, type WorldJsonValue } from '@harness-world/contracts'
-import { WorldBootstrap, type RulebookEvent } from '@harness-world/kernel'
+import { brandId, WorldError, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
+import { WorldBootstrap, WorldSpecCompiler, type RulebookEvent } from '@harness-world/kernel'
 import { CharacterRuntimeAvailabilityService, WorldStore } from '@harness-world/store-sqlite'
-import { compileMysteryDemo, MYSTERY_DEMO_IDS } from './mystery-demo.ts'
+
+const SCENE_IDS = {
+  player: 'character:player', bob: 'character:bob', detective: 'character:detective',
+  scene: 'scene:study-investigation',
+} as const
+
+function sceneWorld() {
+  return new WorldSpecCompiler().compile({
+    schemaVersion: 2,
+    address: { tenantId: 'tenant:scene-test', worldId: 'world:scene-test', branchId: 'branch:main' },
+    metadata: { title: 'Scene decision fixture', description: 'Visibility and movement test world' },
+    timeMode: 'TURN_DRIVEN', roundQueueLimit: 8,
+    runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
+    rulebook: { rulebookId: 'builtin:speak-move', version: 4 },
+    locations: [
+      { locationId: 'location:drawing-room', name: 'drawing room' },
+      { locationId: 'location:study', name: 'study' },
+    ],
+    entities: [],
+    characters: [
+      { characterId: SCENE_IDS.player, name: 'player', locationId: 'location:study' },
+      { characterId: SCENE_IDS.bob, name: 'Bob', locationId: 'location:study' },
+      { characterId: SCENE_IDS.detective, name: 'detective', locationId: 'location:study' },
+    ],
+    scenes: [{ sceneId: SCENE_IDS.scene, participantIds: [SCENE_IDS.player, SCENE_IDS.bob, SCENE_IDS.detective] }],
+    goals: [], claims: [], observations: [],
+    playerBindings: [{ principalId: 'principal:scene-player', characterId: SCENE_IDS.player,
+      sessionId: 'session:scene-player' }],
+    plugins: [{ pluginId: 'builtin:agent-context', version: '2.0.0' },
+      { pluginId: 'builtin:scene-decision', version: '1.0.0' }],
+  } as WorldJsonObject)
+}
 
 const directories: string[] = []
 
@@ -18,7 +49,7 @@ function fixture() {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-scene-decision-'))
   directories.push(directory)
   const path = join(directory, 'world.sqlite')
-  const compiled = compileMysteryDemo()
+  const compiled = sceneWorld()
   const store = new WorldStore(path)
   new WorldBootstrap(store).activate(compiled)
   const availability = new CharacterRuntimeAvailabilityService(path)
@@ -32,16 +63,16 @@ function fixture() {
 
 function phase8Events(): readonly RulebookEvent[] {
   return [
-    { eventType: 'character.created', data: { characterId: MYSTERY_DEMO_IDS.player, locationId: 'location:road' } },
-    { eventType: 'character.created', data: { characterId: MYSTERY_DEMO_IDS.bob, locationId: 'location:road' } },
-    { eventType: 'character.created', data: { characterId: MYSTERY_DEMO_IDS.detective, locationId: 'location:road' } },
+    { eventType: 'character.created', data: { characterId: SCENE_IDS.player, locationId: 'location:road' } },
+    { eventType: 'character.created', data: { characterId: SCENE_IDS.bob, locationId: 'location:road' } },
+    { eventType: 'character.created', data: { characterId: SCENE_IDS.detective, locationId: 'location:road' } },
     {
       eventType: 'scene.upsert',
       data: {
         sceneId: 'scene:road',
         value: {
           lifecycle: 'active', locationId: 'location:road',
-          participantIds: [MYSTERY_DEMO_IDS.player, MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective],
+          participantIds: [SCENE_IDS.player, SCENE_IDS.bob, SCENE_IDS.detective],
         },
       },
     },
@@ -55,20 +86,20 @@ function phase8Events(): readonly RulebookEvent[] {
 describe('SceneDecisionService', () => {
   it('selects one active Scene and filters lifecycle, location, visibility, and availability', () => {
     const { compiled, store, availability, service } = fixture()
-    const player = brandId(MYSTERY_DEMO_IDS.player, 'CharacterId')
+    const player = brandId(SCENE_IDS.player, 'CharacterId')
     const head = store.head(compiled.manifest.address)
     expect(service.decide(compiled.manifest.address, player, head.headSeq)).toMatchObject({
-      sceneId: MYSTERY_DEMO_IDS.scene,
-      observerIds: [MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective, MYSTERY_DEMO_IDS.player],
-      schedulableCharacterIds: [MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective],
+      sceneId: SCENE_IDS.scene,
+      observerIds: [SCENE_IDS.bob, SCENE_IDS.detective, SCENE_IDS.player],
+      schedulableCharacterIds: [SCENE_IDS.bob, SCENE_IDS.detective],
       asOfSeq: head.headSeq,
     })
     availability.set(
-      compiled.manifest.address, brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId'),
+      compiled.manifest.address, brandId(SCENE_IDS.bob, 'CharacterId'),
       'provider_output_invalid', 'quality backoff',
     )
     expect(service.decide(compiled.manifest.address, player, head.headSeq).schedulableCharacterIds)
-      .toContain(MYSTERY_DEMO_IDS.bob)
+      .toContain(SCENE_IDS.bob)
     const unavailable = brandId('character:unavailable', 'CharacterId')
     expect(service.decideFromEvents(compiled.manifest.address, player, [
       ...store.readEvents(compiled.manifest.address),
@@ -76,27 +107,27 @@ describe('SceneDecisionService', () => {
       {
         eventType: 'scene.upsert',
         data: {
-          sceneId: MYSTERY_DEMO_IDS.scene,
+          sceneId: SCENE_IDS.scene,
           value: {
-            participantIds: [MYSTERY_DEMO_IDS.player, MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective, unavailable],
+            participantIds: [SCENE_IDS.player, SCENE_IDS.bob, SCENE_IDS.detective, unavailable],
           },
         },
       },
     ], head.headSeq).schedulableCharacterIds).not.toContain(unavailable)
-    availability.set(compiled.manifest.address, brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId'), 'offline', 'drill')
+    availability.set(compiled.manifest.address, brandId(SCENE_IDS.bob, 'CharacterId'), 'offline', 'drill')
     const history = store.readEvents(compiled.manifest.address)
     const changed: RulebookEvent[] = [
       ...history,
-      { eventType: 'visibility.upsert', data: { id: 'visibility:bob', value: { observerId: MYSTERY_DEMO_IDS.bob, sceneId: MYSTERY_DEMO_IDS.scene, visible: false } } },
-      { eventType: 'visibility.upsert', data: { id: 'visibility:detective', value: { observerId: MYSTERY_DEMO_IDS.detective, sceneId: 'scene:other', visible: false } } },
+      { eventType: 'visibility.upsert', data: { id: 'visibility:bob', value: { observerId: SCENE_IDS.bob, sceneId: SCENE_IDS.scene, visible: false } } },
+      { eventType: 'visibility.upsert', data: { id: 'visibility:detective', value: { observerId: SCENE_IDS.detective, sceneId: 'scene:other', visible: false } } },
       { eventType: 'visibility.remove', data: { id: 'visibility:detective' } },
-      { eventType: 'character.moved', data: { characterId: MYSTERY_DEMO_IDS.detective, toLocationId: 'location:drawing-room' } },
-      { eventType: 'character.lifecycle-changed', data: { characterId: MYSTERY_DEMO_IDS.bob, lifecycleState: 'departed' } },
+      { eventType: 'character.moved', data: { characterId: SCENE_IDS.detective, toLocationId: 'location:drawing-room' } },
+      { eventType: 'character.lifecycle-changed', data: { characterId: SCENE_IDS.bob, lifecycleState: 'departed' } },
     ]
     expect(service.decideFromEvents(compiled.manifest.address, player, changed, head.headSeq)).toMatchObject({
-      observerIds: [MYSTERY_DEMO_IDS.player],
+      observerIds: [SCENE_IDS.player],
       schedulableCharacterIds: [],
-      visibleResultCharacterIds: [MYSTERY_DEMO_IDS.player],
+      visibleResultCharacterIds: [SCENE_IDS.player],
     })
     availability.close()
     store.close()
@@ -104,13 +135,13 @@ describe('SceneDecisionService', () => {
 
   it('fails closed for zero/overlapping Scenes and malformed scene or visibility prefixes', () => {
     const { compiled, store, availability, service } = fixture()
-    const player = brandId(MYSTERY_DEMO_IDS.player, 'CharacterId')
+    const player = brandId(SCENE_IDS.player, 'CharacterId')
     const base = store.readEvents(compiled.manifest.address)
     const decide = (events: readonly RulebookEvent[]) => service.decideFromEvents(compiled.manifest.address, player, events, base.length)
-    expect(() => decide([...base, { eventType: 'scene.remove', data: { sceneId: MYSTERY_DEMO_IDS.scene } }]))
+    expect(() => decide([...base, { eventType: 'scene.remove', data: { sceneId: SCENE_IDS.scene } }]))
       .toThrowError(expect.objectContaining<Partial<WorldError>>({ envelope: expect.objectContaining({ errorCode: 'PROJECTION_INVARIANT_FAILED' }) }))
     expect(() => decide([...base, {
-      eventType: 'scene.upsert', data: { sceneId: 'scene:overlap', value: { participantIds: [MYSTERY_DEMO_IDS.player] } },
+      eventType: 'scene.upsert', data: { sceneId: 'scene:overlap', value: { participantIds: [SCENE_IDS.player] } },
     }])).toThrow('exactly one')
     for (const event of [
       { eventType: 'scene.upsert', data: { value: { participantIds: [] } } },
@@ -129,30 +160,30 @@ describe('SceneDecisionService', () => {
   it('rebuilds Scene Decision v2 lifecycle, zero-focal state, and same-prefix membership changes', () => {
     const { compiled, store, availability } = fixture()
     const service = new SceneDecisionService(store, availability, 2)
-    const player = brandId(MYSTERY_DEMO_IDS.player, 'CharacterId')
-    const bob = brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId')
+    const player = brandId(SCENE_IDS.player, 'CharacterId')
+    const bob = brandId(SCENE_IDS.bob, 'CharacterId')
     const base = phase8Events()
     expect(service.decideFromEvents(compiled.manifest.address, player, base, 5)).toMatchObject({
       schemaVersion: 'scene-decision/v2', sceneId: 'scene:road',
-      memberIds: [MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective, MYSTERY_DEMO_IDS.player],
-      observerIds: [MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective, MYSTERY_DEMO_IDS.player],
-      schedulableCharacterIds: [MYSTERY_DEMO_IDS.bob, MYSTERY_DEMO_IDS.detective],
+      memberIds: [SCENE_IDS.bob, SCENE_IDS.detective, SCENE_IDS.player],
+      observerIds: [SCENE_IDS.bob, SCENE_IDS.detective, SCENE_IDS.player],
+      schedulableCharacterIds: [SCENE_IDS.bob, SCENE_IDS.detective],
       directorEligible: true, asOfSeq: 5, decisionHash: expect.stringMatching(/^sha256:/),
     })
 
     const transferred: RulebookEvent[] = [
       ...base,
-      { eventType: 'scene.member_left', data: { sceneId: 'scene:road', characterId: MYSTERY_DEMO_IDS.player } },
-      { eventType: 'scene.member_left', data: { sceneId: 'scene:road', characterId: MYSTERY_DEMO_IDS.bob } },
-      { eventType: 'scene.member_joined', data: { sceneId: 'scene:station', characterId: MYSTERY_DEMO_IDS.bob } },
-      { eventType: 'character.moved', data: { characterId: MYSTERY_DEMO_IDS.bob, toLocationId: 'location:station' } },
+      { eventType: 'scene.member_left', data: { sceneId: 'scene:road', characterId: SCENE_IDS.player } },
+      { eventType: 'scene.member_left', data: { sceneId: 'scene:road', characterId: SCENE_IDS.bob } },
+      { eventType: 'scene.member_joined', data: { sceneId: 'scene:station', characterId: SCENE_IDS.bob } },
+      { eventType: 'character.moved', data: { characterId: SCENE_IDS.bob, toLocationId: 'location:station' } },
       { eventType: 'scene.activated', data: { sceneId: 'scene:station' } },
     ]
     expect(service.decideFromEvents(compiled.manifest.address, player, transferred, 10)).toMatchObject({
       sceneId: null, memberIds: [], observerIds: [], schedulableCharacterIds: [], directorEligible: false,
     })
     expect(service.decideFromEvents(compiled.manifest.address, bob, transferred, 10)).toMatchObject({
-      sceneId: 'scene:station', memberIds: [MYSTERY_DEMO_IDS.bob], observerIds: [MYSTERY_DEMO_IDS.bob],
+      sceneId: 'scene:station', memberIds: [SCENE_IDS.bob], observerIds: [SCENE_IDS.bob],
     })
     const completedLifecycle: RulebookEvent[] = [
       ...base,
@@ -165,7 +196,7 @@ describe('SceneDecisionService', () => {
 
     const overlap = [...base, {
       eventType: 'scene.upsert',
-      data: { sceneId: 'scene:overlap', value: { lifecycle: 'active', locationId: null, participantIds: [MYSTERY_DEMO_IDS.bob] } },
+      data: { sceneId: 'scene:overlap', value: { lifecycle: 'active', locationId: null, participantIds: [SCENE_IDS.bob] } },
     }]
     expect(() => service.decideFromEvents(compiled.manifest.address, player, overlap, 6)).toThrowError(
       expect.objectContaining<Partial<WorldError>>({ envelope: expect.objectContaining({ errorCode: 'SCENE_MEMBERSHIP_INVARIANT' }) }),
@@ -174,7 +205,7 @@ describe('SceneDecisionService', () => {
       { eventType: 'scene.remove', data: { sceneId: 'scene:road' } },
       { eventType: 'scene.closed', data: { sceneId: 'scene:station' } },
       { eventType: 'scene.activated', data: { sceneId: 'scene:road' } },
-      { eventType: 'scene.member_joined', data: { sceneId: 'scene:road', characterId: MYSTERY_DEMO_IDS.player } },
+      { eventType: 'scene.member_joined', data: { sceneId: 'scene:road', characterId: SCENE_IDS.player } },
       { eventType: 'scene.member_left', data: { sceneId: 'scene:road', characterId: 'character:absent' } },
       { eventType: 'scene.member_left', data: { sceneId: 'scene:road' } },
       { eventType: 'scene.created', data: { sceneId: 'scene:road', locationId: null } },
@@ -199,8 +230,8 @@ describe('SceneDecisionService', () => {
     const { compiled, store, availability } = fixture()
     const service = new SceneDecisionService(store, availability, 2)
     const legacy = new SceneDecisionService(store, availability)
-    const player = brandId(MYSTERY_DEMO_IDS.player, 'CharacterId')
-    const bob = brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId')
+    const player = brandId(SCENE_IDS.player, 'CharacterId')
+    const bob = brandId(SCENE_IDS.bob, 'CharacterId')
     const base = phase8Events()
     const transition = (characterId: typeof bob, locationId: string, events = base) => service.transitionForMove(
       compiled.manifest.address, events, characterId, locationId, events.length,
@@ -270,9 +301,9 @@ describe('SceneDecisionService', () => {
     const { compiled, store, availability } = fixture()
     const service = new SceneDecisionService(store, availability, 2)
     const legacy = new SceneDecisionService(store, availability)
-    const player = brandId(MYSTERY_DEMO_IDS.player, 'CharacterId')
-    const bob = brandId(MYSTERY_DEMO_IDS.bob, 'CharacterId')
-    const detective = brandId(MYSTERY_DEMO_IDS.detective, 'CharacterId')
+    const player = brandId(SCENE_IDS.player, 'CharacterId')
+    const bob = brandId(SCENE_IDS.bob, 'CharacterId')
+    const detective = brandId(SCENE_IDS.detective, 'CharacterId')
     const base = phase8Events()
     expect(service.audienceForAction(compiled.manifest.address, player, base, 5)).toEqual({
       fullContentCharacterIds: [bob, detective, player], occurrenceOnlyCharacterIds: [],

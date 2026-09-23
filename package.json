@@ -28,10 +28,6 @@
     "worldpack": "node --import tsx packages/world-pack/process/cli-entry.ts",
     "experience:web": "node --import tsx tests/experiments/playtest-web-entry.ts",
     "experience:web:flash": "node --import tsx tests/experiments/playtest-web-entry.ts --deepseek",
-    "demo:mystery": "node --import tsx packages/simulation/process/mystery-demo-entry.ts",
-    "demo:mystery:turn": "node --import tsx packages/simulation/process/mystery-turn-entry.ts",
-    "demo:mystery:shell": "node --import tsx packages/simulation/process/mystery-shell-entry.ts",
-    "demo:mystery:drill": "node --import tsx packages/simulation/process/mystery-drill-entry.ts",
     "check": "corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test",
     "test:related": "vitest run --config vitest.config.ts",
     "test:legacy": "vitest run --config vitest.config.ts --exclude tests/crash.test.ts --exclude tests/p8-performance.integration.test.ts"
