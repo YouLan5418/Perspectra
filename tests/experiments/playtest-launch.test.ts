@@ -2,19 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { parsePlaytestLaunchArguments } from './playtest-launch.ts'
 
 describe('creator playtest launch arguments', () => {
-  it('accepts provider, compiled Pack, and durable data directory in any order', () => {
+  it('accepts provider, v5 source directory, and data directory in any order', () => {
     expect(parsePlaytestLaunchArguments([])).toEqual({ provider: 'ollama' })
     expect(parsePlaytestLaunchArguments([
-      '--pack', 'world.worldpack.json', '--deepseek', '--data-dir', 'world-data',
+      '--pack', 'world-source', '--deepseek', '--data-dir', 'world-data',
     ])).toEqual({
-      provider: 'deepseek', packPath: 'world.worldpack.json', dataDirectory: 'world-data',
+      provider: 'deepseek', packPath: 'world-source', dataDirectory: 'world-data',
     })
-  })
-
-  it('accepts the context projection switch alongside the other playtest flags', () => {
-    expect(parsePlaytestLaunchArguments(['--lean-prompt'])).toEqual({ provider: 'ollama', leanPrompt: true })
-    expect(parsePlaytestLaunchArguments(['--pack', 'p.json', '--lean-prompt']))
-      .toMatchObject({ packPath: 'p.json', leanPrompt: true })
   })
 
   it.each([
@@ -23,7 +17,10 @@ describe('creator playtest launch arguments', () => {
     ['--pack', '--deepseek'],
     ['--pack', 'a', '--pack', 'b'],
     ['--data-dir', 'a', '--data-dir', 'b'],
-    ['--lean-prompt', '--lean-prompt'],
+    ['--lean-prompt'],
+    ['--interactions', 'legacy.json'],
+    ['--action-groups'],
+    ['--recall-keyword', 'legacy'],
   ])('rejects an unsupported or ambiguous command line %#', (...args) => {
     expect(() => parsePlaytestLaunchArguments(args)).toThrow()
   })

@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { parsePlaytestLaunchArguments } from './playtest-launch.ts'
 import { FrozenWorldPlaytestRuntime, isFrozenPackDirectory } from './playtest-frozen-runtime.ts'
 import { createPlaytestServer } from './playtest-server.ts'
-import { defaultPlaytestDirectory, WorldPlaytestRuntime } from './playtest-runtime.ts'
+import { defaultPlaytestDirectory } from './playtest-view.ts'
 
 async function main(): Promise<void> {
   const launch = parsePlaytestLaunchArguments(process.argv.slice(2))
@@ -13,31 +13,16 @@ async function main(): Promise<void> {
   const dataDirectory = launch.dataDirectory
     ?? (process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim() || defaultPlaytestDirectory())
   const endpoint = process.env.HCW_OLLAMA_ENDPOINT
-  const utilityModel = process.env.HCW_UTILITY_MODEL
   const model = provider === 'deepseek' ? (process.env.HCW_DEEPSEEK_MODEL?.trim() || 'deepseek-flash') : process.env.HCW_OLLAMA_MODEL
   const apiKey = provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY : undefined
-  // A v5 Pack is the frozen path: the same page, driven by the protocol production offers that world.
-  // Anything else keeps the older line, whose own renderer and utility interpreter are untouched.
-  const frozen = packPath !== undefined && isFrozenPackDirectory(packPath)
-  const runtime = frozen ? await FrozenWorldPlaytestRuntime.create({
+  if (packPath === undefined || !isFrozenPackDirectory(packPath)) {
+    throw new Error('请通过 --pack 指定 worldpack-source/v5 世界源目录；旧 Pack 已不再由网页试玩入口运行')
+  }
+  const runtime = await FrozenWorldPlaytestRuntime.create({
     dataDirectory, provider, packPath,
     ...(model === undefined ? {} : { model }),
     ...(apiKey === undefined ? {} : { apiKey }),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),
-  }) : await WorldPlaytestRuntime.create({
-    dataDirectory,
-    provider,
-    ...(launch.interactionsPath === undefined ? {} : { interactionsPath: launch.interactionsPath }),
-    ...(launch.actionGroups === undefined ? {} : { actionGroups: launch.actionGroups }),
-    ...(launch.recallTokenizer === undefined ? {} : { recallTokenizer: launch.recallTokenizer }),
-    ...(launch.recallDictionary === undefined ? {} : { recallDictionary: launch.recallDictionary }),
-    ...(launch.leanPrompt === undefined ? {} : { promptMode: launch.leanPrompt ? 'lean' as const : 'compact' as const }),
-    ...(packPath === undefined ? {} : { packPath }),
-    ...(provider === 'ollama' && endpoint !== undefined ? { endpoint } : {}),
-    ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),
-    ...(utilityModel === undefined ? {} : { utilityModel }),
-    ...(model === undefined ? {} : { model }),
-    ...(apiKey === undefined ? {} : { apiKey }),
   })
   const token = randomBytes(32).toString('hex')
   const server = createPlaytestServer(runtime, token)

@@ -12,7 +12,7 @@ import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
-import { defaultPlaytestDirectory, playtestModelCharacters, playerTranscript } from './playtest-runtime.ts'
+import { playtestModelCharacters, playerTranscript } from './playtest-view.ts'
 
 export interface FrozenPlaytestOptions {
   readonly dataDirectory: string
@@ -369,5 +369,3 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     }
   }
 }
-
-export { defaultPlaytestDirectory }

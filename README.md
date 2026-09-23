@@ -44,7 +44,7 @@ corepack pnpm@11.7.0 experience:web:flash --pack examples/world-packs/ai-girls-a
 corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/my-playtest
 ```
 
-本原型目前以 v10 的 FrozenWorldPlaytestRuntime 为实测入口。旧 WorldPlaytestRuntime 的 compact/lean 适配器尚未跟进新的 Context 呈现，不作为当前支持入口。不同版本的世界包可能采用不同模型输出协议和启动路径。若示例不适用于当前分支，以 [创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md) 的对应版本说明为准；不要在同一数据目录中混用不兼容世界版本。真实模型试玩需要人工观察角色是否自然、是否重复、是否无故沉默，自动化测试不能代替这一环节。
+本原型网页只接受 `worldpack-source/v5` 源目录，并通过 v10 的 FrozenWorldPlaytestRuntime 试玩；旧网页运行时已移除。创建新存档或续玩时请按[创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)操作，不要在同一数据目录中混用不兼容世界版本。真实模型试玩需要人工观察角色是否自然、是否重复、是否无故沉默，自动化测试不能代替这一环节。
 
 ## 运行方式
 
