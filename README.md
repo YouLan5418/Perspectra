@@ -77,7 +77,7 @@ World Pack 主要用于描述世界内容：人物、地点、物品、认知设
 
 目标是**小核心、丰富世界**，而不是预先在核心中定义所有玩法。当前 Pack 格式和扩展接口仍可能在实验阶段调整，请参考 [World Pack 字段手册](docs/WORLD-PACK-AUTHORING-MANUAL.md) 与 [试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md) 了解本分支已落地的功能；规划文档中的接口不一定已经可用。
 
-可用作参考的内容包括 `examples/world-packs/ai-girls-awaken-v10`、`hand-in-hand` 和 `rainy-road-companions`。
+可用作当前 v5 参考的内容包括 `examples/world-packs/ai-girls-awaken-v10`、`prototype-g1` 和 `hand-in-hand`。
 
 ## 开发与验证
 

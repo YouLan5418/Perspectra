@@ -167,15 +167,9 @@ importers:
       '@harness-world/kernel':
         specifier: workspace:*
         version: link:../kernel
-      '@harness-world/operations':
-        specifier: workspace:*
-        version: link:../operations
       '@harness-world/store-sqlite':
         specifier: workspace:*
         version: link:../store-sqlite
-      '@harness-world/world-pack':
-        specifier: workspace:*
-        version: link:../world-pack
 
   packages/store-sqlite:
     dependencies:
