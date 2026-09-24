@@ -32,12 +32,6 @@ import {
   type ReactionStimulusDraft,
   type ReactionWaveSettlementDraft,
   type StoredReactionCycleBundle,
-  type SubmitActionsV2,
-  type SubmitActionsV3,
-  type SubmitActionsV4,
-  type SubmitActionsV5,
-  type SubmitActionsV6,
-  type SubmitActionsV7,
   type ActionGroupBinding,
   type ManifestationProposal,
   type TransactionId,
@@ -50,11 +44,7 @@ import {
 import {
   currentCharacterLifecycle,
   characterRelationObservations,
-  manifestUsesActionGroups,
-  manifestUsesHostAuthority,
   reactionPolicyFromManifest,
-  manifestInteractionLabel,
-  manifestInteractionVerb,
   manifestUsesFrozenInteractions,
   resolveManifestation,
   type CompiledWorldManifest,
@@ -70,7 +60,7 @@ import type {
   PreparedPhase8ReactionParticipant,
   ReactionContextBinding,
 } from './context-pipeline.ts'
-import { compareActionOrderKey, sortActionOrderKeys } from './round-coordinator.ts'
+import { compareActionOrderKey } from './round-coordinator.ts'
 import {
   reactionEvidence, reactionRoleClass, recordsReactionEvidence, speechAddressees, strongestClass, triggersReaction,
 } from './reaction-evidence.ts'
@@ -204,8 +194,8 @@ export class ReactionScheduler {
         throw new TypeError(`Reaction participant ${binding.actorId} is absent from the Manifest`)
       }
       if (!binding.allowedActionTypes.includes('speak') || binding.allowedActionTypes.some(value =>
-        !(manifestUsesActionGroups(options.manifest) ? ['speak', 'move', manifestInteractionVerb(options.manifest)] : ['speak']).includes(value))) {
-        throw new TypeError('Reaction v1 participants must allow only speak')
+        !['speak', 'move', 'interact'].includes(value))) {
+        throw new TypeError('Reaction participants may allow only speak, move and interact')
       }
       if (!Number.isSafeInteger(binding.timeoutMs) || binding.timeoutMs <= 0) {
         throw new RangeError('Reaction participant timeoutMs must be a positive safe integer')
@@ -237,13 +227,9 @@ export class ReactionScheduler {
   async runCurrentWave(): Promise<ReactionWaveResult | undefined> {
     const initial = this.options.store.activeReactionCycle(this.options.address)
     if (initial === undefined || initial.cycle.status === 'terminal') return undefined
-    // The Cycle has to declare exactly what this Manifest's protocol offers: a single-action Cycle
-    // speaks, and a two-action one adds the world operation at the version its Manifest addresses.
-    const expectedActionTypes: readonly string[] = initial.cycle.maxActionsPerCall === 1
-      ? ['speak@1']
-      : ['speak@1', 'move@1', manifestInteractionLabel(this.options.manifest)]
+    const expectedActionTypes: readonly string[] = ['speak@1', 'move@1', 'interact@2']
     if ((initial.cycle.allowedActionTypes as readonly string[]).join(',') !== expectedActionTypes.join(',')
-      || initial.cycle.maxActionsPerCall !== (manifestUsesActionGroups(this.options.manifest) ? 2 : 1)) {
+      || initial.cycle.maxActionsPerCall !== 2) {
       throw new Error('Reaction Cycle action policy differs from Manifest')
     }
     const wave = initial.waves.at(-1)!
@@ -494,15 +480,15 @@ export class ReactionScheduler {
       return { ...prepared, outcome: 'runtime_unavailable', proposal: empty }
     }
     let providerCall = prepared.providerCall
-    let output: SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7 | undefined
+    let output: WorldJsonValue | undefined
     if (providerCall.state === 'dispatch_started') {
       providerCall = this.options.providerCalls.markTerminal(providerCall.modelCallId, 'timed_out_ambiguous', {
         reason: 'Reaction Provider dispatch had no durable response',
       })
     } else if (providerCall.state === 'response_received') {
-      output = providerCall.response as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7
+      output = providerCall.response as WorldJsonValue
     } else if (providerCall.state === 'validated') {
-      output = providerCall.proposal as SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7
+      output = providerCall.proposal as WorldJsonValue
     }
     if (providerCall.state === 'committed') {
       failWorld({
@@ -544,8 +530,8 @@ export class ReactionScheduler {
       const authorization = {
         participantId: prepared.binding.participantId,
         actorId: prepared.binding.actorId,
-        allowedActionTypes: manifestUsesActionGroups(this.options.manifest) ? prepared.binding.allowedActionTypes : ['speak'],
-        maxActions: manifestUsesActionGroups(this.options.manifest) ? 2 : 1,
+        allowedActionTypes: prepared.binding.allowedActionTypes,
+        maxActions: 2,
         maxReflectionOperations: 0,
         correlationId: `reaction:${prepared.job.cycleId}:${prepared.job.wave}:${prepared.job.jobId}`,
       }
@@ -595,8 +581,7 @@ export class ReactionScheduler {
       ...(value.proposal.actionGroup === undefined ? {} : { actionGroup: value.proposal.actionGroup }),
       ...(value.proposal.manifestation === undefined ? {} : { manifestation: value.proposal.manifestation }),
     })))
-    const actions = manifestUsesActionGroups(this.options.manifest)
-      ? sortActionGroups(unordered, compareActionOrderKey) : sortActionOrderKeys(unordered)
+    const actions = sortActionGroups(unordered, compareActionOrderKey)
     if (new Set(actions.map(value => value.actionId)).size !== actions.length) {
       throw new TypeError('Reaction actionId values must be unique within one Wave')
     }
@@ -629,9 +614,7 @@ export class ReactionScheduler {
     for (const [ordinal, item] of actions.entries()) {
       const actionPrefix = [...history, ...events]
       const groupPerformance = item.actionGroup?.manifestations[item.proposalOrdinal] ?? null
-      const rulebookAction = manifestUsesFrozenInteractions(this.options.manifest)
-        ? bindFrozenInteractionPerformance(item.action, groupPerformance)
-        : item.action
+      const rulebookAction = bindFrozenInteractionPerformance(item.action, groupPerformance)
       const actionAuthority = resolutionAuthority('agent', 'standard')
       const { resolution: baseResolution, skipped } = resolveGroupAction(rulebookAction, item.participantId, item.actionGroup !== undefined, stoppedGroups, () => this.#rulebook.resolve({
         manifest: this.options.manifest,
@@ -641,7 +624,7 @@ export class ReactionScheduler {
         manifestHash: this.options.manifestHash,
         asOfWorldSeq: baseHeadSeq,
         roundId,
-        ...(manifestUsesHostAuthority(this.options.manifest) ? { resolutionAuthority: actionAuthority } : {}),
+        resolutionAuthority: actionAuthority,
         action: { actionType: rulebookAction.actionType, parameters: rulebookAction.parameters },
       }))
       const moveTarget = item.action.actionType === 'move' ? (item.action.parameters as WorldJsonObject).locationId : undefined
@@ -650,7 +633,7 @@ export class ReactionScheduler {
           this.options.address, actionPrefix, item.actorId, moveTarget, baseHeadSeq + events.length,
         )] } : baseResolution
       const performance = item.actionGroup === undefined ? item.manifestation
-        : skipped || (manifestUsesFrozenInteractions(this.options.manifest) && item.action.actionType === 'interact')
+        : skipped || item.action.actionType === 'interact'
           ? undefined
           : stepManifestation(groupPerformance, resolution.status === 'accepted')
       const hostManifestation = performance === undefined ? undefined : {
@@ -692,7 +675,7 @@ export class ReactionScheduler {
       const candidateHashBefore = candidateHash
       const ruleTraceHash = hashWorldJson('round-rule-trace', {
         rulebook: this.options.manifest.rulebook,
-        ...(manifestUsesHostAuthority(this.options.manifest) ? { resolutionAuthority: actionAuthority } : {}),
+        resolutionAuthority: actionAuthority,
         action: item.action,
         status: skipped ? 'skipped' : resolution.status,
         reason: resolution.reason ?? null,
@@ -709,7 +692,7 @@ export class ReactionScheduler {
         actionId: item.action.actionId,
         participantId: item.participantId,
         sourceRole: 'agent',
-        ...(manifestUsesHostAuthority(this.options.manifest) ? { resolutionAuthority: actionAuthority } : {}),
+        resolutionAuthority: actionAuthority,
         actorId: item.action.actorId,
         actionType: item.action.actionType,
         actionVersion: item.action.actionVersion,
@@ -854,8 +837,7 @@ export class ReactionScheduler {
       }
     })
     const authority = {
-      schemaVersion: manifestUsesFrozenInteractions(this.options.manifest) ? 6
-        : manifestUsesHostAuthority(this.options.manifest) ? 5 : manifestUsesActionGroups(this.options.manifest) ? 4 : 3,
+      schemaVersion: 6,
       origin: {
         kind: 'reaction', cycleId: cycle.cycle.cycleId,
         rootRoundId: cycle.cycle.rootRoundId, wave: cycle.waves.at(-1)!.wave,

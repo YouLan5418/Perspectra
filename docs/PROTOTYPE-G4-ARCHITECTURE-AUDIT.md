@@ -76,14 +76,16 @@ experience:web → playtest-web-entry
 
 第十七刀（2026-09-24）：移除 `SubmitActionsValidator` 的 v2/v3 对外校验方法、只为它们存在的返回类型与两份专属测试；v7 原先借用 v2 解析器检查反思字段，现直接在 v7 内保持原有格式和数量上限。`CharacterContextRequest.groupedOutput` 只接受当前 v7。保留仍有调用者的 v1 通用校验接口和玩家表现解析接口。本刀未改变 v7 模型可见 schema、权威提交或网页单角色激活。类型检查、Lint、现行测试 67/67 通过；v7 校验、交互集成、叙事发布及 G1 组合测试 15/15 通过。前一轮真实模型冒烟使用网页激活路径，不覆盖本刀的 v7 校验器；本刀未另行调用模型。
 
-## 当前待清理清单（第十七刀后）
+第十八刀（2026-09-24）：保留 `ReactionScheduler` 公开接口及当前 v10 Reaction 能力，只移除构造时已排除的旧 Manifest 条件分支：固定 v7 响应校验前的 JSON 边界、v10 动作集合与上限、分组排序、冻结交互表现绑定、Resolution Authority 和 Authority v6。旧 Provider 类型仍可在校验前返回 JSON，但旧协议不会通过 v7 校验。类型检查、Lint、现行测试 67/67 通过；v10 交互包、G1、场景观察与旧版本拒绝集成测试 16/16 通过。本刀不改当前网页单角色激活路径，未另做真实模型试玩。
+
+## 当前待清理清单（第十八刀后）
 
 以下顺序按当前 v5 网页与 worldpack 的调用链排定。具有以后对外提供价值的接口优先保留；删除候选限于已退出的旧协议或确认无用的内部重复实现。权威事实、观察权限和已提交事件的一致性继续保留。
 
 | 顺序 | 待清理范围 | 当前证据与下刀边界 |
 | --- | --- | --- |
 | 1（已完成） | `submit_actions` v2/v3 校验入口及 v7 借用的旧解析辅助 | 已在第十七刀删除；保留 v1 通用校验和玩家表现解析接口。 |
-| 2 | `RoundCoordinator`、`ReactionScheduler` 与相关 contracts 的旧输出联合类型、旧 Manifest 条件分支 | 两个角色校验分派已固定 v7，但动作上限、动作排序、Authority 版本和规则接线仍按旧 Manifest 分流；逐段固定当前 v10，保持 G1 组合、观察权限和提交拒绝测试通过。 |
+| 2（进行中） | `RoundCoordinator` 与相关 contracts 的旧输出联合类型、旧 Manifest 条件分支 | `ReactionScheduler` 内部已固定 v10，公开接口保留。下一步逐段收口 `RoundCoordinator`；保持 G1、观察权限和提交拒绝测试。 |
 | 3 | kernel 的 v2–v9 Manifest 类型、`WorldSpecCompiler` v2 与旧 Rulebook 选择；对应旧夹具 | 新激活和存档读取已拒绝旧 Manifest，但底层类型和分派仍在。先消除现行类型依赖，再删除历史编译器与测试，保留 v5 Pack 实际使用的内容字段。 |
 | 4（保留接口） | `WorldApplication` 的 archive、logical transfer、snapshot 离线 API | 这些能力未来可能需要对外提供，按用户要求保留公开接口；后续只审查内部重复或已失效的兼容分支，不以当前网页未调用为由删接口。 |
 | 5 | `package.json` 的旧阶段测试命令与专属夹具 | 随对应生产旧分支退出，删除只验证废弃协议的夹具；仍有独立诊断或未来接口验收价值的命令保留。 |
