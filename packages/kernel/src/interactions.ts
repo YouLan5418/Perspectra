@@ -85,14 +85,6 @@ export interface CharacterRelationState extends WorldJsonObject {
   readonly active: boolean
 }
 
-export function manifestUsesInteractions(manifest: CompiledWorldManifest): boolean {
-  return manifest.schemaVersion === 8 || manifest.schemaVersion === 9
-}
-
-export function manifestUsesCharacterInteractions(manifest: CompiledWorldManifest): boolean {
-  return manifest.schemaVersion === 9
-}
-
 function exact(object: WorldJsonObject, keys: readonly string[]): boolean {
   return Object.keys(object).sort(compareWorldText).join(',') === [...keys].sort(compareWorldText).join(',')
 }

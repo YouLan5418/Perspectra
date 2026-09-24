@@ -98,7 +98,9 @@ experience:web → playtest-web-entry
 
 第二十八刀（2026-09-25）：共享 SpeakMoveRulebook 只服务 Manifest v10 的对白与移动；删除 v2–v9 的直接拿取、闭合交互目录、旧对白格式及角色关系终止分支。v10 的 interact 继续由 FrozenInteractionRulebook 和选中的交互包裁定；移动后的关系生命周期仍由冻结世界 fold 处理。移除六个没有调用者、专为旧 Manifest 版本分流的 Kernel 辅助函数，并去掉共享规则中无用途的旧交互上下文参数；保留 SpeakMoveRulebook 的公开入口以及交互包/Rulebook 扩展接口。类型检查、Lint、现行测试 67/67，v10 冻结交互、叙事发布、执行结果和 v5 Pack 定向测试 55/55。独立 .tmp/g4-rulebook-v10-smoke-1790267652216 存档提交玩家显式移动到后室：Head seq19→43，当前位置显示后室，3 次 deepseek-flash 调用成功，Cycle 以 quiescent 结束，无错误提示。该场景没有在后室同场 NPC，因而没有可见 NPC 对白；它只验证移动提交与当前网页模型链路，未覆盖跨房间长场景或 G3 分叉风险。
 
-## 当前待清理清单（第二十八刀后）
+第二十九刀（2026-09-25）：当前应用中的 RoundCoordinator、ReactionScheduler 与 WorldApplication 都从只接受 Manifest v10 的存档入口取得世界；将前两者持有的 Manifest 类型收窄到 v10，三个反应策略调用点直接读取 manifest.reactionPolicy。删除原先为 v2–v4 补 disabled 策略的 reactionPolicyFromManifest 及历史默认值，以及两个没有调用者的 v8/v9 交互版本判断函数。保留 ReactionScheduler 构造时的运行时 v10 检查和公开调度接口；不触碰旧交互目录实现，因为部分仍被测试夹具链引用。类型检查、Lint、现行测试 67/67；v10 交互包、冻结交互和 G1 组合定向测试 30/30。此刀不改变模型可见上下文、裁定或权威提交，未重复真实模型试玩。旧 WorldSpecCompiler 与夹具链仍按清单第 3 项处理。
+
+## 当前待清理清单（第二十九刀后）
 
 以下顺序按当前 v5 网页与 worldpack 的调用链排定。具有以后对外提供价值的接口优先保留；删除候选限于已退出的旧协议或确认无用的内部重复实现。权威事实、观察权限和已提交事件的一致性继续保留。
 

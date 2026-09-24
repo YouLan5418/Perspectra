@@ -44,10 +44,9 @@ import {
 import {
   currentCharacterLifecycle,
   characterRelationObservations,
-  reactionPolicyFromManifest,
   manifestUsesFrozenInteractions,
   resolveManifestation,
-  type CompiledWorldManifest,
+  type CompiledWorldManifestV10,
   type RulebookRegistry,
   type RulebookResolver,
 } from '@harness-world/kernel'
@@ -93,7 +92,7 @@ export interface ReactionContextPreparer {
 
 export interface ReactionSchedulerOptions {
   readonly address: WorldAddress
-  readonly manifest: CompiledWorldManifest
+  readonly manifest: CompiledWorldManifestV10
   /** The Host's own identity of the locked Manifest. A frozen resolution binds it into its trace. */
   readonly manifestHash: WorldHash
   readonly store: WorldStore
@@ -610,7 +609,7 @@ export class ReactionScheduler {
     const stoppedGroups = new Set<string>()
     // This round weighs its own observers under the same profile the Root Round read, so a wave-two
     // stimulus is classified by the rule its wave-one counterpart was, not by a second one.
-    const recordsEvidence = recordsReactionEvidence(reactionPolicyFromManifest(this.options.manifest))
+    const recordsEvidence = recordsReactionEvidence(this.options.manifest.reactionPolicy)
     for (const [ordinal, item] of actions.entries()) {
       const actionPrefix = [...history, ...events]
       const groupPerformance = item.actionGroup?.manifestations[item.proposalOrdinal] ?? null

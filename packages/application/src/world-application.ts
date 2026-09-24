@@ -36,7 +36,6 @@ import {
   createCoreRulebookRegistry,
   parsePlayerRoundResult,
   parsePlayerActionInput,
-  reactionPolicyFromManifest,
   runtimeManifestFromStored,
   runtimeManifestFromStoredRecord,
   type CompiledWorldManifest,
@@ -387,7 +386,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       const sceneDecision = policies.sceneVersion === undefined ? undefined
         : new SceneDecisionService(store.store, store.availability, policies.sceneVersion)
       const reactionBindings = this.options.reactionParticipants?.(scope.address) ?? []
-      const reactionPolicy = reactionPolicyFromManifest(manifest)
+      const reactionPolicy = manifest.reactionPolicy
       if (reactionPolicy.mode === 'responsive' && !this.options.externalCharacterActivations) {
         const requiredActors = manifest.characters
           .filter(character => !players.has(character.characterId)

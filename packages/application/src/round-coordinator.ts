@@ -54,10 +54,9 @@ import {
   currentCharacterLifecycle,
   parsePlayerActionInput,
   parsePlayerRoundResult,
-  reactionPolicyFromManifest,
   resolveManifestation,
   runtimeManifestFromStored,
-  type CompiledWorldManifest,
+  type CompiledWorldManifestV10,
   type PlayerActionInput,
   type PlayerRoundResult,
   type RoundExecutionLane,
@@ -338,7 +337,7 @@ function participantVisibleContext(
 
 /** The sole production coordinator for player, NPC, and Director actions in one durable Round. */
 export class RoundCoordinator {
-  readonly #manifest: CompiledWorldManifest
+  readonly #manifest: CompiledWorldManifestV10
   readonly #address: WorldAddress
   readonly #participants: readonly RoundParticipant[]
   readonly #validator = new SubmitActionsValidator()
@@ -1717,7 +1716,7 @@ export class RoundCoordinator {
     }[],
     rootParticipantActorIds: ReadonlySet<CharacterId>,
   ): ReactionCycleDraft | undefined {
-    const policy = reactionPolicyFromManifest(this.#manifest)
+    const policy = this.#manifest.reactionPolicy
     if (policy.mode !== 'responsive') return undefined
     // The profile decides whether the classification is recorded at all. A v1 world stores the same
     // bytes it stored before, which is what keeps its budget hash and its recovery path intact.

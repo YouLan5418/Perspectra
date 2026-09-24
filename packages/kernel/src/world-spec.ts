@@ -349,18 +349,6 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   return value as CompiledWorldManifestV10
 }
 
-const HISTORICAL_REACTION_POLICY: ReactionPolicyV1 = Object.freeze({
-  version: 'reaction-policy/v1',
-  mode: 'disabled',
-})
-
-/** Resolve the effective policy without mutating or re-hashing historical Manifest bytes. */
-export function reactionPolicyFromManifest(manifest: CompiledWorldManifest): ReactionPolicyV1 {
-  return manifest.schemaVersion === 5 || manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9 || manifest.schemaVersion === 10
-    ? (manifest as CompiledWorldManifestV5 | CompiledWorldManifestV6).reactionPolicy
-    : HISTORICAL_REACTION_POLICY
-}
-
 /** Definition and package identity is an id plus a positive integer version, never a label. */
 function referenceAt(value: unknown, path: string): InteractionRef {
   const row = objectAt(value, path)
