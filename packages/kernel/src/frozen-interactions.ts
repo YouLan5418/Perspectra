@@ -281,7 +281,7 @@ function stepCues(value: WorldJsonValue): { readonly independent: readonly Actio
 export class FrozenInteractionRulebook {
   readonly #registry = new InteractionRegistry()
   readonly #worlds = new Map<string, FrozenInteractionWorld>()
-  readonly #legacy = new SpeakMoveRulebook()
+  readonly #base = new SpeakMoveRulebook()
 
   constructor(packages: readonly InteractionPackageImplementation[]) {
     for (const entry of packages) this.#registry.install(entry)
@@ -390,9 +390,7 @@ export class FrozenInteractionRulebook {
             events: [...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason).events, ...manifested],
             observationScope, interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds, ...resolvedManifestation }
     }
-    const resolution = this.#legacy.resolve(manifest, context.events, context.characterId, action, {
-      actionId: context.actionId, resolutionAuthority: authority,
-    })
+    const resolution = this.#base.resolve(manifest, context.events, context.characterId, action)
     if (resolution.status !== 'accepted' || action.actionType !== 'move') return resolution
     // A move belongs to no definition, so the world fold runs here: the union of every enabled
     // definition's handlers decides what it ended. `endCharacterRelations` is deliberately not called -
@@ -430,9 +428,9 @@ export class FrozenInteractionRulebook {
     // The move rule itself decides where this character may go - a target that is not a location, or the one
     // it is standing in, is not a move - so the options are asked of it rather than restated here.
     const destinations = manifest.locations
-      .filter(location => this.#legacy.resolve(manifest, context.events, context.characterId, {
+      .filter(location => this.#base.resolve(manifest, context.events, context.characterId, {
         actionType: 'move', parameters: { locationId: location.locationId },
-      }, { actionId: 'action:affordance-probe', resolutionAuthority: authority }).status === 'accepted')
+      }).status === 'accepted')
       .map(location => ({ locationId: location.locationId, name: location.name }))
     return [
       { actionType: 'speak', actionVersion: 1 },

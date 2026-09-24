@@ -1,7 +1,6 @@
-import { endCharacterRelations, manifestUsesCharacterInteractions, manifestUsesInteractions, resolveInteraction, type InteractionResolutionContext } from './interactions.ts'
 import { compareWorldText, type ManifestationProposal, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import type { ManifestationResolution } from './manifestation.ts'
-import { manifestUsesFrozenInteractions, manifestUsesPhase8Contracts, type CompiledWorldManifest } from './world-spec.ts'
+import { manifestUsesFrozenInteractions, type CompiledWorldManifest } from './world-spec.ts'
 
 export interface PlayerActionInput extends WorldJsonObject {
   readonly actionType: string
@@ -189,39 +188,25 @@ function phase8Speech(
   }
 }
 
-/** Product-neutral deterministic rules for speech, movement, and entity taking. */
+/** Shared deterministic speech and movement rules for Manifest v10. */
 export class SpeakMoveRulebook {
   resolveSupported(
     manifest: CompiledWorldManifest,
     events: readonly RulebookEvent[],
     characterId: string,
     action: PlayerActionInput,
-    interactionContext?: InteractionResolutionContext,
   ): RulebookResolution | undefined {
+    if (!manifestUsesFrozenInteractions(manifest)) {
+      return rejectRulebookResolution(characterId, action.actionType, 'the shared Rulebook only serves Manifest v10')
+    }
     const lifecycle = currentCharacterLifecycle(events, characterId)
     if (lifecycle !== 'active') return rejectRulebookResolution(characterId, action.actionType, `character lifecycle ${lifecycle ?? 'missing'} cannot act`)
-    if (manifestUsesFrozenInteractions(manifest)) {
-      // The frozen path owns both: `interact` resolves through the world's package selection, and
-      // `take` is one of its definitions rather than a built-in verb. Reaching this class at all for
-      // those two means the caller did not route through the frozen resolver, so refuse rather than
-      // silently falling back to the closed catalog's semantics.
-      if (action.actionType === 'interact' || action.actionType === 'take') {
-        return rejectRulebookResolution(characterId, action.actionType, 'Manifest v10 resolves interact and take through the frozen interaction path')
-      }
-    }
-    if (manifestUsesInteractions(manifest)) {
-      if (action.actionType === 'interact') return resolveInteraction(manifest, events, characterId, action.parameters, interactionContext)
-      if (action.actionType === 'take') return rejectRulebookResolution(characterId, 'take', 'use interact in Manifest v8/v9')
+    if (action.actionType === 'interact' || action.actionType === 'take') {
+      return rejectRulebookResolution(characterId, action.actionType, 'Manifest v10 resolves interact and take through the frozen interaction path')
     }
     const parameters = worldJsonObject(action.parameters)
     if (action.actionType === 'speak') {
-      if (manifestUsesPhase8Contracts(manifest)) return phase8Speech(manifest, characterId, parameters)
-      const text = parameters?.text
-      if (typeof text !== 'string' || text.length === 0) return rejectRulebookResolution(characterId, action.actionType, 'speak requires non-empty text')
-      return {
-        status: 'accepted',
-        events: [{ eventType: 'character.speak', eventVersion: 1, data: { characterId, text } }],
-      }
+      return phase8Speech(manifest, characterId, parameters)
     }
     if (action.actionType === 'move') {
       const target = parameters?.locationId
@@ -237,31 +222,7 @@ export class SpeakMoveRulebook {
       }
       return {
         status: 'accepted',
-        events: [
-          moveEvent,
-          ...(manifestUsesCharacterInteractions(manifest)
-            ? endCharacterRelations([...events, moveEvent], characterId, 'participant_moved')
-            : []),
-        ],
-      }
-    }
-    if (action.actionType === 'take' && manifest.rulebook.version >= 2) {
-      const entityId = parameters?.entityId
-      if (typeof entityId !== 'string' || !manifest.entities.some(entity => entity.entityId === entityId)) {
-        return rejectRulebookResolution(characterId, action.actionType, 'take requires a manifest entityId')
-      }
-      const entity = currentEntityState(events, entityId)
-      const characterLocation = currentLocation(events, characterId)
-      if (entity === undefined || entity.holderId !== null || entity.locationId !== characterLocation) {
-        return rejectRulebookResolution(characterId, action.actionType, 'ITEM_NOT_AVAILABLE')
-      }
-      return {
-        status: 'accepted',
-        events: [{
-          eventType: 'entity.taken',
-          eventVersion: 1,
-          data: { entityId, characterId, fromLocationId: entity.locationId },
-        }],
+        events: [moveEvent],
       }
     }
     return undefined
@@ -272,9 +233,8 @@ export class SpeakMoveRulebook {
     events: readonly RulebookEvent[],
     characterId: string,
     action: PlayerActionInput,
-    interactionContext?: InteractionResolutionContext,
   ): RulebookResolution {
-    return this.resolveSupported(manifest, events, characterId, action, interactionContext)
+    return this.resolveSupported(manifest, events, characterId, action)
       ?? rejectRulebookResolution(characterId, action.actionType, 'action type is not afforded by the V0 Rulebook')
   }
 }

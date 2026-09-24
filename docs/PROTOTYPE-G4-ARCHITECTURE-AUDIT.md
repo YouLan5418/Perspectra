@@ -96,7 +96,9 @@ experience:web → playtest-web-entry
 
 第二十七刀（2026-09-25）：ReactionCycle 的公开草案/存档类型、草案校验和持久行读取只接受现行双动作词表 speak@1 / move@1 / interact@2；无 Manifest 的单动作 speak@1 账本接口继续保留。退役的 take@1、interact@1 不再作为可接受的 Cycle 词表，增加最小回归断言。删除使用 WorldSpec v2 和 take@1 拼装世界的旧 reaction-scheduler.test.ts（1030 行）；生产 ReactionScheduler 及公开接口未删除，当前网页仍走外部单角色激活。类型检查、Lint、现行测试 67/67，Store / v10 交互包 / G1 定向测试 75/75。另用独立 .tmp/g4-reaction-v10-smoke-1790266538441 存档向 deepseek-flash 提交“同行者，请试着拿起桌上的黄铜钥匙，并告诉我结果。”：5 次模型调用成功，Head seq19→46，同行者的 interact 得到 accepted 和事件引用，随后说“拿起来了。就在我手里。”；留守者也看到并回应，Cycle 以 quiescent 结束，无错误提示。这是现行网页模型链路的单次冒烟，不能证明已退役 ReactionScheduler 路径或 G3 自由叙述风险已被验证。
 
-## 当前待清理清单（第二十七刀后）
+第二十八刀（2026-09-25）：共享 SpeakMoveRulebook 只服务 Manifest v10 的对白与移动；删除 v2–v9 的直接拿取、闭合交互目录、旧对白格式及角色关系终止分支。v10 的 interact 继续由 FrozenInteractionRulebook 和选中的交互包裁定；移动后的关系生命周期仍由冻结世界 fold 处理。移除六个没有调用者、专为旧 Manifest 版本分流的 Kernel 辅助函数，并去掉共享规则中无用途的旧交互上下文参数；保留 SpeakMoveRulebook 的公开入口以及交互包/Rulebook 扩展接口。类型检查、Lint、现行测试 67/67，v10 冻结交互、叙事发布、执行结果和 v5 Pack 定向测试 55/55。独立 .tmp/g4-rulebook-v10-smoke-1790267652216 存档提交玩家显式移动到后室：Head seq19→43，当前位置显示后室，3 次 deepseek-flash 调用成功，Cycle 以 quiescent 结束，无错误提示。该场景没有在后室同场 NPC，因而没有可见 NPC 对白；它只验证移动提交与当前网页模型链路，未覆盖跨房间长场景或 G3 分叉风险。
+
+## 当前待清理清单（第二十八刀后）
 
 以下顺序按当前 v5 网页与 worldpack 的调用链排定。具有以后对外提供价值的接口优先保留；删除候选限于已退出的旧协议或确认无用的内部重复实现。权威事实、观察权限和已提交事件的一致性继续保留。
 

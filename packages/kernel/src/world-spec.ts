@@ -1,4 +1,3 @@
-import { manifestUsesInteractions } from './interactions.ts'
 import {
   type InteractionCatalogV1,
   type InteractionCatalogV2,
@@ -229,11 +228,6 @@ export interface CompiledWorldManifestV9 extends CompiledWorldManifest {
   readonly playerInputPolicy?: PlayerInputPolicyV1
 }
 
-export function manifestUsesActionGroups(manifest: CompiledWorldManifest): boolean {
-  return manifest.schemaVersion === 7 || manifest.schemaVersion === 8
-    || manifest.schemaVersion === 9 || manifest.schemaVersion === 10
-}
-
 /**
  * V10 replaces the closed interaction catalog with the frozen package selection. The catalog names
  * the packages, definition locks and bindings the Host must resolve before it may write, so a v10
@@ -255,37 +249,9 @@ export interface CompiledWorldManifestV10 extends CompiledWorldManifest {
   readonly playerInputPolicy?: PlayerInputPolicyV1
 }
 
-/**
- * The world-operation verb this Manifest offers a model. v8 introduced `interact` as the way to touch
- * an object; v7 and earlier used `take` as a bare action name, and the frozen path keeps the verb while
- * addressing it differently.
- */
-export function manifestInteractionVerb(manifest: CompiledWorldManifest): 'take' | 'interact' {
-  return manifestUsesInteractions(manifest) || manifestUsesFrozenInteractions(manifest) ? 'interact' : 'take'
-}
-
-/**
- * The exact `name@version` a Reaction Cycle declares for this Manifest's world operation. The version
- * is the Manifest's, not the verb's: the frozen path addresses a binding and a definition lock, so a
- * cycle that carries it has to say so rather than borrow the v9 label.
- */
-export function manifestInteractionLabel(manifest: CompiledWorldManifest): 'take@1' | 'interact@1' | 'interact@2' {
-  if (manifestUsesFrozenInteractions(manifest)) return 'interact@2'
-  return manifestUsesInteractions(manifest) ? 'interact@1' : 'take@1'
-}
-
 /** The frozen-interaction path. Only v10 uses it; v1-v9 keep their own catalog semantics. */
 export function manifestUsesFrozenInteractions(manifest: CompiledWorldManifest): manifest is CompiledWorldManifestV10 {
   return manifest.schemaVersion === 10
-}
-
-/**
- * The Host-authority era: v9 introduced the Rulebook context that carries `actionId` and a proven
- * `resolutionAuthority`, and v10 keeps it. Everything else about how a v9 and a v10 world resolve an
- * action differs, which is exactly why the two predicate names are kept apart.
- */
-export function manifestUsesHostAuthority(manifest: CompiledWorldManifest): boolean {
-  return manifest.schemaVersion === 9 || manifest.schemaVersion === 10
 }
 
 export interface CompiledWorldSpec {
@@ -393,25 +359,6 @@ export function reactionPolicyFromManifest(manifest: CompiledWorldManifest): Rea
   return manifest.schemaVersion === 5 || manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9 || manifest.schemaVersion === 10
     ? (manifest as CompiledWorldManifestV5 | CompiledWorldManifestV6).reactionPolicy
     : HISTORICAL_REACTION_POLICY
-}
-
-const HISTORICAL_MANIFESTATION_POLICY: ManifestationPolicyV1 = Object.freeze({
-  version: 'manifestation-policy/v1',
-  mode: 'disabled',
-})
-
-/** Resolve the exact provider-output capability without changing historical Manifest bytes. */
-export function manifestationPolicyFromManifest(manifest: CompiledWorldManifest): ManifestationPolicyV1 {
-  return manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9 || manifest.schemaVersion === 10
-    ? (manifest as CompiledWorldManifestV6).manifestationPolicy
-    : HISTORICAL_MANIFESTATION_POLICY
-}
-
-/** Manifest v5/v6 deliberately retain every Phase 8 execution contract from v4. */
-export function manifestUsesPhase8Contracts(
-  manifest: CompiledWorldManifest,
-): manifest is CompiledWorldManifestV4 | CompiledWorldManifestV5 | CompiledWorldManifestV6 | CompiledWorldManifestV7 | CompiledWorldManifestV8 | CompiledWorldManifestV9 | CompiledWorldManifestV10 {
-  return manifest.schemaVersion === 4 || manifest.schemaVersion === 5 || manifest.schemaVersion === 6 || manifest.schemaVersion === 7 || manifest.schemaVersion === 8 || manifest.schemaVersion === 9 || manifest.schemaVersion === 10
 }
 
 /** Definition and package identity is an id plus a positive integer version, never a label. */
