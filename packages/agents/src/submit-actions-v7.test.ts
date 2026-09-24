@@ -37,6 +37,18 @@ describe('current submit_actions/v7', () => {
       .reflectionOperations).toEqual([])
   })
 
+  it('keeps reflection optional and bounded', () => {
+    const reflection = { operations: [{ kind: 'remember' }] }
+    expect(validator.validateV7({ ...payload([speak]), reflection },
+      { ...authorization, maxReflectionOperations: 1 }).reflectionOperations).toEqual(reflection.operations)
+    expect(() => validator.validateV7({ ...payload([speak]), reflection }, authorization))
+      .toThrow('reflection exceeds maxReflectionOperations')
+    expect(() => validator.validateV7(payload([speak]), { ...authorization, maxReflectionOperations: -1 }))
+      .toThrow('maxReflectionOperations')
+    expect(() => validator.validateV7({ ...payload([speak]), reflection: { operations: null } }, authorization))
+      .toThrow('reflection.operations must be an array')
+  })
+
   it('rejects retired envelopes, wrong action versions and undeclared world actions', () => {
     expect(() => validator.validateV7({ schemaVersion: 6, decision: 'abstain', actions: [] }, authorization))
       .toThrow('must be 7')

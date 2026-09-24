@@ -74,17 +74,19 @@ experience:web → playtest-web-entry
 
 第十六刀（2026-09-24）：将 RoundCoordinator 与 ReactionScheduler 的角色输出统一交给现行 submit_actions/v7 校验；独立 ReactionScheduler 现在明确拒绝旧 Manifest。删除校验器中 v4–v6 grouped 协议分支、对应旧单元测试，以及仅记录 Manifest v7–v9 运行时的历史集成测试与快照；用针对 v7 的小测试保留动作版本、表现位置、弃权和多重世界操作的约束。没有更改 v7 的动作顺序、反思上限或 Event Log 提交逻辑。v2 校验辅助和 v3/旧 Manifest 的其他分支仍待按调用图继续清理。类型检查、Lint、现行测试 67/67 通过；v7 校验、当前交互集成、G1、叙事发布与旧版本拒绝相关测试 17/17 通过。本刀不改变当前网页使用的外部单角色激活路径，因此未进行真实模型试玩。
 
-## 当前待清理清单（第十六刀后）
+第十七刀（2026-09-24）：移除 `SubmitActionsValidator` 的 v2/v3 对外校验方法、只为它们存在的返回类型与两份专属测试；v7 原先借用 v2 解析器检查反思字段，现直接在 v7 内保持原有格式和数量上限。`CharacterContextRequest.groupedOutput` 只接受当前 v7。保留仍有调用者的 v1 通用校验接口和玩家表现解析接口。本刀未改变 v7 模型可见 schema、权威提交或网页单角色激活。类型检查、Lint、现行测试 67/67 通过；v7 校验、交互集成、叙事发布及 G1 组合测试 15/15 通过。前一轮真实模型冒烟使用网页激活路径，不覆盖本刀的 v7 校验器；本刀未另行调用模型。
 
-以下顺序按当前 v5 网页与 worldpack 的调用链排定。清单是待验证的删除候选，不等于允许绕过权威事实、观察权限或已提交事件的一致性。
+## 当前待清理清单（第十七刀后）
+
+以下顺序按当前 v5 网页与 worldpack 的调用链排定。具有以后对外提供价值的接口优先保留；删除候选限于已退出的旧协议或确认无用的内部重复实现。权威事实、观察权限和已提交事件的一致性继续保留。
 
 | 顺序 | 待清理范围 | 当前证据与下刀边界 |
 | --- | --- | --- |
-| 1 | `agents/submit-actions.ts` 的 v2/v3 对外校验入口、v7 借用的 v2 解析辅助；`agents/context-v2.ts` 的 groupedOutput v4–v6 联合类型 | 当前运行时角色输出已固定 v7，v3 只由历史测试调用；先把 v7 反思解析直接保留下来，再移除旧入口与专属测试。`model.ts` 的 v1 校验仍有调用者，单独核对。 |
+| 1（已完成） | `submit_actions` v2/v3 校验入口及 v7 借用的旧解析辅助 | 已在第十七刀删除；保留 v1 通用校验和玩家表现解析接口。 |
 | 2 | `RoundCoordinator`、`ReactionScheduler` 与相关 contracts 的旧输出联合类型、旧 Manifest 条件分支 | 两个角色校验分派已固定 v7，但动作上限、动作排序、Authority 版本和规则接线仍按旧 Manifest 分流；逐段固定当前 v10，保持 G1 组合、观察权限和提交拒绝测试通过。 |
 | 3 | kernel 的 v2–v9 Manifest 类型、`WorldSpecCompiler` v2 与旧 Rulebook 选择；对应旧夹具 | 新激活和存档读取已拒绝旧 Manifest，但底层类型和分派仍在。先消除现行类型依赖，再删除历史编译器与测试，保留 v5 Pack 实际使用的内容字段。 |
-| 4 | `WorldApplication` 暴露的 archive、logical transfer、snapshot 离线 API 与后端模块 | 独立宿主工具已退出；本次调用搜索未发现当前网页或 worldpack 使用这些 API。先分别确认外部调用者和存档需求，再删无用方法及专属测试；不触碰 Event Log 本体和现有数据。 |
-| 5 | `package.json` 的旧 P1–P4、coverage/legacy 等测试命令与旧协议夹具 | 当前 `check` 已收为类型检查、Lint 和原型冒烟；命令名仍在，历史文档也引用它们。等对应生产分支退出后清理命令与专属测试，历史报告只标注适用版本。 |
+| 4（保留接口） | `WorldApplication` 的 archive、logical transfer、snapshot 离线 API | 这些能力未来可能需要对外提供，按用户要求保留公开接口；后续只审查内部重复或已失效的兼容分支，不以当前网页未调用为由删接口。 |
+| 5 | `package.json` 的旧阶段测试命令与专属夹具 | 随对应生产旧分支退出，删除只验证废弃协议的夹具；仍有独立诊断或未来接口验收价值的命令保留。 |
 | 暂缓 | 耐久 Reaction 账本、Context Receipt、Provider Call/Quality、Reflection、Quarantine、Memory/Projection | `WorldApplication` 仍装配或调用其中部分；需先证明当前路径未使用，或先缩小接线。当前网页的单角色激活和旧 `ReactionScheduler` 是不同路径，不能因网页未调用后者就连带删除所有状态表。 |
 
 G2-1 格式修正与 G2-2 有界非法输出诊断是待办；G3 自由叙述与受控事实分叉是体验风险。这三项不是代码删除的完成条件，也不因本轮清理自动解决。

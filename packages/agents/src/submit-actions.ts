@@ -30,23 +30,11 @@ export interface SubmitActionsV2Authorization extends SubmitActionsAuthorization
   readonly maxReflectionOperations: number
 }
 
-export interface ValidatedSubmitActionsV2 {
-  readonly decision: 'act' | 'abstain'
-  readonly proposal: Proposal
-  readonly reflectionOperations?: readonly ReflectionOperation[]
-}
-
 export interface ManifestationProposalEnvelope extends WorldJsonObject {
   readonly participantId: string
   readonly actions: readonly ActionRequest[]
   readonly manifestation?: ManifestationProposal
   readonly actionGroup?: import('@harness-world/contracts').ActionGroupBinding
-}
-
-export interface ValidatedSubmitActionsV3 {
-  readonly decision: 'act' | 'abstain'
-  readonly proposal: ManifestationProposalEnvelope
-  readonly reflectionOperations?: readonly ReflectionOperation[]
 }
 
 const MANIFESTATION_CHANNELS = new Set<ManifestationChannel>([
@@ -92,7 +80,7 @@ function boundedText(value: unknown, path: string, maximumBytes: number): string
   return parsed
 }
 
-/** Strict shared parser for manifestation proposals from either model or manual-player adapters. */
+/** Strict parser for manual-player manifestation proposals. */
 export function parseManifestationProposal(value: unknown): ManifestationProposal {
   const root = record(value, 'submit_actions.manifestation')
   exactWithOptional(root, ['cues'], ['description'], 'submit_actions.manifestation')
@@ -238,12 +226,20 @@ export class SubmitActionsValidator {
       if ((root.decision === 'act') !== (parsed.length > 0)) throw new TypeError('inconsistent decision')
       if (parsed.some(action => !['speak', 'move', 'interact'].includes(action.actionType))) throw new TypeError('unsupported group action')
       if (parsed.filter(action => action.actionType !== 'speak').length > 1) throw new TypeError('group permits at most one world operation')
-      const reflection = this.#validateV2({ schemaVersion: 2, decision: root.decision, actions: rawActions,
-        ...(root.reflection === undefined ? {} : { reflection: root.reflection }) }, authorization,
-      actionType => actionType === 'interact' ? 2 : 1)
+      if (!Number.isSafeInteger(authorization.maxReflectionOperations) || authorization.maxReflectionOperations < 0) {
+        throw new TypeError('maxReflectionOperations must be a non-negative safe integer')
+      }
+      let reflectionOperations: readonly ReflectionOperation[] | undefined
+      if (root.reflection !== undefined) {
+        const reflection = record(root.reflection, 'submit_actions.reflection')
+        exact(reflection, ['operations'], 'submit_actions.reflection')
+        if (!Array.isArray(reflection.operations)) throw new TypeError('submit_actions.reflection.operations must be an array')
+        if (reflection.operations.length > authorization.maxReflectionOperations) throw new TypeError('submit_actions reflection exceeds maxReflectionOperations')
+        reflectionOperations = reflection.operations as unknown as readonly ReflectionOperation[]
+      }
       return { proposal: { participantId: authorization.participantId, actions: parsed,
         actionGroup: { version: 'bounded-action-group/v2', manifestations } },
-        ...(reflection.reflectionOperations === undefined ? {} : { reflectionOperations: reflection.reflectionOperations }) }
+        ...(reflectionOperations === undefined ? {} : { reflectionOperations }) }
     } catch (error: unknown) {
       invalid(error, authorization)
     }
@@ -257,82 +253,6 @@ export class SubmitActionsValidator {
       if (root.schemaVersion !== 1) throw new TypeError('submit_actions.schemaVersion must be 1')
       if (root.participantId !== authorization.participantId) throw new TypeError('submit_actions participantId is not authorized')
       return { participantId: authorization.participantId, actions: actions(root.actions, authorization) }
-    } catch (error: unknown) {
-      invalid(error, authorization)
-    }
-  }
-
-  validateV2(payload: unknown, authorization: SubmitActionsV2Authorization): ValidatedSubmitActionsV2 {
-    return this.#validateV2(payload, authorization, () => 1)
-  }
-
-  /** A grouped protocol reuses this parser while supplying the exact version for each action type. */
-  #validateV2(
-    payload: unknown,
-    authorization: SubmitActionsV2Authorization,
-    expectedActionVersion: (actionType: string) => number,
-  ): ValidatedSubmitActionsV2 {
-    try {
-      canonicalizeWorldJson(payload as WorldJsonValue)
-      const root = record(payload, 'submit_actions')
-      exactWithOptional(root, ['schemaVersion', 'decision', 'actions'], ['reflection'], 'submit_actions')
-      if (root.schemaVersion !== 2) throw new TypeError('submit_actions.schemaVersion must be 2')
-      if (root.decision !== 'act' && root.decision !== 'abstain') throw new TypeError('submit_actions.decision must be act or abstain')
-      const parsedActions = actions(root.actions, authorization, expectedActionVersion)
-      if ((root.decision === 'act') !== (parsedActions.length > 0)) throw new TypeError('submit_actions decision and actions are inconsistent')
-      if (!Number.isSafeInteger(authorization.maxReflectionOperations) || authorization.maxReflectionOperations < 0) {
-        throw new TypeError('maxReflectionOperations must be a non-negative safe integer')
-      }
-      if (root.reflection === undefined) {
-        return { decision: root.decision, proposal: { participantId: authorization.participantId, actions: parsedActions } }
-      }
-      const reflection = record(root.reflection, 'submit_actions.reflection')
-      exact(reflection, ['operations'], 'submit_actions.reflection')
-      if (!Array.isArray(reflection.operations)) throw new TypeError('submit_actions.reflection.operations must be an array')
-      if (reflection.operations.length > authorization.maxReflectionOperations) throw new TypeError('submit_actions reflection exceeds maxReflectionOperations')
-      return {
-        decision: root.decision,
-        proposal: { participantId: authorization.participantId, actions: parsedActions },
-        reflectionOperations: reflection.operations as unknown as readonly ReflectionOperation[],
-      }
-    } catch (error: unknown) {
-      invalid(error, authorization)
-    }
-  }
-
-  validateV3(payload: unknown, authorization: SubmitActionsV2Authorization): ValidatedSubmitActionsV3 {
-    try {
-      canonicalizeWorldJson(payload as WorldJsonValue)
-      const root = record(payload, 'submit_actions')
-      exactWithOptional(root, ['schemaVersion', 'decision', 'actions'], ['reflection', 'manifestation'], 'submit_actions')
-      if (root.schemaVersion !== 3) throw new TypeError('submit_actions.schemaVersion must be 3')
-      if (root.decision !== 'act' && root.decision !== 'abstain') throw new TypeError('submit_actions.decision must be act or abstain')
-      const parsedActions = actions(root.actions, authorization)
-      if ((root.decision === 'act') !== (parsedActions.length > 0)) throw new TypeError('submit_actions decision and actions are inconsistent')
-      const parsedManifestation = root.manifestation === undefined ? undefined : parseManifestationProposal(root.manifestation)
-      if (parsedManifestation !== undefined && parsedActions.length !== 1) {
-        throw new TypeError('submit_actions manifestation requires exactly one Action')
-      }
-      if (!Number.isSafeInteger(authorization.maxReflectionOperations) || authorization.maxReflectionOperations < 0) {
-        throw new TypeError('maxReflectionOperations must be a non-negative safe integer')
-      }
-      let reflectionOperations: readonly ReflectionOperation[] | undefined
-      if (root.reflection !== undefined) {
-        const reflection = record(root.reflection, 'submit_actions.reflection')
-        exact(reflection, ['operations'], 'submit_actions.reflection')
-        if (!Array.isArray(reflection.operations)) throw new TypeError('submit_actions.reflection.operations must be an array')
-        if (reflection.operations.length > authorization.maxReflectionOperations) throw new TypeError('submit_actions reflection exceeds maxReflectionOperations')
-        reflectionOperations = reflection.operations as unknown as readonly ReflectionOperation[]
-      }
-      return {
-        decision: root.decision,
-        proposal: {
-          participantId: authorization.participantId,
-          actions: parsedActions,
-          ...(parsedManifestation === undefined ? {} : { manifestation: parsedManifestation }),
-        },
-        ...(reflectionOperations === undefined ? {} : { reflectionOperations }),
-      }
     } catch (error: unknown) {
       invalid(error, authorization)
     }
