@@ -296,14 +296,10 @@ export interface CompiledWorldSpec {
   readonly genesisHash: WorldHash
 }
 
-/**
- * Build an execution-only V2 view over an immutable stored Manifest.
- * Stored V1 bytes and their manifestHash remain authoritative and are never rewritten.
- */
+/** Validate a stored Manifest before opening its runtime view. */
 export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldManifest {
   canonicalizeWorldJson(value)
   const root = objectAt(value, 'StoredWorldManifest')
-  if (root.schemaVersion === 1) return new WorldSpecCompiler().compile(value).manifest
   if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4 && root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && root.schemaVersion !== 10) throw new TypeError('stored Manifest schemaVersion is unsupported')
   if (root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && root.schemaVersion !== 10 && Object.hasOwn(root, 'reactionPolicy')) {
     throw new TypeError('stored Manifest reactionPolicy requires schemaVersion 5 or 6')
@@ -707,25 +703,6 @@ export function manifestationManifestRegistries(): ManifestRegistries {
   }
 }
 
-/** Pure compatibility upcast. It never mutates or re-hashes an already stored event. */
-export function upcastWorldSpecV1(input: Record<string, unknown>): Record<string, unknown> {
-  exactKeys(input, ['schemaVersion', 'address', 'timeMode', 'roundQueueLimit', 'rulebook', 'locations', 'characters', 'playerBindings', 'plugins'], 'WorldSpecV1')
-  const address = objectAt(input.address, 'WorldSpecV1.address')
-  return {
-    ...input,
-    schemaVersion: 2,
-    metadata: { title: textAt(address.worldId, 'worldId'), description: '' },
-    runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
-    entities: [], scenes: [], goals: [], claims: [], observations: [],
-  }
-}
-
-function normalizedInput(input: unknown): Record<string, unknown> {
-  canonicalizeWorldJson(input as WorldJsonValue)
-  const root = objectAt(input, 'WorldSpec')
-  return root.schemaVersion === 1 ? upcastWorldSpecV1(root) : root
-}
-
 function parseSeeds<T>(
   root: Record<string, unknown>, field: string, idKey: string, ownerKey: string, characterIds: Set<CharacterId>,
   make: (id: string, owner: CharacterId, value: WorldJsonValue) => T,
@@ -739,15 +716,16 @@ function parseSeeds<T>(
   })
 }
 
-/** Strict compiler from declarative WorldSpec V1/V2 into one hash-stable V2 execution contract. */
+/** Strict compiler for the remaining declarative WorldSpec v2 fixture contract. */
 export class WorldSpecCompiler {
   compile(input: unknown): CompiledWorldSpec {
-    const root = normalizedInput(input)
+    canonicalizeWorldJson(input as WorldJsonValue)
+    const root = objectAt(input, 'WorldSpec')
+    if (root.schemaVersion !== 2) throw new TypeError('WorldSpec.schemaVersion must be 2')
     exactKeys(root, [
       'schemaVersion', 'address', 'metadata', 'timeMode', 'roundQueueLimit', 'runtimePolicy', 'rulebook', 'locations',
       'entities', 'characters', 'scenes', 'goals', 'claims', 'observations', 'playerBindings', 'plugins',
     ], 'WorldSpec')
-    if (root.schemaVersion !== 2) throw new TypeError('WorldSpec.schemaVersion must be 1 or 2')
     if (root.timeMode !== 'TURN_DRIVEN') throw new TypeError('WorldSpec.timeMode must be TURN_DRIVEN in V0')
     if (!Number.isSafeInteger(root.roundQueueLimit) || (root.roundQueueLimit as number) <= 0) throw new TypeError('WorldSpec.roundQueueLimit must be a positive safe integer')
 
