@@ -64,7 +64,6 @@ import {
   manifestUsesHostAuthority,
   manifestInteractionLabel,
   manifestUsesFrozenInteractions,
-  manifestUsesInteractions,
   parsePlayerActionInput,
   parsePlayerRoundResult,
   reactionPolicyFromManifest,
@@ -1384,12 +1383,7 @@ export class RoundCoordinator {
             ...authorization,
             maxReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
           }
-          const validated = manifestUsesActionGroups(this.#manifest)
-            ? (manifestUsesFrozenInteractions(this.#manifest) ? this.#validator.validateV7(providerOutput, validatorAuthorization)
-              : manifestUsesInteractions(this.#manifest) ? this.#validator.validateV5(providerOutput, validatorAuthorization) : this.#validator.validateV4(providerOutput, validatorAuthorization))
-            : manifestationPolicyFromManifest(this.#manifest).mode === 'enabled'
-            ? this.#validator.validateV3(providerOutput, validatorAuthorization)
-            : this.#validator.validateV2(providerOutput, validatorAuthorization)
+          const validated = this.#validator.validateV7(providerOutput, validatorAuthorization)
           proposal = validated.proposal
           const reflectionOperations = 'reflectionOperations' in validated ? validated.reflectionOperations : undefined
           if (reflectionOperations !== undefined && providerQuality?.reflectionMode !== 'suspended') {

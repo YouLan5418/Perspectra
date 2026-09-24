@@ -72,4 +72,6 @@ experience:web → playtest-web-entry
 
 第十五刀（2026-09-24）：Context Pipeline 固定接收当前 Manifest v10，并直接构造 submit_actions/v7 工具描述；移除 v2–v5 工具 schema、旧 Manifest 工具选择和旧版 affordance 分派，约净减 90 行。v7 的工具字段顺序、动作范围、表现约束和 groupedOutput 值保持原样；Director 工具仍保留。类型检查、Lint、现行测试 67/67，通过交互包集成、G1 和叙事发布相关测试 10/10。当前网页原型使用外部单角色激活，不调用这条旧 Round Context Pipeline；因此此刀以直接使用该管线的 v10 集成测试验收，没有把网页真实模型试玩误记为这条管线的验证。ReactionScheduler、RoundCoordinator 与 SubmitActionsValidator 的旧版分派仍待后续清理。
 
+第十六刀（2026-09-24）：将 RoundCoordinator 与 ReactionScheduler 的角色输出统一交给现行 submit_actions/v7 校验；独立 ReactionScheduler 现在明确拒绝旧 Manifest。删除校验器中 v4–v6 grouped 协议分支、对应旧单元测试，以及仅记录 Manifest v7–v9 运行时的历史集成测试与快照；用针对 v7 的小测试保留动作版本、表现位置、弃权和多重世界操作的约束。没有更改 v7 的动作顺序、反思上限或 Event Log 提交逻辑。v2 校验辅助和 v3/旧 Manifest 的其他分支仍待按调用图继续清理。类型检查、Lint、现行测试 67/67 通过；v7 校验、当前交互集成、G1、叙事发布与旧版本拒绝相关测试 17/17 通过。本刀不改变当前网页使用的外部单角色激活路径，因此未进行真实模型试玩。
+
 每个切片完成后运行类型检查、相关原型测试和 G1 组合测试；涉及玩家提交或观察权限时重跑相应集成场景。若改动到角色可见上下文或执行行为，再做一次短真实模型试玩，核对结果续写和跨房间隔离。删除旧脚本或文档时同步更新 README/指南；不要用旧 Golden 通过与否决定保留旧协议。G2-1/G2-2 仍是待办，G3 的自由叙述与受控事实分叉继续作为体验风险记录。

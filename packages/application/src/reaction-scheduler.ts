@@ -50,14 +50,12 @@ import {
 import {
   currentCharacterLifecycle,
   characterRelationObservations,
-  manifestationPolicyFromManifest,
   manifestUsesActionGroups,
   manifestUsesHostAuthority,
   reactionPolicyFromManifest,
   manifestInteractionLabel,
   manifestInteractionVerb,
   manifestUsesFrozenInteractions,
-  manifestUsesInteractions,
   resolveManifestation,
   type CompiledWorldManifest,
   type RulebookRegistry,
@@ -196,6 +194,9 @@ export class ReactionScheduler {
   readonly #claimHeartbeatMs: number
 
   constructor(private readonly options: ReactionSchedulerOptions) {
+    if (!manifestUsesFrozenInteractions(options.manifest)) {
+      throw new TypeError('ReactionScheduler requires Manifest v10')
+    }
     const bindings = new Map<CharacterId, ReactionParticipantBinding>()
     for (const binding of options.participants) {
       if (bindings.has(binding.actorId)) throw new TypeError(`duplicate Reaction participant ${binding.actorId}`)
@@ -548,12 +549,7 @@ export class ReactionScheduler {
         maxReflectionOperations: 0,
         correlationId: `reaction:${prepared.job.cycleId}:${prepared.job.wave}:${prepared.job.jobId}`,
       }
-      const validated = manifestUsesActionGroups(this.options.manifest)
-        ? (manifestUsesFrozenInteractions(this.options.manifest) ? this.#validator.validateV7(output, authorization)
-          : manifestUsesInteractions(this.options.manifest) ? this.#validator.validateV5(output, authorization) : this.#validator.validateV4(output, authorization))
-        : manifestationPolicyFromManifest(this.options.manifest).mode === 'enabled'
-        ? this.#validator.validateV3(output, authorization)
-        : this.#validator.validateV2(output, authorization)
+      const validated = this.#validator.validateV7(output, authorization)
       providerCall = this.options.providerCalls.markValidated(providerCall.modelCallId, output)
       return {
         ...prepared,
