@@ -37,6 +37,7 @@ experience:web → playtest-web-entry
 | 3 | `simulation` 的 mystery/rainy-road/tavern 演示、`WorldSimulation` 及旧命令 | 当前 v5 网页与 G1 路径不引用该包；最后仅历史 P0 门禁和包内测试调用 `WorldSimulation`。Store 专项测试已覆盖提交重试、分支重建与 Session 去重。 | **已删除整个 `simulation` 包**；场景可见性测试搬至当前原型套件。rainy-road/tavern 的 Pack 源目录仍被 `worldpack` 创作工具引用，保留待该工具的版本路径审查 |
 | 4 | `operations` 的 headless RPC、BranchWorkScheduler、deployment backup/restore 与 `worldctl`/`worldhost`/`worlddeploy` 脚本 | `packages/operations/process/*` 是独立宿主；当前网页只使用 `playtest-server.ts`，不调用这些入口。`worldpack` CLI 属于另一个包。 | **可作为单独产品范围决策**；本机原型若只保留网页与作者 Pack CLI，优先删除独立入口，再清理依赖；不要误删 Event Log 的原子提交 |
 | 5 | `world-pack` v1–v4 编译/读取、旧 Manifest 与 `submit_actions` 版本路径 | v5 Pack 映射到 v10；`tooling.ts` 仍支持 v1–v5，`compiler.ts` 共享解析与校验，旧世界与文档仍引用旧版本。 | **方向上可删，实施成本高**；须先完成第二步并确认不迁移旧存档，再按实际 v5 调用图拆共享函数 |
+| 5a | `worldpack init` 的 v1–v4 模板 | 四种 profile 均生成当前网页不接受的源版本；当前 v5 示例与编译、校验命令不依赖脚手架。 | **已删除旧初始化入口**；现有 v5 示例作为新世界起点，历史手册标明适用范围 |
 | 暂缓 | Context Receipt、Provider Call/Quality、Reflection、逻辑导出/快照、Quarantine、耐久 Reaction 账本及旧协议字段 | `WorldApplication`、上下文装配和 Store 仍静态或实际触达其中一些；仅凭名称判断不了是否保护当前状态与可见性。 | **不列入第一轮删除**；逐个证明不用、或先把当前路径改为更小的现有机制，再删旧实现 |
 
 前六刀是局部切除：未新建 Host 框架，未改权威事件模型，也未把叙事与状态分叉当成已解决。当前试玩类只保留单角色 NPC 协议；删除收益是减少维护和调试时的分叉，不是声称模型更自然。
@@ -52,5 +53,7 @@ experience:web → playtest-web-entry
 第五刀验证（2026-09-23）：移除旧 rainy-road/tavern 社交适配器、专属测试与两个 Phase 8 测量脚本，约净减 2,000 行；保留 `worldpack` 创作工具仍引用的源目录。`simulation` 不再依赖 Operations 或 World Pack。现行 `check` 为 40/40，剩余 `WorldSimulation`、场景可见性、P0 和 G1 相关测试为 10/10，v5 Pack 校验通过。独立新存档的 4 句 DeepSeek 试玩均提交成功，第四轮 seq100 为钥匙交给同行者的权威 `entity.transferred`，角色随后反馈持有钥匙；但上一轮自由叙述已提前说“钥匙我拿着”，再次呈现 G3 已知分叉。旧 `rainy-road` 六轮测试在第四刀已证明于原型基线同样失败，本刀随旧适配器退出，不把它记作现行行为验收。
 
 第六刀验证（2026-09-24）：删除只供历史 P0 组合测试使用的 `WorldSimulation`、Provider 夹具与整个 `simulation` 包；旧 P0 门禁不再作为当前原型命令。场景可见性和私有观察测试搬至 `tests/prototype/scene-decision.test.ts`，加入现行检查。类型检查、Lint 和现行测试 45/45 通过；Store、Cordis、网页运行时、场景决策与 G1 的相关测试 62/62 通过，离线锁文件校验通过。独立新存档的 4 句 DeepSeek 试玩均成功提交，第四轮 seq100 为真实钥匙转移，角色得到结果后反馈；此前自由叙述已提前宣称持有，G3 风险仍存在。此次删除不改 Event Log、Store 或当前 v5 运行时。
+
+第七刀（2026-09-24）：`worldpack init` 仅生成 v1、v3、v4 模板，均无法直接用于当前 v5 网页原型，删除此命令和专属脚手架。保留 v5 Pack 的 validate、compile、inspect、test、activate 命令，历史手册标明旧范围。验证见对应提交。
 
 每个切片完成后运行类型检查、相关原型测试和 G1 组合测试；涉及玩家提交或观察权限时重跑相应集成场景。若改动到角色可见上下文或执行行为，再做一次短真实模型试玩，核对结果续写和跨房间隔离。删除旧脚本或文档时同步更新 README/指南；不要用旧 Golden 通过与否决定保留旧协议。G2-1/G2-2 仍是待办，G3 的自由叙述与受控事实分叉继续作为体验风险记录。

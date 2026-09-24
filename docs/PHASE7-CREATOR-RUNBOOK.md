@@ -1,5 +1,7 @@
 # Phase 7 创作者运行手册
 
+> 历史 Phase 7 工作流；其中 `worldpack init` 命令已退出。当前网页试玩请使用 [创作者与真实模型试玩指南](CREATOR-PLAYTEST-RUNBOOK.md)。
+
 本手册面向只编辑内容文件、不修改 Kernel 的本机创作者。Phase 7 能制作开放式社交或简单探索世界；悬疑调查规则不是必需组件。
 
 ## 1. 准备环境

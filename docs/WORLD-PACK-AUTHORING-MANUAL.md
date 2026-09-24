@@ -1,5 +1,7 @@
 # World Pack 创作者字段手册
 
+> 历史 v1–v4 创作手册，保留供阅读旧世界包。当前网页原型只接受 v5；`worldpack init` 的旧模板入口已退出。新建可试玩世界请从 `examples/world-packs/hand-in-hand` 复制并参考 [当前试玩指南](CREATOR-PLAYTEST-RUNBOOK.md)。以下旧版“当前推荐”说法仅适用于当时版本。
+
 本手册说明如何只编辑 JSON/Markdown 内容，创建一个可以由真实模型驱动 NPC、支持独立认知与有界连续反应的本机世界。
 
 > **当前推荐版本：** 需要角色表情、姿态、语气等外显表现的新世界使用 `worldpack-source/v4`，从 `expressive-social` 模板开始。只需连续对白时仍可使用 v3；不要让 AI 混用不同版本的文件形状。
