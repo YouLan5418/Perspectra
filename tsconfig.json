@@ -26,7 +26,6 @@
       "@harness-world/presentation": ["./packages/presentation/src/index.ts"],
       "@harness-world/runtime-cordis": ["./packages/runtime-cordis/src/index.ts"],
       "@harness-world/store-sqlite": ["./packages/store-sqlite/src/index.ts"],
-      "@harness-world/simulation": ["./packages/simulation/src/index.ts"],
       "@harness-world/testkit": ["./packages/testkit/src/index.ts"],
       "@harness-world/world-pack": ["./packages/world-pack/src/index.ts"],
       "@harness-world/interaction-runtime": ["./packages/interaction-runtime/src/index.ts"],
