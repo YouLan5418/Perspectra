@@ -30,6 +30,7 @@ import {
 } from '@harness-world/contracts'
 import {
   currentEntityState,
+  FrozenInteractionRulebook,
   createCoreRulebookRegistry,
   manifestationManifestRegistries,
   phase8ManifestRegistries,
@@ -53,7 +54,7 @@ import {
 import { SceneDecisionService } from './scene-decision.ts'
 import type { Phase8ProviderContext } from './context-pipeline.ts'
 import { WorldApplication } from './world-application.ts'
-import { v5Manifest } from '../../../tests/reaction-fixture.ts'
+import { basicInteractionPackage, frozenInteractionWorld } from '../../../tests/fixtures/frozen-interaction-world.ts'
 import { characterInteractionWorld } from '../../../tests/fixtures/character-interaction-world.ts'
 
 const directories: string[] = []
@@ -644,12 +645,12 @@ describe('RoundCoordinator', () => {
 
   it('does not synthesize a Cycle when a low-level responsive coordinator has no Reaction bindings', async () => {
     const path = database('responsive-no-reaction-bindings.sqlite')
-    const compiled = v5Manifest()
+    const compiled = frozenInteractionWorld('responsive/v1')
     const setup = new WorldStore(path)
-    new WorldBootstrap(setup).activate(compiled)
+    new WorldBootstrap(setup, false, new FrozenInteractionRulebook([basicInteractionPackage])).activate(compiled)
     setup.close()
     const coordinatorOptions = options(path, compiled)
-    const coordinator = new RoundCoordinator(coordinatorOptions)
+    const coordinator = new RoundCoordinator({ ...coordinatorOptions, rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }) })
     try {
       await expect(coordinator.submit({
         idempotencyKey: 'responsive:no-bindings',
