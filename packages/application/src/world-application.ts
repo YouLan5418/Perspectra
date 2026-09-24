@@ -34,15 +34,12 @@ import {
   FrozenInteractionRulebook,
   WorldBootstrap,
   createCoreRulebookRegistry,
-  manifestUsesHostAuthority,
-  manifestUsesPhase8Contracts,
   parsePlayerRoundResult,
   parsePlayerActionInput,
   reactionPolicyFromManifest,
   runtimeManifestFromStored,
   runtimeManifestFromStoredRecord,
   type CompiledWorldManifest,
-  type CompiledWorldManifestV5,
   type CompiledWorldSpec,
   type PlayerActionInput,
   type PlayerRoundResult,
@@ -364,7 +361,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
           this.options.memoryPath!, store.store, this.options.faultInjector, policies.memoryVersion,
           this.options.recallTokenizer, this.options.recallDictionary ?? false,
         )
-      if (manifestUsesPhase8Contracts(manifest) && policies.contextEnabled && policies.memoryVersion === 2) {
+      if (policies.contextEnabled) {
         contextPipeline = new Phase8ContextPipeline({
           path: this.#contextPath!, store: store.store, memory: cognitiveMemory!,
           availability: store.availability, manifest, manifestHash: scope.manifestHash,
@@ -392,8 +389,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       const reactionBindings = this.options.reactionParticipants?.(scope.address) ?? []
       const reactionPolicy = reactionPolicyFromManifest(manifest)
       if (reactionPolicy.mode === 'responsive' && !this.options.externalCharacterActivations) {
-        const responsiveManifest = manifest as CompiledWorldManifestV5
-        const requiredActors = responsiveManifest.characters
+        const requiredActors = manifest.characters
           .filter(character => !players.has(character.characterId)
             && character.lifecycle === 'active'
             && character.controllerClass !== 'manual')
@@ -737,7 +733,7 @@ export class WorldApplication {
       const stored = store.readManifest(address)
       if (stored === undefined) return false
       const manifest = runtimeManifestFromStored(stored.manifest)
-      return manifestUsesHostAuthority(manifest) && (manifest.playerInputPolicy as { version: string } | undefined)?.version === 'player-intent/v1'
+      return manifest.playerInputPolicy?.version === 'player-intent/v1'
     } finally { store.close() }
   }
 
@@ -1364,17 +1360,15 @@ export class WorldApplication {
               memoryVerificationHash = memory.rebuildBranch(
                 address, manifest.characters.map(character => character.characterId), world.headSeq, correlationId,
               )
-              if (manifestUsesPhase8Contracts(manifest)) {
-                const contextPath = contextPathFor(this.options)!
-                const checkpoints = new ContinuityCheckpointService(contextPath, store, memory)
-                const receipts = new ContextReceiptStore(contextPath)
-                try {
-                  receipts.reset(address)
-                  for (const character of manifest.characters) checkpoints.reset(address, character.characterId)
-                } finally {
-                  receipts.close()
-                  checkpoints.close()
-                }
+              const contextPath = contextPathFor(this.options)!
+              const checkpoints = new ContinuityCheckpointService(contextPath, store, memory)
+              const receipts = new ContextReceiptStore(contextPath)
+              try {
+                receipts.reset(address)
+                for (const character of manifest.characters) checkpoints.reset(address, character.characterId)
+              } finally {
+                receipts.close()
+                checkpoints.close()
               }
             } finally {
               memory.close()

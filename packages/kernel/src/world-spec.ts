@@ -296,7 +296,7 @@ export interface CompiledWorldSpec {
 }
 
 /** Validate a stored Manifest before opening its runtime view. */
-export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldManifest {
+export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldManifestV10 {
   canonicalizeWorldJson(value)
   const root = objectAt(value, 'StoredWorldManifest')
   if (root.schemaVersion !== 10) throw new TypeError('stored Manifest schemaVersion is unsupported')
@@ -380,7 +380,7 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   }
   parseReactionPolicy(root.reactionPolicy)
   parseManifestationPolicy(root.manifestationPolicy)
-  return value as CompiledWorldManifest
+  return value as CompiledWorldManifestV10
 }
 
 const HISTORICAL_REACTION_POLICY: ReactionPolicyV1 = Object.freeze({
@@ -537,7 +537,7 @@ function parseReactionPolicy(value: unknown): ReactionPolicyV1 {
 
 export function runtimeManifestFromStoredRecord(
   record: { readonly manifest: WorldJsonValue } | undefined,
-): CompiledWorldManifest {
+): CompiledWorldManifestV10 {
   if (record === undefined) throw new Error('branch runtime has no stored Manifest')
   return runtimeManifestFromStored(record.manifest)
 }

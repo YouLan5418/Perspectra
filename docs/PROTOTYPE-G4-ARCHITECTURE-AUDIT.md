@@ -82,7 +82,9 @@ experience:web → playtest-web-entry
 
 第二十刀（2026-09-24）：保留可供后续接入的 `ReactionAgentProvider`、`Phase8AgentProvider` 和 `RoundParticipant.provider` 接口，将其返回值改为未经信任的 `WorldJsonObject`，删除接口签名里 v2–v7 的历史协议联合。当前 v10 Scheduler/Coordinator 仍在提交前用 `submit_actions/v7` 校验；泛型 Provider 边界不赋予旧输出执行权。旧 `SubmitActionsV2`–`V6` DTO 定义暂留给历史测试，现行生产接口不再引用它们；不为纯类型删除大规模改写旧测试。类型检查、Lint、现行测试 67/67，v7 校验与当前交互/G1 相关测试 15/15 通过。本刀不改变模型请求、输出校验逻辑或网页行为，未再进行真实模型调用。
 
-## 当前待清理清单（第二十刀后）
+第二十一刀（2026-09-24）：存档 Manifest 读取早已拒绝 v2–v9，本刀将读取函数的返回类型明确为 v10，移除 `WorldApplication` 内部已不可达的 Phase 8 / Host Authority 版本判断，以及响应角色列表上的 v5 强制转换。当前 v10 的上下文装配、玩家意图选择与隔离恢复仍走同一路径；`WorldApplication` 的公开接口、权威提交、观察权限和模型请求未变。类型检查、Lint、现行测试 67/67，通过当前交互包、G1、场景观察和旧版本拒绝集成测试 16/16。本刀未改变角色可见内容或执行行为，未重复真实模型试玩。公开的历史类型和 `WorldSpecCompiler` 暂留，先评估它们作为未来创作/对外接口的价值，不因现行网页未调用就直接删除。
+
+## 当前待清理清单（第二十一刀后）
 
 以下顺序按当前 v5 网页与 worldpack 的调用链排定。具有以后对外提供价值的接口优先保留；删除候选限于已退出的旧协议或确认无用的内部重复实现。权威事实、观察权限和已提交事件的一致性继续保留。
 
@@ -90,7 +92,7 @@ experience:web → playtest-web-entry
 | --- | --- | --- |
 | 1（已完成） | `submit_actions` v2/v3 校验入口及 v7 借用的旧解析辅助 | 已在第十七刀删除；保留 v1 通用校验和玩家表现解析接口。 |
 | 2（完成） | `RoundCoordinator`、`ReactionScheduler` 的旧 Manifest 分流和 Provider 接口的历史输出联合 | 运行时内部固定 v10，Provider 公开接口保留并把输出交由 v7 校验；旧 DTO 类型仅供历史测试，后续可随旧测试自然退出。 |
-| 3 | kernel 的 v2–v9 Manifest 类型、`WorldSpecCompiler` v2 与旧 Rulebook 选择；对应旧夹具 | 新激活和存档读取已拒绝旧 Manifest，但底层类型和分派仍在。先消除现行类型依赖，再删除历史编译器与测试，保留 v5 Pack 实际使用的内容字段。 |
+| 3 | kernel 的 v2–v9 Manifest 类型、`WorldSpecCompiler` v2 与旧 Rulebook 选择；对应旧夹具 | 存档读取现明确返回 v10，`WorldApplication` 已不再依赖旧版本判断。下一步先审公开类型、编译器和 Rulebook 是否可作为未来创作或接入接口；只删除确认无用的内部旧版分支与专属测试，保留 v5 Pack 实际使用的内容字段。 |
 | 4（保留接口） | `WorldApplication` 的 archive、logical transfer、snapshot 离线 API | 这些能力未来可能需要对外提供，按用户要求保留公开接口；后续只审查内部重复或已失效的兼容分支，不以当前网页未调用为由删接口。 |
 | 5 | `package.json` 的旧阶段测试命令与专属夹具 | 随对应生产旧分支退出，删除只验证废弃协议的夹具；仍有独立诊断或未来接口验收价值的命令保留。 |
 | 暂缓 | 耐久 Reaction 账本、Context Receipt、Provider Call/Quality、Reflection、Quarantine、Memory/Projection | `WorldApplication` 仍装配或调用其中部分；需先证明当前路径未使用，或先缩小接线。当前网页的单角色激活和旧 `ReactionScheduler` 是不同路径，不能因网页未调用后者就连带删除所有状态表。 |
