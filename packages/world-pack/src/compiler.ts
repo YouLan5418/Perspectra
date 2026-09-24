@@ -17,34 +17,16 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
-  phase8ManifestRegistries,
   characterInteractionManifestRegistries,
-  manifestationManifestRegistries,
-  interactionManifestRegistries,
-  parseInteractionCatalog,
-  WorldSpecCompiler,
-  type CompiledWorldManifestV4,
-  type CompiledWorldManifestV5,
-  type CompiledWorldManifestV6,
-  type CompiledWorldManifestV9,
   type CompiledWorldManifestV10,
-  type CompiledWorldManifestV7,
-  type CompiledWorldManifestV3,
   type CompiledWorldSpec,
-  type ContentPackCharacterSpec,
   type ContentPackCharacterSpecV2,
-  type ContentPackManifestBinding,
   type ContentPackManifestBindingV2,
   type SceneSpecV2,
 } from '@harness-world/kernel'
 import {
-  PHASE7_CORE_PROFILES,
   PHASE8_CORE_PROFILES,
-  WORLD_PACK_COMPILED_SCHEMA_VERSION,
-  WORLD_PACK_COMPILER_CONTRACT_VERSION,
   WORLD_PACK_COMPILER_ID,
-  WORLD_PACK_COMPILER_VERSION,
-  WORLD_PACK_LIMITS_PROFILE,
   WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
   WORLD_PACK_COMPILED_SCHEMA_VERSION_V3,
   WORLD_PACK_COMPILED_SCHEMA_VERSION_V4,
@@ -72,15 +54,11 @@ import {
   type WorldPackCompiledContentV5,
   type WorldPackEntitySourceV2,
   type WorldPackCharacterSourceV3,
-  type CompiledWorldPack,
   type WorldPackAcceptanceAssertion,
   type WorldPackAssetLock,
-  type WorldPackCharacterSource,
   type WorldPackCharacterCognitionSourceV2,
   type WorldPackCharacterMemorySourceV2,
   type WorldPackCharacterSourceV2,
-  type WorldPackCompiledContent,
-  type WorldPackCompileOptions,
   type WorldPackCompileOptionsV2,
   type WorldPackCompiledContentV2,
   type WorldPackDocumentSourceV2,
@@ -90,7 +68,6 @@ import {
   type WorldPackPlayerSlotSource,
   type WorldPackPluginLock,
   type WorldPackRuntimeOptions,
-  type WorldPackSceneSource,
   type WorldPackSceneSourceV2,
   type WorldPackSourceManifest,
   type WorldPackSourceManifestV2,
@@ -101,13 +78,8 @@ import {
 } from './contracts.ts'
 import { failWorldPackContract } from './diagnostics.ts'
 import {
-  parseCompiledWorldPack,
-  parseCompiledWorldPackV2,
-  parseCompiledWorldPackV3,
-  parseCompiledWorldPackV4,
   parseWorldPackAssertionsSource,
   compileInteractionCatalog,
-  parseWorldPackCharactersSource,
   parseWorldPackCharactersSourceV2,
   parseWorldPackCharactersSourceV3,
   parseWorldPackCognitionSourceV2,
@@ -119,9 +91,7 @@ import {
   parseWorldPackMemorySourceV2,
   parseWorldPackPlayerSlotsSource,
   parseWorldPackPresentationSource,
-  parseWorldPackScenesSource,
   parseWorldPackScenesSourceV2,
-  parseWorldPackSourceManifest,
   parseWorldPackSourceManifestV2,
   parseWorldPackSourceManifestV3,
   parseWorldPackSourceManifestV4,
@@ -129,7 +99,6 @@ import {
   parseCompiledWorldPackV5,
   parseWorldPackReactionSource,
   parseWorldPackManifestationSource,
-  parseWorldPackWorldSource,
   parseWorldPackWorldSourceV2,
 } from './schema.ts'
 import { parseStrictWorldJson } from './strict-json.ts'
@@ -139,17 +108,6 @@ const MAX_JSON_BYTES = 1024 * 1024
 const MAX_MARKDOWN_BYTES = 256 * 1024
 const MAX_ASSET_BYTES = 8 * 1024 * 1024
 const WINDOWS_DEVICE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/iu
-
-interface UnsignedCompiledWorldPack extends WorldJsonObject {
-  readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION
-  readonly packId: CompiledWorldPack['packId']
-  readonly packVersion: string
-  readonly compiler: CompiledWorldPack['compiler']
-  readonly pluginLocks: readonly WorldPackPluginLock[]
-  readonly content: WorldPackCompiledContent
-  readonly assets: readonly WorldPackAssetLock[]
-  readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
-}
 
 interface UnsignedCompiledWorldPackV2 extends WorldJsonObject {
   readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION_V2
@@ -201,10 +159,6 @@ function rawHash(bytes: Uint8Array): WorldHash {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`
 }
 
-function packHash(unsigned: UnsignedCompiledWorldPack): WorldHash {
-  return hashWorldJson('compiled-world-pack/v1', unsigned)
-}
-
 function packHashV2(unsigned: UnsignedCompiledWorldPackV2): WorldHash {
   return hashWorldJson('compiled-world-pack/v2', unsigned)
 }
@@ -239,37 +193,6 @@ function packHashV5(unsigned: UnsignedCompiledWorldPackV5): WorldHash {
 
 function isMemorySeedDocument(value: WorldPackDocumentSourceV2): boolean {
   return value.usage === 'memory_seed'
-}
-
-function cognitiveSourceRef(
-  pack: CompiledWorldPack,
-  sourceType: 'character-observation' | 'character-claim' | 'character-goal' | 'initial-fact',
-  sourceId: string,
-  characterId: string,
-): WorldJsonObject {
-  return {
-    kind: 'world-pack-source/v1',
-    packId: pack.packId,
-    packVersion: pack.packVersion,
-    packHash: pack.packHash,
-    sourceType,
-    sourceId,
-    characterId,
-  }
-}
-
-function contentPackBinding(pack: CompiledWorldPack): ContentPackManifestBinding {
-  return {
-    schemaVersion: 1,
-    packId: pack.packId,
-    packVersion: pack.packVersion,
-    packHash: pack.packHash,
-    compiler: pack.compiler,
-    pluginLocks: pack.pluginLocks,
-    runtimeCapabilities: { publicSpeechObservationVersion: 1 },
-    presentation: pack.content.presentation,
-    initialFacts: pack.content.world.initialFacts,
-  }
 }
 
 function normalizedSourcePath(value: string, manifestFile: string): string {
@@ -363,30 +286,7 @@ function uniqueAcross(values: readonly string[], file: string, at: string): void
   if (new Set(values).size !== values.length) failWorldPackContract('PACK_DUPLICATE_ID', file, at, 'contains duplicate identifiers across source files')
 }
 
-function validateReferences(content: WorldPackCompiledContent): void {
-  const locations = new Set(content.locations.map(value => value.locationId))
-  const characters = new Set(content.characters.map(value => value.characterId))
-  const markdown = new Set(content.markdown.map(value => value.path))
-  for (const character of content.characters) {
-    if (!locations.has(character.initialLocationId)) failWorldPackContract('PACK_REFERENCE_INVALID', 'characters', '', `character ${character.characterId} references unknown location ${character.initialLocationId}`)
-    if (character.portrayal.backgroundTextRef !== null && !markdown.has(character.portrayal.backgroundTextRef)) {
-      failWorldPackContract('PACK_REFERENCE_INVALID', 'characters', '', `character ${character.characterId} references unknown Markdown ${character.portrayal.backgroundTextRef}`)
-    }
-  }
-  for (const entity of content.entities) {
-    if (!locations.has(entity.locationId)) failWorldPackContract('PACK_REFERENCE_INVALID', 'entities', '', `entity ${entity.entityId} references unknown location ${entity.locationId}`)
-  }
-  const scene = content.scenes[0]!
-  if (scene.participantIds.some(value => !characters.has(value))) failWorldPackContract('PACK_REFERENCE_INVALID', 'scenes', '', 'Scene references an unknown Character')
-  const player = content.playerSlots[0]!
-  if (!characters.has(player.characterId)) failWorldPackContract('PACK_REFERENCE_INVALID', 'player-slots', '', 'PlayerSlot references an unknown Character')
-  if (!scene.participantIds.includes(player.characterId)) failWorldPackContract('PACK_REFERENCE_INVALID', 'scenes', '', 'active Scene must include the PlayerSlot Character')
-  for (const fact of content.world.initialFacts) {
-    if (fact.initialAudience.some(value => !characters.has(value))) failWorldPackContract('PACK_REFERENCE_INVALID', 'world', '', `fact ${fact.factId} references an unknown audience Character`)
-  }
-}
-
-function pluginLocks(profiles = PHASE7_CORE_PROFILES): readonly WorldPackPluginLock[] {
+function pluginLocks(profiles = PHASE8_CORE_PROFILES): readonly WorldPackPluginLock[] {
   const identities = [
     { kind: 'agent-context' as const, id: profiles.agentContext.pluginId, version: profiles.agentContext.version },
     { kind: 'presentation' as const, id: profiles.presentation.profileId, version: profiles.presentation.version },
@@ -400,221 +300,6 @@ function pluginLocks(profiles = PHASE7_CORE_PROFILES): readonly WorldPackPluginL
 }
 
 /** Deterministic, filesystem-bound compiler for the Phase 7 World Pack source profile. */
-export class WorldPackCompiler {
-  async compile(
-    sourceDirectory: string,
-    options: WorldPackCompileOptions = { limitsProfile: WORLD_PACK_LIMITS_PROFILE },
-  ): Promise<CompiledWorldPack> {
-    if (options.limitsProfile !== WORLD_PACK_LIMITS_PROFILE) {
-      failWorldPackContract('PACK_PROFILE_NOT_ALLOWED', 'compile-options', '/limitsProfile', `must be ${WORLD_PACK_LIMITS_PROFILE}`)
-    }
-    let root: string
-    try {
-      root = await realpath(resolve(sourceDirectory))
-      if (!(await stat(root)).isDirectory()) failWorldPackContract('PACK_SOURCE_INVALID', sourceDirectory, '', 'must be a directory')
-    } catch (error) {
-      if (error instanceof Error && error.name === 'WorldPackContractError') throw error
-      failWorldPackContract('PACK_SOURCE_INVALID', sourceDirectory, '', `cannot open source directory: ${String(error)}`)
-    }
-    const manifestFile = 'worldpack.source.json'
-    const budget: SourceBudget = { bytes: 0 }
-    const manifest = parseWorldPackSourceManifest(await loadJson(root, manifestFile, manifestFile, budget), manifestFile)
-    validatePortablePaths(manifest, manifestFile)
-
-    const world = parseWorldPackWorldSource(await loadJson(root, manifest.worldFile, manifestFile, budget), manifest.worldFile)
-    const locations: WorldPackLocationSource[] = []
-    for (const file of [...manifest.locationFiles].sort(compareText)) locations.push(...parseWorldPackLocationsSource(await loadJson(root, file, manifestFile, budget), file).locations)
-    const entities: WorldPackEntitySource[] = []
-    for (const file of [...manifest.entityFiles].sort(compareText)) entities.push(...parseWorldPackEntitiesSource(await loadJson(root, file, manifestFile, budget), file).entities)
-    const characters: WorldPackCharacterSource[] = []
-    for (const file of [...manifest.characterFiles].sort(compareText)) characters.push(...parseWorldPackCharactersSource(await loadJson(root, file, manifestFile, budget), file).characters)
-    const scenes: WorldPackSceneSource[] = []
-    for (const file of [...manifest.sceneFiles].sort(compareText)) scenes.push(...parseWorldPackScenesSource(await loadJson(root, file, manifestFile, budget), file).scenes)
-    const playerSlots: WorldPackPlayerSlotSource[] = []
-    for (const file of [...manifest.playerSlotFiles].sort(compareText)) playerSlots.push(...parseWorldPackPlayerSlotsSource(await loadJson(root, file, manifestFile, budget), file).playerSlots)
-    if (manifest.presentationFiles.length !== 1) failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '/presentationFiles', 'Phase 7 requires exactly one presentation file')
-    const presentation = parseWorldPackPresentationSource(await loadJson(root, manifest.presentationFiles[0]!, manifestFile, budget), manifest.presentationFiles[0]!)
-
-    const markdown: WorldPackMarkdownContent[] = []
-    for (const file of [...manifest.markdownFiles].sort(compareText)) {
-      const bytes = await loadBytes(root, file, manifestFile, budget, MAX_MARKDOWN_BYTES)
-      const decoded = decodeUtf8(bytes, file)
-      const text = decoded.replaceAll('\r\n', '\n')
-      if (text.includes('\r')) failWorldPackContract('PACK_SOURCE_INVALID', file, '', 'contains a bare carriage return')
-      markdown.push({ path: file, text, contentHash: rawHash(new TextEncoder().encode(text)) })
-    }
-    const assets: WorldPackAssetLock[] = []
-    for (const file of [...manifest.assetFiles].sort(compareText)) {
-      const bytes = await loadBytes(root, file, manifestFile, budget, MAX_ASSET_BYTES)
-      assets.push({ path: file, contentHash: rawHash(bytes), size: bytes.byteLength })
-    }
-    const acceptanceAssertions: WorldPackAcceptanceAssertion[] = []
-    for (const file of [...manifest.assertionFiles].sort(compareText)) acceptanceAssertions.push(...parseWorldPackAssertionsSource(await loadJson(root, file, manifestFile, budget), file).assertions)
-
-    locations.sort((left, right) => compareText(left.locationId, right.locationId))
-    entities.sort((left, right) => compareText(left.entityId, right.entityId))
-    characters.sort((left, right) => compareText(left.characterId, right.characterId))
-    acceptanceAssertions.sort((left, right) => compareText(left.assertionId, right.assertionId))
-    uniqueAcross(locations.map(value => value.locationId), 'locations', '')
-    uniqueAcross(entities.map(value => value.entityId), 'entities', '')
-    uniqueAcross(characters.map(value => value.characterId), 'characters', '')
-    uniqueAcross(scenes.map(value => value.sceneId), 'scenes', '')
-    uniqueAcross(playerSlots.map(value => value.slotId), 'player-slots', '')
-    uniqueAcross(characters.flatMap(value => value.initialObservations.map(item => item.observationId)), 'characters', '/initialObservations')
-    uniqueAcross(characters.flatMap(value => value.initialClaims.map(item => item.claimId)), 'characters', '/initialClaims')
-    uniqueAcross(characters.flatMap(value => value.initialGoals.map(item => item.goalId)), 'characters', '/initialGoals')
-    uniqueAcross(acceptanceAssertions.map(value => value.assertionId), 'assertions', '')
-    if (scenes.length !== 1 || playerSlots.length !== 1) failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '', 'Phase 7 requires exactly one Scene and PlayerSlot across all files')
-
-    const content: WorldPackCompiledContent = {
-      world,
-      locations,
-      entities,
-      characters,
-      scenes,
-      playerSlots,
-      presentation,
-      markdown,
-    }
-    validateReferences(content)
-    const unsigned: UnsignedCompiledWorldPack = {
-      compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION,
-      packId: manifest.packId,
-      packVersion: manifest.packVersion,
-      compiler: {
-        id: WORLD_PACK_COMPILER_ID,
-        version: WORLD_PACK_COMPILER_VERSION,
-        contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION,
-        canonicalJsonVersion: 'world-json/v1',
-        limitsProfile: WORLD_PACK_LIMITS_PROFILE,
-      },
-      pluginLocks: pluginLocks(), content, assets, acceptanceAssertions,
-    }
-    return parseCompiledWorldPack({ ...unsigned, packHash: packHash(unsigned) })
-  }
-
-  adaptToWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
-    const pack = verifyCompiledWorldPack(packInput)
-    const player = pack.content.playerSlots[0]!
-    const observations = pack.content.characters.flatMap(character => character.initialObservations.map(item => ({
-      observationId: item.observationId,
-      observerId: character.characterId,
-      value: {
-        content: item.value,
-        sourceRefs: [cognitiveSourceRef(pack, 'character-observation', item.observationId, character.characterId)],
-      },
-    })))
-    const claims = [
-      ...pack.content.characters.flatMap(character => character.initialClaims.map(item => ({
-        claimId: item.claimId,
-        characterId: character.characterId,
-        value: {
-          proposition: item.value,
-          sourceRefs: [cognitiveSourceRef(pack, 'character-claim', item.claimId, character.characterId)],
-        },
-      }))),
-      ...pack.content.world.initialFacts.flatMap(fact => fact.initialAudience.map(characterId => ({
-        claimId: deterministicId('world-pack-initial-fact-claim/v1', {
-          packHash: pack.packHash, factId: fact.factId, characterId,
-        }),
-        characterId,
-        value: {
-          proposition: fact.proposition,
-          sourceRefs: [cognitiveSourceRef(pack, 'initial-fact', fact.factId, characterId)],
-        },
-      }))),
-    ]
-    const goals = pack.content.characters.flatMap(character => character.initialGoals.map(item => ({
-      goalId: item.goalId,
-      characterId: character.characterId,
-      value: {
-        goal: item.value,
-        status: 'active',
-        priorityPermille: item.priorityPermille,
-        visibility: item.visibility,
-        sourceRefs: [cognitiveSourceRef(pack, 'character-goal', item.goalId, character.characterId)],
-      },
-    })))
-    const base = new WorldSpecCompiler().compile({
-      schemaVersion: 2,
-      address: options.address,
-      metadata: { title: pack.content.world.title, description: pack.content.world.description },
-      timeMode: 'TURN_DRIVEN', roundQueueLimit: pack.content.world.roundQueueLimit,
-      runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
-      rulebook: pack.content.world.coreProfiles.rulebook,
-      locations: pack.content.locations,
-      entities: pack.content.entities,
-      characters: pack.content.characters.map(value => ({ characterId: value.characterId, name: value.displayName, locationId: value.initialLocationId })),
-      scenes: pack.content.scenes,
-      goals, claims, observations,
-      playerBindings: [{ principalId: options.principalId, characterId: player.characterId, sessionId: options.sessionId }],
-      plugins: [
-        pack.content.world.coreProfiles.sceneDecision,
-        pack.content.world.coreProfiles.agentContext,
-        { pluginId: pack.content.world.coreProfiles.presentation.profileId, version: pack.content.world.coreProfiles.presentation.version },
-      ],
-    })
-    const characters: readonly ContentPackCharacterSpec[] = pack.content.characters.map(character => ({
-      characterId: character.characterId,
-      name: character.displayName,
-      locationId: character.initialLocationId,
-      pronouns: character.pronouns,
-      lifecycle: character.lifecycle,
-      portrayal: character.portrayal,
-    }))
-    const contentPack = contentPackBinding(pack)
-    const specHash = hashWorldJson('world-pack-runtime-spec/v1', {
-      baseSpecHash: base.manifest.specHash,
-      contentPack,
-      characters,
-    })
-    const genesisPlanHash = hashWorldJson('world-pack-genesis-semantic-plan/v1', {
-      baseGenesisPlanHash: base.manifest.genesisPlanHash,
-      packHash: pack.packHash,
-      lifecycles: characters.map(character => ({ characterId: character.characterId, lifecycle: character.lifecycle })),
-    })
-    const manifest: CompiledWorldManifestV3 = {
-      ...base.manifest,
-      schemaVersion: 3,
-      specHash,
-      genesisPlanHash,
-      characters,
-      contentPack,
-    }
-    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
-    const lifecycleByCharacter = new Map<string, ContentPackCharacterSpec['lifecycle']>(
-      characters.map(character => [character.characterId, character.lifecycle]),
-    )
-    const genesisEvents: readonly WorldEventDraft[] = base.genesisEvents.flatMap(event => {
-      if (event.eventType === 'world.created') {
-        return [{ ...event, data: { specHash } }]
-      }
-      if (event.eventType === 'world.manifest-locked') {
-        return [{ ...event, data: { manifestHash, genesisPlanHash } }]
-      }
-      if (event.eventType !== 'character.created') return [event]
-      const characterId = (event.data as WorldJsonObject).characterId as string
-      const lifecycle = lifecycleByCharacter.get(characterId)
-      if (lifecycle === undefined) {
-        failWorldPackContract('PACK_REFERENCE_INVALID', 'worldpack.json', '/content/characters', `Genesis references unknown Character ${characterId}`)
-      }
-      return lifecycle === 'active'
-        ? [event]
-        : [event, {
-          eventType: 'character.lifecycle-changed',
-          eventVersion: 1,
-          data: { characterId, lifecycleState: lifecycle, transition: 'world-pack-genesis' },
-        }]
-    })
-    return {
-      manifest,
-      manifestHash,
-      genesisEvents,
-      genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
-    }
-  }
-}
-
 function cognitionDependencies(entry: WorldPackCharacterCognitionSourceV2): ReadonlyMap<string, readonly string[]> {
   const dependencies = new Map<string, readonly string[]>()
   for (const item of entry.observations) dependencies.set(item.key, item.basisKeys)
@@ -1181,346 +866,6 @@ async function compilePhase8Source(
 }
 
 /** Deterministic compiler for explicit Phase 8 sources. It does not activate or upcast v1 Packs. */
-export class WorldPackCompilerV2 {
-  async compile(
-    sourceDirectory: string,
-    options: WorldPackCompileOptionsV2 = { limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2 },
-  ): Promise<CompiledWorldPackV2> {
-    return await compilePhase8Source(sourceDirectory, options, 'v2') as CompiledWorldPackV2
-  }
-
-  /** Bind an explicit compiled v2 Pack to a new Manifest V4 world and deterministic Tick 0 Genesis. */
-  adaptToWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
-    const pack = verifyCompiledWorldPackV2(packInput)
-    const player = pack.content.playerSlots[0]!
-    const characters: readonly ContentPackCharacterSpecV2[] = pack.content.characters.map(character => ({
-      characterId: character.characterId,
-      name: character.displayName,
-      locationId: character.initialLocationId,
-      controllerClass: character.controllerClass,
-      pronouns: character.pronouns,
-      lifecycle: character.lifecycle,
-      portrayal: character.portrayal,
-    }))
-    const scenes: readonly SceneSpecV2[] = pack.content.scenes.map(scene => ({ ...scene }))
-    const contentPack = contentPackBindingV2(pack)
-    const normalizedRuntime = {
-      schemaVersion: 4 as const,
-      address: options.address,
-      metadata: { title: pack.content.world.title, description: pack.content.world.description },
-      timeMode: 'TURN_DRIVEN' as const,
-      roundQueueLimit: pack.content.world.roundQueueLimit,
-      runtimePolicy: { npcInitialAvailability: 'ready' as const, playerInitialAvailability: 'ready' as const },
-      rulebook: pack.content.world.coreProfiles.rulebook,
-      registries: phase8ManifestRegistries(),
-      locations: pack.content.locations,
-      entities: pack.content.entities,
-      characters,
-      scenes,
-      goals: [], claims: [], observations: [],
-      playerBindings: [{ principalId: options.principalId, characterId: player.characterId, sessionId: options.sessionId }],
-      plugins: [
-        pack.content.world.coreProfiles.sceneDecision,
-        pack.content.world.coreProfiles.agentContext,
-        { pluginId: pack.content.world.coreProfiles.presentation.profileId, version: pack.content.world.coreProfiles.presentation.version },
-      ],
-      contentPack,
-    }
-    const specHash = hashWorldJson('world-pack-runtime-spec/v2', normalizedRuntime)
-    const genesisPlanHash = hashWorldJson('world-pack-genesis-semantic-plan/v2', {
-      address: options.address,
-      packHash: pack.packHash,
-      characters,
-      scenes,
-      cognition: pack.content.cognition,
-      initialFacts: pack.content.world.initialFacts,
-      memorySeedDocuments: pack.content.documents.filter(isMemorySeedDocument),
-    })
-    const manifest: CompiledWorldManifestV4 = {
-      ...normalizedRuntime,
-      specHash,
-      genesisPlanHash,
-      canonicalVersion: 'world-json/v1',
-      hashVersion: 'sha256/v1',
-    }
-    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
-    const genesisEvents: readonly WorldEventDraft[] = [
-      { eventType: 'world.created', eventVersion: 1, data: { specHash } },
-      { eventType: 'world.manifest-locked', eventVersion: 1, data: { manifestHash, genesisPlanHash } },
-      ...pack.content.locations.map(value => ({ eventType: 'location.upsert', eventVersion: 1, data: value })),
-      ...pack.content.entities.map(value => ({ eventType: 'entity.upsert', eventVersion: 1, data: value })),
-      ...characters.flatMap(value => [
-        { eventType: 'character.created', eventVersion: 1, data: { ...value, lifecycleState: 'active' } },
-        ...(value.lifecycle === 'active' ? [] : [{
-          eventType: 'character.lifecycle-changed', eventVersion: 1,
-          data: { characterId: value.characterId, lifecycleState: value.lifecycle, transition: 'world-pack-genesis/v2' },
-        }]),
-      ]),
-      ...scenes.map(value => ({
-        eventType: 'scene.upsert', eventVersion: 1,
-        data: { sceneId: value.sceneId, value: { lifecycle: value.lifecycle, locationId: value.locationId, participantIds: value.participantIds } },
-      })),
-      ...phase8GenesisCognition(pack),
-      { eventType: 'player.binding.upsert', eventVersion: 1, data: normalizedRuntime.playerBindings[0]! },
-      { eventType: 'world.lifecycle-changed', eventVersion: 1, data: { lifecycleState: 'active' } },
-    ]
-    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
-  }
-}
-
-/** Explicit Phase 9 compiler. It reuses the frozen Phase 8 content vocabulary and only adds Reaction policy. */
-export class WorldPackCompilerV3 {
-  async compile(
-    sourceDirectory: string,
-    options: WorldPackCompileOptionsV2 = { limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2 },
-  ): Promise<CompiledWorldPackV3> {
-    return await compilePhase8Source(sourceDirectory, options, 'v3') as CompiledWorldPackV3
-  }
-
-  /** Bind an explicit compiled v3 Pack to Manifest V5 without inventing runtime Provider bindings. */
-  adaptToWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
-    const pack = verifyCompiledWorldPackV3(packInput)
-    const player = pack.content.playerSlots[0]!
-    const characters: readonly ContentPackCharacterSpecV2[] = pack.content.characters.map(character => ({
-      characterId: character.characterId, name: character.displayName, locationId: character.initialLocationId,
-      controllerClass: character.controllerClass, pronouns: character.pronouns,
-      lifecycle: character.lifecycle, portrayal: character.portrayal,
-    }))
-    const scenes: readonly SceneSpecV2[] = pack.content.scenes.map(scene => ({ ...scene }))
-    const normalizedRuntime = {
-      schemaVersion: 5 as const,
-      address: options.address,
-      metadata: { title: pack.content.world.title, description: pack.content.world.description },
-      timeMode: 'TURN_DRIVEN' as const,
-      roundQueueLimit: pack.content.world.roundQueueLimit,
-      runtimePolicy: { npcInitialAvailability: 'ready' as const, playerInitialAvailability: 'ready' as const },
-      rulebook: pack.content.world.coreProfiles.rulebook,
-      registries: phase8ManifestRegistries(),
-      locations: pack.content.locations,
-      entities: pack.content.entities,
-      characters,
-      scenes,
-      goals: [], claims: [], observations: [],
-      playerBindings: [{ principalId: options.principalId, characterId: player.characterId, sessionId: options.sessionId }],
-      plugins: [
-        pack.content.world.coreProfiles.sceneDecision,
-        pack.content.world.coreProfiles.agentContext,
-        { pluginId: pack.content.world.coreProfiles.presentation.profileId, version: pack.content.world.coreProfiles.presentation.version },
-      ],
-      contentPack: contentPackBindingV2(pack),
-      reactionPolicy: pack.reaction.mode === 'disabled'
-        ? { version: 'reaction-policy/v1' as const, mode: 'disabled' as const }
-        : { version: 'reaction-policy/v1' as const, mode: 'responsive' as const, profile: pack.reaction.profile },
-    }
-    const specHash = hashWorldJson('world-pack-runtime-spec/v3', normalizedRuntime)
-    const genesisPlanHash = hashWorldJson('world-pack-genesis-semantic-plan/v3', {
-      address: options.address, packHash: pack.packHash, characters, scenes,
-      cognition: pack.content.cognition, initialFacts: pack.content.world.initialFacts,
-      memorySeedDocuments: pack.content.documents.filter(isMemorySeedDocument),
-    })
-    const manifest: CompiledWorldManifestV5 = {
-      ...normalizedRuntime, specHash, genesisPlanHash,
-      canonicalVersion: 'world-json/v1', hashVersion: 'sha256/v1',
-    }
-    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
-    const genesisEvents: readonly WorldEventDraft[] = [
-      { eventType: 'world.created', eventVersion: 1, data: { specHash } },
-      { eventType: 'world.manifest-locked', eventVersion: 1, data: { manifestHash, genesisPlanHash } },
-      ...pack.content.locations.map(value => ({ eventType: 'location.upsert', eventVersion: 1, data: value })),
-      ...pack.content.entities.map(value => ({ eventType: 'entity.upsert', eventVersion: 1, data: value })),
-      ...characters.flatMap(value => [
-        { eventType: 'character.created', eventVersion: 1, data: { ...value, lifecycleState: 'active' } },
-        ...(value.lifecycle === 'active' ? [] : [{
-          eventType: 'character.lifecycle-changed', eventVersion: 1,
-          data: { characterId: value.characterId, lifecycleState: value.lifecycle, transition: 'world-pack-genesis/v2' },
-        }]),
-      ]),
-      ...scenes.map(value => ({
-        eventType: 'scene.upsert', eventVersion: 1,
-        data: { sceneId: value.sceneId, value: { lifecycle: value.lifecycle, locationId: value.locationId, participantIds: value.participantIds } },
-      })),
-      ...phase8GenesisCognition(pack),
-      { eventType: 'player.binding.upsert', eventVersion: 1, data: normalizedRuntime.playerBindings[0]! },
-      { eventType: 'world.lifecycle-changed', eventVersion: 1, data: { lifecycleState: 'active' } },
-    ]
-    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
-  }
-}
-
-/** Explicit manifestation compiler. It extends v3 only through Manifest v6 capability gating. */
-export class WorldPackCompilerV4 {
-  /** Explicit new-world opt-in. Existing Manifest v6 worlds are never reinterpreted. */
-  adaptToActionGroupWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
-    const base = this.adaptToWorldSpec(packInput, options)
-    if ((base.manifest.manifestationPolicy as WorldJsonObject).mode !== 'enabled') throw new TypeError('action groups require enabled manifestation pack')
-    const actionGroupPolicy = { version: 'bounded-action-group/v1' } as const
-    const specHash = hashWorldJson('world-pack-runtime-spec/action-groups-v1', { baseSpecHash: base.manifest.specHash, actionGroupPolicy })
-    const manifest = { ...base.manifest, schemaVersion: 7 as const, actionGroupPolicy, specHash }
-    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
-    const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.created'
-      ? { ...event, data: { specHash } }
-      : event.eventType === 'world.manifest-locked'
-        ? { ...event, data: { manifestHash, genesisPlanHash: manifest.genesisPlanHash } } : event)
-    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
-  }
-
-  adaptToInteractionWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
-    const base = this.adaptToActionGroupWorldSpec(packInput, options)
-    if (options.interactionCatalog === undefined) throw new TypeError('interaction catalog is required')
-    const interactionCatalog = parseInteractionCatalog(options.interactionCatalog, base.manifest.entities.map(value => value.entityId))
-    const specHash = hashWorldJson('world-pack-runtime-spec/interactions-v1', { baseSpecHash: base.manifest.specHash, interactionCatalog })
-    const manifest = { ...base.manifest, schemaVersion: 8 as const, interactionCatalog, specHash, registries: interactionManifestRegistries() }
-    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
-    const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.created'
-      ? { ...event, data: { specHash } }
-      : event.eventType === 'world.manifest-locked'
-        ? { ...event, data: { manifestHash, genesisPlanHash: manifest.genesisPlanHash } } : event)
-    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
-  }
-
-  /** Bind the closed v2 target catalog to Manifest V9 while retaining the C1 legacy player input path. */
-  adaptToCharacterInteractionWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
-    const base = this.adaptToActionGroupWorldSpec(packInput, options)
-    if (options.interactionCatalog === undefined) throw new TypeError('interaction catalog is required')
-    const parsed = parseInteractionCatalog(options.interactionCatalog, {
-      entityIds: base.manifest.entities.map(value => value.entityId),
-      characterIds: base.manifest.characters.map(value => value.characterId),
-      manualCharacterIds: base.manifest.playerBindings.map(value => value.characterId),
-    })
-    if (parsed.version !== 'interaction-catalog/v2') throw new TypeError('character interactions require interaction-catalog/v2')
-    const playerInputPolicy = { version: 'legacy-speech/v1' } as const
-    const specHash = hashWorldJson('world-pack-runtime-spec/character-interactions-v1', {
-      baseSpecHash: base.manifest.specHash,
-      interactionCatalog: parsed,
-      playerInputPolicy,
-    })
-    const manifest: CompiledWorldManifestV9 = {
-      ...base.manifest as CompiledWorldManifestV7,
-      schemaVersion: 9,
-      interactionCatalog: parsed,
-      playerInputPolicy,
-      specHash,
-      registries: characterInteractionManifestRegistries(),
-    }
-    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
-    const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.created'
-      ? { ...event, data: { specHash } }
-      : event.eventType === 'world.manifest-locked'
-        ? { ...event, data: { manifestHash, genesisPlanHash: manifest.genesisPlanHash } } : event)
-    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
-  }
-
-  async compile(
-    sourceDirectory: string,
-    options: WorldPackCompileOptionsV2 = { limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2 },
-  ): Promise<CompiledWorldPackV4> {
-    return await compilePhase8Source(sourceDirectory, options, 'v4') as CompiledWorldPackV4
-  }
-
-  /** Bind compiled v4 to Manifest V6; Provider bindings remain the Host's responsibility. */
-  adaptToWorldSpec(packInput: unknown, options: WorldPackRuntimeOptions): CompiledWorldSpec {
-    const pack = verifyCompiledWorldPackV4(packInput)
-    const player = pack.content.playerSlots[0]!
-    const characters: readonly ContentPackCharacterSpecV2[] = pack.content.characters.map(character => ({
-      characterId: character.characterId, name: character.displayName, locationId: character.initialLocationId,
-      controllerClass: character.controllerClass, pronouns: character.pronouns,
-      lifecycle: character.lifecycle, portrayal: character.portrayal,
-    }))
-    const scenes: readonly SceneSpecV2[] = pack.content.scenes.map(scene => ({ ...scene }))
-    const normalizedRuntime = {
-      schemaVersion: 6 as const,
-      address: options.address,
-      metadata: { title: pack.content.world.title, description: pack.content.world.description },
-      timeMode: 'TURN_DRIVEN' as const,
-      roundQueueLimit: pack.content.world.roundQueueLimit,
-      runtimePolicy: { npcInitialAvailability: 'ready' as const, playerInitialAvailability: 'ready' as const },
-      rulebook: pack.content.world.coreProfiles.rulebook,
-      registries: manifestationManifestRegistries(),
-      locations: pack.content.locations,
-      entities: pack.content.entities,
-      characters,
-      scenes,
-      goals: [], claims: [], observations: [],
-      playerBindings: [{ principalId: options.principalId, characterId: player.characterId, sessionId: options.sessionId }],
-      plugins: [
-        pack.content.world.coreProfiles.sceneDecision,
-        pack.content.world.coreProfiles.agentContext,
-        { pluginId: pack.content.world.coreProfiles.presentation.profileId, version: pack.content.world.coreProfiles.presentation.version },
-      ],
-      contentPack: contentPackBindingV2(pack),
-      reactionPolicy: pack.reaction.mode === 'disabled'
-        ? { version: 'reaction-policy/v1' as const, mode: 'disabled' as const }
-        : { version: 'reaction-policy/v1' as const, mode: 'responsive' as const, profile: pack.reaction.profile },
-      manifestationPolicy: {
-        version: 'manifestation-policy/v1' as const,
-        mode: pack.manifestation.mode,
-      },
-    }
-    const specHash = hashWorldJson('world-pack-runtime-spec/v4', normalizedRuntime)
-    const genesisPlanHash = hashWorldJson('world-pack-genesis-semantic-plan/v4', {
-      address: options.address, packHash: pack.packHash, characters, scenes,
-      cognition: pack.content.cognition, initialFacts: pack.content.world.initialFacts,
-      memorySeedDocuments: pack.content.documents.filter(isMemorySeedDocument),
-    })
-    const manifest: CompiledWorldManifestV6 = {
-      ...normalizedRuntime, specHash, genesisPlanHash,
-      canonicalVersion: 'world-json/v1', hashVersion: 'sha256/v1',
-    }
-    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
-    const genesisEvents: readonly WorldEventDraft[] = [
-      { eventType: 'world.created', eventVersion: 1, data: { specHash } },
-      { eventType: 'world.manifest-locked', eventVersion: 1, data: { manifestHash, genesisPlanHash } },
-      ...pack.content.locations.map(value => ({ eventType: 'location.upsert', eventVersion: 1, data: value })),
-      ...pack.content.entities.map(value => ({ eventType: 'entity.upsert', eventVersion: 1, data: value })),
-      ...characters.flatMap(value => [
-        { eventType: 'character.created', eventVersion: 1, data: { ...value, lifecycleState: 'active' } },
-        ...(value.lifecycle === 'active' ? [] : [{
-          eventType: 'character.lifecycle-changed', eventVersion: 1,
-          data: { characterId: value.characterId, lifecycleState: value.lifecycle, transition: 'world-pack-genesis/v2' },
-        }]),
-      ]),
-      ...scenes.map(value => ({
-        eventType: 'scene.upsert', eventVersion: 1,
-        data: { sceneId: value.sceneId, value: { lifecycle: value.lifecycle, locationId: value.locationId, participantIds: value.participantIds } },
-      })),
-      ...phase8GenesisCognition(pack),
-      { eventType: 'player.binding.upsert', eventVersion: 1, data: normalizedRuntime.playerBindings[0]! },
-      { eventType: 'world.lifecycle-changed', eventVersion: 1, data: { lifecycleState: 'active' } },
-    ]
-    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
-  }
-}
-
-/** Fail closed if any immutable envelope field differs from its content-derived identity. */
-export function verifyCompiledWorldPack(input: unknown): CompiledWorldPack {
-  const pack = parseCompiledWorldPack(input)
-  const { packHash: claimedHash, ...unsigned } = pack
-  if (packHash(unsigned) !== claimedHash) failWorldPackContract('PACK_SOURCE_INVALID', 'worldpack.json', '/packHash', 'does not match the compiled envelope content')
-  return pack
-}
-
-/** Fail closed if any compiled v2 field or Phase 8 registry lock differs from its content-derived identity. */
-export function verifyCompiledWorldPackV2(input: unknown): CompiledWorldPackV2 {
-  const pack = parseCompiledWorldPackV2(input)
-  const { packHash: claimedHash, ...unsigned } = pack
-  if (packHashV2(unsigned) !== claimedHash) failWorldPackContract('PACK_SOURCE_INVALID', 'worldpack.json', '/packHash', 'does not match the compiled v2 envelope content')
-  validateV2References(pack.content)
-  return pack
-}
-
-/** Fail closed if any compiled v3 field differs from its content-derived identity. */
-export function verifyCompiledWorldPackV3(input: unknown): CompiledWorldPackV3 {
-  const pack = parseCompiledWorldPackV3(input)
-  const { packHash: claimedHash, ...unsigned } = pack
-  if (packHashV3(unsigned) !== claimedHash) failWorldPackContract('PACK_SOURCE_INVALID', 'worldpack.json', '/packHash', 'does not match the compiled v3 envelope content')
-  validateV2References(pack.content)
-  return pack
-}
-
-/**
- * Interaction compiler. It extends v4 only through the explicit `worldpack-source/v5` source
- * version, and it never reinterprets a v1-v4 source or an already compiled v1-v4 Pack.
- */
 export class WorldPackCompilerV5 {
   async compile(
     sourceDirectory: string,
@@ -1619,35 +964,6 @@ export class WorldPackCompilerV5 {
     ]
     return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
   }
-}
-
-/** Fail closed if any compiled v4 field differs from its content-derived identity. */
-export function verifyCompiledWorldPackV4(input: unknown): CompiledWorldPackV4 {
-  const pack = parseCompiledWorldPackV4(input)
-  const { packHash: claimedHash, ...unsigned } = pack
-  if (packHashV4(unsigned) !== claimedHash) failWorldPackContract('PACK_SOURCE_INVALID', 'worldpack.json', '/packHash', 'does not match the compiled v4 envelope content')
-  validateV2References(pack.content)
-  return pack
-}
-
-/** Canonical bytes suitable for writing as the immutable worldpack.json artifact. */
-export function canonicalWorldPackBytes(input: unknown): Uint8Array {
-  return canonicalizeWorldJson(verifyCompiledWorldPack(input))
-}
-
-/** Canonical bytes for the immutable compiled worldpack/v2 artifact. */
-export function canonicalWorldPackBytesV2(input: unknown): Uint8Array {
-  return canonicalizeWorldJson(verifyCompiledWorldPackV2(input))
-}
-
-/** Canonical bytes for the immutable compiled worldpack/v3 artifact. */
-export function canonicalWorldPackBytesV3(input: unknown): Uint8Array {
-  return canonicalizeWorldJson(verifyCompiledWorldPackV3(input))
-}
-
-/** Canonical bytes for the immutable compiled worldpack/v4 artifact. */
-export function canonicalWorldPackBytesV4(input: unknown): Uint8Array {
-  return canonicalizeWorldJson(verifyCompiledWorldPackV4(input))
 }
 
 /** Every catalog binding must name a target the compiled content actually declares. */
