@@ -100,7 +100,9 @@ experience:web → playtest-web-entry
 
 第二十九刀（2026-09-25）：当前应用中的 RoundCoordinator、ReactionScheduler 与 WorldApplication 都从只接受 Manifest v10 的存档入口取得世界；将前两者持有的 Manifest 类型收窄到 v10，三个反应策略调用点直接读取 manifest.reactionPolicy。删除原先为 v2–v4 补 disabled 策略的 reactionPolicyFromManifest 及历史默认值，以及两个没有调用者的 v8/v9 交互版本判断函数。保留 ReactionScheduler 构造时的运行时 v10 检查和公开调度接口；不触碰旧交互目录实现，因为部分仍被测试夹具链引用。类型检查、Lint、现行测试 67/67；v10 交互包、冻结交互和 G1 组合定向测试 30/30。此刀不改变模型可见上下文、裁定或权威提交，未重复真实模型试玩。旧 WorldSpecCompiler 与夹具链仍按清单第 3 项处理。
 
-## 当前待清理清单（第二十九刀后）
+第三十刀（2026-09-25）：移除只激活 Manifest v5、使用 submit_actions/v2 的 Phase 9B Reaction 端到端测试与 P9 并发测试，共 807 行；两者不能通过当前仅接受 v10 的激活入口。同步裁掉专用 reaction-fixture.ts 中已无调用者的旧 Provider、绑定和地址构造，保留仍被 round-coordinator.test.ts 引用的 v5Manifest；从当前 retired-version 原型测试中去掉只验证退役 WorldSpecCompiler v2 拒绝 v1 源的断言，继续保留 v1/v2/v9 存档拒绝及旧 Manifest 激活不写入 Genesis 的检查。本刀不修改生产运行时或已提交事实。类型检查、Lint、现行测试 66/66（减少的 1 项正是退役编译器断言）；旧版本拒绝、G1 组合与 Reaction Store 定向测试 70/70。未进行模型试玩。历史 Phase 9 报告仍保留当时的测试路径作为历史记录，不把它们当作现行复现命令。WorldSpecCompiler 仍被 round-coordinator.test.ts 及其他旧夹具使用；后续先分类迁移 v10 需要的夹具，再删除编译器。
+
+## 当前待清理清单（第三十刀后）
 
 以下顺序按当前 v5 网页与 worldpack 的调用链排定。具有以后对外提供价值的接口优先保留；删除候选限于已退出的旧协议或确认无用的内部重复实现。权威事实、观察权限和已提交事件的一致性继续保留。
 

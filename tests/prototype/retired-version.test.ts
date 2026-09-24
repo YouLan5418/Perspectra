@@ -4,14 +4,9 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { brandId, hashWorldJson } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { runtimeManifestFromStored, WorldBootstrap, WorldSpecCompiler, type CompiledWorldSpec } from '@harness-world/kernel'
+import { runtimeManifestFromStored, WorldBootstrap, type CompiledWorldSpec } from '@harness-world/kernel'
 
-describe('retired WorldSpec and Manifest versions', () => {
-  it('rejects v1 source instead of silently upgrading it', () => {
-    expect(() => new WorldSpecCompiler().compile({ schemaVersion: 1 }))
-      .toThrow('WorldSpec.schemaVersion must be 2')
-  })
-
+describe('retired Manifest versions', () => {
   it('rejects retired stored Manifest versions instead of constructing runtime facts', () => {
     for (const schemaVersion of [1, 2, 9]) {
       expect(() => runtimeManifestFromStored({ schemaVersion }))
