@@ -1,9 +1,4 @@
 import {
-  type InteractionCatalogV1,
-  type InteractionCatalogV2,
-} from './interactions.ts'
-import {
-  brandId,
   canonicalizeWorldJson,
   compareWorldText,
   hashWorldJson,
@@ -50,7 +45,7 @@ export interface ManifestRegistries extends WorldJsonObject {
 }
 
 export interface CompiledWorldManifest extends WorldJsonObject {
-  readonly schemaVersion: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
+  readonly schemaVersion: 10
   readonly address: WorldAddress
   readonly specHash: WorldHash
   readonly genesisPlanHash: WorldHash
@@ -71,7 +66,7 @@ export interface CompiledWorldManifest extends WorldJsonObject {
   readonly observations: readonly ObservationSpec[]
   readonly playerBindings: readonly PlayerBindingSpec[]
   readonly plugins: readonly PluginSpec[]
-  readonly contentPack?: ContentPackManifestBinding | ContentPackManifestBindingV2
+  readonly contentPack?: ContentPackManifestBindingV2
 }
 
 export interface ContentPackCompilerIdentity extends WorldJsonObject {
@@ -100,18 +95,6 @@ export interface ContentPackRuntimeCapabilitiesV2 extends ContentPackRuntimeCapa
   readonly agentContextVersion: 2
 }
 
-export interface ContentPackManifestBinding extends WorldJsonObject {
-  readonly schemaVersion: 1
-  readonly packId: string
-  readonly packVersion: string
-  readonly packHash: WorldHash
-  readonly compiler: ContentPackCompilerIdentity
-  readonly pluginLocks: readonly ContentPackPluginLock[]
-  readonly runtimeCapabilities: ContentPackRuntimeCapabilities
-  readonly presentation: WorldJsonValue
-  readonly initialFacts: readonly WorldJsonValue[]
-}
-
 export interface ContentPackManifestBindingV2 extends WorldJsonObject {
   readonly schemaVersion: 2
   readonly packId: string
@@ -129,12 +112,6 @@ export interface ContentPackManifestBindingV2 extends WorldJsonObject {
   readonly markdown: readonly WorldJsonValue[]
 }
 
-export interface ContentPackCharacterSpec extends CharacterSpec {
-  readonly pronouns: string
-  readonly lifecycle: 'active' | 'incapacitated' | 'dead' | 'departed'
-  readonly portrayal: WorldJsonValue
-}
-
 export interface ContentPackCharacterSpecV2 extends CharacterSpec {
   readonly controllerClass: 'manual' | 'scripted' | 'rule' | 'noop'
   readonly pronouns: string
@@ -147,86 +124,13 @@ export interface SceneSpecV2 extends SceneSpec {
   readonly locationId: string | null
 }
 
-export interface CompiledWorldManifestV2 extends CompiledWorldManifest {
-  readonly schemaVersion: 2
-  readonly contentPack?: never
-}
-
-/** V3 only adds immutable content-pack provenance; all execution fields retain V2 semantics. */
-export interface CompiledWorldManifestV3 extends CompiledWorldManifest {
-  readonly schemaVersion: 3
-  readonly characters: readonly ContentPackCharacterSpec[]
-  readonly contentPack: ContentPackManifestBinding
-}
-
-/** V4 is enabled only by explicit compiled worldpack/v2 content and locks all Phase 8 contracts. */
-export interface CompiledWorldManifestV4 extends CompiledWorldManifest {
-  readonly schemaVersion: 4
-  readonly characters: readonly ContentPackCharacterSpecV2[]
-  readonly scenes: readonly SceneSpecV2[]
-  readonly contentPack: ContentPackManifestBindingV2
-}
-
-/** V5 adds the only capability gate that can enable bounded autonomous reactions. */
-export interface CompiledWorldManifestV5 extends CompiledWorldManifest {
-  readonly schemaVersion: 5
-  readonly characters: readonly ContentPackCharacterSpecV2[]
-  readonly scenes: readonly SceneSpecV2[]
-  readonly contentPack: ContentPackManifestBindingV2
-  readonly reactionPolicy: ReactionPolicyV1
-}
-
 export type ManifestationPolicyV1 =
   | { readonly version: 'manifestation-policy/v1'; readonly mode: 'disabled' }
   | { readonly version: 'manifestation-policy/v1'; readonly mode: 'enabled' }
 
-/** V6 explicitly selects submit_actions/v3 and ADR-0083 manifestation semantics. */
-export interface CompiledWorldManifestV6 extends CompiledWorldManifest {
-  readonly schemaVersion: 6
-  readonly characters: readonly ContentPackCharacterSpecV2[]
-  readonly scenes: readonly SceneSpecV2[]
-  readonly contentPack: ContentPackManifestBindingV2
-  readonly reactionPolicy: ReactionPolicyV1
-  readonly manifestationPolicy: ManifestationPolicyV1
-}
-
-export interface CompiledWorldManifestV7 extends CompiledWorldManifest {
-  readonly schemaVersion: 7
-  readonly characters: readonly ContentPackCharacterSpecV2[]
-  readonly scenes: readonly SceneSpecV2[]
-  readonly contentPack: ContentPackManifestBindingV2
-  readonly reactionPolicy: ReactionPolicyV1
-  readonly manifestationPolicy: ManifestationPolicyV1
-  readonly actionGroupPolicy: { readonly version: 'bounded-action-group/v1' }
-}
-
-export interface CompiledWorldManifestV8 extends CompiledWorldManifest {
-  readonly schemaVersion: 8
-  readonly characters: readonly ContentPackCharacterSpecV2[]
-  readonly scenes: readonly SceneSpecV2[]
-  readonly contentPack: ContentPackManifestBindingV2
-  readonly reactionPolicy: ReactionPolicyV1
-  readonly manifestationPolicy: ManifestationPolicyV1
-  readonly interactionCatalog: InteractionCatalogV1
-  readonly actionGroupPolicy: { readonly version: 'bounded-action-group/v1' }
-}
-
 export type PlayerInputPolicyV1 =
   | { readonly version: 'legacy-speech/v1' }
   | { readonly version: 'player-intent/v1' }
-
-/** V9 adds character-target interactions while C1/C2 activate only legacy-speech/v1. */
-export interface CompiledWorldManifestV9 extends CompiledWorldManifest {
-  readonly schemaVersion: 9
-  readonly characters: readonly ContentPackCharacterSpecV2[]
-  readonly scenes: readonly SceneSpecV2[]
-  readonly contentPack: ContentPackManifestBindingV2
-  readonly reactionPolicy: ReactionPolicyV1
-  readonly manifestationPolicy: ManifestationPolicyV1
-  readonly interactionCatalog: InteractionCatalogV2
-  readonly actionGroupPolicy: { readonly version: 'bounded-action-group/v1' }
-  readonly playerInputPolicy?: PlayerInputPolicyV1
-}
 
 /**
  * V10 replaces the closed interaction catalog with the frozen package selection. The catalog names
@@ -249,13 +153,13 @@ export interface CompiledWorldManifestV10 extends CompiledWorldManifest {
   readonly playerInputPolicy?: PlayerInputPolicyV1
 }
 
-/** The frozen-interaction path. Only v10 uses it; v1-v9 keep their own catalog semantics. */
+/** Reject untrusted non-v10 manifests before the frozen interaction runtime uses them. */
 export function manifestUsesFrozenInteractions(manifest: CompiledWorldManifest): manifest is CompiledWorldManifestV10 {
   return manifest.schemaVersion === 10
 }
 
 export interface CompiledWorldSpec {
-  readonly manifest: CompiledWorldManifest
+  readonly manifest: CompiledWorldManifestV10
   readonly manifestHash: WorldHash
   readonly genesisEvents: readonly WorldEventDraft[]
   readonly genesisHash: WorldHash
@@ -499,11 +403,6 @@ function hashAt(value: unknown, path: string): WorldHash {
   return hash as WorldHash
 }
 
-function stringAt(value: unknown, path: string): string {
-  if (typeof value !== 'string') throw new TypeError(`${path} must be a string`)
-  return value
-}
-
 function arrayAt(value: unknown, path: string): readonly unknown[] {
   if (!Array.isArray(value)) throw new TypeError(`${path} must be an array`)
   return value
@@ -592,150 +491,6 @@ export function manifestationManifestRegistries(): ManifestRegistries {
       'character-visible-state',
     ]),
     rules: phase8.rules,
-  }
-}
-
-function parseSeeds<T>(
-  root: Record<string, unknown>, field: string, idKey: string, ownerKey: string, characterIds: Set<CharacterId>,
-  make: (id: string, owner: CharacterId, value: WorldJsonValue) => T,
-): T[] {
-  return arrayAt(root[field], `WorldSpec.${field}`).map((entry, index) => {
-    const value = objectAt(entry, `${field}[${index}]`)
-    exactKeys(value, [idKey, ownerKey, 'value'], `${field}[${index}]`)
-    const owner = brandId(textAt(value[ownerKey], `${field}.${ownerKey}`), 'CharacterId')
-    if (!characterIds.has(owner)) throw new TypeError(`${field} references unknown character ${owner}`)
-    return make(textAt(value[idKey], `${field}.${idKey}`), owner, value.value as WorldJsonValue)
-  })
-}
-
-/** Strict compiler for the remaining declarative WorldSpec v2 fixture contract. */
-export class WorldSpecCompiler {
-  compile(input: unknown): CompiledWorldSpec {
-    canonicalizeWorldJson(input as WorldJsonValue)
-    const root = objectAt(input, 'WorldSpec')
-    if (root.schemaVersion !== 2) throw new TypeError('WorldSpec.schemaVersion must be 2')
-    exactKeys(root, [
-      'schemaVersion', 'address', 'metadata', 'timeMode', 'roundQueueLimit', 'runtimePolicy', 'rulebook', 'locations',
-      'entities', 'characters', 'scenes', 'goals', 'claims', 'observations', 'playerBindings', 'plugins',
-    ], 'WorldSpec')
-    if (root.timeMode !== 'TURN_DRIVEN') throw new TypeError('WorldSpec.timeMode must be TURN_DRIVEN in V0')
-    if (!Number.isSafeInteger(root.roundQueueLimit) || (root.roundQueueLimit as number) <= 0) throw new TypeError('WorldSpec.roundQueueLimit must be a positive safe integer')
-
-    const av = objectAt(root.address, 'WorldSpec.address')
-    exactKeys(av, ['tenantId', 'worldId', 'branchId'], 'WorldSpec.address')
-    const address: WorldAddress = {
-      tenantId: brandId(textAt(av.tenantId, 'tenantId'), 'TenantId'),
-      worldId: brandId(textAt(av.worldId, 'worldId'), 'WorldId'),
-      branchId: brandId(textAt(av.branchId, 'branchId'), 'BranchId'),
-    }
-    const mv = objectAt(root.metadata, 'WorldSpec.metadata')
-    exactKeys(mv, ['title', 'description'], 'WorldSpec.metadata')
-    const metadata: WorldMetadata = { title: textAt(mv.title, 'metadata.title'), description: stringAt(mv.description, 'metadata.description') }
-    const rv = objectAt(root.runtimePolicy, 'WorldSpec.runtimePolicy')
-    exactKeys(rv, ['npcInitialAvailability', 'playerInitialAvailability'], 'WorldSpec.runtimePolicy')
-    if (rv.npcInitialAvailability !== 'provisioning' && rv.npcInitialAvailability !== 'ready') throw new TypeError('runtimePolicy.npcInitialAvailability is invalid')
-    if (rv.playerInitialAvailability !== 'ready') throw new TypeError('runtimePolicy.playerInitialAvailability must be ready')
-    const runtimePolicy: RuntimePolicy = { npcInitialAvailability: rv.npcInitialAvailability, playerInitialAvailability: 'ready' }
-
-    const rulebookValue = objectAt(root.rulebook, 'WorldSpec.rulebook')
-    exactKeys(rulebookValue, ['rulebookId', 'version'], 'WorldSpec.rulebook')
-    if (rulebookValue.rulebookId !== 'builtin:speak-move'
-      || (rulebookValue.version !== 1 && rulebookValue.version !== 2
-        && rulebookValue.version !== 3 && rulebookValue.version !== 4)) {
-      throw new TypeError('WorldSpec.rulebook must select builtin:speak-move version 1, 2, 3, or 4')
-    }
-    const rulebookVersion = rulebookValue.version as 1 | 2 | 3 | 4
-
-    const locations = arrayAt(root.locations, 'WorldSpec.locations').map((entry, index): LocationSpec => {
-      const value = objectAt(entry, `locations[${index}]`); exactKeys(value, ['locationId', 'name'], `locations[${index}]`)
-      return { locationId: textAt(value.locationId, 'locationId'), name: textAt(value.name, 'location.name') }
-    }).sort((a, b) => compareWorldText(a.locationId, b.locationId))
-    if (locations.length === 0) throw new TypeError('WorldSpec.locations cannot be empty')
-    unique(locations.map(value => value.locationId), 'WorldSpec.locations')
-    const locationIds = new Set(locations.map(value => value.locationId))
-
-    const entities = arrayAt(root.entities, 'WorldSpec.entities').map((entry, index): EntitySpec => {
-      const value = objectAt(entry, `entities[${index}]`); exactKeys(value, ['entityId', 'locationId', 'kind'], `entities[${index}]`)
-      const locationId = textAt(value.locationId, 'entity.locationId')
-      if (!locationIds.has(locationId)) throw new TypeError(`entity references unknown location ${locationId}`)
-      return { entityId: textAt(value.entityId, 'entityId'), locationId, kind: textAt(value.kind, 'entity.kind') }
-    }).sort((a, b) => compareWorldText(a.entityId, b.entityId))
-    unique(entities.map(value => value.entityId), 'WorldSpec.entities')
-
-    const characters = arrayAt(root.characters, 'WorldSpec.characters').map((entry, index): CharacterSpec => {
-      const value = objectAt(entry, `characters[${index}]`); exactKeys(value, ['characterId', 'name', 'locationId'], `characters[${index}]`)
-      const locationId = textAt(value.locationId, 'character.locationId')
-      if (!locationIds.has(locationId)) throw new TypeError(`character references unknown location ${locationId}`)
-      return { characterId: brandId(textAt(value.characterId, 'characterId'), 'CharacterId'), name: textAt(value.name, 'character.name'), locationId }
-    }).sort((a, b) => compareWorldText(a.characterId, b.characterId))
-    if (characters.length === 0) throw new TypeError('WorldSpec.characters cannot be empty')
-    unique(characters.map(value => value.characterId), 'WorldSpec.characters')
-    const characterIds = new Set(characters.map(value => value.characterId))
-
-    const goals = parseSeeds(root, 'goals', 'goalId', 'characterId', characterIds, (goalId, characterId, value): GoalSpec => ({ goalId, characterId, value })).sort((a, b) => compareWorldText(a.goalId, b.goalId)); unique(goals.map(v => v.goalId), 'WorldSpec.goals')
-    const claims = parseSeeds(root, 'claims', 'claimId', 'characterId', characterIds, (claimId, characterId, value): ClaimSpec => ({ claimId, characterId, value })).sort((a, b) => compareWorldText(a.claimId, b.claimId)); unique(claims.map(v => v.claimId), 'WorldSpec.claims')
-    const observations = parseSeeds(root, 'observations', 'observationId', 'observerId', characterIds, (observationId, observerId, value): ObservationSpec => ({ observationId, observerId, value })).sort((a, b) => compareWorldText(a.observationId, b.observationId)); unique(observations.map(v => v.observationId), 'WorldSpec.observations')
-
-    const scenes = arrayAt(root.scenes, 'WorldSpec.scenes').map((entry, index): SceneSpec => {
-      const value = objectAt(entry, `scenes[${index}]`); exactKeys(value, ['sceneId', 'participantIds'], `scenes[${index}]`)
-      const participantIds = arrayAt(value.participantIds, 'scene.participantIds')
-        .map(id => brandId(textAt(id, 'scene.participantId'), 'CharacterId'))
-        .sort(compareWorldText)
-      unique(participantIds, 'scene.participantIds')
-      if (participantIds.some(id => !characterIds.has(id))) throw new TypeError('scene references unknown character')
-      return { sceneId: textAt(value.sceneId, 'sceneId'), participantIds }
-    }).sort((a, b) => compareWorldText(a.sceneId, b.sceneId)); unique(scenes.map(v => v.sceneId), 'WorldSpec.scenes')
-
-    const playerBindings = arrayAt(root.playerBindings, 'WorldSpec.playerBindings').map((entry, index): PlayerBindingSpec => {
-      const value = objectAt(entry, `playerBindings[${index}]`); exactKeys(value, ['principalId', 'characterId', 'sessionId'], `playerBindings[${index}]`)
-      const characterId = brandId(textAt(value.characterId, 'binding.characterId'), 'CharacterId')
-      if (!characterIds.has(characterId)) throw new TypeError(`binding references unknown character ${characterId}`)
-      return { principalId: textAt(value.principalId, 'principalId'), characterId, sessionId: brandId(textAt(value.sessionId, 'sessionId'), 'SessionId') }
-    }).sort((a, b) => compareWorldText(a.principalId, b.principalId))
-    if (playerBindings.length === 0) throw new TypeError('WorldSpec.playerBindings cannot be empty')
-    unique(playerBindings.map(v => v.principalId), 'WorldSpec.playerBindings principals'); unique(playerBindings.map(v => v.characterId), 'WorldSpec.playerBindings characters')
-
-    const plugins = arrayAt(root.plugins, 'WorldSpec.plugins').map((entry, index): PluginSpec => {
-      const value = objectAt(entry, `plugins[${index}]`); exactKeys(value, ['pluginId', 'version'], `plugins[${index}]`)
-      const version = textAt(value.version, 'plugin.version')
-      if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) throw new TypeError('plugin.version must be exact semver')
-      return { pluginId: textAt(value.pluginId, 'pluginId'), version }
-    }).sort((a, b) => compareWorldText(a.pluginId, b.pluginId)); unique(plugins.map(v => v.pluginId), 'WorldSpec.plugins')
-
-    const normalizedSpec = { schemaVersion: 2 as const, address, metadata, timeMode: 'TURN_DRIVEN' as const, roundQueueLimit: root.roundQueueLimit as number, runtimePolicy, rulebook: { rulebookId: 'builtin:speak-move' as const, version: rulebookVersion }, locations, entities, characters, scenes, goals, claims, observations, playerBindings, plugins }
-    const specHash = hashWorldJson('world-spec-v2', normalizedSpec)
-    const genesisPlanHash = hashWorldJson('world-genesis-semantic-plan-v1', { address, locations, entities, characters, scenes, goals, claims, observations, playerBindings, lifecycle: 'active' })
-    const manifest: CompiledWorldManifestV2 = { ...normalizedSpec, specHash, genesisPlanHash, canonicalVersion: 'world-json/v1', hashVersion: 'sha256/v1', registries: registries(rulebookVersion) }
-    const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
-    const genesisEvents: readonly WorldEventDraft[] = [
-      { eventType: 'world.created', eventVersion: 1, data: { specHash } },
-      { eventType: 'world.manifest-locked', eventVersion: 1, data: { manifestHash, genesisPlanHash } },
-      ...locations.map(value => ({ eventType: 'location.upsert', eventVersion: 1, data: value })),
-      ...entities.map(value => ({ eventType: 'entity.upsert', eventVersion: 1, data: value })),
-      ...characters.map(value => ({ eventType: 'character.created', eventVersion: 1, data: { ...value, lifecycleState: 'active' } })),
-      ...scenes.map(value => ({ eventType: 'scene.upsert', eventVersion: 1, data: { sceneId: value.sceneId, value: { participantIds: value.participantIds } } })),
-      ...goals.map(value => ({ eventType: 'goal.upsert', eventVersion: 1, data: { id: value.goalId, value: { characterId: value.characterId, seed: value.value } } })),
-      ...claims.map(value => ({ eventType: 'claim.upsert', eventVersion: 1, data: { id: value.claimId, value: { characterId: value.characterId, seed: value.value } } })),
-      ...(rulebookVersion >= 4 ? claims.flatMap(value => {
-        const seed = typeof value.value === 'object' && value.value !== null && !Array.isArray(value.value)
-          ? value.value as Record<string, unknown>
-          : undefined
-        const proposition = typeof seed?.proposition === 'object' && seed.proposition !== null && !Array.isArray(seed.proposition)
-          ? seed.proposition as Record<string, unknown>
-          : undefined
-        return seed?.source === 'author-secret' && proposition?.subject === value.characterId
-          && proposition.predicate === 'is_culprit' && proposition.object === true
-          ? [{
-            eventType: 'investigation.culprit-seeded', eventVersion: 1,
-            data: { culpritId: value.characterId, sourceClaimId: value.claimId },
-          }]
-          : []
-      }) : []),
-      ...observations.map(value => ({ eventType: 'observation.upsert', eventVersion: 1, data: { id: value.observationId, value: { observerId: value.observerId, seed: value.value } } })),
-      ...playerBindings.map(value => ({ eventType: 'player.binding.upsert', eventVersion: 1, data: value })),
-      { eventType: 'world.lifecycle-changed', eventVersion: 1, data: { lifecycleState: 'active' } },
-    ]
-    return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
   }
 }
 

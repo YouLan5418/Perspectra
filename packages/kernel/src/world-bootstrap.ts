@@ -1,9 +1,7 @@
 import { brandId, deterministicId, failWorld, worldAddressKey } from '@harness-world/contracts'
 import { WorldStore, type ActivateBranchResult } from '@harness-world/store-sqlite'
 import type { FrozenInteractionRulebook } from './frozen-interactions.ts'
-import {
-  manifestUsesFrozenInteractions, type CompiledWorldSpec,
-} from './world-spec.ts'
+import type { CompiledWorldSpec } from './world-spec.ts'
 
 /** Activates a compiled world through the Store's Tick 0 administrative transaction. */
 export class WorldBootstrap {
@@ -14,7 +12,7 @@ export class WorldBootstrap {
   ) {}
 
   activate(compiled: CompiledWorldSpec, correlationId = 'world-bootstrap'): ActivateBranchResult {
-    if (!manifestUsesFrozenInteractions(compiled.manifest)) {
+    if ((compiled.manifest as { readonly schemaVersion: number }).schemaVersion !== 10) {
       failWorld({
         errorCode: 'INVALID_REQUEST', category: 'admission',
         message: 'new worlds require Manifest v10', retryable: false,

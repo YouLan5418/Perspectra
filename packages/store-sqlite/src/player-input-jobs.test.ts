@@ -9,16 +9,17 @@ import { RoundInbox } from './round-inbox.ts'
 import { WorldStore } from './world-store.ts'
 import { WriterLeaseService } from './writer-lease.ts'
 import { PlayerInputJobs, readPlayerInputRow, PLAYER_INPUT_TRANSITIONS, type PlayerInputStatus } from './player-input-jobs.ts'
-import { WorldBootstrap } from '@harness-world/kernel'
-import { intentWorld } from '../../../tests/fixtures/player-intent-world.ts'
+import { FrozenInteractionRulebook, WorldBootstrap } from '@harness-world/kernel'
+import { frozenIntentWorld } from '../../../tests/fixtures/player-intent-world.ts'
+import { basicInteractionPackage } from '../../../tests/fixtures/frozen-interaction-world.ts'
 
 function setup() {
   const root = mkdtempSync(join(tmpdir(), 'intent-jobs-'))
   const path = join(root, 'world.sqlite')
-  const compiled = intentWorld()
+  const compiled = frozenIntentWorld()
   const address = compiled.manifest.address
   const world = new WorldStore(path)
-  new WorldBootstrap(world, true).activate(compiled)
+  new WorldBootstrap(world, true, new FrozenInteractionRulebook([basicInteractionPackage])).activate(compiled)
   world.close()
   const leases = new WriterLeaseService(path, () => 100)
   const lease = leases.acquire(address, 'writer', 1000)
@@ -67,7 +68,7 @@ it('durably binds input identity and FIFO across reopen, ambiguity and explicit 
     expect(s.jobs.claim(s.address, s.lease)).toBeUndefined()
     const first = s.jobs.receive(s.address, 'principal:p', 'one', { text: 'hold' }, 2)
     expect(first).toMatchObject({
-      acceptedManifestHash: intentWorld().manifestHash,
+      acceptedManifestHash: frozenIntentWorld().manifestHash,
       acceptedHeadSeq: expect.any(Number),
       acceptedHeadHash: expect.stringMatching(/^sha256:/u),
     })

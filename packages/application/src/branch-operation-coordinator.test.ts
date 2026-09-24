@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { brandId } from '@harness-world/contracts'
-import { WorldBootstrap, WorldSpecCompiler, type CompiledWorldSpec, type RoundExecutionLane } from '@harness-world/kernel'
+import { FrozenInteractionRulebook, createCoreRulebookRegistry, WorldBootstrap, type CompiledWorldSpec, type RoundExecutionLane } from '@harness-world/kernel'
 import {
   BranchAdministration,
   CharacterRuntimeAvailabilityService,
@@ -16,6 +16,7 @@ import {
 } from '@harness-world/store-sqlite'
 import { BranchOperationCoordinator, type CriticalDeliveryDrainPort } from './branch-operation-coordinator.ts'
 import { RoundCoordinator } from './round-coordinator.ts'
+import { basicInteractionPackage, frozenInteractionWorld } from '../../../tests/fixtures/frozen-interaction-world.ts'
 
 const directories: string[] = []
 
@@ -30,17 +31,7 @@ afterEach(() => {
 })
 
 function compiled(): CompiledWorldSpec {
-  return new WorldSpecCompiler().compile({
-    schemaVersion: 1,
-    address: { tenantId: 'tenant:operations', worldId: 'world:operations', branchId: 'branch:main' },
-    timeMode: 'TURN_DRIVEN',
-    roundQueueLimit: 8,
-    rulebook: { rulebookId: 'builtin:speak-move', version: 1 },
-    locations: [{ locationId: 'location:room', name: 'Room' }],
-    characters: [{ characterId: 'character:player', name: 'Player', locationId: 'location:room' }],
-    playerBindings: [{ principalId: 'principal:player', characterId: 'character:player', sessionId: 'session:player' }],
-    plugins: [],
-  })
+  return frozenInteractionWorld()
 }
 
 function lane(world: CompiledWorldSpec): RoundExecutionLane {
@@ -69,6 +60,7 @@ function coordinator(path: string, world: CompiledWorldSpec) {
     availability,
     runtimeLane: lane(world),
     ownerId: 'coordinator:operations',
+    rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
     participants: [],
     modelBudgetTokens: 0,
   })
@@ -90,7 +82,7 @@ describe('BranchOperationCoordinator', () => {
     const path = paths().world
     const world = compiled()
     const setup = new WorldStore(path)
-    new WorldBootstrap(setup).activate(world)
+    new WorldBootstrap(setup, false, new FrozenInteractionRulebook([basicInteractionPackage])).activate(world)
     const child = { ...world.manifest.address, branchId: brandId('branch:occupied', 'BranchId') }
     setup.createBranch(child)
     setup.close()
@@ -152,7 +144,7 @@ describe('BranchOperationCoordinator', () => {
     const path = paths().world
     const world = compiled()
     const setup = new WorldStore(path)
-    new WorldBootstrap(setup).activate(world)
+    new WorldBootstrap(setup, false, new FrozenInteractionRulebook([basicInteractionPackage])).activate(world)
     setup.close()
     const runtime = coordinator(path, world)
     enqueueAccepted(runtime.inbox, world, 'accepted-before-fork')
@@ -180,6 +172,7 @@ describe('BranchOperationCoordinator', () => {
       availability: runtime.availability,
       runtimeLane: { ...lane(world), address: child },
       ownerId: 'coordinator:child',
+      rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
       participants: [],
       modelBudgetTokens: 0,
     })
@@ -206,7 +199,7 @@ describe('BranchOperationCoordinator', () => {
     const path = paths()
     const world = compiled()
     const setup = new WorldStore(path.world)
-    new WorldBootstrap(setup).activate(world)
+    new WorldBootstrap(setup, false, new FrozenInteractionRulebook([basicInteractionPackage])).activate(world)
     setup.close()
     const runtime = coordinator(path.world, world)
     enqueueAccepted(runtime.inbox, world, 'accepted-before-archive')

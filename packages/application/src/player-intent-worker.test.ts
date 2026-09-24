@@ -8,17 +8,18 @@ import { brandId, hashWorldJson } from '@harness-world/contracts'
 import { PlayerIntentCallStore } from '@harness-world/agents'
 import { PlayerIntentWorker, type PlayerIntentWorkerOptions } from './player-intent-worker.ts'
 import { preparePlayerIntent } from './player-intent-preparation.ts'
-import { createCoreRulebookRegistry, WorldBootstrap } from '@harness-world/kernel'
-import { intentWorld } from '../../../tests/fixtures/player-intent-world.ts'
+import { FrozenInteractionRulebook, createCoreRulebookRegistry, WorldBootstrap } from '@harness-world/kernel'
+import { frozenIntentWorld } from '../../../tests/fixtures/player-intent-world.ts'
+import { basicInteractionPackage } from '../../../tests/fixtures/frozen-interaction-world.ts'
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'intent-worker-'))
   const worldPath = join(root, 'world.sqlite')
   const contextPath = join(root, 'context.sqlite')
-  const compiled = intentWorld()
+  const compiled = frozenIntentWorld()
   const address = compiled.manifest.address
   const world = new WorldStore(worldPath)
-  new WorldBootstrap(world, true).activate(compiled)
+  new WorldBootstrap(world, true, new FrozenInteractionRulebook([basicInteractionPackage])).activate(compiled)
   world.close()
   const jobs = new PlayerInputJobs(worldPath)
   const leases = new WriterLeaseService(worldPath)
@@ -112,7 +113,7 @@ it.each(['request', 'response'])('rejects a self-consistent Context %s that diff
 it('fails closed on lost PlayerBinding and tolerates an empty interaction affordance catalog', () => {
   const s = fixture()
   try {
-    const world = intentWorld()
+    const world = frozenIntentWorld()
     const resolver = createCoreRulebookRegistry().resolve(world.manifest.rulebook.rulebookId, world.manifest.rulebook.version, 'test', world.manifest.address)
     expect(() => preparePlayerIntent(s.job, world.manifest, [], resolver, undefined, 0, world.manifestHash, 0))
       .toThrow('lost its PlayerBinding')

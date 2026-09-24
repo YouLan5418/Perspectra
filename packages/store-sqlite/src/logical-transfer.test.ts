@@ -14,8 +14,9 @@ import { SessionOutboxWorker, WorldOutbox } from './outbox-worker.ts'
 import { WriterLeaseService } from './writer-lease.ts'
 import { WorldStore } from './world-store.ts'
 import { PlayerInputJobs } from './player-input-jobs.ts'
-import { WorldBootstrap } from '@harness-world/kernel'
-import { intentWorld } from '../../../tests/fixtures/player-intent-world.ts'
+import { FrozenInteractionRulebook, WorldBootstrap } from '@harness-world/kernel'
+import { frozenIntentWorld } from '../../../tests/fixtures/player-intent-world.ts'
+import { basicInteractionPackage } from '../../../tests/fixtures/frozen-interaction-world.ts'
 
 const directories: string[] = []
 
@@ -33,10 +34,10 @@ describe('WorldLogicalTransferService', () => {
   it('round-trips v8 input authority, rejects its tampering and never invents it on v7 import', () => {
     const root = directory()
     const source = join(root, 'source.sqlite')
-    const compiled = intentWorld()
+    const compiled = frozenIntentWorld()
     const address = compiled.manifest.address
     const store = new WorldStore(source)
-    new WorldBootstrap(store, true).activate(compiled)
+    new WorldBootstrap(store, true, new FrozenInteractionRulebook([basicInteractionPackage])).activate(compiled)
     store.close()
     const jobs = new PlayerInputJobs(source)
     const job = jobs.receive(address, 'p', 'key', { text: 'hello' }, 1)
@@ -77,10 +78,10 @@ describe('WorldLogicalTransferService', () => {
   it('round-trips a recoverable Player Input Round and rejects broken authority, state path or Inbox binding', () => {
     const root = directory()
     const source = join(root, 'pending-input.sqlite')
-    const compiled = intentWorld()
+    const compiled = frozenIntentWorld()
     const address = compiled.manifest.address
     const store = new WorldStore(source)
-    new WorldBootstrap(store, true).activate(compiled)
+    new WorldBootstrap(store, true, new FrozenInteractionRulebook([basicInteractionPackage])).activate(compiled)
     const child = { ...address, branchId: brandId('branch:zz-logical-input-child', 'BranchId') }
     store.forkBranch(address, child, store.head(address).headSeq)
     store.close()

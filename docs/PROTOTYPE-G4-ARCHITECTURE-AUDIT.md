@@ -110,7 +110,9 @@ experience:web → playtest-web-entry
 
 第三十四刀（2026-09-25）：将应用层唯一的 `player-provisional.test.ts` 从 v9 `characterInteractionWorld` 改为现行 v10 冻结交互夹具，以真实 `interact@2` 牵手结果验证临时绑定的事件 ordinal、漂移拒绝及 full/none/occurrence_only 的关系观察遮蔽；full 视图先断言有关系语义，避免空结果让遮蔽测试虚假通过。移除仅被退役闭合交互测试调用的 `endCharacterRelations` 批量终止辅助接口；v10 移动后的关系终止仍由冻结世界 fold 的定义处理器裁定，生产注释同步收口。没有改变现行运行时处理路径或权威提交。类型检查、Lint、现行测试 66/66，临时结果、关系 fold 与旧关系事件校验定向测试 3/3。其余依赖 v9 夹具的历史测试继续逐项判断，未做真实模型试玩。
 
-## 当前待清理清单（第三十四刀后）
+第三十五刀（2026-09-25）：移除没有生产调用者的 `WorldSpecCompiler`、v2–v9 存档 Manifest 类型、旧闭合交互目录解析/可用性路径，以及四层历史 WorldSpec 夹具链。将 Branch Operation、玩家意图 Store/Worker 和 Round 的仍有效断言迁到现行 v10 冻结交互世界，并显式安装交互包；删除只能激活旧 Manifest 或依赖旧 cue 协议、无法进入当前行为的测试。当前 v10 Pack 仍使用的 V2 命名内容字段和解析函数保留，不按名称误删；公开的存档、事务及观察接口未变。类型检查、Lint、现行测试 66/66，相关 v10 定向测试 70/70。共删除约 5700 行，主要为历史测试和夹具；没有改变模型可见上下文或执行结果，未重复真实模型试玩。旧 ContextPipeline / WorldApplication 测试随其旧世界夹具退出，现行 v10 场景观察与权限断言仍在；这不等于旧路径的历史覆盖已迁移。
+
+## 当前待清理清单（第三十五刀后）
 
 以下顺序按当前 v5 网页与 worldpack 的调用链排定。具有以后对外提供价值的接口优先保留；删除候选限于已退出的旧协议或确认无用的内部重复实现。权威事实、观察权限和已提交事件的一致性继续保留。
 
@@ -118,7 +120,7 @@ experience:web → playtest-web-entry
 | --- | --- | --- |
 | 1（已完成） | `submit_actions` v2/v3 校验入口及 v7 借用的旧解析辅助 | 已在第十七刀删除；保留 v1 通用校验和玩家表现解析接口。 |
 | 2（完成） | `RoundCoordinator`、`ReactionScheduler` 的旧 Manifest 分流和 Provider 接口的历史输出联合 | 运行时内部固定 v10，Provider 公开接口保留并把输出交由 v7 校验；旧 DTO 类型仅供历史测试，后续可随旧测试自然退出。 |
-| 3 | kernel 的 v2–v9 Manifest 类型、`WorldSpecCompiler` v2 与对应旧夹具 | 编译器无生产调用者，现行叙事测试已改用 v5 Pack，旧 v7/v8 专属测试已退出。现行 v10 冻结交互夹具已与旧编译器脱钩；剩余 `character-interaction-world → interaction-world → action-group-world → phase8-provider-world`、其他包历史测试仍使用旧编译器；应用层 player-provisional 单测已迁 v10，v5 `reaction-fixture` 与失效的 v1 WorldKernel 测试已退出。先逐项判断这些测试的当前价值，保留有用断言并迁到 v10，再删除旧编译器与类型。 |
+| 3（完成） | kernel 的 v2–v9 Manifest 类型、`WorldSpecCompiler` v2 与对应旧夹具 | 第三十五刀已删除编译器、旧 Manifest 类型、历史夹具链和无当前调用者的闭合交互目录；仍有价值的当前断言迁到 v10。v10 Pack 使用的 V2 命名内容字段保留。 |
 | 4（保留接口） | `WorldApplication` 的 archive、logical transfer、snapshot 离线 API | 这些能力未来可能需要对外提供，按用户要求保留公开接口；后续只审查内部重复或已失效的兼容分支，不以当前网页未调用为由删接口。 |
 | 5（部分完成） | `package.json` 的旧阶段测试命令与专属夹具 | 已移除 P1–P4、P8 性能、硬终止、覆盖率及旧全量快捷命令，并清理硬终止/P1/P3 专属文件。P2/P4 与其他有观察、权限或接口诊断价值的测试保留为按需运行。 |
 | 暂缓 | 耐久 Reaction 账本、Context Receipt、Provider Call/Quality、Reflection、Quarantine、Memory/Projection | `WorldApplication` 仍装配或调用其中部分；需先证明当前路径未使用，或先缩小接线。当前网页的单角色激活和旧 `ReactionScheduler` 是不同路径，不能因网页未调用后者就连带删除所有状态表。 |

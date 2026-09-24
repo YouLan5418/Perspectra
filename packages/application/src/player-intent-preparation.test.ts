@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import type { PlayerInputJob } from '@harness-world/store-sqlite'
-import { intentWorld } from '../../../tests/fixtures/player-intent-world.ts'
+import { frozenIntentWorld } from '../../../tests/fixtures/player-intent-world.ts'
+import { basicInteractionPackage } from '../../../tests/fixtures/frozen-interaction-world.ts'
 import { preparePlayerIntent } from './player-intent-preparation.ts'
 
 /**
@@ -10,9 +11,9 @@ import { preparePlayerIntent } from './player-intent-preparation.ts'
  * inventing a version for it.
  */
 function prepare(input: Record<string, unknown>) {
-  const world = intentWorld()
+  const world = frozenIntentWorld()
   const manifest = world.manifest
-  const resolver = createCoreRulebookRegistry().resolve(
+  const resolver = createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }).resolve(
     manifest.rulebook.rulebookId, manifest.rulebook.version, 'preparation:test')
   const job = {
     address: manifest.address, inputId: 'input:1', principalId: 'principal:player', input,
