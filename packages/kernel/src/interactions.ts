@@ -325,17 +325,6 @@ function relationEnd(relationId: string, characterId: string, reason: 'released'
   }
 }
 
-/** Deterministically end every active hand_hold involving one transitioning participant. */
-export function endCharacterRelations(
-  events: readonly RulebookEvent[],
-  characterId: string,
-  reason: 'participant_moved' | 'participant_unavailable',
-): readonly WorldEventDraft[] {
-  return currentCharacterRelations(events)
-    .filter(relation => relation.active && (relation.initiatorId === characterId || relation.targetId === characterId))
-    .map(relation => relationEnd(relation.relationId, characterId, reason))
-}
-
 /** Public relationship semantics omit the opaque release locator and source Action identity. */
 export function characterRelationObservations(
   prefix: readonly RulebookEvent[],

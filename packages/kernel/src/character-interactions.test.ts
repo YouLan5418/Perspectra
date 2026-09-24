@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { resolutionAuthority, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { characterInteractionWorld } from '../../../tests/fixtures/character-interaction-world.ts'
-import { availableInteractions, currentCharacterRelations, endCharacterRelations, parseInteractionCatalog, resolveInteraction } from './interactions.ts'
+import { availableInteractions, currentCharacterRelations, parseInteractionCatalog, resolveInteraction } from './interactions.ts'
 import { runtimeManifestFromStored } from './world-spec.ts'
 import { WorldBootstrap } from './world-bootstrap.ts'
 import type { RulebookEvent } from './rulebook.ts'
@@ -85,7 +85,7 @@ it('rejects invalid v2 definitions, fixed policies, ambiguous targets and bindin
   expect(availableInteractions(manifest, world.genesisEvents, player, authority).length).toBeGreaterThan(0)
 })
 
-it('fails closed on malformed relation transitions and ends zero, one and multiple relations', () => {
+it('fails closed on malformed relation transitions', () => {
   const start = resolveInteraction(world.manifest, world.genesisEvents, player, params, context).events[0]!
   const data = start.data as any
   for (const patch of [null, {}, { ...data, relationId: '' }, { ...data, relationId: 'bad' },
@@ -105,12 +105,7 @@ it('fails closed on malformed relation transitions and ends zero, one and multip
   expect(() => currentCharacterRelations([start, { ...end, eventVersion: 2 }])).toThrow()
   expect(() => currentCharacterRelations([end])).toThrow()
   expect(() => currentCharacterRelations([start, end, end])).toThrow()
-  expect(endCharacterRelations([], player, 'participant_unavailable')).toEqual([])
-  const second = { ...start, data: { ...data, relationId: 'relation:second', targetId: 'character:bob' } }
-  const endings = endCharacterRelations([start, second], player, 'participant_unavailable')
-  expect(endings).toHaveLength(2)
-  expect(currentCharacterRelations([start, second, ...endings]).every(value => !value.active)).toBe(true)
-  expect(endCharacterRelations([start], 'character:bob', 'participant_moved')).toEqual([])
+
 })
 
 it('enforces v9 policy activation and exact catalog version', () => {

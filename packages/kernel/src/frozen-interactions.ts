@@ -393,8 +393,7 @@ export class FrozenInteractionRulebook {
     const resolution = this.#base.resolve(manifest, context.events, context.characterId, action)
     if (resolution.status !== 'accepted' || action.actionType !== 'move') return resolution
     // A move belongs to no definition, so the world fold runs here: the union of every enabled
-    // definition's handlers decides what it ended. `endCharacterRelations` is deliberately not called -
-    // v10 has no Kernel-side relation semantics left to fall back to.
+    // definition's handlers decide what it ended. v10 has no separate Kernel relation fallback.
     //
     // The fold reasons about the world *after* the move, because the move is what changed reach, so the
     // snapshot it receives is the post-action prefix and the candidate prefix it binds is that same set.
