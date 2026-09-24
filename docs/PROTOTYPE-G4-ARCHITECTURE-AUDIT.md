@@ -70,4 +70,6 @@ experience:web → playtest-web-entry
 
 第十四刀（2026-09-24）：将场景可见性测试夹具迁到现行 prototype-g1 v5 Pack / v10 Manifest，五项观察权限和场景生命周期断言继续通过。随后收口存档读取、WorldBootstrap 和直接 Store 激活入口：新世界与运行时读取只接受 Manifest v10；移除应用层不再有生产调用者的 activateSpec/compileSpec 旧入口，以及存档读取中的 v2–v9 分派。现行原型门禁用 v5 Pack 编译测试替换旧 v8 交互测试；增加 v2/v9 存档拒绝、旧版本 Genesis 不写入的测试。现行检查 67/67，v5 Pack、创作命令、交互集成、G1 与场景测试 64/64 通过。历史旧 Manifest/交互测试不再作为当前门禁，部分断言按旧行为编写，未要求重新变绿。内核里的旧版本类型、旧 WorldSpecCompiler v2 测试夹具和旧 submit_actions 分支仍待分片清理；保留 v5 Pack 当前内容字段上的 v1/v2/v3 标识。此次未改变模型可见上下文或角色执行行为，未进行真实模型试玩。
 
+第十五刀（2026-09-24）：Context Pipeline 固定接收当前 Manifest v10，并直接构造 submit_actions/v7 工具描述；移除 v2–v5 工具 schema、旧 Manifest 工具选择和旧版 affordance 分派，约净减 90 行。v7 的工具字段顺序、动作范围、表现约束和 groupedOutput 值保持原样；Director 工具仍保留。类型检查、Lint、现行测试 67/67，通过交互包集成、G1 和叙事发布相关测试 10/10。当前网页原型使用外部单角色激活，不调用这条旧 Round Context Pipeline；因此此刀以直接使用该管线的 v10 集成测试验收，没有把网页真实模型试玩误记为这条管线的验证。ReactionScheduler、RoundCoordinator 与 SubmitActionsValidator 的旧版分派仍待后续清理。
+
 每个切片完成后运行类型检查、相关原型测试和 G1 组合测试；涉及玩家提交或观察权限时重跑相应集成场景。若改动到角色可见上下文或执行行为，再做一次短真实模型试玩，核对结果续写和跨房间隔离。删除旧脚本或文档时同步更新 README/指南；不要用旧 Golden 通过与否决定保留旧协议。G2-1/G2-2 仍是待办，G3 的自由叙述与受控事实分叉继续作为体验风险记录。

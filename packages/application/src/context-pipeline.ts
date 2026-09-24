@@ -18,7 +18,6 @@ import {
 } from '@harness-world/agents'
 import {
   PHASE8_CONTEXT_PROFILES,
-  PHASE8_SUBMIT_ACTIONS_PROFILE,
   compareWorldText,
   createStepManifestationSchema,
   deterministicId,
@@ -41,12 +40,7 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
-  manifestationPolicyFromManifest,
-  manifestUsesActionGroups,
-  manifestInteractionVerb,
   manifestUsesFrozenInteractions,
-  manifestUsesInteractions,
-  manifestUsesPhase8Contracts,
   type CompiledWorldManifest,
   type RulebookResolver,
 } from '@harness-world/kernel'
@@ -115,79 +109,25 @@ export interface Phase8ContextPipelineOptions {
 }
 
 const rendererLock = createPromptRendererLock()
-const characterTool = createProviderToolSchema('submit_actions/v2', {
-  type: 'object', ...PHASE8_SUBMIT_ACTIONS_PROFILE,
-})
-const reactionCharacterTool = createProviderToolSchema('submit_actions/v2', {
-  type: 'object', ...PHASE8_SUBMIT_ACTIONS_PROFILE, maximumExternalActions: 1,
-})
-const manifestationToolContract = {
-  maximumCues: 8,
-  channels: ['facial', 'gaze', 'posture', 'gesture', 'voice', 'appearance'],
-  persistence: ['event_only', 'until_changed'],
-  persistentChannels: ['posture', 'appearance'],
-} as const
-const manifestationCharacterTool = createProviderToolSchema('submit_actions/v3', {
-  type: 'object', schemaVersion: 'submit_actions/v3',
-  maximumExternalActions: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumExternalActions,
-  maximumReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
-  manifestation: manifestationToolContract,
-})
-const manifestationReactionCharacterTool = createProviderToolSchema('submit_actions/v3', {
-  type: 'object', schemaVersion: 'submit_actions/v3', maximumExternalActions: 1,
-  maximumReflectionOperations: 0,
-  manifestation: manifestationToolContract,
-})
 const directorTool = createProviderToolSchema('submit_director_plan/v1', {
   type: 'object', schemaVersion: 'submit_director_plan/v1', maximumDirectives: 8,
 })
-const actionGroupTool = createProviderToolSchema('submit_actions/v4', {
-  type: 'object', schemaVersion: 'submit_actions/v4', maximumExternalActions: 2,
-  maximumReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
+
+// The current v10 world speaks one frozen interaction protocol. Keep this shape explicit: its bytes
+// are part of the provider request identity, so old tool schemas must not be composed into it.
+const frozenInteractionTool = createProviderToolSchema('submit_actions/v7', {
+  type: 'object', schemaVersion: 'submit_actions/v7',
+  maximumExternalActions: 2, maximumReflectionOperations: 4,
   actionGroup: {
-    version: 'bounded-action-group/v1', allowedActionTypes: ['speak', 'move', 'take'],
+    version: 'bounded-action-group/v2', allowedActionTypes: ['speak', 'move', 'interact'],
     maximumSpeechActions: 2, maximumWorldOperations: 1, order: 'proposal',
     failure: 'stop_remaining_steps', interleaving: 'forbidden',
     newInformationRequiresNextCall: true,
     manifestation: { optional: true, schemasByAction: {
       speak: createStepManifestationSchema('speak'), move: createStepManifestationSchema('move'),
-      take: createStepManifestationSchema('take'),
+      interact: createStepManifestationSchema('interact'),
     } },
   },
-})
-const reactionActionGroupTool = createProviderToolSchema('submit_actions/v4', {
-  ...actionGroupTool.schema as WorldJsonObject, maximumReflectionOperations: 0,
-})
-
-const interactionTool = createProviderToolSchema('submit_actions/v5', {
-  ...actionGroupTool.schema as WorldJsonObject, schemaVersion: 'submit_actions/v5',
-  actionGroup: { ...(actionGroupTool.schema as WorldJsonObject).actionGroup as WorldJsonObject, allowedActionTypes: ['speak', 'move', 'interact'],
-    manifestation: { optional: true, schemasByAction: {
-      speak: createStepManifestationSchema('speak'), move: createStepManifestationSchema('move'),
-      interact: createStepManifestationSchema('interact'),
-    } } },
-  interact: { parameters: ['targetId', 'interactionId', 'arguments'], choices: 'context.affordances.interactions',
-    execution: 'revalidate_current_state', give: 'possession_transfer_only_no_recipient_consent_or_reaction' },
-})
-const reactionInteractionTool = createProviderToolSchema('submit_actions/v5', {
-  ...interactionTool.schema as WorldJsonObject, maximumReflectionOperations: 0,
-})
-
-// The frozen path addresses a binding and a definition lock rather than a catalog entry, so its
-// interaction step is versioned above 1 and its group declares the matching policy.
-//
-// V7 is v6 with the interaction step's cues: the schema states the closed vocabulary, and which of those
-// cues the definition behind an offered option actually accepts is stated per definition in
-// `interactions.performanceAcceptances` - a step outside its own definition's policy is refused as a
-// proposal rather than quietly dropped.
-const frozenInteractionTool = createProviderToolSchema('submit_actions/v7', {
-  ...interactionTool.schema as WorldJsonObject, schemaVersion: 'submit_actions/v7',
-  actionGroup: { ...(interactionTool.schema as WorldJsonObject).actionGroup as WorldJsonObject,
-    version: 'bounded-action-group/v2',
-    manifestation: { optional: true, schemasByAction: {
-      speak: createStepManifestationSchema('speak'), move: createStepManifestationSchema('move'),
-      interact: createStepManifestationSchema('interact'),
-    } } },
   interact: { parameters: ['targetRef', 'bindingId', 'definitionRef', 'arguments'],
     choices: 'context.affordances.interactions',
     performanceAcceptances: 'context.affordances.performances',
@@ -373,47 +313,21 @@ export class Phase8ContextPipeline {
   readonly #director = new DirectorContextAssembler()
   readonly #renderer = new StructuredPromptRenderer()
   readonly #modelProfile: ProviderModelProfile
-  readonly #characterTool: ReturnType<typeof createProviderToolSchema>
-  readonly #reactionCharacterTool: ReturnType<typeof createProviderToolSchema>
 
   constructor(private readonly options: Phase8ContextPipelineOptions) {
-    if (options.memory.version !== 2 || !manifestUsesPhase8Contracts(options.manifest)) {
-      throw new TypeError('Phase 8 Context Pipeline requires Manifest v4 or newer and Cognitive Memory v2')
+    if (options.memory.version !== 2 || !manifestUsesFrozenInteractions(options.manifest)) {
+      throw new TypeError('Context Pipeline requires Manifest v10 and Cognitive Memory v2')
     }
     this.#checkpoints = new ContinuityCheckpointService(options.path, options.store, options.memory)
     this.#receipts = new ContextReceiptStore(options.path)
     this.#tails = new InteractionTailBuilder(options.store)
     this.#cognition = new CognitionProjectionRebuilder(options.store)
     this.#modelProfile = options.modelProfile ?? defaultModelProfile()
-    this.#characterTool = manifestUsesFrozenInteractions(options.manifest) ? frozenInteractionTool
-      : manifestUsesInteractions(options.manifest) ? interactionTool : manifestUsesActionGroups(options.manifest) ? actionGroupTool : manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
-      ? manifestationCharacterTool
-      : characterTool
-    this.#reactionCharacterTool = manifestUsesFrozenInteractions(options.manifest) ? reactionFrozenInteractionTool
-      : manifestUsesInteractions(options.manifest) ? reactionInteractionTool : manifestUsesActionGroups(options.manifest) ? reactionActionGroupTool : manifestationPolicyFromManifest(options.manifest).mode === 'enabled'
-      ? manifestationReactionCharacterTool
-      : reactionCharacterTool
   }
 
-  /** The grouped-output contract this Manifest's action group speaks, and its exact version. */
-  #groupedTool(): 'submit_actions/v4' | 'submit_actions/v5' | 'submit_actions/v7' {
-    if (manifestUsesFrozenInteractions(this.options.manifest)) return 'submit_actions/v7'
-    return manifestUsesInteractions(this.options.manifest) ? 'submit_actions/v5' : 'submit_actions/v4'
-  }
-
-  /**
-   * Whether this Manifest's group protocol offers an affordance, at the exact action version that
-   * protocol carries. The frozen path's interaction step is version 2, because the request names a
-   * binding and a definition lock; every earlier Manifest carries version 1 and the verb its world
-   * operation uses.
-   */
   #afforded(value: { readonly actionType: string; readonly actionVersion: number }): boolean {
-    if (manifestUsesFrozenInteractions(this.options.manifest)) {
-      if (value.actionType === 'interact') return value.actionVersion === 2
-      return value.actionVersion === 1 && (value.actionType === 'speak' || value.actionType === 'move')
-    }
-    if (!manifestUsesActionGroups(this.options.manifest)) return value.actionType === 'speak' && value.actionVersion === 1
-    return value.actionVersion === 1 && ['speak', 'move', manifestInteractionVerb(this.options.manifest)].includes(value.actionType)
+    if (value.actionType === 'interact') return value.actionVersion === 2
+    return value.actionVersion === 1 && (value.actionType === 'speak' || value.actionType === 'move')
   }
 
   prepare(
@@ -586,7 +500,7 @@ export class Phase8ContextPipeline {
       request => this.#assembler.assembleDetailed(request),
       bundle => this.#renderer.renderCharacter({
         context: bundle, contextProfileId: selectedProfile, renderer: rendererLock,
-        toolSchema: this.#characterTool, modelProfile: this.#model(context.address),
+        toolSchema: frozenInteractionTool, modelProfile: this.#model(context.address),
         correlationId: `render:${context.roundId}:${binding.participantId}`,
       }),
     ).plan({
@@ -606,10 +520,7 @@ export class Phase8ContextPipeline {
         { sourceKind: 'round_stimulus', sourceId: 'player-provisional-view', sourceSeq: asOfWorldSeq, sourceHash: hashWorldJson('context-stimulus/v1', stimulus) },
       ] }),
       affordances, affordanceHash,
-      ...(manifestUsesActionGroups(this.options.manifest) ? { groupedOutput: {
-        tool: this.#groupedTool(),
-        maximumReflectionOperations: 4 as const,
-      } } : {}),
+      groupedOutput: { tool: 'submit_actions/v7', maximumReflectionOperations: 4 },
       runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
       correlationId: `context:${context.roundId}:${binding.participantId}`,
     })
@@ -676,7 +587,7 @@ export class Phase8ContextPipeline {
       request => this.#assembler.assembleDetailed(request),
       bundle => this.#renderer.renderCharacter({
         context: bundle, contextProfileId: selectedProfile, renderer: rendererLock,
-        toolSchema: this.#reactionCharacterTool, modelProfile: this.#model(context.address),
+        toolSchema: reactionFrozenInteractionTool, modelProfile: this.#model(context.address),
         correlationId: `render:${context.roundId}:${binding.participantId}`,
       }),
     ).plan({
@@ -691,11 +602,8 @@ export class Phase8ContextPipeline {
       sceneDecision: scene, sceneSourceRefs: sceneSources(history, decision),
       recallPlan: prepared.recallPlan, recall: prepared.recall,
       stimulus: context.stimulus, stimulusHash: hashWorldJson('context-stimulus/v1', context.stimulus),
-      stimulusSourceRefs, maximumExternalActions: manifestUsesActionGroups(this.options.manifest) ? 2 : 1,
-      ...(manifestUsesActionGroups(this.options.manifest) ? { groupedOutput: {
-        tool: this.#groupedTool(),
-        maximumReflectionOperations: 0 as const,
-      } } : {}),
+      stimulusSourceRefs, maximumExternalActions: 2,
+      groupedOutput: { tool: 'submit_actions/v7', maximumReflectionOperations: 0 },
       affordances, affordanceHash,
       runtimeAvailability: this.options.availability.get(context.address, binding.actorId)?.state ?? 'offline',
       correlationId: `context:${context.roundId}:${binding.participantId}`,
