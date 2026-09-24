@@ -36,11 +36,11 @@ experience:web → playtest-web-entry
 | 2a | `grouped-playtest`、compact/lean Context 渲染、旧输入解释和旧模型对照命令 | 第二刀后只剩相互引用的实验脚本与专属测试；当前 v5 网页运行时不调用它们。`v10-provider-gate` 和 `context-cost` 有独立用途。 | **已删除**；清理三个旧 `experience:*` 命令，保留历史报告并标明旧入口退出 |
 | 3 | `simulation` 的 mystery/rainy-road/tavern 演示、`WorldSimulation` 及旧命令 | 当前 v5 网页与 G1 路径不引用该包；最后仅历史 P0 门禁和包内测试调用 `WorldSimulation`。Store 专项测试已覆盖提交重试、分支重建与 Session 去重。 | **已删除整个 `simulation` 包**；场景可见性测试搬至当前原型套件。rainy-road/tavern 的 Pack 源目录仍被 `worldpack` 创作工具引用，保留待该工具的版本路径审查 |
 | 4 | `operations` 的 headless RPC、BranchWorkScheduler、deployment backup/restore 与 `worldctl`/`worldappctl`/`worldhost`/`worlddeploy` 脚本 | `packages/operations/process/*` 是独立宿主；当前网页只使用 `playtest-server.ts`，不调用这些入口。`worldpack` CLI 属于另一个包。用户确认本机原型只保留网页和作者 Pack CLI。 | **已删除整个独立宿主包及其专属命令、测试和迁移演练脚本**；Event Log、Store 与当前网页路径保留 |
-| 5 | `world-pack` v1–v4 编译/读取、旧 Manifest 与 `submit_actions` 版本路径 | 用户确认不再支持旧版本。v5 Pack 映射到 v10；公开 `tooling.ts` 已收为 v5-only，但 `compiler.ts` 的共享编译过程和 `schema.ts` 的 v5 解析仍借用旧版本函数。 | **公开入口已切除旧版分派**；下一段按 v5 调用图拆共享函数，不把旧解析链误认为仍需支持旧输入 |
+| 5 | `world-pack` v1–v4 编译/读取、旧 Manifest 与 `submit_actions` 版本路径 | 用户确认不再支持旧版本。v5 Pack 映射到 v10；公开 `tooling.ts` 与 `compiler.ts` 的来源编译路径已收为 v5-only；`schema.ts` 的 v5 编译封套解析仍借用 v4/v3/v2 解析链。 | **公开入口已切除旧版分派**；下一段按 v5 调用图拆共享函数，不把旧解析链误认为仍需支持旧输入 |
 | 5a | `worldpack init` 的 v1–v4 模板 | 四种 profile 均生成当前网页不接受的源版本；当前 v5 示例与编译、校验命令不依赖脚手架。 | **已删除旧初始化入口**；现有 v5 示例作为新世界起点，历史手册标明适用范围 |
 | 暂缓 | Context Receipt、Provider Call/Quality、Reflection、逻辑导出/快照、Quarantine、耐久 Reaction 账本及旧协议字段 | `WorldApplication`、上下文装配和 Store 仍静态或实际触达其中一些；仅凭名称判断不了是否保护当前状态与可见性。 | **不列入第一轮删除**；逐个证明不用、或先把当前路径改为更小的现有机制，再删旧实现 |
 
-前十刀是局部切除：未新建 Host 框架，未改权威事件模型，也未把叙事与状态分叉当成已解决。当前试玩类只保留单角色 NPC 协议；删除收益是减少维护和调试时的分叉，不是声称模型更自然。
+前十一刀是局部切除：未新建 Host 框架，未改权威事件模型，也未把叙事与状态分叉当成已解决。当前试玩类只保留单角色 NPC 协议；删除收益是减少维护和调试时的分叉，不是声称模型更自然。
 
 第一刀验证（2026-09-23）：类型检查、Lint、40 个原型冒烟测试通过；`playtest-frozen-runtime`、网页服务、G1 组合和执行续写共 35 个相关测试通过。独立新存档的 4 句 DeepSeek 连续试玩均提交成功，首轮同行者自主拿取黄铜钥匙，seq38 为 `entity.transferred`、seq39 为接受的 `action.resolved`，随后收到结果并自由续写；至第 4 句没有第二次钥匙转移。该样本验证当前路径仍可交互，不能据此推断 G3 叙事一致性通过。新工作树安装依赖时复用了原型工作树的本地 `node_modules`；没有修改依赖或锁文件。
 
@@ -61,5 +61,7 @@ experience:web → playtest-web-entry
 第九刀（2026-09-24）：用户确认不再支持旧版本后，把 World Pack 编译、读取、适配、序列化和检查的公开工具入口收为 v5-only，`worldpack activate` 删除只供 v4 使用的 `--action-groups`、`--interactions`。移除三份旧版公开入口兼容测试；新增旧源版本与旧编译封套在当前入口被拒绝的断言。类型检查、Lint、现行测试 45/45，v5 Pack、交互包、G1 相关测试 55/55 通过。内部 v2–v4 编译/校验函数仍在，尚未完成整条旧版本代码的删除。
 
 第十刀（2026-09-24）：移除已无当前调用者的 World Pack v1–v4 编译器类、旧版编译辅助函数与三份专属测试，约删 1,700 行。v5 仍复用部分 v2–v4 内容校验函数和 `compilePhase8Source` 内的旧条件分支，这些尚未清除。类型检查、Lint、现行测试 45/45，v5 Pack、交互包、G1 相关测试 55/55 通过。
+
+第十一刀（2026-09-24）：把 World Pack 来源编译函数收为 v5 专用，移除 v2–v4 清单、实体、角色分派及旧编译封套和 Hash 生成分支。v5 产物的规范化内容与 Hash 域保持原样；类型检查、Lint、现行测试 45/45，v5 Pack、交互包、G1 相关测试 55/55 通过。剩余主要是 `schema.ts` 的 v5 解析沿用旧解析链，以及更底层 Manifest/Action 协议版本实现。
 
 每个切片完成后运行类型检查、相关原型测试和 G1 组合测试；涉及玩家提交或观察权限时重跑相应集成场景。若改动到角色可见上下文或执行行为，再做一次短真实模型试玩，核对结果续写和跨房间隔离。删除旧脚本或文档时同步更新 README/指南；不要用旧 Golden 通过与否决定保留旧协议。G2-1/G2-2 仍是待办，G3 的自由叙述与受控事实分叉继续作为体验风险记录。
