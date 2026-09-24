@@ -1004,20 +1004,22 @@ export class WorldStore {
     }
     const activeManifest = this.#readManifestByKey(addressKey)
     if (activeManifest !== undefined) assertManifestEvents(activeManifest.manifest, request.events)
-    if (request.reactionCycle?.maxActionsPerCall === 2
-      && ![7, 8, 9, 10].includes((activeManifest?.manifest as WorldJsonObject | undefined)?.schemaVersion as number)) {
-      throw new TypeError('two-action Reaction Cycle requires Manifest v7')
-    }
     if (request.reactionCycle !== undefined) {
-      // A Cycle carries the world operation of the Manifest that opened it, at that Manifest's exact
-      // version: v8 and v9 interact at 1, and the frozen path at 2 because its request addresses a
-      // binding and a definition lock. Storing the wrong label would let a round carry an action shape
-      // its own Manifest never declared.
-      const version = (activeManifest?.manifest as WorldJsonObject | undefined)?.schemaVersion as number
-      const required = version === 10 ? 'interact@2' : version === 9 || version === 8 ? 'interact@1' : null
-      const declared = (request.reactionCycle.allowedActionTypes as readonly string[])
-        .find(entry => entry.startsWith('interact@')) ?? null
-      if (declared !== required) throw new TypeError('Reaction Cycle interaction capability does not match Manifest')
+      if (activeManifest === undefined) {
+        // The Store's low-level single-action ledger can be exercised before a world is activated.
+        // A two-action Cycle needs a Manifest that declares its interaction capability.
+        if (request.reactionCycle.maxActionsPerCall === 2) {
+          throw new TypeError('two-action Reaction Cycle requires Manifest v10')
+        }
+      } else {
+        if ((activeManifest.manifest as WorldJsonObject).schemaVersion !== 10) {
+          throw new TypeError('Reaction Cycle requires Manifest v10')
+        }
+        // The frozen request names a binding and definition lock, so its exact capability is interact@2.
+        const declared = (request.reactionCycle.allowedActionTypes as readonly string[])
+          .find(entry => entry.startsWith('interact@')) ?? null
+        if (declared !== 'interact@2') throw new TypeError('Reaction Cycle interaction capability does not match Manifest')
+      }
     }
     const authorityHash = request.authority === undefined ? null : hashWorldJson('world-round-authority', request.authority)
     const requestHash = hashWorldJson('world-round-commit-request', {

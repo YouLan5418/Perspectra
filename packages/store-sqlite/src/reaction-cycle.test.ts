@@ -313,11 +313,11 @@ afterEach(() => {
 })
 
 describe('WorldStore Reaction Cycle authority', () => {
-  it('requires an activated v7 Manifest for the two-action cycle extension', async () => {
+  it('requires an activated v10 Manifest for a two-action Reaction Cycle', async () => {
     const { path, address } = fixture()
     const store = new WorldStore(path)
     store.createBranch(address)
-    await expect(store.commitRound(request(address, reactionDraft({ maxActionsPerCall: 2, allowedActionTypes: ['speak@1', 'move@1', 'take@1'] })))).rejects.toThrow('requires Manifest v7')
+    await expect(store.commitRound(request(address, reactionDraft({ maxActionsPerCall: 2, allowedActionTypes: ['speak@1', 'move@1', 'interact@2'] })))).rejects.toThrow('two-action Reaction Cycle requires Manifest v10')
     store.close()
   })
   it('normalizes and rejects malformed Reaction settlement contracts', () => {
