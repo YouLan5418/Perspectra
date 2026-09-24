@@ -1,9 +1,7 @@
-import { availableInteractions, manifestUsesCharacterInteractions, manifestUsesInteractions } from './interactions.ts'
 import { FrozenInteractionRulebook } from './frozen-interactions.ts'
 import {
   assertProtocolString,
   failWorld,
-  validateResolutionAuthority,
   type CharacterId,
   type InteractionPackageImplementation,
   type InteractionPerformanceAcceptance,
@@ -14,12 +12,11 @@ import {
   type InteractionRoundId,
 } from '@harness-world/contracts'
 import {
-  SpeakMoveRulebook,
   type PlayerActionInput,
   type RulebookEvent,
   type RulebookResolution,
 } from './rulebook.ts'
-import { manifestUsesFrozenInteractions, type CompiledWorldManifest } from './world-spec.ts'
+import type { CompiledWorldManifest } from './world-spec.ts'
 
 export interface RulebookResolutionContext {
   readonly manifest: CompiledWorldManifest
@@ -97,7 +94,6 @@ export class RulebookRegistry {
 }
 
 class CoreRulebookResolver implements RulebookResolver {
-  readonly #legacy = new SpeakMoveRulebook()
   readonly #frozen: FrozenInteractionRulebook
 
   constructor(options: CoreRulebookOptions) {
@@ -105,52 +101,19 @@ class CoreRulebookResolver implements RulebookResolver {
   }
 
   resolve(context: RulebookResolutionContext): RulebookResolution {
-    // The frozen path owns the whole action, so it is dispatched before any v9 requirement is checked:
-    // the two versions share an authority-bearing context but nothing about how an action resolves.
-    if (manifestUsesFrozenInteractions(context.manifest)) {
-      return this.#frozen.resolve({
-        manifest: context.manifest, events: context.events, characterId: context.characterId,
-        actionId: context.actionId, manifestHash: context.manifestHash, roundId: context.roundId,
-        asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
-      }, context.action)
-    }
-    if (manifestUsesCharacterInteractions(context.manifest)
-      && (context.actionId === undefined || context.resolutionAuthority === undefined)) {
-      throw new TypeError('Manifest v9 Rulebook resolution requires Host authority and actionId')
-    }
-    const authority = context.resolutionAuthority === undefined
-      ? undefined
-      : validateResolutionAuthority(context.resolutionAuthority)
-    return this.#legacy.resolve(context.manifest, context.events, context.characterId, context.action, {
-      actionId: context.actionId!,
-      resolutionAuthority: authority!,
-    })
+    return this.#frozen.resolve({
+      manifest: context.manifest, events: context.events, characterId: context.characterId,
+      actionId: context.actionId, manifestHash: context.manifestHash, roundId: context.roundId,
+      asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
+    }, context.action)
   }
 
   affordances(context: Omit<RulebookResolutionContext, 'action' | 'actionId'>): readonly ActionAffordance[] {
-    if (manifestUsesFrozenInteractions(context.manifest)) {
-      return this.#frozen.affordances({
-        manifest: context.manifest, events: context.events, characterId: context.characterId,
-        actionId: undefined, manifestHash: context.manifestHash, roundId: context.roundId,
-        asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
-      })
-    }
-    if (manifestUsesCharacterInteractions(context.manifest) && context.resolutionAuthority === undefined) {
-      throw new TypeError('Manifest v9 affordances require Host authority')
-    }
-    const authority = context.resolutionAuthority === undefined
-      ? undefined
-      : validateResolutionAuthority(context.resolutionAuthority)
-    return [
-      { actionType: 'speak', actionVersion: 1 },
-      { actionType: 'move', actionVersion: 1 },
-      ...(manifestUsesInteractions(context.manifest) ? [{
-        actionType: 'interact', actionVersion: 1,
-        interactions: authority === undefined
-          ? availableInteractions(context.manifest, context.events, context.characterId)
-          : availableInteractions(context.manifest, context.events, context.characterId, authority),
-      }] : context.manifest.rulebook.version >= 2 ? [{ actionType: 'take', actionVersion: 1 }] : []),
-    ]
+    return this.#frozen.affordances({
+      manifest: context.manifest, events: context.events, characterId: context.characterId,
+      actionId: undefined, manifestHash: context.manifestHash, roundId: context.roundId,
+      asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
+    })
   }
 }
 
@@ -167,13 +130,9 @@ export interface CoreRulebookOptions {
   readonly frozenInteractions?: FrozenInteractionRulebook
 }
 
-/** Generic application registry: only product-neutral speak/move/take rules. */
+/** Register the current v10 Rulebook while preserving the generic registry extension point. */
 export function createCoreRulebookRegistry(options: CoreRulebookOptions = {}): RulebookRegistry {
   const registry = new RulebookRegistry()
-  // One resolver backs both versions: the Manifest schemaVersion, not the registry key, decides which
-  // path an action takes, and a shared instance installs each package exactly once.
-  const resolver = new CoreRulebookResolver(options)
-  registry.register('builtin:speak-move', 1, resolver)
-  registry.register('builtin:speak-move', 2, resolver)
+  registry.register('builtin:speak-move', 2, new CoreRulebookResolver(options))
   return registry
 }
