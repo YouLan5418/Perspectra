@@ -274,6 +274,28 @@ describe('WorldPackCompilerV5', () => {
     expect(() => parseCompiledWorldPackV5({ ...pack, compiledSchemaVersion: 'worldpack/v4' })).toThrow(/compiledSchemaVersion/u)
   }, 60_000)
 
+  it('rejects malformed v5 source and compiled envelopes at the direct parser boundary', async () => {
+    const root = await source()
+    const manifest = JSON.parse(await readFile(join(root, 'worldpack.source.json'), 'utf8')) as Record<string, unknown>
+    expect(() => parseWorldPackSourceManifestV5({ ...manifest, sourceSchemaVersion: 'worldpack-source/v4' }))
+      .toThrow(/worldpack-source\/v5/u)
+    expect(() => parseWorldPackSourceManifestV5({ ...manifest, extra: true }))
+      .toThrow(/is not allowed/u)
+    expect(() => parseWorldPackSourceManifestV5({ ...manifest, interactionFile: manifest.worldFile }))
+      .toThrow(/duplicate values/u)
+
+    const pack = await compile()
+    expect(parseCompiledWorldPackV5(pack)).toEqual(pack)
+    expect(() => parseCompiledWorldPackV5({ ...pack, compiler: { ...pack.compiler, version: '0.0.0' } }))
+      .toThrow(/v5 compiler contract/u)
+    expect(() => parseCompiledWorldPackV5({ ...pack, content: { ...pack.content, extra: true } }))
+      .toThrow(/is not allowed/u)
+    expect(() => parseCompiledWorldPackV5({ ...pack, pluginLocks: pack.pluginLocks.slice(1) }))
+      .toThrow(/Core profile/u)
+    expect(() => parseCompiledWorldPackV5({ ...pack, registryLocks: [] }))
+      .toThrow(/Phase 8 lock set/u)
+  }, 60_000)
+
   it('rejects a hand-edited catalog whose bindings no longer match the content', async () => {
     const pack = await compile()
     const retamper = (mutate: (draft: Record<string, unknown>) => void): unknown => {

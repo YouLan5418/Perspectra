@@ -41,20 +41,7 @@ import {
   WORLD_PACK_CHARACTER_LIFECYCLES_V2,
   WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V2,
   WORLD_PACK_COGNITION_SCHEMA_VERSION_V2,
-  WORLD_PACK_COMPILED_SCHEMA_VERSION,
-  WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
-  WORLD_PACK_COMPILED_SCHEMA_VERSION_V3,
-  WORLD_PACK_COMPILED_SCHEMA_VERSION_V4,
-  WORLD_PACK_COMPILER_CONTRACT_VERSION,
-  WORLD_PACK_COMPILER_CONTRACT_VERSION_V2,
-  WORLD_PACK_COMPILER_CONTRACT_VERSION_V3,
-  WORLD_PACK_COMPILER_CONTRACT_VERSION_V4,
   WORLD_PACK_COMPILER_ID,
-  WORLD_PACK_COMPILER_VERSION,
-  WORLD_PACK_COMPILER_VERSION_V2,
-  WORLD_PACK_COMPILER_VERSION_V3,
-  WORLD_PACK_COMPILER_VERSION_V4,
-  WORLD_PACK_LIMITS_PROFILE,
   WORLD_PACK_LIMITS_PROFILE_V2,
   WORLD_PACK_CONTROLLER_CLASSES_V2,
   WORLD_PACK_DOCUMENT_AUDIENCES_V2,
@@ -65,10 +52,6 @@ import {
   WORLD_PACK_MEMORY_SCHEMA_VERSION_V2,
   WORLD_PACK_SCENE_LIFECYCLES_V2,
   WORLD_PACK_SCENES_SCHEMA_VERSION_V2,
-  WORLD_PACK_SOURCE_SCHEMA_VERSION,
-  WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
-  WORLD_PACK_SOURCE_SCHEMA_VERSION_V3,
-  WORLD_PACK_SOURCE_SCHEMA_VERSION_V4,
   WORLD_PACK_SOURCE_SCHEMA_VERSION_V5,
   WORLD_PACK_ENTITIES_SCHEMA_VERSION_V2,
   WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V3,
@@ -78,11 +61,8 @@ import {
   WORLD_PACK_COMPILER_CONTRACT_VERSION_V5,
   WORLD_PACK_REACTION_SCHEMA_VERSION,
   WORLD_PACK_MANIFESTATION_SCHEMA_VERSION,
-  type CompiledWorldPack,
-  type CompiledWorldPackV2,
-  type CompiledWorldPackV3,
-  type CompiledWorldPackV4,
   type CompiledWorldPackV5,
+  type WorldPackCompiledContentV5,
   type WorldPackAcceptanceAssertion,
   type WorldPackAffectSourceV2,
   type WorldPackAssertionsSource,
@@ -95,8 +75,6 @@ import {
   type WorldPackClaimSourceV2,
   type WorldPackCognitionSourceV2,
   type WorldPackCommitmentSourceV2,
-  type WorldPackCompiledContent,
-  type WorldPackCompiledContentV2,
   type WorldPackCoreProfiles,
   type WorldPackEntitiesSource,
   type WorldPackEntitySource,
@@ -125,10 +103,6 @@ import {
   type WorldPackScenesSourceV2,
   type WorldPackScenesSource,
   type WorldPackSlotId,
-  type WorldPackSourceManifest,
-  type WorldPackSourceManifestV2,
-  type WorldPackSourceManifestV3,
-  type WorldPackSourceManifestV4,
   type WorldPackSourceManifestV5,
   type WorldPackEntitiesSourceV2,
   type WorldPackEntitySourceV2,
@@ -377,166 +351,42 @@ function parseFact(value: unknown, file: string, at: string): WorldPackInitialFa
   }
 }
 
-/** Parse the explicit file manifest without reading any referenced path. */
-export function parseWorldPackSourceManifest(input: unknown, file = 'worldpack.source.json'): WorldPackSourceManifest {
+/** Parse the one supported v5 source manifest directly. */
+export function parseWorldPackSourceManifestV5(input: unknown, file = 'worldpack.source.json'): WorldPackSourceManifestV5 {
   const root = sourceDocument(input, file)
   const listFields = [
-    'characterFiles', 'locationFiles', 'entityFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles',
-    'markdownFiles', 'assetFiles', 'assertionFiles',
-  ] as const
-  exactKeys(root, ['sourceSchemaVersion', 'packId', 'packVersion', 'worldFile', ...listFields], [], file, '')
-  if (root.sourceSchemaVersion !== WORLD_PACK_SOURCE_SCHEMA_VERSION) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/sourceSchemaVersion', `must be ${WORLD_PACK_SOURCE_SCHEMA_VERSION}`)
-  }
-  const lists = Object.fromEntries(listFields.map(field => [
-    field,
-    arrayAt(root[field], file, `/${field}`).map((entry, index) => textAt(entry, file, `/${field}/${index}`)),
-  ])) as Record<(typeof listFields)[number], string[]>
-  for (const field of ['characterFiles', 'locationFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles'] as const) {
-    nonEmpty(lists[field], file, `/${field}`)
-  }
-  const worldFile = textAt(root.worldFile, file, '/worldFile')
-  const explicitFiles = [worldFile, ...listFields.flatMap(field => lists[field])]
-  if (explicitFiles.length > MAX_EXPLICIT_FILES) {
-    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '', `must list at most ${MAX_EXPLICIT_FILES} files`)
-  }
-  unique(explicitFiles, file, '')
-  return {
-    sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION,
-    packId: idAt(root.packId, file, '/packId', 'WorldPackId') as WorldPackId,
-    packVersion: semverAt(root.packVersion, file, '/packVersion'),
-    worldFile,
-    characterFiles: lists.characterFiles,
-    locationFiles: lists.locationFiles,
-    entityFiles: lists.entityFiles,
-    sceneFiles: lists.sceneFiles,
-    playerSlotFiles: lists.playerSlotFiles,
-    presentationFiles: lists.presentationFiles,
-    markdownFiles: lists.markdownFiles,
-    assetFiles: lists.assetFiles,
-    assertionFiles: lists.assertionFiles,
-  }
-}
-
-/** Parse the explicit Phase 8 file manifest without enabling compilation or implicit v1 upcast. */
-export function parseWorldPackSourceManifestV2(input: unknown, file = 'worldpack.source.json'): WorldPackSourceManifestV2 {
-  const root = sourceDocument(input, file)
-  const listFields = [
-    'characterFiles', 'locationFiles', 'entityFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles',
-    'cognitionFiles', 'memoryFiles', 'documentFiles', 'markdownFiles', 'assetFiles', 'assertionFiles',
-  ] as const
-  exactKeys(root, ['sourceSchemaVersion', 'packId', 'packVersion', 'worldFile', ...listFields], [], file, '')
-  if (root.sourceSchemaVersion !== WORLD_PACK_SOURCE_SCHEMA_VERSION_V2) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/sourceSchemaVersion', `must be ${WORLD_PACK_SOURCE_SCHEMA_VERSION_V2}`)
-  }
-  const lists = Object.fromEntries(listFields.map(field => [
-    field,
-    arrayAt(root[field], file, `/${field}`).map((entry, index) => textAt(entry, file, `/${field}/${index}`)),
-  ])) as Record<(typeof listFields)[number], string[]>
-  for (const field of ['characterFiles', 'locationFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles'] as const) {
-    nonEmpty(lists[field], file, `/${field}`)
-  }
-  const worldFile = textAt(root.worldFile, file, '/worldFile')
-  const explicitFiles = [worldFile, ...listFields.flatMap(field => lists[field])]
-  if (explicitFiles.length > MAX_EXPLICIT_FILES) {
-    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '', `must list at most ${MAX_EXPLICIT_FILES} files`)
-  }
-  unique(explicitFiles, file, '')
-  return {
-    sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
-    packId: idAt(root.packId, file, '/packId', 'WorldPackId') as WorldPackId,
-    packVersion: semverAt(root.packVersion, file, '/packVersion'),
-    worldFile,
-    characterFiles: lists.characterFiles,
-    locationFiles: lists.locationFiles,
-    entityFiles: lists.entityFiles,
-    sceneFiles: lists.sceneFiles,
-    playerSlotFiles: lists.playerSlotFiles,
-    presentationFiles: lists.presentationFiles,
-    cognitionFiles: lists.cognitionFiles,
-    memoryFiles: lists.memoryFiles,
-    documentFiles: lists.documentFiles,
-    markdownFiles: lists.markdownFiles,
-    assetFiles: lists.assetFiles,
-    assertionFiles: lists.assertionFiles,
-  }
-}
-
-/** Parse the explicit Phase 9 file manifest without modifying the frozen v2 parser. */
-export function parseWorldPackSourceManifestV3(input: unknown, file = 'worldpack.source.json'): WorldPackSourceManifestV3 {
-  const root = sourceDocument(input, file)
-  const v2Fields = [
-    'characterFiles', 'locationFiles', 'entityFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles',
-    'cognitionFiles', 'memoryFiles', 'documentFiles', 'markdownFiles', 'assetFiles', 'assertionFiles',
-  ] as const
-  exactKeys(root, ['sourceSchemaVersion', 'packId', 'packVersion', 'worldFile', ...v2Fields, 'reactionFile'], [], file, '')
-  if (root.sourceSchemaVersion !== WORLD_PACK_SOURCE_SCHEMA_VERSION_V3) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/sourceSchemaVersion', `must be ${WORLD_PACK_SOURCE_SCHEMA_VERSION_V3}`)
-  }
-  const reactionFile = textAt(root.reactionFile, file, '/reactionFile')
-  const { reactionFile: _, ...base } = root
-  const parsed = parseWorldPackSourceManifestV2({
-    ...base,
-    sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
-  }, file)
-  const explicitFiles = [parsed.worldFile, ...v2Fields.flatMap(field => parsed[field]), reactionFile]
-  if (explicitFiles.length > MAX_EXPLICIT_FILES) {
-    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '', `must list at most ${MAX_EXPLICIT_FILES} files`)
-  }
-  unique(explicitFiles, file, '')
-  return { ...parsed, sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V3, reactionFile }
-}
-
-/** Parse the explicit manifestation source manifest without changing frozen v1-v3 shapes. */
-export function parseWorldPackSourceManifestV4(input: unknown, file = 'worldpack.source.json'): WorldPackSourceManifestV4 {
-  const root = sourceDocument(input, file)
-  const v2Fields = [
     'characterFiles', 'locationFiles', 'entityFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles',
     'cognitionFiles', 'memoryFiles', 'documentFiles', 'markdownFiles', 'assetFiles', 'assertionFiles',
   ] as const
   exactKeys(root, [
-    'sourceSchemaVersion', 'packId', 'packVersion', 'worldFile', ...v2Fields, 'reactionFile', 'manifestationFile',
+    'sourceSchemaVersion', 'packId', 'packVersion', 'worldFile', ...listFields,
+    'reactionFile', 'manifestationFile', 'interactionFile',
   ], [], file, '')
-  if (root.sourceSchemaVersion !== WORLD_PACK_SOURCE_SCHEMA_VERSION_V4) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/sourceSchemaVersion', `must be ${WORLD_PACK_SOURCE_SCHEMA_VERSION_V4}`)
-  }
-  const manifestationFile = textAt(root.manifestationFile, file, '/manifestationFile')
-  const { manifestationFile: _, ...base } = root
-  const parsed = parseWorldPackSourceManifestV3({
-    ...base,
-    sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V3,
-  }, file)
-  const explicitFiles = [parsed.worldFile, ...v2Fields.flatMap(field => parsed[field]), parsed.reactionFile, manifestationFile]
-  if (explicitFiles.length > MAX_EXPLICIT_FILES) {
-    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '', `must list at most ${MAX_EXPLICIT_FILES} files`)
-  }
-  unique(explicitFiles, file, '')
-  return { ...parsed, sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V4, manifestationFile }
-}
-
-/** V5 adds the world's interaction selection file. V1-V4 parsing and Hash are untouched. */
-export function parseWorldPackSourceManifestV5(input: unknown, file = 'worldpack.source.json'): WorldPackSourceManifestV5 {
-  const root = sourceDocument(input, file)
   if (root.sourceSchemaVersion !== WORLD_PACK_SOURCE_SCHEMA_VERSION_V5) {
     failWorldPackContract('PACK_SOURCE_INVALID', file, '/sourceSchemaVersion', `must be ${WORLD_PACK_SOURCE_SCHEMA_VERSION_V5}`)
   }
+  const lists = Object.fromEntries(listFields.map(field => [
+    field,
+    arrayAt(root[field], file, `/${field}`).map((entry, index) => textAt(entry, file, `/${field}/${index}`)),
+  ])) as Record<(typeof listFields)[number], string[]>
+  for (const field of ['characterFiles', 'locationFiles', 'sceneFiles', 'playerSlotFiles', 'presentationFiles'] as const) {
+    nonEmpty(lists[field], file, `/${field}`)
+  }
+  const worldFile = textAt(root.worldFile, file, '/worldFile')
+  const reactionFile = textAt(root.reactionFile, file, '/reactionFile')
+  const manifestationFile = textAt(root.manifestationFile, file, '/manifestationFile')
   const interactionFile = textAt(root.interactionFile, file, '/interactionFile')
-  const { interactionFile: _interactionFile, ...base } = root
-  const parsed = parseWorldPackSourceManifestV4({
-    ...base,
-    sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V4,
-  }, file)
-  const files = [
-    parsed.worldFile, ...parsed.characterFiles, ...parsed.locationFiles, ...parsed.entityFiles, ...parsed.sceneFiles,
-    ...parsed.playerSlotFiles, ...parsed.presentationFiles, ...parsed.cognitionFiles, ...parsed.memoryFiles,
-    ...parsed.documentFiles, ...parsed.markdownFiles, ...parsed.assetFiles, ...parsed.assertionFiles,
-    parsed.reactionFile, parsed.manifestationFile, interactionFile,
-  ]
+  const files = [worldFile, ...listFields.flatMap(field => lists[field]), reactionFile, manifestationFile, interactionFile]
   if (files.length > MAX_EXPLICIT_FILES) {
     failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '', `must list at most ${MAX_EXPLICIT_FILES} files`)
   }
   unique(files, file, '')
-  return { ...parsed, sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V5, interactionFile }
+  return {
+    sourceSchemaVersion: WORLD_PACK_SOURCE_SCHEMA_VERSION_V5,
+    packId: idAt(root.packId, file, '/packId', 'WorldPackId') as WorldPackId,
+    packVersion: semverAt(root.packVersion, file, '/packVersion'),
+    worldFile, ...lists, reactionFile, manifestationFile, interactionFile,
+  }
 }
 
 /** Strict creator-selectable Reaction mode. Numeric safety limits are deliberately absent. */
@@ -1350,46 +1200,6 @@ function assetAt(value: unknown, file: string, at: string): WorldPackAssetLock {
   return { path: textAt(item.path, file, `${at}/path`), contentHash: hashAt(item.contentHash, file, `${at}/contentHash`), size }
 }
 
-/** Validate one already-compiled envelope without recomputing its P7.2 pack hash. */
-export function parseCompiledWorldPack(input: unknown, file = 'worldpack.json'): CompiledWorldPack {
-  const root = sourceDocument(input, file, MAX_COMPILED_BYTES)
-  exactKeys(root, ['compiledSchemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'content', 'assets', 'acceptanceAssertions'], [], file, '')
-  if (root.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION) failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiledSchemaVersion', `must be ${WORLD_PACK_COMPILED_SCHEMA_VERSION}`)
-  const compiler = objectAt(root.compiler, file, '/compiler'); exactKeys(compiler, ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'], [], file, '/compiler')
-  if (compiler.id !== WORLD_PACK_COMPILER_ID || compiler.version !== WORLD_PACK_COMPILER_VERSION
-    || compiler.contractVersion !== WORLD_PACK_COMPILER_CONTRACT_VERSION || compiler.canonicalJsonVersion !== 'world-json/v1'
-    || compiler.limitsProfile !== WORLD_PACK_LIMITS_PROFILE) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiler', 'does not identify the Phase 7 compiler contract')
-  }
-  const content = objectAt(root.content, file, '/content'); exactKeys(content, ['world', 'locations', 'entities', 'characters', 'scenes', 'playerSlots', 'presentation', 'markdown'], [], file, '/content')
-  const parsedContent: WorldPackCompiledContent = {
-    world: parseWorldPackWorldSource(content.world, `${file}#/content/world`),
-    locations: parseWorldPackLocationsSource({ schemaVersion: 'worldpack-locations/v1', locations: content.locations }, `${file}#/content/locations`).locations,
-    entities: parseWorldPackEntitiesSource({ schemaVersion: 'worldpack-entities/v1', entities: content.entities }, `${file}#/content/entities`).entities,
-    characters: parseWorldPackCharactersSource({ schemaVersion: 'worldpack-characters/v1', characters: content.characters }, `${file}#/content/characters`).characters,
-    scenes: parseWorldPackScenesSource({ schemaVersion: 'worldpack-scenes/v1', scenes: content.scenes }, `${file}#/content/scenes`).scenes,
-    playerSlots: parseWorldPackPlayerSlotsSource({ schemaVersion: 'worldpack-player-slots/v1', playerSlots: content.playerSlots }, `${file}#/content/playerSlots`).playerSlots,
-    presentation: parseWorldPackPresentationSource(content.presentation, `${file}#/content/presentation`),
-    markdown: arrayAt(content.markdown, file, '/content/markdown').map((entry, index) => markdownAt(entry, file, `/content/markdown/${index}`)),
-  }
-  unique(parsedContent.markdown.map(value => value.path), file, '/content/markdown')
-  const assets = arrayAt(root.assets, file, '/assets').map((entry, index) => assetAt(entry, file, `/assets/${index}`))
-  unique(assets.map(value => value.path), file, '/assets')
-  const acceptanceAssertions = arrayAt(root.acceptanceAssertions, file, '/acceptanceAssertions')
-    .map((entry, index) => parseAssertion(entry, file, `/acceptanceAssertions/${index}`))
-  unique(acceptanceAssertions.map(value => value.assertionId), file, '/acceptanceAssertions')
-  return {
-    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION,
-    packId: idAt(root.packId, file, '/packId', 'WorldPackId') as WorldPackId,
-    packVersion: semverAt(root.packVersion, file, '/packVersion'), packHash: hashAt(root.packHash, file, '/packHash'),
-    compiler: {
-      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION,
-      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION, canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE,
-    },
-    pluginLocks: pluginLocksAt(root.pluginLocks, file, '/pluginLocks'), content: parsedContent, assets, acceptanceAssertions,
-  }
-}
-
 function exactPhase8LocksAt(
   value: unknown,
   expected: WorldJsonValue,
@@ -1400,149 +1210,6 @@ function exactPhase8LocksAt(
   arrayAt(value, file, at)
   if (hashWorldJson(domain, value as WorldJsonValue) !== hashWorldJson(domain, expected)) {
     failWorldPackContract('REGISTRY_HASH_MISMATCH', file, at, 'does not match the exact Phase 8 lock set')
-  }
-}
-
-/** Validate one compiled v2 envelope and every immutable Phase 8 registry lock. */
-export function parseCompiledWorldPackV2(input: unknown, file = 'worldpack.json'): CompiledWorldPackV2 {
-  const root = sourceDocument(input, file, MAX_COMPILED_BYTES)
-  exactKeys(root, [
-    'compiledSchemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
-    'registryLocks', 'content', 'assets', 'acceptanceAssertions',
-  ], [], file, '')
-  if (root.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V2) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiledSchemaVersion', `must be ${WORLD_PACK_COMPILED_SCHEMA_VERSION_V2}`)
-  }
-  const compiler = objectAt(root.compiler, file, '/compiler')
-  exactKeys(compiler, ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'], [], file, '/compiler')
-  if (compiler.id !== WORLD_PACK_COMPILER_ID || compiler.version !== WORLD_PACK_COMPILER_VERSION_V2
-    || compiler.contractVersion !== WORLD_PACK_COMPILER_CONTRACT_VERSION_V2 || compiler.canonicalJsonVersion !== 'world-json/v1'
-    || compiler.limitsProfile !== WORLD_PACK_LIMITS_PROFILE_V2) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiler', 'does not identify the Phase 8 compiler contract')
-  }
-  const content = objectAt(root.content, file, '/content')
-  exactKeys(content, [
-    'world', 'locations', 'entities', 'characters', 'scenes', 'playerSlots', 'cognition', 'memory', 'documents',
-    'presentation', 'markdown',
-  ], [], file, '/content')
-  const parsedContent: WorldPackCompiledContentV2 = {
-    world: parseWorldPackWorldSourceV2(content.world, `${file}#/content/world`),
-    locations: parseWorldPackLocationsSource({ schemaVersion: 'worldpack-locations/v1', locations: content.locations }, `${file}#/content/locations`).locations,
-    entities: parseWorldPackEntitiesSource({ schemaVersion: 'worldpack-entities/v1', entities: content.entities }, `${file}#/content/entities`).entities,
-    characters: parseWorldPackCharactersSourceV2({ schemaVersion: WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V2, characters: content.characters }, `${file}#/content/characters`).characters,
-    scenes: parseWorldPackScenesSourceV2({ schemaVersion: WORLD_PACK_SCENES_SCHEMA_VERSION_V2, scenes: content.scenes }, `${file}#/content/scenes`).scenes,
-    playerSlots: parseWorldPackPlayerSlotsSource({ schemaVersion: 'worldpack-player-slots/v1', playerSlots: content.playerSlots }, `${file}#/content/playerSlots`).playerSlots,
-    cognition: parseWorldPackCognitionSourceV2({ schemaVersion: WORLD_PACK_COGNITION_SCHEMA_VERSION_V2, characters: content.cognition }, `${file}#/content/cognition`).characters,
-    memory: parseWorldPackMemorySourceV2({ schemaVersion: WORLD_PACK_MEMORY_SCHEMA_VERSION_V2, characters: content.memory }, `${file}#/content/memory`).characters,
-    documents: parseWorldPackDocumentsSourceV2({ schemaVersion: WORLD_PACK_DOCUMENTS_SCHEMA_VERSION_V2, documents: content.documents }, `${file}#/content/documents`).documents,
-    presentation: parseWorldPackPresentationSource(content.presentation, `${file}#/content/presentation`),
-    markdown: arrayAt(content.markdown, file, '/content/markdown').map((entry, index) => markdownAt(entry, file, `/content/markdown/${index}`)),
-  }
-  unique(parsedContent.markdown.map(value => value.path), file, '/content/markdown')
-  const assets = arrayAt(root.assets, file, '/assets').map((entry, index) => assetAt(entry, file, `/assets/${index}`))
-  unique(assets.map(value => value.path), file, '/assets')
-  const acceptanceAssertions = arrayAt(root.acceptanceAssertions, file, '/acceptanceAssertions')
-    .map((entry, index) => parseAssertion(entry, file, `/acceptanceAssertions/${index}`))
-  unique(acceptanceAssertions.map(value => value.assertionId), file, '/acceptanceAssertions')
-  const pluginLocks = pluginLocksAt(root.pluginLocks, file, '/pluginLocks', PHASE8_CORE_PROFILES, 'Phase 8')
-  exactPhase8LocksAt(root.vocabularyLocks, PHASE8_VOCABULARY_LOCKS, 'phase8-vocabulary-lock-set/v1', file, '/vocabularyLocks')
-  exactPhase8LocksAt(root.registryLocks, PHASE8_REGISTRY_LOCKS, 'phase8-registry-lock-set/v1', file, '/registryLocks')
-  return {
-    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
-    packId: idAt(root.packId, file, '/packId', 'WorldPackId') as WorldPackId,
-    packVersion: semverAt(root.packVersion, file, '/packVersion'),
-    packHash: hashAt(root.packHash, file, '/packHash'),
-    compiler: {
-      id: WORLD_PACK_COMPILER_ID,
-      version: WORLD_PACK_COMPILER_VERSION_V2,
-      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V2,
-      canonicalJsonVersion: 'world-json/v1',
-      limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
-    },
-    pluginLocks,
-    vocabularyLocks: PHASE8_VOCABULARY_LOCKS,
-    registryLocks: PHASE8_REGISTRY_LOCKS,
-    content: parsedContent,
-    assets,
-    acceptanceAssertions,
-  }
-}
-
-/** Validate one compiled v3 envelope while delegating the frozen Phase 8 content shape to the v2 parser. */
-export function parseCompiledWorldPackV3(input: unknown, file = 'worldpack.json'): CompiledWorldPackV3 {
-  const root = sourceDocument(input, file, MAX_COMPILED_BYTES)
-  exactKeys(root, [
-    'compiledSchemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
-    'registryLocks', 'reaction', 'content', 'assets', 'acceptanceAssertions',
-  ], [], file, '')
-  if (root.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V3) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiledSchemaVersion', `must be ${WORLD_PACK_COMPILED_SCHEMA_VERSION_V3}`)
-  }
-  const compiler = objectAt(root.compiler, file, '/compiler')
-  exactKeys(compiler, ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'], [], file, '/compiler')
-  if (compiler.id !== WORLD_PACK_COMPILER_ID || compiler.version !== WORLD_PACK_COMPILER_VERSION_V3
-    || compiler.contractVersion !== WORLD_PACK_COMPILER_CONTRACT_VERSION_V3 || compiler.canonicalJsonVersion !== 'world-json/v1'
-    || compiler.limitsProfile !== WORLD_PACK_LIMITS_PROFILE_V2) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiler', 'does not identify the Phase 9 compiler contract')
-  }
-  const { reaction: reactionInput, ...withoutReaction } = root
-  const base = parseCompiledWorldPackV2({
-    ...withoutReaction,
-    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
-    compiler: {
-      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V2,
-      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V2,
-      canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
-    },
-  }, file)
-  return {
-    ...base,
-    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V3,
-    compiler: {
-      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V3,
-      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V3,
-      canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
-    },
-    reaction: parseWorldPackReactionSource(reactionInput, `${file}#/reaction`),
-  }
-}
-
-/** Validate one compiled v4 envelope while preserving the frozen v3 content and Reaction semantics. */
-export function parseCompiledWorldPackV4(input: unknown, file = 'worldpack.json'): CompiledWorldPackV4 {
-  const root = sourceDocument(input, file, MAX_COMPILED_BYTES)
-  exactKeys(root, [
-    'compiledSchemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
-    'registryLocks', 'reaction', 'manifestation', 'content', 'assets', 'acceptanceAssertions',
-  ], [], file, '')
-  if (root.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiledSchemaVersion', `must be ${WORLD_PACK_COMPILED_SCHEMA_VERSION_V4}`)
-  }
-  const compiler = objectAt(root.compiler, file, '/compiler')
-  exactKeys(compiler, ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'], [], file, '/compiler')
-  if (compiler.id !== WORLD_PACK_COMPILER_ID || compiler.version !== WORLD_PACK_COMPILER_VERSION_V4
-    || compiler.contractVersion !== WORLD_PACK_COMPILER_CONTRACT_VERSION_V4 || compiler.canonicalJsonVersion !== 'world-json/v1'
-    || compiler.limitsProfile !== WORLD_PACK_LIMITS_PROFILE_V2) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiler', 'does not identify the manifestation compiler contract')
-  }
-  const { manifestation: manifestationInput, ...withoutManifestation } = root
-  const base = parseCompiledWorldPackV3({
-    ...withoutManifestation,
-    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V3,
-    compiler: {
-      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V3,
-      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V3,
-      canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
-    },
-  }, file)
-  return {
-    ...base,
-    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V4,
-    compiler: {
-      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V4,
-      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V4,
-      canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
-    },
-    manifestation: parseWorldPackManifestationSource(manifestationInput, `${file}#/manifestation`),
   }
 }
 
@@ -1762,57 +1429,82 @@ function bindingConfig(
   return row as WorldJsonObject
 }
 
-/** V5 adds the world's interaction catalog; the V4 envelope and its content validation are untouched. */
+/** Validate the one supported compiled envelope directly; hash verification remains in the compiler. */
 export function parseCompiledWorldPackV5(input: unknown, file = 'worldpack.json'): CompiledWorldPackV5 {
   const root = sourceDocument(input, file, MAX_COMPILED_BYTES)
+  exactKeys(root, [
+    'compiledSchemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
+    'registryLocks', 'reaction', 'manifestation', 'interactions', 'content', 'assets', 'acceptanceAssertions',
+  ], [], file, '')
   if (root.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V5) {
     failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiledSchemaVersion', `must be ${WORLD_PACK_COMPILED_SCHEMA_VERSION_V5}`)
   }
-  const interactions = parseInteractionCatalogV3(root.interactions, `${file}#/interactions`)
-  const { interactions: _interactions, content, ...withoutInteractions } = root
-  const envelope = objectAt(content, file, '/content')
-  // The V4 parser re-parses content with the V1/V2 file shapes, which cannot carry bindings. Hand it
-  // the binding-free projection and substitute the full V5 content afterwards; the target files are
-  // then re-parsed under their V2/V3 shapes below, so nothing is validated only once.
-  const stripped = {
-    ...envelope,
-    entities: arrayAt(envelope.entities, file, '/content/entities').map(entry => {
-      const { interactionBindings: _entityBindings, ...rest } = objectAt(entry, file, '/content/entities')
-      return rest
-    }),
-    characters: arrayAt(envelope.characters, file, '/content/characters').map(entry => {
-      const { interactionBindings: _characterBindings, ...rest } = objectAt(entry, file, '/content/characters')
-      return rest
-    }),
+  const compiler = objectAt(root.compiler, file, '/compiler')
+  exactKeys(compiler, ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'], [], file, '/compiler')
+  if (compiler.id !== WORLD_PACK_COMPILER_ID || compiler.version !== WORLD_PACK_COMPILER_VERSION_V5
+    || compiler.contractVersion !== WORLD_PACK_COMPILER_CONTRACT_VERSION_V5
+    || compiler.canonicalJsonVersion !== 'world-json/v1' || compiler.limitsProfile !== WORLD_PACK_LIMITS_PROFILE_V2) {
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '/compiler', 'does not identify the v5 compiler contract')
   }
-  const base = parseCompiledWorldPackV4({
-    ...withoutInteractions,
-    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V4,
-    content: stripped,
-    compiler: {
-      id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V4,
-      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V4,
-      canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
-    },
-  }, file)
+  const content = objectAt(root.content, file, '/content')
+  exactKeys(content, [
+    'world', 'locations', 'entities', 'characters', 'scenes', 'playerSlots', 'cognition', 'memory', 'documents',
+    'presentation', 'markdown',
+  ], [], file, '/content')
+  const parsedContent: WorldPackCompiledContentV5 = {
+    world: parseWorldPackWorldSourceV2(content.world, `${file}#/content/world`),
+    locations: parseWorldPackLocationsSource(
+      { schemaVersion: 'worldpack-locations/v1', locations: content.locations }, `${file}#/content/locations`,
+    ).locations,
+    entities: parseWorldPackEntitiesSourceV2(
+      { schemaVersion: WORLD_PACK_ENTITIES_SCHEMA_VERSION_V2, entities: content.entities }, `${file}#/content/entities`,
+    ).entities,
+    characters: parseWorldPackCharactersSourceV3(
+      { schemaVersion: WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V3, characters: content.characters }, `${file}#/content/characters`,
+    ).characters,
+    scenes: parseWorldPackScenesSourceV2(
+      { schemaVersion: WORLD_PACK_SCENES_SCHEMA_VERSION_V2, scenes: content.scenes }, `${file}#/content/scenes`,
+    ).scenes,
+    playerSlots: parseWorldPackPlayerSlotsSource(
+      { schemaVersion: 'worldpack-player-slots/v1', playerSlots: content.playerSlots }, `${file}#/content/playerSlots`,
+    ).playerSlots,
+    cognition: parseWorldPackCognitionSourceV2(
+      { schemaVersion: WORLD_PACK_COGNITION_SCHEMA_VERSION_V2, characters: content.cognition }, `${file}#/content/cognition`,
+    ).characters,
+    memory: parseWorldPackMemorySourceV2(
+      { schemaVersion: WORLD_PACK_MEMORY_SCHEMA_VERSION_V2, characters: content.memory }, `${file}#/content/memory`,
+    ).characters,
+    documents: parseWorldPackDocumentsSourceV2(
+      { schemaVersion: WORLD_PACK_DOCUMENTS_SCHEMA_VERSION_V2, documents: content.documents }, `${file}#/content/documents`,
+    ).documents,
+    presentation: parseWorldPackPresentationSource(content.presentation, `${file}#/content/presentation`),
+    markdown: arrayAt(content.markdown, file, '/content/markdown')
+      .map((entry, index) => markdownAt(entry, file, `/content/markdown/${index}`)),
+  }
+  unique(parsedContent.markdown.map(value => value.path), file, '/content/markdown')
+  const assets = arrayAt(root.assets, file, '/assets').map((entry, index) => assetAt(entry, file, `/assets/${index}`))
+  unique(assets.map(value => value.path), file, '/assets')
+  const acceptanceAssertions = arrayAt(root.acceptanceAssertions, file, '/acceptanceAssertions')
+    .map((entry, index) => parseAssertion(entry, file, `/acceptanceAssertions/${index}`))
+  unique(acceptanceAssertions.map(value => value.assertionId), file, '/acceptanceAssertions')
+  const pluginLocks = pluginLocksAt(root.pluginLocks, file, '/pluginLocks', PHASE8_CORE_PROFILES, 'Phase 8')
+  exactPhase8LocksAt(root.vocabularyLocks, PHASE8_VOCABULARY_LOCKS, 'phase8-vocabulary-lock-set/v1', file, '/vocabularyLocks')
+  exactPhase8LocksAt(root.registryLocks, PHASE8_REGISTRY_LOCKS, 'phase8-registry-lock-set/v1', file, '/registryLocks')
   return {
-    ...base,
     compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V5,
+    packId: idAt(root.packId, file, '/packId', 'WorldPackId') as WorldPackId,
+    packVersion: semverAt(root.packVersion, file, '/packVersion'),
+    packHash: hashAt(root.packHash, file, '/packHash'),
     compiler: {
       id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V5,
       contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V5,
       canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
     },
-    interactions,
-    content: {
-      ...base.content,
-      entities: parseWorldPackEntitiesSourceV2(
-        { schemaVersion: WORLD_PACK_ENTITIES_SCHEMA_VERSION_V2, entities: envelope.entities }, `${file}#/content/entities`,
-      ).entities,
-      characters: parseWorldPackCharactersSourceV3(
-        { schemaVersion: WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V3, characters: envelope.characters }, `${file}#/content/characters`,
-      ).characters,
-    },
+    pluginLocks, vocabularyLocks: PHASE8_VOCABULARY_LOCKS, registryLocks: PHASE8_REGISTRY_LOCKS,
+    reaction: parseWorldPackReactionSource(root.reaction, `${file}#/reaction`),
+    manifestation: parseWorldPackManifestationSource(root.manifestation, `${file}#/manifestation`),
+    interactions: parseInteractionCatalogV3(root.interactions, `${file}#/interactions`),
+    content: parsedContent, assets, acceptanceAssertions,
   }
 }
 

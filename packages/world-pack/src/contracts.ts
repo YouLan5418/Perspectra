@@ -31,26 +31,9 @@ import type {
 export type WorldPackId = BrandedId<'WorldPackId'>
 export type WorldPackSlotId = BrandedId<'WorldPackSlotId'>
 
-export const WORLD_PACK_SOURCE_SCHEMA_VERSION = 'worldpack-source/v1' as const
-export const WORLD_PACK_COMPILED_SCHEMA_VERSION = 'worldpack/v1' as const
 export const WORLD_PACK_COMPILER_ID = 'harness-world-pack-compiler' as const
-export const WORLD_PACK_COMPILER_VERSION = '0.1.0' as const
-export const WORLD_PACK_COMPILER_CONTRACT_VERSION = 'worldpack-compiler/v1' as const
-export const WORLD_PACK_LIMITS_PROFILE = 'worldpack-limits/v1' as const
-export const WORLD_PACK_SOURCE_SCHEMA_VERSION_V2 = 'worldpack-source/v2' as const
-export const WORLD_PACK_COMPILED_SCHEMA_VERSION_V2 = 'worldpack/v2' as const
-export const WORLD_PACK_COMPILER_VERSION_V2 = '0.2.0' as const
-export const WORLD_PACK_COMPILER_CONTRACT_VERSION_V2 = 'worldpack-compiler/v2' as const
 export const WORLD_PACK_LIMITS_PROFILE_V2 = 'worldpack-limits/v2' as const
-export const WORLD_PACK_SOURCE_SCHEMA_VERSION_V3 = 'worldpack-source/v3' as const
-export const WORLD_PACK_COMPILED_SCHEMA_VERSION_V3 = 'worldpack/v3' as const
-export const WORLD_PACK_COMPILER_VERSION_V3 = '0.3.0' as const
-export const WORLD_PACK_COMPILER_CONTRACT_VERSION_V3 = 'worldpack-compiler/v3' as const
 export const WORLD_PACK_REACTION_SCHEMA_VERSION = 'worldpack-reaction/v1' as const
-export const WORLD_PACK_SOURCE_SCHEMA_VERSION_V4 = 'worldpack-source/v4' as const
-export const WORLD_PACK_COMPILED_SCHEMA_VERSION_V4 = 'worldpack/v4' as const
-export const WORLD_PACK_COMPILER_VERSION_V4 = '0.4.0' as const
-export const WORLD_PACK_COMPILER_CONTRACT_VERSION_V4 = 'worldpack-compiler/v4' as const
 export const WORLD_PACK_MANIFESTATION_SCHEMA_VERSION = 'worldpack-manifestation/v1' as const
 export const WORLD_PACK_SOURCE_SCHEMA_VERSION_V5 = 'worldpack-source/v5' as const
 export const WORLD_PACK_COMPILED_SCHEMA_VERSION_V5 = 'worldpack/v5' as const
@@ -110,12 +93,6 @@ export interface WorldPackInteractionsSource extends WorldJsonObject {
   readonly relationBindings?: readonly WorldPackRelationBindingSource[]
 }
 
-export interface WorldPackCompileOptions {
-  readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE
-}
-export interface WorldPackCompileOptionsV2 {
-  readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE_V2
-}
 
 export interface WorldPackRulebookProfile extends WorldJsonObject {
   readonly rulebookId: 'builtin:speak-move'
@@ -150,83 +127,11 @@ export const PHASE8_CORE_PROFILES: WorldPackCoreProfiles = Object.freeze({
   presentation: Object.freeze({ profileId: 'builtin:deterministic-presentation', version: '1.0.0' }),
 })
 
-export interface WorldPackSourceManifest extends WorldJsonObject {
-  readonly sourceSchemaVersion: typeof WORLD_PACK_SOURCE_SCHEMA_VERSION
-  readonly packId: WorldPackId
-  readonly packVersion: string
-  readonly worldFile: string
-  readonly characterFiles: readonly string[]
-  readonly locationFiles: readonly string[]
-  readonly entityFiles: readonly string[]
-  readonly sceneFiles: readonly string[]
-  readonly playerSlotFiles: readonly string[]
-  readonly presentationFiles: readonly string[]
-  readonly markdownFiles: readonly string[]
-  readonly assetFiles: readonly string[]
-  readonly assertionFiles: readonly string[]
-}
 
-export interface WorldPackSourceManifestV2 extends WorldJsonObject {
-  readonly sourceSchemaVersion: typeof WORLD_PACK_SOURCE_SCHEMA_VERSION_V2
-  readonly packId: WorldPackId
-  readonly packVersion: string
-  readonly worldFile: string
-  readonly characterFiles: readonly string[]
-  readonly locationFiles: readonly string[]
-  readonly entityFiles: readonly string[]
-  readonly sceneFiles: readonly string[]
-  readonly playerSlotFiles: readonly string[]
-  readonly presentationFiles: readonly string[]
-  readonly cognitionFiles: readonly string[]
-  readonly memoryFiles: readonly string[]
-  readonly documentFiles: readonly string[]
-  readonly markdownFiles: readonly string[]
-  readonly assetFiles: readonly string[]
-  readonly assertionFiles: readonly string[]
-}
 
-export interface WorldPackSourceManifestV3 extends WorldJsonObject {
-  readonly sourceSchemaVersion: typeof WORLD_PACK_SOURCE_SCHEMA_VERSION_V3
-  readonly packId: WorldPackId
-  readonly packVersion: string
-  readonly worldFile: string
-  readonly characterFiles: readonly string[]
-  readonly locationFiles: readonly string[]
-  readonly entityFiles: readonly string[]
-  readonly sceneFiles: readonly string[]
-  readonly playerSlotFiles: readonly string[]
-  readonly presentationFiles: readonly string[]
-  readonly cognitionFiles: readonly string[]
-  readonly memoryFiles: readonly string[]
-  readonly documentFiles: readonly string[]
-  readonly markdownFiles: readonly string[]
-  readonly assetFiles: readonly string[]
-  readonly assertionFiles: readonly string[]
-  readonly reactionFile: string
-}
 
-export interface WorldPackSourceManifestV4 extends WorldJsonObject {
-  readonly sourceSchemaVersion: typeof WORLD_PACK_SOURCE_SCHEMA_VERSION_V4
-  readonly packId: WorldPackId
-  readonly packVersion: string
-  readonly worldFile: string
-  readonly characterFiles: readonly string[]
-  readonly locationFiles: readonly string[]
-  readonly entityFiles: readonly string[]
-  readonly sceneFiles: readonly string[]
-  readonly playerSlotFiles: readonly string[]
-  readonly presentationFiles: readonly string[]
-  readonly cognitionFiles: readonly string[]
-  readonly memoryFiles: readonly string[]
-  readonly documentFiles: readonly string[]
-  readonly markdownFiles: readonly string[]
-  readonly assetFiles: readonly string[]
-  readonly assertionFiles: readonly string[]
-  readonly reactionFile: string
-  readonly manifestationFile: string
-}
 
-/** V5 adds the world's interaction selection file; every V4 field keeps its meaning. */
+/** The supported source manifest selects the world's interaction file. */
 export interface WorldPackSourceManifestV5 extends WorldJsonObject {
   readonly sourceSchemaVersion: typeof WORLD_PACK_SOURCE_SCHEMA_VERSION_V5
   readonly packId: WorldPackId
@@ -552,16 +457,6 @@ export interface WorldPackMarkdownContent extends WorldJsonObject {
   readonly text: string
   readonly contentHash: WorldHash
 }
-export interface WorldPackCompiledContent extends WorldJsonObject {
-  readonly world: WorldPackWorldSource
-  readonly locations: readonly WorldPackLocationSource[]
-  readonly entities: readonly WorldPackEntitySource[]
-  readonly characters: readonly WorldPackCharacterSource[]
-  readonly scenes: readonly WorldPackSceneSource[]
-  readonly playerSlots: readonly WorldPackPlayerSlotSource[]
-  readonly presentation: WorldPackPresentationSource
-  readonly markdown: readonly WorldPackMarkdownContent[]
-}
 export interface WorldPackAssetLock extends WorldJsonObject {
   readonly path: string
   readonly contentHash: WorldHash
@@ -573,32 +468,7 @@ export interface WorldPackPluginLock extends WorldJsonObject {
   readonly version: string
   readonly pluginHash: WorldHash
 }
-export interface WorldPackCompilerIdentity extends WorldJsonObject {
-  readonly id: typeof WORLD_PACK_COMPILER_ID
-  readonly version: typeof WORLD_PACK_COMPILER_VERSION
-  readonly contractVersion: typeof WORLD_PACK_COMPILER_CONTRACT_VERSION
-  readonly canonicalJsonVersion: 'world-json/v1'
-  readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE
-}
-export interface CompiledWorldPack extends WorldJsonObject {
-  readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION
-  readonly packId: WorldPackId
-  readonly packVersion: string
-  readonly packHash: WorldHash
-  readonly compiler: WorldPackCompilerIdentity
-  readonly pluginLocks: readonly WorldPackPluginLock[]
-  readonly content: WorldPackCompiledContent
-  readonly assets: readonly WorldPackAssetLock[]
-  readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
-}
 
-export interface WorldPackCompilerIdentityV2 extends WorldJsonObject {
-  readonly id: typeof WORLD_PACK_COMPILER_ID
-  readonly version: typeof WORLD_PACK_COMPILER_VERSION_V2
-  readonly contractVersion: typeof WORLD_PACK_COMPILER_CONTRACT_VERSION_V2
-  readonly canonicalJsonVersion: 'world-json/v1'
-  readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE_V2
-}
 export interface WorldPackCompiledContentV2 extends WorldJsonObject {
   readonly world: WorldPackWorldSource
   readonly locations: readonly WorldPackLocationSource[]
@@ -612,35 +482,8 @@ export interface WorldPackCompiledContentV2 extends WorldJsonObject {
   readonly presentation: WorldPackPresentationSource
   readonly markdown: readonly WorldPackMarkdownContent[]
 }
-export interface CompiledWorldPackV2 extends WorldJsonObject {
-  readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION_V2
-  readonly packId: WorldPackId
-  readonly packVersion: string
-  readonly packHash: WorldHash
-  readonly compiler: WorldPackCompilerIdentityV2
-  readonly pluginLocks: readonly WorldPackPluginLock[]
-  readonly vocabularyLocks: readonly VocabularyLock[]
-  readonly registryLocks: readonly Phase8RegistryLock[]
-  readonly content: WorldPackCompiledContentV2
-  readonly assets: readonly WorldPackAssetLock[]
-  readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
-}
 
-export interface WorldPackCompilerIdentityV3 extends WorldJsonObject {
-  readonly id: typeof WORLD_PACK_COMPILER_ID
-  readonly version: typeof WORLD_PACK_COMPILER_VERSION_V3
-  readonly contractVersion: typeof WORLD_PACK_COMPILER_CONTRACT_VERSION_V3
-  readonly canonicalJsonVersion: 'world-json/v1'
-  readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE_V2
-}
 
-export interface WorldPackCompilerIdentityV4 extends WorldJsonObject {
-  readonly id: typeof WORLD_PACK_COMPILER_ID
-  readonly version: typeof WORLD_PACK_COMPILER_VERSION_V4
-  readonly contractVersion: typeof WORLD_PACK_COMPILER_CONTRACT_VERSION_V4
-  readonly canonicalJsonVersion: 'world-json/v1'
-  readonly limitsProfile: typeof WORLD_PACK_LIMITS_PROFILE_V2
-}
 
 export interface WorldPackCompilerIdentityV5 extends WorldJsonObject {
   readonly id: typeof WORLD_PACK_COMPILER_ID
@@ -679,36 +522,7 @@ export interface CompiledWorldPackV5 extends WorldJsonObject {
   readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
 }
 
-export interface CompiledWorldPackV3 extends WorldJsonObject {
-  readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION_V3
-  readonly packId: WorldPackId
-  readonly packVersion: string
-  readonly packHash: WorldHash
-  readonly compiler: WorldPackCompilerIdentityV3
-  readonly pluginLocks: readonly WorldPackPluginLock[]
-  readonly vocabularyLocks: readonly VocabularyLock[]
-  readonly registryLocks: readonly Phase8RegistryLock[]
-  readonly reaction: WorldPackReactionSource
-  readonly content: WorldPackCompiledContentV2
-  readonly assets: readonly WorldPackAssetLock[]
-  readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
-}
 
-export interface CompiledWorldPackV4 extends WorldJsonObject {
-  readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION_V4
-  readonly packId: WorldPackId
-  readonly packVersion: string
-  readonly packHash: WorldHash
-  readonly compiler: WorldPackCompilerIdentityV4
-  readonly pluginLocks: readonly WorldPackPluginLock[]
-  readonly vocabularyLocks: readonly VocabularyLock[]
-  readonly registryLocks: readonly Phase8RegistryLock[]
-  readonly reaction: WorldPackReactionSource
-  readonly manifestation: WorldPackManifestationSource
-  readonly content: WorldPackCompiledContentV2
-  readonly assets: readonly WorldPackAssetLock[]
-  readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
-}
 
 export interface WorldPackReactionInspection extends WorldJsonObject {
   readonly mode: 'disabled' | 'responsive'
