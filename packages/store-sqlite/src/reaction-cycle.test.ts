@@ -1386,6 +1386,8 @@ describe('WorldStore Reaction Cycle authority', () => {
       { ...base.draft, maxCallsPerCharacter: 0 },
       { ...base.draft, maxActionsPerCall: 3 as 1 },
       { ...base.draft, maxActionsPerCall: 2, allowedActionTypes: ['speak@1'] },
+      { ...base.draft, maxActionsPerCall: 2, allowedActionTypes: ['speak@1', 'move@1', 'take@1'] as never },
+      { ...base.draft, maxActionsPerCall: 2, allowedActionTypes: ['speak@1', 'move@1', 'interact@1'] as never },
       { ...base.draft, allowedActionTypes: [] as unknown as readonly ['speak@1'] },
       { ...base.draft, allowedActionTypes: ['bad'] as unknown as readonly ['speak@1'] },
       { ...base.draft, initialTokenBudget: -1 },

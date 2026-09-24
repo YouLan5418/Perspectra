@@ -94,7 +94,9 @@ experience:web → playtest-web-entry
 
 第二十六刀（2026-09-24）：删除内核 `world-spec.test.ts` 中已退役 v1–v7 WorldSpec 编译、旧 Manifest 读取与 Genesis 断言。当前 v10 激活拒绝及冻结交互路径继续由现行原型和 v10 集成测试验证；生产 `WorldSpecCompiler` 与其他公开接口尚未删除，以免旧夹具间接依赖在本刀中被大量替换或悄悄丢失。类型检查、Lint、现行测试 67/67；旧版本拒绝与 v10 冻结交互定向测试 25/25。只改变测试集合，未做真实模型试玩。下一步仍要把剩余同步夹具从 v2 编译器迁走，之后才能删除编译器实现。
 
-## 当前待清理清单（第二十六刀后）
+第二十七刀（2026-09-25）：ReactionCycle 的公开草案/存档类型、草案校验和持久行读取只接受现行双动作词表 speak@1 / move@1 / interact@2；无 Manifest 的单动作 speak@1 账本接口继续保留。退役的 take@1、interact@1 不再作为可接受的 Cycle 词表，增加最小回归断言。删除使用 WorldSpec v2 和 take@1 拼装世界的旧 reaction-scheduler.test.ts（1030 行）；生产 ReactionScheduler 及公开接口未删除，当前网页仍走外部单角色激活。类型检查、Lint、现行测试 67/67，Store / v10 交互包 / G1 定向测试 75/75。另用独立 .tmp/g4-reaction-v10-smoke-1790266538441 存档向 deepseek-flash 提交“同行者，请试着拿起桌上的黄铜钥匙，并告诉我结果。”：5 次模型调用成功，Head seq19→46，同行者的 interact 得到 accepted 和事件引用，随后说“拿起来了。就在我手里。”；留守者也看到并回应，Cycle 以 quiescent 结束，无错误提示。这是现行网页模型链路的单次冒烟，不能证明已退役 ReactionScheduler 路径或 G3 自由叙述风险已被验证。
+
+## 当前待清理清单（第二十七刀后）
 
 以下顺序按当前 v5 网页与 worldpack 的调用链排定。具有以后对外提供价值的接口优先保留；删除候选限于已退出的旧协议或确认无用的内部重复实现。权威事实、观察权限和已提交事件的一致性继续保留。
 

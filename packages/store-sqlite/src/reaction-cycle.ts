@@ -235,15 +235,11 @@ function validatePolicy(draft: ReactionCycleDraft): void {
   safeInteger(draft.maxNpcCalls, 'reactionCycle.maxNpcCalls', 1, 8)
   safeInteger(draft.maxCallsPerCharacter, 'reactionCycle.maxCallsPerCharacter', 1, 2)
   if (draft.maxActionsPerCall !== 1 && draft.maxActionsPerCall !== 2) throw new RangeError('reactionCycle.maxActionsPerCall must equal one or two')
-  // A two-action Cycle declares the world operation its Manifest offers: v7 takes, v8 and v9
-  // interact, and the frozen path interacts at version 2 because its request names a binding and a
-  // definition lock. The store cannot tell which Manifest produced a draft, so this stays a closed
-  // list of the frozen alternatives rather than a rule derived from a version number.
-  const expected = draft.maxActionsPerCall === 2 ? ['speak@1', 'move@1', 'take@1'] : ['speak@1']
-  const interactionAlternatives = [['speak@1', 'move@1', 'interact@1'], ['speak@1', 'move@1', 'interact@2']]
-  if (worldJsonText(draft.allowedActionTypes) !== worldJsonText(expected)
-    && !(draft.maxActionsPerCall === 2 && interactionAlternatives.some(value => worldJsonText(draft.allowedActionTypes) === worldJsonText(value)))) {
-    throw new TypeError('Reaction Cycle v1 only allows speak@1')
+  // Current worlds use the frozen interaction binding addressed by interact@2.
+  const expected = draft.maxActionsPerCall === 2
+    ? ['speak@1', 'move@1', 'interact@2'] : ['speak@1']
+  if (worldJsonText(draft.allowedActionTypes) !== worldJsonText(expected)) {
+    throw new TypeError('Reaction Cycle action vocabulary is unsupported')
   }
   safeInteger(draft.initialTokenBudget, 'reactionCycle.initialTokenBudget', 0)
   safeInteger(draft.deadlineAtMs, 'reactionCycle.deadlineAtMs', 0)
@@ -693,10 +689,9 @@ function readReactionCycle(
   if (row === undefined) return undefined
   const allowed = exactJson(row.allowed_action_types_json, 'Reaction Cycle allowed Action types')
   const maximumActions = row.action_group_max_actions ?? row.max_actions_per_call
-  const expected = maximumActions === 2 ? ['speak@1', 'move@1', 'take@1'] : ['speak@1']
-  const interactionAlternatives = [['speak@1', 'move@1', 'interact@1'], ['speak@1', 'move@1', 'interact@2']]
-  if (!Array.isArray(allowed) || (worldJsonText(allowed) !== worldJsonText(expected)
-    && !(maximumActions === 2 && interactionAlternatives.some(value => worldJsonText(allowed) === worldJsonText(value))))
+  const expected = maximumActions === 2
+    ? ['speak@1', 'move@1', 'interact@2'] : ['speak@1']
+  if (!Array.isArray(allowed) || worldJsonText(allowed) !== worldJsonText(expected)
     || row.policy_version !== 'reaction-policy/v1'
     || (row.profile_id !== 'responsive/v1' && row.profile_id !== 'responsive/v2')
     || row.max_actions_per_call !== 1 || (maximumActions !== 1 && maximumActions !== 2)) {
