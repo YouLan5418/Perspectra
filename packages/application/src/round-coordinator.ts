@@ -29,12 +29,6 @@ import {
   type CharacterCognitionView,
   type ContextReceipt,
   type FaultInjector,
-  type SubmitActionsV2,
-  type SubmitActionsV3,
-  type SubmitActionsV4,
-  type SubmitActionsV5,
-  type SubmitActionsV6,
-  type SubmitActionsV7,
   type ActionGroupBinding,
   type ReactionEvidenceV1,
   type ReactionRoleClass,
@@ -97,7 +91,7 @@ export interface RoundParticipant {
   readonly priority: number
   readonly estimatedTokens: number
   readonly timeoutMs: number
-  readonly provider: { propose(context: ProposalContext): Promise<Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7> }
+  readonly provider: { propose(context: ProposalContext): Promise<WorldJsonObject> }
 }
 
 export interface ReactionParticipantDraftBinding {
@@ -1284,15 +1278,15 @@ export class RoundCoordinator {
       let providerCall = cognitive?.receipt === undefined || this.options.providerCalls === undefined
         ? undefined
         : this.options.providerCalls.prepare(cognitive.receipt)
-      let providerOutput: Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7 | undefined
+      let providerOutput: WorldJsonObject | undefined
       if (providerCall?.state === 'dispatch_started') {
         providerCall = this.options.providerCalls!.markTerminal(providerCall.modelCallId, 'timed_out_ambiguous', {
           reason: 'provider dispatch had no durable terminal result',
         })
       } else if (providerCall?.state === 'response_received') {
-        providerOutput = providerCall.response as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7
+        providerOutput = providerCall.response as WorldJsonObject
       } else if (providerCall?.state === 'validated') {
-        providerOutput = providerCall.proposal as Proposal | SubmitActionsV2 | SubmitActionsV3 | SubmitActionsV4 | SubmitActionsV5 | SubmitActionsV6 | SubmitActionsV7
+        providerOutput = providerCall.proposal as WorldJsonObject
       }
       if (providerCall !== undefined && !['prepared', 'response_received', 'validated'].includes(providerCall.state)) {
         let failure = participantFailureForCallState[providerCall.state]!

@@ -304,12 +304,8 @@ export interface ReactionProposalContext extends WorldJsonObject {
 }
 
 export interface ReactionAgentProvider {
-  propose(context: ReactionProposalContext): Promise<
-    import('./cognition-projection.ts').SubmitActionsV2 | import('./cognition-projection.ts').SubmitActionsV3
-    | import('./action-group.ts').SubmitActionsV4 | import('./action-group.ts').SubmitActionsV5
-    | import('./action-group.ts').SubmitActionsV6
-    | import('./action-group.ts').SubmitActionsV7
-  >
+  /** Untrusted model output; the active runtime validates submit_actions/v7 before use. */
+  propose(context: ReactionProposalContext): Promise<WorldJsonObject>
 }
 
 /** One exact claimed Job outcome consumed by a Reaction Round transaction. */

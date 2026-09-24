@@ -265,9 +265,9 @@ export interface AgentProvider {
   propose(context: ProposalContext): Promise<Proposal>
 }
 
-/** Phase 8 provider contract; participant identity is bound by the host call rather than model output. */
+/** Provider output is untrusted; participant identity and the active schema are bound by the host. */
 export interface Phase8AgentProvider {
-  propose(context: ProposalContext): Promise<import('./cognition-projection.ts').SubmitActionsV2>
+  propose(context: ProposalContext): Promise<WorldJsonObject>
 }
 
 export interface DirectorProvider {

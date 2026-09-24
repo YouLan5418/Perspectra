@@ -80,14 +80,16 @@ experience:web → playtest-web-entry
 
 第十九刀（2026-09-24）：`RoundCoordinator` 读取的存档已只接受 Manifest v10，因此收口其旧版本分流：玩家输入的 Authority/Provisional、冻结交互表现绑定、分组排序、反应动作策略和 Authority v6 均走现行路径；仍保留 `director` 的独立输出入口以及公开的提交接口。类型检查、Lint、现行测试 67/67，通过 v10 交互包、G1、场景观察及旧版本拒绝相关集成测试 16/16。另用独立 `.tmp/g4-round-coordinator-smoke-1790256065053` 存档重放同一句“我对同行者说：你好。”：DeepSeek `deepseek-flash` 的 5 次调用均完成，玩家和 4 名 NPC 各有一次 `action.resolved`，Head 从 seq101 到 seq129，4 条 NPC 文本可见，最终 `quiescent`、无错误提示。与上一轮 8 次调用/`call_limit` 的差异属于非确定性样本，不能归因于本次条件分支清理；本次未涉及物品执行或 G3 全面验收。
 
-## 当前待清理清单（第十九刀后）
+第二十刀（2026-09-24）：保留可供后续接入的 `ReactionAgentProvider`、`Phase8AgentProvider` 和 `RoundParticipant.provider` 接口，将其返回值改为未经信任的 `WorldJsonObject`，删除接口签名里 v2–v7 的历史协议联合。当前 v10 Scheduler/Coordinator 仍在提交前用 `submit_actions/v7` 校验；泛型 Provider 边界不赋予旧输出执行权。旧 `SubmitActionsV2`–`V6` DTO 定义暂留给历史测试，现行生产接口不再引用它们；不为纯类型删除大规模改写旧测试。类型检查、Lint、现行测试 67/67，v7 校验与当前交互/G1 相关测试 15/15 通过。本刀不改变模型请求、输出校验逻辑或网页行为，未再进行真实模型调用。
+
+## 当前待清理清单（第二十刀后）
 
 以下顺序按当前 v5 网页与 worldpack 的调用链排定。具有以后对外提供价值的接口优先保留；删除候选限于已退出的旧协议或确认无用的内部重复实现。权威事实、观察权限和已提交事件的一致性继续保留。
 
 | 顺序 | 待清理范围 | 当前证据与下刀边界 |
 | --- | --- | --- |
 | 1（已完成） | `submit_actions` v2/v3 校验入口及 v7 借用的旧解析辅助 | 已在第十七刀删除；保留 v1 通用校验和玩家表现解析接口。 |
-| 2（运行时完成） | `RoundCoordinator`、`ReactionScheduler` 的旧 Manifest 条件分支 | 两个运行时内部已固定 v10，公开接口保留；相关 contracts 的旧输出联合类型仍需按调用者清理。 |
+| 2（完成） | `RoundCoordinator`、`ReactionScheduler` 的旧 Manifest 分流和 Provider 接口的历史输出联合 | 运行时内部固定 v10，Provider 公开接口保留并把输出交由 v7 校验；旧 DTO 类型仅供历史测试，后续可随旧测试自然退出。 |
 | 3 | kernel 的 v2–v9 Manifest 类型、`WorldSpecCompiler` v2 与旧 Rulebook 选择；对应旧夹具 | 新激活和存档读取已拒绝旧 Manifest，但底层类型和分派仍在。先消除现行类型依赖，再删除历史编译器与测试，保留 v5 Pack 实际使用的内容字段。 |
 | 4（保留接口） | `WorldApplication` 的 archive、logical transfer、snapshot 离线 API | 这些能力未来可能需要对外提供，按用户要求保留公开接口；后续只审查内部重复或已失效的兼容分支，不以当前网页未调用为由删接口。 |
 | 5 | `package.json` 的旧阶段测试命令与专属夹具 | 随对应生产旧分支退出，删除只验证废弃协议的夹具；仍有独立诊断或未来接口验收价值的命令保留。 |
