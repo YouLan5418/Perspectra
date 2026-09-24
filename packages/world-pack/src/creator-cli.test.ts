@@ -53,6 +53,8 @@ describe('World Pack creator CLI', () => {
     ['compile', 'pack', '--wrong', 'pack.json'], ['compile', '', '--out', 'pack.json'],
     ['inspect'], ['inspect', ''],
     ['activate', 'pack.json', '--wrong', 'runtime'], ['activate', '', '--data-dir', 'runtime'],
+    ['activate', 'pack.json', '--data-dir', 'runtime', '--action-groups'],
+    ['activate', 'pack.json', '--data-dir', 'runtime', '--interactions', 'catalog.json'],
   ] as readonly (readonly string[])[]).map(args => [args] as const))('rejects an unsupported command %#', args => {
     expect(() => parseWorldPackCliInvocation(args)).toThrow(TypeError)
   })
@@ -68,9 +70,17 @@ describe('World Pack creator CLI', () => {
       .toMatchObject({ command: 'compile', status: 'compiled', outputPath: artifact })
     expect(parsed(await executeWorldPackCli(['inspect', artifact])))
       .toMatchObject({ command: 'inspect', status: 'inspected', inspection: { packId: 'pack:hand-in-hand' } })
+    expect(parsed(await executeWorldPackCli(['activate', artifact, '--data-dir', join(root, 'runtime')])))
+      .toMatchObject({ command: 'activate', status: 'activated' })
     await expect(executeWorldPackCli(['validate', source])).rejects.toThrow(/is not installed by the Host/u)
 
-    const document = JSON.parse(await readFile(artifact, 'utf8')) as { content: { world: { title: string } } }
+    const document = JSON.parse(await readFile(artifact, 'utf8')) as {
+      compiledSchemaVersion: string; content: { world: { title: string } }
+    }
+    document.compiledSchemaVersion = 'worldpack/v4'
+    await writeFile(artifact, JSON.stringify(document))
+    await expect(executeWorldPackCli(['inspect', artifact])).rejects.toThrow(/must be worldpack\/v5/u)
+    document.compiledSchemaVersion = 'worldpack/v5'
     document.content.world.title = 'Tampered'
     await writeFile(artifact, JSON.stringify(document))
     await expect(executeWorldPackCli(['inspect', artifact])).rejects.toThrow(/does not match the compiled v5 envelope content/u)
@@ -84,7 +94,7 @@ describe('World Pack creator CLI', () => {
     const manifest = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
     await writeFile(path, JSON.stringify({ ...manifest, sourceSchemaVersion: 'worldpack-source/v99' }))
     await expect(executeWorldPackCli(['validate', unknown], { interactionPackages: installed }))
-      .rejects.toThrow('source schema version is unsupported')
+      .rejects.toThrow(/must be worldpack-source\/v5/u)
 
     const invalid = join(root, 'invalid.worldpack.json')
     await writeFile(invalid, new Uint8Array([0xc3, 0x28]))

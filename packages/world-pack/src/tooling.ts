@@ -1,53 +1,22 @@
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import {
   brandId,
   hashWorldJson,
   type InteractionPackageDescription,
 } from '@harness-world/contracts'
 import {
-  WorldPackCompilerV2,
-  WorldPackCompilerV3,
-  WorldPackCompilerV4,
   WorldPackCompilerV5,
-  WorldPackCompiler,
-  canonicalWorldPackBytes,
-  canonicalWorldPackBytesV2,
-  canonicalWorldPackBytesV3,
-  canonicalWorldPackBytesV4,
   canonicalWorldPackBytesV5,
-  verifyCompiledWorldPack,
-  verifyCompiledWorldPackV2,
-  verifyCompiledWorldPackV3,
-  verifyCompiledWorldPackV4,
   verifyCompiledWorldPackV5,
 } from './compiler.ts'
 import type {
-  CompiledWorldPack,
-  CompiledWorldPackV2,
-  CompiledWorldPackV3,
-  CompiledWorldPackV4,
   CompiledWorldPackV5,
   WorldPackRuntimeOptions,
   WorldPackInspection,
   WorldPackTestReport,
 } from './contracts.ts'
-import {
-  WORLD_PACK_COMPILED_SCHEMA_VERSION_V2,
-  WORLD_PACK_COMPILED_SCHEMA_VERSION_V3,
-  WORLD_PACK_COMPILED_SCHEMA_VERSION_V4,
-  WORLD_PACK_COMPILED_SCHEMA_VERSION_V5,
-  WORLD_PACK_LIMITS_PROFILE_V2,
-  WORLD_PACK_SOURCE_SCHEMA_VERSION,
-  WORLD_PACK_SOURCE_SCHEMA_VERSION_V2,
-  WORLD_PACK_SOURCE_SCHEMA_VERSION_V3,
-  WORLD_PACK_SOURCE_SCHEMA_VERSION_V4,
-  WORLD_PACK_SOURCE_SCHEMA_VERSION_V5,
-} from './contracts.ts'
+import { WORLD_PACK_LIMITS_PROFILE_V2 } from './contracts.ts'
 import { parseStrictWorldJson } from './strict-json.ts'
-import { failWorldPackContract } from './diagnostics.ts'
-
-export type AnyCompiledWorldPack = CompiledWorldPack | CompiledWorldPackV2 | CompiledWorldPackV3 | CompiledWorldPackV4 | CompiledWorldPackV5
 
 export async function readStrictJson(path: string): Promise<import('@harness-world/contracts').WorldJsonValue> {
   const bytes = await readFile(path)
@@ -60,84 +29,32 @@ export async function readStrictJson(path: string): Promise<import('@harness-wor
   return parseStrictWorldJson(text, path)
 }
 
-function isV2CompiledPack(input: unknown): boolean {
-  return (input as { readonly compiledSchemaVersion?: unknown } | null)?.compiledSchemaVersion
-    === WORLD_PACK_COMPILED_SCHEMA_VERSION_V2
-}
-
-function schemaVersion(input: unknown): unknown {
-  return (input as { readonly compiledSchemaVersion?: unknown } | null)?.compiledSchemaVersion
-}
-
-/** Select a frozen compiler only from the explicit source schema version. */
+/** Compile only the current v5 source format. */
 export async function compileWorldPackSource(
   sourceDirectory: string,
   interactionPackages: readonly InteractionPackageDescription[] = [],
-): Promise<AnyCompiledWorldPack> {
-  const manifest = await readStrictJson(join(sourceDirectory, 'worldpack.source.json'))
-  const version = (manifest as { readonly sourceSchemaVersion?: unknown } | null)?.sourceSchemaVersion
-  if (version === WORLD_PACK_SOURCE_SCHEMA_VERSION_V5) {
-    return await new WorldPackCompilerV5().compile(sourceDirectory, {
-      limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2, interactionPackages,
-    })
-  }
-  if (version === WORLD_PACK_SOURCE_SCHEMA_VERSION_V4) return await new WorldPackCompilerV4().compile(sourceDirectory)
-  if (version === WORLD_PACK_SOURCE_SCHEMA_VERSION_V3) return await new WorldPackCompilerV3().compile(sourceDirectory)
-  if (version === WORLD_PACK_SOURCE_SCHEMA_VERSION_V2) return await new WorldPackCompilerV2().compile(sourceDirectory)
-  if (version === WORLD_PACK_SOURCE_SCHEMA_VERSION) return await new WorldPackCompiler().compile(sourceDirectory)
-  failWorldPackContract('PACK_SOURCE_INVALID', 'worldpack.source.json', '/sourceSchemaVersion', 'World Pack source schema version is unsupported')
+): Promise<CompiledWorldPackV5> {
+  return await new WorldPackCompilerV5().compile(sourceDirectory, {
+    limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2, interactionPackages,
+  })
 }
 
-/** Verify either frozen compiled envelope without implicit conversion between versions. */
-async function readCompiledPack(path: string): Promise<AnyCompiledWorldPack> {
-  const input = await readStrictJson(path)
-  if (schemaVersion(input) === WORLD_PACK_COMPILED_SCHEMA_VERSION_V5) return verifyCompiledWorldPackV5(input)
-  if (schemaVersion(input) === WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) return verifyCompiledWorldPackV4(input)
-  if (schemaVersion(input) === WORLD_PACK_COMPILED_SCHEMA_VERSION_V3) return verifyCompiledWorldPackV3(input)
-  if (isV2CompiledPack(input)) return verifyCompiledWorldPackV2(input)
-  return verifyCompiledWorldPack(input)
+/** Verify only the current immutable compiled envelope. */
+async function readCompiledPack(path: string): Promise<CompiledWorldPackV5> {
+  return verifyCompiledWorldPackV5(await readStrictJson(path))
 }
 
-/** Bind the immutable envelope through its exact versioned compiler. */
-export function adaptCompiledWorldPack(pack: AnyCompiledWorldPack, options: WorldPackRuntimeOptions) {
-  if (pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V5) {
-    // A v5 Pack carries its own frozen selection, so it binds to v10 and nothing else: letting a
-    // lower compiler reinterpret it would drop the package locks the world has to resolve.
-    if (options.interactionCatalog !== undefined || options.actionGroups !== undefined) {
-      throw new TypeError('a compiled worldpack/v5 Pack carries its own interaction selection')
-    }
-    return new WorldPackCompilerV5().adaptToWorldSpec(pack, options)
+/** Bind v5's frozen interaction selection to the current runtime. */
+export function adaptCompiledWorldPack(pack: CompiledWorldPackV5, options: WorldPackRuntimeOptions) {
+  if (options.interactionCatalog !== undefined || options.actionGroups !== undefined) {
+    throw new TypeError('a compiled worldpack/v5 Pack carries its own interaction selection')
   }
-  if (options.interactionCatalog !== undefined) {
-    if (pack.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) throw new TypeError('object interactions require a v4 Pack')
-    const catalogVersion = (options.interactionCatalog as { readonly version?: unknown } | null)?.version
-    return catalogVersion === 'interaction-catalog/v2'
-      ? new WorldPackCompilerV4().adaptToCharacterInteractionWorldSpec(pack, options)
-      : new WorldPackCompilerV4().adaptToInteractionWorldSpec(pack, options)
-  }
-  if (options.actionGroups !== undefined) {
-    if (options.actionGroups !== 'bounded/v1' || pack.compiledSchemaVersion !== WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) throw new TypeError('bounded action groups require a v4 Pack')
-    return new WorldPackCompilerV4().adaptToActionGroupWorldSpec(pack, options)
-  }
-  if (pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) {
-    return new WorldPackCompilerV4().adaptToWorldSpec(pack, options)
-  }
-  if (pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V3) {
-    return new WorldPackCompilerV3().adaptToWorldSpec(pack, options)
-  }
-  return pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V2
-    ? new WorldPackCompilerV2().adaptToWorldSpec(pack, options)
-    : new WorldPackCompiler().adaptToWorldSpec(pack, options)
+  return new WorldPackCompilerV5().adaptToWorldSpec(pack, options)
 }
 
-/** Serialize either immutable envelope with its own canonical verifier. */
-export function canonicalCompiledWorldPackBytes(pack: AnyCompiledWorldPack): Uint8Array {
-  if (pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V5) return canonicalWorldPackBytesV5(pack)
-  if (pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V4) return canonicalWorldPackBytesV4(pack)
-  if (pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V3) return canonicalWorldPackBytesV3(pack)
-  return pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V2
-    ? canonicalWorldPackBytesV2(pack)
-    : canonicalWorldPackBytes(pack)
+/** Serialize the current immutable envelope. */
+export function canonicalCompiledWorldPackBytes(pack: CompiledWorldPackV5): Uint8Array {
+  return canonicalWorldPackBytesV5(pack)
 }
 
 /** Read-only immutable artifact summary; source directories are never consulted. */
@@ -154,27 +71,22 @@ export class WorldPackInspector {
       entityCount: pack.content.entities.length,
       assertionCount: pack.acceptanceAssertions.length,
       pluginLocks: pack.pluginLocks,
-      ...(pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V3
-        || pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V4
-        || pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V5 ? { reaction: {
+      reaction: {
         mode: pack.reaction.mode,
         profile: pack.reaction.mode === 'responsive' ? pack.reaction.profile : null,
-        maximumWaves: 3 as const,
-        maximumNpcCalls: 8 as const,
-        maximumCallsPerCharacter: 2 as const,
-        maximumActionsPerCall: 1 as const,
-        maximumNpcSpeechesPerPlayerInput: 8 as const,
-        deadlineMs: 30_000 as const,
-      } } : {}),
-      ...(pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V4
-        || pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V5
-        ? { manifestation: pack.manifestation }
-        : {}),
+        maximumWaves: 3,
+        maximumNpcCalls: 8,
+        maximumCallsPerCharacter: 2,
+        maximumActionsPerCall: 1,
+        maximumNpcSpeechesPerPlayerInput: 8,
+        deadlineMs: 30_000,
+      },
+      manifestation: pack.manifestation,
     }
   }
 }
 
-/** Deterministic compile/adapt test; declared runtime assertions remain Testkit inputs. */
+/** Compile/adapt test; declared runtime assertions remain Testkit inputs. */
 export class WorldPackTestRunner {
   async run(sourceDirectory: string, interactionPackages: readonly InteractionPackageDescription[] = []): Promise<WorldPackTestReport> {
     const pack = await compileWorldPackSource(sourceDirectory, interactionPackages)

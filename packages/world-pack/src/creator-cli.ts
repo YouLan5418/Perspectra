@@ -4,7 +4,6 @@ import { WorldApplication } from '@harness-world/application'
 import {
   brandId,
   canonicalizeWorldJson,
-  compareWorldText,
   createErrorEnvelope,
   deterministicId,
   type InteractionPackageDescription,
@@ -19,20 +18,18 @@ import {
   WorldPackInspector,
   WorldPackTestRunner,
   readCompiledPack,
-  readStrictJson,
 } from './tooling.ts'
 import { WorldPackContractError } from './diagnostics.ts'
 import { worldPackErrorCode } from './schema.ts'
-import { WORLD_PACK_COMPILED_SCHEMA_VERSION_V3, WORLD_PACK_COMPILED_SCHEMA_VERSION_V4 } from './contracts.ts'
 
 export type WorldPackCliInvocation =
   | { readonly command: 'validate'; readonly sourceDirectory: string }
   | { readonly command: 'compile'; readonly sourceDirectory: string; readonly outputPath: string }
   | { readonly command: 'inspect'; readonly compiledPackPath: string }
   | { readonly command: 'test'; readonly sourceDirectory: string }
-  | { readonly command: 'activate'; readonly compiledPackPath: string; readonly dataDirectory: string; readonly actionGroups?: 'bounded/v1'; readonly interactionsPath?: string }
+  | { readonly command: 'activate'; readonly compiledPackPath: string; readonly dataDirectory: string }
 
-const USAGE = 'usage: worldpack validate <dir> | compile <dir> --out <worldpack.json> | inspect <worldpack.json> | test <dir> | activate <worldpack.json> --data-dir <dir> [--action-groups | --interactions <catalog.json>]'
+const USAGE = 'usage: worldpack validate <dir> | compile <dir> --out <worldpack.json> | inspect <worldpack.json> | test <dir> | activate <worldpack.json> --data-dir <dir>'
 
 function value(value: string | undefined, name: string): string {
   if (value === undefined || value.length === 0) throw new TypeError(`${name} is required; ${USAGE}`)
@@ -53,12 +50,6 @@ export function parseWorldPackCliInvocation(args: readonly string[]): WorldPackC
   if (command === 'activate' && args.length === 4 && args[2] === '--data-dir') {
     return { command, compiledPackPath: value(args[1], 'compiled Pack path'), dataDirectory: value(args[3], 'data directory') }
   }
-  if (command === 'activate' && args.length === 5 && args[2] === '--data-dir' && args[4] === '--action-groups') {
-    return { command, compiledPackPath: value(args[1], 'compiled Pack path'), dataDirectory: value(args[3], 'data directory'), actionGroups: 'bounded/v1' }
-  }
-  if (command === 'activate' && args.length === 6 && args[2] === '--data-dir' && args[4] === '--interactions') {
-    return { command, compiledPackPath: value(args[1], 'compiled Pack path'), dataDirectory: value(args[3], 'data directory'), interactionsPath: value(args[5], 'interaction catalog') }
-  }
   throw new TypeError(USAGE)
 }
 
@@ -74,7 +65,7 @@ function localAddress(packId: string, packVersion: string) {
   }
 }
 
-async function activate(compiledPackPath: string, dataDirectoryInput: string, actionGroups?: 'bounded/v1', interactionsPath?: string): Promise<WorldJsonObject> {
+async function activate(compiledPackPath: string, dataDirectoryInput: string): Promise<WorldJsonObject> {
   const pack = await readCompiledPack(compiledPackPath)
   const dataDirectory = resolve(dataDirectoryInput)
   const databaseDirectory = join(dataDirectory, 'data')
@@ -89,23 +80,13 @@ async function activate(compiledPackPath: string, dataDirectoryInput: string, ac
     address,
     principalId: 'principal:local-player',
     sessionId: brandId('session:local-player', 'SessionId'),
-    ...(actionGroups === undefined ? {} : { actionGroups }),
-    ...(interactionsPath === undefined ? {} : { interactionCatalog: await readStrictJson(interactionsPath) }),
   })
   const application = new WorldApplication(paths)
   try {
     const result = application.activate(compiled)
-    const requiredReactionActors = (pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V3
-      || pack.compiledSchemaVersion === WORLD_PACK_COMPILED_SCHEMA_VERSION_V4)
-      && pack.reaction.mode === 'responsive'
-      ? pack.content.characters
-        .filter(character => character.lifecycle === 'active' && character.controllerClass !== 'manual')
-        .map(character => character.characterId)
-        .sort(compareWorldText)
-      : []
     return {
       command: 'activate', status: result.status, address, manifestHash: compiled.manifestHash,
-      requiredReactionActors, dataDirectory, ...paths,
+      dataDirectory, ...paths,
     }
   } finally {
     await application.close()
@@ -142,7 +123,7 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
     return output({ command: 'test', report: await new WorldPackTestRunner()
       .run(invocation.sourceDirectory, options.interactionPackages) })
   }
-  return output(await activate(invocation.compiledPackPath, invocation.dataDirectory, invocation.actionGroups, invocation.interactionsPath))
+  return output(await activate(invocation.compiledPackPath, invocation.dataDirectory))
 }
 
 /** Normalize creator-facing failures to the same canonical ErrorEnvelope used by other local entrypoints. */
