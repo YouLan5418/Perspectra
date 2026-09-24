@@ -744,17 +744,6 @@ describe('Manifest v10 binding for a compiled worldpack/v5', () => {
     expect(() => runtimeManifestFromStored(stored(draft => { draft.playerInputPolicy = { version: 'nonsense/v1' } })))
       .toThrow(/playerInputPolicy version is unsupported/u)
     expect(() => runtimeManifestFromStored(stored(draft => { draft.schemaVersion = 9 })))
-      .toThrow(/unsupported action group policy/u)
-    // Re-read as v9 the v3 catalog is not a version the v9 path can even parse, and the older
-    // object-interactions catalog is refused by name rather than silently upcast.
-    expect(() => runtimeManifestFromStored(stored(draft => {
-      draft.schemaVersion = 9
-      draft.actionGroupPolicy = { version: 'bounded-action-group/v1' }
-    }))).toThrow(/invalid interaction catalog/u)
-    expect(() => runtimeManifestFromStored(stored(draft => {
-      draft.schemaVersion = 9
-      draft.actionGroupPolicy = { version: 'bounded-action-group/v1' }
-      draft.interactionCatalog = { version: 'object-interactions/v1', definitions: [], bindings: [] }
-    }))).toThrow(/Manifest v9 requires interaction-catalog\/v2/u)
+      .toThrow(/stored Manifest schemaVersion is unsupported/u)
   }, 60_000)
 })

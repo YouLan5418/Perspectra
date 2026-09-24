@@ -8,7 +8,7 @@ export default defineConfig({
     ...config.test,
     include: [
       'packages/store-sqlite/src/character-view.test.ts',
-      'packages/kernel/src/interactions.test.ts',
+      'packages/world-pack/src/compiler-v5.test.ts',
       'tests/prototype/**/*.test.ts',
     ],
   },

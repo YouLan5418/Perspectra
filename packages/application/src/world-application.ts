@@ -33,7 +33,6 @@ import { createBasicInteractionPackage } from '@harness-world/interactions-basic
 import {
   FrozenInteractionRulebook,
   WorldBootstrap,
-  WorldSpecCompiler,
   createCoreRulebookRegistry,
   manifestUsesHostAuthority,
   manifestUsesPhase8Contracts,
@@ -568,15 +567,6 @@ export class WorldApplication {
     } finally {
       store.close()
     }
-  }
-
-  activateSpec(input: WorldJsonValue) {
-    return this.activate(new WorldSpecCompiler().compile(input))
-  }
-
-  compileSpec(input: WorldJsonValue) {
-    this.#assertOpen()
-    return new WorldSpecCompiler().compile(input)
   }
 
   listWorlds() {

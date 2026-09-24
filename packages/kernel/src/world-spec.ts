@@ -1,6 +1,5 @@
 import { manifestUsesInteractions } from './interactions.ts'
 import {
-  parseInteractionCatalog,
   type InteractionCatalogV1,
   type InteractionCatalogV2,
 } from './interactions.ts'
@@ -300,50 +299,15 @@ export interface CompiledWorldSpec {
 export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldManifest {
   canonicalizeWorldJson(value)
   const root = objectAt(value, 'StoredWorldManifest')
-  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4 && root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && root.schemaVersion !== 10) throw new TypeError('stored Manifest schemaVersion is unsupported')
-  if (root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && root.schemaVersion !== 10 && Object.hasOwn(root, 'reactionPolicy')) {
-    throw new TypeError('stored Manifest reactionPolicy requires schemaVersion 5 or 6')
+  if (root.schemaVersion !== 10) throw new TypeError('stored Manifest schemaVersion is unsupported')
+  const policy = objectAt(root.actionGroupPolicy, 'actionGroupPolicy')
+  exactKeys(policy, ['version'], 'actionGroupPolicy')
+  if (policy.version !== 'bounded-action-group/v2') throw new TypeError('unsupported action group policy')
+  if (objectAt(root.manifestationPolicy, 'manifestationPolicy').mode !== 'enabled') {
+    throw new TypeError('action groups require manifestation enabled')
   }
-  if (root.schemaVersion !== 6 && root.schemaVersion !== 7 && root.schemaVersion !== 8 && root.schemaVersion !== 9 && root.schemaVersion !== 10 && Object.hasOwn(root, 'manifestationPolicy')) {
-    throw new TypeError('stored Manifest manifestationPolicy requires schemaVersion 6')
-  }
-  if (root.schemaVersion === 10) {
-    const policy = objectAt(root.actionGroupPolicy, 'actionGroupPolicy')
-    exactKeys(policy, ['version'], 'actionGroupPolicy')
-    if (policy.version !== 'bounded-action-group/v2') throw new TypeError('unsupported action group policy')
-    if (objectAt(root.manifestationPolicy, 'manifestationPolicy').mode !== 'enabled') throw new TypeError('action groups require manifestation enabled')
-  } else if (root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9) {
-    const policy = objectAt(root.actionGroupPolicy, 'actionGroupPolicy')
-    exactKeys(policy, ['version'], 'actionGroupPolicy')
-    if (policy.version !== 'bounded-action-group/v1') throw new TypeError('unsupported action group policy')
-    if (objectAt(root.manifestationPolicy, 'manifestationPolicy').mode !== 'enabled') throw new TypeError('action groups require manifestation enabled')
-  } else if (Object.hasOwn(root, 'actionGroupPolicy')) throw new TypeError('actionGroupPolicy requires Manifest v7')
-  if (root.schemaVersion === 10) {
-    parseStoredInteractionSelection(root)
-    if (Object.hasOwn(root, 'playerInputPolicy')) parsePlayerInputPolicy(root.playerInputPolicy)
-  } else if (root.schemaVersion === 8) {
-    if (Object.hasOwn(root, 'playerInputPolicy')) throw new TypeError('playerInputPolicy requires Manifest v9')
-    parseInteractionCatalog(root.interactionCatalog as WorldJsonValue, arrayAt(root.entities, 'StoredWorldManifest.entities')
-      .map(value => textAt(objectAt(value, 'StoredWorldManifest.entity').entityId, 'StoredWorldManifest.entity.entityId')))
-  } else if (root.schemaVersion === 9) {
-    const characterIds = arrayAt(root.characters, 'StoredWorldManifest.characters')
-      .map(value => textAt(objectAt(value, 'StoredWorldManifest.character').characterId, 'StoredWorldManifest.character.characterId'))
-    const playerBindings = arrayAt(root.playerBindings, 'StoredWorldManifest.playerBindings')
-    const catalog = parseInteractionCatalog(root.interactionCatalog as WorldJsonValue, {
-      entityIds: arrayAt(root.entities, 'StoredWorldManifest.entities')
-        .map(value => textAt(objectAt(value, 'StoredWorldManifest.entity').entityId, 'StoredWorldManifest.entity.entityId')),
-      characterIds,
-      manualCharacterIds: playerBindings.map(value => textAt(
-        objectAt(value, 'StoredWorldManifest.playerBinding').characterId,
-        'StoredWorldManifest.playerBinding.characterId',
-      )),
-    })
-    if (catalog.version !== 'interaction-catalog/v2') throw new TypeError('Manifest v9 requires interaction-catalog/v2')
-    if (Object.hasOwn(root, 'playerInputPolicy')) parsePlayerInputPolicy(root.playerInputPolicy)
-  } else {
-    if (Object.hasOwn(root, 'interactionCatalog')) throw new TypeError('interaction catalog requires Manifest v8 or v9')
-    if (Object.hasOwn(root, 'playerInputPolicy')) throw new TypeError('playerInputPolicy requires Manifest v9')
-  }
+  parseStoredInteractionSelection(root)
+  if (Object.hasOwn(root, 'playerInputPolicy')) parsePlayerInputPolicy(root.playerInputPolicy)
   const runtimePolicy = objectAt(root.runtimePolicy, 'StoredWorldManifest.runtimePolicy')
   exactKeys(runtimePolicy, ['npcInitialAvailability', 'playerInitialAvailability'], 'StoredWorldManifest.runtimePolicy')
   if (runtimePolicy.npcInitialAvailability !== 'provisioning' && runtimePolicy.npcInitialAvailability !== 'ready') {
@@ -353,19 +317,13 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
   arrayAt(root.locations, 'StoredWorldManifest.locations')
   arrayAt(root.characters, 'StoredWorldManifest.characters')
   arrayAt(root.playerBindings, 'StoredWorldManifest.playerBindings')
-  if (root.schemaVersion === 3 || root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9 || root.schemaVersion === 10) {
+  {
     const contentPack = objectAt(root.contentPack, 'StoredWorldManifest.contentPack')
-    const phase8 = root.schemaVersion === 4 || root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9 || root.schemaVersion === 10
-    exactKeys(contentPack, phase8
-      ? [
-          'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
-          'registryLocks', 'runtimeCapabilities', 'presentation', 'initialFacts', 'memory', 'documents', 'markdown',
-        ]
-      : [
-          'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'runtimeCapabilities',
-          'presentation', 'initialFacts',
-        ], 'StoredWorldManifest.contentPack')
-    if (contentPack.schemaVersion !== (phase8 ? 2 : 1)) throw new TypeError('stored Manifest contentPack schemaVersion is unsupported')
+    exactKeys(contentPack, [
+      'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
+      'registryLocks', 'runtimeCapabilities', 'presentation', 'initialFacts', 'memory', 'documents', 'markdown',
+    ], 'StoredWorldManifest.contentPack')
+    if (contentPack.schemaVersion !== 2) throw new TypeError('stored Manifest contentPack schemaVersion is unsupported')
     textAt(contentPack.packId, 'StoredWorldManifest.contentPack.packId')
     textAt(contentPack.packVersion, 'StoredWorldManifest.contentPack.packVersion')
     hashAt(contentPack.packHash, 'StoredWorldManifest.contentPack.packHash')
@@ -388,12 +346,13 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
     })
     unique(locks.map(lock => lock.kind), 'StoredWorldManifest.contentPack.pluginLocks')
     const capabilities = objectAt(contentPack.runtimeCapabilities, 'StoredWorldManifest.contentPack.runtimeCapabilities')
-    exactKeys(capabilities, phase8
-      ? ['publicSpeechObservationVersion', 'cognitionProjectionVersion', 'sceneDecisionVersion', 'cognitiveMemoryVersion', 'agentContextVersion']
-      : ['publicSpeechObservationVersion'], 'StoredWorldManifest.contentPack.runtimeCapabilities')
+    exactKeys(capabilities, [
+      'publicSpeechObservationVersion', 'cognitionProjectionVersion', 'sceneDecisionVersion',
+      'cognitiveMemoryVersion', 'agentContextVersion',
+    ], 'StoredWorldManifest.contentPack.runtimeCapabilities')
     if (capabilities.publicSpeechObservationVersion !== 1) throw new TypeError('stored Manifest publicSpeechObservationVersion is unsupported')
-    if (phase8 && (capabilities.cognitionProjectionVersion !== 1 || capabilities.sceneDecisionVersion !== 2
-      || capabilities.cognitiveMemoryVersion !== 2 || capabilities.agentContextVersion !== 2)) {
+    if (capabilities.cognitionProjectionVersion !== 1 || capabilities.sceneDecisionVersion !== 2
+      || capabilities.cognitiveMemoryVersion !== 2 || capabilities.agentContextVersion !== 2) {
       throw new TypeError('stored Manifest Phase 8 runtime capability is unsupported')
     }
     const presentation = objectAt(contentPack.presentation, 'StoredWorldManifest.contentPack.presentation')
@@ -413,16 +372,14 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
       return textAt(fact.factId, `${path}.factId`)
     })
     unique(factIds, 'StoredWorldManifest.contentPack.initialFacts')
-    if (phase8) {
-      exactLockedArray(contentPack.vocabularyLocks, PHASE8_VOCABULARY_LOCKS, 'StoredWorldManifest.contentPack.vocabularyLocks')
-      exactLockedArray(contentPack.registryLocks, PHASE8_REGISTRY_LOCKS, 'StoredWorldManifest.contentPack.registryLocks')
-      arrayAt(contentPack.memory, 'StoredWorldManifest.contentPack.memory')
-      arrayAt(contentPack.documents, 'StoredWorldManifest.contentPack.documents')
-      arrayAt(contentPack.markdown, 'StoredWorldManifest.contentPack.markdown')
-    }
+    exactLockedArray(contentPack.vocabularyLocks, PHASE8_VOCABULARY_LOCKS, 'StoredWorldManifest.contentPack.vocabularyLocks')
+    exactLockedArray(contentPack.registryLocks, PHASE8_REGISTRY_LOCKS, 'StoredWorldManifest.contentPack.registryLocks')
+    arrayAt(contentPack.memory, 'StoredWorldManifest.contentPack.memory')
+    arrayAt(contentPack.documents, 'StoredWorldManifest.contentPack.documents')
+    arrayAt(contentPack.markdown, 'StoredWorldManifest.contentPack.markdown')
   }
-  if (root.schemaVersion === 5 || root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9 || root.schemaVersion === 10) parseReactionPolicy(root.reactionPolicy)
-  if (root.schemaVersion === 6 || root.schemaVersion === 7 || root.schemaVersion === 8 || root.schemaVersion === 9 || root.schemaVersion === 10) parseManifestationPolicy(root.manifestationPolicy)
+  parseReactionPolicy(root.reactionPolicy)
+  parseManifestationPolicy(root.manifestationPolicy)
   return value as CompiledWorldManifest
 }
 

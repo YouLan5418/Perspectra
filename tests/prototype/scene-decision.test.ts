@@ -1,42 +1,28 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SceneDecisionService } from '@harness-world/application'
-import { brandId, WorldError, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
-import { WorldBootstrap, WorldSpecCompiler, type RulebookEvent } from '@harness-world/kernel'
+import { brandId, interactionPackageDescription, WorldError, type WorldJsonValue } from '@harness-world/contracts'
+import { FrozenInteractionRulebook, WorldBootstrap, type RulebookEvent } from '@harness-world/kernel'
+import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
 import { CharacterRuntimeAvailabilityService, WorldStore } from '@harness-world/store-sqlite'
 
 const SCENE_IDS = {
-  player: 'character:player', bob: 'character:bob', detective: 'character:detective',
-  scene: 'scene:study-investigation',
+  player: 'character:player', bob: 'character:companion', detective: 'character:friend',
+  scene: 'scene:front-room',
 } as const
 
-function sceneWorld() {
-  return new WorldSpecCompiler().compile({
-    schemaVersion: 2,
-    address: { tenantId: 'tenant:scene-test', worldId: 'world:scene-test', branchId: 'branch:main' },
-    metadata: { title: 'Scene decision fixture', description: 'Visibility and movement test world' },
-    timeMode: 'TURN_DRIVEN', roundQueueLimit: 8,
-    runtimePolicy: { npcInitialAvailability: 'ready', playerInitialAvailability: 'ready' },
-    rulebook: { rulebookId: 'builtin:speak-move', version: 4 },
-    locations: [
-      { locationId: 'location:drawing-room', name: 'drawing room' },
-      { locationId: 'location:study', name: 'study' },
-    ],
-    entities: [],
-    characters: [
-      { characterId: SCENE_IDS.player, name: 'player', locationId: 'location:study' },
-      { characterId: SCENE_IDS.bob, name: 'Bob', locationId: 'location:study' },
-      { characterId: SCENE_IDS.detective, name: 'detective', locationId: 'location:study' },
-    ],
-    scenes: [{ sceneId: SCENE_IDS.scene, participantIds: [SCENE_IDS.player, SCENE_IDS.bob, SCENE_IDS.detective] }],
-    goals: [], claims: [], observations: [],
-    playerBindings: [{ principalId: 'principal:scene-player', characterId: SCENE_IDS.player,
-      sessionId: 'session:scene-player' }],
-    plugins: [{ pluginId: 'builtin:agent-context', version: '2.0.0' },
-      { pluginId: 'builtin:scene-decision', version: '1.0.0' }],
-  } as WorldJsonObject)
+async function sceneWorld() {
+  const pack = await compileWorldPackSource(resolve('examples/world-packs/prototype-g1'), [
+    interactionPackageDescription(createBasicInteractionPackage()),
+  ])
+  return adaptCompiledWorldPack(pack, {
+    address: { tenantId: brandId('tenant:scene-test', 'TenantId'),
+      worldId: brandId('world:scene-test', 'WorldId'), branchId: brandId('branch:main', 'BranchId') },
+    principalId: 'principal:scene-player', sessionId: brandId('session:scene-player', 'SessionId'),
+  })
 }
 
 const directories: string[] = []
@@ -45,13 +31,13 @@ afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
-function fixture() {
+async function fixture() {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-scene-decision-'))
   directories.push(directory)
   const path = join(directory, 'world.sqlite')
-  const compiled = sceneWorld()
+  const compiled = await sceneWorld()
   const store = new WorldStore(path)
-  new WorldBootstrap(store).activate(compiled)
+  new WorldBootstrap(store, true, new FrozenInteractionRulebook([createBasicInteractionPackage()])).activate(compiled)
   const availability = new CharacterRuntimeAvailabilityService(path)
   availability.initialize(compiled.manifest.address, compiled.manifest.characters.map(character => ({
     characterId: character.characterId,
@@ -84,8 +70,8 @@ function phase8Events(): readonly RulebookEvent[] {
 }
 
 describe('SceneDecisionService', () => {
-  it('selects one active Scene and filters lifecycle, location, visibility, and availability', () => {
-    const { compiled, store, availability, service } = fixture()
+  it('selects one active Scene and filters lifecycle, location, visibility, and availability', async () => {
+    const { compiled, store, availability, service } = await fixture()
     const player = brandId(SCENE_IDS.player, 'CharacterId')
     const head = store.head(compiled.manifest.address)
     expect(service.decide(compiled.manifest.address, player, head.headSeq)).toMatchObject({
@@ -103,7 +89,7 @@ describe('SceneDecisionService', () => {
     const unavailable = brandId('character:unavailable', 'CharacterId')
     expect(service.decideFromEvents(compiled.manifest.address, player, [
       ...store.readEvents(compiled.manifest.address),
-      { eventType: 'character.created', data: { characterId: unavailable, locationId: 'location:study' } },
+      { eventType: 'character.created', data: { characterId: unavailable, locationId: 'location:front-room' } },
       {
         eventType: 'scene.upsert',
         data: {
@@ -121,7 +107,7 @@ describe('SceneDecisionService', () => {
       { eventType: 'visibility.upsert', data: { id: 'visibility:bob', value: { observerId: SCENE_IDS.bob, sceneId: SCENE_IDS.scene, visible: false } } },
       { eventType: 'visibility.upsert', data: { id: 'visibility:detective', value: { observerId: SCENE_IDS.detective, sceneId: 'scene:other', visible: false } } },
       { eventType: 'visibility.remove', data: { id: 'visibility:detective' } },
-      { eventType: 'character.moved', data: { characterId: SCENE_IDS.detective, toLocationId: 'location:drawing-room' } },
+      { eventType: 'character.moved', data: { characterId: SCENE_IDS.detective, toLocationId: 'location:back-room' } },
       { eventType: 'character.lifecycle-changed', data: { characterId: SCENE_IDS.bob, lifecycleState: 'departed' } },
     ]
     expect(service.decideFromEvents(compiled.manifest.address, player, changed, head.headSeq)).toMatchObject({
@@ -133,8 +119,8 @@ describe('SceneDecisionService', () => {
     store.close()
   })
 
-  it('fails closed for zero/overlapping Scenes and malformed scene or visibility prefixes', () => {
-    const { compiled, store, availability, service } = fixture()
+  it('fails closed for zero/overlapping Scenes and malformed scene or visibility prefixes', async () => {
+    const { compiled, store, availability, service } = await fixture()
     const player = brandId(SCENE_IDS.player, 'CharacterId')
     const base = store.readEvents(compiled.manifest.address)
     const decide = (events: readonly RulebookEvent[]) => service.decideFromEvents(compiled.manifest.address, player, events, base.length)
@@ -157,8 +143,8 @@ describe('SceneDecisionService', () => {
     store.close()
   })
 
-  it('rebuilds Scene Decision v2 lifecycle, zero-focal state, and same-prefix membership changes', () => {
-    const { compiled, store, availability } = fixture()
+  it('rebuilds Scene Decision v2 lifecycle, zero-focal state, and same-prefix membership changes', async () => {
+    const { compiled, store, availability } = await fixture()
     const service = new SceneDecisionService(store, availability, 2)
     const player = brandId(SCENE_IDS.player, 'CharacterId')
     const bob = brandId(SCENE_IDS.bob, 'CharacterId')
@@ -226,8 +212,8 @@ describe('SceneDecisionService', () => {
     store.close()
   })
 
-  it('derives deterministic Location-bound Scene transitions for generic movement', () => {
-    const { compiled, store, availability } = fixture()
+  it('derives deterministic Location-bound Scene transitions for generic movement', async () => {
+    const { compiled, store, availability } = await fixture()
     const service = new SceneDecisionService(store, availability, 2)
     const legacy = new SceneDecisionService(store, availability)
     const player = brandId(SCENE_IDS.player, 'CharacterId')
@@ -297,8 +283,8 @@ describe('SceneDecisionService', () => {
     store.close()
   })
 
-  it('narrows full and occurrence-only action audiences without leaking private content', () => {
-    const { compiled, store, availability } = fixture()
+  it('narrows full and occurrence-only action audiences without leaking private content', async () => {
+    const { compiled, store, availability } = await fixture()
     const service = new SceneDecisionService(store, availability, 2)
     const legacy = new SceneDecisionService(store, availability)
     const player = brandId(SCENE_IDS.player, 'CharacterId')

@@ -646,11 +646,11 @@ interface EventRow {
 }
 
 function assertManifestEvents(manifest: WorldJsonValue, events: readonly WorldEventDraft[]): void {
-  if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) return
+  if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)
+    || (manifest as WorldJsonObject).schemaVersion !== 10) {
+    throw new TypeError('new worlds require Manifest v10')
+  }
   const root = manifest as WorldJsonObject
-  if (root.schemaVersion !== 2 && root.schemaVersion !== 3 && root.schemaVersion !== 4
-    && root.schemaVersion !== 5 && root.schemaVersion !== 6 && root.schemaVersion !== 7
-    && root.schemaVersion !== 8 && root.schemaVersion !== 9 && root.schemaVersion !== 10) return
   const registries = root.registries
   if (typeof registries !== 'object' || registries === null || Array.isArray(registries)) throw new TypeError('compiled manifest registries are malformed')
   const eventRegistry = (registries as WorldJsonObject).events
