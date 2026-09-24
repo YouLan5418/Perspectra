@@ -74,4 +74,23 @@ experience:web → playtest-web-entry
 
 第十六刀（2026-09-24）：将 RoundCoordinator 与 ReactionScheduler 的角色输出统一交给现行 submit_actions/v7 校验；独立 ReactionScheduler 现在明确拒绝旧 Manifest。删除校验器中 v4–v6 grouped 协议分支、对应旧单元测试，以及仅记录 Manifest v7–v9 运行时的历史集成测试与快照；用针对 v7 的小测试保留动作版本、表现位置、弃权和多重世界操作的约束。没有更改 v7 的动作顺序、反思上限或 Event Log 提交逻辑。v2 校验辅助和 v3/旧 Manifest 的其他分支仍待按调用图继续清理。类型检查、Lint、现行测试 67/67 通过；v7 校验、当前交互集成、G1、叙事发布与旧版本拒绝相关测试 17/17 通过。本刀不改变当前网页使用的外部单角色激活路径，因此未进行真实模型试玩。
 
+## 当前待清理清单（第十六刀后）
+
+以下顺序按当前 v5 网页与 worldpack 的调用链排定。清单是待验证的删除候选，不等于允许绕过权威事实、观察权限或已提交事件的一致性。
+
+| 顺序 | 待清理范围 | 当前证据与下刀边界 |
+| --- | --- | --- |
+| 1 | `agents/submit-actions.ts` 的 v2/v3 对外校验入口、v7 借用的 v2 解析辅助；`agents/context-v2.ts` 的 groupedOutput v4–v6 联合类型 | 当前运行时角色输出已固定 v7，v3 只由历史测试调用；先把 v7 反思解析直接保留下来，再移除旧入口与专属测试。`model.ts` 的 v1 校验仍有调用者，单独核对。 |
+| 2 | `RoundCoordinator`、`ReactionScheduler` 与相关 contracts 的旧输出联合类型、旧 Manifest 条件分支 | 两个角色校验分派已固定 v7，但动作上限、动作排序、Authority 版本和规则接线仍按旧 Manifest 分流；逐段固定当前 v10，保持 G1 组合、观察权限和提交拒绝测试通过。 |
+| 3 | kernel 的 v2–v9 Manifest 类型、`WorldSpecCompiler` v2 与旧 Rulebook 选择；对应旧夹具 | 新激活和存档读取已拒绝旧 Manifest，但底层类型和分派仍在。先消除现行类型依赖，再删除历史编译器与测试，保留 v5 Pack 实际使用的内容字段。 |
+| 4 | `WorldApplication` 暴露的 archive、logical transfer、snapshot 离线 API 与后端模块 | 独立宿主工具已退出；本次调用搜索未发现当前网页或 worldpack 使用这些 API。先分别确认外部调用者和存档需求，再删无用方法及专属测试；不触碰 Event Log 本体和现有数据。 |
+| 5 | `package.json` 的旧 P1–P4、coverage/legacy 等测试命令与旧协议夹具 | 当前 `check` 已收为类型检查、Lint 和原型冒烟；命令名仍在，历史文档也引用它们。等对应生产分支退出后清理命令与专属测试，历史报告只标注适用版本。 |
+| 暂缓 | 耐久 Reaction 账本、Context Receipt、Provider Call/Quality、Reflection、Quarantine、Memory/Projection | `WorldApplication` 仍装配或调用其中部分；需先证明当前路径未使用，或先缩小接线。当前网页的单角色激活和旧 `ReactionScheduler` 是不同路径，不能因网页未调用后者就连带删除所有状态表。 |
+
+G2-1 格式修正与 G2-2 有界非法输出诊断是待办；G3 自由叙述与受控事实分叉是体验风险。这三项不是代码删除的完成条件，也不因本轮清理自动解决。
+
+## 第十六刀后的真实模型冒烟
+
+用新的 `.tmp/g4-model-smoke-1790253974205` 存档、当前 `ai-girls-awaken-v10` v5 源目录和 `deepseek-flash`，提交一次“我对同行者说：你好。”。模型请求成功，玩家输入提交；世界 Head 从 seq101 到 seq150，记录 1 条玩家 `action.resolved` 和 7 条 NPC `action.resolved`，网页视角得到 6 条 NPC 文本。Provider 调用数为 8，末次状态 `ok`；本轮以 `call_limit` 停止，页面明确提示剩余反应未继续。数据目录独立于历史 `D:/worlds`，凭据仅从用户环境变量进入进程，未写入报告。这个样本证明现行网页链路可调用真实模型并提交事实；它没有触发受控物品交互，也没有直接执行旧 Round Context Pipeline 的 v7 工具协议，不能据此宣称 G3 或旧分支清理已通过真实玩法验收。
+
 每个切片完成后运行类型检查、相关原型测试和 G1 组合测试；涉及玩家提交或观察权限时重跑相应集成场景。若改动到角色可见上下文或执行行为，再做一次短真实模型试玩，核对结果续写和跨房间隔离。删除旧脚本或文档时同步更新 README/指南；不要用旧 Golden 通过与否决定保留旧协议。G2-1/G2-2 仍是待办，G3 的自由叙述与受控事实分叉继续作为体验风险记录。
