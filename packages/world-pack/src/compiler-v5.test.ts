@@ -121,13 +121,14 @@ describe('WorldPackCompilerV5', () => {
       '../../../examples/world-packs/ai-girls-awaken-v10/', import.meta.url,
     )), packages) as Awaited<ReturnType<WorldPackCompilerV5['compile']>>
     expect(pack.packId).toBe('pack:ai-girls-awaken')
-    expect(pack.packVersion).toBe('2.0.0')
+    expect(pack.packVersion).toBe('2.1.0')
     expect(pack.compiledSchemaVersion).toBe('worldpack/v5')
     expect(pack.reaction).toEqual({ schemaVersion: 'worldpack-reaction/v1', mode: 'responsive', profile: 'responsive/v2' })
     expect(pack.interactions.definitions.map(entry => entry.ref.id)).toEqual([
       'base:take', 'base:drop', 'base:give', 'base:hold-hand', 'base:end-contact',
     ])
-    expect(pack.interactions.bindings).toHaveLength(14)
+    // 8 entities x take/drop/give + 4 characters x hold-hand + 1 relation binding.
+    expect(pack.interactions.bindings).toHaveLength(29)
     const compiled = adaptCompiledWorldPack(pack, {
       address, principalId: 'principal:worldpack-v5', sessionId: brandId('session:worldpack-v5', 'SessionId'),
     })

@@ -2,63 +2,111 @@
   "schemaVersion": "worldpack-entities/v2",
   "entities": [
     {
-      "entityId": "entity:laptop",
-      "locationId": "location:workspace",
-      "kind": "laptop",
-      "interactionBindings": [
-        {
-          "bindingId": "binding:laptop-take",
-          "definition": {
-            "id": "base:take",
-            "version": 1
-          },
-          "config": {}
-        },
-        {
-          "bindingId": "binding:laptop-drop",
-          "definition": {
-            "id": "base:drop",
-            "version": 1
-          },
-          "config": {}
-        },
-        {
-          "bindingId": "binding:laptop-give",
-          "definition": {
-            "id": "base:give",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
-    },
-    {
       "entityId": "entity:phone",
       "locationId": "location:bedroom",
       "kind": "phone",
       "interactionBindings": [
         {
           "bindingId": "binding:phone-take",
-          "definition": {
-            "id": "base:take",
-            "version": 1
-          },
+          "definition": { "id": "base:take", "version": 1 },
           "config": {}
         },
         {
           "bindingId": "binding:phone-drop",
-          "definition": {
-            "id": "base:drop",
-            "version": 1
-          },
+          "definition": { "id": "base:drop", "version": 1 },
           "config": {}
         },
         {
           "bindingId": "binding:phone-give",
-          "definition": {
-            "id": "base:give",
-            "version": 1
-          },
+          "definition": { "id": "base:give", "version": 1 },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:charger",
+      "locationId": "location:bedroom",
+      "kind": "charger",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:charger-take",
+          "definition": { "id": "base:take", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:charger-drop",
+          "definition": { "id": "base:drop", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:charger-give",
+          "definition": { "id": "base:give", "version": 1 },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:remote",
+      "locationId": "location:living-room",
+      "kind": "remote",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:remote-take",
+          "definition": { "id": "base:take", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:remote-drop",
+          "definition": { "id": "base:drop", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:remote-give",
+          "definition": { "id": "base:give", "version": 1 },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:cushion",
+      "locationId": "location:living-room",
+      "kind": "cushion",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:cushion-take",
+          "definition": { "id": "base:take", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:cushion-drop",
+          "definition": { "id": "base:drop", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:cushion-give",
+          "definition": { "id": "base:give", "version": 1 },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:laptop",
+      "locationId": "location:workspace",
+      "kind": "laptop",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:laptop-take",
+          "definition": { "id": "base:take", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:laptop-drop",
+          "definition": { "id": "base:drop", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:laptop-give",
+          "definition": { "id": "base:give", "version": 1 },
           "config": {}
         }
       ]
@@ -70,26 +118,61 @@
       "interactionBindings": [
         {
           "bindingId": "binding:keyboard-take",
-          "definition": {
-            "id": "base:take",
-            "version": 1
-          },
+          "definition": { "id": "base:take", "version": 1 },
           "config": {}
         },
         {
           "bindingId": "binding:keyboard-drop",
-          "definition": {
-            "id": "base:drop",
-            "version": 1
-          },
+          "definition": { "id": "base:drop", "version": 1 },
           "config": {}
         },
         {
           "bindingId": "binding:keyboard-give",
-          "definition": {
-            "id": "base:give",
-            "version": 1
-          },
+          "definition": { "id": "base:give", "version": 1 },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:coffee-mug",
+      "locationId": "location:workspace",
+      "kind": "coffee-mug",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:coffee-mug-take",
+          "definition": { "id": "base:take", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:coffee-mug-drop",
+          "definition": { "id": "base:drop", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:coffee-mug-give",
+          "definition": { "id": "base:give", "version": 1 },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:kettle",
+      "locationId": "location:kitchen",
+      "kind": "kettle",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:kettle-take",
+          "definition": { "id": "base:take", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:kettle-drop",
+          "definition": { "id": "base:drop", "version": 1 },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:kettle-give",
+          "definition": { "id": "base:give", "version": 1 },
           "config": {}
         }
       ]

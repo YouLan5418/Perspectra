@@ -1,7 +1,7 @@
 {
   "sourceSchemaVersion": "worldpack-source/v5",
   "packId": "pack:ai-girls-awaken",
-  "packVersion": "2.0.0",
+  "packVersion": "2.1.0",
   "worldFile": "world.json",
   "characterFiles": [
     "characters.json"

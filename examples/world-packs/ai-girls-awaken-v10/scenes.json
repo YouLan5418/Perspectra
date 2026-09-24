@@ -18,6 +18,12 @@
       "lifecycle": "created",
       "locationId": "location:workspace",
       "participantIds": []
+    },
+    {
+      "sceneId": "scene:kitchen",
+      "lifecycle": "created",
+      "locationId": "location:kitchen",
+      "participantIds": []
     }
   ]
 }
