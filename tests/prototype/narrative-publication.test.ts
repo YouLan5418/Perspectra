@@ -1,13 +1,22 @@
+import { resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { SpeakMoveRulebook, currentLocation, currentEntityState } from '../../packages/kernel/src/rulebook.ts'
 import { SubmitActionsValidator } from '../../packages/agents/src/submit-actions.ts'
-import { brandId } from '@harness-world/contracts'
-import { interactionWorld } from '../fixtures/interaction-world.ts'
+import { brandId, interactionPackageDescription } from '@harness-world/contracts'
+import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
 
-it('publishes silent expression without granting movement, possession, or a new observation scope', () => {
-  const world = interactionWorld(true)
+it('publishes silent expression without granting movement, possession, or a new observation scope', async () => {
+  const pack = await compileWorldPackSource(resolve('examples/world-packs/prototype-g1'), [
+    interactionPackageDescription(createBasicInteractionPackage()),
+  ])
+  const world = adaptCompiledWorldPack(pack, {
+    address: { tenantId: brandId('tenant:narrative-test', 'TenantId'),
+      worldId: brandId('world:narrative-test', 'WorldId'), branchId: brandId('branch:main', 'BranchId') },
+    principalId: 'principal:player', sessionId: brandId('session:narrative-test', 'SessionId'),
+  })
   const rules = new SpeakMoveRulebook()
-  const actor = 'character:npc'
+  const actor = 'character:companion'
   const before = world.genesisEvents
   const narration = '我已经走进下一间房，把杯子收进了口袋。'
   const result = rules.resolve(world.manifest, before, actor, {
@@ -21,9 +30,12 @@ it('publishes silent expression without granting movement, possession, or a new 
   expect(result.observationScope).toEqual({ scope: 'private', recipientIds: ['character:player'] })
   const after = [...before, ...result.events]
   expect(currentLocation(after, actor)).toBe(currentLocation(before, actor))
-  expect(currentEntityState(after, 'entity:cup')).toEqual(currentEntityState(before, 'entity:cup'))
+  expect(currentEntityState(after, 'entity:brass-key')).toEqual(currentEntityState(before, 'entity:brass-key'))
   expect(rules.resolve(world.manifest, after, actor, {
-    actionType: 'interact', parameters: { targetId: 'entity:cup', interactionId: 'core:give', arguments: { recipientId: 'character:player' } },
+    actionType: 'interact', parameters: {
+      targetRef: { kind: 'entity', id: 'entity:brass-key' }, bindingId: 'binding:key-give',
+      definitionRef: { id: 'base:give', version: 1 }, arguments: { recipientId: 'character:player' },
+    },
   }).status).toBe('rejected')
   expect(rules.resolve(world.manifest, before, actor, { actionType: 'speak', parameters: { text: '', narration: '' } }).status).toBe('rejected')
   expect(rules.resolve(world.manifest, before, actor, { actionType: 'speak', parameters: { text: '', narration: { locationId: 'elsewhere' } } }).status).toBe('rejected')

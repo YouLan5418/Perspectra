@@ -16,11 +16,3 @@ export function interactionWorld(responsive = false): CompiledWorldSpec {
   ...entities.map(data => ({ eventType: 'entity.upsert', eventVersion: 1, data }))]
   return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
 }
-
-export function interactionOutput(operation = 'take', actorId = 'character:npc', targetId = 'entity:cup', args: WorldJsonObject = {}) {
-  return { schemaVersion: 5 as const, decision: 'act' as const, actions: [
-    { actionId: 'z:interact', actorId, actionType: 'interact', actionVersion: 1,
-      parameters: { targetId, interactionId: `core:${operation}`, arguments: args } },
-    { actionId: 'a:speak', actorId, actionType: 'speak', actionVersion: 1, parameters: { text: 'done' } },
-  ] }
-}

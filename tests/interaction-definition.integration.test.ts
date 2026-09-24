@@ -3,7 +3,6 @@ import { brandId, hashWorldJson, resolutionAuthority, type InteractionHostContex
 import { InteractionRegistry, interactionPackageHash } from '@harness-world/interaction-runtime'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { currentEntityState, type RulebookEvent } from '@harness-world/kernel'
-import { interactionWorld } from './fixtures/interaction-world.ts'
 import { immutable, integer, key, list, object, parameterSchema, parameters, reference, target, text } from '../packages/interaction-runtime/src/validation.ts'
 
 const address = { tenantId: brandId('tenant:i1', 'TenantId'), worldId: brandId('world:i1', 'WorldId'), branchId: brandId('branch:main', 'BranchId') }
@@ -41,8 +40,7 @@ function changeHost(role: string, patch: Record<string, unknown>) {
 
 it('executes take/give/drop/take via declared rules and effects, then folds real existing entity events', () => {
   const runtime = setup()
-  const base = interactionWorld()
-  const events: RulebookEvent[] = [...base.genesisEvents]
+  const events: RulebookEvent[] = [{ eventType: 'entity.upsert', data: { entityId: entity.id, kind: 'cup', locationId: 'location:room' } }]
   const traces = []
   for (const [id, actorId, args] of [
     ['base:take', 'character:npc', {}], ['base:give', 'character:npc', { recipientId: 'character:player' }],

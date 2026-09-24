@@ -41,8 +41,6 @@ import { BranchQuarantineService } from './quarantine.ts'
 import { RoundInbox } from './round-inbox.ts'
 import { WorldStore } from './world-store.ts'
 import { WriterLeaseService } from './writer-lease.ts'
-import { WorldBootstrap } from '@harness-world/kernel'
-import { interactionWorld } from '../../../tests/fixtures/interaction-world.ts'
 
 const directories: string[] = []
 const supplementary = brandId('character:\u{10000}', 'CharacterId')
@@ -315,15 +313,6 @@ afterEach(() => {
 })
 
 describe('WorldStore Reaction Cycle authority', () => {
-  it('rejects a v7 action vocabulary in an activated v8 world', async () => {
-    const { path } = fixture()
-    const store = new WorldStore(path)
-    const compiled = interactionWorld(true)
-    new WorldBootstrap(store).activate(compiled)
-    const draft = request(compiled.manifest.address, reactionDraft({ maxActionsPerCall: 2, allowedActionTypes: ['speak@1', 'move@1', 'take@1'] }))
-    await expect(store.commitRound({ ...draft, expectedHeadSeq: store.head(compiled.manifest.address).headSeq })).rejects.toThrow('capability does not match Manifest')
-    store.close()
-  })
   it('requires an activated v7 Manifest for the two-action cycle extension', async () => {
     const { path, address } = fixture()
     const store = new WorldStore(path)

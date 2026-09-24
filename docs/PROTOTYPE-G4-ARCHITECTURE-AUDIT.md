@@ -88,7 +88,9 @@ experience:web → playtest-web-entry
 
 第二十三刀（2026-09-24）：移除不再作为原型验收的硬终止总套件、仅供它调用的九个子进程脚本，以及依赖已退役 v2 WorldSpec 的 P1/P3 阶段集成测试；同时清掉 `package.json` 中 P1–P4、P8 性能、硬终止、覆盖率和旧全量快捷命令，基线验证说明改为按路径运行相关测试。P2 观察/Session 隔离和 P4 记忆边界测试仍可通过 `test:related` 单独运行；历史报告保留其当时的命令与证据，不改写历史。此刀未修改生产运行时、Event Log 或存档，角色体验无直接变化。类型检查、Lint 和现行测试 67/67 通过；保留的 P2/P4 定向诊断 2/2 通过。v2 `WorldSpecCompiler` 没有生产调用者，但多份包含当前能力的测试仍借它拼装夹具；删除编译器须先更换这些夹具，不能通过整批删测试掩盖现行能力。
 
-## 当前待清理清单（第二十三刀后）
+第二十四刀（2026-09-24）：将现行原型的自由叙述发布测试改为从 v5 Pack 编译出 v10 世界；交互定义测试改用直接声明的实体初始事件，不再借 v8 夹具。移除只覆盖旧 v7 分组 / v8 闭合交互的两份集成测试和内核测试，以及 Reaction Store 中无法再激活 v8 世界的跨版本断言；两个无调用者的旧模型输出夹具也退出。类型检查、Lint、现行测试 67/67，通过交互定义与 Reaction Store 定向测试 75/75。没有修改生产行为或模型提示，因此未做真实模型试玩。旧 v4→v9 夹具链仍被部分 v10 冻结交互测试借来构造世界，不能仅凭这刀删除 `WorldSpecCompiler`；下一步先替换这条夹具链。
+
+## 当前待清理清单（第二十四刀后）
 
 以下顺序按当前 v5 网页与 worldpack 的调用链排定。具有以后对外提供价值的接口优先保留；删除候选限于已退出的旧协议或确认无用的内部重复实现。权威事实、观察权限和已提交事件的一致性继续保留。
 
@@ -96,7 +98,7 @@ experience:web → playtest-web-entry
 | --- | --- | --- |
 | 1（已完成） | `submit_actions` v2/v3 校验入口及 v7 借用的旧解析辅助 | 已在第十七刀删除；保留 v1 通用校验和玩家表现解析接口。 |
 | 2（完成） | `RoundCoordinator`、`ReactionScheduler` 的旧 Manifest 分流和 Provider 接口的历史输出联合 | 运行时内部固定 v10，Provider 公开接口保留并把输出交由 v7 校验；旧 DTO 类型仅供历史测试，后续可随旧测试自然退出。 |
-| 3 | kernel 的 v2–v9 Manifest 类型、`WorldSpecCompiler` v2 与对应旧夹具 | 编译器只产出已不可激活的 v2，且没有生产调用者；P1/P3 旧测试已退出。但部分当前能力测试仍靠它拼夹具。先将这些夹具改用 v5 Pack / v10 Manifest，再删除编译器；保留公开 Rulebook 扩展接口与当前 Pack 字段。 |
+| 3 | kernel 的 v2–v9 Manifest 类型、`WorldSpecCompiler` v2 与对应旧夹具 | 编译器无生产调用者，现行叙事测试已改用 v5 Pack，旧 v7/v8 专属测试已退出。剩余 v10 冻结交互测试仍经 `frozen-interaction-world → character-interaction-world → interaction-world → action-group-world → phase8-provider-world` 借 v2 编译器造夹具；先替换这条链，再删除旧编译器与类型。 |
 | 4（保留接口） | `WorldApplication` 的 archive、logical transfer、snapshot 离线 API | 这些能力未来可能需要对外提供，按用户要求保留公开接口；后续只审查内部重复或已失效的兼容分支，不以当前网页未调用为由删接口。 |
 | 5（部分完成） | `package.json` 的旧阶段测试命令与专属夹具 | 已移除 P1–P4、P8 性能、硬终止、覆盖率及旧全量快捷命令，并清理硬终止/P1/P3 专属文件。P2/P4 与其他有观察、权限或接口诊断价值的测试保留为按需运行。 |
 | 暂缓 | 耐久 Reaction 账本、Context Receipt、Provider Call/Quality、Reflection、Quarantine、Memory/Projection | `WorldApplication` 仍装配或调用其中部分；需先证明当前路径未使用，或先缩小接线。当前网页的单角色激活和旧 `ReactionScheduler` 是不同路径，不能因网页未调用后者就连带删除所有状态表。 |

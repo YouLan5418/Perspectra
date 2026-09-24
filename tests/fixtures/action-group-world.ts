@@ -23,12 +23,3 @@ export function actionGroupWorld(responsive = false): CompiledWorldSpec {
   )
   return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
 }
-
-export const groupOutput = {
-  schemaVersion: 4, decision: 'act', actions: [
-    { actionId: 'z:move', actorId: 'character:npc', actionType: 'move', actionVersion: 1,
-      parameters: { locationId: 'location:next' }, manifestation: { independent: ['frown'], onSuccess: ['slow_walk'] } },
-    { actionId: 'a:speak', actorId: 'character:npc', actionType: 'speak', actionVersion: 1,
-      parameters: { text: 'group durable response' }, manifestation: { independent: [], onSuccess: ['quiet_voice'] } },
-  ],
-} as const
