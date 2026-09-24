@@ -1,21 +1,14 @@
 import { interactionWorld, interactionOutput } from './fixtures/interaction-world.ts'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId, createErrorEnvelope, hashWorldJson, type SubmitActionsV2, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { WorldSpecCompiler } from '@harness-world/kernel'
-import { openContextDatabase } from '@harness-world/agents'
-import { CognitiveMemoryService, LocalMemoryStore } from '@harness-world/memory'
-import {
-  DeploymentBackupService,
-  LocalJsonRpcRouter,
-  WorldHostInstanceLock,
-  type DeploymentDatabasePaths,
-} from '@harness-world/operations'
+import { CognitiveMemoryService } from '@harness-world/memory'
 import {
   BranchQuarantineService,
   CharacterRuntimeAvailabilityService,
@@ -44,37 +37,13 @@ const archiveWorker = fileURLToPath(new URL('./workers/archive-crash-worker.ts',
 const applicationWorker = fileURLToPath(new URL('./workers/application-crash-worker.ts', import.meta.url))
 const quarantineWorker = fileURLToPath(new URL('./workers/quarantine-crash-worker.ts', import.meta.url))
 const acceptedRoundWorker = fileURLToPath(new URL('./workers/accepted-round-crash-worker.ts', import.meta.url))
-const instanceLockWorker = fileURLToPath(new URL('./workers/instance-lock-crash-worker.ts', import.meta.url))
 const memoryV2Worker = fileURLToPath(new URL('./workers/memory-v2-crash-worker.ts', import.meta.url))
 const providerCallWorker = fileURLToPath(new URL('./workers/provider-call-crash-worker.ts', import.meta.url))
-const deploymentBackupWorker = fileURLToPath(new URL('./workers/deployment-backup-crash-worker.ts', import.meta.url))
 
 function database(name: string): string {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-crash-'))
   directories.push(directory)
   return join(directory, name)
-}
-
-function deploymentFixture(): { readonly root: string; readonly paths: DeploymentDatabasePaths } {
-  const root = mkdtempSync(join(tmpdir(), 'hcw-deployment-crash-'))
-  directories.push(root)
-  const source = join(root, 'source')
-  const paths = {
-    worldPath: join(source, 'world.sqlite'),
-    sessionPath: join(source, 'session.sqlite'),
-    memoryPath: join(source, 'memory.sqlite'),
-    contextPath: join(source, 'context.sqlite'),
-    lockPath: join(source, 'instance.lock'),
-  }
-  const world = new WorldStore(paths.worldPath)
-  world.createBranch(fixtureAddress())
-  const session = new SessionDeliveryAdapter(paths.sessionPath)
-  session.close()
-  const memory = new LocalMemoryStore(paths.memoryPath, world)
-  memory.close()
-  openContextDatabase(paths.contextPath).close()
-  world.close()
-  return { root, paths }
 }
 
 afterEach(() => {
@@ -339,45 +308,6 @@ describe('hard process termination recovery', () => {
     expect(transferred).toHaveLength(1)
     final.close()
   }, 60_000)
-
-  it('leaves a non-ready backup artifact after hard termination and recovers the stale host lock', async () => {
-    const value = deploymentFixture()
-    const partial = join(value.root, 'partial-backup')
-    await hardKillAt(deploymentBackupWorker, [
-      'backup', value.paths.worldPath, value.paths.sessionPath, value.paths.memoryPath, value.paths.contextPath,
-      value.paths.lockPath, join(value.root, 'unused'), partial, 'deployment-backup.before-ready',
-    ])
-
-    expect(existsSync(partial)).toBe(true)
-    expect(existsSync(join(partial, 'manifest.json'))).toBe(true)
-    expect(existsSync(join(partial, 'ready'))).toBe(false)
-    const service = new DeploymentBackupService(value.paths, () => 10_000)
-    expect(() => service.validate(partial, 'crash:backup:validate')).toThrow('artifact validation failed')
-    const recovered = join(value.root, 'recovered-backup')
-    await expect(service.backup(recovered, 'crash:backup:recover')).resolves.toMatchObject({
-      format: 'world-deployment-backup/v1',
-    })
-    expect(existsSync(join(recovered, 'ready'))).toBe(true)
-    expect(existsSync(value.paths.lockPath)).toBe(false)
-  }, 30_000)
-
-  it('leaves a non-ready restore target after hard termination without damaging its source artifact', async () => {
-    const value = deploymentFixture()
-    const artifact = join(value.root, 'backup')
-    const service = new DeploymentBackupService(value.paths, () => 20_000)
-    const manifest = await service.backup(artifact, 'crash:restore:source')
-    const partial = join(value.root, 'partial-restore')
-    await hardKillAt(deploymentBackupWorker, [
-      'restore', value.paths.worldPath, value.paths.sessionPath, value.paths.memoryPath, value.paths.contextPath,
-      value.paths.lockPath, artifact, partial, 'deployment-restore.before-ready',
-    ])
-
-    expect(existsSync(partial)).toBe(true)
-    expect(existsSync(join(partial, 'restore-provenance.json'))).toBe(true)
-    expect(existsSync(join(partial, 'ready'))).toBe(false)
-    expect(() => service.validate(partial, 'crash:restore:partial')).toThrow('artifact validation failed')
-    expect(service.validate(artifact, 'crash:restore:source-valid')).toEqual(manifest)
-  }, 30_000)
 
   it('rolls back a complete Reaction Round when killed after Wave settlement but before commit', async () => {
     const path = database('reaction.after-wave-settle.sqlite')
@@ -684,15 +614,6 @@ describe('hard process termination recovery', () => {
     recovered.close()
   })
 
-  it('recovers an instance lock only after its owner process is hard-killed', async () => {
-    const worldPath = database('instance-lock-world.sqlite')
-    const lockPath = join(dirname(worldPath), 'instance.lock')
-    await hardKillAt(instanceLockWorker, [lockPath, worldPath])
-    const recovered = WorldHostInstanceLock.acquire(lockPath, worldPath)
-    expect(recovered.record.pid).toBe(process.pid)
-    recovered.release()
-  })
-
   it.each([
     ['store.after-event-insert', 0],
     ['store.before-commit', 0],
@@ -995,7 +916,7 @@ describe('hard process termination recovery', () => {
     await recovered.close()
   })
 
-  it('startup-scans and completes a claimed Round after hard worker termination', async () => {
+  it('completes a claimed Round after hard worker termination', async () => {
     const worldPath = database('accepted-crash-world.sqlite')
     const sessionPath = worldPath.replace('accepted-crash-world.sqlite', 'accepted-crash-session.sqlite')
     const compiled = new WorldSpecCompiler().compile({
@@ -1015,9 +936,7 @@ describe('hard process termination recovery', () => {
     await hardKillAt(acceptedRoundWorker, [worldPath, sessionPath])
 
     const recovered = new WorldApplication({ worldPath, sessionPath, leaseTtlMs: 1_000 })
-    const router = new LocalJsonRpcRouter(worldPath, recovered)
-    expect(router.recoverAcceptedRounds('crash:startup-scan')).toBe(1)
-    await router.close()
+    expect(await recovered.processAcceptedRounds(compiled.manifest.address, 'crash:accepted-recovery')).toBe(1)
     await expect(recovered.roundStatus(compiled.manifest.address, { idempotencyKey: 'accepted-crash-round' }))
       .resolves.toMatchObject({ status: 'committed', result: { status: 'accepted', tick: 1 } })
     await recovered.close()

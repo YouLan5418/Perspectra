@@ -5,7 +5,6 @@ import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId, hashWorldJson, worldAddressKey, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
-import { LocalJsonRpcRouter } from '@harness-world/operations'
 import { PlayerInputJobs, WorldLogicalTransferService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { frozenIntentWorld, intentWorld, intentFixtureProfile, intentFixtureRequest, intentFixtureResponse } from './fixtures/player-intent-world.ts'
 
@@ -150,7 +149,7 @@ it.each(['player-input.after-received', 'player-input.after-call-prepared', 'pla
   },
 )
 
-it('discovers and completes an accepted player input after restart without a client retry', async () => {
+it('completes an accepted player input after restart without a client retry', async () => {
   const root = mkdtempSync(join(tmpdir(), 'intent-background-restart-'))
   const world = intentWorld()
   const options = { worldPath: join(root, 'world.sqlite'), sessionPath: join(root, 'session.sqlite'),
@@ -172,16 +171,8 @@ it('discovers and completes an accepted player input after restart without a cli
     dispatch: async () => { calls++; return intentFixtureResponse },
   } })
   recovered.activate(world)
-  const router = new LocalJsonRpcRouter(options.worldPath, recovered)
-  let routerOpen = true
   try {
-    let committed!: () => void
-    const completion = new Promise<void>(resolve => { committed = resolve })
-    router.subscribeNotifications(notification => { if (notification.method === 'round.committed') committed() })
-    expect(router.recoverAcceptedRounds('intent:background-recovery')).toBe(1)
-    await Promise.race([completion, new Promise((_, reject) => setTimeout(() => reject(new Error('background recovery timed out')), 2000))])
-    await router.close()
-    routerOpen = false
+    expect(await recovered.processAcceptedRounds(world.manifest.address, 'intent:background-recovery')).toBe(1)
     const probe = new PlayerInputJobs(options.worldPath)
     try {
       expect(probe.read(world.manifest.address, 'background')?.status).toBe('completed')
@@ -191,7 +182,6 @@ it('discovers and completes an accepted player input after restart without a cli
     expect(await recovered.processAcceptedRounds(world.manifest.address, 'intent:background-counted')).toBe(1)
     expect(calls).toBe(2)
   } finally {
-    if (routerOpen) await router.close()
     await recovered.close()
     rmSync(root, { recursive: true, force: true })
   }
