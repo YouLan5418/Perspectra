@@ -58,12 +58,6 @@ import {
   createCoreRulebookRegistry,
   characterRelationObservations,
   currentCharacterLifecycle,
-  manifestUsesPhase8Contracts,
-  manifestationPolicyFromManifest,
-  manifestUsesActionGroups,
-  manifestUsesHostAuthority,
-  manifestInteractionLabel,
-  manifestUsesFrozenInteractions,
   parsePlayerActionInput,
   parsePlayerRoundResult,
   reactionPolicyFromManifest,
@@ -394,7 +388,7 @@ export class RoundCoordinator {
     if (options.cognitiveMemory !== undefined && options.sceneDecision === undefined) {
       throw new TypeError('Cognitive Memory requires an authoritative Scene decision service')
     }
-    if (manifestUsesPhase8Contracts(this.#manifest) && options.contextPipeline !== undefined
+    if (options.contextPipeline !== undefined
       && this.#participants.length > 0
       && (options.providerCalls === undefined || options.providerQuality === undefined)) {
       throw new TypeError('Phase 8 participants require durable Provider call and quality boundaries')
@@ -568,7 +562,7 @@ export class RoundCoordinator {
     const intentSubmission = typeof claimed.input === 'object' && claimed.input !== null && !Array.isArray(claimed.input)
       && Object.hasOwn(claimed.input, 'playerInputId') ? inputJob?.records.validated as PlayerSubmissionV2 | undefined : undefined
     if (typeof claimed.input === 'object' && claimed.input !== null && Object.hasOwn(claimed.input, 'playerInputId')
-      && (!manifestUsesHostAuthority(this.#manifest) || intentSubmission === undefined || inputJob!.principalId !== claimed.principalId
+      && (intentSubmission === undefined || inputJob!.principalId !== claimed.principalId
         || (claimed.input as WorldJsonObject).playerInputId !== inputJob!.inputId
         || intentSubmission.version !== 'player-submission/v2' || intentSubmission.actions.some(value => value.actorId !== binding.characterId))) {
       throw new TypeError('player input Round has no matching validated submission')
@@ -635,7 +629,7 @@ export class RoundCoordinator {
       )
       : undefined
     const provisionalMoveTarget = playerAction.actionType === 'move' ? (playerAction.parameters as WorldJsonObject).locationId : undefined
-    const provisional = manifestUsesHostAuthority(this.#manifest) ? bindPlayerProvisional(
+    const provisional = bindPlayerProvisional(
       this.#address, head.headSeq, head.eventHash, playerAction, {
         ...playerBaseResolution,
         events: [
@@ -644,7 +638,7 @@ export class RoundCoordinator {
             ? this.options.sceneDecision.transitionForMove(this.#address, history, playerAction.actorId, provisionalMoveTarget, head.headSeq) : []),
         ],
       },
-    ) : undefined
+    )
     const playerSteps = [{ action: playerAction, resolution: playerBaseResolution, provisional, audience: playerAudience }]
     if (intentSubmission !== undefined) {
       const stopped = new Set<string>()
@@ -788,10 +782,10 @@ export class RoundCoordinator {
       actionId: item.action.actionId,
       participantId: item.participantId,
       sourceRole: item.sourceRole,
-      ...(manifestUsesHostAuthority(this.#manifest) ? { resolutionAuthority: resolutionAuthority(
+      resolutionAuthority: resolutionAuthority(
         item.sourceRole,
         item.sourceRole === 'player' ? 'manual_player_immediate' : 'standard',
-      ) } : {}),
+      ),
       actorId: item.action.actorId,
       actionType: item.action.actionType,
       actionVersion: item.action.actionVersion,
@@ -841,9 +835,7 @@ export class RoundCoordinator {
     for (const [ordinal, item] of ordered.entries()) {
       const actionPrefix = [...history, ...events]
       const groupPerformance = item.actionGroup?.manifestations[item.proposalOrdinal] ?? null
-      const rulebookAction = manifestUsesFrozenInteractions(this.#manifest)
-        ? bindFrozenInteractionPerformance(item.action, groupPerformance)
-        : item.action
+      const rulebookAction = bindFrozenInteractionPerformance(item.action, groupPerformance)
       const actionAuthority = resolutionAuthority(
         item.sourceRole,
         item.sourceRole === 'player' ? 'manual_player_immediate' : 'standard',
@@ -878,7 +870,7 @@ export class RoundCoordinator {
         }
         : baseResolution
       const performance = item.actionGroup === undefined ? item.manifestation
-        : skipped || (manifestUsesFrozenInteractions(this.#manifest) && item.action.actionType === 'interact')
+        : skipped || item.action.actionType === 'interact'
           ? undefined
           : stepManifestation(groupPerformance, resolution.status === 'accepted')
       const hostManifestation = performance === undefined ? undefined : {
@@ -916,7 +908,7 @@ export class RoundCoordinator {
       const candidateHashBefore = candidateHash
       const ruleTraceHash = hashWorldJson('round-rule-trace', {
         rulebook: this.#manifest.rulebook,
-        ...(manifestUsesHostAuthority(this.#manifest) ? { resolutionAuthority: actionAuthority } : {}),
+        resolutionAuthority: actionAuthority,
         action: item.action,
         status: skipped ? 'skipped' : resolution.status,
         reason: resolution.reason ?? null,
@@ -1060,17 +1052,14 @@ export class RoundCoordinator {
     if (this.options.cognitiveMemory !== undefined) {
       for (const item of ordered) cognitiveCharacters.add(item.action.actorId)
       for (const observerId of sceneDecision!.observerIds) cognitiveCharacters.add(observerId)
-      if (manifestUsesActionGroups(this.#manifest)) {
-        for (const stimulus of reactionStimuli) cognitiveCharacters.add(stimulus.observerId)
-      }
+      for (const stimulus of reactionStimuli) cognitiveCharacters.add(stimulus.observerId)
       for (const participant of frozen) {
         if (participant.reflection?.status === 'accepted') cognitiveCharacters.add(participant.binding.actorId)
       }
     }
     const cognitiveCharacterIds = [...cognitiveCharacters].sort(compareWorldText)
     const authority = {
-      schemaVersion: manifestUsesFrozenInteractions(this.#manifest) ? 6
-        : manifestUsesHostAuthority(this.#manifest) ? 5 : manifestUsesActionGroups(this.#manifest) ? 4 : 2,
+      schemaVersion: 6,
       roundId,
       baseHeadSeq: head.headSeq,
       baseTick: head.tick,
@@ -1378,7 +1367,7 @@ export class RoundCoordinator {
         }
         let proposal: CharacterProposal
         let reflection: FrozenParticipant['reflection']
-        if (manifestUsesPhase8Contracts(this.#manifest) && binding.role === 'agent') {
+        if (binding.role === 'agent') {
           const validatorAuthorization = {
             ...authorization,
             maxReflectionOperations: PHASE8_SUBMIT_ACTIONS_PROFILE.maximumReflectionOperations,
@@ -1701,7 +1690,7 @@ export class RoundCoordinator {
         })
       }
     }
-    return manifestUsesActionGroups(this.#manifest) ? sortActionGroups(actions, compareActionOrderKey) : sortActionOrderKeys(actions)
+    return sortActionGroups(actions, compareActionOrderKey)
   }
 
   #validateSubmission(request: SubmitCoordinatedRoundRequest): void {
@@ -1717,15 +1706,7 @@ export class RoundCoordinator {
     const keys = Object.keys(request.action).sort(compareWorldText)
     if (keys.join(',') !== 'actionType,parameters') throw new TypeError('action must contain exactly actionType and parameters')
     if (request.manifestation !== undefined) {
-      if (manifestUsesActionGroups(this.#manifest)) throw new TypeError('Manifest v7 does not accept legacy free-text player manifestation')
-      if (manifestationPolicyFromManifest(this.#manifest).mode !== 'enabled') {
-        failWorld({
-          errorCode: 'INVALID_REQUEST', category: 'admission',
-          message: 'player manifestation requires an enabled Manifest capability', retryable: false,
-          correlationId: request.correlationId, address: this.#address,
-        })
-      }
-      parseManifestationProposal(request.manifestation)
+      throw new TypeError('Manifest v10 does not accept legacy free-text player manifestation')
     }
   }
 
@@ -1787,10 +1768,8 @@ export class RoundCoordinator {
       maxWaves: RESPONSIVE_V1_MAX_WAVES,
       maxNpcCalls: RESPONSIVE_V1_MAX_NPC_CALLS,
       maxCallsPerCharacter: RESPONSIVE_V1_MAX_CALLS_PER_CHARACTER,
-      maxActionsPerCall: manifestUsesActionGroups(this.#manifest) ? 2 : 1,
-      allowedActionTypes: manifestUsesActionGroups(this.#manifest)
-        ? ['speak@1', 'move@1', manifestInteractionLabel(this.#manifest)]
-        : ['speak@1'],
+      maxActionsPerCall: 2,
+      allowedActionTypes: ['speak@1', 'move@1', 'interact@2'],
       initialTokenBudget,
       deadlineAtMs: Date.now() + REACTION_CYCLE_DEADLINE_MS,
       candidates,
