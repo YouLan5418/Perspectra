@@ -1,5 +1,6 @@
 node_modules/
 coverage/
+coverage-detail/
 dist/
 lib/
 *.log
@@ -7,3 +8,6 @@ lib/
 *.sqlite-shm
 *.sqlite-wal
 .tmp/
+.idea/
+.workbuddy/
+.zcode/
