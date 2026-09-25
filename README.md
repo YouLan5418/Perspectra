@@ -119,7 +119,7 @@ corepack pnpm@11.7.0 test
 - [当前状态与续写边界对照](docs/PROTOTYPE-PLAYTEST-11.md)：区分可见状态、上次观察与对白，修正服务失败提示；实现与尚未通过的模型行为验收。
 - [通用单角色激活接入](docs/PROTOTYPE-PLAYTEST-12.md)：原型网页默认逐角色执行与结果续写，非 GPT 物品、移动实测及 G1/G3 验收边界。
 - [两 NPC 连续场景试玩](docs/PROTOTYPE-PLAYTEST-13.md)：同物品重新决策、跨房间观察隔离、返回交流的真实模型与事件证据。
-- [G4 架构减法盘点](docs/PROTOTYPE-G4-ARCHITECTURE-AUDIT.md)：当前网页调用链、仍需保留的事实边界，以及分批删除候选。
+- [G4 架构减法与收口记录](docs/PROTOTYPE-G4-ARCHITECTURE-AUDIT.md)：当前网页调用链、已完成的旧路径清理，以及保留接口与后续问题的边界。
 
 - [创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)：入口、世界版本与常见问题。
 - [主线真实模型体验记录](docs/REAL-MODEL-EXPERIENCE.md)：历史试玩环境、观察与限制。
