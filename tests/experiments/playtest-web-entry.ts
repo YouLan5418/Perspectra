@@ -1,3 +1,8 @@
+import { readFileSync, mkdirSync } from 'node:fs'
+import { appendFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
+import { parseAuditItems, type ShadowOptions } from './jev-shadow.ts'
+import { createHolderClassifier } from './jev-shadow-client.ts'
 import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
@@ -18,8 +23,20 @@ async function main(): Promise<void> {
   if (packPath === undefined || !isFrozenPackDirectory(packPath)) {
     throw new Error('请通过 --pack 指定 worldpack-source/v5 世界源目录；旧 Pack 已不再由网页试玩入口运行')
   }
+  let shadowAudit: ShadowOptions | undefined
+  if (launch.shadowConfigPath !== undefined) {
+    const items = parseAuditItems(JSON.parse(readFileSync(resolve(launch.shadowConfigPath), 'utf8')))
+    const classify = createHolderClassifier(process.env.OPENROUTER_JEV_KEY ?? '')
+    mkdirSync(resolve(dataDirectory), { recursive: true })
+    const logPath = resolve(dataDirectory, 'jev-shadow.jsonl')
+    shadowAudit = { items, classify,
+      write: async record => { await appendFile(logPath, JSON.stringify(record) + '\n', 'utf8') },
+      onError: message => { console.error(message) } }
+    process.stdout.write(`Jev 影子审计已启用：已发布的对白和叙述将发送到 OpenRouter。日志：${logPath}\n`)
+  }
   const runtime = await FrozenWorldPlaytestRuntime.create({
     dataDirectory, provider, packPath,
+    ...(shadowAudit === undefined ? {} : { shadowAudit }),
     ...(model === undefined ? {} : { model }),
     ...(apiKey === undefined ? {} : { apiKey }),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),

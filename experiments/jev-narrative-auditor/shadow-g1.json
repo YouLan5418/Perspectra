@@ -1,0 +1,4 @@
+[
+  { "entityId": "entity:brass-key", "name": "黄铜钥匙", "aliases": ["钥匙"] },
+  { "entityId": "entity:thermos", "name": "保温杯" }
+]

@@ -1,3 +1,4 @@
+import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
 import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
@@ -25,6 +26,7 @@ export interface FrozenPlaytestOptions {
   readonly apiKey?: string
   readonly utilityEndpoint?: string
   readonly timeoutMs?: number
+  readonly shadowAudit?: ShadowOptions
 }
 
 const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions'
@@ -66,6 +68,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   #transcript: PlaytestState['transcript'] = []
   #currentScene: NonNullable<PlaytestState['world']['currentScene']> | undefined
   #debug: Record<string, unknown> = {}
+  #shadow: JevShadow | undefined
   #busy = false
   #paused = false
   #notice = ''
@@ -151,6 +154,18 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     try {
       runtime.#application.activate(compiled)
       await runtime.#refresh()
+      if (options.shadowAudit !== undefined) {
+        if (options.shadowAudit.items.some(item => !compiled.manifest.entities.some(entity => entity.entityId === item.entityId))) {
+          throw new TypeError('shadow item is not declared in this Pack')
+        }
+        const head = await runtime.#application.head(runtime.#address)
+        runtime.#shadow = new JevShadow({ ...options.shadowAudit, address: runtime.#address,
+          characters: compiled.manifest.characters.map(character => ({ characterId: character.characterId, name: character.name })),
+          initialSeq: head.headSeq, readEvents: asOfSeq => {
+            const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
+            try { return store.readEvents(runtime.#address, asOfSeq) } finally { store.close() }
+          } })
+      }
       return runtime
     } catch (error) {
       await runtime.close()
@@ -172,7 +187,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       debug: { ...this.#debug, provider: this.#provider, model: this.#model, intentModel: this.#intentModel,
         providerCalls: this.#providerCalls, paused: this.#paused, lastPlayerIntent: this.#lastPlayerIntent,
         playerInputMode: this.#intentEnabled ? 'interpreted-free-text' : 'legacy-speech',
-        lastProviderCall: this.#lastCall },
+        lastProviderCall: this.#lastCall,
+        ...(this.#shadow === undefined ? {} : { shadowAudit: this.#shadow.stats() }) },
     }
   }
 
@@ -301,6 +317,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
 
   async close(): Promise<void> {
     this.#continuationController?.abort()
+    await this.#shadow?.close()
     await this.#application.close()
   }
 
@@ -367,5 +384,6 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       activationCycle: this.#activationCycle ?? null,
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),
     }
+    this.#shadow?.observe(head.headSeq)
   }
 }
