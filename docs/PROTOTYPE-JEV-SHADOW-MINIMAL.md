@@ -93,3 +93,7 @@ corepack pnpm@11.7.0 experience:web:flash --pack examples/world-packs/prototype-
 - 不做持久队列或崩溃续审。已完成首轮 8 轮真实主模型试玩，见 [LIVE-01](PROTOTYPE-JEV-SHADOW-LIVE-01.md)；没有重新跑历史私密 G3 文本。
 
 旧实验恢复：在干净工作树切回 `codex/jev-narrative-auditor-spike`，再 `git stash apply 3df3eaecf651ee9f6a8e6f38589ab8a7bc75adc8`。stash 未删除，main 上原有未提交工作没有移动。
+
+## 6. 历史真实缺陷回放
+
+[历史回放 01](PROTOTYPE-JEV-HISTORICAL-REPLAY-01.md) 已抽取 30 个真实条目。当前终态口径检出 3 个明确冲突，但未检出 6 个虚构中途持有及后续回述条目。新的过程提问只用于离线诊断，尚未接入当前影子模式。
