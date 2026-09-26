@@ -1,0 +1,661 @@
+{
+  "constructed": true,
+  "sourceIds": [
+    139,
+    156,
+    139,
+    221
+  ],
+  "events": [
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 1,
+      "eventType": "character.created",
+      "data": {
+        "characterId": "character:companion",
+        "name": "同行者",
+        "locationId": "room"
+      },
+      "eventVersion": 1,
+      "tick": 1,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:1",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 2,
+      "eventType": "character.created",
+      "data": {
+        "characterId": "character:friend",
+        "name": "留守者",
+        "locationId": "room"
+      },
+      "eventVersion": 1,
+      "tick": 1,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:1",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 3,
+      "eventType": "character.created",
+      "data": {
+        "characterId": "character:player",
+        "name": "玩家",
+        "locationId": "room"
+      },
+      "eventVersion": 1,
+      "tick": 1,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:1",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 4,
+      "eventType": "entity.upsert",
+      "data": {
+        "entityId": "entity:brass-key",
+        "kind": "key",
+        "locationId": "room"
+      },
+      "eventVersion": 1,
+      "tick": 1,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:1",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 5,
+      "eventType": "entity.transferred",
+      "data": {
+        "entityId": "entity:brass-key",
+        "fromHolderId": null,
+        "fromLocationId": "room",
+        "toHolderId": "character:player",
+        "toLocationId": null,
+        "characterId": "character:player",
+        "interactionId": "give"
+      },
+      "eventVersion": 1,
+      "tick": 1,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:1",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 6,
+      "eventType": "character.speak",
+      "data": {
+        "characterId": "character:player",
+        "text": "我把钥匙给留守者看，摸完请还给我。",
+        "narration": ""
+      },
+      "eventVersion": 1,
+      "tick": 2,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:2",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 7,
+      "eventType": "action.resolved",
+      "data": {
+        "sourceRole": "player",
+        "actorId": "character:player",
+        "participantId": "player",
+        "roundId": "round:2"
+      },
+      "eventVersion": 1,
+      "tick": 2,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:2",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 8,
+      "eventType": "world.tick-advanced",
+      "data": {
+        "roundId": "round:2"
+      },
+      "eventVersion": 1,
+      "tick": 2,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:2",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 9,
+      "eventType": "entity.transferred",
+      "data": {
+        "entityId": "entity:brass-key",
+        "fromHolderId": "character:player",
+        "fromLocationId": null,
+        "toHolderId": "character:friend",
+        "toLocationId": null,
+        "characterId": "character:player",
+        "interactionId": "give"
+      },
+      "eventVersion": 1,
+      "tick": 3,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:3",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 10,
+      "eventType": "entity.transferred",
+      "data": {
+        "entityId": "entity:brass-key",
+        "fromHolderId": "character:friend",
+        "fromLocationId": null,
+        "toHolderId": "character:player",
+        "toLocationId": null,
+        "characterId": "character:friend",
+        "interactionId": "give"
+      },
+      "eventVersion": 1,
+      "tick": 3,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:3",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 11,
+      "eventType": "character.speak",
+      "data": {
+        "characterId": "character:friend",
+        "text": "凉的，毛刺也是旧的。跟我猜的一样——不是刚划的。那这钥匙在这儿放了有些日子了。",
+        "narration": "留守者把钥匙在指间翻了一下，用拇指压了压那道划痕，然后递回去，没多拿。"
+      },
+      "eventVersion": 1,
+      "tick": 3,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:3",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 12,
+      "eventType": "action.resolved",
+      "data": {
+        "sourceRole": "agent",
+        "actorId": "character:friend",
+        "participantId": "turn:3",
+        "roundId": "round:3"
+      },
+      "eventVersion": 1,
+      "tick": 3,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:3",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 13,
+      "eventType": "world.tick-advanced",
+      "data": {
+        "roundId": "round:3"
+      },
+      "eventVersion": 1,
+      "tick": 3,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:3",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 14,
+      "eventType": "character.speak",
+      "data": {
+        "characterId": "character:player",
+        "text": "回想刚才那一次摸钥匙的经历。现在钥匙仍在我手里，不用再拿。",
+        "narration": ""
+      },
+      "eventVersion": 1,
+      "tick": 4,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:4",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 15,
+      "eventType": "action.resolved",
+      "data": {
+        "sourceRole": "player",
+        "actorId": "character:player",
+        "participantId": "player",
+        "roundId": "round:4"
+      },
+      "eventVersion": 1,
+      "tick": 4,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:4",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 16,
+      "eventType": "world.tick-advanced",
+      "data": {
+        "roundId": "round:4"
+      },
+      "eventVersion": 1,
+      "tick": 4,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:4",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 17,
+      "eventType": "character.speak",
+      "data": {
+        "characterId": "character:friend",
+        "text": "钥匙在你手里。你刚才递给我，我摸完就还回去了——没多拿。你要是不放心，自己再摸一遍那道划痕。",
+        "narration": "留守者把手收回来，插回兜里，看着玩家。"
+      },
+      "eventVersion": 1,
+      "tick": 5,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:5",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 18,
+      "eventType": "action.resolved",
+      "data": {
+        "sourceRole": "agent",
+        "actorId": "character:friend",
+        "participantId": "turn:5",
+        "roundId": "round:5"
+      },
+      "eventVersion": 1,
+      "tick": 5,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:5",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 19,
+      "eventType": "world.tick-advanced",
+      "data": {
+        "roundId": "round:5"
+      },
+      "eventVersion": 1,
+      "tick": 5,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:5",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 20,
+      "eventType": "character.speak",
+      "data": {
+        "characterId": "character:player",
+        "text": "过了一会儿。留守者，这一次再凑近看看钥匙，我仍拿在手里。",
+        "narration": ""
+      },
+      "eventVersion": 1,
+      "tick": 6,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:6",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 21,
+      "eventType": "action.resolved",
+      "data": {
+        "sourceRole": "player",
+        "actorId": "character:player",
+        "participantId": "player",
+        "roundId": "round:6"
+      },
+      "eventVersion": 1,
+      "tick": 6,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:6",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 22,
+      "eventType": "world.tick-advanced",
+      "data": {
+        "roundId": "round:6"
+      },
+      "eventVersion": 1,
+      "tick": 6,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:6",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 23,
+      "eventType": "character.speak",
+      "data": {
+        "characterId": "character:friend",
+        "text": "凉的，毛刺也是旧的。跟我猜的一样——不是刚划的。那这钥匙在这儿放了有些日子了。",
+        "narration": "留守者把钥匙在指间翻了一下，用拇指压了压那道划痕，然后递回去，没多拿。"
+      },
+      "eventVersion": 1,
+      "tick": 7,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:7",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 24,
+      "eventType": "action.resolved",
+      "data": {
+        "sourceRole": "agent",
+        "actorId": "character:friend",
+        "participantId": "turn:7",
+        "roundId": "round:7"
+      },
+      "eventVersion": 1,
+      "tick": 7,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:7",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 25,
+      "eventType": "world.tick-advanced",
+      "data": {
+        "roundId": "round:7"
+      },
+      "eventVersion": 1,
+      "tick": 7,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:7",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 26,
+      "eventType": "character.speak",
+      "data": {
+        "characterId": "character:player",
+        "text": "只说这一次刚发生的查看经过，不是第一次正式交接那次。",
+        "narration": ""
+      },
+      "eventVersion": 1,
+      "tick": 8,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:8",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 27,
+      "eventType": "action.resolved",
+      "data": {
+        "sourceRole": "player",
+        "actorId": "character:player",
+        "participantId": "player",
+        "roundId": "round:8"
+      },
+      "eventVersion": 1,
+      "tick": 8,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:8",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 28,
+      "eventType": "world.tick-advanced",
+      "data": {
+        "roundId": "round:8"
+      },
+      "eventVersion": 1,
+      "tick": 8,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:8",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 29,
+      "eventType": "character.speak",
+      "data": {
+        "characterId": "character:companion",
+        "text": "我递的。你接的。留守者摸完还回来了，没多拿。",
+        "narration": "同行者没看留守者，只看着玩家。"
+      },
+      "eventVersion": 1,
+      "tick": 9,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:9",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 30,
+      "eventType": "action.resolved",
+      "data": {
+        "sourceRole": "agent",
+        "actorId": "character:companion",
+        "participantId": "turn:9",
+        "roundId": "round:9"
+      },
+      "eventVersion": 1,
+      "tick": 9,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:9",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "probe",
+        "worldId": "temporal",
+        "branchId": "main"
+      },
+      "seq": 31,
+      "eventType": "world.tick-advanced",
+      "data": {
+        "roundId": "round:9"
+      },
+      "eventVersion": 1,
+      "tick": 9,
+      "previousHash": "genesis",
+      "eventHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transactionId": "tx:9",
+      "eventOrdinal": 0
+    }
+  ],
+  "expected": [
+    {
+      "seq": 11,
+      "person": "character:friend",
+      "status": "SUPPORTED",
+      "root": null
+    },
+    {
+      "seq": 17,
+      "person": "character:friend",
+      "status": "HISTORICAL_SUPPORTED",
+      "root": null
+    },
+    {
+      "seq": 23,
+      "person": "character:friend",
+      "status": "CONFLICT",
+      "root": 23
+    },
+    {
+      "seq": 29,
+      "person": "character:friend",
+      "status": "CHAIN_RECALL",
+      "root": 23
+    }
+  ]
+}

@@ -43,6 +43,7 @@ export function claimRequest(q: ClaimQuestion) {
     [`claim_${i}`, { type: 'choice', instructions: `这段已经生成的文本是否把 ${c.name}（${c.characterId}）持有目标物品 ${q.item.name}（${q.item.entityId}） 写成已发生的客观事件，还是仅角色说法？`
       + '只解释 publication 对指定人物的最新宣称。speech 是角色对白，可以说谎；narration 是客观叙述，其中引用的话和思想仍属于角色陈述。'
       + '分清本次新获取、结束时实际持有、这次中途持有后归还、过去回忆、现在对白和过去对白。对白同时提现在和过去，且指定人物只在过去持有时选 SPEECH_PAST。'
+      + '最新回答若回应此前明确的回忆提问，刚拿到、刚看过等可指被追问的过去经历；结合紧邻提问判断，不能仅凭刚字判成现在。只判最新文本，不把上下文其他人物或其他物品的持有搬到最新宣称。'
       + '我指 actorId，你根据公开表达解指代，不能确定则 UNCERTAIN。多件物品分别判断，不借邻近物品的动作替目标断言。'
       + '先客观后对白；先中途持有后归还、再本次新获取、再结束时持有、再过去回忆。不要因 earlierPublications 讲过就排除本次客观断言。不要判断世界真假。', criteria: Object.fromEntries(Object.entries(claimCriteria).map(([label,description]) => [label,description.replaceAll('指定人物',`${c.name}（${c.characterId}）`).replaceAll('目标',`${q.item.name}（${q.item.entityId}）`)])) }],
     [`reference_${i}`, { type: 'choice', instructions: `publication 对 ${c.name}（${c.characterId}）持有目标物品 ${q.item.name}（${q.item.entityId}） 的宣称，是否明确回述 earlierPublications 里的同一次具体经历？`

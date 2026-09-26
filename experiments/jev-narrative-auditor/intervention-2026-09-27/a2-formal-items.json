@@ -1,0 +1,114 @@
+[
+  {
+    "seq": 5,
+    "transactionId": "transaction:genesis:2bd137aeb281fa5543b5a0db",
+    "eventType": "entity.upsert",
+    "data": {
+      "entityId": "entity:brass-key",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:key-take",
+          "config": {},
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          }
+        },
+        {
+          "bindingId": "binding:key-drop",
+          "config": {},
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          }
+        },
+        {
+          "bindingId": "binding:key-give",
+          "config": {},
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          }
+        }
+      ],
+      "kind": "key",
+      "locationId": "location:front-room"
+    }
+  },
+  {
+    "seq": 6,
+    "transactionId": "transaction:genesis:2bd137aeb281fa5543b5a0db",
+    "eventType": "entity.upsert",
+    "data": {
+      "entityId": "entity:thermos",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:thermos-take",
+          "config": {},
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          }
+        }
+      ],
+      "kind": "thermos",
+      "locationId": "location:front-room"
+    }
+  },
+  {
+    "seq": 48,
+    "transactionId": "prototype-turn:a7dadc85-ed55-4050-9478-a079eebe0ec2:0:commit",
+    "eventType": "entity.transferred",
+    "data": {
+      "characterId": "character:companion",
+      "entityId": "entity:brass-key",
+      "fromHolderId": null,
+      "fromLocationId": "location:front-room",
+      "interactionId": "base:take",
+      "toHolderId": "character:companion",
+      "toLocationId": null
+    }
+  },
+  {
+    "seq": 105,
+    "transactionId": "prototype-turn:8f110251-446d-4807-aef3-0c363e268cd1:0:commit",
+    "eventType": "entity.transferred",
+    "data": {
+      "characterId": "character:companion",
+      "entityId": "entity:brass-key",
+      "fromHolderId": "character:companion",
+      "fromLocationId": null,
+      "interactionId": "base:give",
+      "toHolderId": "character:player",
+      "toLocationId": null
+    }
+  },
+  {
+    "seq": 372,
+    "transactionId": "transaction:coordinated-round:48a67d7cf03eb81172eef6d3",
+    "eventType": "entity.transferred",
+    "data": {
+      "characterId": "character:player",
+      "entityId": "entity:brass-key",
+      "fromHolderId": "character:player",
+      "fromLocationId": null,
+      "interactionId": "base:give",
+      "toHolderId": "character:friend",
+      "toLocationId": null
+    }
+  },
+  {
+    "seq": 405,
+    "transactionId": "prototype-turn:8a190d5b-3829-4302-8acd-97c38d44cc87:0:commit",
+    "eventType": "entity.transferred",
+    "data": {
+      "characterId": "character:companion",
+      "entityId": "entity:thermos",
+      "fromHolderId": null,
+      "fromLocationId": "location:front-room",
+      "interactionId": "base:take",
+      "toHolderId": "character:companion",
+      "toLocationId": null
+    }
+  }
+]

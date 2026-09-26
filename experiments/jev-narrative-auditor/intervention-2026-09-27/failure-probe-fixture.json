@@ -1,0 +1,534 @@
+{
+  "source": ".tmp/jev-window-live-20260926-04/world.sqlite",
+  "fixtures": [
+    {
+      "seq": 56,
+      "person": "character:player",
+      "item": 0,
+      "kinds": [
+        "NONE"
+      ],
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "publication": {
+          "seq": 56,
+          "actorId": "character:player",
+          "speech": "同行者，请帮我拿起黄铜钥匙，先保管一下。",
+          "narration": ""
+        },
+        "earlierPublications": [
+          {
+            "seq": 20,
+            "actorId": "character:player",
+            "speech": "桌上的黄铜钥匙看起来有什么特别？",
+            "narration": ""
+          },
+          {
+            "seq": 26,
+            "actorId": "character:companion",
+            "speech": "我看看。",
+            "narration": "同行者俯身凑近桌面，目光落在黄铜钥匙上，没有立刻伸手。"
+          },
+          {
+            "seq": 32,
+            "actorId": "character:friend",
+            "speech": "钥匙啊……我平时没太留意它。就是放在那儿的一把旧钥匙，黄铜的，看着有些年头了。你们要是好奇，可以拿起来看看——我不介意。",
+            "narration": ""
+          },
+          {
+            "seq": 44,
+            "actorId": "character:companion",
+            "speech": "齿口磨得厉害。柄上好像有字，看不清。",
+            "narration": "同行者把黄铜钥匙翻过来，指腹蹭过齿口和柄上的磨痕，眉头微动。"
+          },
+          {
+            "seq": 50,
+            "actorId": "character:friend",
+            "speech": "慢慢看，不急。那钥匙在这儿放了很久，我也没细究过上面刻的是什么。",
+            "narration": ""
+          }
+        ],
+        "round": {
+          "roundId": null,
+          "fromSeq": 55,
+          "toSeq": 56
+        }
+      }
+    },
+    {
+      "seq": 144,
+      "person": "character:companion",
+      "item": 0,
+      "kinds": [
+        "SPEECH_PAST"
+      ],
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "publication": {
+          "seq": 144,
+          "actorId": "character:companion",
+          "speech": "刚拿到手，翻过来看了。齿口磨圆了，柄上有字，笔画浅，认不出。就这些。",
+          "narration": "同行者想了想，抬手比了个翻看的动作。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 73,
+            "actorId": "character:companion",
+            "speech": "钥匙在我这儿。要不要去后室看看，说不定有能对上的锁。",
+            "narration": "同行者拍了拍衣袋，朝后室的方向偏了下头。"
+          },
+          {
+            "seq": 78,
+            "actorId": "character:player",
+            "speech": "同行者，翻过来看看齿纹，你觉得这把钥匙旧吗？",
+            "narration": ""
+          },
+          {
+            "seq": 84,
+            "actorId": "character:companion",
+            "speech": "旧。齿口磨圆了，柄上的字也快平了。用过很多年。",
+            "narration": "同行者从衣袋里摸出黄铜钥匙，翻过来对着光，指腹又蹭了一遍齿口。"
+          },
+          {
+            "seq": 89,
+            "actorId": "character:friend",
+            "speech": "齿口磨得厉害，说明用过不少回。柄上那字……我在这儿这么久也没看清过，你们要是能认出来，倒可以告诉我。",
+            "narration": ""
+          },
+          {
+            "seq": 95,
+            "actorId": "character:companion",
+            "speech": "认不出。笔画太浅了。你要是也看不清，那就不是光的问题。",
+            "narration": "同行者把钥匙举到光下，转了半圈，眯眼盯着柄上那处磨痕。"
+          },
+          {
+            "seq": 100,
+            "actorId": "character:friend",
+            "speech": "那就先别费眼了。放回桌上吧，回头有光再说。",
+            "narration": "留守者朝那把钥匙抬了抬下巴，语气不重，像是随口一句。"
+          },
+          {
+            "seq": 105,
+            "actorId": "character:player",
+            "speech": "同行者，把黄铜钥匙交给我吧。",
+            "narration": ""
+          },
+          {
+            "seq": 117,
+            "actorId": "character:companion",
+            "speech": "刚给你了。你摸摸口袋。",
+            "narration": "同行者两手一摊，衣袋翻出个空口。"
+          },
+          {
+            "seq": 122,
+            "actorId": "character:friend",
+            "speech": "钥匙已经在你手上了，你们拿主意就好。我这边没什么要拦的。",
+            "narration": ""
+          },
+          {
+            "seq": 127,
+            "actorId": "character:friend",
+            "speech": "钥匙归你们了。我这儿还有个保温杯，一直搁着没人用——你们要带走也行，反正我守着屋子，用不上。",
+            "narration": ""
+          },
+          {
+            "seq": 133,
+            "actorId": "character:companion",
+            "speech": "杯子要吗？不要就搁着。钥匙的事，去后室看看？",
+            "narration": "同行者看了眼桌上的保温杯，又看向玩家。"
+          },
+          {
+            "seq": 138,
+            "actorId": "character:player",
+            "speech": "同行者，回想你刚才拿着钥匙的时候，你看到了什么？我问的是刚才，不是让你现在拿。",
+            "narration": ""
+          }
+        ],
+        "round": {
+          "roundId": null,
+          "fromSeq": 143,
+          "toSeq": 144
+        }
+      }
+    },
+    {
+      "seq": 117,
+      "person": "character:companion",
+      "item": 0,
+      "kinds": [
+        "NONE",
+        "SPEECH_PAST"
+      ],
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "publication": {
+          "seq": 117,
+          "actorId": "character:companion",
+          "speech": "刚给你了。你摸摸口袋。",
+          "narration": "同行者两手一摊，衣袋翻出个空口。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 44,
+            "actorId": "character:companion",
+            "speech": "齿口磨得厉害。柄上好像有字，看不清。",
+            "narration": "同行者把黄铜钥匙翻过来，指腹蹭过齿口和柄上的磨痕，眉头微动。"
+          },
+          {
+            "seq": 50,
+            "actorId": "character:friend",
+            "speech": "慢慢看，不急。那钥匙在这儿放了很久，我也没细究过上面刻的是什么。",
+            "narration": ""
+          },
+          {
+            "seq": 56,
+            "actorId": "character:player",
+            "speech": "同行者，请帮我拿起黄铜钥匙，先保管一下。",
+            "narration": ""
+          },
+          {
+            "seq": 62,
+            "actorId": "character:companion",
+            "speech": "行，我先拿着。",
+            "narration": "同行者把黄铜钥匙在掌心掂了掂，收进衣袋，朝玩家点了下头。"
+          },
+          {
+            "seq": 67,
+            "actorId": "character:friend",
+            "speech": "嗯，你们拿着看吧，我不急。我这儿也没什么别的事，就是守着这屋子。",
+            "narration": ""
+          },
+          {
+            "seq": 73,
+            "actorId": "character:companion",
+            "speech": "钥匙在我这儿。要不要去后室看看，说不定有能对上的锁。",
+            "narration": "同行者拍了拍衣袋，朝后室的方向偏了下头。"
+          },
+          {
+            "seq": 78,
+            "actorId": "character:player",
+            "speech": "同行者，翻过来看看齿纹，你觉得这把钥匙旧吗？",
+            "narration": ""
+          },
+          {
+            "seq": 84,
+            "actorId": "character:companion",
+            "speech": "旧。齿口磨圆了，柄上的字也快平了。用过很多年。",
+            "narration": "同行者从衣袋里摸出黄铜钥匙，翻过来对着光，指腹又蹭了一遍齿口。"
+          },
+          {
+            "seq": 89,
+            "actorId": "character:friend",
+            "speech": "齿口磨得厉害，说明用过不少回。柄上那字……我在这儿这么久也没看清过，你们要是能认出来，倒可以告诉我。",
+            "narration": ""
+          },
+          {
+            "seq": 95,
+            "actorId": "character:companion",
+            "speech": "认不出。笔画太浅了。你要是也看不清，那就不是光的问题。",
+            "narration": "同行者把钥匙举到光下，转了半圈，眯眼盯着柄上那处磨痕。"
+          },
+          {
+            "seq": 100,
+            "actorId": "character:friend",
+            "speech": "那就先别费眼了。放回桌上吧，回头有光再说。",
+            "narration": "留守者朝那把钥匙抬了抬下巴，语气不重，像是随口一句。"
+          },
+          {
+            "seq": 105,
+            "actorId": "character:player",
+            "speech": "同行者，把黄铜钥匙交给我吧。",
+            "narration": ""
+          }
+        ],
+        "round": {
+          "roundId": null,
+          "fromSeq": 116,
+          "toSeq": 117
+        }
+      }
+    },
+    {
+      "seq": 133,
+      "person": "character:friend",
+      "item": 1,
+      "kinds": [
+        "NONE"
+      ],
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "item": {
+          "entityId": "entity:thermos",
+          "name": "保温杯"
+        },
+        "publication": {
+          "seq": 133,
+          "actorId": "character:companion",
+          "speech": "杯子要吗？不要就搁着。钥匙的事，去后室看看？",
+          "narration": "同行者看了眼桌上的保温杯，又看向玩家。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 62,
+            "actorId": "character:companion",
+            "speech": "行，我先拿着。",
+            "narration": "同行者把黄铜钥匙在掌心掂了掂，收进衣袋，朝玩家点了下头。"
+          },
+          {
+            "seq": 67,
+            "actorId": "character:friend",
+            "speech": "嗯，你们拿着看吧，我不急。我这儿也没什么别的事，就是守着这屋子。",
+            "narration": ""
+          },
+          {
+            "seq": 73,
+            "actorId": "character:companion",
+            "speech": "钥匙在我这儿。要不要去后室看看，说不定有能对上的锁。",
+            "narration": "同行者拍了拍衣袋，朝后室的方向偏了下头。"
+          },
+          {
+            "seq": 78,
+            "actorId": "character:player",
+            "speech": "同行者，翻过来看看齿纹，你觉得这把钥匙旧吗？",
+            "narration": ""
+          },
+          {
+            "seq": 84,
+            "actorId": "character:companion",
+            "speech": "旧。齿口磨圆了，柄上的字也快平了。用过很多年。",
+            "narration": "同行者从衣袋里摸出黄铜钥匙，翻过来对着光，指腹又蹭了一遍齿口。"
+          },
+          {
+            "seq": 89,
+            "actorId": "character:friend",
+            "speech": "齿口磨得厉害，说明用过不少回。柄上那字……我在这儿这么久也没看清过，你们要是能认出来，倒可以告诉我。",
+            "narration": ""
+          },
+          {
+            "seq": 95,
+            "actorId": "character:companion",
+            "speech": "认不出。笔画太浅了。你要是也看不清，那就不是光的问题。",
+            "narration": "同行者把钥匙举到光下，转了半圈，眯眼盯着柄上那处磨痕。"
+          },
+          {
+            "seq": 100,
+            "actorId": "character:friend",
+            "speech": "那就先别费眼了。放回桌上吧，回头有光再说。",
+            "narration": "留守者朝那把钥匙抬了抬下巴，语气不重，像是随口一句。"
+          },
+          {
+            "seq": 105,
+            "actorId": "character:player",
+            "speech": "同行者，把黄铜钥匙交给我吧。",
+            "narration": ""
+          },
+          {
+            "seq": 117,
+            "actorId": "character:companion",
+            "speech": "刚给你了。你摸摸口袋。",
+            "narration": "同行者两手一摊，衣袋翻出个空口。"
+          },
+          {
+            "seq": 122,
+            "actorId": "character:friend",
+            "speech": "钥匙已经在你手上了，你们拿主意就好。我这边没什么要拦的。",
+            "narration": ""
+          },
+          {
+            "seq": 127,
+            "actorId": "character:friend",
+            "speech": "钥匙归你们了。我这儿还有个保温杯，一直搁着没人用——你们要带走也行，反正我守着屋子，用不上。",
+            "narration": ""
+          }
+        ],
+        "round": {
+          "roundId": null,
+          "fromSeq": 132,
+          "toSeq": 133
+        }
+      }
+    },
+    {
+      "seq": 139,
+      "person": "character:friend",
+      "item": 0,
+      "kinds": [
+        "OBJECTIVE_DURING"
+      ],
+      "question": {
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "characters": [
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          },
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          }
+        ],
+        "publication": {
+          "seq": 139,
+          "actorId": "character:friend",
+          "speech": "凉的，毛刺也是旧的。跟我猜的一样——不是刚划的。那这钥匙在这儿放了有些日子了。",
+          "narration": "留守者把钥匙在指间翻了一下，用拇指压了压那道划痕，然后递回去，没多拿。"
+        },
+        "earlierPublications": [],
+        "round": {
+          "roundId": null,
+          "fromSeq": 138,
+          "toSeq": 139
+        }
+      }
+    }
+  ],
+  "repeat": 3
+}

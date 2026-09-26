@@ -1,3 +1,4 @@
+import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
 import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
 import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
 import { mkdirSync, readFileSync } from 'node:fs'
@@ -27,6 +28,7 @@ export interface FrozenPlaytestOptions {
   readonly utilityEndpoint?: string
   readonly timeoutMs?: number
   readonly shadowAudit?: ShadowOptions
+  readonly publicationAudit?: InterventionOptions
 }
 
 const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions'
@@ -114,7 +116,15 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       style: options.provider === 'ollama' ? 'format' : 'tool', timeoutMs, onCall })
     const characters = playtestModelCharacters(compiled.manifest, this.#playerId)
     this.#characterIds = characters.map(character => character.actorId)
-    this.#decideContinuation = (request, signal) => provider.decide(prototypeTurnCall(request), signal)
+    this.#decideContinuation = async (request, signal) => {
+      const raw = await provider.decide(prototypeTurnCall(request), signal)
+      if (options.publicationAudit === undefined) return raw
+      const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
+      let history
+      try { history = store.readEvents(this.#address) } finally { store.close() }
+      return auditBeforePublication({ request, raw, history, options: options.publicationAudit, signal,
+        decide: async revised => provider.decide(prototypeTurnCall(revised), signal) })
+    }
     this.#npcNames = characters.map(character => character.name)
     // The Host's interpretation profile is a contract with the world, and its deadline ceiling is part of
     // it: a longer call deadline is the adapter's business, not something to state in the profile.

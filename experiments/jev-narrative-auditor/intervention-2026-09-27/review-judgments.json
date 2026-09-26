@@ -1,0 +1,2100 @@
+{
+  "reviewer": "Codex primary agent; independent of Jev labels, not an external human panel",
+  "scope": "349 NPC publications; person holding and ground placement; borderline handoff excluded",
+  "judgments": [
+    {
+      "id": "00a83022",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "00c3f17e",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "02b17f0f",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "02f3d9cd",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "050b6a56",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "05abdfd6",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "06ead542",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "074661d7",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "07a4be6c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "07c0b879",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "09a4deaa",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "09c55990",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0a7a2636",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0ac7d260",
+      "status": "objective_unsupported_ground",
+      "reason": "旁白确认放下或桌面位置，但正式 holder 仍是留守者。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0af8837f",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0b2e088c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0c2aff34",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0d381d63",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0d4191fd",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0d9b7a73",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0defafe9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0e3433cf",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0e493755",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "0f757282",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "1010ffa4",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "104a8f8a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "11169ae4",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "11dd3785",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "1246bcae",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "15f46e5d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "16b2b336",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "16c2befe",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "16e2e1f9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "17e87822",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "1809b04d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "18af25b5",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "1e4678e2",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "1e5f7e98",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "1ef283c9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "1ef6c303",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "1f3967e0",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "1fb9bc2c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "2081ae9a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "2195c38e",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "221ad5e6",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "23207e41",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "241c7d0d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "25be6e0d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "272d0954",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "292d0513",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "29d272e1",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "2a786647",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "2be8ced8",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "2c690549",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "2dacd26a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "2dc06688",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "2eecac81",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "2f072ae9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "3032996c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "30678b1d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "308d9cb2",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "315f0ba4",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "31821246",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "3221dabb",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "3243fabe",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "32a16224",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "347587ab",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "3572061b",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "38419376",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "38df1752",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "397133a2",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "3a00cd5a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "3b76aa92",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "3d0f02ac",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "3e53c955",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "3fcb9a24",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "41f4699f",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "42aaffe0",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "4384324f",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "450b2724",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "456710a9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "45a11a33",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "46e33439",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "496e7141",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "4abb3469",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "4ae15b73",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "4bddf818",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "4c8aa3fa",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "4d893cae",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "4e2a8bcd",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "4e32a091",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "4e4c48f7",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "4ea1c136",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "4f4f0ec2",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "50975867",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5119478e",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "516032c5",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5420b230",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "54a87bd3",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "54cd19f6",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "54fa1160",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "54fcb190",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5544e5ce",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5626a32c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "56b5cede",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "57365bdf",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "57696cac",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "587c7091",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "59a50b75",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5aabb284",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5b32c055",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5b481355",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5b99e1b1",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5c059c8c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5c25b9ee",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5c2fad66",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5ca0aeb8",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5d68560c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5d9f7a1a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5e16e9d3",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5e492d62",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5eff34b4",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "5ffcc59e",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "6026ddf7",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "60743173",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "60ef6870",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "61492bef",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "61733af9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "61997274",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "627ce4e0",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "629ead3f",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "62c9f1eb",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "63778bf9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "639d44bf",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "6465c048",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "655fcb4f",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "65b9d7df",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "66003f9b",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "66521d0d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "66dc2601",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "67fe1690",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "68c8bccb",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "6a1eabcb",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "6a66f1d3",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "6a87ce5d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "6a9c51a1",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "6b74b901",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "6bbbeb5c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "6bcbdf2f",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "6c3742c0",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "6df18aad",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "7160a639",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "717ba8c3",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "72e54949",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "739086a1",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "748ea957",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "74e2a501",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "7635a7e5",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "764f5161",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "76e3f6da",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "77486d17",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "77c7d28b",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "77d8d303",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "77e85e21",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "7821d824",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "78d64d53",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "795c5d34",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "7a358ac4",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "7a8c7d7e",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "7af349e0",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "7b78d63e",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "7d27d3b3",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "803ecd94",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "82ee146c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "831a2bb2",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "840b485a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "847a1f2c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "85aebbb7",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "86638184",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "87ae88b3",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "87d16dff",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "88118c2e",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "892aa1f5",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "89706da0",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "89c3edff",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "8a1fcc1d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "8a600791",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "8dcc9767",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "8e4a384e",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "8e837e9c",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "9092d0d1",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "931bbee5",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "93ac1611",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "9579326f",
+      "status": "objective_unsupported_ground",
+      "reason": "旁白确认放下或桌面位置，但正式 holder 仍是留守者。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "9891fc94",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "98b5714a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "98cbc5c9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "9a729d03",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "9aa57274",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "9aeb17a4",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "9b2a576c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "9d471b2a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "9df16232",
+      "status": "objective_unsupported_ground",
+      "reason": "旁白确认放下或桌面位置，但正式 holder 仍是留守者。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "9eb643f9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "9f55f9c1",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "9fe71ae4",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "9fedea1b",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a17038f7",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a215d794",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a23d12f9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a2430df1",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a2449a9c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a25c695d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a26e72b5",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a35deaad",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a380d8fe",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a45f558e",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a56c2b7c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a5bbc43a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a5fbc3f3",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a624a3cb",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a6b3565d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a7502304",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a81abbd3",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "a8d2ad4a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a8e40c2e",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "a96afeb1",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "aad166ff",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "aad4a77f",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "aadac79f",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ab3d73b0",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "acf7a67f",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ad18dd01",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ad6b530d",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "af0e9814",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "af3e6b58",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "af6fd565",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "afeb47fc",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "b3708ee9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "b4272f47",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "b47c0533",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "b52717eb",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "b90c093c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "b99d9ed7",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ba7238fe",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ba856faf",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "bab4f1c1",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "bb39aa27",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "bb811480",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "bc6f0b70",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "bc78bcb0",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "bda22f6b",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "be023cc6",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "be3a1a6a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "be75fe9d",
+      "status": "objective_unsupported_ground",
+      "reason": "旁白确认放下或桌面位置，但正式 holder 仍是留守者。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "bed72501",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "c1238af0",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "c2251f49",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "c2a18fee",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "c61bd37d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "c75a3af8",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "c82a98d2",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "c85ed2b0",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "c90de4ea",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "c91203fa",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "c980c8ba",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "c9b30310",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "c9c62c46",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "cab00e9b",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "cc3df8ef",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "cc49a410",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "cd9a7dda",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "cdc911ff",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "cddaf50c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ce2e7ff6",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ce8050fe",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "cec95002",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ced1fe29",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "cff3f2fd",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d02b7b07",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d0345ce9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "d0bdf6eb",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d17d518d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d183c728",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d19ea5a7",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d1e34e76",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d2780338",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d3f327d8",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d41293ed",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d42f8e88",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d56152b6",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "d5d0c6a6",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d63d24b6",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d7964af9",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d8815245",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d90c14d5",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "d984a158",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "da35d480",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "dbdafb80",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "dc0d30d5",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "dcbe0b6e",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ddfaa8d7",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "e325172a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "e4845e89",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "e4f9d662",
+      "status": "objective_unsupported_ground",
+      "reason": "旁白确认放下或桌面位置，但正式 holder 仍是留守者。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "e52e6e13",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "e62a61a6",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "e68cc4dd",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "e6bc0948",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "e7109242",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "e76c073a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "e8d48d9c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "e9caa074",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "e9dd0ab5",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "eac8903d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "eb213ab5",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ec352e96",
+      "status": "objective_unsupported_ground",
+      "reason": "旁白确认放下或桌面位置，但正式 holder 仍是留守者。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ef419e99",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "ef7d35ac",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "efcc6810",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "eff80c23",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "efffcc9c",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "f0909888",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    },
+    {
+      "id": "f157a99a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f1d1a87a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f21365a8",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f23b5942",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f384bdff",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f3d576ed",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f40ccfdf",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f42e60d3",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f5f92535",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f67420b0",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f6e4f4c1",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f7c0d5eb",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f81da83d",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f947b34a",
+      "status": "objective_unsupported_person_hold",
+      "reason": "该发布时及此前保温杯正式在地面；旁白确认端起、持有、换手或此前持有后放回。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f98aa393",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "f9e88928",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "fa761fdf",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "faee3cab",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "fb646c5a",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "fb835d61",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "fbc34dd8",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "fbdb8f61",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "fc2e6bda",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "fcb26511",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "fe91b22b",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": false
+    },
+    {
+      "id": "fed2c829",
+      "status": "no_definite_objective_holder_conflict",
+      "reason": "未发现明确客观持有或放下冲突；对白不升级为客观事实，未完成递出与条件式接收保持未确定。",
+      "unsupportedSpeechExample": true
+    }
+  ]
+}
