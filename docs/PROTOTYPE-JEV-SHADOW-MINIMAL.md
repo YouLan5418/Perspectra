@@ -5,7 +5,7 @@
 | 分支 | `codex/jev-shadow-minimal` |
 | 起点 | `6e393aa`：main 的 `67f1b43` 加第一轮独立 Jev 实验 |
 | 范围 | 网页试玩 Host；只检查显式配置物品的当前持有宣称 |
-| 状态 | 已接入；自动化回归和公开合成样本真实 Jev 检查完成；连续真实主模型试玩未完成 |
+| 状态 | 已接入；自动化回归、公开合成样本及首轮 8 轮真实主模型试玩完成；长程验证未完成 |
 | 旧实现 | WorkBuddy 改动完整保存在本地 stash `3df3eaecf651ee9f6a8e6f38589ab8a7bc75adc8`，包含未跟踪实验记录 |
 
 ## 1. 问题与取舍
@@ -90,6 +90,6 @@ corepack pnpm@11.7.0 experience:web:flash --pack examples/world-packs/prototype-
 - 只覆盖配置物品，不提供自动物品识别。名称/别名不足、代词、多义表达、模型误分类仍可能导致漏报或误报。
 - SUPPORTED 只说明最终持有断言一致，不证明整个叙述真实。NO_CLAIM 也不代表玩家体验无问题；角色谎言被别人当成事实的认知分叉仍需单独试玩观察。
 - 队列在同一进程中运行；请求不阻塞正常发布，但 SQLite 前缀读取和重放仍占用事件循环。未验证长事件历史下的 CPU 或尾部延迟。
-- 不做持久队列或崩溃续审。没有开展连续真实主模型试玩，也没有重新跑历史私密 G3 文本。
+- 不做持久队列或崩溃续审。已完成首轮 8 轮真实主模型试玩，见 [LIVE-01](PROTOTYPE-JEV-SHADOW-LIVE-01.md)；没有重新跑历史私密 G3 文本。
 
 旧实验恢复：在干净工作树切回 `codex/jev-narrative-auditor-spike`，再 `git stash apply 3df3eaecf651ee9f6a8e6f38589ab8a7bc75adc8`。stash 未删除，main 上原有未提交工作没有移动。
