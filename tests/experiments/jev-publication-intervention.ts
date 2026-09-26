@@ -3,7 +3,7 @@ import { currentEntityState } from '@harness-world/kernel'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import type { AuditItem, Publication } from './jev-shadow.ts'
 import type { ClaimAnswer, ClaimQuestion } from './jev-shadow-claims-client.ts'
-import { acquisitionWindow, holderEvidence, type AuditWindow } from './jev-shadow-window.ts'
+import { acquisitionWindow, holderEvidence, reconcilePlacement, type PlacementAudit, type AuditWindow } from './jev-shadow-window.ts'
 
 const object = (v: unknown): WorldJsonObject => v && typeof v === 'object' && !Array.isArray(v) ? v as WorldJsonObject : {}
 function publish(v: unknown): WorldJsonObject | undefined {
@@ -25,7 +25,7 @@ export interface InterventionRecord {
   readonly actorId: string
   readonly original: WorldJsonObject
   readonly final: WorldJsonObject
-  readonly checks: readonly { itemId: string; answer: ClaimAnswer; conflicts: readonly string[] }[]
+  readonly checks: readonly { itemId: string; answer: ClaimAnswer; conflicts: readonly string[]; placement: PlacementAudit }[]
   readonly repaired: boolean
   readonly repairAttempted: boolean
   readonly outcome: string
@@ -42,7 +42,7 @@ export async function auditBeforePublication(input: {
   const start = performance.now(), { request, history, options } = input
   const actorId = String(object(request.context.character).characterId)
   const baseHeadSeq = history.at(-1)?.seq ?? 0
-  const checks: Array<{ itemId: string; answer: ClaimAnswer; conflicts: string[] }> = []
+  const checks: Array<{ itemId: string; answer: ClaimAnswer; conflicts: string[]; placement: PlacementAudit }> = []
   let final = draft, outcome = 'baseline', repaired = false, repairAttempted = false
   const record = () => options.write({ mode: options.mode, baseHeadSeq, actorId, original: draft, final,
     checks, repaired, repairAttempted, outcome, elapsedMs: Math.round(performance.now()-start) })
@@ -76,15 +76,17 @@ export async function auditBeforePublication(input: {
         if(c.kind==='OBJECTIVE_DURING')return !evidence.heldAtWindowStart&&evidence.enteredSeqs.length===0
         return false // subjective speech and unresolved historical sources never trigger a repair.
       }).map(c=>c.characterId)
-      return {itemId:item.entityId,answer,conflicts}
+      const placement=reconcilePlacement(history,window,item.entityId,actorId,publication.seq,answer.placement)
+      return {itemId:item.entityId,answer,conflicts,placement}
     }))
     checks.push(...answers)
-    const conflicts=checks.flatMap(c=>c.conflicts.map(characterId=>({entityId:c.itemId,characterId})))
+    const conflicts=checks.flatMap(c=>[...c.conflicts.map(characterId=>({entityId:c.itemId,characterId,kind:'person_hold'})),
+      ...(visible.has(c.itemId)&&c.placement.status==='CONFLICT'?[{entityId:c.itemId,characterId:actorId,kind:c.placement.kind}]:[])])
     if (conflicts.length===0) {outcome='no_actionable_conflict';record();return draft}
     input.signal.throwIfAborted()
     const revision: PrototypeTurnRequest={...request,canPerform:false,context:{...request.context,
       publicationCorrection:{original:draft,conflicts,
-        instruction:'只修正这次尚未发布的表达。上面客观持有描述没有本轮正式结果支持；请依据当前可见 items 和行动结果消除该冲突，保留角色语气及合理内容。可以保留邀请、尝试或主观对白；不能补写新行动或代替他人执行。只能 publish 或 abstain。不要向玩家解释审查过程。'}}}
+        instruction:'只修正这次尚未发布的表达。上面客观持有或放下描述没有本轮正式结果支持；请依据当前可见 items 和行动结果消除该冲突，保留角色语气及合理内容。可以保留邀请、尝试或主观对白；不能补写新行动或代替他人执行。只能 publish 或 abstain。不要向玩家解释审查过程。'}}}
     repairAttempted=true
     const corrected=await input.decide(revision)
     const d=publish(corrected)

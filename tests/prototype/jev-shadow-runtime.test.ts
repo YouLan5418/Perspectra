@@ -50,7 +50,7 @@ it('the actual web runtime publishes while Jev is pending and has the same model
           classify: async (question: ClaimQuestion) => {
             questions.push(question); started(); await blocked
             const kind: ClaimKind = question.publication.narration ? 'OBJECTIVE_NOW' : 'NONE'
-            return { model: 'fixture', inputTokens: 1, outputTokens: 1, costUsd: 0,
+            return { placement:{kind:'NONE' as const,probabilities:{NONE:1},confidence:1},model: 'fixture', inputTokens: 1, outputTokens: 1, costUsd: 0,
               claims: question.characters.map(c => ({ characterId: c.characterId, kind: c.characterId === 'character:companion' ? kind : 'NONE',
                 referenceSeq: null, confidence: 1, probabilities: Object.fromEntries(Object.keys(claimCriteria).map(label => [label,label === kind ? 1 : 0])), referenceProbabilities:{ NONE:1 } })) }
           }, write: async (record: ShadowRecord) => { records.push(record) },

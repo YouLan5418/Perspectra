@@ -1,7 +1,7 @@
 import { setImmediate as nextTurn } from 'node:timers/promises'
 import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
 import { claimCriteria, type ClaimQuestion, type ClaimAnswer, type TemporalClaim } from './jev-shadow-claims-client.ts'
-import { acquisitionWindow, holderEvidence, publicationWindow, type AuditWindow, type HolderEvidence } from './jev-shadow-window.ts'
+import { acquisitionWindow, holderEvidence, publicationWindow, reconcilePlacement, type PlacementAudit, type AuditWindow, type HolderEvidence } from './jev-shadow-window.ts'
 import { currentEntityState } from '@harness-world/kernel'
 
 export interface AuditItem { readonly entityId: string; readonly name: string; readonly aliases?: readonly string[] }
@@ -50,6 +50,7 @@ export interface ShadowRecord {
   readonly claimedHolder: string | null
   readonly holderEventSeq: number | null
   readonly answer: ClaimAnswer | null
+  readonly placement: PlacementAudit | null
   readonly window: AuditWindow | null
   readonly claims: readonly ReconciledClaim[]
   readonly latencyMs: number
@@ -201,15 +202,17 @@ export class JevShadow {
             continue
           }
           const claims = answer.claims.map(claim => this.#reconcile(events,item,publication,window,claim))
+          const placement=reconcilePlacement(events,window,item.entityId,publication.actorId,publication.seq,answer.placement)
           const priority: AuditStatus[] = ['CONFLICT','CHAIN_RECALL','SPEECH_UNBACKED','UNCERTAIN','HISTORY_UNRESOLVED','SUPPORTED','HISTORICAL_SUPPORTED','NO_CLAIM']
-          const status = priority.find(s => claims.some(c => c.status === s)) ?? 'NO_CLAIM'
+          const status = priority.find(s => placement.status===s||claims.some(c => c.status === s)) ?? 'NO_CLAIM'
           for (const claim of claims) {
             this.#claims.set(`${publication.seq}|${item.entityId}|${claim.characterId}`,claim)
             if (claim.status === 'CONFLICT' && claim.rootPublicationSeq === publication.seq) this.#roots.set(publication.seq,publication)
           }
+          if(placement.status==='CONFLICT')this.#roots.set(publication.seq,publication)
           while (this.#claims.size > 4096) this.#claims.delete(this.#claims.keys().next().value!)
           while (this.#roots.size > 8) this.#roots.delete(this.#roots.keys().next().value!)
-          await this.#write(this.#record(start, end, { ...base, answer, claims, window, status,
+          await this.#write(this.#record(start, end, { ...base, answer, claims, placement, window, status,
             claimedHolder: claims.find(c => c.kind.startsWith('OBJECTIVE'))?.characterId ?? null, latencyMs: performance.now() - began }))
         }
       }
@@ -249,7 +252,7 @@ export class JevShadow {
   #record(from: number, to: number, fields: Partial<ShadowRecord>): ShadowRecord {
     return { address: this.options.address, preHeadSeq: from, postHeadSeq: to, transactionId: null,
       publication: null, item: null, status: 'AUDIT_FAILED', beforeHolder: null, worldHolder: null,
-      claimedHolder: null, holderEventSeq: null, answer: null, window: null, claims: [], latencyMs: 0, reason: null, ...fields }
+      claimedHolder: null, holderEventSeq: null, answer: null, placement: null, window: null, claims: [], latencyMs: 0, reason: null, ...fields }
   }
   async #write(record: ShadowRecord): Promise<void> {
     try { await this.options.write(record); this.#records += 1 }

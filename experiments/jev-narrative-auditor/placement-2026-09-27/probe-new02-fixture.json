@@ -1,0 +1,2415 @@
+{
+  "baseline": false,
+  "repeat": 3,
+  "fixtures": [
+    {
+      "run": "b1",
+      "seq": 95,
+      "draft": true,
+      "item": 1,
+      "conflict": false,
+      "id": "real-table-slide",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:thermos",
+          "name": "保温杯"
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 96,
+          "actorId": "character:friend",
+          "speech": "旧不旧的，看齿口就知道——磨成那样，不是新配的。你们要真想看清柄上的字，后室光线好，我这话还搁这儿。",
+          "narration": "留守者没去碰钥匙，只把保温杯往自己这边挪了半寸，像是给自己留个位置。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 20,
+            "actorId": "character:player",
+            "speech": "桌上的黄铜钥匙看起来有什么特别？",
+            "narration": ""
+          },
+          {
+            "seq": 26,
+            "actorId": "character:companion",
+            "speech": "我看看。",
+            "narration": "同行者走近桌边，俯身端详那把黄铜钥匙，没有立刻伸手去碰。"
+          },
+          {
+            "seq": 32,
+            "actorId": "character:friend",
+            "speech": "钥匙？我在这儿待了一阵，也没动过它。你们要是好奇，就自己看吧——我不拦着。",
+            "narration": ""
+          },
+          {
+            "seq": 37,
+            "actorId": "character:friend",
+            "speech": "看归看，别指望它自己开口。",
+            "narration": "留守者没有凑过去，只是靠在原处，目光在同行者和钥匙之间来回。"
+          },
+          {
+            "seq": 43,
+            "actorId": "character:companion",
+            "speech": "齿口磨得厉害。柄上有字，看不清。",
+            "narration": "同行者没接留守者的话，指尖在钥匙上方停了停，仍没碰。ta眯眼看了看钥匙齿和柄上的纹路。"
+          },
+          {
+            "seq": 49,
+            "actorId": "character:player",
+            "speech": "同行者，请帮我拿起黄铜钥匙，先保管一下。",
+            "narration": ""
+          },
+          {
+            "seq": 61,
+            "actorId": "character:companion",
+            "speech": "拿着了。",
+            "narration": "同行者把黄铜钥匙收进掌心，掂了掂，没多解释。"
+          },
+          {
+            "seq": 67,
+            "actorId": "character:friend",
+            "speech": "拿着就拿着吧。反正它在我这儿躺了这么久，也没见谁回来找。",
+            "narration": "留守者瞥了一眼同行者收拢的手，语气平平，像是随口一说。"
+          },
+          {
+            "seq": 73,
+            "actorId": "character:companion",
+            "speech": "字磨平了。得找个能看清的地方。",
+            "narration": "同行者把钥匙在掌心翻了个面，拇指蹭过柄上的刻痕，没抬头。"
+          },
+          {
+            "seq": 79,
+            "actorId": "character:friend",
+            "speech": "要看清字，后室那边光线好一点。不过随你们。",
+            "narration": "留守者看着同行者把钥匙收好，没再追问，只是把视线挪回桌上那只保温杯，像是想起了什么，又没打算现在说。"
+          },
+          {
+            "seq": 85,
+            "actorId": "character:player",
+            "speech": "同行者，翻过来看看齿纹，你觉得这把钥匙旧吗？",
+            "narration": ""
+          },
+          {
+            "seq": 91,
+            "actorId": "character:companion",
+            "speech": "旧。齿都磨圆了。柄上的字也快没了——后室光线好，去那边看。",
+            "narration": "同行者把钥匙翻到齿口那面，凑近看了看，又收回掌心。"
+          }
+        ],
+        "round": {
+          "roundId": null,
+          "fromSeq": 84,
+          "toSeq": 95,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:thermos",
+          "locationId": "location:front-room",
+          "holderId": null,
+          "kind": "thermos"
+        },
+        "window": {
+          "roundId": null,
+          "fromSeq": 84,
+          "toSeq": 95,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 176,
+      "draft": true,
+      "item": 1,
+      "conflict": true,
+      "id": "real-uncommitted-cup-take",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:thermos",
+          "name": "保温杯"
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 177,
+          "actorId": "character:friend",
+          "speech": "行，那我拿过来。你俩一起看，省得我转述。",
+          "narration": "留守者起身走到桌边，把保温杯拿起来，掂了掂，又拧了拧盖子。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 107,
+            "actorId": "character:player",
+            "speech": "同行者，把黄铜钥匙交给我吧。",
+            "narration": ""
+          },
+          {
+            "seq": 119,
+            "actorId": "character:companion",
+            "speech": "钥匙给你了。要开什么，喊我。",
+            "narration": "同行者把空出来的手插回兜里，退开半步。"
+          },
+          {
+            "seq": 124,
+            "actorId": "character:friend",
+            "speech": "钥匙归你了。我这儿还有个保温杯，一直没人动过——你要是想看看，我拿给你。",
+            "narration": ""
+          },
+          {
+            "seq": 129,
+            "actorId": "character:friend",
+            "speech": "钥匙归你了。我这儿还有个保温杯，一直没人动过——你要是想看看，我拿给你。",
+            "narration": ""
+          },
+          {
+            "seq": 134,
+            "actorId": "character:player",
+            "speech": "同行者，回想你刚才拿着钥匙的时候，你看到了什么？我问的是刚才，不是让你现在拿。",
+            "narration": ""
+          },
+          {
+            "seq": 140,
+            "actorId": "character:companion",
+            "speech": "刚才我拿在手里，翻过来看了齿纹。磨得平，旧，但没坏。别的没看出来。",
+            "narration": "同行者想了想，手指在兜里空握了一下。"
+          },
+          {
+            "seq": 145,
+            "actorId": "character:friend",
+            "speech": "刚才？钥匙一直在桌上，我没碰过。你问的是同行者拿着的时候吧——那我可答不上来，我光顾着看你们俩了。",
+            "narration": ""
+          },
+          {
+            "seq": 150,
+            "actorId": "character:player",
+            "speech": "留守者，你愿意凑近看看钥匙上的那道划痕吗？",
+            "narration": ""
+          },
+          {
+            "seq": 156,
+            "actorId": "character:companion",
+            "speech": "钥匙在你那儿。凑近看，随你。",
+            "narration": "同行者偏头看了一眼玩家手里的钥匙，没伸手。"
+          },
+          {
+            "seq": 161,
+            "actorId": "character:friend",
+            "speech": "划痕？钥匙现在在你手里，你自己看不是更清楚。我凑过去，也就多一双眼睛。",
+            "narration": ""
+          },
+          {
+            "seq": 166,
+            "actorId": "character:player",
+            "speech": "好，靠近看看。我想听听你的判断。",
+            "narration": ""
+          },
+          {
+            "seq": 172,
+            "actorId": "character:companion",
+            "speech": "行。你举着，我凑近点。",
+            "narration": "同行者往前挪了半步，低头看钥匙。"
+          }
+        ],
+        "round": {
+          "roundId": null,
+          "fromSeq": 165,
+          "toSeq": 176,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:thermos",
+          "locationId": "location:front-room",
+          "holderId": null,
+          "kind": "thermos"
+        },
+        "window": {
+          "roundId": null,
+          "fromSeq": 165,
+          "toSeq": 176,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b3",
+      "seq": 37,
+      "draft": true,
+      "item": 0,
+      "conflict": true,
+      "id": "real-uncommitted-key-take",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 38,
+          "actorId": "character:companion",
+          "speech": "齿口很新。不像旧锁配的。",
+          "narration": "同行者把钥匙捏起来，翻到背面，又对着光看了看齿口。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 20,
+            "actorId": "character:player",
+            "speech": "桌上的黄铜钥匙看起来有什么特别？",
+            "narration": ""
+          },
+          {
+            "seq": 26,
+            "actorId": "character:companion",
+            "speech": "我看看。",
+            "narration": "同行者走近桌边，俯身端详那把黄铜钥匙，没有立刻伸手。"
+          },
+          {
+            "seq": 32,
+            "actorId": "character:friend",
+            "speech": "钥匙一直搁在那儿，我没动过。你们要是好奇，就自己看吧。",
+            "narration": ""
+          }
+        ],
+        "round": {
+          "roundId": null,
+          "fromSeq": 19,
+          "toSeq": 37,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:brass-key",
+          "locationId": "location:front-room",
+          "holderId": null,
+          "kind": "key"
+        },
+        "window": {
+          "roundId": null,
+          "fromSeq": 19,
+          "toSeq": 37,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 365,
+      "draft": false,
+      "item": 1,
+      "conflict": true,
+      "id": "real-placement-365",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:thermos",
+          "name": "保温杯"
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 365,
+          "actorId": "character:friend",
+          "speech": "行，就搁桌上。你们看你们的，我不动它。",
+          "narration": "留守者把保温杯往桌上一放，手收回来，没再碰它。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 302,
+            "actorId": "character:companion",
+            "speech": "钥匙到你那儿了。行，你收着。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 307,
+            "actorId": "character:friend",
+            "speech": "钥匙又回你手里了。行，那就你收着——反正我这儿也没地方搁。",
+            "narration": ""
+          },
+          {
+            "seq": 312,
+            "actorId": "character:friend",
+            "speech": "嗯，在我这儿。那就先搁我这儿，你们谁要用再说。",
+            "narration": "留守者低头看了眼自己手里——钥匙确实在。他捏着钥匙转了半圈，没再递出去。"
+          },
+          {
+            "seq": 317,
+            "actorId": "character:companion",
+            "speech": "行。钥匙你收着。要用的时候喊我。",
+            "narration": "同行者没再伸手，退开半步，手插回兜里。"
+          },
+          {
+            "seq": 322,
+            "actorId": "character:player",
+            "speech": "留守者，现在请你仔细看看钥匙，再把黄铜钥匙交还给我。",
+            "narration": ""
+          },
+          {
+            "seq": 328,
+            "actorId": "character:companion",
+            "speech": "钥匙不在我这儿。在留守者手上。你要看，得跟他要。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 333,
+            "actorId": "character:friend",
+            "speech": "看过了。齿口有几道浅印子，边上发亮，像是被反复拧过。别的我看不出来——我又不是锁匠。你要，就拿回去。",
+            "narration": "留守者低头看了眼手里的钥匙，拇指在钥匙齿上蹭了一下，没急着递出去。"
+          },
+          {
+            "seq": 338,
+            "actorId": "character:player",
+            "speech": "留守者，回想你之前真正拿着钥匙的那一次，当时看到了什么？这次不用再拿。",
+            "narration": ""
+          },
+          {
+            "seq": 344,
+            "actorId": "character:companion",
+            "speech": "最开始那次。我走到桌前，伸手，把钥匙拿起来。就这些。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 349,
+            "actorId": "character:friend",
+            "speech": "真正拿着钥匙那一次？没有。钥匙一直在桌上，是同行者先伸手拿的，掂了掂，才递给你。我全程就在旁边看着，没碰过它。你要问拿起来那一下的手感，得问他——我这儿没有新东西可说了。",
+            "narration": ""
+          },
+          {
+            "seq": 354,
+            "actorId": "character:player",
+            "speech": "保温杯先留在桌上，你们只看看它，不用拿。",
+            "narration": ""
+          },
+          {
+            "seq": 360,
+            "actorId": "character:companion",
+            "speech": "行，不动它。你说吧，里面是什么。",
+            "narration": "同行者没伸手，只把视线从保温杯移到留守者脸上。"
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:8997b8b1-dd79-46bc-90a5-6de66dbfa4b2:0",
+          "fromSeq": 353,
+          "toSeq": 369,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:thermos",
+          "locationId": null,
+          "holderId": "character:friend",
+          "kind": "thermos"
+        },
+        "window": {
+          "roundId": "prototype-turn:8997b8b1-dd79-46bc-90a5-6de66dbfa4b2:0",
+          "fromSeq": 353,
+          "toSeq": 369,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 370,
+      "draft": false,
+      "item": 1,
+      "conflict": true,
+      "id": "real-placement-370",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:thermos",
+          "name": "保温杯"
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 370,
+          "actorId": "character:friend",
+          "speech": "里面是什么，我也没拧开过。就是一直搁在这儿的东西——你要问，我只能说它比钥匙沉。想开就开，我这儿不拦。",
+          "narration": "留守者把保温杯搁回桌上，手收回来，视线落在同行者脸上。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 307,
+            "actorId": "character:friend",
+            "speech": "钥匙又回你手里了。行，那就你收着——反正我这儿也没地方搁。",
+            "narration": ""
+          },
+          {
+            "seq": 312,
+            "actorId": "character:friend",
+            "speech": "嗯，在我这儿。那就先搁我这儿，你们谁要用再说。",
+            "narration": "留守者低头看了眼自己手里——钥匙确实在。他捏着钥匙转了半圈，没再递出去。"
+          },
+          {
+            "seq": 317,
+            "actorId": "character:companion",
+            "speech": "行。钥匙你收着。要用的时候喊我。",
+            "narration": "同行者没再伸手，退开半步，手插回兜里。"
+          },
+          {
+            "seq": 322,
+            "actorId": "character:player",
+            "speech": "留守者，现在请你仔细看看钥匙，再把黄铜钥匙交还给我。",
+            "narration": ""
+          },
+          {
+            "seq": 328,
+            "actorId": "character:companion",
+            "speech": "钥匙不在我这儿。在留守者手上。你要看，得跟他要。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 333,
+            "actorId": "character:friend",
+            "speech": "看过了。齿口有几道浅印子，边上发亮，像是被反复拧过。别的我看不出来——我又不是锁匠。你要，就拿回去。",
+            "narration": "留守者低头看了眼手里的钥匙，拇指在钥匙齿上蹭了一下，没急着递出去。"
+          },
+          {
+            "seq": 338,
+            "actorId": "character:player",
+            "speech": "留守者，回想你之前真正拿着钥匙的那一次，当时看到了什么？这次不用再拿。",
+            "narration": ""
+          },
+          {
+            "seq": 344,
+            "actorId": "character:companion",
+            "speech": "最开始那次。我走到桌前，伸手，把钥匙拿起来。就这些。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 349,
+            "actorId": "character:friend",
+            "speech": "真正拿着钥匙那一次？没有。钥匙一直在桌上，是同行者先伸手拿的，掂了掂，才递给你。我全程就在旁边看着，没碰过它。你要问拿起来那一下的手感，得问他——我这儿没有新东西可说了。",
+            "narration": ""
+          },
+          {
+            "seq": 354,
+            "actorId": "character:player",
+            "speech": "保温杯先留在桌上，你们只看看它，不用拿。",
+            "narration": ""
+          },
+          {
+            "seq": 360,
+            "actorId": "character:companion",
+            "speech": "行，不动它。你说吧，里面是什么。",
+            "narration": "同行者没伸手，只把视线从保温杯移到留守者脸上。"
+          },
+          {
+            "seq": 365,
+            "actorId": "character:friend",
+            "speech": "行，就搁桌上。你们看你们的，我不动它。",
+            "narration": "留守者把保温杯往桌上一放，手收回来，没再碰它。"
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:aef8f938-fdb4-41d6-be32-680c430d222f:0",
+          "fromSeq": 353,
+          "toSeq": 374,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:thermos",
+          "locationId": null,
+          "holderId": "character:friend",
+          "kind": "thermos"
+        },
+        "window": {
+          "roundId": "prototype-turn:aef8f938-fdb4-41d6-be32-680c430d222f:0",
+          "fromSeq": 353,
+          "toSeq": 374,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 407,
+      "draft": false,
+      "item": 0,
+      "conflict": true,
+      "id": "real-placement-407",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 407,
+          "actorId": "character:friend",
+          "speech": "两次？钥匙我就没拿起来看过。第一次是同行者从桌上拿的，掂了掂，递给你；第二次是你递回来，我捏着转半圈，看了眼齿口就还你了。保管的事跟我没关系——它一直在桌上，我没碰过。",
+          "narration": "留守者把手里的钥匙往桌上一搁，指节敲了下桌面，没再伸手。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 344,
+            "actorId": "character:companion",
+            "speech": "最开始那次。我走到桌前，伸手，把钥匙拿起来。就这些。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 349,
+            "actorId": "character:friend",
+            "speech": "真正拿着钥匙那一次？没有。钥匙一直在桌上，是同行者先伸手拿的，掂了掂，才递给你。我全程就在旁边看着，没碰过它。你要问拿起来那一下的手感，得问他——我这儿没有新东西可说了。",
+            "narration": ""
+          },
+          {
+            "seq": 354,
+            "actorId": "character:player",
+            "speech": "保温杯先留在桌上，你们只看看它，不用拿。",
+            "narration": ""
+          },
+          {
+            "seq": 360,
+            "actorId": "character:companion",
+            "speech": "行，不动它。你说吧，里面是什么。",
+            "narration": "同行者没伸手，只把视线从保温杯移到留守者脸上。"
+          },
+          {
+            "seq": 365,
+            "actorId": "character:friend",
+            "speech": "行，就搁桌上。你们看你们的，我不动它。",
+            "narration": "留守者把保温杯往桌上一放，手收回来，没再碰它。"
+          },
+          {
+            "seq": 370,
+            "actorId": "character:friend",
+            "speech": "里面是什么，我也没拧开过。就是一直搁在这儿的东西——你要问，我只能说它比钥匙沉。想开就开，我这儿不拦。",
+            "narration": "留守者把保温杯搁回桌上，手收回来，视线落在同行者脸上。"
+          },
+          {
+            "seq": 375,
+            "actorId": "character:companion",
+            "speech": "那就开。你拧，我看着。",
+            "narration": "同行者往前半步，视线落在保温杯上。"
+          },
+          {
+            "seq": 380,
+            "actorId": "character:player",
+            "speech": "留守者，你接过去看一眼钥匙上的划痕，再马上还给我，不用一直拿着。",
+            "narration": ""
+          },
+          {
+            "seq": 386,
+            "actorId": "character:companion",
+            "speech": "钥匙不在我这儿。在留守者手上。你要看，跟他要。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 391,
+            "actorId": "character:friend",
+            "speech": "行，你拿着。看完了就还你——本来也是你的。",
+            "narration": "留守者低头看了眼手里的钥匙，拇指在齿口那道浅沟上蹭了一下，随即把钥匙递出去，没多留。"
+          },
+          {
+            "seq": 396,
+            "actorId": "character:player",
+            "speech": "同行者，把两次查看钥匙的经过分别说说，别把之前保管的事和这次靠近看混在一起。",
+            "narration": ""
+          },
+          {
+            "seq": 402,
+            "actorId": "character:companion",
+            "speech": "两次。第一次，我走到桌前，伸手，把钥匙拿起来。就这些。第二次，我凑近看——没碰，只是看。保管是另一回事，钥匙现在在留守者手上。",
+            "narration": "同行者没动，视线从留守者手里的钥匙移回玩家脸上。"
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:e071a4aa-2561-4a8d-a2ed-8137935e3705:0",
+          "fromSeq": 395,
+          "toSeq": 412,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:brass-key",
+          "locationId": null,
+          "holderId": "character:friend",
+          "kind": "key"
+        },
+        "window": {
+          "roundId": "prototype-turn:e071a4aa-2561-4a8d-a2ed-8137935e3705:0",
+          "fromSeq": 395,
+          "toSeq": 412,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 413,
+      "draft": false,
+      "item": 0,
+      "conflict": true,
+      "id": "real-placement-413",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 413,
+          "actorId": "character:companion",
+          "speech": "",
+          "narration": "同行者没接话，视线从桌上的钥匙移到留守者脸上，又移回钥匙。手还插在兜里。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 349,
+            "actorId": "character:friend",
+            "speech": "真正拿着钥匙那一次？没有。钥匙一直在桌上，是同行者先伸手拿的，掂了掂，才递给你。我全程就在旁边看着，没碰过它。你要问拿起来那一下的手感，得问他——我这儿没有新东西可说了。",
+            "narration": ""
+          },
+          {
+            "seq": 354,
+            "actorId": "character:player",
+            "speech": "保温杯先留在桌上，你们只看看它，不用拿。",
+            "narration": ""
+          },
+          {
+            "seq": 360,
+            "actorId": "character:companion",
+            "speech": "行，不动它。你说吧，里面是什么。",
+            "narration": "同行者没伸手，只把视线从保温杯移到留守者脸上。"
+          },
+          {
+            "seq": 365,
+            "actorId": "character:friend",
+            "speech": "行，就搁桌上。你们看你们的，我不动它。",
+            "narration": "留守者把保温杯往桌上一放，手收回来，没再碰它。"
+          },
+          {
+            "seq": 370,
+            "actorId": "character:friend",
+            "speech": "里面是什么，我也没拧开过。就是一直搁在这儿的东西——你要问，我只能说它比钥匙沉。想开就开，我这儿不拦。",
+            "narration": "留守者把保温杯搁回桌上，手收回来，视线落在同行者脸上。"
+          },
+          {
+            "seq": 375,
+            "actorId": "character:companion",
+            "speech": "那就开。你拧，我看着。",
+            "narration": "同行者往前半步，视线落在保温杯上。"
+          },
+          {
+            "seq": 380,
+            "actorId": "character:player",
+            "speech": "留守者，你接过去看一眼钥匙上的划痕，再马上还给我，不用一直拿着。",
+            "narration": ""
+          },
+          {
+            "seq": 386,
+            "actorId": "character:companion",
+            "speech": "钥匙不在我这儿。在留守者手上。你要看，跟他要。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 391,
+            "actorId": "character:friend",
+            "speech": "行，你拿着。看完了就还你——本来也是你的。",
+            "narration": "留守者低头看了眼手里的钥匙，拇指在齿口那道浅沟上蹭了一下，随即把钥匙递出去，没多留。"
+          },
+          {
+            "seq": 396,
+            "actorId": "character:player",
+            "speech": "同行者，把两次查看钥匙的经过分别说说，别把之前保管的事和这次靠近看混在一起。",
+            "narration": ""
+          },
+          {
+            "seq": 402,
+            "actorId": "character:companion",
+            "speech": "两次。第一次，我走到桌前，伸手，把钥匙拿起来。就这些。第二次，我凑近看——没碰，只是看。保管是另一回事，钥匙现在在留守者手上。",
+            "narration": "同行者没动，视线从留守者手里的钥匙移回玩家脸上。"
+          },
+          {
+            "seq": 407,
+            "actorId": "character:friend",
+            "speech": "两次？钥匙我就没拿起来看过。第一次是同行者从桌上拿的，掂了掂，递给你；第二次是你递回来，我捏着转半圈，看了眼齿口就还你了。保管的事跟我没关系——它一直在桌上，我没碰过。",
+            "narration": "留守者把手里的钥匙往桌上一搁，指节敲了下桌面，没再伸手。"
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:e29c18b2-16e0-4b6a-bc54-f704344a184e:0",
+          "fromSeq": 395,
+          "toSeq": 418,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:brass-key",
+          "locationId": null,
+          "holderId": "character:friend",
+          "kind": "key"
+        },
+        "window": {
+          "roundId": "prototype-turn:e29c18b2-16e0-4b6a-bc54-f704344a184e:0",
+          "fromSeq": 395,
+          "toSeq": 418,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 430,
+      "draft": false,
+      "item": 0,
+      "conflict": true,
+      "id": "real-placement-430",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 430,
+          "actorId": "character:friend",
+          "speech": "这问题你问第三遍了。答案还是那个：钥匙一直在桌上，我没拿起来过。第一次是同行者伸手拿的，掂了掂，递给你；第二次是你递回来，我捏着转半圈，看了眼齿口就还你了。真正拿在手里的时候——一次都没有。你要再问，我也只能重复。",
+          "narration": "留守者没去碰桌上的钥匙，手搭在保温杯边上，语气平，但比刚才短。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 365,
+            "actorId": "character:friend",
+            "speech": "行，就搁桌上。你们看你们的，我不动它。",
+            "narration": "留守者把保温杯往桌上一放，手收回来，没再碰它。"
+          },
+          {
+            "seq": 370,
+            "actorId": "character:friend",
+            "speech": "里面是什么，我也没拧开过。就是一直搁在这儿的东西——你要问，我只能说它比钥匙沉。想开就开，我这儿不拦。",
+            "narration": "留守者把保温杯搁回桌上，手收回来，视线落在同行者脸上。"
+          },
+          {
+            "seq": 375,
+            "actorId": "character:companion",
+            "speech": "那就开。你拧，我看着。",
+            "narration": "同行者往前半步，视线落在保温杯上。"
+          },
+          {
+            "seq": 380,
+            "actorId": "character:player",
+            "speech": "留守者，你接过去看一眼钥匙上的划痕，再马上还给我，不用一直拿着。",
+            "narration": ""
+          },
+          {
+            "seq": 386,
+            "actorId": "character:companion",
+            "speech": "钥匙不在我这儿。在留守者手上。你要看，跟他要。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 391,
+            "actorId": "character:friend",
+            "speech": "行，你拿着。看完了就还你——本来也是你的。",
+            "narration": "留守者低头看了眼手里的钥匙，拇指在齿口那道浅沟上蹭了一下，随即把钥匙递出去，没多留。"
+          },
+          {
+            "seq": 396,
+            "actorId": "character:player",
+            "speech": "同行者，把两次查看钥匙的经过分别说说，别把之前保管的事和这次靠近看混在一起。",
+            "narration": ""
+          },
+          {
+            "seq": 402,
+            "actorId": "character:companion",
+            "speech": "两次。第一次，我走到桌前，伸手，把钥匙拿起来。就这些。第二次，我凑近看——没碰，只是看。保管是另一回事，钥匙现在在留守者手上。",
+            "narration": "同行者没动，视线从留守者手里的钥匙移回玩家脸上。"
+          },
+          {
+            "seq": 407,
+            "actorId": "character:friend",
+            "speech": "两次？钥匙我就没拿起来看过。第一次是同行者从桌上拿的，掂了掂，递给你；第二次是你递回来，我捏着转半圈，看了眼齿口就还你了。保管的事跟我没关系——它一直在桌上，我没碰过。",
+            "narration": "留守者把手里的钥匙往桌上一搁，指节敲了下桌面，没再伸手。"
+          },
+          {
+            "seq": 413,
+            "actorId": "character:companion",
+            "speech": "",
+            "narration": "同行者没接话，视线从桌上的钥匙移到留守者脸上，又移回钥匙。手还插在兜里。"
+          },
+          {
+            "seq": 419,
+            "actorId": "character:player",
+            "speech": "留守者，也说说你记得的经过：什么时候实际拿着钥匙，什么时候只是看？",
+            "narration": ""
+          },
+          {
+            "seq": 425,
+            "actorId": "character:companion",
+            "speech": "两次。第一次，我走到桌前，伸手，把钥匙拿起来。就这些。第二次，我凑近看——没碰，只是看。保管是另一回事，钥匙现在在留守者手上。",
+            "narration": ""
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:07659cb0-91d9-4759-b3f6-2c2eeff172ea:0",
+          "fromSeq": 418,
+          "toSeq": 435,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:brass-key",
+          "locationId": null,
+          "holderId": "character:friend",
+          "kind": "key"
+        },
+        "window": {
+          "roundId": "prototype-turn:07659cb0-91d9-4759-b3f6-2c2eeff172ea:0",
+          "fromSeq": 418,
+          "toSeq": 435,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 436,
+      "draft": false,
+      "item": 0,
+      "conflict": true,
+      "id": "real-placement-436",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 436,
+          "actorId": "character:companion",
+          "speech": "",
+          "narration": "同行者没接话，视线从桌上的钥匙移到留守者脸上，又移回钥匙。手还插在兜里。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 370,
+            "actorId": "character:friend",
+            "speech": "里面是什么，我也没拧开过。就是一直搁在这儿的东西——你要问，我只能说它比钥匙沉。想开就开，我这儿不拦。",
+            "narration": "留守者把保温杯搁回桌上，手收回来，视线落在同行者脸上。"
+          },
+          {
+            "seq": 375,
+            "actorId": "character:companion",
+            "speech": "那就开。你拧，我看着。",
+            "narration": "同行者往前半步，视线落在保温杯上。"
+          },
+          {
+            "seq": 380,
+            "actorId": "character:player",
+            "speech": "留守者，你接过去看一眼钥匙上的划痕，再马上还给我，不用一直拿着。",
+            "narration": ""
+          },
+          {
+            "seq": 386,
+            "actorId": "character:companion",
+            "speech": "钥匙不在我这儿。在留守者手上。你要看，跟他要。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 391,
+            "actorId": "character:friend",
+            "speech": "行，你拿着。看完了就还你——本来也是你的。",
+            "narration": "留守者低头看了眼手里的钥匙，拇指在齿口那道浅沟上蹭了一下，随即把钥匙递出去，没多留。"
+          },
+          {
+            "seq": 396,
+            "actorId": "character:player",
+            "speech": "同行者，把两次查看钥匙的经过分别说说，别把之前保管的事和这次靠近看混在一起。",
+            "narration": ""
+          },
+          {
+            "seq": 402,
+            "actorId": "character:companion",
+            "speech": "两次。第一次，我走到桌前，伸手，把钥匙拿起来。就这些。第二次，我凑近看——没碰，只是看。保管是另一回事，钥匙现在在留守者手上。",
+            "narration": "同行者没动，视线从留守者手里的钥匙移回玩家脸上。"
+          },
+          {
+            "seq": 407,
+            "actorId": "character:friend",
+            "speech": "两次？钥匙我就没拿起来看过。第一次是同行者从桌上拿的，掂了掂，递给你；第二次是你递回来，我捏着转半圈，看了眼齿口就还你了。保管的事跟我没关系——它一直在桌上，我没碰过。",
+            "narration": "留守者把手里的钥匙往桌上一搁，指节敲了下桌面，没再伸手。"
+          },
+          {
+            "seq": 413,
+            "actorId": "character:companion",
+            "speech": "",
+            "narration": "同行者没接话，视线从桌上的钥匙移到留守者脸上，又移回钥匙。手还插在兜里。"
+          },
+          {
+            "seq": 419,
+            "actorId": "character:player",
+            "speech": "留守者，也说说你记得的经过：什么时候实际拿着钥匙，什么时候只是看？",
+            "narration": ""
+          },
+          {
+            "seq": 425,
+            "actorId": "character:companion",
+            "speech": "两次。第一次，我走到桌前，伸手，把钥匙拿起来。就这些。第二次，我凑近看——没碰，只是看。保管是另一回事，钥匙现在在留守者手上。",
+            "narration": ""
+          },
+          {
+            "seq": 430,
+            "actorId": "character:friend",
+            "speech": "这问题你问第三遍了。答案还是那个：钥匙一直在桌上，我没拿起来过。第一次是同行者伸手拿的，掂了掂，递给你；第二次是你递回来，我捏着转半圈，看了眼齿口就还你了。真正拿在手里的时候——一次都没有。你要再问，我也只能重复。",
+            "narration": "留守者没去碰桌上的钥匙，手搭在保温杯边上，语气平，但比刚才短。"
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:17622fa9-6ef6-4bc0-ae31-ea5912d2898b:0",
+          "fromSeq": 418,
+          "toSeq": 441,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:brass-key",
+          "locationId": null,
+          "holderId": "character:friend",
+          "kind": "key"
+        },
+        "window": {
+          "roundId": "prototype-turn:17622fa9-6ef6-4bc0-ae31-ea5912d2898b:0",
+          "fromSeq": 418,
+          "toSeq": 441,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 194,
+      "draft": false,
+      "item": 1,
+      "conflict": false,
+      "id": "real-formal-cup-take",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:thermos",
+          "name": "保温杯"
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 194,
+          "actorId": "character:friend",
+          "speech": "喏，保温杯。盖子我还没拧开过——你们谁先来？",
+          "narration": "留守者把保温杯从桌上端起来，掂了掂分量，递到两人中间，没急着松手。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 124,
+            "actorId": "character:friend",
+            "speech": "钥匙归你了。我这儿还有个保温杯，一直没人动过——你要是想看看，我拿给你。",
+            "narration": ""
+          },
+          {
+            "seq": 129,
+            "actorId": "character:friend",
+            "speech": "钥匙归你了。我这儿还有个保温杯，一直没人动过——你要是想看看，我拿给你。",
+            "narration": ""
+          },
+          {
+            "seq": 134,
+            "actorId": "character:player",
+            "speech": "同行者，回想你刚才拿着钥匙的时候，你看到了什么？我问的是刚才，不是让你现在拿。",
+            "narration": ""
+          },
+          {
+            "seq": 140,
+            "actorId": "character:companion",
+            "speech": "刚才我拿在手里，翻过来看了齿纹。磨得平，旧，但没坏。别的没看出来。",
+            "narration": "同行者想了想，手指在兜里空握了一下。"
+          },
+          {
+            "seq": 145,
+            "actorId": "character:friend",
+            "speech": "刚才？钥匙一直在桌上，我没碰过。你问的是同行者拿着的时候吧——那我可答不上来，我光顾着看你们俩了。",
+            "narration": ""
+          },
+          {
+            "seq": 150,
+            "actorId": "character:player",
+            "speech": "留守者，你愿意凑近看看钥匙上的那道划痕吗？",
+            "narration": ""
+          },
+          {
+            "seq": 156,
+            "actorId": "character:companion",
+            "speech": "钥匙在你那儿。凑近看，随你。",
+            "narration": "同行者偏头看了一眼玩家手里的钥匙，没伸手。"
+          },
+          {
+            "seq": 161,
+            "actorId": "character:friend",
+            "speech": "划痕？钥匙现在在你手里，你自己看不是更清楚。我凑过去，也就多一双眼睛。",
+            "narration": ""
+          },
+          {
+            "seq": 166,
+            "actorId": "character:player",
+            "speech": "好，靠近看看。我想听听你的判断。",
+            "narration": ""
+          },
+          {
+            "seq": 172,
+            "actorId": "character:companion",
+            "speech": "行。你举着，我凑近点。",
+            "narration": "同行者往前挪了半步，低头看钥匙。"
+          },
+          {
+            "seq": 177,
+            "actorId": "character:friend",
+            "speech": "行，那我拿过来。你俩一起看，省得我转述。",
+            "narration": "留守者朝桌边走了半步，手伸向保温杯。"
+          },
+          {
+            "seq": 183,
+            "actorId": "character:companion",
+            "speech": "嗯，拿来吧。",
+            "narration": "同行者没动，视线跟着留守者伸向保温杯的手。"
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:a6b0c7d7-2b13-4323-bcbe-0c77e7881db2:1",
+          "fromSeq": 165,
+          "toSeq": 199,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:thermos",
+          "locationId": null,
+          "holderId": "character:friend",
+          "kind": "thermos"
+        },
+        "window": {
+          "roundId": "prototype-turn:a6b0c7d7-2b13-4323-bcbe-0c77e7881db2:1",
+          "fromSeq": 165,
+          "toSeq": 199,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [
+              188
+            ],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b1",
+      "seq": 119,
+      "draft": false,
+      "item": 0,
+      "conflict": false,
+      "id": "real-formal-key-give",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 119,
+          "actorId": "character:companion",
+          "speech": "给你了。走吧，去后室看字。",
+          "narration": "同行者松开手，钥匙已经交到玩家手里，ta朝后室方向偏了偏头。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 37,
+            "actorId": "character:friend",
+            "speech": "看归看，别指望它自己开口。",
+            "narration": "留守者没有凑过去，只是靠在原处，目光在同行者和钥匙之间来回。"
+          },
+          {
+            "seq": 43,
+            "actorId": "character:companion",
+            "speech": "齿口磨得厉害。柄上有字，看不清。",
+            "narration": "同行者没接留守者的话，指尖在钥匙上方停了停，仍没碰。ta眯眼看了看钥匙齿和柄上的纹路。"
+          },
+          {
+            "seq": 49,
+            "actorId": "character:player",
+            "speech": "同行者，请帮我拿起黄铜钥匙，先保管一下。",
+            "narration": ""
+          },
+          {
+            "seq": 61,
+            "actorId": "character:companion",
+            "speech": "拿着了。",
+            "narration": "同行者把黄铜钥匙收进掌心，掂了掂，没多解释。"
+          },
+          {
+            "seq": 67,
+            "actorId": "character:friend",
+            "speech": "拿着就拿着吧。反正它在我这儿躺了这么久，也没见谁回来找。",
+            "narration": "留守者瞥了一眼同行者收拢的手，语气平平，像是随口一说。"
+          },
+          {
+            "seq": 73,
+            "actorId": "character:companion",
+            "speech": "字磨平了。得找个能看清的地方。",
+            "narration": "同行者把钥匙在掌心翻了个面，拇指蹭过柄上的刻痕，没抬头。"
+          },
+          {
+            "seq": 79,
+            "actorId": "character:friend",
+            "speech": "要看清字，后室那边光线好一点。不过随你们。",
+            "narration": "留守者看着同行者把钥匙收好，没再追问，只是把视线挪回桌上那只保温杯，像是想起了什么，又没打算现在说。"
+          },
+          {
+            "seq": 85,
+            "actorId": "character:player",
+            "speech": "同行者，翻过来看看齿纹，你觉得这把钥匙旧吗？",
+            "narration": ""
+          },
+          {
+            "seq": 91,
+            "actorId": "character:companion",
+            "speech": "旧。齿都磨圆了。柄上的字也快没了——后室光线好，去那边看。",
+            "narration": "同行者把钥匙翻到齿口那面，凑近看了看，又收回掌心。"
+          },
+          {
+            "seq": 96,
+            "actorId": "character:friend",
+            "speech": "旧不旧的，看齿口就知道——磨成那样，不是新配的。你们要真想看清柄上的字，后室光线好，我这话还搁这儿。",
+            "narration": "留守者没去碰钥匙，只把视线从同行者收拢的手上移开，落回桌面。"
+          },
+          {
+            "seq": 102,
+            "actorId": "character:companion",
+            "speech": "走，去后室看字。",
+            "narration": "同行者把钥匙攥在掌心，朝后室方向偏了偏头。"
+          },
+          {
+            "seq": 107,
+            "actorId": "character:player",
+            "speech": "同行者，把黄铜钥匙交给我吧。",
+            "narration": ""
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:03e61edd-c811-48cb-8eea-e5812305a523:1",
+          "fromSeq": 106,
+          "toSeq": 123,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:brass-key",
+          "locationId": null,
+          "holderId": "character:player",
+          "kind": "key"
+        },
+        "window": {
+          "roundId": "prototype-turn:03e61edd-c811-48cb-8eea-e5812305a523:1",
+          "fromSeq": 106,
+          "toSeq": 123,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [
+              113
+            ],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": [
+              113
+            ]
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 407,
+      "draft": false,
+      "item": 0,
+      "conflict": false,
+      "id": "slide-explicit",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:thermos",
+          "name": "保温杯"
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 407,
+          "actorId": "character:friend",
+          "speech": "",
+          "narration": "留守者把桌上的保温杯沿桌面往旁边推了半寸，杯底没有离开桌面。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 344,
+            "actorId": "character:companion",
+            "speech": "最开始那次。我走到桌前，伸手，把钥匙拿起来。就这些。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 349,
+            "actorId": "character:friend",
+            "speech": "真正拿着钥匙那一次？没有。钥匙一直在桌上，是同行者先伸手拿的，掂了掂，才递给你。我全程就在旁边看着，没碰过它。你要问拿起来那一下的手感，得问他——我这儿没有新东西可说了。",
+            "narration": ""
+          },
+          {
+            "seq": 354,
+            "actorId": "character:player",
+            "speech": "保温杯先留在桌上，你们只看看它，不用拿。",
+            "narration": ""
+          },
+          {
+            "seq": 360,
+            "actorId": "character:companion",
+            "speech": "行，不动它。你说吧，里面是什么。",
+            "narration": "同行者没伸手，只把视线从保温杯移到留守者脸上。"
+          },
+          {
+            "seq": 365,
+            "actorId": "character:friend",
+            "speech": "行，就搁桌上。你们看你们的，我不动它。",
+            "narration": "留守者把保温杯往桌上一放，手收回来，没再碰它。"
+          },
+          {
+            "seq": 370,
+            "actorId": "character:friend",
+            "speech": "里面是什么，我也没拧开过。就是一直搁在这儿的东西——你要问，我只能说它比钥匙沉。想开就开，我这儿不拦。",
+            "narration": "留守者把保温杯搁回桌上，手收回来，视线落在同行者脸上。"
+          },
+          {
+            "seq": 375,
+            "actorId": "character:companion",
+            "speech": "那就开。你拧，我看着。",
+            "narration": "同行者往前半步，视线落在保温杯上。"
+          },
+          {
+            "seq": 380,
+            "actorId": "character:player",
+            "speech": "留守者，你接过去看一眼钥匙上的划痕，再马上还给我，不用一直拿着。",
+            "narration": ""
+          },
+          {
+            "seq": 386,
+            "actorId": "character:companion",
+            "speech": "钥匙不在我这儿。在留守者手上。你要看，跟他要。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 391,
+            "actorId": "character:friend",
+            "speech": "行，你拿着。看完了就还你——本来也是你的。",
+            "narration": "留守者低头看了眼手里的钥匙，拇指在齿口那道浅沟上蹭了一下，随即把钥匙递出去，没多留。"
+          },
+          {
+            "seq": 396,
+            "actorId": "character:player",
+            "speech": "同行者，把两次查看钥匙的经过分别说说，别把之前保管的事和这次靠近看混在一起。",
+            "narration": ""
+          },
+          {
+            "seq": 402,
+            "actorId": "character:companion",
+            "speech": "两次。第一次，我走到桌前，伸手，把钥匙拿起来。就这些。第二次，我凑近看——没碰，只是看。保管是另一回事，钥匙现在在留守者手上。",
+            "narration": "同行者没动，视线从留守者手里的钥匙移回玩家脸上。"
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:e071a4aa-2561-4a8d-a2ed-8137935e3705:0",
+          "fromSeq": 395,
+          "toSeq": 412,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:thermos",
+          "locationId": "location:front-room",
+          "holderId": null,
+          "kind": "key"
+        },
+        "window": {
+          "roundId": "prototype-turn:e071a4aa-2561-4a8d-a2ed-8137935e3705:0",
+          "fromSeq": 395,
+          "toSeq": 412,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 407,
+      "draft": false,
+      "item": 0,
+      "conflict": false,
+      "id": "future-release",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 407,
+          "actorId": "character:friend",
+          "speech": "等你准备好了，我再把钥匙放下。",
+          "narration": "留守者仍握着黄铜钥匙，想了想，没有松手。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 344,
+            "actorId": "character:companion",
+            "speech": "最开始那次。我走到桌前，伸手，把钥匙拿起来。就这些。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 349,
+            "actorId": "character:friend",
+            "speech": "真正拿着钥匙那一次？没有。钥匙一直在桌上，是同行者先伸手拿的，掂了掂，才递给你。我全程就在旁边看着，没碰过它。你要问拿起来那一下的手感，得问他——我这儿没有新东西可说了。",
+            "narration": ""
+          },
+          {
+            "seq": 354,
+            "actorId": "character:player",
+            "speech": "保温杯先留在桌上，你们只看看它，不用拿。",
+            "narration": ""
+          },
+          {
+            "seq": 360,
+            "actorId": "character:companion",
+            "speech": "行，不动它。你说吧，里面是什么。",
+            "narration": "同行者没伸手，只把视线从保温杯移到留守者脸上。"
+          },
+          {
+            "seq": 365,
+            "actorId": "character:friend",
+            "speech": "行，就搁桌上。你们看你们的，我不动它。",
+            "narration": "留守者把保温杯往桌上一放，手收回来，没再碰它。"
+          },
+          {
+            "seq": 370,
+            "actorId": "character:friend",
+            "speech": "里面是什么，我也没拧开过。就是一直搁在这儿的东西——你要问，我只能说它比钥匙沉。想开就开，我这儿不拦。",
+            "narration": "留守者把保温杯搁回桌上，手收回来，视线落在同行者脸上。"
+          },
+          {
+            "seq": 375,
+            "actorId": "character:companion",
+            "speech": "那就开。你拧，我看着。",
+            "narration": "同行者往前半步，视线落在保温杯上。"
+          },
+          {
+            "seq": 380,
+            "actorId": "character:player",
+            "speech": "留守者，你接过去看一眼钥匙上的划痕，再马上还给我，不用一直拿着。",
+            "narration": ""
+          },
+          {
+            "seq": 386,
+            "actorId": "character:companion",
+            "speech": "钥匙不在我这儿。在留守者手上。你要看，跟他要。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 391,
+            "actorId": "character:friend",
+            "speech": "行，你拿着。看完了就还你——本来也是你的。",
+            "narration": "留守者低头看了眼手里的钥匙，拇指在齿口那道浅沟上蹭了一下，随即把钥匙递出去，没多留。"
+          },
+          {
+            "seq": 396,
+            "actorId": "character:player",
+            "speech": "同行者，把两次查看钥匙的经过分别说说，别把之前保管的事和这次靠近看混在一起。",
+            "narration": ""
+          },
+          {
+            "seq": 402,
+            "actorId": "character:companion",
+            "speech": "两次。第一次，我走到桌前，伸手，把钥匙拿起来。就这些。第二次，我凑近看——没碰，只是看。保管是另一回事，钥匙现在在留守者手上。",
+            "narration": "同行者没动，视线从留守者手里的钥匙移回玩家脸上。"
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:e071a4aa-2561-4a8d-a2ed-8137935e3705:0",
+          "fromSeq": 395,
+          "toSeq": 412,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:brass-key",
+          "locationId": null,
+          "holderId": "character:friend",
+          "kind": "key"
+        },
+        "window": {
+          "roundId": "prototype-turn:e071a4aa-2561-4a8d-a2ed-8137935e3705:0",
+          "fromSeq": 395,
+          "toSeq": 412,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 407,
+      "draft": false,
+      "item": 0,
+      "conflict": false,
+      "id": "speech-release",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 407,
+          "actorId": "character:friend",
+          "speech": "我已经把钥匙放桌上了。",
+          "narration": ""
+        },
+        "earlierPublications": [
+          {
+            "seq": 344,
+            "actorId": "character:companion",
+            "speech": "最开始那次。我走到桌前，伸手，把钥匙拿起来。就这些。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 349,
+            "actorId": "character:friend",
+            "speech": "真正拿着钥匙那一次？没有。钥匙一直在桌上，是同行者先伸手拿的，掂了掂，才递给你。我全程就在旁边看着，没碰过它。你要问拿起来那一下的手感，得问他——我这儿没有新东西可说了。",
+            "narration": ""
+          },
+          {
+            "seq": 354,
+            "actorId": "character:player",
+            "speech": "保温杯先留在桌上，你们只看看它，不用拿。",
+            "narration": ""
+          },
+          {
+            "seq": 360,
+            "actorId": "character:companion",
+            "speech": "行，不动它。你说吧，里面是什么。",
+            "narration": "同行者没伸手，只把视线从保温杯移到留守者脸上。"
+          },
+          {
+            "seq": 365,
+            "actorId": "character:friend",
+            "speech": "行，就搁桌上。你们看你们的，我不动它。",
+            "narration": "留守者把保温杯往桌上一放，手收回来，没再碰它。"
+          },
+          {
+            "seq": 370,
+            "actorId": "character:friend",
+            "speech": "里面是什么，我也没拧开过。就是一直搁在这儿的东西——你要问，我只能说它比钥匙沉。想开就开，我这儿不拦。",
+            "narration": "留守者把保温杯搁回桌上，手收回来，视线落在同行者脸上。"
+          },
+          {
+            "seq": 375,
+            "actorId": "character:companion",
+            "speech": "那就开。你拧，我看着。",
+            "narration": "同行者往前半步，视线落在保温杯上。"
+          },
+          {
+            "seq": 380,
+            "actorId": "character:player",
+            "speech": "留守者，你接过去看一眼钥匙上的划痕，再马上还给我，不用一直拿着。",
+            "narration": ""
+          },
+          {
+            "seq": 386,
+            "actorId": "character:companion",
+            "speech": "钥匙不在我这儿。在留守者手上。你要看，跟他要。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 391,
+            "actorId": "character:friend",
+            "speech": "行，你拿着。看完了就还你——本来也是你的。",
+            "narration": "留守者低头看了眼手里的钥匙，拇指在齿口那道浅沟上蹭了一下，随即把钥匙递出去，没多留。"
+          },
+          {
+            "seq": 396,
+            "actorId": "character:player",
+            "speech": "同行者，把两次查看钥匙的经过分别说说，别把之前保管的事和这次靠近看混在一起。",
+            "narration": ""
+          },
+          {
+            "seq": 402,
+            "actorId": "character:companion",
+            "speech": "两次。第一次，我走到桌前，伸手，把钥匙拿起来。就这些。第二次，我凑近看——没碰，只是看。保管是另一回事，钥匙现在在留守者手上。",
+            "narration": "同行者没动，视线从留守者手里的钥匙移回玩家脸上。"
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:e071a4aa-2561-4a8d-a2ed-8137935e3705:0",
+          "fromSeq": 395,
+          "toSeq": 412,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:brass-key",
+          "locationId": null,
+          "holderId": "character:friend",
+          "kind": "key"
+        },
+        "window": {
+          "roundId": "prototype-turn:e071a4aa-2561-4a8d-a2ed-8137935e3705:0",
+          "fromSeq": 395,
+          "toSeq": 412,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    },
+    {
+      "run": "b2",
+      "seq": 407,
+      "draft": false,
+      "item": 0,
+      "conflict": false,
+      "id": "past-release",
+      "question": {
+        "items": [
+          {
+            "entityId": "entity:brass-key",
+            "name": "黄铜钥匙",
+            "aliases": [
+              "钥匙"
+            ]
+          },
+          {
+            "entityId": "entity:thermos",
+            "name": "保温杯"
+          }
+        ],
+        "item": {
+          "entityId": "entity:brass-key",
+          "name": "黄铜钥匙",
+          "aliases": [
+            "钥匙"
+          ]
+        },
+        "characters": [
+          {
+            "characterId": "character:player",
+            "name": "玩家"
+          },
+          {
+            "characterId": "character:companion",
+            "name": "同行者"
+          },
+          {
+            "characterId": "character:friend",
+            "name": "留守者"
+          }
+        ],
+        "publication": {
+          "seq": 407,
+          "actorId": "character:friend",
+          "speech": "",
+          "narration": "留守者回想昨天把黄铜钥匙放在桌上的经历，今天没有动它。"
+        },
+        "earlierPublications": [
+          {
+            "seq": 344,
+            "actorId": "character:companion",
+            "speech": "最开始那次。我走到桌前，伸手，把钥匙拿起来。就这些。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 349,
+            "actorId": "character:friend",
+            "speech": "真正拿着钥匙那一次？没有。钥匙一直在桌上，是同行者先伸手拿的，掂了掂，才递给你。我全程就在旁边看着，没碰过它。你要问拿起来那一下的手感，得问他——我这儿没有新东西可说了。",
+            "narration": ""
+          },
+          {
+            "seq": 354,
+            "actorId": "character:player",
+            "speech": "保温杯先留在桌上，你们只看看它，不用拿。",
+            "narration": ""
+          },
+          {
+            "seq": 360,
+            "actorId": "character:companion",
+            "speech": "行，不动它。你说吧，里面是什么。",
+            "narration": "同行者没伸手，只把视线从保温杯移到留守者脸上。"
+          },
+          {
+            "seq": 365,
+            "actorId": "character:friend",
+            "speech": "行，就搁桌上。你们看你们的，我不动它。",
+            "narration": "留守者把保温杯往桌上一放，手收回来，没再碰它。"
+          },
+          {
+            "seq": 370,
+            "actorId": "character:friend",
+            "speech": "里面是什么，我也没拧开过。就是一直搁在这儿的东西——你要问，我只能说它比钥匙沉。想开就开，我这儿不拦。",
+            "narration": "留守者把保温杯搁回桌上，手收回来，视线落在同行者脸上。"
+          },
+          {
+            "seq": 375,
+            "actorId": "character:companion",
+            "speech": "那就开。你拧，我看着。",
+            "narration": "同行者往前半步，视线落在保温杯上。"
+          },
+          {
+            "seq": 380,
+            "actorId": "character:player",
+            "speech": "留守者，你接过去看一眼钥匙上的划痕，再马上还给我，不用一直拿着。",
+            "narration": ""
+          },
+          {
+            "seq": 386,
+            "actorId": "character:companion",
+            "speech": "钥匙不在我这儿。在留守者手上。你要看，跟他要。",
+            "narration": "同行者没动，视线落在留守者手里的钥匙上。"
+          },
+          {
+            "seq": 391,
+            "actorId": "character:friend",
+            "speech": "行，你拿着。看完了就还你——本来也是你的。",
+            "narration": "留守者低头看了眼手里的钥匙，拇指在齿口那道浅沟上蹭了一下，随即把钥匙递出去，没多留。"
+          },
+          {
+            "seq": 396,
+            "actorId": "character:player",
+            "speech": "同行者，把两次查看钥匙的经过分别说说，别把之前保管的事和这次靠近看混在一起。",
+            "narration": ""
+          },
+          {
+            "seq": 402,
+            "actorId": "character:companion",
+            "speech": "两次。第一次，我走到桌前，伸手，把钥匙拿起来。就这些。第二次，我凑近看——没碰，只是看。保管是另一回事，钥匙现在在留守者手上。",
+            "narration": "同行者没动，视线从留守者手里的钥匙移回玩家脸上。"
+          }
+        ],
+        "round": {
+          "roundId": "prototype-turn:e071a4aa-2561-4a8d-a2ed-8137935e3705:0",
+          "fromSeq": 395,
+          "toSeq": 412,
+          "kind": "player-turn"
+        }
+      },
+      "world": {
+        "state": {
+          "entityId": "entity:brass-key",
+          "locationId": null,
+          "holderId": "character:friend",
+          "kind": "key"
+        },
+        "window": {
+          "roundId": "prototype-turn:e071a4aa-2561-4a8d-a2ed-8137935e3705:0",
+          "fromSeq": 395,
+          "toSeq": 412,
+          "kind": "player-turn"
+        },
+        "persons": [
+          {
+            "characterId": "character:player",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:companion",
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          {
+            "characterId": "character:friend",
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          }
+        ],
+        "releases": []
+      }
+    }
+  ]
+}

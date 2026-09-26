@@ -16,7 +16,7 @@ const speak = (seq: number, tx = seq) => event(seq,'character.speak',{characterI
 const transfer = (seq: number, from: string | null, to: string | null, tx = seq) => event(seq,'entity.transferred',{
   entityId:'item:key',fromHolderId:from,fromLocationId:from===null?'room':null,toHolderId:to,toLocationId:to===null?'room':null,characterId:from??to!,interactionId:'give'},tx)
 function answer(kind: ClaimKind = 'NONE', person = 'char:b', referenceSeq: number | null = null): ClaimAnswer {
-  return {model:'fixture',inputTokens:1,outputTokens:1,costUsd:0,claims:characters.map(c => ({characterId:c.characterId,
+  return {placement:{kind:'NONE',probabilities:{NONE:1},confidence:1},model:'fixture',inputTokens:1,outputTokens:1,costUsd:0,claims:characters.map(c => ({characterId:c.characterId,
     kind:c.characterId===person?kind:'NONE',referenceSeq:c.characterId===person?referenceSeq:null,confidence:1,
     probabilities:Object.fromEntries(Object.keys(claimCriteria).map(k => [k,k===kind?1:0])),referenceProbabilities:{NONE:1}}))}
 }
@@ -100,7 +100,7 @@ it('wire has only published text and metadata; parses every temporal claim and r
     earlierPublications:[{seq:5,actorId:'char:b',speech:'',narration:'陆遥拿起钥匙。'}],round:{roundId:'r',fromSeq:5,toSeq:6}}
   const request=claimRequest(q)
   expect(Object.keys(request.state).sort()).toEqual(['characters','earlierPublications','items','publication','round','target'])
-  const answers=Object.fromEntries(Object.entries(request.questions).map(([id,question])=>{const choice=id.startsWith('claim')?'OBJECTIVE_PAST':'publication:5'
+  const answers=Object.fromEntries(Object.entries(request.questions).map(([id,question])=>{const choice=id==='placement'?'NONE':id.startsWith('claim')?'OBJECTIVE_PAST':'publication:5'
     return [id,{type:'choice',choice,probabilities:Object.fromEntries(Object.keys(question.criteria).map(label=>[label,label===choice?1:0]))}]}))
   expect(parseClaimAnswer({model:'fixture',answers,usage:{cost:0}},q).claims[0]).toMatchObject({kind:'OBJECTIVE_PAST',referenceSeq:5})
   expect(()=>parseClaimAnswer({model:'fixture',answers:{}},q)).toThrow()
@@ -148,4 +148,18 @@ it('the nearby window stays inside the most recent player submission even with s
   expect(records.map(r=>r.status)).toEqual(['SUPPORTED','SUPPORTED','SUPPORTED','CONFLICT'])
   expect(records[2]?.claims.find(c=>c.characterId==='char:b')?.window).toMatchObject({fromSeq:4,toSeq:9,kind:'player-turn'})
   expect(records[3]?.claims.find(c=>c.characterId==='char:b')?.evidence.enteredSeqs).toEqual([])
+})
+
+it('unsupported release and later tabletop observation both conflict, while a formal drop and its continuation are supported',async()=>{
+  const events=[...initial,transfer(5,null,'char:b'),speak(6),speak(7),transfer(8,'char:b',null),speak(9),speak(10)]
+  const {shadow,records}=setup(events,async q=>({...answer(),placement:{kind:q.publication.seq===6||q.publication.seq===9?'OBJECTIVE_RELEASE':'OBJECTIVE_GROUND',probabilities:{NONE:1},confidence:1}}))
+  shadow.observe(10);await shadow.close()
+  expect(records.map(r=>r.status)).toEqual(['CONFLICT','CONFLICT','SUPPORTED','SUPPORTED'])
+  expect(records[0]?.placement?.releasedSeqs).toEqual([])
+  expect(records[2]?.placement?.releasedSeqs).toEqual([8])
+})
+it('old ground state alone cannot prove this new release, and another room cannot support a current tabletop claim',async()=>{
+  const {shadow,records}=setup([...initial,speak(5),event(6,'character.moved',{characterId:'char:a',fromLocationId:'room',toLocationId:'other'}),speak(7)],
+    async q=>({...answer(),placement:{kind:q.publication.seq===5?'OBJECTIVE_RELEASE':'OBJECTIVE_GROUND',probabilities:{NONE:1},confidence:1}}))
+  shadow.observe(7);await shadow.close();expect(records.map(r=>r.status)).toEqual(['CONFLICT','CONFLICT'])
 })

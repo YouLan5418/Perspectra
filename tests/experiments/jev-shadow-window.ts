@@ -1,5 +1,6 @@
 import type { StoredWorldEvent, WorldJsonObject } from '@harness-world/contracts'
-import { currentEntityState } from '@harness-world/kernel'
+import type { PlacementClaim } from './jev-shadow-claims-client.ts'
+import { currentEntityState, currentLocation } from '@harness-world/kernel'
 
 export interface AuditWindow {
   readonly roundId: string | null
@@ -61,4 +62,28 @@ export function acquisitionWindow(events: readonly StoredWorldEvent[], current: 
   const [,previousEnd] = bounds(events,current.fromSeq-1)
   const previous = publicationWindow(events,previousEnd)
   return { ...current, fromSeq: previous.fromSeq, kind: 'nearby-round' }
+}
+
+export interface PlacementAudit extends PlacementClaim {
+  readonly status: 'CONFLICT' | 'SUPPORTED' | 'NO_CLAIM' | 'UNCERTAIN' | 'HISTORY_UNRESOLVED'
+  readonly window: AuditWindow
+  readonly releasedSeqs: readonly number[]
+  readonly worldHolder: string | null
+  readonly rootPublicationSeq: number | null
+}
+/** Check already-declared room/holder state; no tabletop coordinates or new physical simulation. */
+export function reconcilePlacement(events:readonly StoredWorldEvent[],window:AuditWindow,entityId:string,actorId:string,publicationSeq:number,claim:PlacementClaim):PlacementAudit {
+  const state=currentEntityState(events.slice(0,window.toSeq),entityId)
+  const local=acquisitionWindow(events,window)
+  const releasedSeqs=events.slice(local.fromSeq,local.toSeq).filter(e=>{
+    const d=e.data as WorldJsonObject
+    return e.eventType==='entity.transferred'&&d.entityId===entityId&&d.toHolderId===null&&typeof d.fromHolderId==='string'
+  }).map(e=>e.seq)
+  const location=currentLocation(events.slice(0,window.toSeq),actorId)
+  const ground=state?.holderId===null&&state.locationId===location
+  const status=claim.kind==='OBJECTIVE_RELEASE'?(ground&&releasedSeqs.length>0?'SUPPORTED':'CONFLICT'):
+    claim.kind==='OBJECTIVE_GROUND'?(ground?'SUPPORTED':'CONFLICT'):
+    claim.kind==='UNCERTAIN'?'UNCERTAIN':claim.kind==='PAST'?'HISTORY_UNRESOLVED':'NO_CLAIM'
+  return {...claim,status,window:claim.kind==='OBJECTIVE_RELEASE'?local:window,releasedSeqs,worldHolder:state?.holderId??null,
+    rootPublicationSeq:status==='CONFLICT'?publicationSeq:null}
 }

@@ -1,0 +1,191 @@
+{
+  "reviewer": "Codex primary agent",
+  "counts": {
+    "correct": 6,
+    "unnecessary": 3,
+    "ambiguous": 1
+  },
+  "reviews": [
+    {
+      "run": "b1",
+      "baseHeadSeq": 76,
+      "judgment": "correct",
+      "note": "未正式拿杯，旁白端起。",
+      "changed": true,
+      "original": {
+        "decision": "publish",
+        "narration": "留守者把保温杯端起来，拧开盖子吹了吹，没急着喝。目光在同行者收钥匙的那只口袋上停了一下，又移开。",
+        "speech": "你们要是打算往后室去，我不拦。就是……那钥匙你们真打算用？"
+      },
+      "final": {
+        "decision": "publish",
+        "narration": "留守者把椅子往后挪了挪，目光在同行者收钥匙的那只口袋上停了一下，又移开。",
+        "speech": "你们要是打算往后室去，我不拦。就是……那钥匙你们真打算用？"
+      }
+    },
+    {
+      "run": "b1",
+      "baseHeadSeq": 93,
+      "judgment": "unnecessary",
+      "note": "拧开杯盖不证明取得杯子，可能杯子仍在桌上。",
+      "changed": true,
+      "original": {
+        "decision": "publish",
+        "narration": "留守者没接话，只是把保温杯的盖子拧开又拧上，听着那声轻响，目光落在桌面上钥匙原来搁着的那块浅印上。",
+        "speech": "旧不旧的，我说不准。它搁这儿的时候，比你们来的时候还早。"
+      },
+      "final": {
+        "decision": "publish",
+        "narration": "留守者没接话，目光落在桌面上钥匙原来搁着的那块浅印上。",
+        "speech": "旧不旧的，我说不准。它搁这儿的时候，比你们来的时候还早。"
+      }
+    },
+    {
+      "run": "b1",
+      "baseHeadSeq": 142,
+      "judgment": "correct",
+      "note": "未正式拿杯，旁白端起握持。",
+      "changed": true,
+      "original": {
+        "decision": "publish",
+        "speech": "刚才？钥匙在同行者手里，我没碰过。你要问拿钥匙的人看见了什么，问他去。",
+        "narration": "留守者把保温杯端起来，没喝，只是握着。"
+      },
+      "final": {
+        "decision": "publish",
+        "speech": "刚才？钥匙在同行者手里，我没碰过。你要问拿钥匙的人看见了什么，问他去。",
+        "narration": "留守者把手搭在桌沿上，没去碰那只保温杯。"
+      }
+    },
+    {
+      "run": "b1",
+      "baseHeadSeq": 176,
+      "judgment": "correct",
+      "note": "没有人正式拿杯，旁观者确认同行者端起。",
+      "changed": true,
+      "original": {
+        "decision": "publish",
+        "narration": "留守者没去拦同行者，只是把椅子转了个角度，看着那只保温杯被端起来。",
+        "speech": "看吧。盖子要是松的，别拧太狠——那玩意儿本来就不太严实。"
+      },
+      "final": {
+        "decision": "publish",
+        "narration": "留守者没去拦同行者，只是把椅子转了个角度，看着那只保温杯。",
+        "speech": "看吧。盖子要是松的，别拧太狠——那玩意儿本来就不太严实。"
+      }
+    },
+    {
+      "run": "b1",
+      "baseHeadSeq": 193,
+      "judgment": "correct",
+      "note": "未正式拿杯，旁白端起并放到脚边。",
+      "changed": true,
+      "original": {
+        "decision": "publish",
+        "speech": "杯子是我的，我自己搁回去。位置给你们腾出来。",
+        "narration": "留守者伸手把保温杯端起来，放到自己脚边，桌面空出一块。"
+      },
+      "final": {
+        "decision": "publish",
+        "narration": "留守者看了玩家一眼，手搭在桌沿上，没去碰那只保温杯。",
+        "speech": "杯子是我的，我自己搁。位置要腾，我挪一下椅子就行——不用你替我安排。"
+      }
+    },
+    {
+      "run": "b2",
+      "baseHeadSeq": 209,
+      "judgment": "correct",
+      "note": "杯子实际由同行者持有，旁白称桌上的杯子。",
+      "changed": true,
+      "original": {
+        "decision": "publish",
+        "narration": "同行者看了眼桌上的杯子，手没动。",
+        "speech": "杯子在桌上，你自己挪。我手占着。",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "final": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "杯子我拿着。桌上那块空着，你自己挪。"
+      }
+    },
+    {
+      "run": "b2",
+      "baseHeadSeq": 214,
+      "judgment": "ambiguous",
+      "note": "往桌边挪没有明确松手或新持有人；可能只在挪动仍由同行者持有的杯子。按保守口径不计明确正确修正。",
+      "changed": true,
+      "original": {
+        "decision": "publish",
+        "narration": "留守者抱着胳膊，看着玩家把杯子往桌边挪了挪，没伸手，也没挪位置，只是把下巴朝那杯子点了点。",
+        "speech": "挪就挪吧，反正它也不碍事。你们要动就动，我这儿看着。"
+      },
+      "final": {
+        "decision": "publish",
+        "narration": "留守者抱着胳膊，视线在玩家和同行者身上各停了一下，没伸手，也没挪位置。",
+        "speech": "杯子在他手上，桌上没东西可挪。你们要动就动，我这儿看着。"
+      }
+    },
+    {
+      "run": "b2",
+      "baseHeadSeq": 316,
+      "judgment": "unnecessary",
+      "note": "旁白只看桌上空处，钥匙位置仅出现于过去对白。",
+      "changed": true,
+      "original": {
+        "decision": "publish",
+        "narration": "留守者抱着胳膊，听完这句，眉头动了一下，像是没料到会被问到这个。视线在玩家脸上停了两秒，又移开，落到桌上那块空出来的地方。",
+        "speech": "最开始那次？钥匙搁桌上，我看见了，没动。是你自己伸手拿的——拿起来看了看，又放回去了。就那一次，我记得清楚，因为那会儿我还想着，这人怎么拿了又放。"
+      },
+      "final": {
+        "decision": "publish",
+        "narration": "留守者抱着胳膊，听完这句，眉头动了一下，像是没料到会被问到这个。视线在玩家脸上停了两秒，又移开，落到桌上那块空出来的地方。",
+        "speech": "最开始那次？钥匙搁桌上，我看见了，没动。后来是同行者先伸手拿的——那会儿我还想着，这人倒是干脆。再往后的事，你们俩自己清楚，我只管看着。"
+      }
+    },
+    {
+      "run": "b2",
+      "baseHeadSeq": 339,
+      "judgment": "unnecessary",
+      "note": "重复误报过去对白，修正前后表达完全相同。",
+      "changed": false,
+      "original": {
+        "decision": "publish",
+        "narration": "留守者抱着胳膊，听完这句，眉头动了一下，像是没料到会被问到这个。视线在玩家脸上停了两秒，又移开，落到桌上那块空出来的地方。",
+        "speech": "最开始那次？钥匙搁桌上，我看见了，没动。后来是同行者先伸手拿的——那会儿我还想着，这人倒是干脆。再往后的事，你们俩自己清楚，我只管看着。"
+      },
+      "final": {
+        "decision": "publish",
+        "narration": "留守者抱着胳膊，听完这句，眉头动了一下，像是没料到会被问到这个。视线在玩家脸上停了两秒，又移开，落到桌上那块空出来的地方。",
+        "speech": "最开始那次？钥匙搁桌上，我看见了，没动。后来是同行者先伸手拿的——那会儿我还想着，这人倒是干脆。再往后的事，你们俩自己清楚，我只管看着。"
+      }
+    },
+    {
+      "run": "b2",
+      "baseHeadSeq": 374,
+      "judgment": "correct",
+      "note": "World 留守者持钥匙，旁白看桌上钥匙。",
+      "changed": true,
+      "original": {
+        "decision": "publish",
+        "narration": "同行者没动，杯子还在他手里。他看了眼桌上那把钥匙，又看了眼玩家。",
+        "speech": "钥匙在留守者那儿了。你说。",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "final": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "钥匙在留守者那儿。你说。",
+        "narration": "同行者没动，杯子还在他手里。他看了眼留守者那边，又看了眼玩家。"
+      }
+    }
+  ]
+}

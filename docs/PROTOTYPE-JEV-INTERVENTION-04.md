@@ -135,3 +135,7 @@ node --import tsx tests/experiments/jev-intervention-live-drive.ts .tmp/jev-new-
 ```
 
 每次使用新目录。入口仅供实验脚本选择 B；现有网页默认仍按影子模式工作，不默认启用发布前干预。
+
+## 后续实验
+
+[放下与桌面归属实验 05](PROTOTYPE-JEV-PLACEMENT-05.md) 补充了同一次 Jev 请求中的放下判定，并完成两对 80 回合新试玩。局部客观分叉减少，但误干预和交互耗时仍未通过正式启用验收。

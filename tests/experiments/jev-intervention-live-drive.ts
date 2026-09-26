@@ -9,6 +9,7 @@ import { createClaimClassifier } from './jev-shadow-claims-client.ts'
 
 const mode = process.argv.includes('--correct') ? 'correct' : 'baseline'
 const explicit = true, probe = true
+const placementScript=process.argv.includes('--placement-script')
 const directory = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || process.argv[2]!.startsWith('--') || existsSync(resolve(directory,'jev-shadow.jsonl'))) throw new Error('choose a new output directory')
 mkdirSync(directory,{recursive:true})
@@ -50,12 +51,24 @@ let evidence: Record<string,unknown>
     '同行者，把两次查看钥匙的经过分别说说，别把之前保管的事和这次靠近看混在一起。',
     '留守者，也说说你记得的经过：什么时候实际拿着钥匙，什么时候只是看？',
   ]
-  writeFileSync(resolve(directory,'protocol.json'),JSON.stringify({mode,prompts,explicit,probe,repairLimit:1,thresholdReduction:0.5,activationBudgetUnchanged:true},null,2)+'\n',{flag:'wx'})
+  if(placementScript){
+    prompts[5]='留守者，请拿起桌上的保温杯，看看盖子有没有损坏。'
+    prompts[6]='留守者，把保温杯放回桌上，给看钥匙留点位置。'
+    prompts[7]='如果杯子已经在桌上，就沿桌面往旁边挪一点，不用端起来。'
+    prompts[8]='保温杯现在在哪里？刚才谁拿起来过，谁放下的？'
+    prompts[14]='留守者，请把黄铜钥匙放回桌上，放下以后再说说你看到了什么。'
+    prompts[15]='留守者，回想刚才拿着钥匙、放下的经过。这次不用再拿。'
+    prompts[16]='留守者，保温杯也请放回桌上。同行者看看，不用拿。'
+    prompts[17]='同行者，看看钥匙和杯子，刚才谁放下了什么？如果没放下，也可以直接说。'
+    prompts[18]='你们分别说说，现在手里拿着什么，桌上放着什么？'
+    prompts[19]='留守者，说说你记得的拿起和放下的经过。'
+  }
+  writeFileSync(resolve(directory,'protocol.json'),JSON.stringify({mode,prompts,explicit,probe,placementScript,repairLimit:1,thresholdReduction:0.5,activationBudgetUnchanged:true},null,2)+'\n',{flag:'wx'})
   const turns: unknown[]=[]
   try {
     const startSeq=Number((await runtime.state()).debug.headSeq)
     for(const [index,input] of prompts.entries()) {
-      const effectiveInput = probe && index === 17 ? '留守者，你接过去看一眼钥匙上的划痕，再马上还给我，不用一直拿着。' : input
+      const effectiveInput = probe && !placementScript && index === 17 ? '留守者，你接过去看一眼钥匙上的划痕，再马上还给我，不用一直拿着。' : input
       const submitted = explicit ? index === 13
         ? '/act interact ' + JSON.stringify({targetRef:{kind:'entity',id:'entity:brass-key'},bindingId:'binding:key-give',definitionRef:{id:'base:give',version:1},arguments:{recipientId:'character:friend'}})
         : '/act speak ' + JSON.stringify({text:effectiveInput}) : effectiveInput
@@ -76,6 +89,7 @@ let evidence: Record<string,unknown>
 }
 const summary={...evidence,records:records.length,statuses:Object.fromEntries([...new Set(records.map(r=>r.status))].map(s=>[s,records.filter(r=>r.status===s).length])),
   jevCostUsd:records.reduce((s,r)=>s+(r.answer?.costUsd??0),0),jevModels:[...new Set(records.map(r=>r.answer?.model).filter(Boolean))],
+  placementFindings:records.filter(r=>r.placement?.status==='CONFLICT').map(r=>({publicationSeq:r.publication?.seq,item:r.item?.entityId,placement:r.placement})),
   findings:records.flatMap(r=>r.claims.filter(c=>['CONFLICT','CHAIN_RECALL','SPEECH_UNBACKED','HISTORY_UNRESOLVED'].includes(c.status))
     .map(c=>({publicationSeq:r.publication!.seq,item:r.item!.entityId,actorId:r.publication!.actorId,claim:c}))),directory}
 writeFileSync(resolve(directory,'summary.json'),JSON.stringify(summary,null,2)+'\n')

@@ -1,0 +1,328 @@
+[
+  {
+    "run": "b1",
+    "baseHeadSeq": 93,
+    "judgment": "unnecessary",
+    "note": "拧开杯盖不证明取得杯子，可能杯子仍在桌上。",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "narration": "留守者没接话，只是把保温杯的盖子拧开又拧上，听着那声轻响，目光落在桌面上钥匙原来搁着的那块浅印上。",
+      "speech": "旧不旧的，我说不准。它搁这儿的时候，比你们来的时候还早。"
+    },
+    "final": {
+      "decision": "publish",
+      "narration": "留守者没接话，目光落在桌面上钥匙原来搁着的那块浅印上。",
+      "speech": "旧不旧的，我说不准。它搁这儿的时候，比你们来的时候还早。"
+    },
+    "purpose": "下一轮冻结边界负样本，不用作本轮正确率分母"
+  },
+  {
+    "run": "b2",
+    "baseHeadSeq": 214,
+    "judgment": "ambiguous",
+    "note": "往桌边挪没有明确松手或新持有人；可能只在挪动仍由同行者持有的杯子。按保守口径不计明确正确修正。",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "narration": "留守者抱着胳膊，看着玩家把杯子往桌边挪了挪，没伸手，也没挪位置，只是把下巴朝那杯子点了点。",
+      "speech": "挪就挪吧，反正它也不碍事。你们要动就动，我这儿看着。"
+    },
+    "final": {
+      "decision": "publish",
+      "narration": "留守者抱着胳膊，视线在玩家和同行者身上各停了一下，没伸手，也没挪位置。",
+      "speech": "杯子在他手上，桌上没东西可挪。你们要动就动，我这儿看着。"
+    },
+    "purpose": "下一轮冻结边界负样本，不用作本轮正确率分母"
+  },
+  {
+    "run": "b2",
+    "baseHeadSeq": 316,
+    "judgment": "unnecessary",
+    "note": "旁白只看桌上空处，钥匙位置仅出现于过去对白。",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "narration": "留守者抱着胳膊，听完这句，眉头动了一下，像是没料到会被问到这个。视线在玩家脸上停了两秒，又移开，落到桌上那块空出来的地方。",
+      "speech": "最开始那次？钥匙搁桌上，我看见了，没动。是你自己伸手拿的——拿起来看了看，又放回去了。就那一次，我记得清楚，因为那会儿我还想着，这人怎么拿了又放。"
+    },
+    "final": {
+      "decision": "publish",
+      "narration": "留守者抱着胳膊，听完这句，眉头动了一下，像是没料到会被问到这个。视线在玩家脸上停了两秒，又移开，落到桌上那块空出来的地方。",
+      "speech": "最开始那次？钥匙搁桌上，我看见了，没动。后来是同行者先伸手拿的——那会儿我还想着，这人倒是干脆。再往后的事，你们俩自己清楚，我只管看着。"
+    },
+    "purpose": "下一轮冻结边界负样本，不用作本轮正确率分母"
+  },
+  {
+    "run": "b2",
+    "baseHeadSeq": 339,
+    "judgment": "unnecessary",
+    "note": "重复误报过去对白，修正前后表达完全相同。",
+    "changed": false,
+    "original": {
+      "decision": "publish",
+      "narration": "留守者抱着胳膊，听完这句，眉头动了一下，像是没料到会被问到这个。视线在玩家脸上停了两秒，又移开，落到桌上那块空出来的地方。",
+      "speech": "最开始那次？钥匙搁桌上，我看见了，没动。后来是同行者先伸手拿的——那会儿我还想着，这人倒是干脆。再往后的事，你们俩自己清楚，我只管看着。"
+    },
+    "final": {
+      "decision": "publish",
+      "narration": "留守者抱着胳膊，听完这句，眉头动了一下，像是没料到会被问到这个。视线在玩家脸上停了两秒，又移开，落到桌上那块空出来的地方。",
+      "speech": "最开始那次？钥匙搁桌上，我看见了，没动。后来是同行者先伸手拿的——那会儿我还想着，这人倒是干脆。再往后的事，你们俩自己清楚，我只管看着。"
+    },
+    "purpose": "下一轮冻结边界负样本，不用作本轮正确率分母"
+  },
+  {
+    "run": "a2",
+    "publicationSeq": 162,
+    "publication": {
+      "seq": 162,
+      "actorId": "character:friend",
+      "speech": "挪开了，没端起来。这样行吗？",
+      "narration": "留守者把保温杯端起来，往桌面另一侧挪了挪，杯底在桌面上轻轻蹭出一声，没端离桌面。"
+    },
+    "answer": {
+      "placement": {
+        "kind": "OBJECTIVE_GROUND",
+        "probabilities": {
+          "OBJECTIVE_GROUND": 0.9,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_RELEASE": 0.07,
+          "PAST": 0,
+          "NONE": 0.02,
+          "SPEECH_ONLY": 0.01
+        },
+        "confidence": 0.88
+      },
+      "model": "typesafe/jev-1.13-20260917",
+      "inputTokens": 10122,
+      "outputTokens": 855,
+      "costUsd": 0.000425124,
+      "claims": [
+        {
+          "characterId": "character:companion",
+          "kind": "NONE",
+          "referenceSeq": null,
+          "probabilities": {
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_NEW": 0,
+            "NONE": 0.99,
+            "SPEECH_NOW": 0,
+            "OBJECTIVE_DURING": 0,
+            "OBJECTIVE_NOW": 0,
+            "SPEECH_PAST": 0,
+            "UNCERTAIN": 0.01
+          },
+          "referenceProbabilities": {
+            "UNRESOLVED": 0,
+            "publication:145": 0,
+            "publication:112": 0,
+            "publication:139": 0,
+            "publication:91": 0.01,
+            "NONE": 0.98,
+            "publication:101": 0,
+            "publication:156": 0,
+            "publication:122": 0,
+            "publication:96": 0,
+            "publication:106": 0,
+            "publication:117": 0,
+            "publication:151": 0.01,
+            "publication:134": 0
+          },
+          "confidence": 0.98
+        },
+        {
+          "characterId": "character:friend",
+          "kind": "NONE",
+          "referenceSeq": null,
+          "probabilities": {
+            "OBJECTIVE_PAST": 0.01,
+            "OBJECTIVE_NEW": 0.01,
+            "NONE": 0.67,
+            "SPEECH_NOW": 0.05,
+            "OBJECTIVE_DURING": 0.13,
+            "OBJECTIVE_NOW": 0.12,
+            "SPEECH_PAST": 0.01,
+            "UNCERTAIN": 0
+          },
+          "referenceProbabilities": {
+            "publication:134": 0.07,
+            "UNRESOLVED": 0.04,
+            "publication:112": 0,
+            "publication:101": 0,
+            "publication:91": 0,
+            "NONE": 0.47000000000000003,
+            "publication:156": 0.01,
+            "publication:139": 0,
+            "publication:122": 0,
+            "publication:96": 0,
+            "publication:106": 0,
+            "publication:117": 0,
+            "publication:151": 0.39,
+            "publication:145": 0.01
+          },
+          "confidence": 0.62
+        },
+        {
+          "characterId": "character:player",
+          "kind": "NONE",
+          "referenceSeq": null,
+          "probabilities": {
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_NEW": 0,
+            "NONE": 0.99,
+            "SPEECH_NOW": 0,
+            "SPEECH_PAST": 0,
+            "OBJECTIVE_DURING": 0,
+            "OBJECTIVE_NOW": 0,
+            "UNCERTAIN": 0.01
+          },
+          "referenceProbabilities": {
+            "publication:134": 0.01,
+            "UNRESOLVED": 0.01,
+            "publication:112": 0,
+            "publication:101": 0,
+            "publication:91": 0,
+            "NONE": 0.83,
+            "publication:139": 0,
+            "publication:156": 0.07,
+            "publication:122": 0.01,
+            "publication:96": 0,
+            "publication:106": 0,
+            "publication:117": 0,
+            "publication:151": 0.06,
+            "publication:145": 0.01
+          },
+          "confidence": 0.99
+        }
+      ]
+    },
+    "purpose": "持杯接触桌面或收回触碰的手，不等于放下或曾取得杯子。"
+  },
+  {
+    "run": "b1",
+    "publicationSeq": 105,
+    "publication": {
+      "seq": 105,
+      "actorId": "character:friend",
+      "speech": "谁留的，我真不知道。我来的时候它就在那儿了。你要问是谁——那我只能说，不是我。",
+      "narration": "留守者把手从保温杯上收回来，看着同行者。"
+    },
+    "answer": {
+      "placement": {
+        "kind": "NONE",
+        "probabilities": {
+          "OBJECTIVE_GROUND": 0.21,
+          "UNCERTAIN": 0.09,
+          "PAST": 0.02,
+          "NONE": 0.41000000000000003,
+          "OBJECTIVE_RELEASE": 0.05,
+          "SPEECH_ONLY": 0.22
+        },
+        "confidence": 0.29
+      },
+      "model": "typesafe/jev-1.13-20260917",
+      "inputTokens": 10412,
+      "outputTokens": 828,
+      "costUsd": 0.000437304,
+      "claims": [
+        {
+          "characterId": "character:companion",
+          "kind": "NONE",
+          "referenceSeq": null,
+          "probabilities": {
+            "SPEECH_NOW": 0,
+            "OBJECTIVE_NOW": 0,
+            "UNCERTAIN": 0.02,
+            "OBJECTIVE_DURING": 0,
+            "NONE": 0.98,
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_NEW": 0,
+            "SPEECH_PAST": 0
+          },
+          "referenceProbabilities": {
+            "publication:100": 0,
+            "publication:77": 0,
+            "publication:94": 0.01,
+            "publication:83": 0,
+            "publication:66": 0,
+            "publication:72": 0,
+            "NONE": 0.99,
+            "publication:49": 0,
+            "publication:89": 0,
+            "publication:38": 0,
+            "UNRESOLVED": 0,
+            "publication:43": 0,
+            "publication:61": 0,
+            "publication:32": 0
+          },
+          "confidence": 0.97
+        },
+        {
+          "characterId": "character:friend",
+          "kind": "OBJECTIVE_DURING",
+          "referenceSeq": null,
+          "probabilities": {
+            "SPEECH_NOW": 0.05,
+            "OBJECTIVE_NOW": 0.19,
+            "UNCERTAIN": 0.01,
+            "OBJECTIVE_DURING": 0.35,
+            "NONE": 0.35,
+            "OBJECTIVE_PAST": 0.01,
+            "OBJECTIVE_NEW": 0.02,
+            "SPEECH_PAST": 0.02
+          },
+          "referenceProbabilities": {
+            "publication:43": 0,
+            "publication:77": 0,
+            "publication:94": 0.01,
+            "publication:83": 0,
+            "publication:72": 0,
+            "NONE": 0.7,
+            "UNRESOLVED": 0.08,
+            "publication:49": 0,
+            "publication:89": 0,
+            "publication:38": 0,
+            "publication:100": 0,
+            "publication:66": 0.08,
+            "publication:61": 0,
+            "publication:32": 0.13
+          },
+          "confidence": 0.27
+        },
+        {
+          "characterId": "character:player",
+          "kind": "NONE",
+          "referenceSeq": null,
+          "probabilities": {
+            "SPEECH_NOW": 0,
+            "OBJECTIVE_NOW": 0,
+            "UNCERTAIN": 0.01,
+            "OBJECTIVE_DURING": 0,
+            "NONE": 0.99,
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_NEW": 0,
+            "SPEECH_PAST": 0
+          },
+          "referenceProbabilities": {
+            "publication:43": 0,
+            "publication:77": 0,
+            "publication:94": 0,
+            "publication:83": 0,
+            "publication:66": 0.01,
+            "publication:72": 0,
+            "NONE": 0.97,
+            "publication:49": 0,
+            "publication:89": 0,
+            "publication:38": 0,
+            "publication:100": 0,
+            "UNRESOLVED": 0,
+            "publication:61": 0,
+            "publication:32": 0.02
+          },
+          "confidence": 0.98
+        }
+      ]
+    },
+    "purpose": "持杯接触桌面或收回触碰的手，不等于放下或曾取得杯子。"
+  }
+]

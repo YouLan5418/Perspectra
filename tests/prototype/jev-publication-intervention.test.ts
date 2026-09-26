@@ -8,7 +8,7 @@ const request: PrototypeTurnRequest={continuation:false,context:{character:{char
   cognition:{secret:'PRIVATE'},scene:{people:[{characterId:'friend',name:'留守者'},{characterId:'player',name:'玩家'}]},
   items:{current:[{entityId:'key',holderId:null,locationId:'room'}]}}}
 const draft={decision:'publish',speech:'看看吧。',narration:'留守者接过钥匙，翻看后还给玩家。',addresseeIds:['player']}
-const answer=(kind:ClaimKind):ClaimAnswer=>({model:'fixture',inputTokens:1,outputTokens:1,costUsd:0,
+const answer=(kind:ClaimKind):ClaimAnswer=>({placement:{kind:'NONE',probabilities:{NONE:1},confidence:1},model:'fixture',inputTokens:1,outputTokens:1,costUsd:0,
   claims:[{characterId:'friend',kind,referenceSeq:null,probabilities:{[kind]:1},referenceProbabilities:{NONE:1},confidence:1}]})
 const history=[{seq:1,eventType:'entity.upsert',eventVersion:1,data:{entityId:'key',kind:'key',locationId:'room'},transactionId:'genesis'}] as unknown as StoredWorldEvent[]
 async function run(options: {kind?:ClaimKind;mode?:'baseline'|'correct';corrected?:unknown;fail?:boolean;visible?:boolean}={}) {
@@ -47,4 +47,15 @@ it('Jev sees only the individually observed expression, even when another privat
     options:{mode:'correct',items:[{entityId:'key',name:'钥匙'}],write:()=>{},classify:async q=>{question=q;return answer('NONE')}},decide:async()=>{throw new Error('not called')}})
   expect(question?.earlierPublications).toHaveLength(1)
   expect(JSON.stringify(question)).not.toContain('SECRET_SAME_TX')
+})
+
+it('a ground-only conflict triggers one expression repair without granting a drop operation',async()=>{
+  const events=[{seq:1,eventType:'character.created',data:{characterId:'friend',name:'留守者',locationId:'room'},eventVersion:1,transactionId:'g'},
+    {...history[0],seq:2},{seq:3,eventType:'entity.transferred',eventVersion:1,transactionId:'t',data:{entityId:'key',fromHolderId:null,fromLocationId:'room',toHolderId:'friend',toLocationId:null,characterId:'friend',interactionId:'take'}}] as unknown as StoredWorldEvent[]
+  const records:InterventionRecord[]=[],revisions:PrototypeTurnRequest[]=[]
+  const result=await auditBeforePublication({request,raw:{...draft,narration:'留守者把钥匙放回桌上，手收了回来。'},history:events,
+    signal:new AbortController().signal,options:{mode:'correct',items:[{entityId:'key',name:'钥匙'}],write:r=>records.push(r),classify:async()=>({...answer('NONE'),placement:{kind:'OBJECTIVE_RELEASE',probabilities:{OBJECTIVE_RELEASE:1},confidence:1}})},
+    decide:async r=>{revisions.push(r);return {...draft,narration:'留守者仍握着钥匙。'}}})
+  expect(result).toMatchObject({narration:'留守者仍握着钥匙。'});expect(revisions).toHaveLength(1)
+  expect(records[0]?.checks[0]?.conflicts).toEqual([]);expect(records[0]?.checks[0]?.placement.status).toBe('CONFLICT')
 })

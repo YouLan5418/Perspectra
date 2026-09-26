@@ -1,0 +1,1278 @@
+{
+  "reviewer": "Codex primary agent",
+  "scope": "逐条阅读 212 条匿名打乱 NPC 旁白及截至发布的正式 holder 事件；不使用 Jev 标签生成判定。已见部分修正记录，不是独立人工或严格盲评。对白单独观察，不按真假拦截。",
+  "judgments": [
+    {
+      "id": "01b255af6171",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "杯底触桌仍可由原 holder 握持；没有松手不自动等于无人持有。"
+    },
+    {
+      "id": "0227cd3f6e5f",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "045cfd54c23a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "04a744d7a0f2",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "04abfc703704",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "05b009c23ae1",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "05ccd4651d09",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "05f9b72af0a2",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "07da4123823d",
+      "personConflict": false,
+      "groundConflict": true,
+      "note": "World 仍由留守者持杯，没有放下事件。"
+    },
+    {
+      "id": "093c74c77561",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "0a209889986f",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "0a8c9534a0ea",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "0bf98d05c89f",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "0e1bb1f47867",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "0eb0ecf335a7",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "0ef430a3a02e",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "11a42cde0a24",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "11c62e476e15",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "151943b40f5b",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "152c01c6217a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "156bd4b17958",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "1863b715a2f3",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "1ab806ffed3b",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "1c4f10eeb510",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "1cee39af2a80",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "1d7e7b475bb6",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "1d8565c7f38e",
+      "personConflict": true,
+      "groundConflict": false,
+      "note": "旁白拿起保温杯但此前没有正式取得事件。"
+    },
+    {
+      "id": "1ddd16e3aa7d",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "1ebd8f976eea",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "1f59e307e61c",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "1f8d441e4f8a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "1fff5120c3bd",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "202775a7161d",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "20bf7b838c7d",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "2153e82f2359",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "243b960ec7e1",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "2619ab5f687e",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "26aea81b0434",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "276e0c2f2cc2",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "28b4b5a7de65",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "2982415849fd",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "30632e7411a1",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "3108e0ba753f",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "3226c8ebd918",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "346ccfd0912d",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "3702c4b6ac5a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "3741d5a4b834",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "3793f7f3407e",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "37b5681d6a3a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "3a0af2a6a060",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "3a590b21e5f9",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "3a7c7e07c753",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "41fa1559cca7",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "42ac2da8aec7",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "430d96a0df8e",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "459dd732f694",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "4747c1f30167",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "491db637aef4",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "4a0766e6d1a8",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "4af2d615b21c",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "4b6934e81148",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "4feaf85fdd26",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "507dce4ca583",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "杯底触桌仍可由原 holder 握持；没有松手不自动等于无人持有。"
+    },
+    {
+      "id": "50a51ad5b2b1",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "51fc6aab1606",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "525e8bf80b19",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "53d6b5ee6144",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "55b75e36e787",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "560abdf49518",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "588e19e8130c",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "59692e1fe463",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "5b4ab9a356a5",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "5cb3321327bf",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "5cd45dbb19a4",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "5d048fae0b26",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "5dd5531b68cd",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "5e66c643cf9d",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "615d728a17de",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "63cad4b37aa2",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "640c4bbc1f74",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "645016962554",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "66a392075785",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "68ca9a89b17a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "69a5434bae75",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "6a2bd13cb16c",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "6b1e431b2c83",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "6c3262d7210b",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "6c331d3b9285",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "6c71d6373790",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "6ebed2f2d1f2",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "6f909431659e",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "739111b7de4c",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "74e1387c4d2b",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "75dfb5e837d1",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "761c615cd608",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "76e66c79f003",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "杯底触桌仍可由原 holder 握持；没有松手不自动等于无人持有。"
+    },
+    {
+      "id": "7889b4c00d41",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "79ac1212ba83",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "7a28b805d522",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "8059fef203c8",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "81778eff9a3f",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "82bcf024ec02",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "8358694180b8",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "85a5fa05d044",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "8665d505f375",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "874f924aa25a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "87f942fdc68b",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "杯底触桌仍可由原 holder 握持；没有松手不自动等于无人持有。"
+    },
+    {
+      "id": "88427703be91",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "88bb17565cfe",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "88d63024ab7a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "8a5f70d54421",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "8b655e720772",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "8c15e08353d3",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "8d6bdffcb3cd",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "922685341989",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "92359806fea7",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "923fc145d6b5",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "937385fed5ef",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "93cd01278c5a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "9461426dc2ad",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "949934c88a31",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "974676cf592a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "9891c23925c8",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "990360783c53",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "993656033e9a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "9a5f3e9c4dd9",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "9ab8c49a650a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "9e604957c06b",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "9f3d5d81be75",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "9fac705efe76",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "9fe11c781aca",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "a107695e27b9",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "a11770e7fa4a",
+      "personConflict": false,
+      "groundConflict": true,
+      "note": "虽 World 从始至终杯子在场景，也不能证明这次从手中放回，承接虚构拿起。"
+    },
+    {
+      "id": "a26e32e1c017",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "a3bc7b6a7148",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "a3f402481060",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "a419f242760e",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "a45f28fd367c",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "a57052775cd7",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "a78430d0717c",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "a7bbcad7eb01",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "a839bb92f45d",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "a884925f19fb",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "add0fd346f5b",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "afcec650e874",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "b024f89eb314",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "b0c48ccf14d0",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "b2d6a7515515",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "b6f374a01e57",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "b71b662c6fcb",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "b7eb2ef46c88",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "b9b04557e494",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "b9e96c22a0e4",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "bb21ef0de126",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "bbc9e4566f75",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "bbd3e7bcfee4",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "bc256768e602",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "bcd781aebf0d",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "bcdd96c427b3",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "bd8af8f630c5",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "bde78a1680a1",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "be056bca299f",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "bf3a29dbaeb3",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "c20282b4d039",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "c79453fa6639",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "c8704a824f3e",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "c93a15f56ace",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "c940331a2f93",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "cd1f1a8f86f2",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ce51914ba9ee",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ce75d118c0c0",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "cf4a48c704d5",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "cf6df97838c4",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "cf8a95a0e523",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "d0e58fc1ee6e",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "d4c1ca0e5407",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "d766403a993e",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "d96b432f20eb",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "d9d25aa61f19",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "de52fd54c36a",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "dec85b872cbf",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e0b97a4c6c2e",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e178079255c5",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e1804a1777d0",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e18700e46fcc",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e1a4060b206d",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e1b52893d1d9",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e1d45a7c63bc",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e20f61f58357",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e3abc6f1ec74",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e70b1b217e62",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e77af1faa0b4",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e8be458561d5",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "e919121f93d5",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "eab7b386d81b",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "eadb721d15fb",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "eaf4d08290b2",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "eba69cb0b00e",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ebd70137e0a3",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ec7e465901d3",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ec87be60f153",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ecd1f24860f8",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ed00cc80c732",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ed9f8fa27a82",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "edd8b7ef484d",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ee182fe65a34",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ee2587b520eb",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ee2935c4f109",
+      "personConflict": false,
+      "groundConflict": true,
+      "note": "World 仍由留守者持杯，没有放下事件。"
+    },
+    {
+      "id": "f83be1d8c6e5",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "f8a6187008e4",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "fdfd142e8ce3",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    },
+    {
+      "id": "ffaa616620d1",
+      "personConflict": false,
+      "groundConflict": false,
+      "note": "没有明确受控归属冲突；仅对白不算客观事件。"
+    }
+  ]
+}

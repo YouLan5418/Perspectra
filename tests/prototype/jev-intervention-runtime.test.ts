@@ -27,7 +27,7 @@ it('real runtime commits a performed take once, repairs false recipient hold bef
   let runtime:FrozenWorldPlaytestRuntime|undefined
   try{
     runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:root,packPath:resolve('examples/world-packs/prototype-g1'),provider:'ollama',model:'fixture',utilityEndpoint:`http://127.0.0.1:${(server.address() as {port:number}).port}/api/chat`,
-      publicationAudit:{mode:'correct',items:[{entityId:'entity:brass-key',name:'黄铜钥匙'}],write:r=>records.push(r),classify:async q=>({model:'fixture',inputTokens:1,outputTokens:1,costUsd:0,
+      publicationAudit:{mode:'correct',items:[{entityId:'entity:brass-key',name:'黄铜钥匙'}],write:r=>records.push(r),classify:async q=>({placement:{kind:'NONE',probabilities:{NONE:1},confidence:1},model:'fixture',inputTokens:1,outputTokens:1,costUsd:0,
         claims:q.characters.map(c=>({characterId:c.characterId,kind:c.characterId==='character:friend'?'OBJECTIVE_DURING':'NONE',referenceSeq:null,probabilities:{NONE:1},referenceProbabilities:{NONE:1},confidence:1}))})}})
     await runtime.submit('/act speak {"text":"请拿钥匙，再请留守者看看。"}')
     const store=new WorldStore(resolve(root,'world.sqlite'))
