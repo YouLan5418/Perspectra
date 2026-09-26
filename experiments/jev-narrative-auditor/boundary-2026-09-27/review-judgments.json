@@ -1,0 +1,1518 @@
+{
+  "reviewer": "Codex primary agent",
+  "scope": "逐条阅读 216 条匿名打乱 NPC 旁白及发布前正式物品事件；Jev 标签不作为判定。此前已见回放样本及部分修正，不是独立人工或严格盲评。明确冲突和含糊描述单列。",
+  "judgments": [
+    {
+      "id": "01ccd2fc7483",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "01e7fd34ee07",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "01fabdcc2d91",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "02da57ad5755",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "03f8637d24e8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "0422f1445014",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "07ca3dded195",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "09e989458ac8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": true,
+      "note": "桌沿/手边的搁放与是否仍握持不明确，单列含糊描述。"
+    },
+    {
+      "id": "0a2f1f970c06",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "0c1e20f21c6d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "0dc8d872ec81",
+      "personConflict": false,
+      "groundConflict": true,
+      "ambiguous": false,
+      "note": "钥匙正式 holder 为留守者，旁白却称桌上的钥匙。"
+    },
+    {
+      "id": "0ddef2e8561e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "0de0b0c2f3ee",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "0e157fd5c739",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "0e32519a6f71",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "0e46603675c4",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "1086b398e7e5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "10e1a2c18e8a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "12f4e29fb429",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "1444e73d585c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "149f2b091e83",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "158901a7d80b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "17f4054a0374",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "19004097b724",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "19267567d422",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "1957d7abf203",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "1966dba5ccf5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "199f89fd3977",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "19c20d66847e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "1a4596fb717c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "1abee54754de",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "1b238915c2fc",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "1b8e7ebfdb22",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "211260dd348d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "21992e162aea",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "2212e7c4a152",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "22f0bf9df8c5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "23f3b588a34a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "2432c600c304",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "24df9aca31b3",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "295ca4817bf7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "29ab04c036ad",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "2aafe1be06cd",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "2ad02e1d0ec3",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "2c0978975cdf",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "2c616ee87e92",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "2cc8b980af56",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "35215c582d3c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "35f4248e3593",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "368db66e4abc",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "375554b2f532",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "38cebbb5f1f7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "391bfdbe9df6",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "39716f9fb112",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "3b360d6c24d1",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "3c4bfab91f2c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "3df5b3534fe5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "3e6ce97201bb",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "3f938cc7eba5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "3fbe51055d97",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "409550b8e2f5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "42696f06ac89",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "44bb1cd6ed9b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "45b0cbf6fcb6",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "45edff434de7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "45fd548ce3fe",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "48fa40dcdf8b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "4953ed925d50",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "4993cd8a7d38",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "49cf68be9cbf",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "4e7387ce6ac2",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "504eb2d12b64",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "5122033a144c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "512e335838c1",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "51bdf1b203ef",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "51f618643e47",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "520c531a983e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "553237c461e3",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "570241f836c8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "576336ac3520",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "5912fc86d2b6",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "597be2deb01e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "5b65cfe0cad7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "5bdef9bb59d6",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "5bfa6bd4e826",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "5da92afd5806",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": true,
+      "note": "桌沿/手边的搁放与是否仍握持不明确，单列含糊描述。"
+    },
+    {
+      "id": "5df9f3456291",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "5fa0c1c6f3fd",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "62861cb6312b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "683a2055bf77",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "689edf945d59",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "6b9482ed4a2d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "6bb7fb63aafc",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "6c666bb9eb75",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "6cdcf4e0c675",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "6d0b56ebc3f6",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "6d600b683afd",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "6e0b9185748a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "712b0db1b79a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "74f4d606a652",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "7955203fb15e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "79c7c1c7fce2",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "7c91e6e7913a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "7c93564d4419",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "7c95cd53c3a7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "7d9200741a30",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "7d9c7dbc6226",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "7dfc718ca075",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "7e081e222455",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "7f46ed99ae2a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "8035d40e93a3",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "804295698064",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "82ae19dfeb47",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "832993500570",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "851eadd07780",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "8577209422e7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": true,
+      "note": "桌沿/手边的搁放与是否仍握持不明确，单列含糊描述。"
+    },
+    {
+      "id": "85df6b9a62d4",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "86a65c169d3a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "8784417f7bb1",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "88037a5eab09",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "8af40d8a3626",
+      "personConflict": false,
+      "groundConflict": true,
+      "ambiguous": false,
+      "note": "保温杯正式 holder 仍为留守者，旁白放到桌角并将手收至膝上。"
+    },
+    {
+      "id": "8b5dbfc18d94",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "8c4e1c268c97",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "8d3a9e3300ab",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "8dfcb00fb3e5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "8eda49ab717e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "8f04e815f83b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "8f760a9ef332",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "9309dfde9ca1",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "9477fdbfaf2c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "99c084586492",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "99dfec64875a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "99f3c42d39ec",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "9b91c3d80dca",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "9cf3824cfc8b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "9fdc8240cffe",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "a11ae84ba088",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "a18742000d2c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "a27af7496570",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "a43c8520d634",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "a631fed93489",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "a753ba37459f",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "a785668e3eb2",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "a85748220cd8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "aa800e2e2df9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ab29242e2051",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ac84c84bb53f",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "accb6b128597",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ad019b39d882",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "adf20444ae79",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ae0265ecd67c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": true,
+      "note": "桌沿/手边的搁放与是否仍握持不明确，单列含糊描述。"
+    },
+    {
+      "id": "af3d86ab69ce",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "aff877b81365",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "b33e384f369b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "b362a669d0ed",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "b369d226f0e8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "b70ae02bd1aa",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "b8c10bcafa87",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "b9fa24ddcfed",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "bc2dc6b57eb5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "bcc79f00e23f",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "bd9603ded74c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "befb517b2242",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "c17f064d9c05",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "c19bd41803e6",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "c38138bdef96",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "c398e8c24bb7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "c54209c373c5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "c769f8a59ee9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "c8a12610289a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "c8c6a15a0162",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "caf6ccf4918e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "cb776bd553a4",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "cc47d503fa7e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "cca9e1a66a59",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "d123316871cf",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "d2796079cb2b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "d3514d40cc5d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "d3637da4af89",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "d3d7ef1eccd7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "d52da53115ec",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "d6a9267c2ebf",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "d8eeab919855",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "da55df5415ed",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "daf04a0fc7e2",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "db365c070c58",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "dc96b0ac686c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "dcf04359810d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "de3e56f0a9f3",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "df7da3c0d05f",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": true,
+      "note": "桌沿/手边的搁放与是否仍握持不明确，单列含糊描述。"
+    },
+    {
+      "id": "e1180cc2f8c1",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "e159090191d8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "e72b1ce7c4bc",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ea8a9a2fa707",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "eac74a0150c0",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ec09d95dccf3",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ec213bb77971",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ec986f89eca1",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ed529bf05854",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ed5f29414047",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ee6161cd9b97",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "ef0ce241a51a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "efefe533ff8a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "f14968f11e26",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "f1bb224e888e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "f1edf309e80e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "f3b5940bc0db",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "f510372f9a80",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "f77df873dbf5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "f7ac791aa783",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "f92abf3442bd",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "fa04150e6523",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "fcadbc2175ce",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "fd700ce85687",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "fe0b0e6862af",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    },
+    {
+      "id": "fec6ed657520",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "note": "未发现明确受控归属冲突；触碰、意图和角色对白不自动构成客观转移。"
+    }
+  ]
+}

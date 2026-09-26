@@ -25,10 +25,10 @@ export interface TemporalClaim {
 }
 export const placementCriteria = {
   OBJECTIVE_RELEASE: '最新客观旁白确认目标物品在这一次交互中从手中或随身保管处被放到本场景桌面/地面，并已经松手，表达结束时无人持有。仅桌面滑动、挪几寸、不离开原平面不算从手中放下。',
-  OBJECTIVE_GROUND: '最新 narration 把目标写作当前桌上或地上的物品，包括看着桌上的目标、没碰桌上的目标、视线从桌上目标移开。这样的名词修饰就确认了位置，不必另写无人持有。仅当同一目标明确仍被握持、底部只是贴桌时排除此项；另一物品被拿着不排除目标在桌上。明确本次松手放下优先选 OBJECTIVE_RELEASE。',
+  OBJECTIVE_GROUND: '最新客观旁白确认目标物品当前在本场景桌面/地面、无人持有，包括作为背景或名词修饰出现的桌上物品、目光看向或移开、没有触碰桌上物品；这些叙述仍确认物品在桌面。没有确认本次从手中放下。',
   PAST: '最新客观旁白只回忆此前一次把目标放下，未确认当前在桌面/地面或本次完成放下。',
   SPEECH_ONLY: '目标已放下或在桌面的说法仅在对白、引用或思想中，最新客观旁白没有确认。',
-  NONE: '最新 narration 没有确认目标无人持有或完成放下。只看桌面空处、给目标留位置、看目标原来搁着的印子不等于目标现在在桌上。仍握持时贴桌或挪到桌边、触碰或开盖不等于松手放下。邀请、未来、假设、否认也不算。',
+  NONE: '最新表达未确认目标物品无人持有或完成放下；邀请、打算、假设、否认和等待对方接稳的递出都不算。桌面滑动若未明确桌面，只是不确定的挪动，不推导曾手持。',
   UNCERTAIN: '不能确定是哪件物品、放下是否完成、是否属于本场景或结束时是否仍由人持有。',
 }
 export interface PlacementClaim {
@@ -53,13 +53,13 @@ export function claimRequest(q: ClaimQuestion) {
   return { model: 'typesafe/jev-1.13', state: {
     target: q.item, items: q.items, characters: q.characters, publication: q.publication,
     earlierPublications: q.earlierPublications, round: q.round,
-  }, questions: { placement: {type:'choice',instructions:`只解释最新 publication 对 ${q.item.name}（${q.item.entityId}）是否作出客观放下或当前桌面/地面归属宣称。先单独阅读最新 publication.narration，逐句确认目标而非其他物品的位置。只看空处、原来的位置或为物品留位置不是物品当前位置。目标与其他物品分开：旁白桌上的目标是当前位置断言，即使别的物品还在手里。否定触碰目标也不否定桌上的目标存在。触桌与松手不同：只有同一目标仍被握持时，底部贴桌不算无人持有。旁白明确本次松手选 OBJECTIVE_RELEASE，仅确认当前无人持有的桌上物品选 OBJECTIVE_GROUND；别因对白很长而忽略真实背景位置。若相关位置只在 publication.speech、引用或思想里，选 SPEECH_ONLY，即便角色说自己亲眼看见或声称已经放下。不要把对白或 earlierPublications 的位置搬进最新旁白，不判断世界真伪。`,criteria:Object.fromEntries(Object.entries(placementCriteria).map(([label,description])=>[label,description.replaceAll('目标',`${q.item.name}（${q.item.entityId}）`)]))},
+  }, questions: { placement: {type:'choice',instructions:`只解释最新 publication 对 ${q.item.name}（${q.item.entityId}）是否作出客观放下或当前桌面/地面归属宣称。区分已经松手、桌面滑动、过去回忆和角色对白。先独立读取最新 narration：其中作为背景出现的物品位置也是客观宣称，不要求有放下动作；否定触碰或观看动作不会否定它的桌面位置。若 narration 已确认当前桌面位置，即使 speech 大段回忆，也优先 OBJECTIVE_GROUND；只有 narration 完全没有这类确认才选 SPEECH_ONLY。不要判断世界真伪，不把 earlierPublications 的放下当成最新确认。`,criteria:placementCriteria},
     ...Object.fromEntries(q.characters.flatMap((c, i) => [
     [`claim_${i}`, { type: 'choice', instructions: `这段已经生成的文本是否把 ${c.name}（${c.characterId}）持有目标物品 ${q.item.name}（${q.item.entityId}） 写成已发生的客观事件，还是仅角色说法？`
       + '只解释 publication 对指定人物的最新宣称。speech 是角色对白，可以说谎；narration 是客观叙述，其中引用的话和思想仍属于角色陈述。'
       + '分清本次新获取、结束时实际持有、这次中途持有后归还、过去回忆、现在对白和过去对白。对白同时提现在和过去，且指定人物只在过去持有时选 SPEECH_PAST。'
       + '最新回答若回应此前明确的回忆提问，刚拿到、刚看过等可指被追问的过去经历；结合紧邻提问判断，不能仅凭刚字判成现在。只判最新文本，不把上下文其他人物或其他物品的持有搬到最新宣称。'
-      + '只有明确取得或持续握持才能算持有。沿桌面滑动、推杯、挪半寸、手搭物品、触碰后收手、拧开又拧上盖子均不证明曾持有。物品仍可以在桌上或他人手里；不能因为某动作常需要拿起就推导一次拿起。明确端起、举起、握在手里仍算持有。'
+      + '只有明确取得或持续握持才能算持有。沿桌面滑动、推杯、挪半寸、手搭物品或接触杯沿均不证明手持；不能从这些细动作推导一次拿起。'
       + '我指 actorId，你根据公开表达解指代，不能确定则 UNCERTAIN。多件物品分别判断，不借邻近物品的动作替目标断言。'
       + '先客观后对白；先中途持有后归还、再本次新获取、再结束时持有、再过去回忆。不要因 earlierPublications 讲过就排除本次客观断言。不要判断世界真假。', criteria: Object.fromEntries(Object.entries(claimCriteria).map(([label,description]) => [label,description.replaceAll('指定人物',`${c.name}（${c.characterId}）`).replaceAll('目标',`${q.item.name}（${q.item.entityId}）`)])) }],
     [`reference_${i}`, { type: 'choice', instructions: `publication 对 ${c.name}（${c.characterId}）持有目标物品 ${q.item.name}（${q.item.entityId}） 的宣称，是否明确回述 earlierPublications 里的同一次具体经历？`

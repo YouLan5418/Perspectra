@@ -1,0 +1,51 @@
+{
+  "checks": 69,
+  "failed": 1,
+  "matched": 60,
+  "costUsd": 0.031248419999999975,
+  "groups": {
+    "positive": {
+      "checks": 36,
+      "matched": 30,
+      "flagged": 30,
+      "failed": 1
+    },
+    "contact": {
+      "checks": 6,
+      "matched": 6,
+      "flagged": 0,
+      "failed": 0
+    },
+    "ambiguous": {
+      "checks": 3,
+      "matched": 0,
+      "flagged": 3,
+      "failed": 0
+    },
+    "speech_past": {
+      "checks": 6,
+      "matched": 6,
+      "flagged": 0,
+      "failed": 0
+    },
+    "held_table": {
+      "checks": 3,
+      "matched": 3,
+      "flagged": 0,
+      "failed": 0
+    },
+    "target_absent": {
+      "checks": 6,
+      "matched": 6,
+      "flagged": 0,
+      "failed": 0
+    },
+    "formal_or_slide": {
+      "checks": 9,
+      "matched": 9,
+      "flagged": 0,
+      "failed": 0
+    }
+  },
+  "execution": "48 successes; one transport failure recorded; 20 unattempted suffix calls; no retries"
+}

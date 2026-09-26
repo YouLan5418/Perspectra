@@ -1,0 +1,87 @@
+{
+  "reviewer": "Codex primary agent",
+  "counts": {
+    "correct": 3,
+    "unnecessary": 0,
+    "ambiguous": 1
+  },
+  "reviews": [
+    {
+      "run": "b1",
+      "baseHeadSeq": 150,
+      "judgment": "ambiguous",
+      "note": "挪到桌角后抹桌面没有明确说明持杯的手松开；不能把接触桌面直接等同归属释放。",
+      "original": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "narration": "留守者把保温杯挪到桌角，腾出中间一块空位，手在桌面上抹了一下。",
+        "speech": "行，地方给你腾出来了。钥匙在你自己手里，摆哪儿随你。"
+      },
+      "final": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "行，桌中间这块空着。钥匙在你自己手里，摆哪儿随你。我这保温杯就不挪了，省得一会儿又找不着。"
+      }
+    },
+    {
+      "run": "b1",
+      "baseHeadSeq": 309,
+      "judgment": "correct",
+      "note": "正式钥匙已释放到场景，原旁白却仍在留守者手里，修正为桌上。",
+      "original": {
+        "decision": "publish",
+        "narration": "同行者没动，视线落在留守者手里的钥匙上，等他把话说完。"
+      },
+      "final": {
+        "decision": "publish",
+        "narration": "同行者没动，视线落在桌上的钥匙上，等留守者把话说完。"
+      }
+    },
+    {
+      "run": "b2",
+      "baseHeadSeq": 154,
+      "judgment": "correct",
+      "note": "正式杯子由留守者持有，原旁白放回桌上；修正明确仍拿着。",
+      "original": {
+        "decision": "publish",
+        "narration": "留守者把保温杯放回桌上，往旁边挪了挪，腾出一块空位。",
+        "speech": "行，放这儿吧。钥匙你们拿着，我不碰。",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "final": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "行，钥匙你们拿着，我不碰。杯子我先拿着——你要看，我递给你。"
+      }
+    },
+    {
+      "run": "b2",
+      "baseHeadSeq": 165,
+      "judgment": "correct",
+      "note": "原旁白放杯、推过桌面并收手，正式无释放；修正仍拿着。",
+      "original": {
+        "decision": "publish",
+        "narration": "留守者把保温杯往桌面上一放，掌心压着杯底，顺着桌面往旁边推了半掌宽，杯盖朝外停住。手收回来，搁在桌沿上。",
+        "speech": "挪了。这样行吗？",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "final": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "杯子还在我手里。你要挪的话，得先接过去——我递给你？"
+      }
+    }
+  ]
+}

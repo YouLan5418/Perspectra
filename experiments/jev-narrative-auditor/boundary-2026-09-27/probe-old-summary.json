@@ -1,0 +1,42 @@
+{
+  "checks": 69,
+  "matched": 47,
+  "costUsd": 0.030489354000000003,
+  "groups": {
+    "positive": {
+      "checks": 36,
+      "matched": 36,
+      "flagged": 36
+    },
+    "contact": {
+      "checks": 6,
+      "matched": 1,
+      "flagged": 5
+    },
+    "ambiguous": {
+      "checks": 3,
+      "matched": 0,
+      "flagged": 3
+    },
+    "speech_past": {
+      "checks": 6,
+      "matched": 0,
+      "flagged": 6
+    },
+    "held_table": {
+      "checks": 3,
+      "matched": 0,
+      "flagged": 3
+    },
+    "target_absent": {
+      "checks": 6,
+      "matched": 1,
+      "flagged": 5
+    },
+    "formal_or_slide": {
+      "checks": 9,
+      "matched": 9,
+      "flagged": 0
+    }
+  }
+}

@@ -25,7 +25,7 @@ export interface TemporalClaim {
 }
 export const placementCriteria = {
   OBJECTIVE_RELEASE: '最新客观旁白确认目标物品在这一次交互中从手中或随身保管处被放到本场景桌面/地面，并已经松手，表达结束时无人持有。仅桌面滑动、挪几寸、不离开原平面不算从手中放下。',
-  OBJECTIVE_GROUND: '最新 narration 把目标写作当前桌上或地上的物品，包括看着桌上的目标、没碰桌上的目标、视线从桌上目标移开。这样的名词修饰就确认了位置，不必另写无人持有。仅当同一目标明确仍被握持、底部只是贴桌时排除此项；另一物品被拿着不排除目标在桌上。明确本次松手放下优先选 OBJECTIVE_RELEASE。',
+  OBJECTIVE_GROUND: '最新 narration 确认目标当前无人保管地搁在本场景桌面/地面，包括看着桌上的目标、没碰桌上的目标这些背景事实。若目标仍被握持、杯底只是贴桌，不能选这里。明确本次松手放下优先选 OBJECTIVE_RELEASE。',
   PAST: '最新客观旁白只回忆此前一次把目标放下，未确认当前在桌面/地面或本次完成放下。',
   SPEECH_ONLY: '目标已放下或在桌面的说法仅在对白、引用或思想中，最新客观旁白没有确认。',
   NONE: '最新 narration 没有确认目标无人持有或完成放下。只看桌面空处、给目标留位置、看目标原来搁着的印子不等于目标现在在桌上。仍握持时贴桌或挪到桌边、触碰或开盖不等于松手放下。邀请、未来、假设、否认也不算。',
@@ -53,7 +53,7 @@ export function claimRequest(q: ClaimQuestion) {
   return { model: 'typesafe/jev-1.13', state: {
     target: q.item, items: q.items, characters: q.characters, publication: q.publication,
     earlierPublications: q.earlierPublications, round: q.round,
-  }, questions: { placement: {type:'choice',instructions:`只解释最新 publication 对 ${q.item.name}（${q.item.entityId}）是否作出客观放下或当前桌面/地面归属宣称。先单独阅读最新 publication.narration，逐句确认目标而非其他物品的位置。只看空处、原来的位置或为物品留位置不是物品当前位置。目标与其他物品分开：旁白桌上的目标是当前位置断言，即使别的物品还在手里。否定触碰目标也不否定桌上的目标存在。触桌与松手不同：只有同一目标仍被握持时，底部贴桌不算无人持有。旁白明确本次松手选 OBJECTIVE_RELEASE，仅确认当前无人持有的桌上物品选 OBJECTIVE_GROUND；别因对白很长而忽略真实背景位置。若相关位置只在 publication.speech、引用或思想里，选 SPEECH_ONLY，即便角色说自己亲眼看见或声称已经放下。不要把对白或 earlierPublications 的位置搬进最新旁白，不判断世界真伪。`,criteria:Object.fromEntries(Object.entries(placementCriteria).map(([label,description])=>[label,description.replaceAll('目标',`${q.item.name}（${q.item.entityId}）`)]))},
+  }, questions: { placement: {type:'choice',instructions:`只解释最新 publication 对 ${q.item.name}（${q.item.entityId}）是否作出客观放下或当前桌面/地面归属宣称。先单独阅读最新 publication.narration，逐句确认目标而非其他物品的位置。只看空处、原来的位置或为物品留位置不是物品当前位置。触桌与松手不同：杯底贴桌但手仍持杯，不是无人持有。旁白明确本次松手选 OBJECTIVE_RELEASE，仅确认当前无人持有的桌上物品选 OBJECTIVE_GROUND；别因对白很长而忽略真实背景位置。若相关位置只在 publication.speech、引用或思想里，选 SPEECH_ONLY，即便角色说自己亲眼看见或声称已经放下。不要把对白或 earlierPublications 的位置搬进最新旁白，不判断世界真伪。`,criteria:placementCriteria},
     ...Object.fromEntries(q.characters.flatMap((c, i) => [
     [`claim_${i}`, { type: 'choice', instructions: `这段已经生成的文本是否把 ${c.name}（${c.characterId}）持有目标物品 ${q.item.name}（${q.item.entityId}） 写成已发生的客观事件，还是仅角色说法？`
       + '只解释 publication 对指定人物的最新宣称。speech 是角色对白，可以说谎；narration 是客观叙述，其中引用的话和思想仍属于角色陈述。'

@@ -1,0 +1,1 @@
+Final probe: 48 successful calls, then one transport failure at old-b2-370-1 repeat 1. The failure was recorded. Only the remaining 20 never-attempted calls were run, using the same classifier source. No retry or duplicate completed call. Summary includes 69 attempted calls, 68 responses, 1 failure.

@@ -7,11 +7,15 @@ if(!process.argv[2])throw new Error('choose output directory')
 mkdirSync(output,{recursive:true})
 const prepare=process.argv.includes('--prepare')
 const names=['a1','a2','b1','b2']
+const argument=(flag:string,fallback:string)=>{const i=process.argv.indexOf(flag);return i<0?fallback:process.argv[i+1]??fallback}
+const sourcePrefix=argument('--source-prefix','.tmp/jev-placement-live-20260927-')
+const reviewRoot=argument('--review-root','.tmp/jev-placement-review')
+const boundary=process.argv.includes('--boundary')
 const read=(p:string)=>JSON.parse(readFileSync(p,'utf8'))
 const lines=(p:string):Record<string,any>[]=>readFileSync(p,'utf8').trim().split('\n').filter(Boolean).map(s=>JSON.parse(s))
 const save=(file:string,v:unknown)=>writeFileSync(resolve(output,file),JSON.stringify(v,null,2)+'\n',{flag:'wx'})
 const runs=names.map(name=>{
-  const root=resolve('.tmp/jev-placement-live-20260927-'+name)
+  const root=resolve(sourcePrefix+name)
   const db=new DatabaseSync(resolve(root,'world.sqlite'),{readOnly:true})
   const raw=db.prepare('SELECT * FROM events ORDER BY seq').all();db.close()
   const events=raw.map(r=>({seq:Number(r.seq),eventType:String(r.event_type),data:JSON.parse(String(r.data_json))}))
@@ -20,7 +24,7 @@ const runs=names.map(name=>{
 if(prepare){
   const cases:Record<string,unknown>[]=[],mapping:Record<string,unknown>[]=[]
   for(const run of runs)for(const e of run.events.filter(e=>e.eventType==='character.speak'&&e.data.characterId!=='character:player')){
-    const id=createHash('sha256').update('placement-review-05:'+run.name+':'+e.seq).digest('hex').slice(0,12)
+    const id=createHash('sha256').update(sourcePrefix+':'+run.name+':'+e.seq).digest('hex').slice(0,12)
     const prefix=run.events.filter(p=>p.seq<=e.seq)
     const holders:Record<string,string|null>={}
     for(const p of prefix){
@@ -39,7 +43,6 @@ if(prepare){
   console.log(JSON.stringify({cases:cases.length,output}));process.exit(0)
 }
 if(existsSync(resolve(output,'verification.json')))throw new Error('choose new artifact directory')
-const reviewRoot='.tmp/jev-placement-review'
 const mapping=read(resolve(reviewRoot,'mapping.json')) as {id:string;run:string;seq:number}[]
 const review=read(resolve(reviewRoot,'judgments.json')) as {reviewer:string;scope:string;judgments:{id:string;personConflict:boolean;groundConflict:boolean}[]}
 if(review.judgments.length!==mapping.length||new Set(review.judgments.map(j=>j.id)).size!==mapping.length||mapping.some(m=>!review.judgments.some(j=>j.id===m.id)))throw new Error('incomplete review')
@@ -69,8 +72,9 @@ for(const run of runs){
     preAuditFailures:run.summary.preAuditFailures,unpublishedFinals})
 }
 for(const file of ['cases.jsonl','mapping.json','judgments.json'])copyFileSync(resolve(reviewRoot,file),resolve(output,'review-'+file))
-for(const [label,root] of [['old','.tmp/jev-placement-old-20260927'],['new01','.tmp/jev-placement-new-20260927'],['new02','.tmp/jev-placement-new02-20260927']]){
-  for(const file of ['fixture.json','results.jsonl','summary.json'])copyFileSync(resolve(root!,file),resolve(output,'probe-'+label+'-'+file))
+const probes=boundary?[['old','.tmp/jev-boundary-old-20260927'],['new','.tmp/jev-boundary-new-20260927'],['new02','.tmp/jev-boundary-new02-20260927']]:[['old','.tmp/jev-placement-old-20260927'],['new01','.tmp/jev-placement-new-20260927'],['new02','.tmp/jev-placement-new02-20260927']]
+for(const [label,root] of probes){
+  for(const file of ['fixture.json','results.jsonl','summary.json',...(boundary?['classifier-source.ts']:[])])copyFileSync(resolve(root!,file),resolve(output,'probe-'+label+'-'+file))
 }
 save('verification.json',{runs:verification,inputsIdentical:true,reviewer:review.reviewer,reviewScope:review.scope,automaticMemoryCorrection:false,
   groundPastSourceLinking:false,broadEffectivenessAccepted:false})
