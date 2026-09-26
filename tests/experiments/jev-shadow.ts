@@ -1,5 +1,7 @@
 import { setImmediate as nextTurn } from 'node:timers/promises'
 import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
+import { claimCriteria, type ClaimQuestion, type ClaimAnswer, type TemporalClaim } from './jev-shadow-claims-client.ts'
+import { acquisitionWindow, holderEvidence, publicationWindow, type AuditWindow, type HolderEvidence } from './jev-shadow-window.ts'
 import { currentEntityState } from '@harness-world/kernel'
 
 export interface AuditItem { readonly entityId: string; readonly name: string; readonly aliases?: readonly string[] }
@@ -27,7 +29,14 @@ export interface HolderAnswer {
   readonly costUsd: number | null
 }
 export type AuditStatus = 'SUPPORTED' | 'CONFLICT' | 'NO_CLAIM' | 'UNCERTAIN'
-  | 'CALL_FAILED' | 'AUDIT_FAILED' | 'QUEUE_SKIPPED'
+  | 'CALL_FAILED' | 'AUDIT_FAILED' | 'QUEUE_SKIPPED' | 'HISTORICAL_SUPPORTED' | 'HISTORY_UNRESOLVED' | 'CHAIN_RECALL' | 'SPEECH_UNBACKED'
+export interface ReconciledClaim extends TemporalClaim {
+  readonly status: AuditStatus
+  readonly window: AuditWindow
+  readonly evidence: HolderEvidence
+  readonly rootPublicationSeq: number | null
+  readonly reason: string | null
+}
 export interface ShadowRecord {
   readonly address: WorldAddress
   readonly preHeadSeq: number
@@ -40,13 +49,15 @@ export interface ShadowRecord {
   readonly worldHolder: string | null
   readonly claimedHolder: string | null
   readonly holderEventSeq: number | null
-  readonly answer: HolderAnswer | null
+  readonly answer: ClaimAnswer | null
+  readonly window: AuditWindow | null
+  readonly claims: readonly ReconciledClaim[]
   readonly latencyMs: number
   readonly reason: string | null
 }
 export interface ShadowOptions {
   readonly items: readonly AuditItem[]
-  readonly classify: (question: HolderQuestion) => Promise<HolderAnswer>
+  readonly classify: (question: ClaimQuestion) => Promise<ClaimAnswer>
   readonly write: (record: ShadowRecord) => Promise<void>
   readonly onError?: (message: string) => void
 }
@@ -90,6 +101,8 @@ export class JevShadow {
   #records = 0
   #errors = 0
   #skipped = 0
+  #claims = new Map<string, ReconciledClaim>()
+  #roots = new Map<number, Publication>()
 
   constructor(private readonly options: ShadowOptions & {
     readonly address: WorldAddress
@@ -168,33 +181,75 @@ export class JevShadow {
             await this.#write(this.#record(start, end, { ...base, status: 'UNCERTAIN', reason: 'configured items share the same display name' }))
             continue
           }
+          const window = publicationWindow(events, publication.seq)
+          const priorPublications = events.filter(e => e.eventType === 'character.speak' && e.seq < publication.seq).slice(-12).map(e => {
+            const d = e.data as WorldJsonObject
+            return { seq: e.seq, actorId: String(d.characterId), speech: String(d.text ?? ''), narration: String(d.narration ?? '') }
+          })
+          const earlierPublications = [...new Map([...this.#roots.values(), ...priorPublications].filter(p => p.seq < publication.seq).map(p => [p.seq,p])).values()].sort((a,b) => a.seq-b.seq)
           const began = performance.now()
-          let answer: HolderAnswer
+          let answer: ClaimAnswer
           try {
-            answer = await this.options.classify({ item, items: this.options.items, characters: this.options.characters, publication })
-            if (!Object.hasOwn(holderCriteria(this.options.characters), answer.choice)) throw new Error('invalid choice')
+            answer = await this.options.classify({ item, items: this.options.items, characters: this.options.characters, publication, earlierPublications, round: window })
+            if (answer.claims.length !== this.options.characters.length || new Set(answer.claims.map(c => c.characterId)).size !== answer.claims.length
+              || answer.claims.some(c => !this.options.characters.some(p => p.characterId === c.characterId) || !Object.hasOwn(claimCriteria,c.kind)
+                || (c.referenceSeq !== null && !earlierPublications.some(p => p.seq === c.referenceSeq)))) throw new Error('invalid claim')
           } catch {
             this.#errors += 1
             await this.#write(this.#record(start, end, { ...base, status: 'CALL_FAILED',
               latencyMs: performance.now() - began, reason: 'Jev request failed or response was invalid' }))
             continue
           }
-          const choice = answer.choice
-          const claimedHolder = choice.startsWith('holder:') ? choice.slice('holder:'.length) : null
-          const status: AuditStatus = choice === 'UNCERTAIN' ? 'UNCERTAIN'
-            : choice === 'NO_CLAIM' || choice === 'SPEECH_ONLY' ? 'NO_CLAIM'
-              : claimedHolder === world.holderId ? 'SUPPORTED' : 'CONFLICT'
-          await this.#write(this.#record(start, end, { ...base, answer, claimedHolder, status, latencyMs: performance.now() - began }))
+          const claims = answer.claims.map(claim => this.#reconcile(events,item,publication,window,claim))
+          const priority: AuditStatus[] = ['CONFLICT','CHAIN_RECALL','SPEECH_UNBACKED','UNCERTAIN','HISTORY_UNRESOLVED','SUPPORTED','HISTORICAL_SUPPORTED','NO_CLAIM']
+          const status = priority.find(s => claims.some(c => c.status === s)) ?? 'NO_CLAIM'
+          for (const claim of claims) {
+            this.#claims.set(`${publication.seq}|${item.entityId}|${claim.characterId}`,claim)
+            if (claim.status === 'CONFLICT' && claim.rootPublicationSeq === publication.seq) this.#roots.set(publication.seq,publication)
+          }
+          while (this.#claims.size > 4096) this.#claims.delete(this.#claims.keys().next().value!)
+          while (this.#roots.size > 8) this.#roots.delete(this.#roots.keys().next().value!)
+          await this.#write(this.#record(start, end, { ...base, answer, claims, window, status,
+            claimedHolder: claims.find(c => c.kind.startsWith('OBJECTIVE'))?.characterId ?? null, latencyMs: performance.now() - began }))
         }
       }
       start = end
       await nextTurn()
     }
   }
+  #reconcile(events: readonly StoredWorldEvent[], item: AuditItem, publication: Publication, window: AuditWindow, claim: TemporalClaim): ReconciledClaim {
+    let selectedWindow = window
+    let status: AuditStatus = 'NO_CLAIM', rootPublicationSeq: number | null = null, reason: string | null = null
+    const past = claim.kind === 'OBJECTIVE_PAST' || claim.kind === 'SPEECH_PAST'
+    const reference = claim.referenceSeq === null ? undefined : this.#claims.get(`${claim.referenceSeq}|${item.entityId}|${claim.characterId}`)
+    if (past && claim.referenceSeq !== null) {
+      selectedWindow = reference?.status === 'HISTORICAL_SUPPORTED' ? reference.window : publicationWindow(events,claim.referenceSeq)
+    } else if (claim.kind === 'OBJECTIVE_NEW' || claim.kind === 'OBJECTIVE_DURING') selectedWindow = acquisitionWindow(events,window)
+    const evidence = holderEvidence(events,selectedWindow,item.entityId,claim.characterId)
+    const held = evidence.heldAtWindowStart || evidence.enteredSeqs.length > 0
+    if (claim.kind === 'UNCERTAIN') status = 'UNCERTAIN'
+    else if (past) {
+      if (claim.referenceSeq === null) { status = 'HISTORY_UNRESOLVED'; reason = 'past occurrence has no identifiable publication anchor' }
+      else if (reference?.rootPublicationSeq !== null && reference?.rootPublicationSeq !== undefined) {
+        status = 'CHAIN_RECALL'; rootPublicationSeq = reference.rootPublicationSeq; reason = 'model links this recollection to an earlier unsupported objective occurrence'
+      } else if (held) status = 'HISTORICAL_SUPPORTED'
+      else { status = 'HISTORY_UNRESOLVED'; reason = 'referenced window has no matching holder; no objective root established' }
+    } else if (claim.kind === 'OBJECTIVE_NEW' || claim.kind === 'OBJECTIVE_NOW' || claim.kind === 'OBJECTIVE_DURING') {
+      const supported = claim.kind === 'OBJECTIVE_NEW' ? evidence.enteredSeqs.length > 0
+        : claim.kind === 'OBJECTIVE_NOW' ? currentEntityState(events.slice(0,window.toSeq),item.entityId)?.holderId === claim.characterId : held
+      status = supported ? 'SUPPORTED' : 'CONFLICT'
+      if (!supported) { rootPublicationSeq = publication.seq; reason = 'this occurrence has no formal holder support in its local event window' }
+    } else if (claim.kind === 'SPEECH_NOW') {
+      const currentHeld = currentEntityState(events.slice(0,window.toSeq),item.entityId)?.holderId === claim.characterId
+      status = currentHeld ? 'SUPPORTED' : 'SPEECH_UNBACKED'
+      reason = currentHeld ? null : 'current speech claim has no local holder support; not objective narration'
+    }
+    return { ...claim, status, window: selectedWindow, evidence, rootPublicationSeq, reason }
+  }
   #record(from: number, to: number, fields: Partial<ShadowRecord>): ShadowRecord {
     return { address: this.options.address, preHeadSeq: from, postHeadSeq: to, transactionId: null,
       publication: null, item: null, status: 'AUDIT_FAILED', beforeHolder: null, worldHolder: null,
-      claimedHolder: null, holderEventSeq: null, answer: null, latencyMs: 0, reason: null, ...fields }
+      claimedHolder: null, holderEventSeq: null, answer: null, window: null, claims: [], latencyMs: 0, reason: null, ...fields }
   }
   async #write(record: ShadowRecord): Promise<void> {
     try { await this.options.write(record); this.#records += 1 }

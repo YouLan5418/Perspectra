@@ -1,0 +1,56 @@
+{
+  "constructed": true,
+  "checks": [
+    {
+      "seq": 11,
+      "person": "character:friend",
+      "status": "SUPPORTED",
+      "root": null,
+      "actual": "SUPPORTED",
+      "actualRoot": null,
+      "kind": "OBJECTIVE_DURING",
+      "referenceSeq": 6,
+      "match": true
+    },
+    {
+      "seq": 17,
+      "person": "character:friend",
+      "status": "HISTORICAL_SUPPORTED",
+      "root": null,
+      "actual": "HISTORICAL_SUPPORTED",
+      "actualRoot": null,
+      "kind": "SPEECH_PAST",
+      "referenceSeq": 11,
+      "match": true
+    },
+    {
+      "seq": 23,
+      "person": "character:friend",
+      "status": "CONFLICT",
+      "root": 23,
+      "actual": "CONFLICT",
+      "actualRoot": 23,
+      "kind": "OBJECTIVE_DURING",
+      "referenceSeq": 11,
+      "match": true
+    },
+    {
+      "seq": 29,
+      "person": "character:friend",
+      "status": "CHAIN_RECALL",
+      "root": 23,
+      "actual": "HISTORY_UNRESOLVED",
+      "actualRoot": null,
+      "kind": "SPEECH_PAST",
+      "referenceSeq": null,
+      "match": false
+    }
+  ],
+  "costUsd": 0.0019460699999999998,
+  "stats": {
+    "records": 8,
+    "errors": 0,
+    "skippedWindows": 0,
+    "pendingWindows": 0
+  }
+}

@@ -69,7 +69,7 @@ const summary = { model: latest.debug.model, rounds: turns.length, failedRounds:
   keyState: currentEntityState(events, 'entity:brass-key'), thermosState: currentEntityState(events, 'entity:thermos'),
   conflicts: rows.filter(row => row.status === 'CONFLICT').map(row => ({ seq: row.publication?.seq,
     item: row.item?.name, actorId: row.publication?.actorId, narration: row.publication?.narration,
-    worldHolder: row.worldHolder, claimedHolder: row.claimedHolder, choice: row.answer?.choice })),
+    worldHolder: row.worldHolder, claimedHolder: row.claimedHolder, claims: row.claims })),
   dataDirectory }
 writeFileSync(resolve(dataDirectory, 'live-summary.json'), JSON.stringify(summary, null, 2) + '\n')
 console.log(JSON.stringify(summary, null, 2))

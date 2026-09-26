@@ -1,0 +1,1248 @@
+{
+  "kind": "continuous-replay",
+  "source": "D:\\DeepSeek Harness\\Perspectra Jev Auditor\\.tmp\\jev-window-live-20260926-04\\world.sqlite",
+  "sourceDigest": "bd8a9bc945c181cd7a9d189c85e4bbd46bca85767c5c1ed8ec112a88b19cb615",
+  "initialSeq": 19,
+  "headSeq": 422,
+  "stats": {
+    "records": 140,
+    "errors": 0,
+    "skippedWindows": 0,
+    "pendingWindows": 0
+  },
+  "sourceUnchanged": true,
+  "records": 140,
+  "statuses": {
+    "NO_CLAIM": 89,
+    "SUPPORTED": 24,
+    "SPEECH_UNBACKED": 9,
+    "HISTORY_UNRESOLVED": 14,
+    "HISTORICAL_SUPPORTED": 4
+  },
+  "jevCostUsd": 0.05372833199999998,
+  "jevModels": [
+    "typesafe/jev-1.13-20260917"
+  ],
+  "findings": [
+    {
+      "publicationSeq": 56,
+      "item": "entity:brass-key",
+      "actorId": "character:player",
+      "claim": {
+        "characterId": "character:player",
+        "kind": "SPEECH_NOW",
+        "referenceSeq": null,
+        "probabilities": {
+          "SPEECH_NOW": 0.76,
+          "OBJECTIVE_NEW": 0,
+          "OBJECTIVE_DURING": 0,
+          "UNCERTAIN": 0.01,
+          "OBJECTIVE_NOW": 0.04,
+          "NONE": 0.18,
+          "SPEECH_PAST": 0.01,
+          "OBJECTIVE_PAST": 0
+        },
+        "referenceProbabilities": {
+          "publication:50": 0,
+          "publication:26": 0,
+          "publication:44": 0.03,
+          "UNRESOLVED": 0.01,
+          "NONE": 0.95,
+          "publication:32": 0,
+          "publication:20": 0.01
+        },
+        "confidence": 0.72,
+        "status": "SPEECH_UNBACKED",
+        "window": {
+          "roundId": "round:coordinated:5d03165b64dd5d9b2629cf72",
+          "fromSeq": 55,
+          "toSeq": 61,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "current speech claim has no local holder support; not objective narration"
+      }
+    },
+    {
+      "publicationSeq": 117,
+      "item": "entity:brass-key",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_NOW",
+        "referenceSeq": null,
+        "probabilities": {
+          "OBJECTIVE_NOW": 0.02,
+          "OBJECTIVE_PAST": 0.01,
+          "SPEECH_NOW": 0.67,
+          "OBJECTIVE_NEW": 0.02,
+          "SPEECH_PAST": 0.08,
+          "UNCERTAIN": 0.02,
+          "OBJECTIVE_DURING": 0.05,
+          "NONE": 0.13
+        },
+        "referenceProbabilities": {
+          "publication:78": 0,
+          "publication:67": 0,
+          "publication:50": 0,
+          "publication:73": 0.01,
+          "publication:105": 0.08,
+          "publication:89": 0,
+          "publication:56": 0.01,
+          "publication:44": 0,
+          "UNRESOLVED": 0.06,
+          "publication:84": 0.02,
+          "publication:62": 0.06,
+          "publication:100": 0.02,
+          "publication:95": 0.01,
+          "NONE": 0.73
+        },
+        "confidence": 0.63,
+        "status": "SPEECH_UNBACKED",
+        "window": {
+          "roundId": "prototype-turn:282ff6d7-de32-4ac9-b527-4ab6034e3bec:1",
+          "fromSeq": 110,
+          "toSeq": 121,
+          "kind": "turn-continuation"
+        },
+        "evidence": {
+          "heldAtWindowStart": true,
+          "enteredSeqs": [],
+          "leftSeqs": [
+            111
+          ]
+        },
+        "rootPublicationSeq": null,
+        "reason": "current speech claim has no local holder support; not objective narration"
+      }
+    },
+    {
+      "publicationSeq": 127,
+      "item": "entity:thermos",
+      "actorId": "character:friend",
+      "claim": {
+        "characterId": "character:friend",
+        "kind": "SPEECH_NOW",
+        "referenceSeq": null,
+        "probabilities": {
+          "OBJECTIVE_NEW": 0,
+          "NONE": 0,
+          "OBJECTIVE_PAST": 0,
+          "OBJECTIVE_DURING": 0,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_NOW": 0.04,
+          "SPEECH_NOW": 0.95,
+          "SPEECH_PAST": 0.01
+        },
+        "referenceProbabilities": {
+          "UNRESOLVED": 0,
+          "publication:84": 0,
+          "NONE": 0.99,
+          "publication:95": 0,
+          "publication:62": 0,
+          "publication:73": 0,
+          "publication:67": 0,
+          "publication:56": 0,
+          "publication:100": 0,
+          "publication:89": 0,
+          "publication:105": 0,
+          "publication:122": 0.01,
+          "publication:117": 0,
+          "publication:78": 0
+        },
+        "confidence": 0.93,
+        "status": "SPEECH_UNBACKED",
+        "window": {
+          "roundId": "prototype-turn:ae5a6f27-e5e6-4a62-9b9c-14bc43494a24:0",
+          "fromSeq": 126,
+          "toSeq": 132,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "current speech claim has no local holder support; not objective narration"
+      }
+    },
+    {
+      "publicationSeq": 133,
+      "item": "entity:thermos",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:friend",
+        "kind": "SPEECH_NOW",
+        "referenceSeq": 127,
+        "probabilities": {
+          "OBJECTIVE_PAST": 0.01,
+          "UNCERTAIN": 0.02,
+          "OBJECTIVE_NEW": 0,
+          "SPEECH_NOW": 0.62,
+          "OBJECTIVE_DURING": 0,
+          "SPEECH_PAST": 0.04,
+          "OBJECTIVE_NOW": 0.09,
+          "NONE": 0.22
+        },
+        "referenceProbabilities": {
+          "publication:73": 0,
+          "UNRESOLVED": 0,
+          "publication:100": 0,
+          "publication:122": 0,
+          "publication:95": 0,
+          "publication:84": 0,
+          "publication:117": 0,
+          "publication:105": 0,
+          "publication:127": 0.53,
+          "publication:78": 0,
+          "NONE": 0.47000000000000003,
+          "publication:62": 0,
+          "publication:67": 0,
+          "publication:89": 0
+        },
+        "confidence": 0.56,
+        "status": "SPEECH_UNBACKED",
+        "window": {
+          "roundId": "prototype-turn:16bc4978-7780-40c1-acb3-0a99c88f12b8:0",
+          "fromSeq": 132,
+          "toSeq": 137,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "current speech claim has no local holder support; not objective narration"
+      }
+    },
+    {
+      "publicationSeq": 138,
+      "item": "entity:brass-key",
+      "actorId": "character:player",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": null,
+        "probabilities": {
+          "OBJECTIVE_PAST": 0.04,
+          "SPEECH_PAST": 0.77,
+          "OBJECTIVE_DURING": 0.01,
+          "SPEECH_NOW": 0.03,
+          "OBJECTIVE_NEW": 0,
+          "OBJECTIVE_NOW": 0,
+          "UNCERTAIN": 0.02,
+          "NONE": 0.13
+        },
+        "referenceProbabilities": {
+          "publication:100": 0,
+          "publication:133": 0.01,
+          "publication:95": 0.02,
+          "publication:73": 0.03,
+          "publication:78": 0.02,
+          "publication:89": 0,
+          "publication:127": 0,
+          "publication:117": 0.3,
+          "publication:105": 0.01,
+          "publication:67": 0,
+          "UNRESOLVED": 0.1,
+          "publication:84": 0.16,
+          "publication:122": 0,
+          "NONE": 0.35000000000000003
+        },
+        "confidence": 0.73,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "round:coordinated:fe9420a2519fc26dffe42abc",
+          "fromSeq": 137,
+          "toSeq": 143,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "past occurrence has no identifiable publication anchor"
+      }
+    },
+    {
+      "publicationSeq": 138,
+      "item": "entity:brass-key",
+      "actorId": "character:player",
+      "claim": {
+        "characterId": "character:player",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": null,
+        "probabilities": {
+          "OBJECTIVE_PAST": 0.02,
+          "SPEECH_PAST": 0.51,
+          "OBJECTIVE_DURING": 0,
+          "SPEECH_NOW": 0.09,
+          "UNCERTAIN": 0.03,
+          "OBJECTIVE_NOW": 0.02,
+          "OBJECTIVE_NEW": 0,
+          "NONE": 0.33
+        },
+        "referenceProbabilities": {
+          "publication:100": 0,
+          "publication:133": 0,
+          "publication:95": 0.01,
+          "publication:117": 0.28,
+          "publication:78": 0.04,
+          "publication:89": 0,
+          "publication:73": 0.01,
+          "publication:127": 0,
+          "publication:84": 0.13,
+          "publication:67": 0,
+          "UNRESOLVED": 0.12,
+          "publication:105": 0.03,
+          "publication:122": 0.01,
+          "NONE": 0.37
+        },
+        "confidence": 0.43,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "round:coordinated:fe9420a2519fc26dffe42abc",
+          "fromSeq": 137,
+          "toSeq": 143,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": true,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "past occurrence has no identifiable publication anchor"
+      }
+    },
+    {
+      "publicationSeq": 138,
+      "item": "entity:thermos",
+      "actorId": "character:player",
+      "claim": {
+        "characterId": "character:friend",
+        "kind": "SPEECH_NOW",
+        "referenceSeq": null,
+        "probabilities": {
+          "UNCERTAIN": 0.01,
+          "OBJECTIVE_DURING": 0,
+          "NONE": 0.2,
+          "OBJECTIVE_PAST": 0,
+          "OBJECTIVE_NOW": 0.1,
+          "SPEECH_PAST": 0.02,
+          "SPEECH_NOW": 0.66,
+          "OBJECTIVE_NEW": 0
+        },
+        "referenceProbabilities": {
+          "publication:84": 0,
+          "publication:122": 0,
+          "publication:78": 0,
+          "publication:105": 0,
+          "publication:133": 0,
+          "publication:117": 0,
+          "UNRESOLVED": 0,
+          "publication:67": 0,
+          "publication:73": 0,
+          "publication:100": 0,
+          "publication:95": 0,
+          "NONE": 0.65,
+          "publication:127": 0.35,
+          "publication:89": 0
+        },
+        "confidence": 0.61,
+        "status": "SPEECH_UNBACKED",
+        "window": {
+          "roundId": "round:coordinated:fe9420a2519fc26dffe42abc",
+          "fromSeq": 137,
+          "toSeq": 143,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "current speech claim has no local holder support; not objective narration"
+      }
+    },
+    {
+      "publicationSeq": 144,
+      "item": "entity:brass-key",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_NOW",
+        "referenceSeq": 84,
+        "probabilities": {
+          "OBJECTIVE_PAST": 0.03,
+          "SPEECH_PAST": 0.26,
+          "OBJECTIVE_DURING": 0.02,
+          "SPEECH_NOW": 0.52,
+          "UNCERTAIN": 0.01,
+          "OBJECTIVE_NOW": 0.13,
+          "OBJECTIVE_NEW": 0.02,
+          "NONE": 0.01
+        },
+        "referenceProbabilities": {
+          "publication:100": 0,
+          "publication:133": 0,
+          "publication:138": 0.04,
+          "publication:127": 0,
+          "publication:78": 0,
+          "publication:89": 0,
+          "NONE": 0.16,
+          "publication:117": 0.07,
+          "publication:84": 0.43,
+          "publication:122": 0,
+          "UNRESOLVED": 0.2,
+          "publication:105": 0.01,
+          "publication:73": 0.01,
+          "publication:95": 0.08
+        },
+        "confidence": 0.46,
+        "status": "SPEECH_UNBACKED",
+        "window": {
+          "roundId": "prototype-turn:97849298-6b88-4ebc-b7ba-0c203828691a:0",
+          "fromSeq": 143,
+          "toSeq": 148,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "current speech claim has no local holder support; not objective narration"
+      }
+    },
+    {
+      "publicationSeq": 144,
+      "item": "entity:thermos",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:friend",
+        "kind": "SPEECH_NOW",
+        "referenceSeq": null,
+        "probabilities": {
+          "OBJECTIVE_PAST": 0.01,
+          "UNCERTAIN": 0.02,
+          "OBJECTIVE_NEW": 0,
+          "SPEECH_NOW": 0.46,
+          "OBJECTIVE_DURING": 0,
+          "SPEECH_PAST": 0.05,
+          "OBJECTIVE_NOW": 0.09,
+          "NONE": 0.37
+        },
+        "referenceProbabilities": {
+          "publication:73": 0,
+          "publication:95": 0,
+          "publication:100": 0,
+          "publication:84": 0,
+          "publication:105": 0,
+          "publication:138": 0,
+          "publication:117": 0,
+          "publication:122": 0,
+          "UNRESOLVED": 0,
+          "publication:133": 0.01,
+          "publication:127": 0.24,
+          "publication:78": 0,
+          "NONE": 0.75,
+          "publication:89": 0
+        },
+        "confidence": 0.38,
+        "status": "SPEECH_UNBACKED",
+        "window": {
+          "roundId": "prototype-turn:97849298-6b88-4ebc-b7ba-0c203828691a:0",
+          "fromSeq": 143,
+          "toSeq": 148,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "current speech claim has no local holder support; not objective narration"
+      }
+    },
+    {
+      "publicationSeq": 149,
+      "item": "entity:brass-key",
+      "actorId": "character:friend",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 144,
+        "probabilities": {
+          "UNCERTAIN": 0.02,
+          "OBJECTIVE_DURING": 0.03,
+          "NONE": 0.38,
+          "OBJECTIVE_PAST": 0.04,
+          "OBJECTIVE_NOW": 0.01,
+          "SPEECH_PAST": 0.44,
+          "SPEECH_NOW": 0.08,
+          "OBJECTIVE_NEW": 0
+        },
+        "referenceProbabilities": {
+          "publication:84": 0.05,
+          "publication:122": 0,
+          "publication:78": 0,
+          "publication:133": 0,
+          "NONE": 0.19,
+          "publication:117": 0.08,
+          "publication:100": 0,
+          "publication:95": 0,
+          "UNRESOLVED": 0.04,
+          "publication:138": 0.01,
+          "publication:144": 0.63,
+          "publication:89": 0,
+          "publication:127": 0,
+          "publication:105": 0
+        },
+        "confidence": 0.36,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:97849298-6b88-4ebc-b7ba-0c203828691a:0",
+          "fromSeq": 143,
+          "toSeq": 148,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 155,
+      "item": "entity:brass-key",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 144,
+        "probabilities": {
+          "SPEECH_PAST": 0.91,
+          "NONE": 0.01,
+          "SPEECH_NOW": 0.01,
+          "OBJECTIVE_DURING": 0.01,
+          "OBJECTIVE_NOW": 0,
+          "OBJECTIVE_PAST": 0.060000000000000005,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_NEW": 0
+        },
+        "referenceProbabilities": {
+          "publication:117": 0.17,
+          "NONE": 0.24000000000000002,
+          "publication:138": 0,
+          "publication:144": 0.3,
+          "publication:89": 0,
+          "publication:100": 0.01,
+          "publication:105": 0,
+          "publication:84": 0.1,
+          "publication:133": 0,
+          "publication:95": 0,
+          "UNRESOLVED": 0.18,
+          "publication:122": 0,
+          "publication:149": 0,
+          "publication:127": 0
+        },
+        "confidence": 0.89,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:97849298-6b88-4ebc-b7ba-0c203828691a:0",
+          "fromSeq": 143,
+          "toSeq": 148,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 219,
+      "item": "entity:brass-key",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 155,
+        "probabilities": {
+          "OBJECTIVE_NEW": 0,
+          "OBJECTIVE_PAST": 0.02,
+          "SPEECH_NOW": 0.04,
+          "OBJECTIVE_NOW": 0,
+          "SPEECH_PAST": 0.93,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_DURING": 0,
+          "NONE": 0.01
+        },
+        "referenceProbabilities": {
+          "publication:213": 0,
+          "NONE": 0.17,
+          "publication:203": 0,
+          "publication:171": 0,
+          "publication:181": 0,
+          "publication:197": 0,
+          "publication:176": 0,
+          "publication:165": 0,
+          "publication:155": 0.79,
+          "UNRESOLVED": 0.04,
+          "publication:192": 0,
+          "publication:187": 0,
+          "publication:160": 0,
+          "publication:208": 0
+        },
+        "confidence": 0.92,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:386233bd-0d8a-42d7-8a5b-4dd203abdaae:0",
+          "fromSeq": 154,
+          "toSeq": 159,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 235,
+      "item": "entity:brass-key",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 219,
+        "probabilities": {
+          "SPEECH_PAST": 0.99,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_NEW": 0,
+          "SPEECH_NOW": 0,
+          "NONE": 0,
+          "OBJECTIVE_DURING": 0,
+          "OBJECTIVE_PAST": 0.01,
+          "OBJECTIVE_NOW": 0
+        },
+        "referenceProbabilities": {
+          "publication:187": 0,
+          "publication:181": 0,
+          "publication:203": 0,
+          "UNRESOLVED": 0.01,
+          "publication:224": 0,
+          "publication:197": 0,
+          "publication:192": 0,
+          "publication:176": 0,
+          "NONE": 0.11,
+          "publication:171": 0.01,
+          "publication:213": 0,
+          "publication:219": 0.87,
+          "publication:229": 0,
+          "publication:208": 0
+        },
+        "confidence": 0.98,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:7746dd79-70b9-424b-b196-79d1d8ae5f82:0",
+          "fromSeq": 218,
+          "toSeq": 223,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 273,
+      "item": "entity:brass-key",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 219,
+        "probabilities": {
+          "OBJECTIVE_DURING": 0.01,
+          "OBJECTIVE_NOW": 0,
+          "OBJECTIVE_PAST": 0.04,
+          "UNCERTAIN": 0,
+          "SPEECH_NOW": 0,
+          "OBJECTIVE_NEW": 0,
+          "NONE": 0.01,
+          "SPEECH_PAST": 0.93
+        },
+        "referenceProbabilities": {
+          "publication:246": 0,
+          "publication:219": 0.36,
+          "publication:213": 0,
+          "publication:235": 0.04,
+          "publication:224": 0,
+          "publication:257": 0,
+          "publication:267": 0.31,
+          "UNRESOLVED": 0.14,
+          "publication:240": 0,
+          "publication:229": 0,
+          "publication:208": 0,
+          "publication:251": 0,
+          "NONE": 0.15,
+          "publication:262": 0
+        },
+        "confidence": 0.92,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:7746dd79-70b9-424b-b196-79d1d8ae5f82:0",
+          "fromSeq": 218,
+          "toSeq": 223,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 278,
+      "item": "entity:brass-key",
+      "actorId": "character:friend",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 273,
+        "probabilities": {
+          "OBJECTIVE_PAST": 0.09,
+          "OBJECTIVE_NEW": 0,
+          "NONE": 0.22,
+          "SPEECH_PAST": 0.66,
+          "OBJECTIVE_DURING": 0,
+          "UNCERTAIN": 0.02,
+          "OBJECTIVE_NOW": 0,
+          "SPEECH_NOW": 0.01
+        },
+        "referenceProbabilities": {
+          "publication:240": 0,
+          "NONE": 0.21,
+          "UNRESOLVED": 0.02,
+          "publication:267": 0,
+          "publication:213": 0,
+          "publication:251": 0,
+          "publication:224": 0,
+          "publication:235": 0.01,
+          "publication:229": 0,
+          "publication:257": 0,
+          "publication:219": 0.22,
+          "publication:246": 0,
+          "publication:262": 0,
+          "publication:273": 0.54
+        },
+        "confidence": 0.6,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:e7ff13ef-39a6-469b-ac1d-1b00f68c1673:0",
+          "fromSeq": 272,
+          "toSeq": 277,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 283,
+      "item": "entity:brass-key",
+      "actorId": "character:player",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 273,
+        "probabilities": {
+          "OBJECTIVE_PAST": 0.07,
+          "SPEECH_PAST": 0.5,
+          "OBJECTIVE_DURING": 0,
+          "SPEECH_NOW": 0.05,
+          "UNCERTAIN": 0.04,
+          "OBJECTIVE_NOW": 0,
+          "OBJECTIVE_NEW": 0,
+          "NONE": 0.34
+        },
+        "referenceProbabilities": {
+          "NONE": 0.2,
+          "publication:219": 0.37,
+          "publication:224": 0,
+          "publication:262": 0,
+          "publication:246": 0,
+          "publication:257": 0,
+          "publication:251": 0,
+          "publication:229": 0,
+          "UNRESOLVED": 0.03,
+          "publication:278": 0,
+          "publication:240": 0,
+          "publication:267": 0,
+          "publication:273": 0.38,
+          "publication:235": 0.02
+        },
+        "confidence": 0.41,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:e7ff13ef-39a6-469b-ac1d-1b00f68c1673:0",
+          "fromSeq": 272,
+          "toSeq": 277,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 289,
+      "item": "entity:brass-key",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 273,
+        "probabilities": {
+          "OBJECTIVE_NEW": 0,
+          "NONE": 0.01,
+          "OBJECTIVE_PAST": 0.03,
+          "OBJECTIVE_DURING": 0,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_NOW": 0,
+          "SPEECH_NOW": 0,
+          "SPEECH_PAST": 0.96
+        },
+        "referenceProbabilities": {
+          "UNRESOLVED": 0.01,
+          "publication:278": 0,
+          "publication:257": 0,
+          "publication:283": 0,
+          "publication:246": 0,
+          "publication:251": 0,
+          "publication:235": 0.03,
+          "publication:267": 0,
+          "NONE": 0.08,
+          "publication:273": 0.88,
+          "publication:240": 0,
+          "publication:262": 0,
+          "publication:229": 0,
+          "publication:224": 0
+        },
+        "confidence": 0.96,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:e7ff13ef-39a6-469b-ac1d-1b00f68c1673:0",
+          "fromSeq": 272,
+          "toSeq": 277,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 294,
+      "item": "entity:brass-key",
+      "actorId": "character:friend",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 273,
+        "probabilities": {
+          "SPEECH_NOW": 0.01,
+          "OBJECTIVE_PAST": 0.07,
+          "NONE": 0.2,
+          "UNCERTAIN": 0.01,
+          "OBJECTIVE_DURING": 0,
+          "OBJECTIVE_NOW": 0,
+          "SPEECH_PAST": 0.71,
+          "OBJECTIVE_NEW": 0
+        },
+        "referenceProbabilities": {
+          "publication:251": 0,
+          "UNRESOLVED": 0.04,
+          "publication:283": 0,
+          "publication:235": 0.07,
+          "publication:267": 0,
+          "publication:246": 0,
+          "publication:262": 0,
+          "publication:278": 0,
+          "NONE": 0.08,
+          "publication:273": 0.65,
+          "publication:289": 0.16,
+          "publication:240": 0,
+          "publication:229": 0,
+          "publication:257": 0
+        },
+        "confidence": 0.66,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:e7ff13ef-39a6-469b-ac1d-1b00f68c1673:0",
+          "fromSeq": 272,
+          "toSeq": 277,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 315,
+      "item": "entity:brass-key",
+      "actorId": "character:player",
+      "claim": {
+        "characterId": "character:player",
+        "kind": "SPEECH_NOW",
+        "referenceSeq": null,
+        "probabilities": {
+          "OBJECTIVE_NEW": 0,
+          "OBJECTIVE_NOW": 0.01,
+          "SPEECH_PAST": 0.03,
+          "NONE": 0.18,
+          "SPEECH_NOW": 0.72,
+          "OBJECTIVE_DURING": 0.05,
+          "OBJECTIVE_PAST": 0,
+          "UNCERTAIN": 0.01
+        },
+        "referenceProbabilities": {
+          "publication:257": 0,
+          "publication:283": 0.08,
+          "publication:262": 0,
+          "publication:278": 0,
+          "publication:289": 0.01,
+          "NONE": 0.54,
+          "publication:251": 0,
+          "publication:294": 0,
+          "UNRESOLVED": 0.08,
+          "publication:310": 0.03,
+          "publication:305": 0.08,
+          "publication:273": 0.15,
+          "publication:267": 0.03,
+          "publication:246": 0
+        },
+        "confidence": 0.68,
+        "status": "SPEECH_UNBACKED",
+        "window": {
+          "roundId": "round:coordinated:6d0f2090a946229b286e5e5a",
+          "fromSeq": 314,
+          "toSeq": 320,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "current speech claim has no local holder support; not objective narration"
+      }
+    },
+    {
+      "publicationSeq": 343,
+      "item": "entity:brass-key",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 273,
+        "probabilities": {
+          "OBJECTIVE_NEW": 0,
+          "SPEECH_NOW": 0,
+          "OBJECTIVE_DURING": 0,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_PAST": 0.04,
+          "OBJECTIVE_NOW": 0,
+          "SPEECH_PAST": 0.87,
+          "NONE": 0.09
+        },
+        "referenceProbabilities": {
+          "publication:273": 0.7,
+          "publication:283": 0,
+          "publication:337": 0,
+          "publication:326": 0,
+          "publication:289": 0.08,
+          "publication:310": 0,
+          "publication:294": 0,
+          "publication:332": 0,
+          "UNRESOLVED": 0.06,
+          "publication:315": 0,
+          "publication:278": 0,
+          "publication:305": 0.01,
+          "publication:321": 0,
+          "NONE": 0.15
+        },
+        "confidence": 0.84,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:e7ff13ef-39a6-469b-ac1d-1b00f68c1673:0",
+          "fromSeq": 272,
+          "toSeq": 277,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 369,
+      "item": "entity:brass-key",
+      "actorId": "character:player",
+      "claim": {
+        "characterId": "character:player",
+        "kind": "SPEECH_NOW",
+        "referenceSeq": null,
+        "probabilities": {
+          "SPEECH_PAST": 0.05,
+          "SPEECH_NOW": 0.77,
+          "OBJECTIVE_DURING": 0,
+          "UNCERTAIN": 0.01,
+          "OBJECTIVE_NOW": 0.03,
+          "NONE": 0.14,
+          "OBJECTIVE_PAST": 0,
+          "OBJECTIVE_NEW": 0
+        },
+        "referenceProbabilities": {
+          "publication:315": 0.14,
+          "publication:353": 0,
+          "publication:310": 0.01,
+          "NONE": 0.48,
+          "UNRESOLVED": 0.09,
+          "publication:326": 0.15,
+          "publication:359": 0,
+          "publication:343": 0.03,
+          "publication:348": 0.05,
+          "publication:337": 0.03,
+          "publication:332": 0,
+          "publication:321": 0,
+          "publication:305": 0.02,
+          "publication:364": 0
+        },
+        "confidence": 0.73,
+        "status": "SPEECH_UNBACKED",
+        "window": {
+          "roundId": "round:coordinated:5a9fd9a2ffb10519b4b84884",
+          "fromSeq": 368,
+          "toSeq": 374,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "current speech claim has no local holder support; not objective narration"
+      }
+    },
+    {
+      "publicationSeq": 397,
+      "item": "entity:brass-key",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 343,
+        "probabilities": {
+          "OBJECTIVE_NEW": 0,
+          "OBJECTIVE_PAST": 0.05,
+          "SPEECH_NOW": 0.01,
+          "NONE": 0.02,
+          "SPEECH_PAST": 0.87,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_DURING": 0.01,
+          "OBJECTIVE_NOW": 0.04
+        },
+        "referenceProbabilities": {
+          "publication:391": 0,
+          "publication:343": 0.85,
+          "publication:353": 0,
+          "publication:332": 0,
+          "publication:364": 0,
+          "publication:375": 0,
+          "publication:348": 0,
+          "publication:369": 0,
+          "UNRESOLVED": 0.07,
+          "publication:326": 0,
+          "publication:386": 0,
+          "publication:337": 0,
+          "publication:359": 0,
+          "NONE": 0.08
+        },
+        "confidence": 0.86,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:70741e45-cddb-497f-881c-41ad9933d4ca:0",
+          "fromSeq": 342,
+          "toSeq": 347,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 402,
+      "item": "entity:brass-key",
+      "actorId": "character:friend",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 397,
+        "probabilities": {
+          "SPEECH_PAST": 0.49,
+          "SPEECH_NOW": 0.01,
+          "NONE": 0.4,
+          "UNCERTAIN": 0.03,
+          "OBJECTIVE_NOW": 0,
+          "OBJECTIVE_DURING": 0.01,
+          "OBJECTIVE_PAST": 0.06,
+          "OBJECTIVE_NEW": 0
+        },
+        "referenceProbabilities": {
+          "publication:397": 0.4,
+          "publication:386": 0,
+          "publication:348": 0,
+          "NONE": 0.18,
+          "UNRESOLVED": 0.04,
+          "publication:375": 0,
+          "publication:359": 0,
+          "publication:369": 0,
+          "publication:391": 0,
+          "publication:337": 0,
+          "publication:332": 0,
+          "publication:353": 0,
+          "publication:343": 0.38,
+          "publication:364": 0
+        },
+        "confidence": 0.41,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:a080a251-d44e-446f-8154-ed2f8bbb3080:0",
+          "fromSeq": 396,
+          "toSeq": 401,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 413,
+      "item": "entity:brass-key",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 397,
+        "probabilities": {
+          "OBJECTIVE_PAST": 0.03,
+          "UNCERTAIN": 0.01,
+          "OBJECTIVE_NEW": 0,
+          "SPEECH_NOW": 0.02,
+          "OBJECTIVE_DURING": 0,
+          "SPEECH_PAST": 0.75,
+          "OBJECTIVE_NOW": 0,
+          "NONE": 0.19
+        },
+        "referenceProbabilities": {
+          "publication:397": 0.41000000000000003,
+          "UNRESOLVED": 0.03,
+          "publication:407": 0,
+          "publication:343": 0.21,
+          "publication:364": 0,
+          "publication:348": 0,
+          "publication:402": 0,
+          "publication:375": 0,
+          "publication:386": 0,
+          "publication:369": 0,
+          "publication:353": 0,
+          "publication:391": 0,
+          "NONE": 0.35,
+          "publication:359": 0
+        },
+        "confidence": 0.72,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "prototype-turn:a080a251-d44e-446f-8154-ed2f8bbb3080:0",
+          "fromSeq": 396,
+          "toSeq": 401,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    }
+  ],
+  "directory": "D:\\DeepSeek Harness\\Perspectra Jev Auditor\\.tmp\\jev-window-live04-final-audit-20260926"
+}

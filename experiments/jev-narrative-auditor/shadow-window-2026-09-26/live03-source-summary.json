@@ -1,0 +1,40 @@
+{
+  "kind": "live",
+  "explicitDialogue": true,
+  "model": "deepseek-flash",
+  "rounds": 20,
+  "initialSeq": 19,
+  "headSeq": 512,
+  "providerCalls": 70,
+  "failedRounds": 0,
+  "unchangedDuringAuditDrain": true,
+  "keyState": {
+    "entityId": "entity:brass-key",
+    "locationId": null,
+    "holderId": "character:friend",
+    "kind": "key"
+  },
+  "records": 170,
+  "statuses": {
+    "NO_CLAIM": 80,
+    "SPEECH_UNBACKED": 17,
+    "SUPPORTED": 43,
+    "HISTORY_UNRESOLVED": 26,
+    "CONFLICT": 3,
+    "HISTORICAL_SUPPORTED": 1
+  },
+  "jevCostUsd": 0.067009278,
+  "jevModels": [
+    "typesafe/jev-1.13-20260917"
+  ],
+  "directory": "D:\\DeepSeek Harness\\Perspectra Jev Auditor\\.tmp\\jev-window-live-20260926-03",
+  "statsBeforeDrain": {
+    "records": 125,
+    "errors": 0,
+    "skippedWindows": 0,
+    "pendingWindows": 5
+  },
+  "expectedRecords": 170,
+  "auditComplete": true,
+  "npcPublications": 66
+}

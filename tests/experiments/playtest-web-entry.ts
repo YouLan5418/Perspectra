@@ -2,7 +2,7 @@ import { readFileSync, mkdirSync } from 'node:fs'
 import { appendFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { parseAuditItems, type ShadowOptions } from './jev-shadow.ts'
-import { createHolderClassifier } from './jev-shadow-client.ts'
+import { createClaimClassifier } from './jev-shadow-claims-client.ts'
 import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   let shadowAudit: ShadowOptions | undefined
   if (launch.shadowConfigPath !== undefined) {
     const items = parseAuditItems(JSON.parse(readFileSync(resolve(launch.shadowConfigPath), 'utf8')))
-    const classify = createHolderClassifier(process.env.OPENROUTER_JEV_KEY ?? '')
+    const classify = createClaimClassifier(process.env.OPENROUTER_JEV_KEY ?? '')
     mkdirSync(resolve(dataDirectory), { recursive: true })
     const logPath = resolve(dataDirectory, 'jev-shadow.jsonl')
     shadowAudit = { items, classify,

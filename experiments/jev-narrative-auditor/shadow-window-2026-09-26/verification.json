@@ -1,0 +1,60 @@
+{
+  "historicalChain": [
+    {
+      "seq": 139,
+      "status": "CONFLICT",
+      "referenceSeq": 128,
+      "root": 139
+    },
+    {
+      "seq": 156,
+      "status": "CHAIN_RECALL",
+      "referenceSeq": 139,
+      "root": 139
+    },
+    {
+      "seq": 221,
+      "status": "CHAIN_RECALL",
+      "referenceSeq": 156,
+      "root": 139
+    },
+    {
+      "seq": 226,
+      "status": "CHAIN_RECALL",
+      "referenceSeq": 156,
+      "root": 139
+    },
+    {
+      "seq": 242,
+      "status": "CHAIN_RECALL",
+      "referenceSeq": 226,
+      "root": 139
+    },
+    {
+      "seq": 247,
+      "status": "CHAIN_RECALL",
+      "referenceSeq": 226,
+      "root": 139
+    }
+  ],
+  "freshLiveRecords": 140,
+  "freshObjectiveConflicts": 0,
+  "temporalProbeMatches": 3,
+  "temporalProbeCases": 4,
+  "v1Accepted": false,
+  "files": {
+    "historical-final-jev-shadow.jsonl": "3e0f71e7e2cdaff9543b762121eb8750395b59249649247373c811ba808e3cd8",
+    "historical-final-summary.json": "04c7951348fbbe7d634d68c780cfccffc87a31428eb200d1d17d6872fe4f604e",
+    "live02-source-summary.json": "2ec0b65824d4c20cddac0a66aeb25d3975815857836358dc188ddb1fe55be4b6",
+    "live02-turns.jsonl": "3da3018d0d8babbe3833b710dcd011180b96e625d8aebbcc335e54d19408052c",
+    "live03-source-summary.json": "8e2240a18e540e27a4dbc1b563537383f9ad67b554e6f289a11504bff7bd1ac4",
+    "live03-turns.jsonl": "28ca250f72bc8b9f578cadc886bf7bfc5f3147468aa2067b53ec90c2f58a67ac",
+    "live04-final-jev-shadow.jsonl": "c342839fc9714430b3fba8cf9d8201bdb1f9413505324a190d1b0f7adf648f4d",
+    "live04-final-summary.json": "800ae6ad8f70e2d3f2238cc0377bb5880765b9fc4d6e22650374a38850cc1f02",
+    "live04-source-summary.json": "e5f4125db46ea1e5e4dc5ff9cfcbcd608f1fd45146f6255683d8b3cd55299c74",
+    "live04-turns.jsonl": "412b14da82a2a9b1fc1114d2173050a0c10281b56dc2ffe1957bfd5421e3c84a",
+    "temporal-probe-fixture.json": "8a97779ae5232026bc01e2e8940eb55b75a1fb3c1e3dd70db634eaea9115f3e2",
+    "temporal-probe-jev-shadow.jsonl": "f37dc9696ce1837afd2f6b47e4f76157939cc9665a86c35acd1b2e4cea7ff82d",
+    "temporal-probe-summary.json": "f4ccf5a59505a8bfaa786b021346754147b2cd676508ef3044550e84f4208ae8"
+  }
+}

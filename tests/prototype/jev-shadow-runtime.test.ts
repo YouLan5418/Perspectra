@@ -6,13 +6,14 @@ import { expect, it } from 'vitest'
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import { holderChoice, holderCriteria, type HolderQuestion, type ShadowRecord } from '../experiments/jev-shadow.ts'
+import { type ShadowRecord } from '../experiments/jev-shadow.ts'
+import { claimCriteria, type ClaimQuestion, type ClaimKind } from '../experiments/jev-shadow-claims-client.ts'
 
 it('the actual web runtime publishes while Jev is pending and has the same model calls, transcript and world results with shadow off/on', async () => {
   async function play(enabled: boolean) {
     const root = mkdtempSync(join(tmpdir(), 'jev-shadow-web-'))
     let calls = 0, performed = false
-    const records: ShadowRecord[] = [], questions: HolderQuestion[] = []
+    const records: ShadowRecord[] = [], questions: ClaimQuestion[] = []
     let started!: () => void, release!: () => void
     const classifierStarted = new Promise<void>(done => { started = done })
     const blocked = new Promise<void>(done => { release = done })
@@ -46,11 +47,12 @@ it('the actual web runtime publishes while Jev is pending and has the same model
         utilityEndpoint: `http://127.0.0.1:${port}/api/chat`,
         ...(enabled ? { shadowAudit: {
           items: [{ entityId: 'entity:brass-key', name: '黄铜钥匙' }],
-          classify: async (question: HolderQuestion) => {
+          classify: async (question: ClaimQuestion) => {
             questions.push(question); started(); await blocked
-            const choice = question.publication.narration ? holderChoice('character:companion') : 'SPEECH_ONLY'
-            return { choice, model: 'fixture', confidence: 1, inputTokens: 1, outputTokens: 1, costUsd: 0,
-              probabilities: Object.fromEntries(Object.keys(holderCriteria(question.characters)).map(label => [label, label === choice ? 1 : 0])) }
+            const kind: ClaimKind = question.publication.narration ? 'OBJECTIVE_NOW' : 'NONE'
+            return { model: 'fixture', inputTokens: 1, outputTokens: 1, costUsd: 0,
+              claims: question.characters.map(c => ({ characterId: c.characterId, kind: c.characterId === 'character:companion' ? kind : 'NONE',
+                referenceSeq: null, confidence: 1, probabilities: Object.fromEntries(Object.keys(claimCriteria).map(label => [label,label === kind ? 1 : 0])), referenceProbabilities:{ NONE:1 } })) }
           }, write: async (record: ShadowRecord) => { records.push(record) },
         } } : {}),
       })

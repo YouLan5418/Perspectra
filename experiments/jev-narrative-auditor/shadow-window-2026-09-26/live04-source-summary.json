@@ -1,0 +1,41 @@
+{
+  "kind": "live",
+  "explicitDialogue": true,
+  "temporaryReceiptProbe": true,
+  "model": "deepseek-flash",
+  "rounds": 20,
+  "initialSeq": 19,
+  "headSeq": 422,
+  "providerCalls": 55,
+  "failedRounds": 0,
+  "unchangedDuringAuditDrain": true,
+  "keyState": {
+    "entityId": "entity:brass-key",
+    "locationId": null,
+    "holderId": "character:player",
+    "kind": "key"
+  },
+  "records": 140,
+  "statuses": {
+    "NO_CLAIM": 88,
+    "SUPPORTED": 18,
+    "SPEECH_UNBACKED": 11,
+    "HISTORY_UNRESOLVED": 4,
+    "HISTORICAL_SUPPORTED": 18,
+    "CONFLICT": 1
+  },
+  "jevCostUsd": 0.05188259999999999,
+  "jevModels": [
+    "typesafe/jev-1.13-20260917"
+  ],
+  "directory": "D:\\DeepSeek Harness\\Perspectra Jev Auditor\\.tmp\\jev-window-live-20260926-04",
+  "statsBeforeDrain": {
+    "records": 103,
+    "errors": 0,
+    "skippedWindows": 0,
+    "pendingWindows": 5
+  },
+  "expectedRecords": 140,
+  "auditComplete": true,
+  "npcPublications": 51
+}
