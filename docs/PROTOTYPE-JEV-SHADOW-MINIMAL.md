@@ -97,3 +97,5 @@ corepack pnpm@11.7.0 experience:web:flash --pack examples/world-packs/prototype-
 ## 6. 历史真实缺陷回放
 
 [历史回放 01](PROTOTYPE-JEV-HISTORICAL-REPLAY-01.md) 已抽取 30 个真实条目。当前终态口径检出 3 个明确冲突，但未检出 6 个虚构中途持有及后续回述条目。新的过程提问只用于离线诊断，尚未接入当前影子模式。
+
+后续复测：[Jev 客观完成事件复测 02](PROTOTYPE-JEV-OBJECTIVE-EVENT-02.md)。统一问句与人物持有历史对账在冻结真实样本上有进展；当前网页仍使用原终态影子口径，未接入该离线诊断。

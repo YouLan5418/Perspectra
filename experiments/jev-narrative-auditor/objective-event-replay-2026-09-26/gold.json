@@ -1,0 +1,211 @@
+[
+  {
+    "id": "free:54:entity:brass-key",
+    "expected": [
+      "OBJECTIVE_STATE"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "free:94:entity:brass-key",
+    "expected": [
+      "OBJECTIVE_EVENT"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "free:105:entity:brass-key",
+    "expected": [
+      "NO_CLAIM"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "free:128:entity:brass-key",
+    "expected": [
+      "INTENT_ATTEMPT"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "free:151:entity:brass-key",
+    "expected": [
+      "CHARACTER_CLAIM"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "free:139:entity:brass-key",
+    "expected": [
+      "OBJECTIVE_EVENT"
+    ],
+    "risk": "unbacked-history"
+  },
+  {
+    "id": "free:156:entity:brass-key",
+    "expected": [
+      "CHARACTER_CLAIM"
+    ],
+    "risk": "unbacked-history"
+  },
+  {
+    "id": "free:221:entity:brass-key",
+    "expected": [
+      "CHARACTER_CLAIM"
+    ],
+    "risk": "unbacked-history"
+  },
+  {
+    "id": "free:226:entity:brass-key",
+    "expected": [
+      "CHARACTER_CLAIM"
+    ],
+    "risk": "unbacked-history"
+  },
+  {
+    "id": "free:242:entity:brass-key",
+    "expected": [
+      "CHARACTER_CLAIM"
+    ],
+    "risk": "unbacked-history"
+  },
+  {
+    "id": "free:247:entity:brass-key",
+    "expected": [
+      "CHARACTER_CLAIM"
+    ],
+    "risk": "unbacked-history"
+  },
+  {
+    "id": "continuous:100:entity:brass-key",
+    "expected": [
+      "OBJECTIVE_EVENT"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "continuous:105:entity:brass-key",
+    "expected": [
+      "OBJECTIVE_STATE"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "continuous:111:entity:brass-key",
+    "expected": [
+      "CHARACTER_CLAIM"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "actionA:26:entity:brass-key",
+    "expected": [
+      "OBJECTIVE_EVENT"
+    ],
+    "risk": "terminal-conflict"
+  },
+  {
+    "id": "actionA:43:entity:brass-key",
+    "expected": [
+      "CHARACTER_CLAIM"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "actionB:32:entity:brass-key",
+    "expected": [
+      "OBJECTIVE_EVENT"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "actionB:58:entity:brass-key",
+    "expected": [
+      "CHARACTER_CLAIM"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "girls:156:entity:phone",
+    "expected": [
+      "OBJECTIVE_EVENT"
+    ],
+    "risk": "terminal-conflict"
+  },
+  {
+    "id": "girls:156:entity:charger",
+    "expected": [
+      "OBJECTIVE_EVENT"
+    ],
+    "risk": "terminal-conflict"
+  },
+  {
+    "id": "girls:215:entity:phone",
+    "expected": [
+      "CHARACTER_CLAIM"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "girls:215:entity:charger",
+    "expected": [
+      "OBJECTIVE_EVENT"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "girls:340:entity:phone",
+    "expected": [
+      "OBJECTIVE_STATE",
+      "OBJECTIVE_EVENT"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "girls:383:entity:phone",
+    "expected": [
+      "OBJECTIVE_STATE"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "girls:412:entity:phone",
+    "expected": [
+      "CHARACTER_CLAIM"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "girls:535:entity:phone",
+    "expected": [
+      "OBJECTIVE_STATE"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "live:157:entity:brass-key",
+    "expected": [],
+    "risk": "borderline"
+  },
+  {
+    "id": "live:184:entity:brass-key",
+    "expected": [
+      "OBJECTIVE_STATE"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "live:128:entity:thermos",
+    "expected": [
+      "NO_CLAIM"
+    ],
+    "risk": "control"
+  },
+  {
+    "id": "live:133:entity:thermos",
+    "expected": [
+      "NO_CLAIM"
+    ],
+    "risk": "control"
+  }
+]

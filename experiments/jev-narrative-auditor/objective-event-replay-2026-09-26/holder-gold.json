@@ -1,0 +1,47 @@
+[
+  {
+    "id": "free:139:entity:brass-key",
+    "characterId": "character:friend",
+    "expected": "OBJECTIVE_UNBACKED"
+  },
+  {
+    "id": "free:156:entity:brass-key",
+    "characterId": "character:friend",
+    "expected": "SPEECH_UNBACKED"
+  },
+  {
+    "id": "free:221:entity:brass-key",
+    "characterId": "character:friend",
+    "expected": "SPEECH_UNBACKED"
+  },
+  {
+    "id": "free:226:entity:brass-key",
+    "characterId": "character:friend",
+    "expected": "SPEECH_UNBACKED"
+  },
+  {
+    "id": "free:242:entity:brass-key",
+    "characterId": "character:friend",
+    "expected": "SPEECH_UNBACKED"
+  },
+  {
+    "id": "free:247:entity:brass-key",
+    "characterId": "character:friend",
+    "expected": "SPEECH_UNBACKED"
+  },
+  {
+    "id": "actionA:26:entity:brass-key",
+    "characterId": "character:companion",
+    "expected": "OBJECTIVE_UNBACKED"
+  },
+  {
+    "id": "girls:156:entity:phone",
+    "characterId": "character:glm",
+    "expected": "OBJECTIVE_UNBACKED"
+  },
+  {
+    "id": "girls:156:entity:charger",
+    "characterId": "character:glm",
+    "expected": "OBJECTIVE_UNBACKED"
+  }
+]

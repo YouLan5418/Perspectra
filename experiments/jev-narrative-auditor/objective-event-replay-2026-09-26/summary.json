@@ -1,0 +1,219 @@
+{
+  "sourceCasesSha256": "2bb28e0838ca0233e83c040eeedc96b4543b3a3a6565abecf261730877927763",
+  "samples": 30,
+  "semanticCalls": 180,
+  "holderCalls": 30,
+  "failures": 0,
+  "models": [
+    "typesafe/jev-1.13-20260917"
+  ],
+  "costUsd": 0.01643985,
+  "sources": [
+    {
+      "path": "D:/DeepSeek Harness/harness-cordis-world-prototype/.tmp/g3-free-20260923/world.sqlite",
+      "digest": "66c5a8a6fae48d36c7a68322d94a1df861e09963fadf0306bcb3d370012db4aa",
+      "unchanged": true
+    },
+    {
+      "path": "D:\\DeepSeek Harness\\Perspectra Jev Auditor\\.tmp\\jev-shadow-live-20260926-122621\\world.sqlite",
+      "digest": "291aebd4e685e979743bee93bcf4e680b75dd7f50ad7f4b9bf06b41ff2f6b22d",
+      "unchanged": true
+    },
+    {
+      "path": "D:/DeepSeek Harness/Perspectra Action First/.tmp/frozen-playtest-drive-2026-09-25T14-34-41-090Z/world.sqlite",
+      "digest": "005a8f3209fd0c51849bbe1ed5fe590319d86ebe5b46ad41c4a50a2e92e1ccfd",
+      "unchanged": true
+    },
+    {
+      "path": "D:/DeepSeek Harness/Perspectra Action First/.tmp/frozen-playtest-drive-2026-09-25T14-35-06-846Z/world.sqlite",
+      "digest": "f21bf05c7c42ebefe67274e38c2ff8f53659f5993eb1d495aca150b2b2851db7",
+      "unchanged": true
+    },
+    {
+      "path": "D:\\DeepSeek Harness\\Perspectra Jev Auditor\\.tmp\\frozen-playtest-drive-2026-09-25T18-22-07-893Z\\world.sqlite",
+      "digest": "3806e5472252148a41591180e5a3a70e7da0dbd3adad2613733348e1cf820a94",
+      "unchanged": true
+    },
+    {
+      "path": "D:/DeepSeek Harness/harness-cordis-world-prototype/.tmp/g3-continuous-b-20260923/world.sqlite",
+      "digest": "2c949de877a88d2f1a0df197880a83b5371898a910c226401898bead9295b7b4",
+      "unchanged": true
+    }
+  ],
+  "conditions": [
+    {
+      "history": false,
+      "calls": 90,
+      "strictGoldMatched": 62,
+      "strictGoldTotal": 87,
+      "objectiveMatched": 24,
+      "objectiveTotal": 24,
+      "defectObjectiveMatched": 12,
+      "defectObjectiveTotal": 12,
+      "retrospectiveCharacterMatched": 15,
+      "retrospectiveCharacterTotal": 15,
+      "mismatches": {
+        "free:105:entity:brass-key": [
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE"
+        ],
+        "continuous:105:entity:brass-key": [
+          "OBJECTIVE_EVENT",
+          "OBJECTIVE_EVENT",
+          "OBJECTIVE_EVENT"
+        ],
+        "continuous:111:entity:brass-key": [
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE"
+        ],
+        "actionA:43:entity:brass-key": [
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE"
+        ],
+        "actionB:58:entity:brass-key": [
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE"
+        ],
+        "girls:215:entity:phone": [
+          "OBJECTIVE_EVENT",
+          "OBJECTIVE_EVENT",
+          "OBJECTIVE_EVENT"
+        ],
+        "live:184:entity:brass-key": [
+          "CHARACTER_CLAIM"
+        ],
+        "live:128:entity:thermos": [
+          "CHARACTER_CLAIM",
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE"
+        ],
+        "live:133:entity:thermos": [
+          "INTENT_ATTEMPT",
+          "INTENT_ATTEMPT",
+          "INTENT_ATTEMPT"
+        ]
+      }
+    },
+    {
+      "history": true,
+      "calls": 90,
+      "strictGoldMatched": 66,
+      "strictGoldTotal": 87,
+      "objectiveMatched": 24,
+      "objectiveTotal": 24,
+      "defectObjectiveMatched": 12,
+      "defectObjectiveTotal": 12,
+      "retrospectiveCharacterMatched": 15,
+      "retrospectiveCharacterTotal": 15,
+      "mismatches": {
+        "free:105:entity:brass-key": [
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE"
+        ],
+        "continuous:105:entity:brass-key": [
+          "OBJECTIVE_EVENT",
+          "OBJECTIVE_EVENT",
+          "OBJECTIVE_EVENT"
+        ],
+        "continuous:111:entity:brass-key": [
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE"
+        ],
+        "actionA:43:entity:brass-key": [
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE"
+        ],
+        "actionB:58:entity:brass-key": [
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE"
+        ],
+        "live:184:entity:brass-key": [
+          "CHARACTER_CLAIM",
+          "CHARACTER_CLAIM",
+          "OBJECTIVE_EVENT"
+        ],
+        "live:128:entity:thermos": [
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE",
+          "OBJECTIVE_STATE"
+        ]
+      }
+    }
+  ],
+  "holderGold": [
+    {
+      "id": "free:139:entity:brass-key",
+      "expected": "OBJECTIVE_UNBACKED",
+      "actual": "OBJECTIVE_UNBACKED",
+      "match": true
+    },
+    {
+      "id": "free:156:entity:brass-key",
+      "expected": "SPEECH_UNBACKED",
+      "actual": "SPEECH_UNBACKED",
+      "match": true
+    },
+    {
+      "id": "free:221:entity:brass-key",
+      "expected": "SPEECH_UNBACKED",
+      "actual": "SPEECH_UNBACKED",
+      "match": true
+    },
+    {
+      "id": "free:226:entity:brass-key",
+      "expected": "SPEECH_UNBACKED",
+      "actual": "SPEECH_UNBACKED",
+      "match": true
+    },
+    {
+      "id": "free:242:entity:brass-key",
+      "expected": "SPEECH_UNBACKED",
+      "actual": "SPEECH_UNBACKED",
+      "match": true
+    },
+    {
+      "id": "free:247:entity:brass-key",
+      "expected": "SPEECH_UNBACKED",
+      "actual": "SPEECH_UNBACKED",
+      "match": true
+    },
+    {
+      "id": "actionA:26:entity:brass-key",
+      "expected": "OBJECTIVE_UNBACKED",
+      "actual": "OBJECTIVE_UNBACKED",
+      "match": true
+    },
+    {
+      "id": "girls:156:entity:phone",
+      "expected": "OBJECTIVE_UNBACKED",
+      "actual": "OBJECTIVE_UNBACKED",
+      "match": true
+    },
+    {
+      "id": "girls:156:entity:charger",
+      "expected": "OBJECTIVE_UNBACKED",
+      "actual": "OBJECTIVE_UNBACKED",
+      "match": true
+    }
+  ],
+  "controlUnbacked": [],
+  "stableSemanticGroups": 57,
+  "latencyMs": {
+    "semantic": {
+      "median": 317.0,
+      "max": 1075
+    },
+    "holders": {
+      "median": 307.5,
+      "max": 751
+    }
+  }
+}
