@@ -4,7 +4,7 @@ import { currentEntityState, type CompiledWorldManifest, type RulebookEvent } fr
 const object = (value: WorldJsonValue | undefined): WorldJsonObject | undefined =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? value as WorldJsonObject : undefined
 
-export const expressionAfterExecution = '本次执行已经结束。现在只能自由表达这次结果后的反应，或 abstain。未执行的后续移动、放下、递交或丢弃等受控变化尚未发生；不能在对白或叙述中写成已经完成。若想继续改变受控状态，在下一次可执行决策中提出。'
+export const expressionAfterExecution = '本次执行已经结束。现在只能自由表达这次结果后的反应，或 abstain。触碰、翻页、临时托起查看或暂放桌上不自动改变保管关系。未执行的后续移动、取得保管、转交保管或解除保管尚未发生；不能在对白或叙述中写成已经完成。若想继续改变受控状态，在下一次可执行决策中提出。'
 
 /** Domain feedback, not dialogue generation. Never infer refusal/consent from a permission code. */
 export function characterExecutionResult(input: {
@@ -20,12 +20,12 @@ export function characterExecutionResult(input: {
   const target = object(parameters?.targetRef)
   if (status === 'accepted') {
     const definition = object(parameters?.definitionRef)?.id
-    const verb = definition === 'base:take' ? '拿取' : definition === 'base:give' ? '递交'
-      : definition === 'base:drop' ? '放下' : '执行交互'
+    const verb = definition === 'base:take' ? '取得保管' : definition === 'base:give' ? '转交保管'
+      : definition === 'base:drop' ? '解除个人保管并留在当前场所' : '执行交互'
     const actual = target?.kind === 'entity' && typeof target.id === 'string'
       ? `你刚刚成功${verb}（物品：${target.id}）。` : '这次行动已经成功执行。'
     const state = target?.kind === 'entity' && typeof target.id === 'string' ? currentEntityState(input.events, target.id) : undefined
-    return { status, description: actual + (state?.holderId === input.actorId ? '该物品目前仍由你持有。' : '当前状态请以本次可见场景为准。') }
+    return { status, description: actual + (state?.holderId === input.actorId ? '该物品目前仍由你保管；不要求一直握在手里。' : '当前状态请以本次可见场景为准。') }
   }
   if (target?.kind === 'entity' && typeof target.id === 'string') {
     const state = currentEntityState(input.events, target.id)
@@ -42,15 +42,15 @@ export function characterExecutionResult(input: {
     if ((reason === 'PARTICIPANT_NOT_AUTHORIZED' || reason === 'ITEM_NOT_AVAILABLE')
       && state?.holderId !== null && state?.holderId !== undefined && knowsHolder) {
       const holder = input.manifest.characters.find(character => character.characterId === state.holderId)
-      return { status, description: `这个物品已经由${holder?.name ?? '你看到的持有人'}拿着，你没有成功拿到它。` }
+      return { status, description: `这个物品已经由${holder?.name ?? '你看到的保管人'}保管，你没有成功取得它的保管。` }
     }
   }
   const descriptions: Record<string, string> = {
     NOT_CO_LOCATED: '你和目标不在同一个地方，这次没有接触到目标。',
     NO_SHARED_SCENE: '你现在无法与目标直接互动，这次行动没有完成。',
     SCENE_UNAVAILABLE: '你目前没有能够进行这次互动的场景条件，互动没有发生。',
-    ITEM_NOT_HELD: '这个物品不在你手里，你没能把它放下或交给别人。',
-    ITEM_NOT_AVAILABLE: '这个物品目前不是可以直接拿起的状态，你没有拿到它。',
+    ITEM_NOT_HELD: '这个物品不由你保管，你没能解除它的保管或转交给别人。',
+    ITEM_NOT_AVAILABLE: '这个物品目前不是可以直接取得保管的状态，这次保管关系没有改变。',
     RECIPIENT_NOT_AVAILABLE: '对方目前无法接收这个物品，交付没有发生。',
     ACTOR_CANNOT_ACT: '你当前的状态无法完成这次行动。',
     CONTACT_NOT_ACTIVE: '你们之间没有正在持续的这次接触，因此没有需要解除的接触。',

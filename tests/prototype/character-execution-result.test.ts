@@ -20,7 +20,7 @@ it('names the known holder without exposing the diagnostic code', () => {
     } } },
   ] })
   expect(result.description).toContain('Player')
-  expect(result.description).toContain('没有成功拿到')
+  expect(result.description).toContain('没有成功取得它的保管')
   expect(JSON.stringify(result)).not.toContain('PARTICIPANT_NOT_AUTHORIZED')
 })
 
@@ -30,7 +30,7 @@ it('does not reveal an unobserved holder or invent a refusal of consent', () => 
 })
 
 it.each([
-  ['NOT_CO_LOCATED', '不在同一个地方'], ['ITEM_NOT_HELD', '不在你手里'],
+  ['NOT_CO_LOCATED', '不在同一个地方'], ['ITEM_NOT_HELD', '不由你保管'],
   ['CONSENT_REQUIRED', '尚未获得同意'], ['CONSENT_DENIED', '没有同意'],
 ])('keeps the concrete meaning of %s', (reason, expected) => {
   expect(characterExecutionResult({ ...input, reason }).description).toContain(expected)
@@ -46,5 +46,5 @@ it('describes the actual completed take and remaining own possession', () => {
   expect(characterExecutionResult({ ...input, events: [...input.events, ownTake], status: 'accepted', reason: null,
     action: { actionType: 'interact', parameters: { targetRef: { kind: 'entity', id: 'entity:cup' },
       definitionRef: { id: 'base:take', version: 1 } } } }).description)
-    .toBe('你刚刚成功拿取（物品：entity:cup）。该物品目前仍由你持有。')
+    .toBe('你刚刚成功取得保管（物品：entity:cup）。该物品目前仍由你保管；不要求一直握在手里。')
 })

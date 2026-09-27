@@ -1,0 +1,107 @@
+{
+  "calls": 10,
+  "conflicts": [],
+  "source": "07 known unnecessary repairs, original draft and read-only original event prefix; not holdout",
+  "cases": [
+    {
+      "head": 108,
+      "item": "entity:diary",
+      "conflict": false,
+      "kinds": [
+        "NONE",
+        "NONE",
+        "NONE"
+      ]
+    },
+    {
+      "head": 132,
+      "item": "entity:diary",
+      "conflict": false,
+      "kinds": [
+        "NONE",
+        "NONE",
+        "NONE"
+      ]
+    },
+    {
+      "head": 138,
+      "item": "entity:diary",
+      "conflict": false,
+      "kinds": [
+        "NONE",
+        "NONE",
+        "NONE"
+      ]
+    },
+    {
+      "head": 144,
+      "item": "entity:diary",
+      "conflict": false,
+      "kinds": [
+        "NONE",
+        "NONE",
+        "NONE"
+      ]
+    },
+    {
+      "head": 162,
+      "item": "entity:diary",
+      "conflict": false,
+      "kinds": [
+        "NONE",
+        "NONE",
+        "NONE"
+      ]
+    },
+    {
+      "head": 174,
+      "item": "entity:diary",
+      "conflict": false,
+      "kinds": [
+        "NONE",
+        "NONE",
+        "NONE"
+      ]
+    },
+    {
+      "head": 186,
+      "item": "entity:diary",
+      "conflict": false,
+      "kinds": [
+        "NONE",
+        "NONE",
+        "NONE"
+      ]
+    },
+    {
+      "head": 210,
+      "item": "entity:diary",
+      "conflict": false,
+      "kinds": [
+        "NONE",
+        "NONE",
+        "NONE"
+      ]
+    },
+    {
+      "head": 238,
+      "item": "entity:diary",
+      "conflict": false,
+      "kinds": [
+        "SPEECH_NOW",
+        "NONE",
+        "NONE"
+      ]
+    },
+    {
+      "head": 339,
+      "item": "entity:pocket-watch",
+      "conflict": false,
+      "kinds": [
+        "NONE",
+        "NONE",
+        "NONE"
+      ]
+    }
+  ]
+}

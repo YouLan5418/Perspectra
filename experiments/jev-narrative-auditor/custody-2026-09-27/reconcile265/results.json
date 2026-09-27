@@ -1,0 +1,624 @@
+{
+  "old": {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "preHeadSeq": 264,
+    "postHeadSeq": 270,
+    "transactionId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0:commit",
+    "publication": {
+      "seq": 265,
+      "actorId": "character:companion",
+      "speech": "表本来就在我手里。收兜里，行。我不出这屋。",
+      "narration": "陆舟把怀表塞进外套口袋，手在袋口按了一下，退到桌边站定，没往门口去。"
+    },
+    "item": {
+      "entityId": "entity:pocket-watch",
+      "name": "铜怀表"
+    },
+    "status": "CONFLICT",
+    "beforeHolder": "character:companion",
+    "worldHolder": "character:companion",
+    "claimedHolder": "character:companion",
+    "holderEventSeq": 205,
+    "answer": {
+      "placement": {
+        "kind": "NONE",
+        "probabilities": {
+          "NONE": 1,
+          "PAST": 0,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_GROUND": 0,
+          "SPEECH_ONLY": 0,
+          "OBJECTIVE_RELEASE": 0
+        },
+        "confidence": 1
+      },
+      "model": "typesafe/jev-1.13-20260917",
+      "inputTokens": 11245,
+      "outputTokens": 863,
+      "costUsd": 0.00047229,
+      "claims": [
+        {
+          "characterId": "character:companion",
+          "kind": "OBJECTIVE_NEW",
+          "referenceSeq": 259,
+          "probabilities": {
+            "NONE": 0,
+            "UNCERTAIN": 0,
+            "SPEECH_PAST": 0,
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_NOW": 0.41,
+            "OBJECTIVE_NEW": 0.51,
+            "OBJECTIVE_DURING": 0,
+            "SPEECH_NOW": 0.08
+          },
+          "referenceProbabilities": {
+            "NONE": 0.17,
+            "publication:223": 0,
+            "publication:193": 0,
+            "publication:211": 0.02,
+            "UNRESOLVED": 0.19,
+            "publication:181": 0,
+            "publication:259": 0.53,
+            "publication:253": 0.01,
+            "publication:247": 0.07,
+            "publication:241": 0,
+            "publication:229": 0.01,
+            "publication:175": 0,
+            "publication:199": 0,
+            "publication:217": 0
+          },
+          "confidence": 0.42
+        },
+        {
+          "characterId": "character:friend",
+          "kind": "NONE",
+          "referenceSeq": null,
+          "probabilities": {
+            "NONE": 1,
+            "SPEECH_PAST": 0,
+            "UNCERTAIN": 0,
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_DURING": 0,
+            "OBJECTIVE_NEW": 0,
+            "OBJECTIVE_NOW": 0,
+            "SPEECH_NOW": 0
+          },
+          "referenceProbabilities": {
+            "NONE": 0.93,
+            "publication:223": 0,
+            "publication:193": 0,
+            "publication:211": 0,
+            "UNRESOLVED": 0.01,
+            "publication:181": 0,
+            "publication:259": 0.01,
+            "publication:217": 0,
+            "publication:199": 0,
+            "publication:241": 0.02,
+            "publication:229": 0,
+            "publication:175": 0,
+            "publication:253": 0.01,
+            "publication:247": 0.01
+          },
+          "confidence": 1
+        },
+        {
+          "characterId": "character:player",
+          "kind": "NONE",
+          "referenceSeq": null,
+          "probabilities": {
+            "NONE": 1,
+            "UNCERTAIN": 0,
+            "SPEECH_PAST": 0,
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_NOW": 0,
+            "OBJECTIVE_NEW": 0,
+            "OBJECTIVE_DURING": 0,
+            "SPEECH_NOW": 0
+          },
+          "referenceProbabilities": {
+            "NONE": 0.68,
+            "publication:223": 0,
+            "publication:211": 0.01,
+            "publication:193": 0,
+            "UNRESOLVED": 0.04,
+            "publication:181": 0,
+            "publication:247": 0.05,
+            "publication:217": 0,
+            "publication:199": 0,
+            "publication:241": 0,
+            "publication:229": 0,
+            "publication:175": 0,
+            "publication:253": 0,
+            "publication:259": 0.22
+          },
+          "confidence": 1
+        }
+      ]
+    },
+    "placement": {
+      "kind": "NONE",
+      "probabilities": {
+        "NONE": 1,
+        "PAST": 0,
+        "UNCERTAIN": 0,
+        "OBJECTIVE_GROUND": 0,
+        "SPEECH_ONLY": 0,
+        "OBJECTIVE_RELEASE": 0
+      },
+      "confidence": 1,
+      "status": "NO_CLAIM",
+      "window": {
+        "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+        "fromSeq": 264,
+        "toSeq": 270,
+        "kind": "round"
+      },
+      "releasedSeqs": [],
+      "worldHolder": "character:companion",
+      "rootPublicationSeq": null
+    },
+    "window": {
+      "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+      "fromSeq": 264,
+      "toSeq": 270,
+      "kind": "round"
+    },
+    "claims": [
+      {
+        "characterId": "character:companion",
+        "kind": "OBJECTIVE_NEW",
+        "referenceSeq": 259,
+        "probabilities": {
+          "NONE": 0,
+          "UNCERTAIN": 0,
+          "SPEECH_PAST": 0,
+          "OBJECTIVE_PAST": 0,
+          "OBJECTIVE_NOW": 0.41,
+          "OBJECTIVE_NEW": 0.51,
+          "OBJECTIVE_DURING": 0,
+          "SPEECH_NOW": 0.08
+        },
+        "referenceProbabilities": {
+          "NONE": 0.17,
+          "publication:223": 0,
+          "publication:193": 0,
+          "publication:211": 0.02,
+          "UNRESOLVED": 0.19,
+          "publication:181": 0,
+          "publication:259": 0.53,
+          "publication:253": 0.01,
+          "publication:247": 0.07,
+          "publication:241": 0,
+          "publication:229": 0.01,
+          "publication:175": 0,
+          "publication:199": 0,
+          "publication:217": 0
+        },
+        "confidence": 0.42,
+        "status": "CONFLICT",
+        "window": {
+          "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+          "fromSeq": 258,
+          "toSeq": 270,
+          "kind": "player-turn"
+        },
+        "evidence": {
+          "heldAtWindowStart": true,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": 265,
+        "reason": "this occurrence has no formal holder support in its local event window"
+      },
+      {
+        "characterId": "character:friend",
+        "kind": "NONE",
+        "referenceSeq": null,
+        "probabilities": {
+          "NONE": 1,
+          "SPEECH_PAST": 0,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_PAST": 0,
+          "OBJECTIVE_DURING": 0,
+          "OBJECTIVE_NEW": 0,
+          "OBJECTIVE_NOW": 0,
+          "SPEECH_NOW": 0
+        },
+        "referenceProbabilities": {
+          "NONE": 0.93,
+          "publication:223": 0,
+          "publication:193": 0,
+          "publication:211": 0,
+          "UNRESOLVED": 0.01,
+          "publication:181": 0,
+          "publication:259": 0.01,
+          "publication:217": 0,
+          "publication:199": 0,
+          "publication:241": 0.02,
+          "publication:229": 0,
+          "publication:175": 0,
+          "publication:253": 0.01,
+          "publication:247": 0.01
+        },
+        "confidence": 1,
+        "status": "NO_CLAIM",
+        "window": {
+          "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+          "fromSeq": 264,
+          "toSeq": 270,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": null
+      },
+      {
+        "characterId": "character:player",
+        "kind": "NONE",
+        "referenceSeq": null,
+        "probabilities": {
+          "NONE": 1,
+          "UNCERTAIN": 0,
+          "SPEECH_PAST": 0,
+          "OBJECTIVE_PAST": 0,
+          "OBJECTIVE_NOW": 0,
+          "OBJECTIVE_NEW": 0,
+          "OBJECTIVE_DURING": 0,
+          "SPEECH_NOW": 0
+        },
+        "referenceProbabilities": {
+          "NONE": 0.68,
+          "publication:223": 0,
+          "publication:211": 0.01,
+          "publication:193": 0,
+          "UNRESOLVED": 0.04,
+          "publication:181": 0,
+          "publication:247": 0.05,
+          "publication:217": 0,
+          "publication:199": 0,
+          "publication:241": 0,
+          "publication:229": 0,
+          "publication:175": 0,
+          "publication:253": 0,
+          "publication:259": 0.22
+        },
+        "confidence": 1,
+        "status": "NO_CLAIM",
+        "window": {
+          "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+          "fromSeq": 264,
+          "toSeq": 270,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": null
+      }
+    ],
+    "latencyMs": 496.86329999999725,
+    "reason": null
+  },
+  "result": {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "preHeadSeq": 264,
+    "postHeadSeq": 270,
+    "transactionId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0:commit",
+    "publication": {
+      "seq": 265,
+      "actorId": "character:companion",
+      "speech": "表本来就在我手里。收兜里，行。我不出这屋。",
+      "narration": "陆舟把怀表塞进外套口袋，手在袋口按了一下，退到桌边站定，没往门口去。"
+    },
+    "item": {
+      "entityId": "entity:pocket-watch",
+      "name": "铜怀表"
+    },
+    "status": "UNCERTAIN",
+    "beforeHolder": "character:companion",
+    "worldHolder": "character:companion",
+    "claimedHolder": "character:companion",
+    "holderEventSeq": 205,
+    "answer": {
+      "placement": {
+        "kind": "NONE",
+        "probabilities": {
+          "NONE": 1,
+          "PAST": 0,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_GROUND": 0,
+          "SPEECH_ONLY": 0,
+          "OBJECTIVE_RELEASE": 0
+        },
+        "confidence": 1
+      },
+      "model": "typesafe/jev-1.13-20260917",
+      "inputTokens": 11245,
+      "outputTokens": 863,
+      "costUsd": 0.00047229,
+      "claims": [
+        {
+          "characterId": "character:companion",
+          "kind": "OBJECTIVE_NEW",
+          "referenceSeq": 259,
+          "probabilities": {
+            "NONE": 0,
+            "UNCERTAIN": 0,
+            "SPEECH_PAST": 0,
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_NOW": 0.41,
+            "OBJECTIVE_NEW": 0.51,
+            "OBJECTIVE_DURING": 0,
+            "SPEECH_NOW": 0.08
+          },
+          "referenceProbabilities": {
+            "NONE": 0.17,
+            "publication:223": 0,
+            "publication:193": 0,
+            "publication:211": 0.02,
+            "UNRESOLVED": 0.19,
+            "publication:181": 0,
+            "publication:259": 0.53,
+            "publication:253": 0.01,
+            "publication:247": 0.07,
+            "publication:241": 0,
+            "publication:229": 0.01,
+            "publication:175": 0,
+            "publication:199": 0,
+            "publication:217": 0
+          },
+          "confidence": 0.42
+        },
+        {
+          "characterId": "character:friend",
+          "kind": "NONE",
+          "referenceSeq": null,
+          "probabilities": {
+            "NONE": 1,
+            "SPEECH_PAST": 0,
+            "UNCERTAIN": 0,
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_DURING": 0,
+            "OBJECTIVE_NEW": 0,
+            "OBJECTIVE_NOW": 0,
+            "SPEECH_NOW": 0
+          },
+          "referenceProbabilities": {
+            "NONE": 0.93,
+            "publication:223": 0,
+            "publication:193": 0,
+            "publication:211": 0,
+            "UNRESOLVED": 0.01,
+            "publication:181": 0,
+            "publication:259": 0.01,
+            "publication:217": 0,
+            "publication:199": 0,
+            "publication:241": 0.02,
+            "publication:229": 0,
+            "publication:175": 0,
+            "publication:253": 0.01,
+            "publication:247": 0.01
+          },
+          "confidence": 1
+        },
+        {
+          "characterId": "character:player",
+          "kind": "NONE",
+          "referenceSeq": null,
+          "probabilities": {
+            "NONE": 1,
+            "UNCERTAIN": 0,
+            "SPEECH_PAST": 0,
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_NOW": 0,
+            "OBJECTIVE_NEW": 0,
+            "OBJECTIVE_DURING": 0,
+            "SPEECH_NOW": 0
+          },
+          "referenceProbabilities": {
+            "NONE": 0.68,
+            "publication:223": 0,
+            "publication:211": 0.01,
+            "publication:193": 0,
+            "UNRESOLVED": 0.04,
+            "publication:181": 0,
+            "publication:247": 0.05,
+            "publication:217": 0,
+            "publication:199": 0,
+            "publication:241": 0,
+            "publication:229": 0,
+            "publication:175": 0,
+            "publication:253": 0,
+            "publication:259": 0.22
+          },
+          "confidence": 1
+        }
+      ]
+    },
+    "placement": {
+      "kind": "NONE",
+      "probabilities": {
+        "NONE": 1,
+        "PAST": 0,
+        "UNCERTAIN": 0,
+        "OBJECTIVE_GROUND": 0,
+        "SPEECH_ONLY": 0,
+        "OBJECTIVE_RELEASE": 0
+      },
+      "confidence": 1,
+      "status": "NO_CLAIM",
+      "window": {
+        "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+        "fromSeq": 264,
+        "toSeq": 270,
+        "kind": "round"
+      },
+      "releasedSeqs": [],
+      "worldHolder": "character:companion",
+      "rootPublicationSeq": null
+    },
+    "window": {
+      "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+      "fromSeq": 264,
+      "toSeq": 270,
+      "kind": "round"
+    },
+    "claims": [
+      {
+        "characterId": "character:companion",
+        "kind": "OBJECTIVE_NEW",
+        "referenceSeq": 259,
+        "probabilities": {
+          "NONE": 0,
+          "UNCERTAIN": 0,
+          "SPEECH_PAST": 0,
+          "OBJECTIVE_PAST": 0,
+          "OBJECTIVE_NOW": 0.41,
+          "OBJECTIVE_NEW": 0.51,
+          "OBJECTIVE_DURING": 0,
+          "SPEECH_NOW": 0.08
+        },
+        "referenceProbabilities": {
+          "NONE": 0.17,
+          "publication:223": 0,
+          "publication:193": 0,
+          "publication:211": 0.02,
+          "UNRESOLVED": 0.19,
+          "publication:181": 0,
+          "publication:259": 0.53,
+          "publication:253": 0.01,
+          "publication:247": 0.07,
+          "publication:241": 0,
+          "publication:229": 0.01,
+          "publication:175": 0,
+          "publication:199": 0,
+          "publication:217": 0
+        },
+        "confidence": 0.42,
+        "status": "UNCERTAIN",
+        "window": {
+          "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+          "fromSeq": 258,
+          "toSeq": 270,
+          "kind": "player-turn"
+        },
+        "evidence": {
+          "heldAtWindowStart": true,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "already assigned to the same custodian; new transfer versus handling is unresolved"
+      },
+      {
+        "characterId": "character:friend",
+        "kind": "NONE",
+        "referenceSeq": null,
+        "probabilities": {
+          "NONE": 1,
+          "SPEECH_PAST": 0,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_PAST": 0,
+          "OBJECTIVE_DURING": 0,
+          "OBJECTIVE_NEW": 0,
+          "OBJECTIVE_NOW": 0,
+          "SPEECH_NOW": 0
+        },
+        "referenceProbabilities": {
+          "NONE": 0.93,
+          "publication:223": 0,
+          "publication:193": 0,
+          "publication:211": 0,
+          "UNRESOLVED": 0.01,
+          "publication:181": 0,
+          "publication:259": 0.01,
+          "publication:217": 0,
+          "publication:199": 0,
+          "publication:241": 0.02,
+          "publication:229": 0,
+          "publication:175": 0,
+          "publication:253": 0.01,
+          "publication:247": 0.01
+        },
+        "confidence": 1,
+        "status": "NO_CLAIM",
+        "window": {
+          "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+          "fromSeq": 264,
+          "toSeq": 270,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": null
+      },
+      {
+        "characterId": "character:player",
+        "kind": "NONE",
+        "referenceSeq": null,
+        "probabilities": {
+          "NONE": 1,
+          "UNCERTAIN": 0,
+          "SPEECH_PAST": 0,
+          "OBJECTIVE_PAST": 0,
+          "OBJECTIVE_NOW": 0,
+          "OBJECTIVE_NEW": 0,
+          "OBJECTIVE_DURING": 0,
+          "SPEECH_NOW": 0
+        },
+        "referenceProbabilities": {
+          "NONE": 0.68,
+          "publication:223": 0,
+          "publication:211": 0.01,
+          "publication:193": 0,
+          "UNRESOLVED": 0.04,
+          "publication:181": 0,
+          "publication:247": 0.05,
+          "publication:217": 0,
+          "publication:199": 0,
+          "publication:241": 0,
+          "publication:229": 0,
+          "publication:175": 0,
+          "publication:253": 0,
+          "publication:259": 0.22
+        },
+        "confidence": 1,
+        "status": "NO_CLAIM",
+        "window": {
+          "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+          "fromSeq": 264,
+          "toSeq": 270,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": null
+      }
+    ],
+    "latencyMs": 0.21859999999992397,
+    "reason": null
+  }
+}

@@ -267,6 +267,7 @@ function segmentMessages(segment: ContextSegment): ProviderMessage[] {
       ...(scene.items === undefined ? [] : [
         `当前可见的受控物品状态与上次观察：${jsonString(scene.items)}`,
         'current 是此刻有权确认的状态；lastObserved 只说明你上次观察到什么，不证明现在仍然如此。',
+        'holderId 表示当前保管和携带关系；触碰、翻页、短暂托起或暂放桌上不自动改变该关系。base:take / give / drop 分别取得、转交、解除保管，仍需正式裁定。',
         '历史执行结果说明过去实际发生过什么；对白与自由叙述只说明对方表达或相信什么，不自动覆盖可见状态或已观察的执行结果。',
       ]),
     ].join('\n') }]

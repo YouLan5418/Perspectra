@@ -71,7 +71,7 @@ export interface PlacementAudit extends PlacementClaim {
   readonly worldHolder: string | null
   readonly rootPublicationSeq: number | null
 }
-/** Check already-declared room/holder state; no tabletop coordinates or new physical simulation. */
+/** Check a declared release of custody / unassigned availability, never tabletop posture alone. */
 export function reconcilePlacement(events:readonly StoredWorldEvent[],window:AuditWindow,entityId:string,actorId:string,publicationSeq:number,claim:PlacementClaim):PlacementAudit {
   const state=currentEntityState(events.slice(0,window.toSeq),entityId)
   const local=acquisitionWindow(events,window)

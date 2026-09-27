@@ -54,7 +54,7 @@ export function playerTranscript(
         const transfer = object(content.interaction)
         if (typeof transfer?.entityId !== 'string') return []
         const item = transfer.entityId
-        const destination = transfer.toHolderId === null ? '放在当前位置' : `交由${names.get(String(transfer.toHolderId)) ?? transfer.toHolderId}持有`
+        const destination = transfer.toHolderId === null ? '解除个人保管，留在当前场所' : `交由${names.get(String(transfer.toHolderId)) ?? transfer.toHolderId}保管`
         return [{ seq: observation.sourceSeq, speaker: names.get(content.actorId) ?? content.actorId, text: `${item} 已${destination}。`, player: content.actorId === playerId }]
       }
       if ((content?.actionType !== 'move' && content?.actionType !== 'take') || typeof content.actorId !== 'string') return []

@@ -240,3 +240,28 @@ it('publishes a directed continuation to a visible addressee after an executed o
   const speech = f.store.readEvents(f.address).findLast(event => event.eventType === 'character.speak')!
   expect(speech.data).toMatchObject({ addresseeIds: ['character:player'], scope: 'direct' })
 })
+
+it('temporary tabletop handling keeps custody and later transfer authority with the custodian', async () => {
+  let stage = 'acquire'
+  const f = fixture(async request => {
+    if (stage === 'acquire') return request.continuation ? { decision: 'abstain' } : take
+    if (stage === 'inspect') return { decision: 'publish', narration: '把杯子暂放桌上，松开手，让对方托起看一眼后放回；仍由自己保管。' }
+    if (request.continuation) return { decision: 'abstain' }
+    return { ...take, parameters: { ...take.parameters,
+      definitionRef: { id: 'base:give', version: 1 }, bindingId: 'binding:entity:cup:base:give',
+      arguments: { recipientId: 'character:player' } } }
+  })
+  await f.turn.run(npc)
+  stage = 'inspect'
+  await f.turn.run(npc)
+  let events = f.store.readEvents(f.address)
+  expect(currentEntityState(events, 'entity:cup')?.holderId).toBe(npc)
+  expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
+  // An observer's temporary physical handling grants no right to give/drop the object.
+  stage = 'give'
+  expect(await f.turn.run(brandId('character:bob', 'CharacterId'))).toMatchObject({ performResult: { status: 'rejected' } })
+  expect(await f.turn.run(npc)).toMatchObject({ performResult: { status: 'accepted' } })
+  events = f.store.readEvents(f.address)
+  expect(currentEntityState(events, 'entity:cup')?.holderId).toBe('character:player')
+  expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(2)
+})

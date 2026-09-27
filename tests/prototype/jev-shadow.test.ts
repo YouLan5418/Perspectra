@@ -47,9 +47,10 @@ it('local round captures temporary formal possession and return even when the te
   expect(records[0]).toMatchObject({worldHolder:'char:a',status:'SUPPORTED',window:{fromSeq:5,toSeq:8}})
   expect(records[0]?.claims.find(c=>c.characterId==='char:b')?.evidence).toEqual({heldAtWindowStart:false,enteredSeqs:[6],leftSeqs:[7]})
 })
-it('carried possession supports current hold, but cannot prove a newly narrated pickup',async () => {
+it('existing custody supports current custody but leaves a new-transfer label unresolved',async () => {
   const {shadow,records}=setup([...initial,transfer(5,null,'char:b'),speak(6),speak(7)],async q=>answer(q.publication.seq===6?'OBJECTIVE_NOW':'OBJECTIVE_NEW'))
-  shadow.observe(7);await shadow.close();expect(records.map(r=>r.status)).toEqual(['SUPPORTED','CONFLICT'])
+  shadow.observe(7);await shadow.close();expect(records.map(r=>r.status)).toEqual(['SUPPORTED','UNCERTAIN'])
+  expect(records[1]?.claims.find(c=>c.characterId==='char:b')?.rootPublicationSeq).toBeNull()
 })
 it('a later real transfer never retroactively supports the first imaginary objective occurrence',async () => {
   const {shadow,records}=setup([...initial,speak(5),transfer(6,null,'char:b'),speak(7)],async()=>answer('OBJECTIVE_NOW'))
@@ -112,11 +113,11 @@ it('same display names remain undecidable without a classifier call',async()=> {
   shadow.observe(6);await shadow.close();expect(records.map(r=>r.status)).toEqual(['UNCERTAIN','UNCERTAIN']);expect(classify).not.toHaveBeenCalled()
 })
 
-it('a nearby observation of the just-completed receipt is supported, but a later separate new pickup is not',async()=> {
+it('a nearby custody receipt is supported, while a later new-transfer label without a custody change is unresolved',async()=> {
   const events=[...initial,transfer(5,null,'char:b',5),speak(6,5),speak(7),speak(8)]
   const {shadow,records}=setup(events,async()=>answer('OBJECTIVE_NEW'))
   shadow.observe(8);await shadow.close()
-  expect(records.map(r=>r.status)).toEqual(['SUPPORTED','SUPPORTED','CONFLICT'])
+  expect(records.map(r=>r.status)).toEqual(['SUPPORTED','SUPPORTED','UNCERTAIN'])
   expect(records[1]?.claims.find(c=>c.characterId==='char:b')?.window).toMatchObject({fromSeq:4,toSeq:7,kind:'nearby-round'})
 })
 it('a carried current holder becomes unsupported after a nearby formal release, and explicit null is never a receipt',async()=> {
@@ -150,7 +151,7 @@ it('the nearby window stays inside the most recent player submission even with s
   expect(records[3]?.claims.find(c=>c.characterId==='char:b')?.evidence.enteredSeqs).toEqual([])
 })
 
-it('unsupported release and later tabletop observation both conflict, while a formal drop and its continuation are supported',async()=>{
+it('unsupported custody release and unassigned availability both conflict, while formal release is supported',async()=>{
   const events=[...initial,transfer(5,null,'char:b'),speak(6),speak(7),transfer(8,'char:b',null),speak(9),speak(10)]
   const {shadow,records}=setup(events,async q=>({...answer(),placement:{kind:q.publication.seq===6||q.publication.seq===9?'OBJECTIVE_RELEASE':'OBJECTIVE_GROUND',probabilities:{NONE:1},confidence:1}}))
   shadow.observe(10);await shadow.close()
@@ -158,8 +159,17 @@ it('unsupported release and later tabletop observation both conflict, while a fo
   expect(records[0]?.placement?.releasedSeqs).toEqual([])
   expect(records[2]?.placement?.releasedSeqs).toEqual([8])
 })
-it('old ground state alone cannot prove this new release, and another room cannot support a current tabletop claim',async()=>{
+it('old unassigned state cannot prove a new custody release, and another room cannot prove local availability',async()=>{
   const {shadow,records}=setup([...initial,speak(5),event(6,'character.moved',{characterId:'char:a',fromLocationId:'room',toLocationId:'other'}),speak(7)],
     async q=>({...answer(),placement:{kind:q.publication.seq===5?'OBJECTIVE_RELEASE':'OBJECTIVE_GROUND',probabilities:{NONE:1},confidence:1}}))
   shadow.observe(7);await shadow.close();expect(records.map(r=>r.status)).toEqual(['CONFLICT','CONFLICT'])
+})
+
+it('does not propagate an unresolved new-transfer label as an invented objective history', async () => {
+  const events=[...initial,transfer(5,null,'char:b'),speak(6),speak(7),speak(8)]
+  const {shadow,records}=setup(events,async q=>q.publication.seq===6?answer('OBJECTIVE_NOW'):
+    q.publication.seq===7?answer('OBJECTIVE_NEW'):answer('SPEECH_PAST','char:b',7))
+  shadow.observe(8);await shadow.close()
+  expect(records.map(r=>r.status)).toEqual(['SUPPORTED','UNCERTAIN','HISTORICAL_SUPPORTED'])
+  expect(records[2]?.claims.find(c=>c.characterId==='char:b')?.rootPublicationSeq).toBeNull()
 })

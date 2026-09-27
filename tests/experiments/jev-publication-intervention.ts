@@ -73,6 +73,8 @@ export async function auditBeforePublication(input: {
         const evidence=holderEvidence(history,window,item.entityId,c.characterId)
         if(c.kind==='OBJECTIVE_NOW')return currentEntityState(history,item.entityId)?.holderId!==c.characterId
         if(c.kind==='OBJECTIVE_NEW')return evidence.enteredSeqs.length===0
+          && !(evidence.heldAtWindowStart && evidence.leftSeqs.length===0
+            && currentEntityState(history,item.entityId)?.holderId===c.characterId)
         if(c.kind==='OBJECTIVE_DURING')return !evidence.heldAtWindowStart&&evidence.enteredSeqs.length===0
         return false // subjective speech and unresolved historical sources never trigger a repair.
       }).map(c=>c.characterId)
@@ -86,7 +88,7 @@ export async function auditBeforePublication(input: {
     input.signal.throwIfAborted()
     const revision: PrototypeTurnRequest={...request,canPerform:false,context:{...request.context,
       publicationCorrection:{original:draft,conflicts,
-        instruction:'只修正这次尚未发布的表达。上面客观持有或放下描述没有本轮正式结果支持；请依据当前可见 items 和行动结果消除该冲突，保留角色语气及合理内容。可以保留邀请、尝试或主观对白；不能补写新行动或代替他人执行。只能 publish 或 abstain。不要向玩家解释审查过程。'}}}
+        instruction:'只修正这次尚未发布的表达。上面保管关系迁移描述没有本轮正式结果支持；请依据当前可见 items 和行动结果消除该冲突，保留角色语气及合理的触碰、查看、翻页或暂放桌上内容。可以保留邀请、尝试或主观对白；不能补写新行动或代替他人执行。只能 publish 或 abstain。不要向玩家解释审查过程。'}}}
     repairAttempted=true
     const corrected=await input.decide(revision)
     const d=publish(corrected)

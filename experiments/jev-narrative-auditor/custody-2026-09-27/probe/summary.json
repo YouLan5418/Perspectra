@@ -1,0 +1,12 @@
+{
+  "cases": 18,
+  "calls": 36,
+  "positives": 12,
+  "detected": 12,
+  "negatives": 24,
+  "falseAlerts": [],
+  "failures": 0,
+  "unresolved": [],
+  "costUsd": 0.005314680000000001,
+  "unchangedDuringAudit": true
+}

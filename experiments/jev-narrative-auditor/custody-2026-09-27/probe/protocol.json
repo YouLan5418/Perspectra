@@ -1,0 +1,127 @@
+{
+  "scope": "custody, not physical handling",
+  "repeats": 2,
+  "cases": [
+    {
+      "id": "table-pages",
+      "holder": null,
+      "narration": "林澄翻开桌上的蓝封账簿，压住书页看了看封底。",
+      "conflict": false
+    },
+    {
+      "id": "table-lift",
+      "holder": null,
+      "narration": "林澄把蓝封账簿托起来看清封面，随即放回原处。",
+      "conflict": false
+    },
+    {
+      "id": "loan-look",
+      "holder": "char:a",
+      "narration": "陆遥从林澄手中接过蓝封账簿看一眼，马上还回；始终由林澄保管。",
+      "conflict": false
+    },
+    {
+      "id": "release-hand",
+      "holder": "char:a",
+      "narration": "林澄把蓝封账簿放在桌上，松开手去倒水，仍负责保管它。",
+      "conflict": false
+    },
+    {
+      "id": "table-background",
+      "holder": "char:a",
+      "narration": "林澄看着桌上的蓝封账簿，暂时没有说话。",
+      "conflict": false
+    },
+    {
+      "id": "hand-background",
+      "holder": "char:a",
+      "narration": "陆遥手里的蓝封账簿翻到末页。",
+      "conflict": false
+    },
+    {
+      "id": "slide",
+      "holder": null,
+      "narration": "林澄将蓝封账簿沿桌面挪近灯下，查看纸张。",
+      "conflict": false
+    },
+    {
+      "id": "intent",
+      "holder": "char:a",
+      "narration": "林澄打算把蓝封账簿交给陆遥保管，还没得到回应。",
+      "conflict": false
+    },
+    {
+      "id": "still-custodian",
+      "holder": "char:a",
+      "narration": "蓝封账簿虽放在桌上，仍由林澄保管。",
+      "conflict": false
+    },
+    {
+      "id": "formal-pocket",
+      "holder": null,
+      "transfer": [
+        null,
+        "char:a"
+      ],
+      "narration": "林澄把蓝封账簿收进自己的随身包，准备带走。",
+      "conflict": false
+    },
+    {
+      "id": "formal-give",
+      "holder": "char:a",
+      "transfer": [
+        "char:a",
+        "char:b"
+      ],
+      "narration": "林澄将蓝封账簿交给陆遥保管，陆遥接下这份保管责任。",
+      "conflict": false
+    },
+    {
+      "id": "formal-release",
+      "holder": "char:a",
+      "transfer": [
+        "char:a",
+        null
+      ],
+      "narration": "林澄不再保管蓝封账簿，把它留在公共柜台供别人取用。",
+      "conflict": false
+    },
+    {
+      "id": "invent-pocket",
+      "holder": null,
+      "narration": "林澄把蓝封账簿收进自己的随身包，准备带走。",
+      "conflict": true
+    },
+    {
+      "id": "invent-give",
+      "holder": "char:a",
+      "narration": "林澄将蓝封账簿交给陆遥保管，陆遥接下这份保管责任。",
+      "conflict": true
+    },
+    {
+      "id": "invent-release",
+      "holder": "char:a",
+      "narration": "林澄不再保管蓝封账簿，把它留在公共柜台供别人取用。",
+      "conflict": true
+    },
+    {
+      "id": "invent-current",
+      "holder": "char:b",
+      "narration": "蓝封账簿现由林澄保管，陆遥已经不再负责。",
+      "conflict": true
+    },
+    {
+      "id": "invent-temporary-custody",
+      "holder": "char:a",
+      "narration": "林澄将蓝封账簿交由陆遥保管了一会儿，陆遥完成看守后又正式转交林澄保管。",
+      "conflict": true
+    },
+    {
+      "id": "implicit-departure",
+      "holder": "char:a",
+      "narration": "陆遥把蓝封账簿装进自己的旅行袋，带着它离开了。",
+      "conflict": true
+    }
+  ],
+  "noTuning": true
+}

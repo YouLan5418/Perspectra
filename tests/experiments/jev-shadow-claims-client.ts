@@ -4,15 +4,16 @@ export interface ClaimQuestion extends HolderQuestion {
   readonly earlierPublications: readonly Publication[]
   readonly round: { readonly roundId: string | null; readonly fromSeq: number; readonly toSeq: number }
 }
+// Labels retain their wire shape; this experiment interprets custody, not hand contact.
 export const claimCriteria = {
-  OBJECTIVE_NEW: '最新客观旁白确认指定人物在这一次交互中从原处或他人处新拿到、接到目标物品；这次获取完成，不是旧回忆、意图或仅递出。',
-  OBJECTIVE_NOW: '最新客观旁白确认指定人物在这段表达结束时当前实际持有目标。已持有者在自己手内翻转不算新获取，选这里。',
-  OBJECTIVE_DURING: '最新客观旁白确认指定人物在这次操作过程中短暂实际持有目标，随后归还或交给别人；结束时不再持有，但中途持有写成已经发生。仅摸别人拿着的东西不算。',
-  OBJECTIVE_PAST: '仅最新客观旁白回顾此前另一段经历中指定人物曾持有目标，没有确认这次实际持有。',
-  SPEECH_NOW: '仅最新对白、引用或思想声称指定人物现在实际持有或这次刚拿到目标；客观旁白没有确认该人物持有。',
-  SPEECH_PAST: '仅最新对白、引用或思想回述先前某次指定人物实际持有过目标，没有断言她现在持有。',
-  NONE: '最新表达未确认该人物实际持有目标；只打算、邀请、伸手、递出未确认接收、否认、假设、只看或摸别人拿着的东西都不算。未来要给、要放下也不是已经发生。',
-  UNCERTAIN: '物品、人物指代、完成程度或时间范围无法确定。',
+  OBJECTIVE_NEW: '最新客观旁白确认指定人物在本次新取得目标的保管或携带控制，例如收进随身口袋带走、接收并负责保管。仅托起查看不算。',
+  OBJECTIVE_NOW: '最新客观旁白确认表达结束时目标仍由指定人物保管或随身携带；不要求握在手里。仅手里、桌上等物理位置不足以证明。',
+  OBJECTIVE_DURING: '最新客观旁白确认本次保管责任曾迁移给指定人物，之后又转交或解除。必须明确保管关系迁移；短暂接过查看再还回不自动算迁移。',
+  OBJECTIVE_PAST: '仅最新客观旁白回顾此前另一段明确的保管或携带经历，没有确认本次保管关系。',
+  SPEECH_NOW: '仅最新对白、引用或思想声称指定人物现在保管目标或这次取得了保管；客观旁白没有确认。',
+  SPEECH_PAST: '仅最新对白、引用或思想回述先前某次保管或携带目标，没有断言现在保管。',
+  NONE: '没有明确确认指定人物的保管或携带关系。触碰、翻页、挪动、短暂托起查看后还回、仅在手里或桌上，以及意图、未完成递交、否认和假设均不算。',
+  UNCERTAIN: '人物、物品、迁移是否完成或时间无法确定，或确有转交但无法确定是临时操作还是交由保管。',
 }
 export type ClaimKind = keyof typeof claimCriteria
 export interface TemporalClaim {
@@ -24,12 +25,12 @@ export interface TemporalClaim {
   readonly confidence: number | null
 }
 export const placementCriteria = {
-  OBJECTIVE_RELEASE: '最新客观旁白确认目标物品在这一次交互中从手中或随身保管处被放到本场景桌面/地面，并已经松手，表达结束时无人持有。仅桌面滑动、挪几寸、不离开原平面不算从手中放下。',
-  OBJECTIVE_GROUND: '最新 narration 把目标写作当前桌上或地上的物品，包括看着桌上的目标、没碰桌上的目标、视线从桌上目标移开。这样的名词修饰就确认了位置，不必另写无人持有。仅当同一目标明确仍被握持、底部只是贴桌时排除此项；另一物品被拿着不排除目标在桌上。明确本次松手放下优先选 OBJECTIVE_RELEASE。',
-  PAST: '最新客观旁白只回忆此前一次把目标放下，未确认当前在桌面/地面或本次完成放下。',
-  SPEECH_ONLY: '目标已放下或在桌面的说法仅在对白、引用或思想中，最新客观旁白没有确认。',
-  NONE: '最新 narration 没有确认目标无人持有或完成放下。只看桌面空处、给目标留位置、看目标原来搁着的印子不等于目标现在在桌上。仍握持时贴桌或挪到桌边、触碰或开盖不等于松手放下。邀请、未来、假设、否认也不算。',
-  UNCERTAIN: '不能确定是哪件物品、放下是否完成、是否属于本场景或结束时是否仍由人持有。',
+  OBJECTIVE_RELEASE: '最新客观旁白明确确认本次解除个人保管，把目标留在当前场所供其他人取用；不是暂放桌上后仍负责保管，也不是交给另一个保管人。',
+  OBJECTIVE_GROUND: '最新客观旁白明确确认当前目标无人个人保管、留在场所供人取用。不凭桌上、地上或松手推断无人保管。',
+  PAST: '最新客观旁白只回顾此前解除保管的经历，未确认当前或本次解除。',
+  SPEECH_ONLY: '解除保管或当前无人保管的说法仅在对白、引用或思想中。',
+  NONE: '没有明确解除或无人保管的宣称。暂放桌上、松手、移到桌边、翻页、开盖、仅描述桌上的物品不代表保管关系改变；未来、否认、假设也不算。',
+  UNCERTAIN: '确有交出或遗留，但无法确定物品、完成程度、个人保管是否解除或属于哪次经历。',
 }
 export interface PlacementClaim {
   readonly kind: keyof typeof placementCriteria
@@ -46,26 +47,32 @@ export interface ClaimAnswer {
 }
 export function claimRequest(q: ClaimQuestion) {
   const references = Object.fromEntries([
-    ...q.earlierPublications.map(p => [`publication:${p.seq}`, `最新表达回述这次具体经历（seq ${p.seq}，表达者 ${p.actorId}）：旁白：${p.narration}；对白：${p.speech}。必须对应同一次经历，不能仅因同物品或同人物。`]),
-    ['NONE', '没有回述此前具体经历，或者没有指定人物持有宣称。'],
-    ['UNRESOLVED', '确实回述此前经历，但候选里找不到明确对应的一次，或存在多个同样可能的经历。'],
+    ...q.earlierPublications.map(p => [`publication:${p.seq}`, `最新表达明确回述这次保管经历（seq ${p.seq}，表达者 ${p.actorId}）：旁白：${p.narration}；对白：${p.speech}。同人物同物品不足以证明同一次经历。`]),
+    ['NONE', '未回述具体保管经历，或只回述物理操作。'],
+    ['UNRESOLVED', '确实回述保管经历，但无法唯一定位来源。'],
   ])
+  const contract = '本实验只追踪保管/携带/转交关系，不追踪手的位置或微小物理操作，也不判断法律所有权。'
+    + '短暂拿起查看、接过看一眼再还回、翻页、挪动、松手暂放桌上均可保持原保管关系。'
+    + '收进自己的随身口袋带走、交给另一人负责保管、明确解除个人保管供他人取用属于关系迁移。'
+    + '只解释最新 publication；narration 中客观事件与 speech、引用、思想分开。不得把上下文的事件搬成最新断言，不判断 World 真伪。'
   return { model: 'typesafe/jev-1.13', state: {
     target: q.item, items: q.items, characters: q.characters, publication: q.publication,
     earlierPublications: q.earlierPublications, round: q.round,
-  }, questions: { placement: {type:'choice',instructions:`只解释最新 publication 对 ${q.item.name}（${q.item.entityId}）是否作出客观放下或当前桌面/地面归属宣称。先单独阅读最新 publication.narration，逐句确认目标而非其他物品的位置。只看空处、原来的位置或为物品留位置不是物品当前位置。目标与其他物品分开：旁白桌上的目标是当前位置断言，即使别的物品还在手里。否定触碰目标也不否定桌上的目标存在。触桌与松手不同：只有同一目标仍被握持时，底部贴桌不算无人持有。旁白明确本次松手选 OBJECTIVE_RELEASE，仅确认当前无人持有的桌上物品选 OBJECTIVE_GROUND；别因对白很长而忽略真实背景位置。若相关位置只在 publication.speech、引用或思想里，选 SPEECH_ONLY，即便角色说自己亲眼看见或声称已经放下。不要把对白或 earlierPublications 的位置搬进最新旁白，不判断世界真伪。`,criteria:Object.fromEntries(Object.entries(placementCriteria).map(([label,description])=>[label,description.replaceAll('目标',`${q.item.name}（${q.item.entityId}）`)]))},
+  }, questions: {
+    placement: { type: 'choice', instructions: contract
+      + `最新文本是否明确确认 ${q.item.name}（${q.item.entityId}）已解除个人保管，或当前无人保管、可由他人取得？桌面背景位置本身不算。`,
+      criteria: Object.fromEntries(Object.entries(placementCriteria).map(([label, description]) => [label, description.replaceAll('目标', `${q.item.name}（${q.item.entityId}）`)])) },
     ...Object.fromEntries(q.characters.flatMap((c, i) => [
-    [`claim_${i}`, { type: 'choice', instructions: `这段已经生成的文本是否把 ${c.name}（${c.characterId}）持有目标物品 ${q.item.name}（${q.item.entityId}） 写成已发生的客观事件，还是仅角色说法？`
-      + '只解释 publication 对指定人物的最新宣称。speech 是角色对白，可以说谎；narration 是客观叙述，其中引用的话和思想仍属于角色陈述。'
-      + '分清本次新获取、结束时实际持有、这次中途持有后归还、过去回忆、现在对白和过去对白。对白同时提现在和过去，且指定人物只在过去持有时选 SPEECH_PAST。'
-      + '最新回答若回应此前明确的回忆提问，刚拿到、刚看过等可指被追问的过去经历；结合紧邻提问判断，不能仅凭刚字判成现在。只判最新文本，不把上下文其他人物或其他物品的持有搬到最新宣称。'
-      + '只有明确取得或持续握持才能算持有。沿桌面滑动、推杯、挪半寸、手搭物品、触碰后收手、拧开又拧上盖子均不证明曾持有。物品仍可以在桌上或他人手里；不能因为某动作常需要拿起就推导一次拿起。明确端起、举起、握在手里仍算持有。'
-      + '我指 actorId，你根据公开表达解指代，不能确定则 UNCERTAIN。多件物品分别判断，不借邻近物品的动作替目标断言。'
-      + '先客观后对白；先中途持有后归还、再本次新获取、再结束时持有、再过去回忆。不要因 earlierPublications 讲过就排除本次客观断言。不要判断世界真假。', criteria: Object.fromEntries(Object.entries(claimCriteria).map(([label,description]) => [label,description.replaceAll('指定人物',`${c.name}（${c.characterId}）`).replaceAll('目标',`${q.item.name}（${q.item.entityId}）`)])) }],
-    [`reference_${i}`, { type: 'choice', instructions: `publication 对 ${c.name}（${c.characterId}）持有目标物品 ${q.item.name}（${q.item.entityId}） 的宣称，是否明确回述 earlierPublications 里的同一次具体经历？`
-      + '选择具体来源发布，优先第一次完整叙述那段经历的表达，也可以选择明确延续同一次经历的回述。参与者说法有改写时，仍可能回述同一次查看及归还经历；必须还有查看内容、归还等具体线索，仅人物和物品相同不足以认定同一次。'
-      + '历史中她曾持有，不代表本次也持有。没有回述则 NONE，确实回述但来源无法唯一定位则 UNRESOLVED。不判断世界真伪。', criteria: references }],
-  ])) } }
+      [`claim_${i}`, { type: 'choice', instructions: contract
+        + `最新文本是否明确确认 ${c.name}（${c.characterId}）取得或持续保管 ${q.item.name}（${q.item.entityId}）？`
+        + '先判断是否声明保管关系，再区分本次迁移、当前保管、本次中途保管后转交、过去经历和角色说法。我指 actorId。'
+        + '回应过去经历的提问时，刚拿过可能指过去；必须结合紧邻提问。不从一般拿起或放下动作推导保管迁移。',
+        criteria: Object.fromEntries(Object.entries(claimCriteria).map(([label, description]) => [label, description.replaceAll('指定人物', `${c.name}（${c.characterId}）`).replaceAll('目标', `${q.item.name}（${q.item.entityId}）`)])) }],
+      [`reference_${i}`, { type: 'choice', instructions: contract
+        + `最新文本对 ${c.name}（${c.characterId}）保管 ${q.item.name}（${q.item.entityId}）的回述是否对应候选里的同一次经历？`
+        + '只回述触碰或临时查看，选 NONE。确实回述保管但来源不唯一选 UNRESOLVED。历史上曾保管不证明本次迁移。', criteria: references }],
+    ])),
+  } }
 }
 function record(v: unknown): Record<string, unknown> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('invalid Jev object')

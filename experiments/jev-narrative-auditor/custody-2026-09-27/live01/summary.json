@@ -1,0 +1,287 @@
+{
+  "rounds": 12,
+  "failedRounds": 0,
+  "providerCalls": 51,
+  "npcPublications": 45,
+  "expectedRecords": 110,
+  "records": 110,
+  "auditComplete": true,
+  "unchangedDuringAuditDrain": true,
+  "latencyMs": [
+    1987,
+    3950,
+    3958,
+    4146,
+    4964,
+    5532,
+    8319,
+    5749,
+    4959,
+    6141,
+    6012,
+    5903
+  ],
+  "conflicts": [
+    {
+      "seq": 265,
+      "item": "entity:pocket-watch",
+      "narration": "陆舟把怀表塞进外套口袋，手在袋口按了一下，退到桌边站定，没往门口去。",
+      "claims": [
+        {
+          "characterId": "character:companion",
+          "kind": "OBJECTIVE_NEW",
+          "referenceSeq": 259,
+          "probabilities": {
+            "NONE": 0,
+            "UNCERTAIN": 0,
+            "SPEECH_PAST": 0,
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_NOW": 0.41,
+            "OBJECTIVE_NEW": 0.51,
+            "OBJECTIVE_DURING": 0,
+            "SPEECH_NOW": 0.08
+          },
+          "referenceProbabilities": {
+            "NONE": 0.17,
+            "publication:223": 0,
+            "publication:193": 0,
+            "publication:211": 0.02,
+            "UNRESOLVED": 0.19,
+            "publication:181": 0,
+            "publication:259": 0.53,
+            "publication:253": 0.01,
+            "publication:247": 0.07,
+            "publication:241": 0,
+            "publication:229": 0.01,
+            "publication:175": 0,
+            "publication:199": 0,
+            "publication:217": 0
+          },
+          "confidence": 0.42,
+          "status": "CONFLICT",
+          "window": {
+            "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+            "fromSeq": 258,
+            "toSeq": 270,
+            "kind": "player-turn"
+          },
+          "evidence": {
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          "rootPublicationSeq": 265,
+          "reason": "this occurrence has no formal holder support in its local event window"
+        }
+      ],
+      "placement": {
+        "kind": "NONE",
+        "probabilities": {
+          "NONE": 1,
+          "PAST": 0,
+          "UNCERTAIN": 0,
+          "OBJECTIVE_GROUND": 0,
+          "SPEECH_ONLY": 0,
+          "OBJECTIVE_RELEASE": 0
+        },
+        "confidence": 1,
+        "status": "NO_CLAIM",
+        "window": {
+          "roundId": "prototype-turn:e5f3d691-57d5-4947-b4ca-27eaf9356bd6:0",
+          "fromSeq": 264,
+          "toSeq": 270,
+          "kind": "round"
+        },
+        "releasedSeqs": [],
+        "worldHolder": "character:companion",
+        "rootPublicationSeq": null
+      }
+    }
+  ],
+  "failures": 0,
+  "costUsd": 0.04794451200000001,
+  "formalTransfers": [
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 38,
+      "tick": 4,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:player",
+        "entityId": "entity:diary",
+        "fromHolderId": null,
+        "fromLocationId": "location:front-room",
+        "interactionId": "base:take",
+        "toHolderId": "character:player",
+        "toLocationId": null
+      },
+      "previousHash": "sha256:bd501817ac1657168d06cb7c0a45abda905f4268d4e21e02f2943011658f64c0",
+      "eventHash": "sha256:ce6b6a909daae3be1d7b167c8bd10a7c313718eee1de767f0b4e40efe19dc694",
+      "transactionId": "transaction:coordinated-round:497b06ec9b3c517f1d0919f5",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 122,
+      "tick": 18,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:player",
+        "entityId": "entity:diary",
+        "fromHolderId": "character:player",
+        "fromLocationId": null,
+        "interactionId": "base:give",
+        "toHolderId": "character:companion",
+        "toLocationId": null
+      },
+      "previousHash": "sha256:a9c57d2addd5aff02ee84a67c4321adb524fa19f3f5ad3a37a3736199c6910fc",
+      "eventHash": "sha256:5c560e030f1965904a36264ce12ce0a324238ac43c7d3126e048d6366106ab65",
+      "transactionId": "transaction:coordinated-round:c99e5c31e945ba0a4a2b7009",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 187,
+      "tick": 29,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:companion",
+        "entityId": "entity:diary",
+        "fromHolderId": "character:companion",
+        "fromLocationId": null,
+        "interactionId": "base:give",
+        "toHolderId": "character:friend",
+        "toLocationId": null
+      },
+      "previousHash": "sha256:77115ccd2631056a77a77d1376a9f4dfc03f041a8ce5ecdd48f8248a5bfcabbe",
+      "eventHash": "sha256:2d25c6fdae5bafaab9d2567c483540c27d438d2586e0c5dc034941b784ebdee6",
+      "transactionId": "prototype-turn:55ca9f88-8a2d-4b34-8a95-a6607dacb7cc:0:commit",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 205,
+      "tick": 32,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:companion",
+        "entityId": "entity:pocket-watch",
+        "fromHolderId": null,
+        "fromLocationId": "location:front-room",
+        "interactionId": "base:take",
+        "toHolderId": "character:companion",
+        "toLocationId": null
+      },
+      "previousHash": "sha256:7f62858189002626e3bbbed6600bc1c1f4c7c3676a2c241c4ac668d34638e62f",
+      "eventHash": "sha256:35323b1339d5de598202b82a5c0a715093213d95b0e112415c29cad0d5d62603",
+      "transactionId": "prototype-turn:70066db0-9b20-49bb-bd48-5436e4be5120:0:commit",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 235,
+      "tick": 37,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:friend",
+        "entityId": "entity:diary",
+        "fromHolderId": "character:friend",
+        "fromLocationId": null,
+        "interactionId": "base:drop",
+        "toHolderId": null,
+        "toLocationId": "location:front-room"
+      },
+      "previousHash": "sha256:0499abc5b633944bdde7b440c37725fa73573ac335d08543b99cbc1518d6dd29",
+      "eventHash": "sha256:4b8a9c6fd3cdc4733b989b7c9b32876c5ada629dbf1f178cc384bc3d249f6f90",
+      "transactionId": "prototype-turn:6ae83543-c83e-45c2-8f30-af8735f6e150:0:commit",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 295,
+      "tick": 47,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:companion",
+        "entityId": "entity:pocket-watch",
+        "fromHolderId": "character:companion",
+        "fromLocationId": null,
+        "interactionId": "base:give",
+        "toHolderId": "character:friend",
+        "toLocationId": null
+      },
+      "previousHash": "sha256:f504f6a485c76f97d0214a9ac1f09db1ea045ec7ce527dfbe0dcbf7c7afae461",
+      "eventHash": "sha256:0b7caf4b09b8ca74ac982bfa467ef92da3d75441571124cfeac02e32609a5e23",
+      "transactionId": "prototype-turn:10b4dd47-e006-4cfb-ba2c-33d077bf22f2:0:commit",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 337,
+      "tick": 54,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:friend",
+        "entityId": "entity:pocket-watch",
+        "fromHolderId": "character:friend",
+        "fromLocationId": null,
+        "interactionId": "base:drop",
+        "toHolderId": null,
+        "toLocationId": "location:front-room"
+      },
+      "previousHash": "sha256:19fc5c2fc7b4a97ba00bb2cbcb4b7b248d7a5d1cd9fc0081e9e54857f8ca1d99",
+      "eventHash": "sha256:6255c64f50890400ba2b0462af716842f112e05dca92c93fc43e13b20d62fb40",
+      "transactionId": "prototype-turn:5d654970-eda6-494a-9d97-e56e3a2486af:0:commit",
+      "eventOrdinal": 0
+    }
+  ],
+  "finalItems": [
+    {
+      "entityId": "entity:pocket-watch",
+      "locationId": "location:front-room",
+      "holderId": null,
+      "kind": "watch"
+    },
+    {
+      "entityId": "entity:diary",
+      "locationId": "location:front-room",
+      "holderId": null,
+      "kind": "book"
+    }
+  ]
+}

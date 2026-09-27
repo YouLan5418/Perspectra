@@ -83,6 +83,7 @@ export function currentLocation(events: readonly RulebookEvent[], characterId: s
 export interface EntityState extends WorldJsonObject {
   readonly entityId: string
   readonly locationId: string | null
+  /** Current custody/carrying assignment, not hand contact or legal ownership. */
   readonly holderId: string | null
   readonly kind: string
 }
