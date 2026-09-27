@@ -253,126 +253,36 @@ describe('the web playtest on a frozen world', () => {
     } finally { await runtime.close() }
   }, 30_000)
 
-  it('reports provider rejection without asking the player to rephrase', async () => {
-    const server = createServer((_request, response) => { response.writeHead(402); response.end('{}') })
-    servers.push(server)
-    const root = mkdtempSync(join(tmpdir(), 'frozen-provider-failure-')); roots.push(root)
-    const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/prototype-g1'), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
-    try {
-      const state = await runtime.submit('你好。')
-      expect(state.error).toBe(true)
-      expect(state.notice).toContain('模型服务暂时无法完成请求')
-      expect(state.notice).not.toMatch(/换一种说法|显式命令/)
-      expect(state.debug.lastPlayerIntent).toBe('service-failed')
-      const clarification = await runtime.submit('/move')
-      expect(clarification.error).toBe(false)
-      expect(clarification.notice).toContain('换一种说法')
-      expect(clarification.debug.lastPlayerIntent).toBe('clarification')
-    } finally { await runtime.close() }
-  }, 30_000)
-
-  it('identifies an HTTP 200 invalid player-intent answer as model output failure, not service outage', async () => {
-    const server = createServer((_request, response) => {
-      response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify({ message: { content: JSON.stringify({
-        version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
-        actions: [{ key: 'invented', affordanceId: 'not-an-offered-option', quotes: ['我想看看。'] }],
-      }) } }))
+  it('keeps compound player words intact and never dispatches an intent request', async () => {
+    let intentCalls = 0
+    const server = createServer((request, response) => {
+      let body = ''
+      request.on('data', chunk => { body += String(chunk) })
+      request.on('end', () => {
+        if (body.includes('player-intent-candidate')) intentCalls++
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ message: { content: JSON.stringify({ decision: 'abstain' }) } }))
+      })
     })
     servers.push(server)
-    const root = mkdtempSync(join(tmpdir(), 'frozen-invalid-intent-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'frozen-command-mode-')); roots.push(root)
     const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
       packPath: resolve('examples/world-packs/prototype-g1'), provider: 'ollama', model: 'fixture',
       utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
     try {
       const before = await runtime.state()
-      const state = await runtime.submit('我想看看。')
-      expect(state.error).toBe(true)
-      expect(state.notice).toContain('输入解释格式无效')
-      expect(state.notice).toContain('原文已保留')
-      expect(state.debug.lastPlayerIntent).toBe('model-output-invalid')
-      expect(state.debug.headSeq).toBe(before.debug.headSeq)
-    } finally { await runtime.close() }
-  }, 30_000)
-
-  it('rejects the recorded performance/move order, then commits the same sentence in source order', async () => {
-    let reverse = true
-    const server = createServer((request, response) => {
-      let body = ''
-      request.on('data', chunk => { body += String(chunk) })
-      request.on('end', () => {
-        const wire = JSON.parse(body)
-        let answer: unknown = { decision: 'abstain' }
-        if (JSON.stringify(wire.format).includes('player-intent-candidate')) {
-          const input = JSON.parse(wire.messages.at(-1).content)
-          const move = input.affordances.find((choice: any) => choice.actionType === 'move'
-            && choice.parameters.locationId === 'location:back-room')
-          expect(move).toBeDefined()
-          const actions = [
-            { key: 'expression', affordanceId: 'narrate', quotes: ['我轻轻笑了笑'] },
-            { key: 'movement', affordanceId: move.affordanceId, quotes: ['走进后室看看有没有锁'] },
-          ]
-          answer = { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
-            actions: reverse ? actions.reverse() : actions }
-        }
-        response.writeHead(200, { 'content-type': 'application/json' })
-        response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
-      })
-    })
-    servers.push(server)
-    const root = mkdtempSync(join(tmpdir(), 'frozen-expression-move-')); roots.push(root)
-    const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/prototype-g1'), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
-    try {
-      const before = await runtime.state()
-      const text = '我轻轻笑了笑，走进后室看看有没有锁。'
-      const failed = await runtime.submit(text)
-      expect(failed.error).toBe(true)
-      expect(failed.notice).toContain('与原文不符的顺序')
-      expect(failed.notice).toContain('这次输入没有提交')
-      expect(failed.debug.headSeq).toBe(before.debug.headSeq)
-      reverse = false
-      const committed = await runtime.submit(text)
-      expect(committed.error).toBe(false)
-      expect(committed.debug.headSeq).toBeGreaterThan(before.debug.headSeq as number)
-      expect(committed.world.currentScene?.locationName).toBe('后室')
-    } finally { await runtime.close() }
-  }, 30_000)
-
-  it('shows omitted trailing player words even when the earlier movement was committed', async () => {
-    const server = createServer((request, response) => {
-      let body = ''
-      request.on('data', chunk => { body += String(chunk) })
-      request.on('end', () => {
-        const wire = JSON.parse(body)
-        let answer: unknown = { decision: 'abstain' }
-        if (JSON.stringify(wire.format).includes('player-intent-candidate')) {
-          const input = JSON.parse(wire.messages.at(-1).content)
-          const move = input.affordances.find((choice: any) => choice.actionType === 'move'
-            && choice.parameters.locationId === 'location:back-room')
-          answer = { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
-            actions: [{ key: 'move', affordanceId: move.affordanceId, quotes: ['我走进后室'] }] }
-        }
-        response.writeHead(200, { 'content-type': 'application/json' })
-        response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
-      })
-    })
-    servers.push(server)
-    const root = mkdtempSync(join(tmpdir(), 'frozen-missing-tail-')); roots.push(root)
-    const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/prototype-g1'), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
-    try {
-      const state = await runtime.submit('我走进后室看看有没有锁。')
+      const state = await runtime.submit('我轻轻笑了笑，走进后室看看有没有锁。')
       expect(state.error).toBe(false)
-      expect(state.world.currentScene?.locationName).toBe('后室')
-      expect(state.notice).toContain('句尾“看看有没有锁”没有映射到本次动作或表达')
-      expect(state.notice).toContain('请以转录和当前场景为准')
+      expect(state.world.currentScene?.locationName).toBe(before.world.currentScene?.locationName)
+      expect(state.debug.playerInputMode).toBe('command-controlled')
+      expect(JSON.stringify(state)).toContain('我轻轻笑了笑，走进后室看看有没有锁。')
+      expect(intentCalls).toBe(0)
+      const malformed = await runtime.submit('/move')
+      expect(malformed.notice).toContain('请检查命令参数')
+      expect(malformed.debug.lastPlayerIntent).toBe('clarification')
+      const moved = await runtime.submit('/move location:back-room')
+      expect(moved.world.currentScene?.locationName).toBe('后室')
+      expect(intentCalls).toBe(0)
     } finally { await runtime.close() }
   }, 30_000)
-
-
 })

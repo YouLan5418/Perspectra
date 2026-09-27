@@ -1,4 +1,4 @@
-import { assertProtocolString, canonicalizeWorldJson, compareWorldText, type WorldJsonValue } from '@harness-world/contracts'
+import { assertProtocolString, canonicalizeWorldJson, compareWorldText, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import type { ActionAffordance, PlayerActionInput } from '@harness-world/kernel'
 
 export type PlayerInputInterpretation =
@@ -29,11 +29,29 @@ export class PlayerInputInterpreter {
         ? clarification('move requires exactly one locationId', ['move'])
         : this.#action('move', { locationId: move[1] }, allowed)
     }
-    const take = /^\/take(?:\s+(.+))?$/u.exec(text)
-    if (take !== null) {
-      return take[1] === undefined || /\s/u.test(take[1])
-        ? clarification('take requires exactly one entityId', ['take'])
-        : this.#action('take', { entityId: take[1] }, allowed)
+    const narration = /^\/narrate(?:\s+(.+))?$/u.exec(text)
+    if (narration !== null) return narration[1] === undefined
+      ? clarification('narrate requires text', ['speak'])
+      : this.#action('speak', { text: '', narration: narration[1] }, allowed)
+    const custody = /^\/(take|give|drop)(?:\s+(.*))?$/u.exec(text)
+    if (custody !== null) {
+      const verb = custody[1]!
+      const args = custody[2]?.split(/\s+/u) ?? []
+      if (args.length !== (verb === 'give' ? 2 : 1) || args.some(arg => !arg)) {
+        return clarification(`${verb} requires exactly ${verb === 'give' ? 'one entityId and one recipientId' : 'one entityId'}`, [verb])
+      }
+      const choices = affordances.filter(a => a.actionType === 'interact').flatMap(a => a.interactions ?? [])
+        .filter(p => (p.targetRef as WorldJsonObject | undefined)?.kind === 'entity'
+          && (p.targetRef as WorldJsonObject).id === args[0]
+          && (p.definitionRef as WorldJsonObject | undefined)?.id === `base:${verb}`
+          && (verb !== 'give' || (p.arguments as WorldJsonObject | undefined)?.recipientId === args[1]))
+      if (choices.length === 1) {
+        const { label: _, ...parameters } = choices[0]!
+        return this.#action('interact', parameters, allowed)
+      }
+      // Older rulebooks can expose a direct take action. It still needs an explicit command.
+      if (verb === 'take' && choices.length === 0 && allowed.has('take')) return this.#action('take', { entityId: args[0]! }, allowed)
+      return clarification(choices.length > 1 ? 'command matches multiple interactions; use /act' : 'interaction is not currently afforded', ['interact'])
     }
     if (text === '/act' || text.startsWith('/act ')) return this.#explicitAction(text, allowed)
     return clarification('unknown player command', [...allowed])

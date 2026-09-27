@@ -1,0 +1,11 @@
+{
+  "rounds": 5,
+  "intentCalls": 0,
+  "modelCalls": 18,
+  "shadowRecords": 38,
+  "failures": 0,
+  "costUsd": 0.012823775999999999,
+  "shadowWorldUnchanged": true,
+  "diaryHolder": null,
+  "exportRecovery": "Five rounds completed; original runner called missing drainShadow method; finally close drained audit; exports recovered read-only without repeating model calls"
+}

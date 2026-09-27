@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bindPlayerIntentCandidate, resolutionAuthority, type WorldJsonObject } from '@harness-world/contracts'
+import { resolutionAuthority } from '@harness-world/contracts'
 import { createCoreRulebookRegistry, currentEntityState, type RulebookEvent } from '@harness-world/kernel'
 import type { PlayerInputJob } from '@harness-world/store-sqlite'
 import { preparePlayerIntent } from '../../packages/application/src/player-intent-preparation.ts'
@@ -19,41 +19,29 @@ function fixture(holder: string | null, sourceText: string) {
     input: { text: sourceText } } as unknown as PlayerInputJob
   const prepared = preparePlayerIntent(job, world.manifest, events, resolver, intentFixtureProfile, 100,
     world.manifestHash, events.length)
-  if (!('binding' in prepared)) throw new Error('expected interpreted input')
+  if (!('directSubmission' in prepared)) throw new Error('expected deterministic input')
   return { world, events, resolver, prepared }
 }
-const candidate = (affordanceId: string, quote: string) => ({ version: 'player-intent-candidate/v3',
-  decision: 'act', reason: 'none', actions: [{ key: 'a', affordanceId, quotes: [quote] }] })
-
 describe('player physical expression and custody authority', () => {
-  it('publishes temporary placement without relinquishing custody', () => {
+  it('keeps physical words as speech without relinquishing custody', () => {
     const text = '我把自己保管的水杯暂放桌上，仍由我保管。'
     const f = fixture(player, text)
-    const bound = bindPlayerIntentCandidate(candidate('narrate', text), f.prepared.binding)
-    if (bound.status !== 'validated') throw new Error('expected publication')
-    const action = bound.submission.actions[0]!
+    const action = f.prepared.directSubmission.actions[0]!
     const result = f.resolver.resolve({ manifest: f.world.manifest, manifestHash: f.world.manifestHash,
       events: f.events, characterId: player, asOfWorldSeq: f.events.length, actionId: action.actionId,
       resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'), action })
     expect(result.status).toBe('accepted')
     expect(result.events.some(e => e.eventType === 'entity.transferred')).toBe(false)
     expect(currentEntityState([...f.events, ...result.events], item)?.holderId).toBe(player)
-    expect(result.events.find(e => e.eventType === 'character.speak')?.data).toMatchObject({ narration: text })
+    expect(result.events.find(e => e.eventType === 'character.speak')?.data).toMatchObject({ text })
   })
 
-  it('cannot borrow an offered transfer from a prefix where the player was custodian', () => {
+  it('never translates a transfer invitation into a player operation', () => {
     const text = '我把水杯交给NPC保管。'
-    const owned = fixture(player, text), other = fixture('character:npc', text)
-    const give = owned.prepared.binding.affordances.find(a => {
-      const p = a.parameters as WorldJsonObject
-      return (p.definitionRef as WorldJsonObject | undefined)?.id === 'base:give'
-        && (p.targetRef as WorldJsonObject | undefined)?.id === item
-    })!
-    expect(give).toBeDefined()
-    expect((owned.prepared.request as WorldJsonObject).contract).toContain(
-      JSON.stringify({ characterId: 'character:npc', name: 'NPC' }))
-    expect(other.prepared.binding.affordances.some(a => a.affordanceId === give.affordanceId)).toBe(false)
-    expect(() => bindPlayerIntentCandidate(candidate(give.affordanceId, text), other.prepared.binding)).toThrow()
-    expect(currentEntityState(other.events, item)?.holderId).toBe('character:npc')
+    for (const holder of [player, 'character:npc']) {
+      const f = fixture(holder, text)
+      expect(f.prepared.directSubmission.actions).toMatchObject([{ actionType: 'speak', parameters: { text } }])
+      expect(currentEntityState(f.events, item)?.holderId).toBe(holder)
+    }
   })
 })

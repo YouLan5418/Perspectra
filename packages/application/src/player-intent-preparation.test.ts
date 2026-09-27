@@ -21,7 +21,13 @@ function prepare(input: Record<string, unknown>) {
   return preparePlayerIntent(job, manifest, [], resolver, undefined, 0, world.manifestHash, 0)
 }
 
-describe('preparing an explicit player input', () => {
+describe('preparing a command-controlled player input', () => {
+  it('preserves an explicit narration as source evidence without a model', () => {
+    expect(prepare({ text: '/narrate 我把日记暂放桌上。' })).toMatchObject({ directSubmission: {
+      sourceText: '我把日记暂放桌上。', sourceSpans: [{ kind: 'narration', text: '我把日记暂放桌上。' }],
+      actions: [{ actionType: 'speak', parameters: { text: '', narration: '我把日记暂放桌上。' } }],
+    } })
+  })
   it('takes the version from the affordance the command exercises', () => {
     const result = prepare({ action: { actionType: 'speak', parameters: { text: '你好' } } })
     expect(result).toMatchObject({ directSubmission: { actions: [{ actionType: 'speak', actionVersion: 1 }] } })

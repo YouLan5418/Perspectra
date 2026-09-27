@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { brandId, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
+import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { frozenIntentWorld, intentFixtureProfile, intentFixtureResponse } from './fixtures/player-intent-world.ts'
 it('takes an explicit command on a v10 world at the frozen version', async () => {
@@ -57,97 +57,70 @@ it('takes an explicit command on a v10 world at the frozen version', async () =>
   rmSync(root, { recursive: true, force: true })
 })
 
-it('interprets free text into a frozen interaction, with Authority 6 and one commit', async () => {
-  // The whole interpreted path on a v10 world: the provider is offered the world's own options at the
-  // version the world adjudicates them, its choice becomes an interact@2 request, and the world resolves
-  // it through the frozen definition rather than a catalog entry.
-  const root = mkdtempSync(join(tmpdir(), 'player-intent-frozen-'))
+it('submits all boundary phrases as intact speech without any intent call or controlled player change', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'player-commands-'))
   const world = frozenIntentWorld('responsive/v2')
   const path = join(root, 'world.sqlite')
-  const request = { text: '拿起杯子', principalId: 'principal:player', idempotencyKey: 'intent:frozen', correlationId: 'intent:frozen' }
+  const inputs = ['我拿起日记。', '我拿起日记看看。', '我拿起日记，准备带走。', '我把日记放下。',
+    '我把日记暂时放桌上。', '我不保管了，把日记留在这里。', '陆舟，你把日记放桌上吧。',
+    '程雨，你替我保管一下。', '你们谁把怀表拿过来看看？', '我让陆舟把日记交给程雨。', '我走进后室。']
   let calls = 0
-  let shown = ''
   const app = new WorldApplication({ worldPath: path, sessionPath: join(root, 'session.sqlite'),
-    memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
-    // The world is responsive, so every active non-manual character needs a binding. Both abstain: this
-    // case is about the interpreted input reaching the frozen world, not about what answers it.
+    memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 0,
     reactionParticipants: () => ['character:npc', 'character:bob'].map(actorId => ({
       participantId: `agent:${actorId}`, role: 'agent' as const, actorId: brandId(actorId, 'CharacterId'),
       allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
       provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'abstain' as const, actions: [] }) },
     })),
-    playerIntent: { profile: intentFixtureProfile, dispatch: async (raw: WorldJsonValue) => {
-      calls++
-      const offered = (raw as { body: { affordances: readonly {
-        affordanceId: string; actionType: string; parameters: WorldJsonObject }[] } }).body.affordances
-      shown = JSON.stringify(offered)
-      // The world offers several interactions here, so the choice names the one it means rather than
-      // taking the first: a refused take and an accepted hand-hold are both on the list.
-      const take = offered.find(entry => entry.parameters.bindingId === 'binding:entity:cup:base:take')!
-      return { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
-        actions: [{ key: 't', affordanceId: take.affordanceId, quotes: ['拿起杯子'] }] }
-    } },
+    playerIntent: { profile: intentFixtureProfile, dispatch: async () => { calls++; throw new Error('must not interpret') } },
   })
   try {
     app.activate(world)
-    const result = await app.submitText(world.manifest.address, request)
-    expect(result.status).toBe('submitted')
-    // What the model could pick: the frozen request shape, at the frozen version.
-    expect(shown).toContain('binding:entity:cup:base:take')
-    expect(shown).toContain('"actionVersion":2')
-    expect(shown).toContain('"definitionRef"')
-    // The world's own view decides what is attemptable, and this adapter forwards it: the cup is on the
-    // floor, so putting it down was never offered and picking it up was.
-    expect(shown).toContain('binding:entity:cup:base:take')
-    expect(shown).not.toContain('binding:entity:cup:base:drop')
-    // The same input twice is one commit, and does not ask the provider again.
-    expect(await app.submitText(world.manifest.address, request)).toEqual(result)
-    expect(calls).toBe(1)
+    for (const [i, text] of inputs.entries()) {
+      const request = { text, principalId: 'principal:player', idempotencyKey: `plain:${i}`, correlationId: `plain:${i}` }
+      const result = await app.submitText(world.manifest.address, request)
+      expect(result).toMatchObject({ status: 'submitted', action: { actionType: 'speak', parameters: { text } } })
+      expect(await app.submitText(world.manifest.address, request)).toEqual(result)
+    }
+    expect(calls).toBe(0)
   } finally { await app.close() }
   const store = new WorldStore(path)
   try {
     const events = store.readEvents(world.manifest.address)
-    expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
-    const resolved = events.find(event => event.eventType === 'action.resolved')!
-    expect(resolved.data).toMatchObject({ actionType: 'interact', accepted: true, sourceRole: 'player' })
-    const authority = store.readRoundAuthority(world.manifest.address, resolved.transactionId)!.authority
-    expect(authority.schemaVersion).toBe(6)
-    expect((authority.resolutions as readonly Record<string, unknown>[])
-      .some(entry => entry.interaction !== undefined)).toBe(true)
-  } finally { store.close() }
-  rmSync(root, { recursive: true, force: true })
+    expect(events.filter(e => e.eventType === 'entity.transferred' || e.eventType === 'character.moved')).toHaveLength(0)
+    expect(events.filter(e => e.eventType === 'character.speak').map(e => (e.data as WorldJsonObject).text)).toEqual(inputs)
+  } finally { store.close(); rmSync(root, { recursive: true, force: true }) }
 })
 
-it('asks the player again instead of dropping a cue that definition does not accept', async () => {
-  // The interpreter is told what each choice accepts, so a cue outside the list is a caller that ignored
-  // what it was shown. Dropping it would do something the player did not say, and failing the action would
-  // refuse an interaction that is otherwise afforded - so the player is asked again, and nothing is spent.
-  const root = mkdtempSync(join(tmpdir(), 'player-intent-refused-'))
+it('executes exact custody commands, rejects unavailable targets, and keeps narration free of state effects', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'player-custody-commands-'))
   const world = frozenIntentWorld()
   const path = join(root, 'world.sqlite')
   const app = new WorldApplication({ worldPath: path, sessionPath: join(root, 'session.sqlite'),
-    memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
-    playerIntent: { profile: intentFixtureProfile, dispatch: async (raw: WorldJsonValue) => {
-      const offered = (raw as { body: { affordances: readonly { readonly affordanceId: string
-        readonly parameters: WorldJsonObject }[] } }).body.affordances
-      // The cup on the floor: taking it is afforded, but its definition accepts no expression at all.
-      const take = offered.find(entry => entry.parameters.bindingId === 'binding:entity:other:base:take')!
-      expect(take).not.toHaveProperty('performances')
-      return { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
-        actions: [{ key: 't', affordanceId: take.affordanceId, performance: { independent: ['frown'], onSuccess: [] },
-          quotes: ['拿起杯子'] }] }
-    } },
-  })
-  let result
+    memoryPath: join(root, 'memory.sqlite'), externalCharacterActivations: true })
+  let serial = 0
+  const submit = (text: string) => app.submitText(world.manifest.address, { text, principalId: 'principal:player',
+    idempotencyKey: `command:${serial}`, correlationId: `command:${serial++}` })
   try {
     app.activate(world)
-    result = await app.submitText(world.manifest.address, { text: '拿起杯子', principalId: 'principal:player',
-      idempotencyKey: 'refused-step', correlationId: 'refused-step' })
+    expect(await submit('/take entity:other')).toMatchObject({ status: 'submitted', action: { actionType: 'interact' } })
+    expect(await submit('/narrate 我把杯子暂放桌上。')).toMatchObject({ status: 'submitted',
+      action: { actionType: 'speak', parameters: { text: '', narration: '我把杯子暂放桌上。' } } })
+    expect(await submit('/give entity:other character:npc')).toMatchObject({ status: 'submitted', action: { actionType: 'interact' } })
+    expect(await submit('/drop entity:other')).toMatchObject({ status: 'clarification_required' })
+    expect(await submit('/take entity:missing')).toMatchObject({ status: 'clarification_required' })
+    expect(await submit('/give entity:cup')).toMatchObject({ status: 'clarification_required' })
+    expect(await submit('/take entity:cup')).toMatchObject({ status: 'submitted', action: { actionType: 'interact' } })
+    expect(await submit('/drop entity:cup')).toMatchObject({ status: 'submitted', action: { actionType: 'interact' } })
   } finally { await app.close() }
-  expect(result).toMatchObject({ status: 'clarification_required', reason: 'not_afforded' })
   const store = new WorldStore(path)
   try {
-    // The refusal is the Host's, before any Round: the world records nothing about it.
-    expect(store.readEvents(world.manifest.address).some(event => event.eventType === 'action.resolved')).toBe(false)
+    const events = store.readEvents(world.manifest.address)
+    expect(events.filter(e => e.eventType === 'entity.transferred').map(e => e.data)).toMatchObject([
+      { entityId: 'entity:other', toHolderId: 'character:player' },
+      { entityId: 'entity:other', toHolderId: 'character:npc' },
+      { entityId: 'entity:cup', toHolderId: 'character:player' },
+      { entityId: 'entity:cup', toHolderId: null },
+    ])
   } finally { store.close(); rmSync(root, { recursive: true, force: true }) }
 })

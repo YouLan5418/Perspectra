@@ -1,0 +1,12 @@
+{
+  "inputs": [
+    "我拿起日记，准备带走。",
+    "/take entity:diary",
+    "/narrate 我把自己保管的日记暂放桌上，仍由我保管。",
+    "/give entity:diary character:companion",
+    "陆舟，你把日记放桌上吧。"
+  ],
+  "model": "deepseek-flash",
+  "purpose": "plain input never chooses controlled player actions; exact commands and autonomous NPC responses",
+  "shadowOnly": true
+}

@@ -196,7 +196,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
         ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }) },
       debug: { ...this.#debug, provider: this.#provider, model: this.#model, intentModel: this.#intentModel,
         providerCalls: this.#providerCalls, paused: this.#paused, lastPlayerIntent: this.#lastPlayerIntent,
-        playerInputMode: this.#intentEnabled ? 'interpreted-free-text' : 'legacy-speech',
+        playerInputMode: this.#intentEnabled ? 'command-controlled' : 'legacy-speech',
         lastProviderCall: this.#lastCall,
         ...(this.#shadow === undefined ? {} : { shadowAudit: this.#shadow.stats() }) },
     }
@@ -215,7 +215,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     this.#busy = true
     this.#error = false
     this.#notice = ''
-    this.#phaseLabel = text.startsWith('/') ? '正在执行命令' : '正在理解玩家输入'
+    this.#phaseLabel = text.startsWith('/') ? '正在执行命令' : '正在提交发言'
     const key = idempotencyKey ?? `web-playtest:${randomUUID()}`
     try {
       this.#activationCycle = undefined
@@ -237,7 +237,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
           this.#lastPlayerIntent = 'service-failed'
         }
       } else if (result.status === 'clarification_required') {
-        this.#notice = `${result.reason}（这次输入没有提交；换一种说法，或用 /act 显式命令。）`
+        this.#notice = `${result.reason}（这次命令没有提交；请检查命令参数，或用 /act 指定完整交互。）`
         this.#lastPlayerIntent = 'clarification'
       } else {
         const playerNotice = this.#playerResolutionNotice(key, result.result.headSeq)

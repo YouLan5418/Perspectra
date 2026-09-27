@@ -41,7 +41,8 @@ export const PLAYTEST_PAGE = `<!doctype html>
   <div id="scene" class="subtle" aria-live="polite"></div>
   <section id="transcript" aria-live="polite"><div class="empty">世界正在醒来……</div></section>
   <div>
-    <form id="composer"><textarea id="input" maxlength="2000" placeholder="说些什么，或写下角色的动作与神态……" required></textarea><button id="send" type="submit">发送</button></form>
+    <form id="composer"><textarea id="input" maxlength="2000" placeholder="输入发言；动作描写用 /narrate，移动和保管用命令……" required></textarea><button id="send" type="submit">发送</button></form>
+    <div class="subtle">普通文本作为发言。动作描写：/narrate 内容；移动：/move 地点ID；取得保管：/take 物品ID；转交：/give 物品ID 角色ID；解除保管：/drop 物品ID。</div>
     <div class="controls"><span id="notice"></span><button id="pause" class="secondary" type="button">当前波次后暂停</button></div>
   </div>
   <details><summary>运行状态（不含私密记忆和 Prompt）</summary><pre id="debug">等待状态……</pre></details>
@@ -76,8 +77,8 @@ export const PLAYTEST_PAGE = `<!doctype html>
     scene.textContent = state.world.currentScene
       ? '当前：' + state.world.currentScene.locationName + ' · ' + (present.length ? '在场：' + present.join('、') : '眼前没有其他角色') : '';
     input.placeholder = present.length === 0
-      ? '说些什么，或写下角色的动作与神态……'
-      : '对 ' + present.join('、') + ' 说些什么，或写下动作与神态……';
+      ? '输入发言；动作描写用 /narrate，移动和保管用命令……'
+      : '对 ' + present.join('、') + ' 说些什么；关键交互用命令……';
     status.className = state.error ? 'error' : state.busy ? 'busy' : '';
     status.textContent = state.error ? '发生错误' : state.busy ? state.phaseLabel : state.paused ? 'NPC 已暂停' : '可以输入';
     send.disabled = state.busy;

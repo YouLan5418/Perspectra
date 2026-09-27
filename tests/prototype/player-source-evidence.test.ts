@@ -26,19 +26,17 @@ async function run(text: string, decide: (body: WorldJsonObject) => WorldJsonVal
     check(store, root, world)
   } finally { await app.close(); store?.close(); rmSync(root, { recursive: true, force: true }) }
 }
-const candidate = (id: string, quote: string): WorldJsonObject => ({ version: 'player-intent-candidate/v3',
-  decision: 'act', reason: 'none', actions: [{ key: 'a', affordanceId: id, quotes: [quote] }] })
 const observations = (store: WorldStore, world: ReturnType<typeof frozenIntentWorld>) => store.readEvents(world.manifest.address)
   .filter(e => e.eventType === 'observation.upsert').map(e => (e.data as WorldJsonObject).value as WorldJsonObject)
 
-it('retains the full addressed source in authorized context and captured memory even when the quote is clipped', async () => {
+it('retains full addressed text in authorized context and captured memory without interpreting or clipping it', async () => {
   const text = 'NPC，你把日记放桌上吧。'
-  await run(text, () => candidate('narrate', '把日记放桌上吧。'), (store, root, world) => {
+  await run(text, () => { throw new Error('plain text must not call the interpreter') }, (store, root, world) => {
     for (const id of ['character:player', 'character:npc', 'character:bob']) {
       const content = observations(store, world).find(o => o.observerId === id)!.content as WorldJsonObject
-      expect(content.speech).toMatchObject({ narration: '把日记放桌上吧。' })
+      expect(content.speech).toMatchObject({ text })
       expect(content.playerInput).toMatchObject({ actorId: 'character:player', sourceText: text })
-      expect((content.playerInput as WorldJsonObject).sourceSpans).toMatchObject([{ text: '把日记放桌上吧。' }])
+      expect((content.playerInput as WorldJsonObject).sourceSpans).toMatchObject([{ text }])
     }
     expect(currentEntityState(store.readEvents(world.manifest.address), 'entity:cup')?.holderId).toBe(null)
     const memory = new CognitiveMemoryService(join(root, 'memory.sqlite'), store, undefined, 2)
@@ -67,12 +65,8 @@ it('keeps private original words out of occurrence-only observers', async () => 
 })
 
 it('does not expose a move destination through original input to a departure-only witness', async () => {
-  const text = '我走进后室。'
-  await run(text, body => {
-    const choices = body.affordances as WorldJsonObject[]
-    const move = choices.find(a => (a.parameters as WorldJsonObject).locationId === 'location:next')!
-    return candidate(String(move.affordanceId), text)
-  }, (store, _root, world) => {
+  const text = '/move location:next'
+  await run(text, () => { throw new Error('move command must not call the interpreter') }, (store, _root, world) => {
     const values = observations(store, world)
     const witness = values.find(o => o.observerId === 'character:npc')!.content as WorldJsonObject
     expect(witness).not.toHaveProperty('playerInput')
@@ -81,9 +75,9 @@ it('does not expose a move destination through original input to a departure-onl
   })
 })
 
-it('keeps original input when interpretation is uncertain without publishing an inferred action', async () => {
-  const text = '程雨，你替我保管一下。'
-  await run(text, () => ({ version: 'player-intent-candidate/v3', decision: 'clarification_required', reason: 'ambiguous', actions: [] }),
+it('keeps malformed commands without publishing a guessed action', async () => {
+  const text = '/give entity:cup'
+  await run(text, () => { throw new Error('malformed command must not call the interpreter') },
     (store, root, world) => {
       expect(observations(store, world)).toHaveLength(0)
       const jobs = new PlayerInputJobs(join(root, 'world.sqlite'))
