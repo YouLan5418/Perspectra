@@ -1,0 +1,80 @@
+{
+  "cases": [
+    {
+      "id": "flip",
+      "holder": null,
+      "text": "我翻开桌上的布面日记看一页。",
+      "expected": "narrate"
+    },
+    {
+      "id": "lift-return",
+      "holder": null,
+      "text": "我把布面日记拿起来看清封底，马上放回原处，不接管。",
+      "expected": "narrate"
+    },
+    {
+      "id": "slide",
+      "holder": null,
+      "text": "我把布面日记挪到灯下查看。",
+      "expected": "narrate"
+    },
+    {
+      "id": "own-table",
+      "holder": "character:player",
+      "text": "我把自己保管的布面日记暂放桌上，仍由我保管。",
+      "expected": "narrate"
+    },
+    {
+      "id": "other-look",
+      "holder": "character:companion",
+      "text": "我临时托起陆舟保管的布面日记查看，再放回，不接管。",
+      "expected": "narrate"
+    },
+    {
+      "id": "pocket",
+      "holder": null,
+      "text": "我把布面日记收进自己的随身包，接下来由我保管。",
+      "expected": "base:take"
+    },
+    {
+      "id": "give",
+      "holder": "character:player",
+      "text": "我将布面日记转交陆舟保管。",
+      "expected": "base:give"
+    },
+    {
+      "id": "release",
+      "holder": "character:player",
+      "text": "我不再保管布面日记，将它留在公共失物台供其他人取用。",
+      "expected": "base:drop"
+    },
+    {
+      "id": "invite",
+      "holder": "character:player",
+      "text": "陆舟，你愿意替我保管布面日记吗？",
+      "expected": "speak"
+    },
+    {
+      "id": "unavailable-give",
+      "holder": "character:companion",
+      "text": "我将陆舟保管的布面日记转交程雨保管。",
+      "expected": "clarification_required"
+    },
+    {
+      "id": "bare-lift",
+      "holder": null,
+      "text": "我拿起布面日记。",
+      "expected": "clarification_required"
+    },
+    {
+      "id": "bare-put",
+      "holder": "character:player",
+      "text": "我放下布面日记。",
+      "expected": "narrate"
+    }
+  ],
+  "repeats": 2,
+  "model": "deepseek-flash",
+  "scope": "real intent call on fixed World prefixes; no NPC activation; no World commits",
+  "noTuning": true
+}

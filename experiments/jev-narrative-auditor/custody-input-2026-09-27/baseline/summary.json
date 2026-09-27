@@ -1,0 +1,91 @@
+{
+  "calls": 24,
+  "correct": 12,
+  "mismatches": [
+    {
+      "id": "flip",
+      "repeat": 1,
+      "expected": "narrate",
+      "actual": "base:take",
+      "correct": false
+    },
+    {
+      "id": "lift-return",
+      "repeat": 1,
+      "expected": "narrate",
+      "actual": "base:take",
+      "correct": false
+    },
+    {
+      "id": "slide",
+      "repeat": 1,
+      "expected": "narrate",
+      "actual": "base:take",
+      "correct": false
+    },
+    {
+      "id": "own-table",
+      "repeat": 1,
+      "expected": "narrate",
+      "actual": "base:drop",
+      "correct": false
+    },
+    {
+      "id": "bare-lift",
+      "repeat": 1,
+      "expected": "clarification_required",
+      "actual": "base:take",
+      "correct": false
+    },
+    {
+      "id": "bare-put",
+      "repeat": 1,
+      "expected": "narrate",
+      "actual": "base:drop",
+      "correct": false
+    },
+    {
+      "id": "flip",
+      "repeat": 2,
+      "expected": "narrate",
+      "actual": "base:take",
+      "correct": false
+    },
+    {
+      "id": "lift-return",
+      "repeat": 2,
+      "expected": "narrate",
+      "actual": "base:take+narrate",
+      "correct": false
+    },
+    {
+      "id": "slide",
+      "repeat": 2,
+      "expected": "narrate",
+      "actual": "base:take",
+      "correct": false
+    },
+    {
+      "id": "own-table",
+      "repeat": 2,
+      "expected": "narrate",
+      "actual": "base:drop",
+      "correct": false
+    },
+    {
+      "id": "bare-lift",
+      "repeat": 2,
+      "expected": "clarification_required",
+      "actual": "base:take",
+      "correct": false
+    },
+    {
+      "id": "bare-put",
+      "repeat": 2,
+      "expected": "narrate",
+      "actual": "base:drop",
+      "correct": false
+    }
+  ],
+  "unchanged": true
+}

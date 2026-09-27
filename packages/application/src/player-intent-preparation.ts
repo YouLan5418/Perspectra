@@ -63,6 +63,16 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
       }
     }
   }
+  // Names only for characters already referenced by offered choices; no private context or remote roster.
+  const referencedCharacters = new Set(choices.flatMap(choice => {
+    const parameters = choice.parameters
+    const recipient = (parameters.arguments as WorldJsonObject | undefined)?.recipientId
+    const target = parameters.targetRef as WorldJsonObject | undefined
+    return [...(typeof recipient === 'string' ? [recipient] : []),
+      ...(target?.kind === 'character' && typeof target.id === 'string' ? [target.id] : [])]
+  }))
+  const characterNames = manifest.characters.filter(character => referencedCharacters.has(character.characterId))
+    .map(character => ({ characterId: character.characterId, name: character.name }))
   const binding = { address: job.address, inputId: job.inputId, actorId: actor.characterId, sourceText,
     affordances: choices, interpretationProfile: `${profile.providerId}/${profile.modelId}/${profile.version}`,
     interpretationReceiptHash: hashWorldJson('player-intent-unprepared/v1', job.inputId) }
@@ -73,6 +83,7 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
       // arithmetic: a model that states offsets gets them wrong often enough to lose the player a turn,
       // while a verbatim quote is something the Host can find and check itself.
       contract: 'Interpret only the player intent. Select exact affordances by their affordanceId. '
+        + `Character names referenced by offered choices: ${JSON.stringify(characterNames)}. `
         + 'Distinguish what the player COMMUNICATES from what the player EXECUTES. '
         + 'A request, question or suggestion addressed to an NPC is the player speaking, not an action '
         + 'executed for that NPC. Select speak even if the requested NPC response has no interaction option. '
@@ -80,8 +91,17 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
         + '"GLM，你愿意去工作区吗？" is speak, not a player move. The NPC decides whether and how to respond. '
         + "Use narrate for the player's own freely expressed posture, expression or other minor observable "
         + 'performance, even with no dialogue: "我有点尴尬地笑了笑" is narrate. It is not a claim of an adjudicated effect. '
-        + 'For a player-executed controlled change, such as "我走到工作区" or "我拿起手机", select the corresponding '
+        + 'For a player-executed controlled change, such as "我走到工作区" or "我把手机收进随身包由我保管", select the corresponding '
         + 'move/interact option. Do not hide unavailable or ambiguous controlled actions inside narrate or speak. '
+        + 'Item interactions control custody/carrying assignment, not hand contact or legal ownership. '
+        + 'base:take acquires custody; base:give transfers custody to another character; base:drop relinquishes '
+        + 'personal custody and leaves the item at the location. Only select these for an intended custody change. '
+        + 'Flipping pages, touching, sliding, briefly lifting to inspect then returning, or temporarily setting '
+        + 'your own custodial item on a table are free narrate, without take/give/drop. '
+        + 'Explicitly retaining custody while setting an item down means no drop. Taking an unassigned item '
+        + 'into your travel bag to carry away means take; packing your already custodial item does not reacquire it. '
+        + 'Bare "我拿起物品" without enough context to distinguish acquiring custody from brief handling needs '
+        + 'clarification. Bare "我放下物品" only states physical placement, not relinquishing custody; use narrate. '
         + "Do not invent another character's reaction or publish an asserted reaction as the player's performance. "
         + 'Copy exact source words into quotes, in source order, without rewriting or calculating offsets. '
         + 'Each speak or narrate publication takes one contiguous quote. At most two actions, at most one '

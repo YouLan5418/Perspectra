@@ -1,0 +1,28 @@
+{
+  "calls": 24,
+  "correct": 21,
+  "mismatches": [
+    {
+      "id": "bare-lift",
+      "repeat": 1,
+      "expected": "clarification_required",
+      "actual": "base:take",
+      "correct": false
+    },
+    {
+      "id": "bare-put",
+      "repeat": 1,
+      "expected": "narrate",
+      "actual": "base:drop",
+      "correct": false
+    },
+    {
+      "id": "bare-lift",
+      "repeat": 2,
+      "expected": "clarification_required",
+      "actual": "base:take",
+      "correct": false
+    }
+  ],
+  "unchanged": true
+}

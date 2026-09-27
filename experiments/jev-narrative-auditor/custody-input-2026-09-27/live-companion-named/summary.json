@@ -1,0 +1,91 @@
+{
+  "rounds": 11,
+  "providerCalls": 35,
+  "publications": 32,
+  "records": 32,
+  "complete": true,
+  "unchangedDuringDrain": true,
+  "conflicts": [],
+  "failures": [],
+  "costUsd": 0.011817666000000001,
+  "transfers": [
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 54,
+      "tick": 7,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:player",
+        "entityId": "entity:diary",
+        "fromHolderId": null,
+        "fromLocationId": "location:front-room",
+        "interactionId": "base:take",
+        "toHolderId": "character:player",
+        "toLocationId": null
+      },
+      "previousHash": "sha256:a2ee8ad5e07b1446b66a07af63e516a2502e2b31b36d0c596fb885240d4a32e1",
+      "eventHash": "sha256:e68a4a8fc95c285a6dca15aaa09353dd0952c87b4224ca580c4c8bab56e93777",
+      "transactionId": "transaction:coordinated-round:c9e0cab62affa23d01da568e",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 88,
+      "tick": 13,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:player",
+        "entityId": "entity:diary",
+        "fromHolderId": "character:player",
+        "fromLocationId": null,
+        "interactionId": "base:give",
+        "toHolderId": "character:companion",
+        "toLocationId": null
+      },
+      "previousHash": "sha256:f1b2199489523e5f770013e149b79f8f874bac77a7b3d59559fb0fe8b626b763",
+      "eventHash": "sha256:7fc2d72db988655926fbf70681f1ae44e636c854d207026ac65db523266e7e4b",
+      "transactionId": "transaction:coordinated-round:827bfd81b5763f65d967a652",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 194,
+      "tick": 32,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:companion",
+        "entityId": "entity:diary",
+        "fromHolderId": "character:companion",
+        "fromLocationId": null,
+        "interactionId": "base:give",
+        "toHolderId": "character:player",
+        "toLocationId": null
+      },
+      "previousHash": "sha256:4e3f405b854f51ad47914388fe684b52705b4865ecd6a04847a1e869bf6fa110",
+      "eventHash": "sha256:1796bc30aa1fe2493019c43ba36459a0de7584ea7a03defc242e41cccb6a3f8e",
+      "transactionId": "prototype-turn:42cb05d9-abae-4a4f-8505-35858938ad9d:0:commit",
+      "eventOrdinal": 0
+    }
+  ],
+  "finalDiary": {
+    "entityId": "entity:diary",
+    "locationId": null,
+    "holderId": "character:player",
+    "kind": "book"
+  }
+}

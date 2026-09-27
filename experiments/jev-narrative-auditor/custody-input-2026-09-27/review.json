@@ -1,0 +1,1305 @@
+{
+  "scope": "diary custody only; post-publication shadow; exploratory matched stimulus, not causal A/B",
+  "probe": {
+    "baseline": {
+      "calls": 24,
+      "correct": 12,
+      "clearIntentCases": 20,
+      "clearIntentCorrect": 12,
+      "exactControlledTargetsChecked": true
+    },
+    "aligned": {
+      "calls": 24,
+      "correct": 21,
+      "clearIntentCases": 20,
+      "clearIntentCorrect": 20,
+      "exactControlledTargetsChecked": true
+    },
+    "named": {
+      "calls": 26,
+      "correct": 24,
+      "clearIntentCases": 22,
+      "clearIntentCorrect": 22,
+      "exactControlledTargetsChecked": true
+    }
+  },
+  "live": {
+    "live-companion": {
+      "rounds": 11,
+      "primaryCalls": 41,
+      "npcPublications": 28,
+      "intentStatuses": [
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "round10Validated": {
+        "actions": [
+          {
+            "actionId": "action:6986e532837323e10e50e53b",
+            "actionType": "speak",
+            "actionVersion": 1,
+            "actorId": "character:player",
+            "parameters": {
+              "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人",
+              "text": ""
+            }
+          }
+        ],
+        "interpretationProfile": "chat-completions/deepseek-flash/player-intent-profile/v1",
+        "interpretationReceiptHash": "sha256:db2650e2bf8563be0c340802752c573d1fb1eade4986c59c0e63d0a11131ef43",
+        "sourceSpans": [
+          {
+            "actionId": "action:6986e532837323e10e50e53b",
+            "endUtf16": 36,
+            "kind": "narration",
+            "startUtf16": 6,
+            "text": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人"
+          }
+        ],
+        "sourceText": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。",
+        "sourceTextHash": "sha256:fe322bd7ba9a0bfd3eb51a98f442bd04a3d9e57986f96e3eca97d37420c82e62",
+        "version": "player-submission/v2"
+      },
+      "publications": 37,
+      "auditRecords": 37,
+      "auditComplete": true,
+      "auditFailures": 0,
+      "conflictSeqs": [
+        198,
+        204
+      ],
+      "unchangedDuringDrain": true,
+      "costUsd": 0.014303142,
+      "lastRound": {
+        "beforeSeq": 209,
+        "finalDiary": {
+          "entityId": "entity:diary",
+          "locationId": null,
+          "holderId": "character:player",
+          "kind": "book"
+        },
+        "transfers": [
+          {
+            "address": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:1372226f9c10584b",
+              "branchId": "branch:main"
+            },
+            "seq": 216,
+            "tick": 36,
+            "eventType": "entity.transferred",
+            "eventVersion": 1,
+            "data": {
+              "characterId": "character:companion",
+              "entityId": "entity:diary",
+              "fromHolderId": "character:companion",
+              "fromLocationId": null,
+              "interactionId": "base:give",
+              "toHolderId": "character:player",
+              "toLocationId": null
+            },
+            "previousHash": "sha256:6dd740db6a3a7f57ce3a47a31451bb78d074ec16cd0e464ef816040bef60654a",
+            "eventHash": "sha256:54a2a445665d9c54b2cf5ab7b9452a01cdca2ee0795386e93f65e6443af0237e",
+            "transactionId": "prototype-turn:64a5bc84-6899-46a9-8086-9d4c1190b312:0:commit",
+            "eventOrdinal": 0
+          }
+        ],
+        "contexts": [
+          {
+            "actorId": "character:companion",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:companion",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              98,
+              104,
+              109,
+              115,
+              121,
+              137,
+              143,
+              154,
+              160,
+              166,
+              182,
+              188,
+              194,
+              200,
+              206,
+              212
+            ],
+            "memorySourceSeqs": [
+              39,
+              93,
+              71,
+              22,
+              87,
+              55,
+              61
+            ],
+            "diaryGiveOptions": [
+              {
+                "arguments": {
+                  "recipientId": "character:friend"
+                },
+                "bindingId": "binding:diary-give",
+                "definitionRef": {
+                  "id": "base:give",
+                  "version": 1
+                },
+                "targetRef": {
+                  "id": "entity:diary",
+                  "kind": "entity"
+                }
+              },
+              {
+                "arguments": {
+                  "recipientId": "character:player"
+                },
+                "bindingId": "binding:diary-give",
+                "definitionRef": {
+                  "id": "base:give",
+                  "version": 1
+                },
+                "targetRef": {
+                  "id": "entity:diary",
+                  "kind": "entity"
+                }
+              }
+            ],
+            "decision": {
+              "decision": "perform",
+              "actionType": "interact",
+              "parameters": {
+                "targetRef": {
+                  "kind": "entity",
+                  "id": "entity:diary"
+                },
+                "bindingId": "binding:diary-give",
+                "definitionRef": {
+                  "id": "base:give",
+                  "version": 1
+                },
+                "arguments": {
+                  "recipientId": "character:player"
+                }
+              }
+            }
+          },
+          {
+            "actorId": "character:companion",
+            "continuation": true,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:player",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              104,
+              109,
+              115,
+              121,
+              137,
+              143,
+              154,
+              160,
+              166,
+              182,
+              188,
+              194,
+              200,
+              206,
+              212,
+              218
+            ],
+            "memorySourceSeqs": [
+              39,
+              93,
+              71,
+              22,
+              87,
+              55
+            ],
+            "diaryGiveOptions": [],
+            "decision": {
+              "decision": "publish",
+              "narration": "陆舟把日记递过去，手收回来，目光又落回桌上那块铜怀表。",
+              "speech": "给你。表还在桌上，没人动。"
+            }
+          },
+          {
+            "actorId": "character:friend",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:player",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              138,
+              144,
+              149,
+              155,
+              161,
+              167,
+              172,
+              177,
+              183,
+              189,
+              195,
+              201,
+              207,
+              213,
+              219,
+              225
+            ],
+            "memorySourceSeqs": [
+              40,
+              72,
+              23,
+              88,
+              56,
+              50
+            ],
+            "diaryGiveOptions": [],
+            "decision": {
+              "decision": "publish",
+              "narration": "程雨看着陆舟把日记递过去，没插话。她的视线跟着那本日记走了一趟，最后落回台面上那块没人认的怀表，手仍抱在胸前，没去碰。",
+              "speech": "日记归你了。表还在这儿，我先看着。"
+            }
+          },
+          {
+            "actorId": "character:companion",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:player",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              115,
+              121,
+              137,
+              143,
+              154,
+              160,
+              166,
+              182,
+              188,
+              194,
+              200,
+              206,
+              212,
+              218,
+              224,
+              230
+            ],
+            "memorySourceSeqs": [
+              98,
+              61,
+              109,
+              77
+            ],
+            "diaryGiveOptions": [],
+            "decision": {
+              "decision": "publish",
+              "narration": "陆舟顺着程雨的视线看向那块怀表，没伸手，只把手从台面上收回来，抱在胸前。",
+              "speech": "你看着。我不抢。"
+            }
+          },
+          {
+            "actorId": "character:friend",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:player",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              149,
+              155,
+              161,
+              167,
+              172,
+              177,
+              183,
+              189,
+              195,
+              201,
+              207,
+              213,
+              219,
+              225,
+              231,
+              237
+            ],
+            "memorySourceSeqs": [
+              88,
+              56,
+              132,
+              144,
+              105
+            ],
+            "diaryGiveOptions": [],
+            "decision": {
+              "decision": "publish",
+              "speech": "嗯，你收着吧。表我盯着，谁来认，我再问清楚。",
+              "narration": "程雨看着日记到了玩家手里，没再多说，只把目光收回到台面那块怀表上。"
+            }
+          }
+        ]
+      }
+    },
+    "live-friend": {
+      "rounds": 11,
+      "primaryCalls": 35,
+      "npcPublications": 21,
+      "intentStatuses": [
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "round10Validated": {
+        "actions": [
+          {
+            "actionId": "action:d1221555001cac73beb02a6c",
+            "actionType": "speak",
+            "actionVersion": 1,
+            "actorId": "character:player",
+            "parameters": {
+              "text": "程雨，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+            }
+          }
+        ],
+        "interpretationProfile": "chat-completions/deepseek-flash/player-intent-profile/v1",
+        "interpretationReceiptHash": "sha256:3cd9b5f59563aaf0720fbc81044358f0ae594c7cd2fa43c4fdd2e57a400f133c",
+        "sourceSpans": [
+          {
+            "actionId": "action:d1221555001cac73beb02a6c",
+            "endUtf16": 37,
+            "kind": "speech",
+            "startUtf16": 0,
+            "text": "程雨，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+          }
+        ],
+        "sourceText": "程雨，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。",
+        "sourceTextHash": "sha256:2ce8b653bc4a22a08930b15cb9b2ff388cee388b3a8ce79ba11ff02124d064b7",
+        "version": "player-submission/v2"
+      },
+      "publications": 30,
+      "auditRecords": 30,
+      "auditComplete": true,
+      "auditFailures": 0,
+      "conflictSeqs": [],
+      "unchangedDuringDrain": true,
+      "costUsd": 0.010903997999999996,
+      "lastRound": {
+        "beforeSeq": 174,
+        "finalDiary": {
+          "entityId": "entity:diary",
+          "locationId": null,
+          "holderId": "character:player",
+          "kind": "book"
+        },
+        "transfers": [
+          {
+            "address": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:1372226f9c10584b",
+              "branchId": "branch:main"
+            },
+            "seq": 181,
+            "tick": 30,
+            "eventType": "entity.transferred",
+            "eventVersion": 1,
+            "data": {
+              "characterId": "character:companion",
+              "entityId": "entity:diary",
+              "fromHolderId": "character:companion",
+              "fromLocationId": null,
+              "interactionId": "base:give",
+              "toHolderId": "character:player",
+              "toLocationId": null
+            },
+            "previousHash": "sha256:7a293c5c8ef5c1dac78405bd26c230eecad29d4bd5928529c834d227592398e5",
+            "eventHash": "sha256:204281849b632ca942eadf00b4293f1889288b5b0b9520ba06619144be1e0a6e",
+            "transactionId": "prototype-turn:9bbc927f-ee69-48ae-9689-9cf88391881c:0:commit",
+            "eventOrdinal": 0
+          }
+        ],
+        "contexts": [
+          {
+            "actorId": "character:companion",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:companion",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              62,
+              73,
+              79,
+              84,
+              90,
+              96,
+              106,
+              112,
+              122,
+              128,
+              138,
+              144,
+              154,
+              160,
+              166,
+              177
+            ],
+            "memorySourceSeqs": [
+              40,
+              22,
+              56
+            ],
+            "diaryGiveOptions": [
+              {
+                "arguments": {
+                  "recipientId": "character:friend"
+                },
+                "bindingId": "binding:diary-give",
+                "definitionRef": {
+                  "id": "base:give",
+                  "version": 1
+                },
+                "targetRef": {
+                  "id": "entity:diary",
+                  "kind": "entity"
+                }
+              },
+              {
+                "arguments": {
+                  "recipientId": "character:player"
+                },
+                "bindingId": "binding:diary-give",
+                "definitionRef": {
+                  "id": "base:give",
+                  "version": 1
+                },
+                "targetRef": {
+                  "id": "entity:diary",
+                  "kind": "entity"
+                }
+              }
+            ],
+            "decision": {
+              "decision": "perform",
+              "actionType": "interact",
+              "parameters": {
+                "targetRef": {
+                  "kind": "entity",
+                  "id": "entity:diary"
+                },
+                "bindingId": "binding:diary-give",
+                "definitionRef": {
+                  "id": "base:give",
+                  "version": 1
+                },
+                "arguments": {
+                  "recipientId": "character:player"
+                }
+              }
+            }
+          },
+          {
+            "actorId": "character:companion",
+            "continuation": true,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:player",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              73,
+              79,
+              84,
+              90,
+              96,
+              106,
+              112,
+              122,
+              128,
+              138,
+              144,
+              154,
+              160,
+              166,
+              177,
+              183
+            ],
+            "memorySourceSeqs": [
+              40,
+              22,
+              56
+            ],
+            "diaryGiveOptions": [],
+            "decision": {
+              "decision": "publish",
+              "addresseeIds": [
+                "character:player"
+              ],
+              "narration": "陆舟把空出来的手插回兜里，目光仍停在桌上那把铜怀表上。",
+              "speech": "日记给你了。表还搁这儿，你收不收？"
+            }
+          },
+          {
+            "actorId": "character:friend",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:player",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              74,
+              85,
+              91,
+              101,
+              107,
+              117,
+              123,
+              133,
+              139,
+              149,
+              155,
+              161,
+              167,
+              172,
+              178,
+              184
+            ],
+            "memorySourceSeqs": [
+              41,
+              23
+            ],
+            "diaryGiveOptions": [],
+            "decision": {
+              "decision": "publish",
+              "addresseeIds": [
+                "character:player"
+              ],
+              "narration": "程雨看着陆舟把日记递回玩家手里，视线跟着那本布面日记走了一趟，又落回桌上那块铜怀表。他没伸手，只把两手交叠在身前。",
+              "speech": "日记又回你手上了。收台的话，桌上这块表也得有个去处——你要收，还是先搁着？"
+            }
+          },
+          {
+            "actorId": "character:friend",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:player",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              85,
+              91,
+              101,
+              107,
+              117,
+              123,
+              133,
+              139,
+              149,
+              155,
+              161,
+              167,
+              172,
+              178,
+              184,
+              194
+            ],
+            "memorySourceSeqs": [
+              57,
+              74,
+              63
+            ],
+            "diaryGiveOptions": [],
+            "decision": {
+              "decision": "publish",
+              "addresseeIds": [
+                "character:player"
+              ],
+              "narration": "程雨看着玩家把日记收下，没再追问，只把视线落回桌上那块铜怀表，两手仍交叠在身前，没有伸手。",
+              "speech": "行，日记你收着。表我不动，搁这儿等它的主人来认。"
+            }
+          }
+        ]
+      }
+    },
+    "live-companion-named": {
+      "rounds": 11,
+      "primaryCalls": 35,
+      "npcPublications": 23,
+      "intentStatuses": [
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "round10Validated": {
+        "actions": [
+          {
+            "actionId": "action:6986e532837323e10e50e53b",
+            "actionType": "speak",
+            "actionVersion": 1,
+            "actorId": "character:player",
+            "parameters": {
+              "text": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+            }
+          }
+        ],
+        "interpretationProfile": "chat-completions/deepseek-flash/player-intent-profile/v1",
+        "interpretationReceiptHash": "sha256:1aa31947cbb25cd9a645b2898869b143c02521d8df5adce3f7320a98158c501a",
+        "sourceSpans": [
+          {
+            "actionId": "action:6986e532837323e10e50e53b",
+            "endUtf16": 37,
+            "kind": "speech",
+            "startUtf16": 0,
+            "text": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+          }
+        ],
+        "sourceText": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。",
+        "sourceTextHash": "sha256:fe322bd7ba9a0bfd3eb51a98f442bd04a3d9e57986f96e3eca97d37420c82e62",
+        "version": "player-submission/v2"
+      },
+      "publications": 32,
+      "auditRecords": 32,
+      "auditComplete": true,
+      "auditFailures": 0,
+      "conflictSeqs": [],
+      "unchangedDuringDrain": true,
+      "costUsd": 0.011817666000000001,
+      "lastRound": {
+        "beforeSeq": 187,
+        "finalDiary": {
+          "entityId": "entity:diary",
+          "locationId": null,
+          "holderId": "character:player",
+          "kind": "book"
+        },
+        "transfers": [
+          {
+            "address": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:1372226f9c10584b",
+              "branchId": "branch:main"
+            },
+            "seq": 194,
+            "tick": 32,
+            "eventType": "entity.transferred",
+            "eventVersion": 1,
+            "data": {
+              "characterId": "character:companion",
+              "entityId": "entity:diary",
+              "fromHolderId": "character:companion",
+              "fromLocationId": null,
+              "interactionId": "base:give",
+              "toHolderId": "character:player",
+              "toLocationId": null
+            },
+            "previousHash": "sha256:4e3f405b854f51ad47914388fe684b52705b4865ecd6a04847a1e869bf6fa110",
+            "eventHash": "sha256:1796bc30aa1fe2493019c43ba36459a0de7584ea7a03defc242e41cccb6a3f8e",
+            "transactionId": "prototype-turn:42cb05d9-abae-4a4f-8505-35858938ad9d:0:commit",
+            "eventOrdinal": 0
+          }
+        ],
+        "contexts": [
+          {
+            "actorId": "character:companion",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:companion",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              79,
+              90,
+              96,
+              106,
+              112,
+              122,
+              128,
+              138,
+              144,
+              154,
+              160,
+              166,
+              172,
+              178,
+              184,
+              190
+            ],
+            "memorySourceSeqs": [
+              40,
+              73,
+              22
+            ],
+            "diaryGiveOptions": [
+              {
+                "arguments": {
+                  "recipientId": "character:friend"
+                },
+                "bindingId": "binding:diary-give",
+                "definitionRef": {
+                  "id": "base:give",
+                  "version": 1
+                },
+                "targetRef": {
+                  "id": "entity:diary",
+                  "kind": "entity"
+                }
+              },
+              {
+                "arguments": {
+                  "recipientId": "character:player"
+                },
+                "bindingId": "binding:diary-give",
+                "definitionRef": {
+                  "id": "base:give",
+                  "version": 1
+                },
+                "targetRef": {
+                  "id": "entity:diary",
+                  "kind": "entity"
+                }
+              }
+            ],
+            "decision": {
+              "decision": "perform",
+              "actionType": "interact",
+              "parameters": {
+                "targetRef": {
+                  "kind": "entity",
+                  "id": "entity:diary"
+                },
+                "bindingId": "binding:diary-give",
+                "definitionRef": {
+                  "id": "base:give",
+                  "version": 1
+                },
+                "arguments": {
+                  "recipientId": "character:player"
+                }
+              }
+            }
+          },
+          {
+            "actorId": "character:companion",
+            "continuation": true,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:player",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              90,
+              96,
+              106,
+              112,
+              122,
+              128,
+              138,
+              144,
+              154,
+              160,
+              166,
+              172,
+              178,
+              184,
+              190,
+              196
+            ],
+            "memorySourceSeqs": [
+              40,
+              73,
+              22
+            ],
+            "diaryGiveOptions": [],
+            "decision": {
+              "decision": "publish",
+              "narration": "陆舟把布面日记递到玩家手边，收回手，目光在桌上那把铜怀表上停了一下。",
+              "speech": "给。收吧。",
+              "addresseeIds": [
+                "character:player"
+              ]
+            }
+          },
+          {
+            "actorId": "character:friend",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:player",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              91,
+              101,
+              107,
+              117,
+              123,
+              133,
+              139,
+              149,
+              155,
+              161,
+              167,
+              173,
+              179,
+              185,
+              191,
+              197
+            ],
+            "memorySourceSeqs": [
+              41,
+              74,
+              23
+            ],
+            "diaryGiveOptions": [],
+            "decision": {
+              "decision": "publish",
+              "narration": "程雨看着日记从陆舟手里转到玩家手里，没说什么。她的目光在桌上那把铜怀表上停了停，手指在失物台边缘轻轻按了一下，又收回来。"
+            }
+          },
+          {
+            "actorId": "character:friend",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:player",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": null,
+                  "locationId": "location:front-room"
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              101,
+              107,
+              117,
+              123,
+              133,
+              139,
+              149,
+              155,
+              161,
+              167,
+              173,
+              179,
+              185,
+              191,
+              197,
+              208
+            ],
+            "memorySourceSeqs": [
+              91,
+              57,
+              74
+            ],
+            "diaryGiveOptions": [],
+            "decision": {
+              "decision": "publish",
+              "narration": "程雨看着日记从陆舟手里转到玩家手里，没说什么。她的目光在桌上那把铜怀表上停了停，手指在失物台边缘轻轻按了一下，又收回来。"
+            }
+          }
+        ]
+      }
+    },
+    "live-friend-named": {
+      "rounds": 11,
+      "primaryCalls": 42,
+      "npcPublications": 29,
+      "intentStatuses": [
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "round10Validated": {
+        "actions": [
+          {
+            "actionId": "action:d1221555001cac73beb02a6c",
+            "actionType": "speak",
+            "actionVersion": 1,
+            "actorId": "character:player",
+            "parameters": {
+              "text": "程雨，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+            }
+          }
+        ],
+        "interpretationProfile": "chat-completions/deepseek-flash/player-intent-profile/v1",
+        "interpretationReceiptHash": "sha256:315afa2cd9110c095215ce5e8bf1497f465cc6e10fb85bf6732e7d6b66b4c181",
+        "sourceSpans": [
+          {
+            "actionId": "action:d1221555001cac73beb02a6c",
+            "endUtf16": 37,
+            "kind": "speech",
+            "startUtf16": 0,
+            "text": "程雨，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+          }
+        ],
+        "sourceText": "程雨，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。",
+        "sourceTextHash": "sha256:2ce8b653bc4a22a08930b15cb9b2ff388cee388b3a8ce79ba11ff02124d064b7",
+        "version": "player-submission/v2"
+      },
+      "publications": 38,
+      "auditRecords": 38,
+      "auditComplete": true,
+      "auditFailures": 0,
+      "conflictSeqs": [],
+      "unchangedDuringDrain": true,
+      "costUsd": 0.014681016000000003,
+      "lastRound": {
+        "beforeSeq": 234,
+        "finalDiary": {
+          "entityId": "entity:diary",
+          "locationId": null,
+          "holderId": "character:friend",
+          "kind": "book"
+        },
+        "transfers": [],
+        "contexts": [
+          {
+            "actorId": "character:companion",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:friend",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": "character:companion",
+                  "locationId": null
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              139,
+              145,
+              151,
+              157,
+              163,
+              169,
+              179,
+              185,
+              195,
+              201,
+              207,
+              213,
+              219,
+              225,
+              231,
+              237
+            ],
+            "memorySourceSeqs": [
+              39,
+              71,
+              22,
+              103,
+              55,
+              77,
+              61
+            ],
+            "diaryGiveOptions": [],
+            "decision": {
+              "decision": "publish",
+              "narration": "陆舟没动。他看了眼桌上那本日记——在程雨手边，不在玩家手里。他靠回椅背，手搭在桌沿。",
+              "speech": "日记不在我这儿。在程雨手上。你要收台，跟她说。",
+              "addresseeIds": [
+                "character:player"
+              ]
+            }
+          },
+          {
+            "actorId": "character:friend",
+            "continuation": false,
+            "items": {
+              "current": [
+                {
+                  "entityId": "entity:diary",
+                  "holderId": "character:friend",
+                  "locationId": null
+                },
+                {
+                  "entityId": "entity:pocket-watch",
+                  "holderId": "character:companion",
+                  "locationId": null
+                }
+              ],
+              "lastObserved": []
+            },
+            "observationSourceSeqs": [
+              140,
+              146,
+              152,
+              158,
+              164,
+              174,
+              180,
+              190,
+              196,
+              202,
+              208,
+              214,
+              220,
+              226,
+              232,
+              238
+            ],
+            "memorySourceSeqs": [
+              40,
+              72,
+              23,
+              104,
+              56,
+              128
+            ],
+            "diaryGiveOptions": [
+              {
+                "arguments": {
+                  "recipientId": "character:companion"
+                },
+                "bindingId": "binding:diary-give",
+                "definitionRef": {
+                  "id": "base:give",
+                  "version": 1
+                },
+                "targetRef": {
+                  "id": "entity:diary",
+                  "kind": "entity"
+                }
+              },
+              {
+                "arguments": {
+                  "recipientId": "character:player"
+                },
+                "bindingId": "binding:diary-give",
+                "definitionRef": {
+                  "id": "base:give",
+                  "version": 1
+                },
+                "targetRef": {
+                  "id": "entity:diary",
+                  "kind": "entity"
+                }
+              }
+            ],
+            "decision": {
+              "decision": "publish",
+              "addresseeIds": [
+                "character:player"
+              ],
+              "narration": "程雨的手在桌沿上停住，没去碰那本日记。她看了玩家一眼，又看了眼陆舟。",
+              "speech": "日记在我这儿。你要收台，跟我说一声就行，不用绕到陆舟那边去。你刚才那句，是冲他说的，还是冲我？"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "manualFindings": [
+    {
+      "run": "live-friend",
+      "round": 5,
+      "finding": "intended friend but selected companion; invalid custody condition; missing character name mapping"
+    },
+    {
+      "run": "live-companion",
+      "publicationSeq": 198,
+      "finding": "NPC invitation clipped into player narration asserting own custody; real objective contradiction; Jev detected"
+    },
+    {
+      "run": "live-companion",
+      "publicationSeq": 204,
+      "finding": "recalled player placement; no explicit custody assignment; Jev inferred custody and raised another root rather than a reliable propagation trace"
+    },
+    {
+      "run": "named",
+      "case": "bare-lift",
+      "finding": "2/2 automatically acquire custody despite host clarification expectation"
+    },
+    {
+      "run": "live-companion-named",
+      "round": 11,
+      "finding": "custodian chose formal give and committed before publication"
+    },
+    {
+      "run": "live-friend-named",
+      "round": 11,
+      "finding": "noncustodian redirected player; custodian requested direct clarification; no attempted or committed transfer"
+    }
+  ]
+}
