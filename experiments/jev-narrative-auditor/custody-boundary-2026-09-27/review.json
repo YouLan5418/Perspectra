@@ -1,0 +1,1859 @@
+{
+  "principle": "Interpretation may be uncertain; original semantic evidence must not disappear.",
+  "acceptedChanges": [
+    "original source in authorized observations",
+    "original source preserved in memory text and metadata"
+  ],
+  "rejectedChanges": [
+    "extra interpreter custody/imperative prompt and own-custody hint; failed boundary acceptance"
+  ],
+  "probe": {
+    "baseline": {
+      "cases": [
+        {
+          "id": "bare-lift",
+          "repeat": 1,
+          "input": "我拿起日记。",
+          "holder": null,
+          "expectedBoundary": "no-transfer",
+          "actual": "base:take",
+          "boundaryMet": false,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记。"
+          ]
+        },
+        {
+          "id": "look",
+          "repeat": 1,
+          "input": "我拿起日记看看。",
+          "holder": null,
+          "expectedBoundary": "no-transfer",
+          "actual": "base:take",
+          "boundaryMet": false,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记看看。"
+          ]
+        },
+        {
+          "id": "carry",
+          "repeat": 1,
+          "input": "我拿起日记，准备带走。",
+          "holder": null,
+          "expectedBoundary": "base:take",
+          "actual": "base:take",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记，准备带走。"
+          ]
+        },
+        {
+          "id": "put",
+          "repeat": 1,
+          "input": "我把日记放下。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "narrate",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我把日记放下。"
+          ]
+        },
+        {
+          "id": "temporary-table",
+          "repeat": 1,
+          "input": "我把日记暂时放桌上。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "narrate",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我把日记暂时放桌上。"
+          ]
+        },
+        {
+          "id": "release",
+          "repeat": 1,
+          "input": "我不保管了，把日记留在这里。",
+          "holder": "character:player",
+          "expectedBoundary": "base:drop",
+          "actual": "base:drop",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我不保管了，把日记留在这里。"
+          ]
+        },
+        {
+          "id": "npc-table",
+          "repeat": 1,
+          "input": "陆舟，你把日记放桌上吧。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "陆舟，你把日记放桌上吧。"
+          ]
+        },
+        {
+          "id": "npc-custody",
+          "repeat": 1,
+          "input": "程雨，你替我保管一下。",
+          "holder": "character:player",
+          "expectedBoundary": "communication",
+          "actual": "base:give",
+          "boundaryMet": false,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "程雨，你替我保管一下。"
+          ]
+        },
+        {
+          "id": "npc-look",
+          "repeat": 1,
+          "input": "你们谁把怀表拿过来看看？",
+          "holder": null,
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "你们谁把怀表拿过来看看？"
+          ]
+        },
+        {
+          "id": "npc-to-npc",
+          "repeat": 1,
+          "input": "我让陆舟把日记交给程雨。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我让陆舟把日记交给程雨。"
+          ]
+        },
+        {
+          "id": "clipped-invite",
+          "repeat": 1,
+          "input": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+          ]
+        },
+        {
+          "id": "own-lift",
+          "repeat": 1,
+          "input": "我拿起日记。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "clarification_required",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": null,
+          "quotes": []
+        },
+        {
+          "id": "own-carry",
+          "repeat": 1,
+          "input": "我拿起日记，准备带走。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "base:take",
+          "boundaryMet": false,
+          "exactTarget": false,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记，准备带走。"
+          ]
+        },
+        {
+          "id": "bare-lift",
+          "repeat": 2,
+          "input": "我拿起日记。",
+          "holder": null,
+          "expectedBoundary": "no-transfer",
+          "actual": "base:take",
+          "boundaryMet": false,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记。"
+          ]
+        },
+        {
+          "id": "look",
+          "repeat": 2,
+          "input": "我拿起日记看看。",
+          "holder": null,
+          "expectedBoundary": "no-transfer",
+          "actual": "base:take",
+          "boundaryMet": false,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记看看。"
+          ]
+        },
+        {
+          "id": "carry",
+          "repeat": 2,
+          "input": "我拿起日记，准备带走。",
+          "holder": null,
+          "expectedBoundary": "base:take",
+          "actual": "base:take",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记，准备带走。"
+          ]
+        },
+        {
+          "id": "put",
+          "repeat": 2,
+          "input": "我把日记放下。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "narrate",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我把日记放下。"
+          ]
+        },
+        {
+          "id": "temporary-table",
+          "repeat": 2,
+          "input": "我把日记暂时放桌上。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "narrate",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我把日记暂时放桌上。"
+          ]
+        },
+        {
+          "id": "release",
+          "repeat": 2,
+          "input": "我不保管了，把日记留在这里。",
+          "holder": "character:player",
+          "expectedBoundary": "base:drop",
+          "actual": "base:drop",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我不保管了，把日记留在这里。"
+          ]
+        },
+        {
+          "id": "npc-table",
+          "repeat": 2,
+          "input": "陆舟，你把日记放桌上吧。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "陆舟，你把日记放桌上吧。"
+          ]
+        },
+        {
+          "id": "npc-custody",
+          "repeat": 2,
+          "input": "程雨，你替我保管一下。",
+          "holder": "character:player",
+          "expectedBoundary": "communication",
+          "actual": "base:give",
+          "boundaryMet": false,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "程雨，你替我保管一下。"
+          ]
+        },
+        {
+          "id": "npc-look",
+          "repeat": 2,
+          "input": "你们谁把怀表拿过来看看？",
+          "holder": null,
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "你们谁把怀表拿过来看看？"
+          ]
+        },
+        {
+          "id": "npc-to-npc",
+          "repeat": 2,
+          "input": "我让陆舟把日记交给程雨。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我让陆舟把日记交给程雨。"
+          ]
+        },
+        {
+          "id": "clipped-invite",
+          "repeat": 2,
+          "input": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+          ]
+        },
+        {
+          "id": "own-lift",
+          "repeat": 2,
+          "input": "我拿起日记。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "clarification_required",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": null,
+          "quotes": []
+        },
+        {
+          "id": "own-carry",
+          "repeat": 2,
+          "input": "我拿起日记，准备带走。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "base:take",
+          "boundaryMet": false,
+          "exactTarget": false,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记，准备带走。"
+          ]
+        }
+      ]
+    },
+    "aligned": {
+      "cases": [
+        {
+          "id": "bare-lift",
+          "repeat": 1,
+          "input": "我拿起日记。",
+          "holder": null,
+          "expectedBoundary": "no-transfer",
+          "actual": "base:take",
+          "boundaryMet": false,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记。"
+          ]
+        },
+        {
+          "id": "look",
+          "repeat": 1,
+          "input": "我拿起日记看看。",
+          "holder": null,
+          "expectedBoundary": "no-transfer",
+          "actual": "base:take",
+          "boundaryMet": false,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记看看。"
+          ]
+        },
+        {
+          "id": "carry",
+          "repeat": 1,
+          "input": "我拿起日记，准备带走。",
+          "holder": null,
+          "expectedBoundary": "base:take",
+          "actual": "base:take",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记，准备带走。"
+          ]
+        },
+        {
+          "id": "put",
+          "repeat": 1,
+          "input": "我把日记放下。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "base:drop",
+          "boundaryMet": false,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我把日记放下。"
+          ]
+        },
+        {
+          "id": "temporary-table",
+          "repeat": 1,
+          "input": "我把日记暂时放桌上。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "narrate",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我把日记暂时放桌上。"
+          ]
+        },
+        {
+          "id": "release",
+          "repeat": 1,
+          "input": "我不保管了，把日记留在这里。",
+          "holder": "character:player",
+          "expectedBoundary": "base:drop",
+          "actual": "base:drop",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我不保管了，把日记留在这里。"
+          ]
+        },
+        {
+          "id": "npc-table",
+          "repeat": 1,
+          "input": "陆舟，你把日记放桌上吧。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "陆舟，你把日记放桌上吧。"
+          ]
+        },
+        {
+          "id": "npc-custody",
+          "repeat": 1,
+          "input": "程雨，你替我保管一下。",
+          "holder": "character:player",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "程雨，你替我保管一下。"
+          ]
+        },
+        {
+          "id": "npc-look",
+          "repeat": 1,
+          "input": "你们谁把怀表拿过来看看？",
+          "holder": null,
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "你们谁把怀表拿过来看看？"
+          ]
+        },
+        {
+          "id": "npc-to-npc",
+          "repeat": 1,
+          "input": "我让陆舟把日记交给程雨。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我让陆舟把日记交给程雨。"
+          ]
+        },
+        {
+          "id": "clipped-invite",
+          "repeat": 1,
+          "input": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+          ]
+        },
+        {
+          "id": "own-lift",
+          "repeat": 1,
+          "input": "我拿起日记。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "narrate",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记。"
+          ]
+        },
+        {
+          "id": "own-carry",
+          "repeat": 1,
+          "input": "我拿起日记，准备带走。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "narrate",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记，准备带走。"
+          ]
+        },
+        {
+          "id": "bare-lift",
+          "repeat": 2,
+          "input": "我拿起日记。",
+          "holder": null,
+          "expectedBoundary": "no-transfer",
+          "actual": "base:take",
+          "boundaryMet": false,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记。"
+          ]
+        },
+        {
+          "id": "look",
+          "repeat": 2,
+          "input": "我拿起日记看看。",
+          "holder": null,
+          "expectedBoundary": "no-transfer",
+          "actual": "narrate",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记看看。"
+          ]
+        },
+        {
+          "id": "carry",
+          "repeat": 2,
+          "input": "我拿起日记，准备带走。",
+          "holder": null,
+          "expectedBoundary": "base:take",
+          "actual": "base:take",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记，准备带走。"
+          ]
+        },
+        {
+          "id": "put",
+          "repeat": 2,
+          "input": "我把日记放下。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "base:drop",
+          "boundaryMet": false,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我把日记放下。"
+          ]
+        },
+        {
+          "id": "temporary-table",
+          "repeat": 2,
+          "input": "我把日记暂时放桌上。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "narrate",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我把日记暂时放桌上。"
+          ]
+        },
+        {
+          "id": "release",
+          "repeat": 2,
+          "input": "我不保管了，把日记留在这里。",
+          "holder": "character:player",
+          "expectedBoundary": "base:drop",
+          "actual": "base:drop",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我不保管了，把日记留在这里。"
+          ]
+        },
+        {
+          "id": "npc-table",
+          "repeat": 2,
+          "input": "陆舟，你把日记放桌上吧。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "陆舟，你把日记放桌上吧。"
+          ]
+        },
+        {
+          "id": "npc-custody",
+          "repeat": 2,
+          "input": "程雨，你替我保管一下。",
+          "holder": "character:player",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "程雨，你替我保管一下。"
+          ]
+        },
+        {
+          "id": "npc-look",
+          "repeat": 2,
+          "input": "你们谁把怀表拿过来看看？",
+          "holder": null,
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "你们谁把怀表拿过来看看？"
+          ]
+        },
+        {
+          "id": "npc-to-npc",
+          "repeat": 2,
+          "input": "我让陆舟把日记交给程雨。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我让陆舟把日记交给程雨。"
+          ]
+        },
+        {
+          "id": "clipped-invite",
+          "repeat": 2,
+          "input": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。",
+          "holder": "character:companion",
+          "expectedBoundary": "communication",
+          "actual": "speak",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+          ]
+        },
+        {
+          "id": "own-lift",
+          "repeat": 2,
+          "input": "我拿起日记。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "narrate",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记。"
+          ]
+        },
+        {
+          "id": "own-carry",
+          "repeat": 2,
+          "input": "我拿起日记，准备带走。",
+          "holder": "character:player",
+          "expectedBoundary": "no-transfer",
+          "actual": "narrate",
+          "boundaryMet": true,
+          "exactTarget": true,
+          "boundSourceRetained": true,
+          "quotes": [
+            "我拿起日记，准备带走。"
+          ]
+        }
+      ]
+    }
+  },
+  "live": {
+    "live": {
+      "rounds": 13,
+      "callsRecorded": 46,
+      "realDeepSeekCalls": 46,
+      "publications": 41,
+      "jevRecords": 82,
+      "auditComplete": true,
+      "auditFailed": 0,
+      "unchangedDuringDrain": true,
+      "jevCostUsd": 0.035092680000000015,
+      "alerts": [
+        {
+          "seq": 143,
+          "itemId": "entity:pocket-watch",
+          "publication": {
+            "seq": 143,
+            "actorId": "character:friend",
+            "speech": "日记你转给陆舟了？行，那是你们之间的事。不过它还是失物台上的东西——你们俩谁拿着都行，别让它出了这间屋子。怀表我收着，等物主来认。",
+            "narration": "程雨看着日记从玩家手里递到陆舟那边，眉头动了一下，没有去拦。她伸手把台面上的怀表拿起来，用袖口擦了擦表壳，放进了自己围裙的口袋里。"
+          },
+          "worldHolder": null,
+          "conflictingClaims": [
+            {
+              "characterId": "character:friend",
+              "kind": "OBJECTIVE_NEW",
+              "referenceSeq": null,
+              "probabilities": {
+                "SPEECH_NOW": 0.01,
+                "OBJECTIVE_DURING": 0,
+                "NONE": 0,
+                "UNCERTAIN": 0,
+                "OBJECTIVE_PAST": 0,
+                "OBJECTIVE_NEW": 0.85,
+                "SPEECH_PAST": 0,
+                "OBJECTIVE_NOW": 0.14
+              },
+              "referenceProbabilities": {
+                "publication:111": 0.08,
+                "publication:138": 0,
+                "NONE": 0.68,
+                "UNRESOLVED": 0.19,
+                "publication:127": 0.03,
+                "publication:90": 0,
+                "publication:84": 0,
+                "publication:95": 0,
+                "publication:74": 0,
+                "publication:63": 0.01,
+                "publication:79": 0,
+                "publication:106": 0,
+                "publication:122": 0,
+                "publication:58": 0.01
+              },
+              "confidence": 0.83,
+              "status": "CONFLICT",
+              "window": {
+                "roundId": "prototype-turn:64703e0f-9fcc-430a-bd9c-e33b7733ea6b:0",
+                "fromSeq": 131,
+                "toSeq": 148,
+                "kind": "player-turn"
+              },
+              "evidence": {
+                "heldAtWindowStart": false,
+                "enteredSeqs": [],
+                "leftSeqs": []
+              },
+              "rootPublicationSeq": 143,
+              "reason": "this occurrence has no formal holder support in its local event window"
+            }
+          ]
+        },
+        {
+          "seq": 155,
+          "itemId": "entity:pocket-watch",
+          "publication": {
+            "seq": 155,
+            "actorId": "character:friend",
+            "speech": "那就这样。日记在屋里，表在我这儿。物主要是来了，我照实说。",
+            "narration": "程雨把手按在围裙口袋外面，隔着布按了按怀表的轮廓，确认它还在。她看了看陆舟怀里那本日记，又看了看玩家，没再追问，只是把台面上空出来的位置抹了一下。"
+          },
+          "worldHolder": null,
+          "conflictingClaims": [
+            {
+              "characterId": "character:friend",
+              "kind": "OBJECTIVE_NOW",
+              "referenceSeq": 143,
+              "probabilities": {
+                "SPEECH_NOW": 0.17,
+                "OBJECTIVE_NOW": 0.73,
+                "UNCERTAIN": 0,
+                "SPEECH_PAST": 0,
+                "NONE": 0,
+                "OBJECTIVE_DURING": 0,
+                "OBJECTIVE_PAST": 0,
+                "OBJECTIVE_NEW": 0.1
+              },
+              "referenceProbabilities": {
+                "UNRESOLVED": 0.09999999999999999,
+                "publication:84": 0,
+                "publication:79": 0,
+                "publication:111": 0.01,
+                "publication:149": 0.06,
+                "publication:122": 0,
+                "publication:90": 0,
+                "publication:106": 0,
+                "publication:95": 0,
+                "publication:143": 0.67,
+                "publication:138": 0,
+                "NONE": 0.16,
+                "publication:74": 0,
+                "publication:127": 0
+              },
+              "confidence": 0.68,
+              "status": "CONFLICT",
+              "window": {
+                "roundId": "prototype-turn:8897011a-f7a2-4bde-8108-0e91200197e1:0",
+                "fromSeq": 154,
+                "toSeq": 160,
+                "kind": "round"
+              },
+              "evidence": {
+                "heldAtWindowStart": false,
+                "enteredSeqs": [],
+                "leftSeqs": []
+              },
+              "rootPublicationSeq": 155,
+              "reason": "this occurrence has no formal holder support in its local event window"
+            }
+          ]
+        }
+      ],
+      "clippedSourceEvidence": [],
+      "originalSourceRecallOccurrences": [
+        {
+          "round": 8,
+          "actorId": "character:companion",
+          "sourceSeq": 22,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 8,
+          "actorId": "character:friend",
+          "sourceSeq": 23,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 9,
+          "actorId": "character:companion",
+          "sourceSeq": 22,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 9,
+          "actorId": "character:companion",
+          "sourceSeq": 54,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 9,
+          "actorId": "character:companion",
+          "sourceSeq": 22,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 9,
+          "actorId": "character:friend",
+          "sourceSeq": 23,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 9,
+          "actorId": "character:companion",
+          "sourceSeq": 70,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 9,
+          "actorId": "character:friend",
+          "sourceSeq": 23,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 9,
+          "actorId": "character:friend",
+          "sourceSeq": 55,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 10,
+          "actorId": "character:companion",
+          "sourceSeq": 70,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 10,
+          "actorId": "character:companion",
+          "sourceSeq": 54,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 10,
+          "actorId": "character:companion",
+          "sourceSeq": 22,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 10,
+          "actorId": "character:friend",
+          "sourceSeq": 71,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 10,
+          "actorId": "character:friend",
+          "sourceSeq": 55,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 10,
+          "actorId": "character:friend",
+          "sourceSeq": 23,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 10,
+          "actorId": "character:friend",
+          "sourceSeq": 71,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 10,
+          "actorId": "character:friend",
+          "sourceSeq": 55,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 11,
+          "actorId": "character:companion",
+          "sourceSeq": 102,
+          "sourceText": "我不保管了，把日记留在这里。",
+          "alsoInText": true
+        },
+        {
+          "round": 11,
+          "actorId": "character:companion",
+          "sourceSeq": 70,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 11,
+          "actorId": "character:companion",
+          "sourceSeq": 54,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 11,
+          "actorId": "character:companion",
+          "sourceSeq": 22,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 11,
+          "actorId": "character:friend",
+          "sourceSeq": 103,
+          "sourceText": "我不保管了，把日记留在这里。",
+          "alsoInText": true
+        },
+        {
+          "round": 11,
+          "actorId": "character:friend",
+          "sourceSeq": 71,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 11,
+          "actorId": "character:friend",
+          "sourceSeq": 55,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 11,
+          "actorId": "character:friend",
+          "sourceSeq": 23,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 12,
+          "actorId": "character:companion",
+          "sourceSeq": 102,
+          "sourceText": "我不保管了，把日记留在这里。",
+          "alsoInText": true
+        },
+        {
+          "round": 12,
+          "actorId": "character:companion",
+          "sourceSeq": 70,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 12,
+          "actorId": "character:companion",
+          "sourceSeq": 54,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 12,
+          "actorId": "character:companion",
+          "sourceSeq": 22,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 12,
+          "actorId": "character:companion",
+          "sourceSeq": 118,
+          "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}",
+          "alsoInText": false
+        },
+        {
+          "round": 12,
+          "actorId": "character:friend",
+          "sourceSeq": 103,
+          "sourceText": "我不保管了，把日记留在这里。",
+          "alsoInText": true
+        },
+        {
+          "round": 12,
+          "actorId": "character:friend",
+          "sourceSeq": 71,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 12,
+          "actorId": "character:friend",
+          "sourceSeq": 55,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 12,
+          "actorId": "character:friend",
+          "sourceSeq": 23,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 12,
+          "actorId": "character:friend",
+          "sourceSeq": 119,
+          "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}",
+          "alsoInText": false
+        },
+        {
+          "round": 12,
+          "actorId": "character:friend",
+          "sourceSeq": 135,
+          "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}",
+          "alsoInText": false
+        },
+        {
+          "round": 12,
+          "actorId": "character:friend",
+          "sourceSeq": 103,
+          "sourceText": "我不保管了，把日记留在这里。",
+          "alsoInText": true
+        },
+        {
+          "round": 12,
+          "actorId": "character:friend",
+          "sourceSeq": 71,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 12,
+          "actorId": "character:friend",
+          "sourceSeq": 55,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:companion",
+          "sourceSeq": 134,
+          "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}",
+          "alsoInText": false
+        },
+        {
+          "round": 13,
+          "actorId": "character:companion",
+          "sourceSeq": 102,
+          "sourceText": "我不保管了，把日记留在这里。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:companion",
+          "sourceSeq": 70,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:companion",
+          "sourceSeq": 54,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:companion",
+          "sourceSeq": 22,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:companion",
+          "sourceSeq": 118,
+          "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}",
+          "alsoInText": false
+        },
+        {
+          "round": 13,
+          "actorId": "character:companion",
+          "sourceSeq": 86,
+          "sourceText": "我把日记暂时放桌上。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 103,
+          "sourceText": "我不保管了，把日记留在这里。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 135,
+          "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}",
+          "alsoInText": false
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 71,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 55,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 23,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 119,
+          "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}",
+          "alsoInText": false
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 87,
+          "sourceText": "我把日记暂时放桌上。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:companion",
+          "sourceSeq": 134,
+          "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}",
+          "alsoInText": false
+        },
+        {
+          "round": 13,
+          "actorId": "character:companion",
+          "sourceSeq": 102,
+          "sourceText": "我不保管了，把日记留在这里。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 135,
+          "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}",
+          "alsoInText": false
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 103,
+          "sourceText": "我不保管了，把日记留在这里。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 71,
+          "sourceText": "我把日记放下。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 55,
+          "sourceText": "我拿起日记，准备带走。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 23,
+          "sourceText": "我拿起日记。",
+          "alsoInText": true
+        },
+        {
+          "round": 13,
+          "actorId": "character:friend",
+          "sourceSeq": 119,
+          "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}",
+          "alsoInText": false
+        }
+      ]
+    },
+    "clipped": {
+      "rounds": 4,
+      "callsRecorded": 17,
+      "realDeepSeekCalls": 16,
+      "publications": 16,
+      "jevRecords": 32,
+      "auditComplete": true,
+      "auditFailed": 0,
+      "unchangedDuringDrain": true,
+      "jevCostUsd": 0.010570979999999999,
+      "alerts": [
+        {
+          "seq": 63,
+          "itemId": "entity:diary",
+          "publication": {
+            "seq": 63,
+            "actorId": "character:player",
+            "speech": "",
+            "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人"
+          },
+          "worldHolder": "character:companion",
+          "conflictingClaims": [
+            {
+              "characterId": "character:player",
+              "kind": "OBJECTIVE_NOW",
+              "referenceSeq": null,
+              "probabilities": {
+                "UNCERTAIN": 0,
+                "OBJECTIVE_DURING": 0,
+                "SPEECH_PAST": 0,
+                "NONE": 0.08,
+                "SPEECH_NOW": 0.01,
+                "OBJECTIVE_NEW": 0,
+                "OBJECTIVE_PAST": 0,
+                "OBJECTIVE_NOW": 0.91
+              },
+              "referenceProbabilities": {
+                "publication:58": 0.07,
+                "publication:47": 0.01,
+                "publication:26": 0.01,
+                "NONE": 0.76,
+                "publication:53": 0,
+                "UNRESOLVED": 0.14,
+                "publication:31": 0.01,
+                "publication:42": 0
+              },
+              "confidence": 0.89,
+              "status": "CONFLICT",
+              "window": {
+                "roundId": "round:coordinated:db5a7a1d84820161f1191144",
+                "fromSeq": 62,
+                "toSeq": 68,
+                "kind": "round"
+              },
+              "evidence": {
+                "heldAtWindowStart": false,
+                "enteredSeqs": [],
+                "leftSeqs": []
+              },
+              "rootPublicationSeq": 63,
+              "reason": "this occurrence has no formal holder support in its local event window"
+            }
+          ]
+        }
+      ],
+      "clippedSourceEvidence": [
+        {
+          "actorId": "character:companion",
+          "stimulus": [
+            {
+              "actionId": "action:daebd16d2201946791d48c63",
+              "content": {
+                "actionType": "speak",
+                "actorId": "character:player",
+                "playerInput": {
+                  "actorId": "character:player",
+                  "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+                  "sourceSpans": [
+                    {
+                      "actionId": "action:daebd16d2201946791d48c63",
+                      "endUtf16": 36,
+                      "kind": "narration",
+                      "startUtf16": 6,
+                      "text": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人"
+                    }
+                  ],
+                  "sourceText": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+                },
+                "reason": null,
+                "speech": {
+                  "addresseeIds": [],
+                  "characterId": "character:player",
+                  "declaredSpeechAct": null,
+                  "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人",
+                  "replyTo": null,
+                  "scope": "scene_public",
+                  "text": ""
+                },
+                "status": "accepted"
+              },
+              "observerId": "character:companion"
+            }
+          ],
+          "items": {
+            "current": [
+              {
+                "entityId": "entity:diary",
+                "holderId": "character:companion",
+                "locationId": null
+              },
+              {
+                "entityId": "entity:pocket-watch",
+                "holderId": null,
+                "locationId": "location:front-room"
+              }
+            ],
+            "lastObserved": []
+          },
+          "decision": [
+            {
+              "decision": "publish",
+              "narration": "陆舟把日记本往桌上一搁，没松手，只是腾出另一只手把袖口捋了捋。他看了眼程雨，又看了眼桌上的怀表。",
+              "speech": "日记先搁着，还是我的。表我看一眼。",
+              "addresseeIds": [
+                "character:friend"
+              ]
+            }
+          ]
+        },
+        {
+          "actorId": "character:friend",
+          "stimulus": [
+            {
+              "actionId": "action:daebd16d2201946791d48c63",
+              "content": {
+                "actionType": "speak",
+                "actorId": "character:player",
+                "playerInput": {
+                  "actorId": "character:player",
+                  "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+                  "sourceSpans": [
+                    {
+                      "actionId": "action:daebd16d2201946791d48c63",
+                      "endUtf16": 36,
+                      "kind": "narration",
+                      "startUtf16": 6,
+                      "text": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人"
+                    }
+                  ],
+                  "sourceText": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+                },
+                "reason": null,
+                "speech": {
+                  "addresseeIds": [],
+                  "characterId": "character:player",
+                  "declaredSpeechAct": null,
+                  "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人",
+                  "replyTo": null,
+                  "scope": "scene_public",
+                  "text": ""
+                },
+                "status": "accepted"
+              },
+              "observerId": "character:friend"
+            }
+          ],
+          "items": {
+            "current": [
+              {
+                "entityId": "entity:diary",
+                "holderId": "character:companion",
+                "locationId": null
+              },
+              {
+                "entityId": "entity:pocket-watch",
+                "holderId": null,
+                "locationId": "location:front-room"
+              }
+            ],
+            "lastObserved": []
+          },
+          "decision": [
+            {
+              "decision": "publish",
+              "addresseeIds": [
+                "character:companion"
+              ],
+              "narration": "程雨点点头，没去碰表，只是把台面往陆舟那边推了推，示意他自便。",
+              "speech": "行，你看。表链上好像挂着什么，别急着翻面。"
+            }
+          ]
+        },
+        {
+          "actorId": "character:companion",
+          "stimulus": [
+            {
+              "actionId": "prototype-turn:e01af473-b186-41ce-a243-b4275d2baa7b:0:action",
+              "content": {
+                "actionType": "speak",
+                "actorId": "character:friend",
+                "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+                "speech": {
+                  "addresseeIds": [
+                    "character:companion"
+                  ],
+                  "characterId": "character:friend",
+                  "declaredSpeechAct": null,
+                  "narration": "程雨点点头，没去碰表，只是把台面往陆舟那边推了推，示意他自便。",
+                  "replyTo": null,
+                  "scope": "direct",
+                  "text": "行，你看。表链上好像挂着什么，别急着翻面。"
+                },
+                "status": "accepted"
+              },
+              "observerId": "character:companion"
+            }
+          ],
+          "items": {
+            "current": [
+              {
+                "entityId": "entity:diary",
+                "holderId": "character:companion",
+                "locationId": null
+              },
+              {
+                "entityId": "entity:pocket-watch",
+                "holderId": null,
+                "locationId": "location:front-room"
+              }
+            ],
+            "lastObserved": []
+          },
+          "decision": [
+            {
+              "decision": "perform",
+              "actionType": "interact",
+              "parameters": {
+                "targetRef": {
+                  "kind": "entity",
+                  "id": "entity:pocket-watch"
+                },
+                "bindingId": "binding:key-take",
+                "definitionRef": {
+                  "id": "base:take",
+                  "version": 1
+                },
+                "arguments": {}
+              }
+            }
+          ]
+        },
+        {
+          "actorId": "character:companion",
+          "stimulus": [
+            {
+              "actionId": "prototype-turn:e01af473-b186-41ce-a243-b4275d2baa7b:0:action",
+              "content": {
+                "actionType": "speak",
+                "actorId": "character:friend",
+                "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+                "speech": {
+                  "addresseeIds": [
+                    "character:companion"
+                  ],
+                  "characterId": "character:friend",
+                  "declaredSpeechAct": null,
+                  "narration": "程雨点点头，没去碰表，只是把台面往陆舟那边推了推，示意他自便。",
+                  "replyTo": null,
+                  "scope": "direct",
+                  "text": "行，你看。表链上好像挂着什么，别急着翻面。"
+                },
+                "status": "accepted"
+              },
+              "observerId": "character:companion"
+            }
+          ],
+          "items": {
+            "current": [
+              {
+                "entityId": "entity:diary",
+                "holderId": "character:companion",
+                "locationId": null
+              },
+              {
+                "entityId": "entity:pocket-watch",
+                "holderId": "character:companion",
+                "locationId": null
+              }
+            ],
+            "lastObserved": []
+          },
+          "decision": [
+            {
+              "decision": "publish",
+              "narration": "陆舟把怀表托在掌心，先没翻面，顺着表链摸过去，看那头挂着什么。",
+              "speech": "链子上是有东西。我先看链子。",
+              "addresseeIds": [
+                "character:friend"
+              ]
+            }
+          ]
+        },
+        {
+          "actorId": "character:friend",
+          "stimulus": [
+            {
+              "actionId": "prototype-turn:0e85cd6e-1c5c-4508-8755-41c3c85b6f32:0:action",
+              "content": {
+                "actionType": "speak",
+                "actorId": "character:companion",
+                "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+                "speech": {
+                  "addresseeIds": [
+                    "character:friend"
+                  ],
+                  "characterId": "character:companion",
+                  "declaredSpeechAct": null,
+                  "narration": "陆舟把日记本往桌上一搁，没松手，只是腾出另一只手把袖口捋了捋。他看了眼程雨，又看了眼桌上的怀表。",
+                  "replyTo": null,
+                  "scope": "direct",
+                  "text": "日记先搁着，还是我的。表我看一眼。"
+                },
+                "status": "accepted"
+              },
+              "observerId": "character:friend"
+            }
+          ],
+          "items": {
+            "current": [
+              {
+                "entityId": "entity:diary",
+                "holderId": "character:companion",
+                "locationId": null
+              },
+              {
+                "entityId": "entity:pocket-watch",
+                "holderId": "character:companion",
+                "locationId": null
+              }
+            ],
+            "lastObserved": []
+          },
+          "decision": [
+            {
+              "decision": "publish",
+              "addresseeIds": [
+                "character:companion"
+              ],
+              "narration": "程雨没凑近，只是站在台子另一侧，视线跟着陆舟的手指落在表链上。",
+              "speech": "嗯，链子那头。你看清楚再说，我不催。"
+            }
+          ]
+        }
+      ],
+      "originalSourceRecallOccurrences": []
+    },
+    "clipped-final": {
+      "rounds": 4,
+      "callsRecorded": 12,
+      "realDeepSeekCalls": 11,
+      "publications": 12,
+      "jevRecords": 24,
+      "auditComplete": true,
+      "auditFailed": 0,
+      "unchangedDuringDrain": true,
+      "jevCostUsd": 0.007651811999999998,
+      "alerts": [
+        {
+          "seq": 63,
+          "itemId": "entity:diary",
+          "publication": {
+            "seq": 63,
+            "actorId": "character:player",
+            "speech": "",
+            "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人"
+          },
+          "worldHolder": "character:companion",
+          "conflictingClaims": [
+            {
+              "characterId": "character:player",
+              "kind": "OBJECTIVE_NOW",
+              "referenceSeq": null,
+              "probabilities": {
+                "SPEECH_NOW": 0.02,
+                "UNCERTAIN": 0.01,
+                "NONE": 0.18,
+                "OBJECTIVE_NOW": 0.78,
+                "OBJECTIVE_DURING": 0,
+                "SPEECH_PAST": 0,
+                "OBJECTIVE_PAST": 0.01,
+                "OBJECTIVE_NEW": 0
+              },
+              "referenceProbabilities": {
+                "UNRESOLVED": 0.13,
+                "publication:58": 0,
+                "NONE": 0.83,
+                "publication:47": 0,
+                "publication:53": 0.01,
+                "publication:42": 0.01,
+                "publication:31": 0,
+                "publication:26": 0.02
+              },
+              "confidence": 0.74,
+              "status": "CONFLICT",
+              "window": {
+                "roundId": "round:coordinated:db5a7a1d84820161f1191144",
+                "fromSeq": 62,
+                "toSeq": 68,
+                "kind": "round"
+              },
+              "evidence": {
+                "heldAtWindowStart": false,
+                "enteredSeqs": [],
+                "leftSeqs": []
+              },
+              "rootPublicationSeq": 63,
+              "reason": "this occurrence has no formal holder support in its local event window"
+            }
+          ]
+        }
+      ],
+      "clippedSourceEvidence": [
+        {
+          "actorId": "character:companion",
+          "stimulus": [
+            {
+              "actionId": "action:daebd16d2201946791d48c63",
+              "content": {
+                "actionType": "speak",
+                "actorId": "character:player",
+                "playerInput": {
+                  "actorId": "character:player",
+                  "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+                  "sourceSpans": [
+                    {
+                      "actionId": "action:daebd16d2201946791d48c63",
+                      "endUtf16": 36,
+                      "kind": "narration",
+                      "startUtf16": 6,
+                      "text": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人"
+                    }
+                  ],
+                  "sourceText": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+                },
+                "reason": null,
+                "speech": {
+                  "addresseeIds": [],
+                  "characterId": "character:player",
+                  "declaredSpeechAct": null,
+                  "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人",
+                  "replyTo": null,
+                  "scope": "scene_public",
+                  "text": ""
+                },
+                "status": "accepted"
+              },
+              "observerId": "character:companion"
+            }
+          ],
+          "items": {
+            "current": [
+              {
+                "entityId": "entity:diary",
+                "holderId": "character:companion",
+                "locationId": null
+              },
+              {
+                "entityId": "entity:pocket-watch",
+                "holderId": null,
+                "locationId": "location:front-room"
+              }
+            ],
+            "lastObserved": []
+          },
+          "decision": [
+            {
+              "decision": "publish",
+              "narration": "陆舟没去碰内袋，只是把外套下摆理了理，目光从桌上那把铜怀表移开，扫了一眼玩家和程雨。",
+              "speech": "日记放我这儿，不用掏出来。表还在桌上，谁也没动。我先看看它。",
+              "addresseeIds": [
+                "character:player"
+              ]
+            }
+          ]
+        },
+        {
+          "actorId": "character:friend",
+          "stimulus": [
+            {
+              "actionId": "action:daebd16d2201946791d48c63",
+              "content": {
+                "actionType": "speak",
+                "actorId": "character:player",
+                "playerInput": {
+                  "actorId": "character:player",
+                  "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+                  "sourceSpans": [
+                    {
+                      "actionId": "action:daebd16d2201946791d48c63",
+                      "endUtf16": 36,
+                      "kind": "narration",
+                      "startUtf16": 6,
+                      "text": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人"
+                    }
+                  ],
+                  "sourceText": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+                },
+                "reason": null,
+                "speech": {
+                  "addresseeIds": [],
+                  "characterId": "character:player",
+                  "declaredSpeechAct": null,
+                  "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人",
+                  "replyTo": null,
+                  "scope": "scene_public",
+                  "text": ""
+                },
+                "status": "accepted"
+              },
+              "observerId": "character:friend"
+            }
+          ],
+          "items": {
+            "current": [
+              {
+                "entityId": "entity:diary",
+                "holderId": "character:companion",
+                "locationId": null
+              },
+              {
+                "entityId": "entity:pocket-watch",
+                "holderId": null,
+                "locationId": "location:front-room"
+              }
+            ],
+            "lastObserved": []
+          },
+          "decision": [
+            {
+              "decision": "publish",
+              "narration": "程雨看着玩家把日记搁在桌上又去理袖子，没接话，只把视线在那本布面日记上停了一下，又移回桌上的铜怀表。她手还插在口袋里，没动。",
+              "speech": "放桌上也行。反正谁拿的、谁放的，我都看着呢。",
+              "addresseeIds": [
+                "character:player"
+              ]
+            }
+          ]
+        }
+      ],
+      "originalSourceRecallOccurrences": []
+    }
+  },
+  "finalInterpreterEqualsBaseline": true
+}

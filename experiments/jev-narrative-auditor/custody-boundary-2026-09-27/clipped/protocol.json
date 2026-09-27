@@ -1,0 +1,14 @@
+{
+  "prompts": [
+    "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}",
+    "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}",
+    "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。",
+    "陆舟，你为什么这么处理日记？"
+  ],
+  "clip": true,
+  "mode": "shadow-only",
+  "identicalFinalStimulus": "陆舟，你为什么这么处理日记？",
+  "noRewriting": true,
+  "noTuning": true,
+  "model": "deepseek-flash"
+}

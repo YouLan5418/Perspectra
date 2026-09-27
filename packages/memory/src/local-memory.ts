@@ -1133,6 +1133,15 @@ export class LocalMemoryStore {
           epistemicKind = declared as Exclude<CognitiveEpistemicKind, 'derived_summary'> | undefined
             ?? (contentObject?.actionType === undefined ? 'direct_observation' : 'observed_action')
         }
+        if (contentObject?.playerInput !== undefined) {
+          const input = objectValue(contentObject.playerInput, `observation.upsert@${event.seq}.playerInput`)
+          if (typeof input.actorId !== 'string' || typeof input.sourceText !== 'string'
+            || !Array.isArray(input.sourceSpans)) throw new Error('player input evidence is malformed')
+          // Observations already gate access. Preserve the source when a speech-specific renderer
+          // replaces the generic content; it stays a player report, never a committed effect.
+          if (speechValue !== undefined) text += `; original player input (interpretation evidence, not an adjudicated outcome): ${input.sourceText}`
+          metadata = { ...metadata as WorldJsonObject, playerInput: input }
+        }
         candidates.push({
           sourceType: 'observation',
           sourceRef: { sourceKind: 'world_event', sourceId: `event:${event.seq}`, sourceSeq: event.seq, sourceHash: event.eventHash },

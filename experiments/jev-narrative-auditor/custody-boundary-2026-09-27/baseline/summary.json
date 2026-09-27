@@ -1,0 +1,111 @@
+{
+  "calls": 26,
+  "boundaryMet": 18,
+  "mismatches": [
+    {
+      "id": "bare-lift",
+      "repeat": 1,
+      "expected": "no-transfer",
+      "actual": "base:take",
+      "exactTarget": true,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "我拿起日记。"
+      ]
+    },
+    {
+      "id": "look",
+      "repeat": 1,
+      "expected": "no-transfer",
+      "actual": "base:take",
+      "exactTarget": true,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "我拿起日记看看。"
+      ]
+    },
+    {
+      "id": "npc-custody",
+      "repeat": 1,
+      "expected": "communication",
+      "actual": "base:give",
+      "exactTarget": true,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "程雨，你替我保管一下。"
+      ]
+    },
+    {
+      "id": "own-carry",
+      "repeat": 1,
+      "expected": "no-transfer",
+      "actual": "base:take",
+      "exactTarget": false,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "我拿起日记，准备带走。"
+      ]
+    },
+    {
+      "id": "bare-lift",
+      "repeat": 2,
+      "expected": "no-transfer",
+      "actual": "base:take",
+      "exactTarget": true,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "我拿起日记。"
+      ]
+    },
+    {
+      "id": "look",
+      "repeat": 2,
+      "expected": "no-transfer",
+      "actual": "base:take",
+      "exactTarget": true,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "我拿起日记看看。"
+      ]
+    },
+    {
+      "id": "npc-custody",
+      "repeat": 2,
+      "expected": "communication",
+      "actual": "base:give",
+      "exactTarget": true,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "程雨，你替我保管一下。"
+      ]
+    },
+    {
+      "id": "own-carry",
+      "repeat": 2,
+      "expected": "no-transfer",
+      "actual": "base:take",
+      "exactTarget": false,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "我拿起日记，准备带走。"
+      ]
+    }
+  ],
+  "unchanged": true
+}

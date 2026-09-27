@@ -1,0 +1,343 @@
+{
+  "rounds": 4,
+  "providerCalls": 12,
+  "publications": 12,
+  "records": 24,
+  "complete": true,
+  "unchangedDuringDrain": true,
+  "conflicts": [
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "preHeadSeq": 62,
+      "postHeadSeq": 68,
+      "transactionId": "transaction:coordinated-round:567e5e612198b211fc26f905",
+      "publication": {
+        "seq": 63,
+        "actorId": "character:player",
+        "speech": "",
+        "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人"
+      },
+      "item": {
+        "entityId": "entity:diary",
+        "name": "布面日记"
+      },
+      "status": "CONFLICT",
+      "beforeHolder": "character:companion",
+      "worldHolder": "character:companion",
+      "claimedHolder": "character:player",
+      "holderEventSeq": 36,
+      "answer": {
+        "placement": {
+          "kind": "NONE",
+          "probabilities": {
+            "SPEECH_ONLY": 0,
+            "OBJECTIVE_GROUND": 0,
+            "OBJECTIVE_RELEASE": 0,
+            "PAST": 0,
+            "UNCERTAIN": 0,
+            "NONE": 1
+          },
+          "confidence": 0.99
+        },
+        "model": "typesafe/jev-1.13-20260917",
+        "inputTokens": 7897,
+        "outputTokens": 643,
+        "costUsd": 0.000331674,
+        "claims": [
+          {
+            "characterId": "character:companion",
+            "kind": "NONE",
+            "referenceSeq": null,
+            "probabilities": {
+              "SPEECH_NOW": 0,
+              "UNCERTAIN": 0.01,
+              "NONE": 0.98,
+              "OBJECTIVE_NOW": 0.01,
+              "OBJECTIVE_DURING": 0,
+              "OBJECTIVE_NEW": 0,
+              "OBJECTIVE_PAST": 0,
+              "SPEECH_PAST": 0
+            },
+            "referenceProbabilities": {
+              "UNRESOLVED": 0.03,
+              "publication:58": 0,
+              "NONE": 0.95,
+              "publication:47": 0,
+              "publication:53": 0.01,
+              "publication:42": 0.01,
+              "publication:31": 0,
+              "publication:26": 0
+            },
+            "confidence": 0.97
+          },
+          {
+            "characterId": "character:friend",
+            "kind": "NONE",
+            "referenceSeq": null,
+            "probabilities": {
+              "SPEECH_NOW": 0,
+              "UNCERTAIN": 0,
+              "NONE": 1,
+              "OBJECTIVE_NOW": 0,
+              "OBJECTIVE_DURING": 0,
+              "SPEECH_PAST": 0,
+              "OBJECTIVE_PAST": 0,
+              "OBJECTIVE_NEW": 0
+            },
+            "referenceProbabilities": {
+              "UNRESOLVED": 0,
+              "publication:58": 0,
+              "NONE": 1,
+              "publication:47": 0,
+              "publication:53": 0,
+              "publication:42": 0,
+              "publication:31": 0,
+              "publication:26": 0
+            },
+            "confidence": 1
+          },
+          {
+            "characterId": "character:player",
+            "kind": "OBJECTIVE_NOW",
+            "referenceSeq": null,
+            "probabilities": {
+              "SPEECH_NOW": 0.02,
+              "UNCERTAIN": 0.01,
+              "NONE": 0.18,
+              "OBJECTIVE_NOW": 0.78,
+              "OBJECTIVE_DURING": 0,
+              "SPEECH_PAST": 0,
+              "OBJECTIVE_PAST": 0.01,
+              "OBJECTIVE_NEW": 0
+            },
+            "referenceProbabilities": {
+              "UNRESOLVED": 0.13,
+              "publication:58": 0,
+              "NONE": 0.83,
+              "publication:47": 0,
+              "publication:53": 0.01,
+              "publication:42": 0.01,
+              "publication:31": 0,
+              "publication:26": 0.02
+            },
+            "confidence": 0.74
+          }
+        ]
+      },
+      "placement": {
+        "kind": "NONE",
+        "probabilities": {
+          "SPEECH_ONLY": 0,
+          "OBJECTIVE_GROUND": 0,
+          "OBJECTIVE_RELEASE": 0,
+          "PAST": 0,
+          "UNCERTAIN": 0,
+          "NONE": 1
+        },
+        "confidence": 0.99,
+        "status": "NO_CLAIM",
+        "window": {
+          "roundId": "round:coordinated:db5a7a1d84820161f1191144",
+          "fromSeq": 62,
+          "toSeq": 68,
+          "kind": "round"
+        },
+        "releasedSeqs": [],
+        "worldHolder": "character:companion",
+        "rootPublicationSeq": null
+      },
+      "window": {
+        "roundId": "round:coordinated:db5a7a1d84820161f1191144",
+        "fromSeq": 62,
+        "toSeq": 68,
+        "kind": "round"
+      },
+      "claims": [
+        {
+          "characterId": "character:companion",
+          "kind": "NONE",
+          "referenceSeq": null,
+          "probabilities": {
+            "SPEECH_NOW": 0,
+            "UNCERTAIN": 0.01,
+            "NONE": 0.98,
+            "OBJECTIVE_NOW": 0.01,
+            "OBJECTIVE_DURING": 0,
+            "OBJECTIVE_NEW": 0,
+            "OBJECTIVE_PAST": 0,
+            "SPEECH_PAST": 0
+          },
+          "referenceProbabilities": {
+            "UNRESOLVED": 0.03,
+            "publication:58": 0,
+            "NONE": 0.95,
+            "publication:47": 0,
+            "publication:53": 0.01,
+            "publication:42": 0.01,
+            "publication:31": 0,
+            "publication:26": 0
+          },
+          "confidence": 0.97,
+          "status": "NO_CLAIM",
+          "window": {
+            "roundId": "round:coordinated:db5a7a1d84820161f1191144",
+            "fromSeq": 62,
+            "toSeq": 68,
+            "kind": "round"
+          },
+          "evidence": {
+            "heldAtWindowStart": true,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          "rootPublicationSeq": null,
+          "reason": null
+        },
+        {
+          "characterId": "character:friend",
+          "kind": "NONE",
+          "referenceSeq": null,
+          "probabilities": {
+            "SPEECH_NOW": 0,
+            "UNCERTAIN": 0,
+            "NONE": 1,
+            "OBJECTIVE_NOW": 0,
+            "OBJECTIVE_DURING": 0,
+            "SPEECH_PAST": 0,
+            "OBJECTIVE_PAST": 0,
+            "OBJECTIVE_NEW": 0
+          },
+          "referenceProbabilities": {
+            "UNRESOLVED": 0,
+            "publication:58": 0,
+            "NONE": 1,
+            "publication:47": 0,
+            "publication:53": 0,
+            "publication:42": 0,
+            "publication:31": 0,
+            "publication:26": 0
+          },
+          "confidence": 1,
+          "status": "NO_CLAIM",
+          "window": {
+            "roundId": "round:coordinated:db5a7a1d84820161f1191144",
+            "fromSeq": 62,
+            "toSeq": 68,
+            "kind": "round"
+          },
+          "evidence": {
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          "rootPublicationSeq": null,
+          "reason": null
+        },
+        {
+          "characterId": "character:player",
+          "kind": "OBJECTIVE_NOW",
+          "referenceSeq": null,
+          "probabilities": {
+            "SPEECH_NOW": 0.02,
+            "UNCERTAIN": 0.01,
+            "NONE": 0.18,
+            "OBJECTIVE_NOW": 0.78,
+            "OBJECTIVE_DURING": 0,
+            "SPEECH_PAST": 0,
+            "OBJECTIVE_PAST": 0.01,
+            "OBJECTIVE_NEW": 0
+          },
+          "referenceProbabilities": {
+            "UNRESOLVED": 0.13,
+            "publication:58": 0,
+            "NONE": 0.83,
+            "publication:47": 0,
+            "publication:53": 0.01,
+            "publication:42": 0.01,
+            "publication:31": 0,
+            "publication:26": 0.02
+          },
+          "confidence": 0.74,
+          "status": "CONFLICT",
+          "window": {
+            "roundId": "round:coordinated:db5a7a1d84820161f1191144",
+            "fromSeq": 62,
+            "toSeq": 68,
+            "kind": "round"
+          },
+          "evidence": {
+            "heldAtWindowStart": false,
+            "enteredSeqs": [],
+            "leftSeqs": []
+          },
+          "rootPublicationSeq": 63,
+          "reason": "this occurrence has no formal holder support in its local event window"
+        }
+      ],
+      "latencyMs": 521.9848000000002,
+      "reason": null
+    }
+  ],
+  "failures": [],
+  "costUsd": 0.007651811999999998,
+  "transfers": [
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 20,
+      "tick": 1,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:player",
+        "entityId": "entity:diary",
+        "fromHolderId": null,
+        "fromLocationId": "location:front-room",
+        "interactionId": "base:take",
+        "toHolderId": "character:player",
+        "toLocationId": null
+      },
+      "previousHash": "sha256:757474e436981a89e0aa94767dc2bfe621a449e157a9d506e06e10b87c48e5a1",
+      "eventHash": "sha256:6d6bc35178a72536bf190856494b43d8eb9173259b26b80ed9c9d3f8951e3013",
+      "transactionId": "transaction:coordinated-round:1d7ffba4052bba2e6b18049d",
+      "eventOrdinal": 0
+    },
+    {
+      "address": {
+        "tenantId": "tenant:web-playtest",
+        "worldId": "world:web-playtest:1372226f9c10584b",
+        "branchId": "branch:main"
+      },
+      "seq": 36,
+      "tick": 4,
+      "eventType": "entity.transferred",
+      "eventVersion": 1,
+      "data": {
+        "characterId": "character:player",
+        "entityId": "entity:diary",
+        "fromHolderId": "character:player",
+        "fromLocationId": null,
+        "interactionId": "base:give",
+        "toHolderId": "character:companion",
+        "toLocationId": null
+      },
+      "previousHash": "sha256:19118438397d7facc91dd3464fbf4a7059dc5d9f6e46542ccdd3b8a240f54e69",
+      "eventHash": "sha256:8a4249481676b81ea26e6d4672b5a77df8db43ab6ea8a0e95810bad6089a0e3e",
+      "transactionId": "transaction:coordinated-round:23b405e425e702d9b8487cd5",
+      "eventOrdinal": 0
+    }
+  ],
+  "finalDiary": {
+    "entityId": "entity:diary",
+    "locationId": null,
+    "holderId": "character:companion",
+    "kind": "book"
+  }
+}

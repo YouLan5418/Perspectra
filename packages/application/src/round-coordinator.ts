@@ -994,6 +994,16 @@ export class RoundCoordinator {
             actorId: item.action.actorId,
             status: skipped ? 'skipped' : resolution.status,
             reason: resolution.reason ?? null,
+            // Keep the complete source distinct from the extracted expression and adjudicated facts.
+            // A partial audience must never receive a private sibling clause or a move destination.
+            ...(item.sourceRole !== 'player' || intentSubmission === undefined
+              || (observerId !== binding.characterId && !playerSteps.every(step =>
+                step.resolution.status === 'accepted' && step.action.actionType !== 'move'
+                && step.audience?.fullContentCharacterIds.includes(observerId))) ? {} : {
+                playerInput: { actorId: binding.characterId, sourceText: intentSubmission.sourceText,
+                  sourceSpans: intentSubmission.sourceSpans,
+                  note: '原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。' },
+              }),
             ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
             ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
             ...(publicInteraction === undefined ? {} : { interaction: publicInteraction.data }),

@@ -1,0 +1,72 @@
+{
+  "calls": 26,
+  "boundaryMet": 21,
+  "mismatches": [
+    {
+      "id": "bare-lift",
+      "repeat": 1,
+      "expected": "no-transfer",
+      "actual": "base:take",
+      "exactTarget": true,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "我拿起日记。"
+      ]
+    },
+    {
+      "id": "look",
+      "repeat": 1,
+      "expected": "no-transfer",
+      "actual": "base:take",
+      "exactTarget": true,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "我拿起日记看看。"
+      ]
+    },
+    {
+      "id": "put",
+      "repeat": 1,
+      "expected": "no-transfer",
+      "actual": "base:drop",
+      "exactTarget": true,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "我把日记放下。"
+      ]
+    },
+    {
+      "id": "bare-lift",
+      "repeat": 2,
+      "expected": "no-transfer",
+      "actual": "base:take",
+      "exactTarget": true,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "我拿起日记。"
+      ]
+    },
+    {
+      "id": "put",
+      "repeat": 2,
+      "expected": "no-transfer",
+      "actual": "base:drop",
+      "exactTarget": true,
+      "correct": false,
+      "fullSourceStored": true,
+      "completePublication": true,
+      "selectedQuotes": [
+        "我把日记放下。"
+      ]
+    }
+  ],
+  "unchanged": true
+}

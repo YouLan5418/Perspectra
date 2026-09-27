@@ -1,0 +1,3019 @@
+[
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 1,
+    "tick": 0,
+    "eventType": "world.created",
+    "eventVersion": 1,
+    "data": {
+      "specHash": "sha256:7c944dd7f411a820f011184e5d13902f4f37fadca981f6930dbfd12ad9053a18"
+    },
+    "previousHash": "genesis",
+    "eventHash": "sha256:2e28779799a46385c7513190d34150c394c5c35989c5b21fb55a19479cab183b",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 2,
+    "tick": 0,
+    "eventType": "world.manifest-locked",
+    "eventVersion": 1,
+    "data": {
+      "genesisPlanHash": "sha256:0d08e66022723815ad7ab10fedb09ecb73b7c23b427ef97a02738f3762392b7a",
+      "manifestHash": "sha256:143379c162ee0d90d195669ac440c16efebf4ea01eb347730a284380b4192a0d"
+    },
+    "previousHash": "sha256:2e28779799a46385c7513190d34150c394c5c35989c5b21fb55a19479cab183b",
+    "eventHash": "sha256:4d77fe6579ef3e1177cd0364a2cdbaf371d3f87cd7c9e50c870f8b4d4ed2f577",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 3,
+    "tick": 0,
+    "eventType": "location.upsert",
+    "eventVersion": 1,
+    "data": {
+      "locationId": "location:back-room",
+      "name": "储藏间"
+    },
+    "previousHash": "sha256:4d77fe6579ef3e1177cd0364a2cdbaf371d3f87cd7c9e50c870f8b4d4ed2f577",
+    "eventHash": "sha256:9df2b2c0751d9bb518fa60573a716ff7dcbd496cb5fbd19c32bbcf9f8cfb0f88",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 4,
+    "tick": 0,
+    "eventType": "location.upsert",
+    "eventVersion": 1,
+    "data": {
+      "locationId": "location:front-room",
+      "name": "雨站失物台"
+    },
+    "previousHash": "sha256:9df2b2c0751d9bb518fa60573a716ff7dcbd496cb5fbd19c32bbcf9f8cfb0f88",
+    "eventHash": "sha256:508724717f37beedb70a7bcc69f7c95dc5d8f24e4f069b207de8482b258a49fc",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 5,
+    "tick": 0,
+    "eventType": "entity.upsert",
+    "eventVersion": 1,
+    "data": {
+      "entityId": "entity:diary",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:diary-take",
+          "config": {},
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          }
+        },
+        {
+          "bindingId": "binding:diary-drop",
+          "config": {},
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          }
+        },
+        {
+          "bindingId": "binding:diary-give",
+          "config": {},
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          }
+        }
+      ],
+      "kind": "book",
+      "locationId": "location:front-room"
+    },
+    "previousHash": "sha256:508724717f37beedb70a7bcc69f7c95dc5d8f24e4f069b207de8482b258a49fc",
+    "eventHash": "sha256:e74192382ae82bb9c5de8b407ffcb57914ccef17e507bced7597f7abdf3a353b",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 6,
+    "tick": 0,
+    "eventType": "entity.upsert",
+    "eventVersion": 1,
+    "data": {
+      "entityId": "entity:pocket-watch",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:key-take",
+          "config": {},
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          }
+        },
+        {
+          "bindingId": "binding:key-drop",
+          "config": {},
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          }
+        },
+        {
+          "bindingId": "binding:key-give",
+          "config": {},
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          }
+        }
+      ],
+      "kind": "watch",
+      "locationId": "location:front-room"
+    },
+    "previousHash": "sha256:e74192382ae82bb9c5de8b407ffcb57914ccef17e507bced7597f7abdf3a353b",
+    "eventHash": "sha256:75ebc719d3a2e50c0221b977d90e28c80323b5d4bd893399dfce9fffd39aa66f",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 5
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 7,
+    "tick": 0,
+    "eventType": "character.created",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:companion",
+      "controllerClass": "scripted",
+      "lifecycle": "active",
+      "lifecycleState": "active",
+      "locationId": "location:front-room",
+      "name": "陆舟",
+      "portrayal": {
+        "backgroundTextRef": null,
+        "drives": [],
+        "principles": [],
+        "speakingStyle": "短句，少解释。",
+        "summary": "陆舟是与玩家同行的旅客，做事爽快，对失物的来历好奇，愿意帮忙，也会自己决定是否回应。"
+      },
+      "pronouns": "ta"
+    },
+    "previousHash": "sha256:75ebc719d3a2e50c0221b977d90e28c80323b5d4bd893399dfce9fffd39aa66f",
+    "eventHash": "sha256:e2f4569298ae33150c2266ba305f5f04c2f663cdf38f5e114f956f3c3ea0e2e3",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 6
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 8,
+    "tick": 0,
+    "eventType": "character.created",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:friend",
+      "controllerClass": "scripted",
+      "lifecycle": "active",
+      "lifecycleState": "active",
+      "locationId": "location:front-room",
+      "name": "程雨",
+      "portrayal": {
+        "backgroundTextRef": null,
+        "drives": [],
+        "principles": [],
+        "speakingStyle": "客气，偶尔简短直接。",
+        "summary": "程雨临时照看失物台，关注物主留下的线索，喜欢先看清楚再下判断，有自己的节奏。"
+      },
+      "pronouns": "ta"
+    },
+    "previousHash": "sha256:e2f4569298ae33150c2266ba305f5f04c2f663cdf38f5e114f956f3c3ea0e2e3",
+    "eventHash": "sha256:13a02d5dfdca7494df3e0b86c5c722edf5c8b21982478dec1cafd39e9f438d13",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 7
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 9,
+    "tick": 0,
+    "eventType": "character.created",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:player",
+      "controllerClass": "manual",
+      "lifecycle": "active",
+      "lifecycleState": "active",
+      "locationId": "location:front-room",
+      "name": "玩家",
+      "portrayal": {
+        "backgroundTextRef": null,
+        "drives": [],
+        "principles": [],
+        "speakingStyle": "由玩家决定。",
+        "summary": "刚来到雨站失物台，正在与陆舟和程雨交谈。"
+      },
+      "pronouns": "你"
+    },
+    "previousHash": "sha256:13a02d5dfdca7494df3e0b86c5c722edf5c8b21982478dec1cafd39e9f438d13",
+    "eventHash": "sha256:e2180e976cababde51bafb4a6a6a76f116c609eca362d0a6d25fe3025db4c6c5",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 8
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 10,
+    "tick": 0,
+    "eventType": "scene.upsert",
+    "eventVersion": 1,
+    "data": {
+      "sceneId": "scene:back-room",
+      "value": {
+        "lifecycle": "created",
+        "locationId": "location:back-room",
+        "participantIds": []
+      }
+    },
+    "previousHash": "sha256:e2180e976cababde51bafb4a6a6a76f116c609eca362d0a6d25fe3025db4c6c5",
+    "eventHash": "sha256:8c4f1896fd22900a72aabf5196ccef0529242f9b917dccfaadd07c8c7cb821eb",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 9
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 11,
+    "tick": 0,
+    "eventType": "scene.upsert",
+    "eventVersion": 1,
+    "data": {
+      "sceneId": "scene:front-room",
+      "value": {
+        "lifecycle": "active",
+        "locationId": "location:front-room",
+        "participantIds": [
+          "character:companion",
+          "character:friend",
+          "character:player"
+        ]
+      }
+    },
+    "previousHash": "sha256:8c4f1896fd22900a72aabf5196ccef0529242f9b917dccfaadd07c8c7cb821eb",
+    "eventHash": "sha256:e89ad3c3f82f7d48e491accfb6778163ca3746715710c9030b30130e7012e1ca",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 10
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 12,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "world-pack-observation-id/v2:9952a6e1de5726619f5babc8",
+      "value": {
+        "basisRefs": [],
+        "content": "雨站失物台桌上有一把铜怀表。",
+        "epistemicKind": "direct_observation",
+        "observerId": "character:companion",
+        "saliencePermille": 400,
+        "source": {
+          "sourceHash": "sha256:9cc33fa9ca3cee4be73ba943a5755d7b4e66f98c36f4ed79a0b8cda50f29bad4",
+          "sourceId": "world-pack-genesis-source/v2:b440d6ffb63d7b9383975a18",
+          "sourceKind": "worldpack-observation/v2"
+        }
+      }
+    },
+    "previousHash": "sha256:e89ad3c3f82f7d48e491accfb6778163ca3746715710c9030b30130e7012e1ca",
+    "eventHash": "sha256:af76b7753068f39d9df29b3db5d013b65745c8ea1558314485f5aecf8fc83865",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 11
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 13,
+    "tick": 0,
+    "eventType": "character-goal.upsert",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:companion",
+      "id": "world-pack-goal-id/v2:2cf763116badabff7f13862b",
+      "value": {
+        "awareness": "conscious",
+        "basisRefs": [
+          {
+            "sourceHash": "sha256:9cc33fa9ca3cee4be73ba943a5755d7b4e66f98c36f4ed79a0b8cda50f29bad4",
+            "sourceId": "world-pack-genesis-source/v2:b440d6ffb63d7b9383975a18",
+            "sourceKind": "worldpack-observation/v2"
+          }
+        ],
+        "blockerKeys": [],
+        "objective": {
+          "kind": "narrative",
+          "value": "弄清楚怀表能派上什么用场。"
+        },
+        "parentGoalKey": null,
+        "priorityPermille": 600,
+        "source": {
+          "sourceHash": "sha256:eddb91ca541fc22e7984692ecbcb021647b884ec53558da1b5cacd592ff11cff",
+          "sourceId": "world-pack-genesis-source/v2:5542cfb40e7e213f216bfc92",
+          "sourceKind": "worldpack-goal/v2"
+        },
+        "status": "active",
+        "targetKeys": [
+          "entity:pocket-watch"
+        ]
+      }
+    },
+    "previousHash": "sha256:af76b7753068f39d9df29b3db5d013b65745c8ea1558314485f5aecf8fc83865",
+    "eventHash": "sha256:f8e5789e348dedfa5e3ecb01cd8cc43b49452e00543b80a4496edd5117750bd5",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 12
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 14,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "world-pack-observation-id/v2:4e7069bb231955074734b36f",
+      "value": {
+        "basisRefs": [],
+        "content": "我正和玩家及陆舟待在雨站失物台。",
+        "epistemicKind": "direct_observation",
+        "observerId": "character:friend",
+        "saliencePermille": 350,
+        "source": {
+          "sourceHash": "sha256:02c17f83e099b16dae5bad8326e86b79d89b1e4f817d7d11f58ff46d1a53e12a",
+          "sourceId": "world-pack-genesis-source/v2:6024e73621b320ac5063ac3a",
+          "sourceKind": "worldpack-observation/v2"
+        }
+      }
+    },
+    "previousHash": "sha256:f8e5789e348dedfa5e3ecb01cd8cc43b49452e00543b80a4496edd5117750bd5",
+    "eventHash": "sha256:1e1e5c231ea767c8cb783a111934ff0cb4ce8c7805f133fb13445f8e815d3f6e",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 13
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 15,
+    "tick": 0,
+    "eventType": "character-goal.upsert",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:friend",
+      "id": "world-pack-goal-id/v2:68256faa8ed666b48f661ff5",
+      "value": {
+        "awareness": "conscious",
+        "basisRefs": [
+          {
+            "sourceHash": "sha256:02c17f83e099b16dae5bad8326e86b79d89b1e4f817d7d11f58ff46d1a53e12a",
+            "sourceId": "world-pack-genesis-source/v2:6024e73621b320ac5063ac3a",
+            "sourceKind": "worldpack-observation/v2"
+          }
+        ],
+        "blockerKeys": [],
+        "objective": {
+          "kind": "narrative",
+          "value": "在谈话中弄清楚自己想做什么；不确定时可以直接承认。"
+        },
+        "parentGoalKey": null,
+        "priorityPermille": 400,
+        "source": {
+          "sourceHash": "sha256:f5bee9b7356657dde1c6b8562df06115fa469da59d9dae13a8a660fcdc7d0b91",
+          "sourceId": "world-pack-genesis-source/v2:8e4ef7da7df263e8b6081301",
+          "sourceKind": "worldpack-goal/v2"
+        },
+        "status": "active",
+        "targetKeys": []
+      }
+    },
+    "previousHash": "sha256:1e1e5c231ea767c8cb783a111934ff0cb4ce8c7805f133fb13445f8e815d3f6e",
+    "eventHash": "sha256:8cc4203fb64dc1c39e3b67ba1381ac36b8800b4c57aad9de8887f8ae79174bef",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 14
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 16,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "world-pack-observation-id/v2:c9833a2b179f751049194021",
+      "value": {
+        "basisRefs": [],
+        "content": "雨站失物台桌上有一把铜怀表。",
+        "epistemicKind": "direct_observation",
+        "observerId": "character:player",
+        "saliencePermille": 400,
+        "source": {
+          "sourceHash": "sha256:dcd8118ebfe432470604bf3f7648f3b1710ae88df5205439af67ce7c974f87af",
+          "sourceId": "world-pack-genesis-source/v2:85a1052dd3d5e359366de892",
+          "sourceKind": "worldpack-observation/v2"
+        }
+      }
+    },
+    "previousHash": "sha256:8cc4203fb64dc1c39e3b67ba1381ac36b8800b4c57aad9de8887f8ae79174bef",
+    "eventHash": "sha256:64a146ba4d5139d5f7e1b67d63cb1b7d25ba4cde3c4328cfe555263b33fe8827",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 15
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 17,
+    "tick": 0,
+    "eventType": "character-goal.upsert",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:player",
+      "id": "world-pack-goal-id/v2:c56fffe997e9b6946d405a1c",
+      "value": {
+        "awareness": "conscious",
+        "basisRefs": [
+          {
+            "sourceHash": "sha256:dcd8118ebfe432470604bf3f7648f3b1710ae88df5205439af67ce7c974f87af",
+            "sourceId": "world-pack-genesis-source/v2:85a1052dd3d5e359366de892",
+            "sourceKind": "worldpack-observation/v2"
+          }
+        ],
+        "blockerKeys": [],
+        "objective": {
+          "kind": "narrative",
+          "value": "和两位同伴商量接下来的行动。"
+        },
+        "parentGoalKey": null,
+        "priorityPermille": 600,
+        "source": {
+          "sourceHash": "sha256:17e06a1b2f9b88007e785851e1c1aace5740813bb0d580109f215f134c7d4462",
+          "sourceId": "world-pack-genesis-source/v2:d2337a5131865b71f753603a",
+          "sourceKind": "worldpack-goal/v2"
+        },
+        "status": "active",
+        "targetKeys": []
+      }
+    },
+    "previousHash": "sha256:64a146ba4d5139d5f7e1b67d63cb1b7d25ba4cde3c4328cfe555263b33fe8827",
+    "eventHash": "sha256:f312bb7e62d8d26ecfd8763169c19c441555c508cc439cd8c1277e9a8e58f598",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 16
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 18,
+    "tick": 0,
+    "eventType": "player.binding.upsert",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:player",
+      "principalId": "principal:web-playtest",
+      "sessionId": "session:web-playtest"
+    },
+    "previousHash": "sha256:f312bb7e62d8d26ecfd8763169c19c441555c508cc439cd8c1277e9a8e58f598",
+    "eventHash": "sha256:e3e3fa8636aca57b7dc36d42b1c1dc7ee6d2c1846dfba80d582cc13024edae3c",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 17
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 19,
+    "tick": 0,
+    "eventType": "world.lifecycle-changed",
+    "eventVersion": 1,
+    "data": {
+      "lifecycleState": "active"
+    },
+    "previousHash": "sha256:e3e3fa8636aca57b7dc36d42b1c1dc7ee6d2c1846dfba80d582cc13024edae3c",
+    "eventHash": "sha256:757474e436981a89e0aa94767dc2bfe621a449e157a9d506e06e10b87c48e5a1",
+    "transactionId": "transaction:genesis:e05e83289f6afbd0564ecdbf",
+    "eventOrdinal": 18
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 20,
+    "tick": 1,
+    "eventType": "entity.transferred",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:player",
+      "entityId": "entity:diary",
+      "fromHolderId": null,
+      "fromLocationId": "location:front-room",
+      "interactionId": "base:take",
+      "toHolderId": "character:player",
+      "toLocationId": null
+    },
+    "previousHash": "sha256:757474e436981a89e0aa94767dc2bfe621a449e157a9d506e06e10b87c48e5a1",
+    "eventHash": "sha256:6d6bc35178a72536bf190856494b43d8eb9173259b26b80ed9c9d3f8951e3013",
+    "transactionId": "transaction:coordinated-round:1d7ffba4052bba2e6b18049d",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 21,
+    "tick": 1,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "action:47160a8aab1741b3e334f18e",
+      "actionType": "interact",
+      "actorId": "character:player",
+      "order": 0,
+      "participantId": "player",
+      "reason": null,
+      "roundId": "round:coordinated:342db6b10201392ad6858e6d",
+      "sourceRole": "player"
+    },
+    "previousHash": "sha256:6d6bc35178a72536bf190856494b43d8eb9173259b26b80ed9c9d3f8951e3013",
+    "eventHash": "sha256:4987ed0b89f27eb0ea11158919fd0b34382c64b30f53a44a42146406b1f7eecf",
+    "transactionId": "transaction:coordinated-round:1d7ffba4052bba2e6b18049d",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 22,
+    "tick": 1,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:39e67d282ebdf77cd89e6bfc",
+      "value": {
+        "actionId": "action:47160a8aab1741b3e334f18e",
+        "content": {
+          "actionType": "interact",
+          "actorId": "character:player",
+          "interaction": {
+            "characterId": "character:player",
+            "entityId": "entity:diary",
+            "fromHolderId": null,
+            "fromLocationId": "location:front-room",
+            "interactionId": "base:take",
+            "toHolderId": "character:player",
+            "toLocationId": null
+          },
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:47160a8aab1741b3e334f18e",
+                "endUtf16": 160,
+                "kind": "action",
+                "startUtf16": 0,
+                "text": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}"
+              }
+            ],
+            "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}"
+          },
+          "reason": null,
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:4987ed0b89f27eb0ea11158919fd0b34382c64b30f53a44a42146406b1f7eecf",
+    "eventHash": "sha256:4aea42ed16c5d9d16efca8ec0e9153b4bb42214e147767fa9cf11811c00e5548",
+    "transactionId": "transaction:coordinated-round:1d7ffba4052bba2e6b18049d",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 23,
+    "tick": 1,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:a5f848d25b3ef7a287000653",
+      "value": {
+        "actionId": "action:47160a8aab1741b3e334f18e",
+        "content": {
+          "actionType": "interact",
+          "actorId": "character:player",
+          "interaction": {
+            "characterId": "character:player",
+            "entityId": "entity:diary",
+            "fromHolderId": null,
+            "fromLocationId": "location:front-room",
+            "interactionId": "base:take",
+            "toHolderId": "character:player",
+            "toLocationId": null
+          },
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:47160a8aab1741b3e334f18e",
+                "endUtf16": 160,
+                "kind": "action",
+                "startUtf16": 0,
+                "text": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}"
+              }
+            ],
+            "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}"
+          },
+          "reason": null,
+          "status": "accepted"
+        },
+        "observerId": "character:friend"
+      }
+    },
+    "previousHash": "sha256:4aea42ed16c5d9d16efca8ec0e9153b4bb42214e147767fa9cf11811c00e5548",
+    "eventHash": "sha256:9499a8a10c792050b7569e8569cdfa0fda7fef068c0a37745b964a994876e2bf",
+    "transactionId": "transaction:coordinated-round:1d7ffba4052bba2e6b18049d",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 24,
+    "tick": 1,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:a73ba803eb9773c3a65569f3",
+      "value": {
+        "actionId": "action:47160a8aab1741b3e334f18e",
+        "content": {
+          "actionType": "interact",
+          "actorId": "character:player",
+          "interaction": {
+            "characterId": "character:player",
+            "entityId": "entity:diary",
+            "fromHolderId": null,
+            "fromLocationId": "location:front-room",
+            "interactionId": "base:take",
+            "toHolderId": "character:player",
+            "toLocationId": null
+          },
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:47160a8aab1741b3e334f18e",
+                "endUtf16": 160,
+                "kind": "action",
+                "startUtf16": 0,
+                "text": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}"
+              }
+            ],
+            "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-take\",\"definitionRef\":{\"id\":\"base:take\",\"version\":1},\"arguments\":{}}"
+          },
+          "reason": null,
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:9499a8a10c792050b7569e8569cdfa0fda7fef068c0a37745b964a994876e2bf",
+    "eventHash": "sha256:4c364d22af7a4e2f2df2b36f020bede8814a1cd2ae84beda3cd33c1ac82b03b3",
+    "transactionId": "transaction:coordinated-round:1d7ffba4052bba2e6b18049d",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 25,
+    "tick": 1,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "round:coordinated:342db6b10201392ad6858e6d",
+      "tick": 1
+    },
+    "previousHash": "sha256:4c364d22af7a4e2f2df2b36f020bede8814a1cd2ae84beda3cd33c1ac82b03b3",
+    "eventHash": "sha256:0669e63d0fc6f4b6286971d80682e7acb1c6521859ccc7ce93e42ffeced88e61",
+    "transactionId": "transaction:coordinated-round:1d7ffba4052bba2e6b18049d",
+    "eventOrdinal": 5
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 26,
+    "tick": 2,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [
+        "character:player"
+      ],
+      "characterId": "character:companion",
+      "declaredSpeechAct": null,
+      "narration": "陆舟看着玩家把日记收起来，目光又落回桌上那把铜怀表。",
+      "replyTo": null,
+      "scope": "direct",
+      "text": "日记你拿着。这表先别动，我看看它到底能派上什么用场。"
+    },
+    "previousHash": "sha256:0669e63d0fc6f4b6286971d80682e7acb1c6521859ccc7ce93e42ffeced88e61",
+    "eventHash": "sha256:09dee0c7e84c971f4888db4ebf0e0bfd4c2adc6427f5b5de2f9a7757ca441f41",
+    "transactionId": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0:commit",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 27,
+    "tick": 2,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0:action",
+      "actionType": "speak",
+      "actorId": "character:companion",
+      "order": 0,
+      "participantId": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8",
+      "reason": null,
+      "roundId": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0",
+      "sourceRole": "agent"
+    },
+    "previousHash": "sha256:09dee0c7e84c971f4888db4ebf0e0bfd4c2adc6427f5b5de2f9a7757ca441f41",
+    "eventHash": "sha256:e0571dd6744b9bf38fa9e08a25cd1dad5a352889d5362e4b932ce3ac6c7b07ed",
+    "transactionId": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0:commit",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 28,
+    "tick": 2,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0:action:observer:character:companion",
+      "value": {
+        "actionId": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:companion",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:companion",
+            "declaredSpeechAct": null,
+            "narration": "陆舟看着玩家把日记收起来，目光又落回桌上那把铜怀表。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "日记你拿着。这表先别动，我看看它到底能派上什么用场。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:e0571dd6744b9bf38fa9e08a25cd1dad5a352889d5362e4b932ce3ac6c7b07ed",
+    "eventHash": "sha256:5e561bf21fd0ed0395231b787f8b265e589556dffb79b4ac6fbaef13759d1042",
+    "transactionId": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0:commit",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 29,
+    "tick": 2,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0:action:observer:character:player",
+      "value": {
+        "actionId": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:companion",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:companion",
+            "declaredSpeechAct": null,
+            "narration": "陆舟看着玩家把日记收起来，目光又落回桌上那把铜怀表。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "日记你拿着。这表先别动，我看看它到底能派上什么用场。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:5e561bf21fd0ed0395231b787f8b265e589556dffb79b4ac6fbaef13759d1042",
+    "eventHash": "sha256:c34a46afb73ac1b06a1ea6d12101773d7514e010857fd2b251c3201231a362e9",
+    "transactionId": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0:commit",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 30,
+    "tick": 2,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0",
+      "tick": 2
+    },
+    "previousHash": "sha256:c34a46afb73ac1b06a1ea6d12101773d7514e010857fd2b251c3201231a362e9",
+    "eventHash": "sha256:c60b4a074080fdc7553a6386870d4345d37912518a57dd502da5e1391cd651c3",
+    "transactionId": "prototype-turn:f0f66be8-03b4-4739-b8dc-fd676a8443b8:0:commit",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 31,
+    "tick": 3,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [
+        "character:player"
+      ],
+      "characterId": "character:friend",
+      "declaredSpeechAct": null,
+      "narration": "程雨没有立刻出声，只是把视线从日记本移到玩家手上，停了一瞬。",
+      "replyTo": null,
+      "scope": "direct",
+      "text": "这本日记……你确定要拿走？失物台的东西，最好先弄清楚是谁的。"
+    },
+    "previousHash": "sha256:c60b4a074080fdc7553a6386870d4345d37912518a57dd502da5e1391cd651c3",
+    "eventHash": "sha256:148611b3a737573c940b8cac6ff86ff10c95bcb9bf17b206ce8549a3aeabc786",
+    "transactionId": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0:commit",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 32,
+    "tick": 3,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0:action",
+      "actionType": "speak",
+      "actorId": "character:friend",
+      "order": 0,
+      "participantId": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe",
+      "reason": null,
+      "roundId": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0",
+      "sourceRole": "agent"
+    },
+    "previousHash": "sha256:148611b3a737573c940b8cac6ff86ff10c95bcb9bf17b206ce8549a3aeabc786",
+    "eventHash": "sha256:8ae446f4cb7bec35734e9396d3846fc95c7766118e4e86bd2eb33cb2bf29b1e0",
+    "transactionId": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0:commit",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 33,
+    "tick": 3,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0:action:observer:character:friend",
+      "value": {
+        "actionId": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨没有立刻出声，只是把视线从日记本移到玩家手上，停了一瞬。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "这本日记……你确定要拿走？失物台的东西，最好先弄清楚是谁的。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:friend"
+      }
+    },
+    "previousHash": "sha256:8ae446f4cb7bec35734e9396d3846fc95c7766118e4e86bd2eb33cb2bf29b1e0",
+    "eventHash": "sha256:3a5c6813e5d262a709b037571d02efdaec391eee7f07d2acaf83e85e95101bfd",
+    "transactionId": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0:commit",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 34,
+    "tick": 3,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0:action:observer:character:player",
+      "value": {
+        "actionId": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨没有立刻出声，只是把视线从日记本移到玩家手上，停了一瞬。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "这本日记……你确定要拿走？失物台的东西，最好先弄清楚是谁的。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:3a5c6813e5d262a709b037571d02efdaec391eee7f07d2acaf83e85e95101bfd",
+    "eventHash": "sha256:d38724afa970e76eca7b0f2f74997d8df63c16252b70e0c6f14ae76ec3ef9439",
+    "transactionId": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0:commit",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 35,
+    "tick": 3,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0",
+      "tick": 3
+    },
+    "previousHash": "sha256:d38724afa970e76eca7b0f2f74997d8df63c16252b70e0c6f14ae76ec3ef9439",
+    "eventHash": "sha256:19118438397d7facc91dd3464fbf4a7059dc5d9f6e46542ccdd3b8a240f54e69",
+    "transactionId": "prototype-turn:56006455-42ea-4725-872c-b65f836820fe:0:commit",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 36,
+    "tick": 4,
+    "eventType": "entity.transferred",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:player",
+      "entityId": "entity:diary",
+      "fromHolderId": "character:player",
+      "fromLocationId": null,
+      "interactionId": "base:give",
+      "toHolderId": "character:companion",
+      "toLocationId": null
+    },
+    "previousHash": "sha256:19118438397d7facc91dd3464fbf4a7059dc5d9f6e46542ccdd3b8a240f54e69",
+    "eventHash": "sha256:8a4249481676b81ea26e6d4672b5a77df8db43ab6ea8a0e95810bad6089a0e3e",
+    "transactionId": "transaction:coordinated-round:23b405e425e702d9b8487cd5",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 37,
+    "tick": 4,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "action:1c2df7211bb3551383a897ea",
+      "actionType": "interact",
+      "actorId": "character:player",
+      "order": 0,
+      "participantId": "player",
+      "reason": null,
+      "roundId": "round:coordinated:c8e3735a979fa3328469411e",
+      "sourceRole": "player"
+    },
+    "previousHash": "sha256:8a4249481676b81ea26e6d4672b5a77df8db43ab6ea8a0e95810bad6089a0e3e",
+    "eventHash": "sha256:e95a387fa93fc67c109dce9ea2893342aefb16c108abb3fbdc03569735ccdd0d",
+    "transactionId": "transaction:coordinated-round:23b405e425e702d9b8487cd5",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 38,
+    "tick": 4,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:25e6301f0f71bee7a634211c",
+      "value": {
+        "actionId": "action:1c2df7211bb3551383a897ea",
+        "content": {
+          "actionType": "interact",
+          "actorId": "character:player",
+          "interaction": {
+            "characterId": "character:player",
+            "entityId": "entity:diary",
+            "fromHolderId": "character:player",
+            "fromLocationId": null,
+            "interactionId": "base:give",
+            "toHolderId": "character:companion",
+            "toLocationId": null
+          },
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:1c2df7211bb3551383a897ea",
+                "endUtf16": 195,
+                "kind": "action",
+                "startUtf16": 0,
+                "text": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}"
+              }
+            ],
+            "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}"
+          },
+          "reason": null,
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:e95a387fa93fc67c109dce9ea2893342aefb16c108abb3fbdc03569735ccdd0d",
+    "eventHash": "sha256:c02fd3f5839e6f0b639ab8f5397ae6dbfb5860aca6946e13c03d1ba23d3ceeab",
+    "transactionId": "transaction:coordinated-round:23b405e425e702d9b8487cd5",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 39,
+    "tick": 4,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:3606c7ae8f49d978c6c30b64",
+      "value": {
+        "actionId": "action:1c2df7211bb3551383a897ea",
+        "content": {
+          "actionType": "interact",
+          "actorId": "character:player",
+          "interaction": {
+            "characterId": "character:player",
+            "entityId": "entity:diary",
+            "fromHolderId": "character:player",
+            "fromLocationId": null,
+            "interactionId": "base:give",
+            "toHolderId": "character:companion",
+            "toLocationId": null
+          },
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:1c2df7211bb3551383a897ea",
+                "endUtf16": 195,
+                "kind": "action",
+                "startUtf16": 0,
+                "text": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}"
+              }
+            ],
+            "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}"
+          },
+          "reason": null,
+          "status": "accepted"
+        },
+        "observerId": "character:friend"
+      }
+    },
+    "previousHash": "sha256:c02fd3f5839e6f0b639ab8f5397ae6dbfb5860aca6946e13c03d1ba23d3ceeab",
+    "eventHash": "sha256:3a621cbd360e5a9b8a9bc29c568551a3cdc99573aa596a08d1e763b44022bb8d",
+    "transactionId": "transaction:coordinated-round:23b405e425e702d9b8487cd5",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 40,
+    "tick": 4,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:d9a0d1ddd6f65acf3bc79fc1",
+      "value": {
+        "actionId": "action:1c2df7211bb3551383a897ea",
+        "content": {
+          "actionType": "interact",
+          "actorId": "character:player",
+          "interaction": {
+            "characterId": "character:player",
+            "entityId": "entity:diary",
+            "fromHolderId": "character:player",
+            "fromLocationId": null,
+            "interactionId": "base:give",
+            "toHolderId": "character:companion",
+            "toLocationId": null
+          },
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:1c2df7211bb3551383a897ea",
+                "endUtf16": 195,
+                "kind": "action",
+                "startUtf16": 0,
+                "text": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}"
+              }
+            ],
+            "sourceText": "/act interact {\"targetRef\":{\"kind\":\"entity\",\"id\":\"entity:diary\"},\"bindingId\":\"binding:diary-give\",\"definitionRef\":{\"id\":\"base:give\",\"version\":1},\"arguments\":{\"recipientId\":\"character:companion\"}}"
+          },
+          "reason": null,
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:3a621cbd360e5a9b8a9bc29c568551a3cdc99573aa596a08d1e763b44022bb8d",
+    "eventHash": "sha256:c6591e131581c8fa330e3faa3e074c73c231b06c9f5fad47a3ac7e9b1ec8b8eb",
+    "transactionId": "transaction:coordinated-round:23b405e425e702d9b8487cd5",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 41,
+    "tick": 4,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "round:coordinated:c8e3735a979fa3328469411e",
+      "tick": 4
+    },
+    "previousHash": "sha256:c6591e131581c8fa330e3faa3e074c73c231b06c9f5fad47a3ac7e9b1ec8b8eb",
+    "eventHash": "sha256:488c2d0e25c5fdacbb91b5d0a429f23918467d98d17d75a218a0ce713e9648fd",
+    "transactionId": "transaction:coordinated-round:23b405e425e702d9b8487cd5",
+    "eventOrdinal": 5
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 42,
+    "tick": 5,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [
+        "character:player"
+      ],
+      "characterId": "character:companion",
+      "declaredSpeechAct": null,
+      "narration": "陆舟把日记接过来，随手塞进外套内袋，目光仍停在桌上那把铜怀表上。",
+      "replyTo": null,
+      "scope": "direct",
+      "text": "行，日记我收着。表还在桌上，先别急着拿——我想看看它到底能派上什么用场。"
+    },
+    "previousHash": "sha256:488c2d0e25c5fdacbb91b5d0a429f23918467d98d17d75a218a0ce713e9648fd",
+    "eventHash": "sha256:9ad18bcfe716b7129d03f670c4f933307989e092421af4c6140278a56fdbecc4",
+    "transactionId": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0:commit",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 43,
+    "tick": 5,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0:action",
+      "actionType": "speak",
+      "actorId": "character:companion",
+      "order": 0,
+      "participantId": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6",
+      "reason": null,
+      "roundId": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0",
+      "sourceRole": "agent"
+    },
+    "previousHash": "sha256:9ad18bcfe716b7129d03f670c4f933307989e092421af4c6140278a56fdbecc4",
+    "eventHash": "sha256:5e462141806e3e927441c51f90cc7a5b824323a103a956ebad7f0dfb2b364ca2",
+    "transactionId": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0:commit",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 44,
+    "tick": 5,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0:action:observer:character:companion",
+      "value": {
+        "actionId": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:companion",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:companion",
+            "declaredSpeechAct": null,
+            "narration": "陆舟把日记接过来，随手塞进外套内袋，目光仍停在桌上那把铜怀表上。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "行，日记我收着。表还在桌上，先别急着拿——我想看看它到底能派上什么用场。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:5e462141806e3e927441c51f90cc7a5b824323a103a956ebad7f0dfb2b364ca2",
+    "eventHash": "sha256:f92217dc20da94bf81924e3675d57c9ad815f54af428e70d95bb1e0e63f503e0",
+    "transactionId": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0:commit",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 45,
+    "tick": 5,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0:action:observer:character:player",
+      "value": {
+        "actionId": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:companion",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:companion",
+            "declaredSpeechAct": null,
+            "narration": "陆舟把日记接过来，随手塞进外套内袋，目光仍停在桌上那把铜怀表上。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "行，日记我收着。表还在桌上，先别急着拿——我想看看它到底能派上什么用场。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:f92217dc20da94bf81924e3675d57c9ad815f54af428e70d95bb1e0e63f503e0",
+    "eventHash": "sha256:295c97757a3845619e8f8f320fec1cf7c83dbacc18912433f4b5102c8e1709fa",
+    "transactionId": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0:commit",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 46,
+    "tick": 5,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0",
+      "tick": 5
+    },
+    "previousHash": "sha256:295c97757a3845619e8f8f320fec1cf7c83dbacc18912433f4b5102c8e1709fa",
+    "eventHash": "sha256:8f819f2baf680fb5861bd958b842a79761ebaa87927ce954deb396f4f7500fac",
+    "transactionId": "prototype-turn:510cceb2-4e26-49a4-899f-e959491e88d6:0:commit",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 47,
+    "tick": 6,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [
+        "character:player",
+        "character:companion"
+      ],
+      "characterId": "character:friend",
+      "declaredSpeechAct": null,
+      "narration": "程雨看着日记本从玩家手里转到陆舟手上，眉头轻轻动了一下，没急着说什么，只是把目光在两人之间来回扫了一遍。",
+      "replyTo": null,
+      "scope": "direct",
+      "text": "行，你们俩自己商量。我只管一件事——东西最后得有个说法。"
+    },
+    "previousHash": "sha256:8f819f2baf680fb5861bd958b842a79761ebaa87927ce954deb396f4f7500fac",
+    "eventHash": "sha256:327d5f0f74b5b82628be3a0cebbdd841202ec8d4c634ecc9800f7f37ea6cedf9",
+    "transactionId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:commit",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 48,
+    "tick": 6,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:action",
+      "actionType": "speak",
+      "actorId": "character:friend",
+      "order": 0,
+      "participantId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db",
+      "reason": null,
+      "roundId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0",
+      "sourceRole": "agent"
+    },
+    "previousHash": "sha256:327d5f0f74b5b82628be3a0cebbdd841202ec8d4c634ecc9800f7f37ea6cedf9",
+    "eventHash": "sha256:da96fd54183f802ce6b8ec653584f40277469b5cbefd76c2f62671989a0db79c",
+    "transactionId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:commit",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 49,
+    "tick": 6,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:action:observer:character:companion",
+      "value": {
+        "actionId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player",
+              "character:companion"
+            ],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨看着日记本从玩家手里转到陆舟手上，眉头轻轻动了一下，没急着说什么，只是把目光在两人之间来回扫了一遍。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "行，你们俩自己商量。我只管一件事——东西最后得有个说法。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:da96fd54183f802ce6b8ec653584f40277469b5cbefd76c2f62671989a0db79c",
+    "eventHash": "sha256:b8f5a1891835ac1021593dc38c2fc283ef43326e0c206024c2a61ee55eaf3f5f",
+    "transactionId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:commit",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 50,
+    "tick": 6,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:action:observer:character:friend",
+      "value": {
+        "actionId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player",
+              "character:companion"
+            ],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨看着日记本从玩家手里转到陆舟手上，眉头轻轻动了一下，没急着说什么，只是把目光在两人之间来回扫了一遍。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "行，你们俩自己商量。我只管一件事——东西最后得有个说法。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:friend"
+      }
+    },
+    "previousHash": "sha256:b8f5a1891835ac1021593dc38c2fc283ef43326e0c206024c2a61ee55eaf3f5f",
+    "eventHash": "sha256:beca61f744aa74876d296f3af47612eed983cac00ceef03472577e3ee6c141f7",
+    "transactionId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:commit",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 51,
+    "tick": 6,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:action:observer:character:player",
+      "value": {
+        "actionId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player",
+              "character:companion"
+            ],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨看着日记本从玩家手里转到陆舟手上，眉头轻轻动了一下，没急着说什么，只是把目光在两人之间来回扫了一遍。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "行，你们俩自己商量。我只管一件事——东西最后得有个说法。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:beca61f744aa74876d296f3af47612eed983cac00ceef03472577e3ee6c141f7",
+    "eventHash": "sha256:70ecd035e978d9079852852cfed2fb132934a25318c13139621e33ab56728ccc",
+    "transactionId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:commit",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 52,
+    "tick": 6,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0",
+      "tick": 6
+    },
+    "previousHash": "sha256:70ecd035e978d9079852852cfed2fb132934a25318c13139621e33ab56728ccc",
+    "eventHash": "sha256:412ce48ad0633fb1dcc3cd8b0cc245c08e9571ae462a82d2442ddda8c5927580",
+    "transactionId": "prototype-turn:55a5c7f0-a971-46a5-89b8-477effda08db:0:commit",
+    "eventOrdinal": 5
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 53,
+    "tick": 7,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [
+        "character:friend"
+      ],
+      "characterId": "character:companion",
+      "declaredSpeechAct": null,
+      "narration": "陆舟拍了拍外套内袋，语气很平，目光没离开那把铜怀表。",
+      "replyTo": null,
+      "scope": "direct",
+      "text": "说法会有。日记在我这儿，表还在桌上，谁也没动。等我看明白它有什么用，再定归谁。"
+    },
+    "previousHash": "sha256:412ce48ad0633fb1dcc3cd8b0cc245c08e9571ae462a82d2442ddda8c5927580",
+    "eventHash": "sha256:b9c9c9f1535e94cda03f6886b488ccd81aa48e7f9711d657693de29e3c35d0ae",
+    "transactionId": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0:commit",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 54,
+    "tick": 7,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0:action",
+      "actionType": "speak",
+      "actorId": "character:companion",
+      "order": 0,
+      "participantId": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542",
+      "reason": null,
+      "roundId": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0",
+      "sourceRole": "agent"
+    },
+    "previousHash": "sha256:b9c9c9f1535e94cda03f6886b488ccd81aa48e7f9711d657693de29e3c35d0ae",
+    "eventHash": "sha256:ffee4f315dcdf6fea2dbc5b659b35c28e3984511ac5b6353cfdbbcd0f71805cc",
+    "transactionId": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0:commit",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 55,
+    "tick": 7,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0:action:observer:character:companion",
+      "value": {
+        "actionId": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:companion",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:friend"
+            ],
+            "characterId": "character:companion",
+            "declaredSpeechAct": null,
+            "narration": "陆舟拍了拍外套内袋，语气很平，目光没离开那把铜怀表。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "说法会有。日记在我这儿，表还在桌上，谁也没动。等我看明白它有什么用，再定归谁。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:ffee4f315dcdf6fea2dbc5b659b35c28e3984511ac5b6353cfdbbcd0f71805cc",
+    "eventHash": "sha256:e44ee64514c8e49fe97d072d71824bdd86064dff7a0210913769237e1df3005c",
+    "transactionId": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0:commit",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 56,
+    "tick": 7,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0:action:observer:character:friend",
+      "value": {
+        "actionId": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:companion",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:friend"
+            ],
+            "characterId": "character:companion",
+            "declaredSpeechAct": null,
+            "narration": "陆舟拍了拍外套内袋，语气很平，目光没离开那把铜怀表。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "说法会有。日记在我这儿，表还在桌上，谁也没动。等我看明白它有什么用，再定归谁。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:friend"
+      }
+    },
+    "previousHash": "sha256:e44ee64514c8e49fe97d072d71824bdd86064dff7a0210913769237e1df3005c",
+    "eventHash": "sha256:38d3c9fb1146e9a3df800ec7826f8d2b60c3a33f1e7a5686799ccd729fda0c7d",
+    "transactionId": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0:commit",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 57,
+    "tick": 7,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0",
+      "tick": 7
+    },
+    "previousHash": "sha256:38d3c9fb1146e9a3df800ec7826f8d2b60c3a33f1e7a5686799ccd729fda0c7d",
+    "eventHash": "sha256:64e33567be40fa637e6d7b3cf1af00f44c3e95728bdcd87120630eb116d4161b",
+    "transactionId": "prototype-turn:710ba06e-9a0a-4a1f-a964-1ae43b597542:0:commit",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 58,
+    "tick": 8,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [
+        "character:companion"
+      ],
+      "characterId": "character:friend",
+      "declaredSpeechAct": null,
+      "narration": "程雨顺着陆舟的目光看了一眼桌上的铜怀表，没伸手，只是把两只手插回外套口袋。",
+      "replyTo": null,
+      "scope": "direct",
+      "text": "行，那就先放着。表我不碰，你看你的。看明白了跟我说一声——失物台的东西，我总得记一笔。"
+    },
+    "previousHash": "sha256:64e33567be40fa637e6d7b3cf1af00f44c3e95728bdcd87120630eb116d4161b",
+    "eventHash": "sha256:60a170b5afb6f8ff712601d2506d9297a21f83f602de9e67289002ad574f0e1a",
+    "transactionId": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0:commit",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 59,
+    "tick": 8,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0:action",
+      "actionType": "speak",
+      "actorId": "character:friend",
+      "order": 0,
+      "participantId": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20",
+      "reason": null,
+      "roundId": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0",
+      "sourceRole": "agent"
+    },
+    "previousHash": "sha256:60a170b5afb6f8ff712601d2506d9297a21f83f602de9e67289002ad574f0e1a",
+    "eventHash": "sha256:92105f7ec13444cb3cef88f99bc30207504f9ac6792b6848b7ed463f319dc1b3",
+    "transactionId": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0:commit",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 60,
+    "tick": 8,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0:action:observer:character:companion",
+      "value": {
+        "actionId": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:companion"
+            ],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨顺着陆舟的目光看了一眼桌上的铜怀表，没伸手，只是把两只手插回外套口袋。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "行，那就先放着。表我不碰，你看你的。看明白了跟我说一声——失物台的东西，我总得记一笔。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:92105f7ec13444cb3cef88f99bc30207504f9ac6792b6848b7ed463f319dc1b3",
+    "eventHash": "sha256:32c1abc2807a14d86bbd7296b0006162a06e8bf36933cecc4c2bfd477db6af38",
+    "transactionId": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0:commit",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 61,
+    "tick": 8,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0:action:observer:character:friend",
+      "value": {
+        "actionId": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:companion"
+            ],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨顺着陆舟的目光看了一眼桌上的铜怀表，没伸手，只是把两只手插回外套口袋。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "行，那就先放着。表我不碰，你看你的。看明白了跟我说一声——失物台的东西，我总得记一笔。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:friend"
+      }
+    },
+    "previousHash": "sha256:32c1abc2807a14d86bbd7296b0006162a06e8bf36933cecc4c2bfd477db6af38",
+    "eventHash": "sha256:d0850e4c0eda820535d01e93b9e8188cc9a31e3b47ff1ffe2f874eee3379ffed",
+    "transactionId": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0:commit",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 62,
+    "tick": 8,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0",
+      "tick": 8
+    },
+    "previousHash": "sha256:d0850e4c0eda820535d01e93b9e8188cc9a31e3b47ff1ffe2f874eee3379ffed",
+    "eventHash": "sha256:e6c2cab4826f04ce32313ea6cef06a397c54d160f6f5d378f0ccdfdfce83f9ce",
+    "transactionId": "prototype-turn:c013cd6a-3333-478b-8b07-7cb10b415c20:0:commit",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 63,
+    "tick": 9,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [],
+      "characterId": "character:player",
+      "declaredSpeechAct": null,
+      "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人",
+      "replyTo": null,
+      "scope": "scene_public",
+      "text": ""
+    },
+    "previousHash": "sha256:e6c2cab4826f04ce32313ea6cef06a397c54d160f6f5d378f0ccdfdfce83f9ce",
+    "eventHash": "sha256:d5e50da381599773b8e2e2b3786087a0c90149ef9c4cbb42b27d9ab595f62c91",
+    "transactionId": "transaction:coordinated-round:567e5e612198b211fc26f905",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 64,
+    "tick": 9,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "action:daebd16d2201946791d48c63",
+      "actionType": "speak",
+      "actorId": "character:player",
+      "order": 0,
+      "participantId": "player",
+      "reason": null,
+      "roundId": "round:coordinated:db5a7a1d84820161f1191144",
+      "sourceRole": "player"
+    },
+    "previousHash": "sha256:d5e50da381599773b8e2e2b3786087a0c90149ef9c4cbb42b27d9ab595f62c91",
+    "eventHash": "sha256:21e376c18627457b7de072f6cf0addf411dbe964ff1d695899ccf8583c862347",
+    "transactionId": "transaction:coordinated-round:567e5e612198b211fc26f905",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 65,
+    "tick": 9,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:2c6ee5077f28a2981fd127d3",
+      "value": {
+        "actionId": "action:daebd16d2201946791d48c63",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:daebd16d2201946791d48c63",
+                "endUtf16": 36,
+                "kind": "narration",
+                "startUtf16": 6,
+                "text": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人"
+              }
+            ],
+            "sourceText": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+          },
+          "reason": null,
+          "speech": {
+            "addresseeIds": [],
+            "characterId": "character:player",
+            "declaredSpeechAct": null,
+            "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人",
+            "replyTo": null,
+            "scope": "scene_public",
+            "text": ""
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:21e376c18627457b7de072f6cf0addf411dbe964ff1d695899ccf8583c862347",
+    "eventHash": "sha256:712479e58a9a00c60ef7e1de3b72e05eb9dc8df4ac210da8f5f518ae06806453",
+    "transactionId": "transaction:coordinated-round:567e5e612198b211fc26f905",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 66,
+    "tick": 9,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:92cdfa4f281d179629668c1a",
+      "value": {
+        "actionId": "action:daebd16d2201946791d48c63",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:daebd16d2201946791d48c63",
+                "endUtf16": 36,
+                "kind": "narration",
+                "startUtf16": 6,
+                "text": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人"
+              }
+            ],
+            "sourceText": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+          },
+          "reason": null,
+          "speech": {
+            "addresseeIds": [],
+            "characterId": "character:player",
+            "declaredSpeechAct": null,
+            "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人",
+            "replyTo": null,
+            "scope": "scene_public",
+            "text": ""
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:friend"
+      }
+    },
+    "previousHash": "sha256:712479e58a9a00c60ef7e1de3b72e05eb9dc8df4ac210da8f5f518ae06806453",
+    "eventHash": "sha256:681c9301c5b71b8252e41a4b0a32339460388a330074812e1b4b03be6f2b34e1",
+    "transactionId": "transaction:coordinated-round:567e5e612198b211fc26f905",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 67,
+    "tick": 9,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:44f37fd4016178b35ef6a743",
+      "value": {
+        "actionId": "action:daebd16d2201946791d48c63",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:daebd16d2201946791d48c63",
+                "endUtf16": 36,
+                "kind": "narration",
+                "startUtf16": 6,
+                "text": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人"
+              }
+            ],
+            "sourceText": "陆舟，你可以把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人。"
+          },
+          "reason": null,
+          "speech": {
+            "addresseeIds": [],
+            "characterId": "character:player",
+            "declaredSpeechAct": null,
+            "narration": "把自己保管的布面日记暂放桌上，腾出手整理衣袖，不用改变保管人",
+            "replyTo": null,
+            "scope": "scene_public",
+            "text": ""
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:681c9301c5b71b8252e41a4b0a32339460388a330074812e1b4b03be6f2b34e1",
+    "eventHash": "sha256:c73cb1239c6d6e03f635247e6a5d94960676891e0c65f7da82a10a59cfc09c92",
+    "transactionId": "transaction:coordinated-round:567e5e612198b211fc26f905",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 68,
+    "tick": 9,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "round:coordinated:db5a7a1d84820161f1191144",
+      "tick": 9
+    },
+    "previousHash": "sha256:c73cb1239c6d6e03f635247e6a5d94960676891e0c65f7da82a10a59cfc09c92",
+    "eventHash": "sha256:ab2e350597645dbeeaa2a662eab5fccd95de008314ae2b0146a8cfa32947a66c",
+    "transactionId": "transaction:coordinated-round:567e5e612198b211fc26f905",
+    "eventOrdinal": 5
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 69,
+    "tick": 10,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [
+        "character:player"
+      ],
+      "characterId": "character:companion",
+      "declaredSpeechAct": null,
+      "narration": "陆舟没去碰内袋，只是把外套下摆理了理，目光从桌上那把铜怀表移开，扫了一眼玩家和程雨。",
+      "replyTo": null,
+      "scope": "direct",
+      "text": "日记放我这儿，不用掏出来。表还在桌上，谁也没动。我先看看它。"
+    },
+    "previousHash": "sha256:ab2e350597645dbeeaa2a662eab5fccd95de008314ae2b0146a8cfa32947a66c",
+    "eventHash": "sha256:1eb419b016364b3a95eff4fd384bf44f4b1c1447df097e628412869a1081f4d3",
+    "transactionId": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0:commit",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 70,
+    "tick": 10,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0:action",
+      "actionType": "speak",
+      "actorId": "character:companion",
+      "order": 0,
+      "participantId": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b",
+      "reason": null,
+      "roundId": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0",
+      "sourceRole": "agent"
+    },
+    "previousHash": "sha256:1eb419b016364b3a95eff4fd384bf44f4b1c1447df097e628412869a1081f4d3",
+    "eventHash": "sha256:f8caa09572c4e7a435c9b9bca940a234597b7f378007e17ab5e94e71f9258de4",
+    "transactionId": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0:commit",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 71,
+    "tick": 10,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0:action:observer:character:companion",
+      "value": {
+        "actionId": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:companion",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:companion",
+            "declaredSpeechAct": null,
+            "narration": "陆舟没去碰内袋，只是把外套下摆理了理，目光从桌上那把铜怀表移开，扫了一眼玩家和程雨。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "日记放我这儿，不用掏出来。表还在桌上，谁也没动。我先看看它。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:f8caa09572c4e7a435c9b9bca940a234597b7f378007e17ab5e94e71f9258de4",
+    "eventHash": "sha256:9e987c9cd5c41ef75e771b799dcda7a335da565472f62eb419446d433eb0f57d",
+    "transactionId": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0:commit",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 72,
+    "tick": 10,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0:action:observer:character:player",
+      "value": {
+        "actionId": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:companion",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:companion",
+            "declaredSpeechAct": null,
+            "narration": "陆舟没去碰内袋，只是把外套下摆理了理，目光从桌上那把铜怀表移开，扫了一眼玩家和程雨。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "日记放我这儿，不用掏出来。表还在桌上，谁也没动。我先看看它。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:9e987c9cd5c41ef75e771b799dcda7a335da565472f62eb419446d433eb0f57d",
+    "eventHash": "sha256:34469b4aae9522891f08e0b8ce48bd068e2943c865af636c752e4a68ae098c93",
+    "transactionId": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0:commit",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 73,
+    "tick": 10,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0",
+      "tick": 10
+    },
+    "previousHash": "sha256:34469b4aae9522891f08e0b8ce48bd068e2943c865af636c752e4a68ae098c93",
+    "eventHash": "sha256:c19d9487af18b651ffc4a064f50c29d4c24f099f9511fcabe4281f7c4426de4c",
+    "transactionId": "prototype-turn:9ba51882-8d81-4dcb-9d7e-c1e51cbac87b:0:commit",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 74,
+    "tick": 11,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [
+        "character:player"
+      ],
+      "characterId": "character:friend",
+      "declaredSpeechAct": null,
+      "narration": "程雨看着玩家把日记搁在桌上又去理袖子，没接话，只把视线在那本布面日记上停了一下，又移回桌上的铜怀表。她手还插在口袋里，没动。",
+      "replyTo": null,
+      "scope": "direct",
+      "text": "放桌上也行。反正谁拿的、谁放的，我都看着呢。"
+    },
+    "previousHash": "sha256:c19d9487af18b651ffc4a064f50c29d4c24f099f9511fcabe4281f7c4426de4c",
+    "eventHash": "sha256:375b74c297b684b8917971f802eeb7f6ea8750f8c367385fc15f3148be6f11da",
+    "transactionId": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0:commit",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 75,
+    "tick": 11,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0:action",
+      "actionType": "speak",
+      "actorId": "character:friend",
+      "order": 0,
+      "participantId": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d",
+      "reason": null,
+      "roundId": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0",
+      "sourceRole": "agent"
+    },
+    "previousHash": "sha256:375b74c297b684b8917971f802eeb7f6ea8750f8c367385fc15f3148be6f11da",
+    "eventHash": "sha256:464bcb2c6a0b0571ce169920c546a8b5d18b190ebcf798b0c5a638c91360d50b",
+    "transactionId": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0:commit",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 76,
+    "tick": 11,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0:action:observer:character:friend",
+      "value": {
+        "actionId": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨看着玩家把日记搁在桌上又去理袖子，没接话，只把视线在那本布面日记上停了一下，又移回桌上的铜怀表。她手还插在口袋里，没动。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "放桌上也行。反正谁拿的、谁放的，我都看着呢。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:friend"
+      }
+    },
+    "previousHash": "sha256:464bcb2c6a0b0571ce169920c546a8b5d18b190ebcf798b0c5a638c91360d50b",
+    "eventHash": "sha256:482a4358c3d9c6edd630abceafd30c8afe9f1aa5963b903e034021bd20fc60e7",
+    "transactionId": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0:commit",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 77,
+    "tick": 11,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0:action:observer:character:player",
+      "value": {
+        "actionId": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨看着玩家把日记搁在桌上又去理袖子，没接话，只把视线在那本布面日记上停了一下，又移回桌上的铜怀表。她手还插在口袋里，没动。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "放桌上也行。反正谁拿的、谁放的，我都看着呢。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:482a4358c3d9c6edd630abceafd30c8afe9f1aa5963b903e034021bd20fc60e7",
+    "eventHash": "sha256:952a5d0af435e08db5e7f1991f1cf33ed16e39f8f370030a71cb8d51e6d010fe",
+    "transactionId": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0:commit",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 78,
+    "tick": 11,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0",
+      "tick": 11
+    },
+    "previousHash": "sha256:952a5d0af435e08db5e7f1991f1cf33ed16e39f8f370030a71cb8d51e6d010fe",
+    "eventHash": "sha256:621b76e4b878bb19486982a0e6e0e79c31b7dba36ce5e0105c47c87420b6bdba",
+    "transactionId": "prototype-turn:8a688177-c933-4359-a478-7691e79e9b2d:0:commit",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 79,
+    "tick": 12,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [],
+      "characterId": "character:player",
+      "declaredSpeechAct": null,
+      "replyTo": null,
+      "scope": "scene_public",
+      "text": "陆舟，你为什么这么处理日记？"
+    },
+    "previousHash": "sha256:621b76e4b878bb19486982a0e6e0e79c31b7dba36ce5e0105c47c87420b6bdba",
+    "eventHash": "sha256:0b41c4d4be287a0b693a28defd7533c56d9b3e212904cfeb21b2ecf9e6879d0d",
+    "transactionId": "transaction:coordinated-round:84ba37c4f06738be47c7cd13",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 80,
+    "tick": 12,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "action:dcf5ce5f3d81ea0820daad21",
+      "actionType": "speak",
+      "actorId": "character:player",
+      "order": 0,
+      "participantId": "player",
+      "reason": null,
+      "roundId": "round:coordinated:387b2c769f7de58da5c4336c",
+      "sourceRole": "player"
+    },
+    "previousHash": "sha256:0b41c4d4be287a0b693a28defd7533c56d9b3e212904cfeb21b2ecf9e6879d0d",
+    "eventHash": "sha256:be31de8fb515b0d39f1d0e1b5f8f173436f6704273ce36b1a6d0817b099fe584",
+    "transactionId": "transaction:coordinated-round:84ba37c4f06738be47c7cd13",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 81,
+    "tick": 12,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:3338525595fe8e0bd8b5441e",
+      "value": {
+        "actionId": "action:dcf5ce5f3d81ea0820daad21",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:dcf5ce5f3d81ea0820daad21",
+                "endUtf16": 14,
+                "kind": "speech",
+                "startUtf16": 0,
+                "text": "陆舟，你为什么这么处理日记？"
+              }
+            ],
+            "sourceText": "陆舟，你为什么这么处理日记？"
+          },
+          "reason": null,
+          "speech": {
+            "addresseeIds": [],
+            "characterId": "character:player",
+            "declaredSpeechAct": null,
+            "replyTo": null,
+            "scope": "scene_public",
+            "text": "陆舟，你为什么这么处理日记？"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:be31de8fb515b0d39f1d0e1b5f8f173436f6704273ce36b1a6d0817b099fe584",
+    "eventHash": "sha256:4083dfad62766d52d428bc18a4eff2366fe18a0cc773821316cc3f19264ac432",
+    "transactionId": "transaction:coordinated-round:84ba37c4f06738be47c7cd13",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 82,
+    "tick": 12,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:19b4df29d43dee12c9097bff",
+      "value": {
+        "actionId": "action:dcf5ce5f3d81ea0820daad21",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:dcf5ce5f3d81ea0820daad21",
+                "endUtf16": 14,
+                "kind": "speech",
+                "startUtf16": 0,
+                "text": "陆舟，你为什么这么处理日记？"
+              }
+            ],
+            "sourceText": "陆舟，你为什么这么处理日记？"
+          },
+          "reason": null,
+          "speech": {
+            "addresseeIds": [],
+            "characterId": "character:player",
+            "declaredSpeechAct": null,
+            "replyTo": null,
+            "scope": "scene_public",
+            "text": "陆舟，你为什么这么处理日记？"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:friend"
+      }
+    },
+    "previousHash": "sha256:4083dfad62766d52d428bc18a4eff2366fe18a0cc773821316cc3f19264ac432",
+    "eventHash": "sha256:6a1ce8fe7c0c1d327fd01527a6482f4e19910e801fa9c05718e88c9d3b74c7d3",
+    "transactionId": "transaction:coordinated-round:84ba37c4f06738be47c7cd13",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 83,
+    "tick": 12,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:scene-result:65f8fac81bf5daa3d096600d",
+      "value": {
+        "actionId": "action:dcf5ce5f3d81ea0820daad21",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "playerInput": {
+            "actorId": "character:player",
+            "note": "原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。",
+            "sourceSpans": [
+              {
+                "actionId": "action:dcf5ce5f3d81ea0820daad21",
+                "endUtf16": 14,
+                "kind": "speech",
+                "startUtf16": 0,
+                "text": "陆舟，你为什么这么处理日记？"
+              }
+            ],
+            "sourceText": "陆舟，你为什么这么处理日记？"
+          },
+          "reason": null,
+          "speech": {
+            "addresseeIds": [],
+            "characterId": "character:player",
+            "declaredSpeechAct": null,
+            "replyTo": null,
+            "scope": "scene_public",
+            "text": "陆舟，你为什么这么处理日记？"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:6a1ce8fe7c0c1d327fd01527a6482f4e19910e801fa9c05718e88c9d3b74c7d3",
+    "eventHash": "sha256:35c092c1fd9817645815737dd876e81202fd3895a8409fd863876ae8de625bb8",
+    "transactionId": "transaction:coordinated-round:84ba37c4f06738be47c7cd13",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 84,
+    "tick": 12,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "round:coordinated:387b2c769f7de58da5c4336c",
+      "tick": 12
+    },
+    "previousHash": "sha256:35c092c1fd9817645815737dd876e81202fd3895a8409fd863876ae8de625bb8",
+    "eventHash": "sha256:37ebda70e94ff063cee40c4a4bcdd861f969cc2444fc9d0578ec2b7db0f7b37a",
+    "transactionId": "transaction:coordinated-round:84ba37c4f06738be47c7cd13",
+    "eventOrdinal": 5
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 85,
+    "tick": 13,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [
+        "character:player"
+      ],
+      "characterId": "character:companion",
+      "declaredSpeechAct": null,
+      "narration": "陆舟没去碰外套内袋，只是把手插回口袋，看着玩家。",
+      "replyTo": null,
+      "scope": "direct",
+      "text": "日记是你先拿的，又塞给我。我收着，是因为你不想自己管。表还没弄明白，先别急着分。你要想拿回去，说一声。"
+    },
+    "previousHash": "sha256:37ebda70e94ff063cee40c4a4bcdd861f969cc2444fc9d0578ec2b7db0f7b37a",
+    "eventHash": "sha256:b5ec2b21ff3db9316d9fdb3b81a9638ee0e11eec7f3330301e6879702aabbba7",
+    "transactionId": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0:commit",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 86,
+    "tick": 13,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0:action",
+      "actionType": "speak",
+      "actorId": "character:companion",
+      "order": 0,
+      "participantId": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81",
+      "reason": null,
+      "roundId": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0",
+      "sourceRole": "agent"
+    },
+    "previousHash": "sha256:b5ec2b21ff3db9316d9fdb3b81a9638ee0e11eec7f3330301e6879702aabbba7",
+    "eventHash": "sha256:e1092a6d4302667ee4d66345a2710ecabcf1fa6adc625222ca5a1d43fe6e4449",
+    "transactionId": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0:commit",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 87,
+    "tick": 13,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0:action:observer:character:companion",
+      "value": {
+        "actionId": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:companion",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:companion",
+            "declaredSpeechAct": null,
+            "narration": "陆舟没去碰外套内袋，只是把手插回口袋，看着玩家。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "日记是你先拿的，又塞给我。我收着，是因为你不想自己管。表还没弄明白，先别急着分。你要想拿回去，说一声。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:e1092a6d4302667ee4d66345a2710ecabcf1fa6adc625222ca5a1d43fe6e4449",
+    "eventHash": "sha256:c27c059ae22f73e6502936658593ec47ce7efbeea70a048710c568502717b5b4",
+    "transactionId": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0:commit",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 88,
+    "tick": 13,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0:action:observer:character:player",
+      "value": {
+        "actionId": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:companion",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:companion",
+            "declaredSpeechAct": null,
+            "narration": "陆舟没去碰外套内袋，只是把手插回口袋，看着玩家。",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "日记是你先拿的，又塞给我。我收着，是因为你不想自己管。表还没弄明白，先别急着分。你要想拿回去，说一声。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:c27c059ae22f73e6502936658593ec47ce7efbeea70a048710c568502717b5b4",
+    "eventHash": "sha256:4a7e2d66c9a546121afd510c5e964733b3f3e8d4a572ae0611066c5382c12451",
+    "transactionId": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0:commit",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 89,
+    "tick": 13,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0",
+      "tick": 13
+    },
+    "previousHash": "sha256:4a7e2d66c9a546121afd510c5e964733b3f3e8d4a572ae0611066c5382c12451",
+    "eventHash": "sha256:d660f6dddf0575e3f1bf377f14b2d10680416c60c785ef9eebddaa74c77916a9",
+    "transactionId": "prototype-turn:668997a8-8f17-4462-868a-013900f55f81:0:commit",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 90,
+    "tick": 14,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [],
+      "characterId": "character:friend",
+      "declaredSpeechAct": null,
+      "narration": "程雨没接话，只是把目光从铜怀表上收回来，落在玩家脸上，像是在等陆舟自己回答。",
+      "replyTo": null,
+      "scope": "scene_public",
+      "text": ""
+    },
+    "previousHash": "sha256:d660f6dddf0575e3f1bf377f14b2d10680416c60c785ef9eebddaa74c77916a9",
+    "eventHash": "sha256:b3e02f194c3e477ffc975c2f6dfdf621775d5d274bd15888c967ddd2da19f05a",
+    "transactionId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:commit",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 91,
+    "tick": 14,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:action",
+      "actionType": "speak",
+      "actorId": "character:friend",
+      "order": 0,
+      "participantId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365",
+      "reason": null,
+      "roundId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0",
+      "sourceRole": "agent"
+    },
+    "previousHash": "sha256:b3e02f194c3e477ffc975c2f6dfdf621775d5d274bd15888c967ddd2da19f05a",
+    "eventHash": "sha256:608e58c7f8f4b01ee66ee7a0b82c5f5b3abff9fb0644edcceedaa3379d6ce275",
+    "transactionId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:commit",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 92,
+    "tick": 14,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:action:observer:character:companion",
+      "value": {
+        "actionId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨没接话，只是把目光从铜怀表上收回来，落在玩家脸上，像是在等陆舟自己回答。",
+            "replyTo": null,
+            "scope": "scene_public",
+            "text": ""
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:companion"
+      }
+    },
+    "previousHash": "sha256:608e58c7f8f4b01ee66ee7a0b82c5f5b3abff9fb0644edcceedaa3379d6ce275",
+    "eventHash": "sha256:49764b64d95382f6f8e7b3cc1ebffedf76a1bd28ef75a7839205a98546877f4d",
+    "transactionId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:commit",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 93,
+    "tick": 14,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:action:observer:character:friend",
+      "value": {
+        "actionId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨没接话，只是把目光从铜怀表上收回来，落在玩家脸上，像是在等陆舟自己回答。",
+            "replyTo": null,
+            "scope": "scene_public",
+            "text": ""
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:friend"
+      }
+    },
+    "previousHash": "sha256:49764b64d95382f6f8e7b3cc1ebffedf76a1bd28ef75a7839205a98546877f4d",
+    "eventHash": "sha256:92598e91dd8ade76ab276f4818fe474d5119cb57b9c092354e073001ebf91a7f",
+    "transactionId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:commit",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 94,
+    "tick": 14,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:action:observer:character:player",
+      "value": {
+        "actionId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:friend",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [],
+            "characterId": "character:friend",
+            "declaredSpeechAct": null,
+            "narration": "程雨没接话，只是把目光从铜怀表上收回来，落在玩家脸上，像是在等陆舟自己回答。",
+            "replyTo": null,
+            "scope": "scene_public",
+            "text": ""
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:92598e91dd8ade76ab276f4818fe474d5119cb57b9c092354e073001ebf91a7f",
+    "eventHash": "sha256:727e09d328a5aff5b2131058c6acd3a2b4c0a7be28d1fd2276d7ecca33cd98c4",
+    "transactionId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:commit",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:web-playtest",
+      "worldId": "world:web-playtest:1372226f9c10584b",
+      "branchId": "branch:main"
+    },
+    "seq": 95,
+    "tick": 14,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0",
+      "tick": 14
+    },
+    "previousHash": "sha256:727e09d328a5aff5b2131058c6acd3a2b4c0a7be28d1fd2276d7ecca33cd98c4",
+    "eventHash": "sha256:4b957d10b804f047c7d5f0f3c4fb521a95e28e1beade3419df945424fe0450ef",
+    "transactionId": "prototype-turn:a9a196d8-baaf-4f9d-8a8d-584cabf4b365:0:commit",
+    "eventOrdinal": 5
+  }
+]
