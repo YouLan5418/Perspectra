@@ -1,0 +1,130 @@
+{
+  "runs": [
+    {
+      "name": "a1",
+      "rounds": 12,
+      "npcPublications": 34,
+      "personConflicts": 0,
+      "groundConflicts": 3,
+      "repairs": 0,
+      "primaryCalls": 37,
+      "roundLatencyMs": {
+        "n": 12,
+        "median": 4103.5,
+        "p90": 5868
+      },
+      "preAuditLatencyMs": null,
+      "characterLimitRounds": 6,
+      "noNpcReplyRounds": [],
+      "shadowConflicts": 3,
+      "shadowErrors": 0,
+      "costUsd": 0.041530692,
+      "failedRounds": 0,
+      "preAuditFailures": 0,
+      "auditComplete": true,
+      "worldUnchangedDuringDrain": true,
+      "finalsMatchPublication": true
+    },
+    {
+      "name": "a2",
+      "rounds": 12,
+      "npcPublications": 48,
+      "personConflicts": 1,
+      "groundConflicts": 0,
+      "repairs": 0,
+      "primaryCalls": 53,
+      "roundLatencyMs": {
+        "n": 12,
+        "median": 5457.5,
+        "p90": 6414
+      },
+      "preAuditLatencyMs": null,
+      "characterLimitRounds": 12,
+      "noNpcReplyRounds": [],
+      "shadowConflicts": 1,
+      "shadowErrors": 0,
+      "costUsd": 0.05865232800000004,
+      "failedRounds": 0,
+      "preAuditFailures": 0,
+      "auditComplete": true,
+      "worldUnchangedDuringDrain": true,
+      "finalsMatchPublication": true
+    },
+    {
+      "name": "b1",
+      "rounds": 12,
+      "npcPublications": 48,
+      "personConflicts": 0,
+      "groundConflicts": 0,
+      "repairs": 13,
+      "primaryCalls": 66,
+      "roundLatencyMs": {
+        "n": 12,
+        "median": 9156.5,
+        "p90": 11109
+      },
+      "preAuditLatencyMs": {
+        "n": 48,
+        "median": 741.5,
+        "p90": 1748
+      },
+      "characterLimitRounds": 12,
+      "noNpcReplyRounds": [],
+      "shadowConflicts": 6,
+      "shadowErrors": 0,
+      "costUsd": 0.11074055999999999,
+      "failedRounds": 0,
+      "preAuditFailures": 0,
+      "auditComplete": true,
+      "worldUnchangedDuringDrain": true,
+      "finalsMatchPublication": true
+    },
+    {
+      "name": "b2",
+      "rounds": 12,
+      "npcPublications": 48,
+      "personConflicts": 4,
+      "groundConflicts": 0,
+      "repairs": 1,
+      "primaryCalls": 54,
+      "roundLatencyMs": {
+        "n": 12,
+        "median": 7834.0,
+        "p90": 8915
+      },
+      "preAuditLatencyMs": {
+        "n": 48,
+        "median": 467.5,
+        "p90": 1162
+      },
+      "characterLimitRounds": 12,
+      "noNpcReplyRounds": [],
+      "shadowConflicts": 1,
+      "shadowErrors": 0,
+      "costUsd": 0.105879144,
+      "failedRounds": 0,
+      "preAuditFailures": 0,
+      "auditComplete": true,
+      "worldUnchangedDuringDrain": true,
+      "finalsMatchPublication": true
+    }
+  ],
+  "repairReviewCounts": {
+    "correct": 3,
+    "temporal_ambiguous_bad_repair": 1,
+    "unnecessary": 10
+  },
+  "frozenSourcesUnchanged": {
+    "tests/experiments/jev-shadow-claims-client.ts": true,
+    "tests/experiments/jev-shadow.ts": true,
+    "tests/experiments/jev-shadow-window.ts": true,
+    "tests/experiments/jev-publication-intervention.ts": true
+  },
+  "identicalPlayerInputs": true,
+  "totalNpcPublications": 178,
+  "liveJevCostUsd": 0.31680272400000004,
+  "liveGatePassed": false,
+  "reason": "Corrected group retains four explicit holder conflicts; ten unnecessary repair attempts and one ambiguous temporal repair that introduces a new current-holder contradiction.",
+  "independentHumanReview": false,
+  "causalReductionAccepted": false
+}

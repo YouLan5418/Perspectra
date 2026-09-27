@@ -1,0 +1,307 @@
+{
+  "kind": "live",
+  "mode": "baseline",
+  "repairCalls": 0,
+  "preAuditFailures": 0,
+  "preAuditCostUsd": 0,
+  "publicationsAudited": 34,
+  "latencyMs": [
+    3927,
+    6397,
+    5637,
+    5868,
+    4489,
+    4704,
+    3868,
+    4280,
+    1340,
+    1321,
+    1482,
+    1178
+  ],
+  "activationTerminals": [
+    "character_limit",
+    "character_limit",
+    "character_limit",
+    "character_limit",
+    "character_limit",
+    "character_limit",
+    "quiescent",
+    "quiescent",
+    "quiescent",
+    "quiescent",
+    "quiescent",
+    "quiescent"
+  ],
+  "explicitDialogue": true,
+  "temporaryReceiptProbe": true,
+  "model": "deepseek-flash",
+  "rounds": 12,
+  "initialSeq": 19,
+  "headSeq": 300,
+  "providerCalls": 37,
+  "failedRounds": 0,
+  "statsBeforeDrain": {
+    "records": 68,
+    "errors": 0,
+    "skippedWindows": 0,
+    "pendingWindows": 4
+  },
+  "expectedRecords": 92,
+  "auditComplete": true,
+  "unchangedDuringAuditDrain": true,
+  "keyState": {
+    "entityId": "entity:pocket-watch",
+    "locationId": null,
+    "holderId": "character:friend",
+    "kind": "watch"
+  },
+  "records": 92,
+  "statuses": {
+    "NO_CLAIM": 57,
+    "SUPPORTED": 29,
+    "HISTORY_UNRESOLVED": 1,
+    "CONFLICT": 3,
+    "SPEECH_UNBACKED": 2
+  },
+  "jevCostUsd": 0.041530692,
+  "jevModels": [
+    "typesafe/jev-1.13-20260917"
+  ],
+  "placementFindings": [
+    {
+      "publicationSeq": 193,
+      "item": "entity:pocket-watch",
+      "placement": {
+        "kind": "OBJECTIVE_RELEASE",
+        "probabilities": {
+          "OBJECTIVE_RELEASE": 0.79,
+          "PAST": 0,
+          "OBJECTIVE_GROUND": 0.2,
+          "SPEECH_ONLY": 0,
+          "UNCERTAIN": 0,
+          "NONE": 0.01
+        },
+        "confidence": 0.73,
+        "status": "CONFLICT",
+        "window": {
+          "roundId": "prototype-turn:38eabd80-e51a-4e7f-938c-626bb0fc93f2:0",
+          "fromSeq": 180,
+          "toSeq": 197,
+          "kind": "player-turn"
+        },
+        "releasedSeqs": [],
+        "worldHolder": "character:friend",
+        "rootPublicationSeq": 193
+      }
+    },
+    {
+      "publicationSeq": 198,
+      "item": "entity:pocket-watch",
+      "placement": {
+        "kind": "OBJECTIVE_RELEASE",
+        "probabilities": {
+          "OBJECTIVE_GROUND": 0.27,
+          "NONE": 0.01,
+          "PAST": 0,
+          "OBJECTIVE_RELEASE": 0.71,
+          "SPEECH_ONLY": 0.01,
+          "UNCERTAIN": 0
+        },
+        "confidence": 0.65,
+        "status": "CONFLICT",
+        "window": {
+          "roundId": "prototype-turn:b58933d0-b7c5-4e9e-b84e-cac7fbbd66cc:0",
+          "fromSeq": 180,
+          "toSeq": 203,
+          "kind": "player-turn"
+        },
+        "releasedSeqs": [],
+        "worldHolder": "character:friend",
+        "rootPublicationSeq": 198
+      }
+    },
+    {
+      "publicationSeq": 276,
+      "item": "entity:pocket-watch",
+      "placement": {
+        "kind": "OBJECTIVE_RELEASE",
+        "probabilities": {
+          "SPEECH_ONLY": 0,
+          "NONE": 0.02,
+          "OBJECTIVE_RELEASE": 0.77,
+          "PAST": 0,
+          "OBJECTIVE_GROUND": 0.21,
+          "UNCERTAIN": 0
+        },
+        "confidence": 0.71,
+        "status": "CONFLICT",
+        "window": {
+          "roundId": "prototype-turn:a4eb764f-562a-4d42-ad15-c7b18b7e003e:0",
+          "fromSeq": 270,
+          "toSeq": 280,
+          "kind": "player-turn"
+        },
+        "releasedSeqs": [],
+        "worldHolder": "character:friend",
+        "rootPublicationSeq": 276
+      }
+    }
+  ],
+  "findings": [
+    {
+      "publicationSeq": 157,
+      "item": "entity:pocket-watch",
+      "actorId": "character:companion",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_PAST",
+        "referenceSeq": 151,
+        "probabilities": {
+          "NONE": 0.03,
+          "OBJECTIVE_NOW": 0.02,
+          "OBJECTIVE_PAST": 0.04,
+          "OBJECTIVE_DURING": 0,
+          "UNCERTAIN": 0.01,
+          "OBJECTIVE_NEW": 0,
+          "SPEECH_NOW": 0.11,
+          "SPEECH_PAST": 0.79
+        },
+        "referenceProbabilities": {
+          "NONE": 0.25,
+          "publication:109": 0,
+          "publication:133": 0,
+          "publication:85": 0.01,
+          "publication:151": 0.28,
+          "UNRESOLVED": 0.13,
+          "publication:79": 0.03,
+          "publication:115": 0.01,
+          "publication:127": 0.05,
+          "publication:103": 0.09,
+          "publication:97": 0.02,
+          "publication:91": 0.12,
+          "publication:139": 0.01,
+          "publication:145": 0
+        },
+        "confidence": 0.77,
+        "status": "HISTORY_UNRESOLVED",
+        "window": {
+          "roundId": "round:coordinated:8bed7b9c7a104428e5544d76",
+          "fromSeq": 150,
+          "toSeq": 156,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "referenced window has no matching holder; no objective root established"
+      }
+    },
+    {
+      "publicationSeq": 232,
+      "item": "entity:pocket-watch",
+      "actorId": "character:player",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_NOW",
+        "referenceSeq": null,
+        "probabilities": {
+          "OBJECTIVE_NOW": 0.07,
+          "NONE": 0.33,
+          "SPEECH_NOW": 0.56,
+          "OBJECTIVE_DURING": 0,
+          "UNCERTAIN": 0.02,
+          "OBJECTIVE_PAST": 0,
+          "SPEECH_PAST": 0.01,
+          "OBJECTIVE_NEW": 0
+        },
+        "referenceProbabilities": {
+          "publication:210": 0,
+          "publication:204": 0,
+          "UNRESOLVED": 0.02,
+          "publication:193": 0.04,
+          "publication:187": 0.02,
+          "NONE": 0.91,
+          "publication:222": 0,
+          "publication:198": 0,
+          "publication:163": 0.01,
+          "publication:169": 0,
+          "publication:227": 0,
+          "publication:216": 0,
+          "publication:175": 0,
+          "publication:181": 0
+        },
+        "confidence": 0.49,
+        "status": "SPEECH_UNBACKED",
+        "window": {
+          "roundId": "round:coordinated:f76f8aeeca90be65b51e3f88",
+          "fromSeq": 231,
+          "toSeq": 237,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "current speech claim has no local holder support; not objective narration"
+      }
+    },
+    {
+      "publicationSeq": 232,
+      "item": "entity:diary",
+      "actorId": "character:player",
+      "claim": {
+        "characterId": "character:companion",
+        "kind": "SPEECH_NOW",
+        "referenceSeq": null,
+        "probabilities": {
+          "SPEECH_PAST": 0.01,
+          "OBJECTIVE_PAST": 0,
+          "OBJECTIVE_NEW": 0.01,
+          "OBJECTIVE_NOW": 0.08,
+          "SPEECH_NOW": 0.78,
+          "UNCERTAIN": 0.01,
+          "NONE": 0.11,
+          "OBJECTIVE_DURING": 0
+        },
+        "referenceProbabilities": {
+          "publication:181": 0,
+          "publication:193": 0,
+          "publication:198": 0,
+          "publication:204": 0,
+          "publication:169": 0.02,
+          "publication:163": 0.01,
+          "publication:216": 0.01,
+          "publication:227": 0,
+          "publication:210": 0.05,
+          "publication:175": 0,
+          "publication:222": 0,
+          "NONE": 0.89,
+          "publication:187": 0.01,
+          "UNRESOLVED": 0.01
+        },
+        "confidence": 0.75,
+        "status": "SPEECH_UNBACKED",
+        "window": {
+          "roundId": "round:coordinated:f76f8aeeca90be65b51e3f88",
+          "fromSeq": 231,
+          "toSeq": 237,
+          "kind": "round"
+        },
+        "evidence": {
+          "heldAtWindowStart": false,
+          "enteredSeqs": [],
+          "leftSeqs": []
+        },
+        "rootPublicationSeq": null,
+        "reason": "current speech claim has no local holder support; not objective narration"
+      }
+    }
+  ],
+  "directory": "D:\\DeepSeek Harness\\Perspectra Jev Auditor\\.tmp\\jev-holdout-live-20260927-a1"
+}

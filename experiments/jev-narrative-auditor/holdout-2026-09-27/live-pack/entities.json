@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "worldpack-entities/v2",
+  "entities": [
+    {
+      "entityId": "entity:pocket-watch",
+      "locationId": "location:front-room",
+      "kind": "watch",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:key-take",
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:key-drop",
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:key-give",
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:diary",
+      "locationId": "location:front-room",
+      "kind": "book",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:diary-take",
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:diary-drop",
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:diary-give",
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    }
+  ]
+}

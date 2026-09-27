@@ -1,0 +1,27 @@
+{
+  "metrics": {
+    "positiveDetected": 16,
+    "negativeFalseFlags": 0,
+    "temporalComplete": 8,
+    "failures": 0,
+    "records": 64,
+    "costUsd": 0.016532334,
+    "models": [
+      "typesafe/jev-1.13-20260917"
+    ],
+    "medianAuditMs": 310.9255999999996,
+    "p90AuditMs": 400.4013
+  },
+  "gate": {
+    "positiveMinimum": 15,
+    "positiveTotal": 16,
+    "negativeFalsePositiveMaximum": 0,
+    "negativeTotal": 16,
+    "temporalCompleteMinimum": 8,
+    "temporalTotal": 8,
+    "apiFailureMaximum": 0
+  },
+  "pass": true,
+  "finishedAt": "2026-09-27T05:36:22.514Z",
+  "failedFixtures": []
+}

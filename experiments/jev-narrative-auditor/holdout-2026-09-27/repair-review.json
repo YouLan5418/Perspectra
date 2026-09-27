@@ -1,0 +1,348 @@
+[
+  {
+    "run": "b1",
+    "head": 108,
+    "category": "unnecessary",
+    "reason": "Turning/spreading pages, touching a surface, or seeing open pages does not assert holding the book. Flipping watch on tabletop (339) likewise does not establish possession.",
+    "outcome": "invalid_repair_original_used",
+    "changed": false,
+    "original": {
+      "decision": "publish",
+      "narration": "程雨把日记挪到面前，翻开封面，手指压着纸页边缘，一页页慢慢翻。翻到有字迹的那几页时，ta停了一下，低头细看。",
+      "speech": "我翻翻看。有名字或地址就念出来，你们一起听。"
+    },
+    "final": {
+      "decision": "publish",
+      "narration": "程雨把日记挪到面前，翻开封面，手指压着纸页边缘，一页页慢慢翻。翻到有字迹的那几页时，ta停了一下，低头细看。",
+      "speech": "我翻翻看。有名字或地址就念出来，你们一起听。"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 132,
+    "category": "unnecessary",
+    "reason": "Turning/spreading pages, touching a surface, or seeing open pages does not assert holding the book. Flipping watch on tabletop (339) likewise does not establish possession.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "narration": "程雨把怀表收进掌心，指腹在表壳上按了一下，随后把布面日记挪到面前，翻开封面，一页页往下翻。翻到有字迹的几页时，ta停住，低头细看。",
+      "speech": "表我先收着。日记我翻——有名字或地址就念出来，你们一起听。",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ]
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ],
+      "narration": "程雨把怀表收进掌心，指腹在表壳上按了一下，随后伸手把台面上的布面日记挪到面前，翻开封面，一页页往下翻。翻到有字迹的几页时，ta停住，低头细看。",
+      "speech": "表我先收着。日记我翻——有名字或地址就念出来，你们一起听。"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 138,
+    "category": "unnecessary",
+    "reason": "Turning/spreading pages, touching a surface, or seeing open pages does not assert holding the book. Flipping watch on tabletop (339) likewise does not establish possession.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "speech": "翻你的。有名字就念。",
+      "narration": "陆舟没再靠近台面，站在半步外，手插兜里，视线落在程雨翻动的纸页上。",
+      "addresseeIds": [
+        "character:friend",
+        "character:player"
+      ]
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:friend",
+        "character:player"
+      ],
+      "speech": "翻你的。有名字就念。",
+      "narration": "陆舟没再靠近台面，站在半步外，手插兜里，视线落在程雨手边那本日记上。"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 144,
+    "category": "unnecessary",
+    "reason": "Turning/spreading pages, touching a surface, or seeing open pages does not assert holding the book. Flipping watch on tabletop (339) likewise does not establish possession.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "speech": "表我收好了。日记翻到几页有字的，我先看仔细——有名字或地址就念出来，你们一起听。",
+      "narration": "程雨把怀表收进掌心，指腹在表壳上按了一下，随后伸手把台面上的布面日记挪到面前，翻开封面，一页页往下翻。翻到有字迹的几页时，ta停住，低头细看。",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ]
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ],
+      "speech": "表我收好了。日记我这就翻——有名字或地址就念出来，你们一起听。",
+      "narration": "程雨把怀表收进掌心，指腹在表壳上按了一下，随后伸手去够台面上的布面日记，翻开封面，一页页往下看。翻到有字迹的几页时，ta停住，低头细看。"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 162,
+    "category": "unnecessary",
+    "reason": "Turning/spreading pages, touching a surface, or seeing open pages does not assert holding the book. Flipping watch on tabletop (339) likewise does not establish possession.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "speech": "日记我翻到有字迹的几页了，但没看到完整的人名，也没地址。陆舟说的那两个字，我这边对不上。表在我手里，先不急着下结论——你们谁记得失主登记时留过什么？",
+      "narration": "程雨把日记摊在台面上，手指压着翻开的页边，视线在陆舟和玩家之间来回。"
+    },
+    "final": {
+      "decision": "publish",
+      "speech": "日记我翻到有字迹的几页了，但没看到完整的人名，也没地址。陆舟说的那两个字，我这边对不上。表在我手里，先不急着下结论——你们谁记得失主登记时留过什么？",
+      "narration": "程雨低头看着摊开的日记，手指压着页边，视线在陆舟和玩家之间来回。"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 174,
+    "category": "unnecessary",
+    "reason": "Turning/spreading pages, touching a surface, or seeing open pages does not assert holding the book. Flipping watch on tabletop (339) likewise does not establish possession.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "speech": "我翻到有字迹的几页了，没完整人名，也没地址。你刻的那两个字，我这边对不上。表先放我这儿，谁也别急着认。",
+      "narration": "程雨把日记摊在台面上，手指压着页边，抬眼看向陆舟，又扫了一眼玩家。",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ]
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ],
+      "speech": "我翻到有字迹的几页了，没完整人名，也没地址。你刻的那两个字，我这边对不上。表先放我这儿，谁也别急着认。",
+      "narration": "程雨低头看着摊开的日记，手指压着页边，抬眼看向陆舟，又扫了一眼玩家。"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 186,
+    "category": "unnecessary",
+    "reason": "Turning/spreading pages, touching a surface, or seeing open pages does not assert holding the book. Flipping watch on tabletop (339) likewise does not establish possession.",
+    "outcome": "repaired_once",
+    "changed": false,
+    "original": {
+      "decision": "publish",
+      "speech": "夹页、封底，翻翻。名字多半不在正页上。",
+      "narration": "陆舟没去碰日记，站在半步外，视线跟着程雨翻页的手。",
+      "addresseeIds": [
+        "character:friend",
+        "character:player"
+      ]
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:friend",
+        "character:player"
+      ],
+      "speech": "夹页、封底，翻翻。名字多半不在正页上。",
+      "narration": "陆舟没去碰日记，站在半步外，视线跟着程雨翻页的手。"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 210,
+    "category": "unnecessary",
+    "reason": "Turning/spreading pages, touching a surface, or seeing open pages does not assert holding the book. Flipping watch on tabletop (339) likewise does not establish possession.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "narration": "程雨没再碰台面上的东西，退开半步，视线在表背刻字和日记摊开的页之间来回。ta把日记翻到最后一页，又抖了抖封底，确认没有夹层，才把册子合上，手掌压在上面。",
+      "speech": "夹页、封底我都翻过了，空的。正页上只有些零碎字迹，拼不出名字。表上的刻字我认不全，纸上的又对不上——两件东西现在谁也证明不了谁。要不先问问失主登记时留了什么，或者等有人来认。",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ]
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ],
+      "narration": "程雨没再碰台面上的东西，退开半步，视线在表背刻字和日记摊开的页之间来回。",
+      "speech": "夹页、封底，我记着翻。正页上只有些零碎字迹，拼不出名字。表上的刻字我认不全，纸上的又对不上——两件东西现在谁也证明不了谁。要不先问问失主登记时留了什么，或者等有人来认。"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 233,
+    "category": "correct",
+    "reason": "Explicit unsupported ground (233) or pickup (327/357) removed.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "narration": "程雨没去碰台面上的两件东西，视线在表背刻字和日记摊开的页之间来回，最后停在玩家脸上。",
+      "speech": "日记在陆舟手里，表在台面上，谁也没动。你要我看封面——行，我看过了，布面，没字。现在你想让我做什么？",
+      "addresseeIds": [
+        "character:player"
+      ]
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:player"
+      ],
+      "narration": "程雨没去碰台面上的怀表，视线在表背刻字和日记摊开的页之间来回，最后停在玩家脸上。",
+      "speech": "日记在陆舟手里，表在台面上，谁也没动。你要我看封面——行，我看过了，布面，没字。现在你想让我做什么？"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 238,
+    "category": "unnecessary",
+    "reason": "Turning/spreading pages, touching a surface, or seeing open pages does not assert holding the book. Flipping watch on tabletop (339) likewise does not establish possession.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ],
+      "narration": "程雨没去碰台面上的怀表，视线在表背刻字和日记摊开的页之间来回，最后停在玩家脸上。",
+      "speech": "日记在陆舟手里，表在台面上，谁也没动。你要我看封面——行，我看过了，布面，没字。现在你想让我做什么？"
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ],
+      "narration": "程雨没去碰台面上的怀表，视线在表背刻字和陆舟手里的日记之间来回，最后停在玩家脸上。",
+      "speech": "日记在陆舟手里，表在台面上，谁也没动。你要我看封面——行，我看过了，布面，没字。现在你想让我做什么？"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 327,
+    "category": "correct",
+    "reason": "Explicit unsupported ground (233) or pickup (327/357) removed.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "speech": "行，我拿起来看。表在台面上，谁也没动过——我翻过来，看另一面。",
+      "narration": "程雨伸手把台面上的铜怀表拿起来，翻过表壳，指腹贴着背面，低头细看另一面的刻字。",
+      "addresseeIds": [
+        "character:player",
+        "character:companion"
+      ]
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:player",
+        "character:companion"
+      ],
+      "speech": "行，我拿起来看。表在台面上，谁也没动过——我翻过来，看另一面。",
+      "narration": "程雨伸手去够台面上的铜怀表，指尖搭上表壳，准备翻过来看背面。"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 339,
+    "category": "unnecessary",
+    "reason": "Turning/spreading pages, touching a surface, or seeing open pages does not assert holding the book. Flipping watch on tabletop (339) likewise does not establish possession.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "narration": "程雨伸手去够台面上的铜怀表，指尖搭上表壳，翻过来看背面。ta低头看了一会儿，又抬眼扫过台面上的日记，没急着开口。",
+      "speech": "表我翻过来了。背面就那两个字，边上磨浅的地方，我认不全。日记在台上，谁也没动——你要我看哪样，直说。",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ]
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:companion",
+        "character:player"
+      ],
+      "speech": "表还在台上，我没动。背面就那两个字，边上磨浅的地方，我认不全。日记也在台上——你要我看哪样，直说。",
+      "narration": "程雨站在台边，视线在并排的怀表和日记之间来回，手垂在身侧，没伸出去。"
+    }
+  },
+  {
+    "run": "b1",
+    "head": 357,
+    "category": "correct",
+    "reason": "Explicit unsupported ground (233) or pickup (327/357) removed.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "speech": "表在台上，日记也在台上，两样都没人动。你要我把表交给陆舟——行，我拿起来递过去，他接不接、放不放回去，那是他的事。不过我先说清楚：我递，不等于我认了这表是谁的。",
+      "narration": "程雨伸手把台面上的铜怀表拿起来，托在掌心，转向陆舟，等他自己伸手来接。",
+      "addresseeIds": [
+        "character:player",
+        "character:companion"
+      ]
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:player",
+        "character:companion"
+      ],
+      "speech": "表在台上，日记也在台上，两样都没人动。你要我把表交给陆舟——行，我可以拿起来递过去，他接不接、放不放回去，那是他的事。不过我先说清楚：我递，不等于我认了这表是谁的。",
+      "narration": "程雨站在台边，视线落在台面上的铜怀表上，手垂在身侧，没有伸出去。ta抬眼看了看陆舟，又看向玩家。"
+    }
+  },
+  {
+    "run": "b2",
+    "head": 327,
+    "category": "temporal_ambiguous_bad_repair",
+    "reason": "Draft repeats prior completed release seq281/287 in next player window. Whether a new release or recap is ambiguous. Rewrite explicitly reintroduces current holding, contrary to World; published seq328.",
+    "outcome": "repaired_once",
+    "changed": true,
+    "original": {
+      "decision": "publish",
+      "speech": "日记放回台面了，封面朝上，没翻。台面两样都在，谁都没动。往里那间还没人看过——我走前头，你们跟不跟？",
+      "narration": "陆舟把日记放回台面，封面朝上，手收回来插进兜里。他退开半步，让灯口空出来，视线落在玩家脸上。",
+      "addresseeIds": [
+        "character:player",
+        "character:friend"
+      ]
+    },
+    "final": {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:player",
+        "character:friend"
+      ],
+      "narration": "陆舟手里还端着日记，封面朝上，拇指压着边角，没翻。他侧身让开灯口，视线在台面那块怀表上停了一下，又抬眼看玩家。",
+      "speech": "日记我拿着，封面朝上，没翻。台面就剩表，谁都没动。往里那间还没人看过——我走前头，你们跟不跟？"
+    }
+  }
+]

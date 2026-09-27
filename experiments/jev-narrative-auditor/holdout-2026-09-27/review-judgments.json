@@ -1,0 +1,1252 @@
+{
+  "reviewer": "Codex author; not independent human",
+  "scope": "All 178 NPC final publications read with group and Jev labels hidden, plus formal prefixes for acquisition/release. Item holder and release only; speech-only beliefs are separate. Same author knew aggregate shadow counts.",
+  "judgments": [
+    {
+      "id": "021b195c00ee",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "0405b9b6d40e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "04dc76e3171e",
+      "personConflict": false,
+      "groundConflict": true,
+      "ambiguous": false,
+      "reason": "Watch release explicitly completed, World still holds it with friend."
+    },
+    {
+      "id": "0516820c04e2",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "052385770e2e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "0562a7244716",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "067ed9e9ab66",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "07016a03337b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "084fe1d2c5d2",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "08f26a14b702",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "0980c4718727",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "09f1fbf8cae0",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "0bc997e61d3c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "0cd3548efd72",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "0d5d420ec6a8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "0dc06ef254dd",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "0fce2d2953bc",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "12892add8fbc",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "153974ee349c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "16b9d01d9167",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "18a982c9dfd9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "19d162ff7d00",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "19e4221e3cfd",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "1a29ff3f177a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "1d0a31e9de23",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "1dee2c68887f",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "201d49716dd7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "20e6af6b8bca",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "21e446bfbba7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "22795ef9c52b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "23037cbaa7ac",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "245822a8ce01",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "24cd7101fb97",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "2506bc919383",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "25635350a2c9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "27fb6db19267",
+      "personConflict": false,
+      "groundConflict": true,
+      "ambiguous": false,
+      "reason": "Watch release explicitly completed, World still holds it with friend."
+    },
+    {
+      "id": "2921e9648b6e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "2a0b0065f939",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "2de96ee39be8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "2e7370914ae4",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "2f762cb29d2e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "2ff6950d7f4f",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "30cbc443da22",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "30d1f30fa46c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "31b7ff7f533a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "33320e77d8aa",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "35414cfac79d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "35fca08cd453",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "377a66e5e8a3",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "38fb14dd27b9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "39af873e86f7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "3c76431867df",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "3d2d7f3b268a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "415e9619d3af",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "41a464826e00",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "423c34ef01bc",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "45c8514e8ca6",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "4a176c9e61f0",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "4c11f46cb718",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "4e00bef8934f",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "4ee4c78305b0",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "4f22afeb07bd",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "4fbb64934a2d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "519365dcf30d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "5211557469a1",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "5604213f94b0",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "57b1fb557cc8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "588c266254d3",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "5a2ffcf25b5f",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "5bf0b6792253",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "61311436a6e0",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "62ef1a4320a8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "67a69ed5d7b9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "695666cc8e29",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "6b2c9e07396d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "6c074e4a4a06",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "6c94532ce534",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "6dac80a7a9c2",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "6ee0e823120f",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "7306d965b1a7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "73bd4de52446",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "7429fb8c4712",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "74308551f360",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "76b81e070d5e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "78ae7eed5598",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "7a44362f2f92",
+      "personConflict": false,
+      "groundConflict": true,
+      "ambiguous": false,
+      "reason": "Watch release explicitly completed, World still holds it with friend."
+    },
+    {
+      "id": "7b12fb56d906",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "7ed121160210",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "7f2c8a5ec4c4",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "7fc9ffeed28e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "80b6814de47a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "849997694a13",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "862a6b489d43",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "8645e2def445",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "86f4686b4c68",
+      "personConflict": true,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "World diary is ground, narration objectively describes companion holding it."
+    },
+    {
+      "id": "880b1cd7b3d0",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "8811065fbb21",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "8a6178c7544b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "8b8cf3a25b3c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "8bda023b15bb",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "8c722a6ff0a3",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "8e331467b3af",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "9067ea076ea3",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "92a768948992",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "930939446c1d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "970bbef1d4a7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "97df4be0de09",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "989f884fce14",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "98c57db90a6c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "9a43de918fb9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "9b38470d7c13",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "9b464002e349",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "9bd3470f4da5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "9c8b279138f5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "9da1b31dcd71",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "9e79f7f094e9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "a1a9fe7feda4",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "a20adf61fd8d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "a2b50ca88a34",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "a472a1cd12b7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "a4817354980a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "a71b832d8801",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "a7c1338a0085",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "a8df5af496ca",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "ac07f973b028",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "ac6d7e7afbf9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "ac82cf974d63",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "acb443f1127c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "ad3d525df964",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "ad8d0978757c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "b036c69d1a4e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "b09dba1589c8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "b4803f7cc8b8",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "b7a332389b7a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "b9cd2e1b7bd6",
+      "personConflict": true,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "World diary is ground, narration objectively describes companion holding it."
+    },
+    {
+      "id": "bd2cb37ed2ae",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "bd391b04ef65",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "bd7e1d4dbf5b",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "be078124e5ac",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "c0587e0fe7e2",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "c22fc1a9a875",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "c2991546567d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "c2cf74d6f62a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "c423577d55c9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "c543be1bf4fb",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "c567e1ea62d5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "c8858419161d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "c8a378b08cff",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "c9269651adc3",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "cf7ed5a8ce2c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "d15ba73e7841",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "d3e7acc8ba6c",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "d58b7417e53d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "d6409c8fe560",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "d698a52c82d5",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "d73dd01bd284",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "d76890f8ed5e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "d79c568671b7",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "da8bf0e11513",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "dd4cb815120a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "e319cfbd3d1f",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "e346c5b02b65",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "e52c0a8746dc",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "e59268997300",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "e852476ef1c0",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "ea560340c3cf",
+      "personConflict": true,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "World diary is ground, narration objectively describes companion holding it."
+    },
+    {
+      "id": "edf06d2abc30",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "f1ae771ae0c9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "f6423eae6198",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "f8330f84b298",
+      "personConflict": true,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "World diary is ground, narration objectively describes companion holding it."
+    },
+    {
+      "id": "f8ca8bce088f",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "f905a92db6fe",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "f9750552a57e",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "f9a6d2721c8d",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "f9ae93be938d",
+      "personConflict": true,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "World diary is ground, narration objectively describes companion holding it."
+    },
+    {
+      "id": "fb2408408e1a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "fcc94538b6c9",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    },
+    {
+      "id": "ffd0d016037a",
+      "personConflict": false,
+      "groundConflict": false,
+      "ambiguous": false,
+      "reason": "No clear unsupported holder/release claim in latest narration; subjective speech excluded."
+    }
+  ]
+}

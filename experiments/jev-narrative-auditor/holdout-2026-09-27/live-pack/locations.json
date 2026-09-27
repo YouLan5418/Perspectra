@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    {
+      "locationId": "location:front-room",
+      "name": "雨站失物台"
+    },
+    {
+      "locationId": "location:back-room",
+      "name": "储藏间"
+    }
+  ]
+}

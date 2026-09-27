@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "worldpack-assertions/v1",
+  "assertions": [
+    {
+      "assertionId": "assertion:companion-knows-the-key",
+      "assertionType": "view.includes",
+      "parameters": {
+        "characterId": "character:companion",
+        "text": "怀表"
+      }
+    }
+  ]
+}

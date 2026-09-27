@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "profile": "standard",
+      "attentionTopics": [
+        "怀表",
+        "陆舟"
+      ]
+    },
+    {
+      "characterId": "character:companion",
+      "profile": "standard",
+      "attentionTopics": [
+        "怀表",
+        "储藏间"
+      ]
+    },
+    {
+      "characterId": "character:friend",
+      "profile": "standard",
+      "attentionTopics": [
+        "雨站失物台"
+      ]
+    }
+  ]
+}

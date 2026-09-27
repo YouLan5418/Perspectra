@@ -1,0 +1,27 @@
+{
+  "baseline": "176afd1fc911458bd48908bdc226ce39f3adb425",
+  "createdAt": "2026-09-27T05:35:41.834Z",
+  "sourceHashes": {
+    "tests/experiments/jev-shadow-claims-client.ts": "4ae2e2b6cf1f86633226c36774bdf2cfe77777858cbc4821ecd418cc871f062d",
+    "tests/experiments/jev-shadow.ts": "f0d43637d1fe322e5e135e7f511829e4d1928a16104f407c941602808453fc15",
+    "tests/experiments/jev-shadow-window.ts": "2f1c5f741c9e31dce76d5d1bd36badf95afcf72bcc063b52f094171f8d25dfd3",
+    "tests/experiments/jev-publication-intervention.ts": "dea84dac094cb5e2a6bfc456128c2c6c4af909b880ddcb4d64345d37371fb62b"
+  },
+  "fixtureHash": "bc891c9db0b1d65cefc29212bf4124fda95355e456393aa5811df0a46a320776",
+  "fixtures": 40,
+  "requests": 64,
+  "attemptsPerPublication": 1,
+  "retry": false,
+  "synthetic": true,
+  "reviewer": "Codex author; no independent human review",
+  "gate": {
+    "positiveMinimum": 15,
+    "positiveTotal": 16,
+    "negativeFalsePositiveMaximum": 0,
+    "negativeTotal": 16,
+    "temporalCompleteMinimum": 8,
+    "temporalTotal": 8,
+    "apiFailureMaximum": 0
+  },
+  "stop": "Any failed gate stops escalation to live play; no prompt tuning in this experiment."
+}
