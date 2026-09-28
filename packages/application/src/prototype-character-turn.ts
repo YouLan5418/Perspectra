@@ -5,7 +5,7 @@ import { brandId, resolutionAuthority, type CharacterId, type WorldAddress, type
 import { characterRelationObservations, currentCharacterLifecycle,
   type CompiledWorldManifest, type RulebookRegistry } from '@harness-world/kernel'
 import { CognitionProjectionRebuilder, CharacterViewBuilder, CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import type { CognitiveMemoryService } from '@harness-world/memory'
+import type { CognitiveMemoryService, RecalledMemory } from '@harness-world/memory'
 import { SceneDecisionService } from './scene-decision.ts'
 import { characterExecutionResult, expressionAfterExecution } from './character-execution-result.ts'
 
@@ -105,6 +105,12 @@ export class PrototypeCharacterTurn {
         const canPerform = options.continuationOf === undefined && (step === 0 || (step === 1 && maxCalls === 3))
         const head = this.options.store.head(this.options.address)
         const history = this.options.store.readEvents(this.options.address, head.headSeq)
+        const sourceTicks = new Map(history.map(event => [event.seq, event.tick]))
+        const withSourceAge = (memory: RecalledMemory) => {
+          const sourceTick = sourceTicks.get(memory.sourceMaxSeq)
+          if (sourceTick === undefined) throw new Error('memory source event is missing')
+          return { ...memory, sourceAgeTicks: head.tick - sourceTick }
+        }
         if (currentCharacterLifecycle(history, characterId) !== 'active') return done('interrupted')
         const rules = this.options.rulebooks.resolve(this.#manifest.rulebook.rulebookId,
           this.#manifest.rulebook.version, ownerId, this.options.address)
@@ -114,14 +120,28 @@ export class PrototypeCharacterTurn {
         const view = this.#view.rebuildAt(this.options.address, characterId, head.headSeq)
         const scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
         const character = this.#manifest.characters.find(value => value.characterId === characterId)!
+        const recalled = this.options.memory?.prepareStimulus({
+          address: this.options.address, roundId: brandId(`${ownerId}:${step}:memory`, 'InteractionRoundId'),
+          participantId: characterId, characterId, asOfWorldSeq: head.headSeq,
+          stimulus: options.stimulus ?? [], sceneCharacterIds: scene.observerIds,
+          correlationId: `prototype-memory:${ownerId}:${step}`,
+        })
+        const recentObservations = view.observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq).slice(-16)
+        const recentSelfObservations = view.selfObservations.slice(-8)
+        const recentSourceSeqs = new Set([...recentObservations, ...recentSelfObservations]
+          .map(record => record.sourceSeq))
+        const olderMemories = recalled?.memoryRecall.filter(memory =>
+          !recentSourceSeqs.has(memory.sourceMaxSeq) && !('projectionId' in object(memory.metadata)))
+          .map(withSourceAge)
         // Do not copy scene member records or other characters' anchors into a model request.
         const context: WorldJsonObject = {
           character,
           stimulus: options.stimulus ?? [],
+          ...(olderMemories === undefined ? {} : { memories: olderMemories }),
           cognition: new CognitionProjectionRebuilder(this.options.store).rebuildCharacterAt(this.options.address, characterId, head.headSeq),
           scene: { locationId: view.locationId, people: scene.observerIds.map(id => ({ characterId: id,
             name: this.#manifest.characters.find(value => value.characterId === id)?.name ?? id })) },
-          observations: view.observations.slice(-16).map(record => {
+          observations: recentObservations.map(record => {
             const value = object(record.value)
             if (value.content === null || typeof value.content !== 'object' || Array.isArray(value.content)) return record
             const content = object(value.content)
@@ -130,7 +150,7 @@ export class PrototypeCharacterTurn {
             const feedback = characterExecutionResult({ manifest: this.#manifest, events: history, actorId: characterId,
               action: { actionType: String(content.actionType), parameters: {} }, status: String(content.status), reason })
             return { ...record, value: { ...value, content: { ...rest, resultDescription: feedback.description! } } }
-          }), selfObservations: view.selfObservations.slice(-8),
+          }), selfObservations: recentSelfObservations,
           claims: view.claims, goals: view.goals,
           items: characterVisibleItems(this.#manifest, history, characterId, scene.observerIds),
           affordances: rules.affordances(ruleContext).filter(value => canPerform || value.actionType === 'speak')
@@ -164,7 +184,11 @@ export class PrototypeCharacterTurn {
             || decision.query.length < 2 || decision.query.length > 120) throw new TypeError('invalid recall request')
           recalledThisActivation = true
           modelFailure = undefined // Memory integrity failures are not model output failures.
+          const alreadyVisible = new Set([...recentSourceSeqs,
+            ...(olderMemories ?? []).map(memory => memory.sourceMaxSeq)])
           const memories = this.options.memory!.recall(this.options.address, characterId, decision.query, head.headSeq)
+            .filter(memory => !alreadyVisible.has(memory.sourceMaxSeq))
+            .map(withSourceAge)
           // A search result is a bounded, attributed selection of this character's sources, not a verdict.
           const recallEvidence: WorldJsonObject = { query: decision.query, memories,
             note: '仅是你可访问记忆中的相关证据；他人发言不证明其内容，未找到也不证明事件未发生。' }

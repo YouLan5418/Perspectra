@@ -3,13 +3,14 @@ import { parsePlaytestLaunchArguments } from './playtest-launch.ts'
 
 describe('creator playtest launch arguments', () => {
   it('accepts provider, v5 source directory, and data directory in any order', () => {
-    expect(parsePlaytestLaunchArguments([])).toEqual({ provider: 'ollama' })
-    expect(parsePlaytestLaunchArguments(['--jev-shadow', 'items.json'])).toEqual({ provider: 'ollama', shadowConfigPath: 'items.json' })
+    expect(parsePlaytestLaunchArguments([])).toEqual({ provider: 'local' })
+    expect(parsePlaytestLaunchArguments(['--jev-shadow', 'items.json'])).toEqual({ provider: 'local', shadowConfigPath: 'items.json' })
     expect(parsePlaytestLaunchArguments([
-      '--pack', 'world-source', '--deepseek', '--data-dir', 'world-data',
+      '--pack', 'world-source', '--ollama', '--data-dir', 'world-data',
     ])).toEqual({
-      provider: 'deepseek', packPath: 'world-source', dataDirectory: 'world-data',
+      provider: 'ollama', packPath: 'world-source', dataDirectory: 'world-data',
     })
+    expect(parsePlaytestLaunchArguments(['--deepseek'])).toEqual({ provider: 'deepseek' })
   })
 
   it.each([

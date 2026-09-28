@@ -8,7 +8,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 
 /**
- * Paid/manual experiment, deliberately not part of the automatic suite: one real model driving a frozen
+ * Manual experiment, deliberately not part of the automatic suite: one real model driving a frozen
  * v10 world through the protocol production offers it, over the **production adapter** - the one the web
  * entry uses, not a copy kept in step by hand.
  *
@@ -18,14 +18,14 @@ import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV
  * that a real model, given the frozen vocabulary and each definition's accepted cues, can act through
  * `interact@2` and have its expression recorded as a fact.
  *
- * Usage: DEEPSEEK_API_KEY=... node --import tsx tests/experiments/v10-provider-gate.ts [--model <id>]
+ * Usage: node --import tsx tests/experiments/v10-provider-gate.ts [--model <id>]
  */
 const packDirectory = resolve('examples/world-packs/hand-in-hand')
-const endpoint = new URL('https://api.deepseek.com/chat/completions')
+const endpoint = new URL(process.env.HCW_LOCAL_ENDPOINT?.trim() || 'http://127.0.0.1:8045/v1/chat/completions')
 const modelIndex = process.argv.indexOf('--model')
-const model = modelIndex === -1 ? 'deepseek-flash' : (process.argv[modelIndex + 1] ?? 'deepseek-flash')
-const apiKey = process.env.DEEPSEEK_API_KEY?.trim()
-if (apiKey === undefined || apiKey.length === 0) throw new TypeError('DeepSeek credential unavailable')
+const model = modelIndex === -1 ? (process.env.HCW_LOCAL_MODEL?.trim() || 'gemini-3.7-flash')
+  : (process.argv[modelIndex + 1] ?? 'gemini-3.7-flash')
+const apiKey = process.env.HCW_LOCAL_API_KEY?.trim()
 const dataDirectory = resolve('.tmp', `v10-provider-gate-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}`)
 mkdirSync(dataDirectory, { recursive: true })
 
@@ -38,7 +38,8 @@ const compiled = adaptCompiledWorldPack(
 /** What the model saw, and what it answered, for the record. Every attempt counts, answered or not. */
 const calls: ChatCallObservation[] = []
 let attempts = 0
-const provider = createChatProvider({ endpoint, model, apiKey, style: 'tool', timeoutMs: 60_000,
+const provider = createChatProvider({ endpoint, model,
+  ...(apiKey === undefined ? {} : { apiKey }), style: 'tool', timeoutMs: 60_000,
   maxOutputTokens: 2_048, onCall: observation => calls.push(observation) })
 
 /** Every answer is written beside the request that produced it, so a failure can be read afterwards. */

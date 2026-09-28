@@ -10,12 +10,14 @@ import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/fro
 // Small isolated experiment. Does not open the frozen group-playtest databases or drive their scheduler.
 const directory = resolve(process.argv[2] ?? `.tmp/perform-playtest-${Date.now()}`)
 mkdirSync(directory, { recursive: true })
-const apiKey = process.env.DEEPSEEK_API_KEY
-if (apiKey === undefined) throw new Error('DEEPSEEK_API_KEY is required')
+const model = process.env.HCW_LOCAL_MODEL?.trim() || 'gemini-3.7-flash'
+const endpoint = process.env.HCW_LOCAL_ENDPOINT?.trim() || 'http://127.0.0.1:8045/v1/chat/completions'
+const apiKey = process.env.HCW_LOCAL_API_KEY?.trim()
 const evidence: unknown[] = []
 const save = () => writeFileSync(resolve(directory, 'evidence.json'), JSON.stringify(evidence, null, 2), 'utf8')
-const provider = createChatProvider({ endpoint: new URL('https://api.deepseek.com/chat/completions'),
-  model: 'deepseek-flash', apiKey, toolName: 'character_decision', timeoutMs: 45_000 })
+const provider = createChatProvider({ endpoint: new URL(endpoint), model,
+  ...(apiKey === undefined ? {} : { apiKey }),
+  toolName: 'character_decision', timeoutMs: 45_000 })
 
 for (const scenario of ['success', 'rejected'] as const) {
   const path = resolve(directory, `${scenario}.sqlite`)

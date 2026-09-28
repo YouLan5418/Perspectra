@@ -13,7 +13,7 @@
     "test": "vitest run --config vitest.prototype.config.ts",
     "worldpack": "node --import tsx packages/world-pack/process/cli-entry.ts",
     "experience:web": "node --import tsx tests/experiments/playtest-web-entry.ts",
-    "experience:web:flash": "node --import tsx tests/experiments/playtest-web-entry.ts --deepseek",
+    "experience:web:flash": "node --import tsx tests/experiments/playtest-web-entry.ts",
     "check": "corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test",
     "test:related": "vitest run --config vitest.config.ts"
   },

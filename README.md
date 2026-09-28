@@ -18,25 +18,25 @@ Cordis World 尝试在**叙事自由**与**关键因果的一致性**之间建�
 - **关键状态有依据**：移动、物品归属等影响后续逻辑的变化由规则裁定后提交；自由的台词、神态和叙述不必全部被编码成精确事件。
 - **按玩法扩展**：世界包描述角色和内容；新的确需要规则与状态的玩法可以通过交互定义和受信任领域代码扩展，而不是不断向核心枚举添加题材动作。
 
-这些是项目目标，**不代表目前每项体验都已达到预期**。表达与有界调度已有连续试玩证据；[G1 的模型无关机械门槛](docs/PROTOTYPE-G1-G2-ACCEPTANCE.md)已验收，G2 两项诊断和格式修正仍是待办。[G3 第一组连续真实试玩](docs/PROTOTYPE-G3-PLAYTEST-01.md)已完成，但握手叙述分叉与互动断层表明体验门槛尚未通过。
+这些是项目目标，**不代表目前每项体验都已达到预期**。表达与有界调度已有连续试玩证据；[G1 的模型无关机械门槛](docs/PROTOTYPE-G1-G2-ACCEPTANCE.md)已验收。[Gemini 连续试玩](docs/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)验证了显式命令下的移动、物品保管、牵手与重开续玩，也再次暴露自由叙述虚构受控事实、私语未送达等问题。记忆召回已接入角色请求，并在窄场景中验证了主动查询；长期经历稳定影响角色自主选择仍未验收。
 
 ## 当前能体验什么
 
-仓库包含本机浏览器试玩入口、Ollama/DeepSeek 模型适配、多个示例世界包、角色受限视角、记忆与有限反应周期。已有版本支持外显表现、物品及角色交互；其具体可用范围取决于世界包和运行时协议。
+仓库包含本机浏览器试玩入口、本机 OpenAI 兼容接口及 Ollama/DeepSeek 模型适配、多个示例世界包、角色受限视角、记忆与有限反应周期。已有版本支持外显表现、物品及角色交互；其具体可用范围取决于世界包和运行时协议。
 
 **建议先从真实模型试玩开始，而不是先运行完整工程验收。** 以下命令均在仓库根目录执行；需要 Node.js 22.19+ 或 24+ 与项目锁定的 pnpm。
 
 ```powershell
 corepack pnpm@11.7.0 install --frozen-lockfile
 
-# 本机 Ollama（需提前启动 Ollama 并准备可用模型）
+# 默认：本机 OpenAI 兼容服务（需提前启动服务，默认地址 127.0.0.1:8045，模型 gemini-3.7-flash）
 corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/prototype-local
 
-# 或显式使用 DeepSeek；需先为当前进程设置 DEEPSEEK_API_KEY
-corepack pnpm@11.7.0 experience:web:flash --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/prototype-deepseek
+# 或显式使用本机 Ollama（需提前启动 Ollama 并准备可用模型）
+corepack pnpm@11.7.0 experience:web --ollama --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/prototype-ollama
 ```
 
-启动后，打开终端打印的**本机**浏览器地址。网页只监听回环地址，不是可公开访问的在线服务。远程模型请求可能产生费用；不要把 API Key 写进世界包、命令示例或提交记录。
+默认本机接口可用 `HCW_LOCAL_ENDPOINT` 和 `HCW_LOCAL_MODEL` 调整；如服务要求认证，只在运行进程中设置 `HCW_LOCAL_API_KEY`。`experience:web:flash` 当前与默认命令相同。启动后，打开终端打印的完整**本机**浏览器地址，包含 `#token=`。网页只监听回环地址，不是可公开访问的在线服务。模型请求可能产生费用；不要把 API Key 写进世界包、命令示例或提交记录。
 
 体验其他世界包时，可为实验入口指定 Pack 与独立数据目录：
 
@@ -44,7 +44,7 @@ corepack pnpm@11.7.0 experience:web:flash --pack examples/world-packs/ai-girls-a
 corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/my-playtest
 ```
 
-本原型网页只接受 `worldpack-source/v5` 源目录，并通过 v10 的 FrozenWorldPlaytestRuntime 试玩；旧网页运行时已移除。创建新存档或续玩时请按[创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)操作，不要在同一数据目录中混用不兼容世界版本。真实模型试玩需要人工观察角色是否自然、是否重复、是否无故沉默，自动化测试不能代替这一环节。
+本原型网页只接受 `worldpack-source/v5` 源目录，并通过 v10 的 FrozenWorldPlaytestRuntime 试玩；旧网页运行时已移除。当前玩家的重要状态交互使用显式 `/act` 命令；普通自然语言不会自动执行移动、取物或交接。创建新存档或续玩时请按[创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)操作，不要在同一数据目录中混用不兼容世界版本。真实模型试玩需要人工观察角色是否自然、是否重复、是否无故沉默，自动化测试不能代替这一环节。
 
 ## 运行方式
 
@@ -107,6 +107,9 @@ corepack pnpm@11.7.0 test
 
 ## 文档与项目状态
 
+- [Gemini 连续试玩](docs/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)：默认本机模型接入、显式命令对照、未裁定叙述与私语送达问题。
+- [记忆召回第一步](docs/PROTOTYPE-MEMORY-RECALL-STAGE1-2026-09-28.md)：自动与主动召回、角色自身观察线索及窄场景复测边界。
+- [第一阶段记忆链路](docs/PROTOTYPE-EXPERIENCE-PHASE1-MEMORY.md)：召回接线和长期行为验收的区分。
 - [当前自由表达实现与实测](docs/PROTOTYPE-PLAYTEST-02.md)：已落地范围、失败样本和下一步。
 - [玩家输入与反应链诊断](docs/PROTOTYPE-PLAYTEST-03.md)：玩家表达实测、反复唤醒与主动沉默的证据。
 - [人设与最小调度规则对照](docs/PROTOTYPE-PLAYTEST-04.md)：顺序实验结果与尚未解决的重复反应。

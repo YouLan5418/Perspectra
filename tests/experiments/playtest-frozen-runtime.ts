@@ -5,12 +5,15 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import { SceneDecisionService, WorldApplication } from '@harness-world/application'
-import { brandId, interactionPackageDescription, type CharacterId, type WorldJsonObject,
+import { brandId, interactionPackageDescription, RECALL_KEYWORD_TOKENIZER_ID,
+  type CharacterId, type WorldJsonObject,
   type WorldAddress } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { createChatProvider, prototypeTurnCall, type ChatCallObservation } from '@harness-world/provider-chat'
+import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
 import { CharacterRuntimeAvailabilityService, PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { createCoreRulebookRegistry } from '@harness-world/kernel'
+import { CognitiveMemoryService } from '@harness-world/memory'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
@@ -20,7 +23,7 @@ export interface FrozenPlaytestOptions {
   readonly dataDirectory: string
   /** The v5 Pack directory: the world the author wrote, compiled here with the Host's installed packages. */
   readonly packPath: string
-  readonly provider: 'deepseek' | 'ollama'
+  readonly provider: 'local' | 'deepseek' | 'ollama'
   readonly model?: string
   readonly intentModel?: string
   /** The Host's Secret, from the environment. It is never written to the data directory. */
@@ -31,11 +34,12 @@ export interface FrozenPlaytestOptions {
   readonly publicationAudit?: InterventionOptions
 }
 
+const LOCAL_ENDPOINT = 'http://127.0.0.1:8045/v1/chat/completions'
+const LOCAL_MODEL = 'gemini-3.7-flash'
 const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions'
 const DEEPSEEK_MODEL = 'deepseek-flash'
 const OLLAMA_MODEL = 'qwen3:4b'
 const OLLAMA_ENDPOINT = 'http://127.0.0.1:11434/api/chat'
-
 /** Whether a Pack directory is a v5 source, which is the one this runtime plays. */
 export function isFrozenPackDirectory(packPath: string): boolean {
   try {
@@ -63,7 +67,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
   #activationCycle: Awaited<ReturnType<typeof runPrototypeActivations>> | undefined
-  readonly #provider: 'deepseek' | 'ollama'
+  readonly #provider: 'local' | 'deepseek' | 'ollama'
   readonly #manifestVersion: number
   readonly #intentEnabled: boolean
   readonly #dataDirectory: string
@@ -99,11 +103,14 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     this.#title = compiled.manifest.metadata.title
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
     this.#provider = options.provider
-    this.#model = options.model ?? (options.provider === 'ollama' ? OLLAMA_MODEL : DEEPSEEK_MODEL)
+    this.#model = options.model ?? (options.provider === 'ollama' ? OLLAMA_MODEL
+      : options.provider === 'deepseek' ? DEEPSEEK_MODEL : LOCAL_MODEL)
     this.#intentModel = options.intentModel ?? this.#model
     const timeoutMs = options.timeoutMs ?? (options.provider === 'ollama' ? 120_000 : 60_000)
     const endpoint = options.provider === 'ollama'
-      ? new URL(options.utilityEndpoint ?? OLLAMA_ENDPOINT) : new URL(DEEPSEEK_ENDPOINT)
+      ? new URL(options.utilityEndpoint ?? OLLAMA_ENDPOINT)
+      : options.provider === 'deepseek' ? new URL(DEEPSEEK_ENDPOINT)
+        : new URL(options.utilityEndpoint ?? LOCAL_ENDPOINT)
     if (options.provider === 'deepseek' && options.apiKey === undefined) {
       throw new TypeError('DeepSeek credential unavailable')
     }
@@ -117,13 +124,15 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     const characters = playtestModelCharacters(compiled.manifest, this.#playerId)
     this.#characterIds = characters.map(character => character.actorId)
     this.#decideContinuation = async (request, signal) => {
-      const raw = await provider.decide(prototypeTurnCall(request), signal)
+      const raw = await provider.decide(options.provider === 'local'
+        ? localPrototypeTurnCall(request) : prototypeTurnCall(request), signal)
       if (options.publicationAudit === undefined) return raw
       const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
       let history
       try { history = store.readEvents(this.#address) } finally { store.close() }
       return auditBeforePublication({ request, raw, history, options: options.publicationAudit, signal,
-        decide: async revised => provider.decide(prototypeTurnCall(revised), signal) })
+        decide: async revised => provider.decide(options.provider === 'local'
+          ? localPrototypeTurnCall(revised) : prototypeTurnCall(revised), signal) })
     }
     this.#npcNames = characters.map(character => character.name)
     // The Host's interpretation profile is a contract with the world, and its deadline ceiling is part of
@@ -136,6 +145,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       sessionPath: resolve(options.dataDirectory, 'session.sqlite'),
       memoryPath: resolve(options.dataDirectory, 'memory.sqlite'),
       contextPath: resolve(options.dataDirectory, 'context.sqlite'),
+      recallTokenizer: RECALL_KEYWORD_TOKENIZER_ID,
       // The world's model budget has to cover the interpreter's own output ceiling, or the Host refuses to
       // dispatch an interpretation at all: the profile states the ceiling, this is what pays for it.
       modelBudgetTokens: 8_192, leaseTtlMs: 180_000,
@@ -336,10 +346,13 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     const path = resolve(this.#dataDirectory, 'world.sqlite')
     const store = new WorldStore(path), leases = new WriterLeaseService(path)
     const availability = new CharacterRuntimeAvailabilityService(path)
+    let memory: CognitiveMemoryService | undefined
     this.#continuationController = new AbortController()
     try {
       if (this.#paused) return
-      const turn = new PrototypeCharacterTurn({ address: this.#address, store, leases, availability,
+      memory = new CognitiveMemoryService(resolve(this.#dataDirectory, 'memory.sqlite'),
+        store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
+      const turn = new PrototypeCharacterTurn({ address: this.#address, store, memory, leases, availability,
         rulebooks: createCoreRulebookRegistry({ interactionPackages: [createBasicInteractionPackage()] }),
         decide: this.#decideContinuation })
       this.#phaseLabel = '角色正在处理场景与行动结果'
@@ -359,7 +372,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       } else if (terminal === 'call_limit' || terminal === 'wave_limit' || terminal === 'character_limit') {
         this.#notice = '玩家输入已提交；本轮角色反应达到预算上限，剩余反应没有继续执行。'
       }
-    } finally { this.#continuationController = undefined; availability.close(); leases.close(); store.close() }
+    } finally { this.#continuationController = undefined; memory?.close(); availability.close(); leases.close(); store.close() }
   }
 
   async #refresh(): Promise<void> {

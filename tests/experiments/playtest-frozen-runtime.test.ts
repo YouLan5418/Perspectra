@@ -27,6 +27,39 @@ async function listening(server: Server): Promise<number> {
 }
 
 describe('the web playtest on a frozen world', () => {
+  it('sends the local Gemini endpoint a flat decision schema with real movement destinations', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'gemini-flat-tool-')); roots.push(root)
+    const schemas: unknown[] = []
+    const server = createServer((request, response) => {
+      let body = ''
+      request.on('data', chunk => { body += String(chunk) })
+      request.on('end', () => {
+        const wire = JSON.parse(body)
+        schemas.push(wire.tools[0].function.parameters)
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ choices: [{ message: { tool_calls: [{
+          function: { name: 'submit_actions', arguments: '{"decision":"abstain"}' },
+        }] } }] }))
+      })
+    })
+    servers.push(server)
+    const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
+      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'local',
+      model: 'gemini-3.7-flash',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/v1/chat/completions` })
+    try {
+      const state = await runtime.submit('/act speak {"text":"早上好。"}')
+      expect(state.error).toBe(false)
+      expect(schemas).toHaveLength(4)
+      expect((schemas[0] as { oneOf?: unknown }).oneOf).toBeUndefined()
+      expect(schemas[0]).toMatchObject({ properties: {
+        decision: { enum: expect.arrayContaining(['publish', 'perform']) },
+        parameters: { additionalProperties: false, properties: {
+          locationId: { enum: expect.arrayContaining(['location:living-room']) },
+        } },
+      } })
+    } finally { await runtime.close() }
+  })
   it('runs two committed operations and a final expression in one default character activation', async () => {
     const root = mkdtempSync(join(tmpdir(), 'activation-two-operations-')); roots.push(root)
     let claudeCalls = 0

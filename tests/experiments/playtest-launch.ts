@@ -1,5 +1,5 @@
 export interface PlaytestLaunchArguments {
-  readonly provider: 'ollama' | 'deepseek'
+  readonly provider: 'local' | 'ollama' | 'deepseek'
   readonly packPath?: string
   readonly dataDirectory?: string
   readonly shadowConfigPath?: string
@@ -7,14 +7,14 @@ export interface PlaytestLaunchArguments {
 
 /** Parse the local v5 creator playtest command line. */
 export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestLaunchArguments {
-  let provider: 'ollama' | 'deepseek' = 'ollama'
+  let provider: 'local' | 'ollama' | 'deepseek' = 'local'
   let packPath: string | undefined
   let dataDirectory: string | undefined
   let shadowConfigPath: string | undefined
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]
-    if (argument === '--deepseek') {
-      provider = 'deepseek'
+    if (argument === '--deepseek' || argument === '--ollama') {
+      provider = argument === '--deepseek' ? 'deepseek' : 'ollama'
       continue
     }
     if (argument !== '--pack' && argument !== '--data-dir' && argument !== '--jev-shadow') {

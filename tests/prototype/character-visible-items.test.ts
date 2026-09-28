@@ -11,7 +11,8 @@ const transfer = { eventType: 'entity.transferred', eventVersion: 1, data: {
   fromLocationId: 'location:room', toHolderId: player, toLocationId: null,
 } }
 const observation = { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'seen', value: {
-  observerId: actor, content: { status: 'accepted', interaction: transfer.data },
+  observerId: actor, content: { status: 'accepted', interaction: transfer.data,
+    resultDescription: '我看见玩家拿起杯子。' },
 } } }
 const events = [...world.genesisEvents, transfer, observation]
 it('shows witnessed possession only while the holder remains visible in the same place', () => {
@@ -21,7 +22,8 @@ it('shows witnessed possession only while the holder remains visible in the same
     data: { characterId: player, fromLocationId: 'location:room', toLocationId: 'location:elsewhere' } }]
   const result = characterVisibleItems(world.manifest, away, actor, [actor, player])
   expect(result.current).toEqual([])
-  expect(result.lastObserved).toMatchObject([{ entityId: 'entity:cup', holderId: player }])
+  expect(result.lastObserved).toMatchObject([{ entityId: 'entity:cup', holderId: player,
+    lastObservedDescription: '我看见玩家拿起杯子。' }])
   expect(characterVisibleItems(world.manifest, events, actor, [actor]).current).toEqual([])
 })
 it('does not reveal an unseen transfer, even when its holder is present', () => {

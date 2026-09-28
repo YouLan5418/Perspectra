@@ -17,9 +17,12 @@ async function main(): Promise<void> {
   const packPath = launch.packPath ?? (process.env.HCW_PLAYTEST_PACK?.trim() || undefined)
   const dataDirectory = launch.dataDirectory
     ?? (process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim() || defaultPlaytestDirectory())
-  const endpoint = process.env.HCW_OLLAMA_ENDPOINT
-  const model = provider === 'deepseek' ? (process.env.HCW_DEEPSEEK_MODEL?.trim() || 'deepseek-flash') : process.env.HCW_OLLAMA_MODEL
-  const apiKey = provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY : undefined
+  const endpoint = provider === 'ollama' ? process.env.HCW_OLLAMA_ENDPOINT
+    : provider === 'local' ? process.env.HCW_LOCAL_ENDPOINT : undefined
+  const model = provider === 'deepseek' ? (process.env.HCW_DEEPSEEK_MODEL?.trim() || 'deepseek-flash')
+    : provider === 'ollama' ? process.env.HCW_OLLAMA_MODEL : process.env.HCW_LOCAL_MODEL
+  const apiKey = provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY
+    : provider === 'local' ? process.env.HCW_LOCAL_API_KEY : undefined
   if (packPath === undefined || !isFrozenPackDirectory(packPath)) {
     throw new Error('请通过 --pack 指定 worldpack-source/v5 世界源目录；旧 Pack 已不再由网页试玩入口运行')
   }
@@ -60,7 +63,7 @@ async function main(): Promise<void> {
   await once(server, 'listening')
   const port = (server.address() as AddressInfo).port
   process.stdout.write(`\n本机试玩页已启动：\nhttp://127.0.0.1:${port}/#token=${token}\n\n`)
-  process.stdout.write(`世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || 'qwen3.5:4b'}\n按 Ctrl+C 安全关闭。\n`)
+  process.stdout.write(`世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || (provider === 'local' ? 'gemini-3.7-flash' : provider === 'deepseek' ? 'deepseek-flash' : 'qwen3:4b')}\n按 Ctrl+C 安全关闭。\n`)
   if (packPath !== undefined) process.stdout.write(`World Pack：${packPath}\n`)
 }
 

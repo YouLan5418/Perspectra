@@ -12,7 +12,7 @@ export function characterVisibleItems(manifest: CompiledWorldManifest, events: r
   for (const entity of manifest.entities) {
     const state = currentEntityState(events, entity.entityId)
     let lastChange = -1
-    let observed: { index: number; transfer: WorldJsonObject } | undefined
+    let observed: { index: number; transfer: WorldJsonObject; description?: string } | undefined
     events.forEach((event, index) => {
       const data = object(event.data)
       if (['entity.upsert', 'entity.transferred', 'entity.taken'].includes(event.eventType)
@@ -20,7 +20,10 @@ export function characterVisibleItems(manifest: CompiledWorldManifest, events: r
       const value = object(data.value), content = object(value.content), transfer = object(content.interaction)
       if (event.eventType === 'observation.upsert' && value.observerId === actorId
         && content.status === 'accepted' && transfer.entityId === entity.entityId
-        && 'toHolderId' in transfer) observed = { index, transfer }
+        && 'toHolderId' in transfer) {
+        observed = { index, transfer,
+          ...(typeof content.resultDescription === 'string' ? { description: content.resultDescription } : {}) }
+      }
     })
     const ownOrGround = state !== undefined && (state.holderId === actorId
       || (locationId !== undefined && state.holderId === null && state.locationId === locationId))
@@ -32,6 +35,7 @@ export function characterVisibleItems(manifest: CompiledWorldManifest, events: r
     } else if (observed !== undefined) {
       lastObserved.push({ entityId: entity.entityId, holderId: observed.transfer.toHolderId ?? null,
         locationId: observed.transfer.toLocationId ?? null,
+        ...(observed.description === undefined ? {} : { lastObservedDescription: observed.description }),
         note: '这是你上次观察到的交互结果；目前不能确认该物品的归属或位置。' })
     }
   }

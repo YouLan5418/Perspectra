@@ -15,20 +15,21 @@ corepack pnpm@11.7.0 worldpack test examples/world-packs/ai-girls-awaken-v10
 
 ## 启动本机网页
 
-DeepSeek 的 API Key 从当前进程的 `DEEPSEEK_API_KEY` 环境变量读取，切勿写入 Pack 或命令文件。如果 Key 仅设置在 Windows 用户环境变量中，而当前终端尚未继承，可在**当前 PowerShell 进程**中读取：
+当前实验默认走本机 OpenAI 兼容接口 `http://127.0.0.1:8045/v1/chat/completions`，模型 `gemini-3.7-flash`。先确认本机服务已启动，再用新的数据目录运行：
 
 ```powershell
-$env:DEEPSEEK_API_KEY = [Environment]::GetEnvironmentVariable('DEEPSEEK_API_KEY', 'User')
-corepack pnpm@11.7.0 experience:web:flash --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/my-v5-playtest
+corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/my-gemini-playtest
 ```
 
-也可以用本机 Ollama：
+当前 8045 服务在本机探针中无需认证即可响应；若服务配置要求密钥，只在启动进程中设置 `HCW_LOCAL_API_KEY`，不要写入 Pack、脚本或仓库。可用 `HCW_LOCAL_ENDPOINT`、`HCW_LOCAL_MODEL` 覆盖本机接口和模型标识。`experience:web:flash` 与上面的默认命令使用同一模型。
+
+如需对照本机 Ollama，可显式选择：
 
 ```powershell
-corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/my-ollama-playtest
+corepack pnpm@11.7.0 experience:web --ollama --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/my-ollama-playtest
 ```
 
-打开终端打印的完整本机地址，包含 `#token=` 部分。网页只监听 `127.0.0.1`。DeepSeek 模型默认是 `deepseek-flash`，可由 `HCW_DEEPSEEK_MODEL` 覆盖；Ollama 模型可由 `HCW_OLLAMA_MODEL` 覆盖，本机地址可由 `HCW_OLLAMA_ENDPOINT` 覆盖。网页命令只接受 `--deepseek`、`--pack`、`--data-dir`；`HCW_PLAYTEST_PACK` 和 `HCW_PLAYTEST_DATA_DIRECTORY` 也可指定路径。没有有效 v5 源目录时，启动会明确失败。
+打开终端打印的完整本机地址，包含 `#token=` 部分。网页只监听 `127.0.0.1`。`--pack` 和 `--data-dir` 指定世界源与新存档；`HCW_PLAYTEST_PACK` 和 `HCW_PLAYTEST_DATA_DIRECTORY` 也可指定路径。没有有效 v5 源目录时，启动会明确失败。历史 DeepSeek 试玩结果不能和新模型结果直接合并为同一组结论。
 
 ## 试玩与判断
 
