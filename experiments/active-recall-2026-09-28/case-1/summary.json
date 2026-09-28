@@ -1,0 +1,22 @@
+{
+  "prompt": "你还记得那只杯子最初是谁保管的吗？我听到不同说法，你怎么想？",
+  "result": {
+    "status": "published",
+    "calls": 1
+  },
+  "decisions": [
+    {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:player"
+      ],
+      "speech": "我记得杯子原先就搁在房间里，没人拿着。后来是鲍勃伸手把它拿走的——那一下我看得清楚。至于他说的\"早交给玩家了\"，那是他后来自己讲的话，我手上没有对应的凭据。所以按我看到的，最初保管的人是鲍勃。"
+    }
+  ],
+  "initialEvidenceInRequest": true,
+  "voluntaryRecall": false,
+  "evidenceReturned": false,
+  "leakedOtherPrivate": false,
+  "worldUnchangedByRecall": true,
+  "finalHolder": "character:bob"
+}

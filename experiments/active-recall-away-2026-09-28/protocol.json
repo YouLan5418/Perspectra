@@ -1,0 +1,9 @@
+{
+  "prompts": [
+    "上次从桌上被拿走的那件东西究竟到了谁手里？我听到不同说法。你可以先核对自己的旧经历。"
+  ],
+  "model": "deepseek-flash",
+  "realModel": true,
+  "noForcedRecall": true,
+  "cases": "same contradictory authorized evidence, only question changes"
+}

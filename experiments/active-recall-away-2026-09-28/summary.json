@@ -1,0 +1,25 @@
+[
+  {
+    "prompt": "上次从桌上被拿走的那件东西究竟到了谁手里？我听到不同说法。你可以先核对自己的旧经历。",
+    "result": {
+      "status": "published",
+      "calls": 2
+    },
+    "decisions": [
+      {
+        "decision": "recall",
+        "query": "桌上被拿走的东西 到了谁手里"
+      },
+      {
+        "decision": "publish",
+        "speech": "我核对了一下自己的旧经历，只记得上次看到那件东西被 Bob 拿走了——但那只是当时的观察，之后归谁、现在在哪，我无法确认。你听到的不同说法，我这边给不出定论。"
+      }
+    ],
+    "initialEvidenceInRequest": false,
+    "voluntaryRecall": true,
+    "evidenceReturned": true,
+    "leakedOtherPrivate": false,
+    "worldUnchangedByRecall": true,
+    "finalHolder": "character:bob"
+  }
+]

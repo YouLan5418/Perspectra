@@ -5,6 +5,7 @@ import { brandId, resolutionAuthority, type CharacterId, type WorldAddress, type
 import { characterRelationObservations, currentCharacterLifecycle,
   type CompiledWorldManifest, type RulebookRegistry } from '@harness-world/kernel'
 import { CognitionProjectionRebuilder, CharacterViewBuilder, CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import type { CognitiveMemoryService } from '@harness-world/memory'
 import { SceneDecisionService } from './scene-decision.ts'
 import { characterExecutionResult, expressionAfterExecution } from './character-execution-result.ts'
 
@@ -12,6 +13,8 @@ export interface PrototypeTurnRequest {
   readonly context: WorldJsonObject
   readonly continuation: boolean
   readonly canPerform?: boolean
+  readonly canRecall?: boolean
+  readonly recallEvidence?: WorldJsonObject
   readonly result?: WorldJsonObject
 }
 
@@ -45,6 +48,7 @@ export class PrototypeCharacterTurn {
   constructor(private readonly options: {
     readonly address: WorldAddress
     readonly store: WorldStore
+    readonly memory?: CognitiveMemoryService
     readonly leases: WriterLeaseService
     readonly availability: CharacterRuntimeAvailabilityService
     readonly rulebooks: RulebookRegistry
@@ -78,6 +82,7 @@ export class PrototypeCharacterTurn {
       : AbortSignal.any([options.signal, AbortSignal.timeout(120_000)])
     let lease: ReturnType<WriterLeaseService['acquire']> | undefined
     let calls = 0
+    let recalledThisActivation = false
     let performResult: WorldJsonObject | undefined
     let modelFailure: PrototypeTurnResult['failure']
     const done = (status: PrototypeTurnResult['status']): PrototypeTurnResult => ({ status, calls,
@@ -139,18 +144,40 @@ export class PrototypeCharacterTurn {
           manifest: this.#manifest, events: history, actorId: characterId,
           action: object(performResult.action) as { actionType: string; parameters: WorldJsonValue },
           status: String(performResult.status), reason: typeof performResult.reason === 'string' ? performResult.reason : null })
-        const raw = await this.options.decide({ context, continuation: step !== 0, canPerform,
+        const canRecall = this.options.memory !== undefined && !recalledThisActivation && performResult === undefined
+        const request: PrototypeTurnRequest = { context, continuation: step !== 0, canPerform, canRecall,
           ...(visibleResult === undefined ? {} : { result: { ...visibleResult,
             instruction: canPerform
               ? '你已看到上次执行的真实结果。还可以申请一次受控交互，或直接表达或 abstain；未执行的后续状态变化不能写成既成事实。'
-              : expressionAfterExecution, action: performResult!.action! } }) }, signal)
+              : expressionAfterExecution, action: performResult!.action! } }) }
+        let raw = await this.options.decide(request, signal)
         modelFailure = undefined
         signal.throwIfAborted()
         // A changed world means this output is stale, including a change while awaiting the model.
         if (this.options.store.head(this.options.address).headSeq !== head.headSeq) return done('interrupted')
         lease = this.options.leases.renew(this.options.address, ownerId, lease.fencingToken, 180_000)
         modelFailure = 'invalid_output'
-        const decision = object(raw)
+        let decision = object(raw)
+        if (decision.decision === 'recall') {
+          keys(decision, ['decision', 'query'])
+          if (!canRecall || typeof decision.query !== 'string' || decision.query.trim() !== decision.query
+            || decision.query.length < 2 || decision.query.length > 120) throw new TypeError('invalid recall request')
+          recalledThisActivation = true
+          modelFailure = undefined // Memory integrity failures are not model output failures.
+          const memories = this.options.memory!.recall(this.options.address, characterId, decision.query, head.headSeq)
+          // A search result is a bounded, attributed selection of this character's sources, not a verdict.
+          const recallEvidence: WorldJsonObject = { query: decision.query, memories,
+            note: '仅是你可访问记忆中的相关证据；他人发言不证明其内容，未找到也不证明事件未发生。' }
+          calls += 1
+          modelFailure = 'provider_failed'
+          raw = await this.options.decide({ ...request, canRecall: false, recallEvidence }, signal)
+          modelFailure = undefined
+          signal.throwIfAborted()
+          if (this.options.store.head(this.options.address).headSeq !== head.headSeq) return done('interrupted')
+          lease = this.options.leases.renew(this.options.address, ownerId, lease.fencingToken, 180_000)
+          modelFailure = 'invalid_output'
+          decision = object(raw)
+        }
         if (decision.decision === 'abstain') {
           keys(decision, ['decision'])
           return done('abstained')

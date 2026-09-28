@@ -1,0 +1,1069 @@
+[
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 1,
+    "tick": 0,
+    "eventType": "world.created",
+    "eventVersion": 1,
+    "data": {
+      "specHash": "sha256:6cd32bc8a0e8e30036ae51e25ca30ea75fabda032bb37a8ace8bc92c4f6633c7"
+    },
+    "previousHash": "genesis",
+    "eventHash": "sha256:bc4b2a977be7e85bc9b59d41f638e2b3c2b24b002f1ec39474000f917cacf379",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 2,
+    "tick": 0,
+    "eventType": "world.manifest-locked",
+    "eventVersion": 1,
+    "data": {
+      "genesisPlanHash": "sha256:99e7f67f3289f6d05feb8c9628d0b14dce594a63ca166e712d175ed8267c4eeb",
+      "manifestHash": "sha256:28ebd00795ac5bec2fd0654898d7477d66ce60967c8a17fd12f73920e099f2d3"
+    },
+    "previousHash": "sha256:bc4b2a977be7e85bc9b59d41f638e2b3c2b24b002f1ec39474000f917cacf379",
+    "eventHash": "sha256:10922c2fc1df130aa162a705e7a86fd5b78eb052f0cdee8b6f100e40d76607ab",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 3,
+    "tick": 0,
+    "eventType": "location.upsert",
+    "eventVersion": 1,
+    "data": {
+      "locationId": "location:room",
+      "name": "Room"
+    },
+    "previousHash": "sha256:10922c2fc1df130aa162a705e7a86fd5b78eb052f0cdee8b6f100e40d76607ab",
+    "eventHash": "sha256:cb6a9306b40047ffe4a8813d74f91cf0b4e4b92827fde4f5b21ee955586ca090",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 4,
+    "tick": 0,
+    "eventType": "character.created",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:npc",
+      "lifecycleState": "active",
+      "locationId": "location:room",
+      "name": "NPC"
+    },
+    "previousHash": "sha256:cb6a9306b40047ffe4a8813d74f91cf0b4e4b92827fde4f5b21ee955586ca090",
+    "eventHash": "sha256:00253c6e40bf9a72773a3d0751f0c9d8afe348155e16f0d11917086b8b51b1a5",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 5,
+    "tick": 0,
+    "eventType": "character.created",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:player",
+      "lifecycleState": "active",
+      "locationId": "location:room",
+      "name": "Player"
+    },
+    "previousHash": "sha256:00253c6e40bf9a72773a3d0751f0c9d8afe348155e16f0d11917086b8b51b1a5",
+    "eventHash": "sha256:cbea8f8217bb0956509398b696beb8b0a8545d0d2317b730dcbdedd5c96511ef",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 4
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 6,
+    "tick": 0,
+    "eventType": "scene.upsert",
+    "eventVersion": 1,
+    "data": {
+      "sceneId": "scene:room",
+      "value": {
+        "lifecycle": "active",
+        "locationId": "location:room",
+        "participantIds": [
+          "character:player",
+          "character:npc",
+          "character:bob"
+        ]
+      }
+    },
+    "previousHash": "sha256:cbea8f8217bb0956509398b696beb8b0a8545d0d2317b730dcbdedd5c96511ef",
+    "eventHash": "sha256:8dffc72de3e0953e8a9e9af5cb4acfd3604ba919b1ba9a5b9dd981e190b7feb6",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 5
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 7,
+    "tick": 0,
+    "eventType": "player.binding.upsert",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:player",
+      "principalId": "principal:player",
+      "sessionId": "session:player"
+    },
+    "previousHash": "sha256:8dffc72de3e0953e8a9e9af5cb4acfd3604ba919b1ba9a5b9dd981e190b7feb6",
+    "eventHash": "sha256:c0ac519e405e8fd2da2e53bc067d52d5aa760b10cb8fe61b40dbfcb5fa67a0bf",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 6
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 8,
+    "tick": 0,
+    "eventType": "world.lifecycle-changed",
+    "eventVersion": 1,
+    "data": {
+      "lifecycleState": "active"
+    },
+    "previousHash": "sha256:c0ac519e405e8fd2da2e53bc067d52d5aa760b10cb8fe61b40dbfcb5fa67a0bf",
+    "eventHash": "sha256:d2e3d05da7a6577f6796d65e885baf8221703ecfef01f999e38af573c3c3b5b1",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 7
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 9,
+    "tick": 0,
+    "eventType": "character.created",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:bob",
+      "controllerClass": "scripted",
+      "lifecycle": "active",
+      "lifecycleState": "active",
+      "locationId": "location:room",
+      "name": "Bob",
+      "portrayal": null,
+      "pronouns": "they"
+    },
+    "previousHash": "sha256:d2e3d05da7a6577f6796d65e885baf8221703ecfef01f999e38af573c3c3b5b1",
+    "eventHash": "sha256:1ce6e85b257c0d790ae9b0cbcb35f39bcbc98c7f9468b3e9248df966edcba69c",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 8
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 10,
+    "tick": 0,
+    "eventType": "entity.upsert",
+    "eventVersion": 1,
+    "data": {
+      "entityId": "entity:cup",
+      "kind": "cup",
+      "locationId": "location:room"
+    },
+    "previousHash": "sha256:1ce6e85b257c0d790ae9b0cbcb35f39bcbc98c7f9468b3e9248df966edcba69c",
+    "eventHash": "sha256:5758ccecf8948d8f1f0cba9afd1cf3b773dd3bd02046a531da64c6fcb1238792",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 9
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 11,
+    "tick": 0,
+    "eventType": "entity.upsert",
+    "eventVersion": 1,
+    "data": {
+      "entityId": "entity:other",
+      "kind": "cup",
+      "locationId": "location:room"
+    },
+    "previousHash": "sha256:5758ccecf8948d8f1f0cba9afd1cf3b773dd3bd02046a531da64c6fcb1238792",
+    "eventHash": "sha256:3031dd83ec4e7d27271880b6dc2b8a330d4f45a2f9e36a66453d7377a94cc27f",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 10
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 12,
+    "tick": 0,
+    "eventType": "entity.transferred",
+    "eventVersion": 1,
+    "data": {
+      "characterId": "character:bob",
+      "entityId": "entity:cup",
+      "fromHolderId": null,
+      "fromLocationId": "location:room",
+      "interactionId": "base:take",
+      "toHolderId": "character:bob",
+      "toLocationId": null
+    },
+    "previousHash": "sha256:3031dd83ec4e7d27271880b6dc2b8a330d4f45a2f9e36a66453d7377a94cc27f",
+    "eventHash": "sha256:c02ad43e3a15ef1ac60ccf674c3db6851a2c494c1e463bc2c93287cd23dd7cb4",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 11
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 13,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:actual-transfer",
+      "value": {
+        "content": {
+          "actionType": "interact",
+          "actorId": "character:bob",
+          "interaction": {
+            "characterId": "character:bob",
+            "entityId": "entity:cup",
+            "fromHolderId": null,
+            "fromLocationId": "location:room",
+            "interactionId": "base:take",
+            "toHolderId": "character:bob",
+            "toLocationId": null
+          },
+          "resultDescription": "鲍勃取得了杯子的保管。",
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:c02ad43e3a15ef1ac60ccf674c3db6851a2c494c1e463bc2c93287cd23dd7cb4",
+    "eventHash": "sha256:931d214405cc854307743a816baa6db64a9b60d744bd5e84332f913250f8c043",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 12
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 14,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:false-report",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:bob",
+          "speech": {
+            "characterId": "character:bob",
+            "text": "我早把杯子交给玩家了。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:931d214405cc854307743a816baa6db64a9b60d744bd5e84332f913250f8c043",
+    "eventHash": "sha256:3a97b41b6970ab1be0d3aa469f321bebf6424956fa19faa42ba221f372fbc568",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 13
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 15,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:private-other",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "只对鲍勃说：密码是深海灯。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:bob"
+      }
+    },
+    "previousHash": "sha256:3a97b41b6970ab1be0d3aa469f321bebf6424956fa19faa42ba221f372fbc568",
+    "eventHash": "sha256:b53d26a543c5db721e9e844e25c095ea16bab7bacb7ea91ef627f81a618f070b",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 14
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 16,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-0",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了1分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:b53d26a543c5db721e9e844e25c095ea16bab7bacb7ea91ef627f81a618f070b",
+    "eventHash": "sha256:02c1aa05bc1314f33d374592ad13e176b9ff9b93882f7320684df9f31e9a4ddc",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 15
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 17,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-1",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了2分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:02c1aa05bc1314f33d374592ad13e176b9ff9b93882f7320684df9f31e9a4ddc",
+    "eventHash": "sha256:e907e07420943bf81e57f784f166b480a56a936306737d77faa4c1643354d891",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 16
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 18,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-2",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了3分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:e907e07420943bf81e57f784f166b480a56a936306737d77faa4c1643354d891",
+    "eventHash": "sha256:6185a050903af9bcd4e992594f4c6bd84ffd478bdbe458442c1c61a72d47019f",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 17
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 19,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-3",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了4分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:6185a050903af9bcd4e992594f4c6bd84ffd478bdbe458442c1c61a72d47019f",
+    "eventHash": "sha256:ff7a8f5065e54846b8399d9ccf8d3fe178ef6b6f2f4ea3923dd6df27cae8be7c",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 18
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 20,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-4",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了5分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:ff7a8f5065e54846b8399d9ccf8d3fe178ef6b6f2f4ea3923dd6df27cae8be7c",
+    "eventHash": "sha256:d623cc54e70239f75f8f693e990297934a716603e4502e90b82f054de27c2b81",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 19
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 21,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-5",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了6分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:d623cc54e70239f75f8f693e990297934a716603e4502e90b82f054de27c2b81",
+    "eventHash": "sha256:65ffe26de826a9597bb9a309f0690f6e00e658c8cc30ef2a87baef34fe3d3821",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 20
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 22,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-6",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了7分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:65ffe26de826a9597bb9a309f0690f6e00e658c8cc30ef2a87baef34fe3d3821",
+    "eventHash": "sha256:64500570dc46f87ba02664aebbb99f0d325bb1014d8d9baf86492cea332d338c",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 21
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 23,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-7",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了8分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:64500570dc46f87ba02664aebbb99f0d325bb1014d8d9baf86492cea332d338c",
+    "eventHash": "sha256:0a8757f1efb5ae9b1e01a74b5f8f339348383bf61e6338bb588e22d492789718",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 22
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 24,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-8",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了9分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:0a8757f1efb5ae9b1e01a74b5f8f339348383bf61e6338bb588e22d492789718",
+    "eventHash": "sha256:55ec4e7ed74b72cc9b72ca64c22fd3f678b7c49854cd747095637760a34ceb77",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 23
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 25,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-9",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了10分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:55ec4e7ed74b72cc9b72ca64c22fd3f678b7c49854cd747095637760a34ceb77",
+    "eventHash": "sha256:da26aef501cafb99eea74e289571754e821886822428eac90bb90bc807805d21",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 24
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 26,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-10",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了11分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:da26aef501cafb99eea74e289571754e821886822428eac90bb90bc807805d21",
+    "eventHash": "sha256:b0dc311a24d529d70faedd7e8bf0dbbc8ca786d36fd83cd9cd2b1d352d15ce5c",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 25
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 27,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-11",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了12分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:b0dc311a24d529d70faedd7e8bf0dbbc8ca786d36fd83cd9cd2b1d352d15ce5c",
+    "eventHash": "sha256:231464d30e5ee763261f51583000cbb9715a2e68a13fac35a8c0b8cb489a6cce",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 26
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 28,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-12",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了13分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:231464d30e5ee763261f51583000cbb9715a2e68a13fac35a8c0b8cb489a6cce",
+    "eventHash": "sha256:cd44d9f208ee2c222ff31b6993f411498d7a44b86eb41ae78209a9c5655f183a",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 27
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 29,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-13",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了14分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:cd44d9f208ee2c222ff31b6993f411498d7a44b86eb41ae78209a9c5655f183a",
+    "eventHash": "sha256:74e1d78125c944af76875e208c377652fd206c82881f271da00b988ed17efe90",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 28
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 30,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-14",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了15分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:74e1d78125c944af76875e208c377652fd206c82881f271da00b988ed17efe90",
+    "eventHash": "sha256:74920c4b01340e19781b5bc615e4ccd1602e34d6c50f58537752e7456010f3e5",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 29
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 31,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-15",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了16分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:74920c4b01340e19781b5bc615e4ccd1602e34d6c50f58537752e7456010f3e5",
+    "eventHash": "sha256:537cfe4fe49c2af6aae11ca84e8ee5d43204ceb8b697cab7e4149e121ddcf20d",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 30
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 32,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-16",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了17分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:537cfe4fe49c2af6aae11ca84e8ee5d43204ceb8b697cab7e4149e121ddcf20d",
+    "eventHash": "sha256:45f7b81ae54ad814da5d1fa3778bff3b2e8b47dcc3bd797342508b6d394f1c9b",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 31
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 33,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:filler-17",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "今天雨还没停，我们已经等了18分钟。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:45f7b81ae54ad814da5d1fa3778bff3b2e8b47dcc3bd797342508b6d394f1c9b",
+    "eventHash": "sha256:f80db3dd81e51701869a43c2556df2bb7fd7701aa8c6c10782e6f1cd267a3596",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 32
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 34,
+    "tick": 0,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "observation:current-question",
+      "value": {
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:player",
+          "speech": {
+            "characterId": "character:player",
+            "text": "你还记得那只杯子最初是谁保管的吗？我听到不同说法，你怎么想？"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:f80db3dd81e51701869a43c2556df2bb7fd7701aa8c6c10782e6f1cd267a3596",
+    "eventHash": "sha256:81c48da0629ec259e7b89d716fd7e547724798aba94ae9c57362513206d293df",
+    "transactionId": "transaction:active-recall:0",
+    "eventOrdinal": 33
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 35,
+    "tick": 1,
+    "eventType": "character.speak",
+    "eventVersion": 1,
+    "data": {
+      "addresseeIds": [
+        "character:player"
+      ],
+      "characterId": "character:npc",
+      "declaredSpeechAct": null,
+      "narration": "",
+      "replyTo": null,
+      "scope": "direct",
+      "text": "我记得杯子原先就搁在房间里，没人拿着。后来是鲍勃伸手把它拿走的——那一下我看得清楚。至于他说的\"早交给玩家了\"，那是他后来自己讲的话，我手上没有对应的凭据。所以按我看到的，最初保管的人是鲍勃。"
+    },
+    "previousHash": "sha256:81c48da0629ec259e7b89d716fd7e547724798aba94ae9c57362513206d293df",
+    "eventHash": "sha256:31b9cc80546ee8ed8bd1b3d3cacc4392062e3d4acd8ae8a3046b8eaaee921125",
+    "transactionId": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0:commit",
+    "eventOrdinal": 0
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 36,
+    "tick": 1,
+    "eventType": "action.resolved",
+    "eventVersion": 1,
+    "data": {
+      "accepted": true,
+      "actionId": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0:action",
+      "actionType": "speak",
+      "actorId": "character:npc",
+      "order": 0,
+      "participantId": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f",
+      "reason": null,
+      "roundId": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0",
+      "sourceRole": "agent"
+    },
+    "previousHash": "sha256:31b9cc80546ee8ed8bd1b3d3cacc4392062e3d4acd8ae8a3046b8eaaee921125",
+    "eventHash": "sha256:97e2fa96af9abb0abe2c5050f33b0306b4a20d6d22d4f6554f5f87f0c792f96d",
+    "transactionId": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0:commit",
+    "eventOrdinal": 1
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 37,
+    "tick": 1,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0:action:observer:character:npc",
+      "value": {
+        "actionId": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:npc",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:npc",
+            "declaredSpeechAct": null,
+            "narration": "",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "我记得杯子原先就搁在房间里，没人拿着。后来是鲍勃伸手把它拿走的——那一下我看得清楚。至于他说的\"早交给玩家了\"，那是他后来自己讲的话，我手上没有对应的凭据。所以按我看到的，最初保管的人是鲍勃。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:npc"
+      }
+    },
+    "previousHash": "sha256:97e2fa96af9abb0abe2c5050f33b0306b4a20d6d22d4f6554f5f87f0c792f96d",
+    "eventHash": "sha256:52707db370825a2c6a91bccfe762cca969abc98cbfdf3c57edc95a968e65e004",
+    "transactionId": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0:commit",
+    "eventOrdinal": 2
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 38,
+    "tick": 1,
+    "eventType": "observation.upsert",
+    "eventVersion": 1,
+    "data": {
+      "id": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0:action:observer:character:player",
+      "value": {
+        "actionId": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0:action",
+        "content": {
+          "actionType": "speak",
+          "actorId": "character:npc",
+          "resultDescription": "这次行动已经成功执行。当前状态请以本次可见场景为准。",
+          "speech": {
+            "addresseeIds": [
+              "character:player"
+            ],
+            "characterId": "character:npc",
+            "declaredSpeechAct": null,
+            "narration": "",
+            "replyTo": null,
+            "scope": "direct",
+            "text": "我记得杯子原先就搁在房间里，没人拿着。后来是鲍勃伸手把它拿走的——那一下我看得清楚。至于他说的\"早交给玩家了\"，那是他后来自己讲的话，我手上没有对应的凭据。所以按我看到的，最初保管的人是鲍勃。"
+          },
+          "status": "accepted"
+        },
+        "observerId": "character:player"
+      }
+    },
+    "previousHash": "sha256:52707db370825a2c6a91bccfe762cca969abc98cbfdf3c57edc95a968e65e004",
+    "eventHash": "sha256:9b2c67d4aadf62cbd472e1a4d96c30b49b065d6c7b7ee904f8e1c82b7eaa17e3",
+    "transactionId": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0:commit",
+    "eventOrdinal": 3
+  },
+  {
+    "address": {
+      "tenantId": "tenant:p8-crash",
+      "worldId": "world:p8-crash",
+      "branchId": "branch:main"
+    },
+    "seq": 39,
+    "tick": 1,
+    "eventType": "world.tick-advanced",
+    "eventVersion": 1,
+    "data": {
+      "roundId": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0",
+      "tick": 1
+    },
+    "previousHash": "sha256:9b2c67d4aadf62cbd472e1a4d96c30b49b065d6c7b7ee904f8e1c82b7eaa17e3",
+    "eventHash": "sha256:c68fd9e63ec792ab3a4f763a291311d6c0c5538be9e6cc60ce6976a69d1e0b7f",
+    "transactionId": "prototype-turn:2be1b9e8-1727-4f13-9b4e-d889cdad2f8f:0:commit",
+    "eventOrdinal": 4
+  }
+]

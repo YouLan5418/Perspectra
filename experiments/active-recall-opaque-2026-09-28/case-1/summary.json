@@ -1,0 +1,26 @@
+{
+  "prompt": "上次从桌上被拿走的那件东西究竟到了谁手里？我听到不同说法。你可以先核对自己的旧经历。",
+  "result": {
+    "status": "published",
+    "calls": 2
+  },
+  "decisions": [
+    {
+      "decision": "recall",
+      "query": "桌上杯子被谁拿走，后来到了谁手里"
+    },
+    {
+      "decision": "publish",
+      "addresseeIds": [
+        "character:player"
+      ],
+      "speech": "我核对过了。我亲眼看到的是：桌上那只杯子是鲍勃拿走的，保管权到了他手里。至于他后来是不是真交给了你——我只听到他说过这句话，没亲眼见到转交。所以现在杯子名义上还在鲍勃那儿。"
+    }
+  ],
+  "initialEvidenceInRequest": true,
+  "voluntaryRecall": true,
+  "evidenceReturned": true,
+  "leakedOtherPrivate": false,
+  "worldUnchangedByRecall": true,
+  "finalHolder": "character:bob"
+}

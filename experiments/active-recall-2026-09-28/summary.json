@@ -1,0 +1,50 @@
+[
+  {
+    "prompt": "你还记得那只杯子最初是谁保管的吗？我听到不同说法，你怎么想？",
+    "result": {
+      "status": "published",
+      "calls": 1
+    },
+    "decisions": [
+      {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "我记得杯子原先就搁在房间里，没人拿着。后来是鲍勃伸手把它拿走的——那一下我看得清楚。至于他说的\"早交给玩家了\"，那是他后来自己讲的话，我手上没有对应的凭据。所以按我看到的，最初保管的人是鲍勃。"
+      }
+    ],
+    "initialEvidenceInRequest": true,
+    "voluntaryRecall": false,
+    "evidenceReturned": false,
+    "leakedOtherPrivate": false,
+    "worldUnchangedByRecall": true,
+    "finalHolder": "character:bob"
+  },
+  {
+    "prompt": "关于那只杯子，我听到相反说法。你能先核对自己的旧经历，再说你记得谁说过什么吗？",
+    "result": {
+      "status": "published",
+      "calls": 2
+    },
+    "decisions": [
+      {
+        "decision": "recall",
+        "query": "杯子 保管 转移 鲍勃 玩家"
+      },
+      {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "我核对了自己的旧经历。我确实看到鲍勃从房间桌上取走了那只杯子，杯子此后由他保管——这是我亲眼所见。至于他说“早把杯子交给玩家了”，那只是我听到他说过这句话，我并没有看到交接发生。所以：我亲眼所见的是鲍勃取走杯子；我听到的是鲍勃声称已交给你。这两件事不冲突，但后者我无法证实。"
+      }
+    ],
+    "initialEvidenceInRequest": true,
+    "voluntaryRecall": true,
+    "evidenceReturned": true,
+    "leakedOtherPrivate": false,
+    "worldUnchangedByRecall": true,
+    "finalHolder": "character:bob"
+  }
+]

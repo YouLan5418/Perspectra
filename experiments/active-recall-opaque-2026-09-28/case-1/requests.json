@@ -1,0 +1,885 @@
+[
+  {
+    "context": {
+      "character": {
+        "characterId": "character:npc",
+        "controllerClass": "scripted",
+        "lifecycle": "active",
+        "locationId": "location:room",
+        "name": "NPC",
+        "portrayal": null,
+        "pronouns": "they"
+      },
+      "stimulus": [
+        {
+          "sourceText": "上次从桌上被拿走的那件东西究竟到了谁手里？我听到不同说法。你可以先核对自己的旧经历。",
+          "actorId": "character:player"
+        }
+      ],
+      "memories": [
+        {
+          "memoryId": "cognitive-memory-entry/v2:f34d6e1f8d86c4d00bcb752c",
+          "text": "character:bob said: 我早把杯子交给玩家了。",
+          "metadata": {
+            "observationId": "observation:false-report",
+            "speakerId": "character:bob",
+            "source": {
+              "sourceKind": "world_event",
+              "sourceId": "event:14",
+              "sourceSeq": 14,
+              "sourceHash": "sha256:3a97b41b6970ab1be0d3aa469f321bebf6424956fa19faa42ba221f372fbc568"
+            }
+          },
+          "sourceMaxSeq": 14,
+          "captureHash": "sha256:3aeabcc65ec7a5f632154b5f8ed7cd5c9367a1f835e87734ad9735988be9522a"
+        },
+        {
+          "memoryId": "cognitive-memory-entry/v2:d5f69d2a9ed4966ab02e6f86",
+          "text": "{\"actionType\":\"interact\",\"actorId\":\"character:bob\",\"interaction\":{\"characterId\":\"character:bob\",\"entityId\":\"entity:cup\",\"fromHolderId\":null,\"fromLocationId\":\"location:room\",\"interactionId\":\"base:take\",\"toHolderId\":\"character:bob\",\"toLocationId\":null},\"resultDescription\":\"鲍勃取得了杯子的保管。\",\"status\":\"accepted\"}",
+          "metadata": {
+            "observationId": "observation:actual-transfer",
+            "source": {
+              "sourceKind": "world_event",
+              "sourceId": "event:13",
+              "sourceSeq": 13,
+              "sourceHash": "sha256:931d214405cc854307743a816baa6db64a9b60d744bd5e84332f913250f8c043"
+            }
+          },
+          "sourceMaxSeq": 13,
+          "captureHash": "sha256:2731f9c9294e0bc7e6b771a4377c20c644666b2b478cd28d66872f7b2268bed4"
+        }
+      ],
+      "cognition": {
+        "address": {
+          "tenantId": "tenant:p8-crash",
+          "worldId": "world:p8-crash",
+          "branchId": "branch:main"
+        },
+        "characterId": "character:npc",
+        "asOfWorldSeq": 34,
+        "claims": [],
+        "goals": [],
+        "relationships": [],
+        "affects": [],
+        "innerTensions": [],
+        "commitments": [],
+        "openLoops": [],
+        "bundleHash": "sha256:ff95ebc968632b5819b1dd3e1f0967bb72b2ddc1a4316686097e07bbb7cfe224"
+      },
+      "scene": {
+        "locationId": "location:room",
+        "people": [
+          {
+            "characterId": "character:bob",
+            "name": "Bob"
+          },
+          {
+            "characterId": "character:npc",
+            "name": "NPC"
+          },
+          {
+            "characterId": "character:player",
+            "name": "Player"
+          }
+        ]
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "id": "observation:filler-3",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了4分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 19
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-4",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了5分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 20
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-5",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了6分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 21
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-6",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了7分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 22
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-7",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了8分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 23
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-8",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了9分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 24
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-9",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了10分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 25
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-10",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了11分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 26
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-11",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了12分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 27
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-12",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了13分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 28
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-13",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了14分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 29
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-14",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了15分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 30
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-15",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了16分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 31
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-16",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了17分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 32
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-17",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了18分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 33
+        },
+        {
+          "kind": "observation",
+          "id": "observation:current-question",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "上次从桌上被拿走的那件东西究竟到了谁手里？我听到不同说法。你可以先核对自己的旧经历。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 34
+        }
+      ],
+      "selfObservations": [],
+      "claims": [],
+      "goals": [],
+      "items": {
+        "current": [
+          {
+            "entityId": "entity:cup",
+            "holderId": "character:bob",
+            "locationId": null
+          },
+          {
+            "entityId": "entity:other",
+            "holderId": null,
+            "locationId": "location:room"
+          }
+        ],
+        "lastObserved": []
+      },
+      "affordances": [
+        {
+          "actionType": "speak"
+        },
+        {
+          "actionType": "move",
+          "destinations": [
+            {
+              "locationId": "location:next",
+              "name": "Next"
+            }
+          ]
+        },
+        {
+          "actionType": "interact",
+          "interactions": [
+            {
+              "arguments": {},
+              "bindingId": "binding:entity:other:base:take",
+              "definitionRef": {
+                "id": "base:take",
+                "version": 1
+              },
+              "targetRef": {
+                "id": "entity:other",
+                "kind": "entity"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "continuation": false,
+    "canPerform": true,
+    "canRecall": true
+  },
+  {
+    "context": {
+      "character": {
+        "characterId": "character:npc",
+        "controllerClass": "scripted",
+        "lifecycle": "active",
+        "locationId": "location:room",
+        "name": "NPC",
+        "portrayal": null,
+        "pronouns": "they"
+      },
+      "stimulus": [
+        {
+          "sourceText": "上次从桌上被拿走的那件东西究竟到了谁手里？我听到不同说法。你可以先核对自己的旧经历。",
+          "actorId": "character:player"
+        }
+      ],
+      "memories": [
+        {
+          "memoryId": "cognitive-memory-entry/v2:f34d6e1f8d86c4d00bcb752c",
+          "text": "character:bob said: 我早把杯子交给玩家了。",
+          "metadata": {
+            "observationId": "observation:false-report",
+            "speakerId": "character:bob",
+            "source": {
+              "sourceKind": "world_event",
+              "sourceId": "event:14",
+              "sourceSeq": 14,
+              "sourceHash": "sha256:3a97b41b6970ab1be0d3aa469f321bebf6424956fa19faa42ba221f372fbc568"
+            }
+          },
+          "sourceMaxSeq": 14,
+          "captureHash": "sha256:3aeabcc65ec7a5f632154b5f8ed7cd5c9367a1f835e87734ad9735988be9522a"
+        },
+        {
+          "memoryId": "cognitive-memory-entry/v2:d5f69d2a9ed4966ab02e6f86",
+          "text": "{\"actionType\":\"interact\",\"actorId\":\"character:bob\",\"interaction\":{\"characterId\":\"character:bob\",\"entityId\":\"entity:cup\",\"fromHolderId\":null,\"fromLocationId\":\"location:room\",\"interactionId\":\"base:take\",\"toHolderId\":\"character:bob\",\"toLocationId\":null},\"resultDescription\":\"鲍勃取得了杯子的保管。\",\"status\":\"accepted\"}",
+          "metadata": {
+            "observationId": "observation:actual-transfer",
+            "source": {
+              "sourceKind": "world_event",
+              "sourceId": "event:13",
+              "sourceSeq": 13,
+              "sourceHash": "sha256:931d214405cc854307743a816baa6db64a9b60d744bd5e84332f913250f8c043"
+            }
+          },
+          "sourceMaxSeq": 13,
+          "captureHash": "sha256:2731f9c9294e0bc7e6b771a4377c20c644666b2b478cd28d66872f7b2268bed4"
+        }
+      ],
+      "cognition": {
+        "address": {
+          "tenantId": "tenant:p8-crash",
+          "worldId": "world:p8-crash",
+          "branchId": "branch:main"
+        },
+        "characterId": "character:npc",
+        "asOfWorldSeq": 34,
+        "claims": [],
+        "goals": [],
+        "relationships": [],
+        "affects": [],
+        "innerTensions": [],
+        "commitments": [],
+        "openLoops": [],
+        "bundleHash": "sha256:ff95ebc968632b5819b1dd3e1f0967bb72b2ddc1a4316686097e07bbb7cfe224"
+      },
+      "scene": {
+        "locationId": "location:room",
+        "people": [
+          {
+            "characterId": "character:bob",
+            "name": "Bob"
+          },
+          {
+            "characterId": "character:npc",
+            "name": "NPC"
+          },
+          {
+            "characterId": "character:player",
+            "name": "Player"
+          }
+        ]
+      },
+      "observations": [
+        {
+          "kind": "observation",
+          "id": "observation:filler-3",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了4分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 19
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-4",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了5分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 20
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-5",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了6分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 21
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-6",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了7分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 22
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-7",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了8分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 23
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-8",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了9分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 24
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-9",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了10分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 25
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-10",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了11分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 26
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-11",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了12分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 27
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-12",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了13分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 28
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-13",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了14分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 29
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-14",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了15分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 30
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-15",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了16分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 31
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-16",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了17分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 32
+        },
+        {
+          "kind": "observation",
+          "id": "observation:filler-17",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "今天雨还没停，我们已经等了18分钟。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 33
+        },
+        {
+          "kind": "observation",
+          "id": "observation:current-question",
+          "value": {
+            "content": {
+              "actionType": "speak",
+              "actorId": "character:player",
+              "speech": {
+                "characterId": "character:player",
+                "text": "上次从桌上被拿走的那件东西究竟到了谁手里？我听到不同说法。你可以先核对自己的旧经历。"
+              },
+              "status": "accepted"
+            },
+            "observerId": "character:npc"
+          },
+          "sourceSeq": 34
+        }
+      ],
+      "selfObservations": [],
+      "claims": [],
+      "goals": [],
+      "items": {
+        "current": [
+          {
+            "entityId": "entity:cup",
+            "holderId": "character:bob",
+            "locationId": null
+          },
+          {
+            "entityId": "entity:other",
+            "holderId": null,
+            "locationId": "location:room"
+          }
+        ],
+        "lastObserved": []
+      },
+      "affordances": [
+        {
+          "actionType": "speak"
+        },
+        {
+          "actionType": "move",
+          "destinations": [
+            {
+              "locationId": "location:next",
+              "name": "Next"
+            }
+          ]
+        },
+        {
+          "actionType": "interact",
+          "interactions": [
+            {
+              "arguments": {},
+              "bindingId": "binding:entity:other:base:take",
+              "definitionRef": {
+                "id": "base:take",
+                "version": 1
+              },
+              "targetRef": {
+                "id": "entity:other",
+                "kind": "entity"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "continuation": false,
+    "canPerform": true,
+    "canRecall": false,
+    "recallEvidence": {
+      "query": "桌上杯子被谁拿走，后来到了谁手里",
+      "memories": [
+        {
+          "memoryId": "cognitive-memory-entry/v2:122c92a19724e3ef740a6a7f",
+          "text": "character:player said: 上次从桌上被拿走的那件东西究竟到了谁手里？我听到不同说法。你可以先核对自己的旧经历。",
+          "metadata": {
+            "observationId": "observation:current-question",
+            "speakerId": "character:player",
+            "kind": "communication",
+            "epistemicKind": "reported_speech",
+            "source": {
+              "sourceKind": "world_event",
+              "sourceId": "event:34",
+              "sourceSeq": 34,
+              "sourceHash": "sha256:8db9a7de9efabaa5a60566ae2c0490098ffe7d2480fe1f7026c3a705ce75288e"
+            }
+          },
+          "sourceMaxSeq": 34,
+          "captureHash": "sha256:550b8e935dec1c9f46051aaf742a4c5dda97217cd9e2c51e803cc6457723ae26"
+        },
+        {
+          "memoryId": "cognitive-memory-entry/v2:f34d6e1f8d86c4d00bcb752c",
+          "text": "character:bob said: 我早把杯子交给玩家了。",
+          "metadata": {
+            "observationId": "observation:false-report",
+            "speakerId": "character:bob",
+            "kind": "communication",
+            "epistemicKind": "reported_speech",
+            "source": {
+              "sourceKind": "world_event",
+              "sourceId": "event:14",
+              "sourceSeq": 14,
+              "sourceHash": "sha256:3a97b41b6970ab1be0d3aa469f321bebf6424956fa19faa42ba221f372fbc568"
+            }
+          },
+          "sourceMaxSeq": 14,
+          "captureHash": "sha256:3aeabcc65ec7a5f632154b5f8ed7cd5c9367a1f835e87734ad9735988be9522a"
+        },
+        {
+          "memoryId": "cognitive-memory-entry/v2:d5f69d2a9ed4966ab02e6f86",
+          "text": "{\"actionType\":\"interact\",\"actorId\":\"character:bob\",\"interaction\":{\"characterId\":\"character:bob\",\"entityId\":\"entity:cup\",\"fromHolderId\":null,\"fromLocationId\":\"location:room\",\"interactionId\":\"base:take\",\"toHolderId\":\"character:bob\",\"toLocationId\":null},\"resultDescription\":\"鲍勃取得了杯子的保管。\",\"status\":\"accepted\"}",
+          "metadata": {
+            "observationId": "observation:actual-transfer",
+            "kind": "episodic",
+            "epistemicKind": "observed_action",
+            "source": {
+              "sourceKind": "world_event",
+              "sourceId": "event:13",
+              "sourceSeq": 13,
+              "sourceHash": "sha256:931d214405cc854307743a816baa6db64a9b60d744bd5e84332f913250f8c043"
+            }
+          },
+          "sourceMaxSeq": 13,
+          "captureHash": "sha256:2731f9c9294e0bc7e6b771a4377c20c644666b2b478cd28d66872f7b2268bed4"
+        }
+      ],
+      "note": "仅是你可访问记忆中的相关证据；他人发言不证明其内容，未找到也不证明事件未发生。"
+    }
+  }
+]

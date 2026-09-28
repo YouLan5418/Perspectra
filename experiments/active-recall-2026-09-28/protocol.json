@@ -1,0 +1,10 @@
+{
+  "prompts": [
+    "你还记得那只杯子最初是谁保管的吗？我听到不同说法，你怎么想？",
+    "关于那只杯子，我听到相反说法。你能先核对自己的旧经历，再说你记得谁说过什么吗？"
+  ],
+  "model": "deepseek-flash",
+  "realModel": true,
+  "noForcedRecall": true,
+  "cases": "same contradictory authorized evidence, only question changes"
+}
