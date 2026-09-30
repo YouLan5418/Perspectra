@@ -18,6 +18,17 @@ export interface PrototypeTurnRequest {
   readonly result?: WorldJsonObject
 }
 
+/** Optional experiment observation; never becomes part of the Character request or World Event. */
+export interface PrototypeRecallShadowObservation {
+  readonly address: WorldAddress
+  readonly characterId: CharacterId
+  readonly asOfWorldSeq: number
+  readonly phase: 'automatic' | 'active'
+  readonly query: string
+  readonly keywordSourceIds: readonly string[]
+  readonly deliveredSourceIds: readonly string[]
+  readonly excludedSourceSeqs: readonly number[]
+}
 export interface PrototypeTurnResult {
   readonly status: 'published' | 'abstained' | 'budget_exhausted' | 'interrupted' | 'failed'
   readonly calls: number
@@ -30,6 +41,13 @@ function object(value: unknown): WorldJsonObject {
   return value as WorldJsonObject
 }
 
+function recalledSourceIds(memories: readonly RecalledMemory[]): string[] {
+  return memories.map(memory => {
+    const source = object(object(memory.metadata).source)
+    if (typeof source.sourceId !== 'string') throw new TypeError('recalled memory has no source ID')
+    return source.sourceId
+  })
+}
 function keys(value: WorldJsonObject, allowed: readonly string[]): void {
   if (Object.keys(value).some(key => !allowed.includes(key))) throw new TypeError('unexpected decision field')
 }
@@ -53,6 +71,9 @@ export class PrototypeCharacterTurn {
     readonly availability: CharacterRuntimeAvailabilityService
     readonly rulebooks: RulebookRegistry
     readonly decide: (request: PrototypeTurnRequest, signal: AbortSignal) => Promise<unknown>
+    readonly onRecallShadow?: (observation: PrototypeRecallShadowObservation) => void
+    readonly recentObservations?: number
+    readonly recentSelfObservations?: number
   }) {
     const stored = options.store.readManifest(options.address)
     if (stored === undefined || (stored.manifest as WorldJsonObject).schemaVersion !== 10) {
@@ -126,13 +147,24 @@ export class PrototypeCharacterTurn {
           stimulus: options.stimulus ?? [], sceneCharacterIds: scene.observerIds,
           correlationId: `prototype-memory:${ownerId}:${step}`,
         })
-        const recentObservations = view.observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq).slice(-16)
-        const recentSelfObservations = view.selfObservations.slice(-8)
+        const recentObservations = view.observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq).slice(-(this.options.recentObservations ?? 16))
+        const recentSelfObservations = (this.options.recentSelfObservations ?? 8) === 0
+          ? [] : view.selfObservations.slice(-(this.options.recentSelfObservations ?? 8))
         const recentSourceSeqs = new Set([...recentObservations, ...recentSelfObservations]
           .map(record => record.sourceSeq))
         const olderMemories = recalled?.memoryRecall.filter(memory =>
           !recentSourceSeqs.has(memory.sourceMaxSeq) && !('projectionId' in object(memory.metadata)))
           .map(withSourceAge)
+        if (recalled?.recallPlan !== undefined && recalled.recall !== undefined) {
+          const plan = recalled.recallPlan
+          this.options.onRecallShadow?.({
+            address: this.options.address, characterId, asOfWorldSeq: head.headSeq,
+            phase: 'automatic', query: plan.schemaVersion === 'recall-query-plan/v2' ? plan.queryText : plan.query,
+            keywordSourceIds: recalled.recall.memories.map(memory => memory.sourceRef.sourceId),
+            deliveredSourceIds: recalledSourceIds(olderMemories ?? []),
+            excludedSourceSeqs: [...recentSourceSeqs],
+          })
+        }
         // Do not copy scene member records or other characters' anchors into a model request.
         const context: WorldJsonObject = {
           character,
@@ -186,9 +218,17 @@ export class PrototypeCharacterTurn {
           modelFailure = undefined // Memory integrity failures are not model output failures.
           const alreadyVisible = new Set([...recentSourceSeqs,
             ...(olderMemories ?? []).map(memory => memory.sourceMaxSeq)])
-          const memories = this.options.memory!.recall(this.options.address, characterId, decision.query, head.headSeq)
+          const keywordMemories = this.options.memory!.recall(this.options.address, characterId, decision.query, head.headSeq)
+          const memories = keywordMemories
             .filter(memory => !alreadyVisible.has(memory.sourceMaxSeq))
             .map(withSourceAge)
+          this.options.onRecallShadow?.({
+            address: this.options.address, characterId, asOfWorldSeq: head.headSeq,
+            phase: 'active', query: decision.query,
+            keywordSourceIds: recalledSourceIds(keywordMemories),
+            deliveredSourceIds: recalledSourceIds(memories),
+            excludedSourceSeqs: [...alreadyVisible],
+          })
           // A search result is a bounded, attributed selection of this character's sources, not a verdict.
           const recallEvidence: WorldJsonObject = { query: decision.query, memories,
             note: '仅是你可访问记忆中的相关证据；他人发言不证明其内容，未找到也不证明事件未发生。' }

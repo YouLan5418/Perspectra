@@ -1,7 +1,7 @@
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
 import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
 import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
-import { mkdirSync, readFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import { SceneDecisionService, WorldApplication } from '@harness-world/application'
@@ -14,10 +14,11 @@ import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
 import { CharacterRuntimeAvailabilityService, PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { CognitiveMemoryService } from '@harness-world/memory'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { PrototypeCharacterTurn, type PrototypeRecallShadowObservation, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
+import { PlaytestBusyError, type PlaytestAction, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
 import { playtestModelCharacters, playerTranscript } from './playtest-view.ts'
+import { DEFAULT_PLAYTEST_TUNING, type PlaytestTuning } from './playtest-tuning.ts'
 
 export interface FrozenPlaytestOptions {
   readonly dataDirectory: string
@@ -30,7 +31,9 @@ export interface FrozenPlaytestOptions {
   readonly apiKey?: string
   readonly utilityEndpoint?: string
   readonly timeoutMs?: number
+  readonly tuning?: PlaytestTuning
   readonly shadowAudit?: ShadowOptions
+  readonly memoryShadow?: boolean
   readonly publicationAudit?: InterventionOptions
 }
 
@@ -71,7 +74,10 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   readonly #manifestVersion: number
   readonly #intentEnabled: boolean
   readonly #dataDirectory: string
+  readonly #tuning: PlaytestTuning
+  readonly #memoryShadowFile: string | undefined
   #transcript: PlaytestState['transcript'] = []
+  #availableActions: NonNullable<PlaytestState['availableActions']> = []
   #currentScene: NonNullable<PlaytestState['world']['currentScene']> | undefined
   #debug: Record<string, unknown> = {}
   #shadow: JevShadow | undefined
@@ -91,6 +97,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     intentEnabled: boolean) {
     this.#address = compiled.manifest.address
     this.#dataDirectory = options.dataDirectory
+    this.#tuning = options.tuning ?? DEFAULT_PLAYTEST_TUNING
+    this.#memoryShadowFile = options.memoryShadow ? resolve(options.dataDirectory, 'memory-shadow.jsonl') : undefined
     this.#manifestVersion = compiled.manifest.schemaVersion
     this.#intentEnabled = intentEnabled
     const binding = compiled.manifest.playerBindings[0]
@@ -202,6 +210,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     return {
       busy: this.#busy, paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#transcript,
+      availableActions: this.#availableActions,
       world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames,
         ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }) },
       debug: { ...this.#debug, provider: this.#provider, model: this.#model, intentModel: this.#intentModel,
@@ -267,6 +276,10 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     return this.state()
   }
 
+  /** Structured UI choices remain proposals and follow the same Rulebook path as /act. */
+  async perform(action: PlaytestAction): Promise<PlaytestState> {
+    return this.submit(`/act ${action.actionType} ${JSON.stringify(action.parameters)}`)
+  }
   /** The round result names only its first action; report any later player action rejected in the same commit. */
   #playerResolutionNotice(idempotencyKey: string, headSeq: number): string | undefined {
     if (!this.#intentEnabled) return undefined
@@ -352,12 +365,18 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       if (this.#paused) return
       memory = new CognitiveMemoryService(resolve(this.#dataDirectory, 'memory.sqlite'),
         store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
+      const shadowFile = this.#memoryShadowFile
       const turn = new PrototypeCharacterTurn({ address: this.#address, store, memory, leases, availability,
         rulebooks: createCoreRulebookRegistry({ interactionPackages: [createBasicInteractionPackage()] }),
-        decide: this.#decideContinuation })
+        decide: this.#decideContinuation,
+        recentObservations: this.#tuning.recentObservations,
+        recentSelfObservations: this.#tuning.recentSelfObservations,
+        ...(shadowFile === undefined ? {} : { onRecallShadow: (observation: PrototypeRecallShadowObservation) =>
+          appendFileSync(shadowFile, JSON.stringify(observation) + '\n') }), })
       this.#phaseLabel = '角色正在处理场景与行动结果'
       this.#activationCycle = await runPrototypeActivations({ store, address: this.#address, turn,
-        afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds, signal: this.#continuationController.signal })
+        afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds, signal: this.#continuationController.signal,
+        limits: this.#tuning })
       const terminal = this.#activationCycle.terminalReason
       if (terminal === 'failed' || terminal === 'interrupted') {
         const last = this.#activationCycle.activations.at(-1)?.result
@@ -381,6 +400,9 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       this.#application.head(this.#address),
     ])
     this.#transcript = playerTranscript(view, this.#names, this.#playerId)
+    this.#availableActions = await this.#application.playerAffordancesForPrincipal(
+      this.#address, this.#principalId, this.#playerId, view.asOfWorldSeq)
+
     const worldPath = resolve(this.#dataDirectory, 'world.sqlite')
     const world = new WorldStore(worldPath)
     try {

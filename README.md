@@ -46,6 +46,23 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-
 
 本原型网页只接受 `worldpack-source/v5` 源目录，并通过 v10 的 FrozenWorldPlaytestRuntime 试玩；旧网页运行时已移除。当前玩家的重要状态交互使用显式 `/act` 命令；普通自然语言不会自动执行移动、取物或交接。创建新存档或续玩时请按[创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)操作，不要在同一数据目录中混用不兼容世界版本。真实模型试玩需要人工观察角色是否自然、是否重复、是否无故沉默，自动化测试不能代替这一环节。
 
+## Windows 桌面启动器
+
+首版桌面窗口现已可用：默认列出 `ai-girls-awaken-v10`，也可选择其他 v5 世界包、新建或续玩独立存档、配置本机 OpenAI 兼容接口/Ollama/DeepSeek，启动后由系统默认浏览器打开游戏。启动器窗口保留运行状态、重新打开和停止入口，并管理一个本机后端进程；关闭启动器会停止后端。游戏页显示当前玩家可尝试的移动与交互，提交时仍由 Rulebook 裁定。
+
+```powershell
+# 开发机启动
+corepack pnpm@11.7.0 install --frozen-lockfile
+corepack pnpm@11.7.0 desktop
+
+# 在 Windows 开发机生成免安装目录
+pnpm desktop:release
+# 打开 dist/release/win-unpacked/Cordis World.exe
+```
+
+模型服务须先运行；所需 API Key 通过启动器进程环境传入，不在窗口输入或保存。存档位于 Windows 应用数据目录的 `Cordis World/saves`，启动器不会修改 `D:/worlds` 的历史试玩数据。打包版已在当前 Windows 开发机完成无模型调用的启动、浏览器页服务和退出冒烟检查；尚未在干净 Windows 机器及真实模型连续试玩中验收。AI 美少女包现使用自定义游戏页；未提供网页的包沿用原型页。示例交互按钮仍有定义 ID 文案。接口与剩余体验工作见[前端与启动器接口边界](docs/FRONTEND-LAUNCHER-INTERFACE.md)和[实施方案](docs/FRONTEND-LAUNCHER-IMPLEMENTATION-PLAN.md)。
+创作者也可在世界包的 `web/` 目录提供完整 HTML、CSS、JavaScript、图片和字体；没有 `web/index.html` 时使用默认游戏页。网页只改变本机展示，不改变世界包编译哈希或存档身份。用法见[自定义游戏网页指南](docs/CREATOR-WEB-UI.md)。
+
 ## 运行方式
 
 世界采用玩家推动的回合机制。一次玩家输入开启一个 Root Round，已获授权的新观察可以继续触发有界 NPC Reaction Round；周期结束后世界停止自主推进。

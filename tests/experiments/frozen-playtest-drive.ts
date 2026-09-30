@@ -10,7 +10,7 @@ import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
  * a person gets, restart included, rather than a shorter path written for the experiment.
  *
  * Usage: node --import tsx tests/experiments/frozen-playtest-drive.ts
- *   [--model <id>] [--pack <v5 source directory>] [--scenario hand-in-hand|ai-girls|ai-girls-commands|memory|memory-control|goal-control|goal-take|commitment|commitment-control|commitment-private|commitment-private-control] [--turns N]
+ *   [--model <id>] [--pack <v5 source directory>] [--scenario hand-in-hand|ai-girls|ai-girls-commands|memory|memory-control|goal-control|goal-take|commitment|commitment-control|commitment-private|commitment-private-control] [--turns N] [--memory-shadow]
  */
 const modelIndex = process.argv.indexOf('--model')
 const model = modelIndex === -1 ? 'gemini-3.7-flash' : (process.argv[modelIndex + 1] ?? 'gemini-3.7-flash')
@@ -238,7 +238,8 @@ globalThis.fetch = async (input, init) => {
 async function play(from: number, until: number, session: string): Promise<void> {
   const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory, packPath, provider: 'local',
     model, ...(apiKey === undefined ? {} : { apiKey }),
-    ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }), timeoutMs: 90_000 })
+    ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }), timeoutMs: 90_000,
+    memoryShadow: process.argv.includes('--memory-shadow') })
   address ??= runtime.address
   currentSession = session
   try {
@@ -287,6 +288,7 @@ const outcome = {
   address,
   providerCalls: calls,
   providerLog: providerPath,
+  ...(process.argv.includes('--memory-shadow') ? { memoryShadowLog: resolve(dataDirectory, 'memory-shadow.jsonl') } : {}),
   // What the world recorded: the steps the model stated, the transfers, and the contact the fold ended.
   expressions,
   transfers: events.filter(event => event.eventType === 'entity.transferred').length,

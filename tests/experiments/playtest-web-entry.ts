@@ -9,6 +9,7 @@ import type { AddressInfo } from 'node:net'
 import { parsePlaytestLaunchArguments } from './playtest-launch.ts'
 import { FrozenWorldPlaytestRuntime, isFrozenPackDirectory } from './playtest-frozen-runtime.ts'
 import { createPlaytestServer } from './playtest-server.ts'
+import { loadPackWeb } from './playtest-pack-web.ts'
 import { defaultPlaytestDirectory } from './playtest-view.ts'
 
 async function main(): Promise<void> {
@@ -37,15 +38,17 @@ async function main(): Promise<void> {
       onError: message => { console.error(message) } }
     process.stdout.write(`Jev 影子审计已启用：已发布的对白和叙述将发送到 OpenRouter。日志：${logPath}\n`)
   }
+  const packWeb = await loadPackWeb(packPath)
   const runtime = await FrozenWorldPlaytestRuntime.create({
     dataDirectory, provider, packPath,
+    ...(launch.tuning === undefined ? {} : { tuning: launch.tuning }),
     ...(shadowAudit === undefined ? {} : { shadowAudit }),
     ...(model === undefined ? {} : { model }),
     ...(apiKey === undefined ? {} : { apiKey }),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),
   })
   const token = randomBytes(32).toString('hex')
-  const server = createPlaytestServer(runtime, token)
+  const server = createPlaytestServer(runtime, token, packWeb)
   let closing = false
   const close = async () => {
     if (closing) return
@@ -59,9 +62,18 @@ async function main(): Promise<void> {
   }
   process.once('SIGINT', () => { void close().then(() => { process.exitCode = 0 }) })
   process.once('SIGTERM', () => { void close().then(() => { process.exitCode = 0 }) })
+  process.on('message', message => {
+    if (message !== null && typeof message === 'object' && 'type' in message && message.type === 'shutdown') {
+      void close().then(() => { process.exitCode = 0; process.disconnect?.() }).catch(error => {
+        console.error('本机试玩页关闭失败：', error instanceof Error ? error.message : '未知错误')
+        process.exitCode = 1
+      })
+    }
+  })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
   const port = (server.address() as AddressInfo).port
+  process.send?.({ type: 'ready', port, token })
   process.stdout.write(`\n本机试玩页已启动：\nhttp://127.0.0.1:${port}/#token=${token}\n\n`)
   process.stdout.write(`世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || (provider === 'local' ? 'gemini-3.7-flash' : provider === 'deepseek' ? 'deepseek-flash' : 'qwen3:4b')}\n按 Ctrl+C 安全关闭。\n`)
   if (packPath !== undefined) process.stdout.write(`World Pack：${packPath}\n`)
@@ -70,6 +82,8 @@ async function main(): Promise<void> {
 try {
   await main()
 } catch (error: unknown) {
-  console.error('本机试玩页启动失败：', error instanceof Error ? error.message : '未知错误')
+  const message = error instanceof Error ? error.message : '未知错误'
+  process.send?.({ type: 'startup-error', message }, () => process.disconnect?.())
+  console.error('本机试玩页启动失败：', message)
   process.exitCode = 1
 }

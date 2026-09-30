@@ -1,6 +1,9 @@
 import { timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { PLAYTEST_PAGE } from './playtest-page.ts'
+import type { PackWeb } from './playtest-pack-web.ts'
+import { canonicalizeWorldJson, type WorldJsonObject } from '@harness-world/contracts'
+import type { ActionAffordance } from '@harness-world/kernel'
 
 export interface PlaytestState {
   readonly busy: boolean
@@ -11,12 +14,20 @@ export interface PlaytestState {
   readonly transcript: readonly { readonly seq: number; readonly speaker: string; readonly text: string; readonly player: boolean }[]
   readonly world: { readonly title: string; readonly playerName: string; readonly npcNames: readonly string[];
     readonly currentScene?: { readonly locationName: string; readonly presentNpcNames: readonly string[] } }
+  readonly availableActions?: readonly ActionAffordance[]
   readonly debug: Record<string, unknown>
 }
+
+export interface PlaytestAction {
+  readonly actionType: 'move' | 'interact'
+  readonly parameters: WorldJsonObject
+}
+
 
 export interface PlaytestRuntime {
   state(): Promise<PlaytestState>
   submit(text: string): Promise<PlaytestState>
+  perform?(action: PlaytestAction): Promise<PlaytestState>
   pause(): Promise<PlaytestState>
   resume(): Promise<PlaytestState>
   close(): Promise<void>
@@ -41,13 +52,15 @@ function authorized(request: IncomingMessage, token: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right)
 }
 
-function headers(response: ServerResponse, contentType: string): void {
+function headers(response: ServerResponse, contentType: string, customPage = false): void {
   response.setHeader('content-type', contentType)
   response.setHeader('cache-control', 'no-store')
   response.setHeader('x-content-type-options', 'nosniff')
   response.setHeader('x-frame-options', 'DENY')
   response.setHeader('referrer-policy', 'no-referrer')
-  response.setHeader('content-security-policy', "default-src 'none'; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+  response.setHeader('content-security-policy', customPage
+    ? "default-src 'none'; connect-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+    : "default-src 'none'; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 }
 
 function json(response: ServerResponse, status: number, value: unknown): void {
@@ -81,14 +94,34 @@ function submittedText(value: unknown): string {
   return text
 }
 
-export function createPlaytestServer(runtime: PlaytestRuntime, token: string): Server {
+function submittedAction(value: unknown): PlaytestAction {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('操作格式无效')
+  const record = value as Record<string, unknown>
+  if (Object.keys(record).sort().join(',') !== 'actionType,parameters'
+    || (record.actionType !== 'move' && record.actionType !== 'interact')
+    || record.parameters === null || typeof record.parameters !== 'object' || Array.isArray(record.parameters)) {
+    throw new TypeError('操作必须包含 actionType 与 parameters')
+  }
+  canonicalizeWorldJson(record.parameters as WorldJsonObject)
+  return { actionType: record.actionType, parameters: record.parameters as WorldJsonObject }
+}
+
+export function createPlaytestServer(runtime: PlaytestRuntime, token: string, packWeb?: PackWeb): Server {
   if (!/^[a-f0-9]{64}$/.test(token)) throw new TypeError('playtest token must be 32 random bytes in hexadecimal')
   return createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1')
       if (request.method === 'GET' && url.pathname === '/') {
-        headers(response, 'text/html; charset=utf-8')
-        response.end(PLAYTEST_PAGE)
+        headers(response, 'text/html; charset=utf-8', packWeb !== undefined)
+        response.end(packWeb?.page ?? PLAYTEST_PAGE)
+        return
+      }
+      let assetPath = ''
+      try { assetPath = decodeURIComponent(url.pathname) } catch { /* malformed asset path is not found */ }
+      const asset = request.method === 'GET' ? packWeb?.assets.get(assetPath) : undefined
+      if (asset !== undefined) {
+        headers(response, asset.contentType, true)
+        response.end(asset.bytes)
         return
       }
       if (!authorized(request, token)) {
@@ -103,6 +136,13 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string): S
         if (request.headers['content-type']?.split(';')[0] !== 'application/json') throw new TypeError('请求必须是 JSON')
         const text = submittedText(await body(request))
         json(response, 200, await runtimeCall(() => runtime.submit(text)))
+        return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/perform') {
+        if (request.headers['content-type']?.split(';')[0] !== 'application/json') throw new TypeError('请求必须是 JSON')
+        if (runtime.perform === undefined) { json(response, 404, { error: '接口不存在' }); return }
+        const action = submittedAction(await body(request))
+        json(response, 200, await runtimeCall(() => runtime.perform!(action)))
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/pause') {

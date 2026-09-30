@@ -3,7 +3,7 @@
     "target": "ES2024",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2024"],
+    "lib": ["ES2024", "DOM"],
     "types": ["node", "vitest/globals"],
     "strict": true,
     "noImplicitAny": true,
@@ -32,5 +32,5 @@
       "@harness-world/provider-chat": ["./packages/provider-chat/src/index.ts"]
     }
   },
-  "include": ["packages/**/*.ts", "tests/**/*.ts", "vitest*.config.ts"]
+  "include": ["packages/**/*.ts", "tests/**/*.ts", "desktop/**/*.ts", "vitest*.config.ts"]
 }

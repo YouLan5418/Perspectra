@@ -1,8 +1,10 @@
 import { once } from 'node:events'
+import { resolve } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPlaytestServer, PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
 import { PLAYTEST_PAGE } from './playtest-page.ts'
+import { loadPackWeb, type PackWeb } from './playtest-pack-web.ts'
 
 const token = 'a'.repeat(64)
 const state: PlaytestState = {
@@ -22,7 +24,7 @@ afterEach(async () => {
   }
 })
 
-async function fixture(overrides: Partial<PlaytestRuntime> = {}) {
+async function fixture(overrides: Partial<PlaytestRuntime> = {}, packWeb?: PackWeb) {
   const runtime: PlaytestRuntime = {
     state: async () => state,
     submit: async () => state,
@@ -31,7 +33,7 @@ async function fixture(overrides: Partial<PlaytestRuntime> = {}) {
     close: async () => {},
     ...overrides,
   }
-  const server = createPlaytestServer(runtime, token)
+  const server = createPlaytestServer(runtime, token, packWeb)
   servers.push(server)
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
@@ -57,6 +59,24 @@ describe('local playtest server', () => {
     expect(page).toContain('state.world.title')
     expect(page).not.toContain(token)
     expect(page).not.toMatch(/https?:\/\//)
+  })
+
+  it('serves a pack-owned page and its local CSS/JavaScript while retaining the default fallback', async () => {
+    const packWeb = await loadPackWeb(resolve('examples/world-packs/ai-girls-awaken-v10'))
+    expect(packWeb).toBeDefined()
+    expect(await loadPackWeb(resolve('examples/world-packs/hand-in-hand'))).toBeUndefined()
+    const { url } = await fixture({}, packWeb)
+    const page = await fetch(url)
+    expect(await page.text()).toContain('CORDIS WORLD · AI GIRLS')
+    expect(page.headers.get('content-security-policy')).toContain("script-src 'self'")
+    const script = await fetch(`${url}/web/app.js`)
+    expect(script.headers.get('content-type')).toContain('text/javascript')
+    expect(await script.text()).toContain("'/api/state'")
+    const style = await fetch(`${url}/web/style.css`)
+    expect(style.headers.get('content-type')).toContain('text/css')
+    expect((await style.text()).length).toBeGreaterThan(100)
+    expect((await fetch(`${url}/web/not-declared.js`, auth())).status).toBe(404)
+    expect((await fetch(`${url}/api/state`)).status).toBe(401)
   })
 
   it('requires the random token for every API route and exposes only supplied player state', async () => {
@@ -87,6 +107,18 @@ describe('local playtest server', () => {
     expect(resume).toHaveBeenCalledOnce()
   })
 
+  it('accepts a structured action as a proposal and rejects invalid action bodies', async () => {
+    const perform = vi.fn(async () => state)
+    const { url } = await fixture({ perform })
+    const send = (value: unknown) => fetch(`${url}/api/perform`, auth({ method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) }))
+    expect((await send({ actionType: 'interact', parameters: [] })).status).toBe(400)
+    expect((await send({ actionType: 'admin', parameters: {} })).status).toBe(400)
+    expect((await fetch(`${url}/api/perform`, { method: 'POST' })).status).toBe(401)
+    const accepted = await send({ actionType: 'move', parameters: { locationId: 'location:back-room' } })
+    expect(accepted.status).toBe(200)
+    expect(perform).toHaveBeenCalledWith({ actionType: 'move', parameters: { locationId: 'location:back-room' } })
+  })
   it('maps busy separately and suppresses unexpected runtime details', async () => {
     const busy = await fixture({ submit: async () => { throw new PlaytestBusyError('请等待当前行动完成') } })
     const busyResponse = await fetch(`${busy.url}/api/submit`, auth({ method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"text":"x"}' }))

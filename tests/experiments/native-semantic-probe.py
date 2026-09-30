@@ -59,6 +59,7 @@ for case in report["results"]:
     expected = case["expected"]
     results.append({
         "id": case["id"], "question": case["question"], "expected": expected,
+        "ambiguitySources": case.get("ambiguitySources"),
         "expectedRank": None if expected is None else next(
             (rank + 1 for rank, i in enumerate(ordered)
              if rows[i]["source_id"] == expected), None),

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; object-src 'none'">
+  <title>Cordis World 启动器</title>
+  <style>
+    :root { font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif; color:#e9edf5; background:#10151d }
+    * { box-sizing:border-box } body { margin:0; min-height:100vh; background:radial-gradient(circle at 80% -10%,#25364f,#10151d 54%) }
+    main { max-width:920px; margin:auto; padding:46px 32px 70px }
+    h1 { font-size:30px; margin:0 0 6px; font-weight:650 } .lead { margin:0 0 30px; color:#aebbd0 }
+    .panel { background:#19212d; border:1px solid #334052; border-radius:15px; padding:22px; margin-bottom:16px }
+    .panel h2 { margin:0 0 17px; font-size:17px } .row { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:end }
+    .columns { display:grid; grid-template-columns:1fr 1fr; gap:12px } label { display:block; color:#aebbd0; font-size:13px; margin-bottom:7px }
+    input, select { width:100%; min-height:42px; padding:8px 11px; border:1px solid #4a5b70; border-radius:9px; background:#111923; color:#eef3fc; font:inherit }
+    button { min-height:42px; padding:8px 18px; border:0; border-radius:9px; background:#648df5; color:#10151d; font:inherit; font-weight:650; cursor:pointer }
+    button.secondary { background:#293c55; color:#e9edf5; border:1px solid #4a5b70 } button:disabled { opacity:.45; cursor:default }
+    .hint { color:#94a3b8; font-size:12px; margin:9px 0 0; line-height:1.5; overflow-wrap:anywhere }
+    .actions { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-top:24px } .actions [hidden] { display:none } #status { color:#aebbd0; font-size:13px } #status.error { color:#ff9a94 }
+    @media(max-width:700px){main{padding:26px 15px}.columns{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Cordis World</h1><p class="lead">选择世界、存档与模型。启动后，游戏会在系统默认浏览器中打开。</p>
+  <section class="panel"><h2>世界</h2><div class="row"><div><label for="pack">世界包</label><select id="pack"></select></div><button id="choose-pack" class="secondary">选择目录</button></div><p class="hint" id="pack-path">选择 worldpack-source/v5 源目录。</p></section>
+  <section class="panel"><h2>存档</h2><div class="columns"><div><label for="save">继续游戏</label><select id="save"></select></div><div><label for="save-name">新存档名称</label><input id="save-name" maxlength="80" placeholder="留空使用世界名称"></div></div><p class="hint">新存档保存在启动器的应用数据目录；续玩前会核对世界包身份。</p></section>
+  <section class="panel"><h2>模型</h2><div class="columns"><div><label for="provider">服务类型</label><select id="provider"><option value="local">本机 OpenAI 兼容</option><option value="ollama">Ollama</option><option value="deepseek">DeepSeek</option></select></div><div><label for="model">模型名称</label><input id="model" required></div></div><div style="margin-top:12px"><label for="endpoint">服务地址</label><input id="endpoint" spellcheck="false"></div><p class="hint">密钥由启动器进程环境提供，窗口不展示或保存密钥。模型请求可能产生费用。</p></section>
+  <section class="panel"><h2>运行参数</h2>
+    <div class="columns">
+      <div><label for="maximum-waves">反应周期最多波次</label><input id="maximum-waves" type="number" min="1" max="10" step="1" value="3"></div>
+      <div><label for="maximum-npc-calls">每轮 NPC 模型调用上限</label><input id="maximum-npc-calls" type="number" min="2" max="40" step="1" value="8"></div>
+      <div><label for="maximum-calls-per-character">每角色最多激活次数</label><input id="maximum-calls-per-character" type="number" min="1" max="10" step="1" value="2"></div>
+      <div><label for="reaction-deadline-seconds">反应周期时限（秒）</label><input id="reaction-deadline-seconds" type="number" min="5" max="300" step="1" value="30"></div>
+      <div><label for="recent-observations">上下文：最近观察条数</label><input id="recent-observations" type="number" min="1" max="100" step="1" value="16"></div>
+      <div><label for="recent-self-observations">上下文：自身观察条数</label><input id="recent-self-observations" type="number" min="0" max="50" step="1" value="8"></div>
+    </div>
+    <p class="hint">设置在下次启动时生效，可用于已有存档。上下文条数只控制最近观察窗口，不限制模型请求的总字节数；时限对整个反应周期生效。</p>
+  </section>
+  <div class="actions"><button id="start">启动并打开浏览器</button><button id="open-game" class="secondary" hidden>重新打开网页</button><button id="stop-game" class="secondary" hidden>停止游戏</button><span id="status" role="status"></span></div>
+  <p class="hint">关闭启动器会停止游戏后端；浏览器窗口和启动器窗口互相独立。</p>
+</main>
+<script src="../dist/desktop/renderer.js"></script>
+</body></html>

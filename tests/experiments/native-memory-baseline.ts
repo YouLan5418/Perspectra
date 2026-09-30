@@ -28,15 +28,24 @@ try {
     entityId: 'entity:cup', characterId: bob, interactionId: 'base:take',
     fromHolderId: null, fromLocationId: 'location:room', toHolderId: bob, toLocationId: null,
   } }
+  const vesselTransfer: WorldEventDraft = { eventType: 'entity.transferred', eventVersion: 1, data: {
+    entityId: 'entity:other', characterId: player, interactionId: 'base:take',
+    fromHolderId: null, fromLocationId: 'location:room', toHolderId: player, toLocationId: null,
+  } }
   const events: WorldEventDraft[] = [...world.genesisEvents, transfer,
     observation('observation:cup-taken', npc, { actorId: bob, actionType: 'interact', status: 'accepted',
-      interaction: transfer.data, resultDescription: '鲍勃取得了杯子的保管。' }),
+      interaction: transfer.data, resultDescription: '鲍勃取得了白瓷杯的保管。' }),
     observation('observation:cup-claim', npc, { actorId: bob, actionType: 'speak', status: 'accepted',
-      speech: { characterId: bob, text: '我早把杯子交给玩家了。' } }),
+      speech: { characterId: bob, text: '我早把白瓷杯交给玩家了。' } }),
     observation('observation:bob-private', bob, { actorId: player, actionType: 'speak', status: 'accepted',
       speech: { characterId: player, text: '只对鲍勃说：暗号是深海灯。' } }),
     observation('observation:door-promise', npc, { actorId: bob, actionType: 'speak', status: 'accepted',
       speech: { characterId: bob, text: '等我回来，我会把坏掉的门锁修好。' } }),
+    vesselTransfer,
+    observation('observation:vessel-taken', npc, { actorId: player, actionType: 'interact', status: 'accepted',
+      interaction: vesselTransfer.data, resultDescription: '玩家取得了银色茶杯的保管。' }),
+    observation('observation:vessel-claim', npc, { actorId: player, actionType: 'speak', status: 'accepted',
+      speech: { characterId: player, text: '我已经把银色茶杯交给鲍勃了。' } }),
     { eventType: 'character.moved', eventVersion: 1, data: {
       characterId: bob, fromLocationId: 'location:room', toLocationId: 'location:next',
     } },
@@ -64,6 +73,8 @@ try {
   const claim = sourceId('observation:cup-claim')
   const privateSource = sourceId('observation:bob-private')
   const promise = sourceId('observation:door-promise')
+  const vesselTaken = sourceId('observation:vessel-taken')
+  const vesselClaim = sourceId('observation:vessel-claim')
   const beforeTake = Number(taken.slice('event:'.length)) - 1
   const beforePrivate = Number(privateSource.slice('event:'.length)) - 1
   const npcBeforeTake = memory.recall(world.manifest.address, npc, '杯子谁拿走', beforeTake)
@@ -90,24 +101,30 @@ try {
       ).all(key, head.headSeq) as typeof sources[string]
     }
   } finally { db.close() }
-  if (!sources[npc]?.some(row => row.source_id === taken) || !sources[npc]?.some(row => row.source_id === claim) || !sources[npc]?.some(row => row.source_id === promise)
+  if (!sources[npc]?.some(row => row.source_id === taken) || !sources[npc]?.some(row => row.source_id === claim) || !sources[npc]?.some(row => row.source_id === promise) || !sources[npc]?.some(row => row.source_id === vesselTaken) || !sources[npc]?.some(row => row.source_id === vesselClaim)
     || sources[npc]?.some(row => row.source_id === privateSource || row.text_value.includes('深海灯'))
-    || !sources[bob]?.some(row => row.source_id === privateSource)) {
+    || !sources[bob]?.some(row => row.source_id === privateSource) || sources[bob]?.some(row => row.source_id === vesselTaken || row.source_id === vesselClaim)) {
     throw new Error('source projection broke character isolation')
   }
 
   // Labels describe the evidence this character may use, not what an embedding score predicts.
   const cases = [
-    { id: 'direct', characterId: npc, question: '最早是谁把杯子从桌上拿走的？', expected: taken },
-    { id: 'paraphrase', characterId: npc, question: '那件喝水用的器皿当时是被谁收走的？', expected: taken },
-    { id: 'indirect', characterId: npc, question: '桌上被拿走的东西最初到了谁手里？', expected: taken },
-    { id: 'reported-speech', characterId: npc, question: '鲍勃曾说过杯子已经给玩家了吗？', expected: claim },
+    { id: 'direct', characterId: npc, question: '最早是谁取得了白瓷杯的保管？', expected: taken },
+    { id: 'paraphrase', characterId: npc, question: '那件白色喝水器皿当时是被谁收走的？', expected: taken },
+    { id: 'indirect', characterId: npc, question: '那件从房间取走的白色东西最初由谁保管？', expected: taken },
+    { id: 'reported-speech', characterId: npc, question: '鲍勃曾说过白瓷杯已经给玩家了吗？', expected: claim },
     { id: 'private-unknown', characterId: npc, question: '玩家私下告诉鲍勃的暗号是什么？', expected: null },
     { id: 'private-known', characterId: bob, question: '玩家只对我说的暗号是什么？', expected: privateSource },
     { id: 'promise-direct', characterId: npc, question: '鲍勃说过要修门锁吗？', expected: promise },
     { id: 'promise-paraphrase', characterId: npc, question: '是谁答应稍后处理那扇关不牢的门？', expected: promise },
     { id: 'promise-unfulfilled', characterId: npc, question: '那扇门现在已经修好了吗？', expected: null },
-    { id: 'unseen-drop', characterId: npc, question: '鲍勃离开后把杯子放在哪个房间？', expected: null },
+    { id: 'vessel-direct', characterId: npc, question: '玩家取得银色茶杯的保管了吗？', expected: vesselTaken },
+    { id: 'vessel-paraphrase', characterId: npc, question: '那个银色装水容器被谁取走并保管？', expected: vesselTaken },
+    { id: 'vessel-claim', characterId: npc, question: '玩家曾说茶杯已经交给鲍勃了吗？', expected: vesselClaim },
+    { id: 'vessel-unverified-return', characterId: npc, question: '鲍勃最后真的收到银色茶杯了吗？', expected: null },
+    { id: 'vessel-bob-unknown', characterId: bob, question: '谁拿走了银色茶杯？', expected: null },
+    { id: 'ambiguous-cup', characterId: npc, question: '那个喝水的器皿后来是谁拿走的？', expected: null, ambiguitySources: [taken, vesselTaken] },
+    { id: 'unseen-drop', characterId: npc, question: '鲍勃离开后把白瓷杯放在哪个房间？', expected: null },
     { id: 'unrelated-unknown', characterId: npc, question: '门外那棵树叫什么名字？', expected: null },
   ] as const
   const results = cases.map(entry => {
@@ -120,7 +137,7 @@ try {
     }
     return { ...entry, returned, expectedHit: entry.expected === null
       ? null : returned.some(row => row.sourceId === entry.expected),
-      noAnswerCandidateCount: entry.expected === null ? returned.length : null }
+      noSingleAnswerCandidateCount: entry.expected === null ? returned.length : null }
   })
   if (store.head(world.manifest.address).headSeq !== head.headSeq) throw new Error('recall changed world events')
   const report = { mode: 'native-cjk-keyword-baseline', headSeq: head.headSeq,
@@ -132,5 +149,5 @@ try {
   writeFileSync(resolve(root, 'sources.json'), JSON.stringify(sources, null, 2))
   process.stdout.write(JSON.stringify({ expectedHits: report.expectedHits, expectedTotal: report.expectedTotal,
     results: results.map(row => ({ id: row.id, expectedHit: row.expectedHit,
-      noAnswerCandidateCount: row.noAnswerCandidateCount, returned: row.returned.map(item => item.sourceId) })) }) + '\n')
+      noSingleAnswerCandidateCount: row.noSingleAnswerCandidateCount, returned: row.returned.map(item => item.sourceId) })) }) + '\n')
 } finally { memory?.close(); store.close() }

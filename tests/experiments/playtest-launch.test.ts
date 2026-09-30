@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parsePlaytestLaunchArguments } from './playtest-launch.ts'
+import { DEFAULT_PLAYTEST_TUNING } from './playtest-tuning.ts'
 
 describe('creator playtest launch arguments', () => {
   it('accepts provider, v5 source directory, and data directory in any order', () => {
@@ -11,6 +12,9 @@ describe('creator playtest launch arguments', () => {
       provider: 'ollama', packPath: 'world-source', dataDirectory: 'world-data',
     })
     expect(parsePlaytestLaunchArguments(['--deepseek'])).toEqual({ provider: 'deepseek' })
+    expect(parsePlaytestLaunchArguments(['--tuning', JSON.stringify(DEFAULT_PLAYTEST_TUNING)])).toEqual({
+      provider: 'local', tuning: DEFAULT_PLAYTEST_TUNING,
+    })
   })
 
   it.each([
@@ -21,6 +25,8 @@ describe('creator playtest launch arguments', () => {
     ['--pack', '--deepseek'],
     ['--pack', 'a', '--pack', 'b'],
     ['--data-dir', 'a', '--data-dir', 'b'],
+    ['--tuning', '{}'],
+    ['--tuning', JSON.stringify({ ...DEFAULT_PLAYTEST_TUNING, maximumNpcCalls: 0 })],
     ['--lean-prompt'],
     ['--interactions', 'legacy.json'],
     ['--action-groups'],

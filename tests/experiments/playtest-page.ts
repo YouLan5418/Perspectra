@@ -28,6 +28,9 @@ export const PLAYTEST_PAGE = `<!doctype html>
     button { border:1px solid #30363d; border-radius:10px; padding:0 18px; background:#238636; color:white; font-weight:650; cursor:pointer; }
     button.secondary { padding:8px 12px; background:#21262d; }
     button:disabled { opacity:.48; cursor:not-allowed; }
+    .available { display:flex; flex-wrap:wrap; gap:7px; align-items:center; max-height:150px; overflow:auto; }
+    .available button { min-height:30px; padding:5px 10px; background:#263852; font-size:12px; }
+    .available .caption { color:#8b949e; font-size:12px; margin-right:4px; }
     .controls { display:flex; align-items:center; justify-content:space-between; gap:10px; }
     #notice { min-height:20px; color:#d29922; font-size:13px; }
     details { border-top:1px solid #21262d; padding-top:10px; color:#8b949e; font-size:12px; }
@@ -39,6 +42,7 @@ export const PLAYTEST_PAGE = `<!doctype html>
 <main>
   <header><div><h1 id="world-title">本机世界试玩</h1><div class="subtle">创作者 World Pack · 多角色真实模型</div></div><div id="status">正在连接</div></header>
   <div id="scene" class="subtle" aria-live="polite"></div>
+  <div id="available" class="available" aria-label="当前可尝试的交互"></div>
   <section id="transcript" aria-live="polite"><div class="empty">世界正在醒来……</div></section>
   <div>
     <form id="composer"><textarea id="input" maxlength="2000" placeholder="输入发言；动作描写用 /narrate，移动和保管用命令……" required></textarea><button id="send" type="submit">发送</button></form>
@@ -61,6 +65,7 @@ export const PLAYTEST_PAGE = `<!doctype html>
   const debug = document.querySelector('#debug');
   const worldTitle = document.querySelector('#world-title');
   const scene = document.querySelector('#scene');
+  const available = document.querySelector('#available');
   let latest = null;
   const api = async (path, options = {}) => {
     const response = await fetch(path, { ...options, headers: { 'x-playtest-token': token, ...(options.headers || {}) } });
@@ -69,6 +74,40 @@ export const PLAYTEST_PAGE = `<!doctype html>
     return value;
   };
   const escape = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const renderChoices = state => {
+    available.replaceChildren();
+    const actions = state.availableActions || [];
+    const move = actions.find(action => action.actionType === 'move');
+    const interact = actions.find(action => action.actionType === 'interact');
+    const choices = [
+      ...(move?.destinations || []).map(place => ({
+        label: '前往 ' + place.name, actionType: 'move', parameters: { locationId: place.locationId }
+      })),
+      ...(interact?.interactions || []).map(option => ({
+        label: option.definitionRef.id + ' · ' + option.targetRef.id,
+        actionType: 'interact', parameters: {
+          targetRef: option.targetRef, bindingId: option.bindingId,
+          definitionRef: option.definitionRef, arguments: option.arguments
+        }
+      }))
+    ];
+    if (!choices.length) return;
+    const caption = document.createElement('span'); caption.className='caption'; caption.textContent='可尝试：'; available.append(caption);
+    for (const choice of choices) {
+      const button = document.createElement('button'); button.type='button'; button.textContent=choice.label;
+      button.disabled=state.busy || state.paused;
+      button.addEventListener('click', async () => {
+        button.disabled=true; notice.textContent='正在提交交互，结果由规则裁定……';
+        try {
+          render(await api('/api/perform', { method:'POST', headers:{'content-type':'application/json'},
+            body:JSON.stringify({actionType:choice.actionType, parameters:choice.parameters}) }));
+        } catch (error) {
+          await refresh(); notice.textContent='交互结果暂时无法确认，请先查看转录，避免重复提交。'+error.message;
+        }
+      });
+      available.append(button);
+    }
+  };
   const render = state => {
     latest = state;
     worldTitle.textContent = state.world.title;
@@ -76,6 +115,7 @@ export const PLAYTEST_PAGE = `<!doctype html>
     const present = state.world.currentScene?.presentNpcNames ?? state.world.npcNames;
     scene.textContent = state.world.currentScene
       ? '当前：' + state.world.currentScene.locationName + ' · ' + (present.length ? '在场：' + present.join('、') : '眼前没有其他角色') : '';
+    renderChoices(state);
     input.placeholder = present.length === 0
       ? '输入发言；动作描写用 /narrate，移动和保管用命令……'
       : '对 ' + present.join('、') + ' 说些什么；关键交互用命令……';

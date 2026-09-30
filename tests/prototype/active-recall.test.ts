@@ -7,7 +7,7 @@ import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { prototypeTurnCall } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { PrototypeCharacterTurn, type PrototypeRecallShadowObservation, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 
 const close: (() => void)[] = []
@@ -18,7 +18,8 @@ const observation = (id: string, observerId: string, content: WorldJsonObject): 
   eventType: 'observation.upsert', eventVersion: 1,
   data: { id, value: { observerId, content } },
 })
-function fixture(decide: (request: PrototypeTurnRequest) => Promise<unknown>, longHistory = false) {
+function fixture(decide: (request: PrototypeTurnRequest) => Promise<unknown>, longHistory = false,
+  onRecallShadow?: (observation: PrototypeRecallShadowObservation) => void) {
   const dir = mkdtempSync(join(tmpdir(), 'active-recall-'))
   close.push(() => rmSync(dir, { recursive: true, force: true }))
   const path = join(dir, 'world.sqlite')
@@ -49,7 +50,8 @@ function fixture(decide: (request: PrototypeTurnRequest) => Promise<unknown>, lo
   close.push(() => { memory.close(); availability.close(); leases.close(); store.close() })
   const turn = new PrototypeCharacterTurn({ address: world.manifest.address, store, memory, leases, availability,
     rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
-    decide: async request => decide(request) })
+    decide: async request => decide(request),
+    ...(onRecallShadow === undefined ? {} : { onRecallShadow }) })
   return { turn, store, address: world.manifest.address }
 }
 
@@ -68,6 +70,7 @@ async function advanceTick(f: ReturnType<typeof fixture>, index: number): Promis
 
 it('lets an NPC retrieve only its attributed evidence, then decide without granting evidence world authority', async () => {
   const requests: PrototypeTurnRequest[] = []
+  const shadow: PrototypeRecallShadowObservation[] = []
   const f = fixture(async request => {
     requests.push(request)
     const schema = JSON.stringify(prototypeTurnCall(request).schema)
@@ -87,11 +90,21 @@ it('lets an NPC retrieve only its attributed evidence, then decide without grant
     expect(JSON.stringify(request)).not.toContain('秘密抽屉')
     expect(request.recallEvidence?.note).toContain('不证明')
     return { decision: 'publish', speech: '我记得陆舟这么说过，但还得看看钥匙。' }
-  }, true)
+  }, true, observation => shadow.push(observation))
   await advanceTick(f, 1)
   await advanceTick(f, 2)
   const before = f.store.head(f.address).headSeq
   expect(await f.turn.run(npc, { maxCalls: 1 })).toMatchObject({ status: 'published', calls: 2 })
+  const active = shadow.find(observation => observation.phase === 'active')!
+  expect(active.characterId).toBe(npc)
+  expect(active.asOfWorldSeq).toBe(before)
+  expect(active.query).toBe('钥匙')
+  expect(active.deliveredSourceIds).toEqual((requests[1]!.recallEvidence!.memories as WorldJsonObject[])
+    .map(memory => ((memory.metadata as WorldJsonObject).source as WorldJsonObject).sourceId))
+  const privateEvent = f.store.readEvents(f.address).find(event =>
+    event.eventType === 'observation.upsert' && (event.data as WorldJsonObject).id === 'observation:private')!
+  expect(shadow.every(observation => !observation.keywordSourceIds.includes('event:' + privateEvent.seq))).toBe(true)
+  expect(shadow.some(observation => observation.phase === 'automatic')).toBe(true)
   const delta = f.store.readEvents(f.address).filter(e => e.seq > before)
   expect(delta.filter(e => e.eventType === 'character.speak')).toHaveLength(1)
   expect(delta.some(e => e.eventType === 'entity.transferred' || e.eventType === 'character.moved')).toBe(false)

@@ -40,6 +40,7 @@ import {
   runtimeManifestFromStoredRecord,
   type CompiledWorldManifest,
   type CompiledWorldSpec,
+  type ActionAffordance,
   type PlayerActionInput,
   type PlayerRoundResult,
   type RulebookRegistry,
@@ -1070,6 +1071,38 @@ export class WorldApplication {
     return memory
   }
 
+  /** Current player options use the same Rulebook candidate snapshot as command interpretation. */
+  async playerAffordancesForPrincipal(
+    address: WorldAddress,
+    principalId: string,
+    characterId: CharacterId,
+    asOfWorldSeq?: number,
+  ): Promise<readonly ActionAffordance[]> {
+    assertProtocolString(principalId, 'principalId')
+    return this.#integrityGuard(address, 'view.affordances', branch => {
+      const record = branch.store.store.readManifest(address)
+      if (record === undefined) throw new Error('active world has no Manifest')
+      const manifest = runtimeManifestFromStoredRecord(record)
+      if (!manifest.playerBindings.some(binding =>
+        binding.principalId === principalId && binding.characterId === characterId)) {
+        failWorld({
+          errorCode: 'UNAUTHORIZED', category: 'admission',
+          message: 'principal is not bound to the requested affordances', retryable: false,
+          correlationId: `affordances:${principalId}:${characterId}`, address,
+        })
+      }
+      const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
+      const resolver = this.#rulebooks.resolve(
+        manifest.rulebook.rulebookId, manifest.rulebook.version,
+        `affordances:${principalId}:${characterId}`, address,
+      )
+      return resolver.affordances({
+        manifest, events: branch.store.store.readEvents(address, asOf),
+        characterId, manifestHash: record.manifestHash, asOfWorldSeq: asOf,
+        resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
+      })
+    })
+  }
   /** Player-facing view access: a principal may read only the Character bound to it by the frozen Manifest. */
   async characterViewForPrincipal(
     address: WorldAddress,

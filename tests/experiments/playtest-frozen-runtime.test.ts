@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -45,11 +45,15 @@ describe('the web playtest on a frozen world', () => {
     servers.push(server)
     const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
       packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'local',
-      model: 'gemini-3.7-flash',
+      model: 'gemini-3.7-flash', memoryShadow: true,
       utilityEndpoint: `http://127.0.0.1:${await listening(server)}/v1/chat/completions` })
     try {
       const state = await runtime.submit('/act speak {"text":"早上好。"}')
       expect(state.error).toBe(false)
+      const shadow = readFileSync(resolve(root, 'memory-shadow.jsonl'), 'utf8').trim().split('\n')
+        .map(line => JSON.parse(line) as { phase: string; characterId: string; asOfWorldSeq: number })
+      expect(shadow).toHaveLength(4)
+      expect(shadow.every(row => row.phase === 'automatic' && row.asOfWorldSeq > 0)).toBe(true)
       expect(schemas).toHaveLength(4)
       expect((schemas[0] as { oneOf?: unknown }).oneOf).toBeUndefined()
       expect(schemas[0]).toMatchObject({ properties: {
