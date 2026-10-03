@@ -46,6 +46,16 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-
 
 本原型网页只接受 `worldpack-source/v5` 源目录，并通过 v10 的 FrozenWorldPlaytestRuntime 试玩；旧网页运行时已移除。当前玩家的重要状态交互使用显式 `/act` 命令；普通自然语言不会自动执行移动、取物或交接。创建新存档或续玩时请按[创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)操作，不要在同一数据目录中混用不兼容世界版本。真实模型试玩需要人工观察角色是否自然、是否重复、是否无故沉默，自动化测试不能代替这一环节。
 
+## 实验分支的活动与分层记忆
+
+`codex/activity-memory-integration` 已包含包内脚本、变量、临时活动权限、调度和宿主逃生；`ai-girls-hosted-guess` 是角色主持的猜数字示例。默认网页仍使用原生记忆。准备本地 Python／E5 环境后，可以显式开启分层记忆：
+
+```powershell
+corepack pnpm@11.7.0 experience:web --memory-core --pack examples/world-packs/ai-girls-hosted-guess --data-dir .tmp/my-core-playtest
+```
+
+在顶部点击“整理长期记忆”后才有已整理的长期档案；当前不会每回合自动整理。安装、取消与私有 trace 的说明见 [活动记忆实验](experiments/activity-memory/README.md)。此入口支持本机 OpenAI 兼容服务，尚未随桌面发布打包。main 与实验分支的具体边界、验证结果见 [2026-10-03 项目状态](docs/PROJECT-STATE-2026-10-03.md)。
+
 ## Windows 桌面启动器
 
 首版桌面窗口现已可用：默认列出 `ai-girls-awaken-v10`，也可选择其他 v5 世界包、新建或续玩独立存档、配置本机 OpenAI 兼容接口/Ollama/DeepSeek，启动后由系统默认浏览器打开游戏。启动器窗口保留运行状态、重新打开和停止入口，并管理一个本机后端进程；关闭启动器会停止后端。游戏页显示当前玩家可尝试的移动与交互，提交时仍由 Rulebook 裁定。

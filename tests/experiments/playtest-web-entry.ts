@@ -41,6 +41,7 @@ async function main(): Promise<void> {
   const packWeb = await loadPackWeb(packPath)
   const runtime = await FrozenWorldPlaytestRuntime.create({
     dataDirectory, provider, packPath,
+    ...(launch.memoryCore ? { memoryCore: true } : {}),
     ...(launch.tuning === undefined ? {} : { tuning: launch.tuning }),
     ...(shadowAudit === undefined ? {} : { shadowAudit }),
     ...(model === undefined ? {} : { model }),
@@ -76,6 +77,7 @@ async function main(): Promise<void> {
   process.send?.({ type: 'ready', port, token })
   process.stdout.write(`\n本机试玩页已启动：\nhttp://127.0.0.1:${port}/#token=${token}\n\n`)
   process.stdout.write(`世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || (provider === 'local' ? 'gemini-3.7-flash' : provider === 'deepseek' ? 'deepseek-flash' : 'qwen3:4b')}\n按 Ctrl+C 安全关闭。\n`)
+  if (launch.memoryCore) process.stdout.write('实验 Core 记忆已开启；请在宿主页点击“整理长期记忆”。未整理时长期交付为空。\n')
   if (packPath !== undefined) process.stdout.write(`World Pack：${packPath}\n`)
 }
 

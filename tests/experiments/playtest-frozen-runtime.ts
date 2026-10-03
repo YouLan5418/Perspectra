@@ -1,3 +1,5 @@
+import { PlaytestMemoryCore } from './playtest-memory-core.ts'
+import { coreRunner, type CoreRunner } from './hindsight-python.ts'
 import { PackActivity, type ActivityRequest } from './pack-activity.ts'
 import { PackVariables } from './pack-variables.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
@@ -36,6 +38,8 @@ export interface FrozenPlaytestOptions {
   readonly tuning?: PlaytestTuning
   readonly shadowAudit?: ShadowOptions
   readonly memoryShadow?: boolean
+  readonly memoryCore?: boolean
+  readonly memoryCoreRun?: CoreRunner
   readonly publicationAudit?: InterventionOptions
 }
 
@@ -71,6 +75,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   readonly #model: string
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
+  #memoryCore: PlaytestMemoryCore | undefined
   #activity: PackActivity | undefined
   #workDone: Promise<void> = Promise.resolve()
   #finishWork: (() => void) | undefined
@@ -138,13 +143,22 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       style: options.provider === 'ollama' ? 'format' : 'tool', timeoutMs, onCall })
     const characters = playtestModelCharacters(compiled.manifest, this.#playerId)
     this.#characterIds = characters.map(character => character.actorId)
+    if (options.memoryCore) {
+      if (options.provider !== 'local') throw new TypeError('实验 Core 网页目前只支持本机 OpenAI 兼容接口。')
+      this.#memoryCore = new PlaytestMemoryCore(options.dataDirectory, this.#address, options.memoryCoreRun ?? coreRunner({
+        HCW_LOCAL_MODEL: this.#model, HCW_LOCAL_ENDPOINT: endpoint.href,
+        ...(options.apiKey === undefined ? {} : { HCW_LOCAL_API_KEY: options.apiKey }),
+      }))
+    }
     this.#decideContinuation = async (request, signal) => {
+      if (this.#memoryCore) request = await this.#memoryCore.project(request, signal)
       const character = request.context.character as WorldJsonObject
       const variables = this.#variables?.getVariables(String(character.characterId))
       if (variables) request = { ...request, context: { ...request.context,
         packVariables: { public: variables.public, private: variables.private } } }
       const raw = await provider.decide(options.provider === 'local'
         ? localPrototypeTurnCall(request) : prototypeTurnCall(request), signal)
+      this.#memoryCore?.recordDecision(request, raw)
       if (options.publicationAudit === undefined) return raw
       const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
       let history
@@ -334,6 +348,29 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     } finally { try { await this.#refresh() } finally { this.#endWork() } }
     return this.state()
   }
+  async refreshMemory(): Promise<PlaytestState> {
+    if (!this.#memoryCore) throw new TypeError('本次试玩没有开启实验记忆。')
+    if (this.#busy || this.#escaping) throw new PlaytestBusyError('请等待当前处理完成。')
+    this.#beginWork(); this.#error = false; this.#continuationController = new AbortController()
+    const signal = AbortSignal.any([this.#continuationController.signal, AbortSignal.timeout(600_000)])
+    try {
+      await this.#application.release(this.#address)
+      this.#notice = '正在整理长期记忆，可能需要几分钟；逃生按钮可以取消。'
+      await this.#memoryCore.refresh(this.#characterIds, signal, (index, total) => {
+        this.#phaseLabel = `正在整理长期记忆 ${index}/${total}`
+      })
+      this.#notice = '长期记忆整理完成，之后的角色回应将使用当前档案。'
+    } catch (error) {
+      this.#error = true
+      this.#notice = signal.aborted ? '整理已取消；已完成的角色档案保留。'
+        : '记忆整理失败，旧档案保留；请检查终端后重试。'
+      throw error
+    } finally {
+      this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
+      try { await this.#refresh() } finally { this.#endWork() }
+    }
+    return this.state()
+  }
   async escape(): Promise<PlaytestState> {
     if (this.#escaping) return this.#escaping
     // Set the override before awaiting anything. Late model outputs are cancelled,
@@ -425,6 +462,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
 
   async close(): Promise<void> {
     this.#continuationController?.abort()
+    await this.#workDone
     await this.#shadow?.close()
     await this.#application.close()
   }
@@ -534,7 +572,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     }
     this.#debug = {
       headSeq: head.headSeq, tick: head.tick, manifestVersion: this.#manifestVersion,
-      outputProtocol: 'perform/publish/abstain',
+      outputProtocol: 'perform/publish/abstain', memoryMode: this.#memoryCore ? 'core' : 'native',
       activationCycle: this.#activationCycle ?? null,
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),
     }

@@ -280,4 +280,3 @@ class RetainedPrefixTest(unittest.TestCase):
         model.assert_not_called()
 
 if __name__ == '__main__': unittest.main()
-

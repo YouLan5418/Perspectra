@@ -3,6 +3,7 @@ import { parsePlaytestTuning, type PlaytestTuning } from './playtest-tuning.ts'
 export interface PlaytestLaunchArguments {
   readonly tuning?: PlaytestTuning
   readonly provider: 'local' | 'ollama' | 'deepseek'
+  readonly memoryCore?: boolean
   readonly packPath?: string
   readonly dataDirectory?: string
   readonly shadowConfigPath?: string
@@ -15,8 +16,13 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
   let dataDirectory: string | undefined
   let shadowConfigPath: string | undefined
   let tuning: PlaytestTuning | undefined
+  let memoryCore = false
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]
+    if (argument === '--memory-core') {
+      if (memoryCore) throw new Error('--memory-core may be supplied only once')
+      memoryCore = true; continue
+    }
     if (argument === '--deepseek' || argument === '--ollama') {
       provider = argument === '--deepseek' ? 'deepseek' : 'ollama'
       continue
@@ -42,6 +48,7 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
   }
   return {
     provider,
+    ...(memoryCore ? { memoryCore: true } : {}),
     ...(tuning === undefined ? {} : { tuning }),
     ...(shadowConfigPath === undefined ? {} : { shadowConfigPath }),
     ...(packPath === undefined ? {} : { packPath }),

@@ -34,6 +34,7 @@ export interface PlaytestRuntime {
   perform?(action: PlaytestAction): Promise<PlaytestState>
   activityAction?(request: ActivityRequest): Promise<PlaytestState>
   escape?(): Promise<PlaytestState>
+  refreshMemory?(): Promise<PlaytestState>
   pause(): Promise<PlaytestState>
   resume(): Promise<PlaytestState>
   close(): Promise<void>
@@ -154,6 +155,10 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
         const action = submittedAction(await body(request))
         json(response, 200, await runtimeCall(() => runtime.perform!(action)))
         return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/memory/refresh') {
+        if (runtime.refreshMemory === undefined) { json(response, 404, { error: '接口不存在' }); return }
+        json(response, 200, await runtimeCall(() => runtime.refreshMemory!())); return
       }
       if (request.method === 'POST' && url.pathname === '/api/escape') {
         if (runtime.escape === undefined) { json(response, 404, { error: '接口不存在' }); return }
