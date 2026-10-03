@@ -211,7 +211,8 @@ export class SceneDecisionService {
           eventType: 'scene.member_left', eventVersion: 1,
           data: { sceneId: source.sceneId, characterId },
         })
-        if (source.participantIds.length === 1) {
+        // Fixed rooms remain available for a later visit, even when empty.
+        if (source.participantIds.length === 1 && source.locationId === null) {
           transitions.push({ eventType: 'scene.closed', eventVersion: 1, data: { sceneId: source.sceneId } })
         }
       }
