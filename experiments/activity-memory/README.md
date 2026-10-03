@@ -153,3 +153,8 @@ node --import tsx tests/experiments/activity-memory-live-probe.ts .tmp/my-hosted
 ## Observation 适用性投影对照（2026-10-04）
 
 在冻结认识上，只替换一个搜索窗口的检索文本，原三个刺激加同人物无关、不同人物导航对照。Gemini 生成一次适用性字段，编码器、查询、准入和交付规则保持原样；自然交付仍为 0/3，未启动角色行为调用。复现命令、逐点分数和对象匹配限制见 [适用性投影报告](report-observation-applicability.md)，可复核摘要见 observation-applicability-assessment.json。此参数需要上一轮包含 build.json 与 new-task-preview-request.json 的冻结目录。
+
+
+## 对象与适用性判断续验（2026-10-04）
+
+冻结上一轮字段，先测对象＋分字段 E5（仍为 0/3），再单独测对象＋Gemini 适用性准入（原三点交付、两对照为空）。后者完成 27 次真实首次选择对照，等候点出现先问资料与直接移动的分叉。期间修复了成功 Observation 经活动交付器时 trace 缺少 coveredAtomIds 的可复现缺陷。方法变化、失败记录、局限及复现见 [对象与适用性判断报告](report-observation-facet-match.md)。未接入正式网页或修改正式记忆 schema。

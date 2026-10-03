@@ -2,7 +2,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { spawnSync } from 'node:child_process'
+import { execFile, spawnSync } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
 import { brandId, hashWorldJson, worldAddressKey, RECALL_KEYWORD_TOKENIZER_ID,
   type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
@@ -18,7 +18,9 @@ import { coreRunner, hindsightPython } from './hindsight-python.ts'
 const root=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(root))throw new Error('provide a fresh output directory')
 mkdirSync(root,{recursive:true})
-const applicability=process.argv[3]==='--applicability-from'
+const facetJudge=process.argv[3]==='--facet-judge-from'
+const facetMatch=process.argv[3]==='--facet-match-from'||facetJudge
+const applicability=process.argv[3]==='--applicability-from'||facetMatch
 const sourceRoot=(applicability||process.argv[3]==='--delivery-intervention-from')&&process.argv[4]?resolve(process.argv[4]):undefined
 if(process.argv[3]&&!sourceRoot)throw new Error('unknown option')
 const repeats=3,formationTick=15,probeTick=55,model='gemini-3.7-flash'
@@ -53,8 +55,8 @@ const probes: {id:string;kind:string;text:string;actorId?:string}[]=[
 if([...history.values(),...probes.map(p=>p.text)].some(text=>text.includes('\uFFFD')))throw new Error('invalid Unicode in authored input')
 writeFileSync(join(root,'protocol.json'),JSON.stringify({model,repeats,formationTick,probeTick,history:[...history],probes,
  historyMode:'55 committed authored-history ticks, not 55 live model turns',
- deliveryMode:applicability?'natural retrieval with applicability projection':sourceRoot?'explicit intervention, not natural retrieval':'natural',
- ...(applicability?{projectionDesign:'one target search window replaced; same encoder, queries, admission, entities and delivery; projection generation sees no probes',comparison:'frozen original index recalled on every same request before projected index'}:{}),
+ deliveryMode:facetJudge?'subject and model applicability admission':facetMatch?'natural subject and facet retrieval':applicability?'natural retrieval with applicability projection':sourceRoot?'explicit intervention, not natural retrieval':'natural',
+ ...(applicability?{projectionDesign:facetJudge?'frozen facets; deterministic subject gate; Gemini assesses relevance with quoted stimulus; original numeric gates diagnostic only':facetMatch?'frozen facets reused; subject required; contexts/exceptions scored separately with original numeric gates; one candidate; unchanged ordinary recall and delivery':'one target search window replaced; same encoder, queries, admission, entities and delivery; projection generation sees no probes',comparison:'frozen original index recalled on every same request before experimental route'}:{}),
  reusedArchiveFrom:sourceRoot??null,
  design:'natural recall audited first; only target Observation removed in ablation; all other delivered memories and context fixed',
  conditions:['with-observation','without-observation-a','without-observation-b'],
@@ -66,6 +68,17 @@ let store=new WorldStore(join(historyDir,'world.sqlite'))
 let memory=new CognitiveMemoryService(join(historyDir,'memory.sqlite'),store,undefined,2,RECALL_KEYWORD_TOKENIZER_ID)
 const core=coreRunner({HCW_LOCAL_MODEL:model,HCW_HINDSIGHT_UTILITY_TRACE:join(root,'utility-calls.jsonl')})
 let built:WorldJsonObject|undefined
+function facetWorker(input:WorldJsonObject,signal:AbortSignal):Promise<WorldJsonObject>{
+ return new Promise((resolveResult,reject)=>{
+  const child=execFile(hindsightPython(),[resolve('experiments/activity-memory/observation-facet-match.py')],{
+   signal,timeout:120000,maxBuffer:32*1024*1024,windowsHide:true,encoding:'utf8',
+   env:{...process.env,HCW_LOCAL_MODEL:model,HCW_HINDSIGHT_UTILITY_TRACE:join(root,'facet-utility-calls.jsonl'),PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0'}},(error,stdout)=>{
+    if(error){reject(new Error('facet retrieval failed',{cause:error}));return}
+    try{resolveResult(JSON.parse(stdout) as WorldJsonObject)}catch(cause){reject(new Error('facet retrieval returned invalid JSON',{cause}))}
+   })
+  child.stdin!.on('error',()=>{});child.stdin!.end(JSON.stringify(input))
+ })
+}
 function authorized():WorldJsonObject {
  const head=store.head(address);memory.catchUp(address,npc,head.headSeq,'observation-choice')
  const ticks=new Map(store.readEvents(address).map(e=>[e.seq,e.tick]))
@@ -115,7 +128,15 @@ if(!target){writeFileSync(join(root,'blocked.json'),JSON.stringify({stage:'forma
 else{
  const targetId=String(target.id)
  let searchIndex=index
- if(applicability){
+ let facetProjection:WorldJsonObject|undefined,preparedFacet:WorldJsonObject|undefined
+ if(facetMatch){
+  facetProjection=JSON.parse(readFileSync(join(sourceRoot!,'applicability.json'),'utf8')) as WorldJsonObject
+  const preparation:WorldJsonObject={operation:'prepare',archive,index,projection:facetProjection,targetObservation:targetId,judge:facetJudge}
+  writeFileSync(join(root,'facet-input.json'),JSON.stringify(preparation,null,2))
+  preparedFacet=await facetWorker(preparation,AbortSignal.timeout(180000))
+  writeFileSync(join(root,'facet-projection.json'),JSON.stringify(preparedFacet,null,2))
+  writeFileSync(join(root,'applicability.json'),JSON.stringify(facetProjection,null,2))
+ }else if(applicability){
   const frozenRequest=JSON.parse(readFileSync(join(sourceRoot!,'new-task-preview-request.json'),'utf8')) as PrototypeTurnRequest
   if((frozenRequest.context.character as WorldJsonObject).characterId!==npc)throw new Error('identity context belongs to another role')
   const people=((frozenRequest.context.scene as WorldJsonObject).people??[]) as WorldJsonObject[]
@@ -152,11 +173,15 @@ else{
       const baseline=await core({operation:'recall',archive,index,request:{...request},tick:probeTick,observations:true},signal)
       writeFileSync(join(root,probe.id+'-baseline-recall.json'),JSON.stringify(baseline,null,2))
      }
-     selection=await core({operation:'recall',archive,index:searchIndex,request:{...request},tick:probeTick,observations:true},signal)
+     selection=facetMatch
+      ?await facetWorker({operation:'recall',archive,index,projection:facetProjection!,prepared:preparedFacet!,targetObservation:targetId,request:{...request},tick:probeTick,observations:true,judge:facetJudge},signal)
+      :await core({operation:'recall',archive,index:searchIndex,request:{...request},tick:probeTick,observations:true},signal)
      return {decision:'abstain'}
     }})
-   await turn.run(npc,{stimulus,maxCalls:1,signal:AbortSignal.timeout(180000)})
+   const previewResult=await turn.run(npc,{stimulus,maxCalls:1,signal:AbortSignal.timeout(180000)})
+   writeFileSync(join(root,probe.id+'-preview-result.json'),JSON.stringify(previewResult,null,2))
   }finally{memory.close();availability.close();leases.close();store.close()}
+  if(!selection)throw new Error('retrieval preview failed; inspect saved preview result')
   writeFileSync(join(root,probe.id+'-recall.json'),JSON.stringify(selection,null,2))
   let delivered=(selection?.delivery??[]) as WorldJsonObject[]
   if(sourceRoot&&!applicability){
@@ -218,6 +243,6 @@ else{
   }
  }
  writeFileSync(join(root,'summary.json'),JSON.stringify({model,formationTick,probeTick,elapsedTicks:probeTick-formationTick,
-  deliveryMode:applicability?'natural retrieval with applicability projection':sourceRoot?'explicit intervention':'natural',targetObservation:targetId,eligible,rejected,trials:results.length,originalWorldUnchanged:hash()===frozen,
+  deliveryMode:facetJudge?'subject and model applicability admission':facetMatch?'natural subject and facet retrieval':applicability?'natural retrieval with applicability projection':sourceRoot?'explicit intervention':'natural',targetObservation:targetId,eligible,rejected,trials:results.length,originalWorldUnchanged:hash()===frozen,
   conclusion:'behavioral effect requires qualitative reading; no trial if target not naturally delivered'},null,2))
 }

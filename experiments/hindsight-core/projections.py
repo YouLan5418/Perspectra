@@ -267,7 +267,8 @@ def delivery_projection(doc, candidates, request, tick, max_json_chars=4500, max
                     'epistemicKind':'subjective_inference','sourceIds':[r['sourceId'] for r in refs],
                     'sourceAgeTicks':tick-max(sources[r['sourceId']]['knownTick'] for r in refs)}
             pending, traces, pending_keys = [item], [{'memoryId':unit['id'],'sourceRefs':refs,
-                'supportingAtomIds':unit['supportingAtomIds'],'contradictingAtomIds':unit['contradictingAtomIds'],
+                # Reading an understanding does not mean reading all its original atoms.
+                'coveredAtomIds':[], 'supportingAtomIds':unit['supportingAtomIds'],'contradictingAtomIds':unit['contradictingAtomIds'],
                 'retrieval':candidate}], set()
             # An understanding must not crowd out its counter-evidence.
             for ident in unit['contradictingAtomIds']:

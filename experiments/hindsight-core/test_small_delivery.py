@@ -54,6 +54,19 @@ class SmallDeliveryTest(unittest.TestCase):
         self.assertEqual(result['memories'][0]['memoryLevel'],'event_atom')
         self.assertIn('rejected',result['memories'][0]['text'])
 
+    def test_successful_observation_passes_activity_delivery_without_claiming_atom_reading(self):
+        action={'actorId':'character:player','actionType':'move','status':'accepted','movement':{'toLocationId':'location:garden'}}
+        data=retain([source(4,json.dumps(action),kind='observed_action')])
+        data=observation(data,[data['facts'][0]['id']])
+        before=copy.deepcopy(data)
+        activity=runpy.run_path(str(Path(__file__).resolve().parents[1]/'activity-memory'/'activity_delivery.py'))
+        result=activity['deliver'](data,[{'id':'obs:1'}],request(),10,{'originalText':''})
+        self.assertEqual([m['memoryLevel'] for m in result['memories']],['observation'])
+        self.assertEqual(result['trace']['delivered'][0]['coveredAtomIds'],[])
+        self.assertEqual(result['trace']['distinctEvidenceSegments'],0)
+        self.assertEqual(result['trace']['delivered'][0]['sourceRefs'],data['observations'][0]['sourceRefs'])
+        self.assertEqual(data,before)
+
     def test_confirmed_action_observation_keeps_counter_evidence_as_one_budget_group(self):
         action={'actorId':'character:player','actionType':'move','status':'accepted','movement':{'toLocationId':'location:garden'}}
         data=retain([source(4,json.dumps(action),kind='observed_action'),source(8,'character:player said: 我没有去院子。')])
