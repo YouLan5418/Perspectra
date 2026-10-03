@@ -1,0 +1,639 @@
+{
+  "experiment": "frozen Observation one-window applicability search-text comparison",
+  "date": "2026-10-04",
+  "artifactDirectory": ".tmp\\observation-applicability-20261004-v1",
+  "protocol": {
+    "model": "gemini-3.7-flash",
+    "repeats": 3,
+    "formationTick": 15,
+    "probeTick": 55,
+    "history": [
+      [
+        2,
+        "小芷亲眼看见：在第一次去的展馆，旅人依据一张旧导览图带大家走向北门，到了门口才发现入口已迁到南侧。大家返回大厅查看当日指示后找到了入口。"
+      ],
+      [
+        6,
+        "小芷亲眼看见：在陌生旅馆，旅人照旧宣传册把行李登记处指在二楼。大家到二楼没找到登记处，问过值班员后才知道现在在一楼。"
+      ],
+      [
+        10,
+        "小芷亲眼看见：第一次到新码头时，旅人参考旧线路图把等候地点指向东边。大家走过去看到该处已关闭，后来根据现场标牌改去了西侧。"
+      ],
+      [
+        13,
+        "小芷亲眼看见：回到常去的商店时，旅人直接指出收银台的位置，大家按他的指引顺利找到了收银台。"
+      ]
+    ],
+    "probes": [
+      {
+        "id": "new-task",
+        "kind": "similar",
+        "text": "这是我们第一次来这里。登记表在隔壁小屋，我来带路，我们先过去吧。"
+      },
+      {
+        "id": "new-stop",
+        "kind": "similar",
+        "text": "第一次到这儿也没什么复杂的，隔壁就是等候点，我看过介绍了。我们走吧。"
+      },
+      {
+        "id": "familiar-control",
+        "kind": "control",
+        "text": "这是我们经常来的地方，隔壁小屋的老位置没有变。我来带路，我们过去吧。"
+      },
+      {
+        "id": "same-person-unrelated",
+        "kind": "negative-control",
+        "text": "桌上的杂志我看完了，里面那篇花园随笔挺有意思。你平时喜欢读什么？"
+      },
+      {
+        "id": "other-person-navigation",
+        "kind": "subject-control",
+        "actorId": "character:bob",
+        "text": "这是我们第一次来这里。登记表在隔壁小屋，我来带路，我们先过去吧。"
+      }
+    ],
+    "historyMode": "55 committed authored-history ticks, not 55 live model turns",
+    "deliveryMode": "natural retrieval with applicability projection",
+    "projectionDesign": "one target search window replaced; same encoder, queries, admission, entities and delivery; projection generation sees no probes",
+    "comparison": "frozen original index recalled on every same request before projected index",
+    "reusedArchiveFrom": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\observation-choice-20261004-v3",
+    "design": "natural recall audited first; only target Observation removed in ablation; all other delivered memories and context fixed",
+    "conditions": [
+      "with-observation",
+      "without-observation-a",
+      "without-observation-b"
+    ],
+    "controls": [
+      "no memory reminder in stimulus",
+      "neutral portrayal",
+      "recent observations removed in this cold comparison",
+      "no rubric sent to model",
+      "three independent copies per repetition",
+      "one initial autonomous choice; further recall disabled equally"
+    ],
+    "limitation": "small exploratory repeated sample, nonblind qualitative reading; no significance or generalization claim"
+  },
+  "frozenObservation": {
+    "id": "obs:1",
+    "kind": "observation",
+    "memoryLevel": "observation",
+    "epistemicKind": "subjective_inference",
+    "text": "【主观认识，可修正】旅人在初次前往或陌生的场所容易参考旧材料指路导致跑错位置，但在熟悉的常去场所能够准确指引目的地。",
+    "supportingAtomIds": [
+      "atom:event:14:0",
+      "atom:event:19:0",
+      "atom:event:19:1",
+      "atom:event:23:0",
+      "atom:event:23:1",
+      "atom:event:26:0"
+    ],
+    "contradictingAtomIds": [],
+    "sourceFactIds": [
+      "atom:event:14:0",
+      "atom:event:19:0",
+      "atom:event:19:1",
+      "atom:event:23:0",
+      "atom:event:23:1",
+      "atom:event:26:0"
+    ],
+    "episodeIds": [
+      "episode:2",
+      "episode:6",
+      "episode:10",
+      "episode:13"
+    ],
+    "eventAtoms": [
+      {
+        "id": "atom:event:14:0",
+        "kind": "fact",
+        "memoryLevel": "event_atom",
+        "evidence": {
+          "id": "event:14/part:0",
+          "channel": "direct_observation",
+          "actorId": null,
+          "context": "小芷亲眼看见：在第一次去的展馆，旅人依据一张旧导览图带大家走向北门，到了门口才发现入口已迁到南侧。大家返回大厅查看当日指示后找到了入口。",
+          "sourceId": "event:14",
+          "quote": "小芷亲眼看见：在第一次去的展馆，旅人依据一张旧导览图带大家走向北门，到了门口才发现入口已迁到南侧。"
+        },
+        "evidenceQuote": "小芷亲眼看见：在第一次去的展馆，旅人依据一张旧导览图带大家走向北门，到了门口才发现入口已迁到南侧。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:14",
+            "sourceHash": "sha256:2c1ab3c2bd87b4d5e2e3b32cd426b77c7848de1ab1ed39e93cd2e5a5abe30feb",
+            "epistemicKind": "direct_observation",
+            "worldSeq": 14,
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:observation-choice",
+              "branchId": "branch:main"
+            }
+          }
+        ],
+        "entities": [],
+        "text": "【本角色的直接观察】小芷亲眼看见：在第一次去的展馆，旅人依据一张旧导览图带大家走向北门，到了门口才发现入口已迁到南侧。\n【完整引用语境；保留否定、条件和不确定性】小芷亲眼看见：在第一次去的展馆，旅人依据一张旧导览图带大家走向北门，到了门口才发现入口已迁到南侧。大家返回大厅查看当日指示后找到了入口。"
+      },
+      {
+        "id": "atom:event:19:0",
+        "kind": "fact",
+        "memoryLevel": "event_atom",
+        "evidence": {
+          "id": "event:19/part:0",
+          "channel": "direct_observation",
+          "actorId": null,
+          "context": "小芷亲眼看见：在陌生旅馆，旅人照旧宣传册把行李登记处指在二楼。大家到二楼没找到登记处，问过值班员后才知道现在在一楼。",
+          "sourceId": "event:19",
+          "quote": "小芷亲眼看见：在陌生旅馆，旅人照旧宣传册把行李登记处指在二楼。"
+        },
+        "evidenceQuote": "小芷亲眼看见：在陌生旅馆，旅人照旧宣传册把行李登记处指在二楼。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:19",
+            "sourceHash": "sha256:a2d2e8bbd18140d8966e589e40c75a25b763157b4c8a0ad4f7c0e34b6541da09",
+            "epistemicKind": "direct_observation",
+            "worldSeq": 19,
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:observation-choice",
+              "branchId": "branch:main"
+            }
+          }
+        ],
+        "entities": [],
+        "text": "【本角色的直接观察】小芷亲眼看见：在陌生旅馆，旅人照旧宣传册把行李登记处指在二楼。\n【完整引用语境；保留否定、条件和不确定性】小芷亲眼看见：在陌生旅馆，旅人照旧宣传册把行李登记处指在二楼。大家到二楼没找到登记处，问过值班员后才知道现在在一楼。"
+      },
+      {
+        "id": "atom:event:19:1",
+        "kind": "fact",
+        "memoryLevel": "event_atom",
+        "evidence": {
+          "id": "event:19/part:0",
+          "channel": "direct_observation",
+          "actorId": null,
+          "context": "小芷亲眼看见：在陌生旅馆，旅人照旧宣传册把行李登记处指在二楼。大家到二楼没找到登记处，问过值班员后才知道现在在一楼。",
+          "sourceId": "event:19",
+          "quote": "大家到二楼没找到登记处，问过值班员后才知道现在在一楼。"
+        },
+        "evidenceQuote": "大家到二楼没找到登记处，问过值班员后才知道现在在一楼。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:19",
+            "sourceHash": "sha256:a2d2e8bbd18140d8966e589e40c75a25b763157b4c8a0ad4f7c0e34b6541da09",
+            "epistemicKind": "direct_observation",
+            "worldSeq": 19,
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:observation-choice",
+              "branchId": "branch:main"
+            }
+          }
+        ],
+        "entities": [],
+        "text": "【本角色的直接观察】大家到二楼没找到登记处，问过值班员后才知道现在在一楼。\n【完整引用语境；保留否定、条件和不确定性】小芷亲眼看见：在陌生旅馆，旅人照旧宣传册把行李登记处指在二楼。大家到二楼没找到登记处，问过值班员后才知道现在在一楼。"
+      },
+      {
+        "id": "atom:event:23:0",
+        "kind": "fact",
+        "memoryLevel": "event_atom",
+        "evidence": {
+          "id": "event:23/part:0",
+          "channel": "direct_observation",
+          "actorId": null,
+          "context": "小芷亲眼看见：第一次到新码头时，旅人参考旧线路图把等候地点指向东边。大家走过去看到该处已关闭，后来根据现场标牌改去了西侧。",
+          "sourceId": "event:23",
+          "quote": "小芷亲眼看见：第一次到新码头时，旅人参考旧线路图把等候地点指向东边。"
+        },
+        "evidenceQuote": "小芷亲眼看见：第一次到新码头时，旅人参考旧线路图把等候地点指向东边。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:23",
+            "sourceHash": "sha256:309ed7faf803d764607fc04bd1d3fd58056eaa152034f98c0006bc336841a45e",
+            "epistemicKind": "direct_observation",
+            "worldSeq": 23,
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:observation-choice",
+              "branchId": "branch:main"
+            }
+          }
+        ],
+        "entities": [],
+        "text": "【本角色的直接观察】小芷亲眼看见：第一次到新码头时，旅人参考旧线路图把等候地点指向东边。\n【完整引用语境；保留否定、条件和不确定性】小芷亲眼看见：第一次到新码头时，旅人参考旧线路图把等候地点指向东边。大家走过去看到该处已关闭，后来根据现场标牌改去了西侧。"
+      },
+      {
+        "id": "atom:event:23:1",
+        "kind": "fact",
+        "memoryLevel": "event_atom",
+        "evidence": {
+          "id": "event:23/part:0",
+          "channel": "direct_observation",
+          "actorId": null,
+          "context": "小芷亲眼看见：第一次到新码头时，旅人参考旧线路图把等候地点指向东边。大家走过去看到该处已关闭，后来根据现场标牌改去了西侧。",
+          "sourceId": "event:23",
+          "quote": "大家走过去看到该处已关闭，后来根据现场标牌改去了西侧。"
+        },
+        "evidenceQuote": "大家走过去看到该处已关闭，后来根据现场标牌改去了西侧。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:23",
+            "sourceHash": "sha256:309ed7faf803d764607fc04bd1d3fd58056eaa152034f98c0006bc336841a45e",
+            "epistemicKind": "direct_observation",
+            "worldSeq": 23,
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:observation-choice",
+              "branchId": "branch:main"
+            }
+          }
+        ],
+        "entities": [],
+        "text": "【本角色的直接观察】大家走过去看到该处已关闭，后来根据现场标牌改去了西侧。\n【完整引用语境；保留否定、条件和不确定性】小芷亲眼看见：第一次到新码头时，旅人参考旧线路图把等候地点指向东边。大家走过去看到该处已关闭，后来根据现场标牌改去了西侧。"
+      },
+      {
+        "id": "atom:event:26:0",
+        "kind": "fact",
+        "memoryLevel": "event_atom",
+        "evidence": {
+          "id": "event:26/part:0",
+          "channel": "direct_observation",
+          "actorId": null,
+          "context": "小芷亲眼看见：回到常去的商店时，旅人直接指出收银台的位置，大家按他的指引顺利找到了收银台。",
+          "sourceId": "event:26",
+          "quote": "小芷亲眼看见：回到常去的商店时，旅人直接指出收银台的位置，大家按他的指引顺利找到了收银台。"
+        },
+        "evidenceQuote": "小芷亲眼看见：回到常去的商店时，旅人直接指出收银台的位置，大家按他的指引顺利找到了收银台。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:26",
+            "sourceHash": "sha256:cd297aa99639d4c74ebab1f35b2449031306858c5b1c40d412f8df92690e2bd0",
+            "epistemicKind": "direct_observation",
+            "worldSeq": 26,
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:observation-choice",
+              "branchId": "branch:main"
+            }
+          }
+        ],
+        "entities": [],
+        "text": "【本角色的直接观察】小芷亲眼看见：回到常去的商店时，旅人直接指出收银台的位置，大家按他的指引顺利找到了收银台。"
+      }
+    ],
+    "sourceRefs": [
+      {
+        "sourceId": "event:14",
+        "sourceHash": "sha256:2c1ab3c2bd87b4d5e2e3b32cd426b77c7848de1ab1ed39e93cd2e5a5abe30feb",
+        "epistemicKind": "direct_observation",
+        "worldSeq": 14,
+        "characterId": "character:npc",
+        "worldAddress": {
+          "tenantId": "tenant:p8-crash",
+          "worldId": "world:observation-choice",
+          "branchId": "branch:main"
+        }
+      },
+      {
+        "sourceId": "event:19",
+        "sourceHash": "sha256:a2d2e8bbd18140d8966e589e40c75a25b763157b4c8a0ad4f7c0e34b6541da09",
+        "epistemicKind": "direct_observation",
+        "worldSeq": 19,
+        "characterId": "character:npc",
+        "worldAddress": {
+          "tenantId": "tenant:p8-crash",
+          "worldId": "world:observation-choice",
+          "branchId": "branch:main"
+        }
+      },
+      {
+        "sourceId": "event:23",
+        "sourceHash": "sha256:309ed7faf803d764607fc04bd1d3fd58056eaa152034f98c0006bc336841a45e",
+        "epistemicKind": "direct_observation",
+        "worldSeq": 23,
+        "characterId": "character:npc",
+        "worldAddress": {
+          "tenantId": "tenant:p8-crash",
+          "worldId": "world:observation-choice",
+          "branchId": "branch:main"
+        }
+      },
+      {
+        "sourceId": "event:26",
+        "sourceHash": "sha256:cd297aa99639d4c74ebab1f35b2449031306858c5b1c40d412f8df92690e2bd0",
+        "epistemicKind": "direct_observation",
+        "worldSeq": 26,
+        "characterId": "character:npc",
+        "worldAddress": {
+          "tenantId": "tenant:p8-crash",
+          "worldId": "world:observation-choice",
+          "branchId": "branch:main"
+        }
+      }
+    ],
+    "knownTickStart": 2,
+    "knownTickEnd": 13
+  },
+  "projection": {
+    "facets": {
+      "subjects": [
+        {
+          "name": "旅人",
+          "characterId": "character:player"
+        }
+      ],
+      "contexts": [
+        "前往陌生场所",
+        "初次到访新地点",
+        "路线指引与导航",
+        "参考旧材料寻路",
+        "前往熟悉常去的地点"
+      ],
+      "conditions": [
+        "身处陌生或初次前往的场所",
+        "参考旧材料进行指路"
+      ],
+      "exceptions": [
+        "身处熟悉且常去的场所",
+        "指引熟悉的目的地"
+      ],
+      "themes": [
+        "指路与寻路",
+        "路线准确度",
+        "陌生环境导航",
+        "旧资料参考"
+      ]
+    },
+    "generationInput": {
+      "observationText": "【主观认识，可修正】旅人在初次前往或陌生的场所容易参考旧材料指路导致跑错位置，但在熟悉的常去场所能够准确指引目的地。",
+      "allowedPeople": [
+        {
+          "characterId": "character:bob",
+          "name": "陆舟"
+        },
+        {
+          "characterId": "character:npc",
+          "name": "小芷"
+        },
+        {
+          "characterId": "character:player",
+          "name": "旅人"
+        }
+      ]
+    },
+    "prompt": "Derive a SEARCH-ONLY applicability projection from ONE frozen subjective Observation. Return JSON {\"subjects\":[{\"name\":\"...\",\"characterId\":null}],\"contexts\":[\"...\"],\"conditions\":[\"...\"],\"exceptions\":[\"...\"],\"themes\":[\"...\"]}. Use concise Chinese phrases and ordinary semantic synonyms. Describe situations in which the understanding is relevant, including its exceptions. Never prescribe actions, responses or decisions. Never add motives, evidence, new assertions, causal explanations or stronger certainty. Derive only from observationText, not from external knowledge. Use allowedPeople only to resolve the identity of an explicitly named subject; unresolved identity must remain null. Keep conditional and exception distinctions. No hypothetical test queries or generated dialogue. At most six phrases per facet; keep the whole projection compact.",
+    "searchText": "涉及对象：旅人\n相关情境：前往陌生场所、初次到访新地点、路线指引与导航、参考旧材料寻路、前往熟悉常去的地点\n适用条件：身处陌生或初次前往的场所、参考旧材料进行指路\n例外情境：身处熟悉且常去的场所、指引熟悉的目的地\n判断主题：指路与寻路、路线准确度、陌生环境导航、旧资料参考",
+    "archiveHash": "8787a5eb61373d1b5884ab234b92b3e6a86b2ab9d855a4f061dd9ef831768b5a",
+    "observationTextHash": "5e7019f16b04e8e3988df20909188a70b4183180015db3a537b41f340b28f1d4",
+    "indexUnits": 34,
+    "targetWindows": 1,
+    "selectionMethod": "natural_retrieval_with_applicability_projection",
+    "limits": "Search-only inferred facets; shape/identity checked, semantic faithfulness needs reading."
+  },
+  "utilityCall": {
+    "model": "gemini-3.7-flash",
+    "inputChars": 247,
+    "originalInputChars": 247,
+    "requestedMaxTokens": 1200,
+    "finishReason": "stop",
+    "usage": {
+      "prompt_tokens": 248,
+      "completion_tokens": 172,
+      "total_tokens": 1551,
+      "completion_tokens_details": {
+        "reasoning_tokens": 1131
+      }
+    },
+    "responseText": "```json\n{\n  \"subjects\": [\n    {\n      \"name\": \"旅人\",\n      \"characterId\": \"character:player\"\n    }\n  ],\n  \"contexts\": [\n    \"前往陌生场所\",\n    \"初次到访新地点\",\n    \"路线指引与导航\",\n    \"参考旧材料寻路\",\n    \"前往熟悉常去的地点\"\n  ],\n  \"conditions\": [\n    \"身处陌生或初次前往的场所\",\n    \"参考旧材料进行指路\"\n  ],\n  \"exceptions\": [\n    \"身处熟悉且常去的场所\",\n    \"指引熟悉的目的地\"\n  ],\n  \"themes\": [\n    \"指路与寻路\",\n    \"路线准确度\",\n    \"陌生环境导航\",\n    \"旧资料参考\"\n  ]\n}\n```",
+    "status": "returned"
+  },
+  "audit": {
+    "archiveUnchanged": true,
+    "sameOriginalThreeStimuli": true,
+    "sameQueriesAndAdmissionThresholds": true,
+    "onlyOneSearchWindowChanged": true,
+    "otherVectorsUnchanged": true,
+    "entityMetadataUnchanged": true,
+    "privateSourceExcluded": true,
+    "negativeChecksRejected": [
+      "wrong-character",
+      "tampered-source-hash",
+      "unauthorized-subject-id"
+    ],
+    "formationTick": 15,
+    "probeTick": 55,
+    "latestEvidenceAgeTicks": 42,
+    "targetSourceCount": 4,
+    "searchTokens": 99,
+    "utilityCalls": 1,
+    "characterCalls": 0,
+    "rows": [
+      {
+        "probe": "new-task",
+        "baseline": {
+          "id": "retrieval:33",
+          "memoryId": "obs:1",
+          "semanticSimilarity": 0.8624793291091919,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0,
+          "keywordCoverage": 0,
+          "matchedTerms": [],
+          "relevance": 0,
+          "accepted": false,
+          "graphScore": null,
+          "delivered": false,
+          "queryBackgroundMedian": 0.8693040311336517,
+          "semanticRank": 20
+        },
+        "applicability": {
+          "id": "retrieval:33",
+          "memoryId": "obs:1",
+          "semanticSimilarity": 0.8674376010894775,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0,
+          "keywordCoverage": 0,
+          "matchedTerms": [],
+          "relevance": 0,
+          "accepted": false,
+          "graphScore": null,
+          "delivered": false,
+          "queryBackgroundMedian": 0.8698422014713287,
+          "semanticRank": 18
+        }
+      },
+      {
+        "probe": "new-stop",
+        "baseline": {
+          "id": "retrieval:33",
+          "memoryId": "obs:1",
+          "semanticSimilarity": 0.8626941442489624,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0,
+          "keywordCoverage": 0,
+          "matchedTerms": [],
+          "relevance": 0,
+          "accepted": false,
+          "graphScore": null,
+          "delivered": false,
+          "queryBackgroundMedian": 0.8629673719406128,
+          "semanticRank": 22
+        },
+        "applicability": {
+          "id": "retrieval:33",
+          "memoryId": "obs:1",
+          "semanticSimilarity": 0.8685283064842224,
+          "semanticLift": 0.040581098256392056,
+          "semanticScored": true,
+          "bm25Score": 0.9138327027649066,
+          "keywordCoverage": 0.022461816944310545,
+          "matchedTerms": [
+            "次到"
+          ],
+          "relevance": 0.040581098256392056,
+          "accepted": false,
+          "graphScore": null,
+          "delivered": false,
+          "queryBackgroundMedian": 0.8629673719406128,
+          "semanticRank": 12
+        }
+      },
+      {
+        "probe": "familiar-control",
+        "baseline": {
+          "id": "retrieval:33",
+          "memoryId": "obs:1",
+          "semanticSimilarity": 0.8717350959777832,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 3.6523709401557003,
+          "keywordCoverage": 0.05368799562592551,
+          "matchedTerms": [
+            "位置",
+            "的地"
+          ],
+          "relevance": 0.05368799562592551,
+          "accepted": false,
+          "graphScore": null,
+          "delivered": false,
+          "queryBackgroundMedian": 0.8732673823833466,
+          "semanticRank": 18
+        },
+        "applicability": {
+          "id": "retrieval:33",
+          "memoryId": "obs:1",
+          "semanticSimilarity": 0.8653831481933594,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 2.157675083977446,
+          "keywordCoverage": 0.030913060140386084,
+          "matchedTerms": [
+            "的地"
+          ],
+          "relevance": 0.030913060140386084,
+          "accepted": false,
+          "graphScore": null,
+          "delivered": false,
+          "queryBackgroundMedian": 0.8725492358207703,
+          "semanticRank": 20
+        }
+      },
+      {
+        "probe": "same-person-unrelated",
+        "baseline": {
+          "id": "retrieval:33",
+          "memoryId": "obs:1",
+          "semanticSimilarity": 0.8218547105789185,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0,
+          "keywordCoverage": 0,
+          "matchedTerms": [],
+          "relevance": 0,
+          "accepted": false,
+          "graphScore": null,
+          "delivered": false,
+          "queryBackgroundMedian": 0.8515731692314148,
+          "semanticRank": 34
+        },
+        "applicability": {
+          "id": "retrieval:33",
+          "memoryId": "obs:1",
+          "semanticSimilarity": 0.8553107976913452,
+          "semanticLift": 0.012751361365979952,
+          "semanticScored": true,
+          "bm25Score": 0,
+          "keywordCoverage": 0,
+          "matchedTerms": [],
+          "relevance": 0.012751361365979952,
+          "accepted": false,
+          "graphScore": null,
+          "delivered": false,
+          "queryBackgroundMedian": 0.85344198346138,
+          "semanticRank": 17
+        }
+      },
+      {
+        "probe": "other-person-navigation",
+        "baseline": {
+          "id": "retrieval:33",
+          "memoryId": "obs:1",
+          "semanticSimilarity": 0.8624793291091919,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0,
+          "keywordCoverage": 0,
+          "matchedTerms": [],
+          "relevance": 0,
+          "accepted": false,
+          "graphScore": null,
+          "delivered": false,
+          "queryBackgroundMedian": 0.8693040311336517,
+          "semanticRank": 20
+        },
+        "applicability": {
+          "id": "retrieval:33",
+          "memoryId": "obs:1",
+          "semanticSimilarity": 0.8674376010894775,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0,
+          "keywordCoverage": 0,
+          "matchedTerms": [],
+          "relevance": 0,
+          "accepted": false,
+          "graphScore": null,
+          "delivered": false,
+          "queryBackgroundMedian": 0.8698422014713287,
+          "semanticRank": 18
+        }
+      }
+    ]
+  },
+  "summary": {
+    "model": "gemini-3.7-flash",
+    "formationTick": 15,
+    "probeTick": 55,
+    "elapsedTicks": 40,
+    "deliveryMode": "natural retrieval with applicability projection",
+    "targetObservation": "obs:1",
+    "eligible": [],
+    "rejected": [
+      "new-task",
+      "new-stop",
+      "familiar-control",
+      "same-person-unrelated",
+      "other-person-navigation"
+    ],
+    "trials": 0,
+    "originalWorldUnchanged": true,
+    "conclusion": "behavioral effect requires qualitative reading; no trial if target not naturally delivered"
+  },
+  "assessmentMethod": "nonblind exploratory reading; no human gold or statistical generalization"
+}

@@ -148,3 +148,8 @@ node --import tsx tests/experiments/activity-memory-live-probe.ts .tmp/my-hosted
 ## Observation 对自主选择的延迟对照（2026-10-04）
 
 本轮只验证一个目标：同一角色在相似新场景中，读到／没读到同一条主观认识，首次自主选择是否不同。受控历史在第 15 tick 形成认识，第 55 tick 比较，采用 Gemini 3.7 Flash 和三组各三次重复。自然召回未交付目标认识；明确标记的交付干预中出现了先询问与直接移动的差异。两项结论分别报告，不将条件行为效应当作自然记忆链路通过。入口、原始回答摘要、失败记录和复现方法见 [延迟选择报告](report-observation-choice.md)。
+
+
+## Observation 适用性投影对照（2026-10-04）
+
+在冻结认识上，只替换一个搜索窗口的检索文本，原三个刺激加同人物无关、不同人物导航对照。Gemini 生成一次适用性字段，编码器、查询、准入和交付规则保持原样；自然交付仍为 0/3，未启动角色行为调用。复现命令、逐点分数和对象匹配限制见 [适用性投影报告](report-observation-applicability.md)，可复核摘要见 observation-applicability-assessment.json。此参数需要上一轮包含 build.json 与 new-task-preview-request.json 的冻结目录。

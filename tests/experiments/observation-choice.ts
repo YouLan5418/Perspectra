@@ -18,7 +18,8 @@ import { coreRunner, hindsightPython } from './hindsight-python.ts'
 const root=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(root))throw new Error('provide a fresh output directory')
 mkdirSync(root,{recursive:true})
-const sourceRoot=process.argv[3]==='--delivery-intervention-from'&&process.argv[4]?resolve(process.argv[4]):undefined
+const applicability=process.argv[3]==='--applicability-from'
+const sourceRoot=(applicability||process.argv[3]==='--delivery-intervention-from')&&process.argv[4]?resolve(process.argv[4]):undefined
 if(process.argv[3]&&!sourceRoot)throw new Error('unknown option')
 const repeats=3,formationTick=15,probeTick=55,model='gemini-3.7-flash'
 const npc=brandId('character:npc','CharacterId'),base=frozenInteractionWorld()
@@ -40,15 +41,20 @@ const history=new Map<number,string>([
  [13,'小芷亲眼看见：回到常去的商店时，旅人直接指出收银台的位置，大家按他的指引顺利找到了收银台。'],
 ])
 const fillers=['窗台上的光线慢慢移到墙边。','小芷看见有人把窗帘整理平整。','桌上的便签换了一张，内容是今天的天气。','陆舟翻过杂志的一页，放回了原处。']
-const probes=[
+const probes: {id:string;kind:string;text:string;actorId?:string}[]=[
  {id:'new-task',kind:'similar',text:'这是我们第一次来这里。登记表在隔壁小屋，我来带路，我们先过去吧。'},
  {id:'new-stop',kind:'similar',text:'第一次到这儿也没什么复杂的，隔壁就是等候点，我看过介绍了。我们走吧。'},
  {id:'familiar-control',kind:'control',text:'这是我们经常来的地方，隔壁小屋的老位置没有变。我来带路，我们过去吧。'},
+ ...(applicability?[
+  {id:'same-person-unrelated',kind:'negative-control',text:'桌上的杂志我看完了，里面那篇花园随笔挺有意思。你平时喜欢读什么？'},
+  {id:'other-person-navigation',kind:'subject-control',actorId:'character:bob',text:'这是我们第一次来这里。登记表在隔壁小屋，我来带路，我们先过去吧。'},
+ ]:[]),
 ]
 if([...history.values(),...probes.map(p=>p.text)].some(text=>text.includes('\uFFFD')))throw new Error('invalid Unicode in authored input')
 writeFileSync(join(root,'protocol.json'),JSON.stringify({model,repeats,formationTick,probeTick,history:[...history],probes,
  historyMode:'55 committed authored-history ticks, not 55 live model turns',
- deliveryMode:sourceRoot?'explicit intervention, not natural retrieval':'natural',
+ deliveryMode:applicability?'natural retrieval with applicability projection':sourceRoot?'explicit intervention, not natural retrieval':'natural',
+ ...(applicability?{projectionDesign:'one target search window replaced; same encoder, queries, admission, entities and delivery; projection generation sees no probes',comparison:'frozen original index recalled on every same request before projected index'}:{}),
  reusedArchiveFrom:sourceRoot??null,
  design:'natural recall audited first; only target Observation removed in ablation; all other delivered memories and context fixed',
  conditions:['with-observation','without-observation-a','without-observation-b'],
@@ -107,10 +113,27 @@ const target=observations.filter(o=>(o.sourceRefs as WorldJsonObject[]).length>=
 writeFileSync(join(root,'target.json'),JSON.stringify(target??null,null,2))
 if(!target){writeFileSync(join(root,'blocked.json'),JSON.stringify({stage:'formation',reason:'no multi-experience target Observation formed'}));console.log('No target formed; no behavioral calls made.');process.exitCode=0}
 else{
- const targetId=String(target.id),provider=createChatProvider({endpoint:new URL(process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8045/v1/chat/completions'),
+ const targetId=String(target.id)
+ let searchIndex=index
+ if(applicability){
+  const frozenRequest=JSON.parse(readFileSync(join(sourceRoot!,'new-task-preview-request.json'),'utf8')) as PrototypeTurnRequest
+  if((frozenRequest.context.character as WorldJsonObject).characterId!==npc)throw new Error('identity context belongs to another role')
+  const people=((frozenRequest.context.scene as WorldJsonObject).people??[]) as WorldJsonObject[]
+  const allowedPeople=people.filter(p=>typeof p.characterId==='string'&&typeof p.name==='string').map(p=>({characterId:p.characterId,name:p.name}))
+  const projectionInput={build:built!,targetObservation:targetId,allowedPeople}
+  writeFileSync(join(root,'projection-input.json'),JSON.stringify(projectionInput,null,2))
+  const child=spawnSync(hindsightPython(),[resolve('experiments/activity-memory/observation-applicability.py')],{
+   input:JSON.stringify(projectionInput),encoding:'utf8',timeout:180000,maxBuffer:16*1024*1024,windowsHide:true,
+   env:{...process.env,HCW_LOCAL_MODEL:model,HCW_HINDSIGHT_UTILITY_TRACE:join(root,'projection-utility-calls.jsonl'),PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0'}})
+  if(child.error||child.status!==0){writeFileSync(join(root,'projection-failure.json'),JSON.stringify({status:child.status,stderr:child.stderr,error:child.error?.message}));throw new Error('applicability projection failed')}
+  const projected=JSON.parse(child.stdout) as WorldJsonObject
+  writeFileSync(join(root,'applicability.json'),JSON.stringify(projected,null,2))
+  searchIndex=projected.index as WorldJsonObject
+ }
+ const provider=createChatProvider({endpoint:new URL(process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8045/v1/chat/completions'),
   model,timeoutMs:90000,...(process.env.HCW_LOCAL_API_KEY?{apiKey:process.env.HCW_LOCAL_API_KEY}:{})})
  const hash=()=>createHash('sha256').update(readFileSync(join(historyDir,'world.sqlite'))).digest('hex'),frozen=hash()
- const results:unknown[]=[],eligible:string[]=[],rejected:string[]=[],canonical=new Map<string,string>()
+ const results:unknown[]=[],eligible:string[]=[],rejected:string[]=[],canonical=new Map<string,string>(),comparisons:WorldJsonObject[]=[]
  for(const probe of probes){
   let selection:WorldJsonObject|undefined
   // Capture an actual turn request without calling the model or committing a proposal.
@@ -118,20 +141,25 @@ else{
   for(const f of ['world.sqlite','memory.sqlite'])copyFileSync(join(historyDir,f),join(preview,f))
   store=new WorldStore(join(preview,'world.sqlite'));memory=new CognitiveMemoryService(join(preview,'memory.sqlite'),store,undefined,2,RECALL_KEYWORD_TOKENIZER_ID)
   const leases=new WriterLeaseService(join(preview,'world.sqlite')),availability=new CharacterRuntimeAvailabilityService(join(preview,'world.sqlite'))
-  const stimulus=[{observerId:npc,content:{actorId:'character:player',actionType:'speak',speech:{characterId:'character:player',text:probe.text}}}]
+  const actorId=probe.actorId??'character:player'
+  const stimulus=[{observerId:npc,content:{actorId,actionType:'speak',speech:{characterId:actorId,text:probe.text}}}]
   const cold=(context:WorldJsonObject)=>({...context,observations:[],selfObservations:[],memories:[]})
   try{
    const turn=new PrototypeCharacterTurn({address,store,memory,leases,availability,rulebooks:createCoreRulebookRegistry({interactionPackages:[basicInteractionPackage]}),
     projectContext:cold,decide:async(request,signal)=>{
      writeFileSync(join(root,probe.id+'-preview-request.json'),JSON.stringify(request))
-     selection=await core({operation:'recall',archive,index,request:{...request},tick:probeTick,observations:true},signal)
+     if(applicability){
+      const baseline=await core({operation:'recall',archive,index,request:{...request},tick:probeTick,observations:true},signal)
+      writeFileSync(join(root,probe.id+'-baseline-recall.json'),JSON.stringify(baseline,null,2))
+     }
+     selection=await core({operation:'recall',archive,index:searchIndex,request:{...request},tick:probeTick,observations:true},signal)
      return {decision:'abstain'}
     }})
    await turn.run(npc,{stimulus,maxCalls:1,signal:AbortSignal.timeout(180000)})
   }finally{memory.close();availability.close();leases.close();store.close()}
   writeFileSync(join(root,probe.id+'-recall.json'),JSON.stringify(selection,null,2))
   let delivered=(selection?.delivery??[]) as WorldJsonObject[]
-  if(sourceRoot){
+  if(sourceRoot&&!applicability){
    const request=JSON.parse(readFileSync(join(root,probe.id+'-preview-request.json'),'utf8')) as WorldJsonObject
    const input={archive,request,tick:probeTick,targetObservation:targetId}
    const child=spawnSync(hindsightPython(),[resolve('experiments/activity-memory/observation-choice-delivery.py')],{
@@ -142,6 +170,13 @@ else{
    writeFileSync(join(root,probe.id+'-intervention.json'),JSON.stringify(forced,null,2))
    delivered=[...delivered.filter(m=>m.memoryId!==targetId),...forced.memories as WorldJsonObject[]]
    if(delivered.length>3||JSON.stringify(delivered).length>4500)throw new Error('intervention exceeds delivery budget')
+  }
+  if(applicability){
+   const baseline=JSON.parse(readFileSync(join(root,probe.id+'-baseline-recall.json'),'utf8')) as WorldJsonObject
+   if(JSON.stringify(baseline.query)!==JSON.stringify(selection?.query))throw new Error('query changed between indices')
+   comparisons.push({probe:probe.id,actorId,baselineTargetDelivered:(baseline.delivery as WorldJsonObject[]).some(m=>m.memoryId===targetId),
+    projectedTargetDelivered:delivered.some(m=>m.memoryId===targetId),baselineDelivery:baseline.delivery!,projectedDelivery:delivered})
+   writeFileSync(join(root,'retrieval-comparison.json'),JSON.stringify(comparisons,null,2))
   }
   if(!delivered.some(m=>m.memoryId===targetId)){
    rejected.push(probe.id);console.log(JSON.stringify({probe:probe.id,stage:'retrieval',targetDelivered:false}));continue
@@ -183,6 +218,6 @@ else{
   }
  }
  writeFileSync(join(root,'summary.json'),JSON.stringify({model,formationTick,probeTick,elapsedTicks:probeTick-formationTick,
-  deliveryMode:sourceRoot?'explicit intervention':'natural',targetObservation:targetId,eligible,rejected,trials:results.length,originalWorldUnchanged:hash()===frozen,
+  deliveryMode:applicability?'natural retrieval with applicability projection':sourceRoot?'explicit intervention':'natural',targetObservation:targetId,eligible,rejected,trials:results.length,originalWorldUnchanged:hash()===frozen,
   conclusion:'behavioral effect requires qualitative reading; no trial if target not naturally delivered'},null,2))
 }
