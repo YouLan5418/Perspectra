@@ -1,0 +1,185 @@
+{
+  "model": "gemini-3.7-flash",
+  "branch": "codex/hindsight-core-experiment",
+  "root": "D:\\DeepSeek Harness\\perspectra-hindsight-core\\.tmp\\hindsight-long-small-delivery-20261001-v1",
+  "completedPlayerTurns": 120,
+  "lastTick": 159,
+  "counts": {
+    "calls": 295,
+    "calls_with_observation": 0,
+    "calls_with_memory": 129,
+    "decision_abstain": 273,
+    "decision_publish": 22,
+    "delivered_event_atom": 328,
+    "selected_fact": 2194,
+    "selected_observation": 8,
+    "delivered_episode": 4,
+    "selected_episode": 37,
+    "player_interact": 16,
+    "player_private": 0,
+    "round_errors": 0,
+    "rounds_without_character_call": 23,
+    "player_move": 26,
+    "player_speak": 78,
+    "host_scene_creation_rounds": 17
+  },
+  "windows": [
+    {
+      "fromTurn": 1,
+      "throughTurn": 20,
+      "calls": 42,
+      "nonemptyDeliveries": 0,
+      "roundsWithMemory": 0,
+      "observationCandidates": 0,
+      "suppressedObservations": 0,
+      "callsWithSuppressedObservation": 0,
+      "deliveredObservations": 0,
+      "fallbackObservations": 0,
+      "nonemptyRate": 0.0
+    },
+    {
+      "fromTurn": 21,
+      "throughTurn": 40,
+      "calls": 38,
+      "nonemptyDeliveries": 4,
+      "roundsWithMemory": 3,
+      "observationCandidates": 2,
+      "suppressedObservations": 2,
+      "callsWithSuppressedObservation": 2,
+      "deliveredObservations": 0,
+      "fallbackObservations": 0,
+      "nonemptyRate": 0.10526315789473684
+    },
+    {
+      "fromTurn": 41,
+      "throughTurn": 60,
+      "calls": 42,
+      "nonemptyDeliveries": 13,
+      "roundsWithMemory": 7,
+      "observationCandidates": 1,
+      "suppressedObservations": 1,
+      "callsWithSuppressedObservation": 1,
+      "deliveredObservations": 0,
+      "fallbackObservations": 1,
+      "nonemptyRate": 0.30952380952380953
+    },
+    {
+      "fromTurn": 61,
+      "throughTurn": 80,
+      "calls": 53,
+      "nonemptyDeliveries": 22,
+      "roundsWithMemory": 9,
+      "observationCandidates": 5,
+      "suppressedObservations": 5,
+      "callsWithSuppressedObservation": 5,
+      "deliveredObservations": 0,
+      "fallbackObservations": 1,
+      "nonemptyRate": 0.41509433962264153
+    },
+    {
+      "fromTurn": 81,
+      "throughTurn": 100,
+      "calls": 60,
+      "nonemptyDeliveries": 30,
+      "roundsWithMemory": 10,
+      "observationCandidates": 0,
+      "suppressedObservations": 0,
+      "callsWithSuppressedObservation": 0,
+      "deliveredObservations": 0,
+      "fallbackObservations": 0,
+      "nonemptyRate": 0.5
+    },
+    {
+      "fromTurn": 101,
+      "throughTurn": 120,
+      "calls": 60,
+      "nonemptyDeliveries": 60,
+      "roundsWithMemory": 20,
+      "observationCandidates": 0,
+      "suppressedObservations": 0,
+      "callsWithSuppressedObservation": 0,
+      "deliveredObservations": 0,
+      "fallbackObservations": 0,
+      "nonemptyRate": 1.0
+    }
+  ],
+  "readingStats": {
+    "calls": 295,
+    "returned": 295,
+    "nonempty": 129,
+    "punctuationOnlyQueries": 135,
+    "punctuationOnlyQueriesWithDelivery": 90,
+    "punctuationOnlyDeliveredItems": 258,
+    "deliveredItems": 332,
+    "suppressedObservationOccurrences": 8,
+    "uniqueSuppressedObservationIdentities": 3,
+    "suppressedObservationVersions": 8,
+    "nonemptyNonpunctuationQueries": 39
+  },
+  "queryModes": {
+    "search": 241,
+    "entity": 54
+  },
+  "archives": {
+    "companion": {
+      "sources": 107,
+      "facts": 279,
+      "observations": 3,
+      "episodes": 34
+    },
+    "friend": {
+      "sources": 109,
+      "facts": 283,
+      "observations": 2,
+      "episodes": 26
+    },
+    "host": {
+      "sources": 104,
+      "facts": 275,
+      "observations": 2,
+      "episodes": 13
+    }
+  },
+  "restartCheck": {
+    "character:companion": {
+      "aliasesEqual": true,
+      "retrievalTextEqual": true,
+      "indexBytesEqual": true
+    },
+    "character:friend": {
+      "aliasesEqual": true,
+      "retrievalTextEqual": true,
+      "indexBytesEqual": true
+    },
+    "character:host": {
+      "aliasesEqual": true,
+      "retrievalTextEqual": true,
+      "indexBytesEqual": true
+    }
+  },
+  "parameters": "E5 and improved-v3 unchanged; max 3 delivery items; strict all-support source rule",
+  "tests": {
+    "nodeRestartRegression": 1,
+    "pythonDeliveryRegressions": 7,
+    "focusedTypecheck": "passed",
+    "traceAudit": "passed",
+    "diffCheck": "passed"
+  },
+  "implementationHashes": {
+    "continuous-drive.ts": "0b5622006a97e3c7a56797139b036ec6e24a2c2dbd451e98306d9a24229c3297",
+    "alias-history.ts": "a056af73fc0ac749f20d553f49d22fb7fb9ce860f23d0b344347041342671d21",
+    "trace-summary.py": "c56b2f54640cfda2f3c821f1e7654ac000ed09772bc5d7bc1c551be5d46f7b86",
+    "projections.py": "f274bbe4811449c8e90eb6467028446f2d8dcb96a4709e9196f270f1097922af",
+    "queries.py": "f82c91958d8cffddc5bf9a600fde98bd46e2f44bb0304559ea4e1148fa7ee53e",
+    "retrieval_text.py": "d2d11b69e850d2147fe699342ab910290184efee094ceca348623631ccdcb50c",
+    "vector_core.py": "23b85d3062e5d74d3cc59c92fa5ba2695b41895db9f0c764a36b9d7b9c49df93",
+    "vector-worker.py": "0bbd96736a92ccb47546e99ce25371a6966eb51c28a2ce0a08a14ffdd0b5f9f3"
+  },
+  "limits": [
+    "single trajectory; no behavior A/B",
+    "last 46 rounds are resting/waiting; 45 use punctuation-only speech",
+    "8 suppressed occurrences are 3 observation identities and 8 evolving versions, not 8 independent impressions",
+    "no private player interactions; provenance checks do not constitute new private-play coverage",
+    "no semantic entailment proof; no quantified relevance gold; no threshold calibration or holdout use"
+  ]
+}

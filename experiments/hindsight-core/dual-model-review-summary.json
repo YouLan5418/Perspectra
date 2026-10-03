@@ -1,0 +1,774 @@
+{
+  "datasetId": "43537b957717a9fc9033f219aa72f0e50794ffeca19a0887d06d4b366f7c56f5",
+  "humanGold": false,
+  "queriesPerModel": 48,
+  "candidateItemsPerModel": 367,
+  "models": {
+    "claude-opus-4-6": {
+      "returnedModels": [
+        "claude-opus-4-6-thinking"
+      ],
+      "labelCounts": {
+        "background": 212,
+        "irrelevant": 155
+      },
+      "needCounts": {
+        "none": 48
+      },
+      "judgedQueries": 48,
+      "excludedQueries": 0,
+      "systems": {
+        "e5-raw": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.0,
+            "interval95": [
+              0.0,
+              0.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "ndcg": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "withinQueryAuc": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          }
+        },
+        "e5-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.0,
+            "interval95": [
+              0.0,
+              0.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "ndcg": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "withinQueryAuc": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          }
+        },
+        "qwen-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.0,
+            "interval95": [
+              0.0,
+              0.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "ndcg": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "withinQueryAuc": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          }
+        },
+        "bm25-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.0,
+            "interval95": [
+              0.0,
+              0.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "ndcg": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "withinQueryAuc": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          }
+        },
+        "e5-clean+bm25": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.0,
+            "interval95": [
+              0.0,
+              0.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "ndcg": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "withinQueryAuc": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          }
+        },
+        "qwen-clean+bm25": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.0,
+            "interval95": [
+              0.0,
+              0.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "ndcg": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "withinQueryAuc": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          }
+        }
+      },
+      "pairedDifferences": {
+        "qwen-clean minus e5-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.0,
+            "interval95": [
+              0.0,
+              0.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "ndcg": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "withinQueryAuc": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          }
+        },
+        "e5-clean+bm25 minus e5-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.0,
+            "interval95": [
+              0.0,
+              0.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "ndcg": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "withinQueryAuc": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          }
+        },
+        "qwen-clean+bm25 minus qwen-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.0,
+            "interval95": [
+              0.0,
+              0.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "ndcg": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          },
+          "withinQueryAuc": {
+            "nQueries": 0,
+            "nClusters": 0,
+            "mean": null,
+            "interval95": null
+          }
+        }
+      }
+    },
+    "gemini-3.1-pro": {
+      "returnedModels": [
+        "gemini-pro-agent"
+      ],
+      "labelCounts": {
+        "irrelevant": 174,
+        "background": 174,
+        "useful": 19
+      },
+      "needCounts": {
+        "none": 40,
+        "some": 8
+      },
+      "judgedQueries": 48,
+      "excludedQueries": 0,
+      "systems": {
+        "e5-raw": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.041666666666666664,
+            "interval95": [
+              0.008,
+              0.08627673796791442
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.35416666666666663,
+            "interval95": [
+              0.09348958333333342,
+              0.6041666666666666
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "ndcg": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.2592896493685911,
+            "interval95": [
+              0.06634015924715543,
+              0.43691387190399755
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "withinQueryAuc": {
+            "nQueries": 4,
+            "nClusters": 4,
+            "mean": 0.6875,
+            "interval95": [
+              0.25,
+              1.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          }
+        },
+        "e5-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.05416666666666667,
+            "interval95": [
+              0.016,
+              0.10434782608695652
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.6041666666666666,
+            "interval95": [
+              0.3125,
+              0.875
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "ndcg": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.38633821770057275,
+            "interval95": [
+              0.19568119290495659,
+              0.5577868870104339
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "withinQueryAuc": {
+            "nQueries": 4,
+            "nClusters": 4,
+            "mean": 0.71875,
+            "interval95": [
+              0.25,
+              1.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          }
+        },
+        "qwen-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.04583333333333334,
+            "interval95": [
+              0.012244897959183675,
+              0.08888888888888889
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.6875,
+            "interval95": [
+              0.375,
+              0.9375
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "ndcg": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.4431142917791548,
+            "interval95": [
+              0.23222823417365326,
+              0.6420329715207618
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "withinQueryAuc": {
+            "nQueries": 4,
+            "nClusters": 4,
+            "mean": 0.78125,
+            "interval95": [
+              0.59375,
+              0.9375
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          }
+        },
+        "bm25-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.02916666666666667,
+            "interval95": [
+              0.004545454545454546,
+              0.06222222222222222
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.4375,
+            "interval95": [
+              0.15625,
+              0.71875
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "ndcg": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.3069663631013852,
+            "interval95": [
+              0.09715410715333042,
+              0.551362835281786
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "withinQueryAuc": {
+            "nQueries": 4,
+            "nClusters": 4,
+            "mean": 0.8125,
+            "interval95": [
+              0.4375,
+              1.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          }
+        },
+        "e5-clean+bm25": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.04583333333333334,
+            "interval95": [
+              0.012765957446808512,
+              0.08936170212765958
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.5833333333333333,
+            "interval95": [
+              0.3333333333333333,
+              0.8125
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "ndcg": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.36005413201743686,
+            "interval95": [
+              0.20636301942381283,
+              0.5161089846972421
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "withinQueryAuc": {
+            "nQueries": 4,
+            "nClusters": 4,
+            "mean": 0.9375,
+            "interval95": [
+              0.8125,
+              1.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          }
+        },
+        "qwen-clean+bm25": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": 0.041666666666666664,
+            "interval95": [
+              0.00784313725490196,
+              0.08888888888888889
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.44791666666666663,
+            "interval95": [
+              0.16666666666666666,
+              0.7291666666666666
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "ndcg": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.3618104639059063,
+            "interval95": [
+              0.11777267009663203,
+              0.6134455390170329
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "withinQueryAuc": {
+            "nQueries": 4,
+            "nClusters": 4,
+            "mean": 0.9375,
+            "interval95": [
+              0.8125,
+              1.0
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          }
+        }
+      },
+      "pairedDifferences": {
+        "qwen-clean minus e5-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": -0.008333333333333333,
+            "interval95": [
+              -0.04167151162790697,
+              0.01568627450980392
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.08333333333333334,
+            "interval95": [
+              -0.3333333333333333,
+              0.5
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "ndcg": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": 0.05677607407858204,
+            "interval95": [
+              -0.22321138689593958,
+              0.3245314738629898
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "withinQueryAuc": {
+            "nQueries": 4,
+            "nClusters": 4,
+            "mean": 0.0625,
+            "interval95": [
+              -0.375,
+              0.6875
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          }
+        },
+        "e5-clean+bm25 minus e5-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": -0.00833333333333333,
+            "interval95": [
+              -0.034042553191489355,
+              0.013333333333333336
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": -0.020833333333333343,
+            "interval95": [
+              -0.3229166666666667,
+              0.34375
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "ndcg": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": -0.026284085683135894,
+            "interval95": [
+              -0.20334057642147402,
+              0.14991431189971838
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "withinQueryAuc": {
+            "nQueries": 4,
+            "nClusters": 4,
+            "mean": 0.21875,
+            "interval95": [
+              -0.15625,
+              0.75
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          }
+        },
+        "qwen-clean+bm25 minus qwen-clean": {
+          "precision": {
+            "nQueries": 48,
+            "nClusters": 40,
+            "mean": -0.004166666666666666,
+            "interval95": [
+              -0.021739130434782608,
+              0.01333333333333334
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "poolRecall": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": -0.23958333333333334,
+            "interval95": [
+              -0.59375,
+              0.08333333333333331
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "ndcg": {
+            "nQueries": 8,
+            "nClusters": 8,
+            "mean": -0.08130382787324847,
+            "interval95": [
+              -0.2861253610237482,
+              0.1194207698167205
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          },
+          "withinQueryAuc": {
+            "nQueries": 4,
+            "nClusters": 4,
+            "mean": 0.15625,
+            "interval95": [
+              0.0,
+              0.375
+            ],
+            "method": "player-turn cluster percentile bootstrap; same turn character requests resampled together"
+          }
+        }
+      }
+    }
+  },
+  "agreement": {
+    "candidateCount": 367,
+    "exactAgreementCount": 253,
+    "exactAgreement": 0.6893732970027248,
+    "usefulVsRestAgreement": 0.9482288828337875,
+    "usefulVsRestKappa": 0.0,
+    "binaryDeterminateCount": 367,
+    "needAgreement": 0.8333333333333334,
+    "confusion": [
+      {
+        "left": "background",
+        "right": "background",
+        "count": 136
+      },
+      {
+        "left": "background",
+        "right": "irrelevant",
+        "count": 57
+      },
+      {
+        "left": "background",
+        "right": "useful",
+        "count": 19
+      },
+      {
+        "left": "irrelevant",
+        "right": "background",
+        "count": 38
+      },
+      {
+        "left": "irrelevant",
+        "right": "irrelevant",
+        "count": 117
+      }
+    ],
+    "needConfusion": [
+      {
+        "left": "none",
+        "right": "none",
+        "count": 40
+      },
+      {
+        "left": "none",
+        "right": "some",
+        "count": 8
+      }
+    ]
+  },
+  "thresholdSelected": false,
+  "holdoutEvaluated": false,
+  "limits": [
+    "Agreement does not establish correctness; models can share systematic errors.",
+    "Full Episode evidence differs from actual token-limited Delivery.",
+    "Gateway aliases do not independently verify backend model identity.",
+    "Intervals are exploratory, conditional on determinate judgments.",
+    "No forced consensus or fabricated human gold."
+  ],
+  "interpretation": {
+    "encoderWinner": null,
+    "thresholdReady": false,
+    "allPositiveLabelsDisputed": true,
+    "claudePositiveCount": 0,
+    "geminiPositiveQueries": 8,
+    "geminiMixedUsefulNoiseQueries": 4,
+    "zeroPositivePrecisionDoesNotProveRetrieverFailure": true,
+    "harmfulZeroDoesNotProveFaithfulness": true,
+    "agreementCorrectnessNotEstablished": true,
+    "effectivePositiveEpisodesMayBeFewerThanCandidateCount": true
+  },
+  "evidenceChecks": [
+    {
+      "traceId": "turn-0095-call-002-friend",
+      "finding": "Context contains self-response 成，你先理着，待会儿茶水间见 but not the full player statement about sorting belongings. Claude assertion that the complete statement is already present is too strong; Gemini counts four overlapping representations as positive."
+    },
+    {
+      "traceId": "turn-0097-call-002-friend",
+      "memoryId": "obs:1",
+      "finding": "Observation says 泡好茶后 while support is marked unverified reported speech. Both reviewers label background without flagging the previously identified certainty issue."
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "playerTurns": 12,
+  "characterCalls": 27,
+  "returnedCalls": 27,
+  "nonemptyLiveRecalls": 0,
+  "decisions": {
+    "abstain": 21,
+    "publish": 6
+  },
+  "oldContextModelCalls": 5,
+  "oldContextSchemaValid": 5,
+  "frozenFilesUnchanged": 1522,
+  "sourceBoundaryAudit": "per-character/world scope and six-field mappings validated in core and focused regression checks",
+  "thresholdsChanged": false,
+  "embeddingModel": "Xenova/multilingual-e5-small",
+  "holdoutEvaluated": false,
+  "goldLabelsGenerated": false,
+  "codeHashes": {
+    "projections.py": "f274bbe4811449c8e90eb6467028446f2d8dcb96a4709e9196f270f1097922af",
+    "queries.py": "f82c91958d8cffddc5bf9a600fde98bd46e2f44bb0304559ea4e1148fa7ee53e",
+    "vector_core.py": "23b85d3062e5d74d3cc59c92fa5ba2695b41895db9f0c764a36b9d7b9c49df93",
+    "vector-worker.py": "0bbd96736a92ccb47546e99ce25371a6966eb51c28a2ce0a08a14ffdd0b5f9f3",
+    "retrieval_text.py": "d2d11b69e850d2147fe699342ab910290184efee094ceca348623631ccdcb50c",
+    "continuous-drive.ts": "652ca522847bec90c040c358b52ee0449df594984c6cb8d4d7437658b079f6e9"
+  },
+  "cases": [
+    {
+      "traceId": "turn-0049-call-001-friend",
+      "items": 2,
+      "query": "确实，这一路奔波，能有这么个空当站在院里静静放空，感觉疲乏都散得差不多了。",
+      "observationDelivered": false,
+      "fallbackCount": 0,
+      "text": [
+        "【外显叙述；不是规则裁定结果】character:friend：沈南走到院中，四下打量了一番，神色轻松了些。",
+        "【听到发言；所述内容未经独立核实】character:friend：院里空气确实比屋里透亮多了。"
+      ]
+    },
+    {
+      "traceId": "turn-0063-call-001-companion",
+      "items": 0,
+      "query": "早啊！昨晚睡得真踏实，这会儿精神好多了。",
+      "observationDelivered": false,
+      "fallbackCount": 0,
+      "text": []
+    },
+    {
+      "traceId": "turn-0091-call-001-friend",
+      "items": 0,
+      "query": "刚才我泡了壶热茶， 和 在厅里正喝着呢。你要是想喝口热的，现在去厅里或茶水间正好。",
+      "observationDelivered": false,
+      "fallbackCount": 0,
+      "text": []
+    },
+    {
+      "traceId": "turn-0097-call-002-friend",
+      "items": 0,
+      "query": "双手捧着温热的茶杯，低头抿了一口，微笑着听着窗外的鸟鸣，静静享受着这份闲适。",
+      "observationDelivered": false,
+      "fallbackCount": 0,
+      "text": []
+    }
+  ],
+  "limits": [
+    "12-turn live play only exercises empty memory delivery; no claim of long-term benefit.",
+    "Final additional name-to-entity metadata preservation verified on saved-prefix worker cases; the already-running live worker used the preceding implementation.",
+    "Saved-context calls execute no actions and have no paired noise baseline.",
+    "Observation source-type check is conservative delivery, not semantic entailment or intent validation.",
+    "Some speech-based legitimate subjective understandings are intentionally withheld.",
+    "Alias metadata learned in a live process is transient; after restarting an existing run old context-name metadata is not automatically reconstructed."
+  ]
+}

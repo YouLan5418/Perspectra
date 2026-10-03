@@ -1,0 +1,439 @@
+{
+  "retrieval": {
+    "calls": 137,
+    "meanBaselineJsonChars": 17109.109489051094,
+    "meanDeliveryOnlyJsonChars": 1300.3138686131388,
+    "meanProjectedJsonChars": 1588.043795620438,
+    "maxProjectedJsonChars": 3192,
+    "nonemptyBaseline": 102,
+    "nonemptyProjected": 113,
+    "observationCalls": 41,
+    "observationUnits": 66,
+    "finalSearchViews": 635,
+    "maxSearchTokens": 220,
+    "changedNonMemoryFields": 0,
+    "retainCalls": 0,
+    "consolidateCalls": 0,
+    "payloadReduction": 0.9071813879830098
+  },
+  "audit": {
+    "calls": 137,
+    "sourceRefsChecked": 1119,
+    "recentEvidenceDelivered": 0,
+    "repeatedEvidenceDelivered": 0,
+    "baselineRepeatedEvidenceSegments": 615,
+    "baselineRecentEvidenceSegments": 291,
+    "baselineDistinctEvidenceSegments": 1149,
+    "projectedDistinctEvidenceSegments": 739,
+    "changedNonMemoryFields": [],
+    "baselineModelCallMismatches": [],
+    "changedFrozenFiles": []
+  },
+  "behavior": {
+    "freshCalls": 270,
+    "returnedDecisionPoints": 135,
+    "decisions": {
+      "old": {
+        "abstain": 79,
+        "publish": 54,
+        "perform": 2
+      },
+      "new": {
+        "abstain": 85,
+        "publish": 48,
+        "perform": 2
+      }
+    },
+    "invalidOutputs": [],
+    "decisionDifferences": [
+      {
+        "traceId": "turn-0069-call-001-friend",
+        "old": {
+          "narration": "见旅人走回院中，沈南转头朝他微微颔首，神色平和。",
+          "decision": "publish"
+        },
+        "new": {
+          "decision": "abstain"
+        }
+      },
+      {
+        "traceId": "turn-0090-call-001-friend",
+        "old": {
+          "decision": "publish",
+          "narration": "见旅人又来到院中，沈南抬眼朝他笑了笑。"
+        },
+        "new": {
+          "decision": "abstain"
+        }
+      },
+      {
+        "traceId": "turn-0093-call-002-friend",
+        "old": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "进来了？快过来坐，这茶泡得正适口。",
+          "decision": "publish",
+          "narration": "见旅人也进了大堂，沈南捧着茶杯朝他笑了笑。"
+        },
+        "new": {
+          "decision": "abstain"
+        }
+      },
+      {
+        "traceId": "turn-0093-call-003-host",
+        "old": {
+          "decision": "publish",
+          "narration": "周姨见旅人回了大堂，笑着朝他点了点头，手头继续慢条斯理地收拾着。"
+        },
+        "new": {
+          "decision": "abstain"
+        }
+      },
+      {
+        "traceId": "turn-0094-call-001-companion",
+        "old": {
+          "decision": "abstain"
+        },
+        "new": {
+          "decision": "publish",
+          "speech": "可不是么，难得这么清闲。",
+          "narration": "林晓低头抿了口热茶，神情闲适地接了一句。"
+        }
+      },
+      {
+        "traceId": "turn-0095-call-001-companion",
+        "old": {
+          "speech": "嗯，难得不赶路，慢慢歇着吧。",
+          "narration": "林晓靠在椅背上懒洋洋地应了一声，低头又抿了口热茶。",
+          "decision": "publish"
+        },
+        "new": {
+          "decision": "abstain"
+        }
+      },
+      {
+        "traceId": "turn-0095-call-003-host",
+        "old": {
+          "decision": "publish",
+          "speech": "可不是嘛，出门在外就该张弛有度。你们踏实歇着，热水不够了随时说！",
+          "narration": "周姨笑呵呵地应了一声，手里继续忙着整理桌面的物件。"
+        },
+        "new": {
+          "decision": "abstain"
+        }
+      },
+      {
+        "traceId": "turn-0096-call-002-friend",
+        "old": {
+          "narration": "沈南端起茶杯慢慢抿了一口，神情放松，也顺着旅人的视线看向窗外透进来的晨光。",
+          "speech": "确实，能有这么片刻安闲最难得了。",
+          "decision": "publish"
+        },
+        "new": {
+          "decision": "abstain"
+        }
+      }
+    ],
+    "actionDifferences": [],
+    "responseDifferenceCount": 55,
+    "identicalInputPairs": 24,
+    "identicalInputDecisionDifferences": [],
+    "observationResponseDifferenceSamples": [
+      {
+        "traceId": "turn-0016-call-003-friend",
+        "observationIds": [
+          "obs:1"
+        ],
+        "old": {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "院子里空气确实挺清爽，比屋里透气多了。",
+          "narration": "沈南走到院子里，四下打量了一圈。"
+        },
+        "new": {
+          "speech": "院子里确实比屋里敞亮些。你想在这儿站会儿，还是待会儿顺道去门廊看看？",
+          "narration": "沈南走到院中，四下看了看。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      },
+      {
+        "traceId": "turn-0017-call-001-friend",
+        "observationIds": [
+          "obs:1"
+        ],
+        "old": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "narration": "沈南顺着院墙看了一圈，神色闲适。",
+          "decision": "publish",
+          "speech": "确实挺安静的，环境不错。待会儿在这儿多待会儿，或者再去门廊看看都行。"
+        },
+        "new": {
+          "decision": "publish",
+          "speech": "确实清静，四周也没什么杂音，站在这儿挺舒服的。等会儿要是还想走走，咱们也可以顺路去门廊那边瞧瞧。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "narration": "沈南四下看了看，双手插在袖中，神情闲适。"
+        }
+      },
+      {
+        "traceId": "turn-0018-call-001-friend",
+        "observationIds": [
+          "obs:1"
+        ],
+        "old": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "narration": "沈南迎着微风笑了笑，点头应道。",
+          "decision": "publish",
+          "speech": "行，不着急，先在这儿多吹会儿风。"
+        },
+        "new": {
+          "narration": "沈南笑了笑，放松地吹着风。",
+          "speech": "嗯，不着急，慢慢看。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      },
+      {
+        "traceId": "turn-0023-call-001-friend",
+        "observationIds": [
+          "obs:1"
+        ],
+        "old": {
+          "decision": "publish",
+          "narration": "沈南微微笑了笑，望向院子里的景致，放松地由着微风拂过。"
+        },
+        "new": {
+          "narration": "沈南微笑着点了点头，没再多说什么，放松地站在院中感受着清凉的微风。",
+          "decision": "publish"
+        }
+      },
+      {
+        "traceId": "turn-0025-call-001-companion",
+        "observationIds": [
+          "obs:1",
+          "obs:2"
+        ],
+        "old": {
+          "narration": "林晓端着手里的水杯，随口应了一句。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "挺好，刚才坐了一路车确实挺闷的，吹吹风舒服点。"
+        },
+        "new": {
+          "speech": "舒坦了就行，坐那么久车确实闷得慌。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "narration": "林晓靠着椅背，随意笑了笑。",
+          "decision": "publish"
+        }
+      },
+      {
+        "traceId": "turn-0025-call-002-host",
+        "observationIds": [
+          "obs:2",
+          "obs:1"
+        ],
+        "old": {
+          "decision": "publish",
+          "narration": "周姨停下手里的活儿，笑吟吟地搭话。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "那是，咱们这院子通透，吹吹小风最解乏了。逛舒坦了就在这儿多歇会儿！"
+        },
+        "new": {
+          "narration": "周姨手里理着抹布，抬头笑着搭了句话。",
+          "speech": "舒服就好！咱这儿院子宽敞，吹吹风最解乏了。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      },
+      {
+        "traceId": "turn-0026-call-001-companion",
+        "observationIds": [
+          "obs:1",
+          "obs:2"
+        ],
+        "old": {
+          "narration": "林晓换了个舒服的姿势靠着椅背，语气随意。",
+          "speech": "还算顺当，没遇到什么耽搁，就是走久了稍微有点乏。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        },
+        "new": {
+          "speech": "挺顺当的，路上没耽搁，天气也还算给面子。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "narration": "林晓靠在椅背上，神情很放松。"
+        }
+      },
+      {
+        "traceId": "turn-0027-call-001-companion",
+        "observationIds": [
+          "obs:2",
+          "obs:1"
+        ],
+        "old": {
+          "decision": "publish",
+          "narration": "林晓笑笑，靠着椅背舒舒服服地伸展了一下腿脚。",
+          "speech": "嗯，反正今天后面也没别的事，慢悠悠待着挺好。"
+        },
+        "new": {
+          "narration": "林晓笑了笑，放松地靠在椅背上。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "嗯，是啊，慢慢歇着吧。"
+        }
+      },
+      {
+        "traceId": "turn-0043-call-001-companion",
+        "observationIds": [
+          "obs:2"
+        ],
+        "old": {
+          "speech": "是啊，在这儿坐着挺安静的，懒得动弹了。",
+          "narration": "林晓靠在椅背上，随口接了一句。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        },
+        "new": {
+          "narration": "林晓懒洋洋地靠着椅背，随口回了一句。",
+          "speech": "可不是嘛，懒得动弹，在这儿坐着吹吹风挺舒服的。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      },
+      {
+        "traceId": "turn-0043-call-002-host",
+        "observationIds": [
+          "obs:1",
+          "obs:2"
+        ],
+        "old": {
+          "speech": "可不，歇着呢！松快了就好，出门在外就得把身子骨歇舒坦了。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "narration": "周姨停下手里的活儿，笑呵呵地应了一声。"
+        },
+        "new": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "narration": "周姨手里忙着收拾，闻言笑着抬头应了一声。",
+          "decision": "publish",
+          "speech": "松快了就好！赶路就得这样，累了就回屋歇会儿，怎么舒坦怎么来。"
+        }
+      },
+      {
+        "traceId": "turn-0064-call-001-companion",
+        "observationIds": [
+          "obs:5"
+        ],
+        "old": {
+          "speech": "去吧。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "narration": "林晓随口应了一声，继续靠着椅背休息。",
+          "decision": "publish"
+        },
+        "new": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "去吧。",
+          "narration": "林晓随意地点了点头。"
+        }
+      },
+      {
+        "traceId": "turn-0083-call-001-companion",
+        "observationIds": [
+          "obs:5"
+        ],
+        "old": {
+          "narration": "林晓端起热气腾腾的茶杯，凑近吹了吹，闻了闻茶香。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "谢了，闻着还挺香的。",
+          "decision": "publish"
+        },
+        "new": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "narration": "林晓抬手碰了碰杯壁试了下温度，随口道谢。",
+          "speech": "谢了，闻着挺香的，我晾会儿再喝。"
+        }
+      },
+      {
+        "traceId": "turn-0083-call-002-host",
+        "observationIds": [
+          "obs:2"
+        ],
+        "old": {
+          "decision": "publish",
+          "narration": "周姨笑着端起茶杯吹了吹热气，轻抿了一小口。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "哎，真香！这大清早喝上一口热茶，整个人都暖和过来了，谢谢你啊！"
+        },
+        "new": {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "narration": "周姨乐呵呵地端起杯子吹了吹热气，轻轻抿了一小口。",
+          "speech": "哎，真香！这一口热茶下肚，整个人都舒坦了。谢谢你啦！"
+        }
+      },
+      {
+        "traceId": "turn-0084-call-001-companion",
+        "observationIds": [
+          "obs:5"
+        ],
+        "old": {
+          "narration": "林晓低头抿了一口热茶，惬意地靠回椅背上。",
+          "decision": "publish"
+        },
+        "new": {
+          "narration": "林晓低头抿了一口热茶，神情放松地靠回椅背上，没再接话。",
+          "decision": "publish"
+        }
+      }
+    ]
+  }
+}

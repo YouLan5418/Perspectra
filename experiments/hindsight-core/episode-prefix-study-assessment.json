@@ -1,0 +1,1812 @@
+{
+  "method": "15 traces fixed before rebuilding; single human/model assistant reading of actual query, stimulus and selected evidence; subjective, not blind or population precision",
+  "definitions": {
+    "relevant": "helps current topic or historical continuity",
+    "mixed": "contains useful and extraneous material",
+    "irrelevant": "incidental shared person/place is insufficient to explain current stimulus",
+    "redundant": "same meaning already delivered, including full context repetitions; different source records can still be redundant"
+  },
+  "totals": {
+    "old": {
+      "i": 72,
+      "d": 18,
+      "m": 16,
+      "r": 6
+    },
+    "new": {
+      "i": 41,
+      "m": 21,
+      "d": 41,
+      "r": 6
+    }
+  },
+  "samples": [
+    {
+      "traceId": "turn-0021-call-001-friend",
+      "reason": "当前到院子的移动；旧厅内取包不解释当前到达，旧邀请经历能提供部分联系。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "raw:event:92",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              92
+            ]
+          },
+          {
+            "unitId": "raw:event:44",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              44
+            ]
+          },
+          {
+            "unitId": "raw:event:34",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              34
+            ]
+          },
+          {
+            "unitId": "fact:event:34:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              34
+            ]
+          },
+          {
+            "unitId": "fact:event:44:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              44
+            ]
+          },
+          {
+            "unitId": "fact:event:92:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              92
+            ]
+          },
+          {
+            "unitId": "raw:event:111",
+            "label": "mixed",
+            "sourceSeqs": [
+              111
+            ]
+          },
+          {
+            "unitId": "raw:event:100",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              100
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "atom:event:44:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              44
+            ]
+          },
+          {
+            "unitId": "atom:event:92:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              92
+            ]
+          },
+          {
+            "unitId": "atom:event:34:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              34
+            ]
+          },
+          {
+            "unitId": "atom:event:111:0",
+            "label": "mixed",
+            "sourceSeqs": [
+              111
+            ]
+          },
+          {
+            "unitId": "atom:event:100:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              100
+            ]
+          },
+          {
+            "unitId": "atom:event:100:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              100
+            ]
+          },
+          {
+            "unitId": "episode:4",
+            "label": "mixed",
+            "sourceSeqs": [
+              100,
+              111,
+              122,
+              128,
+              139,
+              145
+            ]
+          },
+          {
+            "unitId": "episode:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              26
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0027-call-001-companion",
+      "reason": "腰酸和歇息；取包和离厅无关，设施仅提供部分歇息背景。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "fact:event:33:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              33
+            ]
+          },
+          {
+            "unitId": "obs:3",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              33,
+              43
+            ]
+          },
+          {
+            "unitId": "fact:event:25:1",
+            "label": "mixed",
+            "sourceSeqs": [
+              25
+            ]
+          },
+          {
+            "unitId": "obs:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              25
+            ]
+          },
+          {
+            "unitId": "obs:2",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              25
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "obs:2",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              33,
+              150
+            ]
+          },
+          {
+            "unitId": "episode:2",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              33,
+              43
+            ]
+          },
+          {
+            "unitId": "atom:event:25:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              25
+            ]
+          },
+          {
+            "unitId": "atom:event:25:1",
+            "label": "mixed",
+            "sourceSeqs": [
+              25
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0027-call-002-host",
+      "reason": "同一歇息话题；设施有部分背景，旧取包经历无关。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "raw:event:27",
+            "label": "mixed",
+            "sourceSeqs": [
+              27
+            ]
+          },
+          {
+            "unitId": "obs:2",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              101,
+              93,
+              35,
+              45
+            ]
+          },
+          {
+            "unitId": "obs:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              27
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "atom:event:27:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              27
+            ]
+          },
+          {
+            "unitId": "atom:event:27:1",
+            "label": "mixed",
+            "sourceSeqs": [
+              27
+            ]
+          },
+          {
+            "unitId": "episode:2",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              35,
+              45
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0028-call-001-companion",
+      "reason": "当前离厅；只凭相同人物和地点命中旧移动，不足以解释此次离开。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "raw:event:43",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              43
+            ]
+          },
+          {
+            "unitId": "fact:event:33:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              33
+            ]
+          },
+          {
+            "unitId": "fact:event:43:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              43
+            ]
+          },
+          {
+            "unitId": "raw:event:91",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              91
+            ]
+          },
+          {
+            "unitId": "fact:event:91:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              91
+            ]
+          },
+          {
+            "unitId": "obs:3",
+            "label": "redundant",
+            "sourceSeqs": [
+              33,
+              43
+            ]
+          },
+          {
+            "unitId": "obs:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              25
+            ]
+          },
+          {
+            "unitId": "obs:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              91
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "atom:event:33:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              33
+            ]
+          },
+          {
+            "unitId": "episode:2",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              33,
+              43
+            ]
+          },
+          {
+            "unitId": "atom:event:91:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              91
+            ]
+          },
+          {
+            "unitId": "episode:3",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              91,
+              99,
+              106
+            ]
+          },
+          {
+            "unitId": "episode:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              25
+            ]
+          },
+          {
+            "unitId": "obs:2",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              33,
+              150
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0044-call-001-companion",
+      "reason": "清静休息；旧休息计划有部分联系，但同句输入和发言重复交付。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "raw:event:121",
+            "label": "mixed",
+            "sourceSeqs": [
+              121
+            ]
+          },
+          {
+            "unitId": "raw:event:138",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              138
+            ]
+          },
+          {
+            "unitId": "raw:event:106",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              106
+            ]
+          },
+          {
+            "unitId": "raw:event:99",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              99
+            ]
+          },
+          {
+            "unitId": "obs:5",
+            "label": "redundant",
+            "sourceSeqs": [
+              99
+            ]
+          },
+          {
+            "unitId": "fact:event:33:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              33
+            ]
+          },
+          {
+            "unitId": "fact:event:25:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              25
+            ]
+          },
+          {
+            "unitId": "fact:event:43:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              43
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "atom:event:121:3",
+            "label": "mixed",
+            "sourceSeqs": [
+              121
+            ]
+          },
+          {
+            "unitId": "atom:event:121:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              121
+            ]
+          },
+          {
+            "unitId": "atom:event:121:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              121
+            ]
+          },
+          {
+            "unitId": "atom:event:121:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              121
+            ]
+          },
+          {
+            "unitId": "atom:event:138:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              138
+            ]
+          },
+          {
+            "unitId": "atom:event:138:2",
+            "label": "redundant",
+            "sourceSeqs": [
+              138
+            ]
+          },
+          {
+            "unitId": "episode:3",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              91,
+              99,
+              106
+            ]
+          },
+          {
+            "unitId": "episode:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              121,
+              138
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0044-call-002-host",
+      "reason": "周姨接待和休息有关；取包和出入厅被混入，完整语境导致多条同义交付。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "raw:event:35",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              35
+            ]
+          },
+          {
+            "unitId": "raw:event:116",
+            "label": "relevant",
+            "sourceSeqs": [
+              116
+            ]
+          },
+          {
+            "unitId": "raw:event:133",
+            "label": "relevant",
+            "sourceSeqs": [
+              133
+            ]
+          },
+          {
+            "unitId": "raw:event:123",
+            "label": "mixed",
+            "sourceSeqs": [
+              123
+            ]
+          },
+          {
+            "unitId": "raw:event:101",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              101
+            ]
+          },
+          {
+            "unitId": "fact:event:35:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              35
+            ]
+          },
+          {
+            "unitId": "fact:event:45:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              45
+            ]
+          },
+          {
+            "unitId": "obs:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              27
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "atom:event:133:0",
+            "label": "relevant",
+            "sourceSeqs": [
+              133
+            ]
+          },
+          {
+            "unitId": "atom:event:116:0",
+            "label": "mixed",
+            "sourceSeqs": [
+              116
+            ]
+          },
+          {
+            "unitId": "atom:event:116:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              116
+            ]
+          },
+          {
+            "unitId": "episode:2",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              35,
+              45
+            ]
+          },
+          {
+            "unitId": "episode:3",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              93
+            ]
+          },
+          {
+            "unitId": "atom:event:123:3",
+            "label": "mixed",
+            "sourceSeqs": [
+              123
+            ]
+          },
+          {
+            "unitId": "atom:event:123:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              123
+            ]
+          },
+          {
+            "unitId": "atom:event:133:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              133
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0049-call-001-friend",
+      "reason": "院里透气；共同出游相关，茶水间与行李夹杂，原始输入与发言重复。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "obs:5",
+            "label": "relevant",
+            "sourceSeqs": [
+              239,
+              182,
+              198,
+              216,
+              164,
+              128,
+              158
+            ]
+          },
+          {
+            "unitId": "raw:event:188",
+            "label": "relevant",
+            "sourceSeqs": [
+              188
+            ]
+          },
+          {
+            "unitId": "fact:event:100:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              100
+            ]
+          },
+          {
+            "unitId": "obs:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              100
+            ]
+          },
+          {
+            "unitId": "fact:event:26:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              26
+            ]
+          },
+          {
+            "unitId": "obs:2",
+            "label": "redundant",
+            "sourceSeqs": [
+              26
+            ]
+          },
+          {
+            "unitId": "raw:event:111",
+            "label": "mixed",
+            "sourceSeqs": [
+              111
+            ]
+          },
+          {
+            "unitId": "raw:event:122",
+            "label": "mixed",
+            "sourceSeqs": [
+              122
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "episode:5",
+            "label": "mixed",
+            "sourceSeqs": [
+              151,
+              158,
+              164
+            ]
+          },
+          {
+            "unitId": "atom:event:188:0",
+            "label": "relevant",
+            "sourceSeqs": [
+              188
+            ]
+          },
+          {
+            "unitId": "episode:6",
+            "label": "mixed",
+            "sourceSeqs": [
+              173,
+              182,
+              188,
+              193,
+              198,
+              203,
+              208,
+              216
+            ]
+          },
+          {
+            "unitId": "atom:event:122:1",
+            "label": "mixed",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:122:3",
+            "label": "redundant",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:122:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:128:1",
+            "label": "relevant",
+            "sourceSeqs": [
+              128
+            ]
+          },
+          {
+            "unitId": "atom:event:122:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              122
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0073-call-001-friend",
+      "reason": "出发时间与早晨提神；院子清醒有部分联系，早期门廊计划未能解释现在的计划。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "raw:event:182",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              182
+            ]
+          },
+          {
+            "unitId": "fact:event:239:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              239
+            ]
+          },
+          {
+            "unitId": "fact:event:198:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              198
+            ]
+          },
+          {
+            "unitId": "obs:5",
+            "label": "mixed",
+            "sourceSeqs": [
+              575,
+              580,
+              586,
+              437,
+              447,
+              452,
+              239,
+              182,
+              198,
+              216,
+              164,
+              128,
+              158
+            ]
+          },
+          {
+            "unitId": "fact:event:26:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              26
+            ]
+          },
+          {
+            "unitId": "obs:2",
+            "label": "redundant",
+            "sourceSeqs": [
+              26
+            ]
+          },
+          {
+            "unitId": "raw:event:151",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              151
+            ]
+          },
+          {
+            "unitId": "raw:event:34",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              34
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "atom:event:193:4",
+            "label": "relevant",
+            "sourceSeqs": [
+              193
+            ]
+          },
+          {
+            "unitId": "atom:event:193:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              193
+            ]
+          },
+          {
+            "unitId": "atom:event:122:3",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:122:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:128:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              128
+            ]
+          },
+          {
+            "unitId": "atom:event:193:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              193
+            ]
+          },
+          {
+            "unitId": "atom:event:198:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              198
+            ]
+          },
+          {
+            "unitId": "atom:event:128:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              128
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0074-call-001-friend",
+      "reason": "约喝茶；设施和歇息背景有部分关系，旧门廊雨伞无关，新同源多条重复。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "obs:2",
+            "label": "mixed",
+            "sourceSeqs": [
+              26
+            ]
+          },
+          {
+            "unitId": "fact:event:239:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              239
+            ]
+          },
+          {
+            "unitId": "raw:event:128",
+            "label": "mixed",
+            "sourceSeqs": [
+              128
+            ]
+          },
+          {
+            "unitId": "raw:event:198",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              198
+            ]
+          },
+          {
+            "unitId": "fact:event:234:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              234
+            ]
+          },
+          {
+            "unitId": "obs:7",
+            "label": "redundant",
+            "sourceSeqs": [
+              234
+            ]
+          },
+          {
+            "unitId": "obs:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              26
+            ]
+          },
+          {
+            "unitId": "fact:event:198:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              198
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "atom:event:122:3",
+            "label": "mixed",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:122:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:122:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:122:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:128:0",
+            "label": "mixed",
+            "sourceSeqs": [
+              128
+            ]
+          },
+          {
+            "unitId": "atom:event:128:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              128
+            ]
+          },
+          {
+            "unitId": "atom:event:239:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              239
+            ]
+          },
+          {
+            "unitId": "atom:event:239:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              239
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0082-call-001-companion",
+      "reason": "邀请林晓喝茶；早期疲乏经历部分相关，行李、记事本和重复输入无关或冗余。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "fact:event:99:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              99
+            ]
+          },
+          {
+            "unitId": "raw:event:150",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              150
+            ]
+          },
+          {
+            "unitId": "obs:5",
+            "label": "redundant",
+            "sourceSeqs": [
+              99
+            ]
+          },
+          {
+            "unitId": "raw:event:33",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              33
+            ]
+          },
+          {
+            "unitId": "fact:event:33:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              33
+            ]
+          },
+          {
+            "unitId": "raw:event:91",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              91
+            ]
+          },
+          {
+            "unitId": "raw:event:172",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              172
+            ]
+          },
+          {
+            "unitId": "raw:event:43",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              43
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "episode:3",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              91,
+              99,
+              106
+            ]
+          },
+          {
+            "unitId": "atom:event:121:1",
+            "label": "mixed",
+            "sourceSeqs": [
+              121
+            ]
+          },
+          {
+            "unitId": "atom:event:121:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              121
+            ]
+          },
+          {
+            "unitId": "episode:7",
+            "label": "mixed",
+            "sourceSeqs": [
+              256,
+              263,
+              269,
+              279,
+              285,
+              290,
+              296
+            ]
+          },
+          {
+            "unitId": "episode:5",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              150,
+              157
+            ]
+          },
+          {
+            "unitId": "atom:event:121:2",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              121
+            ]
+          },
+          {
+            "unitId": "episode:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              121,
+              138
+            ]
+          },
+          {
+            "unitId": "episode:6",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              172,
+              181
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0082-call-002-host",
+      "reason": "邀请周姨喝茶；热水和接待相关，旧取包和进出大厅无关。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "fact:event:101:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              101
+            ]
+          },
+          {
+            "unitId": "obs:2",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              101,
+              93,
+              35,
+              45
+            ]
+          },
+          {
+            "unitId": "raw:event:152",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              152
+            ]
+          },
+          {
+            "unitId": "obs:4",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              258,
+              264,
+              274,
+              174,
+              183,
+              159
+            ]
+          },
+          {
+            "unitId": "obs:1",
+            "label": "mixed",
+            "sourceSeqs": [
+              27
+            ]
+          },
+          {
+            "unitId": "raw:event:123",
+            "label": "mixed",
+            "sourceSeqs": [
+              123
+            ]
+          },
+          {
+            "unitId": "raw:event:116",
+            "label": "mixed",
+            "sourceSeqs": [
+              116
+            ]
+          },
+          {
+            "unitId": "raw:event:133",
+            "label": "relevant",
+            "sourceSeqs": [
+              133
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "episode:7",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              258,
+              264,
+              274,
+              280,
+              291
+            ]
+          },
+          {
+            "unitId": "atom:event:123:1",
+            "label": "mixed",
+            "sourceSeqs": [
+              123
+            ]
+          },
+          {
+            "unitId": "atom:event:123:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              123
+            ]
+          },
+          {
+            "unitId": "episode:5",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              152,
+              159
+            ]
+          },
+          {
+            "unitId": "atom:event:116:1",
+            "label": "mixed",
+            "sourceSeqs": [
+              116
+            ]
+          },
+          {
+            "unitId": "atom:event:101:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              101
+            ]
+          },
+          {
+            "unitId": "atom:event:116:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              116
+            ]
+          },
+          {
+            "unitId": "episode:4",
+            "label": "mixed",
+            "sourceSeqs": [
+              101,
+              116,
+              123,
+              133,
+              140
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0092-call-001-friend",
+      "reason": "沈南接受热茶后准备去厅；旧版至少有先前喝茶约定，新版主要为早期厅/院子话语重复。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "fact:event:100:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              100
+            ]
+          },
+          {
+            "unitId": "obs:5",
+            "label": "mixed",
+            "sourceSeqs": [
+              611,
+              621,
+              575,
+              580,
+              586,
+              437,
+              447,
+              452,
+              239,
+              182,
+              198,
+              216,
+              164,
+              128,
+              158
+            ]
+          },
+          {
+            "unitId": "obs:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              100
+            ]
+          },
+          {
+            "unitId": "fact:event:26:1",
+            "label": "mixed",
+            "sourceSeqs": [
+              26
+            ]
+          },
+          {
+            "unitId": "obs:2",
+            "label": "redundant",
+            "sourceSeqs": [
+              26
+            ]
+          },
+          {
+            "unitId": "raw:event:208",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              208
+            ]
+          },
+          {
+            "unitId": "raw:event:442",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              442
+            ]
+          },
+          {
+            "unitId": "raw:event:244",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              244
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "atom:event:122:3",
+            "label": "mixed",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:122:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:122:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:122:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              122
+            ]
+          },
+          {
+            "unitId": "atom:event:437:4",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              437
+            ]
+          },
+          {
+            "unitId": "atom:event:437:3",
+            "label": "redundant",
+            "sourceSeqs": [
+              437
+            ]
+          },
+          {
+            "unitId": "atom:event:437:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              437
+            ]
+          },
+          {
+            "unitId": "atom:event:437:0",
+            "label": "redundant",
+            "sourceSeqs": [
+              437
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0098-call-002-friend",
+      "reason": "当前玩家离厅；同一人物的多次旧移动不能解释这次刺激。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "raw:event:182",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              182
+            ]
+          },
+          {
+            "unitId": "fact:event:34:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              34
+            ]
+          },
+          {
+            "unitId": "raw:event:173",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              173
+            ]
+          },
+          {
+            "unitId": "raw:event:44",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              44
+            ]
+          },
+          {
+            "unitId": "raw:event:151",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              151
+            ]
+          },
+          {
+            "unitId": "raw:event:257",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              257
+            ]
+          },
+          {
+            "unitId": "raw:event:216",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              216
+            ]
+          },
+          {
+            "unitId": "raw:event:92",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              92
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "atom:event:182:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              182
+            ]
+          },
+          {
+            "unitId": "atom:event:34:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              34
+            ]
+          },
+          {
+            "unitId": "atom:event:173:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              173
+            ]
+          },
+          {
+            "unitId": "atom:event:44:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              44
+            ]
+          },
+          {
+            "unitId": "atom:event:92:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              92
+            ]
+          },
+          {
+            "unitId": "atom:event:151:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              151
+            ]
+          },
+          {
+            "unitId": "atom:event:216:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              216
+            ]
+          },
+          {
+            "unitId": "atom:event:257:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              257
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0109-call-001-companion",
+      "reason": "回屋读书后再遇；旧读书话语相关，新版更容易命中，但两来源占满八个槽位。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "fact:event:33:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              33
+            ]
+          },
+          {
+            "unitId": "fact:event:304:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              304
+            ]
+          },
+          {
+            "unitId": "fact:event:375:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              375
+            ]
+          },
+          {
+            "unitId": "fact:event:256:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              256
+            ]
+          },
+          {
+            "unitId": "fact:event:662:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              662
+            ]
+          },
+          {
+            "unitId": "fact:event:43:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              43
+            ]
+          },
+          {
+            "unitId": "fact:event:172:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              172
+            ]
+          },
+          {
+            "unitId": "fact:event:263:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              263
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "atom:event:382:0",
+            "label": "relevant",
+            "sourceSeqs": [
+              382
+            ]
+          },
+          {
+            "unitId": "atom:event:382:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              382
+            ]
+          },
+          {
+            "unitId": "atom:event:121:0",
+            "label": "mixed",
+            "sourceSeqs": [
+              121
+            ]
+          },
+          {
+            "unitId": "atom:event:121:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              121
+            ]
+          },
+          {
+            "unitId": "atom:event:382:3",
+            "label": "redundant",
+            "sourceSeqs": [
+              382
+            ]
+          },
+          {
+            "unitId": "atom:event:382:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              382
+            ]
+          },
+          {
+            "unitId": "atom:event:121:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              121
+            ]
+          },
+          {
+            "unitId": "atom:event:121:3",
+            "label": "redundant",
+            "sourceSeqs": [
+              121
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "traceId": "turn-0109-call-003-host",
+      "reason": "同样的读书再遇；近期精神恢复部分相关，旧进出厅无关，完整语境反复交付。",
+      "modes": {
+        "old": [
+          {
+            "unitId": "fact:event:383:1",
+            "label": "relevant",
+            "sourceSeqs": [
+              383
+            ]
+          },
+          {
+            "unitId": "fact:event:258:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              258
+            ]
+          },
+          {
+            "unitId": "fact:event:513:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              513
+            ]
+          },
+          {
+            "unitId": "fact:event:264:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              264
+            ]
+          },
+          {
+            "unitId": "fact:event:35:0",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              35
+            ]
+          },
+          {
+            "unitId": "fact:event:45:1",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              45
+            ]
+          },
+          {
+            "unitId": "fact:event:550:2",
+            "label": "irrelevant",
+            "sourceSeqs": [
+              550
+            ]
+          },
+          {
+            "unitId": "fact:event:520:1",
+            "label": "mixed",
+            "sourceSeqs": [
+              520
+            ]
+          }
+        ],
+        "new": [
+          {
+            "unitId": "atom:event:383:0",
+            "label": "relevant",
+            "sourceSeqs": [
+              383
+            ]
+          },
+          {
+            "unitId": "atom:event:383:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              383
+            ]
+          },
+          {
+            "unitId": "atom:event:383:3",
+            "label": "redundant",
+            "sourceSeqs": [
+              383
+            ]
+          },
+          {
+            "unitId": "atom:event:123:0",
+            "label": "mixed",
+            "sourceSeqs": [
+              123
+            ]
+          },
+          {
+            "unitId": "atom:event:383:4",
+            "label": "redundant",
+            "sourceSeqs": [
+              383
+            ]
+          },
+          {
+            "unitId": "atom:event:123:1",
+            "label": "redundant",
+            "sourceSeqs": [
+              123
+            ]
+          },
+          {
+            "unitId": "atom:event:264:0",
+            "label": "mixed",
+            "sourceSeqs": [
+              264
+            ]
+          },
+          {
+            "unitId": "atom:event:123:3",
+            "label": "redundant",
+            "sourceSeqs": [
+              123
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

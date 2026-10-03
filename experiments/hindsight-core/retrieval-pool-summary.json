@@ -1,0 +1,528 @@
+{
+  "pool": {
+    "queries": 48,
+    "candidateItems": 367,
+    "emptyPools": 8,
+    "heldoutEvaluated": false,
+    "labelsGenerated": false,
+    "frozenFilesVerified": 1522,
+    "cases": [
+      {
+        "traceId": "turn-0049-call-001-friend",
+        "memoryId": "atom:event:164:0",
+        "oldLabel": "useful",
+        "query": "确实，这一路奔波，能有这么个空当站在院里静静放空，感觉疲乏都散得差不多了。",
+        "cleanedQuery": "确实，这一路奔波，能有这么个空当站在院里静静放空，感觉疲乏都散得差不多了。",
+        "text": "【听到发言；所述内容未经独立核实】character:friend：行，走吧，正好去院子里透透气。",
+        "cleanedTexts": [
+          "行，走吧，正好去院子里透透气。"
+        ],
+        "scores": {
+          "e5-raw": 0.911409854888916,
+          "e5-clean": 0.911409854888916,
+          "qwen-clean": 0.5454516410827637
+        },
+        "inPool": true
+      },
+      {
+        "traceId": "turn-0063-call-001-companion",
+        "memoryId": "atom:event:99:0",
+        "oldLabel": "noise",
+        "query": "周姨、林晓，早啊！昨晚睡得真踏实，这会儿精神好多了。",
+        "cleanedQuery": "早啊！昨晚睡得真踏实，这会儿精神好多了。",
+        "text": "【听到发言；所述内容未经独立核实】character:player：周姨、林晓、沈南，我把随身行李都先放到客房收好了。",
+        "cleanedTexts": [
+          "我把随身行李都先放到客房收好了。",
+          "我把随身行李都先放到客房收好了。"
+        ],
+        "scores": {
+          "e5-raw": 0.9200327396392822,
+          "e5-clean": 0.8674267530441284,
+          "qwen-clean": 0.3332245945930481
+        },
+        "inPool": true
+      },
+      {
+        "traceId": "turn-0082-call-002-host",
+        "memoryId": "atom:event:101:0",
+        "oldLabel": "noise",
+        "query": "周姨、林晓，我刚才在茶水间泡了壶热茶，正好去去清晨的凉意，你们要来点尝尝吗？",
+        "cleanedQuery": "我刚才在茶水间泡了壶热茶，正好去去清晨的凉意，你们要来点尝尝吗？",
+        "text": "【听到发言；所述内容未经独立核实】character:player：周姨、林晓、沈南，我把随身行李都先放到客房收好了。",
+        "cleanedTexts": [
+          "我把随身行李都先放到客房收好了。",
+          "我把随身行李都先放到客房收好了。"
+        ],
+        "scores": {
+          "e5-raw": 0.9090145230293274,
+          "e5-clean": 0.8710351586341858,
+          "qwen-clean": 0.25958406925201416
+        },
+        "inPool": true
+      },
+      {
+        "traceId": "turn-0091-call-001-friend",
+        "memoryId": "episode:4",
+        "oldLabel": "noise",
+        "query": "沈南，刚才我泡了壶热茶，周姨和林晓在厅里正喝着呢。你要是想喝口热的，现在去厅里或茶水间正好。",
+        "cleanedQuery": "刚才我泡了壶热茶， 和 在厅里正喝着呢。你要是想喝口热的，现在去厅里或茶水间正好。",
+        "text": "【听到发言；所述内容未经独立核实】character:player：周姨、林晓、沈南，我把随身行李都先放到客房收好了。",
+        "cleanedTexts": [
+          "我把随身行李都先放到客房收好了。",
+          "我把随身行李都先放到客房收好了。"
+        ],
+        "scores": {
+          "e5-raw": 0.9125838279724121,
+          "e5-clean": 0.8690369725227356,
+          "qwen-clean": 0.32162994146347046
+        },
+        "inPool": true
+      }
+    ]
+  },
+  "precision": {
+    "poolDatasetId": "502558aac22ff3eb61a04e0e63baa85488b6c8a092536e8f3cd0b2afef44ccdc",
+    "poolFileHash": "f53cccaba883f5a46691b58e4677cba9242b1ebe7950d0528475ed15c53ec5da",
+    "models": {
+      "q8-first": {
+        "model": "qwen3-embedding:0.6b",
+        "digest": "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d",
+        "details": {
+          "parent_model": "/Users/ollama/.ollama/models/blobs/sha256-06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439",
+          "format": "gguf",
+          "family": "qwen3",
+          "families": [
+            "qwen3"
+          ],
+          "parameter_size": "595.78M",
+          "quantization_level": "Q8_0",
+          "context_length": 32768,
+          "embedding_length": 1024
+        },
+        "queryInstruction": "Given the current situation, retrieve relevant past experiences of this character.",
+        "documentPrefix": "",
+        "numCtx": 2048,
+        "loadedModels": [
+          {
+            "name": "qwen3-embedding:0.6b",
+            "model": "qwen3-embedding:0.6b",
+            "size": 2228045741,
+            "digest": "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d",
+            "details": {
+              "parent_model": "",
+              "format": "gguf",
+              "family": "qwen3",
+              "families": [
+                "qwen3"
+              ],
+              "parameter_size": "595.78M",
+              "quantization_level": "Q8_0"
+            },
+            "expires_at": "2026-10-01T13:03:52.8095171+08:00",
+            "size_vram": 2228045741,
+            "context_length": 2048
+          }
+        ],
+        "batchDurationsSeconds": {
+          "count": 42,
+          "mean": 0.21148046904761905,
+          "stdPopulation": 0.07938039206342215,
+          "percentiles": {
+            "5": 0.129606835,
+            "25": 0.173178875,
+            "50": 0.20427305,
+            "75": 0.23803972499999998,
+            "95": 0.30695776999999996
+          },
+          "p95MinusP5": 0.17735093499999996
+        },
+        "uniqueInputs": 317,
+        "batches": 42
+      },
+      "q8-repeat": {
+        "model": "qwen3-embedding:0.6b",
+        "digest": "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d",
+        "details": {
+          "parent_model": "/Users/ollama/.ollama/models/blobs/sha256-06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439",
+          "format": "gguf",
+          "family": "qwen3",
+          "families": [
+            "qwen3"
+          ],
+          "parameter_size": "595.78M",
+          "quantization_level": "Q8_0",
+          "context_length": 32768,
+          "embedding_length": 1024
+        },
+        "queryInstruction": "Given the current situation, retrieve relevant past experiences of this character.",
+        "documentPrefix": "",
+        "numCtx": 2048,
+        "loadedModels": [
+          {
+            "name": "qwen3-embedding:0.6b",
+            "model": "qwen3-embedding:0.6b",
+            "size": 2228045741,
+            "digest": "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d",
+            "details": {
+              "parent_model": "",
+              "format": "gguf",
+              "family": "qwen3",
+              "families": [
+                "qwen3"
+              ],
+              "parameter_size": "595.78M",
+              "quantization_level": "Q8_0"
+            },
+            "expires_at": "2026-10-01T13:04:02.4576715+08:00",
+            "size_vram": 2228045741,
+            "context_length": 2048
+          }
+        ],
+        "batchDurationsSeconds": {
+          "count": 42,
+          "mean": 0.20959671190476192,
+          "stdPopulation": 0.07982518435560775,
+          "percentiles": {
+            "5": 0.135772715,
+            "25": 0.169285775,
+            "50": 0.20449404999999998,
+            "75": 0.23200780000000001,
+            "95": 0.31172740499999996
+          },
+          "p95MinusP5": 0.17595468999999997
+        },
+        "uniqueInputs": 317,
+        "batches": 42
+      },
+      "f16-first": {
+        "model": "perspectra-qwen3-embedding-0.6b-fp16:latest",
+        "digest": "8c871c95854163544495ff235cf860bd0ea62b6523a7924cef345f864543f799",
+        "details": {
+          "parent_model": "Qwen3-Embedding-0.6B-f16.gguf",
+          "format": "gguf",
+          "family": "qwen3",
+          "families": [
+            "qwen3"
+          ],
+          "parameter_size": "595.78M",
+          "quantization_level": "F16",
+          "context_length": 32768,
+          "embedding_length": 1024
+        },
+        "queryInstruction": "Given the current situation, retrieve relevant past experiences of this character.",
+        "documentPrefix": "",
+        "numCtx": 2048,
+        "loadedModels": [
+          {
+            "name": "perspectra-qwen3-embedding-0.6b-fp16:latest",
+            "model": "perspectra-qwen3-embedding-0.6b-fp16:latest",
+            "size": 2786527804,
+            "digest": "8c871c95854163544495ff235cf860bd0ea62b6523a7924cef345f864543f799",
+            "details": {
+              "parent_model": "",
+              "format": "gguf",
+              "family": "qwen3",
+              "families": [
+                "qwen3"
+              ],
+              "parameter_size": "595.78M",
+              "quantization_level": "F16"
+            },
+            "expires_at": "2026-10-01T13:04:21.1474307+08:00",
+            "size_vram": 2786527804,
+            "context_length": 2048
+          },
+          {
+            "name": "qwen3-embedding:0.6b",
+            "model": "qwen3-embedding:0.6b",
+            "size": 2228045741,
+            "digest": "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d",
+            "details": {
+              "parent_model": "",
+              "format": "gguf",
+              "family": "qwen3",
+              "families": [
+                "qwen3"
+              ],
+              "parameter_size": "595.78M",
+              "quantization_level": "Q8_0"
+            },
+            "expires_at": "2026-10-01T13:04:02.4576715+08:00",
+            "size_vram": 2228045741,
+            "context_length": 2048
+          }
+        ],
+        "batchDurationsSeconds": {
+          "count": 42,
+          "mean": 0.4233624952380953,
+          "stdPopulation": 0.4266372898237693,
+          "percentiles": {
+            "5": 0.217141965,
+            "25": 0.287752675,
+            "50": 0.32788715,
+            "75": 0.386560175,
+            "95": 0.8230334599999998
+          },
+          "p95MinusP5": 0.6058914949999998
+        },
+        "uniqueInputs": 317,
+        "batches": 42
+      },
+      "f16-repeat": {
+        "model": "perspectra-qwen3-embedding-0.6b-fp16:latest",
+        "digest": "8c871c95854163544495ff235cf860bd0ea62b6523a7924cef345f864543f799",
+        "details": {
+          "parent_model": "Qwen3-Embedding-0.6B-f16.gguf",
+          "format": "gguf",
+          "family": "qwen3",
+          "families": [
+            "qwen3"
+          ],
+          "parameter_size": "595.78M",
+          "quantization_level": "F16",
+          "context_length": 32768,
+          "embedding_length": 1024
+        },
+        "queryInstruction": "Given the current situation, retrieve relevant past experiences of this character.",
+        "documentPrefix": "",
+        "numCtx": 2048,
+        "loadedModels": [
+          {
+            "name": "perspectra-qwen3-embedding-0.6b-fp16:latest",
+            "model": "perspectra-qwen3-embedding-0.6b-fp16:latest",
+            "size": 2786527804,
+            "digest": "8c871c95854163544495ff235cf860bd0ea62b6523a7924cef345f864543f799",
+            "details": {
+              "parent_model": "",
+              "format": "gguf",
+              "family": "qwen3",
+              "families": [
+                "qwen3"
+              ],
+              "parameter_size": "595.78M",
+              "quantization_level": "F16"
+            },
+            "expires_at": "2026-10-01T13:04:35.4707664+08:00",
+            "size_vram": 2786527804,
+            "context_length": 2048
+          },
+          {
+            "name": "qwen3-embedding:0.6b",
+            "model": "qwen3-embedding:0.6b",
+            "size": 2228045741,
+            "digest": "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d",
+            "details": {
+              "parent_model": "",
+              "format": "gguf",
+              "family": "qwen3",
+              "families": [
+                "qwen3"
+              ],
+              "parameter_size": "595.78M",
+              "quantization_level": "Q8_0"
+            },
+            "expires_at": "2026-10-01T13:04:02.4576715+08:00",
+            "size_vram": 2228045741,
+            "context_length": 2048
+          }
+        ],
+        "batchDurationsSeconds": {
+          "count": 42,
+          "mean": 0.31981852857142856,
+          "stdPopulation": 0.11689976513126082,
+          "percentiles": {
+            "5": 0.221611925,
+            "25": 0.26084,
+            "50": 0.30818035,
+            "75": 0.34621060000000003,
+            "95": 0.4896880999999999
+          },
+          "p95MinusP5": 0.2680761749999999
+        },
+        "uniqueInputs": 317,
+        "batches": 42
+      }
+    },
+    "officialRepo": "Qwen/Qwen3-Embedding-0.6B-GGUF",
+    "officialRevision": "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+    "verifiedBlobs": {
+      "Q8_0": "06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439",
+      "F16": "421a27e58d165478cc7acb984a688c2aa41404968b0203e7cd743ece44c54340"
+    },
+    "q8Repeat": {
+      "signedRightMinusLeft": {
+        "count": 2258,
+        "mean": -7.774114222707106e-05,
+        "stdPopulation": 0.0005486344565881667,
+        "percentiles": {
+          "5": -0.0011351086199283599,
+          "25": 0.0,
+          "50": 0.0,
+          "75": 0.0,
+          "95": 0.00014036893844604492
+        },
+        "p95MinusP5": 0.0012754775583744048
+      },
+      "absoluteDifference": {
+        "count": 2258,
+        "mean": 0.00017925447300142479,
+        "stdPopulation": 0.0005243198318388732,
+        "percentiles": {
+          "5": 0.0,
+          "25": 0.0,
+          "50": 0.0,
+          "75": 0.0,
+          "95": 0.0014843761920928964
+        },
+        "p95MinusP5": 0.0014843761920928964
+      },
+      "maximumAbsoluteDifference": 0.004326000809669495,
+      "comparableDifferentMemoryWindowPairs": 97192,
+      "pairwiseOrderFlips": 73,
+      "flipFraction": 0.0007510906247427772
+    },
+    "f16Repeat": {
+      "signedRightMinusLeft": {
+        "count": 2258,
+        "mean": 5.0313051450136385e-05,
+        "stdPopulation": 0.0005776713232125299,
+        "percentiles": {
+          "5": -4.6253204345703125e-05,
+          "25": 0.0,
+          "50": 0.0,
+          "75": 0.0,
+          "95": 0.0006080463528633129
+        },
+        "p95MinusP5": 0.000654299557209016
+      },
+      "absoluteDifference": {
+        "count": 2258,
+        "mean": 0.00014751409143341443,
+        "stdPopulation": 0.0005607808427870138,
+        "percentiles": {
+          "5": 0.0,
+          "25": 0.0,
+          "50": 0.0,
+          "75": 0.0,
+          "95": 0.001162271201610566
+        },
+        "p95MinusP5": 0.001162271201610566
+      },
+      "maximumAbsoluteDifference": 0.00584942102432251,
+      "comparableDifferentMemoryWindowPairs": 97192,
+      "pairwiseOrderFlips": 54,
+      "flipFraction": 0.0005556012840563009
+    },
+    "q8Batch8VersusSingle": {
+      "signedRightMinusLeft": {
+        "count": 2258,
+        "mean": -0.00026140679449397343,
+        "stdPopulation": 0.001190991191976967,
+        "percentiles": {
+          "5": -0.0026918351650238037,
+          "25": -8.571147918701172e-05,
+          "50": 0.0,
+          "75": 0.0,
+          "95": 0.0013662189245224002
+        },
+        "p95MinusP5": 0.004058054089546204
+      },
+      "absoluteDifference": {
+        "count": 2258,
+        "mean": 0.0006169775373857564,
+        "stdPopulation": 0.001051728220566387,
+        "percentiles": {
+          "5": 0.0,
+          "25": 0.0,
+          "50": 0.0,
+          "75": 0.0009753629565238953,
+          "95": 0.0029575228691101074
+        },
+        "p95MinusP5": 0.0029575228691101074
+      },
+      "maximumAbsoluteDifference": 0.005650222301483154,
+      "comparableDifferentMemoryWindowPairs": 97192,
+      "pairwiseOrderFlips": 191,
+      "flipFraction": 0.001965182319532472
+    },
+    "f16Batch8VersusSingle": {
+      "signedRightMinusLeft": {
+        "count": 2258,
+        "mean": 0.00011172210607938369,
+        "stdPopulation": 0.000689146730988486,
+        "percentiles": {
+          "5": -0.0004472166299819946,
+          "25": 0.0,
+          "50": 0.0,
+          "75": 0.00011881440877914429,
+          "95": 0.0014178842306137086
+        },
+        "p95MinusP5": 0.0018651008605957032
+      },
+      "absoluteDifference": {
+        "count": 2258,
+        "mean": 0.00026717860881895805,
+        "stdPopulation": 0.0006449966176721363,
+        "percentiles": {
+          "5": 0.0,
+          "25": 0.0,
+          "50": 0.0,
+          "75": 0.00016823410987854004,
+          "95": 0.001682643592357637
+        },
+        "p95MinusP5": 0.001682643592357637
+      },
+      "maximumAbsoluteDifference": 0.0057984888553619385,
+      "comparableDifferentMemoryWindowPairs": 97192,
+      "pairwiseOrderFlips": 95,
+      "flipFraction": 0.0009774467034323812
+    },
+    "q8VersusF16": {
+      "signedRightMinusLeft": {
+        "count": 2258,
+        "mean": -0.0023234361985597705,
+        "stdPopulation": 0.003959333217836332,
+        "percentiles": {
+          "5": -0.009450405836105347,
+          "25": -0.00482148677110672,
+          "50": -0.0020599365234375,
+          "75": 0.0004564523696899414,
+          "95": 0.0035108804702758812
+        },
+        "p95MinusP5": 0.012961286306381228
+      },
+      "absoluteDifference": {
+        "count": 2258,
+        "mean": 0.003538158777490773,
+        "stdPopulation": 0.002925082522580359,
+        "percentiles": {
+          "5": 0.0002726912498474121,
+          "25": 0.0012591183185577393,
+          "50": 0.0027343034744262695,
+          "75": 0.005148768424987793,
+          "95": 0.009509706497192386
+        },
+        "p95MinusP5": 0.009237015247344974
+      },
+      "maximumAbsoluteDifference": 0.01633507013320923,
+      "comparableDifferentMemoryWindowPairs": 97192,
+      "pairwiseOrderFlips": 963,
+      "flipFraction": 0.009908222899004034
+    },
+    "holdoutEvaluated": false,
+    "thresholdApplied": false,
+    "limits": "Numeric and rank sensitivity only, no relevance labels, frozen E5 windows; no model-quality or Character Turn conclusion."
+  },
+  "humanLabelsPending": true,
+  "qualityWinner": null,
+  "thresholdSelected": false,
+  "holdoutEvaluated": false,
+  "followUpModelReview": {
+    "complete": true,
+    "report": "dual-model-review-report.md",
+    "humanGold": false,
+    "manualReviewNotRequiredByCurrentUserRequest": true,
+    "thresholdSelected": false,
+    "holdoutEvaluated": false
+  }
+}

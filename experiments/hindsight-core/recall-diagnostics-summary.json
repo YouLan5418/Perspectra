@@ -1,0 +1,1834 @@
+{
+  "preparation": {
+    "holdoutSealed": 30,
+    "developmentQueries": 107,
+    "boundaryQueries": 12,
+    "blindItems": 38,
+    "observationVersions": 58,
+    "limits": "Boundary sample is not total recall rate. Same assistant reader remains; hidden scores and shuffled controls reduce only order/score bias."
+  },
+  "boundary": {
+    "summary": {
+      "queries": 12,
+      "items": 38,
+      "countsByKind": {
+        "rejected": {
+          "redundant": 7,
+          "noise": 11,
+          "background": 17
+        },
+        "accepted_control": {
+          "useful": 2,
+          "noise": 1
+        }
+      },
+      "limits": "Near-gate sample only; 0 definite misses here does not measure full recall. Far-below-gate, skipped queries, policy exclusions and delivery/ranking omissions are outside this sample."
+    },
+    "labels": [
+      {
+        "id": "e617bb4c6edc",
+        "label": "redundant",
+        "reason": "概括的赶路闲聊已完整在当前观察中",
+        "traceId": "turn-0043-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "obs:3"
+      },
+      {
+        "id": "8ed41a581f12",
+        "label": "redundant",
+        "reason": "行李和茶水间评价已在上下文，非当前吹风主题",
+        "traceId": "turn-0025-call-002-host",
+        "kind": "rejected",
+        "memoryId": "obs:1"
+      },
+      {
+        "id": "68917fe3ba20",
+        "label": "noise",
+        "reason": "134 tick前已经展开的院子约定，不证明本次离厅仍有约定",
+        "traceId": "turn-0098-call-002-friend",
+        "kind": "rejected",
+        "memoryId": "atom:event:164:0"
+      },
+      {
+        "id": "5368e8673667",
+        "label": "noise",
+        "reason": "122 tick前门廊邀请，未见本次移动关联",
+        "traceId": "turn-0098-call-002-friend",
+        "kind": "rejected",
+        "memoryId": "atom:event:234:1"
+      },
+      {
+        "id": "1493540e244e",
+        "label": "redundant",
+        "reason": "旧行李评价已在上下文，与本次离厅无关",
+        "traceId": "turn-0028-call-002-host",
+        "kind": "rejected",
+        "memoryId": "obs:1"
+      },
+      {
+        "id": "cd76b2f6758e",
+        "label": "background",
+        "reason": "旧腰酸休息闲聊仅与坐厅歇息宽泛相关",
+        "traceId": "turn-0109-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "episode:7"
+      },
+      {
+        "id": "89171a4dd6a6",
+        "label": "noise",
+        "reason": "旧拿旅行包与看书喝茶无关",
+        "traceId": "turn-0043-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "atom:event:33:0"
+      },
+      {
+        "id": "186960f53ca3",
+        "label": "background",
+        "reason": "旧茶与休息经历相关，但整段较长且含已在上下文的片段",
+        "traceId": "turn-0084-call-002-host",
+        "kind": "rejected",
+        "memoryId": "episode:9"
+      },
+      {
+        "id": "5579b5d818ab",
+        "label": "background",
+        "reason": "旧厅里歇息的计划，不是当前读书话题的具体延续",
+        "traceId": "turn-0109-call-003-host",
+        "kind": "rejected",
+        "memoryId": "atom:event:123:0"
+      },
+      {
+        "id": "ba36a70bfb62",
+        "label": "redundant",
+        "reason": "全部支持来源已在上下文，当前只提供离厅结果",
+        "traceId": "turn-0028-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "obs:1"
+      },
+      {
+        "id": "27c60b9232a1",
+        "label": "noise",
+        "reason": "旧行李对白与沈南来喝茶无关",
+        "traceId": "turn-0092-call-004-host",
+        "kind": "rejected",
+        "memoryId": "atom:event:101:0"
+      },
+      {
+        "id": "d139e269b6ba",
+        "label": "background",
+        "reason": "场景设施与活动许可是常识背景，并非本次离厅的特定提醒",
+        "traceId": "turn-0028-call-002-host",
+        "kind": "rejected",
+        "memoryId": "atom:event:27:0"
+      },
+      {
+        "id": "f52f896934e4",
+        "label": "background",
+        "reason": "旧看书喝茶经历可提供宽泛偏好背景，本次只说大家趁热喝",
+        "traceId": "turn-0084-call-002-host",
+        "kind": "rejected",
+        "memoryId": "atom:event:383:0"
+      },
+      {
+        "id": "278ed06429f5",
+        "label": "noise",
+        "reason": "旧院子回厅和赶路询问，与沈南此刻来喝茶无关",
+        "traceId": "turn-0092-call-004-host",
+        "kind": "rejected",
+        "memoryId": "episode:7"
+      },
+      {
+        "id": "701939795221",
+        "label": "background",
+        "reason": "旧腰酸休息闲聊与当前厅里坐着只是宽泛相关",
+        "traceId": "turn-0109-call-003-host",
+        "kind": "rejected",
+        "memoryId": "episode:7"
+      },
+      {
+        "id": "3e0a4b97ed3e",
+        "label": "noise",
+        "reason": "旧吹风询问不增加当前邀请去喝茶的必要信息",
+        "traceId": "turn-0091-call-001-friend",
+        "kind": "rejected",
+        "memoryId": "atom:event:437:0"
+      },
+      {
+        "id": "3783c2beb05a",
+        "label": "background",
+        "reason": "场景休息设施与当前腰酸宽泛相关",
+        "traceId": "turn-0027-call-002-host",
+        "kind": "rejected",
+        "memoryId": "episode:1"
+      },
+      {
+        "id": "4f46e7239dcd",
+        "label": "background",
+        "reason": "客房可以休息是背景，不是本次刺激必须补的经历",
+        "traceId": "turn-0027-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "atom:event:25:1"
+      },
+      {
+        "id": "17de2a471165",
+        "label": "background",
+        "reason": "初见及场景设施仅宽泛背景",
+        "traceId": "turn-0027-call-002-host",
+        "kind": "rejected",
+        "memoryId": "atom:event:27:0"
+      },
+      {
+        "id": "5c0d83959539",
+        "label": "background",
+        "reason": "初见及场景设施仅宽泛背景",
+        "traceId": "turn-0027-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "episode:1"
+      },
+      {
+        "id": "6de6c45a2bdd",
+        "label": "noise",
+        "reason": "82 tick前转廊转厅的报告，不能说明本次离厅目标",
+        "traceId": "turn-0098-call-002-friend",
+        "kind": "rejected",
+        "memoryId": "atom:event:437:1"
+      },
+      {
+        "id": "222ec471421d",
+        "label": "useful",
+        "reason": "此前同样回屋读书再到厅里闲聊，能保持读书经历连续性",
+        "traceId": "turn-0109-call-001-companion",
+        "kind": "accepted_control",
+        "memoryId": "atom:event:382:0"
+      },
+      {
+        "id": "0e62533154b8",
+        "label": "redundant",
+        "reason": "院子约定及离厅的来源全部已在当前观察中",
+        "traceId": "turn-0025-call-002-host",
+        "kind": "rejected",
+        "memoryId": "obs:2"
+      },
+      {
+        "id": "34bbc8a7a012",
+        "label": "noise",
+        "reason": "111 tick前的共同出门约定，与当前分茶无关",
+        "traceId": "turn-0084-call-002-host",
+        "kind": "rejected",
+        "memoryId": "atom:event:140:0"
+      },
+      {
+        "id": "fd9d88300732",
+        "label": "redundant",
+        "reason": "院子散心及返回的来源全部在当前上下文中",
+        "traceId": "turn-0027-call-002-host",
+        "kind": "rejected",
+        "memoryId": "obs:2"
+      },
+      {
+        "id": "1be26b2615b6",
+        "label": "background",
+        "reason": "旧院子精神恢复与当前读书休息只有宽泛舒适感关联",
+        "traceId": "turn-0109-call-003-host",
+        "kind": "rejected",
+        "memoryId": "atom:event:264:0"
+      },
+      {
+        "id": "a41614686beb",
+        "label": "background",
+        "reason": "场景设施与本次离厅只有地点背景关联",
+        "traceId": "turn-0028-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "episode:1"
+      },
+      {
+        "id": "a726c1dcf515",
+        "label": "background",
+        "reason": "旧茶水间评价提供设施背景，不能证明当前热茶来源",
+        "traceId": "turn-0091-call-001-friend",
+        "kind": "rejected",
+        "memoryId": "atom:event:122:1"
+      },
+      {
+        "id": "1d67f7578310",
+        "label": "noise",
+        "reason": "旧行李汇报与当前喝茶邀请无关",
+        "traceId": "turn-0091-call-001-friend",
+        "kind": "accepted_control",
+        "memoryId": "episode:4"
+      },
+      {
+        "id": "c3a70cab0364",
+        "label": "noise",
+        "reason": "旧“动作挺快”不知具体所指，与本次读书无关",
+        "traceId": "turn-0043-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "atom:event:106:0"
+      },
+      {
+        "id": "537ceb767d0d",
+        "label": "redundant",
+        "reason": "已在上下文的院子经历，不需要以漏召回计",
+        "traceId": "turn-0027-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "obs:1"
+      },
+      {
+        "id": "2dbeb696c143",
+        "label": "noise",
+        "reason": "旧笑着坐下叙述与当前邀请喝茶无关",
+        "traceId": "turn-0091-call-001-friend",
+        "kind": "rejected",
+        "memoryId": "atom:event:122:2"
+      },
+      {
+        "id": "14fd0c664593",
+        "label": "background",
+        "reason": "场景设施是背景，不是本次离厅的特定线索",
+        "traceId": "turn-0028-call-002-host",
+        "kind": "rejected",
+        "memoryId": "episode:1"
+      },
+      {
+        "id": "044af5d3066d",
+        "label": "background",
+        "reason": "旧院子舒服与当前读书休息仅宽泛相关",
+        "traceId": "turn-0109-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "atom:event:263:0"
+      },
+      {
+        "id": "b31d9e58eea1",
+        "label": "noise",
+        "reason": "旧拿本子和院子邀请与当前沈南喝茶无关",
+        "traceId": "turn-0092-call-004-host",
+        "kind": "rejected",
+        "memoryId": "episode:5"
+      },
+      {
+        "id": "d4cfb6615d1b",
+        "label": "background",
+        "reason": "旧歇息转院计划与当前读书只有宽泛关联",
+        "traceId": "turn-0109-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "atom:event:121:0"
+      },
+      {
+        "id": "c02f5a63c586",
+        "label": "useful",
+        "reason": "此前读书喝茶再回厅的经历与当前读书再会直接呼应",
+        "traceId": "turn-0109-call-003-host",
+        "kind": "accepted_control",
+        "memoryId": "atom:event:383:0"
+      },
+      {
+        "id": "ad1192016e6d",
+        "label": "background",
+        "reason": "初见与场景设施是一般背景",
+        "traceId": "turn-0028-call-001-companion",
+        "kind": "rejected",
+        "memoryId": "atom:event:25:0"
+      }
+    ]
+  },
+  "oldOld": {
+    "pairs": 15,
+    "responses": 30,
+    "sameInputHashPairs": 15,
+    "schemaAndShapePassed": 30,
+    "counts": {
+      "old": {
+        "abstain": 6,
+        "publish": 8,
+        "perform": 1
+      },
+      "new": {
+        "abstain": 5,
+        "publish": 9,
+        "perform": 1
+      }
+    },
+    "decisionChanges": [
+      {
+        "traceId": "turn-0044-call-001-companion",
+        "a": {
+          "decision": "abstain"
+        },
+        "b": {
+          "decision": "publish",
+          "narration": "林晓只是笑了笑，没再接话，放松地合上眼睛靠在椅背上。"
+        }
+      }
+    ],
+    "exactResponseChanges": 9,
+    "limits": "Two fresh old samples, modes label A and B; one repeat pair per point is only a noise example, not a variance estimate."
+  },
+  "observationModel": {
+    "versions": 58,
+    "versionStatuses": {
+      "supported": 41,
+      "unsupported": 12,
+      "invalid_audit": 5
+    },
+    "latestCount": 11,
+    "latestStatuses": {
+      "supported": 8,
+      "unsupported": 2,
+      "invalid_audit": 1
+    },
+    "limits": "Single Gemini semantic audit, not ground truth or calibrated distortion rate; correlated revisions are not independent observations."
+  },
+  "latestObservationManual": {
+    "method": "Assistant review of all 11 latest observations against full cited atoms; nonindependent and conservative, not all 58 revisions adjudicated.",
+    "counts": {
+      "supported": 5,
+      "uncertain": 2,
+      "unsupported": 4
+    },
+    "labels": [
+      {
+        "id": "3615acdf45181da8927175968f8d429312bae06eac395c5adc6743ced6760f40",
+        "characterObservation": "character:companion/obs:1",
+        "status": "supported",
+        "reason": "相约有邀请对白；返回有toLocationId；吹风恢复保留自述限定。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:121",
+            "sourceHash": "sha256:96d9c539035b13933a85961dbe374b3fa7339d58157ad39620f1e703cf9b064a",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 121,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:138",
+            "sourceHash": "sha256:8d3b9f9917d6072b8b9defa7d3a66c8cb08ffe2f3f050c2540c5c1a5a19b38d1",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 138,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:157",
+            "sourceHash": "sha256:4dfde5d473cb72cab9fc4d936d33a444a1cb6116b97be321c36b7e87a85bdc11",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 157,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:172",
+            "sourceHash": "sha256:5a61e93528a21dfea3a157cd568ad3fe13cd48d25a8165f704a987a6730609ca",
+            "epistemicKind": "observed_action",
+            "worldSeq": 172,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:181",
+            "sourceHash": "sha256:4521646aae9e321953650bc8b5e4ff9b6ad07efb6ebb13182f9785036a849273",
+            "epistemicKind": "observed_action",
+            "worldSeq": 181,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:256",
+            "sourceHash": "sha256:9e6c4a9f8542225bcec324942851518a6245916b369f79757fb2f2322bc13ae7",
+            "epistemicKind": "observed_action",
+            "worldSeq": 256,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:263",
+            "sourceHash": "sha256:5bbe5d722aae2098f73b86cb80b6e956fd6bdb5b44abbe08a344f47e9fd345ef",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 263,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          }
+        ]
+      },
+      {
+        "id": "680ed3e1eecd84c8c902797a8c6693c2267e3788eb3515245d425b9a9a69e0e0",
+        "characterObservation": "character:companion/obs:2",
+        "status": "supported",
+        "reason": "拿包与本子的规则结果都明确提供了位置和持有人迁移。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:33",
+            "sourceHash": "sha256:aceafd862029ed988c92ce19aff89880e08aef29ff7d535542ba11f7ca20290e",
+            "epistemicKind": "observed_action",
+            "worldSeq": 33,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:150",
+            "sourceHash": "sha256:4bf80a2d28fbc6a79497092700ff035b3e50378359259ce75bdf17b61ed26084",
+            "epistemicKind": "observed_action",
+            "worldSeq": 150,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          }
+        ]
+      },
+      {
+        "id": "634c4f18790d4619342b5d0418c53eed0e5cca3ab8fc8cd54ddb71bf4c06ed02",
+        "characterObservation": "character:companion/obs:3",
+        "status": "uncertain",
+        "reason": "询问和理解有对白证据；“回到公共厅后”的返回节点未纳入本条引用，需补查引用完整性。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:279",
+            "sourceHash": "sha256:3c79915d17426a033d345dcc4f94f53894813b05baa810d8e33f0d698b9ff1b0",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 279,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:285",
+            "sourceHash": "sha256:93c32126a1572af2cc90cc58a1f09f86f3234db06876a06d66c4966d9f6096bb",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 285,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:290",
+            "sourceHash": "sha256:13c3a3347d539fb437c3c795611178533fa90bebc5133f9bcd39c204e2508712",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 290,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          }
+        ]
+      },
+      {
+        "id": "fb92a54a0ff866752933377a367206c8c0ff143031dec570f0cd443d78a77f00",
+        "characterObservation": "character:companion/obs:4",
+        "status": "uncertain",
+        "reason": "享受慢节奏可以作为主观推断；多次在客房读书仅有旅人自述，需保留报告性质，尚不统计为明确新增行为。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:382",
+            "sourceHash": "sha256:5417dfa50c8cffc87a333f47dcfeb42a3cb71f93c2727ab7a940949d56a52eb8",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 382,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:388",
+            "sourceHash": "sha256:39c7a0e4a362cf87ae918a3c5f3230c96fd4459b4301e876e047d0d8f3484b31",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 388,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:398",
+            "sourceHash": "sha256:3e15f8977848959831f886edaec047647ba01129feeab06f5222f01f28dd0c83",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 398,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:404",
+            "sourceHash": "sha256:443b1ac10f099fb8d3bb01e0c62cdae1131e8c423134e5fa36aa8be60e80b022",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 404,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:916",
+            "sourceHash": "sha256:3a13c875d030929c819e059312a2d8dfc169febad224515607bbdf719b144a78",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 916,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:923",
+            "sourceHash": "sha256:1fdfc60ccd4277df008bc444509358bff50366b16d5d25ee74e2806b4873507e",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 923,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:938",
+            "sourceHash": "sha256:db63cb1aafacfb3c0d599a45da6e93d9327cbe70d5b8c7d7427b6a932144e10c",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 938,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:955",
+            "sourceHash": "sha256:892d9e893ad62114a39f686e2096d66d0a7aef8074e132e8c2f60e599f5dfcb1",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 955,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:974",
+            "sourceHash": "sha256:303d8699e5acb33d7c71e3a85750ad670512cff92ee0094653933db4fffa4600",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 974,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          }
+        ]
+      },
+      {
+        "id": "af81bf7ad9674feec32f63998b1236b0db6a8469aa1b71d7d4d3cde20a24538a",
+        "characterObservation": "character:companion/obs:5",
+        "status": "supported",
+        "reason": "昨晚休息保留自述、弄热水保留表示要去；离厅有fromLocationId结果。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:519",
+            "sourceHash": "sha256:dbde6304b3cd8b8dbcbd7150e1f2eaba11509035832f6f8bb71673bcc336aa47",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 519,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:525",
+            "sourceHash": "sha256:9a99467546d1df4f2d2cb14180b56748954f74d53d20d004f82cdff2776d1f21",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 525,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:530",
+            "sourceHash": "sha256:4d2fd6983a2a4ee30583a1c6007dc298e41866bc7da70f6b6004280fc8d43ef8",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 530,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:549",
+            "sourceHash": "sha256:e8ac760d78708575c94c7be947ff9701e2b22c78684f73d915b5672a957d37da",
+            "epistemicKind": "observed_action",
+            "worldSeq": 549,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          }
+        ]
+      },
+      {
+        "id": "771c20a850efc04e0956d18647e7a11732839fe08a1f05dd112b30cc1e0c2fbc",
+        "characterObservation": "character:companion/obs:6",
+        "status": "unsupported",
+        "reason": "泡好并分给大家、沈南倒茶等完成动作没有所引证据；请求倒一杯/自己倒吧不能推出已倒或分茶。自身抿茶叙述也不能补出另一人泡茶和递茶。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:669",
+            "sourceHash": "sha256:97a6e2c61be438257319053c0c22c39f82f293889d17a1c6fcce5a3b09428e7f",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 669,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:675",
+            "sourceHash": "sha256:6f726192ce12619876b6c034ab2dd7ce64b5f560b77b0ee63d5498f637463a32",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 675,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:685",
+            "sourceHash": "sha256:e7718898be40a99d1d7153613d5bf7498828364fcbdccf420c67cd14f7d377ba",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 685,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:691",
+            "sourceHash": "sha256:eb88184cd91d1f1a6680bda6d652c4fdafaba8b31a0c786335e92df4d514aa56",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 691,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:701",
+            "sourceHash": "sha256:7be9d3c9a48c9cc551b3626ba720c3ef86f8190d5d8cce90f577be4b87d505d4",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 701,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:707",
+            "sourceHash": "sha256:7af6f12f20698065f202b993c100b23887fa31cebe168bb23b061c53dfa953a7",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 707,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:778",
+            "sourceHash": "sha256:929ca3e9df4042c072e9ccbab7930559b3ab3d10d62e544188ec5a5af180327c",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 778,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:784",
+            "sourceHash": "sha256:ffc9352d8ffb438f85d91734ed143690942fc582ba9677e7446ce4a7d7f4373c",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 784,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:794",
+            "sourceHash": "sha256:3457049a09d788b7b30cd2b865d72bd9d568c5f912e01dc7d3021908983a7b39",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 794,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:816",
+            "sourceHash": "sha256:356cb60c60be559a94150c81fe82db29fec38af7f8f35110c77b7b860cf9c925",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 816,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:828",
+            "sourceHash": "sha256:ab764b41e2e2147dfbd24ff5266b2788882bb0d0a4b7eb4e37bc71b9f9f810d5",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 828,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:840",
+            "sourceHash": "sha256:7c1a0b38e754e9e8081fa99eb97caefc157a0be5b98389450c04d31c282666b9",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 840,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:862",
+            "sourceHash": "sha256:5b5d73677e1699bea66646ca886ec006fee3197e8c0cd6fc6a9a723386ea98fd",
+            "epistemicKind": "observed_action",
+            "worldSeq": 862,
+            "characterId": "character:companion",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          }
+        ]
+      },
+      {
+        "id": "437e79c95e8c52e7715ce8b81cb0afd0e4a99768e89bbf4d7a59dd11ac6ffe32",
+        "characterObservation": "character:friend/obs:1",
+        "status": "supported",
+        "reason": "随和细致是明确主观印象；相告与分享是对白行为，不应读为其泡茶已经独立证实；邀约频率仍需按经历复核。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:128",
+            "sourceHash": "sha256:1a72aa1cc651173e1f9a338d0e19a3cd7f441314dc143645ca0cd96b18668781",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 128,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:139",
+            "sourceHash": "sha256:76a0ec24699544d58e9ed32b72e59618dde28cc22babe88ab2fcbf1e9c4bdb93",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 139,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:158",
+            "sourceHash": "sha256:b4f23d673ed3efa8ecfacbc7fb4903e5a573fabc162271ba5a238da411006433",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 158,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:198",
+            "sourceHash": "sha256:57fb548f7cc1a1934cbc7be3ca8b7412d79135bd972b92cb35a106689d244b2b",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 198,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:203",
+            "sourceHash": "sha256:12fc28ed6e53281b6e31cce29b06dd4f878ab18bde6fccd6d7eba926f74ac321",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 203,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:234",
+            "sourceHash": "sha256:c280f3dd970dd72e64642e9497275d1c7227252cba4a795bb55250848cf2c9f4",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 234,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:244",
+            "sourceHash": "sha256:9c32b168bc32c78083fbbf43de524442a875a9e61e04865881db08ef3fd5c3ee",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 244,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:437",
+            "sourceHash": "sha256:aa9a3b572fbdbebd46f9ab885b8fd420d9f388ddf99682bf94e4e5d3d033297c",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 437,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:447",
+            "sourceHash": "sha256:d6f2bf853b95e00b0d6ca7f48c7771f3df7f4bb08e5b22e47764c7c721cc6c1a",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 447,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:586",
+            "sourceHash": "sha256:57f57a00419bb0bb75baff18c0788514ff5d3eb76f410b07197c134f89c53031",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 586,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:606",
+            "sourceHash": "sha256:57120c61889e9060b50bf72b122187410704f7ab5126bffed1e6bc9629a9a146",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 606,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:616",
+            "sourceHash": "sha256:e51f79a230288ecaee6294f61aba49853132b6bb8e770b638ca3a6564dd2d472",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 616,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:754",
+            "sourceHash": "sha256:73408e47180a48affe417fee8937bc14a3cbfc15bd01c108e4c2a168df06992d",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 754,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:764",
+            "sourceHash": "sha256:c7477b599d0abff601af82806b4cc945e6bc862a01500382a13220927b588d98",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 764,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:817",
+            "sourceHash": "sha256:0629084d1711cf9ab197140ddaa7787cac44a38c9665d5649903237984dfc5fc",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 817,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:829",
+            "sourceHash": "sha256:62738a08d6bf733d631d7e9d65573f290c16460265bf35c105ae2cd77999a53c",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 829,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:917",
+            "sourceHash": "sha256:72f20c1fc88e91fd4fa93d9c09b5da5d0e39f06087f5cdc55ee13f2dbcd5cbae",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 917,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:939",
+            "sourceHash": "sha256:a4cdc8612c4253586eae182a94c868923b8689b34d9d6cfcec1cd2cfc8bc8538",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 939,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:956",
+            "sourceHash": "sha256:fef11c4da238397f6689217dafab3d59543a3151e9f471414e6d0cfa3e9b1f88",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 956,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:975",
+            "sourceHash": "sha256:c6cc3754260a3c1ccef90da818e9afb6ec128e410809113df17a1cd2a5b276ba",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 975,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          }
+        ]
+      },
+      {
+        "id": "aa5aad36708dad684d5b255e3685667f9b7334e018c2bf8e162415c5183ef106",
+        "characterObservation": "character:friend/obs:2",
+        "status": "supported",
+        "reason": "自身说出的喜好可支持自我偏好，不能因此证明旅人做过什么。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:128",
+            "sourceHash": "sha256:1a72aa1cc651173e1f9a338d0e19a3cd7f441314dc143645ca0cd96b18668781",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 128,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:188",
+            "sourceHash": "sha256:f3d7c9dac6592f7fd85f470657d1b445f6b5924da81eb601008f1c51214e8f82",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 188,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:198",
+            "sourceHash": "sha256:57fb548f7cc1a1934cbc7be3ca8b7412d79135bd972b92cb35a106689d244b2b",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 198,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:208",
+            "sourceHash": "sha256:3abbb2e235d27eab009dc299126d12b60eb5ad67fc65bf546fa771347786e706",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 208,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:442",
+            "sourceHash": "sha256:46895dfe602767a7f5896d2d2c88f029806ab009f9e32b0b6319d04d05ab8ce2",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 442,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:452",
+            "sourceHash": "sha256:03f81003af3f68fb3cc0974c3363ab65bc9a443338d185e8dcdb1f6575a003c6",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 452,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:611",
+            "sourceHash": "sha256:18a664ae2301853a44f98fcb5ea8564b21dea250cbbbaaa1a3723c54db6bc5c0",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 611,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:759",
+            "sourceHash": "sha256:ed0c7bc9a791bed8875c1bc9b2d9213583dffb09880bbea7519ee27300818e52",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 759,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:795",
+            "sourceHash": "sha256:04f96dfc05bb39fc5dc06b96ccd3146ead679fe2e7cf979908287790faf3a72d",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 795,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:823",
+            "sourceHash": "sha256:b4e96631e7ea4cd97b8f70f3683f625c29e99d877b431039c11855f793f755c2",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 823,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:835",
+            "sourceHash": "sha256:eebb3bf8150b497a7ebd43f8272924e582bf4938aecc9d0e2178c33a0a7e3d91",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 835,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:945",
+            "sourceHash": "sha256:d48b8c5084d998cef1dbada4262d9094b30a5fbd5bf4947a8467c6864c13c1a9",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 945,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:962",
+            "sourceHash": "sha256:c14cd45519186be23c07f6094b6e3811884904b803f4a9924dfc5177a9300279",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 962,
+            "characterId": "character:friend",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          }
+        ]
+      },
+      {
+        "id": "9e85dcfbfafde49923dba0d6d05d4f1498df124fbbae36cd08afb15576d00fa8",
+        "characterObservation": "character:host/obs:1",
+        "status": "unsupported",
+        "reason": "特意泡热茶分给大家增加了已完成分茶动作及意图；所引只有旅人声明泡茶与请大家喝的台词。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:101",
+            "sourceHash": "sha256:4b533c83e336b10d5fd07dd2f756ff2ae7feae683afb3d072ba2ab2283a79f42",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 101,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:123",
+            "sourceHash": "sha256:5027f17fbe3eae2e90bd37eb50ae2a8d80ed0a9d73bbe5591e33dc24cdbe381c",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 123,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:264",
+            "sourceHash": "sha256:5c8fbf282f76eba553cb47b9f7e9d8fa15b85d6b6785028e73afe2bf8b7bf661",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 264,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:280",
+            "sourceHash": "sha256:607263a5b63e6c11a3000eb95c4089397a27f5e1be12465ce35423db190694ef",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 280,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:291",
+            "sourceHash": "sha256:4f88f1738b0623d440d354f7a19bfd27d2885fe0d6c2ce0be15b9dcce083cf69",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 291,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:383",
+            "sourceHash": "sha256:05e4aeb025d9e9b37e14f6b8930a0ad3abdbfb16ccf26dd08836c8c363f8107f",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 383,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:399",
+            "sourceHash": "sha256:6b2388929a89eeadaf05c6edc820e92274324168b937884fe71fc94537eade2b",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 399,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:520",
+            "sourceHash": "sha256:4a1c14565b1a226707b0a51116672625a48e60d378936a25227d11e6315006a5",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 520,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:670",
+            "sourceHash": "sha256:16a51bcc900751f4ece5dbd8091644febbbfcee393738f4cb03f946d21615419",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 670,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:686",
+            "sourceHash": "sha256:8be64b50270de238e9f13e1b09f9aab1e8bbb8a141dd9fd373978e1012f5b25c",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 686,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:702",
+            "sourceHash": "sha256:8f30028cd4e452f65582890edd6d57244dcbdbdf6eb0b5e41d5a350f53bab0a7",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 702,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:818",
+            "sourceHash": "sha256:3237efa8eb8c292c32baa9bb30bdc7de9dfe0175e54bee4b116be81952d67961",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 818,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:830",
+            "sourceHash": "sha256:e66fff70a1e574bef0539290909c57214f8fb9da0305ff4f856ecc199b6a7e98",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 830,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:842",
+            "sourceHash": "sha256:b6cefe2388a4bee989d2f51ba349517d6cb0c3099773555f282ebd48db6154b9",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 842,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:918",
+            "sourceHash": "sha256:5d40d7adbf0b64740c66aeede36dfac19bed485e7deef84fdda7e4f025167b38",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 918,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:940",
+            "sourceHash": "sha256:8b545a66909472dffa004cd1827c0f84ecc0e2ad45f05ec00b5fa0c225285483",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 940,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:957",
+            "sourceHash": "sha256:f6ef13f275440d3cbbbc46f6302337a8980a6deb725f27f03d854ea86a161a6c",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 957,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:976",
+            "sourceHash": "sha256:b06c7526a939bbbd5f79fbe8b57fd8b43c105a0989b180ef01514384090db79f",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 976,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          }
+        ]
+      },
+      {
+        "id": "6a39a60232aacaefaf77c980d528fa97b6dfd9c491c8e5f323d48563e5a3e3eb",
+        "characterObservation": "character:host/obs:2",
+        "status": "unsupported",
+        "reason": "只有离厅不能证明去客房安顿或到茶水间；泡茶带回分茶升级了自述及意向。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:45",
+            "sourceHash": "sha256:8920de015a81d2080774478e096180d37d75c3270a4519bd5ec1593b574f9876",
+            "epistemicKind": "observed_action",
+            "worldSeq": 45,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:93",
+            "sourceHash": "sha256:b5d8af952278486cc7c1a1a0c598ef5a507ac4cf4789b90fdbc884ae5bafd29a",
+            "epistemicKind": "observed_action",
+            "worldSeq": 93,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:159",
+            "sourceHash": "sha256:69bd795ecce50a7e56a38f37d9962a48c10ca90d7d23a91d9baaf2213a7ea5d9",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 159,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:174",
+            "sourceHash": "sha256:536c414768664e346c3f5904d331e13b9ca5762dfbeb9d3520c79df822859479",
+            "epistemicKind": "observed_action",
+            "worldSeq": 174,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:258",
+            "sourceHash": "sha256:1cbf0311cd510df9cee2ce7af4ba53e0e7171b8cc2e3afca7722fb75a46c1873",
+            "epistemicKind": "observed_action",
+            "worldSeq": 258,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:264",
+            "sourceHash": "sha256:5c8fbf282f76eba553cb47b9f7e9d8fa15b85d6b6785028e73afe2bf8b7bf661",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 264,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:305",
+            "sourceHash": "sha256:f7c41aa2c4fe4c5ac080ce37095cc212d62a99eb01fb2274dbf3319ddee59a12",
+            "epistemicKind": "observed_action",
+            "worldSeq": 305,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:376",
+            "sourceHash": "sha256:f9d0854571f393d1f4d5bc912fbeeb501de10a623106861a3bb7275cfffa7deb",
+            "epistemicKind": "observed_action",
+            "worldSeq": 376,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:414",
+            "sourceHash": "sha256:d6797fe36b7d7c45fb7e869ca09af1aa257193be377505c18f1db0fcc3ed0531",
+            "epistemicKind": "observed_action",
+            "worldSeq": 414,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:513",
+            "sourceHash": "sha256:efe99f7bee2259a898d8befa6b62763ec57c4b72a7d85372754e5d14947481f6",
+            "epistemicKind": "observed_action",
+            "worldSeq": 513,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:531",
+            "sourceHash": "sha256:57dc25098ebb4ed839e011b651c16754367ec91f24d3ec88fd85d1c1acdd578b",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 531,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:550",
+            "sourceHash": "sha256:378ea702826a23139142cfafa9423f6e9d5e928750d4a3a7068c9c494609f56f",
+            "epistemicKind": "observed_action",
+            "worldSeq": 550,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:663",
+            "sourceHash": "sha256:f04499fce7fc54891e07cbeec6ac05ecf339dea49144251af17adf569c9ad6c0",
+            "epistemicKind": "observed_action",
+            "worldSeq": 663,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:670",
+            "sourceHash": "sha256:16a51bcc900751f4ece5dbd8091644febbbfcee393738f4cb03f946d21615419",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 670,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:723",
+            "sourceHash": "sha256:d3382bedbafadf8e0880863fc2f6d410ce4c4404bacd126d430939f60a271e52",
+            "epistemicKind": "observed_action",
+            "worldSeq": 723,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:805",
+            "sourceHash": "sha256:fd605c701ef053e175f06ee2e2c47fa8f4eb9ba0b4c626bd370c326b25085e46",
+            "epistemicKind": "observed_action",
+            "worldSeq": 805,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:818",
+            "sourceHash": "sha256:3237efa8eb8c292c32baa9bb30bdc7de9dfe0175e54bee4b116be81952d67961",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 818,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:864",
+            "sourceHash": "sha256:5736957b3394f87b19b8b4e07674766db309a215690c9b2b911da9550a90e271",
+            "epistemicKind": "observed_action",
+            "worldSeq": 864,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:910",
+            "sourceHash": "sha256:2b6513b5584c2a6f9b4690f19734a609e16cf181c05d3f69ffe554a8efb213af",
+            "epistemicKind": "observed_action",
+            "worldSeq": 910,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:1000",
+            "sourceHash": "sha256:156ed731574e8f0d081427fffa56d1c733e0715b69842270745092fec63b69fc",
+            "epistemicKind": "observed_action",
+            "worldSeq": 1000,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          }
+        ]
+      },
+      {
+        "id": "c5bd0bf9ed446fdc07bbb5ad27aaf4e5b2d27660a207e371dc7b47795e22cc35",
+        "characterObservation": "character:host/obs:3",
+        "status": "unsupported",
+        "reason": "所引离厅from字段不能证明院子目的地、同行或因旅人邀请而乐意；来蹭茶/喝着舒服不证明倒茶动作。",
+        "sourceRefs": [
+          {
+            "sourceId": "event:183",
+            "sourceHash": "sha256:5609cd9ce289eee86e10b3e94cfc1b47a74d4579f1629dd85b635aefed0e556f",
+            "epistemicKind": "observed_action",
+            "worldSeq": 183,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:780",
+            "sourceHash": "sha256:3dfb33f5e5e554135932f4e7f0bd8ac271c9d4d73c23a137fa326d711ffaa120",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 780,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          },
+          {
+            "sourceId": "event:796",
+            "sourceHash": "sha256:7df46b651541b32d8087365e298dc1846c4d53b61f2429bdf7cece4f325c2af9",
+            "epistemicKind": "reported_speech",
+            "worldSeq": 796,
+            "characterId": "character:host",
+            "worldAddress": {
+              "tenantId": "tenant:web-playtest",
+              "worldId": "world:web-playtest:722450b0136361c5",
+              "branchId": "branch:main"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "integrity": {
+    "frozenFilesUnchanged": 1522,
+    "cognitionPopulation": {
+      "queries": 137,
+      "withCommitments": 0,
+      "withOpenLoops": 0
+    }
+  },
+  "knownMissCaught": true,
+  "thresholdsChanged": false,
+  "holdoutEvaluated": false
+}

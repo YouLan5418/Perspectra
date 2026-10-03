@@ -1,0 +1,2641 @@
+{
+  "retrievalCalls": 137,
+  "oldRecordedReproduced": 137,
+  "finalCompression": [
+    {
+      "checkpoint": "turn-0120",
+      "actorId": "character:companion",
+      "mode": "old",
+      "sourceCount": 61,
+      "rawSourceChars": 13191,
+      "factOrAtomCount": 40,
+      "episodeCount": 0,
+      "observationCount": 25,
+      "factOrAtomTextChars": 1173,
+      "episodeTextChars": 0,
+      "observationTextChars": 683,
+      "derivedTextRatio": 0.14070199378364037,
+      "derivedJsonRatio": 1.2008284530781317,
+      "observationTextRatioToCitedSources": 0.07698376916140667,
+      "observationJsonChars": 18540,
+      "widestObservationSources": 5,
+      "widestEpisodeAtoms": 0
+    },
+    {
+      "checkpoint": "turn-0120",
+      "actorId": "character:companion",
+      "mode": "new",
+      "sourceCount": 61,
+      "rawSourceChars": 13191,
+      "factOrAtomCount": 150,
+      "episodeCount": 18,
+      "observationCount": 6,
+      "factOrAtomTextChars": 13566,
+      "episodeTextChars": 17062,
+      "observationTextChars": 360,
+      "derivedTextRatio": 2.3491774694867713,
+      "derivedJsonRatio": 9.746464790744179,
+      "observationTextRatioToCitedSources": 0.03881820142333405,
+      "observationJsonChars": 53873,
+      "widestObservationSources": 13,
+      "widestEpisodeAtoms": 29
+    },
+    {
+      "checkpoint": "turn-0120",
+      "actorId": "character:friend",
+      "mode": "old",
+      "sourceCount": 76,
+      "rawSourceChars": 15437,
+      "factOrAtomCount": 40,
+      "episodeCount": 0,
+      "observationCount": 8,
+      "factOrAtomTextChars": 1170,
+      "episodeTextChars": 0,
+      "observationTextChars": 386,
+      "derivedTextRatio": 0.1007967869404677,
+      "derivedJsonRatio": 0.8632919784070461,
+      "observationTextRatioToCitedSources": 0.05040480543222774,
+      "observationJsonChars": 13317,
+      "widestObservationSources": 25,
+      "widestEpisodeAtoms": 0
+    },
+    {
+      "checkpoint": "turn-0120",
+      "actorId": "character:friend",
+      "mode": "new",
+      "sourceCount": 76,
+      "rawSourceChars": 15437,
+      "factOrAtomCount": 199,
+      "episodeCount": 13,
+      "observationCount": 2,
+      "factOrAtomTextChars": 17948,
+      "episodeTextChars": 22287,
+      "observationTextChars": 177,
+      "derivedTextRatio": 2.617866165705772,
+      "derivedJsonRatio": 9.64262714272185,
+      "observationTextRatioToCitedSources": 0.02744186046511628,
+      "observationJsonChars": 38455,
+      "widestObservationSources": 20,
+      "widestEpisodeAtoms": 36
+    },
+    {
+      "checkpoint": "turn-0120",
+      "actorId": "character:host",
+      "mode": "old",
+      "sourceCount": 60,
+      "rawSourceChars": 13089,
+      "factOrAtomCount": 40,
+      "episodeCount": 0,
+      "observationCount": 13,
+      "factOrAtomTextChars": 1170,
+      "episodeTextChars": 0,
+      "observationTextChars": 618,
+      "derivedTextRatio": 0.13660325464130185,
+      "derivedJsonRatio": 1.135860841140589,
+      "observationTextRatioToCitedSources": 0.0677705888803597,
+      "observationJsonChars": 15881,
+      "widestObservationSources": 6,
+      "widestEpisodeAtoms": 0
+    },
+    {
+      "checkpoint": "turn-0120",
+      "actorId": "character:host",
+      "mode": "new",
+      "sourceCount": 60,
+      "rawSourceChars": 13089,
+      "factOrAtomCount": 152,
+      "episodeCount": 13,
+      "observationCount": 3,
+      "factOrAtomTextChars": 14092,
+      "episodeTextChars": 17492,
+      "observationTextChars": 348,
+      "derivedTextRatio": 2.43960577584231,
+      "derivedJsonRatio": 10.283308525231298,
+      "observationTextRatioToCitedSources": 0.043154761904761904,
+      "observationJsonChars": 63302,
+      "widestObservationSources": 20,
+      "widestEpisodeAtoms": 34
+    }
+  ],
+  "retrieval": {
+    "old": {
+      "nonemptyCalls": 102,
+      "units": {
+        "n": 137,
+        "mean": 5.751824817518248,
+        "median": 8,
+        "sum": 788
+      },
+      "textChars": {
+        "n": 137,
+        "mean": 968.8029197080292,
+        "median": 842,
+        "sum": 132726
+      },
+      "payloadJsonChars": {
+        "n": 137,
+        "mean": 8618.532846715329,
+        "median": 9995,
+        "sum": 1180739
+      },
+      "duplicateSourceOccurrences": {
+        "n": 137,
+        "mean": 1.1751824817518248,
+        "median": 1,
+        "sum": 161
+      },
+      "recentSourceOccurrences": {
+        "n": 137,
+        "mean": 0.6934306569343066,
+        "median": 0,
+        "sum": 95
+      },
+      "maxSourceAgeTicks": 182,
+      "selectedLevels": {
+        "fact": 240,
+        "observation": 146,
+        "representation": 402
+      },
+      "selectedWithGraphContribution": 743
+    },
+    "new": {
+      "nonemptyCalls": 102,
+      "units": {
+        "n": 137,
+        "mean": 5.664233576642336,
+        "median": 8,
+        "sum": 776
+      },
+      "textChars": {
+        "n": 137,
+        "mean": 1401.2919708029196,
+        "median": 860,
+        "sum": 191977
+      },
+      "payloadJsonChars": {
+        "n": 137,
+        "mean": 17109.109489051094,
+        "median": 14501,
+        "sum": 2343948
+      },
+      "duplicateSourceOccurrences": {
+        "n": 137,
+        "mean": 2.343065693430657,
+        "median": 2,
+        "sum": 321
+      },
+      "recentSourceOccurrences": {
+        "n": 137,
+        "mean": 1.1313868613138687,
+        "median": 0,
+        "sum": 155
+      },
+      "maxSourceAgeTicks": 183,
+      "selectedLevels": {
+        "event_atom": 653,
+        "episode": 95,
+        "observation": 28
+      },
+      "selectedWithGraphContribution": 766
+    },
+    "native": {
+      "payloadJsonChars": {
+        "n": 137,
+        "mean": 4671.569343065694,
+        "median": 5980,
+        "sum": 640005
+      },
+      "nonemptyCalls": 100
+    },
+    "sameSourceSetCalls": 38,
+    "sourceJaccard": {
+      "n": 137,
+      "mean": 0.5483409145534448,
+      "median": 0.5,
+      "sum": 75.12270529382195
+    },
+    "nonemptySourceJaccard": {
+      "n": 102,
+      "mean": 0.3933598558217838,
+      "median": 0.39230769230769236,
+      "sum": 40.122705293821944
+    }
+  },
+  "behavior": {
+    "native": {
+      "returned": 135,
+      "decisions": {
+        "abstain": 85,
+        "publish": 48,
+        "perform": 2
+      },
+      "performTargets": {
+        "[\"move\", \"{\\\"locationId\\\": \\\"location:courtyard\\\"}\"]": 1,
+        "[\"move\", \"{\\\"locationId\\\": \\\"location:hall\\\"}\"]": 1
+      },
+      "schemaValid": 135,
+      "structureValid": 135
+    },
+    "old": {
+      "returned": 135,
+      "decisions": {
+        "abstain": 81,
+        "publish": 52,
+        "perform": 2
+      },
+      "performTargets": {
+        "[\"move\", \"{\\\"locationId\\\": \\\"location:courtyard\\\"}\"]": 1,
+        "[\"move\", \"{\\\"locationId\\\": \\\"location:hall\\\"}\"]": 1
+      },
+      "schemaValid": 135,
+      "structureValid": 135
+    },
+    "new": {
+      "returned": 135,
+      "decisions": {
+        "abstain": 80,
+        "publish": 52,
+        "perform": 3
+      },
+      "performTargets": {
+        "[\"move\", \"{\\\"locationId\\\": \\\"location:courtyard\\\"}\"]": 1,
+        "[\"move\", \"{\\\"locationId\\\": \\\"location:porch\\\"}\"]": 1,
+        "[\"move\", \"{\\\"locationId\\\": \\\"location:hall\\\"}\"]": 1
+      },
+      "schemaValid": 135,
+      "structureValid": 135
+    },
+    "pairedCalls": 135,
+    "oldNewDecisionDisagreements": 7,
+    "oldNewActionSignatureDisagreements": [
+      {
+        "traceId": "turn-0010-call-003-host",
+        "native": [
+          "publish"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "abstain"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": true
+      },
+      {
+        "traceId": "turn-0019-call-001-friend",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "abstain"
+        ],
+        "new": [
+          "perform",
+          "move",
+          "{\"locationId\": \"location:porch\"}"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0023-call-001-friend",
+        "native": [
+          "publish"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "abstain"
+        ],
+        "recorded": [
+          "publish"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0044-call-001-companion",
+        "native": [
+          "publish"
+        ],
+        "old": [
+          "abstain"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "publish"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0047-call-001-friend",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "abstain"
+        ],
+        "recorded": [
+          "publish"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0069-call-001-friend",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "abstain"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "publish"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0095-call-001-companion",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "abstain"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": false
+      }
+    ],
+    "nativeNewActionSignatureDisagreements": [
+      {
+        "traceId": "turn-0010-call-003-host",
+        "native": [
+          "publish"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "abstain"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": true
+      },
+      {
+        "traceId": "turn-0019-call-001-friend",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "abstain"
+        ],
+        "new": [
+          "perform",
+          "move",
+          "{\"locationId\": \"location:porch\"}"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0023-call-001-friend",
+        "native": [
+          "publish"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "abstain"
+        ],
+        "recorded": [
+          "publish"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0027-call-001-companion",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "publish"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0069-call-001-friend",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "abstain"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "publish"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0084-call-001-companion",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "publish"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0094-call-001-companion",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0094-call-003-host",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0095-call-001-companion",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "abstain"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": false
+      }
+    ],
+    "recordedOldFreshOldDisagreements": [
+      {
+        "traceId": "turn-0010-call-003-host",
+        "native": [
+          "publish"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "abstain"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": true
+      },
+      {
+        "traceId": "turn-0044-call-001-companion",
+        "native": [
+          "publish"
+        ],
+        "old": [
+          "abstain"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "publish"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0069-call-001-friend",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "abstain"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "publish"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0090-call-001-friend",
+        "native": [
+          "publish"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0094-call-001-companion",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0094-call-003-host",
+        "native": [
+          "abstain"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": false
+      },
+      {
+        "traceId": "turn-0113-call-002-friend",
+        "native": [
+          "publish"
+        ],
+        "old": [
+          "publish"
+        ],
+        "new": [
+          "publish"
+        ],
+        "recorded": [
+          "abstain"
+        ],
+        "oldNewInputIdentical": false
+      }
+    ],
+    "identicalOldNewInputs": {
+      "calls": 35,
+      "signatureDisagreements": 1
+    }
+  },
+  "audit": {
+    "savedRequestPairs": 137,
+    "changedNonMemoryRequestFields": [],
+    "freshOldModelCallMismatchTraceIds": [],
+    "deliveredSourceReferencesChecked": 1248,
+    "newObservationSelectedTraceIds": [
+      "turn-0027-call-001-companion",
+      "turn-0028-call-001-companion",
+      "turn-0042-call-001-companion",
+      "turn-0042-call-002-host",
+      "turn-0043-call-001-companion",
+      "turn-0043-call-002-host",
+      "turn-0083-call-002-host",
+      "turn-0096-call-001-companion",
+      "turn-0096-call-003-host",
+      "turn-0097-call-001-companion",
+      "turn-0097-call-002-friend",
+      "turn-0097-call-003-host",
+      "turn-0110-call-001-companion",
+      "turn-0111-call-001-companion",
+      "turn-0111-call-003-host",
+      "turn-0112-call-001-companion",
+      "turn-0112-call-003-host",
+      "turn-0113-call-001-companion",
+      "turn-0113-call-003-host",
+      "turn-0114-call-001-companion",
+      "turn-0115-call-001-companion"
+    ],
+    "changedOriginalFiles": [],
+    "frozenOriginalFiles": 305,
+    "coreHashesUnchanged": true,
+    "observationsMissionMatchesOriginal": true
+  },
+  "manualAssessment": {
+    "method": "15 traces fixed before rebuilding; single human/model assistant reading of actual query, stimulus and selected evidence; subjective, not blind or population precision",
+    "definitions": {
+      "relevant": "helps current topic or historical continuity",
+      "mixed": "contains useful and extraneous material",
+      "irrelevant": "incidental shared person/place is insufficient to explain current stimulus",
+      "redundant": "same meaning already delivered, including full context repetitions; different source records can still be redundant"
+    },
+    "totals": {
+      "old": {
+        "i": 72,
+        "d": 18,
+        "m": 16,
+        "r": 6
+      },
+      "new": {
+        "i": 41,
+        "m": 21,
+        "d": 41,
+        "r": 6
+      }
+    },
+    "samples": [
+      {
+        "traceId": "turn-0021-call-001-friend",
+        "reason": "当前到院子的移动；旧厅内取包不解释当前到达，旧邀请经历能提供部分联系。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "raw:event:92",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                92
+              ]
+            },
+            {
+              "unitId": "raw:event:44",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                44
+              ]
+            },
+            {
+              "unitId": "raw:event:34",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                34
+              ]
+            },
+            {
+              "unitId": "fact:event:34:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                34
+              ]
+            },
+            {
+              "unitId": "fact:event:44:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                44
+              ]
+            },
+            {
+              "unitId": "fact:event:92:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                92
+              ]
+            },
+            {
+              "unitId": "raw:event:111",
+              "label": "mixed",
+              "sourceSeqs": [
+                111
+              ]
+            },
+            {
+              "unitId": "raw:event:100",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                100
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "atom:event:44:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                44
+              ]
+            },
+            {
+              "unitId": "atom:event:92:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                92
+              ]
+            },
+            {
+              "unitId": "atom:event:34:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                34
+              ]
+            },
+            {
+              "unitId": "atom:event:111:0",
+              "label": "mixed",
+              "sourceSeqs": [
+                111
+              ]
+            },
+            {
+              "unitId": "atom:event:100:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                100
+              ]
+            },
+            {
+              "unitId": "atom:event:100:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                100
+              ]
+            },
+            {
+              "unitId": "episode:4",
+              "label": "mixed",
+              "sourceSeqs": [
+                100,
+                111,
+                122,
+                128,
+                139,
+                145
+              ]
+            },
+            {
+              "unitId": "episode:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                26
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0027-call-001-companion",
+        "reason": "腰酸和歇息；取包和离厅无关，设施仅提供部分歇息背景。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "fact:event:33:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                33
+              ]
+            },
+            {
+              "unitId": "obs:3",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                33,
+                43
+              ]
+            },
+            {
+              "unitId": "fact:event:25:1",
+              "label": "mixed",
+              "sourceSeqs": [
+                25
+              ]
+            },
+            {
+              "unitId": "obs:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                25
+              ]
+            },
+            {
+              "unitId": "obs:2",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                25
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "obs:2",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                33,
+                150
+              ]
+            },
+            {
+              "unitId": "episode:2",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                33,
+                43
+              ]
+            },
+            {
+              "unitId": "atom:event:25:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                25
+              ]
+            },
+            {
+              "unitId": "atom:event:25:1",
+              "label": "mixed",
+              "sourceSeqs": [
+                25
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0027-call-002-host",
+        "reason": "同一歇息话题；设施有部分背景，旧取包经历无关。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "raw:event:27",
+              "label": "mixed",
+              "sourceSeqs": [
+                27
+              ]
+            },
+            {
+              "unitId": "obs:2",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                101,
+                93,
+                35,
+                45
+              ]
+            },
+            {
+              "unitId": "obs:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                27
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "atom:event:27:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                27
+              ]
+            },
+            {
+              "unitId": "atom:event:27:1",
+              "label": "mixed",
+              "sourceSeqs": [
+                27
+              ]
+            },
+            {
+              "unitId": "episode:2",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                35,
+                45
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0028-call-001-companion",
+        "reason": "当前离厅；只凭相同人物和地点命中旧移动，不足以解释此次离开。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "raw:event:43",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                43
+              ]
+            },
+            {
+              "unitId": "fact:event:33:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                33
+              ]
+            },
+            {
+              "unitId": "fact:event:43:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                43
+              ]
+            },
+            {
+              "unitId": "raw:event:91",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                91
+              ]
+            },
+            {
+              "unitId": "fact:event:91:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                91
+              ]
+            },
+            {
+              "unitId": "obs:3",
+              "label": "redundant",
+              "sourceSeqs": [
+                33,
+                43
+              ]
+            },
+            {
+              "unitId": "obs:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                25
+              ]
+            },
+            {
+              "unitId": "obs:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                91
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "atom:event:33:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                33
+              ]
+            },
+            {
+              "unitId": "episode:2",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                33,
+                43
+              ]
+            },
+            {
+              "unitId": "atom:event:91:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                91
+              ]
+            },
+            {
+              "unitId": "episode:3",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                91,
+                99,
+                106
+              ]
+            },
+            {
+              "unitId": "episode:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                25
+              ]
+            },
+            {
+              "unitId": "obs:2",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                33,
+                150
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0044-call-001-companion",
+        "reason": "清静休息；旧休息计划有部分联系，但同句输入和发言重复交付。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "raw:event:121",
+              "label": "mixed",
+              "sourceSeqs": [
+                121
+              ]
+            },
+            {
+              "unitId": "raw:event:138",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                138
+              ]
+            },
+            {
+              "unitId": "raw:event:106",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                106
+              ]
+            },
+            {
+              "unitId": "raw:event:99",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                99
+              ]
+            },
+            {
+              "unitId": "obs:5",
+              "label": "redundant",
+              "sourceSeqs": [
+                99
+              ]
+            },
+            {
+              "unitId": "fact:event:33:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                33
+              ]
+            },
+            {
+              "unitId": "fact:event:25:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                25
+              ]
+            },
+            {
+              "unitId": "fact:event:43:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                43
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "atom:event:121:3",
+              "label": "mixed",
+              "sourceSeqs": [
+                121
+              ]
+            },
+            {
+              "unitId": "atom:event:121:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                121
+              ]
+            },
+            {
+              "unitId": "atom:event:121:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                121
+              ]
+            },
+            {
+              "unitId": "atom:event:121:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                121
+              ]
+            },
+            {
+              "unitId": "atom:event:138:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                138
+              ]
+            },
+            {
+              "unitId": "atom:event:138:2",
+              "label": "redundant",
+              "sourceSeqs": [
+                138
+              ]
+            },
+            {
+              "unitId": "episode:3",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                91,
+                99,
+                106
+              ]
+            },
+            {
+              "unitId": "episode:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                121,
+                138
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0044-call-002-host",
+        "reason": "周姨接待和休息有关；取包和出入厅被混入，完整语境导致多条同义交付。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "raw:event:35",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                35
+              ]
+            },
+            {
+              "unitId": "raw:event:116",
+              "label": "relevant",
+              "sourceSeqs": [
+                116
+              ]
+            },
+            {
+              "unitId": "raw:event:133",
+              "label": "relevant",
+              "sourceSeqs": [
+                133
+              ]
+            },
+            {
+              "unitId": "raw:event:123",
+              "label": "mixed",
+              "sourceSeqs": [
+                123
+              ]
+            },
+            {
+              "unitId": "raw:event:101",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                101
+              ]
+            },
+            {
+              "unitId": "fact:event:35:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                35
+              ]
+            },
+            {
+              "unitId": "fact:event:45:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                45
+              ]
+            },
+            {
+              "unitId": "obs:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                27
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "atom:event:133:0",
+              "label": "relevant",
+              "sourceSeqs": [
+                133
+              ]
+            },
+            {
+              "unitId": "atom:event:116:0",
+              "label": "mixed",
+              "sourceSeqs": [
+                116
+              ]
+            },
+            {
+              "unitId": "atom:event:116:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                116
+              ]
+            },
+            {
+              "unitId": "episode:2",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                35,
+                45
+              ]
+            },
+            {
+              "unitId": "episode:3",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                93
+              ]
+            },
+            {
+              "unitId": "atom:event:123:3",
+              "label": "mixed",
+              "sourceSeqs": [
+                123
+              ]
+            },
+            {
+              "unitId": "atom:event:123:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                123
+              ]
+            },
+            {
+              "unitId": "atom:event:133:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                133
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0049-call-001-friend",
+        "reason": "院里透气；共同出游相关，茶水间与行李夹杂，原始输入与发言重复。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "obs:5",
+              "label": "relevant",
+              "sourceSeqs": [
+                239,
+                182,
+                198,
+                216,
+                164,
+                128,
+                158
+              ]
+            },
+            {
+              "unitId": "raw:event:188",
+              "label": "relevant",
+              "sourceSeqs": [
+                188
+              ]
+            },
+            {
+              "unitId": "fact:event:100:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                100
+              ]
+            },
+            {
+              "unitId": "obs:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                100
+              ]
+            },
+            {
+              "unitId": "fact:event:26:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                26
+              ]
+            },
+            {
+              "unitId": "obs:2",
+              "label": "redundant",
+              "sourceSeqs": [
+                26
+              ]
+            },
+            {
+              "unitId": "raw:event:111",
+              "label": "mixed",
+              "sourceSeqs": [
+                111
+              ]
+            },
+            {
+              "unitId": "raw:event:122",
+              "label": "mixed",
+              "sourceSeqs": [
+                122
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "episode:5",
+              "label": "mixed",
+              "sourceSeqs": [
+                151,
+                158,
+                164
+              ]
+            },
+            {
+              "unitId": "atom:event:188:0",
+              "label": "relevant",
+              "sourceSeqs": [
+                188
+              ]
+            },
+            {
+              "unitId": "episode:6",
+              "label": "mixed",
+              "sourceSeqs": [
+                173,
+                182,
+                188,
+                193,
+                198,
+                203,
+                208,
+                216
+              ]
+            },
+            {
+              "unitId": "atom:event:122:1",
+              "label": "mixed",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:122:3",
+              "label": "redundant",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:122:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:128:1",
+              "label": "relevant",
+              "sourceSeqs": [
+                128
+              ]
+            },
+            {
+              "unitId": "atom:event:122:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                122
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0073-call-001-friend",
+        "reason": "出发时间与早晨提神；院子清醒有部分联系，早期门廊计划未能解释现在的计划。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "raw:event:182",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                182
+              ]
+            },
+            {
+              "unitId": "fact:event:239:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                239
+              ]
+            },
+            {
+              "unitId": "fact:event:198:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                198
+              ]
+            },
+            {
+              "unitId": "obs:5",
+              "label": "mixed",
+              "sourceSeqs": [
+                575,
+                580,
+                586,
+                437,
+                447,
+                452,
+                239,
+                182,
+                198,
+                216,
+                164,
+                128,
+                158
+              ]
+            },
+            {
+              "unitId": "fact:event:26:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                26
+              ]
+            },
+            {
+              "unitId": "obs:2",
+              "label": "redundant",
+              "sourceSeqs": [
+                26
+              ]
+            },
+            {
+              "unitId": "raw:event:151",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                151
+              ]
+            },
+            {
+              "unitId": "raw:event:34",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                34
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "atom:event:193:4",
+              "label": "relevant",
+              "sourceSeqs": [
+                193
+              ]
+            },
+            {
+              "unitId": "atom:event:193:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                193
+              ]
+            },
+            {
+              "unitId": "atom:event:122:3",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:122:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:128:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                128
+              ]
+            },
+            {
+              "unitId": "atom:event:193:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                193
+              ]
+            },
+            {
+              "unitId": "atom:event:198:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                198
+              ]
+            },
+            {
+              "unitId": "atom:event:128:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                128
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0074-call-001-friend",
+        "reason": "约喝茶；设施和歇息背景有部分关系，旧门廊雨伞无关，新同源多条重复。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "obs:2",
+              "label": "mixed",
+              "sourceSeqs": [
+                26
+              ]
+            },
+            {
+              "unitId": "fact:event:239:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                239
+              ]
+            },
+            {
+              "unitId": "raw:event:128",
+              "label": "mixed",
+              "sourceSeqs": [
+                128
+              ]
+            },
+            {
+              "unitId": "raw:event:198",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                198
+              ]
+            },
+            {
+              "unitId": "fact:event:234:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                234
+              ]
+            },
+            {
+              "unitId": "obs:7",
+              "label": "redundant",
+              "sourceSeqs": [
+                234
+              ]
+            },
+            {
+              "unitId": "obs:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                26
+              ]
+            },
+            {
+              "unitId": "fact:event:198:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                198
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "atom:event:122:3",
+              "label": "mixed",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:122:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:122:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:122:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:128:0",
+              "label": "mixed",
+              "sourceSeqs": [
+                128
+              ]
+            },
+            {
+              "unitId": "atom:event:128:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                128
+              ]
+            },
+            {
+              "unitId": "atom:event:239:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                239
+              ]
+            },
+            {
+              "unitId": "atom:event:239:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                239
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0082-call-001-companion",
+        "reason": "邀请林晓喝茶；早期疲乏经历部分相关，行李、记事本和重复输入无关或冗余。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "fact:event:99:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                99
+              ]
+            },
+            {
+              "unitId": "raw:event:150",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                150
+              ]
+            },
+            {
+              "unitId": "obs:5",
+              "label": "redundant",
+              "sourceSeqs": [
+                99
+              ]
+            },
+            {
+              "unitId": "raw:event:33",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                33
+              ]
+            },
+            {
+              "unitId": "fact:event:33:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                33
+              ]
+            },
+            {
+              "unitId": "raw:event:91",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                91
+              ]
+            },
+            {
+              "unitId": "raw:event:172",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                172
+              ]
+            },
+            {
+              "unitId": "raw:event:43",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                43
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "episode:3",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                91,
+                99,
+                106
+              ]
+            },
+            {
+              "unitId": "atom:event:121:1",
+              "label": "mixed",
+              "sourceSeqs": [
+                121
+              ]
+            },
+            {
+              "unitId": "atom:event:121:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                121
+              ]
+            },
+            {
+              "unitId": "episode:7",
+              "label": "mixed",
+              "sourceSeqs": [
+                256,
+                263,
+                269,
+                279,
+                285,
+                290,
+                296
+              ]
+            },
+            {
+              "unitId": "episode:5",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                150,
+                157
+              ]
+            },
+            {
+              "unitId": "atom:event:121:2",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                121
+              ]
+            },
+            {
+              "unitId": "episode:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                121,
+                138
+              ]
+            },
+            {
+              "unitId": "episode:6",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                172,
+                181
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0082-call-002-host",
+        "reason": "邀请周姨喝茶；热水和接待相关，旧取包和进出大厅无关。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "fact:event:101:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                101
+              ]
+            },
+            {
+              "unitId": "obs:2",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                101,
+                93,
+                35,
+                45
+              ]
+            },
+            {
+              "unitId": "raw:event:152",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                152
+              ]
+            },
+            {
+              "unitId": "obs:4",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                258,
+                264,
+                274,
+                174,
+                183,
+                159
+              ]
+            },
+            {
+              "unitId": "obs:1",
+              "label": "mixed",
+              "sourceSeqs": [
+                27
+              ]
+            },
+            {
+              "unitId": "raw:event:123",
+              "label": "mixed",
+              "sourceSeqs": [
+                123
+              ]
+            },
+            {
+              "unitId": "raw:event:116",
+              "label": "mixed",
+              "sourceSeqs": [
+                116
+              ]
+            },
+            {
+              "unitId": "raw:event:133",
+              "label": "relevant",
+              "sourceSeqs": [
+                133
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "episode:7",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                258,
+                264,
+                274,
+                280,
+                291
+              ]
+            },
+            {
+              "unitId": "atom:event:123:1",
+              "label": "mixed",
+              "sourceSeqs": [
+                123
+              ]
+            },
+            {
+              "unitId": "atom:event:123:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                123
+              ]
+            },
+            {
+              "unitId": "episode:5",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                152,
+                159
+              ]
+            },
+            {
+              "unitId": "atom:event:116:1",
+              "label": "mixed",
+              "sourceSeqs": [
+                116
+              ]
+            },
+            {
+              "unitId": "atom:event:101:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                101
+              ]
+            },
+            {
+              "unitId": "atom:event:116:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                116
+              ]
+            },
+            {
+              "unitId": "episode:4",
+              "label": "mixed",
+              "sourceSeqs": [
+                101,
+                116,
+                123,
+                133,
+                140
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0092-call-001-friend",
+        "reason": "沈南接受热茶后准备去厅；旧版至少有先前喝茶约定，新版主要为早期厅/院子话语重复。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "fact:event:100:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                100
+              ]
+            },
+            {
+              "unitId": "obs:5",
+              "label": "mixed",
+              "sourceSeqs": [
+                611,
+                621,
+                575,
+                580,
+                586,
+                437,
+                447,
+                452,
+                239,
+                182,
+                198,
+                216,
+                164,
+                128,
+                158
+              ]
+            },
+            {
+              "unitId": "obs:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                100
+              ]
+            },
+            {
+              "unitId": "fact:event:26:1",
+              "label": "mixed",
+              "sourceSeqs": [
+                26
+              ]
+            },
+            {
+              "unitId": "obs:2",
+              "label": "redundant",
+              "sourceSeqs": [
+                26
+              ]
+            },
+            {
+              "unitId": "raw:event:208",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                208
+              ]
+            },
+            {
+              "unitId": "raw:event:442",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                442
+              ]
+            },
+            {
+              "unitId": "raw:event:244",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                244
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "atom:event:122:3",
+              "label": "mixed",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:122:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:122:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:122:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                122
+              ]
+            },
+            {
+              "unitId": "atom:event:437:4",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                437
+              ]
+            },
+            {
+              "unitId": "atom:event:437:3",
+              "label": "redundant",
+              "sourceSeqs": [
+                437
+              ]
+            },
+            {
+              "unitId": "atom:event:437:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                437
+              ]
+            },
+            {
+              "unitId": "atom:event:437:0",
+              "label": "redundant",
+              "sourceSeqs": [
+                437
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0098-call-002-friend",
+        "reason": "当前玩家离厅；同一人物的多次旧移动不能解释这次刺激。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "raw:event:182",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                182
+              ]
+            },
+            {
+              "unitId": "fact:event:34:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                34
+              ]
+            },
+            {
+              "unitId": "raw:event:173",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                173
+              ]
+            },
+            {
+              "unitId": "raw:event:44",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                44
+              ]
+            },
+            {
+              "unitId": "raw:event:151",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                151
+              ]
+            },
+            {
+              "unitId": "raw:event:257",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                257
+              ]
+            },
+            {
+              "unitId": "raw:event:216",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                216
+              ]
+            },
+            {
+              "unitId": "raw:event:92",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                92
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "atom:event:182:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                182
+              ]
+            },
+            {
+              "unitId": "atom:event:34:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                34
+              ]
+            },
+            {
+              "unitId": "atom:event:173:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                173
+              ]
+            },
+            {
+              "unitId": "atom:event:44:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                44
+              ]
+            },
+            {
+              "unitId": "atom:event:92:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                92
+              ]
+            },
+            {
+              "unitId": "atom:event:151:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                151
+              ]
+            },
+            {
+              "unitId": "atom:event:216:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                216
+              ]
+            },
+            {
+              "unitId": "atom:event:257:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                257
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0109-call-001-companion",
+        "reason": "回屋读书后再遇；旧读书话语相关，新版更容易命中，但两来源占满八个槽位。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "fact:event:33:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                33
+              ]
+            },
+            {
+              "unitId": "fact:event:304:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                304
+              ]
+            },
+            {
+              "unitId": "fact:event:375:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                375
+              ]
+            },
+            {
+              "unitId": "fact:event:256:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                256
+              ]
+            },
+            {
+              "unitId": "fact:event:662:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                662
+              ]
+            },
+            {
+              "unitId": "fact:event:43:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                43
+              ]
+            },
+            {
+              "unitId": "fact:event:172:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                172
+              ]
+            },
+            {
+              "unitId": "fact:event:263:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                263
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "atom:event:382:0",
+              "label": "relevant",
+              "sourceSeqs": [
+                382
+              ]
+            },
+            {
+              "unitId": "atom:event:382:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                382
+              ]
+            },
+            {
+              "unitId": "atom:event:121:0",
+              "label": "mixed",
+              "sourceSeqs": [
+                121
+              ]
+            },
+            {
+              "unitId": "atom:event:121:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                121
+              ]
+            },
+            {
+              "unitId": "atom:event:382:3",
+              "label": "redundant",
+              "sourceSeqs": [
+                382
+              ]
+            },
+            {
+              "unitId": "atom:event:382:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                382
+              ]
+            },
+            {
+              "unitId": "atom:event:121:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                121
+              ]
+            },
+            {
+              "unitId": "atom:event:121:3",
+              "label": "redundant",
+              "sourceSeqs": [
+                121
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "traceId": "turn-0109-call-003-host",
+        "reason": "同样的读书再遇；近期精神恢复部分相关，旧进出厅无关，完整语境反复交付。",
+        "modes": {
+          "old": [
+            {
+              "unitId": "fact:event:383:1",
+              "label": "relevant",
+              "sourceSeqs": [
+                383
+              ]
+            },
+            {
+              "unitId": "fact:event:258:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                258
+              ]
+            },
+            {
+              "unitId": "fact:event:513:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                513
+              ]
+            },
+            {
+              "unitId": "fact:event:264:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                264
+              ]
+            },
+            {
+              "unitId": "fact:event:35:0",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                35
+              ]
+            },
+            {
+              "unitId": "fact:event:45:1",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                45
+              ]
+            },
+            {
+              "unitId": "fact:event:550:2",
+              "label": "irrelevant",
+              "sourceSeqs": [
+                550
+              ]
+            },
+            {
+              "unitId": "fact:event:520:1",
+              "label": "mixed",
+              "sourceSeqs": [
+                520
+              ]
+            }
+          ],
+          "new": [
+            {
+              "unitId": "atom:event:383:0",
+              "label": "relevant",
+              "sourceSeqs": [
+                383
+              ]
+            },
+            {
+              "unitId": "atom:event:383:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                383
+              ]
+            },
+            {
+              "unitId": "atom:event:383:3",
+              "label": "redundant",
+              "sourceSeqs": [
+                383
+              ]
+            },
+            {
+              "unitId": "atom:event:123:0",
+              "label": "mixed",
+              "sourceSeqs": [
+                123
+              ]
+            },
+            {
+              "unitId": "atom:event:383:4",
+              "label": "redundant",
+              "sourceSeqs": [
+                383
+              ]
+            },
+            {
+              "unitId": "atom:event:123:1",
+              "label": "redundant",
+              "sourceSeqs": [
+                123
+              ]
+            },
+            {
+              "unitId": "atom:event:264:0",
+              "label": "mixed",
+              "sourceSeqs": [
+                264
+              ]
+            },
+            {
+              "unitId": "atom:event:123:3",
+              "label": "redundant",
+              "sourceSeqs": [
+                123
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "embeddingLengths": {
+    "old": {
+      "representation": {
+        "units": 197,
+        "exceeds256": 6,
+        "medianTokens": 81,
+        "maxTokens": 474
+      },
+      "fact": {
+        "units": 120,
+        "exceeds256": 0,
+        "medianTokens": 22.0,
+        "maxTokens": 48
+      },
+      "observation": {
+        "units": 46,
+        "exceeds256": 0,
+        "medianTokens": 24.5,
+        "maxTokens": 224
+      }
+    },
+    "new": {
+      "event_atom": {
+        "units": 501,
+        "exceeds256": 0,
+        "medianTokens": 59,
+        "maxTokens": 149
+      },
+      "episode": {
+        "units": 44,
+        "exceeds256": 30,
+        "medianTokens": 682.0,
+        "maxTokens": 2522
+      },
+      "observation": {
+        "units": 11,
+        "exceeds256": 0,
+        "medianTokens": 63,
+        "maxTokens": 128
+      }
+    }
+  },
+  "behaviorConfirmation": {
+    "traceId": "turn-0019-call-001-friend",
+    "method": "post hoc exploratory follow-up; five additional replies per mode; do not merge into primary 135 pairs",
+    "modes": {
+      "native": {
+        "additionalCalls": 5,
+        "decisions": {
+          "abstain": 5
+        },
+        "initialResponse": {
+          "decision": "abstain"
+        },
+        "sameInputHash": "a365cb7cc703719fb1fb918faaf0706f722692a999cff92abf833a3ea99f2716",
+        "responses": [
+          {
+            "decision": "abstain"
+          },
+          {
+            "decision": "abstain"
+          },
+          {
+            "decision": "abstain"
+          },
+          {
+            "decision": "abstain"
+          },
+          {
+            "decision": "abstain"
+          }
+        ]
+      },
+      "old": {
+        "additionalCalls": 5,
+        "decisions": {
+          "abstain": 4,
+          "perform": 1
+        },
+        "initialResponse": {
+          "decision": "abstain"
+        },
+        "sameInputHash": "6b22d07a80bd145dd8e6f5edc36a8b35fde27e2de4a7637e364a1a1ca4c27398",
+        "responses": [
+          {
+            "decision": "abstain"
+          },
+          {
+            "decision": "abstain"
+          },
+          {
+            "decision": "abstain"
+          },
+          {
+            "actionType": "move",
+            "parameters": {
+              "locationId": "location:porch"
+            },
+            "decision": "perform"
+          },
+          {
+            "decision": "abstain"
+          }
+        ]
+      },
+      "new": {
+        "additionalCalls": 5,
+        "decisions": {
+          "abstain": 4,
+          "perform": 1
+        },
+        "initialResponse": {
+          "parameters": {
+            "locationId": "location:porch"
+          },
+          "actionType": "move",
+          "decision": "perform"
+        },
+        "sameInputHash": "8875cadf624ef4f4b5ee33cddf42a69ce67a73baef7ebfc3a7ac8af528010dd9",
+        "responses": [
+          {
+            "decision": "abstain"
+          },
+          {
+            "decision": "perform",
+            "parameters": {
+              "locationId": "location:porch"
+            },
+            "actionType": "move"
+          },
+          {
+            "decision": "abstain"
+          },
+          {
+            "decision": "abstain"
+          },
+          {
+            "decision": "abstain"
+          }
+        ]
+      }
+    }
+  }
+}

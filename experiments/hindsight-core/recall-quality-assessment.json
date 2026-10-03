@@ -1,0 +1,557 @@
+{
+  "method": "Assistant reads all 48 selected final inputs; not blind or independent. Labels distinguish unique useful continuity, broad context, noise and inherited observation distortion. Empty is not automatically correct; no complete relevance gold set.",
+  "selection": "15 pre-existing fixed points plus 33 deterministic spread, chosen before improved outputs",
+  "counts": {
+    "contextual": 10,
+    "noise": 10,
+    "useful": 5,
+    "distorted_observation": 2
+  },
+  "oldItems": 283,
+  "newItems": 27,
+  "emptyPoints": 31,
+  "samples": [
+    {
+      "traceId": "turn-0001-call-001-companion",
+      "query": "观察到行动结果：旅人，take，对象travel bag",
+      "oldItems": 0,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0002-call-001-companion",
+      "query": "观察到行动结果：player，离开hall",
+      "oldItems": 0,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0010-call-001-companion",
+      "query": "观察到行动结果：旅人，进入hall",
+      "oldItems": 0,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0011-call-001-companion",
+      "query": "周姨、林晓、沈南，我把随身行李都先放到客房收好了。",
+      "oldItems": 0,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0012-call-001-companion",
+      "query": "我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。",
+      "oldItems": 0,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0013-call-001-companion",
+      "query": "好啊，等会儿去的时候叫上你，咱们一块儿去。",
+      "oldItems": 0,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0014-call-001-companion",
+      "query": "观察到行动结果：旅人，take，对象notebook",
+      "oldItems": 0,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0015-call-001-companion",
+      "query": "沈南，我歇得差不多了，咱们现在去院子转转吧？",
+      "oldItems": 0,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0016-call-001-companion",
+      "query": "观察到行动结果：player，离开hall",
+      "oldItems": 2,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0016-call-004-host",
+      "query": "观察到行动结果：player，离开hall",
+      "oldItems": 2,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0017-call-001-friend",
+      "query": "是啊，吹吹风整个人都清醒不少。这院子还挺清静的。",
+      "oldItems": 2,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0021-call-001-friend",
+      "query": "观察到行动结果：旅人，进入courtyard",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0022-call-001-friend",
+      "query": "我刚才去门廊那边瞧了一眼，视野挺好的，架上还备了雨伞。等会儿你想过去转转随时去。",
+      "oldItems": 8,
+      "newItems": 1,
+      "newReading": [
+        {
+          "memoryId": "atom:event:122:0",
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。",
+          "label": "contextual"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0024-call-002-friend",
+      "query": "观察到行动结果：player，离开courtyard",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0025-call-002-host",
+      "query": "院子里风吹着挺舒服的，在外面透了会儿气，整个人精神多了。",
+      "oldItems": 2,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0027-call-001-companion",
+      "query": "坐久了确实容易腰酸背痛，在厅里多歇歇，缓一缓就舒坦了。",
+      "oldItems": 4,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0027-call-002-host",
+      "query": "坐久了确实容易腰酸背痛，在厅里多歇歇，缓一缓就舒坦了。",
+      "oldItems": 4,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0028-call-001-companion",
+      "query": "观察到行动结果：player，离开hall",
+      "oldItems": 6,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0028-call-002-host",
+      "query": "观察到行动结果：player，离开hall",
+      "oldItems": 5,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0043-call-001-companion",
+      "query": "刚才回屋里喝了口热茶、看了会儿书，整个人松快多了。大伙儿都还歇着呢？",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0044-call-001-companion",
+      "query": "可不是嘛，难得有这么清静的功夫，在这儿坐着听听风声，整个人都慢下来了。",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0044-call-002-host",
+      "query": "可不是嘛，难得有这么清静的功夫，在这儿坐着听听风声，整个人都慢下来了。",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0045-call-002-host",
+      "query": "观察到行动结果：player，离开hall",
+      "oldItems": 8,
+      "newItems": 1,
+      "newReading": [
+        {
+          "memoryId": "obs:2",
+          "text": "【主观认识，可修正】【主观认识，可修正】旅人行动颇为活跃，在驿站内频繁走动（先后前往客房安顿、去院子吹风散步，回公共厅闲聊稍歇后又再次动身离开）。",
+          "label": "noise"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0049-call-001-friend",
+      "query": "确实，这一路奔波，能有这么个空当站在院里静静放空，感觉疲乏都散得差不多了。",
+      "oldItems": 8,
+      "newItems": 3,
+      "newReading": [
+        {
+          "memoryId": "atom:event:188:0",
+          "text": "【听到发言；所述内容未经独立核实】character:friend：院里空气确实比屋里透亮多了。",
+          "label": "contextual"
+        },
+        {
+          "memoryId": "atom:event:128:0",
+          "text": "【听到发言；所述内容未经独立核实】character:friend：歇会儿挺好，赶路容易乏。待会儿要去门廊或院子叫我一声，我也打算过去透透气。",
+          "label": "contextual"
+        },
+        {
+          "memoryId": "atom:event:164:0",
+          "text": "【听到发言；所述内容未经独立核实】character:friend：行，走吧，正好去院子里透透气。",
+          "label": "useful"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0050-call-001-friend",
+      "query": "观察到行动结果：player，离开courtyard",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0063-call-001-companion",
+      "query": "周姨、林晓，早啊！昨晚睡得真踏实，这会儿精神好多了。",
+      "oldItems": 8,
+      "newItems": 1,
+      "newReading": [
+        {
+          "memoryId": "atom:event:99:0",
+          "text": "【听到发言；所述内容未经独立核实】character:player：周姨、林晓、沈南，我把随身行李都先放到客房收好了。",
+          "label": "noise"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0064-call-002-host",
+      "query": "可不是嘛。我先去茶水间弄点热水喝，润润嗓子。",
+      "oldItems": 8,
+      "newItems": 1,
+      "newReading": [
+        {
+          "memoryId": "atom:event:116:1",
+          "text": "【听到发言；所述内容未经独立核实】character:host：放好了就行！一路赶过来辛苦了，先歇歇脚，茶水间备着热水呢，渴了随时去倒。",
+          "label": "contextual"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0069-call-001-friend",
+      "query": "观察到行动结果：旅人，进入courtyard",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0073-call-001-friend",
+      "query": "确实提神。你今天打算什么时候动身？要是还不急着走，咱们也能在驿站再宽裕地歇会儿。",
+      "oldItems": 8,
+      "newItems": 1,
+      "newReading": [
+        {
+          "memoryId": "atom:event:145:0",
+          "text": "【听到发言；所述内容未经独立核实】character:friend：行，你先歇会儿，不着急。",
+          "label": "noise"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0074-call-001-friend",
+      "query": "这样挺好，早晨路上凉，晚点出发也稳妥。我也打算在驿站再理理随身物件，等会儿正好一块儿去茶水间喝杯热茶。",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0075-call-001-friend",
+      "query": "观察到行动结果：player，离开courtyard",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0082-call-001-companion",
+      "query": "周姨、林晓，我刚才在茶水间泡了壶热茶，正好去去清晨的凉意，你们要来点尝尝吗？",
+      "oldItems": 8,
+      "newItems": 1,
+      "newReading": [
+        {
+          "memoryId": "atom:event:121:1",
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。",
+          "label": "contextual"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0082-call-002-host",
+      "query": "周姨、林晓，我刚才在茶水间泡了壶热茶，正好去去清晨的凉意，你们要来点尝尝吗？",
+      "oldItems": 8,
+      "newItems": 2,
+      "newReading": [
+        {
+          "memoryId": "atom:event:123:1",
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。",
+          "label": "contextual"
+        },
+        {
+          "memoryId": "atom:event:101:0",
+          "text": "【听到发言；所述内容未经独立核实】character:player：周姨、林晓、沈南，我把随身行李都先放到客房收好了。",
+          "label": "noise"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0083-call-001-companion",
+      "query": "刚泡好的，水还挺烫，慢慢喝，暖暖身子。",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0084-call-002-host",
+      "query": "合胃口就好，大家趁热喝。我也坐这儿歇会儿。",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0086-call-001-companion",
+      "query": "观察到行动结果：player，离开hall",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0091-call-001-friend",
+      "query": "沈南，刚才我泡了壶热茶，周姨和林晓在厅里正喝着呢。你要是想喝口热的，现在去厅里或茶水间正好。",
+      "oldItems": 8,
+      "newItems": 1,
+      "newReading": [
+        {
+          "memoryId": "episode:4",
+          "text": "【听到发言；所述内容未经独立核实】character:player：周姨、林晓、沈南，我把随身行李都先放到客房收好了。",
+          "label": "noise"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0092-call-001-friend",
+      "query": "快去吧，水还热着呢，慢慢喝。",
+      "oldItems": 8,
+      "newItems": 2,
+      "newReading": [
+        {
+          "memoryId": "atom:event:244:0",
+          "text": "【听到发言；所述内容未经独立核实】character:player：好，慢慢来不着急。我也在这儿多待会儿，吹吹风确实挺惬意的。",
+          "label": "noise"
+        },
+        {
+          "memoryId": "atom:event:164:0",
+          "text": "【听到发言；所述内容未经独立核实】character:friend：行，走吧，正好去院子里透透气。",
+          "label": "noise"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0092-call-004-host",
+      "query": "观察到行动结果：沈南，进入hall 周姨，林晓，早啊。听说有刚泡好的热茶，我也来蹭一杯暖暖身子。",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0093-call-002-friend",
+      "query": "观察到行动结果：旅人，进入hall",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0094-call-002-friend",
+      "query": "好啊，吹了会儿晨风，坐这儿喝杯热茶真是舒坦。",
+      "oldItems": 8,
+      "newItems": 3,
+      "newReading": [
+        {
+          "memoryId": "atom:event:442:0",
+          "text": "【听到发言；所述内容未经独立核实】character:friend：是啊，在这儿站着挺舒服，吹吹风整个人都松快不少。",
+          "label": "contextual"
+        },
+        {
+          "memoryId": "atom:event:244:1",
+          "text": "【听到发言；所述内容未经独立核实】character:player：好，慢慢来不着急。我也在这儿多待会儿，吹吹风确实挺惬意的。",
+          "label": "contextual"
+        },
+        {
+          "memoryId": "atom:event:239:0",
+          "text": "【听到发言；所述内容未经独立核实】character:friend：好，备着伞挺周到。我在这儿再站会儿，等会儿也过去看看。",
+          "label": "noise"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0095-call-002-friend",
+      "query": "是啊，赶路累了能在这儿安安稳稳喝杯热茶最惬意了。反正不急着动身，大家多歇会儿。",
+      "oldItems": 8,
+      "newItems": 3,
+      "newReading": [
+        {
+          "memoryId": "atom:event:611:1",
+          "text": "【听到发言；所述内容未经独立核实】character:friend：我倒不急着走，等日头再高些、天暖和了再动身也不迟。正好在驿站宽裕歇会儿，待会儿再去茶水间弄口热茶喝。",
+          "label": "useful"
+        },
+        {
+          "memoryId": "atom:event:606:2",
+          "text": "【听到发言；所述内容未经独立核实】character:player：确实提神。你今天打算什么时候动身？要是还不急着走，咱们也能在驿站再宽裕地歇会儿。",
+          "label": "contextual"
+        },
+        {
+          "memoryId": "atom:event:616:1",
+          "text": "【听到发言；所述内容未经独立核实】character:player：这样挺好，早晨路上凉，晚点出发也稳妥。我也打算在驿站再理理随身物件，等会儿正好一块儿去茶水间喝杯热茶。",
+          "label": "useful"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0096-call-002-friend",
+      "query": "嗯，不用赶路的时候就该这么踏实歇着，听听鸟叫、喝口热茶，心情也敞亮。",
+      "oldItems": 8,
+      "newItems": 1,
+      "newReading": [
+        {
+          "memoryId": "atom:event:128:0",
+          "text": "【听到发言；所述内容未经独立核实】character:friend：歇会儿挺好，赶路容易乏。待会儿要去门廊或院子叫我一声，我也打算过去透透气。",
+          "label": "contextual"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0097-call-002-friend",
+      "query": "外显叙述：旅人双手捧着温热的茶杯，低头抿了一口，微笑着听着窗外的鸟鸣，静静享受着这份闲适。",
+      "oldItems": 8,
+      "newItems": 3,
+      "newReading": [
+        {
+          "memoryId": "atom:event:616:2",
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人赞同地点了点头，神情轻松地笑着回应。",
+          "label": "noise"
+        },
+        {
+          "memoryId": "atom:event:591:1",
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人在院中伸展了一下筋骨，深深吸了一口清晨微凉湿润的空气，整个人倍感舒畅。",
+          "label": "noise"
+        },
+        {
+          "memoryId": "obs:1",
+          "text": "【主观认识，可修正】旅人性格随和细致、注重沟通与照顾同伴：不仅相约前往院子透气、主动分享门廊见闻与备伞情况，在院中多次自然搭话吹风放空，清早关切问候、商讨从容的动身节奏，泡好茶后特意相告并同桌喝茶闲聊，相处起来轻松妥帖。",
+          "label": "distorted_observation"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0098-call-002-friend",
+      "query": "观察到行动结果：player，离开hall",
+      "oldItems": 8,
+      "newItems": 0,
+      "newReading": [],
+      "interpretation": "empty delivery; correctness unlabelled without relevance gold"
+    },
+    {
+      "traceId": "turn-0098-call-003-host",
+      "query": "观察到行动结果：player，离开hall",
+      "oldItems": 8,
+      "newItems": 1,
+      "newReading": [
+        {
+          "memoryId": "obs:2",
+          "text": "【主观认识，可修正】【主观认识，可修正】旅人行动颇为活跃，在驿站各处频繁走动往返（先后前往客房安顿、去院子散步吹风，多次回公共厅稍坐闲聊后又再次离开，早晨回厅问候后去茶水间泡茶并带回公共厅分茶，随后又外出吹晨风再回厅喝茶歇息）。",
+          "label": "distorted_observation"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0109-call-001-companion",
+      "query": "在屋里看了会儿书，还是厅里坐着舒服。大家聊什么呢？",
+      "oldItems": 8,
+      "newItems": 1,
+      "newReading": [
+        {
+          "memoryId": "atom:event:382:0",
+          "text": "【听到发言；所述内容未经独立核实】character:player：刚才回屋里喝了口热茶、看了会儿书，整个人松快多了。大伙儿都还歇着呢？",
+          "label": "useful"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    },
+    {
+      "traceId": "turn-0109-call-003-host",
+      "query": "在屋里看了会儿书，还是厅里坐着舒服。大家聊什么呢？",
+      "oldItems": 8,
+      "newItems": 1,
+      "newReading": [
+        {
+          "memoryId": "atom:event:383:0",
+          "text": "【听到发言；所述内容未经独立核实】character:player：刚才回屋里喝了口热茶、看了会儿书，整个人松快多了。大伙儿都还歇着呢？",
+          "label": "useful"
+        }
+      ],
+      "interpretation": "see per-item labels"
+    }
+  ],
+  "limits": [
+    "No full recall or precision percentage; old items not relabeled exhaustively.",
+    "Thresholds adjusted after reading this set; this is an exploratory diagnostic, not held-out validation.",
+    "Current context already contains most recent plans; do not count excluded recent agreements as misses.",
+    "Inherited over-certain observations are counted explicitly and remain unfixed."
+  ]
+}

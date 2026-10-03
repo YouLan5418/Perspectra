@@ -1,0 +1,130 @@
+{
+  "date": "2026-09-30",
+  "method": "implementation author read trace and original sources; no independent evaluator or behavior A/B",
+  "artifacts": {
+    "protocol.json": "833ada3f0e691b393084aa9d602a28134f8b7cb2f74251f4bafa435f91760288",
+    "progress.json": "13dfd1e932ed7789fe5e20469e353024bf6a310ddea96addf5b2c7efc0988e1c",
+    "rounds.jsonl": "95de664cff7654ec9c2b855822d1fe2d8b603903213aec74b93fbda6acc24974"
+  },
+  "cases": [
+    {
+      "id": "turn-0016-call-002-friend",
+      "sha256": "8d401c5e3ba7b2f36f266769d1a938a1121bf46fe82a3cc4387d0c38c0c70fdd",
+      "tick": 26,
+      "actor": "character:friend",
+      "hasObservation": false,
+      "response": {
+        "decision": "perform",
+        "parameters": {
+          "locationId": "location:courtyard"
+        },
+        "actionType": "move"
+      },
+      "finding": "近期约定促成已提交移动，当时没有长期召回。"
+    },
+    {
+      "id": "turn-0027-call-001-companion",
+      "sha256": "a487283bebbc91143698d8c5ecf1d10b97cd5284cd2fad8852499a0e8c3ae05f",
+      "tick": 47,
+      "actor": "character:companion",
+      "hasObservation": true,
+      "response": {
+        "decision": "publish",
+        "narration": "林晓漫不经心地应了一声，放松地靠在椅背上。",
+        "speech": "嗯，歇着吧。",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "finding": "腰酸闲聊召回了旧取包记录和初始设施规则，存在噪声。"
+    },
+    {
+      "id": "turn-0074-call-001-friend",
+      "sha256": "eeb826d2b32f358dcc4577cfa32798c032a426bec6811510da4e2b73cec61e4a",
+      "tick": 114,
+      "actor": "character:friend",
+      "hasObservation": true,
+      "response": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "narration": "沈南笑着应了一声。",
+        "speech": "成，你先理着，待会儿茶水间见。"
+      },
+      "finding": "召回的obs:7丢失旅人转述限定；原reported_speech映射仍在。"
+    },
+    {
+      "id": "turn-0092-call-001-friend",
+      "sha256": "883d48a7d7844e56921da9c0cf2d54ffc8ea77c563056b5fe348eab1de133cfd",
+      "tick": 143,
+      "actor": "character:friend",
+      "hasObservation": true,
+      "response": {
+        "decision": "perform",
+        "actionType": "move",
+        "parameters": {
+          "locationId": "location:hall"
+        }
+      },
+      "finding": "私聊后召回旧喝茶约定并提交移动；当前催促也是充分解释，尚无独立因果证明。"
+    },
+    {
+      "id": "turn-0092-call-003-companion",
+      "sha256": "ef0eba1a3eb09ca24ecdabd14bb89a9021ca2b28f27c1d3ef6432ea8cf49ceb3",
+      "tick": 145,
+      "actor": "character:companion",
+      "hasObservation": false,
+      "response": {
+        "speech": "早。茶在那边，自己倒吧，还热着呢。",
+        "addresseeIds": [
+          "character:friend"
+        ],
+        "decision": "publish",
+        "narration": "林晓捧着温热的茶杯，朝桌上的茶壶随手示意了一下。"
+      },
+      "finding": "非私聊接收者没有收到私聊原句。"
+    },
+    {
+      "id": "turn-0092-call-004-host",
+      "sha256": "0ced881c669b09eb843c710c6cea5ddbc578eebd3282cf2fdb1e85028fdaa686",
+      "tick": 146,
+      "actor": "character:host",
+      "hasObservation": false,
+      "response": {
+        "addresseeIds": [
+          "character:friend"
+        ],
+        "narration": "周姨笑着抬头看向沈南，热情地招呼道。",
+        "decision": "publish",
+        "speech": "早啊沈南！快过来坐，刚才泡的茶还热乎着呢，正合适暖身子。"
+      },
+      "finding": "非私聊接收者没有收到私聊原句。"
+    },
+    {
+      "id": "turn-0063-call-002-host",
+      "sha256": "3e56e09da62e0018c4755155a4b7a5ebd25ba396afaa49551ed31d98e810e6da",
+      "tick": 96,
+      "actor": "character:host",
+      "hasObservation": true,
+      "response": null,
+      "finding": "激活被打断，未返回内容，未提交该调用行动。"
+    },
+    {
+      "id": "turn-0070-call-001-friend",
+      "sha256": "8ed9ebd3fe96d186a730e06d11b66b0dae1c85542ad68c03bb10b4f781b3c773",
+      "tick": 108,
+      "actor": "character:friend",
+      "hasObservation": false,
+      "response": null,
+      "finding": "激活被打断，未返回内容，未提交该调用行动。"
+    }
+  ],
+  "unsupportedStoredMemory": {
+    "actor": "character:companion",
+    "observationId": "obs:25",
+    "factId": "fact:event:938:1",
+    "sourceId": "event:938",
+    "finding": "calling Zhouyi by name does not establish that she prepared the tea; attribution first introduced in retain; the observation was not selected in this trajectory"
+  }
+}

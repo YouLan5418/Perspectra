@@ -1,0 +1,97 @@
+{
+  "date": "2026-10-01",
+  "branch": "codex/hindsight-core-experiment",
+  "scope": "experimental directory only",
+  "stages": {
+    "query-v2": {
+      "queries": 137,
+      "fixedReadingPoints": 48,
+      "meanOldChars": 1588.043795620438,
+      "meanChars": 1520.2116788321168,
+      "emptyQueries": 24,
+      "sameDeliveries": 34,
+      "graphOnlyCandidates": 154,
+      "frozenFilesUnchanged": 1522
+    },
+    "improved-v1": {
+      "queries": 137,
+      "fixedReadingPoints": 48,
+      "meanOldChars": 1588.043795620438,
+      "meanChars": 1093.3430656934306,
+      "emptyQueries": 43,
+      "sameDeliveries": 24,
+      "graphOnlyCandidates": 0,
+      "frozenFilesUnchanged": 1522
+    },
+    "improved-v2": {
+      "queries": 137,
+      "fixedReadingPoints": 48,
+      "meanOldChars": 1588.043795620438,
+      "meanChars": 90.64963503649635,
+      "emptyQueries": 110,
+      "sameDeliveries": 24,
+      "graphOnlyCandidates": 119,
+      "frozenFilesUnchanged": 1522
+    },
+    "improved-v3": {
+      "queries": 137,
+      "fixedReadingPoints": 48,
+      "meanOldChars": 1588.043795620438,
+      "meanChars": 255.5912408759124,
+      "emptyQueries": 80,
+      "sameDeliveries": 24,
+      "graphOnlyCandidates": 12,
+      "frozenFilesUnchanged": 1522
+    }
+  },
+  "reading": {
+    "method": "Assistant reads all 48 selected final inputs; not blind or independent. Labels distinguish unique useful continuity, broad context, noise and inherited observation distortion. Empty is not automatically correct; no complete relevance gold set.",
+    "selection": "15 pre-existing fixed points plus 33 deterministic spread, chosen before improved outputs",
+    "counts": {
+      "contextual": 10,
+      "noise": 10,
+      "useful": 5,
+      "distorted_observation": 2
+    },
+    "oldItems": 283,
+    "newItems": 27,
+    "emptyPoints": 31
+  },
+  "behavior": {
+    "model": "gemini-3.7-flash",
+    "fixedTurns": 15,
+    "responses": 30,
+    "schemaAndShapePassed": 30,
+    "decisionCounts": {
+      "old": {
+        "abstain": 6,
+        "publish": 8,
+        "perform": 1
+      },
+      "new": {
+        "abstain": 5,
+        "publish": 9,
+        "perform": 1
+      }
+    },
+    "otherRequestFieldsIdentical": true,
+    "worldActionsExecuted": 0,
+    "stableBehaviorBenefitProven": false
+  },
+  "validation": {
+    "pythonTestsPassed": 51,
+    "rootTypecheckPassed": true,
+    "experimentalTypecheckPassed": true,
+    "changedToolsOxlintPassed": true,
+    "fullHistoricalRegressionRun": false,
+    "newContinuousPlayRun": false
+  },
+  "limitations": [
+    "nonblind sample used for exploratory thresholds, not held-out calibration",
+    "empty recall not automatically correct",
+    "10 noise items and 2 inherited overcertain observations remain in 48-point sample",
+    "long-episode opportunity bias not fully removed",
+    "query-background gate depends on bank distribution",
+    "no observation-confidence or independent-source work this round"
+  ]
+}

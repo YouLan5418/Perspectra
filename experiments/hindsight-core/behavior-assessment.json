@@ -1,0 +1,2084 @@
+{
+  "method": "manual reading by implementation agent; no independent judge; labels describe demonstrated history use, not universal behavioral correctness",
+  "artifacts": [
+    {
+      "path": ".tmp\\hindsight-behavior-20260930\\protocol.json",
+      "sha256": "c516544643d9524e129067fcdd5c76eda6da0e6492a423cebcdca7ad0fecd6c6"
+    },
+    {
+      "path": ".tmp\\hindsight-behavior-20260930\\trials.jsonl",
+      "sha256": "23491c8743949bea3a1e6ed2fc1df65c4a8bfe6274f67abdb7caa66917ba1c52"
+    },
+    {
+      "path": ".tmp\\hindsight-behavior-control-20260930\\protocol.json",
+      "sha256": "e9fdf9e2c41a64b1a89ea1fdba6cc677cc430def7014e5c05f8f3239c23a23f9"
+    },
+    {
+      "path": ".tmp\\hindsight-behavior-control-20260930\\trials.jsonl",
+      "sha256": "7c2d146d7b2556d7130a5b80fca8e0ac50ca776ee973ec4a494b8fe4af85ef98"
+    }
+  ],
+  "labels": {
+    "history_consistent": 108,
+    "history_influence_not_demonstrated": 39,
+    "contradicts_later_history": 3
+  },
+  "trials": [
+    {
+      "id": "unprompted-company:72:empty-room:0:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "我和你一起过去吧。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:0:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "我也过去吧，没去过的地方一起走。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:0:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "我跟你一起过去吧，正好我也去看看。"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:0:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "我跟你一起过去吧，正好也去看看那边。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:1:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "我跟你一起过去吧。",
+          "narration": "小芷看向旅人。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:1:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "那边我们都还没去过，我和你一起过去吧。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:1:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "那间小屋我也没看过，我和你一起过去吧。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:1:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "我也过去看看，顺便认认路。一起吧。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:2:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "我跟你一起过去吧，我也顺便去看看那边。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:2:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "我和你一起过去吧。",
+          "narration": "小芷收拾了一下随身物品，准备跟上去。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:2:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "我和你一起过去。"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:2:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "我和你一起过去吧，顺便看看那边。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:0:keyword-core",
+      "label": "history_influence_not_demonstrated",
+      "reason": "agrees to wait without relevant support",
+      "decisions": [
+        {
+          "speech": "好，我们在这边等。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:0:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "走廊容易绕，我和你一起过去看看吧。"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:0:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "我和你一起去吧，路上有个照应。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:0:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "我和你一块儿去吧，那边走廊多，两个人看指示也方便。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:1:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "我和你一块儿过去吧，走廊多容易绕。"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:1:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "我和你一起过去吧，走廊多正好顺便认认路。"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:1:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "我和你一起过去吧，走廊多的话两个人好照应。"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:1:keyword-core",
+      "label": "history_influence_not_demonstrated",
+      "reason": "agrees to wait without relevant support",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "好，弄好了再叫我们。"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:2:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "那边走廊多，容易绕，我和你一起过去看看吧。"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:2:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "走廊多的话，我和你一起过去看看。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:2:keyword-core",
+      "label": "history_influence_not_demonstrated",
+      "reason": "agrees to wait without relevant support",
+      "decisions": [
+        {
+          "speech": "好，我们在这边等。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:2:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "走廊多容易绕，我跟你一块儿过去看看。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:0:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "陆洲之前提过想再试试口头介绍。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:0:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "陆洲之前提过想试口头介绍。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:0:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "陆洲之前做过大厅介绍，也说过还愿意去，排大厅正好。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:0:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前提过想再做口头介绍，大厅那边安排给她正好。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:1:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "陆洲之前提过，大厅的口头介绍可以找她试试。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:1:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前在大厅介绍主动讲过，也说愿意再去，安排大厅介绍挺合适的。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:1:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "安排陆洲去大厅做口头介绍吧，她之前就想再讲一次。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:1:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前说过，口头介绍可以找她试试。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:2:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "陆洲之前主动做过大厅介绍，也说过还愿意再去。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:2:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前说过想去大厅做口头介绍，安排她负责大厅正好。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:2:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前说过想试试口头介绍。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:2:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "陆洲之前提过，口头介绍可以找她试试。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:0:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "陆洲之前就挺乐意在前面发言的，直接问他应该没问题。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:0:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前就主动上台讲过，应该挺乐意的。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:0:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前挺乐意上台讲的，问问她大概会答应。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:0:existing",
+      "label": "history_influence_not_demonstrated",
+      "reason": "early abstention or late generic respect for choice without evidence of updated preference",
+      "decisions": [
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:1:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "陆洲之前主动上台讲过，也提过愿意再去公开介绍。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:1:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player",
+            "character:alice"
+          ],
+          "speech": "陆洲上次主动上台讲过，也提过愿意再去，问问看吧。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:1:existing",
+      "label": "history_influence_not_demonstrated",
+      "reason": "early abstention or late generic respect for choice without evidence of updated preference",
+      "decisions": [
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:1:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前挺乐意去讲的，上次大厅介绍完还说愿意再去呢。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:2:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前在大厅介绍时主动上台讲过，挺乐意在前面说话的，问问他应该行。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:2:existing",
+      "label": "history_influence_not_demonstrated",
+      "reason": "early abstention or late generic respect for choice without evidence of updated preference",
+      "decisions": [
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:2:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "陆洲之前挺愿意上台讲的，直接问问她应该没问题。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:2:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前主动上台讲过，也挺乐意的，问问她应该没问题。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:0:existing",
+      "label": "contradicts_later_history",
+      "reason": "continues recommending public presentation after preference changed",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player",
+            "character:alice"
+          ],
+          "speech": "陆洲之前说过想试试口头介绍。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:0:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "陆洲之前提过想做后台核对，台前介绍先不排他吧。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:0:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲后来更习惯在后台核对文字，排文稿校对比较合适。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:0:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲最近更想在后台校对文字，安排文稿校对给他合适。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:1:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "陆洲之前提过更想做后台核对，前面介绍这次先不算她吧。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:1:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "让陆洲去后台做文稿校对吧，他后来更习惯在后台核对文字。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:1:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "陆洲后来更倾向于在后台校对文稿，台前介绍会让他感到难受。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:1:existing",
+      "label": "contradicts_later_history",
+      "reason": "continues recommending public presentation after preference changed",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "陆洲之前说过想再试试口头介绍。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:2:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "安排后台校对吧，他后来更倾向在后台核对文稿。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:2:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "陆洲近期更想在后台做文稿校对，台前介绍他之前说不想再去了。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:2:existing",
+      "label": "contradicts_later_history",
+      "reason": "continues recommending public presentation after preference changed",
+      "decisions": [
+        {
+          "speech": "陆洲之前提过想试试口头介绍。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:2:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "陆洲之前说过更想做后台核对，台前介绍这次先不参加。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:0:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player",
+            "character:alice"
+          ],
+          "speech": "陆洲之前更习惯留在后台核对，台前的事还是看他自己的意思吧。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:0:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲后来更常在后台核对稿子，台前讲不讲，还是先看他自己的意愿吧。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:0:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲最近更愿意在后台核对稿子，之前就把台前的名额让出去了。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:0:existing",
+      "label": "history_influence_not_demonstrated",
+      "reason": "early abstention or late generic respect for choice without evidence of updated preference",
+      "decisions": [
+        {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player",
+            "character:alice"
+          ],
+          "narration": "小芷看了一眼陆洲。",
+          "speech": "那看陆洲自己的意思吧。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:1:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前就把台前的名额让出去了，后来更习惯在后台核对稿子，问问他自己的想法吧。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:1:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "之前陆洲更倾向在后台核对文字，这事还是看他自己的意愿吧。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:1:existing",
+      "label": "history_influence_not_demonstrated",
+      "reason": "early abstention or late generic respect for choice without evidence of updated preference",
+      "decisions": [
+        {
+          "speech": "看陆洲自己的意思吧。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player",
+            "character:alice"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:1:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "陆洲之前上台容易紧张，更愿意在后台核对稿子，还是看他自己的想法吧。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:2:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "陆洲上次筹备时选了在后台核对稿件，先问问他自己的意愿吧。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:2:existing",
+      "label": "history_influence_not_demonstrated",
+      "reason": "early abstention or late generic respect for choice without evidence of updated preference",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player",
+            "character:alice"
+          ],
+          "decision": "publish",
+          "narration": "小芷往陆洲那边看了一眼。",
+          "speech": "看陆洲自己的意思吧。"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:2:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆洲之前更习惯在后台核对文字，去台前讲的话看他自己的意思吧。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:2:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "陆洲最近更常在后台核对稿件，先看陆洲自己的意思吧。"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:0:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "报西台，收件人之前改在西台接了。"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:0:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "报西台，之前确认过改到西台交接了。"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:0:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "棕色封套之前改到西台交接了，报西台吧。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:0:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "棕色封套报西台，之前收件人改了地址，东塔的安排取消了。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:1:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "报西台，之前已经确认改在西台交接了。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:1:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "报西台吧，棕色封套后来改到西台交接了。"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:1:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "棕色封套改在西台交接。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:1:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "报西台，棕色封套改去西台交接了。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:2:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "报西台，后来改去西台了。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:2:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "棕色封套改在西台交接了，报西台就行。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:2:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "棕色封套报西台，收件人后来改到那边了。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:2:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "报西台，之前确认过改在西台交接了。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:0:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "还没送到。收件人改在西台交接，之前东塔的安排取消了。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:0:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "还没送到。之前改到西台交接了，但封套还没送过去。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:0:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "还没送到呢。之前改成了西台交接，而且还没带着出发。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:0:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "还没送到呢。之前收件人改到了西台交接，陆舟还没带着封套出发。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:1:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "还没送达呢。之前改到西台交接了，人还没带着封套出发。"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:1:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "还没送达。之前收件人改在西台交接，东塔的安排取消了，陆舟也还没带封套出发。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:1:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "还没送达。之前改到西台交接了，陆舟还没带着封套出发呢。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:1:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "还没送达呢。之前只是改了交接地点去西台，封套根本还没送过去。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:2:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "还没送达。收件人后来改在西台交接，陆舟还没带着封套出发呢。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:2:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "还没送达。之前改到了西台交接，还没出发送过去。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:2:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "还没送到。之前改到西台交接了，而且封套还没送过去呢。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:2:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "还没送到呢。之前改到西台交接了，还没带过去。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:0:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "陆舟那一单是红缎封套，最后签字经手的是顾岚。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:0:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "陆舟那一单最后签字经手的是顾岚。"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:0:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "陆舟那一单最后签字经手的是顾岚。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:0:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "陆舟那单最后签字经手的是顾岚，他之前把签收回条递回柜台了。"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:1:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "陆舟那一单最后签字经手的是顾岚。"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:1:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "陆舟那一单最后签字经手的人是顾岚。"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:1:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "陆舟那单最后签字经手的是顾岚，他之前把签收回条递回柜台了。"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:1:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "陆舟那单是红缎封条的封套，最后签字经手递回柜台的是顾岚。"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:2:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "陆舟那单最后签字经手的是顾岚。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:2:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "陆舟那一单最后签字经手、把回条递回柜台的人是顾岚。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:2:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "陆舟那单是红缎封条的，最后签字经手的是顾岚。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:2:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "陆舟那一单最后签字经手的是顾岚，我之前看他把回条递回柜台了。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:0:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "找沈葵联系吧，那单的回条是她归还的。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:0:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "去找沈葵吧，绿蜡封口那一单是他签收的。"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:0:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "找沈葵，陆洲那单绿蜡封口的包裹是她签收的。"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:0:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "找沈葵，陆洲那单是绿蜡封口，之前是沈葵签收经手的。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:1:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "找沈葵，绿蜡封口那一单是她签收的。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:1:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "找沈葵，陆洲那单绿蜡封口的包裹是她签收的。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:1:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "找沈葵，陆洲那单是绿蜡封口的，最后是沈葵签收经手的。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:1:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "找沈葵联系，之前绿蜡封口那一单的回条是她归还的。"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:2:core-recall-observation",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "那一单是沈葵签收的，找沈葵联系就行。"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:2:existing",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "speech": "找沈葵，陆洲那单是绿蜡封口的，由沈葵签收经手。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:2:keyword-core",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "找沈葵，之前绿蜡封口那一单回条是她签的。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:2:core-recall",
+      "label": "history_consistent",
+      "reason": "manual reading against frozen rubric",
+      "decisions": [
+        {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "找沈葵，绿蜡封口那一单是她签收的。"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:0:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "好，有事随时叫我们。"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:1:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "好，我们在这里等你，有事喊一声。"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:empty-room:2:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "好，有情况随时叫我们。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:0:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "好，那你先去，我们在这边等。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:1:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "speech": "行，你去吧，我们在这儿等。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unprompted-company:72:split-up:2:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "publish",
+          "speech": "好，我们在这边等你消息。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:0:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:1:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "recall",
+          "query": "陆洲 文稿 校对 介绍 安排"
+        },
+        {
+          "decision": "publish",
+          "speech": "陆洲，你想去大厅还是后台？",
+          "addresseeIds": [
+            "character:alice"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:task-offer:2:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "query": "陆洲 校对 介绍 擅长 偏好",
+          "decision": "recall"
+        },
+        {
+          "speech": "看陆洲自己更想去哪边吧。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:0:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:1:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:52:public-invitation:2:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:0:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "recall",
+          "query": "陆洲"
+        },
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:1:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "recall",
+          "query": "陆洲 介绍 校对 安排"
+        },
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:task-offer:2:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "query": "陆洲 介绍 校对 安排",
+          "decision": "recall"
+        },
+        {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:alice"
+          ],
+          "speech": "陆洲，大厅和后台，你更想去哪个？"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:0:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:1:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "person-cognition-change:84:public-invitation:2:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:0:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "query": "棕色封套 交接地址",
+          "decision": "recall"
+        },
+        {
+          "decision": "publish",
+          "speech": "我不知道那个封套的交接地址，问问他们几个？",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:1:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "recall",
+          "query": "棕色封套 交接地址"
+        },
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:departure-address:2:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "query": "棕色封套 交接地址",
+          "decision": "recall"
+        },
+        {
+          "decision": "publish",
+          "speech": "我这边没有记棕色封套的地址，问问他们几位？"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:0:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "recall",
+          "query": "棕色封套"
+        },
+        {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "我这边没见到有棕色封套送过来，屋里也没有。"
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:1:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "recall",
+          "query": "棕色封套"
+        },
+        {
+          "decision": "publish",
+          "speech": "我这边也没见到，可能还没送过来。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conflicting-agreement:72:receiver-question:2:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "recall",
+          "query": "棕色封套 送到 包裹"
+        },
+        {
+          "speech": "这边没见到有棕色封套送过来，可能还没到。",
+          "decision": "publish"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:0:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "recall",
+          "query": "陆舟 签字 经手"
+        },
+        {
+          "decision": "publish",
+          "speech": "我不清楚是谁最后签的，陆舟就在这里，你直接问他吧。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:1:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "query": "陆舟 签字 经手",
+          "decision": "recall"
+        },
+        {
+          "decision": "publish",
+          "speech": "陆舟就在这儿，具体的经手情况你直接问他吧。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:bob-handler:2:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "recall",
+          "query": "陆舟 签字 经手"
+        },
+        {
+          "decision": "abstain"
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:0:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "recall",
+          "query": "陆洲 签收 联系"
+        },
+        {
+          "speech": "陆洲就在这儿，你直接找他问问看。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:1:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "query": "陆洲 签收 资料 联系",
+          "decision": "recall"
+        },
+        {
+          "decision": "publish",
+          "speech": "陆洲人就在这里，直接问他就行。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "similar-people-chains:72:alice-handler:2:no-long-memory",
+      "label": "history_influence_not_demonstrated",
+      "reason": "history unavailable; uncertainty or generic response is not a recall failure",
+      "decisions": [
+        {
+          "decision": "recall",
+          "query": "陆洲 签收 联系"
+        },
+        {
+          "speech": "陆洲就在这儿，直接找她就行。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      ]
+    }
+  ]
+}

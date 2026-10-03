@@ -1,0 +1,786 @@
+{
+  "method": "Reuse the 15 query points fixed before the previous rebuild. Assistant reads actual projected input; not blind or independent. Delivery granularity changed, so no cross-study precision percentage is computed.",
+  "finding": "Structural evidence duplication is removed; ordinary movement/item and conversation noise remains. No global semantic dedupe across independent times.",
+  "samples": [
+    {
+      "traceId": "turn-0021-call-001-friend",
+      "query": "{\"characterId\":\"character:player\",\"toLocationId\":\"location:courtyard\"} 行，慢慢吹会儿，不赶时间。 {\"characterId\":\"character:player\",\"fromLocationId\":\"location:courtyard\"} {\"characterId\":\"character:player\",\"toLocationId\":\"location:courtyard\"}",
+      "previousReadingReason": "当前到院子的移动；旧厅内取包不解释当前到达，旧邀请经历能提供部分联系。",
+      "memories": [
+        {
+          "memoryId": "atom:event:44:0",
+          "level": "event_atom",
+          "age": 33,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"fromLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "atom:event:92:0",
+          "level": "event_atom",
+          "age": 23,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"toLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "atom:event:34:0",
+          "level": "event_atom",
+          "age": 34,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"interact\", \"actorId\": \"character:player\", \"interaction\": {\"characterId\": \"character:player\", \"entityId\": \"entity:travel-bag\", \"fromHolderId\": null, \"fromLocationId\": \"location:hall\", \"interactionId\": \"base:take\", \"toHolderId\": \"character:player\", \"toLocationId\": null}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "atom:event:111:1",
+          "level": "event_atom",
+          "age": 19,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：收拾好就行。待会儿打算在厅里歇着，还是出去转转？"
+        },
+        {
+          "memoryId": "atom:event:100:1",
+          "level": "event_atom",
+          "age": 21,
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人走回公共厅，笑着向在场的众人打了声招呼。"
+        },
+        {
+          "memoryId": "atom:event:100:0",
+          "level": "event_atom",
+          "age": 21,
+          "text": "【听到发言；所述内容未经独立核实】character:player：周姨、林晓、沈南，我把随身行李都先放到客房收好了。"
+        },
+        {
+          "memoryId": "episode:4",
+          "level": "episode",
+          "age": 19,
+          "text": "【外显叙述；不是规则裁定结果】character:friend：沈南抬头应了一声。"
+        },
+        {
+          "memoryId": "atom:event:26:0",
+          "level": "event_atom",
+          "age": 35,
+          "text": "【本角色的直接观察】大家刚在驿站公共厅见面。茶水间可泡茶，客房可休息，院子和门廊可以走动；公共物品可以借用，使用后应归还。"
+        }
+      ],
+      "assessment": "完整语境不再多次交付，但旧进出厅、取包仍占多数；没有解释当前到院子的独特价值。"
+    },
+    {
+      "traceId": "turn-0027-call-001-companion",
+      "query": "坐久了确实容易腰酸背痛，在厅里多歇歇，缓一缓就舒坦了。 是啊，这会儿坐下来歇着，总算把赶路的疲惫给散了。林晓，你今天路上走得顺当吗？ 还行，路上没遇到什么耽搁，挺顺当的。就是坐车坐久了骨头有点酸，歇会儿就没事了。 坐久了确实容易腰酸背痛，在厅里多歇歇，缓一缓就舒坦了。",
+      "previousReadingReason": "腰酸和歇息；取包和离厅无关，设施仅提供部分歇息背景。",
+      "memories": [
+        {
+          "memoryId": "obs:2",
+          "level": "observation",
+          "age": 24,
+          "text": "【主观认识，可修正】【主观认识，可修正】旅人在公共厅先后拿取了旅行包与记事本等物品。"
+        },
+        {
+          "memoryId": "obs:1",
+          "level": "observation",
+          "age": 5,
+          "text": "【主观认识，可修正】旅人此前与沈南相约前往院子，返回公共厅后自述在院子里吹风透气后精神恢复了不少。"
+        },
+        {
+          "memoryId": "atom:event:25:0",
+          "level": "event_atom",
+          "age": 47,
+          "text": "【本角色的直接观察】大家刚在驿站公共厅见面。茶水间可泡茶，客房可休息，院子和门廊可以走动；公共物品可以借用，使用后应归还。"
+        },
+        {
+          "memoryId": "atom:event:33:0",
+          "level": "event_atom",
+          "age": 46,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"interact\", \"actorId\": \"character:player\", \"interaction\": {\"characterId\": \"character:player\", \"entityId\": \"entity:travel-bag\", \"fromHolderId\": null, \"fromLocationId\": \"location:hall\", \"interactionId\": \"base:take\", \"toHolderId\": \"character:player\", \"toLocationId\": null}, \"status\": \"accepted\"}"
+        }
+      ],
+      "assessment": "Observation 可读正文显著缩短；取包认识仍无关，吹风后恢复精神只有部分关系。"
+    },
+    {
+      "traceId": "turn-0027-call-002-host",
+      "query": "坐久了确实容易腰酸背痛，在厅里多歇歇，缓一缓就舒坦了。 可不是嘛，院里空气好，多吹吹风解乏！ 是啊，这会儿坐下来歇着，总算把赶路的疲惫给散了。林晓，你今天路上走得顺当吗？ 坐久了确实容易腰酸背痛，在厅里多歇歇，缓一缓就舒坦了。",
+      "previousReadingReason": "同一歇息话题；设施有部分背景，旧取包经历无关。",
+      "memories": [
+        {
+          "memoryId": "obs:2",
+          "level": "observation",
+          "age": 6,
+          "text": "【主观认识，可修正】【主观认识，可修正】旅人此前拿取记事本并邀沈南前往院子散心，随后已返回公共厅，并表示在院子里吹风透气后感觉精神多了。"
+        },
+        {
+          "memoryId": "atom:event:27:1",
+          "level": "event_atom",
+          "age": 48,
+          "text": "【本角色的直接观察】大家刚在驿站公共厅见面。茶水间可泡茶，客房可休息，院子和门廊可以走动；公共物品可以借用，使用后应归还。"
+        },
+        {
+          "memoryId": "obs:1",
+          "level": "observation",
+          "age": 30,
+          "text": "【主观认识，可修正】旅人（玩家）言谈礼貌随和，声称已将行李收放到客房，并对驿站茶水间的齐备表示了感谢与认可。"
+        },
+        {
+          "memoryId": "episode:2",
+          "level": "episode",
+          "age": 47,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"interact\", \"actorId\": \"character:player\", \"interaction\": {\"characterId\": \"character:player\", \"entityId\": \"entity:travel-bag\", \"fromHolderId\": null, \"fromLocationId\": \"location:hall\", \"interactionId\": \"base:take\", \"toHolderId\": \"character:player\", \"toLocationId\": null}, \"status\": \"accepted\"}"
+        }
+      ],
+      "assessment": "仍有旧取包噪声；精神恢复认识和设施背景有部分联系。"
+    },
+    {
+      "traceId": "turn-0028-call-001-companion",
+      "query": "{\"characterId\":\"character:player\",\"fromLocationId\":\"location:hall\"} 坐久了确实容易腰酸背痛，在厅里多歇歇，缓一缓就舒坦了。 嗯，歇着吧。 {\"characterId\":\"character:player\",\"fromLocationId\":\"location:hall\"}",
+      "previousReadingReason": "当前离厅；只凭相同人物和地点命中旧移动，不足以解释此次离开。",
+      "memories": [
+        {
+          "memoryId": "atom:event:43:0",
+          "level": "event_atom",
+          "age": 47,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"fromLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "atom:event:33:0",
+          "level": "event_atom",
+          "age": 48,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"interact\", \"actorId\": \"character:player\", \"interaction\": {\"characterId\": \"character:player\", \"entityId\": \"entity:travel-bag\", \"fromHolderId\": null, \"fromLocationId\": \"location:hall\", \"interactionId\": \"base:take\", \"toHolderId\": \"character:player\", \"toLocationId\": null}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "atom:event:91:0",
+          "level": "event_atom",
+          "age": 37,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"toLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "obs:2",
+          "level": "observation",
+          "age": 26,
+          "text": "【主观认识，可修正】【主观认识，可修正】旅人在公共厅先后拿取了旅行包与记事本等物品。"
+        },
+        {
+          "memoryId": "obs:1",
+          "level": "observation",
+          "age": 7,
+          "text": "【主观认识，可修正】旅人此前与沈南相约前往院子，返回公共厅后自述在院子里吹风透气后精神恢复了不少。"
+        },
+        {
+          "memoryId": "atom:event:25:0",
+          "level": "event_atom",
+          "age": 49,
+          "text": "【本角色的直接观察】大家刚在驿站公共厅见面。茶水间可泡茶，客房可休息，院子和门廊可以走动；公共物品可以借用，使用后应归还。"
+        }
+      ],
+      "assessment": "旧移动与旧取包仍不能解释这次离开；结构去重没有解决语义相关性。"
+    },
+    {
+      "traceId": "turn-0044-call-001-companion",
+      "query": "可不是嘛，难得有这么清静的功夫，在这儿坐着听听风声，整个人都慢下来了。 刚才回屋里喝了口热茶、看了会儿书，整个人松快多了。大伙儿都还歇着呢？ 是啊，在这儿坐着放空呢，难得清静会儿。 可不是嘛，难得有这么清静的功夫，在这儿坐着听听风声，整个人都慢下来了。",
+      "previousReadingReason": "清静休息；旧休息计划有部分联系，但同句输入和发言重复交付。",
+      "memories": [
+        {
+          "memoryId": "atom:event:121:0",
+          "level": "event_atom",
+          "age": 52,
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。"
+        },
+        {
+          "memoryId": "atom:event:138:0",
+          "level": "event_atom",
+          "age": 49,
+          "text": "【听到发言；所述内容未经独立核实】character:player：好啊，等会儿去的时候叫上你，咱们一块儿去。"
+        },
+        {
+          "memoryId": "episode:3",
+          "level": "episode",
+          "age": 55,
+          "text": "【外显叙述；不是规则裁定结果】character:companion：林晓抬头看了一眼，随意地点了点头。"
+        },
+        {
+          "memoryId": "atom:event:106:0",
+          "level": "event_atom",
+          "age": 55,
+          "text": "【听到发言；所述内容未经独立核实】character:companion：行啊，动作挺快的。"
+        },
+        {
+          "memoryId": "episode:4",
+          "level": "episode",
+          "age": 52,
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人在椅子上坐下，笑着回应沈南和周姨。"
+        },
+        {
+          "memoryId": "atom:event:99:2",
+          "level": "event_atom",
+          "age": 56,
+          "text": "【听到发言；所述内容未经独立核实】character:player：周姨、林晓、沈南，我把随身行李都先放到客房收好了。"
+        },
+        {
+          "memoryId": "atom:event:138:1",
+          "level": "event_atom",
+          "age": 49,
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人笑着对沈南应道。"
+        },
+        {
+          "memoryId": "atom:event:99:1",
+          "level": "event_atom",
+          "age": 56,
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人走回公共厅，笑着向在场的众人打了声招呼。"
+        }
+      ],
+      "assessment": "旧歇息计划只部分相关，回应和姿态噪声仍在；原始输入与发言的同源重复已消除。"
+    },
+    {
+      "traceId": "turn-0044-call-002-host",
+      "query": "可不是嘛，难得有这么清静的功夫，在这儿坐着听听风声，整个人都慢下来了。 可不是嘛，赶了远路就得好好松快松快。这会儿大伙儿都各处歇着呢，你缓过劲来就好！ 可不是嘛，难得有这么清静的功夫，在这儿坐着听听风声，整个人都慢下来了。 这次行动已经成功执行。当前状态请以本次可见场景为准。",
+      "previousReadingReason": "周姨接待和休息有关；取包和出入厅被混入，完整语境导致多条同义交付。",
+      "memories": [
+        {
+          "memoryId": "atom:event:133:0",
+          "level": "event_atom",
+          "age": 51,
+          "text": "【听到发言；所述内容未经独立核实】character:host：成，你踏实歇着！就把这儿当自个儿家，有事随时叫我。"
+        },
+        {
+          "memoryId": "atom:event:93:0",
+          "level": "event_atom",
+          "age": 59,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"toLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "atom:event:116:1",
+          "level": "event_atom",
+          "age": 54,
+          "text": "【听到发言；所述内容未经独立核实】character:host：放好了就行！一路赶过来辛苦了，先歇歇脚，茶水间备着热水呢，渴了随时去倒。"
+        },
+        {
+          "memoryId": "episode:2",
+          "level": "episode",
+          "age": 69,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"fromLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "atom:event:123:3",
+          "level": "event_atom",
+          "age": 53,
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。"
+        },
+        {
+          "memoryId": "episode:4",
+          "level": "episode",
+          "age": 51,
+          "text": "【外显叙述；不是规则裁定结果】character:host：周姨笑着摆了摆手，神情爽朗。"
+        },
+        {
+          "memoryId": "obs:2",
+          "level": "observation",
+          "age": 22,
+          "text": "【主观认识，可修正】【主观认识，可修正】旅人行动颇为活跃，在驿站内频繁走动（先后前往客房安顿、去院子吹风散步，回公共厅闲聊稍歇后又再次动身离开）。"
+        },
+        {
+          "memoryId": "atom:event:35:0",
+          "level": "event_atom",
+          "age": 70,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"interact\", \"actorId\": \"character:player\", \"interaction\": {\"characterId\": \"character:player\", \"entityId\": \"entity:travel-bag\", \"fromHolderId\": null, \"fromLocationId\": \"location:hall\", \"interactionId\": \"base:take\", \"toHolderId\": \"character:player\", \"toLocationId\": null}, \"status\": \"accepted\"}"
+        }
+      ],
+      "assessment": "接待和休息话语有联系，仍混入旧移动、取包与未经充分支持的路线概括。"
+    },
+    {
+      "traceId": "turn-0049-call-001-friend",
+      "query": "确实，这一路奔波，能有这么个空当站在院里静静放空，感觉疲乏都散得差不多了。 沈南，你一直在这儿吹风呢？刚才在门廊和厅里转了转，还是院子里最透气。 是啊，在这儿站着挺舒服，吹吹风整个人都松快不少。 确实，这一路奔波，能有这么个空当站在院里静静放空，感觉疲乏都散得差不多了。",
+      "previousReadingReason": "院里透气；共同出游相关，茶水间与行李夹杂，原始输入与发言重复。",
+      "memories": [
+        {
+          "memoryId": "episode:6",
+          "level": "episode",
+          "age": 51,
+          "text": "【外显叙述；不是规则裁定结果】character:friend：沈南走到院中，四下打量了一番，神色轻松了些。"
+        },
+        {
+          "memoryId": "episode:5",
+          "level": "episode",
+          "age": 55,
+          "text": "【听到发言；所述内容未经独立核实】character:player：沈南，我歇得差不多了，咱们现在去院子转转吧？"
+        },
+        {
+          "memoryId": "episode:5",
+          "level": "episode",
+          "age": 54,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：行，走吧，正好去院子里透透气。"
+        },
+        {
+          "memoryId": "episode:5",
+          "level": "episode",
+          "age": 54,
+          "text": "【外显叙述；不是规则裁定结果】character:friend：沈南站起身，点头应道。"
+        },
+        {
+          "memoryId": "atom:event:188:0",
+          "level": "event_atom",
+          "age": 51,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：院里空气确实比屋里透亮多了。"
+        },
+        {
+          "memoryId": "atom:event:128:1",
+          "level": "event_atom",
+          "age": 60,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：歇会儿挺好，赶路容易乏。待会儿要去门廊或院子叫我一声，我也打算过去透透气。"
+        },
+        {
+          "memoryId": "episode:4",
+          "level": "episode",
+          "age": 61,
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。"
+        },
+        {
+          "memoryId": "episode:4",
+          "level": "episode",
+          "age": 61,
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人在椅子上坐下，笑着回应沈南和周姨。"
+        }
+      ],
+      "assessment": "召回共同去院子的邀请、答应和空气感受；同一经历中的独立证据保留，旧休息话语只有部分联系。"
+    },
+    {
+      "traceId": "turn-0073-call-001-friend",
+      "query": "确实提神。你今天打算什么时候动身？要是还不急着走，咱们也能在驿站再宽裕地歇会儿。 早。昨晚睡得还挺踏实。清早院里这股凉气确实提神，吸上两口整个人都利落了。 这次请求没有执行成功；没有产生请求中的状态变化。目前没有可向你说明的进一步原因。 确实提神。你今天打算什么时候动身？要是还不急着走，咱们也能在驿站再宽裕地歇会儿。",
+      "previousReadingReason": "出发时间与早晨提神；院子清醒有部分联系，早期门廊计划未能解释现在的计划。",
+      "memories": [
+        {
+          "memoryId": "atom:event:188:0",
+          "level": "event_atom",
+          "age": 84,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：院里空气确实比屋里透亮多了。"
+        },
+        {
+          "memoryId": "atom:event:122:3",
+          "level": "event_atom",
+          "age": 94,
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。"
+        },
+        {
+          "memoryId": "atom:event:128:1",
+          "level": "event_atom",
+          "age": 93,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：歇会儿挺好，赶路容易乏。待会儿要去门廊或院子叫我一声，我也打算过去透透气。"
+        },
+        {
+          "memoryId": "atom:event:203:2",
+          "level": "event_atom",
+          "age": 81,
+          "text": "【听到发言；所述内容未经独立核实】character:player：好啊，等在院子里吹够了风，咱们就去门廊那边看看。"
+        },
+        {
+          "memoryId": "episode:6",
+          "level": "episode",
+          "age": 86,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"fromLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "episode:6",
+          "level": "episode",
+          "age": 85,
+          "text": "【本角色获准看到的行动结果】character:friend：{\"actionType\": \"move\", \"actorId\": \"character:friend\", \"movement\": {\"characterId\": \"character:friend\", \"fromLocationId\": \"location:hall\", \"toLocationId\": \"location:courtyard\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "atom:event:158:2",
+          "level": "event_atom",
+          "age": 88,
+          "text": "【听到发言；所述内容未经独立核实】character:player：沈南，我歇得差不多了，咱们现在去院子转转吧？"
+        },
+        {
+          "memoryId": "atom:event:198:0",
+          "level": "event_atom",
+          "age": 82,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：确实，比在屋里闷着舒服多了。在这儿站会儿，待会儿还可以顺道去门廊那边看看。"
+        }
+      ],
+      "assessment": "旧院子感受只有部分关系；未命中解释当前出发时间的持久认知。"
+    },
+    {
+      "traceId": "turn-0074-call-001-friend",
+      "query": "这样挺好，早晨路上凉，晚点出发也稳妥。我也打算在驿站再理理随身物件，等会儿正好一块儿去茶水间喝杯热茶。 确实提神。你今天打算什么时候动身？要是还不急着走，咱们也能在驿站再宽裕地歇会儿。 我倒不急着走，等日头再高些、天暖和了再动身也不迟。正好在驿站宽裕歇会儿，待会儿再去茶水间弄口热茶喝。 这样挺好，早晨路上凉，晚点出发也稳妥。我也打算在驿站再理理随身物件，等会儿正好一块儿去茶水间喝杯热茶。",
+      "previousReadingReason": "约喝茶；设施和歇息背景有部分关系，旧门廊雨伞无关，新同源多条重复。",
+      "memories": [
+        {
+          "memoryId": "atom:event:239:1",
+          "level": "event_atom",
+          "age": 76,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：好，备着伞挺周到。我在这儿再站会儿，等会儿也过去看看。"
+        },
+        {
+          "memoryId": "atom:event:198:1",
+          "level": "event_atom",
+          "age": 84,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：确实，比在屋里闷着舒服多了。在这儿站会儿，待会儿还可以顺道去门廊那边看看。"
+        },
+        {
+          "memoryId": "atom:event:128:1",
+          "level": "event_atom",
+          "age": 95,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：歇会儿挺好，赶路容易乏。待会儿要去门廊或院子叫我一声，我也打算过去透透气。"
+        },
+        {
+          "memoryId": "atom:event:139:0",
+          "level": "event_atom",
+          "age": 93,
+          "text": "【听到发言；所述内容未经独立核实】character:player：好啊，等会儿去的时候叫上你，咱们一块儿去。"
+        },
+        {
+          "memoryId": "atom:event:122:3",
+          "level": "event_atom",
+          "age": 96,
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。"
+        },
+        {
+          "memoryId": "atom:event:145:0",
+          "level": "event_atom",
+          "age": 92,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：行，你先歇会儿，不着急。"
+        },
+        {
+          "memoryId": "atom:event:111:1",
+          "level": "event_atom",
+          "age": 98,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：收拾好就行。待会儿打算在厅里歇着，还是出去转转？"
+        },
+        {
+          "memoryId": "atom:event:203:2",
+          "level": "event_atom",
+          "age": 83,
+          "text": "【听到发言；所述内容未经独立核实】character:player：好啊，等在院子里吹够了风，咱们就去门廊那边看看。"
+        }
+      ],
+      "assessment": "未补出有效喝茶约定；原先的门廊计划和雨伞噪声仍然存在。"
+    },
+    {
+      "traceId": "turn-0082-call-001-companion",
+      "query": "周姨、林晓，我刚才在茶水间泡了壶热茶，正好去去清晨的凉意，你们要来点尝尝吗？ {\"characterId\":\"character:player\",\"fromLocationId\":\"location:hall\"} {\"characterId\":\"character:player\",\"toLocationId\":\"location:hall\"} 周姨、林晓，我刚才在茶水间泡了壶热茶，正好去去清晨的凉意，你们要来点尝尝吗？",
+      "previousReadingReason": "邀请林晓喝茶；早期疲乏经历部分相关，行李、记事本和重复输入无关或冗余。",
+      "memories": [
+        {
+          "memoryId": "episode:3",
+          "level": "episode",
+          "age": 113,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"toLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "episode:3",
+          "level": "episode",
+          "age": 111,
+          "text": "【听到发言；所述内容未经独立核实】character:player：周姨、林晓、沈南，我把随身行李都先放到客房收好了。"
+        },
+        {
+          "memoryId": "episode:3",
+          "level": "episode",
+          "age": 111,
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人走回公共厅，笑着向在场的众人打了声招呼。"
+        },
+        {
+          "memoryId": "episode:3",
+          "level": "episode",
+          "age": 110,
+          "text": "【听到发言；所述内容未经独立核实】character:companion：行啊，动作挺快的。"
+        },
+        {
+          "memoryId": "episode:7",
+          "level": "episode",
+          "age": 84,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"toLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "episode:7",
+          "level": "episode",
+          "age": 83,
+          "text": "【听到发言；所述内容未经独立核实】character:player：院子里风吹着挺舒服的，在外面透了会儿气，整个人精神多了。"
+        },
+        {
+          "memoryId": "episode:7",
+          "level": "episode",
+          "age": 83,
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人回到公共厅，找了张椅子坐下，微笑着和在厅里的林晓、周姨打了个招呼。"
+        },
+        {
+          "memoryId": "episode:5",
+          "level": "episode",
+          "age": 101,
+          "text": "【听到发言；所述内容未经独立核实】character:player：沈南，我歇得差不多了，咱们现在去院子转转吧？"
+        }
+      ],
+      "assessment": "Episode 局部表示仍被共同人物与进出大厅吸引；当前喝茶邀请没有因此更好的历史解释。"
+    },
+    {
+      "traceId": "turn-0082-call-002-host",
+      "query": "周姨、林晓，我刚才在茶水间泡了壶热茶，正好去去清晨的凉意，你们要来点尝尝吗？ {\"characterId\":\"character:player\",\"fromLocationId\":\"location:hall\"} {\"characterId\":\"character:player\",\"toLocationId\":\"location:hall\"} 周姨、林晓，我刚才在茶水间泡了壶热茶，正好去去清晨的凉意，你们要来点尝尝吗？",
+      "previousReadingReason": "邀请周姨喝茶；热水和接待相关，旧取包和进出大厅无关。",
+      "memories": [
+        {
+          "memoryId": "episode:7",
+          "level": "episode",
+          "age": 85,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"toLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "episode:7",
+          "level": "episode",
+          "age": 84,
+          "text": "【听到发言；所述内容未经独立核实】character:player：院子里风吹着挺舒服的，在外面透了会儿气，整个人精神多了。"
+        },
+        {
+          "memoryId": "episode:7",
+          "level": "episode",
+          "age": 84,
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人回到公共厅，找了张椅子坐下，微笑着和在厅里的林晓、周姨打了个招呼。"
+        },
+        {
+          "memoryId": "episode:4",
+          "level": "episode",
+          "age": 108,
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。"
+        },
+        {
+          "memoryId": "episode:4",
+          "level": "episode",
+          "age": 108,
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人在椅子上坐下，笑着回应沈南和周姨。"
+        },
+        {
+          "memoryId": "episode:4",
+          "level": "episode",
+          "age": 106,
+          "text": "【听到发言；所述内容未经独立核实】character:host：成，你踏实歇着！就把这儿当自个儿家，有事随时叫我。"
+        },
+        {
+          "memoryId": "episode:5",
+          "level": "episode",
+          "age": 102,
+          "text": "【听到发言；所述内容未经独立核实】character:player：沈南，我歇得差不多了，咱们现在去院子转转吧？"
+        },
+        {
+          "memoryId": "atom:event:101:0",
+          "level": "event_atom",
+          "age": 112,
+          "text": "【听到发言；所述内容未经独立核实】character:player：周姨、林晓、沈南，我把随身行李都先放到客房收好了。"
+        }
+      ],
+      "assessment": "热水、茶水间话语有部分关系，但旧进出厅、行李噪声仍在。"
+    },
+    {
+      "traceId": "turn-0092-call-001-friend",
+      "query": "快去吧，水还热着呢，慢慢喝。 沈南，刚才我泡了壶热茶，周姨和林晓在厅里正喝着呢。你要是想喝口热的，现在去厅里或茶水间正好。 好啊，正想喝口热的暖暖胃呢。多谢了，我这就去厅里倒一杯。 快去吧，水还热着呢，慢慢喝。",
+      "previousReadingReason": "沈南接受热茶后准备去厅；旧版至少有先前喝茶约定，新版主要为早期厅/院子话语重复。",
+      "memories": [
+        {
+          "memoryId": "episode:4",
+          "level": "episode",
+          "age": 125,
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。"
+        },
+        {
+          "memoryId": "episode:4",
+          "level": "episode",
+          "age": 125,
+          "text": "【外显叙述；不是规则裁定结果】character:player：旅人在椅子上坐下，笑着回应沈南和周姨。"
+        },
+        {
+          "memoryId": "episode:4",
+          "level": "episode",
+          "age": 124,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：歇会儿挺好，赶路容易乏。待会儿要去门廊或院子叫我一声，我也打算过去透透气。"
+        },
+        {
+          "memoryId": "atom:event:164:0",
+          "level": "event_atom",
+          "age": 118,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：行，走吧，正好去院子里透透气。"
+        },
+        {
+          "memoryId": "atom:event:158:2",
+          "level": "event_atom",
+          "age": 119,
+          "text": "【听到发言；所述内容未经独立核实】character:player：沈南，我歇得差不多了，咱们现在去院子转转吧？"
+        },
+        {
+          "memoryId": "atom:event:437:1",
+          "level": "event_atom",
+          "age": 66,
+          "text": "【听到发言；所述内容未经独立核实】character:player：沈南，你一直在这儿吹风呢？刚才在门廊和厅里转了转，还是院子里最透气。"
+        },
+        {
+          "memoryId": "atom:event:203:0",
+          "level": "event_atom",
+          "age": 112,
+          "text": "【听到发言；所述内容未经独立核实】character:player：好啊，等在院子里吹够了风，咱们就去门廊那边看看。"
+        },
+        {
+          "memoryId": "atom:event:100:2",
+          "level": "event_atom",
+          "age": 129,
+          "text": "【听到发言；所述内容未经独立核实】character:player：周姨、林晓、沈南，我把随身行李都先放到客房收好了。"
+        }
+      ],
+      "assessment": "原始输入与发言重复消失，但没有恢复此前有效喝茶约定；整体仍是旧厅/院子话语。"
+    },
+    {
+      "traceId": "turn-0098-call-002-friend",
+      "query": "{\"characterId\":\"character:player\",\"fromLocationId\":\"location:hall\"} 可不是嘛，难得碰上这么清静的好天气，就该踏踏实实缓上一阵。 {\"characterId\":\"character:player\",\"fromLocationId\":\"location:hall\"}",
+      "previousReadingReason": "当前玩家离厅；同一人物的多次旧移动不能解释这次刺激。",
+      "memories": [
+        {
+          "memoryId": "episode:2",
+          "level": "episode",
+          "age": 157,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"fromLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "episode:6",
+          "level": "episode",
+          "age": 133,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"fromLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "episode:6",
+          "level": "episode",
+          "age": 132,
+          "text": "【本角色获准看到的行动结果】character:friend：{\"actionType\": \"move\", \"actorId\": \"character:friend\", \"movement\": {\"characterId\": \"character:friend\", \"fromLocationId\": \"location:hall\", \"toLocationId\": \"location:courtyard\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "episode:6",
+          "level": "episode",
+          "age": 131,
+          "text": "【听到发言；所述内容未经独立核实】character:friend：院里空气确实比屋里透亮多了。"
+        },
+        {
+          "memoryId": "atom:event:34:0",
+          "level": "event_atom",
+          "age": 158,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"interact\", \"actorId\": \"character:player\", \"interaction\": {\"characterId\": \"character:player\", \"entityId\": \"entity:travel-bag\", \"fromHolderId\": null, \"fromLocationId\": \"location:hall\", \"interactionId\": \"base:take\", \"toHolderId\": \"character:player\", \"toLocationId\": null}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "episode:3",
+          "level": "episode",
+          "age": 147,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"toLocationId\": \"location:hall\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "atom:event:629:0",
+          "level": "event_atom",
+          "age": 43,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"fromLocationId\": \"location:courtyard\"}, \"status\": \"accepted\"}"
+        },
+        {
+          "memoryId": "atom:event:257:0",
+          "level": "event_atom",
+          "age": 118,
+          "text": "【本角色获准看到的行动结果】character:player：{\"actionType\": \"move\", \"actorId\": \"character:player\", \"movement\": {\"characterId\": \"character:player\", \"fromLocationId\": \"location:courtyard\"}, \"status\": \"accepted\"}"
+        }
+      ],
+      "assessment": "不同时间的旧移动分别保留，避免误删独立事件；它们仍未解释当前离厅刺激。"
+    },
+    {
+      "traceId": "turn-0109-call-001-companion",
+      "query": "在屋里看了会儿书，还是厅里坐着舒服。大家聊什么呢？ {\"characterId\":\"character:player\",\"fromLocationId\":\"location:hall\"} {\"characterId\":\"character:player\",\"toLocationId\":\"location:hall\"} 在屋里看了会儿书，还是厅里坐着舒服。大家聊什么呢？",
+      "previousReadingReason": "回屋读书后再遇；旧读书话语相关，新版更容易命中，但两来源占满八个槽位。",
+      "memories": [
+        {
+          "memoryId": "atom:event:382:0",
+          "level": "event_atom",
+          "age": 104,
+          "text": "【听到发言；所述内容未经独立核实】character:player：刚才回屋里喝了口热茶、看了会儿书，整个人松快多了。大伙儿都还歇着呢？"
+        },
+        {
+          "memoryId": "atom:event:121:0",
+          "level": "event_atom",
+          "age": 153,
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。"
+        },
+        {
+          "memoryId": "atom:event:398:0",
+          "level": "event_atom",
+          "age": 101,
+          "text": "【听到发言；所述内容未经独立核实】character:player：可不是嘛，难得有这么清静的功夫，在这儿坐着听听风声，整个人都慢下来了。"
+        },
+        {
+          "memoryId": "atom:event:530:1",
+          "level": "event_atom",
+          "age": 74,
+          "text": "【听到发言；所述内容未经独立核实】character:player：可不是嘛。我先去茶水间弄点热水喝，润润嗓子。"
+        },
+        {
+          "memoryId": "atom:event:685:0",
+          "level": "event_atom",
+          "age": 43,
+          "text": "【听到发言；所述内容未经独立核实】character:player：刚泡好的，水还挺烫，慢慢喝，暖暖身子。"
+        },
+        {
+          "memoryId": "atom:event:106:0",
+          "level": "event_atom",
+          "age": 156,
+          "text": "【听到发言；所述内容未经独立核实】character:companion：行啊，动作挺快的。"
+        },
+        {
+          "memoryId": "atom:event:279:0",
+          "level": "event_atom",
+          "age": 126,
+          "text": "【听到发言；所述内容未经独立核实】character:player：是啊，这会儿坐下来歇着，总算把赶路的疲惫给散了。林晓，你今天路上走得顺当吗？"
+        },
+        {
+          "memoryId": "atom:event:263:0",
+          "level": "event_atom",
+          "age": 129,
+          "text": "【听到发言；所述内容未经独立核实】character:player：院子里风吹着挺舒服的，在外面透了会儿气，整个人精神多了。"
+        }
+      ],
+      "assessment": "event:382 的读书再遇线索保留；原来两来源占八槽的情况改善为八来源，新增内容仍多为一般歇息与热茶。"
+    },
+    {
+      "traceId": "turn-0109-call-003-host",
+      "query": "在屋里看了会儿书，还是厅里坐着舒服。大家聊什么呢？ {\"characterId\":\"character:player\",\"fromLocationId\":\"location:hall\"} {\"characterId\":\"character:player\",\"toLocationId\":\"location:hall\"} 在屋里看了会儿书，还是厅里坐着舒服。大家聊什么呢？",
+      "previousReadingReason": "同样的读书再遇；近期精神恢复部分相关，旧进出厅无关，完整语境反复交付。",
+      "memories": [
+        {
+          "memoryId": "atom:event:383:0",
+          "level": "event_atom",
+          "age": 106,
+          "text": "【听到发言；所述内容未经独立核实】character:player：刚才回屋里喝了口热茶、看了会儿书，整个人松快多了。大伙儿都还歇着呢？"
+        },
+        {
+          "memoryId": "atom:event:123:0",
+          "level": "event_atom",
+          "age": 155,
+          "text": "【听到发言；所述内容未经独立核实】character:player：我先在厅里坐着歇会儿，待会儿再去院子和门廊转转。谢谢周姨，刚才顺道看了一眼茶水间，挺周全的。"
+        },
+        {
+          "memoryId": "atom:event:264:0",
+          "level": "event_atom",
+          "age": 131,
+          "text": "【听到发言；所述内容未经独立核实】character:player：院子里风吹着挺舒服的，在外面透了会儿气，整个人精神多了。"
+        },
+        {
+          "memoryId": "atom:event:531:1",
+          "level": "event_atom",
+          "age": 76,
+          "text": "【听到发言；所述内容未经独立核实】character:player：可不是嘛。我先去茶水间弄点热水喝，润润嗓子。"
+        },
+        {
+          "memoryId": "atom:event:399:0",
+          "level": "event_atom",
+          "age": 103,
+          "text": "【听到发言；所述内容未经独立核实】character:player：可不是嘛，难得有这么清静的功夫，在这儿坐着听听风声，整个人都慢下来了。"
+        },
+        {
+          "memoryId": "atom:event:686:0",
+          "level": "event_atom",
+          "age": 45,
+          "text": "【听到发言；所述内容未经独立核实】character:player：刚泡好的，水还挺烫，慢慢喝，暖暖身子。"
+        },
+        {
+          "memoryId": "atom:event:140:0",
+          "level": "event_atom",
+          "age": 152,
+          "text": "【听到发言；所述内容未经独立核实】character:player：好啊，等会儿去的时候叫上你，咱们一块儿去。"
+        },
+        {
+          "memoryId": "atom:event:291:0",
+          "level": "event_atom",
+          "age": 126,
+          "text": "【听到发言；所述内容未经独立核实】character:player：坐久了确实容易腰酸背痛，在厅里多歇歇，缓一缓就舒坦了。"
+        }
+      ],
+      "assessment": "读书再遇线索保留且不重复交付完整引用；更多独立旧话语进入，但没有独立证明这些新内容有用。"
+    }
+  ]
+}

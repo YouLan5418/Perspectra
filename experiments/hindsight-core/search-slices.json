@@ -1,0 +1,110 @@
+[
+  {
+    "path": "embeddings.py",
+    "symbol": "OnnxEmbeddings",
+    "lines": [
+      442,
+      710
+    ],
+    "sha256": "42dad1e852790d64f2c92124e36ec4e0c15df7a684abe1794d8328226939fe74"
+  },
+  {
+    "path": "embeddings.py",
+    "symbol": "Embeddings.encode_query",
+    "lines": [
+      255,
+      257
+    ],
+    "sha256": "43ce9beaed603803b688fdf21038885f344ff72c4a6a2768876d6a99ab28a1cd"
+  },
+  {
+    "path": "embeddings.py",
+    "symbol": "Embeddings.encode_documents",
+    "lines": [
+      259,
+      261
+    ],
+    "sha256": "fb5e1a96f25e5cf6973b2832fe257f4deb2c47e699d7e2fdb63650163e5fc554"
+  },
+  {
+    "path": "embeddings.py",
+    "symbol": "Embeddings._encode_prefixed",
+    "lines": [
+      263,
+      276
+    ],
+    "sha256": "7f94531fc10685748b7b2ce3043816d17b2e9ab85bc113179a9961a251dfc60a"
+  },
+  {
+    "path": "retain/link_utils.py",
+    "symbol": "_normalize_entity_name",
+    "lines": [
+      52,
+      62
+    ],
+    "sha256": "0dbd47acf7c87becf518a30a5e1c0381cb2274ed1b3b41f80a2d2bd8d8252c33"
+  },
+  {
+    "path": "retain/link_utils.py",
+    "symbol": "_cap_links_per_unit",
+    "lines": [
+      86,
+      113
+    ],
+    "sha256": "cd35b183c14865dacdb5d844edeff4499abfffa46160f55c81ded413d6f409e9"
+  },
+  {
+    "path": "retain/link_utils.py",
+    "symbol": "_normalize_datetime",
+    "lines": [
+      250,
+      257
+    ],
+    "sha256": "1203e1e5aecf3ddd4a788f518f57155d892c821580fdf2c1056d14bc8d674671"
+  },
+  {
+    "path": "retain/link_utils.py",
+    "symbol": "_within_batch_temporal_links",
+    "lines": [
+      116,
+      177
+    ],
+    "sha256": "49f193d1eb3624dd65f03f5352256f6bc1b6009ed8f849e38fcfc29111b7b59f"
+  },
+  {
+    "path": "retain/link_utils.py",
+    "symbol": "compute_semantic_links_within_batch",
+    "lines": [
+      784,
+      884
+    ],
+    "sha256": "8c51574a3f76f85171a9ee678d1a661417b21338ca3584b6b011314426544da3"
+  },
+  {
+    "path": "search/retrieval.py",
+    "symbol": "_coalesce_date",
+    "lines": [
+      409,
+      411
+    ],
+    "sha256": "0db6ab9bedd13adf79ffe405adeb98d82e6c9294beaee07fde0cd7a7cc17d119"
+  },
+  {
+    "path": "search/retrieval.py",
+    "symbol": "_select_with_temporal_coverage",
+    "lines": [
+      414,
+      460
+    ],
+    "sha256": "5c69be5964e2a5545bdc1ebb7838d3ff6ba1e468543d5fe424ef58cff6e3b7b2"
+  },
+  {
+    "path": "search/link_expansion_retrieval.py",
+    "symbol": "LinkExpansionRetriever.retrieve scoring block",
+    "lines": [
+      240,
+      278
+    ],
+    "sha256": "65aede6d838373e35689fe5b36e4b23420469028aee93fcbdca58665eefe429a"
+  }
+]

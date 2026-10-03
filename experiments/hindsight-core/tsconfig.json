@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "./drive.ts",
+    "./long-drive.ts",
+    "./long-compare.ts",
+    "./behavior-drive.ts",
+    "./behavior-cases.ts",
+    "./continuous-drive.ts",
+    "./episode-turn-replay.ts",
+    "./episode-prefix-behavior.ts"
+  ]
+}

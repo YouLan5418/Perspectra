@@ -1,0 +1,344 @@
+{
+  "date": "2026-10-02",
+  "replays": [
+    {
+      "traceId": "turn-0042-call-001-companion",
+      "turn": 42,
+      "actorId": "character:companion",
+      "oldDeliveryCount": 2,
+      "newDeliveryCount": 0,
+      "queryProjection": {
+        "semanticQuery": "drop，对象tea box",
+        "keywordTerms": [
+          "box",
+          "drop",
+          "tea",
+          "对象"
+        ],
+        "keywordText": "drop，对象tea box",
+        "entitySeeds": [
+          {
+            "id": "character:player",
+            "roles": [
+              "actor",
+              "mentioned",
+              "object:characterId",
+              "object:fromHolderId"
+            ]
+          },
+          {
+            "id": "entity:tea-box",
+            "roles": [
+              "object:entityId"
+            ]
+          },
+          {
+            "id": "location:hall",
+            "roles": [
+              "object:toLocationId",
+              "scene"
+            ]
+          }
+        ],
+        "mode": "entity",
+        "requiredEntityIds": [
+          "entity:tea-box"
+        ],
+        "contentChars": 12,
+        "skipReason": null,
+        "tokenCount": 10,
+        "truncated": false,
+        "unboundedText": "drop，对象tea box",
+        "originalText": "观察到行动结果：旅人，drop，对象tea box",
+        "retrievalTextRule": "authorized-identity-template/v1",
+        "origin": "current authorized stimulus only",
+        "recentObservationsUsed": 0
+      },
+      "representationCountBefore": 88,
+      "representationCountAfter": 88,
+      "sourceCount": 32,
+      "atomCount": 61,
+      "reusedVectors": 88,
+      "localReencodedVectors": 0,
+      "archiveUnchanged": true
+    },
+    {
+      "traceId": "turn-0042-call-002-friend",
+      "turn": 42,
+      "actorId": "character:friend",
+      "oldDeliveryCount": 2,
+      "newDeliveryCount": 0,
+      "queryProjection": {
+        "semanticQuery": "drop，对象tea box",
+        "keywordTerms": [
+          "box",
+          "drop",
+          "tea",
+          "对象"
+        ],
+        "keywordText": "drop，对象tea box",
+        "entitySeeds": [
+          {
+            "id": "character:player",
+            "roles": [
+              "actor",
+              "mentioned",
+              "object:characterId",
+              "object:fromHolderId"
+            ]
+          },
+          {
+            "id": "entity:tea-box",
+            "roles": [
+              "object:entityId"
+            ]
+          },
+          {
+            "id": "location:hall",
+            "roles": [
+              "object:toLocationId",
+              "scene"
+            ]
+          }
+        ],
+        "mode": "entity",
+        "requiredEntityIds": [
+          "entity:tea-box"
+        ],
+        "contentChars": 12,
+        "skipReason": null,
+        "tokenCount": 10,
+        "truncated": false,
+        "unboundedText": "drop，对象tea box",
+        "originalText": "观察到行动结果：旅人，drop，对象tea box",
+        "retrievalTextRule": "authorized-identity-template/v1",
+        "origin": "current authorized stimulus only",
+        "recentObservationsUsed": 0
+      },
+      "representationCountBefore": 80,
+      "representationCountAfter": 80,
+      "sourceCount": 32,
+      "atomCount": 59,
+      "reusedVectors": 80,
+      "localReencodedVectors": 0,
+      "archiveUnchanged": true
+    },
+    {
+      "traceId": "turn-0042-call-003-host",
+      "turn": 42,
+      "actorId": "character:host",
+      "oldDeliveryCount": 2,
+      "newDeliveryCount": 0,
+      "queryProjection": {
+        "semanticQuery": "drop，对象tea box",
+        "keywordTerms": [
+          "box",
+          "drop",
+          "tea",
+          "对象"
+        ],
+        "keywordText": "drop，对象tea box",
+        "entitySeeds": [
+          {
+            "id": "character:player",
+            "roles": [
+              "actor",
+              "mentioned",
+              "object:characterId",
+              "object:fromHolderId"
+            ]
+          },
+          {
+            "id": "entity:tea-box",
+            "roles": [
+              "object:entityId"
+            ]
+          },
+          {
+            "id": "location:hall",
+            "roles": [
+              "object:toLocationId",
+              "scene"
+            ]
+          }
+        ],
+        "mode": "entity",
+        "requiredEntityIds": [
+          "entity:tea-box"
+        ],
+        "contentChars": 12,
+        "skipReason": null,
+        "tokenCount": 10,
+        "truncated": false,
+        "unboundedText": "drop，对象tea box",
+        "originalText": "观察到行动结果：旅人，drop，对象tea box",
+        "retrievalTextRule": "authorized-identity-template/v1",
+        "origin": "current authorized stimulus only",
+        "recentObservationsUsed": 0
+      },
+      "representationCountBefore": 74,
+      "representationCountAfter": 74,
+      "sourceCount": 31,
+      "atomCount": 61,
+      "reusedVectors": 74,
+      "localReencodedVectors": 0,
+      "archiveUnchanged": true
+    },
+    {
+      "traceId": "turn-0100-call-001-companion",
+      "turn": 100,
+      "actorId": "character:companion",
+      "oldDeliveryCount": 3,
+      "newDeliveryCount": 0,
+      "queryProjection": {
+        "semanticQuery": "",
+        "keywordTerms": [],
+        "keywordText": "",
+        "entitySeeds": [
+          {
+            "id": "character:player",
+            "roles": [
+              "actor"
+            ]
+          },
+          {
+            "id": "location:hall",
+            "roles": [
+              "scene"
+            ]
+          }
+        ],
+        "mode": "skip",
+        "requiredEntityIds": [],
+        "contentChars": 0,
+        "skipReason": "fewer than 2 searchable content characters",
+        "tokenCount": 0,
+        "truncated": false,
+        "unboundedText": "……",
+        "originalText": "……",
+        "retrievalTextRule": "authorized-identity-template/v1",
+        "origin": "current authorized stimulus only",
+        "recentObservationsUsed": 0
+      },
+      "representationCountBefore": 248,
+      "representationCountAfter": 208,
+      "sourceCount": 82,
+      "atomCount": 204,
+      "reusedVectors": 205,
+      "localReencodedVectors": 3,
+      "archiveUnchanged": true
+    },
+    {
+      "traceId": "turn-0100-call-002-friend",
+      "turn": 100,
+      "actorId": "character:friend",
+      "oldDeliveryCount": 3,
+      "newDeliveryCount": 0,
+      "queryProjection": {
+        "semanticQuery": "",
+        "keywordTerms": [],
+        "keywordText": "",
+        "entitySeeds": [
+          {
+            "id": "character:player",
+            "roles": [
+              "actor"
+            ]
+          },
+          {
+            "id": "location:hall",
+            "roles": [
+              "scene"
+            ]
+          }
+        ],
+        "mode": "skip",
+        "requiredEntityIds": [],
+        "contentChars": 0,
+        "skipReason": "fewer than 2 searchable content characters",
+        "tokenCount": 0,
+        "truncated": false,
+        "unboundedText": "……",
+        "originalText": "……",
+        "retrievalTextRule": "authorized-identity-template/v1",
+        "origin": "current authorized stimulus only",
+        "recentObservationsUsed": 0
+      },
+      "representationCountBefore": 245,
+      "representationCountAfter": 204,
+      "sourceCount": 84,
+      "atomCount": 208,
+      "reusedVectors": 201,
+      "localReencodedVectors": 3,
+      "archiveUnchanged": true
+    },
+    {
+      "traceId": "turn-0100-call-003-host",
+      "turn": 100,
+      "actorId": "character:host",
+      "oldDeliveryCount": 3,
+      "newDeliveryCount": 0,
+      "queryProjection": {
+        "semanticQuery": "",
+        "keywordTerms": [],
+        "keywordText": "",
+        "entitySeeds": [
+          {
+            "id": "character:player",
+            "roles": [
+              "actor"
+            ]
+          },
+          {
+            "id": "location:hall",
+            "roles": [
+              "scene"
+            ]
+          }
+        ],
+        "mode": "skip",
+        "requiredEntityIds": [],
+        "contentChars": 0,
+        "skipReason": "fewer than 2 searchable content characters",
+        "tokenCount": 0,
+        "truncated": false,
+        "unboundedText": "……",
+        "originalText": "……",
+        "retrievalTextRule": "authorized-identity-template/v1",
+        "origin": "current authorized stimulus only",
+        "recentObservationsUsed": 0
+      },
+      "representationCountBefore": 223,
+      "representationCountAfter": 183,
+      "sourceCount": 79,
+      "atomCount": 200,
+      "reusedVectors": 180,
+      "localReencodedVectors": 3,
+      "archiveUnchanged": true
+    }
+  ],
+  "oldRunPunctuationQueries": 135,
+  "oldRunPunctuationNonempty": 90,
+  "oldRunNonpunctuationQueries": 160,
+  "oldRunNonpunctuationNonempty": 39,
+  "oldRunNonpunctuationNonemptyRate": 0.24375,
+  "observationVersionsRead": 8,
+  "observationIdentities": 3,
+  "mixedVersions": 8,
+  "observationRule": "keep strict",
+  "externalLLMCalls": 0,
+  "reusedIndexVectors": 828,
+  "localE5ReencodedWindows": 9,
+  "frozenArtifacts": {
+    "unchanged": true,
+    "filesChecked": 604,
+    "sourceRoot": "D:\\DeepSeek Harness\\perspectra-hindsight-core\\.tmp\\hindsight-long-small-delivery-20261001-v1"
+  },
+  "validation": {
+    "pythonTests": 88,
+    "nodeTests": 2,
+    "focusedTypeCheck": "passed",
+    "fullRepositoryCheck": "not run",
+    "newLiveCharacterTurns": 0
+  }
+}
