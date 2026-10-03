@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import core_bridge as bridge
 import retrieval_text
+import jev_applicability
 import numpy as np
 
 FIELDS = ('contexts', 'conditions', 'exceptions', 'themes')
@@ -28,6 +29,8 @@ JUDGE_PROMPT = (
 
 
 def validate(doc):
+    if doc.get('judge') and doc.get('judgeBackend', 'gemini') not in ('gemini', 'jev'):
+        raise ValueError('unknown applicability judge backend')
     archive, index, frozen = doc['archive'], doc['index'], doc['projection']
     bridge.episode.validate_units(archive)
     bridge.vector_core.check_mapping(index, index['units'])
@@ -65,7 +68,8 @@ def prepare(doc):
                       'background': 'unchanged original index query median',
                       'subjectSeeds': 'actor or explicitly mentioned character; scene/addressee alone excluded',
                       'aggregation': 'max across fields; one candidate per memory, no added RRF votes'},
-            'selectionMethod': 'subject_and_model_applicability' if doc.get('judge') else 'subject_and_facet_retrieval'}
+            'selectionMethod': ('subject_and_jev_applicability' if doc.get('judgeBackend') == 'jev' else
+                                'subject_and_model_applicability') if doc.get('judge') else 'subject_and_facet_retrieval'}
 
 
 def recall(doc):
@@ -111,9 +115,12 @@ def recall(doc):
         if shared and query['mode'] == 'search':
             judge_input = {'stimulus': query['originalText'], 'understanding': target['text'],
                            'applicability': doc['projection']['facets']}
-            bridge.core.llm = bridge.utility_llm
-            judged = bridge.core.llm(JUDGE_PROMPT, json.dumps(judge_input, ensure_ascii=False), 1000)
-            if (set(judged) != {'related', 'matchedFields', 'stimulusQuotes', 'reason'}
+            if doc.get('judgeBackend') == 'jev':
+                judged = jev_applicability.validate_decision(jev_applicability.assess(judge_input))
+            else:
+                bridge.core.llm = bridge.utility_llm
+                judged = bridge.core.llm(JUDGE_PROMPT, json.dumps(judge_input, ensure_ascii=False), 1000)
+            if doc.get('judgeBackend') != 'jev' and (set(judged) != {'related', 'matchedFields', 'stimulusQuotes', 'reason'}
                     or type(judged['related']) is not bool
                     or not isinstance(judged['reason'], str)
                     or not isinstance(judged['matchedFields'], list)
@@ -129,8 +136,9 @@ def recall(doc):
              'accepted': accepted, 'queryBackgroundMedian': background, 'rules': rule,
              'reason': 'subject and contextual content matched' if accepted else
                        'subject mismatch or unresolved' if not shared else
+                       'model assessed uncertain' if judged is not None and judged.get('choice') == 'UNCERTAIN' else
                        'model assessed unrelated' if doc.get('judge') and judged is not None else 'context/exception below unchanged gate',
-             'judgeInput': judge_input, 'judgeResult': judged,
+             'judgeInput': judge_input, 'judgeResult': judged, 'judgeBackend': doc.get('judgeBackend', 'gemini') if doc.get('judge') else None,
              'selectionMethod': prepared['selectionMethod'],
              'limits': 'Relatedness only; similarity/assessment never proves a condition true or determines behavior.'}
     # Assessed Observation uses this route exclusively; ordinary memories keep original recall.

@@ -158,3 +158,15 @@ node --import tsx tests/experiments/activity-memory-live-probe.ts .tmp/my-hosted
 ## 对象与适用性判断续验（2026-10-04）
 
 冻结上一轮字段，先测对象＋分字段 E5（仍为 0/3），再单独测对象＋Gemini 适用性准入（原三点交付、两对照为空）。后者完成 27 次真实首次选择对照，等候点出现先问资料与直接移动的分叉。期间修复了成功 Observation 经活动交付器时 trace 缺少 coveredAtomIds 的可复现缺陷。方法变化、失败记录、局限及复现见 [对象与适用性判断报告](report-observation-facet-match.md)。未接入正式网页或修改正式记忆 schema。
+
+
+## JEV 适用性判断对照（2026-10-04）
+
+实验入口新增 `--jev-judge-from`，复用冻结认识与适用性字段，经确定性对象门槛后只让 OpenRouter `typesafe/jev-1.13` 判断相关性；角色仍用 Gemini 3.7 Flash。密钥读取 `OPENROUTER_JEV_KEY`（进程或 Windows 当前用户环境），不保存值。三态决定、重复稳定性与 27 次首次选择结果见 [JEV 实验报告](report-observation-jev.md) 和 observation-jev-assessment.json。
+
+```powershell
+node --import tsx tests/experiments/observation-choice.ts .tmp/my-observation-jev --jev-judge-from .tmp/observation-applicability-20261004-v1
+& '.tmp/hindsight-vector-venv/Scripts/python.exe' experiments/activity-memory/audit_observation_facet_match.py .tmp/my-observation-jev
+# 可选：相同输入各追加两次，只增加 JEV 判断调用：
+& '.tmp/hindsight-vector-venv/Scripts/python.exe' experiments/activity-memory/jev_applicability_stability.py .tmp/my-observation-jev
+```

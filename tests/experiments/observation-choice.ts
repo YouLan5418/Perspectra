@@ -18,7 +18,8 @@ import { coreRunner, hindsightPython } from './hindsight-python.ts'
 const root=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(root))throw new Error('provide a fresh output directory')
 mkdirSync(root,{recursive:true})
-const facetJudge=process.argv[3]==='--facet-judge-from'
+const jevJudge=process.argv[3]==='--jev-judge-from'
+const facetJudge=process.argv[3]==='--facet-judge-from'||jevJudge
 const facetMatch=process.argv[3]==='--facet-match-from'||facetJudge
 const applicability=process.argv[3]==='--applicability-from'||facetMatch
 const sourceRoot=(applicability||process.argv[3]==='--delivery-intervention-from')&&process.argv[4]?resolve(process.argv[4]):undefined
@@ -54,9 +55,10 @@ const probes: {id:string;kind:string;text:string;actorId?:string}[]=[
 ]
 if([...history.values(),...probes.map(p=>p.text)].some(text=>text.includes('\uFFFD')))throw new Error('invalid Unicode in authored input')
 writeFileSync(join(root,'protocol.json'),JSON.stringify({model,repeats,formationTick,probeTick,history:[...history],probes,
+ applicabilityJudge:jevJudge?'typesafe/jev-1.13':facetJudge?model:null,
  historyMode:'55 committed authored-history ticks, not 55 live model turns',
  deliveryMode:facetJudge?'subject and model applicability admission':facetMatch?'natural subject and facet retrieval':applicability?'natural retrieval with applicability projection':sourceRoot?'explicit intervention, not natural retrieval':'natural',
- ...(applicability?{projectionDesign:facetJudge?'frozen facets; deterministic subject gate; Gemini assesses relevance with quoted stimulus; original numeric gates diagnostic only':facetMatch?'frozen facets reused; subject required; contexts/exceptions scored separately with original numeric gates; one candidate; unchanged ordinary recall and delivery':'one target search window replaced; same encoder, queries, admission, entities and delivery; projection generation sees no probes',comparison:'frozen original index recalled on every same request before experimental route'}:{}),
+ ...(applicability?{projectionDesign:jevJudge?'frozen facets; deterministic subject gate; JEV typed applicability choice; probabilities diagnostic; original numeric gates diagnostic only':facetJudge?'frozen facets; deterministic subject gate; Gemini assesses relevance with quoted stimulus; original numeric gates diagnostic only':facetMatch?'frozen facets reused; subject required; contexts/exceptions scored separately with original numeric gates; one candidate; unchanged ordinary recall and delivery':'one target search window replaced; same encoder, queries, admission, entities and delivery; projection generation sees no probes',comparison:'frozen original index recalled on every same request before experimental route'}:{}),
  reusedArchiveFrom:sourceRoot??null,
  design:'natural recall audited first; only target Observation removed in ablation; all other delivered memories and context fixed',
  conditions:['with-observation','without-observation-a','without-observation-b'],
@@ -72,7 +74,7 @@ function facetWorker(input:WorldJsonObject,signal:AbortSignal):Promise<WorldJson
  return new Promise((resolveResult,reject)=>{
   const child=execFile(hindsightPython(),[resolve('experiments/activity-memory/observation-facet-match.py')],{
    signal,timeout:120000,maxBuffer:32*1024*1024,windowsHide:true,encoding:'utf8',
-   env:{...process.env,HCW_LOCAL_MODEL:model,HCW_HINDSIGHT_UTILITY_TRACE:join(root,'facet-utility-calls.jsonl'),PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0'}},(error,stdout)=>{
+   env:{...process.env,HCW_LOCAL_MODEL:model,HCW_JEV_APPLICABILITY_TRACE:join(root,'jev-applicability-calls.jsonl'),HCW_HINDSIGHT_UTILITY_TRACE:join(root,'facet-utility-calls.jsonl'),PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0'}},(error,stdout)=>{
     if(error){reject(new Error('facet retrieval failed',{cause:error}));return}
     try{resolveResult(JSON.parse(stdout) as WorldJsonObject)}catch(cause){reject(new Error('facet retrieval returned invalid JSON',{cause}))}
    })
@@ -131,7 +133,7 @@ else{
  let facetProjection:WorldJsonObject|undefined,preparedFacet:WorldJsonObject|undefined
  if(facetMatch){
   facetProjection=JSON.parse(readFileSync(join(sourceRoot!,'applicability.json'),'utf8')) as WorldJsonObject
-  const preparation:WorldJsonObject={operation:'prepare',archive,index,projection:facetProjection,targetObservation:targetId,judge:facetJudge}
+  const preparation:WorldJsonObject={operation:'prepare',archive,index,projection:facetProjection,targetObservation:targetId,judge:facetJudge,judgeBackend:jevJudge?'jev':'gemini'}
   writeFileSync(join(root,'facet-input.json'),JSON.stringify(preparation,null,2))
   preparedFacet=await facetWorker(preparation,AbortSignal.timeout(180000))
   writeFileSync(join(root,'facet-projection.json'),JSON.stringify(preparedFacet,null,2))
@@ -174,7 +176,7 @@ else{
       writeFileSync(join(root,probe.id+'-baseline-recall.json'),JSON.stringify(baseline,null,2))
      }
      selection=facetMatch
-      ?await facetWorker({operation:'recall',archive,index,projection:facetProjection!,prepared:preparedFacet!,targetObservation:targetId,request:{...request},tick:probeTick,observations:true,judge:facetJudge},signal)
+      ?await facetWorker({operation:'recall',archive,index,projection:facetProjection!,prepared:preparedFacet!,targetObservation:targetId,request:{...request},tick:probeTick,observations:true,judge:facetJudge,judgeBackend:jevJudge?'jev':'gemini'},signal)
       :await core({operation:'recall',archive,index:searchIndex,request:{...request},tick:probeTick,observations:true},signal)
      return {decision:'abstain'}
     }})

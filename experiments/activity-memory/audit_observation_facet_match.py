@@ -81,6 +81,7 @@ def audit(root):
     def never_call(*args):
         raise AssertionError('audit attempted a new model call')
     bridge.utility_llm = never_call
+    matcher.jev_applicability.assess = never_call
     base = {**input_doc, 'prepared': prepared, 'operation': 'recall',
             'request': load(root / 'new-task-preview-request.json'), 'tick': 55, 'observations': True}
     for name, mutate in [
@@ -94,19 +95,27 @@ def audit(root):
         else:raise AssertionError(name + ' accepted')
     if input_doc.get('judge'):
         first = load(root / 'new-task-recall.json')['retrieval']['applicabilityRoute']['judgeResult']
-        bridge.utility_llm = lambda *args: copy.deepcopy(first)
+        if input_doc.get('judgeBackend') == 'jev':
+            matcher.jev_applicability.assess = lambda *args: copy.deepcopy(first)
+        else:
+            bridge.utility_llm = lambda *args: copy.deepcopy(first)
         replay = matcher.recall(copy.deepcopy(base))
         assert replay['delivery'][0]['text'] == target['text']
         assert replay['deliveryTrace']['delivered'][0]['coveredAtomIds'] == []
         assert replay['deliveryTrace']['distinctEvidenceSegments'] == 0
-        bad = copy.deepcopy(first);bad['stimulusQuotes'] = ['not in this stimulus']
-        bridge.utility_llm = lambda *args: bad
+        bad = copy.deepcopy(first)
+        if input_doc.get('judgeBackend') == 'jev':
+            bad['choice'] = 'UNRELATED'  # Keep related=True: must reject inconsistent wire output.
+            matcher.jev_applicability.assess = lambda *args: bad
+        else:
+            bad['stimulusQuotes'] = ['not in this stimulus']
+            bridge.utility_llm = lambda *args: bad
         try:matcher.recall(copy.deepcopy(base))
-        except ValueError:negative.append('invented-stimulus-quote')
-        else:raise AssertionError('invented quote accepted')
+        except ValueError:negative.append('inconsistent-jev-choice' if input_doc.get('judgeBackend') == 'jev' else 'invented-stimulus-quote')
+        else:raise AssertionError('invalid model result accepted')
     with sqlite3.connect('file:' + (root / 'history/world.sqlite').resolve().as_posix() + '?mode=ro', uri=True) as db:
         assert db.execute('PRAGMA quick_check').fetchone()[0] == 'ok'
-    utility = root / 'facet-utility-calls.jsonl'
+    utility = root / ('jev-applicability-calls.jsonl' if input_doc.get('judgeBackend') == 'jev' else 'facet-utility-calls.jsonl')
     return {'archiveAndFrozenProjectionUnchanged': True, 'originalIndexAndBaseScoresUnchanged': True,
             'queriesUnchanged': True, 'nonmemoryContextEqualWithinProbe': True, 'judgeNotDeliveredToCharacter': True,
             'privateSourceExcluded': True, 'originalWorldUnchanged': summary['originalWorldUnchanged'],
