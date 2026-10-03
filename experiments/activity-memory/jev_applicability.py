@@ -80,8 +80,7 @@ def api_key():
     return value.strip()
 
 
-def assess(state):
-    request = request_for(state)
+def send(request, parser):
     wire = urllib.request.Request(ENDPOINT, data=json.dumps(request, ensure_ascii=False).encode('utf-8'),
                                  headers={'Authorization': 'Bearer ' + api_key(), 'Content-Type': 'application/json'},
                                  method='POST')
@@ -96,7 +95,7 @@ def assess(state):
         except (urllib.error.URLError, TimeoutError):
             raise RuntimeError('JEV transport failed') from None
         record['response'] = body
-        result = parse_answer(body, (time.perf_counter() - started) * 1000)
+        result = parser(body, (time.perf_counter() - started) * 1000)
         record.update(status='returned', result=result)
         return result
     except Exception:
@@ -108,3 +107,47 @@ def assess(state):
         if trace:
             with Path(trace).open('a', encoding='utf-8') as stream:
                 stream.write(json.dumps(record, ensure_ascii=False) + '\n')
+
+
+def assess(state):
+    return send(request_for(state), parse_answer)
+
+
+def many_request(stimulus, candidates):
+    if (not candidates or len(candidates) > 20
+            or len({c['memoryId'] for c in candidates}) != len(candidates)
+            or any(set(c) != {'memoryId', 'understanding', 'applicability'} for c in candidates)):
+        raise ValueError('invalid batch candidates')
+    questions = {}
+    for position, candidate in enumerate(candidates):
+        questions['candidate_' + str(position)] = {
+            'type': 'choice', 'criteria': CRITERIA,
+            'instructions': INSTRUCTIONS.replace(
+                'State contains one character-owned revisable subjective understanding, its frozen retrieval facets, and the current stimulus.',
+                'State contains the current stimulus with its authorized actor IDs, and a map of candidate understandings.') +
+                ' Assess ONLY state.candidates[' + candidate['memoryId'] + ']. Compare its explicitly named subject IDs '
+                'with stimulus.actorIds/mentionedIds: another person alone is insufficient; do not transfer traits between people. '
+                'Judge this candidate independently, never select a winner or compare it to the other candidates. '
+                'Several RELATED or zero RELATED are both valid. Another understanding does not support or refute this one.'}
+    return {'model': MODEL, 'state': {'stimulus': stimulus,
+            'candidates': {c['memoryId']: {'understanding': c['understanding'], 'applicability': c['applicability']} for c in candidates}},
+            'questions': questions}
+
+
+def parse_many(body, elapsed, candidates):
+    keys = ['candidate_' + str(i) for i in range(len(candidates))]
+    if not isinstance(body, dict) or not isinstance(body.get('answers'), dict) or set(body['answers']) != set(keys):
+        raise ValueError('incomplete JEV batch answers')
+    answers = {}
+    for key, candidate in zip(keys, candidates):
+        answers[candidate['memoryId']] = parse_answer({
+            'model': body.get('model'), 'answers': {'applicability': body['answers'][key]}, 'usage': {}}, 0)
+    usage = body.get('usage', {})
+    if not isinstance(usage, dict):
+        raise ValueError('invalid JEV batch usage')
+    return {'answers': answers, 'model': body['model'], 'usage': usage, 'latencyMs': elapsed}
+
+
+def assess_many(stimulus, candidates):
+    request = many_request(stimulus, candidates)
+    return send(request, lambda body, elapsed: parse_many(body, elapsed, candidates))

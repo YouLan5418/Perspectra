@@ -1,0 +1,186 @@
+{
+  "synthetic": true,
+  "labelMethod": "predeclared exploratory required / allowed / irrelevant; not human gold",
+  "scope": "one character's authorized synthetic observations only",
+  "targetId": "obs:1",
+  "sizes": [
+    5,
+    10,
+    20
+  ],
+  "shortlistLimit": 7,
+  "classificationRepeats": 3,
+  "randomSeed": 20261004,
+  "entries": [
+    {
+      "memoryId": "obs:1",
+      "tick": null,
+      "text": null,
+      "evidence": null,
+      "expected": {
+        "new-task": "required",
+        "new-stop": "required",
+        "familiar-control": "required"
+      }
+    },
+    {
+      "memoryId": "bank:02",
+      "tick": 16,
+      "text": "【主观认识，可修正】旅人在陌生餐厅点菜时会先核对食材，对导航没有特别的认识。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人在第一次来的餐厅点菜前向店员核对食材，谈话没有涉及指路。",
+      "expected": {}
+    },
+    {
+      "memoryId": "bank:03",
+      "tick": 17,
+      "text": "【主观认识，可修正】陆舟在第一次前往陌生地点时经常弄错路线。",
+      "evidence": "【合成实验经历】小芷亲眼看见：陆舟首次去两个陌生办事处时都选错入口，询问现场工作人员后改正。",
+      "expected": {
+        "other-person-navigation": "required"
+      }
+    },
+    {
+      "memoryId": "bank:04",
+      "tick": 18,
+      "text": "【主观认识，可修正】旅人曾使用新版地图顺利找到陌生地点，使用新资料时也有可靠的导航经历。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人按照当日更新的地图找到首次到访的办事处入口，没有走错。",
+      "expected": {
+        "new-task": "allowed",
+        "new-stop": "allowed"
+      }
+    },
+    {
+      "memoryId": "bank:05",
+      "tick": 19,
+      "text": "【主观认识，可修正】旅人在熟悉且经常来的地点有时也会确认路牌。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人在常来的街区查看了路牌，又准确指出熟悉的小屋位置。",
+      "expected": {
+        "familiar-control": "required"
+      }
+    },
+    {
+      "memoryId": "bank:06",
+      "tick": 20,
+      "text": "【主观认识，可修正】旅人经常忘记更新自己的日程，容易漏掉约定的时间。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人先后两次没有把改期的约会写入自己的日程，因此错过了约定时间。",
+      "expected": {}
+    },
+    {
+      "memoryId": "bank:07",
+      "tick": 21,
+      "text": "【主观认识，可修正】旅人偏爱甜食，通常选择甜口点心。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人在两次点心选择中都选了甜口糕点，留下了咸饼干。",
+      "expected": {}
+    },
+    {
+      "memoryId": "bank:08",
+      "tick": 22,
+      "text": "【主观认识，可修正】陆舟依赖旧导览材料时容易把陌生地点的入口弄错。",
+      "evidence": "【合成实验经历】小芷亲眼看见：陆舟依据旧导览找到首次到访的入口，发现入口已搬迁后向工作人员确认。",
+      "expected": {
+        "other-person-navigation": "required"
+      }
+    },
+    {
+      "memoryId": "bank:09",
+      "tick": 23,
+      "text": "【主观认识，可修正】旅人不太注意介绍资料的更新日期，旧介绍也可能被他当成当前信息。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人两次没有查看介绍册的印刷日期，直接引用其中已经过期的地点信息。",
+      "expected": {
+        "new-task": "allowed",
+        "new-stop": "required",
+        "familiar-control": "allowed"
+      }
+    },
+    {
+      "memoryId": "bank:10",
+      "tick": 24,
+      "text": "【主观认识，可修正】旅人在陌生地点即使使用旧资料，通常也能准确指出目的地。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人在另外两次初次到访中使用旧版地图，仍然准确找到对应的登记小屋。",
+      "expected": {
+        "new-task": "required",
+        "new-stop": "required"
+      }
+    },
+    {
+      "memoryId": "bank:11",
+      "tick": 25,
+      "text": "【主观认识，可修正】旅人首次参加讲座时比较安静，不太主动加入讨论。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人在第一次参加的讲座里一直安静听讲，没有主动加入讨论。",
+      "expected": {}
+    },
+    {
+      "memoryId": "bank:12",
+      "tick": 26,
+      "text": "【主观认识，可修正】旅人对自己常去地点见过的门牌记得很牢。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人在常去街区不看地图也记住了旧门牌和对应的小屋。",
+      "expected": {
+        "familiar-control": "allowed"
+      }
+    },
+    {
+      "memoryId": "bank:13",
+      "tick": 27,
+      "text": "【主观认识，可修正】陆舟会混淆初次见面的人的姓名。",
+      "evidence": "【合成实验经历】小芷亲眼听到并看见：陆舟两次把初次见面的访客叫成另一人的名字，后来改正。",
+      "expected": {}
+    },
+    {
+      "memoryId": "bank:14",
+      "tick": 28,
+      "text": "【主观认识，可修正】旅人对园艺随笔和介绍花园的杂志有兴趣。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人读完一本花园杂志，还主动挑选另一篇园艺随笔继续读。",
+      "expected": {
+        "same-person-unrelated": "allowed"
+      }
+    },
+    {
+      "memoryId": "bank:15",
+      "tick": 29,
+      "text": "【主观认识，可修正】旅人看长篇介绍容易跳过细节，只读大致内容。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人读一份长篇介绍时跳过了几段附注，只复述了大致内容。",
+      "expected": {
+        "new-stop": "allowed"
+      }
+    },
+    {
+      "memoryId": "bank:16",
+      "tick": 30,
+      "text": "【主观认识，可修正】旅人只在暴雨造成摆渡停航的情境中弄错过等候点；平时未观察到这种问题。",
+      "evidence": "【合成实验经历】小芷亲眼看见：暴雨导致摆渡停航时旅人判断错等候点，而晴天的两次摆渡均判断准确。",
+      "expected": {
+        "new-stop": "allowed"
+      }
+    },
+    {
+      "memoryId": "bank:17",
+      "tick": 31,
+      "text": "【主观认识，可修正】旅人在需要预约的餐厅会误以为看过介绍就已经完成预约。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人到一家需要预约的餐厅用餐，把阅读餐厅介绍误认为已经预约，店员说明尚未预约。",
+      "expected": {}
+    },
+    {
+      "memoryId": "bank:18",
+      "tick": 32,
+      "text": "【主观认识，可修正】陆舟在自己经常来的地点指路通常准确。",
+      "evidence": "【合成实验经历】小芷亲眼看见：陆舟在常来的街区两次准确指出熟悉的目的地。",
+      "expected": {}
+    },
+    {
+      "memoryId": "bank:19",
+      "tick": 33,
+      "text": "【主观认识，可修正】旅人在排队人多的等候点容易把两支队伍的去向弄混。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人在拥挤的等候点把两支队伍的目的地弄混，队伍旁的工作人员后来澄清。",
+      "expected": {
+        "new-stop": "allowed"
+      }
+    },
+    {
+      "memoryId": "bank:20",
+      "tick": 34,
+      "text": "【主观认识，可修正】旅人喜欢照料盆栽，会留意花叶是否缺水。",
+      "evidence": "【合成实验经历】小芷亲眼看见：旅人先后给缺水的盆栽浇水，并查看花叶状态。",
+      "expected": {}
+    }
+  ]
+}

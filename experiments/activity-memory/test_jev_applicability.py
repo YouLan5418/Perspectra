@@ -37,6 +37,23 @@ class JevApplicabilityTest(unittest.TestCase):
         with self.assertRaises(ValueError):jev.request_for({
             'stimulus': 'hello', 'understanding': 'impression', 'applicability': {}, 'world': {}})
 
+    def test_batch_is_independent_and_missing_answer_fails(self):
+        candidates = [
+            {'memoryId':'bank:1','understanding':'first','applicability':{}},
+            {'memoryId':'bank:2','understanding':'second','applicability':{}}]
+        request = jev.many_request({'text':'hello','actorIds':['character:player'],'mentionedIds':[]},candidates)
+        self.assertEqual(len(request['questions']),2)
+        self.assertNotIn('expected', json.dumps(request))
+        body = self.answer()
+        body['answers'] = {'candidate_0': self.answer()['answers']['applicability'],
+                           'candidate_1': self.answer('UNRELATED')['answers']['applicability']}
+        result = jev.parse_many(body,20,candidates)
+        self.assertEqual([a['related'] for a in result['answers'].values()],[True,False])
+        self.assertEqual(result['usage'],{'cost':.00003})
+        self.assertTrue(all(a['usage']=={} for a in result['answers'].values()))
+        del body['answers']['candidate_1']
+        with self.assertRaises(ValueError):jev.parse_many(body,20,candidates)
+
     def test_transport_failure_is_not_unrelated_and_trace_has_no_key(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'trace.jsonl'

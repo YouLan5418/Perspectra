@@ -18,7 +18,9 @@ import { coreRunner, hindsightPython } from './hindsight-python.ts'
 const root=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(root))throw new Error('provide a fresh output directory')
 mkdirSync(root,{recursive:true})
-const jevJudge=process.argv[3]==='--jev-judge-from'
+const bankMode=process.argv[3]==='--bank-from'
+const bankFixture=bankMode?JSON.parse(readFileSync(resolve('experiments/activity-memory/observation-bank-fixture.json'),'utf8')) as WorldJsonObject:undefined
+const jevJudge=process.argv[3]==='--jev-judge-from'||bankMode
 const facetJudge=process.argv[3]==='--facet-judge-from'||jevJudge
 const facetMatch=process.argv[3]==='--facet-match-from'||facetJudge
 const applicability=process.argv[3]==='--applicability-from'||facetMatch
@@ -43,6 +45,10 @@ const history=new Map<number,string>([
  [10,'小芷亲眼看见：第一次到新码头时，旅人参考旧线路图把等候地点指向东边。大家走过去看到该处已关闭，后来根据现场标牌改去了西侧。'],
  [13,'小芷亲眼看见：回到常去的商店时，旅人直接指出收银台的位置，大家按他的指引顺利找到了收银台。'],
 ])
+if(bankFixture){
+ for(const entry of (bankFixture.entries as WorldJsonObject[]).slice(1))history.set(Number(entry.tick),String(entry.evidence))
+ writeFileSync(join(root,'bank-fixture.json'),JSON.stringify(bankFixture,null,2))
+}
 const fillers=['窗台上的光线慢慢移到墙边。','小芷看见有人把窗帘整理平整。','桌上的便签换了一张，内容是今天的天气。','陆舟翻过杂志的一页，放回了原处。']
 const probes: {id:string;kind:string;text:string;actorId?:string}[]=[
  {id:'new-task',kind:'similar',text:'这是我们第一次来这里。登记表在隔壁小屋，我来带路，我们先过去吧。'},
@@ -54,11 +60,11 @@ const probes: {id:string;kind:string;text:string;actorId?:string}[]=[
  ]:[]),
 ]
 if([...history.values(),...probes.map(p=>p.text)].some(text=>text.includes('\uFFFD')))throw new Error('invalid Unicode in authored input')
-writeFileSync(join(root,'protocol.json'),JSON.stringify({model,repeats,formationTick,probeTick,history:[...history],probes,
+writeFileSync(join(root,'protocol.json'),JSON.stringify({...(bankMode?{bankMode:true,behaviorRoute:'trigger/20/repeat0',bankFixture,bankMatrix:'nested 5/10/20; all vs trigger<=7; three shuffled draws each'}:{}),model,repeats,formationTick,probeTick,history:[...history],probes,
  applicabilityJudge:jevJudge?'typesafe/jev-1.13':facetJudge?model:null,
  historyMode:'55 committed authored-history ticks, not 55 live model turns',
- deliveryMode:facetJudge?'subject and model applicability admission':facetMatch?'natural subject and facet retrieval':applicability?'natural retrieval with applicability projection':sourceRoot?'explicit intervention, not natural retrieval':'natural',
- ...(applicability?{projectionDesign:jevJudge?'frozen facets; deterministic subject gate; JEV typed applicability choice; probabilities diagnostic; original numeric gates diagnostic only':facetJudge?'frozen facets; deterministic subject gate; Gemini assesses relevance with quoted stimulus; original numeric gates diagnostic only':facetMatch?'frozen facets reused; subject required; contexts/exceptions scored separately with original numeric gates; one candidate; unchanged ordinary recall and delivery':'one target search window replaced; same encoder, queries, admission, entities and delivery; projection generation sees no probes',comparison:'frozen original index recalled on every same request before experimental route'}:{}),
+ deliveryMode:bankMode?'multi-candidate batch applicability; behavior uses trigger/20/repeat0':facetJudge?'subject and model applicability admission':facetMatch?'natural subject and facet retrieval':applicability?'natural retrieval with applicability projection':sourceRoot?'explicit intervention, not natural retrieval':'natural',
+ ...(applicability?{projectionDesign:bankMode?'model-derived facets; score on complete 20 bank; nested 5/10/20 questions; all vs subject/E5/BM25 RRF top7; independent JEV batch; unchanged delivery':jevJudge?'frozen facets; deterministic subject gate; JEV typed applicability choice; probabilities diagnostic; original numeric gates diagnostic only':facetJudge?'frozen facets; deterministic subject gate; Gemini assesses relevance with quoted stimulus; original numeric gates diagnostic only':facetMatch?'frozen facets reused; subject required; contexts/exceptions scored separately with original numeric gates; one candidate; unchanged ordinary recall and delivery':'one target search window replaced; same encoder, queries, admission, entities and delivery; projection generation sees no probes',comparison:'frozen original index recalled on every same request before experimental route'}:{}),
  reusedArchiveFrom:sourceRoot??null,
  design:'natural recall audited first; only target Observation removed in ablation; all other delivered memories and context fixed',
  conditions:['with-observation','without-observation-a','without-observation-b'],
@@ -72,8 +78,8 @@ const core=coreRunner({HCW_LOCAL_MODEL:model,HCW_HINDSIGHT_UTILITY_TRACE:join(ro
 let built:WorldJsonObject|undefined
 function facetWorker(input:WorldJsonObject,signal:AbortSignal):Promise<WorldJsonObject>{
  return new Promise((resolveResult,reject)=>{
-  const child=execFile(hindsightPython(),[resolve('experiments/activity-memory/observation-facet-match.py')],{
-   signal,timeout:120000,maxBuffer:32*1024*1024,windowsHide:true,encoding:'utf8',
+  const child=execFile(hindsightPython(),[resolve(bankMode?'experiments/activity-memory/observation_bank.py':'experiments/activity-memory/observation-facet-match.py')],{
+   signal,timeout:bankMode?360000:120000,maxBuffer:32*1024*1024,windowsHide:true,encoding:'utf8',
    env:{...process.env,HCW_LOCAL_MODEL:model,HCW_JEV_APPLICABILITY_TRACE:join(root,'jev-applicability-calls.jsonl'),HCW_HINDSIGHT_UTILITY_TRACE:join(root,'facet-utility-calls.jsonl'),PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0'}},(error,stdout)=>{
     if(error){reject(new Error('facet retrieval failed',{cause:error}));return}
     try{resolveResult(JSON.parse(stdout) as WorldJsonObject)}catch(cause){reject(new Error('facet retrieval returned invalid JSON',{cause}))}
@@ -120,7 +126,7 @@ try{
  const old=(built!.archive as WorldJsonObject).sources as WorldJsonObject[]
  if(JSON.stringify(old)!==JSON.stringify((current.sources as WorldJsonObject[]).filter(s=>Number(s.knownTick)<=formationTick)))throw new Error('authorized prefix changed')
 }finally{memory.close();store.close()}
-const archive=built!.archive as WorldJsonObject,index=built!.index as WorldJsonObject
+let archive=built!.archive as WorldJsonObject,index=built!.index as WorldJsonObject
 const observations=archive.observations as WorldJsonObject[]
 // Chosen before any behavioral outputs: broad understanding backed by at least three experiences.
 const target=observations.filter(o=>(o.sourceRefs as WorldJsonObject[]).length>=3&&/路线|指路|陌生|旧.*图|旧.*资料/.test(String(o.text)))
@@ -133,9 +139,10 @@ else{
  let facetProjection:WorldJsonObject|undefined,preparedFacet:WorldJsonObject|undefined
  if(facetMatch){
   facetProjection=JSON.parse(readFileSync(join(sourceRoot!,'applicability.json'),'utf8')) as WorldJsonObject
-  const preparation:WorldJsonObject={operation:'prepare',archive,index,projection:facetProjection,targetObservation:targetId,judge:facetJudge,judgeBackend:jevJudge?'jev':'gemini'}
+  const preparation:WorldJsonObject={operation:'prepare',archive,index,projection:facetProjection,targetObservation:targetId,judge:facetJudge,judgeBackend:jevJudge?'jev':'gemini',...(bankMode?{fixture:bankFixture!,authorized:JSON.parse(readFileSync(join(root,'authorized-at-probe.json'),'utf8')) as WorldJsonObject}:{})}
   writeFileSync(join(root,'facet-input.json'),JSON.stringify(preparation,null,2))
-  preparedFacet=await facetWorker(preparation,AbortSignal.timeout(180000))
+  preparedFacet=await facetWorker(preparation,AbortSignal.timeout(bankMode?360000:180000))
+  if(bankMode){archive=preparedFacet.archive as WorldJsonObject;index=preparedFacet.index as WorldJsonObject;writeFileSync(join(root,'bank-build.json'),JSON.stringify({archive,index},null,2))}
   writeFileSync(join(root,'facet-projection.json'),JSON.stringify(preparedFacet,null,2))
   writeFileSync(join(root,'applicability.json'),JSON.stringify(facetProjection,null,2))
  }else if(applicability){
@@ -180,7 +187,7 @@ else{
       :await core({operation:'recall',archive,index:searchIndex,request:{...request},tick:probeTick,observations:true},signal)
      return {decision:'abstain'}
     }})
-   const previewResult=await turn.run(npc,{stimulus,maxCalls:1,signal:AbortSignal.timeout(180000)})
+   const previewResult=await turn.run(npc,{stimulus,maxCalls:1,signal:AbortSignal.timeout(bankMode?360000:180000)})
    writeFileSync(join(root,probe.id+'-preview-result.json'),JSON.stringify(previewResult,null,2))
   }finally{memory.close();availability.close();leases.close();store.close()}
   if(!selection)throw new Error('retrieval preview failed; inspect saved preview result')
@@ -245,6 +252,6 @@ else{
   }
  }
  writeFileSync(join(root,'summary.json'),JSON.stringify({model,formationTick,probeTick,elapsedTicks:probeTick-formationTick,
-  deliveryMode:facetJudge?'subject and model applicability admission':facetMatch?'natural subject and facet retrieval':applicability?'natural retrieval with applicability projection':sourceRoot?'explicit intervention':'natural',targetObservation:targetId,eligible,rejected,trials:results.length,originalWorldUnchanged:hash()===frozen,
+  deliveryMode:bankMode?'multi-candidate batch applicability; behavior uses trigger/20/repeat0':facetJudge?'subject and model applicability admission':facetMatch?'natural subject and facet retrieval':applicability?'natural retrieval with applicability projection':sourceRoot?'explicit intervention':'natural',targetObservation:targetId,eligible,rejected,trials:results.length,originalWorldUnchanged:hash()===frozen,
   conclusion:'behavioral effect requires qualitative reading; no trial if target not naturally delivered'},null,2))
 }

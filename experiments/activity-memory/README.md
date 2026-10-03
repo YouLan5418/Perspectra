@@ -170,3 +170,15 @@ node --import tsx tests/experiments/observation-choice.ts .tmp/my-observation-je
 # 可选：相同输入各追加两次，只增加 JEV 判断调用：
 & '.tmp/hindsight-vector-venv/Scripts/python.exe' experiments/activity-memory/jev_applicability_stability.py .tmp/my-observation-jev
 ```
+
+
+## 多候选 Observation Bank（2026-10-04）
+
+`--bank-from` 在新测试世界提交 19 条仅本角色授权的合成经历，保留原目标认识及证据；模型派生适用性字段，然后比较嵌套 5／10／20 条全量 JEV 与对象关系＋E5／BM25 初筛最多七条的路径。各次请求一次判断所有候选，三次打乱重复；角色行为使用 20 条初筛路径首次交付，并且只删除原目标作对照。
+
+```powershell
+node --import tsx tests/experiments/observation-choice.ts .tmp/my-observation-bank --bank-from .tmp/observation-applicability-20261004-v1
+& '.tmp/hindsight-vector-venv/Scripts/python.exe' experiments/activity-memory/audit_observation_bank.py .tmp/my-observation-bank
+```
+
+90 次批量判定与 27 次角色返回完成；初筛减少费用与部分噪声，但漏了相反认识，交付排序也挤掉重要的已准入认识。没有扩到 50 条或修改正式记忆本体。完整方法、探索标签局限及失效链路见 [多候选报告](report-observation-bank.md) 与 observation-bank-assessment.json。
