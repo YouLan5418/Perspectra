@@ -144,3 +144,7 @@ node --import tsx tests/experiments/activity-memory-live.ts .tmp/my-hosted-memor
 ```powershell
 node --import tsx tests/experiments/activity-memory-live-probe.ts .tmp/my-hosted-memory-live .tmp/my-hosted-memory-cold-probe
 ```
+
+## Observation 对自主选择的延迟对照（2026-10-04）
+
+本轮只验证一个目标：同一角色在相似新场景中，读到／没读到同一条主观认识，首次自主选择是否不同。受控历史在第 15 tick 形成认识，第 55 tick 比较，采用 Gemini 3.7 Flash 和三组各三次重复。自然召回未交付目标认识；明确标记的交付干预中出现了先询问与直接移动的差异。两项结论分别报告，不将条件行为效应当作自然记忆链路通过。入口、原始回答摘要、失败记录和复现方法见 [延迟选择报告](report-observation-choice.md)。

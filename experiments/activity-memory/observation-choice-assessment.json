@@ -1,0 +1,469 @@
+{
+  "labelMethod": "nonblind qualitative reading; not a human gold set",
+  "labels": [
+    {
+      "probe": "new-task",
+      "repeat": 0,
+      "mode": "with-observation",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed with caution",
+      "response": {
+        "speech": "好，跟你走。不过既然是第一次来，路上多留意一下指示，免得按旧材料走岔了。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "evidenceFile": "new-task-0-with-observation\\call-1.json"
+    },
+    {
+      "probe": "new-task",
+      "repeat": 0,
+      "mode": "without-observation-a",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "speech": "好，走吧。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "evidenceFile": "new-task-0-without-observation-a\\call-1.json"
+    },
+    {
+      "probe": "new-task",
+      "repeat": 0,
+      "mode": "without-observation-b",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "decision": "publish",
+        "speech": "好，走吧。",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "evidenceFile": "new-task-0-without-observation-b\\call-1.json"
+    },
+    {
+      "probe": "new-task",
+      "repeat": 1,
+      "mode": "without-observation-a",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "speech": "好，先去隔壁填登记表。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "evidenceFile": "new-task-1-without-observation-a\\call-1.json"
+    },
+    {
+      "probe": "new-task",
+      "repeat": 1,
+      "mode": "without-observation-b",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "行，你带路吧。",
+        "narration": "小芷点了点头。"
+      },
+      "evidenceFile": "new-task-1-without-observation-b\\call-1.json"
+    },
+    {
+      "probe": "new-task",
+      "repeat": 1,
+      "mode": "with-observation",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed with caution",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "speech": "好。不过这里咱们头一回来，你可看准路，别带偏了。"
+      },
+      "evidenceFile": "new-task-1-with-observation\\call-1.json"
+    },
+    {
+      "probe": "new-task",
+      "repeat": 2,
+      "mode": "without-observation-b",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "decision": "publish",
+        "speech": "好，走吧。",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "evidenceFile": "new-task-2-without-observation-b\\call-1.json"
+    },
+    {
+      "probe": "new-task",
+      "repeat": 2,
+      "mode": "with-observation",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed with caution",
+      "response": {
+        "speech": "好。不过既然是第一次来，可别又按旧材料上的路线走岔了，先看清路标。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "evidenceFile": "new-task-2-with-observation\\call-1.json"
+    },
+    {
+      "probe": "new-task",
+      "repeat": 2,
+      "mode": "without-observation-a",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "行，先去把登记表填了。",
+        "decision": "publish"
+      },
+      "evidenceFile": "new-task-2-without-observation-a\\call-1.json"
+    },
+    {
+      "probe": "new-stop",
+      "repeat": 0,
+      "mode": "with-observation",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "asked to verify before leaving",
+      "response": {
+        "speech": "你手里的介绍是最新的吗？之前几次去陌生地方，你按旧资料走可容易跑偏，咱们过去先看一眼门牌吧。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "evidenceFile": "new-stop-0-with-observation\\call-1.json"
+    },
+    {
+      "probe": "new-stop",
+      "repeat": 0,
+      "mode": "without-observation-a",
+      "decision": "perform",
+      "status": "budget_exhausted",
+      "moved": true,
+      "choice": "committed movement",
+      "response": {
+        "decision": "perform",
+        "parameters": {
+          "locationId": "location:next"
+        },
+        "actionType": "move"
+      },
+      "evidenceFile": "new-stop-0-without-observation-a\\call-1.json"
+    },
+    {
+      "probe": "new-stop",
+      "repeat": 0,
+      "mode": "without-observation-b",
+      "decision": "perform",
+      "status": "budget_exhausted",
+      "moved": true,
+      "choice": "committed movement",
+      "response": {
+        "decision": "perform",
+        "actionType": "move",
+        "parameters": {
+          "locationId": "location:next"
+        }
+      },
+      "evidenceFile": "new-stop-0-without-observation-b\\call-1.json"
+    },
+    {
+      "probe": "new-stop",
+      "repeat": 1,
+      "mode": "without-observation-a",
+      "decision": "perform",
+      "status": "failed",
+      "moved": false,
+      "choice": "invalid mixed output",
+      "response": {
+        "actionType": "move",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "好，去隔壁看看。",
+        "decision": "perform",
+        "parameters": {
+          "locationId": "location:next"
+        }
+      },
+      "evidenceFile": "new-stop-1-without-observation-a\\call-1.json"
+    },
+    {
+      "probe": "new-stop",
+      "repeat": 1,
+      "mode": "without-observation-b",
+      "decision": "perform",
+      "status": "budget_exhausted",
+      "moved": true,
+      "choice": "committed movement",
+      "response": {
+        "actionType": "move",
+        "decision": "perform",
+        "parameters": {
+          "locationId": "location:next"
+        }
+      },
+      "evidenceFile": "new-stop-1-without-observation-b\\call-1.json"
+    },
+    {
+      "probe": "new-stop",
+      "repeat": 1,
+      "mode": "with-observation",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "asked to verify before leaving",
+      "response": {
+        "speech": "介绍是最新的吗？新地方容易按旧材料走偏，过去先核对一眼门牌吧。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "evidenceFile": "new-stop-1-with-observation\\call-1.json"
+    },
+    {
+      "probe": "new-stop",
+      "repeat": 2,
+      "mode": "without-observation-b",
+      "decision": "perform",
+      "status": "budget_exhausted",
+      "moved": true,
+      "choice": "committed movement",
+      "response": {
+        "actionType": "move",
+        "parameters": {
+          "locationId": "location:next"
+        },
+        "decision": "perform"
+      },
+      "evidenceFile": "new-stop-2-without-observation-b\\call-1.json"
+    },
+    {
+      "probe": "new-stop",
+      "repeat": 2,
+      "mode": "with-observation",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "asked to verify before leaving",
+      "response": {
+        "decision": "publish",
+        "speech": "你手里的介绍是最新的吗？之前去新地方你也是照着旧材料找的，过去前先确认一眼门牌吧。",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "evidenceFile": "new-stop-2-with-observation\\call-1.json"
+    },
+    {
+      "probe": "new-stop",
+      "repeat": 2,
+      "mode": "without-observation-a",
+      "decision": "perform",
+      "status": "budget_exhausted",
+      "moved": true,
+      "choice": "committed movement",
+      "response": {
+        "actionType": "move",
+        "decision": "perform",
+        "parameters": {
+          "locationId": "location:next"
+        }
+      },
+      "evidenceFile": "new-stop-2-without-observation-a\\call-1.json"
+    },
+    {
+      "probe": "familiar-control",
+      "repeat": 0,
+      "mode": "with-observation",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "好，你带路。"
+      },
+      "evidenceFile": "familiar-control-0-with-observation\\call-1.json"
+    },
+    {
+      "probe": "familiar-control",
+      "repeat": 0,
+      "mode": "without-observation-a",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "speech": "好，你带路吧。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "evidenceFile": "familiar-control-0-without-observation-a\\call-1.json"
+    },
+    {
+      "probe": "familiar-control",
+      "repeat": 0,
+      "mode": "without-observation-b",
+      "decision": "perform",
+      "status": "budget_exhausted",
+      "moved": true,
+      "choice": "committed movement",
+      "response": {
+        "decision": "perform",
+        "actionType": "move",
+        "parameters": {
+          "locationId": "location:next"
+        }
+      },
+      "evidenceFile": "familiar-control-0-without-observation-b\\call-1.json"
+    },
+    {
+      "probe": "familiar-control",
+      "repeat": 1,
+      "mode": "without-observation-a",
+      "decision": "perform",
+      "status": "budget_exhausted",
+      "moved": true,
+      "choice": "committed movement",
+      "response": {
+        "parameters": {
+          "locationId": "location:next"
+        },
+        "decision": "perform",
+        "actionType": "move"
+      },
+      "evidenceFile": "familiar-control-1-without-observation-a\\call-1.json"
+    },
+    {
+      "probe": "familiar-control",
+      "repeat": 1,
+      "mode": "without-observation-b",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "speech": "好，你带路。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "evidenceFile": "familiar-control-1-without-observation-b\\call-1.json"
+    },
+    {
+      "probe": "familiar-control",
+      "repeat": 1,
+      "mode": "with-observation",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "speech": "好，你带路吧。"
+      },
+      "evidenceFile": "familiar-control-1-with-observation\\call-1.json"
+    },
+    {
+      "probe": "familiar-control",
+      "repeat": 2,
+      "mode": "without-observation-b",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "speech": "行，你带路。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "evidenceFile": "familiar-control-2-without-observation-b\\call-1.json"
+    },
+    {
+      "probe": "familiar-control",
+      "repeat": 2,
+      "mode": "with-observation",
+      "decision": "perform",
+      "status": "budget_exhausted",
+      "moved": true,
+      "choice": "committed movement",
+      "response": {
+        "parameters": {
+          "locationId": "location:next"
+        },
+        "decision": "perform",
+        "actionType": "move"
+      },
+      "evidenceFile": "familiar-control-2-with-observation\\call-1.json"
+    },
+    {
+      "probe": "familiar-control",
+      "repeat": 2,
+      "mode": "without-observation-a",
+      "decision": "publish",
+      "status": "published",
+      "moved": false,
+      "choice": "agreed to follow",
+      "response": {
+        "decision": "publish",
+        "speech": "好，你带路。",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "evidenceFile": "familiar-control-2-without-observation-a\\call-1.json"
+    }
+  ]
+}
