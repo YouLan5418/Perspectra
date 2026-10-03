@@ -72,4 +72,3 @@ Electron 只负责启动器窗口、受限 IPC、进程生命周期和调用默�
 游戏界面的视觉风格和组件库、安装包形式、模型密钥是否需要跨次启动保存。前两项不影响 A/B 的接口边界；第三项默认不持久化密钥。
 
 依据：`docs/FRONTEND-LAUNCHER-INTERFACE.md`、`docs/PROTOTYPE-PLAYER-COMMAND-MODE.md`、`tests/experiments/playtest-web-entry.ts`、`tests/experiments/playtest-frozen-runtime.ts`、`tests/experiments/playtest-server.ts`、`packages/application/src/world-application.ts`、`packages/kernel/src/frozen-interactions.ts`。
-

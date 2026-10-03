@@ -68,6 +68,3 @@ describe('desktop launch boundary', () => {
     }
   }, 45_000)
 })
-
-
-

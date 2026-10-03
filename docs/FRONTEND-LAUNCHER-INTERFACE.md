@@ -51,4 +51,3 @@
 - 玩家页和启动器返回值不包含模型密钥、NPC 私有上下文或未授权观察。
 
 现有接口出处：`tests/experiments/playtest-server.ts`、`playtest-frozen-runtime.ts`、`playtest-web-entry.ts`；交互候选出处：`packages/kernel/src/frozen-interactions.ts`、`packages/contracts/src/interaction-definition.ts`。现行玩家命令语义见 `docs/PROTOTYPE-PLAYER-COMMAND-MODE.md`。
-

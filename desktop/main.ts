@@ -310,9 +310,3 @@ app.whenReady().then(main).catch(error => {
   app.quit()
 })
 app.on('window-all-closed', () => app.quit())
-
-
-
-
-
-
