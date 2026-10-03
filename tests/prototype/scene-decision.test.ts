@@ -240,6 +240,20 @@ describe('SceneDecisionService', () => {
       })
     expect(transition(player, 'location:absent', singleMember)).toEqual([
       { eventType: 'scene.member_left', eventVersion: 1, data: { sceneId: 'scene:road', characterId: player } },
+    ])
+    const returned = [...singleMember, ...transition(player, 'location:station', singleMember)]
+    expect(transition(player, 'location:road', returned)).toEqual([
+      { eventType: 'scene.member_left', eventVersion: 1, data: { sceneId: 'scene:station', characterId: player } },
+      { eventType: 'scene.member_joined', eventVersion: 1, data: { sceneId: 'scene:road', characterId: player } },
+    ])
+    const explicitlyClosed = [...returned, { eventType: 'scene.closed', data: { sceneId: 'scene:road' } }]
+    expect(transition(player, 'location:road', explicitlyClosed)).toEqual([
+      { eventType: 'scene.member_left', eventVersion: 1, data: { sceneId: 'scene:station', characterId: player } },
+    ])
+    const temporary = singleMember.map(event => event.eventType === 'scene.upsert' && (event.data as Record<string, unknown>).sceneId === 'scene:road'
+      ? { ...event, data: { sceneId: 'scene:road', value: { lifecycle: 'active', locationId: null, participantIds: [player] } } } : event)
+    expect(transition(player, 'location:absent', temporary)).toEqual([
+      { eventType: 'scene.member_left', eventVersion: 1, data: { sceneId: 'scene:road', characterId: player } },
       { eventType: 'scene.closed', eventVersion: 1, data: { sceneId: 'scene:road' } },
     ])
     const activeDestination = [
