@@ -1,3 +1,5 @@
+import { PackActivity, type ActivityRequest } from './pack-activity.ts'
+import { PackVariables } from './pack-variables.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
 import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
 import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
@@ -11,7 +13,7 @@ import { brandId, interactionPackageDescription, RECALL_KEYWORD_TOKENIZER_ID,
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { createChatProvider, prototypeTurnCall, type ChatCallObservation } from '@harness-world/provider-chat'
 import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
-import { CharacterRuntimeAvailabilityService, PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import { CharacterViewBuilder, CharacterRuntimeAvailabilityService, PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { PrototypeCharacterTurn, type PrototypeRecallShadowObservation, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
@@ -69,6 +71,11 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   readonly #model: string
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
+  #activity: PackActivity | undefined
+  #workDone: Promise<void> = Promise.resolve()
+  #finishWork: (() => void) | undefined
+  #escaping: Promise<PlaytestState> | undefined
+  #variables: PackVariables | undefined
   #activationCycle: Awaited<ReturnType<typeof runPrototypeActivations>> | undefined
   readonly #provider: 'local' | 'deepseek' | 'ollama'
   readonly #manifestVersion: number
@@ -132,6 +139,10 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     const characters = playtestModelCharacters(compiled.manifest, this.#playerId)
     this.#characterIds = characters.map(character => character.actorId)
     this.#decideContinuation = async (request, signal) => {
+      const character = request.context.character as WorldJsonObject
+      const variables = this.#variables?.getVariables(String(character.characterId))
+      if (variables) request = { ...request, context: { ...request.context,
+        packVariables: { public: variables.public, private: variables.private } } }
       const raw = await provider.decide(options.provider === 'local'
         ? localPrototypeTurnCall(request) : prototypeTurnCall(request), signal)
       if (options.publicationAudit === undefined) return raw
@@ -181,6 +192,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     const runtime = new FrozenWorldPlaytestRuntime(options, compiled, intentEnabled)
     try {
       runtime.#application.activate(compiled)
+      runtime.#variables = PackVariables.load(options.packPath, options.dataDirectory, pack)
+      runtime.#activity = PackActivity.load(options.packPath, pack, resolve(options.dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
       await runtime.#refresh()
       if (options.shadowAudit !== undefined) {
         if (options.shadowAudit.items.some(item => !compiled.manifest.entities.some(entity => entity.entityId === item.entityId))) {
@@ -211,6 +224,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       busy: this.#busy, paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#transcript,
       availableActions: this.#availableActions,
+      ...(this.#activity ? { activity: this.#activity.view(this.#playerId) } : {}),
+      ...(this.#variables ? { packVariables: this.#variables.getVariables(this.#playerId) } : {}),
       world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames,
         ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }) },
       debug: { ...this.#debug, provider: this.#provider, model: this.#model, intentModel: this.#intentModel,
@@ -226,12 +241,34 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
    * key: the store is idempotent by key, so the retry completes the queued input instead of adding another.
    */
   async submit(text: string, idempotencyKey?: string): Promise<PlaytestState> {
-    if (this.#busy) throw new PlaytestBusyError('请等待当前行动完成。')
+    if (this.#busy || this.#escaping) throw new PlaytestBusyError('请等待当前行动完成。')
     if (this.#paused) {
       this.#notice = 'NPC 已暂停：这次输入没有提交。恢复后再试。'
       return this.state()
     }
-    this.#busy = true
+    if (this.#activity?.current()?.game.active) {
+      if (text.startsWith('/') && !text.startsWith('/act ')) throw new TypeError('活动期间禁止变量调试与未声明命令。')
+      this.#beginWork()
+      try {
+        await this.#application.release(this.#address)
+        if (text.startsWith('/act ')) {
+          const match = /^\/act (speak|move|interact) (.+)$/u.exec(text)
+          if (match === null) throw new TypeError('动作命令格式无效')
+          const parameters = JSON.parse(match[2]!) as WorldJsonObject
+          await this.#activity.worldAction({ actionType: match[1]!, parameters }, idempotencyKey ?? randomUUID())
+        } else await this.#activity.speak(text, idempotencyKey ?? randomUUID())
+        this.#notice = '操作已提交；单纯对白不消耗游戏行动回合。'
+        await this.#activateCharacters(true)
+      } finally { try { await this.#refresh() } finally { this.#endWork() } }
+      return this.state()
+    }
+    if (text.startsWith('/vars ')) {
+      if (!this.#variables) throw new TypeError('本包没有变量脚本')
+      this.#variables.applyPatch(this.#playerId, JSON.parse(text.slice(6)))
+      this.#notice = '包变量已更新。'
+      return this.state()
+    }
+    this.#beginWork()
     this.#error = false
     this.#notice = ''
     this.#phaseLabel = text.startsWith('/') ? '正在执行命令' : '正在提交发言'
@@ -269,11 +306,49 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       console.error('Frozen playtest turn failed:', error instanceof Error ? error.message : 'unknown error')
       throw error
     } finally {
-      this.#busy = false
+      this.#endWork()
       this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
       await this.#refresh().catch(() => {})
     }
     return this.state()
+  }
+
+  #beginWork(): void {
+    this.#busy = true
+    this.#workDone = new Promise<void>(done => { this.#finishWork = done })
+  }
+  #endWork(): void {
+    this.#busy = false
+    this.#finishWork?.(); this.#finishWork = undefined
+  }
+  async activityAction(request: ActivityRequest): Promise<PlaytestState> {
+    if (this.#busy || this.#escaping) throw new PlaytestBusyError('请等待当前处理完成，或使用逃生按钮。')
+    if (this.#paused) throw new TypeError('请先恢复 NPC，或使用逃生按钮。')
+    if (!this.#activity) throw new TypeError('本包没有安装游戏脚本。')
+    this.#beginWork(); this.#error = false
+    try {
+      await this.#application.release(this.#address)
+      const changed = await this.#activity.apply(request)
+      this.#notice = changed ? '游戏操作已提交。' : '已返回原提交结果，没有再次执行。'
+      if (changed) await this.#activateCharacters(true)
+    } finally { try { await this.#refresh() } finally { this.#endWork() } }
+    return this.state()
+  }
+  async escape(): Promise<PlaytestState> {
+    if (this.#escaping) return this.#escaping
+    // Set the override before awaiting anything. Late model outputs are cancelled,
+    // and the host waits for the in-flight writer to release its lease.
+    this.#continuationController?.abort()
+    this.#escaping = (async () => {
+      await this.#workDone
+      await this.#application.release(this.#address)
+      await this.#activity?.escape()
+      this.#paused = false; this.#error = false; this.#phaseLabel = '可以输入'
+      this.#notice = '已逃离活动，恢复原本合法的交互能力；已经提交的经历保留。'
+      await this.#refresh()
+      return this.state()
+    })()
+    try { return await this.#escaping } finally { this.#escaping = undefined }
   }
 
   /** Structured UI choices remain proposals and follow the same Rulebook path as /act. */
@@ -354,8 +429,9 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     await this.#application.close()
   }
 
-  async #activateCharacters(): Promise<void> {
+  async #activateCharacters(activityOnly = false): Promise<void> {
     await this.#application.release(this.#address)
+    if (this.#escaping) return
     const path = resolve(this.#dataDirectory, 'world.sqlite')
     const store = new WorldStore(path), leases = new WriterLeaseService(path)
     const availability = new CharacterRuntimeAvailabilityService(path)
@@ -367,15 +443,44 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
         store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
       const shadowFile = this.#memoryShadowFile
       const turn = new PrototypeCharacterTurn({ address: this.#address, store, memory, leases, availability,
-        rulebooks: createCoreRulebookRegistry({ interactionPackages: [createBasicInteractionPackage()] }),
+        rulebooks: this.#activity?.rulebooks() ?? createCoreRulebookRegistry({ interactionPackages: [createBasicInteractionPackage()] }),
         decide: this.#decideContinuation,
+        ...(this.#activity === undefined ? {} : {
+          projectContext: (context: WorldJsonObject, canPerform: boolean) => this.#activity!.projectContext(context, canPerform),
+          validateDecision: (decision: WorldJsonObject, request: PrototypeTurnRequest) => this.#activity!.validateDecision(decision, request),
+          executionResult: this.#activity.executionResult,
+        }),
         recentObservations: this.#tuning.recentObservations,
         recentSelfObservations: this.#tuning.recentSelfObservations,
         ...(shadowFile === undefined ? {} : { onRecallShadow: (observation: PrototypeRecallShadowObservation) =>
           appendFileSync(shadowFile, JSON.stringify(observation) + '\n') }), })
       this.#phaseLabel = '角色正在处理场景与行动结果'
+      const active = this.#activity?.current()
+      let selected = this.#activity?.schedule()
+      // Creator selects the next participant; the host bounds the entire chain.
+      const activitySignal = AbortSignal.any([this.#continuationController.signal, AbortSignal.timeout(90_000)])
+      for (let opportunity = 0; opportunity < 4 && selected !== undefined && !activitySignal.aborted && !this.#paused; opportunity++) {
+        const result = await turn.run(brandId(selected, 'CharacterId'), {
+          signal: activitySignal, maxCalls: 2,
+          stimulus: new CharacterViewBuilder(store)
+            .rebuildAt(this.#address, brandId(selected, 'CharacterId'), store.head(this.#address).headSeq)
+            .observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq)
+            .slice(-8).map(o => o.value as WorldJsonObject),
+        })
+        this.#error = result.failure !== undefined
+        this.#notice = result.failure === undefined ? (result.status === 'abstained'
+          ? '角色本次没有提交操作，当前轮次保留；可以再次请求处理或逃生。' : '角色处理已完成。')
+          : '角色模型未完成有效操作，当前轮次没有冒充主动让出；可重试或逃生。'
+        selected = activitySignal.aborted ? undefined : this.#activity!.outcome(result as unknown as WorldJsonObject)
+        if (opportunity === 3 && selected !== undefined) this.#notice = '本次活动处理达到宿主预算上限；已提交结果保留，可再次请求处理或逃生。'
+      }
+      if (activitySignal.aborted) {
+        this.#notice = '活动处理已取消或超时；已提交结果保留，未完成操作没有换手。'
+        this.#error = true
+      }
+      if (activityOnly) return
       this.#activationCycle = await runPrototypeActivations({ store, address: this.#address, turn,
-        afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds, signal: this.#continuationController.signal,
+        afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds.filter(id => !active?.game.active || !active.participants.includes(id)), signal: this.#continuationController.signal,
         limits: this.#tuning })
       const terminal = this.#activationCycle.terminalReason
       if (terminal === 'failed' || terminal === 'interrupted') {
@@ -422,6 +527,10 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       }
     } finally {
       world.close()
+    }
+    const activityState = this.#activity?.current()
+    if (activityState?.game.active && activityState.participants.includes(this.#playerId)) {
+      this.#availableActions = this.#activity!.filterAffordances(this.#availableActions, activityState, this.#playerId)
     }
     this.#debug = {
       headSeq: head.headSeq, tick: head.tick, manifestVersion: this.#manifestVersion,

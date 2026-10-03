@@ -5,6 +5,9 @@ import type { PrototypeTurnRequest } from '../../packages/application/src/protot
 /** The local Gemini gateway treats a root oneOf as if only its first choice were available. */
 export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
   const prepared = prototypeTurnCall(request)
+  const expression = request.context.expressionPolicy as WorldJsonObject | undefined
+  const speechAllowed = expression?.speech !== 'none'
+  const narrationAllowed = expression?.narration !== false
   const canPerform = request.canPerform ?? !request.continuation
   const affordances = Array.isArray(request.context.affordances)
     ? request.context.affordances as WorldJsonObject[] : []
@@ -33,15 +36,20 @@ export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
       definitionRef: { type: 'object', additionalProperties: false, required: ['id', 'version'],
         properties: { id: { type: 'string', enum: [...new Set(definitions.map(ref => ref.id).filter((id): id is string => typeof id === 'string'))] },
           version: { type: 'integer', enum: [...new Set(definitions.map(ref => ref.version).filter((version): version is number => typeof version === 'number'))] } } },
-      arguments: { type: 'object' },
+      arguments: choices.every(c => c.argumentSchema !== undefined)
+        ? { type: 'object', additionalProperties: false, required: ['activityId', 'revision'], properties:
+          Object.assign({}, ...choices.map(c => (c.argumentSchema as WorldJsonObject).properties)) }
+        : { type: 'object' },
     }),
   }
   return { ...prepared,
     schema: { type: 'object', additionalProperties: false, required: ['decision'], properties: {
-      decision: { type: 'string', enum: ['abstain', 'publish',
+      decision: { type: 'string', enum: ['abstain', ...(speechAllowed || narrationAllowed ? ['publish'] : []),
         ...(request.canRecall === true ? ['recall'] : []), ...(actionTypes.length > 0 ? ['perform'] : [])],
         description: 'publish 需要 speech 或 narration；recall 需要 query；perform 需要 actionType 和 parameters。' },
-      speech: { type: 'string', maxLength: 2000 }, narration: { type: 'string', maxLength: 2000 },
+      ...(speechAllowed ? { speech: { type: 'string', maxLength: 2000,
+        ...(expression?.speech === 'choices' ? { enum: expression.speechChoices } : {}) } } : {}),
+      ...(narrationAllowed ? { narration: { type: 'string', maxLength: 2000 } } : {}),
       ...(addressees.length === 0 ? {} : { addresseeIds: { type: 'array', uniqueItems: true,
         items: { type: 'string', enum: addressees } } }),
       ...(request.canRecall === true ? { query: { type: 'string', minLength: 2, maxLength: 120 } } : {}),

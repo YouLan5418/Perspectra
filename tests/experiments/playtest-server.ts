@@ -1,3 +1,5 @@
+import { HOST_ACTIVITY_PAGE } from './playtest-host-page.ts'
+import type { ActivityRequest } from './pack-activity.ts'
 import { timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { PLAYTEST_PAGE } from './playtest-page.ts'
@@ -15,6 +17,8 @@ export interface PlaytestState {
   readonly world: { readonly title: string; readonly playerName: string; readonly npcNames: readonly string[];
     readonly currentScene?: { readonly locationName: string; readonly presentNpcNames: readonly string[] } }
   readonly availableActions?: readonly ActionAffordance[]
+  readonly packVariables?: { readonly public: WorldJsonObject; readonly private: WorldJsonObject }
+  readonly activity?: WorldJsonObject
   readonly debug: Record<string, unknown>
 }
 
@@ -28,6 +32,8 @@ export interface PlaytestRuntime {
   state(): Promise<PlaytestState>
   submit(text: string): Promise<PlaytestState>
   perform?(action: PlaytestAction): Promise<PlaytestState>
+  activityAction?(request: ActivityRequest): Promise<PlaytestState>
+  escape?(): Promise<PlaytestState>
   pause(): Promise<PlaytestState>
   resume(): Promise<PlaytestState>
   close(): Promise<void>
@@ -39,7 +45,7 @@ async function runtimeCall(work: () => Promise<PlaytestState>): Promise<Playtest
   try {
     return await work()
   } catch (error: unknown) {
-    if (error instanceof PlaytestBusyError) throw error
+    if (error instanceof PlaytestBusyError || error instanceof TypeError || error instanceof RangeError || error instanceof SyntaxError) throw error
     throw new Error('playtest runtime failure', { cause: error })
   }
 }
@@ -52,15 +58,16 @@ function authorized(request: IncomingMessage, token: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right)
 }
 
-function headers(response: ServerResponse, contentType: string, customPage = false): void {
+function headers(response: ServerResponse, contentType: string, customPage = false, embedded = false): void {
   response.setHeader('content-type', contentType)
   response.setHeader('cache-control', 'no-store')
   response.setHeader('x-content-type-options', 'nosniff')
-  response.setHeader('x-frame-options', 'DENY')
+  response.setHeader('x-frame-options', embedded ? 'SAMEORIGIN' : 'DENY')
   response.setHeader('referrer-policy', 'no-referrer')
-  response.setHeader('content-security-policy', customPage
+  const policy = customPage
     ? "default-src 'none'; connect-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
-    : "default-src 'none'; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+    : "default-src 'none'; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+  response.setHeader('content-security-policy', embedded ? policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'") : policy)
 }
 
 function json(response: ServerResponse, status: number, value: unknown): void {
@@ -111,8 +118,11 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
   return createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1')
-      if (request.method === 'GET' && url.pathname === '/') {
-        headers(response, 'text/html; charset=utf-8', packWeb !== undefined)
+      if (request.method === 'GET' && url.pathname === '/' && runtime.escape !== undefined) {
+        headers(response, 'text/html; charset=utf-8'); response.setHeader('content-security-policy', String(response.getHeader('content-security-policy')) + "; frame-src 'self'"); response.end(HOST_ACTIVITY_PAGE); return
+      }
+      if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/experience/')) {
+        headers(response, 'text/html; charset=utf-8', packWeb !== undefined, url.pathname === '/experience/')
         response.end(packWeb?.page ?? PLAYTEST_PAGE)
         return
       }
@@ -144,6 +154,23 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
         const action = submittedAction(await body(request))
         json(response, 200, await runtimeCall(() => runtime.perform!(action)))
         return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/escape') {
+        if (runtime.escape === undefined) { json(response, 404, { error: '接口不存在' }); return }
+        json(response, 200, await runtimeCall(() => runtime.escape!())); return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/activity') {
+        if (runtime.activityAction === undefined) { json(response, 404, { error: '接口不存在' }); return }
+        if (request.headers['content-type']?.split(';')[0] !== 'application/json') throw new TypeError('请求必须是 JSON')
+        const value = await body(request)
+        if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('活动请求无效')
+        const r = value as Record<string, unknown>
+        if (Object.keys(r).sort().join(',') !== 'activityId,operation,parameters,requestId,revision'
+          || !(r.activityId === null || typeof r.activityId === 'string')
+          || !Number.isSafeInteger(r.revision) || Number(r.revision) < 0 || typeof r.operation !== 'string'
+          || typeof r.requestId !== 'string' || !/^[a-zA-Z0-9:-]{1,100}$/u.test(r.requestId)
+          || !r.parameters || typeof r.parameters !== 'object' || Array.isArray(r.parameters)) throw new TypeError('活动请求字段无效')
+        json(response, 200, await runtimeCall(() => runtime.activityAction!(r as unknown as ActivityRequest))); return
       }
       if (request.method === 'POST' && url.pathname === '/api/pause') {
         json(response, 200, await runtimeCall(() => runtime.pause()))

@@ -52,7 +52,11 @@ export function playerTranscript(
     if (typeof speech?.characterId !== 'string' || typeof speech.text !== 'string') {
       if (content?.actionType === 'interact' && typeof content.actorId === 'string') {
         const transfer = object(content.interaction)
-        if (typeof transfer?.entityId !== 'string') return []
+        if (typeof transfer?.entityId !== 'string') {
+          return typeof content.resultDescription === 'string' ? [{seq: observation.sourceSeq,
+            speaker: object(content.activity) === undefined ? names.get(content.actorId) ?? content.actorId : '游戏结果',
+            text: content.resultDescription, player: false}] : []
+        }
         const item = transfer.entityId
         const destination = transfer.toHolderId === null ? '解除个人保管，留在当前场所' : `交由${names.get(String(transfer.toHolderId)) ?? transfer.toHolderId}保管`
         return [{ seq: observation.sourceSeq, speaker: names.get(content.actorId) ?? content.actorId, text: `${item} 已${destination}。`, player: content.actorId === playerId }]

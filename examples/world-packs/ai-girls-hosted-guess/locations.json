@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    { "locationId": "location:bedroom", "name": "卧室" },
+    { "locationId": "location:living-room", "name": "客厅" },
+    { "locationId": "location:workspace", "name": "工作区 / 电脑桌" },
+    { "locationId": "location:kitchen", "name": "厨房" }
+  ]
+}

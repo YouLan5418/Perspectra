@@ -4,6 +4,11 @@ import { actionGroupWireSchema, type ChatCall } from './wire.ts'
 /** Reuse the existing definition-derived parameter schemas; only the decision shape changes. */
 export function prototypeTurnCall(request: { readonly context: WorldJsonObject; readonly continuation: boolean;
   readonly canPerform?: boolean; readonly canRecall?: boolean; readonly recallEvidence?: WorldJsonObject; readonly result?: WorldJsonObject }): ChatCall {
+  const expression = request.context.expressionPolicy as WorldJsonObject | undefined
+  const speechAllowed = expression?.speech !== 'none'
+  const narrationAllowed = expression?.narration !== false
+  const speechSchema = { type: 'string', maxLength: 2000,
+    ...(expression?.speech === 'choices' ? { enum: expression.speechChoices } : {}) }
   const legacy = actionGroupWireSchema({ tools: { maximumExternalActions: 1,
     actionGroup: { allowedActionTypes: ['move', 'interact'] } }, messages: [
     { role: 'user', content: JSON.stringify({ segmentKind: 'affordances', content: request.context.affordances }) },
@@ -25,22 +30,24 @@ export function prototypeTurnCall(request: { readonly context: WorldJsonObject; 
   return {
     schema: { type: 'object', oneOf: [
       { type: 'object', additionalProperties: false, required: ['decision'], properties: { decision: { const: 'abstain' } } },
-      { type: 'object', additionalProperties: false, required: ['decision'], properties: {
+      ...(speechAllowed || narrationAllowed ? [{ type: 'object', additionalProperties: false, required: ['decision'], properties: {
         decision: { const: 'publish' },
         ...(addressees.length === 0 ? {} : { addresseeIds: { type: 'array', uniqueItems: true,
           maxItems: addressees.length, items: { type: 'string', enum: addressees } } }),
-        speech: { type: 'string', maxLength: 2000 }, narration: { type: 'string', maxLength: 2000 } },
-        anyOf: [{ required: ['speech'], properties: { speech: { minLength: 1 } } },
-          { required: ['narration'], properties: { narration: { minLength: 1 } } }] },
+        ...(speechAllowed ? { speech: speechSchema } : {}),
+        ...(narrationAllowed ? { narration: { type: 'string', maxLength: 2000 } } : {}) },
+        anyOf: [...(speechAllowed ? [{ required: ['speech'], properties: { speech: { minLength: 1 } } }] : []),
+          ...(narrationAllowed ? [{ required: ['narration'], properties: { narration: { minLength: 1 } } }] : [])] }] : []),
       ...(request.canRecall === true ? [{ type: 'object', additionalProperties: false, required: ['decision', 'query'],
         properties: { decision: { const: 'recall' }, query: { type: 'string', minLength: 2, maxLength: 120 } } }] : []),
       ...perform,
     ] },
     description: '选择表达、主动查询自己的记忆、不补充内容，或在剩余预算内执行一次声明交互；执行提交后才会收到真实结果。',
     messages: [
-      { role: 'system', content: '扮演场景中的这个角色，依据自己的性格和可见信息自主决定。'
+      { role: 'system', content: (expression === undefined ? '' : '当前 activity 是临时玩法。仅可使用当前许可和工具字段；expressionPolicy 禁用的表达不应生成。游戏轮次与世界 tick 不同，游戏反馈只认程序提交的结果。主动 pass 是工具操作，abstain 不代表主动让出回合。')
+        + '扮演场景中的这个角色，依据自己的性格和可见信息自主决定。'
         + '被唤醒只是处理新信息的机会，不要求你表演回应。没有要补充的内容时返回 abstain，不发布任何表达。'
-        + '有意义的沉默、微笑、注视属于表达，可以 publish 自由 narration；对白用 speech。'
+        + (narrationAllowed ? '有意义的沉默、微笑、注视属于表达，可以 publish 自由 narration；对白用 speech。' : '当前禁止自由 narration。对白仅在当前契约允许 speech 时使用。')
         + '物品 holderId 表示当前保管、携带和转交关系，不表示手是否碰到物品，也不表示所有权。null 表示尚未由个人保管、留在 locationId 所示场所。'
         + 'base:take 是纳入自己保管，base:give 是转交保管，base:drop 是解除个人保管并留在当前场所。这些迁移须 perform。'
         + '翻页、触碰、挪动、临时托起查看再放回可以自由表达；把自己保管的物品暂放桌上不自动解除保管。收进随身口袋带走则改变保管关系。'

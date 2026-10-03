@@ -145,7 +145,7 @@ function optionSchema(choice: WorldJsonObject): WorldJsonObject {
       definitionRef: { type: 'object', additionalProperties: false, required: ['id', 'version'],
         properties: { id: { type: 'string', ...constOf(definitionRef.id) },
           version: { type: 'integer', ...constOf(definitionRef.version) } } },
-      arguments: { type: 'object', additionalProperties: false,
+      arguments: object(choice.argumentSchema) ?? { type: 'object', additionalProperties: false,
         ...(argumentKeys.length === 0 ? {} : {
           required: argumentKeys,
           properties: Object.fromEntries(argumentKeys.map(key =>

@@ -71,6 +71,10 @@ export class PrototypeCharacterTurn {
     readonly availability: CharacterRuntimeAvailabilityService
     readonly rulebooks: RulebookRegistry
     readonly decide: (request: PrototypeTurnRequest, signal: AbortSignal) => Promise<unknown>
+    readonly projectContext?: (context: WorldJsonObject, canPerform: boolean) => WorldJsonObject
+    readonly validateDecision?: (decision: WorldJsonObject, request: PrototypeTurnRequest) => void
+    readonly executionResult?: (input: Parameters<typeof characterExecutionResult>[0]) =>
+      ReturnType<typeof characterExecutionResult> & { readonly observationMetadata?: WorldJsonObject }
     readonly onRecallShadow?: (observation: PrototypeRecallShadowObservation) => void
     readonly recentObservations?: number
     readonly recentSelfObservations?: number
@@ -166,7 +170,7 @@ export class PrototypeCharacterTurn {
           })
         }
         // Do not copy scene member records or other characters' anchors into a model request.
-        const context: WorldJsonObject = {
+        let context: WorldJsonObject = {
           character,
           stimulus: options.stimulus ?? [],
           ...(olderMemories === undefined ? {} : { memories: olderMemories }),
@@ -179,7 +183,7 @@ export class PrototypeCharacterTurn {
             const content = object(value.content)
             if (typeof content.reason !== 'string') return record
             const { reason, ...rest } = content
-            const feedback = characterExecutionResult({ manifest: this.#manifest, events: history, actorId: characterId,
+            const feedback = (this.options.executionResult ?? characterExecutionResult)({ manifest: this.#manifest, events: history, actorId: characterId,
               action: { actionType: String(content.actionType), parameters: {} }, status: String(content.status), reason })
             return { ...record, value: { ...value, content: { ...rest, resultDescription: feedback.description! } } }
           }), selfObservations: recentSelfObservations,
@@ -190,9 +194,10 @@ export class PrototypeCharacterTurn {
               ...(value.destinations === undefined ? {} : { destinations: value.destinations }),
               ...(value.interactions === undefined ? {} : { interactions: value.interactions }) })),
         }
+        context = this.options.projectContext?.(context, canPerform) ?? context
         calls += 1
         modelFailure = 'provider_failed'
-        const visibleResult = performResult === undefined ? undefined : characterExecutionResult({
+        const visibleResult = performResult === undefined ? undefined : (this.options.executionResult ?? characterExecutionResult)({
           manifest: this.#manifest, events: history, actorId: characterId,
           action: object(performResult.action) as { actionType: string; parameters: WorldJsonValue },
           status: String(performResult.status), reason: typeof performResult.reason === 'string' ? performResult.reason : null })
@@ -210,6 +215,7 @@ export class PrototypeCharacterTurn {
         lease = this.options.leases.renew(this.options.address, ownerId, lease.fencingToken, 180_000)
         modelFailure = 'invalid_output'
         let decision = object(raw)
+        this.options.validateDecision?.(decision, request)
         if (decision.decision === 'recall') {
           keys(decision, ['decision', 'query'])
           if (!canRecall || typeof decision.query !== 'string' || decision.query.trim() !== decision.query
@@ -241,6 +247,7 @@ export class PrototypeCharacterTurn {
           lease = this.options.leases.renew(this.options.address, ownerId, lease.fencingToken, 180_000)
           modelFailure = 'invalid_output'
           decision = object(raw)
+          this.options.validateDecision?.(decision, request)
         }
         if (decision.decision === 'abstain') {
           keys(decision, ['decision'])
@@ -300,6 +307,9 @@ export class PrototypeCharacterTurn {
         const arrived = movement === undefined ? [] : this.#scene.audienceForAction(this.options.address,
           characterId, [...history, ...events], head.headSeq + events.length).fullContentCharacterIds
         const full = new Set([...audience.fullContentCharacterIds, ...arrived, characterId])
+        const feedback = (this.options.executionResult ?? characterExecutionResult)({ manifest: this.#manifest,
+          events: [...history, ...resolution.events], actorId: characterId, action,
+          status: resolution.status, reason: resolution.reason ?? null })
         const outbox = []
         for (const observerId of new Set([...full, ...audience.occurrenceOnlyCharacterIds])) {
           const seesDeparture = observerId === characterId || departureObservers?.has(observerId) === true
@@ -307,9 +317,10 @@ export class PrototypeCharacterTurn {
           const id = `${actionId}:observer:${observerId}`
           const content: WorldJsonObject = full.has(observerId) ? {
             actorId: characterId, actionType: action.actionType, status: resolution.status,
-            resultDescription: String(characterExecutionResult({ manifest: this.#manifest, events: [...history, ...resolution.events], actorId: characterId,
-              action, status: resolution.status, reason: resolution.reason ?? null }).description)
+            resultDescription: String(feedback.description)
               .replaceAll('你', observerId === characterId ? '你' : '行动者'),
+            ...('observationMetadata' in feedback && feedback.observationMetadata !== undefined
+              ? { resultMetadata: feedback.observationMetadata } : {}),
             ...(speech === undefined ? {} : { speech: speech.data }),
             ...(transfer === undefined ? {} : { interaction: transfer.data }),
             ...(movementData === undefined || (!seesDeparture && !seesArrival) ? {} : { movement: {

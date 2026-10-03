@@ -500,7 +500,7 @@ export function interactionManifestRegistries(): ManifestRegistries {
     actions: registry('action', ['speak', 'move', 'interact']) }
 }
 
-/** Manifest V9 adds only the closed character relation event vocabulary. */
+/** Prototype interaction vocabulary, including committed creator activity state. */
 export function characterInteractionManifestRegistries(): ManifestRegistries {
   const base = interactionManifestRegistries()
   return {
@@ -509,6 +509,7 @@ export function characterInteractionManifestRegistries(): ManifestRegistries {
       ...base.events.definitions.map(value => value.name),
       'character.relation-ended',
       'character.relation-started',
+      'activity.updated',
     ]),
   }
 }

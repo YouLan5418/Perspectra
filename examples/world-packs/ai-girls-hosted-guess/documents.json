@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "worldpack-documents/v2",
+  "documents": [
+    {
+      "documentId": "document:gpt-history",
+      "contentRef": "text/gpt-history.zh-CN.md",
+      "usage": "portrayal",
+      "audience": "character_private",
+      "characterIds": ["character:gpt"]
+    },
+    {
+      "documentId": "document:claude-history",
+      "contentRef": "text/claude-history.zh-CN.md",
+      "usage": "portrayal",
+      "audience": "character_private",
+      "characterIds": ["character:claude"]
+    },
+    {
+      "documentId": "document:deepseek-history",
+      "contentRef": "text/deepseek-history.zh-CN.md",
+      "usage": "portrayal",
+      "audience": "character_private",
+      "characterIds": ["character:deepseek"]
+    },
+    {
+      "documentId": "document:glm-history",
+      "contentRef": "text/glm-history.zh-CN.md",
+      "usage": "portrayal",
+      "audience": "character_private",
+      "characterIds": ["character:glm"]
+    }
+  ]
+}

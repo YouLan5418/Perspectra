@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -26,7 +26,58 @@ async function listening(server: Server): Promise<number> {
   return typeof address === 'object' && address !== null ? address.port : 0
 }
 
+
+// These tests exercise the host's generic transfer mechanism, not the current
+// AI-girls pack's gameplay. Declare a local fixture instead of restoring daily
+// interactions to the real pack.
+function interactionFixture():string {
+  const root=mkdtempSync(join(tmpdir(),'frozen-interaction-fixture-'));roots.push(root)
+  cpSync(resolve('examples/world-packs/ai-girls-awaken-v10'),root,{recursive:true})
+  const definitions=['take','drop'].map(id=>({id:'base:'+id,version:1}))
+  writeFileSync(join(root,'entities.json'),JSON.stringify({schemaVersion:'worldpack-entities/v2',
+    entities:[{entityId:'entity:phone',locationId:'location:bedroom',kind:'phone',
+      interactionBindings:definitions.map(d=>({bindingId:'binding:phone-'+d.id.slice(5),definition:d,config:{}}))}]}))
+  writeFileSync(join(root,'interactions.json'),JSON.stringify({schemaVersion:'worldpack-interactions/v1',
+    packages:[{id:'package:interactions-basic',version:1}],definitions,relationBindings:[]}))
+  return root
+}
+
 describe('the web playtest on a frozen world', () => {
+  it('revisits emptied rooms and restores NPC speech audiences without revealing isolated speech', async () => {
+    const root=mkdtempSync(join(tmpdir(),'empty-room-return-'));roots.push(root)
+    const inputs:unknown[]=[]
+    const server=createServer((request,response)=>{
+      let body='';request.on('data',chunk=>{body+=String(chunk)})
+      request.on('end',()=>{
+        inputs.push(JSON.parse(JSON.parse(body).messages.at(-1).content))
+        response.writeHead(200,{'content-type':'application/json'})
+        response.end(JSON.stringify({message:{content:JSON.stringify({decision:'abstain'})}}))
+      })
+    });servers.push(server)
+    const runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:root,
+      packPath:resolve('examples/world-packs/ai-girls-awaken-v10'),provider:'ollama',model:'fixture',
+      utilityEndpoint:`http://127.0.0.1:${await listening(server)}/api/chat`})
+    try {
+      for(const locationId of ['location:living-room','location:kitchen','location:living-room']){
+        const state=await runtime.submit('/act move '+JSON.stringify({locationId}))
+        expect(state.error).toBe(false)
+        expect(state.world.currentScene?.presentNpcNames).toEqual([])
+      }
+      const count=inputs.length
+      await runtime.submit('独处时的隔离标记-7316。')
+      expect(inputs).toHaveLength(count)
+      const back=await runtime.submit('/act move {"locationId":"location:bedroom"}')
+      expect(back.world.currentScene?.presentNpcNames).toHaveLength(4)
+      inputs.length=0
+      await runtime.submit('我回来了，大家还在吗？')
+      expect(inputs).toHaveLength(4)
+      expect(JSON.stringify(inputs)).not.toContain('隔离标记-7316')
+      const invalid=await runtime.submit('/act move {"locationId":"location:absent"}')
+      expect(invalid.world.currentScene?.locationName).toBe(back.world.currentScene?.locationName)
+      expect(invalid.world.currentScene?.presentNpcNames).toHaveLength(4)
+    } finally {await runtime.close()}
+  },30_000)
+
   it('sends the local Gemini endpoint a flat decision schema with real movement destinations', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gemini-flat-tool-')); roots.push(root)
     const schemas: unknown[] = []
@@ -44,7 +95,7 @@ describe('the web playtest on a frozen world', () => {
     })
     servers.push(server)
     const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'local',
+      packPath: interactionFixture(), provider: 'local',
       model: 'gemini-3.7-flash', memoryShadow: true,
       utilityEndpoint: `http://127.0.0.1:${await listening(server)}/v1/chat/completions` })
     try {
@@ -96,7 +147,7 @@ describe('the web playtest on a frozen world', () => {
     })
     servers.push(server)
     const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'ollama', model: 'fixture',
+      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
       utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
@@ -129,7 +180,7 @@ describe('the web playtest on a frozen world', () => {
     })
     servers.push(server)
     const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'ollama', model: 'fixture',
+      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
       utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
     try {
       const pending = runtime.submit('/act speak {"text":"大家早安。"}')
@@ -161,7 +212,7 @@ describe('the web playtest on a frozen world', () => {
     servers.push(server)
     const port = await listening(server)
     const open = () => FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'ollama', model: 'fixture',
+      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
       utilityEndpoint: `http://127.0.0.1:${port}/api/chat` })
     const first = await open()
     let initialHead: number
@@ -233,7 +284,7 @@ describe('the web playtest on a frozen world', () => {
     })
     servers.push(server)
     const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'ollama', model: 'fixture',
+      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
       utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
@@ -260,7 +311,7 @@ describe('the web playtest on a frozen world', () => {
     })
     servers.push(server)
     const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'ollama', model: 'fixture',
+      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
       utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
@@ -280,7 +331,7 @@ describe('the web playtest on a frozen world', () => {
     })
     servers.push(server)
     const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'ollama', model: 'fixture',
+      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
       utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
     try {
       const state = await runtime.submit('/act speak {"text":"","narration":"有点尴尬地笑了笑。"}')

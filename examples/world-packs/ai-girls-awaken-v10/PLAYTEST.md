@@ -1,41 +1,68 @@
-# 《一觉醒来，我的大模型们都变成了美少女》v10 试玩
+# 《一觉醒来，我的大模型们都变成了美少女》试玩
 
-这是原 `ai-girls-awaken`（`worldpack-source/v4`，packVersion 1.0.0）的 v5 重写版本，当前 **packVersion 2.1.0**。
+当前 packVersion **2.4.1**，源格式 worldpack-source/v5。目录名中的 v10 是历史名称，旧 ai-girls-awaken 目录是 v4 留档。
 
-⚠️ 旧目录 `examples/world-packs/ai-girls-awaken/` 只是历史留档，不要覆盖，也不要指望能跑：本工作树的运行时只接受 `worldpack-source/v5` 源（`packages/world-pack/src/contracts.ts:38` 是唯一存在的 source 版本常量），v4 目录不会被加载。
+## 世界内容
 
-```powershell
-$env:HCW_LOCAL_API_KEY = [Environment]::GetEnvironmentVariable('ANTIGRAVITY_TOOLS_KEY', 'User')
-corepack pnpm@11.7.0 experience:web --pack examples\world-packs\ai-girls-awaken-v10 --data-dir .tmp\ai-girls-gemini-playtest
-```
+- GPT、Claude、DeepSeek、GLM 四位 NPC 与程序员玩家，角色性格和私密背景保留。
+- 卧室、客厅、工作区、厨房四个地点，移动仍由系统裁定。
+- 拿起、放下、递交、牵手、解除牵手的日常交互定义和全部 29 个绑定已删除；新增的猜数字是独立特殊玩法，不恢复这些日常动作。
+- 手机、充电器、遥控器、抱枕、笔记本电脑、键盘、马克杯、水壶仅作为场景描述。entities 为空，系统不追踪这些物品的位置、持有者或转移；日常动作通过叙述表达。GLM 的检查设备目标指向工作区。
+- 初始五人在卧室相遇。对白、姿态、表情不要求逐项结构化。
 
-普通中文作为对白提交；移动、保管、转交、牵手等受控状态变化使用 `/act` 显式命令。Pack 启用了 Manifest v10、`submit_actions/v7`、`responsive/v2` 和基础交互包。
+## 包内变量脚本
 
-## Windows 桌面启动器
+逻辑在 [scripts/variables.js](scripts/variables.js)，由 assetFiles 声明。参考酒馆助手的作用域变量与 MVU 的初始化、结构化更新思路，独立实现当前需要的子集。宿主桥接位于 tests/experiments/pack-variables.ts，仅接入当前 v5 试玩运行时。
 
-在仓库根目录执行 `corepack pnpm@11.7.0 desktop`。启动页会默认列出这个 v5 世界包；也可使用“选择目录”明确选择 `examples/world-packs/ai-girls-awaken-v10`。选择新存档和模型服务后，启动器会调用宿主默认浏览器打开独立的游戏网页。启动器存档与旧试玩数据分开；续玩时会校验世界包身份。游戏页已显示当前可尝试的移动和交互按钮，普通中文仍作为表达提交，重要状态变化仍需规则裁定。
+脚本暴露三个同步函数：
 
-这个包现提供 `web/index.html`、`web/style.css` 和 `web/app.js` 作为完整创作者网页示例。界面文件不写入世界包编译哈希；修改样式不需要提高 `packVersion`。具体文件约定见[自定义游戏网页指南](../../../docs/CREATOR-WEB-UI.md)。
+- initialize(characterId)：返回初始 public/private 对象。
+- getVariables(view, characterId)：校验并返回该角色可见变量。
+- applyPatch(view, operations, characterId)：校验更新并返回新变量。
 
-本机无模型调用的桌面启动检查已确认包被识别、进入游戏页并提供 9 个当前操作；该结果不代表真实模型连续试玩已经通过。
-## 可玩面（2.1.0 扩展后）
+宿主传入 public 和当前角色的 private；不传其他角色变量、WorldStore、模型密钥或文件接口。公开变量意味着所有角色都能知道，应只放适合公开的字段。秘密放在对应角色私有区，不能借公开变量绕过认知隔离。玩家页面只显示公开变量和玩家本人私有变量，每次 NPC 模型调用也只提供公开变量和该 NPC 的私有变量。
 
-| 维度 | 内容 |
-|---|---|
-| 地点 | 4 个：卧室 / 客厅 / 工作区（电脑桌）/ 厨房 |
-| 可交互物品 | 8 件，全部支持拿起 / 放下 / 递交（`base:take` / `base:drop` / `base:give`） |
-| 物品分布 | 卧室：手机、充电器；客厅：遥控器、抱枕；工作区：笔记本、键盘、马克杯；厨房：水壶 |
-| 可牵手对象 | GPT / Claude / DeepSeek / GLM，并可解除（`base:hold-hand` / `base:end-contact`） |
-| 场景 | `scene:morning-bedroom` 为初始 active（5 人同处），其余三地为 `created` 占位 |
+第一版只声明“剧情 / 阶段 = 初见”，不预设好感度、情绪或人物意图。作者可在 initial 中定义数字、布尔、文本及嵌套对象。更新必须保持预定义键和类型；不支持数组、临时加键或删除键。
 
-## 不打开浏览器的真实模型冒烟测试
+输入框可使用作者调试命令：
 
-```powershell
-node --import tsx tests/experiments/frozen-playtest-drive.ts --model gemini-3.7-flash --pack examples/world-packs/ai-girls-awaken-v10 --scenario ai-girls-commands --turns 20
-```
+~~~text
+/vars [{"op":"replace","path":"/public/剧情/阶段","value":"早餐"}]
+~~~
 
-`--scenario ai-girls-commands` 自带一段 20 轮的中文输入与显式命令脚本，覆盖四个地点的移动、物品的拿放递交、牵手的建立与解除，以及一次「只对 Claude 说、再问 GPT 有没有听见」的信息隔离探针；收件人不在场时是否送达，要以观察事件为准。`--turns N` 可截断。
+这是一条显式变量编辑指令，不是角色台词。它只调用包脚本，不推进世界回合，不提交行动事件，也不立即唤醒 NPC；下次正常互动时角色才会收到新值。可先用 test 检查旧值，再 replace；整批有任何非法更新都不会保存。玩家入口只允许 public 和玩家本人的 private，不能指定别的角色。
 
-数据目录里除 `outcome.json` 外还会落 `provider.jsonl`：每行是一条真实的 provider 请求/响应（`messages` + `tools`），用于角色可见上下文的审计与 token 计量；不含 header 与密钥。
+变量保存到存档目录的 pack-variables.json，重启会校验当前包和变量结构。修改包或变量定义后使用新目录；不提供跨版本迁移或逐消息回滚。变量保存与世界事件不是同一个事务，因此脚本暂不用于同时修改世界位置或关键世界事实。变量本身也不能证明某个叙事动作已经发生。
 
-修改世界内容时应提高 `packVersion` 并使用新的数据目录；只修改 `web/` 网页文件不需要。
+执行时使用有超时的独立 Node VM 上下文，脚本必须来自编译资产清单且内容一致。本版仅面向可信作者脚本，Node VM 不构成恶意代码的安全沙箱。尚不支持任意模块导入、酒馆脚本全 API、MVU 全协议，或让模型根据对白自动生成变量更新。
+
+## 包内小游戏与逃生
+
+[scripts/activity.js](scripts/activity.js) 定义首个玩法：玩家与 GPT 轮流猜 1–100 的数字，包内脚本生成并比较隐藏答案。游戏期间保留对白，关闭自由外显表现、移动与普通交互，仅提供猜数、主动让出回合、按玩法退出。作者可以修改 policy 调整收缩程度，修改 initialize/resolve 改变玩法，schedule 返回等待或唤醒本局 NPC；宿主负责真正调用模型、权限复核与提交。
+
+页面顶部是宿主控制条，游戏操作输入由宿主按参数声明生成，包内页面放在下面。**红色“逃生：中止活动并恢复”始终可用**：不受作者的对白、行动、退出或调度定义约束，暂停时和模型处理中也可使用。它先取消正在处理的模型请求，再原子提交中止，恢复包原本合法的能力；不会撤销已经完成的猜数、清空记忆或开放角色原本没有的能力。
+
+游戏状态、当前行动者、阶段、修订号与授权观察写入同一批世界事件，不写入 pack-variables.json 后再补事件。每次操作带活动 ID、修订号和请求 ID；过期操作拒绝，已提交操作重复请求不再次执行。角色只收到公开游戏状态与自身私有数据，隐藏答案不进入玩家状态或模型请求。游戏结果只对参与者生成授权观察，即使调度返回等待，也不会丢掉经历。
+
+单纯对白不消耗游戏行动回合；abstain、格式错误、服务失败也不冒充主动 pass。角色选择不操作或失败后保留当前轮次，页面允许再次请求处理或逃生。宿主允许每次输入最多串行激活四次 NPC，每次最多两次决策机会，主动 recall 可能增加一次补问；活动调用链总时限 90 秒。本包 onOutcome 返回等待，仍只进行一次 NPC 激活。显式请求重新处理是新的处理机会，不承诺未提交模型计算的跨重启幂等。
+
+活动期间 /vars 调试禁止；/act 和按钮仍在执行前检查同一份策略及原有 Rulebook。状态从 activity.updated 恢复，重启不会自动放开活动限制，也不会自动重跑未完成模型调用。首轮支持自由对白、关闭对白、固定对白选项、narration 开关、移动开关及已有交互白名单。固定对白按原文枚举，尚非选项 ID 协议。定义通过 npcIds 声明 NPC；initialize 接收 playerId/npcIds，不接收宿主提供的答案。schedule/onOutcome 可返回 wait 或 activate 已声明的 NPC；本包 onOutcome 保持 wait，不实现规则自动跳过；多人同时输入、多活动、恶意脚本沙箱均未实现。
+
+## 启动
+
+~~~powershell
+corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/ai-girls-playtest-2.4.1
+~~~
+
+模型凭证沿用本机环境，不写入世界包。桌面入口也可选择本目录并新建存档。页面按 availableActions 显示操作，本包没有物品交互选项。
+
+本入口使用当前工作树的记忆服务；独立 Hindsight Core 实验不会因选择本包而自动接入。验证那套实验记忆的真实试玩仍需另行接通。旧 ai-girls-commands 包含已删除的日常动作，不再适用于本版。
+
+## 验证范围
+
+新增测试检查：无正式物品实体、数字／布尔／文本的持久化与恢复、角色私有变量隔离、非法批次无写入、脚本内容一致性、执行超时，以及实际 Character Turn 请求中的变量范围。后者使用本机测试响应服务，不等于真实模型体验验收。worldpack test 只做编译与运行时适配，assertionsExecuted 为 0，不能据此宣称包内私密视图断言已经执行。
+
+
+本次活动验证覆盖：猜数与换手同批提交、事务插入后故障整体回滚、旧请求和非法混合输出拒绝、秘密隔离、重启恢复、无唤醒也保留经历及结束后可召回、技术失败不伪造 pass、作者允许的移动仍受 Rulebook 裁定、暂停和待返回模型中的逃生。浏览器已检查开始／受限界面／逃生后移动选项恢复。真实 Gemini 3.7 Flash 在新局完成了三次 NPC 猜数及随后对白；早期网页两次请求虽有返回却未通过验证，仍可能遇到格式拒绝，保留轮次并提供重试和逃生。这是短冒烟验证，不等于长试玩验收。
+
+三人主持版本见 [ai-girls-hosted-guess](../ai-girls-hosted-guess/PLAYTEST.md)：Claude 私有持有答案并由模型裁决，玩家与 GPT 猜数。原包保留脚本数值裁定，作为对照。2.4.1 的资产和脚本接口有变化，请使用新存档；已运行的 2.4.0 进程与旧存档没有被迁移。
