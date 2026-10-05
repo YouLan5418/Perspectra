@@ -4,7 +4,7 @@
 
 Cordis World 希望让多个角色在同一个世界里，以各自的经历、记忆和可见信息作出反应，而不只是由一个模型轮流模仿所有人。玩家的一次输入可以触发有限轮 NPC 连锁回应；没有新输入、反应周期结束后，世界重新静止。
 
-当前进展和入口见[2026-10-05项目状态](docs/PROJECT-STATE-2026-10-05.md)。简化记忆已接入源码网页的`--memory-core`实验入口，默认网页仍使用原生记忆；双角色实测与地点修复均有记录。
+当前进展和入口见[2026-10-06项目状态](docs/PROJECT-STATE-2026-10-06.md)。简化记忆已接入源码网页的`--memory-core`实验入口，默认网页仍使用原生记忆；双角色实测与地点修复均有记录。
 
 项目当前处于**实验与重构阶段**。首要目标是让角色更自然、玩法更自由，同时避免关键世界状态和角色知识相互串台。它还不是完整的在线游戏平台，也不承诺现有实验协议或世界包长期兼容。
 
@@ -67,7 +67,7 @@ corepack pnpm@11.7.0 experience:web --memory-core --pack examples/world-packs/pr
 corepack pnpm@11.7.0 experience:web --memory-core --pack examples/world-packs/ai-girls-hosted-guess --data-dir .tmp/my-core-playtest
 ```
 
-在顶部点击“整理长期记忆”后才有已整理的长期档案；当前不会每回合自动整理。安装、取消与私有 trace 的说明见 [活动记忆实验](experiments/activity-memory/README.md)。此入口支持本机 OpenAI 兼容服务，尚未随桌面发布打包。main 与实验分支的具体边界、验证结果见 [2026-10-03 项目状态](docs/PROJECT-STATE-2026-10-03.md)。
+在顶部点击“整理长期记忆”后才有已整理的长期档案；当前不会每回合自动整理。安装、取消与私有 trace 的说明见 [活动记忆实验](experiments/activity-memory/README.md)。此入口支持本机 OpenAI 兼容服务，尚未随桌面发布打包。主线实现边界、验证结果与旧工作树归档见 [当前项目状态](docs/PROJECT-STATE-2026-10-06.md)。
 
 ## Windows 桌面启动器
 
@@ -149,7 +149,7 @@ corepack pnpm@11.7.0 test
 
 | 要了解什么 | 入口 |
 | --- | --- |
-| 现行实现、最近验证与已知限制 | [当前项目状态](docs/PROJECT-STATE-2026-10-05.md) |
+| 现行实现、最近验证与已知限制 | [当前项目状态](docs/PROJECT-STATE-2026-10-06.md) |
 | 开发方向与约束 | [AGENTS](AGENTS.md)、[当前原型契约](docs/2026-09-19_原型契约-自由叙述与声明式交互-v0.1-report.md) |
 | 启动与创作世界包 | [试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)、[World Pack手册](docs/WORLD-PACK-AUTHORING-MANUAL.md) |
 | 简化Core记忆的准备与用法 | [实验入口](experiments/activity-memory/README.md) |
