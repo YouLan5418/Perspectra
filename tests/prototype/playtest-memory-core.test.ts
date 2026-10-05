@@ -75,12 +75,14 @@ describe('optional web Core memory', () => {
       activity: { private: 'private-answer' }, packVariables: { private: 'private-variable' } }, continuation: false }, AbortSignal.timeout(2000))
     const recall = inputs.at(-1)!
     expect(recall.operation).toBe('recall')
+    expect(recall.deliveryMode).toBe('minimal')
     expect(JSON.stringify(recall.request)).not.toContain('private-answer')
     expect(JSON.stringify(recall.request)).not.toContain('private-variable')
     expect(Object.keys(recall)).not.toContain('worldPath')
     await f.runtime.submit('早上好，今天打算做些什么？')
     expect(f.requests.length).toBeGreaterThan(0)
     expect(f.requests.every(r => Array.isArray((r.context as WorldJsonObject).memories))).toBe(true)
+    expect(f.requests.every(r => r.canRecall === false && r.recallEvidence === undefined)).toBe(true)
     // A restart reuses the same archives and restores only previously authorized identity entries.
     const restarted = new PlaytestMemoryCore(f.data, f.runtime.address, run)
     await restarted.refresh(['character:claude'], AbortSignal.timeout(2000), () => {})
@@ -112,6 +114,26 @@ describe('optional web Core memory', () => {
     const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
     await expect(adapter.project({ context: { character: { characterId: 'character:claude' }, scene: { people: [] } },
       continuation: false }, AbortSignal.timeout(2000))).rejects.toThrow('authorized evidence')
+  })
+  it('delivers speech-supported cognition with partial evidence and rejects foreign excerpts', async () => {
+    let foreign = false
+    const run: CoreRunner = async input => {
+      if (input.operation === 'build') return built(input)
+      const source = ((input.archive as WorldJsonObject).sources as WorldJsonObject[])[0]!
+      return { delivery: [{ memoryId: 'cognition:example', memoryLevel: 'observation',
+        text: '【本角色的可修正认识】两处说法有分歧。', sourceIds: [source.sourceId!],
+        sourceTypes: ['reported_speech'], hasUnresolvedCounterEvidence: true,
+        evidenceCoverage: { complete: false, included: 0, total: 2 },
+        keyEvidence: foreign ? [{ sourceId: 'event:foreign', text: 'private' }] : [] }],
+        deliveryTrace: { delivered: [{ sourceRefs: [ref(source)] }] } }
+    }
+    const f = await fixture(run); await f.runtime.refreshMemory()
+    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
+    const request = { context: { character: { characterId: 'character:claude' }, scene: { people: [] } }, continuation: false }
+    const projected = await adapter.project(request, AbortSignal.timeout(2000))
+    expect((projected.context.memories as WorldJsonObject[])[0]!.hasUnresolvedCounterEvidence).toBe(true)
+    foreign = true
+    await expect(adapter.project(request, AbortSignal.timeout(2000))).rejects.toThrow('excerpt source is unauthorized')
   })
   it('escape cancels maintenance, preserves world prefix and restores usable speech', async () => {
     let entered!: () => void

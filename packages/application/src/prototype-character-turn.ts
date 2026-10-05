@@ -171,7 +171,7 @@ export class PrototypeCharacterTurn {
         }
         // Do not copy scene member records or other characters' anchors into a model request.
         let context: WorldJsonObject = {
-          character,
+          character: { ...character, locationId: view.locationId },
           stimulus: options.stimulus ?? [],
           ...(olderMemories === undefined ? {} : { memories: olderMemories }),
           cognition: new CognitionProjectionRebuilder(this.options.store).rebuildCharacterAt(this.options.address, characterId, head.headSeq),

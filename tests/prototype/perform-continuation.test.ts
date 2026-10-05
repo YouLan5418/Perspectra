@@ -152,16 +152,23 @@ it('does not accept a legacy performance payload inside perform parameters', asy
   expect(f.store.head(f.address).headSeq).toBe(before)
 })
 
-it('refreshes the scene after moving and publishes only to the new audience', async () => {
+it('refreshes character and scene locations after moving, including the next activation, and uses only the new audience', async () => {
   let calls = 0
+  const requests: PrototypeTurnRequest[] = []
   const f = fixture(async request => {
+    requests.push(request)
     if (++calls === 1) return { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:next' } }
     expect(currentLocation(f.store.readEvents(f.address), npc)).toBe('location:next')
     expect((request.context.scene as WorldJsonObject).locationId).toBe('location:next')
     expect(JSON.stringify(prototypeTurnCall(request).schema)).not.toContain('addresseeIds')
     return { decision: 'publish', narration: '环顾四周。' }
   })
-  expect(await f.turn.run(npc)).toMatchObject({ status: 'published' })
+  expect(await f.turn.run(npc)).toMatchObject({ status: 'published', calls: 2 })
+  expect(await f.turn.run(npc)).toMatchObject({ status: 'published', calls: 1 })
+  expect(requests.map(request => (request.context.character as WorldJsonObject).locationId))
+    .toEqual(['location:room', 'location:next', 'location:next'])
+  expect(requests.map(request => (request.context.scene as WorldJsonObject).locationId))
+    .toEqual(['location:room', 'location:next', 'location:next'])
   const observations = f.store.readEvents(f.address).filter(event => event.eventType === 'observation.upsert')
   const expressions = observations.map(event => (event.data as WorldJsonObject).value as WorldJsonObject)
     .filter(value => (value.content as WorldJsonObject).actionType === 'speak')

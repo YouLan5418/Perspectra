@@ -27,6 +27,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
       const wire = JSON.parse(body)
       const input = JSON.parse(wire.messages.at(-1).content)
       const actor = String(input.context.character.characterId)
+      expect(input.context.character.locationId).toBe(input.context.scene.locationId)
       calls.push({ stage, actor, continuation: input.continuation, stimulus: input.context.stimulus,
         memories: input.context.memories,
         observationSeqs: input.context.observations.map((record: { sourceSeq: number }) => record.sourceSeq),

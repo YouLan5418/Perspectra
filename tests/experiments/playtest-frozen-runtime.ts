@@ -480,7 +480,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       memory = new CognitiveMemoryService(resolve(this.#dataDirectory, 'memory.sqlite'),
         store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
       const shadowFile = this.#memoryShadowFile
-      const turn = new PrototypeCharacterTurn({ address: this.#address, store, memory, leases, availability,
+      const turn = new PrototypeCharacterTurn({ address: this.#address, store, leases, availability,
+        ...(this.#memoryCore === undefined ? { memory } : {}),
         rulebooks: this.#activity?.rulebooks() ?? createCoreRulebookRegistry({ interactionPackages: [createBasicInteractionPackage()] }),
         decide: this.#decideContinuation,
         ...(this.#activity === undefined ? {} : {

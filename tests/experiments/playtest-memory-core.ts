@@ -98,7 +98,7 @@ export class PlaytestMemoryCore {
         selfObservations: context.selfObservations ?? [] },
         ...(request.recallEvidence === undefined ? {} : { recallEvidence: { query: request.recallEvidence.query! } }) }
       result = await this.run({ operation: 'recall', archive: cached.archive!, index: cached.index!,
-        request: queryRequest, tick: snapshot.tick, observations: true }, signal)
+        request: queryRequest, tick: snapshot.tick, observations: true, deliveryMode: 'minimal' }, signal)
       memories = result.delivery as WorldJsonObject[]
       if (!Array.isArray(memories) || memories.length > 3 || JSON.stringify(memories).length > 4500)
         throw new Error('memory delivery budget exceeded')
@@ -115,6 +115,9 @@ export class PlaytestMemoryCore {
       }
       for (const m of memories) if (!(m.sourceIds as string[]).every(id => sources.has(id)))
         throw new Error('memory delivery source is unauthorized')
+      for (const m of memories) for (const excerpt of (m.keyEvidence ?? []) as WorldJsonObject[])
+        if (!(m.sourceIds as string[]).includes(String(excerpt.sourceId)) || !sources.has(String(excerpt.sourceId)))
+          throw new Error('memory excerpt source is unauthorized')
     }
     appendFileSync(resolve(this.#directory, 'recall-trace.jsonl'), JSON.stringify({ actor, scope: snapshot.scope, tick: snapshot.tick,
       headSeq: snapshot.scope.asOfWorldSeq, memoryPrefix: cached ? object(object(cached.archive).scope).asOfWorldSeq : null,
