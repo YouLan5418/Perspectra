@@ -4,6 +4,8 @@
 
 Cordis World 希望让多个角色在同一个世界里，以各自的经历、记忆和可见信息作出反应，而不只是由一个模型轮流模仿所有人。玩家的一次输入可以触发有限轮 NPC 连锁回应；没有新输入、反应周期结束后，世界重新静止。
 
+当前进展和入口见[2026-10-05项目状态](docs/PROJECT-STATE-2026-10-05.md)。简化记忆已接入源码网页的`--memory-core`实验入口，默认网页仍使用原生记忆；双角色实测与地点修复均有记录。
+
 项目当前处于**实验与重构阶段**。首要目标是让角色更自然、玩法更自由，同时避免关键世界状态和角色知识相互串台。它还不是完整的在线游戏平台，也不承诺现有实验协议或世界包长期兼容。
 
 ## 我们想解决什么
@@ -45,6 +47,17 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-
 ```
 
 本原型网页只接受 `worldpack-source/v5` 源目录，并通过 v10 的 FrozenWorldPlaytestRuntime 试玩；旧网页运行时已移除。当前玩家的重要状态交互使用显式 `/act` 命令；普通自然语言不会自动执行移动、取物或交接。创建新存档或续玩时请按[创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)操作，不要在同一数据目录中混用不兼容世界版本。真实模型试玩需要人工观察角色是否自然、是否重复、是否无故沉默，自动化测试不能代替这一环节。
+
+### 可选：简化记忆试玩
+
+完成[Core环境准备](experiments/activity-memory/README.md)后，可在新世界启用极简记忆交付。本次本机网关使用8046，服务端口不同则调整环境变量；网页地址由启动命令打印。
+
+```powershell
+$env:HCW_LOCAL_ENDPOINT = 'http://127.0.0.1:8046/v1/chat/completions'
+corepack pnpm@11.7.0 experience:web --memory-core --pack examples/world-packs/prototype-g1 --data-dir .tmp/my-simple-core-web
+```
+
+使用宿主“整理长期记忆”按钮手动整理；首次整理前仍有近期上下文。当前保留授权检查、来源及证据摘选标注，JEV不作为必经。一般认识家族更新和桌面Core打包未接入此入口。
 
 ## 实验分支的活动与分层记忆
 
@@ -134,26 +147,13 @@ corepack pnpm@11.7.0 test
 
 ## 文档与项目状态
 
-- [Gemini 连续试玩](docs/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)：默认本机模型接入、显式命令对照、未裁定叙述与私语送达问题。
-- [记忆召回第一步](docs/PROTOTYPE-MEMORY-RECALL-STAGE1-2026-09-28.md)：自动与主动召回、角色自身观察线索及窄场景复测边界。
-- [第一阶段记忆链路](docs/PROTOTYPE-EXPERIENCE-PHASE1-MEMORY.md)：召回接线和长期行为验收的区分。
-- [当前自由表达实现与实测](docs/PROTOTYPE-PLAYTEST-02.md)：已落地范围、失败样本和下一步。
-- [玩家输入与反应链诊断](docs/PROTOTYPE-PLAYTEST-03.md)：玩家表达实测、反复唤醒与主动沉默的证据。
-- [人设与最小调度规则对照](docs/PROTOTYPE-PLAYTEST-04.md)：顺序实验结果与尚未解决的重复反应。
-- [反应周期上下文审计](docs/PROTOTYPE-PLAYTEST-05.md)：逐次检查自身回应历史、触发观察及 abstain 提示。
-- [自身历史呈现对照](docs/PROTOTYPE-PLAYTEST-06.md)：单独突出已发布表达后的真实模型结果。
-- [abstain 语义与扩大预算实验](docs/PROTOTYPE-PLAYTEST-07.md)：区分不发布内容、非语言表达与周期终止原因。
-- [单次交互与结果后续写](docs/PROTOTYPE-PLAYTEST-08.md)：独立执行切片、成功/拒绝实测及尚未接入群体试玩的边界。
-- [角色可读结果与网页最小集成](docs/PROTOTYPE-PLAYTEST-09.md)：选定 GPT 的物品交互，提交后复用现有 Reaction 续写的实测与启用方式。
-- [连续互动与事实分叉审计](docs/PROTOTYPE-PLAYTEST-10.md)：连续拿取、递交与跨场景试玩；反馈及时性、归属误判传播及续写越界的证据。
-- [当前状态与续写边界对照](docs/PROTOTYPE-PLAYTEST-11.md)：区分可见状态、上次观察与对白，修正服务失败提示；实现与尚未通过的模型行为验收。
-- [通用单角色激活接入](docs/PROTOTYPE-PLAYTEST-12.md)：原型网页默认逐角色执行与结果续写，非 GPT 物品、移动实测及 G1/G3 验收边界。
-- [两 NPC 连续场景试玩](docs/PROTOTYPE-PLAYTEST-13.md)：同物品重新决策、跨房间观察隔离、返回交流的真实模型与事件证据。
-- [G4 架构减法与收口记录](docs/PROTOTYPE-G4-ARCHITECTURE-AUDIT.md)：当前网页调用链、已完成的旧路径清理，以及保留接口与后续问题的边界。
+| 要了解什么 | 入口 |
+| --- | --- |
+| 现行实现、最近验证与已知限制 | [当前项目状态](docs/PROJECT-STATE-2026-10-05.md) |
+| 开发方向与约束 | [AGENTS](AGENTS.md)、[当前原型契约](docs/2026-09-19_原型契约-自由叙述与声明式交互-v0.1-report.md) |
+| 启动与创作世界包 | [试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)、[World Pack手册](docs/WORLD-PACK-AUTHORING-MANUAL.md) |
+| 简化Core记忆的准备与用法 | [实验入口](experiments/activity-memory/README.md) |
+| 记忆认知简化的决策与验收 | [简化方案](docs/2026-10-05_记忆认知体系简化方案.md)、[最新双角色实测及修复](experiments/activity-memory/report-normal-playtest.md) |
+| 全部原型与历史报告 | [文档索引](docs/README.md)、[实验历史命令](experiments/activity-memory/HISTORY.md) |
 
-- [创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)：入口、世界版本与常见问题。
-- [主线真实模型体验记录](docs/REAL-MODEL-EXPERIENCE.md)：历史试玩环境、观察与限制。
-- [2026-09-10 真实模型试玩问题记录](docs/2026-09-10_真实模型试玩记录-v8拒绝原因与契约缺口.md)：复杂输出协议导致角色整轮提案被拒的实测案例。
-- [ADR 索引](docs/adr/README.md)：历史架构选择及其背景。部分决策正在复核，不应将“Accepted”直接等同于当前产品方向。
-
-当前优先事项是恢复与提升角色自然度、减少不必要的模型输出约束，并在保留角色认知隔离和关键事实一致性的基础上简化实现。**更完整的工程证明不等于更好的角色扮演体验。**
+历史ADR、旧阶段报告与旧版本验收按各自版本理解，当前开发以现行契约、源码和真实试玩为依据。后续优先观察角色自然度、目标牵引、无关记忆准入和实际等待，再决定局部简化。

@@ -1,5 +1,7 @@
 # Changelog
 
+本文件保留历史正式候选版本的变更记录。Perspectra当前原型的实现、实验入口与验收范围见[当前项目状态](docs/PROJECT-STATE-2026-10-05.md)。
+
 ## 0.3.0 - Unreleased
 
 Phase 8 私有源码候选：可重建角色心智与多 Scene 上下文。

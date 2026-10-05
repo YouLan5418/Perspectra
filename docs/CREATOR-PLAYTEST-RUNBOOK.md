@@ -21,7 +21,7 @@ corepack pnpm@11.7.0 worldpack test examples/world-packs/ai-girls-awaken-v10
 corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/my-gemini-playtest
 ```
 
-当前 8045 服务在本机探针中无需认证即可响应；若服务配置要求密钥，只在启动进程中设置 `HCW_LOCAL_API_KEY`，不要写入 Pack、脚本或仓库。可用 `HCW_LOCAL_ENDPOINT`、`HCW_LOCAL_MODEL` 覆盖本机接口和模型标识。`experience:web:flash` 与上面的默认命令使用同一模型。
+认证要求由本机服务配置决定；需要密钥时只在启动进程中设置 `HCW_LOCAL_API_KEY`，不要写入 Pack、脚本或仓库。可用 `HCW_LOCAL_ENDPOINT`、`HCW_LOCAL_MODEL` 覆盖本机接口和模型标识。`experience:web:flash` 与上面的默认命令使用同一模型。
 
 如需对照本机 Ollama，可显式选择：
 
@@ -30,6 +30,18 @@ corepack pnpm@11.7.0 experience:web --ollama --pack examples/world-packs/ai-girl
 ```
 
 打开终端打印的完整本机地址，包含 `#token=` 部分。网页只监听 `127.0.0.1`。`--pack` 和 `--data-dir` 指定世界源与新存档；`HCW_PLAYTEST_PACK` 和 `HCW_PLAYTEST_DATA_DIRECTORY` 也可指定路径。没有有效 v5 源目录时，启动会明确失败。历史 DeepSeek 试玩结果不能和新模型结果直接合并为同一组结论。
+
+## 可选：简化Core记忆
+
+正常网页默认沿用原生记忆。启用极简Delivery实验时，先按[当前记忆实验入口](../experiments/activity-memory/README.md)准备Python与E5环境，再使用新的数据目录：
+
+```powershell
+# 本次网关端口8046，默认接口端口仍为8045；按本机服务调整
+$env:HCW_LOCAL_ENDPOINT = 'http://127.0.0.1:8046/v1/chat/completions'
+corepack pnpm@11.7.0 experience:web --memory-core --pack examples/world-packs/prototype-g1 --data-dir .tmp/my-simple-core-web
+```
+
+宿主按钮“整理长期记忆”手动处理各角色授权Source；首次整理前长期交付为空，近期上下文正常。整理期间普通输入暂停，逃生可取消，结束后恢复。Core模式使用简单候选准入和极简交付，关闭重复的原生检索与主动recall；JEV不作为必经。当前只验收本机OpenAI兼容服务的源码网页，桌面Core资产尚未打包。
 
 ## 试玩与判断
 

@@ -9,10 +9,14 @@
 
 | 文档 | 作用 |
 |---|---|
+| [2026-10-05当前项目状态](PROJECT-STATE-2026-10-05.md) | 当前分支、运行入口、实测范围、文件职责和已知限制 |
+| [简化Core记忆入口](../experiments/activity-memory/README.md) | 环境准备、正常网页与审计命令；历史命令另行归档 |
+| [记忆认知简化方案](2026-10-05_记忆认知体系简化方案.md) | 6.0—6.6实施决策及验收，不代表全部默认替换 |
+| [正常双角色实测与地点修复](../experiments/activity-memory/report-normal-playtest.md) | 最新实际模型、浏览器、来源及移动后Context验证 |
 | [当前原型契约：自由叙述与声明式交互 v0.1](2026-09-19_原型契约-自由叙述与声明式交互-v0.1-report.md) | **方向权威**。契约描述目标，不表示运行时已经实现 |
 | [基线说明](PROTOTYPE-BASELINE.md) | 当前原型基线：命令、门禁与验收口径 |
-| [G4 架构减法：入口、依赖与删除顺序](PROTOTYPE-G4-ARCHITECTURE-AUDIT.md) | **减法权威记录**：逐刀记录 + 待清理清单 |
-| [试玩报告：ai-girls-awaken-v10 · 20 轮真实模型](2026-09-25_试玩报告-ai-girls-awaken-v10-20轮真实模型.md) | 最近一次真实模型体验证据（3 红 3 黄） |
+| [G4 架构减法：入口、依赖与删除顺序](PROTOTYPE-G4-ARCHITECTURE-AUDIT.md) | 9月架构减法记录：入口、已完成清理与当时待办 |
+| [试玩报告：ai-girls-awaken-v10 · 20 轮真实模型](2026-09-25_试玩报告-ai-girls-awaken-v10-20轮真实模型.md) | 9月25日真实模型体验证据（3 红 3 黄） |
 | [G1 收口与 G2 失败闭环核对](PROTOTYPE-G1-G2-ACCEPTANCE.md) | G1/G2 验收结论 |
 | [记忆第一步收口：自动与主动召回](PROTOTYPE-MEMORY-RECALL-STAGE1-2026-09-28.md) | 已验证的窄场景、权限边界与未通过范围 |
 | [Gemini 记忆阶段复测](PROTOTYPE-GEMINI-MEMORY-2026-09-28.md) | 本机模型兼容验证、长程约定对照与主动查询边界 |
