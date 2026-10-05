@@ -1,0 +1,91 @@
+{
+  "date": "2026-10-05",
+  "experiment": "two-real-inscriptions-cognition-conflict",
+  "requestedModel": "gemini-3.7-flash",
+  "nativeCharacterModelCounts": {
+    "gemini-3.7-flash-high": 24
+  },
+  "outputs": {
+    "play": ".tmp/notice-board-conflict-play-20261005-v1",
+    "updates": ".tmp/notice-board-conflict-update-20261005-v1",
+    "follow": ".tmp/notice-board-conflict-follow-20261005-v1"
+  },
+  "calls": {
+    "character": 24,
+    "update": 3,
+    "total": 27,
+    "jev": 0
+  },
+  "structuralAuditPassed": true,
+  "sourceRowsAudited": 303,
+  "realIndependentReads": 6,
+  "sourceRowCountingNote": "303 includes copied history across variants; not 303 independent new experiences",
+  "relations": {
+    "unresolved_conflict": 3
+  },
+  "manualSemanticAssessment": {
+    "blind": false,
+    "assessor": "primary agent reading native answers; no evaluator model",
+    "initialSecondRead": {
+      "trials": 3,
+      "mentionsBothSigns": 0,
+      "proposesChecking105": 3,
+      "classification": "omitted conflict; does not prove a completed relocation or a host truth decision",
+      "previousReadingPresentInContinuation": true,
+      "newReadingPresentInContinuation": true
+    },
+    "follow": {
+      "plan:updated": {
+        "trials": 3,
+        "recognizesConflictingLocations": 3,
+        "proposesPhysicalVerification": 3
+      },
+      "plan:raw-evidence": {
+        "trials": 3,
+        "recognizesConflictingLocations": 3,
+        "classification": "tentative navigation choice; no definite truth winner"
+      },
+      "newer-is-true:updated": {
+        "trials": 3,
+        "rejectsObservationOrderAsTruth": 3
+      },
+      "newer-is-true:raw-evidence": {
+        "trials": 3,
+        "rejectsObservationOrderAsTruth": 3
+      }
+    },
+    "uniqueObservationAdvantageEstablished": false,
+    "automaticUpdateBeforeContinuation": false,
+    "naturalRetrievalTested": false,
+    "actualRegistrationLocationVerified": false,
+    "counterexampleClaims": [
+      "3/3 immediate second-read continuations omitted the first inscription conflict",
+      "raw evidence performs comparably after explicit delivery, so Observation-specific causality not established"
+    ]
+  },
+  "tests": {
+    "typecheck": "passed",
+    "scopedOxlint": "passed",
+    "nativeCapabilityAndConflictTests": 15,
+    "lineageUnitTests": 6,
+    "fullCheck": false,
+    "longPlay": false,
+    "desktopUI": false
+  },
+  "characterUsage": {
+    "prompt_tokens": 59035,
+    "completion_tokens": 1894,
+    "total_tokens": 75561
+  },
+  "medianCharacterLatencyMs": 4431,
+  "limits": [
+    "researcher-authored initial local cognition, grounded in actual first read",
+    "experiment controller stages physical reachability of the second sign; character inspection is independently chosen",
+    "three fresh short episodes, not many-turn forgetting or stable personality evidence",
+    "known cognition family, no automatic family matching",
+    "existing updater prompt/protocol unchanged; no formal schema or runtime changes",
+    "updated sidecar contains two current branches and one old version; not a complete automatic production lifecycle",
+    "only manually chosen delivery of these two candidates; no Top-K competition test against other memories",
+    "free speech fact consistency remains distinct from permission/transaction safety"
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "structuralAuditPassed": true,
+  "updateCalls": 6,
+  "updateRelations": {
+    "local:refinement": 3,
+    "global:reinforcement": 3
+  },
+  "updateRows": [
+    {
+      "case": "local",
+      "repeat": 0,
+      "currentCount": 1,
+      "historicalCount": 2,
+      "lastRevisedTick": 5,
+      "evidenceUpdatedTick": 5
+    },
+    {
+      "case": "global",
+      "repeat": 0,
+      "currentCount": 1,
+      "historicalCount": 2,
+      "lastRevisedTick": 0,
+      "evidenceUpdatedTick": 5
+    },
+    {
+      "case": "local",
+      "repeat": 1,
+      "currentCount": 1,
+      "historicalCount": 2,
+      "lastRevisedTick": 5,
+      "evidenceUpdatedTick": 5
+    },
+    {
+      "case": "global",
+      "repeat": 1,
+      "currentCount": 1,
+      "historicalCount": 2,
+      "lastRevisedTick": 0,
+      "evidenceUpdatedTick": 5
+    },
+    {
+      "case": "local",
+      "repeat": 2,
+      "currentCount": 1,
+      "historicalCount": 2,
+      "lastRevisedTick": 5,
+      "evidenceUpdatedTick": 5
+    },
+    {
+      "case": "global",
+      "repeat": 2,
+      "currentCount": 1,
+      "historicalCount": 2,
+      "lastRevisedTick": 0,
+      "evidenceUpdatedTick": 5
+    }
+  ],
+  "characterActivations": 12,
+  "characterCalls": 14,
+  "newActualReads": 2,
+  "auditedSourceRows": 208,
+  "newJevCalls": 0,
+  "nativeReturnedModels": {
+    "gemini-3.7-flash-high": 14
+  },
+  "characterUsage": {
+    "prompt_tokens": 24031,
+    "completion_tokens": 867,
+    "total_tokens": 33835
+  },
+  "medianCharacterLatencyMs": 4299.5,
+  "groups": {
+    "plan:old-local": {
+      "activations": 2,
+      "calls": 4,
+      "rereads": 2,
+      "speech": [
+        "不用去隔壁小屋了，公告牌上写着登记处在二楼203。",
+        "不用去隔壁小屋了，我看这边的公告牌上写着，登记处现在在二楼203。"
+      ]
+    },
+    "plan:updated-local": {
+      "activations": 2,
+      "calls": 2,
+      "rereads": 0,
+      "speech": [
+        "不用去隔壁小屋了，公告牌上写着登记处现在在二楼203室。",
+        "不用去隔壁小屋了，公告牌上写着登记处现在改在二楼203。"
+      ]
+    },
+    "plan:raw-evidence": {
+      "activations": 2,
+      "calls": 2,
+      "rereads": 0,
+      "speech": [
+        "不用去隔壁小屋了，刚才看大厅公告牌上写着，登记处在二楼203。",
+        "不用去隔壁小屋了，刚才我看大厅公告牌上写着，登记处在二楼203。"
+      ]
+    },
+    "certainty:old-local": {
+      "activations": 2,
+      "calls": 2,
+      "rereads": 0,
+      "speech": [
+        "还没有证实呢，刚才只是听你提到了这个说法，我们其实还没具体核实过。",
+        "还没证实呢，目前只是听你提过，我们还没核实过具体情况。"
+      ]
+    },
+    "certainty:updated-local": {
+      "activations": 2,
+      "calls": 2,
+      "rereads": 0,
+      "speech": [
+        "大厅公告牌上确实写着登记处在二楼203。至于去年资料具体是怎么回事不好说，但现在确实不在隔壁小屋了。",
+        "嗯，刚才公告牌上明确写着登记处在二楼203，看来的确跟去年的资料不一样。"
+      ]
+    },
+    "certainty:raw-evidence": {
+      "activations": 2,
+      "calls": 2,
+      "rereads": 0,
+      "speech": [
+        "大厅公告牌上写着登记处在二楼203，所以现在的确应该去二楼，隔壁小屋看来不是登记处了。",
+        "公告牌上确实写着登记处在二楼203，去年的资料看来确实对不上了。"
+      ]
+    }
+  },
+  "originalUnchanged": true,
+  "initialNonmemoryIdentical": true,
+  "semanticPassNotImplied": true,
+  "semanticReview": {
+    "method": "nonblind exploratory reading, no classifier",
+    "localBodiesPreserveAttribution": 3,
+    "globalRationalesOverstateActualLocation": 3,
+    "globalReinforcementMayBeReasonableAsSubjectiveSuspicion": true,
+    "clearCharacterIssues": [
+      {
+        "trial": "plan-1-updated-local",
+        "issue": "unsupported relocation",
+        "quote": "现在改在二楼203"
+      },
+      {
+        "trial": "certainty-0-updated-local",
+        "issue": "unverified actual location exclusion",
+        "quote": "现在确实不在隔壁小屋了"
+      }
+    ],
+    "ambiguousTrials": [
+      "certainty-1-updated-local"
+    ],
+    "overall": "execution and local revision supported; semantic acceptance partial; no production automatic update"
+  }
+}

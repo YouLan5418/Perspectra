@@ -1,0 +1,32 @@
+{
+  "artifactRoot": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\delivery-counter-fix-20261004-v1",
+  "exactFrozenReplays": 63,
+  "nativeJevRequestsAndAnswersVerified": 63,
+  "newModelCalls": 0,
+  "frozenInputsUnchanged": true,
+  "anchorBefore": {
+    "itemCount": 3,
+    "jsonChars": 1548,
+    "summaryIncluded": true,
+    "counterIncluded": false,
+    "endingIncluded": true,
+    "openingIncluded": true
+  },
+  "anchorAfter": {
+    "itemCount": 3,
+    "jsonChars": 1142,
+    "summaryIncluded": true,
+    "counterIncluded": true,
+    "endingIncluded": true,
+    "openingIncluded": false
+  },
+  "budgets": {
+    "maxItems": 3,
+    "maxJsonChars": 4500
+  },
+  "limits": [
+    "synthetic anchor control",
+    "no new Character Turn",
+    "no global conflict grouping"
+  ]
+}

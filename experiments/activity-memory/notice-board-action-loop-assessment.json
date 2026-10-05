@@ -1,0 +1,2431 @@
+{
+  "date": "2026-10-05",
+  "experiment": "cognition-action-new-source-revision-and-delayed-choice",
+  "output": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1",
+  "requestedCharacterModel": "gemini-3.7-flash",
+  "audit": {
+    "structuralAuditPassed": true,
+    "counts": {
+      "characterCalls": 62,
+      "revisions": 9,
+      "delayInteractions": 24,
+      "futureChoices": 9,
+      "futureRevisions": 2,
+      "utilityCalls": 11,
+      "jevCalls": 0
+    },
+    "models": {
+      "gemini-3.7-flash-high": 62
+    },
+    "characterUsage": {
+      "prompt_tokens": 168033,
+      "completion_tokens": 5008,
+      "total_tokens": 214270
+    },
+    "initialActions": {
+      "raw-evidence": {
+        "none": 3,
+        "experiment:ask_staff": 3
+      },
+      "paired-evidence": {
+        "none": 5,
+        "experiment:ask_staff": 1
+      },
+      "updated-cognition": {
+        "experiment:ask_staff": 5,
+        "none": 1
+      }
+    },
+    "acquisitions": {
+      "updated-cognition": 5,
+      "raw-evidence": 3,
+      "paired-evidence": 1
+    },
+    "sourceRowsAudited": 1180,
+    "futureRequestsIdenticalWithinTrajectory": true,
+    "initialNonmemoryRequestsIdentical": true,
+    "oldAcquisitionSourcesAbsentFromRecentContext": true,
+    "future": [
+      {
+        "initialCondition": "raw-evidence",
+        "variant": "current-cognition",
+        "action": "none",
+        "sentIds": [],
+        "relatedIds": [],
+        "deliveredIds": [],
+        "deliveryTrace": {
+          "scope": {
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:p8-crash",
+              "branchId": "branch:main"
+            },
+            "asOfWorldSeq": 140
+          },
+          "tick": 25,
+          "clusters": [],
+          "delivered": [],
+          "omitted": [],
+          "budget": {
+            "maxJsonChars": 4500,
+            "maxItems": 3,
+            "allocation": "authorized activity ending, opening, then retrieved evidence",
+            "conservativeObservations": true
+          },
+          "jsonChars": 2,
+          "distinctEvidenceSegments": 0,
+          "activityCoverage": []
+        }
+      },
+      {
+        "initialCondition": "raw-evidence",
+        "variant": "prior-cognition",
+        "action": "none",
+        "sentIds": [],
+        "relatedIds": [],
+        "deliveredIds": [],
+        "deliveryTrace": {
+          "scope": {
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:p8-crash",
+              "branchId": "branch:main"
+            },
+            "asOfWorldSeq": 140
+          },
+          "tick": 25,
+          "clusters": [],
+          "delivered": [],
+          "omitted": [],
+          "budget": {
+            "maxJsonChars": 4500,
+            "maxItems": 3,
+            "allocation": "authorized activity ending, opening, then retrieved evidence",
+            "conservativeObservations": true
+          },
+          "jsonChars": 2,
+          "distinctEvidenceSegments": 0,
+          "activityCoverage": []
+        }
+      },
+      {
+        "initialCondition": "raw-evidence",
+        "variant": "no-cognition",
+        "action": "experiment:inspect_terminal",
+        "sentIds": [],
+        "relatedIds": [],
+        "deliveredIds": [],
+        "deliveryTrace": {
+          "scope": {
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:p8-crash",
+              "branchId": "branch:main"
+            },
+            "asOfWorldSeq": 140
+          },
+          "tick": 25,
+          "clusters": [],
+          "delivered": [],
+          "omitted": [],
+          "budget": {
+            "maxJsonChars": 4500,
+            "maxItems": 3,
+            "allocation": "authorized activity ending, opening, then retrieved evidence",
+            "conservativeObservations": true
+          },
+          "jsonChars": 2,
+          "distinctEvidenceSegments": 0,
+          "activityCoverage": []
+        }
+      },
+      {
+        "initialCondition": "paired-evidence",
+        "variant": "current-cognition",
+        "action": "experiment:inspect-notice-board",
+        "sentIds": [],
+        "relatedIds": [],
+        "deliveredIds": [],
+        "deliveryTrace": {
+          "scope": {
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:p8-crash",
+              "branchId": "branch:main"
+            },
+            "asOfWorldSeq": 140
+          },
+          "tick": 25,
+          "clusters": [],
+          "delivered": [],
+          "omitted": [],
+          "budget": {
+            "maxJsonChars": 4500,
+            "maxItems": 3,
+            "allocation": "authorized activity ending, opening, then retrieved evidence",
+            "conservativeObservations": true
+          },
+          "jsonChars": 2,
+          "distinctEvidenceSegments": 0,
+          "activityCoverage": []
+        }
+      },
+      {
+        "initialCondition": "paired-evidence",
+        "variant": "prior-cognition",
+        "action": "none",
+        "sentIds": [],
+        "relatedIds": [],
+        "deliveredIds": [],
+        "deliveryTrace": {
+          "scope": {
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:p8-crash",
+              "branchId": "branch:main"
+            },
+            "asOfWorldSeq": 140
+          },
+          "tick": 25,
+          "clusters": [],
+          "delivered": [],
+          "omitted": [],
+          "budget": {
+            "maxJsonChars": 4500,
+            "maxItems": 3,
+            "allocation": "authorized activity ending, opening, then retrieved evidence",
+            "conservativeObservations": true
+          },
+          "jsonChars": 2,
+          "distinctEvidenceSegments": 0,
+          "activityCoverage": []
+        }
+      },
+      {
+        "initialCondition": "paired-evidence",
+        "variant": "no-cognition",
+        "action": "none",
+        "sentIds": [],
+        "relatedIds": [],
+        "deliveredIds": [],
+        "deliveryTrace": {
+          "scope": {
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:p8-crash",
+              "branchId": "branch:main"
+            },
+            "asOfWorldSeq": 140
+          },
+          "tick": 25,
+          "clusters": [],
+          "delivered": [],
+          "omitted": [],
+          "budget": {
+            "maxJsonChars": 4500,
+            "maxItems": 3,
+            "allocation": "authorized activity ending, opening, then retrieved evidence",
+            "conservativeObservations": true
+          },
+          "jsonChars": 2,
+          "distinctEvidenceSegments": 0,
+          "activityCoverage": []
+        }
+      },
+      {
+        "initialCondition": "updated-cognition",
+        "variant": "current-cognition",
+        "action": "none",
+        "sentIds": [],
+        "relatedIds": [],
+        "deliveredIds": [],
+        "deliveryTrace": {
+          "scope": {
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:p8-crash",
+              "branchId": "branch:main"
+            },
+            "asOfWorldSeq": 140
+          },
+          "tick": 25,
+          "clusters": [],
+          "delivered": [],
+          "omitted": [],
+          "budget": {
+            "maxJsonChars": 4500,
+            "maxItems": 3,
+            "allocation": "authorized activity ending, opening, then retrieved evidence",
+            "conservativeObservations": true
+          },
+          "jsonChars": 2,
+          "distinctEvidenceSegments": 0,
+          "activityCoverage": []
+        }
+      },
+      {
+        "initialCondition": "updated-cognition",
+        "variant": "prior-cognition",
+        "action": "none",
+        "sentIds": [],
+        "relatedIds": [],
+        "deliveredIds": [],
+        "deliveryTrace": {
+          "scope": {
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:p8-crash",
+              "branchId": "branch:main"
+            },
+            "asOfWorldSeq": 140
+          },
+          "tick": 25,
+          "clusters": [],
+          "delivered": [],
+          "omitted": [],
+          "budget": {
+            "maxJsonChars": 4500,
+            "maxItems": 3,
+            "allocation": "authorized activity ending, opening, then retrieved evidence",
+            "conservativeObservations": true
+          },
+          "jsonChars": 2,
+          "distinctEvidenceSegments": 0,
+          "activityCoverage": []
+        }
+      },
+      {
+        "initialCondition": "updated-cognition",
+        "variant": "no-cognition",
+        "action": "none",
+        "sentIds": [],
+        "relatedIds": [],
+        "deliveredIds": [],
+        "deliveryTrace": {
+          "scope": {
+            "characterId": "character:npc",
+            "worldAddress": {
+              "tenantId": "tenant:p8-crash",
+              "worldId": "world:p8-crash",
+              "branchId": "branch:main"
+            },
+            "asOfWorldSeq": 140
+          },
+          "tick": 25,
+          "clusters": [],
+          "delivered": [],
+          "omitted": [],
+          "budget": {
+            "maxJsonChars": 4500,
+            "maxItems": 3,
+            "allocation": "authorized activity ending, opening, then retrieved evidence",
+            "conservativeObservations": true
+          },
+          "jsonChars": 2,
+          "distinctEvidenceSegments": 0,
+          "activityCoverage": []
+        }
+      }
+    ],
+    "limits": [
+      "structural audit is not semantic truth review",
+      "same short scene; repeated histories not independent world samples"
+    ]
+  },
+  "newCalls": {
+    "character": 62,
+    "utility": 11,
+    "jev": 0,
+    "total": 73
+  },
+  "initial": [
+    {
+      "seed": 0,
+      "sample": 0,
+      "condition": "raw-evidence",
+      "actionKind": "none",
+      "acquired": false,
+      "nativeResponse": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "大厅公告牌写的是二楼203，但窗口指示牌上写的是一楼105，两个对不上。我们要不先问问旁边的工作人员，或者去办事终端上查一下？"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-0-sample-0-raw-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain"
+    },
+    {
+      "seed": 0,
+      "sample": 0,
+      "condition": "paired-evidence",
+      "actionKind": "none",
+      "acquired": false,
+      "nativeResponse": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "speech": "大厅公告牌写着登记处在二楼203，但窗口指示牌写的是一楼105，两边写的不一样。我们要不先问问旁边的工作人员，或者去查一下那边的办事终端？"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-0-sample-0-paired-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain"
+    },
+    {
+      "seed": 0,
+      "sample": 0,
+      "condition": "updated-cognition",
+      "actionKind": "experiment:ask_staff",
+      "acquired": true,
+      "nativeResponse": {
+        "decision": "perform",
+        "parameters": {
+          "definitionRef": {
+            "version": 1,
+            "id": "experiment:ask_staff"
+          },
+          "arguments": {},
+          "bindingId": "binding:staff:ask",
+          "targetRef": {
+            "kind": "character",
+            "id": "character:staff"
+          }
+        },
+        "actionType": "interact"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-0-sample-0-updated-cognition",
+      "nativeResult": {
+        "status": "published",
+        "calls": 2,
+        "performResult": {
+          "operationId": "prototype-turn:3be61724-d674-4d3f-8abf-eb17608bba8e:0:action",
+          "action": {
+            "actionType": "interact",
+            "parameters": {
+              "definitionRef": {
+                "version": 1,
+                "id": "experiment:ask_staff"
+              },
+              "arguments": {},
+              "bindingId": "binding:staff:ask",
+              "targetRef": {
+                "kind": "character",
+                "id": "character:staff"
+              }
+            }
+          },
+          "status": "accepted",
+          "reason": null,
+          "eventRefs": [
+            47
+          ]
+        }
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain",
+      "revisionRelation": "refinement",
+      "newSourceIds": [
+        "event:47"
+      ],
+      "currentTexts": [
+        "【主观认识，可修正】根据大厅公告牌的记录及工作人员的陈述（工作人员提及本周未去过），登记处可能在二楼203；但另一处公告牌写着登记处在一楼105，两处信息仍存在冲突，尚未核实何者属实。"
+      ],
+      "hasUnresolvedConflict": false
+    },
+    {
+      "seed": 0,
+      "sample": 1,
+      "condition": "paired-evidence",
+      "actionKind": "none",
+      "acquired": false,
+      "nativeResponse": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "speech": "大厅公告牌写着二楼203，窗口指示牌却写着一楼105，两边写的不一样。要不我们直接问问工作人员，或者查查办事终端？"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-0-sample-1-paired-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain"
+    },
+    {
+      "seed": 0,
+      "sample": 1,
+      "condition": "updated-cognition",
+      "actionKind": "experiment:ask_staff",
+      "acquired": true,
+      "nativeResponse": {
+        "parameters": {
+          "targetRef": {
+            "id": "character:staff",
+            "kind": "character"
+          },
+          "bindingId": "binding:staff:ask",
+          "definitionRef": {
+            "version": 1,
+            "id": "experiment:ask_staff"
+          },
+          "arguments": {}
+        },
+        "actionType": "interact",
+        "decision": "perform"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-0-sample-1-updated-cognition",
+      "nativeResult": {
+        "status": "published",
+        "calls": 2,
+        "performResult": {
+          "operationId": "prototype-turn:f41516fd-4c26-4e13-a239-4c6fdcf41667:0:action",
+          "action": {
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "character:staff",
+                "kind": "character"
+              },
+              "bindingId": "binding:staff:ask",
+              "definitionRef": {
+                "version": 1,
+                "id": "experiment:ask_staff"
+              },
+              "arguments": {}
+            }
+          },
+          "status": "accepted",
+          "reason": null,
+          "eventRefs": [
+            47
+          ]
+        }
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain",
+      "revisionRelation": "unresolved_conflict",
+      "newSourceIds": [
+        "event:47"
+      ],
+      "currentTexts": [
+        "【主观认识，可修正】根据大厅公告牌的记录以及工作人员称记得在二楼203的发言，登记处可能在二楼203；但另一处公告牌写着登记处在一楼105，两方信息存在冲突，尚未核实何者属实。",
+        "【主观认识，可修正】根据另一处公告牌的记录，登记处可能在一楼105；但大厅公告牌记录为二楼203且有工作人员发言称记得在二楼203，信息存在冲突，尚未核实何者属实。"
+      ],
+      "hasUnresolvedConflict": true
+    },
+    {
+      "seed": 0,
+      "sample": 1,
+      "condition": "raw-evidence",
+      "actionKind": "experiment:ask_staff",
+      "acquired": true,
+      "nativeResponse": {
+        "actionType": "interact",
+        "decision": "perform",
+        "parameters": {
+          "bindingId": "binding:staff:ask",
+          "arguments": {},
+          "targetRef": {
+            "kind": "character",
+            "id": "character:staff"
+          },
+          "definitionRef": {
+            "id": "experiment:ask_staff",
+            "version": 1
+          }
+        }
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-0-sample-1-raw-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 2,
+        "performResult": {
+          "operationId": "prototype-turn:7c677afd-4249-4670-82f0-cedfe7da5f41:0:action",
+          "action": {
+            "actionType": "interact",
+            "parameters": {
+              "bindingId": "binding:staff:ask",
+              "arguments": {},
+              "targetRef": {
+                "kind": "character",
+                "id": "character:staff"
+              },
+              "definitionRef": {
+                "id": "experiment:ask_staff",
+                "version": 1
+              }
+            }
+          },
+          "status": "accepted",
+          "reason": null,
+          "eventRefs": [
+            47
+          ]
+        }
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain",
+      "revisionRelation": "reinforcement",
+      "newSourceIds": [
+        "event:47"
+      ],
+      "currentTexts": [
+        "【主观认识，可修正】根据大厅公告牌的记录，登记处可能在二楼203；但另一处公告牌写着登记处在一楼105，两处信息存在冲突，尚未核实何者属实。"
+      ],
+      "hasUnresolvedConflict": false
+    },
+    {
+      "seed": 1,
+      "sample": 0,
+      "condition": "paired-evidence",
+      "actionKind": "none",
+      "acquired": false,
+      "nativeResponse": {
+        "decision": "publish",
+        "speech": "大厅公告牌上写着二楼203，但窗口指示牌写的是一楼105，两边不一致。要不我们直接问问这里的工作人员，或者去查一下办事终端？",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-1-sample-0-paired-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain"
+    },
+    {
+      "seed": 1,
+      "sample": 0,
+      "condition": "updated-cognition",
+      "actionKind": "none",
+      "acquired": false,
+      "nativeResponse": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "大厅公告牌写着二楼203，但窗口指示牌写的是一楼105，两边信息对不上。正好旁边有工作人员和办事终端，我们要不直接问问工作人员，或者去终端上查一下？"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-1-sample-0-updated-cognition",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain"
+    },
+    {
+      "seed": 1,
+      "sample": 0,
+      "condition": "raw-evidence",
+      "actionKind": "none",
+      "acquired": false,
+      "nativeResponse": {
+        "speech": "大厅公告牌上写的是二楼203，但窗口指示牌写的又是一楼105，两边写的不太一样……我们要不要直接问问旁边的工作人员，或者查查办事终端？",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-1-sample-0-raw-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain"
+    },
+    {
+      "seed": 1,
+      "sample": 1,
+      "condition": "updated-cognition",
+      "actionKind": "experiment:ask_staff",
+      "acquired": true,
+      "nativeResponse": {
+        "decision": "perform",
+        "actionType": "interact",
+        "parameters": {
+          "arguments": {},
+          "bindingId": "binding:staff:ask",
+          "targetRef": {
+            "id": "character:staff",
+            "kind": "character"
+          },
+          "definitionRef": {
+            "version": 1,
+            "id": "experiment:ask_staff"
+          }
+        }
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-1-sample-1-updated-cognition",
+      "nativeResult": {
+        "status": "published",
+        "calls": 2,
+        "performResult": {
+          "operationId": "prototype-turn:7f4a41b7-aebc-4176-99c1-94c86698b2fa:0:action",
+          "action": {
+            "actionType": "interact",
+            "parameters": {
+              "arguments": {},
+              "bindingId": "binding:staff:ask",
+              "targetRef": {
+                "id": "character:staff",
+                "kind": "character"
+              },
+              "definitionRef": {
+                "version": 1,
+                "id": "experiment:ask_staff"
+              }
+            }
+          },
+          "status": "accepted",
+          "reason": null,
+          "eventRefs": [
+            47
+          ]
+        }
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain",
+      "revisionRelation": "unresolved_conflict",
+      "newSourceIds": [
+        "event:47"
+      ],
+      "currentTexts": [
+        "【主观认识，可修正】【主观认识，存在冲突】根据大厅公告牌的记录及工作人员的发言，登记处可能在二楼203；但另一处公告牌提示登记处在一楼105，真实位置尚未核实。",
+        "【主观认识，可修正】【主观认识，存在冲突】根据另一处公告牌的记录，登记处可能在一楼105；但大厅公告牌的记录及工作人员的发言提示登记处在二楼203，真实位置尚未核实。"
+      ],
+      "hasUnresolvedConflict": true
+    },
+    {
+      "seed": 1,
+      "sample": 1,
+      "condition": "raw-evidence",
+      "actionKind": "none",
+      "acquired": false,
+      "nativeResponse": {
+        "speech": "大厅公告牌上写着登记处在二楼203，但刚才看的窗口指示牌上写的是一楼105，两边写的不一样。我们要不要问问旁边的工作人员，或者查查办事终端？",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-1-sample-1-raw-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain"
+    },
+    {
+      "seed": 1,
+      "sample": 1,
+      "condition": "paired-evidence",
+      "actionKind": "none",
+      "acquired": false,
+      "nativeResponse": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "大厅公告牌写的是二楼203，但窗口指示牌写的却是一楼105，两边写的不一样。我们要不问问旁边的工作人员，或者去那边的办事终端上查查？"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-1-sample-1-paired-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain"
+    },
+    {
+      "seed": 2,
+      "sample": 0,
+      "condition": "updated-cognition",
+      "actionKind": "experiment:ask_staff",
+      "acquired": true,
+      "nativeResponse": {
+        "decision": "perform",
+        "parameters": {
+          "bindingId": "binding:staff:ask",
+          "arguments": {},
+          "targetRef": {
+            "id": "character:staff",
+            "kind": "character"
+          },
+          "definitionRef": {
+            "version": 1,
+            "id": "experiment:ask_staff"
+          }
+        },
+        "actionType": "interact"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-2-sample-0-updated-cognition",
+      "nativeResult": {
+        "status": "published",
+        "calls": 2,
+        "performResult": {
+          "operationId": "prototype-turn:b69c1d9e-30f7-4129-80dd-0f9d8fe954e2:0:action",
+          "action": {
+            "actionType": "interact",
+            "parameters": {
+              "bindingId": "binding:staff:ask",
+              "arguments": {},
+              "targetRef": {
+                "id": "character:staff",
+                "kind": "character"
+              },
+              "definitionRef": {
+                "version": 1,
+                "id": "experiment:ask_staff"
+              }
+            }
+          },
+          "status": "accepted",
+          "reason": null,
+          "eventRefs": [
+            47
+          ]
+        }
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain",
+      "revisionRelation": "reinforcement",
+      "newSourceIds": [
+        "event:47"
+      ],
+      "currentTexts": [
+        "【主观认识，可修正】【主观认识，存在争议】登记处可能在二楼203（大厅公告牌信息）；但另有公告牌显示登记处在一楼105，具体位置尚未核实。"
+      ],
+      "hasUnresolvedConflict": false
+    },
+    {
+      "seed": 2,
+      "sample": 0,
+      "condition": "raw-evidence",
+      "actionKind": "experiment:ask_staff",
+      "acquired": true,
+      "nativeResponse": {
+        "actionType": "interact",
+        "parameters": {
+          "arguments": {},
+          "definitionRef": {
+            "id": "experiment:ask_staff",
+            "version": 1
+          },
+          "targetRef": {
+            "id": "character:staff",
+            "kind": "character"
+          },
+          "bindingId": "binding:staff:ask"
+        },
+        "decision": "perform"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-2-sample-0-raw-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 2,
+        "performResult": {
+          "operationId": "prototype-turn:56dfbdf1-a5c8-4666-85be-6f206b2cbcd6:0:action",
+          "action": {
+            "actionType": "interact",
+            "parameters": {
+              "arguments": {},
+              "definitionRef": {
+                "id": "experiment:ask_staff",
+                "version": 1
+              },
+              "targetRef": {
+                "id": "character:staff",
+                "kind": "character"
+              },
+              "bindingId": "binding:staff:ask"
+            }
+          },
+          "status": "accepted",
+          "reason": null,
+          "eventRefs": [
+            47
+          ]
+        }
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain",
+      "revisionRelation": "unresolved_conflict",
+      "newSourceIds": [
+        "event:47"
+      ],
+      "currentTexts": [
+        "【主观认识，可修正】【主观认识，存在争议】登记处可能在二楼203（大厅公告牌标明二楼203，且有工作人员称记得在二楼203）；但另有公告牌标明登记处在一楼105，具体位置尚存冲突未经核实。",
+        "【主观认识，可修正】【主观认识，存在争议】登记处可能在一楼105（有公告牌标明一楼105）；但大厅公告牌标明二楼203且有工作人员称记得在二楼203，具体位置尚存冲突未经核实。"
+      ],
+      "hasUnresolvedConflict": true
+    },
+    {
+      "seed": 2,
+      "sample": 0,
+      "condition": "paired-evidence",
+      "actionKind": "experiment:ask_staff",
+      "acquired": true,
+      "nativeResponse": {
+        "decision": "perform",
+        "actionType": "interact",
+        "parameters": {
+          "arguments": {},
+          "definitionRef": {
+            "id": "experiment:ask_staff",
+            "version": 1
+          },
+          "bindingId": "binding:staff:ask",
+          "targetRef": {
+            "kind": "character",
+            "id": "character:staff"
+          }
+        }
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-2-sample-0-paired-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 2,
+        "performResult": {
+          "operationId": "prototype-turn:79c7c781-a16b-44b4-8ed1-1d2db4002ea1:0:action",
+          "action": {
+            "actionType": "interact",
+            "parameters": {
+              "arguments": {},
+              "definitionRef": {
+                "id": "experiment:ask_staff",
+                "version": 1
+              },
+              "bindingId": "binding:staff:ask",
+              "targetRef": {
+                "kind": "character",
+                "id": "character:staff"
+              }
+            }
+          },
+          "status": "accepted",
+          "reason": null,
+          "eventRefs": [
+            47
+          ]
+        }
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain",
+      "revisionRelation": "reinforcement",
+      "newSourceIds": [
+        "event:47"
+      ],
+      "currentTexts": [
+        "【主观认识，可修正】【主观认识，存在争议】登记处可能在二楼203（大厅公告牌信息）；但另有公告牌显示登记处在一楼105，具体位置尚未核实。"
+      ],
+      "hasUnresolvedConflict": false
+    },
+    {
+      "seed": 2,
+      "sample": 1,
+      "condition": "raw-evidence",
+      "actionKind": "experiment:ask_staff",
+      "acquired": true,
+      "nativeResponse": {
+        "actionType": "interact",
+        "parameters": {
+          "definitionRef": {
+            "id": "experiment:ask_staff",
+            "version": 1
+          },
+          "arguments": {},
+          "bindingId": "binding:staff:ask",
+          "targetRef": {
+            "kind": "character",
+            "id": "character:staff"
+          }
+        },
+        "decision": "perform"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-2-sample-1-raw-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 2,
+        "performResult": {
+          "operationId": "prototype-turn:3714df54-2ecd-41c2-b2b4-ad191ac19062:0:action",
+          "action": {
+            "actionType": "interact",
+            "parameters": {
+              "definitionRef": {
+                "id": "experiment:ask_staff",
+                "version": 1
+              },
+              "arguments": {},
+              "bindingId": "binding:staff:ask",
+              "targetRef": {
+                "kind": "character",
+                "id": "character:staff"
+              }
+            }
+          },
+          "status": "accepted",
+          "reason": null,
+          "eventRefs": [
+            47
+          ]
+        }
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain",
+      "revisionRelation": "reinforcement",
+      "newSourceIds": [
+        "event:47"
+      ],
+      "currentTexts": [
+        "【主观认识，可修正】【主观认识，存在争议】登记处可能在二楼203（大厅公告牌信息）；但另有公告牌显示登记处在一楼105，具体位置尚未核实。"
+      ],
+      "hasUnresolvedConflict": false
+    },
+    {
+      "seed": 2,
+      "sample": 1,
+      "condition": "paired-evidence",
+      "actionKind": "none",
+      "acquired": false,
+      "nativeResponse": {
+        "speech": "大厅公告牌写着二楼203，但窗口指示牌写着一楼105，两边对不上。要不我们先问问旁边的工作人员，或者查查那个办事终端？",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-2-sample-1-paired-evidence",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain"
+    },
+    {
+      "seed": 2,
+      "sample": 1,
+      "condition": "updated-cognition",
+      "actionKind": "experiment:ask_staff",
+      "acquired": true,
+      "nativeResponse": {
+        "actionType": "interact",
+        "parameters": {
+          "bindingId": "binding:staff:ask",
+          "targetRef": {
+            "id": "character:staff",
+            "kind": "character"
+          },
+          "definitionRef": {
+            "version": 1,
+            "id": "experiment:ask_staff"
+          },
+          "arguments": {}
+        },
+        "decision": "perform"
+      },
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\seed-2-sample-1-updated-cognition",
+      "nativeResult": {
+        "status": "published",
+        "calls": 2,
+        "performResult": {
+          "operationId": "prototype-turn:a4c2ff0e-5fcb-4f5a-9d35-d88d0a037db7:0:action",
+          "action": {
+            "actionType": "interact",
+            "parameters": {
+              "bindingId": "binding:staff:ask",
+              "targetRef": {
+                "id": "character:staff",
+                "kind": "character"
+              },
+              "definitionRef": {
+                "version": 1,
+                "id": "experiment:ask_staff"
+              },
+              "arguments": {}
+            }
+          },
+          "status": "accepted",
+          "reason": null,
+          "eventRefs": [
+            47
+          ]
+        }
+      },
+      "notSelectedForActionMetrics": "none means no accepted perform, not abstain",
+      "revisionRelation": "reinforcement",
+      "newSourceIds": [
+        "event:47"
+      ],
+      "currentTexts": [
+        "【主观认识，可修正】【主观认识，存在争议】登记处可能在二楼203（大厅公告牌信息）；但另有公告牌显示登记处在一楼105，具体位置尚未核实。"
+      ],
+      "hasUnresolvedConflict": false
+    }
+  ],
+  "future": [
+    {
+      "initialCondition": "raw-evidence",
+      "variant": "current-cognition",
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\later-raw-evidence\\current-cognition",
+      "actionKind": "none",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "nativeResponse": {
+        "narration": "小芷看了看周围的设施，温和地建议道。",
+        "speech": "可以先看一下大厅的公告牌或者办事终端，或者直接去问问那位工作人员具体是在哪个窗口办理。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "sentIds": [],
+      "relatedIds": [],
+      "deliveredIds": [],
+      "memoryItems": 0,
+      "rawScores": [
+        {
+          "id": "retrieval:0",
+          "memoryId": "atom:event:47:0",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.06043816890329655,
+          "semanticScored": true,
+          "bm25Score": 0.0799286239750807,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.06043816890329655,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:1",
+          "memoryId": "atom:event:27:0",
+          "semanticSimilarity": 0.8799713850021362,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08997327343575605,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0010763079284909648,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:2",
+          "memoryId": "atom:event:38:0",
+          "semanticSimilarity": 0.8780319690704346,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08997327343575605,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0010763079284909648,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:3",
+          "memoryId": "episode:event:47",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.06043816890329655,
+          "semanticScored": true,
+          "bm25Score": 0.0799286239750807,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.06043816890329655,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:4",
+          "memoryId": "episode:event:27",
+          "semanticSimilarity": 0.8799715042114258,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08997327343575605,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0010763079284909648,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:5",
+          "memoryId": "episode:event:38",
+          "semanticSimilarity": 0.8780319094657898,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08997327343575605,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0010763079284909648,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:6",
+          "memoryId": "family:registration-signs:revision:8:1",
+          "semanticSimilarity": 0.8933975696563721,
+          "semanticLift": 0.1118573165208686,
+          "semanticScored": true,
+          "bm25Score": 1.4211847614045712,
+          "keywordCoverage": 0.02899318727128937,
+          "matchedTerms": [
+            "另一",
+            "登记"
+          ],
+          "relevance": 0.1118573165208686,
+          "accepted": false,
+          "graphScore": null
+        }
+      ],
+      "thresholds": {
+        "semanticMin": 0.3,
+        "semanticLiftMin": 0.3,
+        "keywordCoverageMin": 0.15,
+        "queryBackgroundMedian": 0.8799715042114258,
+        "status": "provisional experimental gate; not calibrated confidence"
+      }
+    },
+    {
+      "initialCondition": "raw-evidence",
+      "variant": "prior-cognition",
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\later-raw-evidence\\prior-cognition",
+      "actionKind": "none",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "nativeResponse": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "narration": "小芷看了看大厅周围，微笑着提议道。",
+        "speech": "可以先去大厅公告牌或者办事终端看看指引，或者直接问问那边的工作人员。"
+      },
+      "sentIds": [],
+      "relatedIds": [],
+      "deliveredIds": [],
+      "memoryItems": 0,
+      "rawScores": [
+        {
+          "id": "retrieval:0",
+          "memoryId": "atom:event:47:0",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.03116122938729571,
+          "semanticScored": true,
+          "bm25Score": 0.07226598862790916,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.03116122938729571,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:1",
+          "memoryId": "atom:event:27:0",
+          "semanticSimilarity": 0.8799713850021362,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08144873556996886,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0009213764062417446,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:2",
+          "memoryId": "atom:event:38:0",
+          "semanticSimilarity": 0.8780319690704346,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08144873556996886,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0009213764062417446,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:3",
+          "memoryId": "episode:event:47",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.03116122938729571,
+          "semanticScored": true,
+          "bm25Score": 0.07226598862790916,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.03116122938729571,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:4",
+          "memoryId": "episode:event:27",
+          "semanticSimilarity": 0.8799713850021362,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08144873556996886,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0009213764062417446,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:5",
+          "memoryId": "episode:event:38",
+          "semanticSimilarity": 0.8780319690704346,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08144873556996886,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0009213764062417446,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:6",
+          "memoryId": "family:registration-signs:revision:6:1",
+          "semanticSimilarity": 0.8933975696563721,
+          "semanticLift": 0.08418260819917543,
+          "semanticScored": true,
+          "bm25Score": 1.1370569028761992,
+          "keywordCoverage": 0.021569643981861297,
+          "matchedTerms": [
+            "另一",
+            "登记"
+          ],
+          "relevance": 0.08418260819917543,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:7",
+          "memoryId": "family:registration-signs:revision:6:2",
+          "semanticSimilarity": 0.8967818021774292,
+          "semanticLift": 0.11325642003152761,
+          "semanticScored": true,
+          "bm25Score": 1.1370569028761992,
+          "keywordCoverage": 0.021569643981861297,
+          "matchedTerms": [
+            "另一",
+            "登记"
+          ],
+          "relevance": 0.11325642003152761,
+          "accepted": false,
+          "graphScore": null
+        }
+      ],
+      "thresholds": {
+        "semanticMin": 0.3,
+        "semanticLiftMin": 0.3,
+        "keywordCoverageMin": 0.15,
+        "queryBackgroundMedian": 0.8835985958576202,
+        "status": "provisional experimental gate; not calibrated confidence"
+      }
+    },
+    {
+      "initialCondition": "raw-evidence",
+      "variant": "no-cognition",
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\later-raw-evidence\\no-cognition",
+      "actionKind": "experiment:inspect_terminal",
+      "nativeResult": {
+        "status": "published",
+        "calls": 2,
+        "performResult": {
+          "operationId": "prototype-turn:f2dd5fb7-decf-46ec-b13c-70925c8bd913:0:action",
+          "action": {
+            "actionType": "interact",
+            "parameters": {
+              "bindingId": "binding:terminal:inspect",
+              "arguments": {},
+              "definitionRef": {
+                "version": 1,
+                "id": "experiment:inspect_terminal"
+              },
+              "targetRef": {
+                "id": "entity:registration-terminal",
+                "kind": "entity"
+              }
+            }
+          },
+          "status": "accepted",
+          "reason": null,
+          "eventRefs": [
+            141
+          ]
+        }
+      },
+      "nativeResponse": {
+        "decision": "perform",
+        "actionType": "interact",
+        "parameters": {
+          "bindingId": "binding:terminal:inspect",
+          "arguments": {},
+          "definitionRef": {
+            "version": 1,
+            "id": "experiment:inspect_terminal"
+          },
+          "targetRef": {
+            "id": "entity:registration-terminal",
+            "kind": "entity"
+          }
+        }
+      },
+      "sentIds": [],
+      "relatedIds": [],
+      "deliveredIds": [],
+      "memoryItems": 0,
+      "rawScores": [
+        {
+          "id": "retrieval:0",
+          "memoryId": "atom:event:47:0",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.06043863547767964,
+          "semanticScored": true,
+          "bm25Score": 0.08892956658446621,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.06043863547767964,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:1",
+          "memoryId": "atom:event:27:0",
+          "semanticSimilarity": 0.8799713850021362,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:2",
+          "memoryId": "atom:event:38:0",
+          "semanticSimilarity": 0.8780319690704346,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:3",
+          "memoryId": "episode:event:47",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.06043863547767964,
+          "semanticScored": true,
+          "bm25Score": 0.08892956658446621,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.06043863547767964,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:4",
+          "memoryId": "episode:event:27",
+          "semanticSimilarity": 0.8799715042114258,
+          "semanticLift": 4.965872044375032e-07,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:5",
+          "memoryId": "episode:event:38",
+          "semanticSimilarity": 0.8780319094657898,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        }
+      ],
+      "thresholds": {
+        "semanticMin": 0.3,
+        "semanticLiftMin": 0.3,
+        "keywordCoverageMin": 0.15,
+        "queryBackgroundMedian": 0.879971444606781,
+        "status": "provisional experimental gate; not calibrated confidence"
+      },
+      "nextRevisionRelation": "unresolved_conflict",
+      "nextSourceIds": [
+        "event:141"
+      ],
+      "nextCurrentTexts": [
+        "【主观认识，可修正】登记处可能在二楼203（依据大厅公告牌及工作人员发言），但亦有公告牌及办事终端记录显示在一楼105，具体位置存在冲突尚未查实。",
+        "【主观认识，可修正】登记处可能在一楼105（依据公告牌记录及办事终端显示），但亦有大厅公告牌及工作人员发言称在二楼203，具体位置存在冲突尚未查实。"
+      ]
+    },
+    {
+      "initialCondition": "paired-evidence",
+      "variant": "current-cognition",
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\later-paired-evidence\\current-cognition",
+      "actionKind": "experiment:inspect-notice-board",
+      "nativeResult": {
+        "status": "published",
+        "calls": 2,
+        "performResult": {
+          "operationId": "prototype-turn:dde11d92-8238-4df0-a39d-229d4f6515b6:0:action",
+          "action": {
+            "actionType": "interact",
+            "parameters": {
+              "bindingId": "binding:entity:hall-board:inspect",
+              "definitionRef": {
+                "id": "experiment:inspect-notice-board",
+                "version": 1
+              },
+              "targetRef": {
+                "kind": "entity",
+                "id": "entity:hall-board"
+              },
+              "arguments": {}
+            }
+          },
+          "status": "accepted",
+          "reason": null,
+          "eventRefs": [
+            141
+          ]
+        }
+      },
+      "nativeResponse": {
+        "decision": "perform",
+        "actionType": "interact",
+        "parameters": {
+          "bindingId": "binding:entity:hall-board:inspect",
+          "definitionRef": {
+            "id": "experiment:inspect-notice-board",
+            "version": 1
+          },
+          "targetRef": {
+            "kind": "entity",
+            "id": "entity:hall-board"
+          },
+          "arguments": {}
+        }
+      },
+      "sentIds": [],
+      "relatedIds": [],
+      "deliveredIds": [],
+      "memoryItems": 0,
+      "rawScores": [
+        {
+          "id": "retrieval:0",
+          "memoryId": "atom:event:27:0",
+          "semanticSimilarity": 0.8806841373443604,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08923085163239876,
+          "keywordCoverage": 0.001056943102826155,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001056943102826155,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:1",
+          "memoryId": "atom:event:38:0",
+          "semanticSimilarity": 0.8808947205543518,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08923085163239876,
+          "keywordCoverage": 0.001056943102826155,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001056943102826155,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:2",
+          "memoryId": "atom:event:47:0",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.05315537806736378,
+          "semanticScored": true,
+          "bm25Score": 0.07930580987243915,
+          "keywordCoverage": 0.001056943102826155,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.05315537806736378,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:3",
+          "memoryId": "episode:event:27",
+          "semanticSimilarity": 0.8806841373443604,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08923085163239876,
+          "keywordCoverage": 0.001056943102826155,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001056943102826155,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:4",
+          "memoryId": "episode:event:38",
+          "semanticSimilarity": 0.8808946013450623,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08923085163239876,
+          "keywordCoverage": 0.001056943102826155,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001056943102826155,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:5",
+          "memoryId": "episode:event:47",
+          "semanticSimilarity": 0.8872259259223938,
+          "semanticLift": 0.05315637894062569,
+          "semanticScored": true,
+          "bm25Score": 0.07930580987243915,
+          "keywordCoverage": 0.001056943102826155,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.05315637894062569,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:6",
+          "memoryId": "family:registration-signs:revision:8:1",
+          "semanticSimilarity": 0.8905369639396667,
+          "semanticLift": 0.08095563379048219,
+          "semanticScored": true,
+          "bm25Score": 0.08137465708650278,
+          "keywordCoverage": 0.001056943102826155,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.08095563379048219,
+          "accepted": false,
+          "graphScore": null
+        }
+      ],
+      "thresholds": {
+        "semanticMin": 0.3,
+        "semanticLiftMin": 0.3,
+        "keywordCoverageMin": 0.15,
+        "queryBackgroundMedian": 0.8808947205543518,
+        "status": "provisional experimental gate; not calibrated confidence"
+      },
+      "nextRevisionRelation": "reinforcement",
+      "nextSourceIds": [
+        "event:141"
+      ],
+      "nextCurrentTexts": [
+        "【主观认识，可修正】【主观认识，存在争议】登记处可能在二楼203（大厅公告牌信息）；但另有公告牌显示登记处在一楼105，具体位置尚未核实。"
+      ]
+    },
+    {
+      "initialCondition": "paired-evidence",
+      "variant": "prior-cognition",
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\later-paired-evidence\\prior-cognition",
+      "actionKind": "none",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "nativeResponse": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "speech": "大厅里有公告牌和办事终端，那边也有工作人员。要不先看一眼公告牌或者在终端上查一下流程，如果不清楚也可以直接去问问工作人员？",
+        "narration": "环视了一下大厅周围，温和地提议道。"
+      },
+      "sentIds": [],
+      "relatedIds": [],
+      "deliveredIds": [],
+      "memoryItems": 0,
+      "rawScores": [
+        {
+          "id": "retrieval:0",
+          "memoryId": "atom:event:27:0",
+          "semanticSimilarity": 0.8806841373443604,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08016421993200559,
+          "keywordCoverage": 0.0008980770069819409,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0008980770069819409,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:1",
+          "memoryId": "atom:event:38:0",
+          "semanticSimilarity": 0.8808947205543518,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08016421993200559,
+          "keywordCoverage": 0.0008980770069819409,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0008980770069819409,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:2",
+          "memoryId": "atom:event:47:0",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.031236383428321853,
+          "semanticScored": true,
+          "bm25Score": 0.071190613223199,
+          "keywordCoverage": 0.0008980770069819409,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.031236383428321853,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:3",
+          "memoryId": "episode:event:27",
+          "semanticSimilarity": 0.8806841373443604,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08016421993200559,
+          "keywordCoverage": 0.0008980770069819409,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0008980770069819409,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:4",
+          "memoryId": "episode:event:38",
+          "semanticSimilarity": 0.8808947205543518,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08016421993200559,
+          "keywordCoverage": 0.0008980770069819409,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0008980770069819409,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:5",
+          "memoryId": "episode:event:47",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.031236383428321853,
+          "semanticScored": true,
+          "bm25Score": 0.071190613223199,
+          "keywordCoverage": 0.0008980770069819409,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.031236383428321853,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:6",
+          "memoryId": "family:registration-signs:revision:6:1",
+          "semanticSimilarity": 0.8905369639396667,
+          "semanticLift": 0.059680201613584546,
+          "semanticScored": true,
+          "bm25Score": 0.07328390012856988,
+          "keywordCoverage": 0.0008980770069819409,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.059680201613584546,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:7",
+          "memoryId": "family:registration-signs:revision:6:2",
+          "semanticSimilarity": 0.8862844109535217,
+          "semanticLift": 0.023149515909275935,
+          "semanticScored": true,
+          "bm25Score": 0.07470880987992204,
+          "keywordCoverage": 0.0008980770069819409,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.023149515909275935,
+          "accepted": false,
+          "graphScore": null
+        }
+      ],
+      "thresholds": {
+        "semanticMin": 0.3,
+        "semanticLiftMin": 0.3,
+        "keywordCoverageMin": 0.15,
+        "queryBackgroundMedian": 0.8835895657539368,
+        "status": "provisional experimental gate; not calibrated confidence"
+      }
+    },
+    {
+      "initialCondition": "paired-evidence",
+      "variant": "no-cognition",
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\later-paired-evidence\\no-cognition",
+      "actionKind": "none",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "nativeResponse": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "可以先去看看大厅的公告牌或者办事终端，或者直接问问那边的工作人员，应该很快就能弄清楚去哪个窗口办理。",
+        "narration": "转头看了看四周的设施，温和地提议道。",
+        "decision": "publish"
+      },
+      "sentIds": [],
+      "relatedIds": [],
+      "deliveredIds": [],
+      "memoryItems": 0,
+      "rawScores": [
+        {
+          "id": "retrieval:0",
+          "memoryId": "atom:event:27:0",
+          "semanticSimilarity": 0.8806841373443604,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:1",
+          "memoryId": "atom:event:38:0",
+          "semanticSimilarity": 0.8808947205543518,
+          "semanticLift": 5.004363805238168e-07,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:2",
+          "memoryId": "atom:event:47:0",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.05315585190285929,
+          "semanticScored": true,
+          "bm25Score": 0.08892956658446621,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.05315585190285929,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:3",
+          "memoryId": "episode:event:27",
+          "semanticSimilarity": 0.8806841373443604,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:4",
+          "memoryId": "episode:event:38",
+          "semanticSimilarity": 0.8808946013450623,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:5",
+          "memoryId": "episode:event:47",
+          "semanticSimilarity": 0.8872259259223938,
+          "semanticLift": 0.05315685277562034,
+          "semanticScored": true,
+          "bm25Score": 0.08892956658446621,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.05315685277562034,
+          "accepted": false,
+          "graphScore": null
+        }
+      ],
+      "thresholds": {
+        "semanticMin": 0.3,
+        "semanticLiftMin": 0.3,
+        "keywordCoverageMin": 0.15,
+        "queryBackgroundMedian": 0.880894660949707,
+        "status": "provisional experimental gate; not calibrated confidence"
+      }
+    },
+    {
+      "initialCondition": "updated-cognition",
+      "variant": "current-cognition",
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\later-updated-cognition\\current-cognition",
+      "actionKind": "none",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "nativeResponse": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "speech": "既然要办登记，我们可以先看看大厅里的公告牌或办事终端，也可以直接问问旁边的工作人员。或者直接去一楼105或二楼203看看，你想先从哪边开始？"
+      },
+      "sentIds": [],
+      "relatedIds": [],
+      "deliveredIds": [],
+      "memoryItems": 0,
+      "rawScores": [
+        {
+          "id": "retrieval:0",
+          "memoryId": "atom:event:27:0",
+          "semanticSimilarity": 0.8799713850021362,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09138939660922711,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0010763079284909648,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:1",
+          "memoryId": "atom:event:38:0",
+          "semanticSimilarity": 0.8780319690704346,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09138939660922711,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0010763079284909648,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:2",
+          "memoryId": "atom:event:47:0",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.06043910205159936,
+          "semanticScored": true,
+          "bm25Score": 0.08111500494661583,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.06043910205159936,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:3",
+          "memoryId": "episode:event:27",
+          "semanticSimilarity": 0.8799713850021362,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09138939660922711,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0010763079284909648,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:4",
+          "memoryId": "episode:event:38",
+          "semanticSimilarity": 0.8780319094657898,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09138939660922711,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0010763079284909648,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:5",
+          "memoryId": "episode:event:47",
+          "semanticSimilarity": 0.8872259259223938,
+          "semanticLift": 0.060440095225515036,
+          "semanticScored": true,
+          "bm25Score": 0.08111500494661583,
+          "keywordCoverage": 0.0010763079284909648,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.060440095225515036,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:6",
+          "memoryId": "family:registration-signs:revision:8:1",
+          "semanticSimilarity": 0.894573450088501,
+          "semanticLift": 0.12165486610525855,
+          "semanticScored": true,
+          "bm25Score": 1.3049864169906693,
+          "keywordCoverage": 0.02899318727128937,
+          "matchedTerms": [
+            "另一",
+            "登记"
+          ],
+          "relevance": 0.12165486610525855,
+          "accepted": false,
+          "graphScore": null
+        }
+      ],
+      "thresholds": {
+        "semanticMin": 0.3,
+        "semanticLiftMin": 0.3,
+        "keywordCoverageMin": 0.15,
+        "queryBackgroundMedian": 0.8799713850021362,
+        "status": "provisional experimental gate; not calibrated confidence"
+      }
+    },
+    {
+      "initialCondition": "updated-cognition",
+      "variant": "prior-cognition",
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\later-updated-cognition\\prior-cognition",
+      "actionKind": "none",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "nativeResponse": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "要办理登记的话，我们可以直接问问旁边的工作人员，或者先去大厅的办事终端和公告牌上查查流程。你想先怎么做？",
+        "decision": "publish"
+      },
+      "sentIds": [],
+      "relatedIds": [],
+      "deliveredIds": [],
+      "memoryItems": 0,
+      "rawScores": [
+        {
+          "id": "retrieval:0",
+          "memoryId": "atom:event:27:0",
+          "semanticSimilarity": 0.8799713850021362,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08144873556996886,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0009213764062417446,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:1",
+          "memoryId": "atom:event:38:0",
+          "semanticSimilarity": 0.8780319690704346,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08144873556996886,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0009213764062417446,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:2",
+          "memoryId": "atom:event:47:0",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.03116122938729571,
+          "semanticScored": true,
+          "bm25Score": 0.07226598862790916,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.03116122938729571,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:3",
+          "memoryId": "episode:event:27",
+          "semanticSimilarity": 0.8799713850021362,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08144873556996886,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0009213764062417446,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:4",
+          "memoryId": "episode:event:38",
+          "semanticSimilarity": 0.8780319690704346,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.08144873556996886,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.0009213764062417446,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:5",
+          "memoryId": "episode:event:47",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.03116122938729571,
+          "semanticScored": true,
+          "bm25Score": 0.07226598862790916,
+          "keywordCoverage": 0.0009213764062417446,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.03116122938729571,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:6",
+          "memoryId": "family:registration-signs:revision:6:1",
+          "semanticSimilarity": 0.8933975696563721,
+          "semanticLift": 0.08418260819917543,
+          "semanticScored": true,
+          "bm25Score": 1.1370569028761992,
+          "keywordCoverage": 0.021569643981861297,
+          "matchedTerms": [
+            "另一",
+            "登记"
+          ],
+          "relevance": 0.08418260819917543,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:7",
+          "memoryId": "family:registration-signs:revision:6:2",
+          "semanticSimilarity": 0.8967818021774292,
+          "semanticLift": 0.11325642003152761,
+          "semanticScored": true,
+          "bm25Score": 1.1370569028761992,
+          "keywordCoverage": 0.021569643981861297,
+          "matchedTerms": [
+            "另一",
+            "登记"
+          ],
+          "relevance": 0.11325642003152761,
+          "accepted": false,
+          "graphScore": null
+        }
+      ],
+      "thresholds": {
+        "semanticMin": 0.3,
+        "semanticLiftMin": 0.3,
+        "keywordCoverageMin": 0.15,
+        "queryBackgroundMedian": 0.8835985958576202,
+        "status": "provisional experimental gate; not calibrated confidence"
+      }
+    },
+    {
+      "initialCondition": "updated-cognition",
+      "variant": "no-cognition",
+      "path": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-action-loop-20261005-v1\\later-updated-cognition\\no-cognition",
+      "actionKind": "none",
+      "nativeResult": {
+        "status": "published",
+        "calls": 1
+      },
+      "nativeResponse": {
+        "speech": "如果要办理登记的话，我们可以直接问问这里的工作人员，或者在旁边的公告牌、办事终端上查一下；要是想直接找地方，去一楼105或者二楼203都可以。你想先怎么做？",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "sentIds": [],
+      "relatedIds": [],
+      "deliveredIds": [],
+      "memoryItems": 0,
+      "rawScores": [
+        {
+          "id": "retrieval:0",
+          "memoryId": "atom:event:27:0",
+          "semanticSimilarity": 0.8799713850021362,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:1",
+          "memoryId": "atom:event:38:0",
+          "semanticSimilarity": 0.8780319690704346,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:2",
+          "memoryId": "atom:event:47:0",
+          "semanticSimilarity": 0.8872258067131042,
+          "semanticLift": 0.06043910205159936,
+          "semanticScored": true,
+          "bm25Score": 0.08892956658446621,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.06043910205159936,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:3",
+          "memoryId": "episode:event:27",
+          "semanticSimilarity": 0.8799713850021362,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:4",
+          "memoryId": "episode:event:38",
+          "semanticSimilarity": 0.8780319094657898,
+          "semanticLift": 0,
+          "semanticScored": true,
+          "bm25Score": 0.09992086133086091,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.001274792311943323,
+          "accepted": false,
+          "graphScore": null
+        },
+        {
+          "id": "retrieval:5",
+          "memoryId": "episode:event:47",
+          "semanticSimilarity": 0.8872259259223938,
+          "semanticLift": 0.060440095225515036,
+          "semanticScored": true,
+          "bm25Score": 0.08892956658446621,
+          "keywordCoverage": 0.001274792311943323,
+          "matchedTerms": [
+            "登记"
+          ],
+          "relevance": 0.060440095225515036,
+          "accepted": false,
+          "graphScore": null
+        }
+      ],
+      "thresholds": {
+        "semanticMin": 0.3,
+        "semanticLiftMin": 0.3,
+        "keywordCoverageMin": 0.15,
+        "queryBackgroundMedian": 0.8799713850021362,
+        "status": "provisional experimental gate; not calibrated confidence"
+      }
+    }
+  ],
+  "initialRevisionRelations": {
+    "refinement": 1,
+    "unresolved_conflict": 3,
+    "reinforcement": 5
+  },
+  "delayedRecall": {
+    "trajectories": 3,
+    "unrelatedInteractionsPerTrajectory": 8,
+    "futureChoices": 9,
+    "newJeVCalls": 0,
+    "nonemptyDeliveries": 0,
+    "currentCognitionDelivered": 0,
+    "finalRequestsIdenticalWithinTrajectory": true
+  },
+  "coreLoopResult": {
+    "autonomousCapabilityCommitted": true,
+    "newSourceCaptured": true,
+    "newSourceUsedByExistingUpdate": true,
+    "delayedNaturalRecallPassed": false,
+    "futureCognitionCausedBehaviorChangeDemonstrated": false,
+    "fullLoopPassed": false
+  },
+  "review": {
+    "blind": false,
+    "reviewer": "primary agent reading native outputs; no evaluator model",
+    "limits": [
+      "three short histories sampled twice; no significance claim",
+      "scripted staff response is speech evidence, not ground truth or another NPC LLM turn",
+      "first canonical branch updated with all original evidence, not a general family branch merger",
+      "six relation-based flags say false while bodies still retain unresolved conflict",
+      "local-object bank uses existing generic projections, not prior person-gated Trigger or new applicability extraction",
+      "future task in same lobby; no physical departure/return and no cross-building generalization",
+      "one repeated sign Source is another read of the same information source, not independent confirmation",
+      "new fixture Source refs remapped; initial cognition times assigned rather than measured",
+      "initial normal-turn context uses four recent observations and omits extra cognition time display fields; not a one-variable reproduction of prior immediate continuations"
+    ]
+  },
+  "tests": {
+    "typecheck": "passed",
+    "scopedOxlint": "passed",
+    "typescriptRelatedTests": 53,
+    "existingCognitionPythonTests": 6,
+    "readOnlyAudit": "passed",
+    "fullCheck": false,
+    "UI": false,
+    "longPlay": false
+  },
+  "formalCoreChanged": false,
+  "jevProtocolChanged": false,
+  "retrievalThresholdsChanged": false,
+  "automaticEvidenceGroupingAdded": false
+}

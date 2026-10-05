@@ -1,0 +1,578 @@
+{
+  "artifactRoot": ".tmp\\observation-lineage-20261004-v1",
+  "controlledRows": [
+    {
+      "case": "A",
+      "repeat": 0,
+      "relation": "reinforcement",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 20,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:A:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:A:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 1,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在陌生地点依赖旧资料时容易带错路。"
+      ],
+      "supportCounts": [
+        6
+      ],
+      "counterCounts": [
+        0
+      ],
+      "evidenceUnchanged": true
+    },
+    {
+      "case": "A",
+      "repeat": 1,
+      "relation": "reinforcement",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 20,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:A:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:A:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 1,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在陌生地点依赖旧资料时容易带错路。"
+      ],
+      "supportCounts": [
+        6
+      ],
+      "counterCounts": [
+        0
+      ],
+      "evidenceUnchanged": true
+    },
+    {
+      "case": "A",
+      "repeat": 2,
+      "relation": "reinforcement",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 20,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:A:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:A:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 1,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在陌生地点依赖旧资料时容易带错路。"
+      ],
+      "supportCounts": [
+        6
+      ],
+      "counterCounts": [
+        0
+      ],
+      "evidenceUnchanged": true
+    },
+    {
+      "case": "B",
+      "repeat": 0,
+      "relation": "refinement",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 55,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:B:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:B:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 1,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在陌生地点带路时，若照旧使用旧导览资料则不可靠（容易走错）；若使用当日更新或实时导航资料则能够顺利正确带路。"
+      ],
+      "supportCounts": [
+        6
+      ],
+      "counterCounts": [
+        0
+      ],
+      "evidenceUnchanged": true
+    },
+    {
+      "case": "B",
+      "repeat": 1,
+      "relation": "refinement",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 55,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:B:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:B:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 1,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在陌生地点依据旧导览资料带路不可靠，但在使用更新地图或实时导航带路时可靠。"
+      ],
+      "supportCounts": [
+        6
+      ],
+      "counterCounts": [
+        0
+      ],
+      "evidenceUnchanged": true
+    },
+    {
+      "case": "B",
+      "repeat": 2,
+      "relation": "refinement",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 55,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:B:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:B:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 1,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在陌生地点照旧图或旧资料带路时不可靠，但在使用更新地图或实时导航时能够顺利带路。"
+      ],
+      "supportCounts": [
+        6
+      ],
+      "counterCounts": [
+        0
+      ],
+      "evidenceUnchanged": true
+    },
+    {
+      "case": "C",
+      "repeat": 0,
+      "relation": "counterexample",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 55,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:C:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:C:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 1,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在熟悉地点通常能够正确带路，但也有在经常去的商店指错出口的例外。"
+      ],
+      "supportCounts": [
+        6
+      ],
+      "counterCounts": [
+        1
+      ],
+      "evidenceUnchanged": true
+    },
+    {
+      "case": "C",
+      "repeat": 1,
+      "relation": "counterexample",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 55,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:C:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:C:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 1,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在熟悉地点通常能够正确带路，但也存在在经常去的商店指错出口的例外情况。"
+      ],
+      "supportCounts": [
+        6
+      ],
+      "counterCounts": [
+        1
+      ],
+      "evidenceUnchanged": true
+    },
+    {
+      "case": "C",
+      "repeat": 2,
+      "relation": "counterexample",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 55,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:C:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:C:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 1,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在熟悉地点通常能够正确带路，但也有在经常去的商店指错出口的例外。"
+      ],
+      "supportCounts": [
+        6
+      ],
+      "counterCounts": [
+        1
+      ],
+      "evidenceUnchanged": true
+    },
+    {
+      "case": "D",
+      "repeat": 0,
+      "relation": "unresolved_conflict",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 55,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:D:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:D:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        },
+        "family:D:revision:55:2": {
+          "firstFormedTick": 55,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 2,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在陌生地点使用旧资料时可能会带错路。",
+        "【主观认识，可修正】旅人在陌生地点使用旧资料时能够准确指路。"
+      ],
+      "supportCounts": [
+        3,
+        3
+      ],
+      "counterCounts": [
+        3,
+        3
+      ],
+      "evidenceUnchanged": true
+    },
+    {
+      "case": "D",
+      "repeat": 1,
+      "relation": "unresolved_conflict",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 55,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:D:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:D:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        },
+        "family:D:revision:55:2": {
+          "firstFormedTick": 55,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 2,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在陌生地点使用旧资料时可能会带错路。",
+        "【主观认识，可修正】旅人在陌生地点使用旧资料时能够准确指路。"
+      ],
+      "supportCounts": [
+        3,
+        3
+      ],
+      "counterCounts": [
+        3,
+        3
+      ],
+      "evidenceUnchanged": true
+    },
+    {
+      "case": "D",
+      "repeat": 2,
+      "relation": "unresolved_conflict",
+      "firstFormedTick": 20,
+      "lastRevisedTick": 55,
+      "evidenceUpdatedTick": 55,
+      "versionMetadata": {
+        "cognition:D:v1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 20
+        },
+        "family:D:revision:55:1": {
+          "firstFormedTick": 20,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        },
+        "family:D:revision:55:2": {
+          "firstFormedTick": 55,
+          "lastRevisedTick": 55,
+          "recordedTick": 55
+        }
+      },
+      "currentCount": 2,
+      "currentTexts": [
+        "【主观认识，可修正】旅人在陌生地点使用旧资料时通常会带错路，但也存在能够准确指路的情况。",
+        "【主观认识，可修正】旅人在陌生地点使用旧资料时能够准确指路，但也存在多次带错路的情况。"
+      ],
+      "supportCounts": [
+        3,
+        3
+      ],
+      "counterCounts": [
+        3,
+        3
+      ],
+      "evidenceUnchanged": true
+    }
+  ],
+  "controlledDeliveryCounts": [
+    {
+      "case": "A",
+      "repeat": 0,
+      "currentCount": 1,
+      "budget3Count": 1,
+      "budget12Count": 1
+    },
+    {
+      "case": "A",
+      "repeat": 1,
+      "currentCount": 1,
+      "budget3Count": 1,
+      "budget12Count": 1
+    },
+    {
+      "case": "A",
+      "repeat": 2,
+      "currentCount": 1,
+      "budget3Count": 1,
+      "budget12Count": 1
+    },
+    {
+      "case": "B",
+      "repeat": 0,
+      "currentCount": 1,
+      "budget3Count": 1,
+      "budget12Count": 1
+    },
+    {
+      "case": "B",
+      "repeat": 1,
+      "currentCount": 1,
+      "budget3Count": 1,
+      "budget12Count": 1
+    },
+    {
+      "case": "B",
+      "repeat": 2,
+      "currentCount": 1,
+      "budget3Count": 1,
+      "budget12Count": 1
+    },
+    {
+      "case": "C",
+      "repeat": 0,
+      "currentCount": 1,
+      "budget3Count": 1,
+      "budget12Count": 1
+    },
+    {
+      "case": "C",
+      "repeat": 1,
+      "currentCount": 1,
+      "budget3Count": 1,
+      "budget12Count": 1
+    },
+    {
+      "case": "C",
+      "repeat": 2,
+      "currentCount": 1,
+      "budget3Count": 1,
+      "budget12Count": 1
+    },
+    {
+      "case": "D",
+      "repeat": 0,
+      "currentCount": 2,
+      "budget3Count": 0,
+      "budget12Count": 2
+    },
+    {
+      "case": "D",
+      "repeat": 1,
+      "currentCount": 2,
+      "budget3Count": 0,
+      "budget12Count": 2
+    },
+    {
+      "case": "D",
+      "repeat": 2,
+      "currentCount": 2,
+      "budget3Count": 0,
+      "budget12Count": 2
+    }
+  ],
+  "calls": {
+    "gemini": 14,
+    "jev": 21
+  },
+  "allTwelveRelationMatches": true,
+  "allEvidenceUnchanged": true,
+  "noNewEvidenceSkipsModel": true,
+  "semanticReview": {
+    "method": "nonblind investigator reading, not independent gold or deterministic entailment proof",
+    "A": "three exact bodies, supports expanded 3 to6 distinct sources",
+    "B": "condition split retained; some bodies use unqualified reliable wording, not calibrated general truth",
+    "C": "all three retain usually reliable plus exception; six supports and one counter",
+    "D": "both opposed branches and mirrored counterevidence retained; positive branch can sound overly definite, notably repeats0/1; family conflict must not be hidden"
+  },
+  "bank": {
+    "flatActiveCount": 20,
+    "currentActiveCount": 19,
+    "evidenceUnchanged": true,
+    "frozenFilesUnchanged": true,
+    "family": {
+      "familyId": "family:traveler-navigation",
+      "derivedOnly": true,
+      "currentVersionIds": [
+        "family:traveler-navigation:revision:20:1",
+        "bank:10"
+      ],
+      "historyOnlyIds": [
+        "obs:1",
+        "bank:04"
+      ],
+      "revision": {
+        "obs:1": "family:traveler-navigation:revision:20:1"
+      },
+      "absorbedAspectIds": [
+        "bank:04"
+      ],
+      "hasUnresolvedConflict": true,
+      "note": "bank:04 is a complementary conditional aspect integrated after rereading its source, NOT an original historical version; bank:10 remains an opposed current branch. Family association is a controlled experiment input, not automatic discovery."
+    },
+    "projectionGenerationInput": {
+      "observationText": "【主观认识，可修正】旅人在初次前往或陌生的场所若参考旧材料容易指错位置，但若按照当日更新的地图则能准确找对目的地；在熟悉的常去场所能够准确指引目的地。",
+      "allowedPeople": [
+        {
+          "characterId": "character:bob",
+          "name": "陆舟"
+        },
+        {
+          "characterId": "character:npc",
+          "name": "小芷"
+        },
+        {
+          "characterId": "character:player",
+          "name": "旅人"
+        }
+      ]
+    },
+    "historical": {
+      "oldVersionFound": true,
+      "oldVersionRelated": true,
+      "oldVersionRead": false
+    },
+    "limits": [
+      "one known update pair and manual family association",
+      "one draw per probe/route/version; no causal quality estimate",
+      "no new Character Turns",
+      "no automated history-intent detection",
+      "one complementary aspect absorbed; other similar beliefs not merged"
+    ],
+    "all": {
+      "flat": {
+        "sent": 100,
+        "related": 20,
+        "relatedNotRead": 6,
+        "bothConflictBranchesRead": 2,
+        "jevCostUsd": 0.002288496
+      },
+      "current": {
+        "sent": 95,
+        "related": 17,
+        "relatedNotRead": 4,
+        "bothConflictBranchesRead": 2,
+        "jevCostUsd": 0.002191476
+      }
+    },
+    "trigger": {
+      "flat": {
+        "sent": 32,
+        "related": 15,
+        "relatedNotRead": 2,
+        "bothConflictBranchesRead": 2,
+        "jevCostUsd": 0.0007906079999999999
+      },
+      "current": {
+        "sent": 32,
+        "related": 12,
+        "relatedNotRead": 0,
+        "bothConflictBranchesRead": 1,
+        "jevCostUsd": 0.000793884
+      }
+    }
+  },
+  "jevCostUsd": 0.00624435,
+  "historicalRead": false
+}

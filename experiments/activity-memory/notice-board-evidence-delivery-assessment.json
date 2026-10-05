@@ -1,0 +1,403 @@
+{
+  "date": "2026-10-05",
+  "experiment": "deterministic-plain-and-paired-inscription-delivery",
+  "requestedModel": "gemini-3.7-flash",
+  "nativeNewModels": {
+    "gemini-3.7-flash-high": 24
+  },
+  "outputs": ".tmp/notice-board-evidence-delivery-20261005-v1",
+  "calls": {
+    "newCharacter": 24,
+    "newUpdate": 0,
+    "newJev": 0,
+    "newRead": 0,
+    "reusedSeedRecords": 9,
+    "reusedUpdateRecords": 3,
+    "allAuditedCallRecords": 36
+  },
+  "structuralAuditPassed": true,
+  "originalUnchanged": true,
+  "nonmemoryIdenticalWithinSeed": true,
+  "semanticReview": {
+    "blind": false,
+    "assessor": "primary agent reading native speech; manual labels, no evaluator model",
+    "retentionCounts": {
+      "raw-evidence": 0,
+      "plain-evidence": 2,
+      "paired-evidence": 6,
+      "updated": 6
+    },
+    "samplesPerCondition": 6,
+    "definition": "retains and contrasts both distinct sign claims; literal word conflict not required",
+    "samples": [
+      {
+        "seed": 0,
+        "sample": 0,
+        "condition": "raw-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-0-sample-0-raw-evidence\\continuation-call-0.json",
+        "speech": "我刚看了一眼刚搬过来的指示牌，上面写着登记处在一楼105。咱们去一楼105吧。",
+        "retainsBothDifferentClaims": false,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 0,
+        "sample": 1,
+        "condition": "raw-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-0-sample-1-raw-evidence\\continuation-call-0.json",
+        "speech": "我刚看了新搬过来的指示牌，上面写着登记处在一楼105，咱们去一楼105吧。",
+        "retainsBothDifferentClaims": false,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 1,
+        "sample": 0,
+        "condition": "raw-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-1-sample-0-raw-evidence\\continuation-call-0.json",
+        "speech": "我看刚搬进来的这个指示牌上写着登记处在一楼105，要不我们去一楼105看看？",
+        "retainsBothDifferentClaims": false,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 1,
+        "sample": 1,
+        "condition": "raw-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-1-sample-1-raw-evidence\\continuation-call-0.json",
+        "speech": "我刚看了下新搬过来的这块指示牌，上面写着登记处在一楼105，我们直接去一楼105吧。",
+        "retainsBothDifferentClaims": false,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 2,
+        "sample": 0,
+        "condition": "raw-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-2-sample-0-raw-evidence\\continuation-call-0.json",
+        "speech": "我刚才看了下刚搬进来的那个指示牌，上面写着登记处在一楼105，我们去一楼吧。",
+        "retainsBothDifferentClaims": false,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 2,
+        "sample": 1,
+        "condition": "raw-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-2-sample-1-raw-evidence\\continuation-call-0.json",
+        "speech": "刚搬过来的指示牌上写着登记处在一楼105，我们去一楼105吧。",
+        "retainsBothDifferentClaims": false,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 0,
+        "sample": 0,
+        "condition": "plain-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-0-sample-0-plain-evidence\\continuation-call-0.json",
+        "speech": "我看了一下刚搬来的窗口指示牌，上面写着登记处在一楼105。咱们去一楼105吧。",
+        "retainsBothDifferentClaims": false,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 0,
+        "sample": 1,
+        "condition": "plain-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-0-sample-1-plain-evidence\\continuation-call-0.json",
+        "speech": "我看了一下刚搬过来的指示牌，上面写着登记处在一楼105。咱们先去一楼105看看吧。",
+        "retainsBothDifferentClaims": false,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 1,
+        "sample": 0,
+        "condition": "plain-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-1-sample-0-plain-evidence\\continuation-call-0.json",
+        "speech": "刚搬过来的窗口指示牌上写着登记处在一楼105，我们去一楼105看看吧。",
+        "retainsBothDifferentClaims": false,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 1,
+        "sample": 1,
+        "condition": "plain-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-1-sample-1-plain-evidence\\continuation-call-0.json",
+        "speech": "刚才我看了新搬来的窗口指示牌，上面写着登记处在一楼105；不过大厅公告牌写的是二楼203。我们不妨先去一楼105看看。",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 2,
+        "sample": 0,
+        "condition": "plain-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-2-sample-0-plain-evidence\\continuation-call-0.json",
+        "speech": "我看了一下刚搬过来的窗口指示牌，上面写着登记处在一楼105。大厅公告牌写的则是二楼203，要不我们先去一楼105看看？",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 2,
+        "sample": 1,
+        "condition": "plain-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-2-sample-1-plain-evidence\\continuation-call-0.json",
+        "speech": "我刚看了下搬过来的窗口指示牌，上面写着登记处在一楼105。咱们先去一楼105看看吧。",
+        "retainsBothDifferentClaims": false,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 0,
+        "sample": 0,
+        "condition": "paired-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-0-sample-0-paired-evidence\\continuation-call-0.json",
+        "speech": "奇怪，大厅公告牌写的是二楼203，但刚搬进来的窗口指示牌上写着一楼105。两边写的不一样，要不我们先去近点的一楼105核对一下？",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": true,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": true
+      },
+      {
+        "seed": 0,
+        "sample": 1,
+        "condition": "paired-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-0-sample-1-paired-evidence\\continuation-call-0.json",
+        "speech": "刚搬过来的窗口指示牌上写着登记处在一楼105，不过大厅公告牌写的是二楼203。一楼就在这层，要不咱们先去105看看？",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": true,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 1,
+        "sample": 0,
+        "condition": "paired-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-1-sample-0-paired-evidence\\continuation-call-0.json",
+        "speech": "我刚看了下搬过来的指示牌，上面写着登记处在一楼105。不过大厅原本的公告牌写的是二楼203……两边写的不一样，要不我们先去一楼105看看？",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 1,
+        "sample": 1,
+        "condition": "paired-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-1-sample-1-paired-evidence\\continuation-call-0.json",
+        "speech": "我刚才去看了下那个窗口指示牌，上面写着登记处在一楼105，但大厅公告牌又写着二楼203……两个牌子写的不一样，要不我们先顺路去一楼105看看？",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 2,
+        "sample": 0,
+        "condition": "paired-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-2-sample-0-paired-evidence\\continuation-call-0.json",
+        "speech": "我刚才看了下搬过来的窗口指示牌，上面写的是登记处在一楼105。不过大厅公告牌写的又是二楼203……两边信息不太一样，要不咱们先在近处的一楼105看看？",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": true
+      },
+      {
+        "seed": 2,
+        "sample": 1,
+        "condition": "paired-evidence",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-2-sample-1-paired-evidence\\continuation-call-0.json",
+        "speech": "我看了下刚搬过来的窗口指示牌，上面写着登记处在一楼105。不过大厅那块公告牌写的又是二楼203，两边写的不一样。",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": true,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 0,
+        "sample": 0,
+        "condition": "updated",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-0-sample-0-updated\\continuation-call-0.json",
+        "speech": "这两块牌子写的对不上——大厅这块写着登记处在二楼203，新搬来的牌子却写在一楼105。现在信息冲突了，要不咱们先在附近找人核实一下，或者先去近的一楼105看看？",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": true,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": true
+      },
+      {
+        "seed": 0,
+        "sample": 1,
+        "condition": "updated",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-0-sample-1-updated\\continuation-call-0.json",
+        "speech": "奇怪，刚搬过来的牌子上写着登记处在一楼105，但大厅原本那块写的是二楼203。两块牌子信息冲突了，要不我们先去近一点的一楼105看一眼，或者找人核实一下？",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": true,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": true
+      },
+      {
+        "seed": 1,
+        "sample": 0,
+        "condition": "updated",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-1-sample-0-updated\\continuation-call-0.json",
+        "speech": "刚搬过来的这块牌子上写着登记处在一楼105，但大厅原先那块写的又是二楼203。两边写的不一样，我们要不先去一楼105看看？",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 1,
+        "sample": 1,
+        "condition": "updated",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-1-sample-1-updated\\continuation-call-0.json",
+        "speech": "情况有点奇怪，刚搬过来的牌子上写着登记处在一楼105，但刚才大厅那块写的是二楼203，两个牌子写的不一样。",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": true,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      },
+      {
+        "seed": 2,
+        "sample": 0,
+        "condition": "updated",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-2-sample-0-updated\\continuation-call-0.json",
+        "speech": "刚才大厅的公告牌写着二楼203，但这边这块牌子上写的是一楼105，两边写的不一样。一楼比较近，要不我们先去105看看？",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": true
+      },
+      {
+        "seed": 2,
+        "sample": 1,
+        "condition": "updated",
+        "artifact": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\notice-board-evidence-delivery-20261005-v1\\seed-2-sample-1-updated\\continuation-call-0.json",
+        "speech": "大厅原来的牌子写着二楼203，但新搬来的指示牌上写的是一楼105，两块牌子写的不一样。要不我们先去一楼105看看？",
+        "retainsBothDifferentClaims": true,
+        "explicitVerificationLanguage": false,
+        "noFurtherPlan": false,
+        "unsupportedCurrentFloorAssertion": false,
+        "unsupportedNearnessAssumption": false
+      }
+    ],
+    "notes": [
+      "six responses use three histories, each sampled twice",
+      "one grouped response asserts current floor without evidence; retention success is not full semantic correctness",
+      "several grouped and updated responses assume the first floor is nearer",
+      "all calls are expression-only continuation; no further verification action executed"
+    ]
+  },
+  "newUsage": {
+    "prompt_tokens": 82678,
+    "completion_tokens": 2093,
+    "total_tokens": 97842
+  },
+  "newMedianLatencyMs": 4872.0,
+  "metrics": {
+    "raw-evidence": {
+      "calls": 6,
+      "medianLatencyMs": 4411.5,
+      "medianMemoryChars": 527,
+      "usage": {
+        "prompt_tokens": 20904,
+        "completion_tokens": 448,
+        "total_tokens": 23966
+      }
+    },
+    "plain-evidence": {
+      "calls": 6,
+      "medianLatencyMs": 5110.5,
+      "medianMemoryChars": 74,
+      "usage": {
+        "prompt_tokens": 19884,
+        "completion_tokens": 472,
+        "total_tokens": 23926
+      }
+    },
+    "paired-evidence": {
+      "calls": 6,
+      "medianLatencyMs": 4996.5,
+      "medianMemoryChars": 75,
+      "usage": {
+        "prompt_tokens": 19758,
+        "completion_tokens": 578,
+        "total_tokens": 23976
+      }
+    },
+    "updated": {
+      "calls": 6,
+      "medianLatencyMs": 4793,
+      "medianMemoryChars": 140,
+      "usage": {
+        "prompt_tokens": 22132,
+        "completion_tokens": 595,
+        "total_tokens": 25974
+      }
+    }
+  },
+  "tests": {
+    "typecheck": "passed",
+    "scopedOxlint": "passed",
+    "typescriptRelatedTests": 46,
+    "readOnlyAudit": "passed",
+    "previousTimingAuditReadOnly": "passed",
+    "fullCheck": false,
+    "UI": false,
+    "longPlay": false
+  },
+  "formalCoreChanged": false,
+  "cognitionUpdatePromptChanged": false,
+  "findings": [
+    "grouped natural-language source display reaches the same retention count as frozen updated cognitions in this one scene",
+    "plain separate display helps in two samples but does not match grouping",
+    "extra cognition generation is not necessary for this narrow result, but cognition history/generalization not replaced",
+    "grouping changes item boundaries, identifiers and age metadata; pure text-format causality not isolated"
+  ],
+  "limits": [
+    "known two-source dimension, no automatic grouping discovery",
+    "group entry is a temporary delivery projection, not a new Atom/Episode/Observation",
+    "separate ages 4 and 0 ticks; group-level age uses newest source 0; no independent per-source age in that entry",
+    "no budget competition or long group experiment",
+    "new calls do not rerun any prior cognition utility call",
+    "no demonstration of general semantic accuracy, actual autonomous verification, long-term belief or natural retrieval"
+  ]
+}

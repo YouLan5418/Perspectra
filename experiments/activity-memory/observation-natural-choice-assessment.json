@@ -1,0 +1,2006 @@
+{
+  "primary": {
+    "artifactRoot": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\observation-natural-choice-20261004-v1",
+    "characterCalls": 36,
+    "returned": 36,
+    "legalOutputs": 35,
+    "jevCalls": 12,
+    "jevTokens": {
+      "input_tokens": 45021,
+      "output_tokens": 3189
+    },
+    "jevReportedCostUSD": 0.0018908820000000002,
+    "newUtilityCalls": 0,
+    "requestedModel": "gemini-3.7-flash",
+    "nativeModelLabels": {
+      "gemini-3.7-flash-high": 36
+    },
+    "nativeCharacterUsageUnpriced": {
+      "prompt_tokens": 56124,
+      "completion_tokens": 1455,
+      "total_tokens": 97989
+    },
+    "latencyMs": {
+      "min": 3930,
+      "median": 5630.0,
+      "max": 11675
+    },
+    "sourceCount": 55,
+    "frozenInputsUnchanged": true,
+    "sourceMappingsAndObserverChecked": true,
+    "nativeDecisionsVerified": true,
+    "offlineRetrievalDeliveryReplays": 12,
+    "nonmemoryContextIdentical": true,
+    "privateCanaryAbsent": true,
+    "retrieval": [
+      {
+        "probe": "new-building",
+        "repeat": 0,
+        "sentIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:16",
+          "bank:15",
+          "bank:14",
+          "bank:12",
+          "bank:10",
+          "bank:05"
+        ],
+        "relatedIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:12",
+          "bank:10"
+        ],
+        "readIds": [
+          "atom:event:19:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:10"
+        ],
+        "targetShortlisted": true,
+        "targetRelated": true,
+        "targetDelivered": true
+      },
+      {
+        "probe": "new-building",
+        "repeat": 1,
+        "sentIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:16",
+          "bank:15",
+          "bank:14",
+          "bank:12",
+          "bank:10",
+          "bank:05"
+        ],
+        "relatedIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:12",
+          "bank:10"
+        ],
+        "readIds": [
+          "atom:event:19:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:10"
+        ],
+        "targetShortlisted": true,
+        "targetRelated": true,
+        "targetDelivered": true
+      },
+      {
+        "probe": "new-building",
+        "repeat": 2,
+        "sentIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:16",
+          "bank:15",
+          "bank:14",
+          "bank:12",
+          "bank:10",
+          "bank:05"
+        ],
+        "relatedIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:12",
+          "bank:10"
+        ],
+        "readIds": [
+          "atom:event:19:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:10"
+        ],
+        "targetShortlisted": true,
+        "targetRelated": true,
+        "targetDelivered": true
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 0,
+        "sentIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "bank:06",
+          "bank:02",
+          "bank:10",
+          "bank:05",
+          "bank:15"
+        ],
+        "relatedIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "bank:10"
+        ],
+        "readIds": [
+          "atom:event:19:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:10"
+        ],
+        "targetShortlisted": true,
+        "targetRelated": true,
+        "targetDelivered": true
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 1,
+        "sentIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "bank:06",
+          "bank:02",
+          "bank:10",
+          "bank:05",
+          "bank:15"
+        ],
+        "relatedIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "bank:10"
+        ],
+        "readIds": [
+          "atom:event:19:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:10"
+        ],
+        "targetShortlisted": true,
+        "targetRelated": true,
+        "targetDelivered": true
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 2,
+        "sentIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "bank:06",
+          "bank:02",
+          "bank:10",
+          "bank:05",
+          "bank:15"
+        ],
+        "relatedIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "bank:10"
+        ],
+        "readIds": [
+          "atom:event:19:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:10"
+        ],
+        "targetShortlisted": true,
+        "targetRelated": true,
+        "targetDelivered": true
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 0,
+        "sentIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:05",
+          "bank:02",
+          "bank:10",
+          "bank:16",
+          "bank:06",
+          "bank:12"
+        ],
+        "relatedIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:05",
+          "bank:10",
+          "bank:12"
+        ],
+        "readIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:12",
+          "bank:05"
+        ],
+        "targetShortlisted": true,
+        "targetRelated": true,
+        "targetDelivered": true
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 1,
+        "sentIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:05",
+          "bank:02",
+          "bank:10",
+          "bank:16",
+          "bank:06",
+          "bank:12"
+        ],
+        "relatedIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:05",
+          "bank:10",
+          "bank:12"
+        ],
+        "readIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:12",
+          "bank:05"
+        ],
+        "targetShortlisted": true,
+        "targetRelated": true,
+        "targetDelivered": true
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 2,
+        "sentIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:05",
+          "bank:02",
+          "bank:10",
+          "bank:16",
+          "bank:06",
+          "bank:12"
+        ],
+        "relatedIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:05",
+          "bank:10",
+          "bank:12"
+        ],
+        "readIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:12",
+          "bank:05"
+        ],
+        "targetShortlisted": true,
+        "targetRelated": true,
+        "targetDelivered": true
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 0,
+        "sentIds": [
+          "bank:08",
+          "bank:03",
+          "bank:13",
+          "bank:18"
+        ],
+        "relatedIds": [
+          "bank:08",
+          "bank:03"
+        ],
+        "readIds": [
+          "atom:event:19:1",
+          "bank:03",
+          "bank:08"
+        ],
+        "targetShortlisted": false,
+        "targetRelated": false,
+        "targetDelivered": false
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 1,
+        "sentIds": [
+          "bank:08",
+          "bank:03",
+          "bank:13",
+          "bank:18"
+        ],
+        "relatedIds": [
+          "bank:08",
+          "bank:03"
+        ],
+        "readIds": [
+          "atom:event:19:1",
+          "bank:03",
+          "bank:08"
+        ],
+        "targetShortlisted": false,
+        "targetRelated": false,
+        "targetDelivered": false
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 2,
+        "sentIds": [
+          "bank:08",
+          "bank:03",
+          "bank:13",
+          "bank:18"
+        ],
+        "relatedIds": [
+          "bank:08",
+          "bank:03"
+        ],
+        "readIds": [
+          "atom:event:19:1",
+          "bank:03",
+          "bank:08"
+        ],
+        "targetShortlisted": false,
+        "targetRelated": false,
+        "targetDelivered": false
+      }
+    ],
+    "outcomes": [
+      {
+        "probe": "new-building",
+        "condition": "natural-full",
+        "draws": 3,
+        "acceptedMove": 3,
+        "published": 0,
+        "invalidOutput": 0
+      },
+      {
+        "probe": "new-building",
+        "condition": "target-removed",
+        "draws": 3,
+        "acceptedMove": 3,
+        "published": 0,
+        "invalidOutput": 0
+      },
+      {
+        "probe": "new-building",
+        "condition": "no-observations",
+        "draws": 3,
+        "acceptedMove": 0,
+        "published": 3,
+        "invalidOutput": 0
+      },
+      {
+        "probe": "fresh-map-control",
+        "condition": "natural-full",
+        "draws": 3,
+        "acceptedMove": 2,
+        "published": 0,
+        "invalidOutput": 1
+      },
+      {
+        "probe": "fresh-map-control",
+        "condition": "target-removed",
+        "draws": 3,
+        "acceptedMove": 3,
+        "published": 0,
+        "invalidOutput": 0
+      },
+      {
+        "probe": "fresh-map-control",
+        "condition": "no-observations",
+        "draws": 3,
+        "acceptedMove": 2,
+        "published": 1,
+        "invalidOutput": 0
+      },
+      {
+        "probe": "familiar-control",
+        "condition": "natural-full",
+        "draws": 3,
+        "acceptedMove": 2,
+        "published": 1,
+        "invalidOutput": 0
+      },
+      {
+        "probe": "familiar-control",
+        "condition": "target-removed",
+        "draws": 3,
+        "acceptedMove": 1,
+        "published": 2,
+        "invalidOutput": 0
+      },
+      {
+        "probe": "familiar-control",
+        "condition": "no-observations",
+        "draws": 3,
+        "acceptedMove": 1,
+        "published": 2,
+        "invalidOutput": 0
+      },
+      {
+        "probe": "other-person-control",
+        "condition": "natural-full",
+        "draws": 3,
+        "acceptedMove": 0,
+        "published": 3,
+        "invalidOutput": 0
+      },
+      {
+        "probe": "other-person-control",
+        "condition": "target-removed",
+        "draws": 3,
+        "acceptedMove": 0,
+        "published": 3,
+        "invalidOutput": 0
+      },
+      {
+        "probe": "other-person-control",
+        "condition": "no-observations",
+        "draws": 3,
+        "acceptedMove": 3,
+        "published": 0,
+        "invalidOutput": 0
+      }
+    ],
+    "failures": [
+      {
+        "probe": "fresh-map-control",
+        "repeat": 1,
+        "condition": "natural-full",
+        "result": {
+          "status": "failed",
+          "calls": 1,
+          "failure": "invalid_output"
+        },
+        "response": {
+          "speech": "好，既然核对过今天的地图，那就去隔壁看看。",
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "addresseeIds": [
+            "character:player"
+          ],
+          "actionType": "move"
+        }
+      }
+    ],
+    "responses": [
+      {
+        "probe": "new-building",
+        "repeat": 0,
+        "condition": "natural-full",
+        "response": {
+          "actionType": "move",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "decision": "perform"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:0e64d5f2-14df-49ed-b320-7462eb835378:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "new-building",
+        "repeat": 0,
+        "condition": "target-removed",
+        "response": {
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "actionType": "move"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:5035c673-f4cb-4047-8114-e35106d44b96:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "new-building",
+        "repeat": 0,
+        "condition": "no-observations",
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "行，过去看看吧。要是没找着，咱们再找工作人员问问。"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "new-building",
+        "repeat": 1,
+        "condition": "target-removed",
+        "response": {
+          "actionType": "move",
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          }
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:020baeb3-d901-415c-b843-58e38c489350:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "new-building",
+        "repeat": 1,
+        "condition": "no-observations",
+        "response": {
+          "speech": "行，先去隔壁看看。要是没找着咱们再去问问人。",
+          "narration": "点了点头。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "new-building",
+        "repeat": 1,
+        "condition": "natural-full",
+        "response": {
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "actionType": "move"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:b00c80d2-85ce-4e56-b94a-9f37625afd7c:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "new-building",
+        "repeat": 2,
+        "condition": "no-observations",
+        "response": {
+          "speech": "好，先过去看看。要是没找着，咱们再去问问工作人员。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "new-building",
+        "repeat": 2,
+        "condition": "natural-full",
+        "response": {
+          "decision": "perform",
+          "actionType": "move",
+          "parameters": {
+            "locationId": "location:next"
+          }
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:8782495e-489b-4669-b4f7-3010df7738f3:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "new-building",
+        "repeat": 2,
+        "condition": "target-removed",
+        "response": {
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "actionType": "move",
+          "decision": "perform"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:00a8409a-0ffa-4e8d-bf65-5cc4c47abe74:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 0,
+        "condition": "natural-full",
+        "response": {
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "actionType": "move"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:1b923bbf-24c5-403c-8dd8-d34db05dc2dd:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 0,
+        "condition": "target-removed",
+        "response": {
+          "decision": "perform",
+          "actionType": "move",
+          "parameters": {
+            "locationId": "location:next"
+          }
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:928bcec3-940b-4db3-8766-db5f8c0b0a44:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 0,
+        "condition": "no-observations",
+        "response": {
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "decision": "perform",
+          "actionType": "move"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:3cbfd760-f117-4b14-93ff-44cd066d7d35:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 1,
+        "condition": "target-removed",
+        "response": {
+          "actionType": "move",
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          }
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:77bd36f4-2cdc-4a85-9050-2f1f86ae46de:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 1,
+        "condition": "no-observations",
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "好，那就去隔壁小屋看看。",
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 1,
+        "condition": "natural-full",
+        "response": {
+          "speech": "好，既然核对过今天的地图，那就去隔壁看看。",
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "addresseeIds": [
+            "character:player"
+          ],
+          "actionType": "move"
+        },
+        "result": {
+          "status": "failed",
+          "calls": 1,
+          "failure": "invalid_output"
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 2,
+        "condition": "no-observations",
+        "response": {
+          "actionType": "move",
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          }
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:088162ef-3981-4a2a-af15-f6a7bb141db0:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 2,
+        "condition": "natural-full",
+        "response": {
+          "actionType": "move",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "decision": "perform"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:5164f268-7c42-4c87-a694-27b9ad2c9ae3:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "fresh-map-control",
+        "repeat": 2,
+        "condition": "target-removed",
+        "response": {
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "actionType": "move"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:30e6d22a-3c01-455a-a77f-53e1f6686acb:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 0,
+        "condition": "natural-full",
+        "response": {
+          "decision": "perform",
+          "actionType": "move",
+          "parameters": {
+            "locationId": "location:next"
+          }
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:5a5d3fb6-c5b6-49c6-8247-96d407a564dd:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 0,
+        "condition": "target-removed",
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "好，你带路吧。",
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 0,
+        "condition": "no-observations",
+        "response": {
+          "speech": "好，你带路。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 1,
+        "condition": "target-removed",
+        "response": {
+          "actionType": "move",
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          }
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:56baa7f6-d2eb-4220-940f-7eea9114a35a:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 1,
+        "condition": "no-observations",
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "好，走吧。",
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 1,
+        "condition": "natural-full",
+        "response": {
+          "narration": "点了点头。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "好，走吧。",
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 2,
+        "condition": "no-observations",
+        "response": {
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "actionType": "move"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:f64d4019-2846-412f-9495-a63b6a8562e5:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 2,
+        "condition": "natural-full",
+        "response": {
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "decision": "perform",
+          "actionType": "move"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:3e703f05-1e0b-454d-84b9-a75dbbfd2af4:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "familiar-control",
+        "repeat": 2,
+        "condition": "target-removed",
+        "response": {
+          "narration": "点了点头，准备跟上。",
+          "speech": "好，你带路。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 0,
+        "condition": "natural-full",
+        "response": {
+          "speech": "行，先去隔壁看看。要是没找着，咱们再找工作人员问问。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:bob"
+          ]
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 0,
+        "condition": "target-removed",
+        "response": {
+          "addresseeIds": [
+            "character:bob",
+            "character:player"
+          ],
+          "speech": "行，先去隔壁看看。",
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 0,
+        "condition": "no-observations",
+        "response": {
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "actionType": "move",
+          "decision": "perform"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:1e1e5718-b029-480c-baf0-b160ce0b4c8f:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 1,
+        "condition": "target-removed",
+        "response": {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:bob"
+          ],
+          "speech": "好，先去隔壁看看吧。要是没找对地方，咱们再看指示牌或者找人问问。"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 1,
+        "condition": "no-observations",
+        "response": {
+          "actionType": "move",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "decision": "perform"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:6fe887ff-6837-4c62-b11c-e7d43795b5d7:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 1,
+        "condition": "natural-full",
+        "response": {
+          "speech": "行，先去隔壁看看，要是找不着再去问人。",
+          "addresseeIds": [
+            "character:bob"
+          ],
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 2,
+        "condition": "no-observations",
+        "response": {
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "decision": "perform",
+          "actionType": "move"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:47f5f3c5-6850-4af0-a105-cae3d985fce3:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 2,
+        "condition": "natural-full",
+        "response": {
+          "speech": "好，先去隔壁看看。你查的是最新位置吧？",
+          "addresseeIds": [
+            "character:bob"
+          ],
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "probe": "other-person-control",
+        "repeat": 2,
+        "condition": "target-removed",
+        "response": {
+          "speech": "你查的信息是最新的吗？先过去看看吧，可别又找错地方了。",
+          "addresseeIds": [
+            "character:bob"
+          ],
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      }
+    ],
+    "limits": [
+      "frozen synthetic bank except original formed understanding",
+      "authored history not continuous live play",
+      "new-building/fresh-map/object probes new; familiar stimulus reused",
+      "nonblind exploratory reading",
+      "no runtime schema changes",
+      "no automatic semantic labels",
+      "no attribution to target without matching target-removal difference"
+    ]
+  },
+  "postHocConflictRemoval": {
+    "artifactRoot": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\observation-conflict-choice-20261004-v1",
+    "characterCalls": 9,
+    "returned": 9,
+    "legalOutputs": 9,
+    "newJevCalls": 0,
+    "newUtilityCalls": 0,
+    "nativeModelLabels": {
+      "gemini-3.7-flash-high": 9
+    },
+    "nativeCharacterUsageUnpriced": {
+      "prompt_tokens": 14337,
+      "completion_tokens": 401,
+      "total_tokens": 25086
+    },
+    "latencyMs": {
+      "min": 4201,
+      "median": 7032,
+      "max": 17525
+    },
+    "originalInputsUnchanged": true,
+    "nonmemoryContextIdenticalToPrimary": true,
+    "nativeDecisionsVerified": true,
+    "privateCanaryAbsent": true,
+    "memoryRemovalOnly": true,
+    "outcomes": [
+      {
+        "condition": "natural-full-repeat",
+        "draws": 3,
+        "acceptedMove": 3,
+        "published": 0,
+        "invalidOutput": 0
+      },
+      {
+        "condition": "without-opposed",
+        "draws": 3,
+        "acceptedMove": 0,
+        "published": 3,
+        "invalidOutput": 0
+      },
+      {
+        "condition": "without-opposed-and-target",
+        "draws": 3,
+        "acceptedMove": 1,
+        "published": 2,
+        "invalidOutput": 0
+      }
+    ],
+    "responses": [
+      {
+        "repeat": 0,
+        "condition": "natural-full-repeat",
+        "response": {
+          "decision": "perform",
+          "actionType": "move",
+          "parameters": {
+            "locationId": "location:next"
+          }
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:bdc8fa5c-e434-49b3-98e5-16c5fb0c8bf8:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "repeat": 0,
+        "condition": "without-opposed",
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "你之前查的是最新的指引吗？行，我们先过去看看。"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "repeat": 0,
+        "condition": "without-opposed-and-target",
+        "response": {
+          "speech": "行，先过去看看。要是地方不对，咱们再找工作人员问问。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "repeat": 1,
+        "condition": "without-opposed",
+        "response": {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "好，过去看看。你查的是最新的位置吧？别像上次旅馆那样按旧资料走岔了就行。"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "repeat": 1,
+        "condition": "without-opposed-and-target",
+        "response": {
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "decision": "perform",
+          "actionType": "move"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:2f2ba1e1-b781-4750-8d8a-f9192fc25f5f:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "repeat": 1,
+        "condition": "natural-full-repeat",
+        "response": {
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "decision": "perform",
+          "actionType": "move"
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:1f74bb1c-a30a-40ac-9e09-3a3bcd9e0667:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "repeat": 2,
+        "condition": "without-opposed-and-target",
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "好，先去隔壁看看。希望这次查的位置准，可别又像上次在旅馆那样跑空了。"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      },
+      {
+        "repeat": 2,
+        "condition": "natural-full-repeat",
+        "response": {
+          "decision": "perform",
+          "actionType": "move",
+          "parameters": {
+            "locationId": "location:next"
+          }
+        },
+        "result": {
+          "status": "budget_exhausted",
+          "calls": 1,
+          "performResult": {
+            "operationId": "prototype-turn:2b48829d-2388-4280-be6d-e16214367fe4:0:action",
+            "action": {
+              "actionType": "move",
+              "parameters": {
+                "locationId": "location:next"
+              }
+            },
+            "status": "accepted",
+            "reason": null,
+            "eventRefs": [
+              69
+            ]
+          }
+        },
+        "acceptedMove": true
+      },
+      {
+        "repeat": 2,
+        "condition": "without-opposed",
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "好，先去隔壁看看。你查的指引是最近更新的吧？",
+          "decision": "publish"
+        },
+        "result": {
+          "status": "published",
+          "calls": 1
+        },
+        "acceptedMove": false
+      }
+    ],
+    "limits": [
+      "post-hoc exploratory diagnosis selected after primary results",
+      "removal intervention, not a default conflict resolution",
+      "no new facts/bodies/queries/JEV decisions",
+      "no truth adjudication or forced target",
+      "one initial choice only"
+    ]
+  },
+  "manualExploratoryLabels": [
+    {
+      "stage": "primary",
+      "probe": "new-building",
+      "repeat": 0,
+      "condition": "natural-full",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "new-building",
+      "repeat": 0,
+      "condition": "target-removed",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "new-building",
+      "repeat": 0,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "new-building",
+      "repeat": 1,
+      "condition": "target-removed",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "new-building",
+      "repeat": 1,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "new-building",
+      "repeat": 1,
+      "condition": "natural-full",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "new-building",
+      "repeat": 2,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "new-building",
+      "repeat": 2,
+      "condition": "natural-full",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "new-building",
+      "repeat": 2,
+      "condition": "target-removed",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "fresh-map-control",
+      "repeat": 0,
+      "condition": "natural-full",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "fresh-map-control",
+      "repeat": 0,
+      "condition": "target-removed",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "fresh-map-control",
+      "repeat": 0,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "fresh-map-control",
+      "repeat": 1,
+      "condition": "target-removed",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "fresh-map-control",
+      "repeat": 1,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "fresh-map-control",
+      "repeat": 1,
+      "condition": "natural-full",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "fresh-map-control",
+      "repeat": 2,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "fresh-map-control",
+      "repeat": 2,
+      "condition": "natural-full",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "fresh-map-control",
+      "repeat": 2,
+      "condition": "target-removed",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "familiar-control",
+      "repeat": 0,
+      "condition": "natural-full",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "familiar-control",
+      "repeat": 0,
+      "condition": "target-removed",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "familiar-control",
+      "repeat": 0,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "familiar-control",
+      "repeat": 1,
+      "condition": "target-removed",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "familiar-control",
+      "repeat": 1,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "familiar-control",
+      "repeat": 1,
+      "condition": "natural-full",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "familiar-control",
+      "repeat": 2,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "familiar-control",
+      "repeat": 2,
+      "condition": "natural-full",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "familiar-control",
+      "repeat": 2,
+      "condition": "target-removed",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "other-person-control",
+      "repeat": 0,
+      "condition": "natural-full",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "other-person-control",
+      "repeat": 0,
+      "condition": "target-removed",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "other-person-control",
+      "repeat": 0,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "other-person-control",
+      "repeat": 1,
+      "condition": "target-removed",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "other-person-control",
+      "repeat": 1,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "other-person-control",
+      "repeat": 1,
+      "condition": "natural-full",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "other-person-control",
+      "repeat": 2,
+      "condition": "no-observations",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "other-person-control",
+      "repeat": 2,
+      "condition": "natural-full",
+      "asksInformationFreshness": true,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "primary",
+      "probe": "other-person-control",
+      "repeat": 2,
+      "condition": "target-removed",
+      "asksInformationFreshness": true,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "post-hoc",
+      "repeat": 0,
+      "condition": "natural-full-repeat",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "post-hoc",
+      "repeat": 0,
+      "condition": "without-opposed",
+      "asksInformationFreshness": true,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "post-hoc",
+      "repeat": 0,
+      "condition": "without-opposed-and-target",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "post-hoc",
+      "repeat": 1,
+      "condition": "without-opposed",
+      "asksInformationFreshness": true,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "post-hoc",
+      "repeat": 1,
+      "condition": "without-opposed-and-target",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "post-hoc",
+      "repeat": 1,
+      "condition": "natural-full-repeat",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "post-hoc",
+      "repeat": 2,
+      "condition": "without-opposed-and-target",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "post-hoc",
+      "repeat": 2,
+      "condition": "natural-full-repeat",
+      "asksInformationFreshness": false,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    },
+    {
+      "stage": "post-hoc",
+      "repeat": 2,
+      "condition": "without-opposed",
+      "asksInformationFreshness": true,
+      "method": "nonblind researcher reading; not a keyword classifier"
+    }
+  ],
+  "conclusions": {
+    "naturalTargetReadInTravelerContexts": [
+      9,
+      9
+    ],
+    "targetShortlistInOtherPersonContext": [
+      0,
+      3
+    ],
+    "postHocFreshnessQuestionWithTarget": [
+      3,
+      3
+    ],
+    "postHocFreshnessQuestionWithoutTarget": [
+      0,
+      3
+    ],
+    "independentTargetEffectInPrimary": "not isolated",
+    "longContinuousPlayValidated": false,
+    "conflictRemovalAdoptedAsDefault": false
+  }
+}

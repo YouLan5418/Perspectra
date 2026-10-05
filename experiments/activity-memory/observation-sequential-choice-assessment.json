@@ -1,0 +1,1715 @@
+{
+  "audit": {
+    "artifactRoot": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\observation-sequential-choice-20261005-v3",
+    "episodes": 12,
+    "activations": 34,
+    "characterCalls": 39,
+    "returned": 39,
+    "failedActivations": 1,
+    "newJevCalls": 0,
+    "newUtilityCalls": 0,
+    "nativeModelLabels": {
+      "gemini-3.7-flash-high": 39
+    },
+    "nativeCharacterUsageUnpriced": {
+      "prompt_tokens": 79791,
+      "completion_tokens": 1813,
+      "total_tokens": 107779
+    },
+    "latencyMs": {
+      "min": 3293,
+      "median": 4605,
+      "max": 8480
+    },
+    "sourceRowsAcrossEpisodeCopiesChecked": 737,
+    "originalInputsUnchanged": true,
+    "committedEventTraceExact": true,
+    "initialNonmemoryContextIdentical": true,
+    "laterContextsAllowedToDiverge": true,
+    "nativeDecisionsVerified": true,
+    "privateCanaryAbsent": true,
+    "speechSourcesRemainReportedSpeech": true,
+    "thirdStageLongTermReadingEmpty": true,
+    "outcomes": [
+      {
+        "episode": "fresh-0-full",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 0,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-0-full",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-0-full",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-0-without-opposed",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-0-without-opposed",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 1,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-0-without-opposed",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-0-atom-only",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-0-atom-only",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 1,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-0-atom-only",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-0-full",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-0-full",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-0-full",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-0-without-opposed",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-0-without-opposed",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-0-without-opposed",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-0-atom-only",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-0-atom-only",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-0-atom-only",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-1-without-opposed",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "without-opposed",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-1-without-opposed",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "without-opposed",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-1-without-opposed",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "without-opposed",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-1-atom-only",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 0,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-1-atom-only",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-1-atom-only",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-1-full",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-1-full",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "old-1-full",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-1-without-opposed",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "without-opposed",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "failed",
+        "failure": "invalid_output"
+      },
+      {
+        "episode": "fresh-1-atom-only",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-1-atom-only",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-1-atom-only",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-1-full",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-1-full",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 1,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null
+      },
+      {
+        "episode": "fresh-1-full",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null
+      }
+    ],
+    "responses": [
+      {
+        "episode": "fresh-0-full",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 0,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 0,
+        "continuation": false,
+        "response": {
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "actionType": "move"
+        }
+      },
+      {
+        "episode": "fresh-0-full",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 0,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 1,
+        "continuation": true,
+        "response": {
+          "narration": "走进隔壁小屋，打量屋里的陈设，看看登记材料放在哪里。",
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "fresh-0-full",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null,
+        "callIndex": 2,
+        "continuation": false,
+        "response": {
+          "speech": "好，那应该没错，我们找找登记材料放在哪儿。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      },
+      {
+        "episode": "fresh-0-full",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null,
+        "callIndex": 3,
+        "continuation": false,
+        "response": {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "我在这屋里找找，看看登记材料放在哪张桌上或者架子上。"
+        }
+      },
+      {
+        "episode": "fresh-0-without-opposed",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 0,
+        "continuation": false,
+        "response": {
+          "speech": "好，先过去看看。不过你查的指引是最新的吗？",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      },
+      {
+        "episode": "fresh-0-without-opposed",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 1,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 1,
+        "continuation": false,
+        "response": {
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "decision": "perform",
+          "actionType": "move"
+        }
+      },
+      {
+        "episode": "fresh-0-without-opposed",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 1,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 2,
+        "continuation": true,
+        "response": {
+          "decision": "publish",
+          "speech": "那就好，既然是今天最新的指引，应该没问题，我们进去看看吧。"
+        }
+      },
+      {
+        "episode": "fresh-0-without-opposed",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null,
+        "callIndex": 3,
+        "continuation": false,
+        "response": {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "我先看看这屋里的指示牌和窗口，你慢慢理，不着急。"
+        }
+      },
+      {
+        "episode": "fresh-0-atom-only",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 0,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "好，先过去看看吧。"
+        }
+      },
+      {
+        "episode": "fresh-0-atom-only",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 1,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 1,
+        "continuation": false,
+        "response": {
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "actionType": "move"
+        }
+      },
+      {
+        "episode": "fresh-0-atom-only",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 1,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 2,
+        "continuation": true,
+        "response": {
+          "narration": "打量了一下周围。",
+          "decision": "publish",
+          "speech": "嗯，到了，看看里面什么情况。"
+        }
+      },
+      {
+        "episode": "fresh-0-atom-only",
+        "reply": "fresh",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null,
+        "callIndex": 3,
+        "continuation": false,
+        "response": {
+          "speech": "你先整理着，我看看这边的办事流程和告示。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "old-0-full",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 0,
+        "continuation": false,
+        "response": {
+          "speech": "行，那就先去隔壁看看。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "old-0-full",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 1,
+        "continuation": false,
+        "response": {
+          "decision": "publish",
+          "speech": "好，那先去隔壁看一眼，要是对不上再找人问问。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      },
+      {
+        "episode": "old-0-full",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "full",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 2,
+        "continuation": false,
+        "response": {
+          "decision": "publish",
+          "speech": "你先整理着，弄好了咱们就一起过去。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      },
+      {
+        "episode": "old-0-without-opposed",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 0,
+        "continuation": false,
+        "response": {
+          "decision": "publish",
+          "speech": "你查的是最新的指引吗？头一回来，可别像上次旅馆那样照着旧材料找跑空了。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      },
+      {
+        "episode": "old-0-without-opposed",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 1,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "去年的介绍多半不准了。既然没核实，不如先看看门口的指示牌或者问问工作人员，免得又白跑一趟。",
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "old-0-without-opposed",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "without-opposed",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 2,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "你先理着，我去门口看一眼楼层指示图，问问值班的人，等你理完正好过去。"
+        }
+      },
+      {
+        "episode": "old-0-atom-only",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 0,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "好，先去隔壁看看。"
+        }
+      },
+      {
+        "episode": "old-0-atom-only",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 1,
+        "continuation": false,
+        "response": {
+          "decision": "publish",
+          "speech": "行，先过去看看，要是改了地方我们再找人问问。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      },
+      {
+        "episode": "old-0-atom-only",
+        "reply": "old",
+        "repeat": 0,
+        "condition": "atom-only",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 2,
+        "continuation": false,
+        "response": {
+          "speech": "你先整理，弄好了我们一起去隔壁。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "old-1-without-opposed",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "without-opposed",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 0,
+        "continuation": false,
+        "response": {
+          "speech": "行，先过去看看。要是没找着，咱们再找这儿的人问问。",
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      },
+      {
+        "episode": "old-1-without-opposed",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "without-opposed",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 1,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "去年的信息说不定有变动，先过去瞧瞧，要是没有咱们就找人问问。",
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "old-1-without-opposed",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "without-opposed",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 2,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "你先整理，我不着急，等你弄好了咱们再一起过去。"
+        }
+      },
+      {
+        "episode": "old-1-atom-only",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 0,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 0,
+        "continuation": false,
+        "response": {
+          "actionType": "move",
+          "parameters": {
+            "locationId": "location:next"
+          },
+          "decision": "perform"
+        }
+      },
+      {
+        "episode": "old-1-atom-only",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 0,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 1,
+        "continuation": true,
+        "response": {
+          "narration": "来到隔壁屋里，打量了一下四周的环境。",
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "old-1-atom-only",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null,
+        "callIndex": 2,
+        "continuation": false,
+        "response": {
+          "decision": "publish",
+          "speech": "没事，反正都过来了，先看看吧。要是不对再找人问问。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      },
+      {
+        "episode": "old-1-atom-only",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null,
+        "callIndex": 3,
+        "continuation": false,
+        "response": {
+          "decision": "publish",
+          "speech": "你先理着，我在这屋里转转，看看有没有窗口或者指示牌。",
+          "addresseeIds": [
+            "character:player"
+          ]
+        }
+      },
+      {
+        "episode": "old-1-full",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 0,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "好，先去隔壁看看。不过你之前查的是最新位置吧？",
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "old-1-full",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 1,
+        "continuation": false,
+        "response": {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "行，先过去看看吧。要是地方换了，我们再找人问问。"
+        }
+      },
+      {
+        "episode": "old-1-full",
+        "reply": "old",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 2,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "你先整理，我等你弄好一起过去。"
+        }
+      },
+      {
+        "episode": "fresh-1-without-opposed",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "without-opposed",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "failed",
+        "failure": "invalid_output",
+        "callIndex": 0,
+        "continuation": false,
+        "response": "```json\n{\n  \"addresseeIds\": [\n    \"character:player\"\n  ],\n  \"decision\": \"publish\",\n  \"speech\": \"行，先过去看看。你之前查的是最新的通知吧？\"\n}\n```"
+      },
+      {
+        "episode": "fresh-1-atom-only",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 0,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish",
+          "speech": "好，先去隔壁看看。"
+        }
+      },
+      {
+        "episode": "fresh-1-atom-only",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 1,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 1,
+        "continuation": false,
+        "response": {
+          "speech": "行，既然是今天最新的指引，那肯定稳妥，我们走吧。",
+          "addresseeIds": [
+            "character:player"
+          ],
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "fresh-1-atom-only",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "atom-only",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 2,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "你先整理，我在这儿等你弄好，咱们再一起去隔壁。",
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "fresh-1-full",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 0,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "speech": "好，先去隔壁看看。",
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "fresh-1-full",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 1,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 1,
+        "continuation": false,
+        "response": {
+          "actionType": "move",
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:next"
+          }
+        }
+      },
+      {
+        "episode": "fresh-1-full",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 1,
+        "calls": 2,
+        "acceptedMove": 1,
+        "alreadyMovedBeforeStage": false,
+        "status": "published",
+        "failure": null,
+        "callIndex": 2,
+        "continuation": true,
+        "response": {
+          "speech": "知道了，我已经过来了，正好看看里面情况。",
+          "narration": "打量了一下隔壁小屋周围。",
+          "decision": "publish"
+        }
+      },
+      {
+        "episode": "fresh-1-full",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "full",
+        "stage": 2,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": true,
+        "status": "published",
+        "failure": null,
+        "callIndex": 3,
+        "continuation": false,
+        "response": {
+          "addresseeIds": [
+            "character:player"
+          ],
+          "narration": "找了个不妨碍人的地方站着，打量着屋里的陈设。",
+          "speech": "你先整理，我在这儿等会儿，顺便看看周围的告示。",
+          "decision": "publish"
+        }
+      }
+    ],
+    "failures": [
+      {
+        "episode": "fresh-1-without-opposed",
+        "reply": "fresh",
+        "repeat": 1,
+        "condition": "without-opposed",
+        "stage": 0,
+        "calls": 1,
+        "acceptedMove": 0,
+        "alreadyMovedBeforeStage": false,
+        "status": "failed",
+        "failure": "invalid_output",
+        "response": "```json\n{\n  \"addresseeIds\": [\n    \"character:player\"\n  ],\n  \"decision\": \"publish\",\n  \"speech\": \"行，先过去看看。你之前查的是最新的通知吧？\"\n}\n```"
+      }
+    ],
+    "limits": [
+      "12 short scripted-input episodes, not autonomous player or long play",
+      "no fresh retrieval/JEV on later stages",
+      "no newly generated or revised Observation",
+      "removal interventions remain experimental; do not elect conflict truth",
+      "retained self speech is evidence of speaking, not a new belief",
+      "two repeats per cell; nonblind exploratory semantic reading"
+    ]
+  },
+  "manualExploratoryLabels": [
+    {
+      "episode": "fresh-0-full",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-0-full",
+      "stage": 0,
+      "callIndex": 1,
+      "continuation": true,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-0-full",
+      "stage": 1,
+      "callIndex": 2,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-0-full",
+      "stage": 2,
+      "callIndex": 3,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-0-without-opposed",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": true,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-0-without-opposed",
+      "stage": 1,
+      "callIndex": 1,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-0-without-opposed",
+      "stage": 1,
+      "callIndex": 2,
+      "continuation": true,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-0-without-opposed",
+      "stage": 2,
+      "callIndex": 3,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-0-atom-only",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-0-atom-only",
+      "stage": 1,
+      "callIndex": 1,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-0-atom-only",
+      "stage": 1,
+      "callIndex": 2,
+      "continuation": true,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-0-atom-only",
+      "stage": 2,
+      "callIndex": 3,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-0-full",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-0-full",
+      "stage": 1,
+      "callIndex": 1,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-0-full",
+      "stage": 2,
+      "callIndex": 2,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-0-without-opposed",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": true,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-0-without-opposed",
+      "stage": 1,
+      "callIndex": 1,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": true,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-0-without-opposed",
+      "stage": 2,
+      "callIndex": 2,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": true,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-0-atom-only",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-0-atom-only",
+      "stage": 1,
+      "callIndex": 1,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-0-atom-only",
+      "stage": 2,
+      "callIndex": 2,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-1-without-opposed",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-1-without-opposed",
+      "stage": 1,
+      "callIndex": 1,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-1-without-opposed",
+      "stage": 2,
+      "callIndex": 2,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-1-atom-only",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-1-atom-only",
+      "stage": 0,
+      "callIndex": 1,
+      "continuation": true,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-1-atom-only",
+      "stage": 1,
+      "callIndex": 2,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-1-atom-only",
+      "stage": 2,
+      "callIndex": 3,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-1-full",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": true,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-1-full",
+      "stage": 1,
+      "callIndex": 1,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "old-1-full",
+      "stage": 2,
+      "callIndex": 2,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-1-without-opposed",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": false,
+      "asksInformationFreshness": null,
+      "explicitPriorVerificationPlan": null,
+      "carriesPriorVerificationPlanWithoutLongTermReading": null,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-1-atom-only",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-1-atom-only",
+      "stage": 1,
+      "callIndex": 1,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-1-atom-only",
+      "stage": 2,
+      "callIndex": 2,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-1-full",
+      "stage": 0,
+      "callIndex": 0,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-1-full",
+      "stage": 1,
+      "callIndex": 1,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-1-full",
+      "stage": 1,
+      "callIndex": 2,
+      "continuation": true,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    },
+    {
+      "episode": "fresh-1-full",
+      "stage": 2,
+      "callIndex": 3,
+      "continuation": false,
+      "validResponse": true,
+      "asksInformationFreshness": false,
+      "explicitPriorVerificationPlan": false,
+      "carriesPriorVerificationPlanWithoutLongTermReading": false,
+      "method": "nonblind manual reading; plan is not executed verification"
+    }
+  ],
+  "conclusions": {
+    "stableQuestionEffectValidated": false,
+    "oneVerificationPlanChainObserved": true,
+    "verificationActionActuallyExecuted": false,
+    "newObservationGenerated": false,
+    "laterNaturalRetrievalTested": false,
+    "longContinuousPlayValidated": false
+  },
+  "tests": {
+    "typecheck": "passed",
+    "oxlint": "passed",
+    "relatedVitestTests": 29,
+    "fullSuiteRun": false
+  }
+}

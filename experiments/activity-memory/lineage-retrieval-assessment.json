@@ -1,0 +1,1714 @@
+{
+  "artifactRoot": ".tmp\\observation-lineage-retrieval-20261004-v1",
+  "stages": [
+    {
+      "stage": "A-current",
+      "calls": 15,
+      "sent": 96,
+      "targetPositiveSent": 6,
+      "targetPositiveRelated": 6,
+      "targetPositiveRead": 6,
+      "targetNegativeRelated": 0,
+      "targetNegativeRead": 0,
+      "navigationBothBranchesRead": 3,
+      "requiredCount": 27,
+      "requiredAdmissionMisses": 6,
+      "requiredReadMisses": 6,
+      "irrelevantRelated": 6,
+      "irrelevantRead": 6,
+      "inputTokens": 56706,
+      "outputTokens": 4095,
+      "costUsd": 0.002381652,
+      "medianLatencyMs": 765.0056999991648
+    },
+    {
+      "stage": "B-continuity",
+      "calls": 15,
+      "sent": 96,
+      "targetPositiveSent": 9,
+      "targetPositiveRelated": 9,
+      "targetPositiveRead": 9,
+      "targetNegativeRelated": 0,
+      "targetNegativeRead": 0,
+      "navigationBothBranchesRead": 3,
+      "requiredCount": 27,
+      "requiredAdmissionMisses": 3,
+      "requiredReadMisses": 4,
+      "irrelevantRelated": 6,
+      "irrelevantRead": 6,
+      "inputTokens": 57087,
+      "outputTokens": 4093,
+      "costUsd": 0.002397654,
+      "medianLatencyMs": 786.1240000056569
+    },
+    {
+      "stage": "C-scenarios",
+      "calls": 15,
+      "sent": 96,
+      "targetPositiveSent": 9,
+      "targetPositiveRelated": 9,
+      "targetPositiveRead": 9,
+      "targetNegativeRelated": 0,
+      "targetNegativeRead": 0,
+      "navigationBothBranchesRead": 3,
+      "requiredCount": 27,
+      "requiredAdmissionMisses": 3,
+      "requiredReadMisses": 6,
+      "irrelevantRelated": 8,
+      "irrelevantRead": 8,
+      "inputTokens": 56970,
+      "outputTokens": 4085,
+      "costUsd": 0.00239274,
+      "medianLatencyMs": 784.1899000050034
+    },
+    {
+      "stage": "D-families",
+      "calls": 15,
+      "sent": 96,
+      "targetPositiveSent": 9,
+      "targetPositiveRelated": 9,
+      "targetPositiveRead": 9,
+      "targetNegativeRelated": 0,
+      "targetNegativeRead": 0,
+      "navigationBothBranchesRead": 6,
+      "requiredCount": 27,
+      "requiredAdmissionMisses": 0,
+      "requiredReadMisses": 3,
+      "irrelevantRelated": 8,
+      "irrelevantRead": 8,
+      "inputTokens": 56958,
+      "outputTokens": 4079,
+      "costUsd": 0.002392236,
+      "medianLatencyMs": 766.439500002889
+    }
+  ],
+  "perDraw": [
+    {
+      "probe": "new-task",
+      "stage": "C-scenarios",
+      "repeat": 0,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4182,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000175644,
+      "latencyMs": 1026.0574000130873
+    },
+    {
+      "probe": "new-task",
+      "stage": "D-families",
+      "repeat": 0,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4182,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000175644,
+      "latencyMs": 773.6835999821778
+    },
+    {
+      "probe": "new-task",
+      "stage": "A-current",
+      "repeat": 0,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4175,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.00017535,
+      "latencyMs": 785.8061000006273
+    },
+    {
+      "probe": "new-task",
+      "stage": "B-continuity",
+      "repeat": 0,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4177,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000175434,
+      "latencyMs": 778.9633999927901
+    },
+    {
+      "probe": "new-stop",
+      "stage": "C-scenarios",
+      "repeat": 0,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [
+        "bank:10"
+      ],
+      "requiredAdmissionMisses": [
+        "bank:10"
+      ],
+      "requiredReadMisses": [
+        "bank:09",
+        "bank:10"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": false,
+      "inputTokens": 4211,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000176862,
+      "latencyMs": 782.8147999825887
+    },
+    {
+      "probe": "new-stop",
+      "stage": "D-families",
+      "repeat": 0,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [
+        "bank:09"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4207,
+      "outputTokens": 294,
+      "sentCount": 7,
+      "costUsd": 0.000176694,
+      "latencyMs": 768.8459999917541
+    },
+    {
+      "probe": "new-stop",
+      "stage": "A-current",
+      "repeat": 0,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredAdmissionMisses": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredReadMisses": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4088,
+      "outputTokens": 298,
+      "sentCount": 7,
+      "costUsd": 0.000171696,
+      "latencyMs": 781.7922999965958
+    },
+    {
+      "probe": "new-stop",
+      "stage": "B-continuity",
+      "repeat": 0,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [
+        "bank:10"
+      ],
+      "requiredAdmissionMisses": [
+        "bank:10"
+      ],
+      "requiredReadMisses": [
+        "bank:10"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": false,
+      "inputTokens": 4211,
+      "outputTokens": 298,
+      "sentCount": 7,
+      "costUsd": 0.000176862,
+      "latencyMs": 900.4644000087865
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "C-scenarios",
+      "repeat": 0,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:10"
+      ],
+      "irrelevantRead": [
+        "bank:10"
+      ],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4164,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000174888,
+      "latencyMs": 784.1899000050034
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "D-families",
+      "repeat": 0,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:10"
+      ],
+      "irrelevantRead": [
+        "bank:10"
+      ],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4164,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000174888,
+      "latencyMs": 837.4915000167675
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "A-current",
+      "repeat": 0,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:10"
+      ],
+      "irrelevantRead": [
+        "bank:10"
+      ],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4190,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.00017598,
+      "latencyMs": 823.2905000040773
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "B-continuity",
+      "repeat": 0,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:10"
+      ],
+      "irrelevantRead": [
+        "bank:10"
+      ],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4192,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000176064,
+      "latencyMs": 786.1240000056569
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "C-scenarios",
+      "repeat": 0,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4029,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000169218,
+      "latencyMs": 772.0331999880727
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "D-families",
+      "repeat": 0,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4029,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000169218,
+      "latencyMs": 674.9348000157624
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "A-current",
+      "repeat": 0,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4045,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.00016989,
+      "latencyMs": 706.3998999947216
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "B-continuity",
+      "repeat": 0,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4045,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.00016989,
+      "latencyMs": 793.601800018223
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "C-scenarios",
+      "repeat": 0,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 171,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 705.4831999994349
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "D-families",
+      "repeat": 0,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:18"
+      ],
+      "irrelevantRead": [
+        "bank:18"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 169,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 671.1431999865454
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "A-current",
+      "repeat": 0,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 171,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 616.1988999811001
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "B-continuity",
+      "repeat": 0,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 171,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 669.7309000010137
+    },
+    {
+      "probe": "new-task",
+      "stage": "A-current",
+      "repeat": 1,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4175,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.00017535,
+      "latencyMs": 763.1692000140902
+    },
+    {
+      "probe": "new-task",
+      "stage": "B-continuity",
+      "repeat": 1,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4177,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000175434,
+      "latencyMs": 950.5630000203382
+    },
+    {
+      "probe": "new-task",
+      "stage": "D-families",
+      "repeat": 1,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4182,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000175644,
+      "latencyMs": 785.4296000150498
+    },
+    {
+      "probe": "new-task",
+      "stage": "C-scenarios",
+      "repeat": 1,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4182,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000175644,
+      "latencyMs": 791.7256999935489
+    },
+    {
+      "probe": "new-stop",
+      "stage": "A-current",
+      "repeat": 1,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredAdmissionMisses": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredReadMisses": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4088,
+      "outputTokens": 298,
+      "sentCount": 7,
+      "costUsd": 0.000171696,
+      "latencyMs": 831.4787999843247
+    },
+    {
+      "probe": "new-stop",
+      "stage": "B-continuity",
+      "repeat": 1,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [
+        "bank:10"
+      ],
+      "requiredAdmissionMisses": [
+        "bank:10"
+      ],
+      "requiredReadMisses": [
+        "bank:10"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": false,
+      "inputTokens": 4211,
+      "outputTokens": 298,
+      "sentCount": 7,
+      "costUsd": 0.000176862,
+      "latencyMs": 1019.3390999920666
+    },
+    {
+      "probe": "new-stop",
+      "stage": "D-families",
+      "repeat": 1,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [
+        "bank:09"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4207,
+      "outputTokens": 294,
+      "sentCount": 7,
+      "costUsd": 0.000176694,
+      "latencyMs": 783.6725999950431
+    },
+    {
+      "probe": "new-stop",
+      "stage": "C-scenarios",
+      "repeat": 1,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [
+        "bank:10"
+      ],
+      "requiredAdmissionMisses": [
+        "bank:10"
+      ],
+      "requiredReadMisses": [
+        "bank:09",
+        "bank:10"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": false,
+      "inputTokens": 4211,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000176862,
+      "latencyMs": 762.454700015951
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "A-current",
+      "repeat": 1,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": false,
+      "inputTokens": 4190,
+      "outputTokens": 298,
+      "sentCount": 7,
+      "costUsd": 0.00017598,
+      "latencyMs": 778.685500001302
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "B-continuity",
+      "repeat": 1,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:10"
+      ],
+      "irrelevantRead": [
+        "bank:10"
+      ],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4192,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000176064,
+      "latencyMs": 827.8095000132453
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "D-families",
+      "repeat": 1,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:10"
+      ],
+      "irrelevantRead": [
+        "bank:10"
+      ],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4164,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000174888,
+      "latencyMs": 778.6269999924116
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "C-scenarios",
+      "repeat": 1,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:10"
+      ],
+      "irrelevantRead": [
+        "bank:10"
+      ],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4164,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000174888,
+      "latencyMs": 835.9167000162415
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "A-current",
+      "repeat": 1,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4045,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.00016989,
+      "latencyMs": 731.8021999963094
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "B-continuity",
+      "repeat": 1,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4045,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.00016989,
+      "latencyMs": 796.875900006853
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "D-families",
+      "repeat": 1,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4029,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000169218,
+      "latencyMs": 744.0371999982744
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "C-scenarios",
+      "repeat": 1,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4029,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000169218,
+      "latencyMs": 806.5724000043701
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "A-current",
+      "repeat": 1,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:18"
+      ],
+      "irrelevantRead": [
+        "bank:18"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 169,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 725.6000000052154
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "B-continuity",
+      "repeat": 1,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 171,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 710.8267000003252
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "D-families",
+      "repeat": 1,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 171,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 644.9350999901071
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "C-scenarios",
+      "repeat": 1,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:18"
+      ],
+      "irrelevantRead": [
+        "bank:18"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 169,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 808.3051999856252
+    },
+    {
+      "probe": "new-task",
+      "stage": "C-scenarios",
+      "repeat": 2,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4182,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000175644,
+      "latencyMs": 827.7262999908999
+    },
+    {
+      "probe": "new-task",
+      "stage": "B-continuity",
+      "repeat": 2,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4177,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000175434,
+      "latencyMs": 761.5807999973185
+    },
+    {
+      "probe": "new-task",
+      "stage": "A-current",
+      "repeat": 2,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4175,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.00017535,
+      "latencyMs": 764.7676999913529
+    },
+    {
+      "probe": "new-task",
+      "stage": "D-families",
+      "repeat": 2,
+      "required": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4182,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000175644,
+      "latencyMs": 756.4015999960247
+    },
+    {
+      "probe": "new-stop",
+      "stage": "C-scenarios",
+      "repeat": 2,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [
+        "bank:10"
+      ],
+      "requiredAdmissionMisses": [
+        "bank:10"
+      ],
+      "requiredReadMisses": [
+        "bank:09",
+        "bank:10"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": false,
+      "inputTokens": 4211,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000176862,
+      "latencyMs": 765.0102000043262
+    },
+    {
+      "probe": "new-stop",
+      "stage": "B-continuity",
+      "repeat": 2,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [
+        "bank:10"
+      ],
+      "requiredAdmissionMisses": [
+        "bank:10"
+      ],
+      "requiredReadMisses": [
+        "bank:09",
+        "bank:10"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": false,
+      "inputTokens": 4211,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000176862,
+      "latencyMs": 784.1059000056703
+    },
+    {
+      "probe": "new-stop",
+      "stage": "A-current",
+      "repeat": 2,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredAdmissionMisses": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredReadMisses": [
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4088,
+      "outputTokens": 298,
+      "sentCount": 7,
+      "costUsd": 0.000171696,
+      "latencyMs": 831.656499998644
+    },
+    {
+      "probe": "new-stop",
+      "stage": "D-families",
+      "repeat": 2,
+      "required": [
+        "bank:09",
+        "bank:10",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [
+        "bank:09"
+      ],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4207,
+      "outputTokens": 294,
+      "sentCount": 7,
+      "costUsd": 0.000176694,
+      "latencyMs": 766.439500002889
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "C-scenarios",
+      "repeat": 2,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:10"
+      ],
+      "irrelevantRead": [
+        "bank:10"
+      ],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4164,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000174888,
+      "latencyMs": 823.5801000264473
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "B-continuity",
+      "repeat": 2,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:10"
+      ],
+      "irrelevantRead": [
+        "bank:10"
+      ],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4192,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000176064,
+      "latencyMs": 870.5836000153795
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "A-current",
+      "repeat": 2,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:10"
+      ],
+      "irrelevantRead": [
+        "bank:10"
+      ],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4190,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.00017598,
+      "latencyMs": 919.2302000010386
+    },
+    {
+      "probe": "familiar-control",
+      "stage": "D-families",
+      "repeat": 2,
+      "required": [
+        "bank:05",
+        "family:traveler-navigation:revision:20:1"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:10"
+      ],
+      "irrelevantRead": [
+        "bank:10"
+      ],
+      "targetSent": true,
+      "targetRelated": true,
+      "targetRead": true,
+      "conflictBothRead": true,
+      "inputTokens": 4164,
+      "outputTokens": 296,
+      "sentCount": 7,
+      "costUsd": 0.000174888,
+      "latencyMs": 774.3695999961346
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "C-scenarios",
+      "repeat": 2,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4029,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000169218,
+      "latencyMs": 778.3304000040516
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "B-continuity",
+      "repeat": 2,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4045,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.00016989,
+      "latencyMs": 726.2915000028443
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "A-current",
+      "repeat": 2,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4045,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.00016989,
+      "latencyMs": 753.7903999909759
+    },
+    {
+      "probe": "same-person-unrelated",
+      "stage": "D-families",
+      "repeat": 2,
+      "required": [],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:15"
+      ],
+      "irrelevantRead": [
+        "bank:15"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 4029,
+      "outputTokens": 300,
+      "sentCount": 7,
+      "costUsd": 0.000169218,
+      "latencyMs": 762.050299992552
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "C-scenarios",
+      "repeat": 2,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:18"
+      ],
+      "irrelevantRead": [
+        "bank:18"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 169,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 674.8014999902807
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "B-continuity",
+      "repeat": 2,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 171,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 738.8407999824267
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "A-current",
+      "repeat": 2,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [],
+      "irrelevantRead": [],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 171,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 765.0056999991648
+    },
+    {
+      "probe": "other-person-navigation",
+      "stage": "D-families",
+      "repeat": 2,
+      "required": [
+        "bank:03",
+        "bank:08"
+      ],
+      "requiredShortlistMisses": [],
+      "requiredAdmissionMisses": [],
+      "requiredReadMisses": [],
+      "irrelevantRelated": [
+        "bank:18"
+      ],
+      "irrelevantRead": [
+        "bank:18"
+      ],
+      "targetSent": false,
+      "targetRelated": false,
+      "targetRead": false,
+      "conflictBothRead": false,
+      "inputTokens": 2404,
+      "outputTokens": 169,
+      "sentCount": 4,
+      "costUsd": 0.000100968,
+      "latencyMs": 643.8227000180632
+    }
+  ],
+  "history": [
+    {
+      "repeat": 0,
+      "oldSent": true,
+      "oldRelated": true,
+      "oldRead": true,
+      "currentRead": true,
+      "opposedBranchRead": true
+    },
+    {
+      "repeat": 1,
+      "oldSent": true,
+      "oldRelated": true,
+      "oldRead": true,
+      "currentRead": true,
+      "opposedBranchRead": true
+    },
+    {
+      "repeat": 2,
+      "oldSent": true,
+      "oldRelated": true,
+      "oldRead": true,
+      "currentRead": true,
+      "opposedBranchRead": true
+    }
+  ],
+  "frozenInputsUnchanged": true,
+  "allCanonicalBodiesAndEvidenceUnchanged": true,
+  "calls": {
+    "gemini": 5,
+    "jev": 63
+  },
+  "jevInputTokens": 240525,
+  "jevOutputTokens": 17228,
+  "jevCostUsd": 0.01010205,
+  "identicalRequestChoiceFlips": [
+    {
+      "requestHash": "7b6c7fd062dbbc80f53530872e46aa7dcfa9d94a3f86ab5455d4e7f368e77ae0",
+      "memoryId": "bank:16",
+      "choices": [
+        "UNRELATED",
+        "UNRELATED",
+        "RELATED"
+      ]
+    },
+    {
+      "requestHash": "03bf5ba8aea1b242a62312c2f8ef5cd55804115c9ab8a181c9ed441be5a939a7",
+      "memoryId": "bank:10",
+      "choices": [
+        "RELATED",
+        "UNRELATED",
+        "RELATED"
+      ]
+    },
+    {
+      "requestHash": "01e63603cd9ea52f491a53a8688466bf51244964fda5ac07f6acb53befa93da3",
+      "memoryId": "bank:18",
+      "choices": [
+        "UNRELATED",
+        "RELATED",
+        "UNRELATED",
+        "RELATED",
+        "RELATED",
+        "RELATED"
+      ]
+    },
+    {
+      "requestHash": "c9a52b340de96d37e52c3ec5481f2073769cda3bcb9ea69cc7ef3956df48cb2f",
+      "memoryId": "bank:18",
+      "choices": [
+        "UNRELATED",
+        "UNRELATED",
+        "RELATED",
+        "UNRELATED",
+        "UNRELATED",
+        "UNRELATED"
+      ]
+    }
+  ],
+  "limits": [
+    "five frozen probes, nonblind exploratory labels, no generalization",
+    "family identity controlled, not discovered",
+    "C changes scenarios and lexical TF; binary-only cheap diagnostic separately saved",
+    "existing strict counterevidence Delivery unchanged; bank branches have empty counterAtom lists",
+    "historical query mode explicit; no Character Turns or temporal-understanding test"
+  ]
+}

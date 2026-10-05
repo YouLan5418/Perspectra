@@ -1,0 +1,95 @@
+{
+  "audited": true,
+  "trials": 3,
+  "calls": 9,
+  "reads": 3,
+  "sourceRowsAllCharacters": 45,
+  "sameTransaction": true,
+  "nativeDecisionsMatch": true,
+  "authorizedSourceMapping": true,
+  "privateIsolation": true,
+  "initialContextIdentical": true,
+  "originalUnchanged": true,
+  "requestedModel": "gemini-3.7-flash",
+  "returnedModels": {
+    "gemini-3.7-flash-high": 9
+  },
+  "usage": {
+    "prompt_tokens": 24854,
+    "completion_tokens": 653,
+    "total_tokens": 30641
+  },
+  "medianLatencyMs": 4241,
+  "maximumLatencyMs": 5324,
+  "results": [
+    {
+      "repeat": 0,
+      "calls": 3,
+      "reads": 1,
+      "readSeqs": [
+        23
+      ],
+      "continuation": {
+        "speech": "先别去隔壁了，我刚看了下大厅的公告牌，上面写着登记处在二楼203。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "narration": "指了指旁边的公告牌。"
+      },
+      "nextTurn": {
+        "narration": "看着旅人手里的表格，语气自然。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "直接上二楼找203吧。你慢慢整理，弄好了我们一起上去。"
+      }
+    },
+    {
+      "repeat": 1,
+      "calls": 3,
+      "reads": 1,
+      "readSeqs": [
+        23
+      ],
+      "continuation": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "speech": "先别去隔壁了，你看大厅公告牌上写着呢，登记处在二楼203。"
+      },
+      "nextTurn": {
+        "speech": "直接去二楼203吧。公告牌上写得清清楚楚，登记处在那边，你先慢慢整理表，弄好了我们一起上楼。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      }
+    },
+    {
+      "repeat": 2,
+      "calls": 3,
+      "reads": 1,
+      "readSeqs": [
+        23
+      ],
+      "continuation": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "先别去隔壁小屋啦，我刚看了一眼公告牌，上面写着登记处在二楼203。",
+        "narration": "指了指一旁的公告牌。",
+        "decision": "publish"
+      },
+      "nextTurn": {
+        "speech": "直接上二楼去203吧，刚才公告牌上写着登记处在二楼，别去隔壁小屋白跑一趟了。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      }
+    }
+  ]
+}

@@ -1,0 +1,282 @@
+{
+  "artifactRoot": ".tmp\\delivery-groups-20261004-v2",
+  "summaries": [
+    {
+      "stage": "A-current",
+      "mode": "related_probability",
+      "requiredReadMisses": 6,
+      "irrelevantRead": 4,
+      "targetPositiveRead": 6,
+      "navigationBothRead": 3
+    },
+    {
+      "stage": "A-current",
+      "mode": "history_pairs",
+      "requiredReadMisses": 6,
+      "irrelevantRead": 4,
+      "targetPositiveRead": 6,
+      "navigationBothRead": 3
+    },
+    {
+      "stage": "A-current",
+      "mode": "history_and_conflict",
+      "requiredReadMisses": 8,
+      "irrelevantRead": 6,
+      "targetPositiveRead": 6,
+      "navigationBothRead": 3
+    },
+    {
+      "stage": "B-continuity",
+      "mode": "related_probability",
+      "requiredReadMisses": 3,
+      "irrelevantRead": 3,
+      "targetPositiveRead": 9,
+      "navigationBothRead": 3
+    },
+    {
+      "stage": "B-continuity",
+      "mode": "history_pairs",
+      "requiredReadMisses": 3,
+      "irrelevantRead": 3,
+      "targetPositiveRead": 9,
+      "navigationBothRead": 3
+    },
+    {
+      "stage": "B-continuity",
+      "mode": "history_and_conflict",
+      "requiredReadMisses": 6,
+      "irrelevantRead": 6,
+      "targetPositiveRead": 9,
+      "navigationBothRead": 3
+    },
+    {
+      "stage": "C-scenarios",
+      "mode": "related_probability",
+      "requiredReadMisses": 3,
+      "irrelevantRead": 5,
+      "targetPositiveRead": 9,
+      "navigationBothRead": 3
+    },
+    {
+      "stage": "C-scenarios",
+      "mode": "history_pairs",
+      "requiredReadMisses": 3,
+      "irrelevantRead": 5,
+      "targetPositiveRead": 9,
+      "navigationBothRead": 3
+    },
+    {
+      "stage": "C-scenarios",
+      "mode": "history_and_conflict",
+      "requiredReadMisses": 6,
+      "irrelevantRead": 8,
+      "targetPositiveRead": 9,
+      "navigationBothRead": 3
+    },
+    {
+      "stage": "D-families",
+      "mode": "related_probability",
+      "requiredReadMisses": 0,
+      "irrelevantRead": 5,
+      "targetPositiveRead": 9,
+      "navigationBothRead": 6
+    },
+    {
+      "stage": "D-families",
+      "mode": "history_pairs",
+      "requiredReadMisses": 0,
+      "irrelevantRead": 5,
+      "targetPositiveRead": 9,
+      "navigationBothRead": 6
+    },
+    {
+      "stage": "D-families",
+      "mode": "history_and_conflict",
+      "requiredReadMisses": 3,
+      "irrelevantRead": 8,
+      "targetPositiveRead": 9,
+      "navigationBothRead": 6
+    }
+  ],
+  "history": [
+    {
+      "repeat": 0,
+      "related_probability": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": false,
+        "readIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "obs:1"
+        ]
+      },
+      "history_pairs": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": false,
+        "readIds": [
+          "obs:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:09"
+        ]
+      },
+      "history_and_conflict": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": true,
+        "readIds": [
+          "obs:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:10"
+        ]
+      }
+    },
+    {
+      "repeat": 1,
+      "related_probability": {
+        "oldRead": false,
+        "currentRead": true,
+        "opposedBranchRead": true,
+        "readIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "bank:10"
+        ]
+      },
+      "history_pairs": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": false,
+        "readIds": [
+          "obs:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:09"
+        ]
+      },
+      "history_and_conflict": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": true,
+        "readIds": [
+          "obs:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:10"
+        ]
+      }
+    },
+    {
+      "repeat": 2,
+      "related_probability": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": false,
+        "readIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "obs:1"
+        ]
+      },
+      "history_pairs": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": false,
+        "readIds": [
+          "obs:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:09"
+        ]
+      },
+      "history_and_conflict": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": true,
+        "readIds": [
+          "obs:1",
+          "family:traveler-navigation:revision:20:1",
+          "bank:10"
+        ]
+      }
+    }
+  ],
+  "counterControls": [
+    {
+      "case": "C",
+      "repeat": 0,
+      "defaultReadIds": [
+        "family:C:revision:55:1",
+        "atom:synthetic:C:7:0"
+      ],
+      "defaultOmittedGroups": 0,
+      "largerDiagnosticItems": 2
+    },
+    {
+      "case": "C",
+      "repeat": 1,
+      "defaultReadIds": [
+        "family:C:revision:55:1",
+        "atom:synthetic:C:7:0"
+      ],
+      "defaultOmittedGroups": 0,
+      "largerDiagnosticItems": 2
+    },
+    {
+      "case": "C",
+      "repeat": 2,
+      "defaultReadIds": [
+        "family:C:revision:55:1",
+        "atom:synthetic:C:7:0"
+      ],
+      "defaultOmittedGroups": 0,
+      "largerDiagnosticItems": 2
+    },
+    {
+      "case": "D",
+      "repeat": 0,
+      "defaultReadIds": [],
+      "defaultOmittedGroups": 1,
+      "largerDiagnosticItems": 8
+    },
+    {
+      "case": "D",
+      "repeat": 1,
+      "defaultReadIds": [],
+      "defaultOmittedGroups": 1,
+      "largerDiagnosticItems": 8
+    },
+    {
+      "case": "D",
+      "repeat": 2,
+      "defaultReadIds": [],
+      "defaultOmittedGroups": 1,
+      "largerDiagnosticItems": 8
+    }
+  ],
+  "anchorBoundary": {
+    "oldDelivery": {
+      "itemCount": 3,
+      "summaryRead": true,
+      "counterRead": false
+    },
+    "groupedDelivery": {
+      "itemCount": 0,
+      "summaryRead": false,
+      "counterRead": false
+    },
+    "largerBudgetDiagnosticOnly": {
+      "itemCount": 4,
+      "summaryRead": true,
+      "counterRead": true
+    }
+  },
+  "frozenInputsUnchanged": true,
+  "newModelCalls": 0,
+  "prior63PairedDeliveriesExactlyReproduced": true,
+  "limits": [
+    "predeclared synthetic five-probe labels, no generalization",
+    "group relation supplied, not discovered",
+    "mandatory grouping can resurrect a false RELATED branch",
+    "budget excess intentionally suppresses entire group",
+    "no new Character Turn or live runtime wiring"
+  ]
+}

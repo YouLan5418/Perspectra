@@ -3,6 +3,8 @@ import copy
 import json
 import os
 import sys
+if __name__ == '__main__':
+    sys.modules['core_bridge'] = sys.modules[__name__]
 from pathlib import Path
 CORE_DIR = Path(os.getenv('HCW_HINDSIGHT_CORE_DIR', str(Path(__file__).resolve().parents[1] / 'hindsight-core')))
 sys.path.insert(0, str(CORE_DIR))
@@ -185,6 +187,17 @@ def dispatch(doc):
         query = queries.project(request, index.get('retrievalAliases'))
         recall = projections.search(index, scope, query['semanticQuery'], [], queryProjection=query, quality=True)
         mode = doc.get('deliveryMode','expanded')
+        if mode == 'minimal':
+            import candidate_admission
+            import minimal_delivery
+            candidates, admission = candidate_admission.admit(data, index, recall, request, query)
+            observation_ids = {o['id'] for o in data['observations']}
+            selected = [c['id'] for c in candidates if c['id'] in observation_ids]
+            delivered = minimal_delivery.deliver(data, candidates, selected, request, doc['tick'], query)
+            return {'query': query, 'baselineRetrieval': recall,
+                    'retrieval': {**recall, 'results': candidates}, 'admission': admission,
+                    'delivery': delivered['memories'], 'deliveryTrace': delivered['trace'],
+                    'gateMode': 'none', 'jevCalls': 0}
         delivered = (projections.delivery_projection(data, recall['results'], request, doc['tick'], fair=True)
                      if mode == 'old' else activity.deliver(data, recall['results'], request, doc['tick'], query, include_anchors=mode != 'annotation'))
         return {'query': query, 'retrieval': recall, 'delivery': delivered['memories'], 'deliveryTrace': delivered['trace']}

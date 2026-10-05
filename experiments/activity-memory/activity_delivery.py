@@ -171,17 +171,83 @@ def deliver(doc, candidates, request, tick, query, max_items=3, max_json_chars=4
                 else: note = '当前材料为经历片段；本角色授权档案中尚无结束记录，不能据此确定结局或认定活动仍在进行。'
                 item['text'] = '【材料完整度】'+note+'\n'+item['text']; noted.add(ident)
         return items,list(coverage.values())
-    selected = []; covered = set(); omitted = []
-    for item,trace,ident in pool:
-        evidence_keys = {keys[i] for i in trace['coveredAtomIds']}
-        if evidence_keys & covered: continue
-        trial = selected + [(item,trace,ident)]
+    # The first projection committed summaries/fallbacks with their counters.
+    # Preserve those dependencies through this final activity-budget allocation.
+    owner_rows = {}
+    key_rows = {}
+    for index, (item, trace, _) in enumerate(pool):
+        for key in {keys[i] for i in trace['coveredAtomIds']}:
+            key_rows.setdefault(key, index)
+        owner = item['memoryId'] if item['memoryLevel'] == 'observation' else trace.get('fallbackObservationId')
+        if owner is not None:
+            owner_rows.setdefault(owner, []).append(index)
+    protected = {}
+    roots = {}
+    for owner, indices in owner_rows.items():
+        counters = [i for i in by_id[owner]['contradictingAtomIds']
+                    if by_id[i]['sourceRefs'][0]['worldSeq'] not in recent]
+        if not counters:
+            continue
+        missing = [i for i in counters if keys[i] not in key_rows]
+        members = sorted(set(indices + [key_rows[keys[i]] for i in counters if keys[i] in key_rows]))
+        protected[owner] = {'indices':members, 'counterAtomIds':counters, 'missing':missing}
+        roots[min(indices)] = owner
+    grouped_roots = {i for owner in protected for i in owner_rows[owner]}
+    dependent_rows = {i for group in protected.values() for i in group['indices']}
+    tasks = []
+    openings = []
+    for index, row in enumerate(pool):
+        item, trace, _ = row
+        if index in roots:
+            tasks.append((protected[roots[index]]['indices'], roots[index]))
+        elif index in grouped_roots:
+            continue
+        elif index in dependent_rows and trace.get('reason') == 'contradicts selected observation':
+            # This evidence is carried by its summary's protected group, unless
+            # independently selected elsewhere; it must not become a loose tail.
+            continue
+        elif protected and trace.get('reason') == 'same activity opening evidence':
+            openings.append(([index], None))
+        else:
+            tasks.append(([index], None))
+    tasks.extend(openings)
+
+    selected = []; covered = set(); omitted = []; accepted_groups = []
+    for indices, owner in tasks:
+        if owner is not None and protected[owner]['missing']:
+            omitted.append({'memoryId':owner, 'reason':'required counter-evidence absent after activity filtering',
+                            'counterAtomIds':protected[owner]['missing']})
+            continue
+        pending = []; pending_keys = set()
+        for index in indices:
+            item, trace, ident = pool[index]
+            evidence_keys = {keys[i] for i in trace['coveredAtomIds']}
+            if evidence_keys and evidence_keys <= covered | pending_keys:
+                continue
+            pending.append((item, trace, ident)); pending_keys.update(evidence_keys)
+        trial = selected + pending
         memories,_ = annotated(trial)
         if len(trial)>max_items or projections.chars(memories)>max_json_chars:
-            omitted.append({'memoryId':item['memoryId'],'reason':'budget including completeness annotation'}); continue
-        selected = trial; covered.update(evidence_keys)
+            omitted.append({'memoryId':owner if owner is not None else pool[indices[0]][0]['memoryId'],
+                            'reason':'budget; complete observation/fallback and counter-evidence kept together'
+                                     if owner is not None else 'budget including completeness annotation'})
+            continue
+        selected = trial; covered.update(pending_keys)
+        if owner is not None:
+            accepted_groups.append({'memoryId':owner, 'counterAtomIds':protected[owner]['counterAtomIds'],
+                                    'additionalItems':len(pending)})
+    for item, _, _ in selected:
+        if item['memoryLevel'] == 'observation':
+            missing = [i for i in by_id[item['memoryId']]['contradictingAtomIds']
+                       if by_id[i]['sourceRefs'][0]['worldSeq'] not in recent and keys[i] not in covered]
+            if missing:
+                raise ValueError('final activity delivery lost required counter-evidence')
     memories,coverage = annotated(selected)
-    return {'memories':memories,'trace':{**base['trace'],'delivered':[r[1] for r in selected],
+    result = {'memories':memories,'trace':{**base['trace'],'delivered':[r[1] for r in selected],
         'omitted':[{**o,'stage':'retrieved evidence projection'} for o in base['trace']['omitted']]+omitted,'activityCoverage':coverage,'jsonChars':projections.chars(memories),
         'budget':{**base['trace']['budget'],'allocation':'authorized activity ending, opening, then retrieved evidence'},
         'distinctEvidenceSegments':len(covered)}}
+    if protected:
+        result['trace']['protectedGroups'] = accepted_groups
+        result['trace']['budget']['allocation'] = 'activity ending, complete observation/counter groups and retrieved evidence, optional opening'
+    return result

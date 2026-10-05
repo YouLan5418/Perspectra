@@ -1,0 +1,547 @@
+{
+  "artifactRoot": ".tmp\\delivery-order-20261004-v1",
+  "summaries": [
+    {
+      "stage": "A-current",
+      "mode": "fusion",
+      "draws": 15,
+      "requiredCount": 27,
+      "requiredReadMisses": 6,
+      "irrelevantRead": 6,
+      "targetPositiveRead": 6,
+      "targetNegativeRead": 0,
+      "navigationBothRead": 3,
+      "nonempty": 15,
+      "relatedNotRead": 2
+    },
+    {
+      "stage": "A-current",
+      "mode": "related_probability",
+      "draws": 15,
+      "requiredCount": 27,
+      "requiredReadMisses": 6,
+      "irrelevantRead": 4,
+      "targetPositiveRead": 6,
+      "targetNegativeRead": 0,
+      "navigationBothRead": 3,
+      "nonempty": 15,
+      "relatedNotRead": 2
+    },
+    {
+      "stage": "B-continuity",
+      "mode": "fusion",
+      "draws": 15,
+      "requiredCount": 27,
+      "requiredReadMisses": 4,
+      "irrelevantRead": 6,
+      "targetPositiveRead": 9,
+      "targetNegativeRead": 0,
+      "navigationBothRead": 3,
+      "nonempty": 15,
+      "relatedNotRead": 4
+    },
+    {
+      "stage": "B-continuity",
+      "mode": "related_probability",
+      "draws": 15,
+      "requiredCount": 27,
+      "requiredReadMisses": 3,
+      "irrelevantRead": 3,
+      "targetPositiveRead": 9,
+      "targetNegativeRead": 0,
+      "navigationBothRead": 3,
+      "nonempty": 15,
+      "relatedNotRead": 4
+    },
+    {
+      "stage": "C-scenarios",
+      "mode": "fusion",
+      "draws": 15,
+      "requiredCount": 27,
+      "requiredReadMisses": 6,
+      "irrelevantRead": 8,
+      "targetPositiveRead": 9,
+      "targetNegativeRead": 0,
+      "navigationBothRead": 3,
+      "nonempty": 15,
+      "relatedNotRead": 6
+    },
+    {
+      "stage": "C-scenarios",
+      "mode": "related_probability",
+      "draws": 15,
+      "requiredCount": 27,
+      "requiredReadMisses": 3,
+      "irrelevantRead": 5,
+      "targetPositiveRead": 9,
+      "targetNegativeRead": 0,
+      "navigationBothRead": 3,
+      "nonempty": 15,
+      "relatedNotRead": 6
+    },
+    {
+      "stage": "D-families",
+      "mode": "fusion",
+      "draws": 15,
+      "requiredCount": 27,
+      "requiredReadMisses": 3,
+      "irrelevantRead": 8,
+      "targetPositiveRead": 9,
+      "targetNegativeRead": 0,
+      "navigationBothRead": 6,
+      "nonempty": 15,
+      "relatedNotRead": 9
+    },
+    {
+      "stage": "D-families",
+      "mode": "related_probability",
+      "draws": 15,
+      "requiredCount": 27,
+      "requiredReadMisses": 0,
+      "irrelevantRead": 5,
+      "targetPositiveRead": 9,
+      "targetNegativeRead": 0,
+      "navigationBothRead": 6,
+      "nonempty": 15,
+      "relatedNotRead": 9
+    }
+  ],
+  "history": [
+    {
+      "repeat": 0,
+      "fusion": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": true,
+        "readIds": [
+          "bank:10",
+          "family:traveler-navigation:revision:20:1",
+          "obs:1"
+        ]
+      },
+      "related_probability": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": false,
+        "readIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "obs:1"
+        ]
+      }
+    },
+    {
+      "repeat": 1,
+      "fusion": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": true,
+        "readIds": [
+          "bank:10",
+          "family:traveler-navigation:revision:20:1",
+          "obs:1"
+        ]
+      },
+      "related_probability": {
+        "oldRead": false,
+        "currentRead": true,
+        "opposedBranchRead": true,
+        "readIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "bank:10"
+        ]
+      }
+    },
+    {
+      "repeat": 2,
+      "fusion": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": true,
+        "readIds": [
+          "bank:10",
+          "family:traveler-navigation:revision:20:1",
+          "obs:1"
+        ]
+      },
+      "related_probability": {
+        "oldRead": true,
+        "currentRead": true,
+        "opposedBranchRead": false,
+        "readIds": [
+          "family:traveler-navigation:revision:20:1",
+          "bank:09",
+          "obs:1"
+        ]
+      }
+    }
+  ],
+  "deltas": [
+    {
+      "stage": "C-scenarios",
+      "probe": "new-stop",
+      "repeat": 0,
+      "added": [
+        "bank:09"
+      ],
+      "removed": [
+        "bank:19"
+      ],
+      "requiredRecovered": [
+        "bank:09"
+      ],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": []
+    },
+    {
+      "stage": "D-families",
+      "probe": "new-stop",
+      "repeat": 0,
+      "added": [
+        "bank:09"
+      ],
+      "removed": [
+        "bank:19"
+      ],
+      "requiredRecovered": [
+        "bank:09"
+      ],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": []
+    },
+    {
+      "stage": "C-scenarios",
+      "probe": "familiar-control",
+      "repeat": 0,
+      "added": [
+        "bank:12"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": [
+        "bank:10"
+      ]
+    },
+    {
+      "stage": "D-families",
+      "probe": "familiar-control",
+      "repeat": 0,
+      "added": [
+        "bank:12"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": [
+        "bank:10"
+      ]
+    },
+    {
+      "stage": "A-current",
+      "probe": "familiar-control",
+      "repeat": 0,
+      "added": [
+        "bank:12"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": [
+        "bank:10"
+      ]
+    },
+    {
+      "stage": "B-continuity",
+      "probe": "familiar-control",
+      "repeat": 0,
+      "added": [
+        "bank:12"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": [
+        "bank:10"
+      ]
+    },
+    {
+      "stage": "D-families",
+      "probe": "new-stop",
+      "repeat": 1,
+      "added": [
+        "bank:09"
+      ],
+      "removed": [
+        "bank:19"
+      ],
+      "requiredRecovered": [
+        "bank:09"
+      ],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": []
+    },
+    {
+      "stage": "C-scenarios",
+      "probe": "new-stop",
+      "repeat": 1,
+      "added": [
+        "bank:09"
+      ],
+      "removed": [
+        "bank:19"
+      ],
+      "requiredRecovered": [
+        "bank:09"
+      ],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": []
+    },
+    {
+      "stage": "B-continuity",
+      "probe": "familiar-control",
+      "repeat": 1,
+      "added": [
+        "bank:12"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": [
+        "bank:10"
+      ]
+    },
+    {
+      "stage": "D-families",
+      "probe": "familiar-control",
+      "repeat": 1,
+      "added": [
+        "bank:12"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": [
+        "bank:10"
+      ]
+    },
+    {
+      "stage": "C-scenarios",
+      "probe": "familiar-control",
+      "repeat": 1,
+      "added": [
+        "bank:12"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": [
+        "bank:10"
+      ]
+    },
+    {
+      "stage": "C-scenarios",
+      "probe": "new-stop",
+      "repeat": 2,
+      "added": [
+        "bank:09"
+      ],
+      "removed": [
+        "bank:19"
+      ],
+      "requiredRecovered": [
+        "bank:09"
+      ],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": []
+    },
+    {
+      "stage": "B-continuity",
+      "probe": "new-stop",
+      "repeat": 2,
+      "added": [
+        "bank:09"
+      ],
+      "removed": [
+        "bank:16"
+      ],
+      "requiredRecovered": [
+        "bank:09"
+      ],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": []
+    },
+    {
+      "stage": "D-families",
+      "probe": "new-stop",
+      "repeat": 2,
+      "added": [
+        "bank:09"
+      ],
+      "removed": [
+        "bank:19"
+      ],
+      "requiredRecovered": [
+        "bank:09"
+      ],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": []
+    },
+    {
+      "stage": "C-scenarios",
+      "probe": "familiar-control",
+      "repeat": 2,
+      "added": [
+        "bank:12"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": [
+        "bank:10"
+      ]
+    },
+    {
+      "stage": "B-continuity",
+      "probe": "familiar-control",
+      "repeat": 2,
+      "added": [
+        "bank:12"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": [
+        "bank:10"
+      ]
+    },
+    {
+      "stage": "A-current",
+      "probe": "familiar-control",
+      "repeat": 2,
+      "added": [
+        "bank:12"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": [
+        "bank:10"
+      ]
+    },
+    {
+      "stage": "D-families",
+      "probe": "familiar-control",
+      "repeat": 2,
+      "added": [
+        "bank:12"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": [
+        "bank:10"
+      ]
+    },
+    {
+      "stage": "historical",
+      "probe": "historical",
+      "repeat": 0,
+      "added": [
+        "bank:09"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": []
+    },
+    {
+      "stage": "historical",
+      "probe": "historical",
+      "repeat": 1,
+      "added": [
+        "bank:09"
+      ],
+      "removed": [
+        "obs:1"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [
+        "obs:1"
+      ],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": []
+    },
+    {
+      "stage": "historical",
+      "probe": "historical",
+      "repeat": 2,
+      "added": [
+        "bank:09"
+      ],
+      "removed": [
+        "bank:10"
+      ],
+      "requiredRecovered": [],
+      "requiredLost": [],
+      "irrelevantAdded": [],
+      "irrelevantRemoved": []
+    }
+  ],
+  "frozenInputsUnchanged": true,
+  "allOriginalDeliveriesExactlyReproduced": true,
+  "nativeRequestsAndAnswersVerified": 63,
+  "newModelCalls": 0,
+  "mixedLayerCandidates": 0,
+  "limits": [
+    "five probes repeated, no independent gold",
+    "only frozen RELATED candidates can be reordered",
+    "probabilities uncalibrated, not cognition truth confidence",
+    "no Character Turn or live integration",
+    "family/counterevidence grouping and historical policy unchanged"
+  ]
+}

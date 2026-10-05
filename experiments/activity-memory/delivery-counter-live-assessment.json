@@ -1,0 +1,509 @@
+{
+  "artifactRoot": "D:\\DeepSeek Harness\\Perspectra V1\\.tmp\\delivery-counter-live-20261004-v1",
+  "requestedModel": "gemini-3.7-flash",
+  "nativeModelLabels": {
+    "gemini-3.7-flash-high": 27
+  },
+  "characterCalls": 27,
+  "returned": 27,
+  "legalOutputs": 27,
+  "decisions": {
+    "publish": 27
+  },
+  "frozenHistoryUnchanged": true,
+  "nonmemoryContextIdentical": true,
+  "authorizedSourceCount": 55,
+  "sourceHashesAndObserverScopeChecked": true,
+  "nativeOutputsAndPublicationVerified": true,
+  "privateCanaryAbsent": true,
+  "maxItems": 3,
+  "maxJsonChars": 4500,
+  "newUtilityCalls": 0,
+  "nativeUsageUnpriced": {
+    "prompt_tokens": 43236,
+    "completion_tokens": 1265,
+    "total_tokens": 57681,
+    "reasoning_tokens": 13180
+  },
+  "latencyMs": {
+    "min": 2917,
+    "median": 4195,
+    "max": 7292
+  },
+  "responses": [
+    {
+      "probe": "winner-recall",
+      "repeat": 0,
+      "condition": "full",
+      "response": {
+        "decision": "publish",
+        "speech": "上次那局是你先猜中的，最后是你赢了。",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "status": "published",
+      "durationMs": 4307
+    },
+    {
+      "probe": "winner-recall",
+      "repeat": 0,
+      "condition": "counter-ablated",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "speech": "前两局都是我先猜中的呀。"
+      },
+      "status": "published",
+      "durationMs": 4551
+    },
+    {
+      "probe": "winner-recall",
+      "repeat": 0,
+      "condition": "without-cognition",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "我记得最后是陆舟操作结算的，是他吧。",
+        "decision": "publish"
+      },
+      "status": "published",
+      "durationMs": 4572
+    },
+    {
+      "probe": "winner-recall",
+      "repeat": 1,
+      "condition": "counter-ablated",
+      "response": {
+        "speech": "前两局可都是我先猜中的呀。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "status": "published",
+      "durationMs": 5070
+    },
+    {
+      "probe": "winner-recall",
+      "repeat": 1,
+      "condition": "without-cognition",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "我只记得最后是陆舟去结算结束的，具体是谁猜中赢了我倒没太留意。",
+        "decision": "publish"
+      },
+      "status": "published",
+      "durationMs": 4368
+    },
+    {
+      "probe": "winner-recall",
+      "repeat": 1,
+      "condition": "full",
+      "response": {
+        "speech": "上次那局是你先猜中赢的。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "status": "published",
+      "durationMs": 3966
+    },
+    {
+      "probe": "winner-recall",
+      "repeat": 2,
+      "condition": "without-cognition",
+      "response": {
+        "speech": "我记得第三局最后是陆舟操作结算收尾的，具体是谁猜中的我没太看清，得问问他了。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "status": "published",
+      "durationMs": 5021
+    },
+    {
+      "probe": "winner-recall",
+      "repeat": 2,
+      "condition": "full",
+      "response": {
+        "speech": "上次那局是你先猜中的，最后是你赢了。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "status": "published",
+      "durationMs": 3634
+    },
+    {
+      "probe": "winner-recall",
+      "repeat": 2,
+      "condition": "counter-ablated",
+      "response": {
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "前两局都是我先猜中的。"
+      },
+      "status": "published",
+      "durationMs": 4711
+    },
+    {
+      "probe": "rematch-choice",
+      "repeat": 0,
+      "condition": "full",
+      "response": {
+        "speech": "好啊，下次让你先猜。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "status": "published",
+      "durationMs": 4637
+    },
+    {
+      "probe": "rematch-choice",
+      "repeat": 0,
+      "condition": "counter-ablated",
+      "response": {
+        "decision": "publish",
+        "speech": "好啊，没问题，下次就让你先猜。",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "status": "published",
+      "durationMs": 4777
+    },
+    {
+      "probe": "rematch-choice",
+      "repeat": 0,
+      "condition": "without-cognition",
+      "response": {
+        "speech": "好啊，下次换你先猜。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "status": "published",
+      "durationMs": 3926
+    },
+    {
+      "probe": "rematch-choice",
+      "repeat": 1,
+      "condition": "counter-ablated",
+      "response": {
+        "speech": "行啊，下次让你先猜，看你能不能赢回来。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "status": "published",
+      "durationMs": 4171
+    },
+    {
+      "probe": "rematch-choice",
+      "repeat": 1,
+      "condition": "without-cognition",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "speech": "好啊，下次换你先猜。"
+      },
+      "status": "published",
+      "durationMs": 3201
+    },
+    {
+      "probe": "rematch-choice",
+      "repeat": 1,
+      "condition": "full",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "speech": "行啊，没问题，下次就换你先猜。"
+      },
+      "status": "published",
+      "durationMs": 3318
+    },
+    {
+      "probe": "rematch-choice",
+      "repeat": 2,
+      "condition": "without-cognition",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish",
+        "speech": "好啊，下次换你先猜，看你能不能一上来就抓到准数。"
+      },
+      "status": "published",
+      "durationMs": 3307
+    },
+    {
+      "probe": "rematch-choice",
+      "repeat": 2,
+      "condition": "full",
+      "response": {
+        "speech": "行啊，下次换你先猜，看看你能不能连赢。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "status": "published",
+      "durationMs": 4195
+    },
+    {
+      "probe": "rematch-choice",
+      "repeat": 2,
+      "condition": "counter-ablated",
+      "response": {
+        "speech": "行啊，下次让你先猜。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "status": "published",
+      "durationMs": 2917
+    },
+    {
+      "probe": "unrelated-control",
+      "repeat": 0,
+      "condition": "full",
+      "response": {
+        "decision": "publish",
+        "speech": "好啊，那过去坐坐。",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "status": "published",
+      "durationMs": 4502
+    },
+    {
+      "probe": "unrelated-control",
+      "repeat": 0,
+      "condition": "counter-ablated",
+      "response": {
+        "speech": "好呀，那我们过去坐会儿。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "status": "published",
+      "durationMs": 4167
+    },
+    {
+      "probe": "unrelated-control",
+      "repeat": 0,
+      "condition": "without-cognition",
+      "response": {
+        "narration": "抬头看了一眼窗边，点了点头。",
+        "speech": "好啊，正好过去歇会儿。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "status": "published",
+      "durationMs": 4713
+    },
+    {
+      "probe": "unrelated-control",
+      "repeat": 1,
+      "condition": "counter-ablated",
+      "response": {
+        "speech": "好啊，正好过去歇会儿。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "decision": "publish"
+      },
+      "status": "published",
+      "durationMs": 3276
+    },
+    {
+      "probe": "unrelated-control",
+      "repeat": 1,
+      "condition": "without-cognition",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "speech": "好啊，过去坐会儿。",
+        "decision": "publish",
+        "narration": "转头看了看窗边的光线，点头应道。"
+      },
+      "status": "published",
+      "durationMs": 7292
+    },
+    {
+      "probe": "unrelated-control",
+      "repeat": 1,
+      "condition": "full",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "narration": "往窗边的方向看了一眼，点了点头。",
+        "decision": "publish",
+        "speech": "好啊，过去坐会儿吧。"
+      },
+      "status": "published",
+      "durationMs": 4148
+    },
+    {
+      "probe": "unrelated-control",
+      "repeat": 2,
+      "condition": "without-cognition",
+      "response": {
+        "speech": "好啊，正合适过去歇会儿。",
+        "addresseeIds": [
+          "character:player"
+        ],
+        "narration": "转头看了看窗外的天色，笑着应了一声。",
+        "decision": "publish"
+      },
+      "status": "published",
+      "durationMs": 5022
+    },
+    {
+      "probe": "unrelated-control",
+      "repeat": 2,
+      "condition": "full",
+      "response": {
+        "addresseeIds": [
+          "character:player"
+        ],
+        "narration": "小芷抬头看了看窗边，笑了笑。",
+        "decision": "publish",
+        "speech": "好啊，现在的光线确实挺舒服的。"
+      },
+      "status": "published",
+      "durationMs": 3807
+    },
+    {
+      "probe": "unrelated-control",
+      "repeat": 2,
+      "condition": "counter-ablated",
+      "response": {
+        "speech": "好啊，正好过去透透气。",
+        "decision": "publish",
+        "addresseeIds": [
+          "character:player"
+        ]
+      },
+      "status": "published",
+      "durationMs": 3713
+    }
+  ],
+  "limits": [
+    "authored history and understanding",
+    "explicit candidate intervention, not natural retrieval",
+    "one initial choice only",
+    "qualitative behavior labels require reading",
+    "one character, three stimuli, three repeats"
+  ],
+  "qualitativeAssessment": {
+    "labelOrigin": "primary agent nonblind qualitative reading; exploratory, not gold",
+    "winnerRecall": [
+      {
+        "condition": "full",
+        "repeat": 0,
+        "label": "latest_winner_correct"
+      },
+      {
+        "condition": "full",
+        "repeat": 1,
+        "label": "latest_winner_correct"
+      },
+      {
+        "condition": "full",
+        "repeat": 2,
+        "label": "latest_winner_correct"
+      },
+      {
+        "condition": "counter-ablated",
+        "repeat": 0,
+        "label": "old_two_games_only_no_latest_winner"
+      },
+      {
+        "condition": "counter-ablated",
+        "repeat": 1,
+        "label": "old_two_games_only_no_latest_winner"
+      },
+      {
+        "condition": "counter-ablated",
+        "repeat": 2,
+        "label": "old_two_games_only_no_latest_winner"
+      },
+      {
+        "condition": "without-cognition",
+        "repeat": 0,
+        "label": "unsupported_host_as_winner_guess"
+      },
+      {
+        "condition": "without-cognition",
+        "repeat": 1,
+        "label": "latest_winner_unknown"
+      },
+      {
+        "condition": "without-cognition",
+        "repeat": 2,
+        "label": "latest_winner_unknown"
+      }
+    ],
+    "rematchChoice": {
+      "full": {
+        "agreePlayerFirst": 3,
+        "perform": 0
+      },
+      "counterAblated": {
+        "agreePlayerFirst": 3,
+        "perform": 0
+      },
+      "withoutCognition": {
+        "agreePlayerFirst": 3,
+        "perform": 0
+      },
+      "autonomousChoiceDifferenceObserved": false,
+      "wordingOnly": {
+        "fullRepeat2": "看看你能不能连赢",
+        "counterAblatedRepeat1": "看你能不能赢回来"
+      },
+      "wordingInterpretation": "possible memory continuity cue; not a structural action effect"
+    },
+    "unrelatedControl": {
+      "allMemoriesEmpty": true,
+      "calls": 9,
+      "gameReferencesObserved": 0,
+      "naturalGateTested": false
+    },
+    "conclusion": "Evidence delivery improves latest-result accuracy in this fixture; no autonomous choice difference measured."
+  },
+  "validation": {
+    "typecheck": "passed",
+    "entryLint": "passed",
+    "counterClipRegressionTests": 5,
+    "counterClipRegressionPassed": 5,
+    "diffCheck": "passed"
+  }
+}
