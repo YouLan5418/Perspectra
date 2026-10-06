@@ -18,6 +18,7 @@ export interface PlaytestState {
     readonly currentScene?: { readonly locationName: string; readonly presentNpcNames: readonly string[] } }
   readonly availableActions?: readonly ActionAffordance[]
   readonly packVariables?: { readonly public: WorldJsonObject; readonly private: WorldJsonObject }
+  readonly memoryMaintenance?: WorldJsonObject
   readonly activity?: WorldJsonObject
   readonly debug: Record<string, unknown>
 }
@@ -35,6 +36,7 @@ export interface PlaytestRuntime {
   activityAction?(request: ActivityRequest): Promise<PlaytestState>
   escape?(): Promise<PlaytestState>
   refreshMemory?(): Promise<PlaytestState>
+  cancelMemory?(): Promise<PlaytestState>
   pause(): Promise<PlaytestState>
   resume(): Promise<PlaytestState>
   close(): Promise<void>
@@ -159,6 +161,10 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
       if (request.method === 'POST' && url.pathname === '/api/memory/refresh') {
         if (runtime.refreshMemory === undefined) { json(response, 404, { error: '接口不存在' }); return }
         json(response, 200, await runtimeCall(() => runtime.refreshMemory!())); return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/memory/cancel') {
+        if (runtime.cancelMemory === undefined) { json(response, 404, { error: '接口不存在' }); return }
+        json(response, 200, await runtimeCall(() => runtime.cancelMemory!())); return
       }
       if (request.method === 'POST' && url.pathname === '/api/escape') {
         if (runtime.escape === undefined) { json(response, 404, { error: '接口不存在' }); return }

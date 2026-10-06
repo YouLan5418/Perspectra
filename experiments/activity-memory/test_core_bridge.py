@@ -138,6 +138,24 @@ class ActivityDeliveryTest(unittest.TestCase):
         self.assertTrue(result['trace']['activityCoverage'][0]['endingIncluded'])
 
 
+class CoreDeliveryBudgetTest(unittest.TestCase):
+    def test_host_budget_reaches_minimal_delivery(self):
+        import candidate_admission
+        import minimal_delivery
+        data = ActivityDeliveryTest().archive()
+        doc = {'operation':'recall', 'archive':data, 'index':{'scope':data['scope'], 'units':[], 'vectors':[]},
+               'request':{'context':{'character':{'characterId':'character:gpt'}}}, 'tick':10,
+               'observations':True, 'deliveryMode':'minimal', 'deliveryBudget':{'maxItems':6,'maxJsonChars':12000}}
+        with patch.object(bridge.queries, 'project', return_value={'semanticQuery':'旧礼物'}) as query, \
+             patch.object(bridge.projections, 'search', return_value={'results':[]}), \
+             patch.object(candidate_admission, 'admit', return_value=([],{})), \
+             patch.object(minimal_delivery, 'deliver', return_value={'memories':[],'trace':{}}) as delivery:
+            bridge.dispatch(doc)
+            self.assertEqual(delivery.call_args.kwargs, {'max_items':6,'max_json_chars':12000})
+            doc['deliveryBudget']['unexpected'] = 1
+            with self.assertRaisesRegex(ValueError, 'invalid Delivery budget'): bridge.dispatch(doc)
+
+
 class UtilityTransportTest(unittest.TestCase):
     def response(self, text, finish='stop'):
         import io
@@ -205,6 +223,85 @@ class PrefixBatchTest(unittest.TestCase):
         with patch.object(bridge.core,'llm') as model:
             with self.assertRaises(ValueError): bridge.retain_prefix(doc,max_prose_chars=1)
         model.assert_not_called()
+
+
+class AsyncBuildTests(unittest.TestCase):
+    def test_parallel_batches_preserve_order_ids_and_source_mapping(self):
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        first = BridgeTest().source('reported_speech', '第一批明确原句。')
+        sources = [{**first, 'sourceId':f'event:{i}', 'sourceHash':f'hash:{i}', 'worldSeq':i, 'text':f'第{i}批完整原句。'} for i in range(2,5)]
+        doc = {'scope':{'worldAddress':first['worldAddress'], 'characterId':first['characterId'], 'asOfWorldSeq':4}, 'sources':sources}
+        active, peak = 0, 0
+        lock = threading.Lock()
+        first_started, second_done, release = threading.Event(), threading.Event(), threading.Event()
+        def quote(system, user, *args):
+            nonlocal active, peak
+            parts = json.loads(user)
+            with lock: active += 1; peak = max(peak, active)
+            try:
+                if parts[0]['sourceId'] == 'event:2':
+                    first_started.set(); self.assertTrue(release.wait(5))
+                else: second_done.set()
+                return {'atoms':[{'segment_id':p['id'], 'quote':p['context']} for p in parts]}
+            finally:
+                with lock: active -= 1
+        with patch.object(bridge.core, 'llm', side_effect=quote), ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(bridge.retain_prefix, {**doc, 'retainConcurrency':2}, 1)
+            self.assertTrue(first_started.wait(5)); self.assertTrue(second_done.wait(5)); release.set()
+            parallel = pending.result(5)
+        self.assertEqual(peak, 2)
+        with patch.object(bridge.core, 'llm', side_effect=lambda _s,u,*_a: {'atoms':[{'segment_id':p['id'],'quote':p['context']} for p in json.loads(u)]}):
+            sequential = bridge.retain_prefix(doc, 1)
+        self.assertEqual(parallel, sequential)
+        bridge.episode.validate_units(parallel)
+        self.assertEqual([a['id'] for a in parallel['facts']], ['atom:event:2:0','atom:event:3:0','atom:event:4:0'])
+
+    def test_group_consolidate_and_index_wait_for_complete_validated_atoms(self):
+        source = BridgeTest().source('reported_speech', '完整原句。')
+        scope = {'worldAddress':source['worldAddress'],'characterId':source['characterId'],'asOfWorldSeq':2}
+        order = []
+        def group(data):
+            bridge.episode.validate_units(data)
+            self.assertEqual([a['sourceRefs'][0]['sourceId'] for a in data['facts']], ['event:2'])
+            order.append('group'); return {'episodes':[], 'actions':[]}
+        def consolidate(data):
+            self.assertEqual(order, ['group']); self.assertEqual(data['episodes'], [])
+            bridge.episode.validate_units(data)
+            order.append('consolidate'); return {'observations':[], 'actions':[]}
+        def index(data):
+            self.assertEqual(order, ['group','consolidate']); order.append('index')
+            return {'scope':scope}
+        with patch.object(bridge, 'utility_llm', return_value={'atoms':[]}), \
+             patch.object(bridge.episode, 'group', side_effect=group), \
+             patch.object(bridge.episode, 'consolidate', side_effect=consolidate), \
+             patch.object(bridge.vector_core, 'index', side_effect=index):
+            result = bridge.dispatch({'operation':'build','scope':scope,'sources':[source],'retainConcurrency':2})
+        self.assertEqual(order, ['group','consolidate','index'])
+        bridge.episode.validate_units(result['archive'])
+
+    def test_http_attempts_record_timeout_retry_model_usage_and_exclude_content(self):
+        import tempfile
+        import os
+        from pathlib import Path
+        import io
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory)/'attempts.jsonl'
+            response = io.StringIO(json.dumps({'model':'returned-alias','usage':{'prompt_tokens':13},
+                'choices':[{'finish_reason':'stop','message':{'content':'{"atoms":[]}'}}]}))
+            with patch.dict(os.environ, {'HCW_HINDSIGHT_UTILITY_ATTEMPTS':str(trace),'HCW_LOCAL_API_KEY':'PRIVATE_KEY_MARKER'}), \
+                 patch('urllib.request.urlopen', side_effect=[TimeoutError('fixture timeout'), response]), \
+                 patch.object(bridge.time, 'sleep') as sleep:
+                self.assertEqual(bridge.utility_llm('PRIVATE_PROMPT_MARKER','authorized source'), {'atoms':[]})
+            text = next(Path(directory).glob('attempts-*.jsonl')).read_text(encoding='utf-8')
+            self.assertNotIn('PRIVATE_KEY_MARKER',text); self.assertNotIn('PRIVATE_PROMPT_MARKER',text)
+            rows = [json.loads(line) for line in text.splitlines()]
+            self.assertEqual([r['event'] for r in rows], ['started','finished','started','finished'])
+            self.assertTrue(rows[1]['timedOut']); self.assertTrue(rows[1]['willRetry']); sleep.assert_called_once_with(2)
+            self.assertEqual(rows[3]['attempt'], 2); self.assertFalse(rows[3]['willRetry'])
+            self.assertEqual(rows[3]['returnedModel'], 'returned-alias')
+            self.assertEqual(rows[3]['usage'], {'prompt_tokens':13})
+            self.assertGreaterEqual(rows[3]['durationMs'],0)
 
 
 class UtilityPromptTest(unittest.TestCase):

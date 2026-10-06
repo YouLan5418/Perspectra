@@ -1,5 +1,6 @@
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { actionGroupWireSchema, type ChatCall } from './wire.ts'
+import { characterRequestText, cognitionTableNote } from './character-context-text.ts'
 
 /** Reuse the existing definition-derived parameter schemas; only the decision shape changes. */
 export function prototypeTurnCall(request: { readonly context: WorldJsonObject; readonly continuation: boolean;
@@ -44,7 +45,8 @@ export function prototypeTurnCall(request: { readonly context: WorldJsonObject; 
     ] },
     description: '选择表达、主动查询自己的记忆、不补充内容，或在剩余预算内执行一次声明交互；执行提交后才会收到真实结果。',
     messages: [
-      { role: 'system', content: (expression === undefined ? '' : '当前 activity 是临时玩法。仅可使用当前许可和工具字段；expressionPolicy 禁用的表达不应生成。游戏轮次与世界 tick 不同，游戏反馈只认程序提交的结果。主动 pass 是工具操作，abstain 不代表主动让出回合。')
+      { role: 'system', content: (request.context.cognition === undefined ? '' : cognitionTableNote)
+        + (expression === undefined ? '' : '当前 activity 是临时玩法。仅可使用当前许可和工具字段；expressionPolicy 禁用的表达不应生成。游戏轮次与世界 tick 不同，游戏反馈只认程序提交的结果。主动 pass 是工具操作，abstain 不代表主动让出回合。')
         + '扮演场景中的这个角色，依据自己的性格和可见信息自主决定。'
         + '被唤醒只是处理新信息的机会，不要求你表演回应。没有要补充的内容时返回 abstain，不发布任何表达。'
         + (narrationAllowed ? '有意义的沉默、微笑、注视属于表达，可以 publish 自由 narration；对白用 speech。' : '当前禁止自由 narration。对白仅在当前契约允许 speech 时使用。')
@@ -59,7 +61,7 @@ export function prototypeTurnCall(request: { readonly context: WorldJsonObject; 
         + 'perform 的参数来自可尝试选项，结果由世界裁定。执行后会给你真实成功或失败结果与刷新后的场景。'
         + '一次激活最多尝试两次重要交互；仅在本次工具契约仍提供 perform 时才能再次请求。'
         + '没有 perform 时可以 publish 或 abstain；只有当前工具契约提供 recall 时才能查询记忆。表达不能改变受控状态或替别人决定反应。' },
-      { role: 'user', content: JSON.stringify(request) },
+      { role: 'user', content: characterRequestText(request) },
     ],
   }
 }

@@ -76,6 +76,10 @@ export class PrototypeCharacterTurn {
     readonly executionResult?: (input: Parameters<typeof characterExecutionResult>[0]) =>
       ReturnType<typeof characterExecutionResult> & { readonly observationMetadata?: WorldJsonObject }
     readonly onRecallShadow?: (observation: PrototypeRecallShadowObservation) => void
+    /** Host projection runs after the complete action transaction, never on model output. */
+    readonly onCommitted?: () => Promise<void>
+    /** With Core, preserve the authorized tail after its successfully archived prefix. */
+    readonly shortTermAfterSeq?: (characterId: CharacterId) => number
     readonly recentObservations?: number
     readonly recentSelfObservations?: number
   }) {
@@ -151,9 +155,13 @@ export class PrototypeCharacterTurn {
           stimulus: options.stimulus ?? [], sceneCharacterIds: scene.observerIds,
           correlationId: `prototype-memory:${ownerId}:${step}`,
         })
-        const recentObservations = view.observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq).slice(-(this.options.recentObservations ?? 16))
-        const recentSelfObservations = (this.options.recentSelfObservations ?? 8) === 0
-          ? [] : view.selfObservations.slice(-(this.options.recentSelfObservations ?? 8))
+        const afterSeq = this.options.shortTermAfterSeq?.(characterId)
+        const ordered = view.observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq)
+        const recentObservations = afterSeq === undefined ? ordered.slice(-(this.options.recentObservations ?? 16))
+          : ordered.filter(record => record.sourceSeq > afterSeq)
+        const recentSelfObservations = afterSeq === undefined
+          ? (this.options.recentSelfObservations ?? 8) === 0 ? [] : view.selfObservations.slice(-(this.options.recentSelfObservations ?? 8))
+          : view.selfObservations.filter(record => record.sourceSeq > afterSeq)
         const recentSourceSeqs = new Set([...recentObservations, ...recentSelfObservations]
           .map(record => record.sourceSeq))
         const olderMemories = recalled?.memoryRecall.filter(memory =>
@@ -345,6 +353,7 @@ export class PrototypeCharacterTurn {
           authority: { actorId: characterId, actionId, action, status: resolution.status,
             reason: resolution.reason ?? null, resolutionAuthority: ruleContext.resolutionAuthority },
         })
+        await this.options.onCommitted?.()
         if (action.actionType === 'speak') return done(resolution.status === 'accepted' ? 'published' : 'failed')
         performResult = { operationId: actionId, action, status: resolution.status, reason: resolution.reason ?? null,
           eventRefs: resolution.events.map((_, index) => head.headSeq + index + 1) }

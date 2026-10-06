@@ -47,8 +47,10 @@ try{
  state=await api('/api/escape',{})
  const before=Number((state.debug as WorldJsonObject).headSeq)
  let last=''
- const progress=setInterval(()=>{void runtime.state().then(s=>{if(s.phaseLabel!==last){last=s.phaseLabel;console.log(JSON.stringify({maintenance:last}))}})},2000)
- try{state=await api('/api/memory/refresh',{})}finally{clearInterval(progress)}
+ const progress=setInterval(()=>{void runtime.state().then(s=>{const maintenance=JSON.stringify(s.memoryMaintenance);if(maintenance!==last){last=maintenance;console.log(JSON.stringify({maintenance:s.memoryMaintenance}))}})},2000)
+ try{state=await api('/api/memory/refresh',{});await runtime.waitForMemory();state=await runtime.state() as unknown as WorldJsonObject
+  if(Number((state.memoryMaintenance as WorldJsonObject)?.failed)>0)throw new Error('background maintenance failed')
+ }finally{clearInterval(progress)}
  if(Number((state.debug as WorldJsonObject).headSeq)!==before)throw new Error('maintenance committed world events')
  await api('/api/submit',{text:'刚才那局猜数字是怎么结束的？接下来你想做什么？'})
  await close()

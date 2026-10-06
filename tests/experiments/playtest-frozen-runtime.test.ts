@@ -43,6 +43,73 @@ function interactionFixture():string {
 }
 
 describe('the web playtest on a frozen world', () => {
+
+  it('keeps a committed reply in another room private during incremental projection', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'incremental-private-')); roots.push(root)
+    let entered!: () => void, release!: () => void
+    const waiting = new Promise<void>(done => { entered = done })
+    const gate = new Promise<void>(done => { release = done })
+    let calls = 0
+    const server = createServer(async (_request, response) => {
+      const call = ++calls
+      if (call === 3) { entered(); await gate }
+      const answer = call === 1 ? { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:living-room' } }
+        : call === 2 ? { decision: 'publish', speech: '另一个房间的私密回复。' } : { decision: 'abstain' }
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
+    }); servers.push(server)
+    const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
+      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'ollama', model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+    let pending: Promise<unknown> | undefined
+    try {
+      pending = runtime.submit('大家早上好。'); await waiting
+      const interim = await runtime.state()
+      expect(interim.busy).toBe(true)
+      expect(interim.world.currentScene?.presentNpcNames).not.toContain('Claude')
+      expect(interim.transcript.some(line => line.speaker === 'Claude' && line.text.includes('移动'))).toBe(true)
+      expect(JSON.stringify(interim)).not.toContain('另一个房间的私密回复')
+      await runtime.pause(); release(); await pending
+      expect(JSON.stringify(await runtime.state())).not.toContain('另一个房间的私密回复')
+    } finally { release(); await pending; await runtime.close() }
+  }, 30_000)
+
+
+  it('projects committed replies while later NPC output is still pending', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'incremental-reply-')); roots.push(root)
+    let entered!: () => void, release!: () => void
+    const waiting = new Promise<void>(done => { entered = done })
+    const gate = new Promise<void>(done => { release = done })
+    let calls = 0
+    const server = createServer(async (_request, response) => {
+      calls++
+      if (calls === 2) { entered(); await gate }
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ message: { content: JSON.stringify(calls === 1
+        ? { decision: 'publish', speech: '已提交的第一条回复。' }
+        : { decision: 'publish', speech: '尚未提交的第二条回复。' }) } }))
+    })
+    servers.push(server)
+    const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
+      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'ollama', model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+    let pending: Promise<unknown> | undefined
+    try {
+      pending = runtime.submit('大家早上好。')
+      await waiting
+      const interim = await runtime.state()
+      expect(interim.busy).toBe(true)
+      expect(interim.transcript.some(line => line.text.includes('已提交的第一条回复'))).toBe(true)
+      expect(interim.transcript.some(line => line.text.includes('尚未提交的第二条回复'))).toBe(false)
+      expect(JSON.stringify(interim)).not.toContain('basisRefs')
+      await runtime.pause()
+      release(); await pending
+      const final = await runtime.state()
+      expect(final.transcript.some(line => line.text.includes('已提交的第一条回复'))).toBe(true)
+      expect(final.transcript.some(line => line.text.includes('尚未提交的第二条回复'))).toBe(false)
+    } finally { release(); await pending; await runtime.close() }
+  }, 30_000)
+
   it('revisits emptied rooms and restores NPC speech audiences without revealing isolated speech', async () => {
     const root=mkdtempSync(join(tmpdir(),'empty-room-return-'));roots.push(root)
     const inputs:unknown[]=[]

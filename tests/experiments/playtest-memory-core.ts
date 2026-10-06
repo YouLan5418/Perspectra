@@ -1,5 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import { brandId, canonicalizeWorldJson, RECALL_KEYWORD_TOKENIZER_ID, worldAddressKey,
   type WorldAddress, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
@@ -16,11 +17,59 @@ function object(value: WorldJsonValue | undefined): WorldJsonObject {
 const same = (left: WorldJsonValue, right: WorldJsonValue) =>
   JSON.stringify(canonicalizeWorldJson(left)) === JSON.stringify(canonicalizeWorldJson(right))
 
+export interface MemoryContextBudget {
+  readonly triggerTokens: number
+  readonly compactTokens: number
+  readonly minimumRecentTokens?: number
+}
+export const DEFAULT_MEMORY_CONTEXT_BUDGET: MemoryContextBudget = { triggerTokens: 170_000, compactTokens: 120_000, minimumRecentTokens: 16_000 }
+export const MEMORY_DELIVERY_BUDGET = { maxItems: 6, maxJsonChars: 12_000 } as const
+
+/** Conservative local estimate, not the gateway's tokenizer: ASCII / 3, other code points / 1. */
+export function estimateContextTokens(text: string): number {
+  let ascii = 0, other = 0
+  for (const char of text) { if (char.codePointAt(0)! < 128) ascii++; else other++ }
+  return Math.ceil(ascii / 3 + other)
+}
+
+type Snapshot = { scope: WorldJsonObject; sources: WorldJsonObject[]; tick: number }
+export interface MemoryBuildOptions {
+  readonly run?: CoreRunner
+  readonly roleConcurrency?: number
+  readonly retainConcurrency?: number
+}
+interface BuildJob {
+  readonly id: string; readonly actor: string; readonly prefix: number; readonly snapshot: Snapshot
+  readonly input: WorldJsonObject; readonly controller: AbortController; readonly frozenAt: number
+  readonly done: Promise<void>; readonly finish: () => void
+  started: boolean; failure?: unknown
+}
+
 /** Host adapter only. Python never receives a world path, pack variables or other roles' views. */
 export class PlaytestMemoryCore {
   readonly #directory: string
   readonly #aliases = new Map<string, WorldJsonObject[]>()
-  constructor(readonly dataDirectory: string, readonly address: WorldAddress, readonly run: CoreRunner) {
+  readonly #pending = new Map<string, number>()
+  readonly #jobs = new Map<string, BuildJob>()
+  readonly #buildRun: CoreRunner
+  readonly #roleConcurrency: number
+  readonly #retainConcurrency: number
+  #active = 0
+  #closed = false
+  #counts = { completed: 0, failed: 0, discarded: 0, cancelled: 0 }
+  #startedAt: number | null = null
+  #finishedAt: number | null = null
+  constructor(readonly dataDirectory: string, readonly address: WorldAddress, readonly run: CoreRunner,
+    readonly budget: MemoryContextBudget = DEFAULT_MEMORY_CONTEXT_BUDGET, build: MemoryBuildOptions = {}) {
+    if (!Number.isSafeInteger(budget.triggerTokens) || !Number.isSafeInteger(budget.compactTokens)
+      || budget.compactTokens <= 0 || budget.triggerTokens <= budget.compactTokens)
+      throw new TypeError('invalid memory context budget')
+    this.#buildRun = build.run ?? run
+    this.#roleConcurrency = build.roleConcurrency ?? 2
+    this.#retainConcurrency = build.retainConcurrency ?? 2
+    if (![this.#roleConcurrency, this.#retainConcurrency].every(n => Number.isInteger(n) && n >= 1 && n <= 4)
+      || !Number.isSafeInteger(budget.minimumRecentTokens ?? 16_000) || (budget.minimumRecentTokens ?? 16_000) < 0)
+      throw new TypeError('invalid memory build limits')
     this.#directory = resolve(dataDirectory, 'memory-core')
     mkdirSync(this.#directory, { recursive: true })
   }
@@ -82,6 +131,72 @@ export class PlaytestMemoryCore {
     const expected = snapshot.sources.filter(s => Number(s.worldSeq) <= Number(scope.asOfWorldSeq))
     if (!same(archive.sources!, expected)) throw new Error('memory source prefix changed')
   }
+  archivePrefix(actor: string): number {
+    const cached = this.#load(actor)
+    if (!cached) return 0
+    const scope = object(object(cached.archive).scope)
+    if (scope.characterId !== actor || !same(scope.worldAddress!, { ...this.address })
+      || !Number.isSafeInteger(scope.asOfWorldSeq) || Number(scope.asOfWorldSeq) < 0)
+      throw new Error('memory archive belongs to another role or world')
+    return Number(scope.asOfWorldSeq)
+  }
+  shortTermAfterSeq(actor: string): number {
+    const prefix = this.archivePrefix(actor), cached = this.#load(actor)
+    if (!cached) return 0
+    // A small overlapping raw tail prevents a manual refresh from clearing all recent experience.
+    let tokens = 0, afterSeq = prefix
+    for (const source of (object(cached.archive).sources as WorldJsonObject[]).toReversed()) {
+      if (tokens >= (this.budget.minimumRecentTokens ?? 16_000)) break
+      tokens += estimateContextTokens(JSON.stringify(source))
+      afterSeq = Math.min(afterSeq, Number(source.worldSeq) - 1)
+    }
+    return Math.max(0, afterSeq)
+  }
+  backgroundState(): WorldJsonObject {
+    return { running: this.#active, queued: this.#jobs.size - this.#active, ...this.#counts,
+      startedAt: this.#startedAt, finishedAt: this.#finishedAt,
+      roleConcurrency: this.#roleConcurrency, retainConcurrency: this.#retainConcurrency }
+  }
+  get hasPendingCompaction(): boolean { return this.#pending.size > 0 }
+
+  /** Count the rendered system/user context plus tool schema; queue only complete, chronological source groups. */
+  observeContext(request: PrototypeTurnRequest, promptText: string): void {
+    if (this.#closed) return
+    const actor = String(object(request.context.character).characterId)
+    const tokens = estimateContextTokens(promptText) + 512 // provider framing margin
+    if (tokens < this.budget.triggerTokens || this.#pending.has(actor)
+      || [...this.#jobs.values()].some(job => job.actor === actor)) return
+    const afterSeq = this.archivePrefix(actor), groups = new Map<number, number>()
+    for (const record of [...(request.context.observations ?? []) as WorldJsonObject[],
+      ...(request.context.selfObservations ?? []) as WorldJsonObject[]]) {
+      const seq = Number(record.sourceSeq)
+      if (!Number.isSafeInteger(seq) || seq < 0) throw new Error('invalid short-term source sequence')
+      if (seq <= afterSeq) continue // An archive may have advanced while foreground recall was awaiting its worker.
+      groups.set(seq, (groups.get(seq) ?? 0) + estimateContextTokens(JSON.stringify(record)))
+    }
+    const ordered = [...groups.entries()].sort(([a], [b]) => a - b)
+    let selectedTokens = 0, cutoff = afterSeq
+    // Always retain the latest source group, even when a single large observation exceeds the target.
+    for (const [seq, size] of ordered.slice(0, -1)) {
+      if (selectedTokens > 0 && selectedTokens + size > this.budget.compactTokens) break
+      selectedTokens += size; cutoff = seq
+      if (selectedTokens >= this.budget.compactTokens) break
+    }
+    if (cutoff === afterSeq) return
+    this.#pending.set(actor, cutoff)
+    appendFileSync(resolve(this.#directory, 'compaction-trace.jsonl'), JSON.stringify({ actor,
+      estimatedPromptTokens: tokens, selectedHistoryTokens: selectedTokens, afterSeq, cutoff,
+      triggerTokens: this.budget.triggerTokens, compactTokens: this.budget.compactTokens, status: 'queued' }) + '\n')
+  }
+  startPending(): void {
+    const entries = [...this.#pending.entries()]
+    this.#pending.clear()
+    this.#startJobs(entries)
+  }
+  async compactPending(signal: AbortSignal, progress: (index: number, total: number) => void): Promise<void> {
+    this.startPending()
+    await this.#waitJobs([...this.#jobs.values()], signal, progress)
+  }
   async project(request: PrototypeTurnRequest, signal: AbortSignal): Promise<PrototypeTurnRequest> {
     const actor = String(object(request.context.character).characterId)
     const snapshot = this.#snapshot(actor), cached = this.#load(actor)
@@ -98,9 +213,10 @@ export class PlaytestMemoryCore {
         selfObservations: context.selfObservations ?? [] },
         ...(request.recallEvidence === undefined ? {} : { recallEvidence: { query: request.recallEvidence.query! } }) }
       result = await this.run({ operation: 'recall', archive: cached.archive!, index: cached.index!,
-        request: queryRequest, tick: snapshot.tick, observations: true, deliveryMode: 'minimal' }, signal)
+        request: queryRequest, tick: snapshot.tick, observations: true, deliveryMode: 'minimal',
+        deliveryBudget: MEMORY_DELIVERY_BUDGET }, signal)
       memories = result.delivery as WorldJsonObject[]
-      if (!Array.isArray(memories) || memories.length > 3 || JSON.stringify(memories).length > 4500)
+      if (!Array.isArray(memories) || memories.length > MEMORY_DELIVERY_BUDGET.maxItems || JSON.stringify(memories).length > MEMORY_DELIVERY_BUDGET.maxJsonChars)
         throw new Error('memory delivery budget exceeded')
       const sources = new Map(snapshot.sources.map(s => [String(s.sourceId), s]))
       const trace = object(result.deliveryTrace)
@@ -128,19 +244,128 @@ export class PlaytestMemoryCore {
   recordDecision(request: PrototypeTurnRequest, response: unknown): void {
     appendFileSync(resolve(this.#directory, 'model-trace.jsonl'), JSON.stringify({ request, response, status: 'returned' }) + '\n')
   }
+  startRefresh(actors: readonly string[], asOfWorldSeq?: number): void {
+    // Freeze every role now, including roles waiting for a free slot. No Python gets a world path.
+    this.#startJobs(actors.map(actor => [actor, asOfWorldSeq]))
+  }
   async refresh(actors: readonly string[], signal: AbortSignal, progress: (index: number, total: number) => void): Promise<void> {
-    for (const [i, actor] of actors.entries()) {
-      signal.throwIfAborted(); progress(i + 1, actors.length)
-      const snapshot = this.#snapshot(actor), cached = this.#load(actor)
-      if (cached) this.#validate(cached, snapshot)
-      const aliasHistory = this.#restoreAliases(actor, snapshot.scope, cached)
-      const result = await this.run({ operation: 'build', ...snapshot, aliasHistory,
-        ...(cached === undefined ? {} : { retainedPrefix: cached.archive! }) }, signal)
-      this.#validate(result, snapshot)
+    this.startRefresh(actors)
+    await this.#waitJobs([...this.#jobs.values()], signal, progress)
+  }
+  async #waitJobs(jobs: readonly BuildJob[], signal: AbortSignal, progress: (index: number, total: number) => void): Promise<void> {
+    const abort = () => { for (const job of jobs) job.controller.abort(signal.reason); this.#pump() }
+    signal.addEventListener('abort', abort, { once: true })
+    if (signal.aborted) abort()
+    try {
+      let completed = 0
+      await Promise.all(jobs.map(async job => { await job.done; progress(++completed, jobs.length) }))
       signal.throwIfAborted()
-      const path = this.#path(actor)
-      writeFileSync(path + '.tmp', JSON.stringify({ archive: result.archive, index: result.index, aliasHistory }))
-      renameSync(path + '.tmp', path)
+      const failed = jobs.find(job => job.failure !== undefined)
+      if (failed) throw failed.failure
+    } finally { signal.removeEventListener('abort', abort) }
+  }
+  async waitForBackground(): Promise<void> {
+    while (this.#jobs.size) await Promise.all([...this.#jobs.values()].map(job => job.done))
+  }
+  cancelBackground(): void {
+    this.#pending.clear()
+    for (const job of this.#jobs.values()) job.controller.abort()
+    this.#pump()
+  }
+  async close(): Promise<void> {
+    this.#closed = true; this.cancelBackground(); await this.waitForBackground()
+  }
+  #trace(row: WorldJsonObject): void {
+    appendFileSync(resolve(this.#directory, 'background-builds.jsonl'), JSON.stringify(row) + '\n')
+  }
+  #startJobs(entries: readonly (readonly [string, number | undefined])[]): void {
+    if (entries.length === 0 || this.#closed) return
+    if (this.#jobs.size === 0) {
+      this.#startedAt = Date.now(); this.#finishedAt = null
+      this.#counts = { completed: 0, failed: 0, discarded: 0, cancelled: 0 }
+    }
+    for (const [actor, cutoff] of entries) {
+      try { this.#enqueue(actor, cutoff) }
+      catch (error: unknown) {
+        // Report this role's failed snapshot without suppressing validation in foreground reads.
+        this.#counts.failed++
+        this.#trace({ event: 'freeze-failed', actor, atMs: Date.now(),
+          errorType: error instanceof Error ? error.name : 'unknown' })
+      }
+    }
+    this.#pump()
+  }
+  #enqueue(actor: string, cutoff?: number): void {
+    if (this.#closed) throw new Error('memory background session is closed')
+    const current = this.#snapshot(actor), cached = this.#load(actor)
+    if (cached) this.#validate(cached, current)
+    const prefix = cutoff ?? Number(current.scope.asOfWorldSeq)
+    if (prefix <= this.archivePrefix(actor)) return
+    if (!Number.isSafeInteger(prefix) || prefix > Number(current.scope.asOfWorldSeq)) throw new Error('invalid compaction prefix')
+    const key = actor + ':' + prefix
+    if (this.#jobs.has(key)) return
+    const snapshot: Snapshot = { ...current, scope: { ...current.scope, asOfWorldSeq: prefix },
+      sources: current.sources.filter(source => Number(source.worldSeq) <= prefix) }
+    const aliasHistory = this.#restoreAliases(actor, current.scope, cached)
+      .filter(entry => Number(entry.worldSeq) <= prefix)
+    let finish!: () => void
+    const id = randomUUID(), frozenAt = Date.now()
+    const input: WorldJsonObject = structuredClone({ operation: 'build', ...snapshot, aliasHistory,
+      retainConcurrency: this.#retainConcurrency, buildId: id,
+      ...(cached === undefined ? {} : { retainedPrefix: cached.archive! }) })
+    const job: BuildJob = { id, actor, prefix, snapshot, input, frozenAt, started: false,
+      controller: new AbortController(), done: new Promise<void>(done => { finish = done }), finish: () => finish() }
+    this.#jobs.set(key, job)
+    this.#trace({ event: 'frozen', buildId: id, actor, prefix, atMs: frozenAt,
+      sourceCount: snapshot.sources.length, priorPrefix: cached ? object(object(cached.archive).scope).asOfWorldSeq! : 0 })
+  }
+  #pump(): void {
+    for (const [key, job] of this.#jobs) {
+      if (job.started) continue
+      if (job.controller.signal.aborted) {
+        this.#jobs.delete(key); this.#counts.cancelled++; job.finish()
+        this.#trace({ event: 'cancelled', buildId: job.id, actor: job.actor, prefix: job.prefix, atMs: Date.now() })
+        continue
+      }
+      if (this.#active >= this.#roleConcurrency) continue
+      job.started = true; this.#active++
+      const startedAt = Date.now(), start = performance.now()
+      this.#trace({ event: 'started', buildId: job.id, actor: job.actor, prefix: job.prefix,
+        atMs: startedAt, queueMs: startedAt - job.frozenAt, activeBuilds: this.#active })
+      const signal = AbortSignal.any([job.controller.signal, AbortSignal.timeout(600_000)])
+      void Promise.resolve().then(() => this.#buildRun(job.input, signal)).then(result => {
+        this.#validate(result, job.snapshot)
+        if (!same(object(result.archive).scope!, job.snapshot.scope)) throw new Error('memory build did not cover the requested prefix')
+        signal.throwIfAborted()
+        const installed = this.#load(job.actor), installedPrefix = this.archivePrefix(job.actor)
+        if (installedPrefix >= job.prefix) {
+          this.#counts.discarded++
+          return 'discarded'
+        }
+        if (installed) this.#validate(installed, job.snapshot)
+        const path = this.#path(job.actor)
+        // Comparison and rename contain no await: a late result cannot replace a newer prefix.
+        writeFileSync(path + '.tmp', JSON.stringify({ archive: result.archive, index: result.index, aliasHistory: job.input.aliasHistory }))
+        renameSync(path + '.tmp', path)
+        this.#counts.completed++
+        return 'installed'
+      }).then(event => {
+        this.#trace({ event, buildId: job.id, actor: job.actor, prefix: job.prefix,
+          atMs: Date.now(), buildWallMs: performance.now() - start, frozenWallMs: Date.now() - job.frozenAt })
+      }).catch((error: unknown) => {
+        job.failure = error
+        const cancelled = signal.aborted
+        if (cancelled) this.#counts.cancelled++; else this.#counts.failed++
+        this.#trace({ event: cancelled ? 'cancelled' : 'failed', buildId: job.id, actor: job.actor, prefix: job.prefix,
+          atMs: Date.now(), buildWallMs: performance.now() - start,
+          errorType: error instanceof Error ? error.name : 'unknown' })
+      }).finally(() => {
+        this.#jobs.delete(key); this.#active--; job.finish(); this.#pump()
+      })
+    }
+    if (this.#jobs.size === 0 && this.#startedAt !== null && this.#finishedAt === null) {
+      this.#finishedAt = Date.now()
+      this.#trace({ event: 'idle', atMs: this.#finishedAt, wallMs: this.#finishedAt - this.#startedAt, ...this.#counts })
     }
   }
 }

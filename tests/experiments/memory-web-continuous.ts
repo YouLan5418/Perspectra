@@ -28,17 +28,18 @@ save('protocol.json',{ phase:'6.5',model,pack:'examples/world-packs/prototype-g1
   limits:['one continuous trajectory, no randomized control; page UI not automated',
     'manual refresh rebuilds generic observations; no known-family lineage update in this path'] })
 const run = coreRunner({HCW_LOCAL_MODEL:model,HCW_HINDSIGHT_UTILITY_TRACE:join(root,'utility.jsonl')})
-const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory:root,
-  packPath:resolve('examples/world-packs/prototype-g1'),provider:'local',model,
-  ...(process.env.HCW_LOCAL_ENDPOINT ? { utilityEndpoint:process.env.HCW_LOCAL_ENDPOINT } : {}),
-  ...(process.env.HCW_LOCAL_API_KEY ? { apiKey:process.env.HCW_LOCAL_API_KEY } : {}),
-  timeoutMs:90000,tuning,memoryCore:true,memoryCoreRun:async(input,signal)=>{
+const measuredRun: import('./hindsight-python.ts').CoreRunner = async(input,signal)=>{
     const start=performance.now(), result=await run(input,signal)
     const path=join(root,'bridge.jsonl')
     const {appendFileSync}=await import('node:fs')
     appendFileSync(path,JSON.stringify({input,result,durationMs:performance.now()-start})+'\n')
     return result
-  } })
+}
+const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory:root,
+  packPath:resolve('examples/world-packs/prototype-g1'),provider:'local',model,
+  ...(process.env.HCW_LOCAL_ENDPOINT ? { utilityEndpoint:process.env.HCW_LOCAL_ENDPOINT } : {}),
+  ...(process.env.HCW_LOCAL_API_KEY ? { apiKey:process.env.HCW_LOCAL_API_KEY } : {}),
+  timeoutMs:90000,tuning,memoryCore:true,memoryCoreRun:measuredRun,memoryCoreBuildRun:measuredRun })
 const token=randomBytes(32).toString('hex'), server=createPlaytestServer(runtime,token)
 server.listen(0,'127.0.0.1'); await once(server,'listening')
 const address=server.address();if(!address || typeof address==='string')throw new Error('no HTTP port')
@@ -52,14 +53,17 @@ async function stage(label:string,text?:string) {
   const response=await fetch(base+(text===undefined?'/api/memory/refresh':'/api/submit'),{
     method:'POST',headers:{'x-playtest-token':token,'content-type':'application/json'},
     ...(text===undefined?{}:{body:JSON.stringify({text})}), signal:AbortSignal.timeout(650000) })
-  const state=await response.json() as WorldJsonObject
+  let state=await response.json() as WorldJsonObject
+  const requestDurationMs=performance.now()-start
+  // This diagnostic intentionally waits to compare archived results; the player HTTP request does not.
+  if(text===undefined && response.ok) { await runtime.waitForMemory(); state=await runtime.state() as unknown as WorldJsonObject }
   const after=head(),row={index:index++,label,text:text??null,status:response.status,
-    before,after,durationMs:performance.now()-start,state}
+    before,after,requestDurationMs,durationMs:performance.now()-start,state}
   stages.push(row);save('stages.json',stages)
   if (text===undefined && before.headSeq!==after.headSeq) throw new Error('refresh changed authoritative world prefix')
   console.log(JSON.stringify({label,status:response.status,headSeq:after.headSeq,error:state.error,
     npcMessages:(state.transcript as WorldJsonObject[]|undefined)?.filter(r=>!r.player&&Number(r.seq)>before.headSeq).length}))
-  if (!response.ok || state.error===true) { failed=true;throw new Error('recorded stage failed; no automatic replay') }
+  if (!response.ok || state.error===true || (text===undefined && Number((state.memoryMaintenance as WorldJsonObject)?.failed)>0)) { failed=true;throw new Error('recorded stage failed; no automatic replay') }
 }
 try {
   save('initial-state.json',await runtime.state())

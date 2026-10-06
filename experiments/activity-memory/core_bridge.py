@@ -3,6 +3,11 @@ import copy
 import json
 import os
 import sys
+import threading
+import time
+import uuid
+from contextvars import ContextVar
+from concurrent.futures import ThreadPoolExecutor
 if __name__ == '__main__':
     sys.modules['core_bridge'] = sys.modules[__name__]
 from pathlib import Path
@@ -68,11 +73,29 @@ def utility_prompt(user):
     return json.dumps(payload, ensure_ascii=False)
 
 
+_utility_context = ContextVar('utility_context', default={})
+_attempt_lock = threading.Lock()
+_active_attempts = 0
+
+
+def attempt_trace(row):
+    path = os.getenv('HCW_HINDSIGHT_UTILITY_ATTEMPTS')
+    if path:
+        # Separate files avoid cross-process append races on Windows; merge by atMs for global concurrency.
+        base = Path(path)
+        path = str(base.with_name(base.stem + '-' + str(os.getpid()) + base.suffix))
+        encoded = (json.dumps(row, ensure_ascii=False) + '\n').encode('utf-8')
+        fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+        try: os.write(fd, encoded)
+        finally: os.close(fd)
+
+
 def utility_llm(system, user, max_tokens=1600):
-    """Temporary JSON transport for full-prefix builds; credentials are never traced."""
+    """Existing transport/retry policy, with metadata-only per-HTTP-attempt timing."""
     import math
-    import time
     import urllib.request
+    import urllib.error
+    global _active_attempts
     original_chars = len(user)
     user = utility_prompt(user)
     limit = min(24000, max(max_tokens, math.ceil(len(user) * 0.6)))
@@ -83,13 +106,47 @@ def utility_llm(system, user, max_tokens=1600):
     headers = {'content-type':'application/json'}
     if os.getenv('HCW_LOCAL_API_KEY'): headers['authorization'] = 'Bearer ' + os.environ['HCW_LOCAL_API_KEY']
     encoded = json.dumps(body,ensure_ascii=False).encode()
+    call_id = uuid.uuid4().hex
+    metadata = {**_utility_context.get(), 'pid':os.getpid(), 'callId':call_id, 'requestedModel':model,
+                'inputChars':len(user), 'originalInputChars':original_chars, 'requestedMaxTokens':limit, 'timeoutSeconds':120}
     for attempt in range(3):
+        started_at, started = time.time_ns() / 1_000_000, time.perf_counter()
+        with _attempt_lock:
+            _active_attempts += 1
+            attempt_trace({**metadata, 'attempt':attempt+1, 'event':'started', 'atMs':started_at,
+                           'activeInProcess':_active_attempts})
+        response, error, http_status = None, None, None
+        headers_ms, body_ms = None, None
         try:
-            response = json.load(urllib.request.urlopen(urllib.request.Request(endpoint,data=encoded,headers=headers),timeout=120))
-            break
-        except (OSError,TimeoutError):
-            if attempt == 2: raise
-            time.sleep(2 * (attempt + 1))
+            with urllib.request.urlopen(urllib.request.Request(endpoint,data=encoded,headers=headers),timeout=120) as http:
+                headers_ms = (time.perf_counter()-started)*1000
+                http_status = http.status if hasattr(http, 'status') else 200
+                body_start = time.perf_counter()
+                response = json.load(http)
+                body_ms = (time.perf_counter()-body_start)*1000
+        except (OSError, TimeoutError) as caught:
+            error = caught
+        except (ValueError, TypeError) as caught:
+            error = caught
+            raise
+        finally:
+            root_error = getattr(error, 'reason', error)
+            timed_out = isinstance(root_error, TimeoutError)
+            with _attempt_lock:
+                _active_attempts -= 1
+                attempt_trace({**metadata, 'attempt':attempt+1, 'event':'finished', 'atMs':time.time_ns()/1_000_000,
+                    'durationMs':(time.perf_counter()-started)*1000, 'activeInProcess':_active_attempts,
+                    'status':'returned' if response is not None else 'failed', 'timedOut':timed_out,
+                    'errorType':type(error).__name__ if error else None,
+                    'httpStatus':http_status if http_status is not None else getattr(error, 'code', None),
+                    'headersMs':headers_ms, 'bodyReadMs':body_ms,
+                    'willRetry':isinstance(error, (OSError, TimeoutError)) and attempt < 2,
+                    'retryDelaySeconds':2*(attempt+1) if isinstance(error, (OSError, TimeoutError)) and attempt < 2 else 0,
+                    'returnedModel':response.get('model') if response is not None else None,
+                    'usage':response.get('usage') if response is not None else None})
+        if error is None: break
+        if attempt == 2: raise error
+        time.sleep(2 * (attempt + 1))
     choice=response['choices'][0];msg=choice['message']
     value=msg.get('content') or (msg.get('tool_calls') or [{}])[0].get('function',{}).get('arguments')
     record={'model':model,'inputChars':len(user),'originalInputChars':original_chars,'requestedMaxTokens':limit,'finishReason':choice.get('finish_reason'),
@@ -130,7 +187,22 @@ def retain_prefix(doc, max_prose_chars=9000):
             batches.append(batch); batch, size = [], 0
         batch.append(source); size += chars
     if batch: batches.append(batch)
-    retained = [episode.retain({**doc, 'sources':batch}) for batch in batches or [[]]]
+    concurrency = doc.get('retainConcurrency', 1)
+    if type(concurrency) is not int or not 1 <= concurrency <= 4:
+        raise ValueError('invalid retain concurrency')
+    context = _utility_context.get()
+    def retain_one(entry):
+        i, batch = entry
+        token = _utility_context.set({**context, 'stage':'retain', 'batch':i+1})
+        try: return episode.retain({**doc, 'sources':batch})
+        finally: _utility_context.reset(token)
+    entries = list(enumerate(batches or [[]]))
+    if concurrency == 1:
+        retained = list(map(retain_one, entries))
+    else:
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            # map preserves input order even when later batches finish first.
+            retained = list(executor.map(retain_one, entries))
     result = {'scope':core.check_scope(doc), 'sources':sources,
               'facts':copy.deepcopy(reuse) + [a for part in retained for a in part['facts']],
               'representations':copy.deepcopy(previous.get('representations',[])) + [r for part in retained for r in part['representations']] if previous is not None else [r for part in retained for r in part['representations']],
@@ -146,6 +218,15 @@ def retain_prefix(doc, max_prose_chars=9000):
 
 
 def dispatch(doc):
+    if doc['operation'] != 'build': return dispatch_operation(doc)
+    scope = core.check_scope(doc)
+    token = _utility_context.set({'buildId':doc.get('buildId'), 'actor':scope['characterId'],
+        'asOfWorldSeq':scope['asOfWorldSeq'], 'worldAddress':scope['worldAddress'], 'stage':'build'})
+    try: return dispatch_operation(doc)
+    finally: _utility_context.reset(token)
+
+
+def dispatch_operation(doc):
     if doc['operation'] == 'build':
         core.llm = utility_llm
         original = copy.deepcopy(core.check_sources(doc))
@@ -158,8 +239,10 @@ def dispatch(doc):
         else:
             retained = retain_prefix(doc)
             data = {**retained, 'memoryGrain': 'episode', 'episodes': [], 'observations': []}
+            _utility_context.set({**_utility_context.get(), 'stage':'group'})
             grouped = episode.group(data)
             data['episodes'] = grouped['episodes']
+            _utility_context.set({**_utility_context.get(), 'stage':'consolidate'})
             integrated = episode.consolidate({**data, 'observationsMission': '只形成证据支持的可修正认识，不把主持人的裁决改成独立核实的数值事实；不从一次猜错推断性格、智力或动机。'})
             data['observations'] = integrated['observations']
         for key in ('facts', 'episodes', 'observations'):
@@ -193,7 +276,11 @@ def dispatch(doc):
             candidates, admission = candidate_admission.admit(data, index, recall, request, query)
             observation_ids = {o['id'] for o in data['observations']}
             selected = [c['id'] for c in candidates if c['id'] in observation_ids]
-            delivered = minimal_delivery.deliver(data, candidates, selected, request, doc['tick'], query)
+            budget = doc.get('deliveryBudget', {'maxItems': 3, 'maxJsonChars': 4500})
+            if not isinstance(budget, dict) or set(budget) != {'maxItems', 'maxJsonChars'}:
+                raise ValueError('invalid Delivery budget')
+            delivered = minimal_delivery.deliver(data, candidates, selected, request, doc['tick'], query,
+                max_items=budget['maxItems'], max_json_chars=budget['maxJsonChars'])
             return {'query': query, 'baselineRetrieval': recall,
                     'retrieval': {**recall, 'results': candidates}, 'admission': admission,
                     'delivery': delivered['memories'], 'deliveryTrace': delivered['trace'],
@@ -204,4 +291,16 @@ def dispatch(doc):
     raise ValueError('unknown operation')
 
 if __name__ == '__main__':
-    json.dump(dispatch(json.load(sys.stdin)), sys.stdout, ensure_ascii=False)
+    if '--serve' in sys.argv:
+        # One sequential request at a time. Archives and scopes remain request-local;
+        # vector_core's existing model cache lives for the session, not just one recall.
+        for line in sys.stdin:
+            try:
+                reply = {'result': dispatch(json.loads(line))}
+            except Exception as error:
+                print('Core request failed: ' + type(error).__name__, file=sys.stderr, flush=True)
+                reply = {'error': True}
+            sys.stdout.write(json.dumps(reply, ensure_ascii=False) + '\n')
+            sys.stdout.flush()
+    else:
+        json.dump(dispatch(json.load(sys.stdin)), sys.stdout, ensure_ascii=False)

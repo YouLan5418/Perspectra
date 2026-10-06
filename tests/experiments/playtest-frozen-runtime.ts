@@ -1,5 +1,5 @@
-import { PlaytestMemoryCore } from './playtest-memory-core.ts'
-import { coreRunner, type CoreRunner } from './hindsight-python.ts'
+import { PlaytestMemoryCore, type MemoryContextBudget, type MemoryBuildOptions } from './playtest-memory-core.ts'
+import { createCoreWorker, coreRunner, type CoreRunner } from './hindsight-python.ts'
 import { PackActivity, type ActivityRequest } from './pack-activity.ts'
 import { PackVariables } from './pack-variables.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
@@ -40,6 +40,9 @@ export interface FrozenPlaytestOptions {
   readonly memoryShadow?: boolean
   readonly memoryCore?: boolean
   readonly memoryCoreRun?: CoreRunner
+  readonly memoryCoreBuildRun?: CoreRunner
+  readonly memoryBuildConcurrency?: Omit<MemoryBuildOptions, 'run'>
+  readonly memoryContextBudget?: MemoryContextBudget
   readonly publicationAudit?: InterventionOptions
 }
 
@@ -76,6 +79,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
   #memoryCore: PlaytestMemoryCore | undefined
+  #closeCore: (() => Promise<void>) | undefined
   #activity: PackActivity | undefined
   #workDone: Promise<void> = Promise.resolve()
   #finishWork: (() => void) | undefined
@@ -145,10 +149,15 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     this.#characterIds = characters.map(character => character.actorId)
     if (options.memoryCore) {
       if (options.provider !== 'local') throw new TypeError('实验 Core 网页目前只支持本机 OpenAI 兼容接口。')
-      this.#memoryCore = new PlaytestMemoryCore(options.dataDirectory, this.#address, options.memoryCoreRun ?? coreRunner({
+      const coreEnvironment = {
         HCW_LOCAL_MODEL: this.#model, HCW_LOCAL_ENDPOINT: endpoint.href,
         ...(options.apiKey === undefined ? {} : { HCW_LOCAL_API_KEY: options.apiKey }),
-      }))
+        HCW_HINDSIGHT_UTILITY_ATTEMPTS: resolve(options.dataDirectory, 'memory-core', 'utility-attempts.jsonl'),
+      }
+      const worker = options.memoryCoreRun === undefined ? createCoreWorker(coreEnvironment) : undefined
+      this.#closeCore = worker?.close
+      this.#memoryCore = new PlaytestMemoryCore(options.dataDirectory, this.#address, options.memoryCoreRun ?? worker!.run, options.memoryContextBudget,
+        { ...options.memoryBuildConcurrency, run: options.memoryCoreBuildRun ?? coreRunner(coreEnvironment) })
     }
     this.#decideContinuation = async (request, signal) => {
       if (this.#memoryCore) request = await this.#memoryCore.project(request, signal)
@@ -156,8 +165,10 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       const variables = this.#variables?.getVariables(String(character.characterId))
       if (variables) request = { ...request, context: { ...request.context,
         packVariables: { public: variables.public, private: variables.private } } }
-      const raw = await provider.decide(options.provider === 'local'
-        ? localPrototypeTurnCall(request) : prototypeTurnCall(request), signal)
+      const prepared = options.provider === 'local' ? localPrototypeTurnCall(request) : prototypeTurnCall(request)
+      this.#memoryCore?.observeContext(request, prepared.messages.map(message => message.content).join('\n')
+        + JSON.stringify(prepared.schema))
+      const raw = await provider.decide(prepared, signal)
       this.#memoryCore?.recordDecision(request, raw)
       if (options.publicationAudit === undefined) return raw
       const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
@@ -238,6 +249,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       busy: this.#busy, paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#transcript,
       availableActions: this.#availableActions,
+      ...(this.#memoryCore ? { memoryMaintenance: this.#memoryCore.backgroundState() } : {}),
       ...(this.#activity ? { activity: this.#activity.view(this.#playerId) } : {}),
       ...(this.#variables ? { packVariables: this.#variables.getVariables(this.#playerId) } : {}),
       world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames,
@@ -311,6 +323,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
         this.#lastPlayerIntent = 'clarification'
       } else {
         const playerNotice = this.#playerResolutionNotice(key, result.result.headSeq)
+        await this.#refresh()
         await this.#activateCharacters()
         if (playerNotice !== undefined) this.#notice = [playerNotice, this.#notice].filter(Boolean).join(' ')
       }
@@ -350,27 +363,16 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   }
   async refreshMemory(): Promise<PlaytestState> {
     if (!this.#memoryCore) throw new TypeError('本次试玩没有开启实验记忆。')
-    if (this.#busy || this.#escaping) throw new PlaytestBusyError('请等待当前处理完成。')
-    this.#beginWork(); this.#error = false; this.#continuationController = new AbortController()
-    const signal = AbortSignal.any([this.#continuationController.signal, AbortSignal.timeout(600_000)])
-    try {
-      await this.#application.release(this.#address)
-      this.#notice = '正在整理长期记忆，可能需要几分钟；逃生按钮可以取消。'
-      await this.#memoryCore.refresh(this.#characterIds, signal, (index, total) => {
-        this.#phaseLabel = `正在整理长期记忆 ${index}/${total}`
-      })
-      this.#notice = '长期记忆整理完成，之后的角色回应将使用当前档案。'
-    } catch (error) {
-      this.#error = true
-      this.#notice = signal.aborted ? '整理已取消；已完成的角色档案保留。'
-        : '记忆整理失败，旧档案保留；请检查终端后重试。'
-      throw error
-    } finally {
-      this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
-      try { await this.#refresh() } finally { this.#endWork() }
-    }
+    this.#memoryCore.startRefresh(this.#characterIds)
+    this.#notice = '长期记忆已开始后台整理，可以继续游玩。'
     return this.state()
   }
+  async cancelMemory(): Promise<PlaytestState> {
+    this.#memoryCore?.cancelBackground()
+    this.#notice = '已取消未完成的后台整理；已安装档案和近期经历保留。'
+    return this.state()
+  }
+  async waitForMemory(): Promise<void> { await this.#memoryCore?.waitForBackground() }
   async escape(): Promise<PlaytestState> {
     if (this.#escaping) return this.#escaping
     // Set the override before awaiting anything. Late model outputs are cancelled,
@@ -462,7 +464,10 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
 
   async close(): Promise<void> {
     this.#continuationController?.abort()
+    const closingMemory = this.#memoryCore?.close()
     await this.#workDone
+    await closingMemory
+    await this.#closeCore?.()
     await this.#shadow?.close()
     await this.#application.close()
   }
@@ -484,11 +489,13 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
         ...(this.#memoryCore === undefined ? { memory } : {}),
         rulebooks: this.#activity?.rulebooks() ?? createCoreRulebookRegistry({ interactionPackages: [createBasicInteractionPackage()] }),
         decide: this.#decideContinuation,
+        onCommitted: async () => { this.#projectCommitted(store) },
         ...(this.#activity === undefined ? {} : {
           projectContext: (context: WorldJsonObject, canPerform: boolean) => this.#activity!.projectContext(context, canPerform),
           validateDecision: (decision: WorldJsonObject, request: PrototypeTurnRequest) => this.#activity!.validateDecision(decision, request),
           executionResult: this.#activity.executionResult,
         }),
+        ...(this.#memoryCore === undefined ? {} : { shortTermAfterSeq: (actor: CharacterId) => this.#memoryCore!.shortTermAfterSeq(actor) }),
         recentObservations: this.#tuning.recentObservations,
         recentSelfObservations: this.#tuning.recentSelfObservations,
         ...(shadowFile === undefined ? {} : { onRecallShadow: (observation: PrototypeRecallShadowObservation) =>
@@ -535,7 +542,29 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       } else if (terminal === 'call_limit' || terminal === 'wave_limit' || terminal === 'character_limit') {
         this.#notice = '玩家输入已提交；本轮角色反应达到预算上限，剩余反应没有继续执行。'
       }
-    } finally { this.#continuationController = undefined; memory?.close(); availability.close(); leases.close(); store.close() }
+    } finally {
+      memory?.close(); availability.close(); leases.close(); store.close()
+      this.#continuationController = undefined
+      if (!this.#paused && !this.#escaping) this.#memoryCore?.startPending()
+    }
+  }
+
+  /** The active NPC owns the writer lease. Project its committed prefix without remounting the app. */
+  #projectCommitted(store: WorldStore): void {
+    const head = store.head(this.#address)
+    const view = new CharacterViewBuilder(store).rebuildAt(this.#address, this.#playerId, head.headSeq)
+    const availability = new CharacterRuntimeAvailabilityService(resolve(this.#dataDirectory, 'world.sqlite'))
+    try {
+      const scene = new SceneDecisionService(store, availability, this.#sceneVersion)
+        .decideFromEvents(this.#address, this.#playerId, store.readEvents(this.#address, head.headSeq), head.headSeq)
+      this.#transcript = playerTranscript(view, this.#names, this.#playerId)
+      this.#currentScene = {
+        locationName: view.locationId === null ? '未知地点' : this.#locationNames.get(view.locationId) ?? view.locationId,
+        presentNpcNames: scene.observerIds.filter(id => id !== this.#playerId).map(id => this.#names.get(id) ?? id),
+      }
+      this.#debug = { ...this.#debug, headSeq: head.headSeq, tick: head.tick,
+        visibleSceneIds: view.scenes.map(scene => scene.sceneId) }
+    } finally { availability.close() }
   }
 
   async #refresh(): Promise<void> {

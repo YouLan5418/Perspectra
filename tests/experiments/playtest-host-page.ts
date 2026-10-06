@@ -13,7 +13,7 @@ button{cursor:pointer}button:disabled{opacity:.5;cursor:default}
 iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{color:#bbc7db}
 </style></head><body>
 <header><strong>Perspectra</strong><small>宿主控制</small><button id="memory" type="button" hidden>整理长期记忆</button><button id="escape" type="button">逃生：中止活动并恢复</button></header>
-<p id="notice" role="status"></p>
+<p id="notice" role="status"></p><p id="memory-status" role="status"></p>
 <section id="game" hidden><strong id="title"></strong><p id="round"></p><div id="options"></div></section>
 <iframe id="experience" title="创作者世界页面" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
 <script>
@@ -45,7 +45,10 @@ iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{c
   function render(state) {
     latest=state;
     node('memory').hidden=state.debug?.memoryMode!=='core';
-    node('memory').disabled=state.busy||posting;
+    node('memory').disabled=posting;
+    const m=state.memoryMaintenance;
+    node('memory').textContent=m&&(m.running+m.queued)>0?'取消后台整理':'后台整理长期记忆';
+    node('memory-status').textContent=m&&(m.running+m.queued)>0?'长期记忆在后台整理，可继续游玩。':m&&m.failed>0?'部分角色整理失败，继续使用原档案。':m&&m.completed>0?'后台记忆整理完成。':'';
     if(!posting)node('notice').textContent=lastError||state.notice||'';
     const a=state.activity;
     node('game').hidden=!a;
@@ -103,7 +106,7 @@ iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{c
   async function refresh(){try{render(await api('/api/state'))}catch(error){node('notice').textContent=error.message+'；逃生入口仍可使用。'}}
   node('memory').onclick=async()=>{
     if(posting)return;posting=true;lastError='';
-    try{render(await api('/api/memory/refresh',{}))}
+    try{render(await api(latest?.memoryMaintenance&&(latest.memoryMaintenance.running+latest.memoryMaintenance.queued)>0?'/api/memory/cancel':'/api/memory/refresh',{}))}
     catch(error){lastError=error.message;node('notice').textContent=lastError}
     finally{posting=false;await refresh()}
   };
