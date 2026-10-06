@@ -10,17 +10,17 @@
 | 持久化切片 | C1/C2：World Schema v17、Logical Authority v7、Round Authority v5；C3：World Schema v18、Logical Authority v8、Context Schema v6 |
 | 首个试金石 | 玩家输入“我抓住 Alice 的手”，Alice 同轮选择 release、move、speak 或 abstain |
 
-> **前置门禁进度：** v8 表现 Schema 已在独立提交 `5d6b982` 收口，设计与证据在 `26bc98c` 隔离；完整工程门禁已通过。C0 的版本、DDL 与恢复所有权见 [`2026-09-11_角色交互-C0-Schema-Spike.md`](../2026-09-11_角色交互-C0-Schema-Spike.md)。真实 DeepSeek 20-call 门禁尚未运行，因此 C0 仍未关闭，不得提前进入 C1 生产实现。
+> **前置门禁进度：** v8 表现 Schema 已在独立提交 `5d6b982` 收口，设计与证据在 `26bc98c` 隔离；完整工程门禁已通过。C0 的版本、DDL 与恢复所有权见 [`2026-09-11_角色交互-C0-Schema-Spike.md`](../archive/character-interaction-c0-c4/2026-09-11_角色交互-C0-Schema-Spike.md)。真实 DeepSeek 20-call 门禁尚未运行，因此 C0 仍未关闭，不得提前进入 C1 生产实现。
 
-> **执行进度补充：** 用户随后要求跳过不可用的 DeepSeek 子进程并继续实施，当前已有 C1 内部实现，详见 [`2026-09-11_角色交互-C1-实施记录.md`](../2026-09-11_角色交互-C1-实施记录.md)。上述前置门禁仍未关闭；此进度不构成 C1 正式验收或 Manifest v9 发布许可。
+> **执行进度补充：** 用户随后要求跳过不可用的 DeepSeek 子进程并继续实施，当前已有 C1 内部实现，详见 [`2026-09-11_角色交互-C1-实施记录.md`](../archive/character-interaction-c0-c4/2026-09-11_角色交互-C1-实施记录.md)。上述前置门禁仍未关闭；此进度不构成 C1 正式验收或 Manifest v9 发布许可。
 
-> **C2 执行进度：** 已接入玩家候选 S1、按参与者裁剪的 Provisional ReactionView、S1 Affordance、ContextReceipt 绑定及提交前完整性校验，详见 [`2026-09-12_角色交互-C2-实施记录.md`](../2026-09-12_角色交互-C2-实施记录.md)。当前显式单 Action 入口复用 `submit_actions/v5`，无需 v6；未引入 C3 玩家双步输入。C0 真实模型门禁与 C4 专项恢复/发布验收仍独立保留。
+> **C2 执行进度：** 已接入玩家候选 S1、按参与者裁剪的 Provisional ReactionView、S1 Affordance、ContextReceipt 绑定及提交前完整性校验，详见 [`2026-09-12_角色交互-C2-实施记录.md`](../archive/character-interaction-c0-c4/2026-09-12_角色交互-C2-实施记录.md)。当前显式单 Action 入口复用 `submit_actions/v5`，无需 v6；未引入 C3 玩家双步输入。C0 真实模型门禁与 C4 专项恢复/发布验收仍独立保留。
 
-> **C3 执行进度：** 首个契约切片新增 `PlayerSubmissionV2`、Host 精确 Affordance 绑定、UTF-16 source span 校验和候选结构 Schema，详见 [`2026-09-12_角色交互-C3-契约切片记录.md`](../2026-09-12_角色交互-C3-契约切片记录.md)。尚未接入耐久受理、ProviderCall 或两步玩家 Round；`player-intent/v1` 激活门禁保持关闭，C3 阶段未完成。
+> **C3 执行进度：** 首个契约切片新增 `PlayerSubmissionV2`、Host 精确 Affordance 绑定、UTF-16 source span 校验和候选结构 Schema，详见 [`2026-09-12_角色交互-C3-契约切片记录.md`](../archive/character-interaction-c0-c4/2026-09-12_角色交互-C3-契约切片记录.md)。尚未接入耐久受理、ProviderCall 或两步玩家 Round；`player-intent/v1` 激活门禁保持关闭，C3 阶段未完成。
 
-> **C3/C4 模型无关收尾（2026-09-12）：** 在原运行时切片上补齐受理时 Manifest/head Authority、启动扫描与 `player_input` 调度 quantum、Logical 输入/Inbox/Commit 闭包、backup/restore、fork/as-of、Snapshot/Full Replay 及 v2 Creator 示例；详见新增的 [`C3/C4 模型无关收尾报告`](../2026-09-12_角色交互-C3C4-模型无关收尾-report.md)。原 [`C3 运行时与 C4 恢复实施记录`](../2026-09-12_角色交互-C3运行时与C4恢复-report.md) 保留为当时基线。生产 Player Intent Provider/Profile 入口、C0 Provider 矩阵和 C4 长程真实模型试玩仍未关闭，因此不声明 Manifest v9 已具备发布资格。
+> **C3/C4 模型无关收尾（2026-09-12）：** 在原运行时切片上补齐受理时 Manifest/head Authority、启动扫描与 `player_input` 调度 quantum、Logical 输入/Inbox/Commit 闭包、backup/restore、fork/as-of、Snapshot/Full Replay 及 v2 Creator 示例；详见新增的 [`C3/C4 模型无关收尾报告`](../archive/character-interaction-c0-c4/2026-09-12_角色交互-C3C4-模型无关收尾-report.md)。原 [`C3 运行时与 C4 恢复实施记录`](../archive/character-interaction-c0-c4/2026-09-12_角色交互-C3运行时与C4恢复-report.md) 保留为当时基线。生产 Player Intent Provider/Profile 入口、C0 Provider 矩阵和 C4 长程真实模型试玩仍未关闭，因此不声明 Manifest v9 已具备发布资格。
 
-> **C0 Provider 门禁复跑（2026-09-13）：** C0 预声明的真实 Provider 门禁已在合并树上复跑并通过：`deepseek / deepseek-flash`，20 次调用 0 无效，`deepseekGatePassed: true`，脚本退出码 0。首次运行（24 次调用）无效率为 29.2%；两条被拒形态经对照 §4 的分类判定为**乙类契约缺口**（跨列表重复、空对），已在校验器侧归一化修复，见 [`2026-09-13_表现码跨列表重复归一化-修复说明.md`](../2026-09-13_表现码跨列表重复归一化-修复说明.md)。本条据此不再按"门禁未运行"记录。**边界：** 这是一次达到预声明最低样本量的运行，不是无效率的分布证明；要收紧结论需按 C0 固定语料继续累积多次运行。C3 生产 Player Intent 入口与 C4 长程真实模型试玩仍未关闭。
+> **C0 Provider 门禁复跑（2026-09-13）：** C0 预声明的真实 Provider 门禁已在合并树上复跑并通过：`deepseek / deepseek-flash`，20 次调用 0 无效，`deepseekGatePassed: true`，脚本退出码 0。首次运行（24 次调用）无效率为 29.2%；两条被拒形态经对照 §4 的分类判定为**乙类契约缺口**（跨列表重复、空对），已在校验器侧归一化修复，见 [`2026-09-13_表现码跨列表重复归一化-修复说明.md`](../archive/prototype-g1-g4/2026-09-13_表现码跨列表重复归一化-修复说明.md)。本条据此不再按"门禁未运行"记录。**边界：** 这是一次达到预声明最低样本量的运行，不是无效率的分布证明；要收紧结论需按 C0 固定语料继续累积多次运行。C3 生产 Player Intent 入口与 C4 长程真实模型试玩仍未关闭。
 
 > **术语：** “即时成立”表示无需目标审批、在裁决顺序上先形成玩家候选 S1；不表示零延迟、提前显示或玩家阶段单独 COMMIT。玩家组与 NPC 结果仍由一个 Root Round 原子提交。
 
@@ -589,7 +589,7 @@ Memory 文案只能陈述可观察行为。例如“玩家牵住了 Alice 的手
 | E-004 | 生产普通文本仍直接成为 speak，显式动作依赖命令 | `packages/application/src/player-input.ts`、实施规格 D-003 |
 | E-005 | Round Authority 已保存 sourceRole、完整 Action、Resolution 与 ruleTraceHash | ADR-0044、`packages/application/src/round-coordinator.ts` |
 | E-006 | 自由表现文本曾把未裁定移动传播到 Observation/Memory | 真实试玩缺陷记录与 ADR-0085 的闭合表现纠偏 |
-| E-007 | DeepSeek 无效率从 46% 降至 5.9%，qwen 仍为 4/4 拒绝；去掉组合子后小样本 2/2 接受 | `docs/2026-09-10_修复后真实模型复测记录.md` |
+| E-007 | DeepSeek 无效率从 46% 降至 5.9%，qwen 仍为 4/4 拒绝；去掉组合子后小样本 2/2 接受 | `docs/archive/prototype-g1-g4/2026-09-10_修复后真实模型复测记录.md` |
 
 ### Finding
 

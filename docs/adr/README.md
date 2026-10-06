@@ -1,5 +1,6 @@
 # 架构决策记录
 
+> 此目录保留历史决策／冻结规格的原结构和编号，不自动构成当前重构约束。当前实现首选 [current 架构](../current/architecture/README.md)，完成度见 [项目状态](../current/PROJECT-STATE.md)。
 除表内明确标为 Proposed 的研究决断外，以下 ADR 状态均为 Accepted。实现若需要改变决定，新增 ADR 并标记 supersedes，不修改历史决定的含义。
 
 | ADR | 主题 | 当前落点 |
@@ -76,5 +77,5 @@
 | [0092](ADR-0092-epoch-snapshot-append-only-history.md) | Epoch 快照与只追加的第二层 | **Proposed**；基线冻结、其后事件只追加，第二层预算为档位请求预算的一半、越界才整体前移一次；`recentInteractionBlocks` 数值不变但含义变为"重建时保留多少块" |
 | [0093](ADR-0093-interaction-definition-abstraction.md) | 交互定义抽象、按需交互包与目标自声明 | **Accepted**；2026-09-13 用户明确确认，首批迁移已有五类动作，v10 先交互；I0 Gate 关闭，I1～I5 按阶段验收 |
 | [0094](ADR-0094-communication-scenes-and-propagation.md) | 通信 Scene 与跨边界传播 | **Proposed**；物理与通信成员隔离，按媒介授权观察，统一反应预算；方向已确认，具体契约与工程门禁待完成 |
-| [0095](ADR-0095-relation-class-binding.md) | 关系目标按类绑定 | **Accepted**；`kind: relation` 绑定的 id 指名创建该类关系的定义，不指名实例；实例由来源 Action 在运行期派生。2026-09-14 用户裁定，见 [缺口记录](../2026-09-14_交互抽象-I4b前置-关系目标绑定缺口.md) |
+| [0095](ADR-0095-relation-class-binding.md) | 关系目标按类绑定 | **Accepted**；`kind: relation` 绑定的 id 指名创建该类关系的定义，不指名实例；实例由来源 Action 在运行期派生。2026-09-14 用户裁定，见 [缺口记录](../archive/interaction-abstraction-i0-i7/2026-09-14_交互抽象-I4b前置-关系目标绑定缺口.md) |
 | [0096](ADR-0096-reaction-evidence-policy-and-responsive-v2.md) | 反应依据策略与响应式 v2 | **Accepted**；`direct` 由受锁策略声明的受影响角色槽读出并核对耐久 Observation；失败不落在任何人身上且默认可观察；`responsive/v2` 由世界选择；证据落库（World SQLite 19） |

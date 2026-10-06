@@ -4,7 +4,7 @@
 
 Cordis World 希望让多个角色在同一个世界里，以各自的经历、记忆和可见信息作出反应，而不只是由一个模型轮流模仿所有人。玩家的一次输入可以触发有限轮 NPC 连锁回应；没有新输入、反应周期结束后，世界重新静止。
 
-当前进展和入口见[2026-10-06项目状态](docs/PROJECT-STATE-2026-10-06.md)。简化记忆已接入源码网页的`--memory-core`实验入口，默认网页仍使用原生记忆；双角色实测与地点修复均有记录。
+当前进展和入口见[2026-10-06项目状态](docs/current/PROJECT-STATE.md)。简化记忆已接入源码网页的`--memory-core`实验入口，默认网页仍使用原生记忆；双角色实测与地点修复均有记录。
 
 项目当前处于**实验与重构阶段**。首要目标是让角色更自然、玩法更自由，同时避免关键世界状态和角色知识相互串台。它还不是完整的在线游戏平台，也不承诺现有实验协议或世界包长期兼容。
 
@@ -20,7 +20,7 @@ Cordis World 尝试在**叙事自由**与**关键因果的一致性**之间建�
 - **关键状态有依据**：移动、物品归属等影响后续逻辑的变化由规则裁定后提交；自由的台词、神态和叙述不必全部被编码成精确事件。
 - **按玩法扩展**：世界包描述角色和内容；新的确需要规则与状态的玩法可以通过交互定义和受信任领域代码扩展，而不是不断向核心枚举添加题材动作。
 
-这些是项目目标，**不代表目前每项体验都已达到预期**。表达与有界调度已有连续试玩证据；[G1 的模型无关机械门槛](docs/PROTOTYPE-G1-G2-ACCEPTANCE.md)已验收。[Gemini 连续试玩](docs/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)验证了显式命令下的移动、物品保管、牵手与重开续玩，也再次暴露自由叙述虚构受控事实、私语未送达等问题。记忆召回已接入角色请求，并在窄场景中验证了主动查询；长期经历稳定影响角色自主选择仍未验收。
+这些是项目目标，**不代表目前每项体验都已达到预期**。表达与有界调度已有连续试玩证据；[G1 的模型无关机械门槛](docs/archive/prototype-g1-g4/PROTOTYPE-G1-G2-ACCEPTANCE.md)已验收。[Gemini 连续试玩](docs/archive/prototype-g1-g4/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)验证了显式命令下的移动、物品保管、牵手与重开续玩，也再次暴露自由叙述虚构受控事实、私语未送达等问题。记忆召回已接入角色请求，并在窄场景中验证了主动查询；长期经历稳定影响角色自主选择仍未验收。
 
 ## 当前能体验什么
 
@@ -46,7 +46,7 @@ corepack pnpm@11.7.0 experience:web --ollama --pack examples/world-packs/ai-girl
 corepack pnpm@11.7.0 experience:web --pack examples/world-packs/ai-girls-awaken-v10 --data-dir .tmp/my-playtest
 ```
 
-本原型网页只接受 `worldpack-source/v5` 源目录，并通过 v10 的 FrozenWorldPlaytestRuntime 试玩；旧网页运行时已移除。当前玩家的重要状态交互使用显式 `/act` 命令；普通自然语言不会自动执行移动、取物或交接。创建新存档或续玩时请按[创作者与真实模型试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)操作，不要在同一数据目录中混用不兼容世界版本。真实模型试玩需要人工观察角色是否自然、是否重复、是否无故沉默，自动化测试不能代替这一环节。
+本原型网页只接受 `worldpack-source/v5` 源目录，并通过 v10 的 FrozenWorldPlaytestRuntime 试玩；旧网页运行时已移除。当前玩家的重要状态交互使用显式 `/act` 命令；普通自然语言不会自动执行移动、取物或交接。创建新存档或续玩时请按[创作者与真实模型试玩指南](docs/current/guides/creator-playtest.md)操作，不要在同一数据目录中混用不兼容世界版本。真实模型试玩需要人工观察角色是否自然、是否重复、是否无故沉默，自动化测试不能代替这一环节。
 
 ### 可选：简化记忆试玩
 
@@ -57,7 +57,7 @@ $env:HCW_LOCAL_ENDPOINT = 'http://127.0.0.1:8046/v1/chat/completions'
 corepack pnpm@11.7.0 experience:web --memory-core --pack examples/world-packs/prototype-g1 --data-dir .tmp/my-simple-core-web
 ```
 
-使用宿主“整理长期记忆”按钮手动整理；首次整理前仍有近期上下文。当前保留授权检查、来源及证据摘选标注，JEV不作为必经。一般认识家族更新和桌面Core打包未接入此入口。
+使用宿主“后台整理长期记忆”按钮手动整理，也会按上下文体积软触发；首次整理前仍有近期上下文。当前保留授权检查、来源及证据摘选标注，JEV不作为必经。一般认识家族更新和桌面Core打包未接入此入口。
 
 ## 实验分支的活动与分层记忆
 
@@ -67,7 +67,7 @@ corepack pnpm@11.7.0 experience:web --memory-core --pack examples/world-packs/pr
 corepack pnpm@11.7.0 experience:web --memory-core --pack examples/world-packs/ai-girls-hosted-guess --data-dir .tmp/my-core-playtest
 ```
 
-在顶部点击“整理长期记忆”后才有已整理的长期档案；当前不会每回合自动整理。安装、取消与私有 trace 的说明见 [活动记忆实验](experiments/activity-memory/README.md)。此入口支持本机 OpenAI 兼容服务，尚未随桌面发布打包。主线实现边界、验证结果与旧工作树归档见 [当前项目状态](docs/PROJECT-STATE-2026-10-06.md)。
+在顶部点击“整理长期记忆”后才有已整理的长期档案；当前按上下文体积软触发后台整理，也保留手动入口。安装、取消与私有 trace 的说明见 [活动记忆实验](experiments/activity-memory/README.md)。此入口支持本机 OpenAI 兼容服务，尚未随桌面发布打包。主线实现边界、验证结果与旧工作树归档见 [当前项目状态](docs/current/PROJECT-STATE.md)。
 
 ## Windows 桌面启动器
 
@@ -83,8 +83,8 @@ pnpm desktop:release
 # 打开 dist/release/win-unpacked/Cordis World.exe
 ```
 
-模型服务须先运行；所需 API Key 通过启动器进程环境传入，不在窗口输入或保存。存档位于 Windows 应用数据目录的 `Cordis World/saves`，启动器不会修改 `D:/worlds` 的历史试玩数据。打包版已在当前 Windows 开发机完成无模型调用的启动、浏览器页服务和退出冒烟检查；尚未在干净 Windows 机器及真实模型连续试玩中验收。AI 美少女包现使用自定义游戏页；未提供网页的包沿用原型页。示例交互按钮仍有定义 ID 文案。接口与剩余体验工作见[前端与启动器接口边界](docs/FRONTEND-LAUNCHER-INTERFACE.md)和[实施方案](docs/FRONTEND-LAUNCHER-IMPLEMENTATION-PLAN.md)。
-创作者也可在世界包的 `web/` 目录提供完整 HTML、CSS、JavaScript、图片和字体；没有 `web/index.html` 时使用默认游戏页。网页只改变本机展示，不改变世界包编译哈希或存档身份。用法见[自定义游戏网页指南](docs/CREATOR-WEB-UI.md)。
+模型服务须先运行；所需 API Key 通过启动器进程环境传入，不在窗口输入或保存。存档位于 Windows 应用数据目录的 `Cordis World/saves`，启动器不会修改 `D:/worlds` 的历史试玩数据。打包版已在当前 Windows 开发机完成无模型调用的启动、浏览器页服务和退出冒烟检查；尚未在干净 Windows 机器及真实模型连续试玩中验收。AI 美少女包现使用自定义游戏页；未提供网页的包沿用原型页。示例交互按钮仍有定义 ID 文案。接口与剩余体验工作见[前端与启动器接口边界](docs/archive/prototype-g1-g4/FRONTEND-LAUNCHER-INTERFACE.md)和[实施方案](docs/archive/prototype-g1-g4/FRONTEND-LAUNCHER-IMPLEMENTATION-PLAN.md)。
+创作者也可在世界包的 `web/` 目录提供完整 HTML、CSS、JavaScript、图片和字体；没有 `web/index.html` 时使用默认游戏页。网页只改变本机展示，不改变世界包编译哈希或存档身份。用法见[自定义游戏网页指南](docs/current/guides/web-ui.md)。
 
 ## 运行方式
 
@@ -115,7 +115,7 @@ pnpm desktop:release
 
 World Pack 主要用于描述世界内容：人物、地点、物品、认知设定、场景与叙事材料。已有交互目录与定义机制允许世界选择具体交互。对于新玩法，优先复用现有能力；只有出现新的重要状态和裁定逻辑时，才引入受信任的领域实现。
 
-目标是**小核心、丰富世界**，而不是预先在核心中定义所有玩法。当前 Pack 格式和扩展接口仍可能在实验阶段调整，请参考 [World Pack 字段手册](docs/WORLD-PACK-AUTHORING-MANUAL.md) 与 [试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md) 了解本分支已落地的功能；规划文档中的接口不一定已经可用。
+目标是**小核心、丰富世界**，而不是预先在核心中定义所有玩法。当前 Pack 格式和扩展接口仍可能在实验阶段调整，请参考 [World Pack 字段手册](docs/current/guides/world-pack-authoring.md) 与 [试玩指南](docs/current/guides/creator-playtest.md) 了解本分支已落地的功能；规划文档中的接口不一定已经可用。
 
 可用作当前 v5 参考的内容包括 `examples/world-packs/ai-girls-awaken-v10`、`prototype-g1` 和 `hand-in-hand`。
 
@@ -143,17 +143,19 @@ corepack pnpm@11.7.0 typecheck
 corepack pnpm@11.7.0 test
 ```
 
-本原型工作树的 `check` 已调整为类型检查、Lint 和少量核心测试，不含覆盖率门槛、旧全量或硬崩溃门禁；按需命令见 [基线说明](docs/PROTOTYPE-BASELINE.md)。检查通过不代表角色体验已经验证。涉及权威事实、权限隔离、事务提交等高风险修改时，仍应执行有针对性的严格回归验证。
+本原型工作树的 `check` 已调整为类型检查、Lint 和少量核心测试，不含覆盖率门槛、旧全量或硬崩溃门禁；按需命令见 [基线说明](docs/current/baseline.md)。检查通过不代表角色体验已经验证。涉及权威事实、权限隔离、事务提交等高风险修改时，仍应执行有针对性的严格回归验证。
 
 ## 文档与项目状态
 
+当前机制首选[运行时](docs/current/architecture/runtime.md)、[Interaction](docs/current/architecture/interaction.md)、[认知与记忆](docs/current/architecture/cognition-memory.md)与[创作者运行时](docs/current/architecture/creator-runtime.md)；最新测量见[AI Girls 研究](docs/current/studies/ai-girls/README.md)。
+
 | 要了解什么 | 入口 |
 | --- | --- |
-| 现行实现、最近验证与已知限制 | [当前项目状态](docs/PROJECT-STATE-2026-10-06.md) |
-| 开发方向与约束 | [AGENTS](AGENTS.md)、[当前原型契约](docs/2026-09-19_原型契约-自由叙述与声明式交互-v0.1-report.md) |
-| 启动与创作世界包 | [试玩指南](docs/CREATOR-PLAYTEST-RUNBOOK.md)、[World Pack手册](docs/WORLD-PACK-AUTHORING-MANUAL.md) |
+| 现行实现、最近验证与已知限制 | [当前项目状态](docs/current/PROJECT-STATE.md) |
+| 开发方向与约束 | [AGENTS](AGENTS.md)、[当前原型契约](docs/current/prototype-contract.md) |
+| 启动与创作世界包 | [试玩指南](docs/current/guides/creator-playtest.md)、[World Pack手册](docs/current/guides/world-pack-authoring.md) |
 | 简化Core记忆的准备与用法 | [实验入口](experiments/activity-memory/README.md) |
-| 记忆认知简化的决策与验收 | [简化方案](docs/2026-10-05_记忆认知体系简化方案.md)、[最新双角色实测及修复](experiments/activity-memory/report-normal-playtest.md) |
+| 记忆认知简化的决策与验收 | [简化方案](docs/archive/memory-evolution/2026-10-05_记忆认知体系简化方案.md)、[最新双角色实测及修复](experiments/activity-memory/reports/report-normal-playtest.md) |
 | 全部原型与历史报告 | [文档索引](docs/README.md)、[实验历史命令](experiments/activity-memory/HISTORY.md) |
 
 历史ADR、旧阶段报告与旧版本验收按各自版本理解，当前开发以现行契约、源码和真实试玩为依据。后续优先观察角色自然度、目标牵引、无关记忆准入和实际等待，再决定局部简化。

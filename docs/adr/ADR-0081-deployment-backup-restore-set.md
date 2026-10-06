@@ -2,7 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-09-02
-- 上位目标：[Phase 9 实施规格](../spec/phase-9-implementation-v0.1.md) §21、§23（Phase 9C）；[Phase 9C 实施规划](../2026-09-02_实施计划-Harness-Cordis-World-Phase-9C.md) §8
+- 上位目标：[Phase 9 实施规格](../spec/phase-9-implementation-v0.1.md) §21、§23（Phase 9C）；[Phase 9C 实施规划](../archive/phase-7-9c/2026-09-02_实施计划-Harness-Cordis-World-Phase-9C.md) §8
 - Extends：ADR-0027（Session FIFO 与原子幂等）、ADR-0029（Snapshot、Retention、Compaction）、ADR-0031（Telemetry、Health、Audit）、ADR-0035（Knowledge 与 Memory）、ADR-0064（Context v2 与 Provider 调用边界）、ADR-0075（Session 死信序号连续性）、ADR-0077（有界自主 Reaction Cycle）
 - Supersedes（局部）：“单 World 物理备份即等于部署可恢复”的隐含假设；任何把备份制品当作世界事实来源的实现设想
 
@@ -24,7 +24,7 @@
 
 只恢复 World 无法证明“模型可见输入可由耐久记录重建”这一 Phase 8/9 的核心承诺：Context 里的 ProviderCall 账本、Memory 里的认知水位、Session 里的投递游标都会在恢复后与 World 脱节。
 
-真实旧库验证了跨库水位本来就是闭合的。以冻结提交 `c2b3141`（World Schema v15）生成的真实部署（生成命令与 SHA-256 见[Phase 9C v15 旧库与 Golden 基线](../2026-09-02_Phase-9C-v15旧库与Golden基线.md)）为例：
+真实旧库验证了跨库水位本来就是闭合的。以冻结提交 `c2b3141`（World Schema v15）生成的真实部署（生成命令与 SHA-256 见[Phase 9C v15 旧库与 Golden 基线](../archive/phase-7-9c/2026-09-02_Phase-9C-v15旧库与Golden基线.md)）为例：
 
 | 观察 | 值 |
 | --- | --- |

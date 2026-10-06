@@ -1,0 +1,28 @@
+# v0-phase-0-6 历史索引
+
+以下均按原版本和时期理解；不作为当前架构入口。
+
+- [2026-08-22_Phase-6独立审查修复报告](2026-08-22_Phase-6独立审查修复报告.md)
+- [2026-08-22_V0并发与权威边界加固计划](2026-08-22_V0并发与权威边界加固计划.md)
+- [2026-08-22_V0独立审查修复报告](2026-08-22_V0独立审查修复报告.md)
+- [2026-08-22_实施计划-Harness-Cordis-World-Phase-6](2026-08-22_实施计划-Harness-Cordis-World-Phase-6.md)
+- [2026-08-22_阶段报告-Harness-Cordis-World-Phase-0-report](2026-08-22_阶段报告-Harness-Cordis-World-Phase-0-report.md)
+- [2026-08-22_阶段报告-Harness-Cordis-World-Phase-1-report](2026-08-22_阶段报告-Harness-Cordis-World-Phase-1-report.md)
+- [2026-08-22_阶段报告-Harness-Cordis-World-Phase-2-report](2026-08-22_阶段报告-Harness-Cordis-World-Phase-2-report.md)
+- [2026-08-22_阶段报告-Harness-Cordis-World-Phase-3-report](2026-08-22_阶段报告-Harness-Cordis-World-Phase-3-report.md)
+- [2026-08-22_阶段报告-Harness-Cordis-World-Phase-4-report](2026-08-22_阶段报告-Harness-Cordis-World-Phase-4-report.md)
+- [2026-08-22_阶段报告-Harness-Cordis-World-Phase-5-report](2026-08-22_阶段报告-Harness-Cordis-World-Phase-5-report.md)
+- [2026-08-22_阶段报告-Harness-Cordis-World-Phase-6-report](2026-08-22_阶段报告-Harness-Cordis-World-Phase-6-report.md)
+- [2026-08-23_GLM暂停点审查修复报告](2026-08-23_GLM暂停点审查修复报告.md)
+- [2026-08-23_审查修复记录-Round账本与悬疑Demo](2026-08-23_审查修复记录-Round账本与悬疑Demo.md)
+- [2026-08-23_审查修复记录-悬疑Demo-Phase-2](2026-08-23_审查修复记录-悬疑Demo-Phase-2.md)
+- [2026-08-23_进度报告-三角色悬疑Demo首个可执行切片](2026-08-23_进度报告-三角色悬疑Demo首个可执行切片.md)
+- [2026-08-23_进度报告-异步Round与本机Headless-report](2026-08-23_进度报告-异步Round与本机Headless-report.md)
+- [2026-08-23_阶段报告-悬疑Demo-Phase-2](2026-08-23_阶段报告-悬疑Demo-Phase-2.md)
+- [2026-08-23_阶段报告-悬疑Demo架构纠偏与四项欠账闭环](2026-08-23_阶段报告-悬疑Demo架构纠偏与四项欠账闭环.md)
+- [2026-08-24_V0-Release-Closure-report](2026-08-24_V0-Release-Closure-report.md)
+- [2026-08-24_下一阶段计划-通用内容与真实运行验证](2026-08-24_下一阶段计划-通用内容与真实运行验证.md)
+- [2026-08-24_独立代码审查报告](2026-08-24_独立代码审查报告.md)
+- [2026-08-28_全维度代码评审与路线偏移报告](2026-08-28_全维度代码评审与路线偏移报告.md)
+- [2026-08-29_独立代码评审问题汇总](2026-08-29_独立代码评审问题汇总.md)
+- [V0-LOCAL-RUNBOOK](V0-LOCAL-RUNBOOK.md)

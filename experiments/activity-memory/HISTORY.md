@@ -159,22 +159,22 @@ node --import tsx tests/experiments/activity-memory-live-probe.ts .tmp/my-hosted
 
 ## Observation 对自主选择的延迟对照（2026-10-04）
 
-本轮只验证一个目标：同一角色在相似新场景中，读到／没读到同一条主观认识，首次自主选择是否不同。受控历史在第 15 tick 形成认识，第 55 tick 比较，采用 Gemini 3.7 Flash 和三组各三次重复。自然召回未交付目标认识；明确标记的交付干预中出现了先询问与直接移动的差异。两项结论分别报告，不将条件行为效应当作自然记忆链路通过。入口、原始回答摘要、失败记录和复现方法见 [延迟选择报告](report-observation-choice.md)。
+本轮只验证一个目标：同一角色在相似新场景中，读到／没读到同一条主观认识，首次自主选择是否不同。受控历史在第 15 tick 形成认识，第 55 tick 比较，采用 Gemini 3.7 Flash 和三组各三次重复。自然召回未交付目标认识；明确标记的交付干预中出现了先询问与直接移动的差异。两项结论分别报告，不将条件行为效应当作自然记忆链路通过。入口、原始回答摘要、失败记录和复现方法见 [延迟选择报告](reports/report-observation-choice.md)。
 
 
 ## Observation 适用性投影对照（2026-10-04）
 
-在冻结认识上，只替换一个搜索窗口的检索文本，原三个刺激加同人物无关、不同人物导航对照。Gemini 生成一次适用性字段，编码器、查询、准入和交付规则保持原样；自然交付仍为 0/3，未启动角色行为调用。复现命令、逐点分数和对象匹配限制见 [适用性投影报告](report-observation-applicability.md)，可复核摘要见 observation-applicability-assessment.json。此参数需要上一轮包含 build.json 与 new-task-preview-request.json 的冻结目录。
+在冻结认识上，只替换一个搜索窗口的检索文本，原三个刺激加同人物无关、不同人物导航对照。Gemini 生成一次适用性字段，编码器、查询、准入和交付规则保持原样；自然交付仍为 0/3，未启动角色行为调用。复现命令、逐点分数和对象匹配限制见 [适用性投影报告](reports/report-observation-applicability.md)，可复核摘要见 observation-applicability-assessment.json。此参数需要上一轮包含 build.json 与 new-task-preview-request.json 的冻结目录。
 
 
 ## 对象与适用性判断续验（2026-10-04）
 
-冻结上一轮字段，先测对象＋分字段 E5（仍为 0/3），再单独测对象＋Gemini 适用性准入（原三点交付、两对照为空）。后者完成 27 次真实首次选择对照，等候点出现先问资料与直接移动的分叉。期间修复了成功 Observation 经活动交付器时 trace 缺少 coveredAtomIds 的可复现缺陷。方法变化、失败记录、局限及复现见 [对象与适用性判断报告](report-observation-facet-match.md)。未接入正式网页或修改正式记忆 schema。
+冻结上一轮字段，先测对象＋分字段 E5（仍为 0/3），再单独测对象＋Gemini 适用性准入（原三点交付、两对照为空）。后者完成 27 次真实首次选择对照，等候点出现先问资料与直接移动的分叉。期间修复了成功 Observation 经活动交付器时 trace 缺少 coveredAtomIds 的可复现缺陷。方法变化、失败记录、局限及复现见 [对象与适用性判断报告](reports/report-observation-facet-match.md)。未接入正式网页或修改正式记忆 schema。
 
 
 ## JEV 适用性判断对照（2026-10-04）
 
-实验入口新增 `--jev-judge-from`，复用冻结认识与适用性字段，经确定性对象门槛后只让 OpenRouter `typesafe/jev-1.13` 判断相关性；角色仍用 Gemini 3.7 Flash。密钥读取 `OPENROUTER_JEV_KEY`（进程或 Windows 当前用户环境），不保存值。三态决定、重复稳定性与 27 次首次选择结果见 [JEV 实验报告](report-observation-jev.md) 和 observation-jev-assessment.json。
+实验入口新增 `--jev-judge-from`，复用冻结认识与适用性字段，经确定性对象门槛后只让 OpenRouter `typesafe/jev-1.13` 判断相关性；角色仍用 Gemini 3.7 Flash。密钥读取 `OPENROUTER_JEV_KEY`（进程或 Windows 当前用户环境），不保存值。三态决定、重复稳定性与 27 次首次选择结果见 [JEV 实验报告](reports/report-observation-jev.md) 和 observation-jev-assessment.json。
 
 ```powershell
 node --import tsx tests/experiments/observation-choice.ts .tmp/my-observation-jev --jev-judge-from .tmp/observation-applicability-20261004-v1
@@ -193,7 +193,7 @@ node --import tsx tests/experiments/observation-choice.ts .tmp/my-observation-ba
 & '.tmp/hindsight-vector-venv/Scripts/python.exe' experiments/activity-memory/audit_observation_bank.py .tmp/my-observation-bank
 ```
 
-90 次批量判定与 27 次角色返回完成；初筛减少费用与部分噪声，但漏了相反认识，交付排序也挤掉重要的已准入认识。没有扩到 50 条或修改正式记忆本体。完整方法、探索标签局限及失效链路见 [多候选报告](report-observation-bank.md) 与 observation-bank-assessment.json。
+90 次批量判定与 27 次角色返回完成；初筛减少费用与部分噪声，但漏了相反认识，交付排序也挤掉重要的已准入认识。没有扩到 50 条或修改正式记忆本体。完整方法、探索标签局限及失效链路见 [多候选报告](reports/report-observation-bank.md) 与 observation-bank-assessment.json。
 
 
 ## Observation 认知更新／谱系受控实验（2026-10-04）
@@ -206,7 +206,7 @@ node --import tsx tests/experiments/observation-choice.ts .tmp/my-observation-ba
 & '.tmp/hindsight-vector-venv/Scripts/python.exe' -m unittest discover -s experiments/activity-memory -p test_cognition_lineage.py -v
 ```
 
-家族预先关联、更新对预先选择，不是自动谱系发现；A–D 是模拟来源，回接部分才复用宿主授权档案。分类结果、三类时间、现有Delivery失败与后续范围见 [认知更新报告](report-observation-lineage.md)，可复核摘要见 observation-lineage-assessment.json。原始结果在新的 .tmp/observation-lineage-20261004-v1；未运行新的角色行为或长期试玩。
+家族预先关联、更新对预先选择，不是自动谱系发现；A–D 是模拟来源，回接部分才复用宿主授权档案。分类结果、三类时间、现有Delivery失败与后续范围见 [认知更新报告](reports/report-observation-lineage.md)，可复核摘要见 observation-lineage-assessment.json。原始结果在新的 .tmp/observation-lineage-20261004-v1；未运行新的角色行为或长期试玩。
 
 ## 认知谱系检索续验（2026-10-04）
 
@@ -217,7 +217,7 @@ node --import tsx tests/experiments/observation-choice.ts .tmp/my-observation-ba
 & '.tmp/hindsight-vector-venv/Scripts/python.exe' experiments/activity-memory/audit_lineage_retrieval.py .tmp/my-lineage-retrieval
 ```
 
-保留入口使漏掉的新版回到候选；家族展开保留相反认识，历史端点也能一起交付。但条件误判和阅读名额竞争未解决，未证明调用成本下降，未接正式 schema 或追加 Character Turn。方法、分阶段结果与限制见 [谱系检索报告](report-lineage-retrieval.md)，摘要见 lineage-retrieval-assessment.json。
+保留入口使漏掉的新版回到候选；家族展开保留相反认识，历史端点也能一起交付。但条件误判和阅读名额竞争未解决，未证明调用成本下降，未接正式 schema 或追加 Character Turn。方法、分阶段结果与限制见 [谱系检索报告](reports/report-lineage-retrieval.md)，摘要见 lineage-retrieval-assessment.json。
 
 ## Delivery 排序离线对照（2026-10-04）
 
@@ -227,7 +227,7 @@ node --import tsx tests/experiments/observation-choice.ts .tmp/my-observation-ba
 & '.tmp/hindsight-vector-venv/Scripts/python.exe' experiments/activity-memory/delivery_order.py .tmp/my-delivery-order .tmp/observation-lineage-retrieval-20261004-v1
 ```
 
-家族路径的资料日期三次恢复，导航冲突两支保留，普通查询的无关读取减少；但历史旧版读取3/3→2/3，未直接接正式运行时。完整方法、逐路径结果、退化和未验证边界见 [Delivery排序报告](report-delivery-order.md)，摘要见 delivery-order-assessment.json。
+家族路径的资料日期三次恢复，导航冲突两支保留，普通查询的无关读取减少；但历史旧版读取3/3→2/3，未直接接正式运行时。完整方法、逐路径结果、退化和未验证边界见 [Delivery排序报告](reports/report-delivery-order.md)，摘要见 delivery-order-assessment.json。
 
 ## Delivery 完整阅读组续验（2026-10-04）
 
@@ -237,24 +237,24 @@ node --import tsx tests/experiments/observation-choice.ts .tmp/my-observation-ba
 & '.tmp/hindsight-vector-venv/Scripts/python.exe' experiments/activity-memory/delivery_groups.py .tmp/my-delivery-groups .tmp/delivery-order-20261004-v1
 ```
 
-历史新旧成组恢复3/3，普通查询保持原结果；盲目冲突成组恢复了不适用支并挤掉必需项。另复现现有活动补齐后二次裁剪丢掉必要反证的缺陷，实验整组算法阻止正文单独留下，但原路径未修改。C／D证据组和较大预算只做机械诊断。见 [完整阅读组报告](report-delivery-groups.md) 与 delivery-groups-assessment.json；成功输出 .tmp/delivery-groups-20261004-v2。
+历史新旧成组恢复3/3，普通查询保持原结果；盲目冲突成组恢复了不适用支并挤掉必需项。另复现现有活动补齐后二次裁剪丢掉必要反证的缺陷，实验整组算法阻止正文单独留下，但原路径未修改。C／D证据组和较大预算只做机械诊断。见 [完整阅读组报告](reports/report-delivery-groups.md) 与 delivery-groups-assessment.json；成功输出 .tmp/delivery-groups-20261004-v2。
 
 ## 活动 Delivery 反证裁剪修复（2026-10-04）
 
 已修复实际实验路径的二次裁剪：认识／原文回退与必要反证共同占用预算，可选开场让位，结尾优先；预算不足整组扣留。默认仍三项／4500字符，不接入全局冲突组，也不改变检索排序和认识正文。
 
-72项相关测试通过，63份冻结结果精确复现，合成缺陷样本由“结尾、开场、认识”变为“结尾、认识、反证”。模型调用0；未追加Character Turn。见 [修复记录](report-delivery-counter-fix.md) 和 delivery-counter-fix-assessment.json。
+72项相关测试通过，63份冻结结果精确复现，合成缺陷样本由“结尾、开场、认识”变为“结尾、认识、反证”。模型调用0；未追加Character Turn。见 [修复记录](reports/report-delivery-counter-fix.md) 和 delivery-counter-fix-assessment.json。
 
 ## Delivery 反证真实角色对照（2026-10-04）
 
 已完成Gemini网关27次真实Character Turn；full／移除反证／移除认识与反证三组各重复三次。完整交付3/3回答对最新胜者，反证消融3/3只谈旧两局；再玩一局时各组都答应玩家先猜，未测出自主选择差异。
 
-测试使用预写授权历史和研究者指定认识，候选为显式交付干预，不是自然召回验收。三项／4500字符预算、来源引用、非记忆上下文和原库不变均通过核验。模型请求名gemini-3.7-flash，网关响应标签gemini-3.7-flash-high。准备／调用／审计命令与限制见 [真实角色报告](report-delivery-counter-live.md)。
+测试使用预写授权历史和研究者指定认识，候选为显式交付干预，不是自然召回验收。三项／4500字符预算、来源引用、非记忆上下文和原库不变均通过核验。模型请求名gemini-3.7-flash，网关响应标签gemini-3.7-flash-high。准备／调用／审计命令与限制见 [真实角色报告](reports/report-delivery-counter-live.md)。
 
 
 ## Observation 自然召回与首次自主选择续验（2026-10-04～05）
 
-冻结19条当前认识，按新刺激自然初筛→JEV→三项Delivery，主实验36次真实Character调用；目标旅人认识9/9进入阅读，换陆舟0/3进入候选。主实验目标消融未分离独有作用；事后9次相反认识删除诊断中，保留目标后三次主动问资料是否最新，再删除目标后三次不问。后者是小样本条件效应，删除冲突只作干预，不升级为运行策略。45次返回、44次合法，非法混合输出整包拒绝且无事件。见 [自然召回与选择报告](report-observation-natural-choice.md) 和 observation-natural-choice-assessment.json。
+冻结19条当前认识，按新刺激自然初筛→JEV→三项Delivery，主实验36次真实Character调用；目标旅人认识9/9进入阅读，换陆舟0/3进入候选。主实验目标消融未分离独有作用；事后9次相反认识删除诊断中，保留目标后三次主动问资料是否最新，再删除目标后三次不问。后者是小样本条件效应，删除冲突只作干预，不升级为运行策略。45次返回、44次合法，非法混合输出整包拒绝且无事件。见 [自然召回与选择报告](reports/report-observation-natural-choice.md) 和 observation-natural-choice-assessment.json。
 
 ```powershell
 node --import tsx tests/experiments/observation-natural-choice.ts .tmp/my-natural-choice --prepare
@@ -267,7 +267,7 @@ python experiments/activity-memory/audit_conflict_choice.py .tmp/my-conflict-cho
 
 ## Observation 连续互动续验（2026-10-05）
 
-冻结前轮自然阅读，三组各配当天／旧资料反馈，各重复两次；玩家对白和NPC移动真实提交，移动后保留续写，第三步移除所有长期阅读。12段短互动实际39次模型返回、38次合法，1段因围栏JSON普通文本提前结束。出现一段“询问时效性→旧资料反馈→先核实计划→短期延续”的链条，但首次提问未稳定复现，未提供核实交互，也未生成新的Observation。29项相关测试和只读事件／来源审计通过。见 [连续互动报告](report-observation-sequential-choice.md) 及 observation-sequential-choice-assessment.json。
+冻结前轮自然阅读，三组各配当天／旧资料反馈，各重复两次；玩家对白和NPC移动真实提交，移动后保留续写，第三步移除所有长期阅读。12段短互动实际39次模型返回、38次合法，1段因围栏JSON普通文本提前结束。出现一段“询问时效性→旧资料反馈→先核实计划→短期延续”的链条，但首次提问未稳定复现，未提供核实交互，也未生成新的Observation。29项相关测试和只读事件／来源审计通过。见 [连续互动报告](reports/report-observation-sequential-choice.md) 及 observation-sequential-choice-assessment.json。
 
 ```powershell
 node --import tsx tests/experiments/observation-sequential-choice.ts .tmp/my-sequential-choice --prepare
@@ -278,35 +278,35 @@ python experiments/activity-memory/audit_sequential_choice.py .tmp/my-sequential
 
 ### 2026-10-05 公告牌受控查看实验
 
-见 [最小 World Capability 实验报告](report-notice-board-capability.md)。沿用 native perform/interact、包定义、Rulebook 和原子观察提交；三段真实 Gemini 互动均实际查看，再获得角色独有的 direct_observation Source。未修改记忆算法。新目录命令和限制见报告。
+见 [最小 World Capability 实验报告](reports/report-notice-board-capability.md)。沿用 native perform/interact、包定义、Rulebook 和原子观察提交；三段真实 Gemini 互动均实际查看，再获得角色独有的 direct_observation Source。未修改记忆算法。新目录命令和限制见报告。
 
 
 ### 2026-10-05 真实查看证据的认识更新与后续选择
 
-见 [真实 Source 回流实验报告](report-notice-board-revision.md)。六次既有更新器调用、十二次 Character 激活（十四次调用）。局部认识三次修订，阅读新认识或原证据可避免重复查看；更新理由的过度确定与角色补出迁址仍未通过，未接正式自动更新。
+见 [真实 Source 回流实验报告](reports/report-notice-board-revision.md)。六次既有更新器调用、十二次 Character 激活（十四次调用）。局部认识三次修订，阅读新认识或原证据可避免重复查看；更新理由的过度确定与角色补出迁址仍未通过，未接正式自动更新。
 
 
 ### 2026-10-05 两份真实观察的冲突认识
 
-见 [双牌冲突实验报告](report-notice-board-conflict.md)。三段实际查看取得六份阅读证据，三次原更新器均保留两条未决分支；十二次后续角色对照能保留分歧并拒绝“后看到就更准”，原证据组也能做到，未证明认识独有效应。即时读后回应三次仍未提冲突，且旧认识实际已在输入中；自动更新时机尚未接入。全轮27次真实调用、0次JEV。相关15项TS及6项谱系测试、类型检查／局部lint和只读来源审计通过，未跑长试玩或UI。
+见 [双牌冲突实验报告](reports/report-notice-board-conflict.md)。三段实际查看取得六份阅读证据，三次原更新器均保留两条未决分支；十二次后续角色对照能保留分歧并拒绝“后看到就更准”，原证据组也能做到，未证明认识独有效应。即时读后回应三次仍未提冲突，且旧认识实际已在输入中；自动更新时机尚未接入。全轮27次真实调用、0次JEV。相关15项TS及6项谱系测试、类型检查／局部lint和只读来源审计通过，未跑长试玩或UI。
 
 
 ### 2026-10-05 执行提交后、即时表达前的认识更新
 
-见 [更新时机实验报告](report-notice-board-update-timing.md)。使用原生 maxCalls=1 保存真实查看后的未回复状态，再用 continuationOf 比较旧认识／新冲突认识／两份原始Atom。三个种子各两次采样，新认识6/6表达分歧，旧认识和原始Atom均0/6；只验证表达及计划，未执行核实。全轮30次真实调用，更新额外模型等待中位数约8.35秒，未测端到端延迟。36项相关TS与6项谱系测试、类型／局部lint及只读审计通过；正式核心未改。
+见 [更新时机实验报告](reports/report-notice-board-update-timing.md)。使用原生 maxCalls=1 保存真实查看后的未回复状态，再用 continuationOf 比较旧认识／新冲突认识／两份原始Atom。三个种子各两次采样，新认识6/6表达分歧，旧认识和原始Atom均0/6；只验证表达及计划，未执行核实。全轮30次真实调用，更新额外模型等待中位数约8.35秒，未测端到端延迟。36项相关TS与6项谱系测试、类型／局部lint及只读审计通过；正式核心未改。
 
 
 ### 2026-10-05 原证据自然语言与成组交付
 
-见 [证据交付实验报告](report-notice-board-evidence-delivery.md)。复用同一真实查看后的冻结种子，新调用24次，认识更新／JEV／查看均0次。原JSON 0/6、自然语言分项2/6、自然语言成组6/6、冻结更新认识6/6保留两处不同线索；成组一条仍补出未给定的当前楼层，未把成功数当作全文正确或实际核实成功。保留成组为Delivery实验方向，不删除Observation。46项相关TS、类型／局部lint和只读审计通过，正式核心未改。
+见 [证据交付实验报告](reports/report-notice-board-evidence-delivery.md)。复用同一真实查看后的冻结种子，新调用24次，认识更新／JEV／查看均0次。原JSON 0/6、自然语言分项2/6、自然语言成组6/6、冻结更新认识6/6保留两处不同线索；成组一条仍补出未给定的当前楼层，未把成功数当作全文正确或实际核实成功。保留成组为Delivery实验方向，不删除Observation。46项相关TS、类型／局部lint和只读审计通过，正式核心未改。
 
 ### 自主获取证据与认知更新闭环（2026-10-05）
 
-[实验报告](report-notice-board-action-loop.md) / [逐项结果](notice-board-action-loop-assessment.json)：三个交付对照共18次正常行动选择，实际问人 raw 3/6、paired 1/6、updated 5/6；9份真实新发言来源接入既有更新。三条轨迹各推进8次无关互动后，9次自然检索交付全空，JEV没有候选，完整长期闭环未通过。共62次Character、11次update调用，正式核心和检索机制冻结。后续两次真实读取同样接入更新，没有把同请求采样差异当成记忆收益。
+[实验报告](reports/report-notice-board-action-loop.md) / [逐项结果](notice-board-action-loop-assessment.json)：三个交付对照共18次正常行动选择，实际问人 raw 3/6、paired 1/6、updated 5/6；9份真实新发言来源接入既有更新。三条轨迹各推进8次无关互动后，9次自然检索交付全空，JEV没有候选，完整长期闭环未通过。共62次Character、11次update调用，正式核心和检索机制冻结。后续两次真实读取同样接入更新，没有把同请求采样差异当成记忆收益。
 
 ## 2026-10-05 记忆认知简化：第一步对照
 
-已按[简化方案](../../docs/2026-10-05_记忆认知体系简化方案.md)新增独立入口：
+已按[简化方案](../../docs/archive/memory-evolution/2026-10-05_记忆认知体系简化方案.md)新增独立入口：
 
 ```powershell
 node --import tsx tests/experiments/memory-simplification.ts .tmp/my-simplification --prepare
@@ -316,31 +316,31 @@ node --import tsx tests/experiments/memory-simplification.ts .tmp/my-simplificat
 
 只使用新目录，复用旧闭环的三份冻结授权前缀。直接历史路径不调用嵌入、BM25、RRF、JEV或认识整理；按当前人物、地点／可见对象和活动的明确ID关系选择Source，自身观察不构成通配匹配。默认两次重复，保留真实模型输出、执行、来源、预算和用量trace。
 
-本机网关未声明token容量，预算采用8000／24000 UTF-8 JSON字节，不能解释成8k／24k token。当前短历史两档均交付20条相同材料，不能证明扩大窗口收益。正常网页路径尚未替换；当时待推进6.1，后续进展见下节。完整结果及v1计数修正见[第一步实测记录](report-memory-simplification.md)。
+本机网关未声明token容量，预算采用8000／24000 UTF-8 JSON字节，不能解释成8k／24k token。当前短历史两档均交付20条相同材料，不能证明扩大窗口收益。正常网页路径尚未替换；当时待推进6.1，后续进展见下节。完整结果及v1计数修正见[第一步实测记录](reports/report-memory-simplification.md)。
 
 ### 6.1 候选入口（2026-10-05）
 
-新增 `candidate_admission.py` 与 `tests/experiments/memory-candidate-admission.ts`，在完整宿主授权历史中比较原准入和明确ID准入；保留原分数、JEV、Delivery及认识正文。正式结果 `.tmp/memory-candidate-admission-20261005-v2`：24次首步选择、35次Character调用；登记认识由0/3入池变为3/3、JEV全接受，但原Delivery回退和预算仍导致正文0/3交付。登记实际取证两臂均4/6，不能归因于认识。负控暴露旧话题侵入与较宽的说话者关联。详见 [实测报告](report-candidate-admission.md)，独立审计 `audit_candidate_admission.py`；未接入正常网页路径，也未删除JEV。
+新增 `candidate_admission.py` 与 `tests/experiments/memory-candidate-admission.ts`，在完整宿主授权历史中比较原准入和明确ID准入；保留原分数、JEV、Delivery及认识正文。正式结果 `.tmp/memory-candidate-admission-20261005-v2`：24次首步选择、35次Character调用；登记认识由0/3入池变为3/3、JEV全接受，但原Delivery回退和预算仍导致正文0/3交付。登记实际取证两臂均4/6，不能归因于认识。负控暴露旧话题侵入与较宽的说话者关联。详见 [实测报告](reports/report-candidate-admission.md)，独立审计 `audit_candidate_admission.py`；未接入正常网页路径，也未删除JEV。
 
 ### 极简 Delivery 与 6.2 JEV 消融（2026-10-05）
 
 按用户方向新增 `minimal_delivery.py`：先交付授权的主观认识正文、来源类型、未解决反证标记，再按预算附最多两条关键证据；不要求支持全为直接观察/已接受行动，也不要求整个证据组完整进入预算。原复杂Delivery保留作对照，非认识证据投影继续复用。
 
-[实测报告](report-minimal-delivery-and-jev-ablation.md)：两组共48次首步选择、66次Character调用。Delivery对照中登记认识实际阅读0/6→6/6，极简路径六次有效回应均表达分歧，其中三次真实询问工作人员。6.2同对象无关话题无JEV多读三份认识，但两臂话题侵入均1/3；登记/不同对象阅读材料相同，不把行动差异算作JEV收益。有JEV一条Markdown包裹JSON被原生Turn判invalid_output，保留失败、未重试。后续实验采用极简认识交付，JEV保留可选对照；当时待进入6.3；后续进展见下节。正式网页与6.4尚未完成。
+[实测报告](reports/report-minimal-delivery-and-jev-ablation.md)：两组共48次首步选择、66次Character调用。Delivery对照中登记认识实际阅读0/6→6/6，极简路径六次有效回应均表达分歧，其中三次真实询问工作人员。6.2同对象无关话题无JEV多读三份认识，但两臂话题侵入均1/3；登记/不同对象阅读材料相同，不把行动差异算作JEV收益。有JEV一条Markdown包裹JSON被原生Turn判invalid_output，保留失败、未重试。后续实验采用极简认识交付，JEV保留可选对照；当时待进入6.3；后续进展见下节。正式网页与6.4尚未完成。
 
 入口：`tests/experiments/memory-minimal-delivery.ts`，先`--prepare-delivery`/`--run`，再用新目录`--prepare-jev`/`--run`；只读审计`audit_minimal_delivery.py`。正式结果目录分别为`.tmp/memory-minimal-delivery-20261005-v1`、`.tmp/memory-jev-ablation-20261005-v1`，原候选池和证据数据未变。
 
 
 ### 6.3 即时原始证据 / 已有认识（2026-10-05）
 
-[实测报告](report-immediate-delivery.md)：同一双牌前缀、无核实提示，12次首步选择、18次Character调用，真实询问两臂均3/6；其余均只发表建议。原始证据可直接支撑即时回应，不需前置认识整理；已有认识未显示行动率收益。原始组全部六次回应明确保留相反牌面，已有认识四次；本轮提供商总用量约少23%，不作为稳定速度或长期替代结论。
+[实测报告](reports/report-immediate-delivery.md)：同一双牌前缀、无核实提示，12次首步选择、18次Character调用，真实询问两臂均3/6；其余均只发表建议。原始证据可直接支撑即时回应，不需前置认识整理；已有认识未显示行动率收益。原始组全部六次回应明确保留相反牌面，已有认识四次；本轮提供商总用量约少23%，不作为稳定速度或长期替代结论。
 
 新准备入口`tests/experiments/memory-immediate-delivery.ts`，执行继续复用`memory-minimal-delivery.ts --run`；只读审计`audit_immediate_delivery.py`。正式目录`.tmp/memory-immediate-delivery-20261005-v2`，来源、正文、同前缀、私有隔离、原子提交和逐条对白复核完成。默认check184项、相关Python7项通过；完整证据覆盖说明已修正，旧Delivery/JEV结果仍可重放。当时待验证6.4；后续进展见下节，正常网页接入尚未验收。
 
 
 ### 6.4 延迟认识与真实行为闭环（2026-10-05）
 
-[实测报告](report-delayed-loop.md)：三条真实工作人员Source进入已知家族更新，各推进八轮真实闲聊后，三臂均索引31条相同授权历史。原检索当前/旧目标六个准备均未入池，简单ID准入让正文全部实际读到；18次选择中真实取证当前5/6、旧2/6、无认识6/6，但无认识全部重读大厅旧牌并在对白中省略105。当前/旧12条回应均保留分歧。三组首次后续Source再更新3/3通过，旧证据与反证保留；小样本及材料呈现差异不构成稳定更新收益证明。
+[实测报告](reports/report-delayed-loop.md)：三条真实工作人员Source进入已知家族更新，各推进八轮真实闲聊后，三臂均索引31条相同授权历史。原检索当前/旧目标六个准备均未入池，简单ID准入让正文全部实际读到；18次选择中真实取证当前5/6、旧2/6、无认识6/6，但无认识全部重读大厅旧牌并在对白中省略105。当前/旧12条回应均保留分歧。三组首次后续Source再更新3/3通过，旧证据与反证保留；小样本及材料呈现差异不构成稳定更新收益证明。
 
 共55次Character、6次整理调用；默认check184项、相关Python20项和来源/旧版本/私有隔离/原子提交/再更新审计通过。正式目录`.tmp/memory-delayed-loop-20261005-v1`，人工复核保存在`dialogue-review.json`。有限已知家族闭环已跑通，正常网页未接入。
 
@@ -349,7 +349,7 @@ node --import tsx tests/experiments/memory-simplification.ts .tmp/my-simplificat
 
 ## 6.5 正常网页入口接入
 
-详见 [正常网页 Memory 与连续互动实测](report-web-continuous.md)。现有 `--memory-core` 接入极简路径；默认未传开关仍为原生记忆，不额外增加模式开关。新目录实测完成12次玩家输入、2次手动refresh、13次Character和12次Utility调用；八轮闲聊后仍承认钥匙用途未核实。10次Core请求实际交付认识正文；无关闲聊也均读入旧认识，接受噪声但不宣称稳定收益。
+详见 [正常网页 Memory 与连续互动实测](reports/report-web-continuous.md)。现有 `--memory-core` 接入极简路径；默认未传开关仍为原生记忆，不额外增加模式开关。新目录实测完成12次玩家输入、2次手动refresh、13次Character和12次Utility调用；八轮闲聊后仍承认钥匙用途未核实。10次Core请求实际交付认识正文；无关闲聊也均读入旧认识，接受噪声但不宣称稳定收益。
 
 默认check185项、相关Python21项和65行Source/交付/原生提交审计通过。两角色档案整理通过，但实际模型选择只有同行者；多角色活跃体验、浏览器UI和桌面打包未验收。复现实测：
 
@@ -361,9 +361,9 @@ node --import tsx tests/experiments/memory-web-continuous.ts .tmp/my-memory-web-
 
 ## 6.6 正常双角色与浏览器实测
 
-[实测报告](report-normal-playtest.md)：默认调度预算、近期16/8，在用户8046网关下完成19次玩家输入、2次手动整理、25次真实Character调用。两个角色均实际参与，跨房间暗号未泄露，传闻没有变成已确认用途；90行Source与实际模型材料、确定性交付重放、旧Source/Atom及原生动作提交审计通过。浏览器输入、整理禁用/恢复和最终状态完成检查，服务保留供试玩。
+[实测报告](reports/report-normal-playtest.md)：默认调度预算、近期16/8，在用户8046网关下完成19次玩家输入、2次手动整理、25次真实Character调用。两个角色均实际参与，跨房间暗号未泄露，传闻没有变成已确认用途；90行Source与实际模型材料、确定性交付重放、旧Source/Atom及原生动作提交审计通过。浏览器输入、整理禁用/恢复和最终状态完成检查，服务保留供试玩。
 
 数据目录`.tmp/simple-memory-playtest-20261005-v2`；入口`audit_normal_playtest.py`，结果`normal-audit.json`及`normal-dialogue-review.json`。本轮未修改运行时，未重跑完整check。实际发现静态character地点与当前scene不一致，建议优先局部修复；宽准入的无关材料、同行者反复追问柜子和整理等待仍是已知限制。单轨迹不是稳定认识收益或完整产品验收，当前进程没有Utility用量trace，不报总成本。
 
 
-6.6后续修复已完成：Character请求用当前角色view的地点覆盖静态Manifest地点，移动续写和下一次激活回归通过；默认check185项通过。修复版新世界`.tmp/simple-memory-playtest-20261005-v3`完成6次输入、1次整理、12次真实角色调用，调用时事件前缀与两个地点字段全部一致，38行Source及私有暗号隔离审计通过。详见[报告第5节](report-normal-playtest.md#5-地点投影修复及真实复验)；角色目标牵引、宽准入和整理成本仍保留为限制。
+6.6后续修复已完成：Character请求用当前角色view的地点覆盖静态Manifest地点，移动续写和下一次激活回归通过；默认check185项通过。修复版新世界`.tmp/simple-memory-playtest-20261005-v3`完成6次输入、1次整理、12次真实角色调用，调用时事件前缀与两个地点字段全部一致，38行Source及私有暗号隔离审计通过。详见[报告第5节](reports/report-normal-playtest.md#5-地点投影修复及真实复验)；角色目标牵引、宽准入和整理成本仍保留为限制。

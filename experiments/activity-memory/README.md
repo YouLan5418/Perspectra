@@ -37,7 +37,7 @@ Core开关目前支持本机OpenAI兼容服务的源码网页；Ollama/DeepSeek�
 
 宿主手动“后台整理长期记忆”在排队前冻结每角色已授权Source前缀，复用旧Source/Atom；默认2个角色Build、每角色2个Retain批次有限并行，完整Atom合并/校验后依次Group、Consolidate与索引。后台不占前台busy、writer lease或常驻召回worker，玩家/NPC继续游玩。安装比较现有`scope.asOfWorldSeq`，仅严格更新时原子保存；旧结果迟到则丢弃，失败/取消保留各自原档案和未整理经历，关闭立即取消，没有持久任务或精确续跑。
 
-Core取消16/8截断；实验默认约170k估算上下文软触发，按完整来源选较老约120k工作历史。冻结前缀后的全部原始经历保留，并额外保留约16k估算Source token近期重叠，手动整理也不清空所有近期材料。各预算可通过宿主实验选项覆盖，未传Core开关的原生模式沿用原窗口。600秒Build期限及已有Utility重试策略保持；attempt元数据写入`memory-core/utility-attempts-<pid>.jsonl`，按时间合并可查看真实并发、超时、重试、模型和usage。整理不提交世界事实，检索/Delivery语义不变。详见[后台整理与验收](../../docs/AI-GIRLS-BACKGROUND-COMPACTION-2026-10-06.md)。
+Core取消16/8截断；实验默认约170k估算上下文软触发，按完整来源选较老约120k工作历史。冻结前缀后的全部原始经历保留，并额外保留约16k估算Source token近期重叠，手动整理也不清空所有近期材料。各预算可通过宿主实验选项覆盖，未传Core开关的原生模式沿用原窗口。600秒Build期限及已有Utility重试策略保持；attempt元数据写入`memory-core/utility-attempts-<pid>.jsonl`，按时间合并可查看真实并发、超时、重试、模型和usage。整理不提交世界事实，检索/Delivery语义不变。详见[后台整理与验收](../../docs/current/studies/ai-girls/background-compaction.md)。
 
 当前角色地点由同一调用前缀的角色view生成，身份与设定来自Manifest。一般家族发现、多分支认识更新和正式schema改造仍未接入正常网页。
 
@@ -45,16 +45,16 @@ Core取消16/8截断；实验默认约170k估算上下文软触发，按完整�
 
 | 阶段 | 结论及边界 | 报告 |
 | --- | --- | --- |
-| 6.0 原始授权Source | 验证更短的阅读路径，复杂档案仍可能为空 | [第一步](report-memory-simplification.md) |
-| 6.1 候选准入 | 打通认识候选入口，暴露复杂Delivery压住正文 | [候选入口](report-candidate-admission.md) |
-| 6.2 极简Delivery/JEV | 正文实际交付；JEV保留可选对照，未证明必经收益 | [Delivery与消融](report-minimal-delivery-and-jev-ablation.md) |
-| 6.3 即时证据 | 原始自然语言证据可支撑回应，未见认识提高行动率 | [即时对照](report-immediate-delivery.md) |
-| 6.4 延迟闭环 | 真实取证、新Source和已知家族更新跑通；非通用谱系 | [延迟闭环](report-delayed-loop.md) |
-| 6.5 网页有限接入 | 12次输入、2次整理；仅同行者实际模型调用 | [网页接入](report-web-continuous.md) |
-| 6.6 正常双角色 | 19次输入、2次整理、25次角色调用；暗号隔离正常 | [双角色实测](report-normal-playtest.md) |
-| 地点修复复验 | 默认check185项；新世界12次请求与提交地点一致 | [修复复验](report-normal-playtest.md#5-地点投影修复及真实复验) |
+| 6.0 原始授权Source | 验证更短的阅读路径，复杂档案仍可能为空 | [第一步](reports/report-memory-simplification.md) |
+| 6.1 候选准入 | 打通认识候选入口，暴露复杂Delivery压住正文 | [候选入口](reports/report-candidate-admission.md) |
+| 6.2 极简Delivery/JEV | 正文实际交付；JEV保留可选对照，未证明必经收益 | [Delivery与消融](reports/report-minimal-delivery-and-jev-ablation.md) |
+| 6.3 即时证据 | 原始自然语言证据可支撑回应，未见认识提高行动率 | [即时对照](reports/report-immediate-delivery.md) |
+| 6.4 延迟闭环 | 真实取证、新Source和已知家族更新跑通；非通用谱系 | [延迟闭环](reports/report-delayed-loop.md) |
+| 6.5 网页有限接入 | 12次输入、2次整理；仅同行者实际模型调用 | [网页接入](reports/report-web-continuous.md) |
+| 6.6 正常双角色 | 19次输入、2次整理、25次角色调用；暗号隔离正常 | [双角色实测](reports/report-normal-playtest.md) |
+| 地点修复复验 | 默认check185项；新世界12次请求与提交地点一致 | [修复复验](reports/report-normal-playtest.md#5-地点投影修复及真实复验) |
 
-实施决策见[记忆认知简化方案](../../docs/2026-10-05_记忆认知体系简化方案.md)，整体项目状态见[当前状态](../../docs/PROJECT-STATE-2026-10-06.md)。早期活动、反证裁剪、Bank和认识谱系实验的完整命令与报告链接在[历史记录](HISTORY.md)。
+实施决策见[记忆认知简化方案](../../docs/archive/memory-evolution/2026-10-05_记忆认知体系简化方案.md)，整体项目状态见[当前状态](../../docs/current/PROJECT-STATE.md)。早期活动、反证裁剪、Bank和认识谱系实验的完整命令与报告链接在[历史记录](HISTORY.md)。
 
 ## 4. 文件职责与复核
 
@@ -65,7 +65,7 @@ Core取消16/8截断；实验默认约170k估算上下文软触发，按完整�
 | `experiments/hindsight-core` | 随仓库保存的分层核心、本地编码器资产描述 |
 | `core_bridge.py`、`candidate_admission.py`、`minimal_delivery.py` | 当前Python桥、候选准入及极简交付 |
 | `tests/experiments/memory-*.ts` | 独立对照的准备、执行和闭环驱动 |
-| `audit_*.py`、`test_*.py`、`report-*.md` | 离线审计、回归及实验报告 |
+| `audit_*.py`、`test_*.py`、`reports/report-*.md` | 离线审计、回归及实验报告 |
 | `.tmp/<实验目录>` | 新世界、角色缓存、私有trace、实际模型返回与审计结果 |
 
 ```powershell
@@ -82,10 +82,12 @@ Core取消16/8截断；实验默认约170k估算上下文软触发，按完整�
 
 ## 5. 仍接受的限制
 
-宽准入会在无关话题交付旧认识；同行者可能被持续目标牵引而忽略新话题。部分证据只摘选，认识文字和反证布尔标记不能互相替代。手动整理仍需等待Utility处理；初期四角色为12次，较长增量材料会增加提炼批数。本轮AI美少女包复测的24次热启动完整召回为0.033—0.489秒；冷启动和取消后的重新加载仍有成本。已提交NPC回复在反应链进行中按玩家权限投影，不提供token流。测量与边界见[体验与性能首轮优化](../../docs/AI-GIRLS-OPTIMIZATION-2026-10-06.md)；单轨迹并未证明稳定自然度或长期记忆更新收益。
+宽准入会在无关话题交付旧认识；同行者可能被持续目标牵引而忽略新话题。部分证据只摘选，认识文字和反证布尔标记不能互相替代。手动整理仍需等待Utility处理；初期四角色为12次，较长增量材料会增加提炼批数。本轮AI美少女包复测的24次热启动完整召回为0.033—0.489秒；冷启动和取消后的重新加载仍有成本。已提交NPC回复在反应链进行中按玩家权限投影，不提供token流。测量与边界见[体验与性能首轮优化](../../docs/current/studies/ai-girls/optimization.md)；单轨迹并未证明稳定自然度或长期记忆更新收益。
 
-[整理间隔实测](../../docs/AI-GIRLS-MEMORY-CADENCE-2026-10-06.md)继续同一AI美少女存档31次输入：两角色轨迹的新信息第8轮仍在窗口，第9轮退出并遗忘；人工整理后6次回答恢复。阻塞整理458秒、16次Utility处理；已有档案也出现原因未交付的细节遗漏。这是旧16/8配置的结果；后续按用户要求采用宽窗口，当前约170k/120k软触发后台整理，6—8轮不再作为当前整理候选周期。
+[整理间隔实测](../../docs/current/studies/ai-girls/memory-cadence.md)继续同一AI美少女存档31次输入：两角色轨迹的新信息第8轮仍在窗口，第9轮退出并遗忘；人工整理后6次回答恢复。阻塞整理458秒、16次Utility处理；已有档案也出现原因未交付的细节遗漏。这是旧16/8配置的结果；后续按用户要求采用宽窗口，当前约170k/120k软触发后台整理，6—8轮不再作为当前整理候选周期。
 
 本轮核心尚未成为默认记忆，完整多场景体验、桌面Core打包和通用认识版本更新未验收。后续以正常试玩的具体失败和已测等待决定局部投入。
 
-宽窗口实现、当前参数及真实复测见[2026-10-06宽上下文记录](../../docs/AI-GIRLS-WIDE-CONTEXT-2026-10-06.md)。
+宽窗口实现、当前参数及真实复测见[2026-10-06宽上下文记录](../../docs/current/studies/ai-girls/wide-context.md)。
+
+完整报告入口：[报告索引](reports/README.md)。阶段历史命令继续保存在 [HISTORY](HISTORY.md)。

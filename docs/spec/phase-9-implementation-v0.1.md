@@ -548,7 +548,7 @@ corepack pnpm@11.7.0 check
 ### Evidence
 
 - [ADR-0076](../adr/ADR-0076-reaction-cycle-npc-only-round-prototype.md)证明 NPC-only Round 可以在不伪造玩家 Action 的前提下进入现有权威提交链；
-- [Reaction Cycle P0 原型验证报告](../2026-08-30_Reaction-Cycle-P0原型验证报告.md)记录 Schema v16 / Logical v6、单 wave、租约、恢复与测试结果；
+- [Reaction Cycle P0 原型验证报告](../archive/phase-7-9c/2026-08-30_Reaction-Cycle-P0原型验证报告.md)记录 Schema v16 / Logical v6、单 wave、租约、恢复与测试结果；
 - Phase 8 / 8.1 已提供 Character Context、Scene、Memory、Authority、Checkpoint 与连续性边界；
 - 当前原型仍缺多 wave、稳定并行预算、正式 Host worker、玩家抢占、完整 API 和生产迁移承诺。
 

@@ -2,7 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-09-02
-- 上位目标：[Phase 9 实施规格](../spec/phase-9-implementation-v0.1.md) §23（Phase 9C）；[Phase 9C 实施规划](../2026-09-02_实施计划-Harness-Cordis-World-Phase-9C.md) §7
+- 上位目标：[Phase 9 实施规格](../spec/phase-9-implementation-v0.1.md) §23（Phase 9C）；[Phase 9C 实施规划](../archive/phase-7-9c/2026-09-02_实施计划-Harness-Cordis-World-Phase-9C.md) §7
 - Extends：ADR-0054（World Pack 来源、编译、信任与版本）、ADR-0067（Cognitive Memory v2 与 World Pack v2）、ADR-0069（World Pack v2 作者源文件形状）、ADR-0077（有界自主 Reaction Cycle）、ADR-0078（Reaction Policy 的 Manifest 版本门）
 - Supersedes（局部）：ADR-0078 决定 6 中“正式创作者编译入口尚未存在”的状态；任何通过给 `worldpack-source/v1`、`worldpack-source/v2` 增加可选字段来启用自主反应的实现设想
 
@@ -94,7 +94,7 @@ Manifest v5 的 `responsive/v1` 要求每个 active 且非 manual 的 NPC 都有
 
 ### 6. 零漂移证明
 
-Golden Fixture 必须证明 v1/v2 编译字节与 Hash 零变化。当前已被测试固定的基线值（详见[Phase 9C v15 旧库与 Golden 基线](../2026-09-02_Phase-9C-v15旧库与Golden基线.md)）：
+Golden Fixture 必须证明 v1/v2 编译字节与 Hash 零变化。当前已被测试固定的基线值（详见[Phase 9C v15 旧库与 Golden 基线](../archive/phase-7-9c/2026-09-02_Phase-9C-v15旧库与Golden基线.md)）：
 
 | 基线 | 值 | 固定位置 |
 | --- | --- | --- |

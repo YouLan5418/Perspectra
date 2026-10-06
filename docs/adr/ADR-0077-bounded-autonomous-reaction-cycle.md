@@ -3,7 +3,7 @@
 - 状态：Accepted（方向已冻结；尚不授权生产实现）
 - 日期：2026-08-30
 - 上位目标：[Phase 9 实施规格](../spec/phase-9-implementation-v0.1.md)
-- 原型证据：[ADR-0076](ADR-0076-reaction-cycle-npc-only-round-prototype.md)与 [P0 验证报告](../2026-08-30_Reaction-Cycle-P0原型验证报告.md)
+- 原型证据：[ADR-0076](ADR-0076-reaction-cycle-npc-only-round-prototype.md)与 [P0 验证报告](../archive/phase-7-9c/2026-08-30_Reaction-Cycle-P0原型验证报告.md)
 - Extends：ADR-0038、ADR-0039、ADR-0040、ADR-0043、ADR-0044、ADR-0046、ADR-0064、ADR-0068、ADR-0073～ADR-0075
 - Supersedes（局部）：实施规格 D-004、D-005、D-007，以及 ADR-0023 中“一条玩家输入恰好对应一个 Round/Tick”的部分
 

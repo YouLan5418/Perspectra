@@ -2,7 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-09-02
-- 上位目标：[Phase 9 实施规格](../spec/phase-9-implementation-v0.1.md) §17～§18、§22；[Phase 9C 实施规划](../2026-09-02_实施计划-Harness-Cordis-World-Phase-9C.md)
+- 上位目标：[Phase 9 实施规格](../spec/phase-9-implementation-v0.1.md) §17～§18、§22；[Phase 9C 实施规划](../archive/phase-7-9c/2026-09-02_实施计划-Harness-Cordis-World-Phase-9C.md)
 - Extends：ADR-0031（Telemetry、Health、Audit）、ADR-0036（行政 Barrier 与 Branch）、ADR-0074（确定性世界文本顺序）、ADR-0077（有界自主 Reaction Cycle）、ADR-0078（Reaction Policy 版本门）
 - Supersedes（局部）：ADR-0076 原型中“每 Branch 一个 worker 自行排空该 Branch”的调度设想；任何把进程内队列、wake 提示或 Metric 当作工作事实来源的实现
 

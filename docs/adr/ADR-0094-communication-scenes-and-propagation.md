@@ -4,7 +4,7 @@
 - 日期：2026-09-14
 - Extends：[ADR-0093](ADR-0093-interaction-definition-abstraction.md)
 - 拟局部 supersede：新版本路径中 [ADR-0072](ADR-0072-location-bound-scene-transition.md) 及既有 Scene 决策对成员/受众范围的相关限制；物理迁移和旧版本语义保留
-- 上位方案：[V0.3](../2026-09-14_方案-交互抽象与按需交互包-v0.3-report.md)
+- 上位方案：[V0.3](../archive/interaction-abstraction-i0-i7/2026-09-14_方案-交互抽象与按需交互包-v0.3-report.md)
 
 ## 背景
 
