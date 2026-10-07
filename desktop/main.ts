@@ -86,7 +86,7 @@ function modelChoice(value: LaunchRequest): ModelChoice {
 async function preflight(packPath: string, dataDirectory: string): Promise<void> {
   const script = app.isPackaged
     ? join(repository, 'dist', 'backend', 'save-preflight.mjs')
-    : join(repository, 'desktop', 'save-preflight.ts')
+    : join(repository, 'desktop', 'save-preflight-entry.ts')
   const args = app.isPackaged ? [script, packPath, dataDirectory]
     : ['--import', 'tsx', script, packPath, dataDirectory]
   try {

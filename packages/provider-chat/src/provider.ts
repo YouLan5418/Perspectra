@@ -1,3 +1,5 @@
+import type { RequestInspector } from './request-inspector.ts'
+import { rolePreset, type RolePreset } from './preset.ts'
 import type { WorldJsonValue } from '@harness-world/contracts'
 import { objectValue, textValue } from './value.ts'
 import { actionGroupCall, intentCall, type ChatCall, type ExactProviderRequest } from './wire.ts'
@@ -35,6 +37,7 @@ export interface ChatProviderOptions {
   readonly apiKey?: string
   readonly style?: ChatStyle
   readonly timeoutMs?: number
+  readonly preset?: RolePreset
   readonly temperature?: number
   readonly maxOutputTokens?: number
   readonly toolName?: string
@@ -47,6 +50,7 @@ export interface ChatProviderOptions {
   readonly thinking?: 'disabled' | 'unspecified'
   /** Injected so the transport can be tested against a local endpoint instead of a vendor. */
   readonly fetch?: typeof globalThis.fetch
+  readonly inspector?: RequestInspector
   readonly onCall?: (observation: ChatCallObservation) => void
 }
 
@@ -94,6 +98,7 @@ export interface ChatProvider {
  * output-quality policies see them.
  */
 export function createChatProvider(options: ChatProviderOptions): ChatProvider {
+  const preset=rolePreset(options.preset??{})
   const post = options.fetch ?? globalThis.fetch
   const style = options.style ?? 'tool'
   const toolName = options.toolName ?? 'submit_actions'
@@ -103,15 +108,31 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
     const headers: Record<string, string> = { 'content-type': 'application/json' }
     // The Host resolves the Secret; the adapter only carries it, and nothing here records or reports it.
     if (options.apiKey !== undefined) headers.authorization = `Bearer ${options.apiKey}`
+    const generation=kind==='character'?preset:{}
+    const messages=kind==='character'&&generation.prompt?.trim()
+      ? [...prepared.messages.slice(0,1),{role:'system',content:'角色表现预设：'+generation.prompt},...prepared.messages.slice(1)] : prepared.messages
+    if(kind==='character'&&generation.maxOutputTokens!==undefined)maximum=generation.maxOutputTokens
     const body = style === 'tool'
-      ? { model, messages: prepared.messages, stream: false, temperature: options.temperature ?? 0.3,
+      ? { model, messages, stream: false, temperature: generation.temperature ?? options.temperature ?? 0.3,
         max_tokens: maximum,
+        ...(generation.topP===undefined?{}:{top_p:generation.topP}),
+        ...(generation.frequencyPenalty===undefined?{}:{frequency_penalty:generation.frequencyPenalty}),
+        ...(generation.presencePenalty===undefined?{}:{presence_penalty:generation.presencePenalty}),
+        ...(generation.stop?.length?{stop:generation.stop}:{}),
         ...(options.thinking === 'unspecified' ? {} : { thinking: { type: 'disabled' } }),
         tools: [{ type: 'function', function: { name: toolName, description: prepared.description,
           parameters: prepared.schema } }],
         tool_choice: { type: 'function', function: { name: toolName } } }
-      : { model, messages: prepared.messages, stream: false, format: prepared.schema,
-        options: { temperature: options.temperature ?? 0.3, num_predict: maximum } }
+      : { model, messages, stream: false, format: prepared.schema,
+        options: { temperature: generation.temperature ?? options.temperature ?? 0.3, num_predict: maximum,
+          ...(generation.topP===undefined?{}:{top_p:generation.topP}),
+          ...(generation.frequencyPenalty===undefined?{}:{frequency_penalty:generation.frequencyPenalty}),
+          ...(generation.presencePenalty===undefined?{}:{presence_penalty:generation.presencePenalty}),
+          ...(generation.stop?.length?{stop:generation.stop}:{}), } }
+    const sources = [...(prepared.inspection?.sources ?? [])]
+    if (kind === 'character' && generation.prompt?.trim()) sources.splice(1, 0, {source:'preset',name:'附加角色提示',original:generation.prompt})
+    const inspection = kind === 'character' && prepared.inspection ? {...prepared.inspection,sources} : undefined
+    const inspectionId = options.inspector?.begin(body, inspection)
     const started = performance.now()
     try {
       const timeout = AbortSignal.timeout(timeoutMs)
@@ -123,10 +144,13 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
         const detail = (await response.text()).slice(0, 512)
         throw new ChatTransportError(`chat endpoint returned HTTP ${response.status}${detail.length === 0 ? '' : `: ${detail}`}`)
       }
-      const payload = payloadOf(await response.json(), style)
+      const responseBody: unknown = await response.json()
+      const payload = payloadOf(responseBody, style)
+      options.inspector?.finish(inspectionId, 'ok', Math.round(performance.now() - started), responseBody)
       options.onCall?.({ kind, model, durationMs: Math.round(performance.now() - started), status: 'ok' })
       return payload
     } catch (error: unknown) {
+      options.inspector?.finish(inspectionId, 'failed', Math.round(performance.now() - started))
       options.onCall?.({ kind, model, durationMs: Math.round(performance.now() - started), status: 'failed' })
       throw error
     }

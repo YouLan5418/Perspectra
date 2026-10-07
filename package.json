@@ -12,14 +12,18 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint packages tests desktop vitest.config.ts vitest.prototype.config.ts",
     "test": "vitest run --config vitest.prototype.config.ts",
-    "desktop:build": "esbuild desktop/main.ts --bundle --platform=node --format=esm --external:electron --outfile=dist/desktop/main.mjs && esbuild desktop/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/preload.cjs && esbuild desktop/renderer.ts --bundle --platform=browser --format=iife --outfile=dist/desktop/renderer.js && esbuild desktop/save-preflight.ts --bundle --platform=node --format=esm --target=node24 --external:jieba-wasm --outfile=dist/backend/save-preflight.mjs && esbuild tests/experiments/playtest-web-entry.ts --bundle --platform=node --format=esm --target=node24 --external:jieba-wasm --outfile=dist/backend/playtest.mjs",
+    "desktop:build": "esbuild desktop/main.ts --bundle --platform=node --format=esm --external:electron --outfile=dist/desktop/main.mjs && esbuild desktop/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/preload.cjs && esbuild desktop/renderer.ts --bundle --platform=browser --format=iife --outfile=dist/desktop/renderer.js && esbuild desktop/save-preflight-entry.ts --bundle --platform=node --format=esm --target=node24 --external:jieba-wasm --outfile=dist/backend/save-preflight.mjs && esbuild tests/experiments/playtest-web-entry.ts --bundle --platform=node --format=esm --target=node24 --external:jieba-wasm --outfile=dist/backend/playtest.mjs",
     "desktop": "corepack pnpm@11.7.0 desktop:build && electron .",
     "worldpack": "node --import tsx packages/world-pack/process/cli-entry.ts",
     "experience:web": "node --import tsx tests/experiments/playtest-web-entry.ts",
     "experience:web:flash": "node --import tsx tests/experiments/playtest-web-entry.ts",
     "check": "corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test",
     "test:related": "vitest run --config vitest.config.ts",
-    "desktop:release": "corepack pnpm@11.7.0 desktop:build && electron-builder --win --dir"
+    "desktop:release": "corepack pnpm@11.7.0 desktop:build && electron-builder --win --dir",
+    "launcher:dev": "corepack pnpm@11.7.0 --filter @perspectra/launcher dev",
+    "launcher:build": "corepack pnpm@11.7.0 --filter @perspectra/launcher build",
+    "launcher:desktop": "corepack pnpm@11.7.0 --filter @perspectra/launcher desktop",
+    "launcher:check": "corepack pnpm@11.7.0 --filter @perspectra/launcher typecheck && corepack pnpm@11.7.0 --filter @perspectra/launcher test"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.1",

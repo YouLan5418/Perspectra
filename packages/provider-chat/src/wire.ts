@@ -1,3 +1,4 @@
+import type { CallInspection } from './request-inspector.ts'
 import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
 import { objectValue as object, textValue as text } from './value.ts'
 
@@ -22,6 +23,7 @@ export interface ExactProviderRequest {
 
 /** One prepared call: the messages to send, the JSON Schema the answer is bound to, and what to ask for. */
 export interface ChatCall {
+  readonly inspection?: CallInspection
   readonly messages: readonly ChatMessage[]
   readonly schema: WorldJsonObject
   readonly description: string

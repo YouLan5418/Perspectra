@@ -1,7 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { pathToFileURL } from 'node:url'
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
@@ -40,16 +39,5 @@ export async function preflightSave(packPath: string, dataDirectory: string): Pr
     return { title: pack.content.world.title, packHash: pack.packHash, kind: 'resume' }
   } finally {
     database.close()
-  }
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const [packPath, dataDirectory] = process.argv.slice(2)
-  if (!packPath || !dataDirectory) throw new Error('preflight requires pack path and data directory')
-  try {
-    process.stdout.write(JSON.stringify(await preflightSave(packPath, dataDirectory)) + '\n')
-  } catch (error: unknown) {
-    console.error(error instanceof Error ? error.message : '存档预检失败')
-    process.exitCode = 1
   }
 }

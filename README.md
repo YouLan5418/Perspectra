@@ -160,7 +160,13 @@ corepack pnpm@11.7.0 desktop
 pnpm desktop:release
 ```
 
-桌面启动器可以选择世界包、新建或续玩存档、选择模型适配，并负责启动和停止本机后端。当前桌面版尚未打包实验 Core 记忆所需的 Python / E5 资产。
+上述命令是保留的 Electron 入口，尚未打包 Python / E5。当前新增的 Tauri Launcher 已接通真实包、独立实例、模型配置、Core 记忆、前端授权、角色预设和故事线；游戏在系统浏览器中打开。
+
+```powershell
+corepack pnpm@11.7.0 launcher:desktop
+```
+
+Windows x64 便携候选版自带 Node、Python、E5、WebView2 和 C++ 运行库。构建见 [便携包构建说明](scripts/release/BUILD.md)，结果与未完成门禁见 [候选版验收](docs/current/studies/launcher-portable-release-20261007.md)。测试包尚未完成干净系统、长时稳定性与原生目录选择器全流程验收；不将它视为正式发布版本。
 
 ### 可选：实验 Core 记忆
 
@@ -175,6 +181,8 @@ corepack pnpm@11.7.0 experience:web --memory-core `
 Core 使用角色自己的授权经历构建长期档案。当前支持按上下文体积软触发后台整理，也保留手动整理入口；整理期间普通对话和移动可以继续。
 
 详细机制见 [当前认知与记忆](docs/current/architecture/cognition-memory.md)。
+
+创作者可在世界包的 `frontend/` 目录提供 HTML、CSS、JavaScript 和素材，使用显式 manifest 与公共玩家 SDK；未提供时使用官方默认模板。iframe 沙箱不持有 Core 令牌，前端不改变世界包编译身份。见 [自定义游戏前端指南](docs/current/guides/web-ui.md) 与 [最小沙箱实验](docs/current/frontend-v1.md)。
 
 ## 当前运行方式
 

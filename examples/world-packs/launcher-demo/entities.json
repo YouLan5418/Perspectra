@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "worldpack-entities/v2",
+  "entities": [
+    {
+      "entityId": "entity:brass-key",
+      "locationId": "location:front-room",
+      "kind": "key",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:key-take",
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:key-drop",
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:key-give",
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:thermos",
+      "locationId": "location:front-room",
+      "kind": "thermos",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:thermos-take",
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    }
+  ]
+}
