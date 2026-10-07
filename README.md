@@ -20,6 +20,8 @@ Perspectra 希望在尽量保留自由表达和角色主体性的前提下，让
 
 **当前候选 ZIP 已在本机构建，尚未上传为 GitHub Release 附件。** 本仓库提供源码和构建脚本；下载以实际发布的 Release 附件为准。
 
+完整操作见 [玩家试玩指南](docs/current/guides/player-playtest.md)。
+
 拿到测试包后：
 
 1. 完整解压，运行 `Perspectra.exe`，保留同目录的 `runtime`。
@@ -147,7 +149,7 @@ World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽
 
 当前 Launcher 接受 v5 世界包源目录，不直接导入 ZIP；载入后的包路径需要保留。当前不自动替换同 ID 的不同内容包，也不保证跨版本存档迁移。
 
-[World Pack 字段手册](docs/current/guides/world-pack-authoring.md) · [当前创作者运行时](docs/current/architecture/creator-runtime.md)
+[World Pack v5 创作指南](docs/current/guides/world-pack-authoring.md) · [活动与变量](docs/current/guides/activity-and-variables.md) · [当前创作者运行时](docs/current/architecture/creator-runtime.md)
 
 ## 已知限制与验收状态
 
