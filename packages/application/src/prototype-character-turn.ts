@@ -9,6 +9,10 @@ import type { CognitiveMemoryService, RecalledMemory } from '@harness-world/memo
 import { SceneDecisionService } from './scene-decision.ts'
 import { characterExecutionResult, expressionAfterExecution } from './character-execution-result.ts'
 
+/** A returned payload failed format validation, rather than a transport failure. */
+export class PrototypeInvalidOutputError extends TypeError {}
+export class PrototypePresetError extends Error {}
+
 export interface PrototypeTurnRequest {
   readonly context: WorldJsonObject
   readonly continuation: boolean
@@ -33,7 +37,7 @@ export interface PrototypeTurnResult {
   readonly status: 'published' | 'abstained' | 'budget_exhausted' | 'interrupted' | 'failed'
   readonly calls: number
   readonly performResult?: WorldJsonObject
-  readonly failure?: 'provider_failed' | 'invalid_output'
+  readonly failure?: 'provider_failed' | 'invalid_output' | 'preset_failed'
 }
 
 function object(value: unknown): WorldJsonObject {
@@ -361,6 +365,8 @@ export class PrototypeCharacterTurn {
       return done('budget_exhausted')
     } catch (error) {
       if (signal.aborted) return done('interrupted')
+      if (error instanceof PrototypeInvalidOutputError) modelFailure = 'invalid_output'
+      if (error instanceof PrototypePresetError) modelFailure = 'preset_failed'
       // Storage, lease, context and Rulebook faults remain visible to the caller.
       if (modelFailure === undefined) throw error
       return { ...done('failed'), failure: modelFailure }

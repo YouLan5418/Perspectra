@@ -16,6 +16,12 @@
 
 ## 1. 当前入口与实现边界
 
+2026-10-07 本地[故事线](storylines.md)已接通：静止时保存完整节点、保留原未来、独立目录分叉与持久线路选择。新分叉首次启动按节点前授权经历重建全部角色记忆，成功后才允许游玩。当前仍只运行一条线路、使用同一游戏包内容；分享未接入。
+
+游戏前端最小沙箱实验已实现公共 PlayerView、会话 actionId 去重、官方默认模板、iframe 社区模板与恶意探测。社区前端授权后续已接通，角色预设首版已接入（全局默认、包推荐、实例覆盖、角色专属和实例内角色组），见 [预设说明](model-presets.md)；边界与验收见 [前端实验](frontend-v1.md)。
+
+2026-10-06 Launcher 后续接入已在本工作区完成：v5 包载入、独立实例、模型配置、Core 记忆、系统浏览器启动、结束和续玩。原生启停与一轮真实模型验证通过；仍依赖当前源码工作区；当日首轮尚未接入历史分叉、分享及独立发行安装包。历史分叉后续进展见上方故事线说明。文件与验收见 [Launcher 真实接入](launcher-core-integration.md)。
+
 直接试玩或制作世界包见[试玩指南](guides/creator-playtest.md)和[World Pack手册](guides/world-pack-authoring.md)。开发边界见[AGENTS](../../AGENTS.md)及[当前原型契约](prototype-contract.md)。
 
 简化Core记忆沿用授权Source，已改为宽短期窗口、按上下文体积自动整理并保留手动入口：原检索→简单ID准入→极简Delivery→Character。认识正文优先，保留来源类型、未解决反证存在标记及少量证据；不再要求全部支持证据属于direct observation/accepted action，也不要求整个Evidence Group完整进入预算。角色、世界、前缀和引用权限仍检查，JEV留作可选对照。首次整理前仍有近期上下文。
@@ -70,3 +76,5 @@ git fetch .tmp/git-closeout-20261006/branches-before-cleanup.bundle refs/heads/p
 按用户后续要求，Core取消16/8条短期截断，保留角色授权工作历史；长期Delivery6项/12000字符沿前轮配置。当前长期整理在排队前冻结Source前缀，2个角色Build、每角色2个提炼批次有限并行，玩家/NPC继续游玩；只允许严格更新的前缀安装，失败/取消保留原档案和新经历。软触发实验默认约170k上下文、整理较老约120k，保留约16k原始重叠。详见[后台整理报告](studies/ai-girls/background-compaction.md)；[宽上下文记录](studies/ai-girls/wide-context.md)的200k/150k同步执行属于前一阶段。
 
 同批196条Source、16次Utility真实重放，后台148.063秒，启动请求0.411秒，实际Utility峰值3、无超时/重试。期间对话与移动继续，安装后新暗号仍在原始尾部，房间隔离通过。关闭/失败/迟到结果及声明式交互由受控回归覆盖。默认check196项、相关38项和Python70项通过；尚未真实跨越170k或完成32k/64k/128k/192k对照，普通ReactionCycle仍出现一次30秒中断，桌面发行包未重建。
+
+社区前端授权后续已实现内容摘要、双签名记录、Windows 本机密钥、独立来源受信任模式与运行中撤销；角色专属与实例内角色组预设后续已接入（专属 > 组 > 实例默认），见 [预设说明](model-presets.md)。验收见 [前端授权](frontend-authorization.md)。

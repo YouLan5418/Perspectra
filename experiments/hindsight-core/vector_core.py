@@ -31,7 +31,7 @@ def encode(texts, scope, query=False):
     assets = Path(os.getenv('HCW_HINDSIGHT_ONNX_DIR', str(BASE / '.tmp/hindsight-e5-small')))
     namespace = hashlib.sha256(json.dumps(scope['worldAddress'],sort_keys=True).encode()
                                + scope['characterId'].encode()).hexdigest()
-    cache_path = BASE / '.tmp/hindsight-vector-cache' / (namespace + '.json')
+    cache_path = Path(os.getenv('HCW_HINDSIGHT_CACHE_DIR', str(BASE / '.tmp/hindsight-vector-cache'))) / (namespace + '.json')
     cache_path.parent.mkdir(parents=True,exist_ok=True)
     cache = json.loads(cache_path.read_text(encoding='utf-8')) if cache_path.exists() else {}
     prefix = 'query: ' if query else 'passage: '

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "worldpack-player-slots/v1",
+  "playerSlots": [
+    {
+      "slotId": "slot:traveler",
+      "characterId": "character:player",
+      "controlMode": "manual"
+    }
+  ]
+}

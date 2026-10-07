@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPlaytestServer, PlaytestBusyError, type PlaytestRuntime, type PlaytestState } from './playtest-server.ts'
-import { PLAYTEST_PAGE } from './playtest-page.ts'
+import { HOST_ACTIVITY_PAGE } from './playtest-host-page.ts'
 import { loadPackWeb, type PackWeb } from './playtest-pack-web.ts'
 
 const token = 'a'.repeat(64)
@@ -46,37 +46,39 @@ function auth(init: RequestInit = {}): RequestInit {
 }
 
 describe('local playtest server', () => {
-  it('serves a self-contained page without exposing its fragment token', async () => {
+  it('serves a trusted host and a separate default sandbox without embedding the token', async () => {
     const { url } = await fixture()
     const response = await fetch(url)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-security-policy')).toContain("connect-src 'self'")
     const page = await response.text()
-    expect(page).toBe(PLAYTEST_PAGE)
-    expect(page).toContain('本机世界试玩')
-    expect(page).toContain('id="scene"')
-    expect(page).toContain('state.world.currentScene')
-    expect(page).toContain('state.world.title')
+    expect(page).toBe(HOST_ACTIVITY_PAGE)
+    expect(page).toContain('sandbox="allow-scripts"')
+    expect((await (await fetch(url+'/frontend-api/v1/init',auth())).json()).frontendMode).toBe('sandbox')
     expect(page).not.toContain(token)
-    expect(page).not.toMatch(/https?:\/\//)
+    const child = await fetch(url + '/frontend/default.html')
+    expect(child.headers.get('content-security-policy')).toContain("connect-src 'none'")
+    expect(await child.text()).toContain('/frontend/sdk.js')
   })
 
-  it('serves a pack-owned page and its local CSS/JavaScript while retaining the default fallback', async () => {
+  it('serves declared frontend resources and retains the official fallback', async () => {
     const packWeb = await loadPackWeb(resolve('examples/world-packs/ai-girls-awaken-v10'))
     expect(packWeb).toBeDefined()
     expect(await loadPackWeb(resolve('examples/world-packs/hand-in-hand'))).toBeUndefined()
     const { url } = await fixture({}, packWeb)
-    const page = await fetch(url)
-    expect(await page.text()).toContain('CORDIS WORLD · AI GIRLS')
-    expect(page.headers.get('content-security-policy')).toContain("script-src 'self'")
-    const script = await fetch(`${url}/web/app.js`)
+    expect(await (await fetch(url)).text()).toBe(HOST_ACTIVITY_PAGE)
+    const page = await fetch(url + '/frontend/custom/index.html')
+    expect(await page.text()).toContain('/frontend/sdk.js')
+    expect(page.headers.get('content-security-policy')).toContain('sandbox allow-scripts')
+    const script = await fetch(url + '/frontend/custom/app.js')
     expect(script.headers.get('content-type')).toContain('text/javascript')
-    expect(await script.text()).toContain("'/api/state'")
-    const style = await fetch(`${url}/web/style.css`)
+    expect(await script.text()).toContain('window.Perspectra')
+    const style = await fetch(url + '/frontend/custom/style.css')
     expect(style.headers.get('content-type')).toContain('text/css')
     expect((await style.text()).length).toBeGreaterThan(100)
-    expect((await fetch(`${url}/web/not-declared.js`, auth())).status).toBe(404)
-    expect((await fetch(`${url}/api/state`)).status).toBe(401)
+    expect((await fetch(url + '/frontend/custom/not-declared.js')).status).toBe(404)
+    expect((await fetch(url + '/frontend-api/v1/init?template=default', auth())).status).toBe(200)
+    expect((await fetch(url + '/api/state')).status).toBe(401)
   })
 
   it('requires the random token for every API route and exposes only supplied player state', async () => {

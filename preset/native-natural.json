@@ -1,0 +1,34 @@
+{
+  "nodes": [
+    {
+      "id": "style",
+      "name": "自然角色表达",
+      "enabled": true,
+      "role": "system",
+      "position": "beforeContext",
+      "content": "你是{{char}}，处于{{scene}}。对白使用自然口语，保留自己的性格与判断；只描写自己的外显表现。不要替{{user}}或其他角色决定回应。"
+    },
+    {
+      "id": "length",
+      "name": "简短互动",
+      "enabled": true,
+      "role": "system",
+      "position": "afterContext",
+      "content": "日常对白一两句即可；有值得表达的内容时回应，也可以拒绝或沉默。不要为了凑字数重复描写。"
+    }
+  ],
+  "textRules": [
+    {
+      "id": "draft",
+      "name": "移除显式草稿块",
+      "enabled": true,
+      "stage": "output",
+      "target": "both",
+      "pattern": "<draft>[\\s\\S]*?</draft>",
+      "flags": "g",
+      "replacement": ""
+    }
+  ],
+  "temperature": 0.5,
+  "maxOutputTokens": 2048
+}

@@ -19,33 +19,33 @@ afterEach(async()=>{
   for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true})
 })
 type Decision=(input:WorldJsonObject)=>unknown|Promise<unknown>
-async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:string)=>s,packDirectory='examples/world-packs/ai-girls-awaken-v10') {
+async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:string)=>s,packDirectory='examples/world-packs/ai-girls-awaken-v10',provider:'ollama'|'local'='ollama') {
   const root=mkdtempSync(join(tmpdir(),'activity-test-'));roots.push(root)
   const pack=join(root,'pack'),data=join(root,'data');cpSync(resolve(packDirectory),pack,{recursive:true});mkdirSync(data)
   const file=join(pack,'scripts/activity.js')
   writeFileSync(file,transform(readFileSync(file,'utf8').replace('internal: { answer }','internal: { answer: 73 }')
     .replace('const answer = 1 + Math.floor(Math.random() * 100);','const answer = 73;')
     .replace('private: { [playerId]: {}, [npcId]: {} }',"private: { [playerId]: { secret:'player-only' }, [npcId]: { secret:'npc-only' } }")))
-  const inputs:WorldJsonObject[]=[]
+  const inputs:WorldJsonObject[]=[],schemas:WorldJsonObject[]=[]
   const server=createServer((req,res)=>{
     let body=''
     req.on('data',chunk=>{body+=String(chunk)})
     req.on('end',()=>{void(async()=>{
-      const wire=JSON.parse(body),input=JSON.parse(wire.messages.at(-1).content) as WorldJsonObject
-      inputs.push(input)
+      const wire=JSON.parse(body),input=JSON.parse(wire.messages.findLast((m:{role:string})=>m.role==='user').content) as WorldJsonObject
+      inputs.push(input);schemas.push(wire.format??wire.tools[0].function.parameters)
       try {const value=await decide(input);res.writeHead(200,{'content-type':'application/json'})
-        res.end(JSON.stringify({message:{content:JSON.stringify(value)}}))}
+        res.end(JSON.stringify(provider==='local'?{choices:[{message:{tool_calls:[{function:{name:'submit_actions',arguments:JSON.stringify(value)}}]}}]}:{message:{content:JSON.stringify(value)}}))}
       catch {res.writeHead(503);res.end('fixture unavailable')}
     })()})
   })
   servers.push(server);await new Promise<void>(ready=>server.listen(0,'127.0.0.1',ready))
   const address=server.address()
   if(!address||typeof address==='string')throw new Error('no endpoint')
-  const options={packPath:pack,dataDirectory:data,provider:'ollama' as const,model:'fixture',
+  const options={packPath:pack,dataDirectory:data,provider,model:'fixture',
     utilityEndpoint:'http://127.0.0.1:'+address.port+'/api/chat',timeoutMs:5000}
   const runtime=await FrozenWorldPlaytestRuntime.create(options);runtimes.push(runtime)
   const state=()=>{const store=new WorldStore(join(data,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
-  return {runtime,options,inputs,events:state,data,pack}
+  return {runtime,options,inputs,schemas,events:state,data,pack}
 }
 function request(state:{activity?:WorldJsonObject},operation:string,parameters:WorldJsonObject={}):ActivityRequest {
   return {activityId:state.activity?.id as string|null,revision:Number(state.activity?.revision),
@@ -58,6 +58,31 @@ function action(input:WorldJsonObject,operation='guess',value=50) {
     arguments:{activityId:activity.id,revision:activity.revision,...(operation==='guess'?{value}:{})}}}
 }
 describe('creator activity and host escape',()=>{
+  it.each(['ollama','local'] as const)('retries malformed activity output once with %s without executing or publishing it twice',async provider=>{
+    let calls=0
+    const f=await fixture(input=>input.continuation?{decision:'abstain'}:
+      ++calls===1?{...action(input),speech:'未执行的猜测',parameters:{...action(input).parameters,
+        definitionRef:{...action(input).parameters.definitionRef,version:'1'},
+        arguments:{...action(input).parameters.arguments,revision:String(action(input).parameters.arguments.revision)}}}:action(input),s=>s,'examples/world-packs/ai-girls-awaken-v10',provider)
+    const start=await f.runtime.activityAction(request(await f.runtime.state(),'start'))
+    const after=await f.runtime.activityAction(request(start,'pass'))
+    expect(calls).toBe(2)
+    expect(after.activity?.revision).toBe(3)
+    expect((after.activity!.game as WorldJsonObject).turn).toBe('character:player')
+    expect(f.events().filter(e=>e.eventType==='activity.updated')).toHaveLength(3)
+    expect(JSON.stringify(after.transcript)).not.toContain('未执行的猜测')
+    expect(f.inputs[0]).toEqual(f.inputs[1])
+    const properties=f.schemas[1]!.properties as WorldJsonObject
+    expect(properties).not.toHaveProperty('speech')
+    const parameters=properties.parameters as WorldJsonObject
+    expect(parameters).not.toHaveProperty('oneOf')
+    const fields=parameters.properties as WorldJsonObject
+    expect(((fields.definitionRef as WorldJsonObject).properties as WorldJsonObject).version)
+      .toEqual({type:'integer',minimum:1,maximum:1})
+    expect((((fields.arguments as WorldJsonObject).properties as WorldJsonObject).revision as WorldJsonObject).const).toBeUndefined()
+
+  })
+
   it('feeds an activity the newest authorized observations after a long conversation',async()=>{
     const f=await fixture()
     for(let i=0;i<10;i++)await f.runtime.submit('活动之前的第'+i+'条交流。')
@@ -123,6 +148,7 @@ describe('creator activity and host escape',()=>{
     expect((after.activity!.game as WorldJsonObject).turn).toBe('character:gpt')
     expect(f.events().filter(e=>e.eventType==='activity.updated')).toHaveLength(2)
     expect(JSON.stringify(after.transcript)).not.toContain('非法混合')
+    expect(f.inputs).toHaveLength(2)
     const g=await fixture(input=>input.continuation?{decision:'abstain'}:action(input,'pass'))
     const gstart=await g.runtime.activityAction(request(await g.runtime.state(),'start'))
     expect((await g.runtime.activityAction(request(gstart,'pass'))).activity?.revision).toBe(3)
@@ -248,20 +274,49 @@ describe('creator activity and host escape',()=>{
     expect(moved.activity?.revision).toBe(1)
     expect(f.inputs).toHaveLength(0)
   })
+  it('routes the public gateway through the real Core and rejects invented moves without committing facts',async()=>{
+    const f=await fixture(),token='d'.repeat(64)
+    const server=createPlaytestServer(f.runtime,token);servers.push(server)
+    await new Promise<void>(ready=>server.listen(0,'127.0.0.1',ready))
+    const address=server.address();if(!address||typeof address==='string')throw new Error('no endpoint')
+    const url='http://127.0.0.1:'+address.port
+    const send=(optionId:string,actionId:string)=>fetch(url+'/frontend-api/v1/action',{method:'POST',
+      headers:{'x-playtest-token':token,'content-type':'application/json'},
+      body:JSON.stringify({requestId:'request:'+actionId,actionId,operation:'perform',payload:{optionId}})})
+    const before=f.events().length
+    expect((await send('move:location:missing','invalid')).status).toBe(400)
+    expect(f.events()).toHaveLength(before)
+    const response=await send('move:location:living-room','move')
+    expect(response.status).toBe(200)
+    const view=await response.json()
+    expect(view.scene.locationName).toBe('客厅')
+    expect(view).not.toHaveProperty('debug')
+    expect(view).not.toHaveProperty('packVariables')
+    const committed=f.events().length
+    expect(committed).toBeGreaterThan(before)
+    expect(await (await send('move:location:living-room','move')).json()).toEqual(view)
+    expect(f.events()).toHaveLength(committed)
+    expect((await send('move:location:bedroom','return')).status).toBe(200)
+    await f.runtime.activityAction(request(await f.runtime.state(),'start'))
+    const blocked=f.events().length
+    expect((await send('move:location:living-room','blocked')).status).toBe(400)
+    expect(f.events()).toHaveLength(blocked)
+  })
+
   it('serves escape in the host frame and protects the override endpoint',async()=>{
     const f=await fixture(),token='b'.repeat(64),web=await import('../experiments/playtest-pack-web.ts')
     const server=createPlaytestServer(f.runtime,token,await web.loadPackWeb(f.pack));servers.push(server)
     await new Promise<void>(ready=>server.listen(0,'127.0.0.1',ready))
     const address=server.address();if(!address||typeof address==='string')throw new Error('no endpoint')
     const url='http://127.0.0.1:'+address.port
-    const outer=await fetch(url),inner=await fetch(url+'/experience/')
-    expect(outer.headers.get('content-security-policy')).toContain("frame-src 'self'")
-    expect(inner.headers.get('x-frame-options')).toBe('SAMEORIGIN')
-    expect(inner.headers.get('content-security-policy')).toContain("frame-ancestors 'self'")
+    const outer=await fetch(url),inner=await fetch(url+'/frontend/default.html')
+    expect(outer.headers.get('content-security-policy')).toContain("frame-src "+url+"/frontend/")
+    expect(inner.headers.get('x-frame-options')).toBeNull()
+    expect(inner.headers.get('content-security-policy')).toContain("frame-ancestors "+url)
     const page=await outer.text()
     expect(page).toContain('id="escape"')
-    // The child composer is a real form: sandboxing must permit its submit event.
-    expect(page).toContain('sandbox="allow-scripts allow-same-origin allow-forms"')
+    // Only the trusted host owns override controls and the Core token.
+    expect(page).toContain('sandbox="allow-scripts"')
     expect(await inner.text()).not.toContain('id="escape"')
     const start=await f.runtime.activityAction(request(await f.runtime.state(),'start'))
     expect((await fetch(url+'/api/escape',{method:'POST'})).status).toBe(401)

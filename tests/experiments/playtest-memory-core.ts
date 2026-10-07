@@ -83,7 +83,16 @@ export class PlaytestMemoryCore {
   #restoreAliases(actor: string, scope: WorldJsonObject, cached: WorldJsonObject | undefined): WorldJsonObject[] {
     const prior = this.#aliases.get(actor)
     if (prior) return prior
-    const entries = (cached?.aliasHistory ?? []) as WorldJsonObject[]
+    const seedPath = resolve(this.dataDirectory, 'memory-aliases.json')
+    const seed = existsSync(seedPath) ? object(JSON.parse(readFileSync(seedPath, 'utf8'))) : {}
+    const entries = [...(cached?.aliasHistory ?? []) as WorldJsonObject[], ...(seed[actor] ?? []) as WorldJsonObject[]]
+    for (const entry of entries) {
+      const own = object(entry.scope)
+      if (own.characterId !== actor || !same(own.worldAddress!, scope.worldAddress!)
+        || !Number.isSafeInteger(entry.worldSeq) || Number(entry.worldSeq) > Number(scope.asOfWorldSeq)
+        || !Number.isSafeInteger(own.asOfWorldSeq) || Number(own.asOfWorldSeq) > Number(scope.asOfWorldSeq))
+        throw new Error('identity history crosses authorized world or prefix')
+    }
     const path = resolve(this.#directory, 'recall-trace.jsonl')
     if (existsSync(path)) for (const line of readFileSync(path, 'utf8').split('\n').filter(Boolean)) {
       const row = JSON.parse(line) as WorldJsonObject
@@ -263,6 +272,27 @@ export class PlaytestMemoryCore {
       const failed = jobs.find(job => job.failure !== undefined)
       if (failed) throw failed.failure
     } finally { signal.removeEventListener('abort', abort) }
+  }
+  /** Names only, from this role's authorized views; no provider requests or future archive is copied. */
+  snapshotAliases(actors: readonly string[]): WorldJsonObject {
+    return Object.fromEntries(actors.map(actor => {
+      const snapshot = this.#snapshot(actor)
+      const cached = this.#load(actor)
+      if(cached)this.#validate(cached,snapshot)
+      return [actor, this.#restoreAliases(actor, snapshot.scope, cached)]
+    }))
+  }
+  async rebuildAt(actors: readonly string[], prefix: number, signal: AbortSignal): Promise<void> {
+    for (const actor of actors) {
+      const snapshot = this.#snapshot(actor)
+      if (Number(snapshot.scope.asOfWorldSeq) !== prefix) throw new Error('world changed during memory rebuild')
+    }
+    await this.refresh(actors, signal, () => {})
+    for (const actor of actors) {
+      const snapshot = this.#snapshot(actor), cached = this.#load(actor)
+      if (!cached || this.archivePrefix(actor) !== prefix) throw new Error('character memory rebuild incomplete')
+      this.#validate(cached, snapshot)
+    }
   }
   async waitForBackground(): Promise<void> {
     while (this.#jobs.size) await Promise.all([...this.#jobs.values()].map(job => job.done))

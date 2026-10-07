@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "profile": "standard",
+      "attentionTopics": [
+        "钥匙",
+        "同行者"
+      ]
+    },
+    {
+      "characterId": "character:companion",
+      "profile": "standard",
+      "attentionTopics": [
+        "钥匙",
+        "后室"
+      ]
+    },
+    {
+      "characterId": "character:friend",
+      "profile": "standard",
+      "attentionTopics": [
+        "前室"
+      ]
+    }
+  ]
+}
