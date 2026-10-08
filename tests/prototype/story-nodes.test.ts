@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import { randomUUID } from 'node:crypto'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { DatabaseSync } from 'node:sqlite'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, truncateSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
@@ -10,6 +11,7 @@ import type { WorldJsonObject } from '@harness-world/contracts'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import type { CoreRunner } from '../experiments/hindsight-python.ts'
 import { readStoryNodes, restoreStoryNode, saveStoryNode } from '../../desktop/story-nodes.ts'
+import { exportStoryNode } from '../../desktop/story-share.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 
 const roots: string[] = [], servers: Server[] = [], runtimes: FrozenWorldPlaytestRuntime[] = []
@@ -182,3 +184,101 @@ it('publishes no partial node on save failure and refuses a node whose variable 
   expect(()=>restoreStoryNode(f.data,node.id,join(f.root,'broken'),node.packHash)).toThrow('文件缺失')
   expect(JSON.stringify(f.events())).toBe(before)
 })
+
+it('shares one historical node across independent launchers, excludes future and caches, and rebuilds authorized cognition', async()=>{
+  const f=await fixture()
+  await f.runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"分享阶段"}]')
+  await f.runtime.submit('/act interact {"targetRef":{"kind":"entity","id":"entity:brass-key"},"bindingId":"binding:key-take","definitionRef":{"id":"base:take","version":1},"arguments":{}}')
+  f.setFollow();await f.runtime.submit('/act move {"locationId":"location:back-room"}')
+  await f.runtime.submit('/act speak {"text":"只有后室的人知道：分享暗号青松七号。"}')
+  const active=await f.runtime.activityAction(activityRequest(await f.runtime.state(),'start'))
+  const node=await f.runtime.saveNode('朋友的起点'),saved=f.events()
+  await f.runtime.activityAction(activityRequest(await f.runtime.state(),'quit'))
+  await f.runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"后来的未来"}]')
+  await f.runtime.submit('/act speak {"text":"后来秘密红杉九号。"}')
+  await f.runtime.close()
+  const original=JSON.stringify(f.events())
+  // These files must not travel with the snapshot, even when present in its directory.
+  writeFileSync(join(f.data,'story-nodes',node.id,'context.sqlite'),'REQUEST-SECRET')
+  writeFileSync(join(f.data,'story-nodes',node.id,'memory.sqlite'),'DERIVED-CACHE-SECRET')
+  const sender=new LauncherCore(resolve('.'),join(f.root,'sender'));await sender.initialize()
+  await sender.handle({operation:'load',path:f.pack});const packageId=sender.snapshot().packs[0]!.id
+  await sender.handle({operation:'create',packageId,name:'发送者'})
+  const senderId=sender.snapshot().instances[0]!.id
+  cpSync(f.data,join(f.root,'sender','instances',senderId),{recursive:true})
+  const archive=join(f.root,'朋友的故事.perspectra-story')
+  await sender.handle({operation:'story-export',instanceId:senderId,nodeId:node.id,path:archive})
+  const content=JSON.parse(readFileSync(archive,'utf8'))
+  expect(Object.keys(content.files).sort()).toEqual(['memory-aliases.json','pack-variables.json','session.sqlite','world.sqlite'])
+  expect(content.node.parentNodeId).toBeNull()
+  const decoded=Object.values(content.files).map(bytes=>Buffer.from(bytes as string,'base64').toString('utf8')).join('')
+  expect(decoded).not.toContain('REQUEST-SECRET');expect(decoded).not.toContain('DERIVED-CACHE-SECRET')
+  expect(decoded).not.toContain('后来秘密红杉九号');expect(decoded).not.toContain('后来的未来')
+  const receiverRoot=join(f.root,'receiver'),receiver=new LauncherCore(resolve('.'),receiverRoot)
+  await receiver.initialize();await receiver.handle({operation:'load',path:f.pack})
+  await receiver.handle({operation:'settings',model:{model:'receiver-own-model',endpoint:'http://127.0.0.1:8046/v1/chat/completions'}})
+  await receiver.handle({operation:'story-import',packageId,path:archive,name:'我的续篇'})
+  const imported=receiver.snapshot().instances[0]!,directory=join(receiverRoot,'instances',imported.id)
+  expect(imported.id).not.toBe(senderId);expect(imported.nodes).toHaveLength(1)
+  expect(imported.nodes[0]!.id).not.toBe(node.id);expect(imported.nodes[0]!.parentNodeId).toBeNull()
+  expect(imported.model.model).toBe('receiver-own-model')
+  expect(existsSync(join(directory,'context.sqlite'))).toBe(false)
+  expect(existsSync(join(directory,'memory.sqlite'))).toBe(false)
+  expect(existsSync(join(directory,'memory-core'))).toBe(false)
+  f.builds.length=0
+  const child=await f.create(directory)
+  expect(f.events(directory)).toEqual(saved)
+  expect(currentLocation(f.events(directory),'character:player')).toBe('location:back-room')
+  expect(currentEntityState(f.events(directory),'entity:brass-key')?.holderId).toBe('character:player')
+  expect((await child.state()).activity).toEqual(active.activity)
+  expect((await child.state()).packVariables?.public).toEqual({剧情:{阶段:'分享阶段'}})
+  expect(f.builds).toHaveLength(2)
+  expect(JSON.stringify(f.builds)).not.toContain('红杉九号')
+  expect(JSON.stringify(f.builds.find(build=>(build.scope as WorldJsonObject).characterId==='character:friend'))).not.toContain('分享暗号青松七号')
+  expect(JSON.stringify(f.builds.find(build=>(build.scope as WorldJsonObject).characterId==='character:companion'))).toContain('分享暗号青松七号')
+  await child.activityAction(activityRequest(await child.state(),'quit'))
+  await child.submit('/act speak {"text":"接收者继续自己的故事。"}')
+  await child.saveNode('导入后保存');await child.close()
+  expect(JSON.stringify(f.events())).toBe(original)
+  const reloaded=new LauncherCore(resolve('.'),receiverRoot);await reloaded.initialize()
+  expect(reloaded.snapshot().instances[0]!.nodes).toHaveLength(2)
+  await receiver.handle({operation:'story-import',packageId,path:archive,name:'再次导入'})
+  expect(receiver.snapshot().instances).toHaveLength(2)
+  expect(receiver.snapshot().instances[1]!.id).not.toBe(imported.id)
+},25_000)
+
+it('rejects malformed, unsafe, mismatched and inconsistent shares without publishing or changing an existing instance',async()=>{
+  const f=await fixture()
+  await f.runtime.submit('/act speak {"text":"节点前的会话事实。"}')
+  const node=await f.runtime.saveNode('校验节点');await f.runtime.close()
+  const file=join(f.root,'校验.perspectra-story');await exportStoryNode(f.data,node.id,file,f.pack)
+  const valid=JSON.parse(readFileSync(file,'utf8')),root=join(f.root,'receiver'),core=new LauncherCore(resolve('.'),root)
+  await core.initialize();await core.handle({operation:'load',path:f.pack})
+  const packageId=core.snapshot().packs[0]!.id
+  await core.handle({operation:'create',packageId,name:'已有实例'})
+  const index=readFileSync(join(root,'launcher.json'),'utf8'),events=JSON.stringify(f.events())
+  const variants:[string,(value:typeof valid)=>void][]=[
+    ['路径越界',value=>{value.node.files.push('../escape.txt');value.files['../escape.txt']='eA=='}],
+    ['缺少会话',value=>{value.node.files=value.node.files.filter((name:string)=>name!=='session.sqlite');delete value.files['session.sqlite']}],
+    ['缺少变量',value=>{value.node.files=value.node.files.filter((name:string)=>name!=='pack-variables.json');delete value.files['pack-variables.json']}],
+    ['时刻不符',value=>{value.node.headSeq++}],
+    ['数据库损坏',value=>{value.files['world.sqlite']=Buffer.from('broken database').toString('base64')}],
+    ['会话游标损坏',value=>{const path=join(f.root,'edited-session.sqlite');writeFileSync(path,Buffer.from(value.files['session.sqlite'],'base64'));const db=new DatabaseSync(path);try{db.prepare('UPDATE session_delivery_cursor SET last_delivery_seq=last_delivery_seq+1').run()}finally{db.close()}value.files['session.sqlite']=readFileSync(path).toString('base64')}],
+    ['包内容不同',value=>{value.node.packHash='sha256:different'}],
+    ['无效编码',value=>{value.files['world.sqlite']='not base64!'}],
+    ['身份越权',value=>{const aliases=JSON.parse(Buffer.from(value.files['memory-aliases.json'],'base64').toString('utf8'));aliases['character:companion']=[{scope:{characterId:'character:friend',worldAddress:f.runtime.address,asOfWorldSeq:node.headSeq},worldSeq:node.headSeq}];value.files['memory-aliases.json']=Buffer.from(JSON.stringify(aliases)).toString('base64')}],
+  ]
+  for(const [label,mutate] of variants){
+    const edited=structuredClone(valid);mutate(edited);writeFileSync(file,JSON.stringify(edited))
+    await expect(core.handle({operation:'story-import',packageId,path:file,name:label})).rejects.toThrow()
+    expect(readFileSync(join(root,'launcher.json'),'utf8')).toBe(index)
+    expect(core.snapshot().instances).toHaveLength(1)
+  }
+  writeFileSync(file,'{"kind":')
+  await expect(core.handle({operation:'story-import',packageId,path:file,name:'截断'})).rejects.toThrow('不完整')
+  truncateSync(file,130*1024*1024)
+  await expect(core.handle({operation:'story-import',packageId,path:file,name:'过大'})).rejects.toThrow('大小限制')
+  expect(readFileSync(join(root,'launcher.json'),'utf8')).toBe(index)
+  expect(existsSync(join(root,'instances','escape.txt'))).toBe(false)
+  expect(JSON.stringify(f.events())).toBe(events)
+},20_000)

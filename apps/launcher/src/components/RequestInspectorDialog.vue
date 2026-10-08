@@ -59,8 +59,9 @@ async function copy(text:string){try{await navigator.clipboard.writeText(text);n
  </DialogFrame>
 </template>
 <style scoped>
-.toolbar { display:flex;gap:10px;align-items:center;flex-wrap:wrap; } label { display:flex;gap:6px;align-items:center;font-size:12px; } .hint {font-size:12px;color:#647167;margin:0;line-height:1.7;}
-.summary {display:grid;gap:6px;padding:12px;background:#f2f4ed;border-radius:8px;font-size:13px;}.summary small{color:#647167;}
-pre { white-space:pre-wrap;overflow-wrap:anywhere;max-height:350px;overflow:auto;font-size:12px;padding:12px;background:#f4f5f0; }
-details { margin:10px 0; } summary {cursor:pointer;} button:not([data-slot="button"]),select,input:not([type=checkbox]) { border:1px solid #dce1d5;border-radius:6px;background:white;padding:7px; } button{cursor:pointer;font-size:12px;}button[aria-pressed=true]{background:#e1e9d8;}input:not([type=checkbox]){flex:1;min-width:160px;}select{max-width:100%;} [role=alert]{color:#a03728;}[role=status]{color:#365b39;}
+.toolbar { display:flex;gap:10px;align-items:center;flex-wrap:wrap; } label { display:flex;gap:6px;align-items:center;font-size:13px; } .hint {font-size:13px;color:var(--muted-foreground);margin:0;line-height:1.7;}
+.summary {display:grid;gap:6px;padding:12px;background:var(--muted);border-radius:8px;font-size:13px;}.summary small{color:var(--muted-foreground);}
+pre { white-space:pre-wrap;overflow-wrap:anywhere;max-height:350px;overflow:auto;font-size:13px;padding:12px;background:var(--muted); }
+details { margin:10px 0; } summary {cursor:pointer;} button:not([data-slot="button"]),select,input:not([type=checkbox]) { border:1px solid var(--border);border-radius:6px;background:var(--background);padding:7px; } button{cursor:pointer;font-size:13px;}button[aria-pressed=true]{background:var(--selected);}input:not([type=checkbox]){flex:1;min-width:160px;}select{max-width:100%;} [role=alert]{color:var(--danger);}[role=status]{color:var(--success);}
+button:not([data-slot="button"]),input,select,textarea{color:var(--foreground)}
 </style>

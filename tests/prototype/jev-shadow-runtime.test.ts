@@ -25,7 +25,7 @@ it('the actual web runtime publishes while Jev is pending and has the same model
         const input = JSON.parse(JSON.parse(body).messages.at(-1).content)
         let output: unknown = { decision: 'abstain' }
         if (input.context.character.characterId === 'character:companion') {
-          if (input.continuation) output = { decision: 'publish', speech: '拿到了。', narration: '黄铜钥匙已经在同行者手里。' }
+          if (input.continuation) output = { decision: 'publish', segments: [{ type: 'narration', text: '黄铜钥匙已经在同行者手里。' }, { type: 'speech', text: '拿到了。' }] }
           else if (!performed) {
             performed = true
             output = { decision: 'perform', actionType: 'interact', parameters: {

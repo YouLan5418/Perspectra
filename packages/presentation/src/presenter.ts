@@ -1,3 +1,4 @@
+import { publicationSegments } from '@harness-world/contracts'
 import {
   canonicalizeWorldJson,
   hashWorldJson,
@@ -97,6 +98,13 @@ export class DeterministicPresenter {
     const status = content.status === 'accepted' ? 'accepted' : content.status === 'rejected' ? 'rejected' : null
     if (status !== 'accepted') return new TextDecoder().decode(canonicalizeWorldJson(payload))
     const speechValue = object(content.speech ?? null)
+    if (speechValue?.segments !== undefined) {
+      const segments = publicationSegments(speechValue)
+      const expression = segments.map(segment => segment.type === 'narration'
+        ? locale === 'zh-CN' ? `（${segment.text}）` : `*${segment.text}*`
+        : segment.text).join('\n')
+      return locale === 'zh-CN' ? `角色 ${actorId}：\n${expression}` : `${actorId}:\n${expression}`
+    }
     const speech = typeof speechValue?.text === 'string' ? speechValue.text : null
     const manifestation = object(content.manifestation ?? null)
     const cueValues = Array.isArray(manifestation?.cues) ? manifestation.cues : []

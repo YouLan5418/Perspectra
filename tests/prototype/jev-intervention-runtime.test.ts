@@ -15,10 +15,10 @@ it('real runtime commits a performed take once, repairs false recipient hold bef
     let body='';req.on('data',c=>body+=String(c));req.on('end',()=>{
       const request=JSON.parse(JSON.parse(body).messages.at(-1).content)
       let output:unknown={decision:'abstain'}
-      if(request.context.publicationCorrection){repairs++;output={decision:'publish',speech:'请靠近看。',narration:'同行者仍握着黄铜钥匙，留守者凑近观察。',addresseeIds:['character:friend']}}
+      if(request.context.publicationCorrection){repairs++;output={ decision:'publish', addresseeIds:['character:friend'], segments: [{ type: 'narration', text: '同行者仍握着黄铜钥匙，留守者凑近观察。' }, { type: 'speech', text: '请靠近看。' }] }}
       else if(request.context.character.characterId==='character:companion'&&!published){
         if(!performed){performed=true;output={decision:'perform',actionType:'interact',parameters:{targetRef:{kind:'entity',id:'entity:brass-key'},bindingId:'binding:key-take',definitionRef:{id:'base:take',version:1},arguments:{}}}}
-        else {published=true;output={decision:'publish',speech:'请靠近看。',narration:'留守者接过黄铜钥匙，翻看后还给同行者。',addresseeIds:['character:friend']}}
+        else {published=true;output={ decision:'publish', addresseeIds:['character:friend'], segments: [{ type: 'narration', text: '留守者接过黄铜钥匙，翻看后还给同行者。' }, { type: 'speech', text: '请靠近看。' }] }}
       }
       res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({message:{content:JSON.stringify(output)}}))
     })
@@ -36,7 +36,7 @@ it('real runtime commits a performed take once, repairs false recipient hold bef
       expect(events.filter(e=>e.eventType==='entity.transferred')).toHaveLength(1)
       expect(currentEntityState(events,'entity:brass-key')?.holderId).toBe('character:companion')
       expect(JSON.stringify(events)).not.toContain('翻看后还给同行者')
-      expect(events.find(e=>e.eventType==='character.speak'&&(e.data as {characterId?:string}).characterId==='character:companion')?.data).toMatchObject({narration:'同行者仍握着黄铜钥匙，留守者凑近观察。',addresseeIds:['character:friend']})
+      expect(events.find(e=>e.eventType==='character.speak'&&(e.data as {characterId?:string}).characterId==='character:companion')?.data).toMatchObject({segments:[{type:'narration',text:'同行者仍握着黄铜钥匙，留守者凑近观察。'},{type:'speech',text:'请靠近看。'}],addresseeIds:['character:friend']})
       expect(repairs).toBe(1);expect(records[0]?.repaired).toBe(true)
     }finally{store.close()}
   }finally{await runtime?.close();await new Promise<void>((done,reject)=>server.close(e=>e?reject(e):done()));rmSync(root,{recursive:true,force:true})}

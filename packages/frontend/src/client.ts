@@ -21,7 +21,7 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
         const work=pending.get(data.requestId);if(!work)return;
         pending.delete(data.requestId);clearTimeout(work.timer);
         if(data.ok){if(data.view)view=data.view;work.resolve(data.result??data.view)}
-        else work.reject(new Error(data.error||'请求失败'));
+        else {const error=new Error(data.error||'请求失败');error.retryable=data.retryable!==false;work.reject(error)};
       }
     };
     port.start();
@@ -42,6 +42,9 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
     getView:()=>request('view'),
     getHistory:()=>request('history'),
     speak:(text,actionId=id())=>request('speak',{text},actionId),
+    regenerate:(tailId,actionId=id())=>request('regenerate',{tailId},actionId),
+    selectCandidate:(tailId,candidateId,actionId=id())=>request('selectCandidate',{tailId,candidateId},actionId),
+    cancelRegeneration:(actionId=id())=>request('cancelRegeneration',{},actionId),
     perform:(optionId,actionId=id())=>request('perform',{optionId},actionId),
     resource:path=>request('resource',{path}),
     subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener)},

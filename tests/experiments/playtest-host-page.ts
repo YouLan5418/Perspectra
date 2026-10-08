@@ -3,19 +3,28 @@ export const HOST_ACTIVITY_PAGE = String.raw`<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Perspectra 试玩</title>
 <style>
-body{margin:0;font:14px system-ui;background:#10151e;color:#edf2ff}
-header{display:flex;gap:14px;align-items:center;padding:10px 18px;background:#202a3a}
-button,input,select{font:inherit;padding:7px 10px;border-radius:6px;border:1px solid #69798f}
-button{cursor:pointer}button:disabled{opacity:.5;cursor:default}
-#escape{margin-left:auto;background:#a93a40;color:white;border-color:#d77378}
-#notice{padding:0 18px;white-space:pre-wrap}#game{padding:10px 18px;border-bottom:1px solid #42506b}
-#options{display:flex;flex-wrap:wrap;gap:12px}.operation{display:flex;gap:6px;align-items:center}
-iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{color:#bbc7db}
+:root{color-scheme:light;font:13px "Segoe UI","Microsoft YaHei",system-ui;background:#f4f3ef;color:#344237;--border:#dee3d7}*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;height:100dvh;display:flex;flex-direction:column}button,input,select,summary{font:inherit}button,summary{cursor:pointer}button:disabled{opacity:.45;cursor:default}:focus-visible{outline:2px solid #688e77;outline-offset:3px}
+header{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 32px;background:#fafbf6;border-bottom:1px solid var(--border);flex-shrink:0}.brand{display:flex;align-items:center;gap:13px}.brand strong{font-size:18px;font-weight:600;letter-spacing:-.6px}.brand small{font-size:10px;color:#8b9681;border-left:1px solid #dce1d5;padding-left:13px}#frontend-status{font-size:10px;color:#85917b;line-height:1.5}.toolbar{display:flex;align-items:center;gap:8px}button{padding:8px 12px;border:1px solid #dce3d3;border-radius:6px;background:#fdfefb;color:#607653}button:hover:not(:disabled){background:#edf2e5}#escape{color:#94654e;background:transparent;border-color:#e3dcd1;font-size:11px;white-space:nowrap}
+#tools{position:relative}#tools>summary{list-style:none;border:1px solid #dce3d3;border-radius:6px;padding:8px 12px;font-size:11px;background:#fff}#tools>summary::-webkit-details-marker{display:none}.tool-menu{position:absolute;right:0;top:40px;width:220px;padding:8px;background:#fdfefb;border:1px solid #dce3d3;border-radius:9px;box-shadow:0 8px 30px #34423716;display:grid;gap:4px}.tool-menu button{text-align:left;border:0;background:transparent;font-size:12px}.tool-menu p{margin:4px 8px 6px;font-size:10px;line-height:1.6;color:#939e89}
+#notice,#memory-status{margin:0;flex-shrink:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.6;background:#f5f4e9}#notice:not(:empty),#memory-status:not(:empty){padding:8px 32px;border-bottom:1px solid #e5e3d5}#notice[data-type="error"]{color:#995b43;background:#fbf0e9}#notice[data-type="success"]{color:#54734d}#memory-status{color:#7c885e}
+#game{position:fixed;z-index:1;left:max(36px,calc((100vw - 1320px)/2 + 36px));bottom:28px;width:268px;margin:0;padding:15px 16px;background:#fdfef9;border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 24px #34423712;max-height:40dvh;overflow:auto}.activity-heading{display:flex;align-items:center;gap:8px;list-style:none;cursor:pointer}.activity-heading::-webkit-details-marker{display:none}#activity-toggle{margin-left:auto;font-size:10px;color:#8d9b80}#game[open] #activity-toggle{font-size:0}#game[open] #activity-toggle:after{content:"收起玩法";font-size:10px}.activity-heading small{font-size:10px;letter-spacing:1px;color:#93a183}.activity-heading strong{font-weight:600;font-size:13px;min-width:0;overflow-wrap:anywhere}#activity-toggle{flex-shrink:0}#round{margin:8px 0 12px;color:#869476;font-size:11px;line-height:1.7}#options{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}.operation{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;border:1px solid #e3e9da;border-radius:7px;padding:8px;background:#f7f9f1}.operation label{display:flex;gap:6px;align-items:center;font-size:11px;color:#82926e}.operation input,.operation select{padding:7px 9px;border:1px solid #dce3d3;border-radius:5px;background:#fff;max-width:160px;min-width:0;width:100px}.operation input[type="checkbox"]{width:auto}#options button{font-size:11px}
+@media(min-width:641px) and (max-width:850px){#game{left:20px;bottom:20px;width:220px}}
+iframe{display:block;width:100%;flex:1;min-height:0;border:0;background:#f4f3ef}@media(max-width:640px){header{padding:12px 14px;flex-wrap:wrap;gap:8px}.brand{gap:8px}.brand small{padding-left:8px}.toolbar{margin-left:auto}#frontend-status{max-width:160px}#game{position:static;order:1;width:calc(100% - 28px);margin:0 14px 12px;padding:12px;max-height:28dvh;flex-shrink:0;box-shadow:none}#notice:not(:empty),#memory-status:not(:empty){padding:8px 14px}.tool-menu{width:210px}.operation{max-width:100%}.activity-heading{flex-wrap:wrap}}
+@media(prefers-color-scheme:dark){
+:root{color-scheme:dark;background:#101010;color:#e5e5e5;--border:#353535}
+:focus-visible{outline-color:#d0d0d0}
+header{background:#161616}.brand small{color:#999;border-color:#353535}#frontend-status{color:#b0b0b0}
+button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}button:hover:not(:disabled){background:#282828}
+#escape{color:#d5aa8c;border-color:#404040}.tool-menu{background:#191919;border-color:#353535;box-shadow:0 8px 30px #0005}.tool-menu p{color:#999}
+#notice,#memory-status{background:#202020;color:#b0b0b0}#notice:not(:empty),#memory-status:not(:empty){border-color:#353535}#notice[data-type="error"]{color:#e4ad96;background:#30221e}#notice[data-type="success"]{color:#d0d0d0}
+#game{background:#191919;box-shadow:0 6px 24px #0004}#activity-toggle,.activity-heading small,#round,.operation label{color:#b0b0b0}
+.operation{background:#202020;border-color:#353535}.operation input,.operation select{background:#161616;color:#e5e5e5;border-color:#404040}iframe{background:#101010}
+}
 </style></head><body>
-<header><strong>Perspectra</strong><small>宿主控制</small><span id="frontend-status">正在载入</span><button id="reload-frontend" type="button">重新加载界面</button><button id="default-frontend" type="button">官方默认模板</button><button id="memory" type="button" hidden>整理长期记忆</button><button id="escape" type="button">逃生：中止活动并恢复</button></header>
+<header><div class="brand"><strong>Perspectra</strong><small>游玩中</small></div><span id="frontend-status" role="status">正在载入</span><div class="toolbar"><span id="host-tail-tools" hidden><button id="host-candidate-prev" type="button" aria-label="上一个候选">‹</button><span id="host-candidate-count"></span><button id="host-candidate-next" type="button" aria-label="下一个候选">›</button><button id="regenerate" type="button" aria-label="重新生成" title="重新生成此回合" disabled>↻</button></span><details id="tools"><summary>游戏工具 ···</summary><div class="tool-menu"><button id="cancel-regenerate" type="button" hidden>取消重新生成</button><button id="reload-frontend" type="button">重新加载界面</button><button id="default-frontend" type="button">切换官方默认界面</button><button id="memory" type="button" hidden>整理长期记忆</button><p>这些操作不会清空已提交的进度。</p></div></details><button id="escape" type="button" title="逃生：中止活动并恢复自由互动">中止活动 / 恢复</button></div></header>
 <p id="notice" role="status"></p><p id="memory-status" role="status"></p>
-<section id="game" hidden><strong id="title"></strong><p id="round"></p><div id="options"></div></section>
-<iframe id="experience" title="创作者世界页面" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+<details id="game" hidden><summary class="activity-heading"><small>活动</small><strong id="title"></strong><span id="activity-toggle">展开玩法</span></summary><p id="round"></p><div id="options"></div></details>
+<iframe id="experience" title="游戏界面" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
 <script>
 (() => {
   const token=new URLSearchParams(location.hash.slice(1)).get('token')||'';
@@ -30,13 +39,13 @@ iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{c
   async function publicApi(path,payload){
     const response=await fetch('/frontend-api/v1/'+path,{method:payload===undefined?'GET':'POST',
       headers:{'x-playtest-token':token,'content-type':'application/json'},...(payload===undefined?{}:{body:JSON.stringify(payload)})});
-    const value=await response.json();if(!response.ok)throw new Error(value.error||'公开接口请求失败');return value;
+    const value=await response.json();if(!response.ok){const error=new Error(value.error||'公开接口请求失败');error.status=response.status;throw error}return value;
   }
   function post(value){if(port)port.postMessage(value)}
   function applyView(next,notify=true){
     if(!playerView){playerView=next;return}
     const changes={};
-    for(const key of ['game','player','scene','status','actions'])if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key];
+    for(const key of ['game','player','scene','status','actions','tailRound'])if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key];
     if(JSON.stringify(playerView.history)!==JSON.stringify(next.history)){
       const prefix=playerView.history.length<=next.history.length&&playerView.history.every((line,i)=>JSON.stringify(line)===JSON.stringify(next.history[i]));
       if(prefix)changes.historyAppend=next.history.slice(playerView.history.length);else changes.history=next.history;
@@ -52,7 +61,7 @@ iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{c
       const reply=value=>{if(current===epoch)channel.port1.postMessage({type:'response',requestId:r.requestId,...value})};
       try{
         if(JSON.stringify(r).length>8192||!r.payload||typeof r.payload!=='object'||Array.isArray(r.payload))throw new Error('前端请求格式无效');
-        const grant={view:'view',history:'history',speak:'speak',perform:'perform',resource:'resources'}[r.method];
+        const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',resource:'resources'}[r.method];
         if(!grant||!init.capabilities.includes(grant))throw new Error('前端没有该能力');
         if(['view','history'].includes(r.method)){
           if(Object.keys(r.payload).length)throw new Error('查询不接受额外参数');
@@ -65,7 +74,7 @@ iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{c
         }
         const view=await publicApi('action',{requestId:r.requestId,actionId:r.actionId,operation:r.method,payload:r.payload});
         applyView(view);reply({ok:true,view});
-      }catch(error){reply({ok:false,error:error.message||'前端操作失败'})}
+      }catch(error){reply({ok:false,error:error.message||'前端操作失败',retryable:error.status!==400})}
     };
     port.start();
     frame.contentWindow.postMessage({type:'frontend-connect',apiVersion:1},init.frontendMode==='trusted'?init.frontendOrigin:'*',[channel.port2]);
@@ -105,12 +114,12 @@ iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{c
       }
     }catch(error){if(error.name!=='AbortError'){post({type:'disconnected'});node('frontend-status').textContent='公开视图连接断开；正在重连';setTimeout(events,1500)}}
   }
-  node('reload-frontend').onclick=()=>mount(useDefault).catch(()=>node('frontend-status').textContent='前端载入失败');
-  node('default-frontend').onclick=()=>mount(true).catch(()=>node('frontend-status').textContent='默认模板载入失败');
+  node('reload-frontend').onclick=()=>{node('tools').open=false;mount(useDefault).catch(()=>node('frontend-status').textContent='前端载入失败')};
+  node('default-frontend').onclick=()=>{node('tools').open=false;mount(true).catch(()=>node('frontend-status').textContent='默认模板载入失败')};
   window.addEventListener('pagehide',()=>{streamController?.abort();revoke()});
   mount().then(events).catch(()=>node('frontend-status').textContent='前端初始化失败');
 
-  let latest, posting=false, signature='', pending=null;
+  let latest, posting=false, signature='', pending=null, activityActive=false;
   // Page-local presentation only. Sequence orders notices, not requests or world events.
   let currentNotice=null, noticeSequence=0;
   function setNotice(type,operation,content){
@@ -128,7 +137,7 @@ iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{c
       headers:{'x-playtest-token':token,'content-type':'application/json'},
       ...(payload===undefined?{}:{body:JSON.stringify(payload)})});
     const value=await response.json();
-    if(!response.ok)throw new Error(value.error||'请求失败');
+    if(!response.ok){const error=new Error(value.error||'请求失败');error.status=response.status;throw error}
     return value;
   }
   async function send(operation,parameters={}) {
@@ -144,6 +153,13 @@ iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{c
   }
   function render(state) {
     latest=state;
+    node('regenerate').disabled=!state.tailRound?.canRegenerate||posting;
+    const tail=state.tailRound,count=tail?.candidateIds?.length||1,index=tail?.candidateIndex||1;
+    node('host-tail-tools').hidden=init?.frontend==='default'||!tail?.id;
+    node('host-candidate-count').textContent=index+'/'+count;
+    node('host-candidate-prev').disabled=!tail?.canRegenerate||posting||index<=1;
+    node('host-candidate-next').disabled=!tail?.canRegenerate||posting||index>=count;
+    node('cancel-regenerate').hidden=!state.tailRound?.regenerating;
     node('memory').hidden=state.debug?.memoryMode!=='core';
     node('memory').disabled=posting;
     const m=state.memoryMaintenance;
@@ -155,6 +171,7 @@ iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{c
     if(!a)return;
     node('title').textContent=a.title;
     const active=a.game?.active;
+    if(Boolean(active)!==activityActive){node('game').open=Boolean(active);activityActive=Boolean(active)}
     node('round').textContent=active
       ? '第 '+a.game.round+' 个游戏回合 · '+(a.game.public.statusText||(a.game.turn===a.participants[0]?'轮到你':'轮到角色'))
         +' · '+(a.game.public.lastResult||'')
@@ -204,7 +221,27 @@ iframe{width:100%;height:calc(100vh - 160px);border:0;background:#10151e}small{c
     },state.busy||posting);
   }
   async function refresh(){try{render(await api('/api/state'))}catch(error){if(currentNotice?.operation!=='activity'||currentNotice.type!=='error')setNotice('error','refresh',error.message+'；逃生入口仍可使用。')}}
+  let regenerationRequest=null;
+  node('regenerate').onclick=async()=>{
+    node('tools').open=false;
+    if(!latest?.tailRound?.canRegenerate||posting)return;
+    if(!regenerationRequest||regenerationRequest.tailId!==latest.tailRound.id)regenerationRequest={tailId:latest.tailRound.id,requestId:crypto.randomUUID()};
+    posting=true;clearNotice();
+    try{const state=await api('/api/regenerate',regenerationRequest);regenerationRequest=null;setNotice('success','regenerate',state.notice);render(state)}
+    catch(error){if(error.status)regenerationRequest=null;setNotice('error','regenerate',error.message)}
+    finally{posting=false;await refresh()}
+  };
+  async function chooseCandidate(offset){
+    const tail=latest?.tailRound,candidateId=tail?.candidateIds?.[(tail.candidateIndex||1)-1+offset];
+    if(!candidateId||!tail.canRegenerate||posting)return;
+    posting=true;clearNotice();const id=crypto.randomUUID();
+    try{await publicApi('action',{requestId:id,actionId:id,operation:'selectCandidate',payload:{tailId:tail.id,candidateId}})}
+    catch(error){setNotice('error','candidate',error.message)}finally{posting=false;await refresh()}
+  }
+  node('host-candidate-prev').onclick=()=>chooseCandidate(-1);node('host-candidate-next').onclick=()=>chooseCandidate(1);
+  node('cancel-regenerate').onclick=async()=>{try{await api('/api/regenerate/cancel',{});regenerationRequest=null}catch(error){setNotice('error','regenerate',error.message)}};
   node('memory').onclick=async()=>{
+    node('tools').open=false;
     if(posting)return;posting=true;clearNotice();
     try{const state=await api(latest?.memoryMaintenance&&(latest.memoryMaintenance.running+latest.memoryMaintenance.queued)>0?'/api/memory/cancel':'/api/memory/refresh',{});setNotice(state.error?'error':'success','memory',state.notice||'记忆操作已提交。');render(state)}
     catch(error){setNotice('error','memory',error.message)}

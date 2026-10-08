@@ -25,7 +25,7 @@ corepack pnpm@11.7.0 experience:web --memory-core --pack examples/world-packs/pr
 
 每个新实验使用未占用的数据目录。打开终端打印的带token本机地址；需要API认证时只通过`HCW_LOCAL_API_KEY`传入，不写进文件。`HCW_HINDSIGHT_PYTHON`、`HCW_HINDSIGHT_CORE_DIR`和`HCW_HINDSIGHT_ONNX_DIR`可显式覆盖本地路径。默认模型为`gemini-3.7-flash`，网关别名不证明底层模型身份。
 
-Core开关目前支持本机OpenAI兼容服务的源码网页；Ollama/DeepSeek不能同时启用Core。桌面发布目录尚未打包Python、Core和E5资产。
+Core 开关支持 local 配置入口下的 OpenAI、Anthropic 和 Google 协议；选择方式见[模型接口协议](../../docs/current/model-protocols.md)。Ollama/DeepSeek 独立入口不能同时启用 Core。桌面发布目录尚未打包Python、Core和E5资产。
 
 ## 2. 当前运行路径
 

@@ -1,6 +1,6 @@
 # Windows x64 便携测试包构建
 
-候选版本：0.1.0-test1。从仓库根目录执行。构建机需要现有 pnpm/Cargo/Node；玩家机不需要这些开发工具。
+候选版本：0.1.0-test2。从仓库根目录执行。构建机需要现有 pnpm/Cargo/Node；玩家机不需要这些开发工具。
 
 ## 素材
 
@@ -19,9 +19,9 @@
 corepack pnpm@11.7.0 check
 corepack pnpm@11.7.0 launcher:check
 corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --no-bundle
-node scripts/release/build-portable.mjs dist/portable/Perspectra-0.1.0-test1-win-x64
-node scripts/release/verify-portable.mjs dist/portable/Perspectra-0.1.0-test1-win-x64 .tmp/portable-smoke-new
-node scripts/release/archive-portable.mjs dist/portable/Perspectra-0.1.0-test1-win-x64
+node scripts/release/build-portable.mjs dist/portable/Perspectra-0.1.0-test2-win-x64
+node scripts/release/verify-portable.mjs dist/portable/Perspectra-0.1.0-test2-win-x64 .tmp/portable-test2-smoke
+node scripts/release/archive-portable.mjs dist/portable/Perspectra-0.1.0-test2-win-x64
 ```
 
 输出目录必须不存在；验收数据目录必须全新。verify 使用本机 8046/gemini-3.7-flash，包含一次真实连接请求，需服务可用。它不代替界面试玩或干净系统验收。

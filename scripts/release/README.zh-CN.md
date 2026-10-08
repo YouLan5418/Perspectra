@@ -2,16 +2,16 @@
 
 完整解压后双击 `Perspectra.exe`。不要只复制 EXE；`runtime` 目录必须随包保留。
 
-本包自带 Node、Python、固定 WebView2 与离线 E5 记忆编码模型。不需要安装 Rust、Cargo、Node 或 Python。模型对话仍需要你自己的 OpenAI 兼容服务和网络。
+本包自带 Node、Python、固定 WebView2 与离线 E5 记忆编码模型。不需要安装 Rust、Cargo、Node 或 Python。模型对话仍需要你自己的 OpenAI 兼容、Anthropic 或 Google 模型服务和网络。
 
 ## 第一次运行
 
-1. 打开“全局设置”，填写完整的 `.../v1/chat/completions` 地址、模型标识及需要的 API Key。
+1. 打开“全局设置”，选择接口协议，填写完整请求地址（OpenAI `/v1/chat/completions`、Anthropic `/v1/messages`、Google `/v1beta/models/模型:generateContent`）、模型标识及需要的 API Key。
 2. 点击“测试模型连接”。这会发出一次少量请求；连接成功不代表模型一定遵循游戏 JSON 协议。
 3. 应用设置，然后“载入游戏包”，选择 `examples/测试示例` 目录，校验并载入。
 4. 开始游戏会在系统默认浏览器打开本机网页；Launcher 保持独立窗口。
 
-`examples/前室与后室` 是官方默认界面的基础示例；`examples/测试示例` 附带包预设、变量、猜数字活动和社区前端。社区前端默认沙箱，无需授信即可试玩；只有你明确确认后才启用受信任模式。小游戏入口由游戏页面提供。
+`examples/前室与后室` 是官方默认界面的基础示例；`examples/测试示例` 附带包预设、变量、猜数字活动和社区前端。社区前端默认沙箱，无需授信即可试玩；只有你明确确认后才启用受信任模式。小游戏入口在桌面右下角的活动面板中，点击展开；窄屏下位于页面底部。游戏工具菜单提供重新加载、切换官方界面和后台记忆整理。
 
 ## 保存、故事线与退出
 

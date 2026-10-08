@@ -174,11 +174,12 @@ async function save() {
   </DialogFrame>
 </template>
 <style scoped>
-.preset-savebar{position:sticky;bottom:-24px;background:#faf9f6;padding:14px 0;z-index:2}
+.preset-savebar{position:sticky;bottom:-24px;background:var(--background);padding:14px 0;z-index:2}
 .preset-workspace{display:grid;grid-template-columns:280px minmax(0,1fr);gap:20px}.preset-fields{display:grid;gap:14px;min-width:0}@media(max-width:760px){.preset-workspace{grid-template-columns:1fr}}
-.field-label{display:grid;gap:6px;margin:0;font-size:12px}
+.field-label{display:grid;gap:6px;margin:0;font-size:13px}
 .preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
-.field-label input,select,textarea{width:100%;padding:8px 10px;border:1px solid #dce1d5;border-radius:6px;background:#fff;font:inherit}
-p,dl,.toggle-label{font-size:12px;line-height:1.7}dl{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}dd{margin:0}
+.field-label input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--background);font:inherit}
+p,dl,.toggle-label{font-size:13px;line-height:1.7}dl{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}dd{margin:0}
 textarea{resize:vertical}.prompt-preview{white-space:pre-wrap}.group-actions{display:flex;gap:12px;align-items:end}.group-actions label{flex:1}
+button:not([data-slot="button"]),input,select,textarea{color:var(--foreground)}
 </style>

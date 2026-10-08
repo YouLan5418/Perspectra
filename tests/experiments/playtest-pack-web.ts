@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { lstat, readFile, readdir, realpath } from 'node:fs/promises'
 import { extname, join, relative, resolve, sep } from 'node:path'
 
-export const FRONTEND_CAPABILITIES = ['view', 'history', 'speak', 'perform', 'subscribe', 'resources'] as const
+export const FRONTEND_CAPABILITIES = ['view', 'history', 'speak', 'perform', 'regenerate', 'subscribe', 'resources'] as const
 export interface FrontendManifest { apiVersion: 1; capabilities: string[] }
 export interface PackWebAsset { readonly bytes: Buffer; readonly contentType: string }
 export interface PackWeb { readonly page: Buffer; readonly assets: ReadonlyMap<string, PackWebAsset>; readonly manifest: FrontendManifest; readonly digest: string }

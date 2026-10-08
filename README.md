@@ -14,9 +14,9 @@ Perspectra 希望在尽量保留自由表达和角色主体性的前提下，让
 
 ### Windows x64 便携候选版
 
-当前候选版本为 **0.1.0-test1**，自带 Node、Python、Core 记忆依赖与离线 E5 模型、WebView2 和 C++ 运行库。玩家无需安装开发工具，但仍需要自己的模型服务。
+当前候选版本为 **0.1.0-test2**，自带 Node、Python、Core 记忆依赖与离线 E5 模型、WebView2 和 C++ 运行库。玩家无需安装开发工具，但仍需要自己的模型服务。
 
-[版本与下载入口](https://github.com/YouLan5418/Perspectra/releases) · [试玩说明](scripts/release/README.zh-CN.md) · [候选版验收记录](docs/current/studies/launcher-portable-release-20261007.md)
+[版本与下载入口](https://github.com/YouLan5418/Perspectra/releases) · [试玩说明](scripts/release/README.zh-CN.md) · [候选版验收记录](docs/current/studies/launcher-portable-test2-20261007.md)
 
 **当前候选 ZIP 已在本机构建，尚未上传为 GitHub Release 附件。** 本仓库提供源码和构建脚本；下载以实际发布的 Release 附件为准。
 
@@ -109,7 +109,7 @@ Activity 可以在特定玩法中临时收紧允许操作、移动或表达方�
 
 新线路恢复节点时的世界状态，并根据各角色截至该节点的授权经历重建记忆，避免直接带入原线路后来的经历。重建需要等待和模型调用，认识的具体措辞可能不同。
 
-当前 Storyline 是**保存、分叉与独立续玩**；持续剧情阶段追踪、线路合并和跨设备分享不在当前实现范围内。
+当前 Storyline 是**保存、分叉与独立续玩**；源码版支持单个完整节点的文件分享导入；持续剧情阶段追踪、线路合并和完整树分享不在当前实现范围内。
 
 [故事线使用与边界](docs/current/storylines.md)
 
@@ -158,9 +158,9 @@ World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽
 - 认知隔离保证程序提供的信息范围，不保证模型永远正确理解信息或从不虚构细节。
 - 长期记忆可能交付无关认识；后台整理和大上下文的容量、性能与角色体验仍需更多测试。
 - 某些交互按钮仍显示机器 ID；没有代码签名、自动更新或跨版本存档迁移保证。
-- 故事线分享、线路合并及部分预设能力尚未实现；内容格式可能继续调整。
+- 此前便携候选包尚不包含本轮单节点分享；线路合并及部分预设能力尚未实现，内容格式可能继续调整。
 
-完整验证证据与未完成项见 [候选版验收记录](docs/current/studies/launcher-portable-release-20261007.md)，当前架构状态见 [项目状态](docs/current/PROJECT-STATE.md)。
+完整验证证据与未完成项见 [候选版验收记录](docs/current/studies/launcher-portable-test2-20261007.md)，当前架构状态见 [项目状态](docs/current/PROJECT-STATE.md)。
 
 ## 反馈问题与体验
 

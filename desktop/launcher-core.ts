@@ -1,4 +1,6 @@
+import { providerProtocol, providerEndpoint, providerHeaders, nativeMessages, nativePayload, type ProviderProtocol } from '../packages/provider-chat/src/protocol.ts'
 import { existsSync } from 'node:fs'
+import { exportStoryNode, importStoryNode } from './story-share.ts'
 import { readStoryNodes, restoreStoryNode, storyId } from './story-nodes.ts'
 import { importPresets, exportPresets, namedPreset } from '../packages/provider-chat/src/preset-library.ts'
 import { ModelPresets, packPreset, presetChoice } from './model-presets.ts'
@@ -15,7 +17,7 @@ import { preflightSave } from './save-preflight.ts'
 import { loadPackWeb } from '../tests/experiments/playtest-pack-web.ts'
 import { hindsightPython } from '../tests/experiments/hindsight-python.ts'
 
-export interface LocalModel { model: string; endpoint: string }
+export interface LocalModel { model: string; endpoint: string; protocol?: ProviderProtocol }
 interface Pack { id: string; version: string; title: string; path: string; hash: string }
 interface Storyline { id: string; name: string; parentStorylineId: string | null; parentNodeId: string | null }
 interface Instance { currentStorylineId: string; storylines: Storyline[]; id: string; packageId: string; packageVersion: string; packHash: string; name: string; lastPlayedAt: string | null; model: LocalModel }
@@ -35,9 +37,12 @@ export function localModel(value: unknown): LocalModel {
   const model = text(data.model, '模型名称', 120)
   const endpoint = text(data.endpoint, '接口地址')
   const url = new URL(endpoint)
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请使用不含认证参数的 HTTP/HTTPS chat/completions 地址。')
-  if (!url.pathname.endsWith('/chat/completions')) throw new Error('接口地址须包含 /chat/completions。')
-  return { model, endpoint: url.href }
+  const protocol = providerProtocol(data.protocol)
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请使用不含认证参数的 HTTP/HTTPS 地址。')
+  if (protocol === 'openai' && !url.pathname.endsWith('/chat/completions')) throw new Error('接口地址须包含 /chat/completions。')
+  if (protocol === 'anthropic' && !url.pathname.endsWith('/messages')) throw new Error('Anthropic 接口须以 /messages 结尾。')
+  providerEndpoint(url, protocol, model)
+  return { model, endpoint: url.href, ...(data.protocol === undefined ? {} : { protocol }) }
 }
 async function terminate(child: ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return
@@ -176,16 +181,27 @@ export class LauncherCore {
         const model=localModel(request.model)
         if(request.apiKey!==undefined&&(typeof request.apiKey!=='string'||request.apiKey.length>8192))throw new Error('API Key 无效。')
         let response:Response
-        try { response=await fetch(model.endpoint,{method:'POST',headers:{'content-type':'application/json',...(request.apiKey?{authorization:'Bearer '+request.apiKey}:{})},
-          body:JSON.stringify({model:model.model,messages:[{role:'user',content:'请只回复 OK。这是连接测试，不包含游戏内容。'}],max_tokens:128}),signal:AbortSignal.timeout(15000)}) }
+        const protocol = providerProtocol(model.protocol)
+        const messages = [{role:'user',content:'请只回复 OK。这是连接测试，不包含游戏内容。'}]
+        const body = protocol === 'openai' ? {model:model.model,messages,max_tokens:128}
+          : protocol === 'anthropic' ? {model:model.model,...nativeMessages(messages,protocol),max_tokens:128}
+          : {...nativeMessages(messages,protocol),generationConfig:{maxOutputTokens:128}}
+        try { response=await fetch(providerEndpoint(new URL(model.endpoint),protocol,model.model),{method:'POST',redirect:'error',
+          headers:providerHeaders(protocol,typeof request.apiKey==='string'?request.apiKey:undefined),
+          body:JSON.stringify(body),signal:AbortSignal.timeout(15000)}) }
         catch { throw new Error('模型连接失败或超过 15 秒；请检查接口地址、服务是否启动和网络。') }
         if(response.status===401||response.status===403)throw new Error('模型接口拒绝认证；请检查 API Key 与访问权限。')
         if(response.status===429)throw new Error('模型接口限流或额度不足，请稍后重试并检查额度。')
         if(!response.ok)throw new Error('模型接口返回 HTTP '+response.status+'；请检查模型标识与接口配置。')
         let data:unknown
         try{data=await response.json()}catch{throw new Error('模型接口未返回有效 JSON。')}
-        const choices=(data as {choices?:{message?:{content?:unknown}}[]}|null)?.choices
-        if(!Array.isArray(choices)||typeof choices[0]?.message?.content!=='string'||!choices[0].message.content.trim())throw new Error('模型接口未返回有效文本；请检查 chat/completions 协议与模型。')
+        if (protocol === 'openai') {
+          const choices=(data as {choices?:{message?:{content?:unknown}}[]}|null)?.choices
+          if(!Array.isArray(choices)||typeof choices[0]?.message?.content!=='string'||!choices[0].message.content.trim())throw new Error('模型接口未返回有效文本；请检查 chat/completions 协议与模型。')
+        } else {
+          const payload = nativePayload(data,protocol)
+          if(typeof payload !== 'string' || !payload.trim()) throw new Error('模型接口未返回有效文本。')
+        }
         return {message:'模型接口已响应。此测试不验证游戏所需的结构化输出。'}
       }
       case 'request-inspector': {
@@ -264,6 +280,30 @@ export class LauncherCore {
         await this.#save({ ...this.#index, packs: [...this.#index.packs.filter(p => p.id !== pack.id), pack] })
         this.#recommended[pack.id]=recommended
         this.#characters[pack.id]=packCharacters(compiled)
+        return this.snapshot()
+      }
+      case 'story-export': {
+        this.#idle()
+        const instance=this.#instance(request.instanceId), nodeId=storyId(request.nodeId)
+        const history=this.#storyHistory(instance), reachable=new Set<string>()
+        let current=history.storylines.find(line=>line.id===instance.currentStorylineId)!.currentNodeId
+        while(current){if(reachable.has(current))throw new Error('故事历史关系损坏。');reachable.add(current);current=history.nodes.find(node=>node.id===current)?.parentNodeId??''}
+        if(!reachable.has(nodeId))throw new Error('请选择当前线路的历史节点。')
+        const owner=instance.storylines.find(line=>readStoryNodes(this.#storyDirectory(instance,line.id)).some(node=>node.id===nodeId))!
+        const pack=this.#index.packs.find(pack=>pack.id===instance.packageId)!
+        await exportStoryNode(this.#storyDirectory(instance,owner.id),nodeId,text(request.path,'导出路径'),pack.path)
+        return this.snapshot()
+      }
+      case 'story-import': {
+        this.#idle()
+        const pack=this.#index.packs.find(pack=>pack.id===request.packageId)
+        if(!pack)throw new Error('请先载入对应游戏包。')
+        const name=text(request.name,'实例名称',80)
+        const imported=await importStoryNode(text(request.path,'故事线文件'),join(this.root,'instances'),pack.path,pack.hash)
+        const instance:Instance={id:imported.id,packageId:pack.id,packageVersion:pack.version,packHash:pack.hash,name,
+          currentStorylineId:'main',storylines:[{id:'main',name:'导入 · '+imported.node.title,parentStorylineId:null,parentNodeId:null}],
+          model:{...this.#index.defaults},lastPlayedAt:null}
+        await this.#save({...this.#index,instances:[...this.#index.instances,instance]})
         return this.snapshot()
       }
       case 'story-select': {
@@ -355,7 +395,7 @@ export class LauncherCore {
         const child = spawn(process.execPath,
           [...(process.env.PERSPECTRA_RUNTIME_ROOT ? [join(process.env.PERSPECTRA_RUNTIME_ROOT,'playtest.mjs')] : ['--import','tsx',join(this.repository,'tests/experiments/playtest-web-entry.ts')]), '--pack', pack.path, '--data-dir', directory, '--memory-core'], {
             cwd: this.repository, windowsHide: true,
-            env: { ...process.env, HCW_LOCAL_MODEL: instance.model.model, HCW_LOCAL_ENDPOINT: instance.model.endpoint,
+            env: { ...process.env, HCW_LOCAL_MODEL: instance.model.model, HCW_LOCAL_ENDPOINT: instance.model.endpoint, HCW_MODEL_PROTOCOL: instance.model.protocol ?? 'openai',
               PERSPECTRA_STORY_PARENT_NODE: instance.storylines.find(l=>l.id===instance.currentStorylineId)?.parentNodeId??'',
               PERSPECTRA_PRESET_ROOT: this.root, PERSPECTRA_PRESET_INSTANCE: instance.id,
               PERSPECTRA_ROLE_PRESET: undefined, PERSPECTRA_ROLE_MAPPING: undefined,

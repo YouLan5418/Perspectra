@@ -37,3 +37,15 @@ export async function testModelConnection(model: import('../core-types.ts').Loca
  const result=await invoke<{message:string}>('launcher_request',{request:{operation:'test-model',model,apiKey}})
  return result.message
 }
+
+export async function chooseStoryFile(): Promise<string | null> {
+  if (!isTauri()) return null
+  const { open } = await import('@tauri-apps/plugin-dialog')
+  const path = await open({ title: '导入故事节点', multiple: false, filters: [{ name: 'Perspectra 故事节点', extensions: ['perspectra-story'] }] })
+  return typeof path === 'string' ? path : null
+}
+export async function chooseStoryDestination(): Promise<string | null> {
+  if (!isTauri()) return null
+  const { save } = await import('@tauri-apps/plugin-dialog')
+  return save({ title: '导出故事节点', defaultPath: '故事节点.perspectra-story', filters: [{ name: 'Perspectra 故事节点', extensions: ['perspectra-story'] }] })
+}

@@ -73,3 +73,24 @@ it('uses real saved nodes and persists storyline operations through Core instead
   await store.saveStoryNode('保存点')
   expect(bridge.request).toHaveBeenCalledWith('story-save',{instanceId:'instance-1',title:'保存点'})
 })
+
+it('exports the selected node and selects a newly imported independent instance',async()=>{
+  const store=useLauncherStore();await store.initialize()
+  const data=snapshot()
+  bridge.request.mockImplementation(async(operation)=>operation==='story-import'
+    ?{...data,instances:[...data.instances,{...data.instances[0]!,id:'imported-instance',name:'导入'}]}:data)
+  await store.exportStory('saved-node','C:/share.perspectra-story')
+  expect(bridge.request).toHaveBeenCalledWith('story-export',{instanceId:'instance-1',nodeId:'saved-node',path:'C:/share.perspectra-story'})
+  await store.importStory('C:/share.perspectra-story','导入')
+  expect(bridge.request).toHaveBeenCalledWith('story-import',{packageId:'pack:real',path:'C:/share.perspectra-story',name:'导入'})
+  expect(store.selectedInstanceId).toBe('imported-instance')
+  expect(store.instances).toHaveLength(2)
+})
+
+it('binds session credentials to the selected protocol as well as endpoint',async()=>{
+ const store=useLauncherStore();await store.initialize()
+ store.providers=[{id:'local',label:'native',endpoint,protocol:'anthropic',apiKey:'private-key'}]
+ await store.startGame()
+ expect(bridge.request.mock.calls.filter(call=>call[0]==='start')).toHaveLength(0)
+ expect(store.notice).toContain('密钥绑定')
+})

@@ -1,3 +1,4 @@
+import type { ChatMessage } from './wire.ts'
 export interface MessageSource {
   source: string
   name: string
@@ -39,19 +40,19 @@ export class RequestInspector {
   #requests: InspectedRequest[] = []
   configure(enabled: boolean): InspectorSnapshot { this.#enabled = enabled; this.#requests = []; return this.snapshot() }
   snapshot(): InspectorSnapshot { return structuredClone({ enabled: this.#enabled, requests: this.#requests }) }
-  begin(body: Record<string, unknown>, info?: CallInspection): number | undefined {
+  begin(body: Record<string, unknown>, info?: CallInspection, logicalMessages?: readonly ChatMessage[], model?: string): number | undefined {
     if (!this.#enabled || !info) return undefined
     const serialized = JSON.stringify(body)
     const id = ++this.#next
     const request: InspectedRequest = { id, characterId: info.characterId, continuation: info.continuation,
-      model: String(body.model), startedAt: new Date().toISOString(), status: 'pending', body: null,
+      model: model ?? String(body.model), startedAt: new Date().toISOString(), status: 'pending', body: null,
       messages: [], contextParts: [], estimatedBodyTokens: estimateRequestTokens(serialized),
       estimatedToolTokens: estimateRequestTokens(JSON.stringify(body.tools ?? body.format ?? {})) }
     // Retain at most four calls, each <= 1M UTF-16 characters. Oversized requests are explicit omissions.
     if (serialized.length > 1_000_000) request.omitted = '请求超过检查器保留上限；正文未捕获。'
     else {
       request.body = structuredClone(body)
-      const messages = body.messages as { role: string; content: string }[]
+      const messages = logicalMessages ?? body.messages as { role: string; content: string }[]
       request.messages = messages.map((message, i) => ({ ...message,
         source: structuredClone(info.sources[i] ?? {source:'core',name:'宿主消息'}), estimatedTokens: estimateRequestTokens(message.content) }))
       for (const [index, message] of messages.entries()) {
@@ -75,11 +76,11 @@ export class RequestInspector {
     if (!request) return
     request.status = status; request.durationMs = durationMs
     const root = response as Record<string, unknown> | undefined
-    const usage = root?.usage as Record<string, unknown> | undefined
+    const usage = (root?.usage ?? root?.usageMetadata) as Record<string, unknown> | undefined
     const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
-    const input = finite(usage?.prompt_tokens ?? root?.prompt_eval_count)
-    const output = finite(usage?.completion_tokens ?? root?.eval_count)
-    const total = finite(usage?.total_tokens)
+    const input = finite(usage?.prompt_tokens ?? usage?.input_tokens ?? usage?.promptTokenCount ?? root?.prompt_eval_count)
+    const output = finite(usage?.completion_tokens ?? usage?.output_tokens ?? usage?.candidatesTokenCount ?? root?.eval_count)
+    const total = finite(usage?.total_tokens ?? usage?.totalTokenCount)
     if (input !== undefined || output !== undefined || total !== undefined) request.usage = {
       ...(input === undefined ? {} : {inputTokens:input}), ...(output === undefined ? {} : {outputTokens:output}), ...(total === undefined ? {} : {totalTokens:total}) }
   }

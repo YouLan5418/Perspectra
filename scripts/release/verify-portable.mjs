@@ -1,6 +1,8 @@
 import {spawn} from 'node:child_process'
 import {resolve,join} from 'node:path'
 import {mkdir,writeFile} from 'node:fs/promises'
+import {DEFAULT_PAGE,DEFAULT_STYLE,DEFAULT_SCRIPT} from '../../packages/frontend/src/default-template.ts'
+import {HOST_ACTIVITY_PAGE} from '../../tests/experiments/playtest-host-page.ts'
 const root=resolve(process.argv[2]),data=resolve(process.argv[3]);await mkdir(data,{recursive:true})
 const runtime=join(root,'runtime');const env={...process.env,PATH:'C:\\Windows\\System32;C:\\Windows\\System32\\WindowsPowerShell\\v1.0',PERSPECTRA_RUNTIME_ROOT:runtime,HCW_HINDSIGHT_PYTHON:join(runtime,'python/python.exe'),HCW_HINDSIGHT_CORE_DIR:join(runtime,'experiments/hindsight-core'),HCW_HINDSIGHT_ONNX_DIR:join(runtime,'models/e5-small'),HCW_HINDSIGHT_CACHE_DIR:join(data,'cache'),HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',PYTHONNOUSERSITE:'1',PYTHONDONTWRITEBYTECODE:'1',PYTHONHOME:undefined,PYTHONPATH:undefined}
 const child=spawn(join(runtime,'node.exe'),[join(runtime,'launcher.mjs'),join(data,'launcher')],{cwd:runtime,env,windowsHide:true,stdio:['pipe','pipe','pipe']})
@@ -13,7 +15,12 @@ await request({operation:'load',path:join(root,'examples/前室与后室')});con
 const connection=await request({operation:'test-model',model:{endpoint:'http://127.0.0.1:8046/v1/chat/completions',model:'gemini-3.7-flash'}})
 const started=await request({operation:'start',instanceId:(await request({operation:'snapshot'})).instances[0].id})
 if(started.core.state!=='running')throw Error('Core not running')
-await request({operation:'stop'});await writeFile(join(data,'smoke-result.json'),JSON.stringify({fresh:true,packLoaded:true,instanceCreated:true,modelConnection:connection.message,coreStarted:true,coreStopped:true},null,2));console.log('Portable Node/Core smoke passed')
+const opened=await request({operation:'open'}),origin=new URL(opened.url).origin
+for(const [path,expected] of [['/',HOST_ACTIVITY_PAGE],['/frontend/default.html',DEFAULT_PAGE],['/frontend/default.css',DEFAULT_STYLE],['/frontend/default.js',DEFAULT_SCRIPT]]){
+ const response=await fetch(origin+path,{signal:AbortSignal.timeout(15000)})
+ if(!response.ok||await response.text()!==expected)throw Error('Portable frontend differs from current source: '+path)
+}
+await request({operation:'stop'});await writeFile(join(data,'smoke-result.json'),JSON.stringify({fresh:true,packLoaded:true,instanceCreated:true,modelConnection:connection.message,coreStarted:true,coreStopped:true,frontendMatchesSource:true},null,2));console.log('Portable Node/Core smoke passed')
 }finally{child.stdin.end();if(child.exitCode===null)await new Promise(resolve=>child.once('exit',resolve))}
 const python=spawn(join(runtime,'python/python.exe'),['-I','-B',resolve('scripts/release/verify-python.py'),runtime],{cwd:runtime,env,windowsHide:true,stdio:['ignore','pipe','pipe']})
 let output='',error='';python.stdout.on('data',s=>output+=s);python.stderr.on('data',s=>error+=s);const code=await new Promise(resolve=>python.once('exit',resolve));if(code!==0)throw Error('Python smoke failed: '+error.slice(-1500));await writeFile(join(data,'python-result.json'),output);console.log(output.trim())

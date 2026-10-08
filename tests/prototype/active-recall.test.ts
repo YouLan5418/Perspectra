@@ -89,7 +89,7 @@ it('lets an NPC retrieve only its attributed evidence, then decide without grant
     expect(memories.every(m => m.sourceAgeTicks === 2)).toBe(true)
     expect(JSON.stringify(request)).not.toContain('秘密抽屉')
     expect(request.recallEvidence?.note).toContain('不证明')
-    return { decision: 'publish', speech: '我记得陆舟这么说过，但还得看看钥匙。' }
+    return { decision: 'publish', segments: [{ type: 'speech', text: '我记得陆舟这么说过，但还得看看钥匙。' }] }
   }, true, observation => shadow.push(observation))
   await advanceTick(f, 1)
   await advanceTick(f, 2)
@@ -141,7 +141,7 @@ it('returns no duplicate source when active recall repeats recent or automatic e
       }
       expect(request.recallEvidence?.memories).toEqual([])
       expect(JSON.stringify(request)).not.toContain('秘密抽屉')
-      return { decision: 'publish', speech: '我会把已知的说法和亲眼所见分开。' }
+      return { decision: 'publish', segments: [{ type: 'speech', text: '我会把已知的说法和亲眼所见分开。' }] }
     }, longHistory)
     await advanceTick(f, 1)
     expect(await f.turn.run(npc, { maxCalls: 1, stimulus: [{ sourceText: '钥匙' }] }))

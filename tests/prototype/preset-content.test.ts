@@ -61,10 +61,10 @@ it('transforms authorized expression copies and latest player input without rewr
 })
 it('cleans publish fields before public use and refuses to repair malformed or empty decisions', async () => {
   const preset = { textRules: [rule('output')] }
-  expect(await presetOutput({ decision: 'publish', speech: '<draft>私密</draft>你好', narration: '微笑' }, preset)).toEqual({ decision: 'publish', speech: '你好', narration: '微笑' })
+  expect(await presetOutput({ decision: 'publish', segments: [{ type: 'narration', text: '微笑' }, { type: 'speech', text: '<draft>私密</draft>你好' }] }, preset)).toEqual({ decision: 'publish', segments: [{ type: 'narration', text: '微笑' }, { type: 'speech', text: '你好' }] })
   const operation = { decision: 'perform', actionType: 'move', parameters: { locationId: '<draft>目的地</draft>' } }
   expect(await presetOutput(operation, preset)).toBe(operation)
-  for (const raw of [{ decision: 'publish', speech: '<draft>全部</draft>' }, { decision: 'publish', speech: 'x'.repeat(2001) }, { decision: 'publish', speech: 1 }, { decision: 'publish', speech: '你好', parameters: {} }]) await expect(presetOutput(raw, preset)).rejects.toThrow()
+  for (const raw of [{ decision: 'publish', segments: [{ type: 'speech', text: '<draft>全部</draft>' }] }, { decision: 'publish', segments: [{ type: 'speech', text: 'x'.repeat(2001) }] }, { decision: 'publish', segments: [{ type: 'speech', text: 1 }] }, { decision: 'publish', parameters: {}, segments: [{ type: 'speech', text: '你好' }] }]) await expect(presetOutput(raw, preset)).rejects.toThrow()
 })
 it('applies the speaker preset to display copies while retaining published text', async () => {
   const view = { observations: [{ value: { content: { speech: { characterId: '甲', text: '原文', narration: '原文' } } } }, { value: { content: { speech: { characterId: '乙', text: '原文' } } } }] } as unknown as CharacterView
@@ -81,7 +81,7 @@ it('publishes cleaned text through the real Core, isolates role prompts, project
     requests.push(body)
     const data = body.messages.map(m => { try { return JSON.parse(m.content) as { context?: { character: { characterId: string } } } } catch { return {} } }).find(m => m.context)
     const actor = data!.context!.character.characterId
-    const decision = answered.has(actor) ? { decision: 'abstain' } : { decision: 'publish', speech: '<draft>未发布草稿</draft>已发布表达', narration: '微笑' }
+    const decision = answered.has(actor) ? { decision: 'abstain' } : { decision: 'publish', segments: [{ type: 'narration', text: '微笑' }, { type: 'speech', text: '<draft>未发布草稿</draft>已发布表达' }] }
     answered.add(actor)
     return new Response(JSON.stringify({ message: { content: JSON.stringify(decision) } }))
   }) as typeof fetch)
@@ -114,9 +114,9 @@ it('publishes cleaned text through the real Core, isolates role prompts, project
 it('does not turn invalid activity speech into a valid choice or change an accepted choice', async () => {
   const preset = {textRules:[rule('output',{pattern:'甲|非法',replacement:'乙',target:'speech'})]}
   const expression = {speech:'choices',speechChoices:['甲','乙'],narration:false}
-  await expect(presetOutput({decision:'publish',speech:'非法'},preset,undefined,expression)).rejects.toThrow('原始对白')
-  await expect(presetOutput({decision:'publish',speech:'甲'},preset,undefined,expression)).rejects.toThrow('不能改写')
-  await expect(presetOutput({decision:'publish',narration:'微笑'},preset,undefined,expression)).rejects.toThrow('禁止')
+  await expect(presetOutput({ decision:'publish', segments: [{ type: 'speech', text: '非法' }] },preset,undefined,expression)).rejects.toThrow('原始对白')
+  await expect(presetOutput({ decision:'publish', segments: [{ type: 'speech', text: '甲' }] },preset,undefined,expression)).rejects.toThrow('不能改写')
+  await expect(presetOutput({ decision:'publish', segments: [{ type: 'narration', text: '微笑' }] },preset,undefined,expression)).rejects.toThrow('禁止')
 })
 
 it('checks enabled macro syntax without evaluating request variables',()=>{
@@ -136,4 +136,25 @@ it('reports request-dependent preset expansion failure without calling the provi
   expect(state.error).toBe(true);expect(state.notice).toContain('角色预设处理失败');expect(state.notice).not.toContain('模型服务')
   expect(state.debug.activationCycle).toMatchObject({activations:[{result:{failure:'preset_failed'}}]});expect(fetch).not.toHaveBeenCalled()
  }finally{await runtime.close()}
+})
+
+
+it('transforms alternating segments in order, preserves type boundaries and keeps history/display copies private', async () => {
+  const segments = [{ type: 'speech', text: '一' }, { type: 'narration', text: '二' }, { type: 'speech', text: '三' }, { type: 'narration', text: '四' }]
+  const preset = { textRules: [rule('output', { pattern: '.', replacement: '说', target: 'speech' }), rule('output', { id: 'n', pattern: '.', replacement: '演', target: 'narration' })] }
+  const raw = { decision: 'publish', segments }
+  const output = await presetOutput(raw, preset)
+  expect(output).toEqual({ decision: 'publish', segments: segments.map(s => ({ ...s, text: s.type === 'speech' ? '说' : '演' })) })
+  expect(raw.segments).toEqual(segments)
+  const record = { sourceSeq: 1, value: { content: { speech: { characterId: 'npc', segments }, resultDescription: '状态不变' } } }
+  const request = { continuation: false, context: { observations: [record], selfObservations: [{content:{actionType:'speak',segments}}] } }
+  const history = await presetContext(request, { textRules: [rule('history', { pattern: '三', replacement: '历史三', target: 'speech' })] }, 'player')
+  expect(history.context.observations[0]!.value.content.speech.segments[2]!.text).toBe('历史三')
+  expect(history.context.selfObservations[0]!.content.segments[2]!.text).toBe('历史三')
+  expect(request.context.selfObservations[0]!.content.segments[2]!.text).toBe('三')
+  expect(request.context.observations[0]!.value.content.speech.segments[2]!.text).toBe('三')
+  const view = { observations: [record] } as unknown as CharacterView
+  const display = await presetDisplay(view, new Map([['npc', { textRules: [rule('display', { pattern: '二', replacement: '', target: 'narration' })] }]]))
+  expect(JSON.stringify(display)).toContain('状态不变')
+  expect(JSON.stringify(view)).toContain('二')
 })

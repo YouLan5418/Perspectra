@@ -54,7 +54,7 @@ describe('the web playtest on a frozen world', () => {
       const call = ++calls
       if (call === 3) { entered(); await gate }
       const answer = call === 1 ? { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:living-room' } }
-        : call === 2 ? { decision: 'publish', speech: '另一个房间的私密回复。' } : { decision: 'abstain' }
+        : call === 2 ? { decision: 'publish', segments: [{ type: 'speech', text: '另一个房间的私密回复。' }] } : { decision: 'abstain' }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
     }); servers.push(server)
@@ -86,8 +86,8 @@ describe('the web playtest on a frozen world', () => {
       if (calls === 2) { entered(); await gate }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ message: { content: JSON.stringify(calls === 1
-        ? { decision: 'publish', speech: '已提交的第一条回复。' }
-        : { decision: 'publish', speech: '尚未提交的第二条回复。' }) } }))
+        ? { decision: 'publish', segments: [{ type: 'speech', text: '已提交的第一条回复。' }] }
+        : { decision: 'publish', segments: [{ type: 'speech', text: '尚未提交的第二条回复。' }] }) } }))
     })
     servers.push(server)
     const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
@@ -205,7 +205,7 @@ describe('the web playtest on a frozen world', () => {
           } else {
             expect(input.canPerform).toBe(false)
             expect(input.result.status).toBe('accepted')
-            answer = { decision: 'publish', speech: '看过手机后放回桌上。' }
+            answer = { decision: 'publish', segments: [{ type: 'speech', text: '看过手机后放回桌上。' }] }
           }
         }
         response.writeHead(200, { 'content-type': 'application/json' })
@@ -271,7 +271,7 @@ describe('the web playtest on a frozen world', () => {
       const answer = calls === 1 ? { decision: 'perform', actionType: 'interact', parameters: {
         targetRef: { kind: 'entity', id: 'entity:phone' }, bindingId: 'binding:phone-take',
         definitionRef: { id: 'base:take', version: 1 }, arguments: {},
-      } } : calls === 2 ? { decision: 'publish', speech: '没完成的续写', extra: true }
+      } } : calls === 2 ? { decision: 'publish', extra: true, segments: [{ type: 'speech', text: '没完成的续写' }] }
         : { decision: 'abstain' }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
@@ -330,10 +330,10 @@ describe('the web playtest on a frozen world', () => {
             const events = store.readEvents(address)
             if (actor === 'character:claude') {
               expect(currentEntityState(events, 'entity:phone')?.holderId).toBe(actor)
-              answer = { decision: 'publish', speech: '手机拿到了。' }
+              answer = { decision: 'publish', segments: [{ type: 'speech', text: '手机拿到了。' }] }
             } else {
               expect(input.context.scene.locationId).toBe('location:workspace')
-              answer = { decision: 'publish', speech: '我到工作区了。' }
+              answer = { decision: 'publish', segments: [{ type: 'speech', text: '我到工作区了。' }] }
             }
           } finally { store.close() }
         } else if (!acted.has(actor)) {
@@ -364,7 +364,7 @@ describe('the web playtest on a frozen world', () => {
       expect(seen.length).toBeLessThanOrEqual(8)
       expect(state.transcript.some(line => line.text.includes('手机拿到了'))).toBe(true)
       expect(state.transcript.some(line => line.text.includes('我到工作区了'))).toBe(false)
-      expect(state.debug.outputProtocol).toBe('perform/publish/abstain')
+      expect(state.debug.outputProtocol).toBe('perform/publish(segments)/abstain')
     } finally { await runtime.close() }
   }, 30_000)
 
@@ -374,7 +374,7 @@ describe('the web playtest on a frozen world', () => {
     const server = createServer((_request, response) => {
       calls++
       response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify({ message: { content: JSON.stringify({ decision: 'publish', narration: '轻轻点头。' }) } }))
+      response.end(JSON.stringify({ message: { content: JSON.stringify({ decision: 'publish', segments: [{ type: 'narration', text: '轻轻点头。' }] }) } }))
     })
     servers.push(server)
     const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,

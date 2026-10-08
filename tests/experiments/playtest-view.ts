@@ -1,3 +1,4 @@
+import { publicationSegments, type WorldJsonObject } from '@harness-world/contracts'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -49,7 +50,7 @@ export function playerTranscript(
     const stage = typeof speech?.narration === 'string' && speech.narration.length > 0
       ? speech.narration : manifestationText(content?.manifestation)
     if (content?.status !== 'accepted') return []
-    if (typeof speech?.characterId !== 'string' || typeof speech.text !== 'string') {
+    if (typeof speech?.characterId !== 'string' || (typeof speech.text !== 'string' && speech.segments === undefined)) {
       if (content?.actionType === 'interact' && typeof content.actorId === 'string') {
         const transfer = object(content.interaction)
         if (typeof transfer?.entityId !== 'string') {
@@ -70,10 +71,13 @@ export function playerTranscript(
         player: content.actorId === playerId,
       }]
     }
+    const segments = speech.segments === undefined ? undefined
+      : publicationSegments(speech as WorldJsonObject).filter(segment => segment.text.trim())
     return [{
       seq: observation.sourceSeq,
       speaker: names.get(speech.characterId) ?? speech.characterId,
-      text: stage === undefined ? speech.text : [`（${stage}）`, speech.text].filter(Boolean).join('\n'),
+      ...(segments === undefined ? {} : { segments }),
+      text: segments !== undefined ? segments.map(segment => segment.type === 'narration' ? `（${segment.text}）` : segment.text).join('\n') : stage === undefined ? speech.text as string : [`（${stage}）`, speech.text].filter(Boolean).join('\n'),
       player: speech.characterId === playerId,
     }]
   }).sort((left, right) => left.seq - right.seq)

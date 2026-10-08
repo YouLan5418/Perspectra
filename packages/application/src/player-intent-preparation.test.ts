@@ -38,3 +38,11 @@ describe('preparing a command-controlled player input', () => {
       .toEqual({ clarification: 'action is not currently afforded' })
   })
 })
+
+it('preserves both narration and speech as source spans of one action',()=>{
+ const result=prepare({action:{actionType:'speak',parameters:{text:'你好',narration:'轻轻微笑。\n抬起头。'}}})
+ expect(result).toMatchObject({directSubmission:{sourceText:'轻轻微笑。\n抬起头。\n你好',
+  sourceSpans:[{kind:'narration',text:'轻轻微笑。\n抬起头。',startUtf16:0,endUtf16:10},{kind:'speech',text:'你好',startUtf16:11,endUtf16:13}]}})
+ if('directSubmission' in result)expect(result.directSubmission.actions).toHaveLength(1)
+ expect(prepare({text:'/narrate 轻轻微笑。\n抬起头。'})).toMatchObject({directSubmission:{actions:[{parameters:{text:'',narration:'轻轻微笑。\n抬起头。'}}]}})
+})

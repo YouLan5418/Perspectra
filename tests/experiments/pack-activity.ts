@@ -1,3 +1,4 @@
+import { parseExpressionSegments, checkExpressionPolicy } from '@harness-world/contracts'
 import Ajv from 'ajv'
 import type { ChatCall } from '@harness-world/provider-chat'
 import type { WorldJsonValue } from '@harness-world/contracts'
@@ -102,6 +103,16 @@ function json(value: WorldJsonObject): string { return Buffer.from(canonicalizeW
 
 /** Trusted, synchronous creator rules; all writes and model calls remain in the host. */
 export class PackActivity {
+  #randomValues: number[] = []
+  #randomReplay: readonly number[] | undefined
+  #randomCursor = 0
+  beginRoundRandom(values?: readonly number[]): void { this.#randomValues = []; this.#randomReplay = values; this.#randomCursor = 0 }
+  roundRandom(): number[] { return [...this.#randomValues] }
+  #initialRandom(): number {
+    const value = this.#randomReplay === undefined ? Math.random() : this.#randomReplay[this.#randomCursor]
+    if (value === undefined) throw new TypeError('活动初始化随机记录不足。')
+    this.#randomCursor++; this.#randomValues.push(value); return value
+  }
   readonly #script: Script
   readonly #operations: Operation[]
   readonly #validators = new Map<string, ReturnType<Ajv['compile']>>()
@@ -146,10 +157,13 @@ export class PackActivity {
   #call(method:string,args:unknown[]):unknown {
     const input=JSON.stringify(args)
     if(input.length>65536)throw new RangeError('活动输入过长')
-    const context=createContext(Object.assign(Object.create(null),{__method:method,__args:input}),
+    const context=createContext(Object.assign(Object.create(null),{__method:method,__args:input, ...(method === 'initialize' ? {__initialRandom: () => this.#initialRandom()} : {})}),
       {codeGeneration:{strings:false,wasm:false},microtaskMode:'afterEvaluate'})
     let output:unknown
-    try{output=this.#script.runInContext(context,{timeout:100})}
+    try{
+      if (method === 'initialize') new Script('Math.random = __initialRandom').runInContext(context, {timeout:100})
+      output=this.#script.runInContext(context,{timeout:100})
+    }
     catch{throw new TypeError('包内活动脚本执行失败或超时')}
     if(typeof output!=='string' || output.length>65536)throw new TypeError('活动脚本必须返回有限 JSON')
     return JSON.parse(output)
@@ -247,8 +261,8 @@ export class PackActivity {
     this.#check(state,snapshot.id,snapshot.revision,actor)
     const policy=this.policy(state,actor)
     if(decision.decision==='publish'){
-      if(Object.keys(decision).some(k=>!['decision','speech','narration','addresseeIds'].includes(k)))throw new TypeError('非法混合输出整包拒绝')
-      this.checkExpression(policy,decision)
+      if(Object.keys(decision).some(k=>!['decision','segments','addresseeIds'].includes(k)))throw new TypeError('非法混合输出整包拒绝')
+      checkExpressionPolicy(parseExpressionSegments(decision.segments), policy)
     }else if(decision.decision==='perform'){
       if(Object.keys(decision).sort().join(',')!=='actionType,decision,parameters')throw new TypeError('非法混合输出整包拒绝')
     }
@@ -298,7 +312,8 @@ export class PackActivity {
       if(action.actionType==='speak'){
         const expression={...(Object.hasOwn(p,'text') && p.text!==''?{speech:p.text}:{}),
           ...(Object.hasOwn(p,'narration')&&p.narration!==''?{narration:p.narration}:{})}
-        this.checkExpression(policy,expression)
+        if (p.segments !== undefined) checkExpressionPolicy(parseExpressionSegments(p.segments), policy)
+        else this.checkExpression(policy,expression)
       }else if(action.actionType==='move'){
         if(!policy.move)throw new TypeError('活动期间禁止移动')
       }else if(action.actionType!=='interact' || !policy.interactions.includes(String(definition?.id))){

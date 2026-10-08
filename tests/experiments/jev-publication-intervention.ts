@@ -1,3 +1,5 @@
+import { parseExpressionSegments } from '@harness-world/contracts'
+import { auditExpression } from './jev-shadow.ts'
 import type { StoredWorldEvent, WorldJsonObject } from '@harness-world/contracts'
 import { currentEntityState } from '@harness-world/kernel'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
@@ -8,8 +10,8 @@ import { acquisitionWindow, holderEvidence, reconcilePlacement, type PlacementAu
 const object = (v: unknown): WorldJsonObject => v && typeof v === 'object' && !Array.isArray(v) ? v as WorldJsonObject : {}
 function publish(v: unknown): WorldJsonObject | undefined {
   const d = object(v)
-  if (d.decision !== 'publish' || Object.keys(d).some(k => !['decision','speech','narration','addresseeIds'].includes(k))) return undefined
-  if (['speech','narration'].some(k => d[k] !== undefined && (typeof d[k] !== 'string' || (d[k] as string).length > 2000))) return undefined
+  if (d.decision !== 'publish' || Object.keys(d).some(k => !['decision','segments','addresseeIds'].includes(k))) return undefined
+  try { parseExpressionSegments(d.segments) } catch { return undefined }
   if (d.addresseeIds !== undefined && (!Array.isArray(d.addresseeIds) || d.addresseeIds.some(v => typeof v !== 'string'))) return undefined
   return d
 }
@@ -60,10 +62,10 @@ export async function auditBeforePublication(input: {
   const earlierPublications: Publication[] = history.filter(e => e.eventType === 'character.speak'
     && observed.some(o => o.transactionId === e.transactionId && JSON.stringify(o.speech) === JSON.stringify(e.data)))
     .slice(-12).map(e => {
-      const d=object(e.data);return {seq:e.seq,actorId:String(d.characterId),speech:String(d.text??''),narration:String(d.narration??'')}
+      const d=object(e.data);return {seq:e.seq,actorId:String(d.characterId),...auditExpression(d)}
     })
   // seq is a prospective expression position, not an invented or persisted World event.
-  const publication = {seq:baseHeadSeq+1,actorId,speech:String(draft.speech??''),narration:String(draft.narration??'')}
+  const publication = {seq:baseHeadSeq+1,actorId,...auditExpression(draft)}
   const window: AuditWindow = acquisitionWindow(history,{roundId:null,fromSeq:baseHeadSeq,toSeq:baseHeadSeq,kind:'round'})
   try {
     const answers = await Promise.all(options.items.map(async item => {

@@ -1,7 +1,7 @@
 import type { RolePreset, RolePresetMapping } from '../../../packages/provider-chat/src/preset.ts'
 export type { RolePreset, RolePresetMapping }
 export interface PresetChoice extends RolePresetMapping {mode:'auto'|'global'|'custom';override:RolePreset}
-export interface LocalModel { model: string; endpoint: string }
+export interface LocalModel { model: string; endpoint: string; protocol?: 'openai' | 'anthropic' | 'google' }
 export interface CoreSnapshot {
   packs: { id: string; version: string; title: string; path: string; hash: string }[]
   instances: { storyError?:string; currentStorylineId?:string; storylines?:import('./types.ts').Storyline[]; nodes?:import('./types.ts').StoryNode[]; id: string; packageId: string; packageVersion: string; packHash: string; name: string; lastPlayedAt: string | null; model: LocalModel }[]

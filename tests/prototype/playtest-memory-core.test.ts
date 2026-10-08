@@ -32,7 +32,7 @@ async function fixture(run: CoreRunner, options: { memoryContextBudget?: MemoryC
       const wire = JSON.parse(body)
       requests.push(JSON.parse(wire.messages.at(-1).content))
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(options.publish ? { decision: 'publish', speech: '我在听。', addresseeIds: ['character:player'] } : { decision: 'abstain' }) } }] }))
+      res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(options.publish ? { decision: 'publish', addresseeIds: ['character:player'], segments: [{ type: 'speech', text: '我在听。' }] } : { decision: 'abstain' }) } }] }))
     })
   })
   servers.push(provider); provider.listen(0, '127.0.0.1'); await once(provider, 'listening')

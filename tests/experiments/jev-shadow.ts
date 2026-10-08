@@ -1,3 +1,4 @@
+import { publicationSegments, type ExpressionSegment } from '@harness-world/contracts'
 import { setImmediate as nextTurn } from 'node:timers/promises'
 import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
 import { claimCriteria, type ClaimQuestion, type ClaimAnswer, type TemporalClaim } from './jev-shadow-claims-client.ts'
@@ -11,6 +12,14 @@ export interface Publication {
   readonly actorId: string
   readonly speech: string
   readonly narration: string
+  readonly segments?: readonly ExpressionSegment[]
+}
+/** Keep ordered content available to the optional auditor alongside its field summaries. */
+export function auditExpression(data: WorldJsonObject) {
+  const segments = publicationSegments(data)
+  return { speech: segments.filter(s => s.type === 'speech').map(s => s.text).join('\n'),
+    narration: segments.filter(s => s.type === 'narration').map(s => s.text).join('\n'),
+    ...(data.segments === undefined ? {} : { segments }) }
 }
 /** Metadata and published expression only. No authoritative holder or private agent context. */
 export interface HolderQuestion {
@@ -165,8 +174,7 @@ export class JevShadow {
         if (event.eventType !== 'character.speak') continue
         const data = event.data as WorldJsonObject
         const publication: Publication = { seq: event.seq, actorId: String(data.characterId),
-          speech: typeof data.text === 'string' ? data.text : '',
-          narration: typeof data.narration === 'string' ? data.narration : '' }
+          ...auditExpression(data) }
         if (!publication.speech.trim() && !publication.narration.trim()) continue
         for (const item of this.options.items) {
           const before = currentEntityState(pre, item.entityId), world = currentEntityState(post, item.entityId)
@@ -185,7 +193,7 @@ export class JevShadow {
           const window = publicationWindow(events, publication.seq)
           const priorPublications = events.filter(e => e.eventType === 'character.speak' && e.seq < publication.seq).slice(-12).map(e => {
             const d = e.data as WorldJsonObject
-            return { seq: e.seq, actorId: String(d.characterId), speech: String(d.text ?? ''), narration: String(d.narration ?? '') }
+            return { seq: e.seq, actorId: String(d.characterId), ...auditExpression(d) }
           })
           const earlierPublications = [...new Map([...this.#roots.values(), ...priorPublications].filter(p => p.seq < publication.seq).map(p => [p.seq,p])).values()].sort((a,b) => a.seq-b.seq)
           const began = performance.now()

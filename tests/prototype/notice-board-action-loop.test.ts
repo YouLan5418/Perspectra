@@ -54,7 +54,7 @@ it.each([[askId,'reported_speech',staffText],[terminalId,'direct_observation',te
 })
 it('speech promising to ask staff does not call the capability or produce its reply',async()=>{
   const f=setup(),turn=new PrototypeCharacterTurn({...f,rulebooks:f.rules,
-    decide:async()=>({decision:'publish',speech:'我去问问工作人员。'})})
+    decide:async()=>({ decision:'publish', segments: [{ type: 'speech', text: '我去问问工作人员。' }] })})
   await turn.run(npc)
   expect(f.sources().some(s=>String(s.text_value).includes(staffText))).toBe(false)
 })

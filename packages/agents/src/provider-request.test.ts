@@ -104,8 +104,9 @@ describe('StructuredPromptRenderer', () => {
     const messages = renderCharacter(character('new stimulus', 'base', [block])).exactRequest.messages
     const summary = messages.find(message => message.content.startsWith('【你此前已经发布的表达】'))!
     expect(summary.role).toBe('user')
-    expect(summary.content).toContain('你的对白原文："好。"')
-    expect(summary.content).toContain('你的外显叙述原文："我在听。"')
+    expect(summary.content).toContain('你的有序表达原文：')
+    const expressions = summary.content.split('\n').filter(line => line.startsWith('你的有序表达原文：')).map(line => JSON.parse(line.slice('你的有序表达原文：'.length)))
+    expect(expressions).toEqual([[{type:'narration',text:'点头。'},{type:'speech',text:'好。'}],[{type:'narration',text:'我在听。'}]])
     expect(summary.content.indexOf('观察序号 1')).toBeLessThan(summary.content.indexOf('观察序号 2'))
     expect(summary.content).not.toContain('OTHER-')
     expect(summary.content).not.toContain('abstain')

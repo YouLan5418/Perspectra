@@ -1,3 +1,4 @@
+import { publicationSourceText } from '@harness-world/contracts'
 /** Deterministic authorized Source delivery for the simplification experiment. */
 import { canonicalizeWorldJson, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
@@ -20,9 +21,7 @@ export function rawHistorySnapshot(f: ReturnType<typeof openActionWorld>) {
     const content = value.content ?? value, c = object(content), speech = object(c.speech)
     if (c.manifestation !== undefined || c.playerInput !== undefined) throw new Error('unsupported raw-history lab source')
     const text = c.speech !== undefined
-      ? (speech.text === '' ? '' : String(speech.characterId) + ' said: ' + String(speech.text))
-        + (typeof speech.narration === 'string' && speech.narration.length > 0
-          ? (speech.text === '' ? '' : '; ') + String(speech.characterId) + ' published narration (not an adjudicated outcome): ' + speech.narration : '')
+      ? publicationSourceText(speech)
       : typeof content === 'string' ? content : canonical(content)
     const kind = c.speech !== undefined ? 'reported_speech' : value.epistemicKind ?? (c.actionType === undefined ? 'direct_observation' : 'observed_action')
     if (row.text_value !== text || row.epistemic_kind !== kind) throw new Error('Source text or epistemic kind changed')

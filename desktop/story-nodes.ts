@@ -30,9 +30,9 @@ export function readStoryNodes(directory: string): StoryNode[] {
 }
 
 /** Caller holds the runtime input gate; all foreground and memory writers have stopped. */
-export async function saveStoryNode(directory: string, address: WorldAddress, packHash: string, title: string, aliases: unknown, parentNodeId: string | null = null): Promise<StoryNode> {
+export async function saveStoryNode(directory: string, address: WorldAddress, packHash: string, title: string, aliases: unknown, parentNodeId: string | null = null, logicalDirectory = directory): Promise<StoryNode> {
   if (!title.trim() || title.length > 80) throw new TypeError('节点名称须为 1 至 80 个字符。')
-  const root = join(directory, 'story-nodes'), id = randomUUID()
+  const root = join(logicalDirectory, 'story-nodes'), id = randomUUID()
   mkdirSync(root, { recursive: true })
   const temporary = join(root, '.' + id)
   mkdirSync(temporary)
@@ -48,7 +48,7 @@ export async function saveStoryNode(directory: string, address: WorldAddress, pa
     if (unfinished) throw new Error('世界尚未静止，请完成当前输入与角色反应后保存。')
     const head = world.prepare('SELECT head_seq,tick FROM heads WHERE address_key=?').get(key) as {head_seq:number;tick:number} | undefined
     if (!head) throw new Error('世界不存在。')
-    const nodes = readStoryNodes(directory)
+    const nodes = readStoryNodes(logicalDirectory)
     node = { id, title: title.trim(), createdAt: new Date().toISOString(), headSeq: head.head_seq, tick: head.tick, packHash, parentNodeId: nodes.at(-1)?.id ?? parentNodeId, files: [] }
     await backup(world, join(temporary, 'world.sqlite'))
   } finally { world.close() }

@@ -1,3 +1,4 @@
+import { parseExpressionSegments } from '@harness-world/contracts'
 import {
   compareWorldText,
   hashWorldJson,
@@ -90,9 +91,10 @@ function selfState(events: readonly StoredWorldEvent[], characterId: CharacterId
       locationId = data.toLocationId
       observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: 'move', locationId } })
     }
-    if (event.eventType === 'character.speak' && typeof data.text === 'string') {
-      observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: 'speak', text: data.text,
-        ...(typeof data.narration === 'string' ? { narration: data.narration } : {}) } })
+    if (event.eventType === 'character.speak' && (typeof data.text === 'string' || data.segments !== undefined)) {
+      observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: 'speak', ...(typeof data.text === 'string' ? { text: data.text } : {}),
+        ...(typeof data.narration === 'string' ? { narration: data.narration } : {}),
+        ...(data.segments === undefined ? {} : { segments: parseExpressionSegments(data.segments) }) } })
     }
     if (event.eventType === 'action.rejected' && typeof data.actionType === 'string') {
       observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: data.actionType, status: 'rejected' } })

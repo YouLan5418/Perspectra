@@ -1,3 +1,4 @@
+import { currentWorldDirectory } from './tail-storage.ts'
 import { existsSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -16,7 +17,7 @@ export async function preflightSave(packPath: string, dataDirectory: string): Pr
   const pack = await compileWorldPackSource(resolve(packPath), [
     interactionPackageDescription(createBasicInteractionPackage()),
   ]) as CompiledWorldPackV5
-  const databasePath = resolve(dataDirectory, 'world.sqlite')
+  const databasePath = resolve(currentWorldDirectory(dataDirectory), 'world.sqlite')
   if (!existsSync(databasePath)) {
     if (existsSync(dataDirectory) && readdirSync(dataDirectory).length > 0) {
       throw new Error('所选存档目录已有数据，但没有 world.sqlite；请选择空目录或有效存档。')

@@ -1,3 +1,4 @@
+import { publicationSegments } from '@harness-world/contracts'
 import { brandId, type CharacterId, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
 import type { WorldStore } from '@harness-world/store-sqlite'
 import type { PrototypeCharacterTurn, PrototypeTurnResult } from './prototype-character-turn.ts'
@@ -23,7 +24,7 @@ export async function runPrototypeActivations(input: {
       const id = brandId(String(value.observerId), 'CharacterId')
       if (!input.characterIds.includes(id)) continue
       const speech = content.speech as WorldJsonObject | undefined
-      if (!rootStimulus && speech !== undefined && typeof speech.text === 'string' && speech.text.trim() === ''
+      if (!rootStimulus && speech !== undefined && !publicationSegments(speech).some(segment => segment.type === 'speech' && segment.text.trim())
         && !(speech.addresseeIds as string[] | undefined)?.includes(id)) continue
       const entries = result.get(id) ?? []
       entries.push(value); result.set(id, entries)

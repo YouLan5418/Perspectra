@@ -37,9 +37,12 @@ export interface MemoryBuildOptions {
   readonly run?: CoreRunner
   readonly roleConcurrency?: number
   readonly retainConcurrency?: number
+  readonly worldVersion?: string
+  readonly versionValid?: () => boolean
 }
 interface BuildJob {
   readonly id: string; readonly actor: string; readonly prefix: number; readonly snapshot: Snapshot
+  readonly worldVersion: string
   readonly input: WorldJsonObject; readonly controller: AbortController; readonly frozenAt: number
   readonly done: Promise<void>; readonly finish: () => void
   started: boolean; failure?: unknown
@@ -54,6 +57,14 @@ export class PlaytestMemoryCore {
   readonly #buildRun: CoreRunner
   readonly #roleConcurrency: number
   readonly #retainConcurrency: number
+  readonly #worldVersion: string
+  readonly #versionValid: () => boolean
+  #installationGate: Promise<void> | undefined
+  #releaseInstallation: (() => void) | undefined
+  holdInstallation(): void {
+    if (!this.#installationGate) this.#installationGate = new Promise<void>(done => { this.#releaseInstallation = done })
+  }
+  releaseInstallation(): void { this.#releaseInstallation?.(); this.#releaseInstallation = undefined; this.#installationGate = undefined }
   #active = 0
   #closed = false
   #counts = { completed: 0, failed: 0, discarded: 0, cancelled: 0 }
@@ -64,6 +75,8 @@ export class PlaytestMemoryCore {
     if (!Number.isSafeInteger(budget.triggerTokens) || !Number.isSafeInteger(budget.compactTokens)
       || budget.compactTokens <= 0 || budget.triggerTokens <= budget.compactTokens)
       throw new TypeError('invalid memory context budget')
+    this.#worldVersion = build.worldVersion ?? randomUUID()
+    this.#versionValid = build.versionValid ?? (() => !this.#closed)
     this.#buildRun = build.run ?? run
     this.#roleConcurrency = build.roleConcurrency ?? 2
     this.#retainConcurrency = build.retainConcurrency ?? 2
@@ -300,13 +313,14 @@ export class PlaytestMemoryCore {
   cancelBackground(): void {
     this.#pending.clear()
     for (const job of this.#jobs.values()) job.controller.abort()
+    this.releaseInstallation()
     this.#pump()
   }
   async close(): Promise<void> {
-    this.#closed = true; this.cancelBackground(); await this.waitForBackground()
+    this.#closed = true; this.cancelBackground(); this.releaseInstallation(); await this.waitForBackground()
   }
   #trace(row: WorldJsonObject): void {
-    appendFileSync(resolve(this.#directory, 'background-builds.jsonl'), JSON.stringify(row) + '\n')
+    appendFileSync(resolve(this.#directory, 'background-builds.jsonl'), JSON.stringify({ ...row, worldVersion: this.#worldVersion }) + '\n')
   }
   #startJobs(entries: readonly (readonly [string, number | undefined])[]): void {
     if (entries.length === 0 || this.#closed) return
@@ -343,7 +357,7 @@ export class PlaytestMemoryCore {
     const input: WorldJsonObject = structuredClone({ operation: 'build', ...snapshot, aliasHistory,
       retainConcurrency: this.#retainConcurrency, buildId: id,
       ...(cached === undefined ? {} : { retainedPrefix: cached.archive! }) })
-    const job: BuildJob = { id, actor, prefix, snapshot, input, frozenAt, started: false,
+    const job: BuildJob = { id, actor, prefix, snapshot, input, worldVersion: this.#worldVersion, frozenAt, started: false,
       controller: new AbortController(), done: new Promise<void>(done => { finish = done }), finish: () => finish() }
     this.#jobs.set(key, job)
     this.#trace({ event: 'frozen', buildId: id, actor, prefix, atMs: frozenAt,
@@ -363,7 +377,10 @@ export class PlaytestMemoryCore {
       this.#trace({ event: 'started', buildId: job.id, actor: job.actor, prefix: job.prefix,
         atMs: startedAt, queueMs: startedAt - job.frozenAt, activeBuilds: this.#active })
       const signal = AbortSignal.any([job.controller.signal, AbortSignal.timeout(600_000)])
-      void Promise.resolve().then(() => this.#buildRun(job.input, signal)).then(result => {
+      void Promise.resolve().then(() => this.#buildRun(job.input, signal)).then(async result => {
+        if (this.#installationGate) await this.#installationGate
+        signal.throwIfAborted()
+        if (this.#closed || !this.#versionValid() || job.worldVersion !== this.#worldVersion) throw new Error('memory task world version expired')
         this.#validate(result, job.snapshot)
         if (!same(object(result.archive).scope!, job.snapshot.scope)) throw new Error('memory build did not cover the requested prefix')
         signal.throwIfAborted()

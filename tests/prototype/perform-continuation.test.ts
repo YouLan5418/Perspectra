@@ -1,3 +1,14 @@
+import Ajv from 'ajv'
+import { localPrototypeTurnCall } from '../experiments/local-prototype-turn-call.ts'
+import { DatabaseSync } from 'node:sqlite'
+import { CognitiveMemoryService } from '@harness-world/memory'
+import { CharacterViewBuilder } from '@harness-world/store-sqlite'
+import { publicationSourceText, checkExpressionPolicy, parseExpressionSegments, RECALL_KEYWORD_TOKENIZER_ID, type ExpressionSegment } from '@harness-world/contracts'
+import { DeterministicPresenter } from '@harness-world/presentation'
+import { playerTranscript } from '../experiments/playtest-view.ts'
+import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import type { PlaytestState } from '../experiments/playtest-server.ts'
+import { PlaytestMemoryCore } from '../experiments/playtest-memory-core.ts'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -33,7 +44,7 @@ function fixture(decide: (request: PrototypeTurnRequest, signal: AbortSignal) =>
     roundId: brandId('round:genesis', 'InteractionRoundId'), correlationId: 'test' })
   const turn = new PrototypeCharacterTurn({ address, store, leases, availability,
     rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }), decide })
-  return { turn, store, address }
+  return { turn, store, address, directory }
 }
 
 it('commits perform before continuation, then publishes the result-aware expression', async () => {
@@ -44,7 +55,7 @@ it('commits perform before continuation, then publishes the result-aware express
     expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBe(npc)
     expect(f.store.readEvents(f.address).filter(event => event.eventType === 'character.speak')).toHaveLength(0)
     expect(JSON.stringify(prototypeTurnCall(request).schema)).not.toContain('"const":"perform"')
-    return { decision: 'publish', speech: '拿到了。', narration: '低头看了看手里的杯子。' }
+    return { decision: 'publish', segments: [{ type: 'narration', text: '低头看了看手里的杯子。' }, { type: 'speech', text: '拿到了。' }] }
   })
   expect(await f.turn.run(npc)).toMatchObject({ status: 'published', calls: 2, performResult: { status: 'accepted' } })
   const events = f.store.readEvents(f.address)
@@ -73,7 +84,7 @@ it('can execute a second bounded operation after seeing the first result, then p
     expect(request.canPerform).toBe(false)
     expect(JSON.stringify(prototypeTurnCall(request).schema)).not.toContain('"const":"perform"')
     expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBeNull()
-    return { decision: 'publish', speech: '拿起来看了看，又放回原处。' }
+    return { decision: 'publish', segments: [{ type: 'speech', text: '拿起来看了看，又放回原处。' }] }
   })
   expect(await f.turn.run(npc, { maxCalls: 3 })).toMatchObject({ status: 'published', calls: 3,
     performResult: { status: 'accepted', action: { parameters: { definitionRef: { id: 'base:drop' } } } } })
@@ -91,7 +102,7 @@ it('returns a real rejection before the character reacts, without changing posse
       arguments: { recipientId: 'character:player' } } }
     expect(request.result?.status).toBe('rejected')
     expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBeNull()
-    return { decision: 'publish', speech: '我还没拿到它呢。' }
+    return { decision: 'publish', segments: [{ type: 'speech', text: '我还没拿到它呢。' }] }
   })
   expect(await f.turn.run(npc)).toMatchObject({ status: 'published', performResult: { status: 'rejected' } })
   expect(f.store.readEvents(f.address).some(event => event.eventType === 'entity.transferred')).toBe(false)
@@ -119,9 +130,9 @@ it.each(['throw', 'second-operation', 'mixed-draft', 'abstain', 'cancel'] as con
     const f = fixture(async () => {
       if (++calls === 1) return take
       if (mode === 'throw') throw new Error('provider unavailable')
-      if (mode === 'cancel') { controller.abort(); return { decision: 'publish', speech: 'late' } }
+      if (mode === 'cancel') { controller.abort(); return { decision: 'publish', segments: [{ type: 'speech', text: 'late' }] } }
       if (mode === 'second-operation') return take
-      if (mode === 'mixed-draft') return { decision: 'publish', speech: 'done', parameters: take.parameters }
+      if (mode === 'mixed-draft') return { decision: 'publish', parameters: take.parameters, segments: [{ type: 'speech', text: 'done' }] }
       return { decision: 'abstain' }
     })
     const result = await f.turn.run(npc, { signal: controller.signal })
@@ -161,7 +172,7 @@ it('refreshes character and scene locations after moving, including the next act
     expect(currentLocation(f.store.readEvents(f.address), npc)).toBe('location:next')
     expect((request.context.scene as WorldJsonObject).locationId).toBe('location:next')
     expect(JSON.stringify(prototypeTurnCall(request).schema)).not.toContain('addresseeIds')
-    return { decision: 'publish', narration: '环顾四周。' }
+    return { decision: 'publish', segments: [{ type: 'narration', text: '环顾四周。' }] }
   })
   expect(await f.turn.run(npc)).toMatchObject({ status: 'published', calls: 2 })
   expect(await f.turn.run(npc)).toMatchObject({ status: 'published', calls: 1 })
@@ -193,7 +204,7 @@ it('keeps another character private observations out of both model calls', async
 })
 
 it('supports a pure expression without invoking perform or a continuation', async () => {
-  const f = fixture(async () => ({ decision: 'publish', narration: '轻轻笑了笑。' }))
+  const f = fixture(async () => ({ decision: 'publish', segments: [{ type: 'narration', text: '轻轻笑了笑。' }] }))
   expect(await f.turn.run(npc)).toEqual({ status: 'published', calls: 1 })
   const events = f.store.readEvents(f.address)
   expect(currentEntityState(events, 'entity:cup')?.holderId).toBeNull()
@@ -214,7 +225,7 @@ it.each(['before-perform', 'after-perform'] as const)(
     const f = fixture(async (_request, signal) => {
       if (stage === 'after-perform' && f.store.readEvents(f.address).some(event => event.eventType === 'entity.transferred')) {
         await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))
-        return { decision: 'publish', speech: '迟到的回答。' }
+        return { decision: 'publish', segments: [{ type: 'speech', text: '迟到的回答。' }] }
       }
       if (stage === 'before-perform') {
         await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))
@@ -240,7 +251,7 @@ it('publishes a directed continuation to a visible addressee after an executed o
       && ((value.properties as WorldJsonObject).decision as WorldJsonObject).const === 'publish')!
     const recipients = ((publish.properties as WorldJsonObject).addresseeIds as WorldJsonObject).items as WorldJsonObject
     expect(recipients.enum).toContain('character:player')
-    return { decision: 'publish', speech: '我到了。', addresseeIds: ['character:player'] }
+    return { decision: 'publish', addresseeIds: ['character:player'], segments: [{ type: 'speech', text: '我到了。' }] }
   })
   const result = await f.turn.run(npc)
   expect(result).toMatchObject({ status: 'published', calls: 2, performResult: { status: 'accepted' } })
@@ -252,7 +263,7 @@ it('temporary tabletop handling keeps custody and later transfer authority with 
   let stage = 'acquire'
   const f = fixture(async request => {
     if (stage === 'acquire') return request.continuation ? { decision: 'abstain' } : take
-    if (stage === 'inspect') return { decision: 'publish', narration: '把杯子暂放桌上，松开手，让对方托起看一眼后放回；仍由自己保管。' }
+    if (stage === 'inspect') return { decision: 'publish', segments: [{ type: 'narration', text: '把杯子暂放桌上，松开手，让对方托起看一眼后放回；仍由自己保管。' }] }
     if (request.continuation) return { decision: 'abstain' }
     return { ...take, parameters: { ...take.parameters,
       definitionRef: { id: 'base:give', version: 1 }, bindingId: 'binding:entity:cup:base:give',
@@ -271,4 +282,105 @@ it('temporary tabletop handling keeps custody and later transfer authority with 
   events = f.store.readEvents(f.address)
   expect(currentEntityState(events, 'entity:cup')?.holderId).toBe('character:player')
   expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(2)
+})
+
+
+it('preserves speech/narration alternation in one atomic publication, authorized views, memory and public UI', async () => {
+  const segments: ExpressionSegment[] = [
+    { type: 'speech', text: '先说一句。' }, { type: 'narration', text: '轻轻点头。' },
+    { type: 'speech', text: '再补一句（这是对白中的括号）。' }, { type: 'narration', text: '目光停在杯子上。' },
+  ]
+  const player = brandId('character:player', 'CharacterId'), bob = brandId('character:bob', 'CharacterId')
+  let calls = 0
+  const f = fixture(async request => {
+    calls++
+    const decision = { decision: 'publish', segments, addresseeIds: [player] }
+    for (const call of [prototypeTurnCall(request), localPrototypeTurnCall(request)]) {
+      const validate = new Ajv({ strict: false }).compile(call.schema)
+      expect(validate(decision)).toBe(true)
+    }
+    return decision
+  })
+  const before = f.store.head(f.address)
+  expect(await f.turn.run(npc)).toMatchObject({ status: 'published', calls: 1 })
+  expect(calls).toBe(1)
+  const events = f.store.readEvents(f.address)
+  const publication = events.findLast(e => e.eventType === 'character.speak')!
+  expect(publication.data).toMatchObject({ segments, scope: 'direct', addresseeIds: [player] })
+  expect(publication.data).not.toHaveProperty('text')
+  expect(events.filter(e => e.seq > before.headSeq && e.eventType === 'character.speak')).toHaveLength(1)
+  expect(f.store.head(f.address).tick).toBe(before.tick + 1)
+  expect(currentLocation(events, npc)).toBe('location:room')
+  expect(currentEntityState(events, 'entity:cup')?.holderId).toBeNull()
+  const builder = new CharacterViewBuilder(f.store)
+  const playerView = builder.rebuildAt(f.address, player, f.store.head(f.address).headSeq)
+  const npcView = builder.rebuildAt(f.address, npc, f.store.head(f.address).headSeq)
+  expect(npcView.selfObservations.at(-1)?.content).toMatchObject({ segments })
+  const observed = playerView.observations.find(o => JSON.stringify(o.value).includes('先说一句'))!
+  expect((observed.value as WorldJsonObject).content).toMatchObject({ speech: { segments } })
+  expect(JSON.stringify(builder.rebuildAt(f.address, bob, f.store.head(f.address).headSeq))).not.toContain('先说一句')
+  const transcript = playerTranscript(playerView, new Map([[npc, 'NPC']]), player)
+  expect(transcript.at(-1)).toMatchObject({ segments, text: '先说一句。\n（轻轻点头。）\n再补一句（这是对白中的括号）。\n（目光停在杯子上。）' })
+  const state = { transcript, world: { title: 'test', playerName: 'Player', npcNames: [] }, busy: false, paused: false, error: false } as unknown as PlaytestState
+  expect(projectPlayerView(state).history.at(-1)?.segments).toEqual(segments)
+  const rendered = new DeterministicPresenter().render({ observationId: String(observed.id), value: observed.value }, { locale: 'zh-CN' })
+  expect(rendered.text).toContain(transcript.at(-1)!.text)
+  const memory = new CognitiveMemoryService(join(f.directory, 'memory.sqlite'), f.store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
+  try {
+    for (const actor of [npc, player, bob]) memory.catchUp(f.address, actor, f.store.head(f.address).headSeq, 'ordered-expression-test')
+    const db = new DatabaseSync(join(f.directory, 'memory.sqlite'), { readOnly: true })
+    try {
+      const rows = db.prepare('SELECT namespace_key,text_value,metadata_json,epistemic_kind FROM cognitive_memory_v2_sources WHERE text_value LIKE ?').all('%先说一句%')
+      expect(rows).toHaveLength(2)
+      for (const row of rows) {
+        expect(row.epistemic_kind).toBe('reported_speech')
+        expect(row.text_value).toBe(publicationSourceText(publication.data as WorldJsonObject))
+        expect(JSON.parse(String(row.metadata_json)).segments).toEqual(segments)
+        expect(String(row.namespace_key).endsWith(bob)).toBe(false)
+      }
+    } finally { db.close() }
+  } finally { memory.close() }
+  // Core receives the same authorized Source text, including the alternating order.
+  const inputs: WorldJsonObject[] = []
+  const core = new PlaytestMemoryCore(f.directory, f.address, async input => {
+    inputs.push(input)
+    if (input.operation === 'build') return { archive: { scope: input.scope!, sources: input.sources!, facts: [], episodes: [], observations: [] }, index: { scope: input.scope!, units: [], vectors: [] } }
+    return { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } }
+  })
+  try {
+    await core.refresh([player], new AbortController().signal, () => {})
+    expect(JSON.stringify(inputs)).toContain(publicationSourceText(publication.data as WorldJsonObject))
+  } finally { await core.close() }
+})
+
+it('rejects malformed, mixed, oversized and unauthorized segmented publications before commit', async () => {
+  const valid = [{ type: 'speech', text: '你好' }]
+  const cases = [
+    { decision: 'publish', speech: '旧模型字段' },
+    { decision: 'publish', segments: valid, narration: '混合字段' },
+    { decision: 'publish', segments: [] },
+    { decision: 'publish', segments: [{ type: 'speech', text: '  ' }] },
+    { decision: 'publish', segments: [{ type: 'move', text: '去后室' }] },
+    { decision: 'publish', segments: [{ type: 'speech', text: '你好', actorId: 'other' }] },
+    { decision: 'publish', segments: [{ type: 'speech', text: '字'.repeat(1001) }, { type: 'narration', text: '字'.repeat(1000) }] },
+    { decision: 'publish', segments: valid, addresseeIds: ['character:npc'] },
+    { decision: 'publish', segments: valid, addresseeIds: ['character:player', 'character:player'] },
+    { decision: 'publish', segments: valid, addresseeIds: ['character:hidden'] },
+  ]
+  for (const raw of cases) {
+    const f = fixture(async () => raw), before = f.store.head(f.address)
+    expect(await f.turn.run(npc)).toMatchObject({ status: 'failed', failure: 'invalid_output' })
+    expect(f.store.head(f.address)).toEqual(before)
+  }
+  const segments = [{ type: 'narration', text: '字'.repeat(1000) }, { type: 'speech', text: '字'.repeat(1000) }]
+  const f = fixture(async () => ({ decision: 'publish', segments }))
+  expect(await f.turn.run(npc)).toMatchObject({ status: 'published' })
+})
+
+it('keeps activity expression permissions when segments alternate or repeat', () => {
+  const segments = parseExpressionSegments([{ type: 'narration', text: '点头' }, { type: 'speech', text: '甲' }, { type: 'narration', text: '微笑' }])
+  expect(() => checkExpressionPolicy(segments, { speech: 'choices', speechChoices: ['甲'], narration: true })).not.toThrow()
+  expect(() => checkExpressionPolicy(segments, { speech: 'none', narration: true })).toThrow('禁止')
+  expect(() => checkExpressionPolicy(segments, { speech: 'free', narration: false })).toThrow('禁止')
+  expect(() => checkExpressionPolicy([...segments, { type: 'speech', text: '甲' }], { speech: 'choices', speechChoices: ['甲'], narration: true })).toThrow('最多选择一项')
 })

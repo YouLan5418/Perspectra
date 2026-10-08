@@ -1,3 +1,4 @@
+import { parseExpressionSegments, checkExpressionPolicy } from '@harness-world/contracts'
 import type { MessageSource } from './request-inspector.ts'
 import { Worker } from 'node:worker_threads'
 import type { WorldJsonObject, WorldJsonValue, CharacterView } from '@harness-world/contracts'
@@ -62,6 +63,14 @@ export async function presetContext<T extends RoleRequest>(request: T, preset: R
     seen.add(content)
     const latestStimulus = entry?.sourceSeq === undefined && latestText !== undefined && (input?.sourceText ?? speech?.text) === latestText
     const stage = isPlayer(content) && (latestSeq !== undefined && entry?.sourceSeq === latestSeq || latestStimulus) ? 'input' : 'history'
+    const segmentPublication = speech ?? (content.actionType === 'speak' && Array.isArray(content.segments) ? content : undefined)
+    if (Array.isArray(segmentPublication?.segments)) for (const value of segmentPublication.segments) {
+      const segment = object(value)
+      if (segment && typeof segment.text === 'string' && (segment.type === 'speech' || segment.type === 'narration')) {
+        jobs.push({ text: segment.text, stage, target: segment.type, rules: preset.textRules! })
+        destinations.push({ object: segment, key: 'text' })
+      }
+    }
     if (speech) for (const [key, target] of [['text', 'speech'], ['narration', 'narration']] as const) {
       if (typeof speech[key] === 'string') { jobs.push({ text: speech[key], stage, target, rules: preset.textRules! }); destinations.push({ object: speech, key }) }
     }
@@ -105,17 +114,15 @@ export function presetCall(call: ChatCall, preset: RolePreset, request: RoleRequ
 export async function presetOutput(raw: WorldJsonValue, preset: RolePreset, signal?: AbortSignal, expression?: WorldJsonObject): Promise<WorldJsonValue> {
   const decision = object(raw)
   if (decision?.decision !== 'publish' || !preset.textRules?.some(rule => rule.enabled && rule.stage === 'output')) return raw
-  if (Object.keys(decision).some(key => !['decision', 'speech', 'narration', 'addresseeIds'].includes(key))) throw new TypeError('表达包含不支持的字段。')
-  for (const key of ['speech', 'narration']) if (decision[key] !== undefined && (typeof decision[key] !== 'string' || decision[key].length > 2000)) throw new TypeError('原始表达字段无效。')
-  if (!(typeof decision.speech === 'string' && decision.speech.trim()) && !(typeof decision.narration === 'string' && decision.narration.trim())) throw new TypeError('原始表达为空。')
-  if (decision.speech !== undefined && expression?.speech === 'none' || decision.narration !== undefined && expression?.narration === false) throw new TypeError('当前玩法禁止该表达字段。')
-  if (decision.speech !== undefined && expression?.speech === 'choices' && (!Array.isArray(expression.speechChoices) || !expression.speechChoices.includes(decision.speech))) throw new TypeError('原始对白不属于当前玩法选项。')
-  const keys = (['speech', 'narration'] as const).filter(key => typeof decision[key] === 'string')
-  const results = await processPresetText(keys.map(key => ({ text: decision[key] as string, stage: 'output', target: key, rules: preset.textRules! })), signal)
-  const output = { ...decision }
-  keys.forEach((key, i) => { output[key] = results[i]!.text })
-  if (expression?.speech === 'choices' && output.speech !== decision.speech) throw new TypeError('文本规则不能改写玩法对白选项。')
-  if (results.some(result => result.text.length > 2000) || !results.some(result => result.text.trim())) throw new TypeError('处理后的表达为空或超过 2000 字符。')
+  if (Object.keys(decision).some(key => !['decision', 'segments', 'addresseeIds'].includes(key))) throw new TypeError('表达包含不支持的字段。')
+  const segments = parseExpressionSegments(decision.segments)
+  checkExpressionPolicy(segments, expression ?? {})
+  const results = await processPresetText(segments.map(segment => ({ text: segment.text, stage: 'output', target: segment.type, rules: preset.textRules! })), signal)
+  if (expression?.speech === 'choices' && segments.some((segment, i) => segment.type === 'speech' && results[i]!.text !== segment.text)) {
+    throw new TypeError('文本规则不能改写玩法对白选项。')
+  }
+  const cleaned = segments.map((segment, i) => ({ ...segment, text: results[i]!.text })).filter(segment => segment.text.trim())
+  const output = { ...decision, segments: parseExpressionSegments(cleaned) }
   return output
 }
 /** Display copies are never written to Event/Observation/Memory. */
@@ -127,6 +134,13 @@ export async function presetDisplay(view: CharacterView, presets: ReadonlyMap<st
     if (!speech || typeof speech.characterId !== 'string') continue
     const preset = presets.get(speech.characterId)
     if (!preset?.textRules?.some(rule => rule.enabled && rule.stage === 'display')) continue
+    if (Array.isArray(speech.segments)) for (const value of speech.segments) {
+      const segment = object(value)
+      if (segment && typeof segment.text === 'string' && (segment.type === 'speech' || segment.type === 'narration')) {
+        jobs.push({ text: segment.text, stage: 'display', target: segment.type, rules: preset.textRules })
+        destinations.push({ object: segment, key: 'text' })
+      }
+    }
     for (const [key, target] of [['text', 'speech'], ['narration', 'narration']] as const) if (typeof speech[key] === 'string') {
       jobs.push({ text: speech[key], stage: 'display', target, rules: preset.textRules }); destinations.push({ object: speech, key })
     }

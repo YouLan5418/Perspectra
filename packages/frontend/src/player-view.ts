@@ -7,7 +7,8 @@ export interface PlayerView {
   player: { name: string }
   scene: { locationName: string; visibleCharacters: string[] } | null
   status: 'ready' | 'busy' | 'paused' | 'error'
-  history: { seq: number; speaker: string; text: string; player: boolean }[]
+  tailRound?: PlaytestState['tailRound']
+  history: { seq: number; speaker: string; text: string; player: boolean; segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
   actions: { id: string; label: string; action: PlaytestAction }[]
 }
 export function projectPlayerView(state: PlaytestState): PlayerView {
@@ -39,14 +40,15 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
     game: { title: state.world.title }, player: { name: state.world.playerName },
     scene: state.world.currentScene ? { locationName: state.world.currentScene.locationName,
       visibleCharacters: [...state.world.currentScene.presentNpcNames] } : null,
-    status: state.error ? 'error' : state.busy ? 'busy' : state.paused ? 'paused' : 'ready',
-    history: state.transcript.map(line => ({ seq: line.seq, speaker: line.speaker, text: line.text, player: line.player })),
+    status: state.busy ? 'busy' : state.error ? 'error' : state.paused ? 'paused' : 'ready',
+    ...(state.tailRound ? {tailRound: state.tailRound} : {}),
+    history: state.transcript.map(line => ({ seq: line.seq, speaker: line.speaker, text: line.text, player: line.player, ...(line.segments === undefined ? {} : { segments: line.segments }) })),
     actions,
   }
 }
 export function playerViewPatch(before: PlayerView, after: PlayerView): Record<string, unknown> | null {
   const changes: Record<string, unknown> = {}
-  for (const key of ['game', 'player', 'scene', 'status', 'actions'] as const) {
+  for (const key of ['game', 'player', 'scene', 'status', 'actions', 'tailRound'] as const) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
   }
   if (JSON.stringify(before.history) !== JSON.stringify(after.history)) {
@@ -57,21 +59,36 @@ export function playerViewPatch(before: PlayerView, after: PlayerView): Record<s
   }
   return Object.keys(changes).length ? changes : null
 }
-export interface FrontendActionRequest { requestId: string; actionId: string; operation: 'speak' | 'perform'; payload: Record<string, unknown> }
+export interface FrontendActionRequest { requestId: string; actionId: string; operation: 'speak' | 'perform' | 'regenerate' | 'selectCandidate' | 'cancelRegeneration'; payload: Record<string, unknown> }
 export function frontendActionRequest(value: unknown): FrontendActionRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('前端请求无效')
   const r = value as Record<string, unknown>
   if (Object.keys(r).sort().join(',') !== 'actionId,operation,payload,requestId'
     || typeof r.requestId !== 'string' || !/^[a-zA-Z0-9:-]{1,100}$/.test(r.requestId)
     || typeof r.actionId !== 'string' || !/^[a-zA-Z0-9:-]{1,100}$/.test(r.actionId)
-    || !['speak', 'perform'].includes(String(r.operation))
+    || !['speak', 'perform', 'regenerate', 'selectCandidate', 'cancelRegeneration'].includes(String(r.operation))
     || !r.payload || typeof r.payload !== 'object' || Array.isArray(r.payload)) throw new TypeError('前端请求字段无效')
   const payload = r.payload as Record<string, unknown>
   if (r.operation === 'speak') {
-    if (Object.keys(payload).join(',') !== 'text' || typeof payload.text !== 'string') throw new TypeError('发言必须只包含 text')
-    const text = payload.text.replace(/[\t\r\n]+/gu, ' ').trim()
-    if (!text || text.length > 2000) throw new RangeError('请输入 1 至 2000 个字符')
-    return { requestId: r.requestId, actionId: r.actionId, operation: 'speak', payload: { text } }
+    const keys = Object.keys(payload).sort().join(',')
+    if (!['text', 'narration,text'].includes(keys) || typeof payload.text !== 'string'
+      || (Object.hasOwn(payload, 'narration') && typeof payload.narration !== 'string')) throw new TypeError('发言只接受 text 和可选 narration')
+    const text = payload.text.replace(/\r\n?/gu, '\n').trim()
+    const narration = typeof payload.narration === 'string' ? payload.narration.replace(/\r\n?/gu, '\n').trim() : undefined
+    if (!(text || narration) || text.length + (narration?.length ?? 0) > 2000) throw new RangeError('发言与描写合计需为 1 至 2000 个字符')
+    return { requestId: r.requestId, actionId: r.actionId, operation: 'speak', payload: { text, ...(narration === undefined ? {} : { narration }) } }
+  }
+  if (r.operation === 'cancelRegeneration') {
+    if (Object.keys(payload).length) throw new TypeError('取消不接受额外参数')
+    return {requestId:r.requestId,actionId:r.actionId,operation:'cancelRegeneration',payload:{}}
+  }
+  if (r.operation === 'selectCandidate') {
+    if (Object.keys(payload).sort().join(',') !== 'candidateId,tailId' || ![payload.tailId,payload.candidateId].every(id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id))) throw new TypeError('候选切换须引用当前回合和候选')
+    return {requestId:r.requestId,actionId:r.actionId,operation:'selectCandidate',payload:{tailId:payload.tailId,candidateId:payload.candidateId}}
+  }
+  if (r.operation === 'regenerate') {
+    if (Object.keys(payload).join(',') !== 'tailId' || typeof payload.tailId !== 'string' || !/^[a-f0-9-]{36}$/.test(payload.tailId)) throw new TypeError('重新生成须引用当前末端回合')
+    return {requestId:r.requestId,actionId:r.actionId,operation:'regenerate',payload:{tailId:payload.tailId}}
   }
   if (Object.keys(payload).join(',') !== 'optionId' || typeof payload.optionId !== 'string' || payload.optionId.length > 512) throw new TypeError('行动须引用玩家当前可用的 optionId')
   return { requestId: r.requestId, actionId: r.actionId, operation: 'perform', payload: { optionId: payload.optionId } }
@@ -85,11 +102,28 @@ export class FrontendActions {
     const previous = this.#requests.get(request.actionId)
     if (previous) {
       if (previous.fingerprint !== fingerprint) throw new TypeError('同一 actionId 不能对应不同操作')
-      return previous.result
+      return previous.result.then(async () => projectPlayerView(await this.runtime.state()))
     }
     if (this.#requests.size >= 4096) throw new RangeError('本会话操作数量达到实验上限，请保存后重新启动')
     const result = Promise.resolve().then(async () => {
-      if (request.operation === 'speak') return projectPlayerView(await this.runtime.submit(request.payload.text as string))
+      if (request.operation === 'cancelRegeneration') {
+        if (!this.runtime.cancelRegeneration) throw new TypeError('取消不可用')
+        return projectPlayerView(await this.runtime.cancelRegeneration())
+      }
+      if (request.operation === 'selectCandidate') {
+        if (!this.runtime.selectCandidate) throw new TypeError('候选切换不可用')
+        return projectPlayerView(await this.runtime.selectCandidate(request.payload.tailId as string,request.payload.candidateId as string,request.actionId))
+      }
+      if (request.operation === 'regenerate') {
+        if (!this.runtime.regenerate) throw new TypeError('重新生成不可用')
+        return projectPlayerView(await this.runtime.regenerate(request.payload.tailId as string,request.actionId))
+      }
+      if (request.operation === 'speak') {
+        const text = Object.hasOwn(request.payload, 'narration')
+          ? '/act speak ' + JSON.stringify({ text: request.payload.text, narration: request.payload.narration })
+          : request.payload.text as string
+        return projectPlayerView(await this.runtime.submit(text))
+      }
       const view = projectPlayerView(await this.runtime.state())
       const option = view.actions.find(a => a.id === request.payload.optionId)
       if (!option || !this.runtime.perform) throw new TypeError('该操作不在玩家当前可用操作中')

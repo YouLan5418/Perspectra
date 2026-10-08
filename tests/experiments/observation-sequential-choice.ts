@@ -109,9 +109,9 @@ async function episode(dir:string,protocol:WorldJsonObject,reply:typeof replies[
        save(path,{stage,index,dry,request:visible,status:'pending',headSeq:head.headSeq,tick:head.tick})
        transportPath=join(dir,'transport-'+index+'.json')
        const start=performance.now()
-       const response=dry?(request.continuation?{decision:'publish',speech:'到了，先看现场指引。'}:
+       const response=dry?(request.continuation?{ decision:'publish', segments: [{ type: 'speech', text: '到了，先看现场指引。' }] }:
          stage===1?{decision:'perform',actionType:'move',parameters:{locationId:'location:next'}}:
-         {decision:'publish',speech:stage===0?'指引是今天更新的吗？':'我先看看现场。',addresseeIds:[player]}):
+         { decision:'publish', addresseeIds:[player], segments: [{ type: 'speech', text: stage===0?'指引是今天更新的吗？':'我先看看现场。' }] }):
          await provider!.decide(localPrototypeTurnCall(visible),signal)
        save(path,{stage,index,dry,request:visible,status:'returned',headSeq:head.headSeq,tick:head.tick,
          response,durationMs:Math.round(performance.now()-start)})

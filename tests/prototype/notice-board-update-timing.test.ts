@@ -30,7 +30,7 @@ it('resumes committed second inspection once with its actual evidence and does n
       expect(request.result?.description).toContain(secondBoardText)
       expect((request.result!.evidence as WorldJsonObject).actionId).toBe(continuationOf.actionId)
       expect(f.sources().find(s=>s.source_id===source.source_id)).toEqual(source)
-      return {decision:'publish',speech:'两块牌写得不一样，我还不能确定。',addresseeIds:[player]}
+      return { decision:'publish', addresseeIds:[player], segments: [{ type: 'speech', text: '两块牌写得不一样，我还不能确定。' }] }
     }}).run(npc,{continuationOf})
     expect(resumed.status).toBe('published');expect(calls).toBe(1)
     expect(f.sources().filter(s=>s.epistemic_kind==='direct_observation'&&String(s.text_value).includes(secondBoardText))).toEqual([source])
