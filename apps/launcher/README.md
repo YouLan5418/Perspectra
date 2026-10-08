@@ -34,3 +34,11 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --no-bundle
 - [角色预设](../../docs/current/model-presets.md)
 - [前端授权](../../docs/current/frontend-authorization.md)
 - [第一阶段 Mock 交付说明](../../docs/current/launcher-v1.md)
+
+## 当前界面
+
+左侧为可收起的游戏列表，左下固定模型配置、角色预设和全局设置；右侧为小封面与标题、实例选择、启动卡片及配置卡片。载入游戏包入口固定在右上方，右侧内容独立滚动；启动时保留既有编辑和切换限制。浅色为白灰与蓝色，深色为黑灰，跟随系统主题。
+
+颜色、字体与圆角统一在 `src/style.css` 中定义；预设、请求检查等组件的 scoped CSS 复用这些变量。外观参考 [CC Switch 的主题变量](https://github.com/farion1231/cc-switch/blob/main/src/index.css)与[侧栏布局](https://github.com/farion1231/cc-switch/blob/main/src/components/shell/Sidebar.tsx)，使用本项目既有 Vue/Tailwind/Reka 组件实现。
+
+本次 UI 验证包含 Launcher 类型检查、单元测试和 Vite 生产构建，以及浏览器 Mock 中的选游戏、创建实例、启动/停止、运行中禁用、弹窗与侧栏收起、800×640 和窄屏布局。预设弹窗和真实模式卡片使用浏览器内示例状态检查外观，未进行本轮原生窗口和真实 Core 的完整试玩；现有便携包需重新构建才能包含此版 UI。

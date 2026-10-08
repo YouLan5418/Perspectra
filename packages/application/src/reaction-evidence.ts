@@ -1,3 +1,4 @@
+import { publicationSegments, type WorldJsonObject } from '@harness-world/contracts'
 import {
   strongestReactionRoleClass,
   type CharacterId,
@@ -85,7 +86,6 @@ export function strongestClass(stimuli: readonly { readonly roleClass?: Reaction
 /** Ordinary unaddressed nonverbal publication remains observable, but does not itself wake bystanders. */
 export function triggersReaction(resolution: RulebookResolution, roleClass: ReactionRoleClass): boolean {
   if (roleClass !== 'witness') return true
-  const speech = resolution.events.find(event => event.eventType === 'character.speak')?.data as { narration?: string; text?: string } | undefined
-  return !(speech !== undefined && typeof speech.narration === 'string'
-    && speech.narration.trim().length > 0 && typeof speech.text === 'string' && speech.text.trim().length === 0)
+  const speech = resolution.events.find(event => event.eventType === 'character.speak')?.data as WorldJsonObject | undefined
+  return speech === undefined || publicationSegments(speech).some(segment => segment.type === 'speech' && segment.text.trim())
 }

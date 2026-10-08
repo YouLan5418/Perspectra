@@ -143,7 +143,7 @@ export const useLauncherStore = defineStore('launcher', () => {
   }
   async function saveSettings(model: LocalModel, apiKey: string, nextLargeText = largeText.value) {
     if (!await action('settings', { model, largeText: nextLargeText })) return false
-    providers.value = [{ id: 'local', label: 'OpenAI 兼容接口', endpoint: model.endpoint, apiKey }]
+    providers.value = [{ id: 'local', label: '模型接口', protocol: model.protocol ?? 'openai', endpoint: model.endpoint, apiKey }]
     notice.value = '默认模型已保存；API Key 仅在本次会话中保留。'
     return true
   }
@@ -155,7 +155,7 @@ export const useLauncherStore = defineStore('launcher', () => {
   async function startGame() {
     if (!real) { startMock(); return }
     const provider = providers.value[0]
-    if (provider?.apiKey && provider.endpoint !== currentRealModel.value.endpoint) {
+    if (provider?.apiKey && (provider.endpoint !== currentRealModel.value.endpoint || (provider.protocol ?? 'openai') !== (currentRealModel.value.protocol ?? 'openai'))) {
       notice.value = '实例接口与当前密钥绑定的地址不同；请在设置填写该接口的密钥，或清空密钥后启动。'
       return
     }
@@ -188,13 +188,27 @@ export const useLauncherStore = defineStore('launcher', () => {
     notice.value='已保存完整节点，可结束游戏后从这里分叉。'
     return true
   }
+  async function exportStory(nodeId: string, path: string): Promise<boolean> {
+    if (!real) return false
+    if (!await action('story-export',{instanceId:selectedInstanceId.value,nodeId,path})) return false
+    notice.value='完整节点已导出。接收者需要相同游戏包，并使用自己的模型继续。'
+    return true
+  }
+  async function importStory(path: string, name: string): Promise<boolean> {
+    if (!real) return false
+    const previous=new Set(instances.value.map(instance=>instance.id))
+    if (!await action('story-import',{packageId:selectedPackageId.value,path,name})) return false
+    selectedInstanceId.value=instances.value.find(instance=>!previous.has(instance.id))?.id??selectedInstanceId.value
+    notice.value='已导入为独立实例；首次开始需要等待角色记忆重建。已有实例保留。'
+    return true
+  }
   async function refresh() {
     if (real && initialized.value && !busy.value) {
       try { applySnapshot(await coreRequest('snapshot')) } catch { notice.value = 'Core 连接已关闭，请重启 Launcher。' }
     }
   }
 
-  return { selectStoryline,forkStory,saveStoryNode,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, defaults, currentRealModel, initialize, refresh, loadRealPackage, saveSettings, configureModel, startGame, stopGame, reopenGame, packages, instances, profiles, providers, globalDefaultModelId, dataDirectory, largeText, notice,
+  return { exportStory,importStory,selectStoryline,forkStory,saveStoryNode,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, defaults, currentRealModel, initialize, refresh, loadRealPackage, saveSettings, configureModel, startGame, stopGame, reopenGame, packages, instances, profiles, providers, globalDefaultModelId, dataDirectory, largeText, notice,
     selectedPackageId, selectedInstanceId, core, selectedPackage, currentInstance, currentStoryline,
     currentNode, currentModel, currentHistory, gameInstances, selectPackage, newInstance, loadMockPackage,
     forkAt, importMockStory, startMock, stopMock }

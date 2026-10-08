@@ -131,3 +131,25 @@ it('tests model connectivity without persisting secrets or echoing provider cont
   expect(JSON.stringify(core.snapshot())).toBe(before)
  }finally{vi.unstubAllGlobals()}
 })
+
+it('persists native protocols and uses their headers and responses in connection tests', async () => {
+ const core=await service()
+ const fetch=vi.fn();vi.stubGlobal('fetch',fetch)
+ try {
+  for(const protocol of ['anthropic','google'] as const) {
+   const model={protocol,model:'selected',endpoint:protocol==='google'?'https://native.test/v1beta/models/old:generateContent':'https://native.test/v1/messages'}
+   await core.handle({operation:'settings',model})
+   const restored=new LauncherCore(resolve('.'),core.root);await restored.initialize()
+   expect(restored.snapshot().defaults).toEqual(model)
+   fetch.mockResolvedValueOnce(new Response(JSON.stringify(protocol==='anthropic'?{content:[{type:'text',text:'OK'}]}:{candidates:[{content:{parts:[{text:'OK'}]}}]})))
+   await expect(core.handle({operation:'test-model',model,apiKey:'SESSION_ONLY'})).resolves.toEqual({message:expect.stringContaining('已响应')})
+   const [url,init]=fetch.mock.calls.at(-1)!
+   expect(String(url)).toContain(protocol==='google'?'/models/selected:generateContent':'/messages')
+   if(protocol==='google')expect(JSON.parse(init.body)).not.toHaveProperty('systemInstruction')
+   expect(init.headers).toMatchObject(protocol==='google'?{'x-goog-api-key':'SESSION_ONLY'}:{'x-api-key':'SESSION_ONLY'})
+   expect(await readFile(join(core.root,'launcher.json'),'utf8')).not.toContain('SESSION_ONLY')
+  }
+  expect(()=>localModel({protocol:'invalid',model:'m',endpoint:'https://native.test/v1/messages'})).toThrow()
+  expect(()=>localModel({protocol:'anthropic',model:'m',endpoint:'https://native.test/v1/chat/completions'})).toThrow()
+ } finally {vi.unstubAllGlobals()}
+})

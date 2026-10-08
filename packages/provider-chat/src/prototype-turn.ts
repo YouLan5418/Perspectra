@@ -31,14 +31,17 @@ export function prototypeTurnCall(request: { readonly context: WorldJsonObject; 
   return {
     schema: { type: 'object', oneOf: [
       { type: 'object', additionalProperties: false, required: ['decision'], properties: { decision: { const: 'abstain' } } },
-      ...(speechAllowed || narrationAllowed ? [{ type: 'object', additionalProperties: false, required: ['decision'], properties: {
+      ...(speechAllowed || narrationAllowed ? [{ type: 'object', additionalProperties: false, required: ['decision', 'segments'], properties: {
         decision: { const: 'publish' },
         ...(addressees.length === 0 ? {} : { addresseeIds: { type: 'array', uniqueItems: true,
           maxItems: addressees.length, items: { type: 'string', enum: addressees } } }),
-        ...(speechAllowed ? { speech: speechSchema } : {}),
-        ...(narrationAllowed ? { narration: { type: 'string', maxLength: 2000 } } : {}) },
-        anyOf: [...(speechAllowed ? [{ required: ['speech'], properties: { speech: { minLength: 1 } } }] : []),
-          ...(narrationAllowed ? [{ required: ['narration'], properties: { narration: { minLength: 1 } } }] : [])] }] : []),
+        segments: { type: 'array', minItems: 1, maxItems: 2000, description: '按发生顺序排列的表达片段；所有 text 合计最多 2000 字符。', items: { oneOf: [
+          ...(speechAllowed ? [{ type: 'object', additionalProperties: false, required: ['type', 'text'],
+            properties: { type: { const: 'speech' }, text: { ...speechSchema, minLength: 1 } } }] : []),
+          ...(narrationAllowed ? [{ type: 'object', additionalProperties: false, required: ['type', 'text'],
+            properties: { type: { const: 'narration' }, text: { type: 'string', minLength: 1, maxLength: 2000 } } }] : []),
+        ] } },
+      } }] : []),
       ...(request.canRecall === true ? [{ type: 'object', additionalProperties: false, required: ['decision', 'query'],
         properties: { decision: { const: 'recall' }, query: { type: 'string', minLength: 2, maxLength: 120 } } }] : []),
       ...perform,
@@ -47,9 +50,10 @@ export function prototypeTurnCall(request: { readonly context: WorldJsonObject; 
     messages: [
       { role: 'system', content: (request.context.cognition === undefined ? '' : cognitionTableNote)
         + (expression === undefined ? '' : '当前 activity 是临时玩法。仅可使用当前许可和工具字段；expressionPolicy 禁用的表达不应生成。游戏轮次与世界 tick 不同，游戏反馈只认程序提交的结果。主动 pass 是工具操作，abstain 不代表主动让出回合。')
+        + 'publish 只提交 segments 与可选 addresseeIds。segments 是有序的 {type: speech 或 narration, text} 数组，可任意交替或重复类型；所有片段共用受众，一次原子发布，文本合计最多 2000 字符。固定对白选项模式一次最多一个 speech 片段。'
         + '扮演场景中的这个角色，依据自己的性格和可见信息自主决定。'
         + '被唤醒只是处理新信息的机会，不要求你表演回应。没有要补充的内容时返回 abstain，不发布任何表达。'
-        + (narrationAllowed ? '有意义的沉默、微笑、注视属于表达，可以 publish 自由 narration；对白用 speech。' : '当前禁止自由 narration。对白仅在当前契约允许 speech 时使用。')
+        + (narrationAllowed ? '有意义的沉默、微笑、注视属于表达，可以 publish narration 片段；对白用 speech 片段，按先后顺序放入 segments。' : '当前禁止 narration 片段。对白仅在当前契约允许 speech 时使用。')
         + '物品 holderId 表示当前保管、携带和转交关系，不表示手是否碰到物品，也不表示所有权。null 表示尚未由个人保管、留在 locationId 所示场所。'
         + 'base:take 是纳入自己保管，base:give 是转交保管，base:drop 是解除个人保管并留在当前场所。这些迁移须 perform。'
         + '翻页、触碰、挪动、临时托起查看再放回可以自由表达；把自己保管的物品暂放桌上不自动解除保管。收进随身口袋带走则改变保管关系。'

@@ -81,10 +81,10 @@ async function fixture() {
   async function reload() { const next = new LauncherCore(resolve('.'), root); await next.initialize(); return next }
   return { root, pack, directory, instanceId, nodeId: node!.id, node: node!, core, create, original, before, reload }
 }
-async function crash(config: { phase: string; root: string; pack: string; directory: string; instanceId: string; nodeId: string; lineId?: string }) {
-  const { phase, root, pack, directory, instanceId, nodeId, lineId } = config
+async function crash(config: { phase: string; root: string; pack: string; directory: string; instanceId: string; nodeId: string; lineId?: string; sharePath?: string }) {
+  const { phase, root, pack, directory, instanceId, nodeId, lineId, sharePath } = config
   const child = spawn(process.execPath, ['--import', 'tsx', 'tests/experiments/storyline-crash-worker.ts',
-    JSON.stringify({ phase, root, pack, directory, instanceId, nodeId, lineId })],
+    JSON.stringify({ phase, root, pack, directory, instanceId, nodeId, lineId, sharePath })],
     { cwd: resolve('.'), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
   children.add(child)
   let output = '', errors = ''
@@ -179,4 +179,29 @@ for (const phase of ['memory-temporary', 'memory-one-role']) {
     } finally { await child.close() }
     expect(f.original()).toEqual(f.before)
   }, 30_000)
+}
+
+for (const phase of ['share-export-temporary', 'share-import-file', 'share-import-published', 'share-import-index-before', 'share-import-index-after']) {
+  it('preserves existing data and publishes only a complete share at ' + phase, async()=>{
+    const f=await fixture(),sharePath=join(f.root,'分享.perspectra-story'),packageId=f.core.snapshot().packs[0]!.id
+    await f.core.handle({operation:'story-export',instanceId:f.instanceId,nodeId:f.nodeId,path:sharePath})
+    const exported=readFileSync(sharePath,'utf8'),index=readFileSync(join(f.root,'launcher.json'),'utf8')
+    await crash({...f,phase,sharePath})
+    expect(readFileSync(sharePath,'utf8')).toBe(exported)
+    expect(f.original()).toEqual(f.before)
+    const core=await f.reload(),published=phase==='share-import-index-after'
+    expect(core.snapshot().instances).toHaveLength(published?2:1)
+    if(!published)expect(readFileSync(join(f.root,'launcher.json'),'utf8')).toBe(index)
+    const original=await f.create();await original.close()
+    if(!published)await core.handle({operation:'story-import',packageId,path:sharePath,name:'重新导入'})
+    const instance=core.snapshot().instances[1]!,directory=join(f.root,'instances',instance.id)
+    expect(instance.id).not.toBe(f.instanceId)
+    integrity(directory)
+    const imported=await f.create(directory)
+    try{
+      expect((await imported.state()).packVariables?.public).toEqual({剧情:{阶段:'节点阶段'}})
+      await imported.saveNode('导入中断后继续')
+    }finally{await imported.close()}
+    expect(f.original()).toEqual(f.before)
+  },30_000)
 }

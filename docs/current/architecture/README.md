@@ -5,6 +5,7 @@ Perspectra（代码与界面仍使用 Cordis World 名称）是玩家推动的�
 | 阅读问题 | 入口 |
 | --- | --- |
 | 一次输入怎样运行 | [运行时](runtime.md) |
+| 怎样重新生成最近一回合 | [末端回合重新生成](../tail-round-regeneration.md) |
 | 自由表达与世界行为如何共存 | [Interaction](interaction.md) |
 | 当前记忆怎样工作 | [认知与记忆](cognition-memory.md) |
 | 特定玩法怎样限制行为 | [受控交互](controlled-interaction.md) |
@@ -17,3 +18,5 @@ Perspectra（代码与界面仍使用 Cordis World 名称）是玩家推动的�
 游戏页面当前通过公共玩家接口与 iframe 沙箱运行；默认模板、包内 frontend/、恶意用例及限制见 [游戏前端最小沙箱实验](../frontend-v1.md)。旧 web/ 不再作为执行入口。
 
 社区前端授权后续已实现内容摘要、双签名记录、Windows 本机密钥、独立来源受信任模式与运行中撤销；角色专属与实例内角色组预设后续已接入（专属 > 组 > 实例默认），见 [预设说明](../model-presets.md)。验收见 [前端授权](../frontend-authorization.md)。
+
+模型调用支持 OpenAI 兼容、Anthropic Messages 和 Google Gemini 原生协议；角色与 Core 记忆共用选择，接入范围和验收限制见[模型接口协议](../model-protocols.md)。

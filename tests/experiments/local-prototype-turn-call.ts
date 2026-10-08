@@ -46,10 +46,15 @@ export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
     schema: { type: 'object', additionalProperties: false, required: ['decision'], properties: {
       decision: { type: 'string', enum: ['abstain', ...(speechAllowed || narrationAllowed ? ['publish'] : []),
         ...(request.canRecall === true ? ['recall'] : []), ...(actionTypes.length > 0 ? ['perform'] : [])],
-        description: 'publish 需要 speech 或 narration；recall 需要 query；perform 需要 actionType 和 parameters。' },
-      ...(speechAllowed ? { speech: { type: 'string', maxLength: 2000,
-        ...(expression?.speech === 'choices' ? { enum: expression.speechChoices } : {}) } } : {}),
-      ...(narrationAllowed ? { narration: { type: 'string', maxLength: 2000 } } : {}),
+        description: 'publish 需要有序 segments；recall 需要 query；perform 需要 actionType 和 parameters。' },
+      ...(speechAllowed || narrationAllowed ? { segments: {
+        type: 'array', minItems: 1, maxItems: 2000,
+        description: '按发生顺序交替或重复 speech/narration；文本合计最多 2000 字符。固定对白选项一次最多一个 speech 片段。',
+        items: { type: 'object', additionalProperties: false, required: ['type', 'text'], properties: {
+          type: { type: 'string', enum: [...(speechAllowed ? ['speech'] : []), ...(narrationAllowed ? ['narration'] : [])] },
+          text: { type: 'string', minLength: 1, maxLength: 2000 },
+        } },
+      } } : {}),
       ...(addressees.length === 0 ? {} : { addresseeIds: { type: 'array', uniqueItems: true,
         items: { type: 'string', enum: addressees } } }),
       ...(request.canRecall === true ? { query: { type: 'string', minLength: 2, maxLength: 120 } } : {}),

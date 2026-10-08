@@ -36,20 +36,20 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
       if (stage === 'take' && actor === 'character:companion') {
         if (input.continuation) {
           expect(input.result.status).toBe('accepted')
-          answer = { decision: 'publish', speech: '钥匙拿到了。' }
+          answer = { decision: 'publish', segments: [{ type: 'speech', text: '钥匙拿到了。' }] }
         } else if (!used.has('take')) { used.add('take'); answer = keyAction }
       }
       if (stage === 'stale' && actor === 'character:friend') {
         if (input.continuation) {
           expect(input.result.status).toBe('rejected')
-          answer = { decision: 'publish', speech: '它现在不在桌上，我没有拿到。' }
+          answer = { decision: 'publish', segments: [{ type: 'speech', text: '它现在不在桌上，我没有拿到。' }] }
         } else if (!used.has('stale')) { used.add('stale'); answer = keyAction }
       }
       if (stage === 'move' && actor === 'character:companion') {
         if (input.continuation) {
           expect(input.result.status).toBe('accepted')
           expect(input.context.scene.locationId).toBe('location:back-room')
-          answer = { decision: 'publish', speech: '我进后室了。' }
+          answer = { decision: 'publish', segments: [{ type: 'speech', text: '我进后室了。' }] }
         } else if (!used.has('move')) {
           used.add('move')
           answer = { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:back-room' } }
@@ -57,7 +57,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
       }
       if (stage === 'back-talk' && actor === 'character:companion' && !used.has('back-talk')) {
         used.add('back-talk')
-        answer = { decision: 'publish', speech: '这里只有我们俩。' }
+        answer = { decision: 'publish', segments: [{ type: 'speech', text: '这里只有我们俩。' }] }
       }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
@@ -139,10 +139,10 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
 
     await submit('back-talk', '/act speak {"text":"后室里现在是谁？"}')
     const backSpeech = events().findLast(event => event.eventType === 'character.speak'
-      && (event.data as Record<string, unknown>).text === '这里只有我们俩。')!
+      && JSON.stringify(event.data).includes('这里只有我们俩。'))!
     const receivers = events().filter(event => event.eventType === 'observation.upsert'
       && event.transactionId === backSpeech.transactionId
-      && ((event.data as { value: { content?: { speech?: { text?: string } } } }).value.content?.speech?.text === '这里只有我们俩。'))
+      && JSON.stringify((event.data as { value: unknown }).value).includes('这里只有我们俩。'))
       .map(event => (event.data as { value: { observerId: string } }).value.observerId)
     expect(receivers).toContain('character:player')
     expect(receivers).not.toContain('character:friend')

@@ -1,3 +1,4 @@
+import { providerProtocol } from '../../packages/provider-chat/src/protocol.ts'
 import { ModelPresets, packPreset } from '../../desktop/model-presets.ts'
 import { rolePreset, rolePresetMapping } from '../../packages/provider-chat/src/preset.ts'
 import { createTrustedFrontendServer, type FrontendPolicy } from './playtest-frontend-assets.ts'
@@ -49,7 +50,7 @@ async function main(): Promise<void> {
   if (settings && !/^[a-f0-9-]{36}$/.test(instanceId)) throw new Error('启动预设的实例标识无效。')
   const {mode: _mode, override: _override, ...mapping} = settings?.instances[instanceId] ?? { mode: 'auto', override: {} }
   const runtime = await FrozenWorldPlaytestRuntime.create({
-    dataDirectory, provider, packPath,
+    dataDirectory, provider, packPath, protocol: providerProtocol(process.env.HCW_MODEL_PROTOCOL),
     storyNodes: !!process.send,
     ...(process.env.PERSPECTRA_STORY_PARENT_NODE ? {storyParentNodeId:process.env.PERSPECTRA_STORY_PARENT_NODE} : {}),
     preset:settings?settings.effective(instanceId,recommended):process.env.PERSPECTRA_ROLE_PRESET===undefined?recommended:rolePreset(JSON.parse(process.env.PERSPECTRA_ROLE_PRESET)),

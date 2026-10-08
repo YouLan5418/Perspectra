@@ -1,3 +1,6 @@
+import { providerProtocol, type ProviderProtocol } from '../../packages/provider-chat/src/protocol.ts'
+import { TailRoundRuntime } from './playtest-tail-runtime.ts'
+import { assertSettled, snapshotTail } from '../../desktop/tail-storage.ts'
 import { PrototypePresetError } from '../../packages/application/src/prototype-character-turn.ts'
 import { saveStoryNode, readStoryNodes } from '../../desktop/story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
@@ -34,6 +37,7 @@ export interface FrozenPlaytestOptions {
   readonly dataDirectory: string
   /** The v5 Pack directory: the world the author wrote, compiled here with the Host's installed packages. */
   readonly packPath: string
+  readonly protocol?: ProviderProtocol
   readonly provider: 'local' | 'deepseek' | 'ollama'
   readonly model?: string
   readonly preset?: RolePreset
@@ -53,6 +57,8 @@ export interface FrozenPlaytestOptions {
   readonly memoryContextBudget?: MemoryContextBudget
   readonly storyNodes?: boolean
   readonly storyParentNodeId?: string
+  readonly worldVersion?: string
+  readonly logicalDirectory?: string
   readonly publicationAudit?: InterventionOptions
 }
 
@@ -74,7 +80,9 @@ export function isFrozenPackDirectory(packPath: string): boolean {
 }
 
 /** The prototype web host: player submission commits first, then bounded sequential NPC activations. */
-export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
+export class FrozenWorldRuntimeCore implements PlaytestRuntime {
+  readonly #worldVersion: string
+  readonly #options: FrozenPlaytestOptions
   readonly #inspector = new RequestInspector()
   requestInspection(enabled?: boolean) { return enabled === undefined ? this.#inspector.snapshot() : this.#inspector.configure(enabled) }
   readonly #application: WorldApplication
@@ -107,6 +115,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   #storyParentNodeId: string | null = null
   #savingNode = false
   #closing = false
+  #abortedWork = false
   readonly #tuning: PlaytestTuning
   readonly #memoryShadowFile: string | undefined
   #transcript: PlaytestState['transcript'] = []
@@ -128,6 +137,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
 
   private constructor(options: FrozenPlaytestOptions, compiled: ReturnType<typeof adaptCompiledWorldPack>,
     intentEnabled: boolean) {
+    this.#options = options
+    this.#worldVersion = options.worldVersion ?? randomUUID()
     this.#address = compiled.manifest.address
     this.#dataDirectory = options.dataDirectory
     this.#tuning = options.tuning ?? DEFAULT_PLAYTEST_TUNING
@@ -159,7 +170,9 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       this.#providerCalls += 1
       this.#lastCall = observation
     }
-    const providerOptions = { endpoint, model: this.#model,
+    const protocol = providerProtocol(options.protocol)
+    if (protocol !== 'openai' && options.provider !== 'local') throw new TypeError('原生协议须使用 local 配置入口。')
+    const providerOptions = { protocol, endpoint, model: this.#model,
       ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }),
       ...(options.preset===undefined?{}:{preset:options.preset}),
       inspector:this.#inspector, style: options.provider === 'ollama' ? 'format' as const : 'tool' as const, timeoutMs, onCall }
@@ -172,16 +185,17 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     const roleProviders=new Map(characters.map(c=>[String(c.actorId),createChatProvider({...providerOptions,preset:effectivePresets.get(c.actorId)!})]))
     this.#characterIds = characters.map(character => character.actorId)
     if (options.memoryCore) {
-      if (options.provider !== 'local') throw new TypeError('实验 Core 网页目前只支持本机 OpenAI 兼容接口。')
+      if (options.provider !== 'local') throw new TypeError('实验 Core 网页须使用 local 配置入口。')
       const coreEnvironment = {
-        HCW_LOCAL_MODEL: this.#model, HCW_LOCAL_ENDPOINT: endpoint.href,
+        HCW_LOCAL_MODEL: this.#model, HCW_LOCAL_ENDPOINT: endpoint.href, HCW_MODEL_PROTOCOL: protocol,
         ...(options.apiKey === undefined ? {} : { HCW_LOCAL_API_KEY: options.apiKey }),
         HCW_HINDSIGHT_UTILITY_ATTEMPTS: resolve(options.dataDirectory, 'memory-core', 'utility-attempts.jsonl'),
       }
       const worker = options.memoryCoreRun === undefined ? createCoreWorker(coreEnvironment) : undefined
       this.#closeCore = worker?.close
       this.#memoryCore = new PlaytestMemoryCore(options.dataDirectory, this.#address, options.memoryCoreRun ?? worker!.run, options.memoryContextBudget,
-        { ...options.memoryBuildConcurrency, run: options.memoryCoreBuildRun ?? coreRunner(coreEnvironment) })
+        { ...options.memoryBuildConcurrency, run: options.memoryCoreBuildRun ?? coreRunner(coreEnvironment),
+          worldVersion: this.#worldVersion, versionValid: () => !this.#closing })
     }
     this.#decideContinuation = async (request, signal) => {
       if (this.#memoryCore) request = await this.#memoryCore.project(request, signal)
@@ -196,7 +210,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       const prepare = async (visible: PrototypeTurnRequest) => {
         try {
           const projected = await presetContext(visible, effectivePreset!, String(this.#playerId), signal)
-          return presetCall(options.provider === 'local' ? localPrototypeTurnCall(projected) : prototypeTurnCall(projected),
+          return presetCall(options.provider === 'local' && protocol === 'openai' ? localPrototypeTurnCall(projected) : prototypeTurnCall(projected),
             effectivePreset!, projected, this.#playerName, {character:this.#names.get(characterId)??characterId,
               scene:this.#locationNames.get(String((projected.context.scene as WorldJsonObject | undefined)?.locationId))??String((projected.context.scene as WorldJsonObject | undefined)?.locationId??'')})
         } catch(error) { signal.throwIfAborted(); throw new PrototypePresetError('角色预设准备失败。', {cause:error}) }
@@ -209,6 +223,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       const raw = request.context.activity === undefined ? await decide(prepared)
         : await decideActivityFormat(prepared, decide, signal, prototypeTurnCall(request).schema)
       this.#memoryCore?.recordDecision(request, raw)
+      signal.throwIfAborted()
+      if (this.#closing || this.#abortedWork) throw new Error('角色任务世界版本已失效。')
       if (options.publicationAudit === undefined) return raw
       const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
       let history
@@ -238,7 +254,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     })
   }
 
-  static async create(options: FrozenPlaytestOptions): Promise<FrozenWorldPlaytestRuntime> {
+  static async create(options: FrozenPlaytestOptions): Promise<FrozenWorldRuntimeCore> {
     mkdirSync(resolve(options.dataDirectory), { recursive: true })
     const pack = await compileWorldPackSource(resolve(options.packPath), [
       interactionPackageDescription(createBasicInteractionPackage()),
@@ -252,7 +268,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
     })
     const intentEnabled = (compiled.manifest as { readonly playerInputPolicy?: { readonly version: string } })
       .playerInputPolicy?.version === 'player-intent/v1'
-    const runtime = new FrozenWorldPlaytestRuntime(options, compiled, intentEnabled)
+    const runtime = new FrozenWorldRuntimeCore(options, compiled, intentEnabled)
     try {
       runtime.#packHash = pack.packHash
       runtime.#storyParentNodeId = options.storyParentNodeId ?? null
@@ -269,7 +285,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
         await runtime.#memoryCore.rebuildAt(runtime.#characterIds, rebuild.headSeq, AbortSignal.timeout(3_600_000))
         unlinkSync(rebuildPath)
       }
-      if (options.storyNodes && readStoryNodes(options.dataDirectory).length === 0) await runtime.saveNode('首次保存节点')
+      if (options.storyNodes && readStoryNodes(options.logicalDirectory ?? options.dataDirectory).length === 0) await runtime.saveNode('首次保存节点')
       if (options.shadowAudit !== undefined) {
         if (options.shadowAudit.items.some(item => !compiled.manifest.entities.some(entity => entity.entityId === item.entityId))) {
           throw new TypeError('shadow item is not declared in this Pack')
@@ -290,6 +306,8 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   }
 
   /** The world this session serves, so a caller can read it back without re-deriving the address. */
+  get packHash(): string { return this.#packHash }
+  validateCognition(): void { this.#memoryCore?.snapshotAliases(this.#characterIds) }
   get address(): WorldAddress {
     return this.#address
   }
@@ -310,7 +328,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       ...(this.#variables ? { packVariables: this.#variables.getVariables(this.#playerId) } : {}),
       world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames,
         ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }) },
-      debug: { ...this.#debug, provider: this.#provider, model: this.#model, intentModel: this.#intentModel,
+      debug: { ...this.#debug, worldVersion: this.#worldVersion, provider: this.#provider, model: this.#model, intentModel: this.#intentModel,
         providerCalls: this.#providerCalls, paused: this.#paused, lastPlayerIntent: this.#lastPlayerIntent,
         playerInputMode: this.#intentEnabled ? 'command-controlled' : 'legacy-speech',
         lastProviderCall: this.#lastCall,
@@ -397,6 +415,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
   }
 
   #beginWork(): void {
+    this.#abortedWork = false
     this.#busy = true
     this.#workDone = new Promise<void>(done => { this.#finishWork = done })
   }
@@ -427,8 +446,24 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       await this.#application.deliver(this.#address, 'story-node:deliver')
       await this.#application.release(this.#address)
       const aliases = this.#memoryCore?.snapshotAliases(this.#characterIds) ?? {}
-      return await saveStoryNode(this.#dataDirectory, this.#address, this.#packHash, title, aliases, this.#storyParentNodeId)
+      return await saveStoryNode(this.#dataDirectory, this.#address, this.#packHash, title, aliases, this.#storyParentNodeId, this.#options.logicalDirectory)
     } finally { this.#savingNode = false; this.#endWork() }
+  }
+  beginRoundRandom(values?: readonly number[]): void { this.#activity?.beginRoundRandom(values) }
+  roundRandom(): number[] { return this.#activity?.roundRandom() ?? [] }
+  holdCognition(): void { this.#memoryCore?.holdInstallation() }
+  releaseCognition(): void { this.#memoryCore?.releaseInstallation() }
+  abortWork(): void { this.#abortedWork = true; this.#continuationController?.abort() }
+  async settleRound() {
+    if (this.#busy || this.#escaping || this.#paused) throw new PlaytestBusyError('当前玩家回合尚未完成。')
+    await this.#application.deliver(this.#address, 'tail-round:deliver')
+    await this.#application.release(this.#address)
+    return assertSettled(this.#dataDirectory, this.#address)
+  }
+  async snapshotRound(target: string): Promise<void> {
+    await this.settleRound()
+    const aliases = this.#memoryCore?.snapshotAliases(this.#characterIds) ?? {}
+    await snapshotTail(this.#dataDirectory, target, this.#address, aliases)
   }
   async refreshMemory(): Promise<PlaytestState> {
     if (this.#savingNode || this.#closing) throw new PlaytestBusyError('正在保存节点。')
@@ -547,7 +582,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
 
   async #activateCharacters(activityOnly = false): Promise<void> {
     await this.#application.release(this.#address)
-    if (this.#escaping) return
+    if (this.#escaping || this.#closing || this.#abortedWork) return
     const path = resolve(this.#dataDirectory, 'world.sqlite')
     const store = new WorldStore(path), leases = new WriterLeaseService(path)
     const availability = new CharacterRuntimeAvailabilityService(path)
@@ -637,7 +672,7 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
         locationName: view.locationId === null ? '未知地点' : this.#locationNames.get(view.locationId) ?? view.locationId,
         presentNpcNames: scene.observerIds.filter(id => id !== this.#playerId).map(id => this.#names.get(id) ?? id),
       }
-      this.#debug = { ...this.#debug, headSeq: head.headSeq, tick: head.tick,
+      this.#debug = { ...this.#debug, headSeq: head.headSeq, tick: head.tick, worldVersion: this.#worldVersion,
         visibleSceneIds: view.scenes.map(scene => scene.sceneId) }
     } finally { availability.close() }
   }
@@ -676,11 +711,18 @@ export class FrozenWorldPlaytestRuntime implements PlaytestRuntime {
       this.#availableActions = this.#activity!.filterAffordances(this.#availableActions, activityState, this.#playerId)
     }
     this.#debug = {
-      headSeq: head.headSeq, tick: head.tick, manifestVersion: this.#manifestVersion,
-      outputProtocol: 'perform/publish/abstain', memoryMode: this.#memoryCore ? 'core' : 'native',
+      headSeq: head.headSeq, tick: head.tick, worldVersion: this.#worldVersion, manifestVersion: this.#manifestVersion,
+      outputProtocol: 'perform/publish(segments)/abstain', memoryMode: this.#memoryCore ? 'core' : 'native',
       activationCycle: this.#activationCycle ?? null,
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),
     }
     this.#shadow?.observe(head.headSeq)
+  }
+}
+
+/** Public runtime owns one logical storyline and its replaceable tail. */
+export class FrozenWorldPlaytestRuntime extends TailRoundRuntime {
+  static async create(options: FrozenPlaytestOptions): Promise<FrozenWorldPlaytestRuntime> {
+    return TailRoundRuntime.open(options, value => FrozenWorldRuntimeCore.create(value))
   }
 }

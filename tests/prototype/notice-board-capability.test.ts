@@ -49,7 +49,7 @@ it('commits a real inspection before continuation, captures own Source and keeps
     expect(r.result?.description).toContain(boardText)
     expect(JSON.stringify(r.context.observations)).toContain(boardText)
     expect(f.sources().filter(s=>s.epistemic_kind==='direct_observation'&&String(s.text_value).includes(boardText))).toHaveLength(1)
-    return {decision:'publish',speech:'牌子上写着二楼203。',addresseeIds:[player]}
+    return { decision:'publish', addresseeIds:[player], segments: [{ type: 'speech', text: '牌子上写着二楼203。' }] }
   }).run(npc,{stimulus,maxCalls:2})
   const events=f.store.readEvents(f.address),read=reads(f)[0]!
   const value=(read.data as WorldJsonObject).value as WorldJsonObject
@@ -97,7 +97,7 @@ it.each([{text:'forged truth'},{query:'SELECT *'},{statement:'registration is ne
   })
 it('a published claim of inspection stays speech and never invokes the reader',async()=>{
   const f=setup()
-  await turn(f,async()=>({decision:'publish',speech:'我已经看过公告牌了，写的是二楼203。'})).run(npc)
+  await turn(f,async()=>({ decision:'publish', segments: [{ type: 'speech', text: '我已经看过公告牌了，写的是二楼203。' }] })).run(npc)
   expect(reads(f)).toHaveLength(0)
   const sources=f.sources().filter(s=>String(s.text_value).includes('203'))
   expect(sources.length).toBeGreaterThan(0)

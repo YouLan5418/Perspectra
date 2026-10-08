@@ -1,3 +1,4 @@
+import { nativeMessages, nativePayload, providerEndpoint, providerHeaders, providerProtocol, type ProviderProtocol } from './protocol.ts'
 import type { RequestInspector } from './request-inspector.ts'
 import { rolePreset, type RolePreset } from './preset.ts'
 import type { WorldJsonValue } from '@harness-world/contracts'
@@ -31,6 +32,7 @@ export interface ChatCallProfile {
 }
 
 export interface ChatProviderOptions {
+  readonly protocol?: ProviderProtocol
   readonly endpoint: URL
   readonly model: string
   /** The Host's Secret. It is used for one header and never stored, hashed, echoed or reported. */
@@ -79,6 +81,32 @@ function payloadOf(value: unknown, style: ChatStyle): WorldJsonValue {
   }
 }
 
+function nativeBody(protocol: 'anthropic' | 'google', messages: ChatCall['messages'], prepared: ChatCall,
+  model: string, maximum: number, generation: RolePreset, options: ChatProviderOptions, toolName: string): Record<string, unknown> {
+  const temperature = generation.temperature ?? options.temperature
+  if (protocol === 'anthropic') {
+    if (generation.frequencyPenalty !== undefined || generation.presencePenalty !== undefined) {
+      throw new TypeError('Anthropic 不支持 frequencyPenalty / presencePenalty；请清空这些预设参数。')
+    }
+    const rendered = nativeMessages(messages, protocol)
+    return { ...rendered, model, max_tokens: maximum, stream: false,
+      system: String(rendered.system ?? '') + '\n请使用 ' + toolName + ' 工具返回本次决策；不要执行其他工具。',
+      ...(temperature === undefined ? {} : { temperature }),
+      ...(generation.topP === undefined ? {} : { top_p: generation.topP }),
+      ...(generation.stop?.length ? { stop_sequences: generation.stop } : {}),
+      tools: [{ name: toolName, description: prepared.description, input_schema: prepared.schema }],
+      tool_choice: { type: 'auto', disable_parallel_tool_use: true } }
+  }
+  return { ...nativeMessages(messages, protocol),
+    generationConfig: { maxOutputTokens: maximum, temperature: temperature ?? 0.3,
+      ...(generation.topP === undefined ? {} : { topP: generation.topP }),
+      ...(generation.frequencyPenalty === undefined ? {} : { frequencyPenalty: generation.frequencyPenalty }),
+      ...(generation.presencePenalty === undefined ? {} : { presencePenalty: generation.presencePenalty }),
+      ...(generation.stop?.length ? { stopSequences: generation.stop } : {}) },
+    tools: [{ functionDeclarations: [{ name: toolName, description: prepared.description, parametersJsonSchema: prepared.schema }] }],
+    toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [toolName] } } }
+}
+
 export interface ChatProvider {
   /** One already prepared prototype decision; no tool orchestration or implicit retries. */
   decide(request: ChatCall, signal: AbortSignal): Promise<WorldJsonValue>
@@ -101,18 +129,21 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
   const preset=rolePreset(options.preset??{})
   const post = options.fetch ?? globalThis.fetch
   const style = options.style ?? 'tool'
+  const protocol = providerProtocol(options.protocol)
+  if (protocol !== 'openai' && style === 'format') throw new TypeError('Ollama format 不能与原生协议混用。')
   const toolName = options.toolName ?? 'submit_actions'
 
   async function send(prepared: ChatCall, model: string, timeoutMs: number, maximum: number,
     kind: ChatCallObservation['kind'], signal?: AbortSignal): Promise<WorldJsonValue> {
-    const headers: Record<string, string> = { 'content-type': 'application/json' }
+    const headers = providerHeaders(protocol, options.apiKey)
     // The Host resolves the Secret; the adapter only carries it, and nothing here records or reports it.
-    if (options.apiKey !== undefined) headers.authorization = `Bearer ${options.apiKey}`
     const generation=kind==='character'?preset:{}
     const messages=kind==='character'&&generation.prompt?.trim()
       ? [...prepared.messages.slice(0,1),{role:'system',content:'角色表现预设：'+generation.prompt},...prepared.messages.slice(1)] : prepared.messages
     if(kind==='character'&&generation.maxOutputTokens!==undefined)maximum=generation.maxOutputTokens
-    const body = style === 'tool'
+    const body: Record<string, unknown> = protocol !== 'openai'
+      ? nativeBody(protocol, messages, prepared, model, maximum, generation, options, toolName)
+      : style === 'tool'
       ? { model, messages, stream: false, temperature: generation.temperature ?? options.temperature ?? 0.3,
         max_tokens: maximum,
         ...(generation.topP===undefined?{}:{top_p:generation.topP}),
@@ -132,11 +163,11 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
     const sources = [...(prepared.inspection?.sources ?? [])]
     if (kind === 'character' && generation.prompt?.trim()) sources.splice(1, 0, {source:'preset',name:'附加角色提示',original:generation.prompt})
     const inspection = kind === 'character' && prepared.inspection ? {...prepared.inspection,sources} : undefined
-    const inspectionId = options.inspector?.begin(body, inspection)
+    const inspectionId = options.inspector?.begin(body, inspection, messages, model)
     const started = performance.now()
     try {
       const timeout = AbortSignal.timeout(timeoutMs)
-      const response = await post(options.endpoint, { method: 'POST', redirect: 'error', headers,
+      const response = await post(providerEndpoint(options.endpoint, protocol, model), { method: 'POST', redirect: 'error', headers,
         body: JSON.stringify(body), signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]) })
       if (!response.ok) {
         // The endpoint's own words about what it refused are the operator's only clue, so they travel with
@@ -145,7 +176,7 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
         throw new ChatTransportError(`chat endpoint returned HTTP ${response.status}${detail.length === 0 ? '' : `: ${detail}`}`)
       }
       const responseBody: unknown = await response.json()
-      const payload = payloadOf(responseBody, style)
+      const payload = protocol === 'openai' ? payloadOf(responseBody, style) : nativePayload(responseBody, protocol, toolName)
       options.inspector?.finish(inspectionId, 'ok', Math.round(performance.now() - started), responseBody)
       options.onCall?.({ kind, model, durationMs: Math.round(performance.now() - started), status: 'ok' })
       return payload

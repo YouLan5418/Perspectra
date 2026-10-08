@@ -132,3 +132,35 @@ it('canonicalizes full options, distinguishes recipients and executes the select
  await expect(actions.perform({requestId:'req:stale',actionId:'act:stale',operation:'perform',payload:{optionId:options[1]!.id}})).rejects.toThrow('当前可用')
  expect(perform).toHaveBeenCalledOnce()
 })
+
+it('validates candidate selection and cancellation through the public API, with deduplication and no private paths',async()=>{
+ const selected=vi.fn(async()=>privateState()),cancelled=vi.fn(async()=>privateState())
+ const {send,runtime,url}=await fixture({regenerate:async()=>privateState(),selectCandidate:selected,cancelRegeneration:cancelled})
+ const tailId='11111111-1111-4111-8111-111111111111',candidateId='22222222-2222-4222-8222-222222222222'
+ expect((await send('selectCandidate',{tailId,candidateId},'select:first')).status).toBe(200)
+ expect((await send('selectCandidate',{tailId,candidateId},'select:first','retry')).status).toBe(200)
+ expect(selected).toHaveBeenCalledExactlyOnceWith(tailId,candidateId,'select:first')
+ expect((await send('selectCandidate',{tailId,candidateId,path:'.tail/results/secret'},'select:bad')).status).toBe(400)
+ expect((await send('selectCandidate',{tailId,candidateId:'invented'},'select:fake')).status).toBe(400)
+ expect((await send('cancelRegeneration',{},'cancel')).status).toBe(200)
+ expect(cancelled).toHaveBeenCalledOnce()
+ const state={...privateState(),tailRound:{id:tailId,worldVersion:'public-version',candidateIds:[candidateId],candidateIndex:1,canRegenerate:true,regenerating:false}}
+ const view=projectPlayerView(state)
+ expect(view.tailRound?.candidateIndex).toBe(1);expect(JSON.stringify(view)).not.toContain('PRIVATE_')
+ expect((await fetch(url+'/frontend-api/v1/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestId:'r',actionId:'a',operation:'selectCandidate',payload:{tailId,candidateId}})})).status).toBe(401)
+ expect(runtime.selectCandidate).toBe(selected)
+})
+
+it('submits dialogue and multiline narration once, retaining both in the retry identity',async()=>{
+ const {send,runtime}=await fixture()
+ const payload={text:'你好',narration:'我轻轻笑了笑。\n放缓语气。'}
+ expect((await send('speak',payload)).status).toBe(200)
+ expect((await send('speak',payload,'action:test','request:retry')).status).toBe(200)
+ expect(runtime.submit).toHaveBeenCalledOnce()
+ expect(runtime.submit).toHaveBeenCalledWith('/act speak '+JSON.stringify(payload))
+ expect((await send('speak',{...payload,narration:'不同描写'})).status).toBe(400)
+ expect((await send('speak',{text:'',narration:'纯描写'},'action:narration')).status).toBe(200)
+ expect((await send('speak',{text:'',narration:''},'action:empty')).status).toBe(400)
+ expect((await send('speak',{text:'a'.repeat(1500),narration:'b'.repeat(501)},'action:long')).status).toBe(400)
+ expect((await send('speak',{text:'你好',narration:42},'action:type')).status).toBe(400)
+})

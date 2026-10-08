@@ -16,7 +16,7 @@ export interface PlaytestState {
   readonly phaseLabel: string
   readonly notice: string
   readonly error: boolean
-  readonly transcript: readonly { readonly seq: number; readonly speaker: string; readonly text: string; readonly player: boolean }[]
+  readonly transcript: readonly { readonly seq: number; readonly speaker: string; readonly text: string; readonly player: boolean; readonly segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
   readonly world: { readonly title: string; readonly playerName: string; readonly npcNames: readonly string[];
     readonly currentScene?: { readonly locationName: string; readonly presentNpcNames: readonly string[] } }
   /** Names only for references already exposed in current player options. */
@@ -25,6 +25,7 @@ export interface PlaytestState {
   readonly packVariables?: { readonly public: WorldJsonObject; readonly private: WorldJsonObject }
   readonly memoryMaintenance?: WorldJsonObject
   readonly activity?: WorldJsonObject
+  readonly tailRound?: { readonly candidateIds?: readonly string[]; readonly candidateIndex?: number; readonly id: string | null; readonly worldVersion: string; readonly canRegenerate: boolean; readonly regenerating: boolean }
   readonly debug: Record<string, unknown>
 }
 
@@ -35,6 +36,9 @@ export interface PlaytestAction {
 
 
 export interface PlaytestRuntime {
+  selectCandidate?(tailId: string, candidateId: string, requestId: string): Promise<PlaytestState>
+  regenerate?(tailId: string, requestId: string): Promise<PlaytestState>
+  cancelRegeneration?(): Promise<PlaytestState>
   requestInspection?(enabled?: boolean): InspectorSnapshot
   state(): Promise<PlaytestState>
   submit(text: string): Promise<PlaytestState>
@@ -147,6 +151,7 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
           const useDefault = url.searchParams.get('template') === 'default' || !packWeb
           const capabilities = useDefault ? [...FRONTEND_CAPABILITIES] : [...packWeb!.manifest.capabilities]
           if(!useDefault&&policy.mode==='trusted')capabilities.push('external-network','browser-storage')
+          if (!runtime.regenerate && capabilities.includes('regenerate')) capabilities.splice(capabilities.indexOf('regenerate'),1)
           if (!runtime.perform) capabilities.splice(capabilities.indexOf('perform'),capabilities.includes('perform')?1:0)
           json(response,200,{apiVersion:1,frontend:useDefault?'default':'custom',frontendMode:useDefault?'sandbox':policy.mode,frontendOrigin:useDefault||policy.mode!=='trusted'?'':policy.origin,capabilities,view:projectPlayerView(await runtime.state())}); return
         }
@@ -215,6 +220,17 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
       if (request.method === 'GET' && url.pathname === '/api/state') {
         json(response, 200, await runtimeCall(() => runtime.state()))
         return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/regenerate') {
+        if (!runtime.regenerate) { json(response,404,{error:'重新生成不可用'}); return }
+        const value = await body(request) as {tailId?:unknown;requestId?:unknown}
+        if (!value || Object.keys(value).sort().join(',') !== 'requestId,tailId' || typeof value.tailId !== 'string' || !/^[a-f0-9-]{36}$/.test(value.tailId)
+          || typeof value.requestId !== 'string' || !/^[a-zA-Z0-9:-]{1,100}$/.test(value.requestId)) throw new TypeError('重新生成请求无效')
+        json(response,200,await runtimeCall(() => runtime.regenerate!(value.tailId as string,value.requestId as string))); return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/regenerate/cancel') {
+        if (!runtime.cancelRegeneration) { json(response,404,{error:'重新生成不可用'}); return }
+        json(response,200,await runtime.cancelRegeneration()); return
       }
       if (request.method === 'POST' && url.pathname === '/api/submit') {
         if (request.headers['content-type']?.split(';')[0] !== 'application/json') throw new TypeError('请求必须是 JSON')

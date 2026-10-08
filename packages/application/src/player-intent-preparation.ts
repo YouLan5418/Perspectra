@@ -27,9 +27,18 @@ export function preparePlayerIntent(job: PlayerInputJob, manifest: CompiledWorld
   const action = { ...explicit.action, actionVersion: offered.actionVersion, actorId: actor.characterId,
     actionId: deterministicId('action', { version: 'player-intent-action/v1', address: job.address, inputId: job.inputId, ordinal: 0 }) }
   const speech = action.parameters as WorldJsonObject
-  const source = action.actionType === 'speak' ? (speech.text || speech.narration || '') as string : sourceText
+  const fragments = action.actionType === 'speak'
+    ? [{ kind: 'narration' as const, text: speech.narration }, { kind: 'speech' as const, text: speech.text }]
+      .filter((entry): entry is { kind: 'narration' | 'speech'; text: string } => typeof entry.text === 'string' && entry.text.length > 0)
+    : [{ kind: 'action' as const, text: sourceText }]
+  const source = fragments.map(entry => entry.text).join('\n')
+  let offset = 0
+  const sourceSpans = fragments.map(entry => {
+    const span = { actionId: action.actionId, startUtf16: offset, endUtf16: offset + entry.text.length, text: entry.text, kind: entry.kind }
+    offset = span.endUtf16 + 1
+    return span
+  })
   return { directSubmission: { version: 'player-submission/v2', sourceText: source, sourceTextHash: hashWorldJson('player-source-text/v1', source),
-    actions: [action], sourceSpans: [{ actionId: action.actionId, startUtf16: 0, endUtf16: source.length, text: source,
-      kind: action.actionType === 'speak' ? (speech.text === '' && typeof speech.narration === 'string' ? 'narration' : 'speech') : 'action' }], interpretationProfile: 'explicit-player-command/v1',
+    actions: [action], sourceSpans, interpretationProfile: 'explicit-player-command/v1',
     interpretationReceiptHash: hashWorldJson('explicit-player-command/v1', { input: job.input, action }) } }
 }

@@ -1,6 +1,6 @@
 import { characterVisibleItems } from './character-visible-items.ts'
 import { randomUUID } from 'node:crypto'
-import { brandId, resolutionAuthority, type CharacterId, type WorldAddress, type WorldEventDraft,
+import { brandId, parseExpressionSegments, resolutionAuthority, type CharacterId, type WorldAddress, type WorldEventDraft,
   type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { characterRelationObservations, currentCharacterLifecycle,
   type CompiledWorldManifest, type RulebookRegistry } from '@harness-world/kernel'
@@ -267,18 +267,14 @@ export class PrototypeCharacterTurn {
         }
         let action: { actionType: string; parameters: WorldJsonValue }
         if (decision.decision === 'publish') {
-          keys(decision, ['decision', 'speech', 'narration', 'addresseeIds'])
-          for (const key of ['speech', 'narration']) {
-            if (decision[key] !== undefined && (typeof decision[key] !== 'string' || decision[key].length > 2000)) {
-              throw new TypeError('expression must be a string of at most 2000 characters')
-            }
-          }
+          keys(decision, ['decision', 'segments', 'addresseeIds'])
+          const segments = parseExpressionSegments(decision.segments)
           const addresseeIds = decision.addresseeIds ?? []
-          if (!Array.isArray(addresseeIds) || addresseeIds.some(id => typeof id !== 'string'
+          if (!Array.isArray(addresseeIds) || new Set(addresseeIds).size !== addresseeIds.length || addresseeIds.some(id => typeof id !== 'string'
             || id === characterId || !scene.observerIds.includes(brandId(id, 'CharacterId')))) {
             throw new TypeError('addressee must be another visible character')
           }
-          action = { actionType: 'speak', parameters: { text: decision.speech ?? '', narration: decision.narration ?? '',
+          action = { actionType: 'speak', parameters: { segments,
             ...(addresseeIds.length === 0 ? {} : { scope: 'direct', addresseeIds }) } }
         } else if (decision.decision === 'perform' && canPerform) {
           keys(decision, ['decision', 'actionType', 'parameters'])

@@ -1,5 +1,6 @@
 """Disposable glue over the existing experimental core. Input is an authorized archive, never a world path."""
 import copy
+import re
 import json
 import os
 import sys
@@ -90,6 +91,55 @@ def attempt_trace(row):
         finally: os.close(fd)
 
 
+def utility_request(protocol, endpoint, model, system, user, limit, api_key):
+    """Native transport only; memory authorization and JSON validation remain in Core."""
+    import urllib.parse
+    headers = {'content-type': 'application/json'}
+    if protocol == 'openai':
+        body = {'model': model, 'messages': [{'role':'system','content':system},{'role':'user','content':user}],
+                'response_format': {'type':'json_object'}, 'temperature':0, 'max_tokens':limit}
+        if api_key: headers['authorization'] = 'Bearer ' + api_key
+    elif protocol == 'anthropic':
+        headers['anthropic-version'] = '2023-06-01'
+        if api_key: headers['x-api-key'] = api_key
+        body = {'model':model, 'system':system + '\n只返回所要求的 JSON 对象，不要 Markdown 或解释。',
+                'messages':[{'role':'user','content':user}], 'max_tokens':limit}
+    elif protocol == 'google':
+        if api_key: headers['x-goog-api-key'] = api_key
+        url = urllib.parse.urlsplit(endpoint)
+        if not re.search(r'/models/[^/]+:generateContent$', url.path):
+            raise ValueError('Google endpoint must end in /models/model:generateContent')
+        path = re.sub(r'/models/[^/]+:generateContent$', '/models/' + urllib.parse.quote(model.removeprefix('models/'), safe='') + ':generateContent', url.path)
+        endpoint = urllib.parse.urlunsplit(url._replace(path=path))
+        body = {'systemInstruction':{'parts':[{'text':system}]}, 'contents':[{'role':'user','parts':[{'text':user}]}],
+                'generationConfig':{'maxOutputTokens':limit,'temperature':0,'responseMimeType':'application/json'}}
+    else:
+        raise ValueError('Unsupported model protocol')
+    return body, headers, endpoint
+
+
+def utility_response(response, protocol):
+    if protocol == 'openai':
+        choice=response['choices'][0];msg=choice['message']
+        return msg.get('content') or (msg.get('tool_calls') or [{}])[0].get('function',{}).get('arguments'), choice.get('finish_reason'), response.get('usage')
+    if protocol == 'anthropic':
+        text = ''.join(block.get('text', '') for block in response.get('content', []) if block.get('type') == 'text')
+        return text, response.get('stop_reason'), response.get('usage')
+    candidate = response.get('candidates', [{}])[0]
+    text = ''.join(part.get('text', '') for part in candidate.get('content', {}).get('parts', []) if not part.get('thought'))
+    return text, candidate.get('finishReason'), response.get('usageMetadata')
+
+
+def utility_open(request, protocol, timeout):
+    import urllib.request
+    if protocol == 'openai':
+        return urllib.request.urlopen(request, timeout=timeout)
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    return urllib.request.build_opener(NoRedirect()).open(request, timeout=timeout)
+
+
 def utility_llm(system, user, max_tokens=1600):
     """Existing transport/retry policy, with metadata-only per-HTTP-attempt timing."""
     import math
@@ -101,10 +151,8 @@ def utility_llm(system, user, max_tokens=1600):
     limit = min(24000, max(max_tokens, math.ceil(len(user) * 0.6)))
     endpoint = os.getenv('HCW_LOCAL_ENDPOINT', 'http://127.0.0.1:8045/v1/chat/completions')
     model = os.getenv('HCW_LOCAL_MODEL', 'gemini-3.7-flash')
-    body = {'model':model,'messages':[{'role':'system','content':system},{'role':'user','content':user}],
-            'response_format':{'type':'json_object'},'temperature':0,'max_tokens':limit}
-    headers = {'content-type':'application/json'}
-    if os.getenv('HCW_LOCAL_API_KEY'): headers['authorization'] = 'Bearer ' + os.environ['HCW_LOCAL_API_KEY']
+    protocol = os.getenv('HCW_MODEL_PROTOCOL', 'openai')
+    body, headers, endpoint = utility_request(protocol, endpoint, model, system, user, limit, os.getenv('HCW_LOCAL_API_KEY'))
     encoded = json.dumps(body,ensure_ascii=False).encode()
     call_id = uuid.uuid4().hex
     metadata = {**_utility_context.get(), 'pid':os.getpid(), 'callId':call_id, 'requestedModel':model,
@@ -118,7 +166,7 @@ def utility_llm(system, user, max_tokens=1600):
         response, error, http_status = None, None, None
         headers_ms, body_ms = None, None
         try:
-            with urllib.request.urlopen(urllib.request.Request(endpoint,data=encoded,headers=headers),timeout=120) as http:
+            with utility_open(urllib.request.Request(endpoint,data=encoded,headers=headers), protocol, timeout=120) as http:
                 headers_ms = (time.perf_counter()-started)*1000
                 http_status = http.status if hasattr(http, 'status') else 200
                 body_start = time.perf_counter()
@@ -142,21 +190,20 @@ def utility_llm(system, user, max_tokens=1600):
                     'headersMs':headers_ms, 'bodyReadMs':body_ms,
                     'willRetry':isinstance(error, (OSError, TimeoutError)) and attempt < 2,
                     'retryDelaySeconds':2*(attempt+1) if isinstance(error, (OSError, TimeoutError)) and attempt < 2 else 0,
-                    'returnedModel':response.get('model') if response is not None else None,
-                    'usage':response.get('usage') if response is not None else None})
+                    'returnedModel':(response.get('model') or response.get('modelVersion')) if response is not None else None,
+                    'usage':(response.get('usage') or response.get('usageMetadata')) if response is not None else None})
         if error is None: break
         if attempt == 2: raise error
         time.sleep(2 * (attempt + 1))
-    choice=response['choices'][0];msg=choice['message']
-    value=msg.get('content') or (msg.get('tool_calls') or [{}])[0].get('function',{}).get('arguments')
-    record={'model':model,'inputChars':len(user),'originalInputChars':original_chars,'requestedMaxTokens':limit,'finishReason':choice.get('finish_reason'),
-            'usage':response.get('usage'),'responseText':value,'status':'returned'}
+    value, finish_reason, usage = utility_response(response, protocol)
+    record={'model':model,'inputChars':len(user),'originalInputChars':original_chars,'requestedMaxTokens':limit,'finishReason':finish_reason,
+            'usage':usage,'responseText':value,'status':'returned'}
     trace=os.getenv('HCW_HINDSIGHT_UTILITY_TRACE')
     def save():
         if trace:
             with open(trace,'a',encoding='utf-8') as file: file.write(json.dumps(record,ensure_ascii=False)+'\n')
     try:
-        if choice.get('finish_reason') == 'length': raise ValueError('memory utility JSON exceeded output budget')
+        if finish_reason in ('length', 'max_tokens', 'MAX_TOKENS'): raise ValueError('memory utility JSON exceeded output budget')
         if not isinstance(value,str): raise ValueError('empty memory utility JSON')
         result=json.loads(value.strip().removeprefix('```json').removesuffix('```').strip())
     except (ValueError,TypeError) as error:

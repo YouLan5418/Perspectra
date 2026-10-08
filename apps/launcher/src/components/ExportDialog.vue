@@ -1,25 +1,25 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useLauncherStore } from '../stores/launcher.ts'
-import { createSharePreview } from '../domain.ts'
-import type { ExportScope } from '../types.ts'
+import { chooseStoryDestination } from '../services/desktop.ts'
 import { Button } from './ui/button/index.ts'
 import DialogFrame from './DialogFrame.vue'
-defineProps<{ open: boolean }>()
-defineEmits<{ close: [] }>()
+const props = defineProps<{ open: boolean }>()
+const emit = defineEmits<{ close: [] }>()
 const store = useLauncherStore()
-const scope = ref<ExportScope>('storyline')
-const preview = computed(() => store.currentInstance && store.selectedPackage ? createSharePreview(store.currentInstance, store.selectedPackage, scope.value) : null)
-const scopes: { id: ExportScope; title: string; description: string }[] = [
-  { id: 'current-node', title: '当前节点', description: '让别人从这里继续' },
-  { id: 'storyline', title: '当前完整故事线', description: '从起点到当前节点的历史' },
-  { id: 'branch', title: '所选分支', description: '分享当前选中的一条线路' },
-  { id: 'tree', title: '完整分支树', description: '分享这个实例的全部故事线' },
-]
+const nodeId = ref(''), error = ref('')
+watch(() => props.open, open => { if (open) { nodeId.value = store.currentNode?.id ?? ''; error.value = '' } })
+async function save() {
+  try {
+    const path = await chooseStoryDestination()
+    if (path && await store.exportStory(nodeId.value, path)) emit('close')
+  } catch { error.value = '导出路径选择失败，请重试。' }
+}
 </script>
-<template><DialogFrame :open="open" title="导出故事线" description="分享故事本身。对方使用自己的模型与本地配置继续。" @close="$emit('close')">
-  <div class="export-options"><label v-for="option in scopes" :key="option.id" :class="{ active: scope === option.id }"><input v-model="scope" type="radio" name="scope" :value="option.id" /><span><strong>{{ option.title }}</strong><small>{{ option.description }}</small></span></label></div>
-  <p class="muted">预览：{{ preview?.storylines.length }} 条故事线，{{ preview?.nodes.length }} 个示例历史节点。</p>
-  <p class="inline-info">本阶段仅提供范围预览；真实存档导出尚未接入。导出边界排除密钥、认证、私人路径与本机设置。</p>
-  <div class="dialog-actions"><Button @click="$emit('close')">完成</Button></div>
+<template><DialogFrame :open="open" title="导出故事节点" description="让接收者从一个完整时刻继续。需要相同游戏包，角色记忆会重新整理。" @close="emit('close')">
+  <div class="form-field"><label for="export-story-node">选择完整节点</label><select id="export-story-node" v-model="nodeId"><option v-for="node in store.currentHistory" :key="node.id" :value="node.id">时刻 {{ node.turn }} · {{ node.title }}</option></select></div>
+  <p class="inline-info">文件包含截至节点的世界历史、角色私密状态和包变量，接收者能够查看这些内容。仅分享你愿意交给对方的存档。</p>
+  <p class="muted">仅导出所选节点，其他节点与线路不随文件传递。不携带游戏包、模型配置、密钥或请求记录。</p>
+  <p v-if="error" role="alert">{{ error }}</p><p v-if="store.notice" role="status">{{ store.notice }}</p>
+  <div class="dialog-actions"><Button variant="outline" @click="emit('close')">取消</Button><Button :disabled="!store.real || store.busy || store.core.state === 'running' || !nodeId || !!store.currentInstance?.storyError" @click="save">选择路径并导出</Button></div>
 </DialogFrame></template>

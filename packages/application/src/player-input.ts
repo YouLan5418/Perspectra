@@ -12,7 +12,7 @@ function clarification(reason: string, candidates: readonly string[]): PlayerInp
 /** Product-neutral deterministic text adapter. It creates candidate Actions, never world facts. */
 export class PlayerInputInterpreter {
   interpret(text: string, affordances: readonly ActionAffordance[]): PlayerInputInterpretation {
-    assertProtocolString(text, 'player text')
+    assertProtocolString(text.replace(/[\t\r\n]/gu, ' '), 'player text')
     const allowed = new Set<string>()
     for (const affordance of affordances) {
       assertProtocolString(affordance.actionType, 'Action Affordance type')
@@ -29,7 +29,7 @@ export class PlayerInputInterpreter {
         ? clarification('move requires exactly one locationId', ['move'])
         : this.#action('move', { locationId: move[1] }, allowed)
     }
-    const narration = /^\/narrate(?:\s+(.+))?$/u.exec(text)
+    const narration = /^\/narrate(?:\s+([\s\S]+))?$/u.exec(text)
     if (narration !== null) return narration[1] === undefined
       ? clarification('narrate requires text', ['speak'])
       : this.#action('speak', { text: '', narration: narration[1] }, allowed)

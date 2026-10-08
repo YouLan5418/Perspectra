@@ -1,3 +1,4 @@
+import { parseExpressionSegments } from '@harness-world/contracts'
 import { compareWorldText, type ManifestationProposal, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import type { ManifestationResolution } from './manifestation.ts'
 import { manifestUsesFrozenInteractions, type CompiledWorldManifest } from './world-spec.ts'
@@ -146,6 +147,15 @@ function phase8Speech(
   characterId: string,
   parameters: Record<string, WorldJsonValue> | undefined,
 ): RulebookResolution {
+  let segments
+  if (parameters?.segments !== undefined) {
+    try { segments = parseExpressionSegments(parameters.segments) } catch {
+      return rejectRulebookResolution(characterId, 'speak', 'invalid expression segments')
+    }
+    if (parameters.text !== undefined || parameters.narration !== undefined) {
+      return rejectRulebookResolution(characterId, 'speak', 'mixed expression representations')
+    }
+  }
   const text = parameters?.text
   const narration = parameters?.narration
   const scope = parameters?.scope ?? 'scene_public'
@@ -171,7 +181,7 @@ function phase8Speech(
     : recipients.length === 0
   const validOptionalText = (value: WorldJsonValue): boolean => value === null
     || (typeof value === 'string' && value.length > 0 && value.trim() === value)
-  if (!validText || !validNarration || !validScope || !validAddressees || !validAddressing
+  if ((segments === undefined && (!validText || !validNarration)) || !validScope || !validAddressees || !validAddressing
     || !validOptionalText(replyTo) || !validOptionalText(declaredSpeechAct)) {
     return rejectRulebookResolution(characterId, 'speak', 'speak parameters are invalid for Manifest v4')
   }
@@ -179,7 +189,7 @@ function phase8Speech(
     status: 'accepted',
     events: [{
       eventType: 'character.speak', eventVersion: 1,
-      data: { characterId, text, ...(narration === undefined ? {} : { narration }),
+      data: { characterId, ...(segments === undefined ? { text: text!, ...(narration === undefined ? {} : { narration }) } : { segments }),
         addresseeIds: recipients, scope, replyTo, declaredSpeechAct },
     }],
     observationScope: {

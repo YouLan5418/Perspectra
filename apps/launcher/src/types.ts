@@ -14,7 +14,7 @@ export interface ModelProfile {
 /** No secrets or private endpoint addresses in portable configuration. */
 export interface CharacterModelMapping { groups: Record<string, string>; characters: Record<string, string> }
 export interface ModelConfiguration extends CharacterModelMapping { defaultModelId: string | null; overridesEnabled: boolean }
-export interface ProviderSettings { id: string; label: string; endpoint: string; apiKey: string }
+export interface ProviderSettings { protocol?: 'openai' | 'anthropic' | 'google'; id: string; label: string; endpoint: string; apiKey: string }
 export interface StorylineSource {
   kind: 'original' | 'local' | 'shared'; label: string
   storylineId: string | null; nodeId: string | null; turn: number
