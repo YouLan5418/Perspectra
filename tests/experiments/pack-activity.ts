@@ -119,7 +119,7 @@ export class PackActivity {
   readonly title: string
   readonly npcIds: string[]
   constructor(source: string, readonly worldPath: string, readonly address: WorldAddress, readonly playerId: string) {
-    this.#script = new Script(source+'\nJSON.stringify(__method === "definition" ? activityScript.definition : activityScript[__method](...JSON.parse(__args)))')
+    this.#script = new Script(source+'\nJSON.stringify(__method === "definition" ? activityScript.definition : __method === "simulate" && activityScript.simulate === undefined ? null : activityScript[__method](...JSON.parse(__args)))')
     const definition=object(this.#call('definition',[]))
     exact(definition,['title','npcIds','operations'])
     if (typeof definition.title!=='string' || definition.title.length>80
@@ -241,6 +241,22 @@ export class PackActivity {
     return {...context,activity:this.scoped(state,actorId),expressionPolicy:{
       speech:policy.speech,speechChoices:policy.speechChoices,narration:policy.narration},
       affordances:this.filterAffordances(context.affordances as unknown as ActionAffordance[],state,actorId,canPerform) as unknown as WorldJsonObject[]}
+  }
+  /** Optional response source, with only the current character's authorized request.
+   * Includes the final continuation of an activity-ending operation, never later ordinary turns.
+   * This does not execute or commit anything; the host retains all decision validation.
+   */
+  simulate(request:PrototypeTurnRequest):WorldJsonValue|undefined {
+    const actor=String(object(request.context.character).characterId),state=this.current()
+    if(!state || !this.npcIds.includes(actor) || !state.participants.includes(actor))return undefined
+    const anchor=request.context.activity
+    const metadata=request.result?.observationMetadata as WorldJsonObject|undefined
+    const ended=metadata?.activity as WorldJsonObject|undefined
+    if(anchor===undefined){
+      if(!request.continuation || state.game.active || ended?.id!==state.id || ended.lifecycle!=='ended')return undefined
+    }else this.#check(state,object(anchor).id,object(anchor).revision,actor)
+    const output=this.#call('simulate',[request])
+    return output===null?undefined:output as WorldJsonValue
   }
   filterAffordances(base:readonly ActionAffordance[],state:ActivityState,actorId:string,canPerform=true):ActionAffordance[] {
     const policy=this.policy(state,actorId)
