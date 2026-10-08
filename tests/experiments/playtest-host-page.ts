@@ -45,7 +45,7 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
   function applyView(next,notify=true){
     if(!playerView){playerView=next;return}
     const changes={};
-    for(const key of ['game','player','scene','status','actions','tailRound'])if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key];
+    for(const key of ['game','player','scene','status','actions','tailRound','settings'])if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key];
     if(JSON.stringify(playerView.history)!==JSON.stringify(next.history)){
       const prefix=playerView.history.length<=next.history.length&&playerView.history.every((line,i)=>JSON.stringify(line)===JSON.stringify(next.history[i]));
       if(prefix)changes.historyAppend=next.history.slice(playerView.history.length);else changes.history=next.history;
@@ -60,7 +60,7 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
       if(current!==epoch||!r||r.type!=='request'||typeof r.requestId!=='string'||!/^[a-zA-Z0-9:-]{1,100}$/.test(r.requestId))return;
       const reply=value=>{if(current===epoch)channel.port1.postMessage({type:'response',requestId:r.requestId,...value})};
       try{
-        if(JSON.stringify(r).length>8192||!r.payload||typeof r.payload!=='object'||Array.isArray(r.payload))throw new Error('前端请求格式无效');
+        if(JSON.stringify(r).length>Math.max(8192,(playerView?.settings?.inputCharacters||2000)*6+2048)||!r.payload||typeof r.payload!=='object'||Array.isArray(r.payload))throw new Error('前端请求格式无效');
         const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',resource:'resources'}[r.method];
         if(!grant||!init.capabilities.includes(grant))throw new Error('前端没有该能力');
         if(['view','history'].includes(r.method)){

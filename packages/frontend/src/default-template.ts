@@ -11,12 +11,20 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
     </aside>
     <section class="conversation" aria-label="故事与对话">
       <div class="conversation-heading"><span>故事与对话</span><span id="player"></span></div>
-      <section id="history" aria-label="公开对话记录" aria-live="polite" aria-relevant="additions text"></section>
+      <section id="history" aria-label="玩家可见对话记录" aria-live="polite" aria-relevant="additions text"></section>
       <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
       <button id="latest" class="latest secondary" type="button" hidden>回到最新对话 ↓</button>
-      <div class="composer"><label for="input">写下你的回应</label><textarea id="input" maxlength="2000" placeholder="说出你想对角色说的话……" rows="2"></textarea>
+      <div class="composer"><div class="audience-heading"><strong>发送消息</strong><span id="audience-badge">公开发言</span></div>
+        <fieldset class="audience-options"><legend class="visually-hidden">发言范围</legend>
+          <label><input type="radio" name="speech-scope" value="scene_public" checked>公开 — 在场且有权观察的角色都能听见</label>
+          <label><input type="radio" name="speech-scope" value="direct">定向 — 只有指定接收者收到，其他人不知情</label>
+          <label><input type="radio" name="speech-scope" value="private">私密 — 其他人只知道发生了私密交流</label>
+          <label><input type="radio" name="speech-scope" value="self">仅自己 — 不向其他角色发送</label>
+        </fieldset>
+        <div id="recipient-panel" hidden><label for="speech-recipient">接收对象</label><select id="speech-recipient"></select><p id="recipient-hint" class="hint" hidden>当前没有可接收发言的角色。</p></div>
+        <label class="visually-hidden" for="input">写下你的回应</label><textarea id="input" maxlength="2000" placeholder="说出你想对角色说的话……" rows="2"></textarea>
         <details class="narration-composer" id="narration-panel"><summary>细节描写 <span>可选 · 与发言一起提交</span></summary><label class="visually-hidden" for="narration">细节描写</label><textarea id="narration" maxlength="2000" placeholder="描写你的动作、神态或语气。不会直接改变位置或物品归属。" rows="2"></textarea></details>
-        <div class="composer-footer"><span>Enter 发送 · Shift + Enter 换行</span><button id="send" type="button">发送 <span aria-hidden="true">↑</span></button></div>
+        <p id="audience-preview" class="audience-preview" aria-live="polite"></p><div class="composer-footer"><span>Enter 发送 · Shift + Enter 换行</span><button id="send" type="button">发送 <span aria-hidden="true">↑</span></button></div>
         <div class="feedback"><p id="notice" role="status"></p><button id="retry" class="secondary" type="button" hidden>重试同一操作</button></div>
       </div>
     </section>
@@ -66,7 +74,7 @@ export const DEFAULT_STYLE = String.raw`
 /* ===== 基础 ===== */
 :root{font:var(--fs-md)/1.6 var(--font-ui);background:var(--bg);color:var(--text)}
 *{box-sizing:border-box}[hidden]{display:none!important}body{margin:0}
-button,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:default}
+button,textarea,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:default}
 button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 main{max-width:1320px;height:100dvh;min-height:430px;margin:auto;padding:26px 36px 28px;display:flex;flex-direction:column;gap:22px}
 
@@ -94,7 +102,7 @@ h1{font:600 var(--fs-title)/1.35 var(--font-story);letter-spacing:0;margin:0;ove
 .message{min-width:0;flex:1}
 .speaker{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);margin:4px 0 6px}
 .line:not(.player) .speaker{color:hsl(var(--hue,140) 30% var(--char-fg-l))}
-.text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.9;font:var(--fs-story)/1.9 var(--font-story);color:var(--text-story)}
+.text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:var(--story-line-height,1.9);font:var(--fs-story)/var(--story-line-height,1.9) var(--font-story);color:var(--text-story)}
 .text .act{color:var(--text-act)}.text .say{color:var(--text-story)}
 .line.player{margin-left:auto;flex-direction:row-reverse}
 .line.player .message{flex:0 1 auto;max-width:38rem}
@@ -122,15 +130,24 @@ button:hover:not(:disabled){background:var(--accent-soft);border-color:var(--acc
 .feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px}
 #notice{margin:0;color:var(--warn);font-size:var(--fs-sm);line-height:1.6;overflow-wrap:anywhere}
 .secondary{font-size:var(--fs-xs);padding:6px 11px}
-/* 距离输入区的高度；输入区变高时需同步调整 */
-.latest{position:absolute;align-self:center;bottom:236px;box-shadow:var(--shadow);background:var(--surface)}
+/* 浮动按钮固定在记录区上方，避免遮挡可变高度的发送区。 */
+.latest{position:absolute;align-self:center;top:64px;right:24px;bottom:auto;box-shadow:var(--shadow);background:var(--surface)}
 
 .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .narration-composer{margin-top:10px;border-top:1px solid var(--border-soft);padding-top:8px}
 .narration-composer summary{cursor:pointer;color:var(--text-muted);font-size:var(--fs-sm)}
 .narration-composer summary span{margin-left:8px;font-size:var(--fs-xs);color:var(--text-faint)}
 .narration-composer textarea{margin-top:8px;min-height:56px;max-height:110px}
-.conversation:has(.narration-composer[open]) .latest{bottom:320px}
+/* ===== 发言受众 ===== */
+.audience-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+#audience-badge{font-size:var(--fs-xs);border-radius:20px;background:var(--accent-soft);padding:2px 9px}
+.audience-options{border:0;margin:0 0 8px;padding:0;display:grid;gap:4px}
+.composer .audience-options label{display:flex;align-items:center;gap:8px;margin:0;color:var(--text)}
+.audience-options input{accent-color:var(--accent);flex-shrink:0}
+#speech-recipient{width:100%;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);padding:7px 10px;margin-bottom:8px}
+#speech-recipient:focus-visible,.audience-options input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.audience-preview{margin:8px 0 0;font-size:var(--fs-xs);color:var(--text-muted);line-height:1.6}
+.composer{flex-shrink:0;max-height:calc(100% - 100px);overflow:auto}
 /* ===== 侧栏 ===== */
 .sidebar{overflow:auto;min-height:0;scrollbar-width:thin}
 .scene-card{padding:20px;border:1px solid var(--border);border-radius:var(--r-md);background:linear-gradient(165deg,var(--surface-sunken),var(--accent-soft));margin-bottom:16px}
@@ -183,9 +200,27 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    if(parts.length===1){el.textContent=text;return}
    parts.forEach((part,index)=>{if(!part)return;const span=document.createElement('span');span.className=index%2?'say':'act';span.textContent=part;el.append(span)});
  }
+ function speechScope(){return document.querySelector('input[name="speech-scope"]:checked').value}
+ function audience(){
+   const scope=speechScope(),direct=scope==='direct'||scope==='private',select=node('speech-recipient');
+   node('recipient-panel').hidden=!direct;
+   node('recipient-hint').hidden=!!latest?.scene?.recipients?.length;
+   const name=select.value?select.selectedOptions[0].textContent:'指定角色';
+   node('audience-badge').textContent=({scene_public:'公开发言',direct:'定向发言',private:'私密交流',self:'自我表达'})[scope];
+   node('audience-preview').textContent=({scene_public:'发送效果：当前场景有权观察的角色将收到完整内容。',direct:'发送效果：只有 '+name+' 收到内容，其他角色不会获得这次发言的观察。',private:'发送效果：只有 '+name+' 收到内容，其他有权观察的角色仅知道发生了私密交流。',self:'发送效果：只有玩家自己保留这段表达，不会向其他角色传播。'})[scope];
+ }
+ function renderRecipients(view){
+   const select=node('speech-recipient'),previous=select.value;
+   select.replaceChildren();const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='请选择接收对象';select.append(placeholder);
+   for(const person of view.scene?.recipients||[]){const option=document.createElement('option');option.value=person.id;option.textContent=person.name;select.append(option)}
+   if(Array.from(select.options).some(option=>option.value===previous))select.value=previous;
+   audience();
+ }
  function controls(){
    const disabled=posting||!connected||latest?.status!=='ready';
-   node('send').disabled=disabled||!(node('input').value.trim()||node('narration').value.trim());
+   node('send').disabled=disabled||!(node('input').value.trim()||node('narration').value.trim())||((speechScope()==='direct'||speechScope()==='private')&&!node('speech-recipient').value);
+   for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.disabled=disabled;
+   node('speech-recipient').disabled=disabled||!latest?.scene?.recipients?.length;
    node('input').disabled=disabled;node('narration').disabled=disabled;
    for(const button of node('actions').querySelectorAll('button'))button.disabled=disabled;
    node('retry').hidden=!pending;node('retry').disabled=posting||!connected;
@@ -203,7 +238,11 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  history.onscroll=()=>{node('latest').hidden=history.scrollHeight-history.scrollTop-history.clientHeight<70};
  node('latest').onclick=bottom;
  function render(view){
-   latest=view;node('title').textContent=view.game.title;node('player').textContent='你 · '+view.player.name;
+   latest=view;renderRecipients(view);
+   const reading=view.settings?.reading||{fontSize:17,lineHeight:1.9,autoFollow:true};
+   document.documentElement.style.setProperty('--fs-story',reading.fontSize+'px');document.documentElement.style.setProperty('--story-line-height',String(reading.lineHeight));
+   node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
+   node('title').textContent=view.game.title;node('player').textContent='你 · '+view.player.name;
    node('scene').textContent=view.scene?.locationName||'场景尚未开始';
    node('characters').replaceChildren();
    const people=view.scene?.visibleCharacters||[];
@@ -214,7 +253,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const nextHistory=JSON.stringify(view.history);
    if(nextHistory!==historyKey){
      const oldTop=history.scrollTop;
-     const follow=!historyKey||history.scrollHeight-oldTop-history.clientHeight<70;
+     const follow=!historyKey||(reading.autoFollow&&history.scrollHeight-oldTop-history.clientHeight<70);
      historyKey=nextHistory;history.replaceChildren();
      if(!view.history.length){const empty=document.createElement('div');empty.className='empty-history';const title=document.createElement('strong');title.textContent='故事从你的第一句话开始';empty.append(title,document.createTextNode('看看眼前的世界，向角色打个招呼吧。'));history.append(empty)}
      for(const line of view.history){
@@ -261,7 +300,10 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  node('candidate-prev').onclick=()=>choose(-1);node('candidate-next').onclick=()=>choose(1);
  node('cancel-round').onclick=async()=>{try{await api.cancelRegeneration()}catch(error){node('notice').textContent=error.message}};
  node('retry').onclick=()=>{if(!posting&&connected&&pending)submit(pending)};
- node('send').onclick=()=>{const text=node('input').value.trim(),narration=node('narration').value.trim();if(text||narration){if(text.length+narration.length>2000){node('notice').textContent='发言与描写合计不能超过 2000 个字符';return}send('speak',{text,narration})}};
+ node('send').onclick=()=>{const text=node('input').value.trim(),narration=node('narration').value.trim();if(text||narration){const maximum=latest?.settings?.inputCharacters||2000;if(text.length+narration.length>maximum){node('notice').textContent='发言与描写合计不能超过 '+maximum+' 个字符';return}const scope=speechScope(),addresseeIds=scope==='direct'||scope==='private'?[node('speech-recipient').value]:[];if((scope==='direct'||scope==='private')&&!addresseeIds[0])return;send('speak',{text,narration,scope,addresseeIds})}};
+ for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.onchange=()=>{audience();controls()};
+ node('speech-recipient').onchange=()=>{audience();controls()};
+ audience();
  node('input').oninput=controls;node('narration').oninput=controls;
  node('input').onkeydown=node('narration').onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();node('send').click()}};
  api.subscribe(event=>{if(event.view){connected=true;render(event.view)}if(event.type==='disconnected'){connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}});

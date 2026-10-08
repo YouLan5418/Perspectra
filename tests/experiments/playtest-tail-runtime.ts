@@ -81,7 +81,7 @@ export class TailRoundRuntime {
       interaction: interactionPackageDescription(createBasicInteractionPackage()),
       provider: this.options.provider, protocol: this.options.protocol ?? 'openai', model: this.options.model ?? null, endpoint: endpoint?.href ?? null,
       intentModel: this.options.intentModel ?? null, preset: this.options.preset ?? {}, presetMapping: this.options.presetMapping ?? {},
-      tuning: this.options.tuning ?? null, memoryCore: !!this.options.memoryCore,
+      playSettings:this.options.playSettings??null, tuning: this.options.tuning ?? null, memoryCore: !!this.options.memoryCore,
       memoryContextBudget: this.options.memoryContextBudget ?? null })
   }
   async #run(input: TailRecord['input'], idempotencyKey?: string): Promise<PlaytestState> {

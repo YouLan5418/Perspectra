@@ -153,3 +153,37 @@ it('persists native protocols and uses their headers and responses in connection
   expect(()=>localModel({protocol:'anthropic',model:'m',endpoint:'https://native.test/v1/chat/completions'})).toThrow()
  } finally {vi.unstubAllGlobals()}
 })
+
+it('persists appearance separately from models and rejects invalid theme without overwriting settings', async () => {
+ const core = await service(), model = core.snapshot().defaults
+ await core.handle({operation:'preferences',theme:'dark',largeText:true,apiKey:'must-not-persist'})
+ await core.handle({operation:'settings',model})
+ const restored = new LauncherCore(resolve('.'),core.root); await restored.initialize()
+ expect(restored.snapshot().preferences).toEqual({theme:'dark',largeText:true})
+ expect(restored.snapshot().defaults).toEqual(model)
+ const before = await readFile(join(core.root,'launcher.json'),'utf8')
+ expect(before).not.toContain('must-not-persist')
+ await expect(core.handle({operation:'preferences',theme:'invalid',largeText:false})).rejects.toThrow('外观设置无效')
+ expect(await readFile(join(core.root,'launcher.json'),'utf8')).toBe(before)
+})
+
+it('keeps package play settings separate, restores them and preserves model defaults and instances',async()=>{
+ const core=await service()
+ await core.handle({operation:'load',path:resolve('examples/world-packs/prototype-g1')})
+ await core.handle({operation:'load',path:resolve('examples/world-packs/launcher-demo')})
+ const [first,second]=core.snapshot().packs
+ await core.handle({operation:'create',packageId:first!.id,name:'a'})
+ await core.handle({operation:'create',packageId:first!.id,name:'b'})
+ const before=core.snapshot()
+ await core.handle({operation:'play-settings',packageId:first!.id,settings:{maximumWaves:5,playerInputCharacters:4000}})
+ await core.handle({operation:'preferences',theme:'light',largeText:false,reading:{fontSize:22,lineHeight:2,autoFollow:false}})
+ const restored=new LauncherCore(resolve('.'),core.root);await restored.initialize()
+ expect(restored.snapshot().playSettings?.[first!.id]?.maximumWaves).toBe(5)
+ expect(restored.snapshot().playSettings?.[second!.id]).toBeUndefined()
+ expect(restored.snapshot().instances).toEqual(before.instances)
+ expect(restored.snapshot().defaults).toEqual(before.defaults)
+ expect(restored.snapshot().preferences.reading).toEqual({fontSize:22,lineHeight:2,autoFollow:false})
+ await expect(core.handle({operation:'play-settings',packageId:first!.id,settings:{maximumWaves:0}})).rejects.toThrow()
+ await expect(core.handle({operation:'play-settings',packageId:'foreign',settings:{}})).rejects.toThrow('载入')
+ expect(core.snapshot().playSettings?.[first!.id]?.maximumWaves).toBe(5)
+})

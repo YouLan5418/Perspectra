@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import PlaySettingsDialog from './PlaySettingsDialog.vue'
 import RequestInspectorDialog from './RequestInspectorDialog.vue'
 import FrontendAuthorizationDialog from './FrontendAuthorizationDialog.vue'
 import { ArrowRight, GitFork, Cpu, Download, Upload, Check, AlertTriangle, BookOpen, Plus, Square } from '@lucide/vue'
@@ -7,6 +8,7 @@ import { useLauncherStore } from '../stores/launcher.ts'
 import { Button } from './ui/button/index.ts'
 defineEmits<{ model: []; preset: []; story: []; import: []; export: []; settings: [] }>()
 const store = useLauncherStore()
+const playSettingsOpen=ref(false)
 const frontendOpen=ref(false),inspectorOpen=ref(false)
 const inspectorAvailable = computed(() => store.core.state === 'running' && 'instanceId' in store.core && store.core.instanceId === store.selectedInstanceId)
 const running = computed(() => store.core.state === 'running')
@@ -25,9 +27,10 @@ const validationText = computed(() => ({ ready: '可以运行', degraded: '可�
       <div class="continue-action"><Button v-if="running" variant="outline" class="continue-button" @click="store.stopGame()"><Square :size="15" />{{ store.real ? '结束游戏' : '结束模拟会话' }}</Button><Button v-else class="continue-button" :disabled="store.busy || !store.initialized || store.selectedPackage.validation.status === 'blocked' || !store.currentModel" @click="store.startGame()">{{ store.busy ? '正在处理…' : store.currentInstance.lastPlayedAt ? '继续游戏' : '开始游戏' }}<ArrowRight :size="17" /></Button><button v-if="running && store.real" class="text-button" :disabled="store.busy" @click="store.reopenGame()">重新打开游戏</button><small>{{ store.real ? '系统浏览器 · Core 记忆' : '仅模拟启动' }}</small></div>
     </section>
     <p v-if="store.currentInstance?.storyError" role="alert">{{ store.currentInstance.storyError }}</p>
-    <div class="section-heading"><h2>游玩配置</h2><span>为当前实例调整体验</span></div>
+    <div class="section-heading"><h2>游玩配置</h2><span>实例配置与包级运行参数</span></div>
     <div class="configuration-rows">
-      <div class="configuration-row"><Cpu :size="19" /><div><strong>模型</strong><p>{{ store.currentModel?.label ?? '当前没有可用模型' }}<span v-if="store.currentModel">{{ store.currentInstance.model.overridesEnabled ? ' · 启用角色映射' : ' · 所有角色继承默认' }}</span></p></div><button class="text-button" :disabled="running || store.busy" @click="store.currentModel ? $emit('model') : $emit('settings')">{{ store.currentModel ? '修改' : '前往设置' }}<ArrowRight :size="14" /></button></div>
+      <div class="configuration-row"><Cpu :size="19" /><div><strong>运行参数</strong><p>{{ store.currentPlaySettings.maximumWaves }} 波 · {{ store.currentPlaySettings.maximumNpcCalls }} 次调用预算 · {{ store.currentPlaySettings.reactionDeadlineSeconds }} 秒反应周期 · 此包所有实例</p></div><button class="text-button" :disabled="running || store.busy" @click="playSettingsOpen=true">配置<ArrowRight :size="14" /></button></div>
+      <div class="configuration-row"><Cpu :size="19" /><div><strong>模型</strong><p>{{ store.currentModel?.label ?? '当前没有可用模型' }}<span v-if="store.currentModel">{{ store.currentInstance.model.overridesEnabled ? ' · 启用角色映射' : ' · 所有角色继承默认' }}</span></p></div><button class="text-button" :disabled="running || store.busy" @click="store.currentModel ? $emit('model') : $emit('settings')">{{ store.currentModel ? '修改' : '前往模型设置' }}<ArrowRight :size="14" /></button></div>
       <div v-if="store.real" class="configuration-row"><Cpu :size="19" /><div><strong>角色预设</strong><p>附加提示与生成参数</p></div><button class="text-button" :disabled="running || store.busy" @click="$emit('preset')">修改<ArrowRight :size="14" /></button></div>
       <div v-if="store.real" class="configuration-row"><AlertTriangle :size="19" /><div><strong>游戏前端</strong><p>{{ store.currentFrontend?.mode==='trusted'?'当前内容已授权':store.currentFrontend?.kind==='default'?'官方默认模板':'默认沙箱运行' }}</p></div><button class="text-button" :disabled="store.busy" @click="frontendOpen=true">权限<ArrowRight :size="14" /></button></div>
 
@@ -36,6 +39,7 @@ const validationText = computed(() => ({ ready: '可以运行', degraded: '可�
     </div>
     <div class="detail-bottom"><div class="validation" :class="store.selectedPackage.validation.status"><Check v-if="store.selectedPackage.validation.status === 'ready'" :size="14" /><AlertTriangle v-else :size="14" /><span>{{ validationText }}<small>{{ store.real ? ' · 已校验' : ' · 模拟校验' }}</small></span></div><div class="share-actions"><button class="text-button" :disabled="!store.real || running || store.busy" @click="$emit('import')"><Upload :size="15" />导入故事线</button><button class="text-button" :disabled="!store.real || running || store.busy || !store.currentHistory.length || !!store.currentInstance.storyError" @click="$emit('export')"><Download :size="15" />导出故事线</button></div></div>
     <RequestInspectorDialog :open="inspectorOpen && running" :instance-id="store.selectedInstanceId" :characters="store.presetCharacters" @close="inspectorOpen=false" />
+    <PlaySettingsDialog :open="playSettingsOpen" @close="playSettingsOpen=false" />
     <FrontendAuthorizationDialog :open="frontendOpen" @close="frontendOpen=false" />
     <p v-for="issue in store.selectedPackage.validation.issues" :key="issue" class="validation-issue">{{ issue }}</p>
   </main>

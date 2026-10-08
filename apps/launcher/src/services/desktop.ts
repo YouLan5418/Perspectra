@@ -49,3 +49,14 @@ export async function chooseStoryDestination(): Promise<string | null> {
   const { save } = await import('@tauri-apps/plugin-dialog')
   return save({ title: '导出故事节点', defaultPath: '故事节点.perspectra-story', filters: [{ name: 'Perspectra 故事节点', extensions: ['perspectra-story'] }] })
 }
+
+export interface DataLocation { current: string; next: string; locked: boolean }
+export async function dataLocation(operation = 'data-location', data: Record<string, unknown> = {}): Promise<DataLocation> {
+ return invoke('launcher_request', { request: { operation, ...data } })
+}
+export async function chooseDataDirectory(): Promise<string | null> {
+ if (!isTauri()) return null
+ const { open } = await import('@tauri-apps/plugin-dialog')
+ const path = await open({ title: '选择新的数据目录（重启后生效）', directory: true, multiple: false })
+ return typeof path === 'string' ? path : null
+}

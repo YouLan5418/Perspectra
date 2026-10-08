@@ -5,6 +5,7 @@ import type { PrototypeTurnRequest } from '../../packages/application/src/protot
 /** The local Gemini gateway treats a root oneOf as if only its first choice were available. */
 export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
   const prepared = prototypeTurnCall(request)
+  const maximum=Number(request.context.publicationCharacters??2000)
   const expression = request.context.expressionPolicy as WorldJsonObject | undefined
   const speechAllowed = expression?.speech !== 'none'
   const narrationAllowed = expression?.narration !== false
@@ -47,12 +48,13 @@ export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
       decision: { type: 'string', enum: ['abstain', ...(speechAllowed || narrationAllowed ? ['publish'] : []),
         ...(request.canRecall === true ? ['recall'] : []), ...(actionTypes.length > 0 ? ['perform'] : [])],
         description: 'publish 需要有序 segments；recall 需要 query；perform 需要 actionType 和 parameters。' },
-      ...(speechAllowed || narrationAllowed ? { segments: {
-        type: 'array', minItems: 1, maxItems: 2000,
-        description: '按发生顺序交替或重复 speech/narration；文本合计最多 2000 字符。固定对白选项一次最多一个 speech 片段。',
+      ...(speechAllowed || narrationAllowed ? { scope: { type: 'string', enum: addressees.length ? ['scene_public', 'direct', 'private', 'self'] : ['scene_public', 'self'],
+        description: 'publish 的受众。direct/private 需非空 addresseeIds；scene_public/self 不指定接收者。' }, segments: {
+        type: 'array', minItems: 1, maxItems: maximum,
+        description: `按发生顺序交替或重复 speech/narration；文本合计最多 ${maximum} 字符。固定对白选项一次最多一个 speech 片段。`,
         items: { type: 'object', additionalProperties: false, required: ['type', 'text'], properties: {
           type: { type: 'string', enum: [...(speechAllowed ? ['speech'] : []), ...(narrationAllowed ? ['narration'] : [])] },
-          text: { type: 'string', minLength: 1, maxLength: 2000 },
+          text: { type: 'string', minLength: 1, maxLength: maximum },
         } },
       } } : {}),
       ...(addressees.length === 0 ? {} : { addresseeIds: { type: 'array', uniqueItems: true,

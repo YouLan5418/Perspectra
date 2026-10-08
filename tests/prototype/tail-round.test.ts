@@ -6,15 +6,15 @@ import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { WorldStore } from '@harness-world/store-sqlite'
+import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
-import type { WorldJsonObject } from '@harness-world/contracts'
+import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import type { CoreRunner } from '../experiments/hindsight-python.ts'
 import { readTailSelection } from '../../desktop/tail-storage.ts'
 import { readStoryNodes } from '../../desktop/story-nodes.ts'
 import { preflightSave } from '../../desktop/save-preflight.ts'
-import { FrontendActions, projectPlayerView, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
+import { FrontendActions, frontendActionRequest, projectPlayerView, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
 
 const roots: string[] = [], servers: Server[] = [], runtimes: FrozenWorldPlaytestRuntime[] = []
 afterEach(async () => {
@@ -338,4 +338,66 @@ it('rejects a foreign or changed candidate and preserves the selected world',asy
   await expect(f.runtime.selectCandidate(state.tailRound!.id!,ids[0]!,randomUUID())).rejects.toThrow('候选世界已改变')
   expect(readFileSync(join(f.data,'current-world.json'),'utf8')).toBe(selection)
   expect(f.runtime.dataDirectory).not.toBe(f.data)
+},30_000)
+
+
+it.each(['scene_public', 'direct', 'private', 'self'])('commits frontend %s speech without leaking its text or narration to unauthorized NPCs',async scope=>{
+ const f=await fixture(),actions=new FrontendActions(f.runtime)
+ const view=projectPlayerView(await f.runtime.state())
+ expect(view.scene?.recipients?.map(c=>c.id).sort()).toEqual(['character:companion','character:friend'])
+ const marker='发言受众测试独有内容',narration='描写受众测试独有内容'
+ const addresseeIds=scope==='direct'||scope==='private'?['character:companion']:[]
+ const result=await actions.perform(frontendActionRequest({requestId:'request:scope',actionId:'action:scope',operation:'speak',payload:{text:marker,narration,scope,addresseeIds}}))
+ expect(result.history.some(line=>line.text.includes(marker))).toBe(true)
+ const events=f.events(),speech=events.find(e=>e.eventType==='character.speak'&&object(e.data).text===marker)!
+ expect(speech).toBeDefined();expect(object(speech.data)).toMatchObject({scope,addresseeIds})
+ const store=new WorldStore(join(f.runtime.dataDirectory,'world.sqlite'))
+ try {
+  const builder=new CharacterViewBuilder(store),head=store.head(f.runtime.address).headSeq
+  for(const id of ['character:player','character:companion','character:friend']) {
+   const character=builder.rebuildAt(f.runtime.address,brandId(id,'CharacterId'),head)
+   const observations=character.observations.filter(o=>object(object(o.value).content).actorId==='character:player')
+   const serialized=JSON.stringify(observations)
+   const seesContent=id==='character:player'||scope==='scene_public'||((scope==='direct'||scope==='private')&&id==='character:companion')
+   expect(serialized.includes(marker),id).toBe(seesContent)
+   expect(serialized.includes(narration),id).toBe(seesContent)
+   if(scope==='private'&&id==='character:friend') expect(serialized).toContain('occurrence_only')
+   if((scope==='direct'&&id==='character:friend')||(scope==='self'&&id!=='character:player'))expect(observations).toHaveLength(0)
+  }
+ } finally {store.close()}
+ for(const request of f.requests) {
+  if(scope==='self'||(scope!=='scene_public'&&actor(request)==='character:friend')) {
+   expect(JSON.stringify(request)).not.toContain(marker);expect(JSON.stringify(request)).not.toContain(narration)
+  }
+ }
+},30_000)
+
+
+it.each(['scene_public','direct','private','self'])('isolates NPC %s content and schedules only authorized resulting observations',async scope=>{
+ const f=await fixture(),actions=new FrontendActions(f.runtime)
+ const marker='NPC范围测试独有对白',narration='NPC范围测试独有描写'
+ f.setDecision(request=>actor(request)==='character:companion'?{decision:'publish',scope,
+  addresseeIds:scope==='direct'||scope==='private'?['character:friend']:[],
+  segments:[{type:'speech',text:marker},{type:'narration',text:narration}]}:{decision:'abstain'})
+ const result=await actions.perform(frontendActionRequest({requestId:'request:npc-scope',actionId:'action:npc-scope',operation:'speak',
+  payload:{text:'同行者，请处理。',scope:'direct',addresseeIds:['character:companion']}}))
+ const receives=scope==='scene_public'
+ expect(result.history.some(line=>line.text.includes(marker))).toBe(receives)
+ expect(result.history.some(line=>line.text.includes(narration))).toBe(receives)
+ const events=f.events()
+ const observations=events.filter(e=>e.eventType==='observation.upsert'&&object(object(object(e.data).value).content).actorId==='character:companion')
+ for(const id of ['character:player','character:companion','character:friend']) {
+  const records=observations.filter(e=>object(object(e.data).value).observerId===id)
+  const sees=id==='character:companion'||scope==='scene_public'||(id==='character:friend'&&(scope==='direct'||scope==='private'))
+  expect(JSON.stringify(records).includes(marker),id).toBe(sees)
+  expect(JSON.stringify(records).includes(narration),id).toBe(sees)
+  if(scope==='private'&&id==='character:player')expect(JSON.stringify(records)).toContain('occurrence_only')
+  if((scope==='direct'&&id==='character:player')||(scope==='self'&&id!=='character:companion'))expect(records).toHaveLength(0)
+ }
+ const friend=f.requests.filter(request=>actor(request)==='character:friend')
+ expect(friend.length>0).toBe(scope!=='self')
+ if(scope!=='self') {
+  expect(JSON.stringify(friend)).toContain(marker)
+  expect(JSON.stringify(friend)).toContain(narration)
+ }
 },30_000)

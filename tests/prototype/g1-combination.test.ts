@@ -93,7 +93,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
         }))
     }
     expect((await runtime.state()).world.currentScene).toEqual({ locationName: '前室',
-      presentNpcNames: ['同行者', '留守者'] })
+      presentNpcNames: ['同行者', '留守者'], recipients: [{ id: 'character:companion', name: '同行者' }, { id: 'character:friend', name: '留守者' }] })
 
     await submit('hold', '/act interact {"targetRef":{"kind":"character","id":"character:companion"},"bindingId":"binding:companion-hold","definitionRef":{"id":"base:hold-hand","version":1},"arguments":{}}')
     expect(currentCharacterRelations(events()).filter(relation => relation.active)).toHaveLength(1)
@@ -115,7 +115,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
     expect(currentLocation(events(), 'character:player')).toBe('location:back-room')
     expect(currentLocation(events(), 'character:companion')).toBe('location:back-room')
     expect(currentLocation(events(), 'character:friend')).toBe('location:front-room')
-    expect(movedState.world.currentScene).toEqual({ locationName: '后室', presentNpcNames: ['同行者'] })
+    expect(movedState.world.currentScene).toEqual({ locationName: '后室', presentNpcNames: ['同行者'], recipients: [{ id: 'character:companion', name: '同行者' }] })
     const outwardViews = moveViews('character:player', 'location:back-room')
     expect(outwardViews.get('character:player')).toEqual({ characterId: 'character:player',
       fromLocationId: 'location:front-room', toLocationId: 'location:back-room' })
@@ -152,7 +152,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
     expect(currentLocation(events(), 'character:player')).toBe('location:front-room')
     expect(currentLocation(events(), 'character:companion')).toBe('location:back-room')
     expect(currentEntityState(events(), 'entity:brass-key')?.holderId).toBe('character:companion')
-    expect(returnedState.world.currentScene).toEqual({ locationName: '前室', presentNpcNames: ['留守者'] })
+    expect(returnedState.world.currentScene).toEqual({ locationName: '前室', presentNpcNames: ['留守者'], recipients: [{ id: 'character:friend', name: '留守者' }] })
     const returnViews = moveViews('character:player', 'location:front-room')
     expect(returnViews.get('character:player')).toEqual({ characterId: 'character:player',
       fromLocationId: 'location:back-room', toLocationId: 'location:front-room' })

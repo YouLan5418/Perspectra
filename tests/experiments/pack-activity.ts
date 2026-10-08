@@ -277,8 +277,8 @@ export class PackActivity {
     this.#check(state,snapshot.id,snapshot.revision,actor)
     const policy=this.policy(state,actor)
     if(decision.decision==='publish'){
-      if(Object.keys(decision).some(k=>!['decision','segments','addresseeIds'].includes(k)))throw new TypeError('非法混合输出整包拒绝')
-      checkExpressionPolicy(parseExpressionSegments(decision.segments), policy)
+      if(Object.keys(decision).some(k=>!['decision','segments','scope','addresseeIds'].includes(k)))throw new TypeError('非法混合输出整包拒绝')
+      checkExpressionPolicy(parseExpressionSegments(decision.segments,Number(request.context.publicationCharacters??2000)), policy)
     }else if(decision.decision==='perform'){
       if(Object.keys(decision).sort().join(',')!=='actionType,decision,parameters')throw new TypeError('非法混合输出整包拒绝')
     }
@@ -328,7 +328,7 @@ export class PackActivity {
       if(action.actionType==='speak'){
         const expression={...(Object.hasOwn(p,'text') && p.text!==''?{speech:p.text}:{}),
           ...(Object.hasOwn(p,'narration')&&p.narration!==''?{narration:p.narration}:{})}
-        if (p.segments !== undefined) checkExpressionPolicy(parseExpressionSegments(p.segments), policy)
+        if (p.segments !== undefined) checkExpressionPolicy(parseExpressionSegments(p.segments,context.publicationCharacters??2000), policy)
         else this.checkExpression(policy,expression)
       }else if(action.actionType==='move'){
         if(!policy.move)throw new TypeError('活动期间禁止移动')

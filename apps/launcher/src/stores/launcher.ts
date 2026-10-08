@@ -1,3 +1,4 @@
+import { DEFAULT_PLAY_SETTINGS, DEFAULT_READING, type PlaySettings, type ReadingPreferences } from '../../../../desktop/play-settings.ts'
 import { isTauri } from '@tauri-apps/api/core'
 import { coreRequest, openGame } from '../services/desktop.ts'
 import type { CoreSnapshot, LocalModel, RolePreset, PresetChoice } from '../core-types.ts'
@@ -18,6 +19,10 @@ export const useLauncherStore = defineStore('launcher', () => {
   const globalDefaultModelId = ref<string | null>('flash')
   const dataDirectory = ref('')
   const largeText = ref(false)
+  const reading = ref({...DEFAULT_READING})
+  const packagePlaySettings = ref<Record<string,PlaySettings>>({})
+  const currentPlaySettings = computed(()=>packagePlaySettings.value[selectedPackageId.value]??DEFAULT_PLAY_SETTINGS)
+  const theme = ref<'system' | 'light' | 'dark'>('system')
   const notice = ref('')
   const selectedPackage = computed(() => packages.value.find(pack => pack.id === selectedPackageId.value))
   const currentInstance = computed(() => instances.value.find(instance => instance.id === selectedInstanceId.value))
@@ -111,6 +116,9 @@ export const useLauncherStore = defineStore('launcher', () => {
     realInstances.value = snapshot.instances
     defaults.value = snapshot.defaults
     largeText.value = snapshot.preferences?.largeText ?? false
+    theme.value = snapshot.preferences?.theme ?? 'system'
+    reading.value = snapshot.preferences?.reading ?? {...DEFAULT_READING}
+    packagePlaySettings.value = snapshot.playSettings??{}
     dataDirectory.value = snapshot.dataDirectory
     packages.value = snapshot.packs.map(p => ({ id: p.id, version: p.version, title: p.title, subtitle: '本地世界包', description: '由真实 Core 校验与运行。进度保存在独立实例中。',
       genre: '互动故事', artwork: 'inn', recommendation: { capability: 'balanced', contextTokens: 0, toolCalling: true }, validation: { status: 'ready', issues: [], simulated: false } }))
@@ -147,6 +155,19 @@ export const useLauncherStore = defineStore('launcher', () => {
     notice.value = '默认模型已保存；API Key 仅在本次会话中保留。'
     return true
   }
+  async function savePreferences(nextTheme: 'system' | 'light' | 'dark', nextLargeText: boolean, nextReading?: ReadingPreferences) {
+    if (real && !await action('preferences', { theme: nextTheme, largeText: nextLargeText, ...(nextReading===undefined?{}:{reading:nextReading}) })) return false
+    theme.value = nextTheme; largeText.value = nextLargeText
+    if(nextReading)reading.value={...nextReading}
+    notice.value = '外观设置已应用。'
+    return true
+  }
+  async function savePlaySettings(settings:PlaySettings){
+    if(real){if(!await action('play-settings',{packageId:selectedPackageId.value,settings}))return false}
+    else packagePlaySettings.value={...packagePlaySettings.value,[selectedPackageId.value]:settings}
+    notice.value='游玩参数已保存，将作用于此包各实例的下一次启动。'
+    return true
+  }
   async function configureModel(model: LocalModel) {
     if (!await action('configure', { instanceId: selectedInstanceId.value, model })) return false
     notice.value = '实例模型配置已保存。'
@@ -156,7 +177,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     if (!real) { startMock(); return }
     const provider = providers.value[0]
     if (provider?.apiKey && (provider.endpoint !== currentRealModel.value.endpoint || (provider.protocol ?? 'openai') !== (currentRealModel.value.protocol ?? 'openai'))) {
-      notice.value = '实例接口与当前密钥绑定的地址不同；请在设置填写该接口的密钥，或清空密钥后启动。'
+      notice.value = '实例接口与当前密钥绑定的地址不同；请在模型设置填写该接口的密钥，或清空密钥后启动。'
       return
     }
     notice.value='正在启动故事线；新分叉会重新整理角色记忆，可能需要等待数分钟。'
@@ -208,7 +229,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     }
   }
 
-  return { exportStory,importStory,selectStoryline,forkStory,saveStoryNode,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, defaults, currentRealModel, initialize, refresh, loadRealPackage, saveSettings, configureModel, startGame, stopGame, reopenGame, packages, instances, profiles, providers, globalDefaultModelId, dataDirectory, largeText, notice,
+  return { exportStory,importStory,selectStoryline,forkStory,saveStoryNode,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, defaults, currentRealModel, initialize, refresh, loadRealPackage, saveSettings, configureModel, startGame, stopGame, reopenGame, packages, instances, profiles, providers, globalDefaultModelId, dataDirectory, largeText, theme, reading, currentPlaySettings, savePlaySettings, savePreferences, notice,
     selectedPackageId, selectedInstanceId, core, selectedPackage, currentInstance, currentStoryline,
     currentNode, currentModel, currentHistory, gameInstances, selectPackage, newInstance, loadMockPackage,
     forkAt, importMockStory, startMock, stopMock }
