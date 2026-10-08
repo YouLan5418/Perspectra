@@ -218,9 +218,10 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       const prepared = await prepare(request)
       this.#memoryCore?.observeContext(request, prepared.messages.map(message => message.content).join('\n')
         + JSON.stringify(prepared.schema)+(effectivePreset?.prompt??''))
-      const decide = async (call: typeof prepared) => presetOutput(await roleProvider.decide(call, signal), effectivePreset!, signal,
+      const simulated = this.#activity?.simulate(request)
+      const decide = async (call: typeof prepared) => presetOutput(simulated === undefined ? await roleProvider.decide(call, signal) : simulated, effectivePreset!, signal,
         request.context.expressionPolicy as WorldJsonObject | undefined)
-      const raw = request.context.activity === undefined ? await decide(prepared)
+      const raw = request.context.activity === undefined && simulated === undefined ? await decide(prepared)
         : await decideActivityFormat(prepared, decide, signal, prototypeTurnCall(request).schema)
       this.#memoryCore?.recordDecision(request, raw)
       signal.throwIfAborted()
@@ -230,7 +231,11 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       let history
       try { history = store.readEvents(this.#address) } finally { store.close() }
       return auditBeforePublication({ request, raw, history, options: options.publicationAudit, signal,
-        decide: async revised => presetOutput(await roleProvider.decide(await prepare(revised), signal), effectivePreset!, signal, revised.context.expressionPolicy as WorldJsonObject | undefined) })
+        decide: async revised => {
+          const call = await prepare(revised), replacement = this.#activity?.simulate(revised)
+          return presetOutput(replacement === undefined ? await roleProvider.decide(call, signal) : replacement,
+            effectivePreset!, signal, revised.context.expressionPolicy as WorldJsonObject | undefined)
+        } })
     }
     this.#npcNames = characters.map(character => character.name)
     // The Host's interpretation profile is a contract with the world, and its deadline ceiling is part of
@@ -625,7 +630,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         this.#notice = result.failure === undefined ? (result.status === 'abstained'
           ? '角色本次没有提交操作，当前轮次保留；可以再次请求处理或逃生。' : '角色处理已完成。')
           : result.failure === 'invalid_output' ? '角色返回格式无效，当前轮次没有推进；可重试或逃生。'
-            : '角色模型服务未完成请求，当前轮次没有推进；可重试或逃生。'
+            : '角色决策处理未完成，当前轮次没有推进；可重试或逃生。'
         selected = activitySignal.aborted ? undefined : this.#activity!.outcome(result as unknown as WorldJsonObject)
         if (opportunity === 3 && selected !== undefined) this.#notice = '本次活动处理达到宿主预算上限；已提交结果保留，可再次请求处理或逃生。'
       }

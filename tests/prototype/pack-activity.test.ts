@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { brandId, RECALL_KEYWORD_TOKENIZER_ID, type WorldJsonObject } from '@harness-world/contracts'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
+import { FrozenWorldPlaytestRuntime, type FrozenPlaytestOptions } from '../experiments/playtest-frozen-runtime.ts'
 import { createPlaytestServer } from '../experiments/playtest-server.ts'
 import type { ActivityRequest } from '../experiments/pack-activity.ts'
 
@@ -19,7 +19,7 @@ afterEach(async()=>{
   for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true})
 })
 type Decision=(input:WorldJsonObject)=>unknown|Promise<unknown>
-async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:string)=>s,packDirectory='examples/world-packs/ai-girls-awaken-v10',provider:'ollama'|'local'='ollama') {
+async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:string)=>s,packDirectory='examples/world-packs/ai-girls-awaken-v10',provider:'ollama'|'local'='ollama',extra:Partial<FrozenPlaytestOptions>={}) {
   const root=mkdtempSync(join(tmpdir(),'activity-test-'));roots.push(root)
   const pack=join(root,'pack'),data=join(root,'data');cpSync(resolve(packDirectory),pack,{recursive:true});mkdirSync(data)
   const file=join(pack,'scripts/activity.js')
@@ -42,7 +42,7 @@ async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:s
   const address=server.address()
   if(!address||typeof address==='string')throw new Error('no endpoint')
   const options={packPath:pack,dataDirectory:data,provider,model:'fixture',
-    utilityEndpoint:'http://127.0.0.1:'+address.port+'/api/chat',timeoutMs:5000}
+    utilityEndpoint:'http://127.0.0.1:'+address.port+'/api/chat',timeoutMs:5000,...extra}
   const runtime=await FrozenWorldPlaytestRuntime.create(options);runtimes.push(runtime)
   const state=()=>{const store=new WorldStore(join(data,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
   return {runtime,options,inputs,schemas,events:state,data,pack}
@@ -425,5 +425,128 @@ describe('script-defined participants and moderator judgement',()=>{
     await expect(g.runtime.activityAction(request(await g.runtime.state(),'start'))).rejects.toThrow(/未授权/u)
     expect(g.inputs).toHaveLength(0)
     await g.runtime.escape()
+  })
+})
+
+
+describe('activity simulated model responses',()=>{
+  const hook=(body:string)=>(source:string)=>source+'\nglobalThis.activityScript.simulate = function(request) {'+body+'};'
+  it('performs then publishes through normal events without calling the provider or seeing another private state',async()=>{
+    const f=await fixture(()=>{throw new Error('must not call provider')},hook(`
+      if (JSON.stringify(request).includes('player-only') || JSON.stringify(request).includes('"answer"')) throw new Error('private leak');
+      if (!request.context.activity.game.private.secret.includes('npc-only')) throw new Error('missing own private');
+      if (request.continuation) return {decision:'publish',segments:[{type:'speech',text:'程序已经反馈：'+request.result.description}]};
+      const a=request.context.activity;
+      return {decision:'perform',actionType:'interact',parameters:{targetRef:{kind:'character',id:'character:gpt'},
+        bindingId:a.id,definitionRef:{id:'activity:guess',version:1},arguments:{activityId:a.id,revision:a.revision,value:50}}};
+    `))
+    const start=await f.runtime.activityAction(request(await f.runtime.state(),'start'))
+    const after=await f.runtime.activityAction(request(start,'pass'))
+    expect(after.error).toBe(false)
+    expect(after.activity?.revision).toBe(3)
+    expect(f.inputs).toHaveLength(0)
+    expect(after.debug.providerCalls).toBe(0)
+    expect(f.events().some(e=>e.eventType==='character.speak'&&JSON.stringify(e.data).includes('程序已经反馈'))).toBe(true)
+    expect(f.events().some(e=>e.eventType==='action.resolved'&&(e.data as WorldJsonObject).actorId==='character:gpt'&&(e.data as WorldJsonObject).accepted===true)).toBe(true)
+    expect(f.events().some(e=>e.eventType==='observation.upsert'&&JSON.stringify(e.data).includes('程序已经反馈'))).toBe(true)
+  })
+  it('uses the provider when the optional hook returns null',async()=>{
+    const f=await fixture(input=>input.continuation?{decision:'abstain'}:action(input),hook('return null;'))
+    const start=await f.runtime.activityAction(request(await f.runtime.state(),'start'))
+    const after=await f.runtime.activityAction(request(start,'pass'))
+    expect(after.error).toBe(false)
+    expect(f.inputs).toHaveLength(2)
+    expect(after.activity?.revision).toBe(3)
+  })
+  it.each([
+    ['mixed output', "return {decision:'publish',segments:[{type:'speech',text:'不应发布'}],actionType:'move',parameters:{locationId:'location:living-room'}};"],
+    ['unavailable addressee', "return {decision:'publish',segments:[{type:'speech',text:'不应发布'}],addresseeIds:['character:missing']};"],
+    ['script failure', "throw new Error('fixture failure');"],
+  ])('rejects %s without committing the response or falling back to a model',async(_name,body)=>{
+    const f=await fixture(()=>{throw new Error('must not call provider')},hook(body))
+    const start=await f.runtime.activityAction(request(await f.runtime.state(),'start'))
+    const after=await f.runtime.activityAction(request(start,'pass'))
+    expect(after.error).toBe(true)
+    expect(after.activity?.revision).toBe(2)
+    expect(f.inputs).toHaveLength(0)
+    expect(f.events().some(e=>e.eventType==='character.speak'&&(e.data as WorldJsonObject).actorId==='character:gpt')).toBe(false)
+    expect(f.events().some(e=>e.eventType==='character.moved')).toBe(false)
+    await f.runtime.escape()
+  })
+  it('retains Rulebook rejection for a simulated move forbidden by activity policy',async()=>{
+    const f=await fixture(()=>{throw new Error('must not call provider')},hook("return {decision:'perform',actionType:'move',parameters:{locationId:'location:living-room'}};"))
+    const start=await f.runtime.activityAction(request(await f.runtime.state(),'start'))
+    await expect(f.runtime.activityAction(request(start,'pass'))).rejects.toThrow('活动期间禁止移动')
+    expect((await f.runtime.state()).activity?.revision).toBe(2)
+    expect(f.inputs).toHaveLength(0)
+    expect(f.events().some(e=>e.eventType==='character.moved')).toBe(false)
+    await f.runtime.escape()
+  })
+  it('routes a permitted simulated world move through Rulebook and normal observations',async()=>{
+    const f=await fixture(()=>{throw new Error('must not call provider')},s=>hook(`
+      return request.continuation?{decision:'abstain'}:{decision:'perform',actionType:'move',parameters:{locationId:'location:living-room'}};
+    `)(s.replace('narration: false, move: false','narration: false, move: true')))
+    const start=await f.runtime.activityAction(request(await f.runtime.state(),'start'))
+    await f.runtime.activityAction(request(start,'pass'))
+    const moved=f.events().filter(e=>e.eventType==='character.moved'&&(e.data as WorldJsonObject).characterId==='character:gpt')
+    expect(moved).toHaveLength(1)
+    expect((moved[0]!.data as WorldJsonObject).toLocationId).toBe('location:living-room')
+    expect(f.events().some(e=>e.eventType==='action.resolved'&&(e.data as WorldJsonObject).actorId==='character:gpt'&&(e.data as WorldJsonObject).actionType==='move'&&(e.data as WorldJsonObject).accepted===true)).toBe(true)
+    expect(f.inputs).toHaveLength(0)
+  })
+  it('does not publish a fixed continuation when its action transaction fails',async()=>{
+    const f=await fixture(()=>{throw new Error('must not call provider')},hook(`
+      if(request.continuation)return {decision:'publish',segments:[{type:'speech',text:'不应发布'}]};
+      const a=request.context.activity;
+      return {decision:'perform',actionType:'interact',parameters:{targetRef:{kind:'character',id:'character:gpt'},
+        bindingId:a.id,definitionRef:{id:'activity:guess',version:1},arguments:{activityId:a.id,revision:a.revision,value:50}}};
+    `))
+    const start=await f.runtime.activityAction(request(await f.runtime.state(),'start'))
+    const original=WorldStore.prototype.commitRound
+    vi.spyOn(WorldStore.prototype,'commitRound').mockImplementation(function(this:WorldStore,r){
+      if(r.events.some(e=>e.eventType==='activity.updated'&&(e.data as WorldJsonObject).operation==='guess'))throw new Error('simulated commit failed')
+      return original.call(this,r)
+    })
+    await expect(f.runtime.activityAction(request(start,'pass'))).rejects.toThrow('simulated commit failed')
+    expect((await f.runtime.state()).activity?.revision).toBe(2)
+    expect(f.events().some(e=>e.eventType==='activity.updated'&&(e.data as WorldJsonObject).operation==='guess')).toBe(false)
+    expect(JSON.stringify(f.events())).not.toContain('不应发布')
+    expect(f.inputs).toHaveLength(0)
+  })
+  it('keeps the simulated response source for an already-enabled publication correction',async()=>{
+    const records:Array<{repaired:boolean;repairAttempted:boolean}>=[]
+    const f=await fixture(()=>{throw new Error('must not call provider')},hook(`
+      return request.context.publicationCorrection?{decision:'abstain'}:
+        {decision:'publish',segments:[{type:'narration',text:'同行者已经保管了黄铜钥匙。'}]};
+    `),'examples/world-packs/scripted-performance','ollama',{
+      publicationAudit:{mode:'correct',items:[{entityId:'entity:brass-key',name:'黄铜钥匙'}],write:r=>records.push(r),
+        classify:async q=>({placement:{kind:'NONE',probabilities:{NONE:1},confidence:1},model:'fixture',inputTokens:1,outputTokens:1,costUsd:0,
+          claims:q.characters.map(c=>({characterId:c.characterId,kind:c.characterId==='character:companion'?'OBJECTIVE_NOW':'NONE',referenceSeq:null,
+            probabilities:{NONE:1},referenceProbabilities:{NONE:1},confidence:1}))})},
+    })
+    await f.runtime.activityAction(request(await f.runtime.state(),'start'))
+    expect(records[0]).toMatchObject({repairAttempted:true,repaired:true})
+    expect(f.inputs).toHaveLength(0)
+    expect(JSON.stringify(f.events())).not.toContain('已经保管了黄铜钥匙')
+  })
+  it.each(['hear','leave'])('runs the fixed opening and %s ending, then returns to provider responses',async choice=>{
+    const f=await fixture(()=>({decision:'publish',segments:[{type:'speech',text:'模型恢复后的回应。'}]}),s=>s,'examples/world-packs/scripted-performance')
+    const start=await f.runtime.activityAction(request(await f.runtime.state(),'start'))
+    expect(start.error).toBe(false)
+    expect((start.activity!.game as WorldJsonObject).phase).toBe('choice')
+    expect(f.events().filter(e=>e.eventType==='character.speak'&&(e.data as WorldJsonObject).actorId!=='character:player')).toHaveLength(2)
+    const end=await f.runtime.activityAction(request(start,'choose',{choice}))
+    expect(end.error).toBe(false)
+    expect((end.activity!.game as WorldJsonObject)).toMatchObject({active:false,phase:'finished'})
+    expect(end.debug.providerCalls).toBe(0)
+    expect(f.inputs).toHaveLength(0)
+    const serialized=JSON.stringify(end.transcript)
+    expect(serialized).toContain(choice==='leave'?'好，今天到这里':'如果你还记得，明晚请来')
+    expect(serialized).not.toContain(choice==='leave'?'如果你还记得，明晚请来':'好，今天到这里')
+    const restored=await f.runtime.submit('你现在想说什么？')
+    expect(f.inputs.length).toBeGreaterThan(0)
+    expect(JSON.stringify(restored.transcript)).toContain('模型恢复后的回应')
+    const input=f.inputs.find(i=>JSON.stringify(i).includes('有封信，我一直没念'))
+    expect(input).toBeDefined()
   })
 })
