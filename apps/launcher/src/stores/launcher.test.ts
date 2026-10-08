@@ -94,3 +94,26 @@ it('binds session credentials to the selected protocol as well as endpoint',asyn
  expect(bridge.request.mock.calls.filter(call=>call[0]==='start')).toHaveLength(0)
  expect(store.notice).toContain('密钥绑定')
 })
+
+it('applies appearance without changing the running instance or sending session credentials', async () => {
+ const store=useLauncherStore(); await store.initialize()
+ store.core={state:'running',mode:'real',instanceId:'instance-1'}
+ store.providers=[{id:'local',label:'local',endpoint,apiKey:'private-key'}]
+ bridge.request.mockResolvedValue({...snapshot(),preferences:{theme:'dark',largeText:true},core:{state:'running',mode:'real',instanceId:'instance-1'}})
+ expect(await store.savePreferences('dark',true)).toBe(true)
+ expect(bridge.request).toHaveBeenLastCalledWith('preferences',{theme:'dark',largeText:true})
+ expect(store.theme).toBe('dark'); expect(store.largeText).toBe(true)
+ expect(store.core.state).toBe('running'); expect(store.providers[0]!.apiKey).toBe('private-key')
+})
+
+it('saves play settings for the selected package and restores global reading preferences',async()=>{
+ const {playSettings}=await import('../../../../desktop/play-settings.ts')
+ const store=useLauncherStore();await store.initialize()
+ const settings=playSettings({maximumWaves:5})
+ bridge.request.mockResolvedValue({...snapshot(),playSettings:{'pack:real':settings},preferences:{largeText:false,reading:{fontSize:22,lineHeight:2,autoFollow:false}}})
+ expect(await store.savePlaySettings(settings)).toBe(true)
+ expect(bridge.request).toHaveBeenLastCalledWith('play-settings',{packageId:'pack:real',settings})
+ expect(store.currentPlaySettings.maximumWaves).toBe(5)
+ expect(store.reading.autoFollow).toBe(false)
+ expect(store.currentModel?.model).toBe('actual-model')
+})

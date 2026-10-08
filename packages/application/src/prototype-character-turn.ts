@@ -84,9 +84,13 @@ export class PrototypeCharacterTurn {
     readonly onCommitted?: () => Promise<void>
     /** With Core, preserve the authorized tail after its successfully archived prefix. */
     readonly shortTermAfterSeq?: (characterId: CharacterId) => number
+    readonly publicationCharacters?: number
+    readonly activationTimeoutMs?: number
     readonly recentObservations?: number
     readonly recentSelfObservations?: number
   }) {
+    if(options.activationTimeoutMs!==undefined&&(!Number.isSafeInteger(options.activationTimeoutMs)||options.activationTimeoutMs<1000||options.activationTimeoutMs>600000))throw new RangeError('invalid activation timeout')
+    parseExpressionSegments([{type:'speech',text:'x'}],options.publicationCharacters??2000)
     const stored = options.store.readManifest(options.address)
     if (stored === undefined || (stored.manifest as WorldJsonObject).schemaVersion !== 10) {
       throw new TypeError('single-turn prototype requires an activated v10 world')
@@ -111,8 +115,8 @@ export class PrototypeCharacterTurn {
     }
     this.#busy = true
     const ownerId = `prototype-turn:${randomUUID()}`
-    const signal = options.signal === undefined ? AbortSignal.timeout(120_000)
-      : AbortSignal.any([options.signal, AbortSignal.timeout(120_000)])
+    const signal = options.signal === undefined ? AbortSignal.timeout(this.options.activationTimeoutMs??120_000)
+      : AbortSignal.any([options.signal, AbortSignal.timeout(this.options.activationTimeoutMs??120_000)])
     let lease: ReturnType<WriterLeaseService['acquire']> | undefined
     let calls = 0
     let recalledThisActivation = false
@@ -121,7 +125,7 @@ export class PrototypeCharacterTurn {
     const done = (status: PrototypeTurnResult['status']): PrototypeTurnResult => ({ status, calls,
       ...(performResult === undefined ? {} : { performResult }) })
     try {
-      lease = this.options.leases.acquire(this.options.address, ownerId, 180_000)
+      lease = this.options.leases.acquire(this.options.address, ownerId, Math.max(180_000,(this.options.activationTimeoutMs??120_000)+60_000))
       if (options.continuationOf !== undefined) {
         const prior = this.options.store.readEvents(this.options.address).findLast(event => event.eventType === 'action.resolved'
           && event.seq > (options.continuationOf!.afterSeq ?? 0)
@@ -147,7 +151,7 @@ export class PrototypeCharacterTurn {
         if (currentCharacterLifecycle(history, characterId) !== 'active') return done('interrupted')
         const rules = this.options.rulebooks.resolve(this.#manifest.rulebook.rulebookId,
           this.#manifest.rulebook.version, ownerId, this.options.address)
-        const ruleContext = { manifest: this.#manifest, manifestHash: this.#manifestHash,
+        const ruleContext = { publicationCharacters:this.options.publicationCharacters??2000, manifest: this.#manifest, manifestHash: this.#manifestHash,
           events: history, characterId, asOfWorldSeq: head.headSeq,
           resolutionAuthority: resolutionAuthority('agent', 'standard') }
         const view = this.#view.rebuildAt(this.options.address, characterId, head.headSeq)
@@ -183,6 +187,7 @@ export class PrototypeCharacterTurn {
         }
         // Do not copy scene member records or other characters' anchors into a model request.
         let context: WorldJsonObject = {
+          publicationCharacters: this.options.publicationCharacters??2000,
           character: { ...character, locationId: view.locationId },
           stimulus: options.stimulus ?? [],
           ...(olderMemories === undefined ? {} : { memories: olderMemories }),
@@ -224,7 +229,7 @@ export class PrototypeCharacterTurn {
         signal.throwIfAborted()
         // A changed world means this output is stale, including a change while awaiting the model.
         if (this.options.store.head(this.options.address).headSeq !== head.headSeq) return done('interrupted')
-        lease = this.options.leases.renew(this.options.address, ownerId, lease.fencingToken, 180_000)
+        lease = this.options.leases.renew(this.options.address, ownerId, lease.fencingToken, Math.max(180_000,(this.options.activationTimeoutMs??120_000)+60_000))
         modelFailure = 'invalid_output'
         let decision = object(raw)
         this.options.validateDecision?.(decision, request)
@@ -256,7 +261,7 @@ export class PrototypeCharacterTurn {
           modelFailure = undefined
           signal.throwIfAborted()
           if (this.options.store.head(this.options.address).headSeq !== head.headSeq) return done('interrupted')
-          lease = this.options.leases.renew(this.options.address, ownerId, lease.fencingToken, 180_000)
+          lease = this.options.leases.renew(this.options.address, ownerId, lease.fencingToken, Math.max(180_000,(this.options.activationTimeoutMs??120_000)+60_000))
           modelFailure = 'invalid_output'
           decision = object(raw)
           this.options.validateDecision?.(decision, request)
@@ -267,15 +272,19 @@ export class PrototypeCharacterTurn {
         }
         let action: { actionType: string; parameters: WorldJsonValue }
         if (decision.decision === 'publish') {
-          keys(decision, ['decision', 'segments', 'addresseeIds'])
-          const segments = parseExpressionSegments(decision.segments)
+          keys(decision, ['decision', 'segments', 'scope', 'addresseeIds'])
+          const segments = parseExpressionSegments(decision.segments,this.options.publicationCharacters??2000)
           const addresseeIds = decision.addresseeIds ?? []
           if (!Array.isArray(addresseeIds) || new Set(addresseeIds).size !== addresseeIds.length || addresseeIds.some(id => typeof id !== 'string'
             || id === characterId || !scene.observerIds.includes(brandId(id, 'CharacterId')))) {
             throw new TypeError('addressee must be another visible character')
           }
-          action = { actionType: 'speak', parameters: { segments,
-            ...(addresseeIds.length === 0 ? {} : { scope: 'direct', addresseeIds }) } }
+          const scope = decision.scope ?? (addresseeIds.length === 0 ? 'scene_public' : 'direct')
+          if (typeof scope !== 'string' || !['scene_public', 'direct', 'private', 'self'].includes(scope)
+            || ((scope === 'direct' || scope === 'private') ? addresseeIds.length === 0 : addresseeIds.length !== 0)) {
+            throw new TypeError('publication scope and addressees do not match')
+          }
+          action = { actionType: 'speak', parameters: { segments, scope, addresseeIds } }
         } else if (decision.decision === 'perform' && canPerform) {
           keys(decision, ['decision', 'actionType', 'parameters'])
           if (decision.actionType !== 'move' && decision.actionType !== 'interact') throw new TypeError('unsupported operation')

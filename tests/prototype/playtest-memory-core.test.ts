@@ -22,7 +22,7 @@ afterEach(async () => {
     rmSync(root, { recursive: true, force: true })
   }
 })
-async function fixture(run: CoreRunner, options: { memoryContextBudget?: MemoryContextBudget; publish?: boolean } = {}) {
+async function fixture(run: CoreRunner, options: { playSettings?: import('../../desktop/play-settings.ts').PlaySettings; memoryContextBudget?: MemoryContextBudget; publish?: boolean } = {}) {
   const data = mkdtempSync(join(tmpdir(), 'memory-web-test-')); roots.push(data)
   const requests: WorldJsonObject[] = []
   const provider = createServer((req, res) => {
@@ -39,7 +39,7 @@ async function fixture(run: CoreRunner, options: { memoryContextBudget?: MemoryC
   const address = provider.address(); if (!address || typeof address === 'string') throw new Error('no port')
   const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: data,
     packPath: resolve('examples/world-packs/ai-girls-hosted-guess'), provider: 'local', model: 'fixture',
-    utilityEndpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`, memoryCore: true, memoryCoreRun: run, memoryCoreBuildRun: run, ...(options.memoryContextBudget ? { memoryContextBudget: options.memoryContextBudget } : {}) })
+    utilityEndpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`, memoryCore: true, memoryCoreRun: run, memoryCoreBuildRun: run, ...(options.playSettings?{playSettings:options.playSettings}:{}), ...(options.memoryContextBudget ? { memoryContextBudget: options.memoryContextBudget } : {}) })
   runtimes.push(runtime)
   const head = () => { const store = new WorldStore(join(data, 'world.sqlite'))
     try { return store.head(runtime.address).headSeq } finally { store.close() } }
@@ -388,4 +388,16 @@ describe('optional web Core memory', () => {
     expect(adapter.hasPendingCompaction).toBe(false)
   })
 
+})
+
+it('delivers the configured recall budget to Core while preserving authorized evidence checks',async()=>{
+ const {playSettings}=await import('../../desktop/play-settings.ts')
+ const inputs:WorldJsonObject[]=[]
+ const run:CoreRunner=async input=>{inputs.push(input);return input.operation==='build'?built(input):empty}
+ const f=await fixture(run,{playSettings:playSettings({memoryMaxItems:2,memoryMaxJsonChars:3000})})
+ await f.runtime.submit('你好。')
+ await f.runtime.refreshMemory();await f.runtime.waitForMemory()
+ await f.runtime.submit('继续。')
+ expect(inputs.filter(input=>input.operation==='recall').length).toBeGreaterThan(0)
+ for(const input of inputs.filter(input=>input.operation==='recall'))expect(input.deliveryBudget).toEqual({maxItems:2,maxJsonChars:3000})
 })

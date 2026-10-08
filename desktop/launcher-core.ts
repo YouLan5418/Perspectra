@@ -1,3 +1,4 @@
+import { playSettings, readingPreferences, DEFAULT_READING, type PlaySettings, type ReadingPreferences } from './play-settings.ts'
 import { providerProtocol, providerEndpoint, providerHeaders, nativeMessages, nativePayload, type ProviderProtocol } from '../packages/provider-chat/src/protocol.ts'
 import { existsSync } from 'node:fs'
 import { exportStoryNode, importStoryNode } from './story-share.ts'
@@ -21,7 +22,7 @@ export interface LocalModel { model: string; endpoint: string; protocol?: Provid
 interface Pack { id: string; version: string; title: string; path: string; hash: string }
 interface Storyline { id: string; name: string; parentStorylineId: string | null; parentNodeId: string | null }
 interface Instance { currentStorylineId: string; storylines: Storyline[]; id: string; packageId: string; packageVersion: string; packHash: string; name: string; lastPlayedAt: string | null; model: LocalModel }
-interface Index { packs: Pack[]; instances: Instance[]; defaults: LocalModel; preferences: { largeText: boolean } }
+interface Index { packs: Pack[]; instances: Instance[]; defaults: LocalModel; preferences: { largeText: boolean; theme?: 'system' | 'light' | 'dark'; reading?: ReadingPreferences }; playSettings?: Record<string,PlaySettings> }
 function packCharacters(pack:CompiledWorldPackV5){const player=pack.content.playerSlots[0]?.characterId;return pack.content.characters.filter(c=>c.characterId!==player&&c.controllerClass!=='manual'&&(c.lifecycle??'active')==='active').map(c=>({id:c.characterId,name:c.displayName}))}
 const defaults: LocalModel = { model: 'gemini-3.7-flash', endpoint: 'http://127.0.0.1:8046/v1/chat/completions' }
 function object(value: unknown): Record<string, unknown> {
@@ -123,8 +124,10 @@ export class LauncherCore {
       if (new Set(packs.map(p => p.id)).size !== packs.length || new Set(instances.map(i => i.id)).size !== instances.length
         || instances.some(i => !packs.some(p => p.id === i.packageId))) throw new Error('index references')
       const preferences = parsed.preferences === undefined ? { largeText: false } : object(parsed.preferences)
+      if (preferences.theme !== undefined && (typeof preferences.theme !== 'string' || !['system','light','dark'].includes(preferences.theme))) throw new Error('theme')
       if (typeof preferences.largeText !== 'boolean') throw new Error('largeText')
-      this.#index = { packs, instances, defaults: localModel(parsed.defaults), preferences: { largeText: preferences.largeText } }
+      const settings = parsed.playSettings === undefined ? {} : Object.fromEntries(Object.entries(object(parsed.playSettings)).map(([id,value])=>{if(!packs.some(pack=>pack.id===id))throw new Error('unknown package settings');return [id,playSettings(value)]}))
+      this.#index = { playSettings:settings, packs, instances, defaults: localModel(parsed.defaults), preferences: { largeText: preferences.largeText, ...(preferences.theme === undefined ? {} : {theme: preferences.theme as 'system' | 'light' | 'dark'}), ...(preferences.reading===undefined?{}:{reading:readingPreferences(preferences.reading)}) } }
     } catch (error: unknown) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw new Error('Launcher 配置损坏；请检查 launcher.json，未覆盖已有数据。')
     }
@@ -363,11 +366,23 @@ export class LauncherCore {
         await this.#save({ ...this.#index, instances: [...this.#index.instances, instance] })
         return this.snapshot()
       }
+      case 'play-settings': {
+        this.#idle()
+        const pack=this.#index.packs.find(pack=>pack.id===request.packageId)
+        if(!pack)throw new Error('请先载入游戏包。')
+        await this.#save({...this.#index,playSettings:{...this.#index.playSettings,[pack.id]:playSettings(request.settings)}})
+        return this.snapshot()
+      }
+      case 'preferences': {
+        if ((typeof request.theme !== 'string' || !['system','light','dark'].includes(request.theme)) || typeof request.largeText !== 'boolean') throw new TypeError('外观设置无效。')
+        await this.#save({ ...this.#index, preferences: { ...this.#index.preferences, theme: request.theme as 'system' | 'light' | 'dark', largeText: request.largeText, ...(request.reading===undefined?{}:{reading:readingPreferences(request.reading)}) } })
+        return this.snapshot()
+      }
       case 'settings': {
         this.#idle()
         if (request.largeText !== undefined && typeof request.largeText !== 'boolean') throw new TypeError('字体设置无效。')
         await this.#save({ ...this.#index, defaults: localModel(request.model),
-          preferences: { largeText: request.largeText === undefined ? this.#index.preferences.largeText : request.largeText } })
+          preferences: { ...this.#index.preferences, largeText: request.largeText === undefined ? this.#index.preferences.largeText : request.largeText } })
         return this.snapshot()
       }
       case 'configure': {
@@ -393,10 +408,11 @@ export class LauncherCore {
         if(choice)this.#validMapping(instance,choice)
         if (request.apiKey !== undefined && (typeof request.apiKey !== 'string' || request.apiKey.length > 8192)) throw new Error('API Key 无效。')
         const child = spawn(process.execPath,
-          [...(process.env.PERSPECTRA_RUNTIME_ROOT ? [join(process.env.PERSPECTRA_RUNTIME_ROOT,'playtest.mjs')] : ['--import','tsx',join(this.repository,'tests/experiments/playtest-web-entry.ts')]), '--pack', pack.path, '--data-dir', directory, '--memory-core'], {
+          [...(process.env.PERSPECTRA_RUNTIME_ROOT ? [join(process.env.PERSPECTRA_RUNTIME_ROOT,'playtest.mjs')] : ['--import','tsx',join(this.repository,'tests/experiments/playtest-web-entry.ts')]), '--pack', pack.path, '--data-dir', directory, '--memory-core', '--play-settings', JSON.stringify(this.#index.playSettings?.[pack.id]??playSettings({}))], {
             cwd: this.repository, windowsHide: true,
             env: { ...process.env, HCW_LOCAL_MODEL: instance.model.model, HCW_LOCAL_ENDPOINT: instance.model.endpoint, HCW_MODEL_PROTOCOL: instance.model.protocol ?? 'openai',
               PERSPECTRA_STORY_PARENT_NODE: instance.storylines.find(l=>l.id===instance.currentStorylineId)?.parentNodeId??'',
+              PERSPECTRA_READING: JSON.stringify(this.#index.preferences.reading??DEFAULT_READING),
               PERSPECTRA_PRESET_ROOT: this.root, PERSPECTRA_PRESET_INSTANCE: instance.id,
               PERSPECTRA_ROLE_PRESET: undefined, PERSPECTRA_ROLE_MAPPING: undefined,
               HCW_LOCAL_API_KEY: typeof request.apiKey === 'string' ? request.apiKey : '',

@@ -71,7 +71,8 @@ export class PlaytestMemoryCore {
   #startedAt: number | null = null
   #finishedAt: number | null = null
   constructor(readonly dataDirectory: string, readonly address: WorldAddress, readonly run: CoreRunner,
-    readonly budget: MemoryContextBudget = DEFAULT_MEMORY_CONTEXT_BUDGET, build: MemoryBuildOptions = {}) {
+    readonly budget: MemoryContextBudget = DEFAULT_MEMORY_CONTEXT_BUDGET, build: MemoryBuildOptions = {}, readonly deliveryBudget: {maxItems:number;maxJsonChars:number} = MEMORY_DELIVERY_BUDGET) {
+    if(!Number.isSafeInteger(deliveryBudget.maxItems)||deliveryBudget.maxItems<1||deliveryBudget.maxItems>30||!Number.isSafeInteger(deliveryBudget.maxJsonChars)||deliveryBudget.maxJsonChars<1000||deliveryBudget.maxJsonChars>64000)throw new TypeError('invalid memory delivery budget')
     if (!Number.isSafeInteger(budget.triggerTokens) || !Number.isSafeInteger(budget.compactTokens)
       || budget.compactTokens <= 0 || budget.triggerTokens <= budget.compactTokens)
       throw new TypeError('invalid memory context budget')
@@ -236,9 +237,9 @@ export class PlaytestMemoryCore {
         ...(request.recallEvidence === undefined ? {} : { recallEvidence: { query: request.recallEvidence.query! } }) }
       result = await this.run({ operation: 'recall', archive: cached.archive!, index: cached.index!,
         request: queryRequest, tick: snapshot.tick, observations: true, deliveryMode: 'minimal',
-        deliveryBudget: MEMORY_DELIVERY_BUDGET }, signal)
+        deliveryBudget: this.deliveryBudget }, signal)
       memories = result.delivery as WorldJsonObject[]
-      if (!Array.isArray(memories) || memories.length > MEMORY_DELIVERY_BUDGET.maxItems || JSON.stringify(memories).length > MEMORY_DELIVERY_BUDGET.maxJsonChars)
+      if (!Array.isArray(memories) || memories.length > this.deliveryBudget.maxItems || JSON.stringify(memories).length > this.deliveryBudget.maxJsonChars)
         throw new Error('memory delivery budget exceeded')
       const sources = new Map(snapshot.sources.map(s => [String(s.sourceId), s]))
       const trace = object(result.deliveryTrace)

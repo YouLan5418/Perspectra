@@ -1,3 +1,4 @@
+import { readingPreferences } from '../../desktop/play-settings.ts'
 import { providerProtocol } from '../../packages/provider-chat/src/protocol.ts'
 import { ModelPresets, packPreset } from '../../desktop/model-presets.ts'
 import { rolePreset, rolePresetMapping } from '../../packages/provider-chat/src/preset.ts'
@@ -52,6 +53,8 @@ async function main(): Promise<void> {
   const runtime = await FrozenWorldPlaytestRuntime.create({
     dataDirectory, provider, packPath, protocol: providerProtocol(process.env.HCW_MODEL_PROTOCOL),
     storyNodes: !!process.send,
+    ...(launch.playSettings===undefined?{}:{playSettings:launch.playSettings}),
+    ...(process.env.PERSPECTRA_READING===undefined?{}:{reading:readingPreferences(JSON.parse(process.env.PERSPECTRA_READING))}),
     ...(process.env.PERSPECTRA_STORY_PARENT_NODE ? {storyParentNodeId:process.env.PERSPECTRA_STORY_PARENT_NODE} : {}),
     preset:settings?settings.effective(instanceId,recommended):process.env.PERSPECTRA_ROLE_PRESET===undefined?recommended:rolePreset(JSON.parse(process.env.PERSPECTRA_ROLE_PRESET)),
     presetMapping:settings?rolePresetMapping(mapping):rolePresetMapping(JSON.parse(process.env.PERSPECTRA_ROLE_MAPPING??'{}')),

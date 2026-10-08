@@ -20,8 +20,14 @@
   --font-ui:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;--font-body:14px;--font-small:12px;--font-title:26px;
   font-family:var(--font-ui);color:var(--foreground);background:var(--background);font-synthesis:none;
 }
+:root[data-theme="dark"] { color-scheme:dark;--background:#141414;--foreground:#ededf0;--primary:#6596ff;--primary-foreground:#101725;
+  --sidebar:#101010;--secondary:#242424;--muted:#1c1c1c;--muted-foreground:#a3a3ae;--faint:#94949f;
+  --border:#303034;--border-strong:#494950;--selected:#1b2943;--selected-border:#345b99;
+  --success:#79c5a2;--warning:#e1b567;--danger:#ee9292;--warning-bg:#2b251a;--danger-bg:#302021;
+  --overlay:rgb(0 0 0 / 60%);--shadow:0 16px 48px rgb(0 0 0 / 35%);
+ }
 @media(prefers-color-scheme:dark) {
- :root { color-scheme:dark;--background:#141414;--foreground:#ededf0;--primary:#6596ff;--primary-foreground:#101725;
+ :root:not([data-theme="light"]) { color-scheme:dark;--background:#141414;--foreground:#ededf0;--primary:#6596ff;--primary-foreground:#101725;
   --sidebar:#101010;--secondary:#242424;--muted:#1c1c1c;--muted-foreground:#a3a3ae;--faint:#94949f;
   --border:#303034;--border-strong:#494950;--selected:#1b2943;--selected-border:#345b99;
   --success:#79c5a2;--warning:#e1b567;--danger:#ee9292;--warning-bg:#2b251a;--danger-bg:#302021;
@@ -62,3 +68,7 @@ input,select,textarea{color:inherit}input[type=checkbox],input[type=radio]{accen
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
 .game-detail>[role=alert]{color:var(--danger);font-size:13px;line-height:1.7}
+
+.settings-section{display:flex;flex-direction:column;align-items:stretch;gap:12px;border-top:1px solid var(--border);padding-top:18px}.settings-section>button{align-self:flex-start}.settings-folder-actions{display:flex;gap:10px;flex-wrap:wrap}
+
+.play-settings-group{border:1px solid var(--border);border-radius:10px;padding:14px 18px}.play-settings-group summary{cursor:pointer;font-weight:600;font-size:14px}.play-settings-group summary span{float:right;color:var(--muted-foreground);font-size:12px;font-weight:400}.play-settings-group[open] summary{margin-bottom:12px}.play-settings-group>.muted{margin-bottom:14px}.play-settings-group>.checkbox-row{margin-top:16px}.play-settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px}@media(max-width:600px){.play-settings-grid,.settings-grid{grid-template-columns:1fr}}

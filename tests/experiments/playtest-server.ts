@@ -18,7 +18,7 @@ export interface PlaytestState {
   readonly error: boolean
   readonly transcript: readonly { readonly seq: number; readonly speaker: string; readonly text: string; readonly player: boolean; readonly segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
   readonly world: { readonly title: string; readonly playerName: string; readonly npcNames: readonly string[];
-    readonly currentScene?: { readonly locationName: string; readonly presentNpcNames: readonly string[] } }
+    readonly currentScene?: { readonly locationName: string; readonly presentNpcNames: readonly string[]; readonly recipients?: readonly { readonly id: string; readonly name: string }[] } }
   /** Names only for references already exposed in current player options. */
   readonly actionNames?: Readonly<Record<string, string>>
   readonly availableActions?: readonly ActionAffordance[]
@@ -26,6 +26,7 @@ export interface PlaytestState {
   readonly memoryMaintenance?: WorldJsonObject
   readonly activity?: WorldJsonObject
   readonly tailRound?: { readonly candidateIds?: readonly string[]; readonly candidateIndex?: number; readonly id: string | null; readonly worldVersion: string; readonly canRegenerate: boolean; readonly regenerating: boolean }
+  readonly playerSettings?: {inputCharacters:number;reading:import('../../desktop/play-settings.ts').ReadingPreferences}
   readonly debug: Record<string, unknown>
 }
 
@@ -89,20 +90,20 @@ function json(response: ServerResponse, status: number, value: unknown): void {
   response.end(JSON.stringify(value))
 }
 
-async function body(request: IncomingMessage): Promise<unknown> {
+async function body(request: IncomingMessage, maximumBytes = 8192): Promise<unknown> {
   const chunks: Buffer[] = []
   let size = 0
   for await (const chunk of request) {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     size += bytes.length
-    if (size > 8_192) throw new RangeError('请求内容过长')
+    if (size > maximumBytes) throw new RangeError('请求内容过长')
     chunks.push(bytes)
   }
   const text = Buffer.concat(chunks).toString('utf8')
   return text === '' ? null : JSON.parse(text)
 }
 
-function submittedText(value: unknown): string {
+function submittedText(value: unknown, maximumCharacters = 2000): string {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('请求格式无效')
   const record = value as Record<string, unknown>
   if (Object.keys(record).length !== 1 || typeof record.text !== 'string') throw new TypeError('请求必须只包含 text')
@@ -110,7 +111,7 @@ function submittedText(value: unknown): string {
   // local presentation adapter turns visual line breaks and pasted tabs into ordinary word boundaries;
   // the World boundary remains strict and still receives a control-free string.
   const text = record.text.replace(/[\t\r\n]+/gu, ' ').trim()
-  if (text.length === 0 || text.length > 2_000) throw new RangeError('请输入 1 至 2000 个字符')
+  if (text.length === 0 || text.length > maximumCharacters) throw new RangeError(`请输入 1 至 ${maximumCharacters} 个字符`)
   return text
 }
 
@@ -158,7 +159,8 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
         if (request.method === 'GET' && url.pathname === '/frontend-api/v1/view') { json(response,200,projectPlayerView(await runtime.state())); return }
         if (request.method === 'POST' && url.pathname === '/frontend-api/v1/action') {
           if (request.headers['content-type']?.split(';')[0] !== 'application/json') throw new TypeError('请求必须是 JSON')
-          const action = frontendActionRequest(await body(request))
+          const inputCharacters=(await runtime.state()).playerSettings?.inputCharacters??2000
+          const action = frontendActionRequest(await body(request,Math.max(8192,inputCharacters*6+2048)),inputCharacters)
           try { json(response,200,await frontendActions.perform(action)) }
           catch(error:unknown) {
             const invalid = error instanceof TypeError || error instanceof RangeError
@@ -234,7 +236,8 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
       }
       if (request.method === 'POST' && url.pathname === '/api/submit') {
         if (request.headers['content-type']?.split(';')[0] !== 'application/json') throw new TypeError('请求必须是 JSON')
-        const text = submittedText(await body(request))
+        const inputCharacters=(await runtime.state()).playerSettings?.inputCharacters??2000
+        const text = submittedText(await body(request,Math.max(8192,inputCharacters*6+2048)),inputCharacters)
         json(response, 200, await runtimeCall(() => runtime.submit(text)))
         return
       }

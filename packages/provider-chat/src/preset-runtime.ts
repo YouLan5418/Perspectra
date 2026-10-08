@@ -111,18 +111,18 @@ export function presetCall(call: ChatCall, preset: RolePreset, request: RoleRequ
       sources:[{source:'core',name:'Core 固定契约'},...beforeSources,...call.messages.slice(1).map(()=>({source:'context',name:'当前角色授权上下文'})),...afterSources]} }
 }
 /** Reject malformed originals before cleaning; domain validation still runs on the resulting expression. */
-export async function presetOutput(raw: WorldJsonValue, preset: RolePreset, signal?: AbortSignal, expression?: WorldJsonObject): Promise<WorldJsonValue> {
+export async function presetOutput(raw: WorldJsonValue, preset: RolePreset, signal?: AbortSignal, expression?: WorldJsonObject, maximumCharacters = 2000): Promise<WorldJsonValue> {
   const decision = object(raw)
   if (decision?.decision !== 'publish' || !preset.textRules?.some(rule => rule.enabled && rule.stage === 'output')) return raw
-  if (Object.keys(decision).some(key => !['decision', 'segments', 'addresseeIds'].includes(key))) throw new TypeError('表达包含不支持的字段。')
-  const segments = parseExpressionSegments(decision.segments)
+  if (Object.keys(decision).some(key => !['decision', 'segments', 'scope', 'addresseeIds'].includes(key))) throw new TypeError('表达包含不支持的字段。')
+  const segments = parseExpressionSegments(decision.segments,maximumCharacters)
   checkExpressionPolicy(segments, expression ?? {})
   const results = await processPresetText(segments.map(segment => ({ text: segment.text, stage: 'output', target: segment.type, rules: preset.textRules! })), signal)
   if (expression?.speech === 'choices' && segments.some((segment, i) => segment.type === 'speech' && results[i]!.text !== segment.text)) {
     throw new TypeError('文本规则不能改写玩法对白选项。')
   }
   const cleaned = segments.map((segment, i) => ({ ...segment, text: results[i]!.text })).filter(segment => segment.text.trim())
-  const output = { ...decision, segments: parseExpressionSegments(cleaned) }
+  const output = { ...decision, segments: parseExpressionSegments(cleaned,maximumCharacters) }
   return output
 }
 /** Display copies are never written to Event/Observation/Memory. */

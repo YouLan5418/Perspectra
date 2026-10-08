@@ -5,8 +5,9 @@ import { canonicalizeWorldJson, type WorldJsonObject } from '@harness-world/cont
 export interface PlayerView {
   game: { title: string }
   player: { name: string }
-  scene: { locationName: string; visibleCharacters: string[] } | null
+  scene: { locationName: string; visibleCharacters: string[]; recipients: { id: string; name: string }[] } | null
   status: 'ready' | 'busy' | 'paused' | 'error'
+  settings?: PlaytestState['playerSettings']
   tailRound?: PlaytestState['tailRound']
   history: { seq: number; speaker: string; text: string; player: boolean; segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
   actions: { id: string; label: string; action: PlaytestAction }[]
@@ -39,8 +40,9 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
   return {
     game: { title: state.world.title }, player: { name: state.world.playerName },
     scene: state.world.currentScene ? { locationName: state.world.currentScene.locationName,
-      visibleCharacters: [...state.world.currentScene.presentNpcNames] } : null,
+      visibleCharacters: [...state.world.currentScene.presentNpcNames], recipients: (state.world.currentScene.recipients ?? []).map(({ id, name }) => ({ id, name })) } : null,
     status: state.busy ? 'busy' : state.error ? 'error' : state.paused ? 'paused' : 'ready',
+    ...(state.playerSettings?{settings:{inputCharacters:state.playerSettings.inputCharacters,reading:{fontSize:state.playerSettings.reading.fontSize,lineHeight:state.playerSettings.reading.lineHeight,autoFollow:state.playerSettings.reading.autoFollow}}}:{}),
     ...(state.tailRound ? {tailRound: state.tailRound} : {}),
     history: state.transcript.map(line => ({ seq: line.seq, speaker: line.speaker, text: line.text, player: line.player, ...(line.segments === undefined ? {} : { segments: line.segments }) })),
     actions,
@@ -48,7 +50,7 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
 }
 export function playerViewPatch(before: PlayerView, after: PlayerView): Record<string, unknown> | null {
   const changes: Record<string, unknown> = {}
-  for (const key of ['game', 'player', 'scene', 'status', 'actions', 'tailRound'] as const) {
+  for (const key of ['game', 'player', 'scene', 'status', 'actions', 'tailRound', 'settings'] as const) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
   }
   if (JSON.stringify(before.history) !== JSON.stringify(after.history)) {
@@ -60,7 +62,7 @@ export function playerViewPatch(before: PlayerView, after: PlayerView): Record<s
   return Object.keys(changes).length ? changes : null
 }
 export interface FrontendActionRequest { requestId: string; actionId: string; operation: 'speak' | 'perform' | 'regenerate' | 'selectCandidate' | 'cancelRegeneration'; payload: Record<string, unknown> }
-export function frontendActionRequest(value: unknown): FrontendActionRequest {
+export function frontendActionRequest(value: unknown, maximumCharacters = 2000): FrontendActionRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('前端请求无效')
   const r = value as Record<string, unknown>
   if (Object.keys(r).sort().join(',') !== 'actionId,operation,payload,requestId'
@@ -70,13 +72,18 @@ export function frontendActionRequest(value: unknown): FrontendActionRequest {
     || !r.payload || typeof r.payload !== 'object' || Array.isArray(r.payload)) throw new TypeError('前端请求字段无效')
   const payload = r.payload as Record<string, unknown>
   if (r.operation === 'speak') {
-    const keys = Object.keys(payload).sort().join(',')
-    if (!['text', 'narration,text'].includes(keys) || typeof payload.text !== 'string'
-      || (Object.hasOwn(payload, 'narration') && typeof payload.narration !== 'string')) throw new TypeError('发言只接受 text 和可选 narration')
+    if (Object.keys(payload).some(key => !['text', 'narration', 'scope', 'addresseeIds'].includes(key)) || typeof payload.text !== 'string'
+      || (Object.hasOwn(payload, 'narration') && typeof payload.narration !== 'string')) throw new TypeError('发言字段无效')
+    const scope = payload.scope ?? 'scene_public'
+    const recipients = payload.addresseeIds ?? []
+    if (typeof scope !== 'string' || !['scene_public', 'direct', 'private', 'self'].includes(scope)
+      || !Array.isArray(recipients) || recipients.some(id => typeof id !== 'string' || !id || id.length > 200)
+      || recipients.length > 64 || new Set(recipients).size !== recipients.length
+      || ((scope === 'direct' || scope === 'private') ? recipients.length === 0 : recipients.length !== 0)) throw new TypeError('发言范围与接收对象不匹配')
     const text = payload.text.replace(/\r\n?/gu, '\n').trim()
     const narration = typeof payload.narration === 'string' ? payload.narration.replace(/\r\n?/gu, '\n').trim() : undefined
-    if (!(text || narration) || text.length + (narration?.length ?? 0) > 2000) throw new RangeError('发言与描写合计需为 1 至 2000 个字符')
-    return { requestId: r.requestId, actionId: r.actionId, operation: 'speak', payload: { text, ...(narration === undefined ? {} : { narration }) } }
+    if (!(text || narration) || text.length + (narration?.length ?? 0) > maximumCharacters) throw new RangeError(`发言与描写合计需为 1 至 ${maximumCharacters} 个字符`)
+    return { requestId: r.requestId, actionId: r.actionId, operation: 'speak', payload: { text, ...(narration === undefined ? {} : { narration }), ...(Object.hasOwn(payload, 'scope') || Object.hasOwn(payload, 'addresseeIds') ? { scope, addresseeIds: recipients } : {}) } }
   }
   if (r.operation === 'cancelRegeneration') {
     if (Object.keys(payload).length) throw new TypeError('取消不接受额外参数')
@@ -119,8 +126,13 @@ export class FrontendActions {
         return projectPlayerView(await this.runtime.regenerate(request.payload.tailId as string,request.actionId))
       }
       if (request.operation === 'speak') {
-        const text = Object.hasOwn(request.payload, 'narration')
-          ? '/act speak ' + JSON.stringify({ text: request.payload.text, narration: request.payload.narration })
+        const recipients = request.payload.addresseeIds as string[] | undefined
+        if (recipients?.length) {
+          const visible = projectPlayerView(await this.runtime.state()).scene?.recipients ?? []
+          if (recipients.some(id => !visible.some(character => character.id === id))) throw new TypeError('接收对象已不在当前可见场景，请重新选择')
+        }
+        const text = Object.hasOwn(request.payload, 'narration') || Object.hasOwn(request.payload, 'scope')
+          ? '/act speak ' + JSON.stringify(request.payload)
           : request.payload.text as string
         return projectPlayerView(await this.runtime.submit(text))
       }

@@ -146,10 +146,11 @@ function phase8Speech(
   manifest: CompiledWorldManifest,
   characterId: string,
   parameters: Record<string, WorldJsonValue> | undefined,
+  maximumCharacters = 2000,
 ): RulebookResolution {
   let segments
   if (parameters?.segments !== undefined) {
-    try { segments = parseExpressionSegments(parameters.segments) } catch {
+    try { segments = parseExpressionSegments(parameters.segments,maximumCharacters) } catch {
       return rejectRulebookResolution(characterId, 'speak', 'invalid expression segments')
     }
     if (parameters.text !== undefined || parameters.narration !== undefined) {
@@ -206,6 +207,7 @@ export class SpeakMoveRulebook {
     events: readonly RulebookEvent[],
     characterId: string,
     action: PlayerActionInput,
+    maximumCharacters = 2000,
   ): RulebookResolution | undefined {
     if (!manifestUsesFrozenInteractions(manifest)) {
       return rejectRulebookResolution(characterId, action.actionType, 'the shared Rulebook only serves Manifest v10')
@@ -217,7 +219,7 @@ export class SpeakMoveRulebook {
     }
     const parameters = worldJsonObject(action.parameters)
     if (action.actionType === 'speak') {
-      return phase8Speech(manifest, characterId, parameters)
+      return phase8Speech(manifest, characterId, parameters,maximumCharacters)
     }
     if (action.actionType === 'move') {
       const target = parameters?.locationId
@@ -244,8 +246,9 @@ export class SpeakMoveRulebook {
     events: readonly RulebookEvent[],
     characterId: string,
     action: PlayerActionInput,
+    maximumCharacters = 2000,
   ): RulebookResolution {
-    return this.resolveSupported(manifest, events, characterId, action)
+    return this.resolveSupported(manifest, events, characterId, action,maximumCharacters)
       ?? rejectRulebookResolution(characterId, action.actionType, 'action type is not afforded by the V0 Rulebook')
   }
 }

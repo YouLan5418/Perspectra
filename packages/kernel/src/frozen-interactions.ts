@@ -162,6 +162,7 @@ export function interactionHostSnapshot(
 
 /** The exact Host facts one frozen resolution needs, gathered from the Rulebook context. */
 export interface FrozenInteractionContext {
+  readonly publicationCharacters?: number | undefined
   readonly manifest: CompiledWorldManifest
   readonly events: readonly RulebookEvent[]
   readonly characterId: string
@@ -390,7 +391,7 @@ export class FrozenInteractionRulebook {
             events: [...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason).events, ...manifested],
             observationScope, interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds, ...resolvedManifestation }
     }
-    const resolution = this.#base.resolve(manifest, context.events, context.characterId, action)
+    const resolution = this.#base.resolve(manifest, context.events, context.characterId, action,context.publicationCharacters??2000)
     if (resolution.status !== 'accepted' || action.actionType !== 'move') return resolution
     // A move belongs to no definition, so the world fold runs here: the union of every enabled
     // definition's handlers decide what it ended. v10 has no separate Kernel relation fallback.

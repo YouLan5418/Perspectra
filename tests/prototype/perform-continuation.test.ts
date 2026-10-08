@@ -28,7 +28,7 @@ const take = { decision: 'perform', actionType: 'interact', parameters: {
   definitionRef: { id: 'base:take', version: 1 }, arguments: {},
 } }
 
-function fixture(decide: (request: PrototypeTurnRequest, signal: AbortSignal) => Promise<unknown>, extra: WorldEventDraft[] = []) {
+function fixture(decide: (request: PrototypeTurnRequest, signal: AbortSignal) => Promise<unknown>, extra: WorldEventDraft[] = [], limits: {publicationCharacters?:number;activationTimeoutMs?:number} = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'perform-prototype-'))
   cleanup.push(() => rmSync(directory, { recursive: true, force: true }))
   const path = join(directory, 'world.sqlite')
@@ -42,7 +42,7 @@ function fixture(decide: (request: PrototypeTurnRequest, signal: AbortSignal) =>
   store.activateBranch({ ...world, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
     address, transactionId: brandId('transaction:genesis', 'TransactionId'),
     roundId: brandId('round:genesis', 'InteractionRoundId'), correlationId: 'test' })
-  const turn = new PrototypeCharacterTurn({ address, store, leases, availability,
+  const turn = new PrototypeCharacterTurn({ ...limits, address, store, leases, availability,
     rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }), decide })
   return { turn, store, address, directory }
 }
@@ -171,7 +171,10 @@ it('refreshes character and scene locations after moving, including the next act
     if (++calls === 1) return { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:next' } }
     expect(currentLocation(f.store.readEvents(f.address), npc)).toBe('location:next')
     expect((request.context.scene as WorldJsonObject).locationId).toBe('location:next')
-    expect(JSON.stringify(prototypeTurnCall(request).schema)).not.toContain('addresseeIds')
+    const publish = (prototypeTurnCall(request).schema.oneOf as WorldJsonObject[]).find(value =>
+      ((value.properties as WorldJsonObject).decision as WorldJsonObject).const === 'publish')!
+    expect(publish.properties).not.toHaveProperty('addresseeIds')
+    expect(((publish.properties as WorldJsonObject).scope as WorldJsonObject).enum).toEqual(['scene_public', 'self'])
     return { decision: 'publish', segments: [{ type: 'narration', text: '环顾四周。' }] }
   })
   expect(await f.turn.run(npc)).toMatchObject({ status: 'published', calls: 2 })
@@ -383,4 +386,52 @@ it('keeps activity expression permissions when segments alternate or repeat', ()
   expect(() => checkExpressionPolicy(segments, { speech: 'none', narration: true })).toThrow('禁止')
   expect(() => checkExpressionPolicy(segments, { speech: 'free', narration: false })).toThrow('禁止')
   expect(() => checkExpressionPolicy([...segments, { type: 'speech', text: '甲' }], { speech: 'choices', speechChoices: ['甲'], narration: true })).toThrow('最多选择一项')
+})
+
+it('enforces the configured aggregate publication ceiling before committing expressions',async()=>{
+ const segments=[{type:'speech',text:'a'.repeat(1500)},{type:'narration',text:'b'.repeat(1000)}]
+ const allowed=fixture(async request=>{expect(request.context.publicationCharacters).toBe(3000);return {decision:'publish',segments}},[],{publicationCharacters:3000})
+ expect(await allowed.turn.run(npc)).toMatchObject({status:'published'})
+ const rejected=fixture(async()=>({decision:'publish',segments}),[],{publicationCharacters:2400})
+ const before=rejected.store.head(rejected.address).headSeq
+ expect(await rejected.turn.run(npc)).toMatchObject({status:'failed',failure:'invalid_output'})
+ expect(rejected.store.head(rejected.address).headSeq).toBe(before)
+})
+
+it('bounds a configured activation without losing an already committed action',async()=>{
+ let calls=0
+ const f=fixture(async(_request,signal)=>{
+  if(++calls===1)return take
+  return new Promise((_done,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}))
+ },[],{activationTimeoutMs:1000})
+ expect(await f.turn.run(npc)).toMatchObject({status:'interrupted',calls:2})
+ expect(currentEntityState(f.store.readEvents(f.address),'entity:cup')?.holderId).toBe(npc)
+ expect(f.store.readEvents(f.address).filter(event=>event.eventType==='character.speak')).toHaveLength(0)
+})
+
+
+it.each(['scene_public','direct','private','self'])('accepts NPC %s publication in both model schemas and host, including result continuation',async scope=>{
+ const addresseeIds=scope==='direct'||scope==='private'?['character:player']:[]
+ const decision={decision:'publish',scope,addresseeIds,segments:[{type:'speech',text:'明确范围的对白'},{type:'narration',text:'轻轻点头'}]}
+ const f=fixture(async request=>{
+  if(!request.continuation)return take
+  for(const call of [prototypeTurnCall(request),localPrototypeTurnCall(request)]) {
+   expect(new Ajv({strict:false}).compile(call.schema)(decision)).toBe(true)
+   expect(JSON.stringify(call.schema)).toContain('private')
+  }
+  return decision
+ })
+ expect(await f.turn.run(npc)).toMatchObject({status:'published',calls:2})
+ expect(f.store.readEvents(f.address).findLast(e=>e.eventType==='character.speak')?.data).toMatchObject({scope,addresseeIds,segments:decision.segments})
+})
+it.each([
+ {scope:'direct'}, {scope:'private',addresseeIds:[]},
+ {scope:'scene_public',addresseeIds:['character:player']},
+ {scope:'self',addresseeIds:['character:player']}, {scope:'unknown'},
+ {scope:'private',addresseeIds:['character:hidden']},
+])('rejects inconsistent or unauthorized NPC publication %j before commit',async audience=>{
+ const f=fixture(async()=>({decision:'publish',segments:[{type:'speech',text:'不应发布'}],...audience}))
+ const before=f.store.head(f.address)
+ expect(await f.turn.run(npc)).toMatchObject({status:'failed',failure:'invalid_output'})
+ expect(f.store.head(f.address)).toEqual(before)
 })

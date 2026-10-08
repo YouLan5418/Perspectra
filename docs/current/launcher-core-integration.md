@@ -34,7 +34,7 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 
 首次启动显示空游戏列表。点击“载入游戏包”，选择包含 `worldpack.source.json` 的目录，例如 `examples/world-packs/ai-girls-awaken-v10`。载入时复用 v5 编译器及网页资源检查，随后创建首个独立实例。
 
-新实例默认使用用户确认的 `http://127.0.0.1:8046/v1/chat/completions` 和 `gemini-3.7-flash`。全局设置保存新实例默认接口/模型；已有实例在自己的“模型”弹窗修改。需要认证时在设置填写 API Key：只在本次 Launcher 会话内保留，并绑定填写的接口，地址不同的实例不会自动收到该密钥。
+新实例默认使用用户确认的 `http://127.0.0.1:8046/v1/chat/completions` 和 `gemini-3.7-flash`。模型设置保存新实例默认接口/模型；已有实例在自己的“模型”弹窗修改。需要认证时在模型设置填写 API Key：只在本次 Launcher 会话内保留，并绑定填写的接口，地址不同的实例不会自动收到该密钥。
 
 “开始游戏”启动真实 Core 后打开系统浏览器。“结束游戏”关闭 Core，已提交进度保留；“继续游戏”重新打开同一实例。浏览器关闭不会停止 Core，Launcher 中可重新打开游戏。关闭 Launcher 会停止其拥有的游戏进程。
 

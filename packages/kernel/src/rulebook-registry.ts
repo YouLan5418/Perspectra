@@ -19,6 +19,8 @@ import {
 import type { CompiledWorldManifest } from './world-spec.ts'
 
 export interface RulebookResolutionContext {
+  /** Host-owned publication limit, never supplied by action parameters. */
+  readonly publicationCharacters?: number
   readonly manifest: CompiledWorldManifest
   readonly events: readonly RulebookEvent[]
   readonly characterId: CharacterId | string
@@ -104,7 +106,7 @@ class CoreRulebookResolver implements RulebookResolver {
     return this.#frozen.resolve({
       manifest: context.manifest, events: context.events, characterId: context.characterId,
       actionId: context.actionId, manifestHash: context.manifestHash, roundId: context.roundId,
-      asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
+      publicationCharacters:context.publicationCharacters, asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
     }, context.action)
   }
 
@@ -112,7 +114,7 @@ class CoreRulebookResolver implements RulebookResolver {
     return this.#frozen.affordances({
       manifest: context.manifest, events: context.events, characterId: context.characterId,
       actionId: undefined, manifestHash: context.manifestHash, roundId: context.roundId,
-      asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
+      publicationCharacters:context.publicationCharacters, asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
     })
   }
 }

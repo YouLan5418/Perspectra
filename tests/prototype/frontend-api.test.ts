@@ -164,3 +164,48 @@ it('submits dialogue and multiline narration once, retaining both in the retry i
  expect((await send('speak',{text:'a'.repeat(1500),narration:'b'.repeat(501)},'action:long')).status).toBe(400)
  expect((await send('speak',{text:'你好',narration:42},'action:type')).status).toBe(400)
 })
+
+it('enforces configured combined input length through the public API and handles larger UTF-8 bodies',async()=>{
+ const state={...privateState(),playerSettings:{inputCharacters:4000,reading:{fontSize:22,lineHeight:2,autoFollow:false}}}
+ const submit=vi.fn(async()=>state)
+ const {send,url}=await fixture({state:async()=>state,submit})
+ const body={text:'你'.repeat(2500),narration:'描'.repeat(1000)}
+ expect((await send('speak',body,'large:valid')).status).toBe(200)
+ expect(submit).toHaveBeenCalledOnce()
+ expect((await send('speak',{text:'你'.repeat(3500),narration:'描'.repeat(501)},'large:invalid')).status).toBe(400)
+ expect(submit).toHaveBeenCalledOnce()
+ const view=await (await fetch(url+'/frontend-api/v1/view',{headers:{'x-playtest-token':token}})).json()
+ expect(view.settings).toEqual(state.playerSettings)
+ expect(JSON.stringify(view)).not.toContain('PRIVATE_')
+})
+
+
+it.each(['scene_public', 'direct', 'private', 'self'])('submits %s speech with the selected audience and deduplicates retries',async scope=>{
+ const {send,runtime,setState}=await fixture()
+ const state=privateState()
+ setState({...state,world:{...state.world,currentScene:{locationName:'前室',presentNpcNames:['visible'],recipients:[{id:'character:visible',name:'visible'}]}}})
+ const payload={text:'只按选定范围投递',narration:'轻声说。',scope,addresseeIds:scope==='direct'||scope==='private'?['character:visible']:[]}
+ expect((await send('speak',payload)).status).toBe(200)
+ expect(runtime.submit).toHaveBeenCalledExactlyOnceWith('/act speak '+JSON.stringify(payload))
+ expect((await send('speak',payload,'action:test','request:retry')).status).toBe(200)
+ expect(runtime.submit).toHaveBeenCalledOnce()
+ expect((await send('speak',{...payload,scope:scope==='self'?'scene_public':'self',addresseeIds:[]})).status).toBe(400)
+})
+it('rejects hidden, stale and invalid speech recipients without submitting',async()=>{
+ const {send,runtime,setState}=await fixture()
+ const state=privateState()
+ const current={...state,world:{...state.world,currentScene:{locationName:'前室',presentNpcNames:['visible'],recipients:[{id:'character:visible',name:'visible'}]}}}
+ setState(current)
+ for(const [index,payload] of [
+  {text:'secret',scope:'direct',addresseeIds:['character:hidden']},
+  {text:'secret',scope:'private',addresseeIds:[]},
+  {text:'secret',scope:'self',addresseeIds:['character:visible']},
+  {text:'secret',scope:'scene_public',addresseeIds:['character:visible']},
+  {text:'secret',scope:'direct',addresseeIds:['character:visible','character:visible']},
+  {text:'secret',scope:'unknown'},
+ ].entries()) expect((await send('speak',payload,'invalid:'+index)).status).toBe(400)
+ setState({...current,world:{...current.world,currentScene:{locationName:'后室',presentNpcNames:[],recipients:[]}}})
+ expect((await send('speak',{text:'secret',scope:'direct',addresseeIds:['character:visible']},'stale')).status).toBe(400)
+ expect(runtime.submit).not.toHaveBeenCalled()
+ expect(projectPlayerView(privateState()).scene?.recipients).toEqual([])
+})

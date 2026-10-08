@@ -20,7 +20,7 @@ const collapsed = ref(false)
       <p v-if="!store.packages.length" class="sidebar-empty">载入游戏包后，世界会出现在这里。</p>
     </nav>
     <nav class="sidebar-bottom" aria-label="工具与设置">
-      <button class="sidebar-tool" :class="{ active: activePanel === 'model' }" :disabled="!store.currentInstance || store.busy || store.core.state === 'running'" title="当前实例模型配置" @click="$emit('model')"><Cpu :size="18" /><span>模型配置</span></button>
+      <button class="sidebar-tool" :class="{ active: activePanel === 'model-settings' }" :disabled="store.busy || store.core.state === 'running'" title="模型接口与新实例默认模型" @click="$emit('model')"><Cpu :size="18" /><span>模型设置</span></button>
       <button class="sidebar-tool" :class="{ active: activePanel === 'preset' }" :disabled="!store.real || !store.currentInstance || store.busy || store.core.state === 'running'" title="角色预设与预设库" @click="$emit('preset')"><SlidersHorizontal :size="18" /><span>角色预设</span></button>
       <div class="sidebar-tool-divider"></div>
       <button class="sidebar-tool" :class="{ active: activePanel === 'settings' }" title="全局设置" @click="$emit('settings')"><Settings :size="18" /><span>全局设置</span></button>

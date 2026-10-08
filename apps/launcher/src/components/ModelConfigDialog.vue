@@ -18,6 +18,6 @@ async function save() {
   <p class="muted">填写完整请求地址：OpenAI 为 /v1/chat/completions；Anthropic 为 /v1/messages；Google 为 /v1beta/models/模型:generateContent，实际使用下方模型标识。API Key 不放入地址。</p>
   <div class="form-field"><label for="instance-model">模型标识</label><input id="instance-model" v-model="draft.model" autocomplete="off" /></div>
   <div class="form-field"><label for="instance-endpoint">接口地址</label><input id="instance-endpoint" v-model="draft.endpoint" type="url" autocomplete="off" /></div>
-  <p class="inline-info">角色独立映射暂未接入。认证在全局设置填写，仅保留在本次会话。</p>
+  <p class="inline-info">角色独立映射暂未接入。认证在左下角“模型设置”填写，仅保留在本次会话。</p>
   <div class="dialog-actions"><Button variant="outline" @click="emit('close')">取消</Button><Button :disabled="store.busy || store.core.state === 'running'" @click="save">保存配置</Button></div>
 </DialogFrame></template>

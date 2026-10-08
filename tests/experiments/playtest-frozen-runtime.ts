@@ -1,3 +1,4 @@
+import { playSettings, DEFAULT_READING, type PlaySettings, type ReadingPreferences } from '../../desktop/play-settings.ts'
 import { providerProtocol, type ProviderProtocol } from '../../packages/provider-chat/src/protocol.ts'
 import { TailRoundRuntime } from './playtest-tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../../desktop/tail-storage.ts'
@@ -47,6 +48,8 @@ export interface FrozenPlaytestOptions {
   readonly apiKey?: string
   readonly utilityEndpoint?: string
   readonly timeoutMs?: number
+  readonly playSettings?: PlaySettings
+  readonly reading?: ReadingPreferences
   readonly tuning?: PlaytestTuning
   readonly shadowAudit?: ShadowOptions
   readonly memoryShadow?: boolean
@@ -116,6 +119,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #savingNode = false
   #closing = false
   #abortedWork = false
+  readonly #playSettings: PlaySettings
   readonly #tuning: PlaytestTuning
   readonly #memoryShadowFile: string | undefined
   #transcript: PlaytestState['transcript'] = []
@@ -141,7 +145,9 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     this.#worldVersion = options.worldVersion ?? randomUUID()
     this.#address = compiled.manifest.address
     this.#dataDirectory = options.dataDirectory
-    this.#tuning = options.tuning ?? DEFAULT_PLAYTEST_TUNING
+    this.#playSettings = playSettings(options.playSettings??{})
+    const settings=this.#playSettings
+    this.#tuning = options.tuning ?? {...DEFAULT_PLAYTEST_TUNING,maximumWaves:settings.maximumWaves,maximumNpcCalls:settings.maximumNpcCalls,maximumCallsPerCharacter:settings.maximumCallsPerCharacter,reactionDeadlineSeconds:settings.reactionDeadlineSeconds}
     this.#memoryShadowFile = options.memoryShadow ? resolve(options.dataDirectory, 'memory-shadow.jsonl') : undefined
     this.#manifestVersion = compiled.manifest.schemaVersion
     this.#intentEnabled = intentEnabled
@@ -158,7 +164,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     this.#model = options.model ?? (options.provider === 'ollama' ? OLLAMA_MODEL
       : options.provider === 'deepseek' ? DEEPSEEK_MODEL : LOCAL_MODEL)
     this.#intentModel = options.intentModel ?? this.#model
-    const timeoutMs = options.timeoutMs ?? (options.provider === 'ollama' ? 120_000 : 60_000)
+    const timeoutMs = options.timeoutMs ?? (options.playSettings?settings.modelTimeoutSeconds*1000:options.provider === 'ollama' ? 120_000 : 60_000)
     const endpoint = options.provider === 'ollama'
       ? new URL(options.utilityEndpoint ?? OLLAMA_ENDPOINT)
       : options.provider === 'deepseek' ? new URL(DEEPSEEK_ENDPOINT)
@@ -193,9 +199,9 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       }
       const worker = options.memoryCoreRun === undefined ? createCoreWorker(coreEnvironment) : undefined
       this.#closeCore = worker?.close
-      this.#memoryCore = new PlaytestMemoryCore(options.dataDirectory, this.#address, options.memoryCoreRun ?? worker!.run, options.memoryContextBudget,
+      this.#memoryCore = new PlaytestMemoryCore(options.dataDirectory, this.#address, options.memoryCoreRun ?? worker!.run, options.memoryContextBudget ?? {triggerTokens:settings.memoryTriggerTokens,compactTokens:settings.memoryCompactTokens,minimumRecentTokens:settings.memoryRecentTokens},
         { ...options.memoryBuildConcurrency, run: options.memoryCoreBuildRun ?? coreRunner(coreEnvironment),
-          worldVersion: this.#worldVersion, versionValid: () => !this.#closing })
+          worldVersion: this.#worldVersion, versionValid: () => !this.#closing }, {maxItems:settings.memoryMaxItems,maxJsonChars:settings.memoryMaxJsonChars})
     }
     this.#decideContinuation = async (request, signal) => {
       if (this.#memoryCore) request = await this.#memoryCore.project(request, signal)
@@ -220,7 +226,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         + JSON.stringify(prepared.schema)+(effectivePreset?.prompt??''))
       const simulated = this.#activity?.simulate(request)
       const decide = async (call: typeof prepared) => presetOutput(simulated === undefined ? await roleProvider.decide(call, signal) : simulated, effectivePreset!, signal,
-        request.context.expressionPolicy as WorldJsonObject | undefined)
+        request.context.expressionPolicy as WorldJsonObject | undefined, settings.publicationCharacters)
       const raw = request.context.activity === undefined && simulated === undefined ? await decide(prepared)
         : await decideActivityFormat(prepared, decide, signal, prototypeTurnCall(request).schema)
       this.#memoryCore?.recordDecision(request, raw)
@@ -321,6 +327,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     return {
       busy: this.#busy, paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#transcript,
+      playerSettings: {inputCharacters:this.#playSettings.playerInputCharacters,reading:this.#options.reading??DEFAULT_READING},
       availableActions: this.#availableActions,
       actionNames: Object.fromEntries(this.#availableActions.flatMap(a => (a.interactions ?? []).flatMap(option => {
         const recipient = (option.arguments as WorldJsonObject | undefined)?.recipientId
@@ -598,7 +605,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       memory = new CognitiveMemoryService(resolve(this.#dataDirectory, 'memory.sqlite'),
         store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
       const shadowFile = this.#memoryShadowFile
-      const turn = new PrototypeCharacterTurn({ address: this.#address, store, leases, availability,
+      const turn = new PrototypeCharacterTurn({ publicationCharacters:this.#playSettings.publicationCharacters, activationTimeoutMs:this.#playSettings.activationTimeoutSeconds*1000, address: this.#address, store, leases, availability,
         ...(this.#memoryCore === undefined ? { memory } : {}),
         rulebooks: this.#activity?.rulebooks() ?? createCoreRulebookRegistry({ interactionPackages: [createBasicInteractionPackage()] }),
         decide: this.#decideContinuation,
@@ -617,8 +624,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       const active = this.#activity?.current()
       let selected = this.#activity?.schedule()
       // Creator selects the next participant; the host bounds the entire chain.
-      const activitySignal = AbortSignal.any([this.#continuationController.signal, AbortSignal.timeout(90_000)])
-      for (let opportunity = 0; opportunity < 4 && selected !== undefined && !activitySignal.aborted && !this.#paused; opportunity++) {
+      const activitySignal = AbortSignal.any([this.#continuationController.signal, AbortSignal.timeout(this.#playSettings.activityDeadlineSeconds*1000)])
+      for (let opportunity = 0; opportunity < this.#playSettings.activityOpportunities && selected !== undefined && !activitySignal.aborted && !this.#paused; opportunity++) {
         const result = await turn.run(brandId(selected, 'CharacterId'), {
           signal: activitySignal, maxCalls: 2,
           stimulus: new CharacterViewBuilder(store)
@@ -632,7 +639,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
           : result.failure === 'invalid_output' ? '角色返回格式无效，当前轮次没有推进；可重试或逃生。'
             : '角色决策处理未完成，当前轮次没有推进；可重试或逃生。'
         selected = activitySignal.aborted ? undefined : this.#activity!.outcome(result as unknown as WorldJsonObject)
-        if (opportunity === 3 && selected !== undefined) this.#notice = '本次活动处理达到宿主预算上限；已提交结果保留，可再次请求处理或逃生。'
+        if (opportunity === this.#playSettings.activityOpportunities-1 && selected !== undefined) this.#notice = '本次活动处理达到宿主预算上限；已提交结果保留，可再次请求处理或逃生。'
       }
       if (activitySignal.aborted) {
         this.#notice = '活动处理已取消或超时；已提交结果保留，未完成操作没有换手。'
@@ -675,6 +682,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       this.#transcript = playerTranscript(await presetDisplay(view, this.#effectivePresets), this.#names, this.#playerId)
       this.#currentScene = {
         locationName: view.locationId === null ? '未知地点' : this.#locationNames.get(view.locationId) ?? view.locationId,
+        recipients: scene.observerIds.filter(id => id !== this.#playerId).map(id => ({ id, name: this.#names.get(id) ?? id })),
         presentNpcNames: scene.observerIds.filter(id => id !== this.#playerId).map(id => this.#names.get(id) ?? id),
       }
       this.#debug = { ...this.#debug, headSeq: head.headSeq, tick: head.tick, worldVersion: this.#worldVersion,
@@ -702,7 +710,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         this.#currentScene = {
           locationName: view.locationId === null ? '未知地点'
             : this.#locationNames.get(view.locationId) ?? view.locationId,
-          presentNpcNames: scene.observerIds.filter(id => id !== this.#playerId)
+          recipients: scene.observerIds.filter(id => id !== this.#playerId).map(id => ({ id, name: this.#names.get(id) ?? id })),
+        presentNpcNames: scene.observerIds.filter(id => id !== this.#playerId)
             .map(id => this.#names.get(id) ?? id),
         }
       } finally {

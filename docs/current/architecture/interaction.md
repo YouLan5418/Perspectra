@@ -18,7 +18,9 @@
 {"decision":"publish","segments":[{"type":"speech","text":"你真的要走？"},{"type":"narration","text":"她停顿了一下。"},{"type":"speech","text":"等雨停吧。"},{"type":"narration","text":"声音放轻。"}]}
 ```
 
-片段按数组顺序发布，可交替、重复同类型，或只含一种类型。每段必须有非空白文本；所有 text 合计最多 2000 个 UTF-16 单位。整个序列共用可选 `addresseeIds`，仍为一次 `speak` 裁定、一次原子提交和一个 tick；发布后结束本次激活。不能在片段间插入受控执行或分别指定受众，受控交互仍须先执行并获得结果。
+片段按数组顺序发布，可交替、重复同类型，或只含一种类型。每段必须有非空白文本；所有 text 合计最多 2000 个 UTF-16 单位。整个序列共用可选 `scope` 与 `addresseeIds`，仍为一次 `speak` 裁定、一次原子提交和一个 tick；发布后结束本次激活。不能在片段间插入受控执行或分别指定受众，受控交互仍须先执行并获得结果。
+
+NPC 的发布范围可选 `scene_public`（公开）、`direct`（仅指定对象）、`private`（指定对象获得完整内容，旁观者仅观察交流发生）和 `self`（仅自己）。`direct/private` 必须指定当前可见的其他角色；`scene_public/self` 不指定接收对象。省略 scope 时，有接收对象默认 direct，否则默认 scene_public。标准和本地模型接口、执行结果后的续写、预设 output 转换及活动发布校验均支持这些字段；不新增事件协议或状态机制。self 不刺激其他角色，private 的发生观察仍可触发旁观者反应。活动表达许可继续生效。
 
 事件、授权观察、自观察、记忆 Source 与玩家公开视图保留片段顺序。记忆仍将其记为角色发表的内容，不证明叙述中的受控结果。预设 output/history/display 规则逐片段按 speech 或 narration 类型处理；显示规则只修改投影副本。
 

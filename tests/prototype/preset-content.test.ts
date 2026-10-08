@@ -158,3 +158,10 @@ it('transforms alternating segments in order, preserves type boundaries and keep
   expect(JSON.stringify(display)).toContain('状态不变')
   expect(JSON.stringify(view)).toContain('二')
 })
+
+
+it.each(['scene_public','direct','private','self'])('preserves NPC %s audience while converting output text',async scope=>{
+ const addresseeIds=scope==='direct'||scope==='private'?['character:player']:[]
+ const output=await presetOutput({decision:'publish',scope,addresseeIds,segments:[{type:'speech',text:'<draft>内部草稿</draft>你好'}]},{textRules:[rule('output')]})
+ expect(output).toEqual({decision:'publish',scope,addresseeIds,segments:[{type:'speech',text:'你好'}]})
+})

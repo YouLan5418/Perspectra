@@ -1,6 +1,8 @@
+import { playSettings, type PlaySettings } from '../../desktop/play-settings.ts'
 import { parsePlaytestTuning, type PlaytestTuning } from './playtest-tuning.ts'
 
 export interface PlaytestLaunchArguments {
+  readonly playSettings?: PlaySettings
   readonly tuning?: PlaytestTuning
   readonly provider: 'local' | 'ollama' | 'deepseek'
   readonly memoryCore?: boolean
@@ -16,6 +18,7 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
   let dataDirectory: string | undefined
   let shadowConfigPath: string | undefined
   let tuning: PlaytestTuning | undefined
+  let settings: PlaySettings | undefined
   let memoryCore = false
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]
@@ -27,12 +30,15 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
       provider = argument === '--deepseek' ? 'deepseek' : 'ollama'
       continue
     }
-    if (argument !== '--pack' && argument !== '--data-dir' && argument !== '--jev-shadow' && argument !== '--tuning') {
+    if (argument !== '--pack' && argument !== '--data-dir' && argument !== '--jev-shadow' && argument !== '--tuning' && argument !== '--play-settings') {
       throw new Error(`unsupported playtest argument: ${argument}`)
     }
     const value = args[++index]
     if (value === undefined || value.startsWith('--')) throw new Error(`${argument} requires a path`)
-    if (argument === '--pack') {
+    if (argument === '--play-settings') {
+      if(settings!==undefined)throw new Error('--play-settings may be supplied only once')
+      settings=playSettings(JSON.parse(value))
+    } else if (argument === '--pack') {
       if (packPath !== undefined) throw new Error('--pack may be supplied only once')
       packPath = value
     } else if (argument === '--tuning') {
@@ -46,8 +52,10 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
       dataDirectory = value
     }
   }
+  if(settings && tuning)throw new Error('--play-settings 与 --tuning 不可同时使用。')
   return {
     provider,
+    ...(settings===undefined?{}:{playSettings:settings}),
     ...(memoryCore ? { memoryCore: true } : {}),
     ...(tuning === undefined ? {} : { tuning }),
     ...(shadowConfigPath === undefined ? {} : { shadowConfigPath }),

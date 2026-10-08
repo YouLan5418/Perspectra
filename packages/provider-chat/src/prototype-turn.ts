@@ -5,10 +5,12 @@ import { characterRequestText, cognitionTableNote } from './character-context-te
 /** Reuse the existing definition-derived parameter schemas; only the decision shape changes. */
 export function prototypeTurnCall(request: { readonly context: WorldJsonObject; readonly continuation: boolean;
   readonly canPerform?: boolean; readonly canRecall?: boolean; readonly recallEvidence?: WorldJsonObject; readonly result?: WorldJsonObject }): ChatCall {
+  const maximum = Number(request.context.publicationCharacters??2000)
+  if(!Number.isSafeInteger(maximum)||maximum<1||maximum>16000)throw new TypeError('invalid publication character limit')
   const expression = request.context.expressionPolicy as WorldJsonObject | undefined
   const speechAllowed = expression?.speech !== 'none'
   const narrationAllowed = expression?.narration !== false
-  const speechSchema = { type: 'string', maxLength: 2000,
+  const speechSchema = { type: 'string', maxLength: maximum,
     ...(expression?.speech === 'choices' ? { enum: expression.speechChoices } : {}) }
   const legacy = actionGroupWireSchema({ tools: { maximumExternalActions: 1,
     actionGroup: { allowedActionTypes: ['move', 'interact'] } }, messages: [
@@ -33,13 +35,15 @@ export function prototypeTurnCall(request: { readonly context: WorldJsonObject; 
       { type: 'object', additionalProperties: false, required: ['decision'], properties: { decision: { const: 'abstain' } } },
       ...(speechAllowed || narrationAllowed ? [{ type: 'object', additionalProperties: false, required: ['decision', 'segments'], properties: {
         decision: { const: 'publish' },
+        scope: { type: 'string', enum: addressees.length ? ['scene_public', 'direct', 'private', 'self'] : ['scene_public', 'self'],
+          description: '整次发布的受众：scene_public 公开；direct 仅指定对象；private 指定对象收到内容、旁观者只知道发生交流；self 仅自己。direct/private 必须填写非空 addresseeIds，scene_public/self 不填或留空。' },
         ...(addressees.length === 0 ? {} : { addresseeIds: { type: 'array', uniqueItems: true,
           maxItems: addressees.length, items: { type: 'string', enum: addressees } } }),
-        segments: { type: 'array', minItems: 1, maxItems: 2000, description: '按发生顺序排列的表达片段；所有 text 合计最多 2000 字符。', items: { oneOf: [
+        segments: { type: 'array', minItems: 1, maxItems: maximum, description: `按发生顺序排列的表达片段；所有 text 合计最多 ${maximum} 字符。`, items: { oneOf: [
           ...(speechAllowed ? [{ type: 'object', additionalProperties: false, required: ['type', 'text'],
             properties: { type: { const: 'speech' }, text: { ...speechSchema, minLength: 1 } } }] : []),
           ...(narrationAllowed ? [{ type: 'object', additionalProperties: false, required: ['type', 'text'],
-            properties: { type: { const: 'narration' }, text: { type: 'string', minLength: 1, maxLength: 2000 } } }] : []),
+            properties: { type: { const: 'narration' }, text: { type: 'string', minLength: 1, maxLength: maximum } } }] : []),
         ] } },
       } }] : []),
       ...(request.canRecall === true ? [{ type: 'object', additionalProperties: false, required: ['decision', 'query'],
@@ -50,7 +54,7 @@ export function prototypeTurnCall(request: { readonly context: WorldJsonObject; 
     messages: [
       { role: 'system', content: (request.context.cognition === undefined ? '' : cognitionTableNote)
         + (expression === undefined ? '' : '当前 activity 是临时玩法。仅可使用当前许可和工具字段；expressionPolicy 禁用的表达不应生成。游戏轮次与世界 tick 不同，游戏反馈只认程序提交的结果。主动 pass 是工具操作，abstain 不代表主动让出回合。')
-        + 'publish 只提交 segments 与可选 addresseeIds。segments 是有序的 {type: speech 或 narration, text} 数组，可任意交替或重复类型；所有片段共用受众，一次原子发布，文本合计最多 2000 字符。固定对白选项模式一次最多一个 speech 片段。'
+        + `publish 提交 segments，可选 scope 和 addresseeIds。scope 可选 scene_public（公开）、direct（仅指定对象，旁观者无观察）、private（指定对象获得内容，旁观者只知道发生交流）、self（仅自己）。direct/private 必须指定当前可见的其他角色；scene_public/self 不指定接收对象。省略 scope 时，有接收对象为 direct，否则为 scene_public。segments 是有序的 {type: speech 或 narration, text} 数组，可任意交替或重复类型；所有片段共用受众，一次原子发布，文本合计最多 ${maximum} 字符。固定对白选项模式一次最多一个 speech 片段。`
         + '扮演场景中的这个角色，依据自己的性格和可见信息自主决定。'
         + '被唤醒只是处理新信息的机会，不要求你表演回应。没有要补充的内容时返回 abstain，不发布任何表达。'
         + (narrationAllowed ? '有意义的沉默、微笑、注视属于表达，可以 publish narration 片段；对白用 speech 片段，按先后顺序放入 segments。' : '当前禁止 narration 片段。对白仅在当前契约允许 speech 时使用。')

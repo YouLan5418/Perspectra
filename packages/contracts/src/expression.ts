@@ -6,7 +6,8 @@ export interface ExpressionSegment extends WorldJsonObject {
   readonly text: string
 }
 
-export function parseExpressionSegments(value: unknown): ExpressionSegment[] {
+export function parseExpressionSegments(value: unknown, maximumCharacters = 2000): ExpressionSegment[] {
+  if (!Number.isSafeInteger(maximumCharacters) || maximumCharacters < 1 || maximumCharacters > 16000) throw new TypeError('invalid publication character limit')
   if (!Array.isArray(value) || value.length === 0) throw new TypeError('expression segments must be non-empty')
   let length = 0
   return value.map(item => {
@@ -15,7 +16,7 @@ export function parseExpressionSegments(value: unknown): ExpressionSegment[] {
       || !['speech', 'narration'].includes(item.type)
       || typeof item.text !== 'string' || !item.text.trim()) throw new TypeError('invalid expression segment')
     length += item.text.length
-    if (length > 2000) throw new TypeError('expression segments exceed 2000 characters in total')
+    if (length > maximumCharacters) throw new TypeError(`expression segments exceed ${maximumCharacters} characters in total`)
     return { type: item.type, text: item.text }
   })
 }

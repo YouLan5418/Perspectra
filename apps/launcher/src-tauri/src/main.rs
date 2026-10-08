@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod data_location;
 use serde_json::{json, Value};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -10,6 +11,7 @@ use std::{
 use tauri::Manager;
 
 struct Bridge {
+    root: std::path::PathBuf,
     child: Child,
     input: ChildStdin,
     output: BufReader<ChildStdout>,
@@ -22,8 +24,12 @@ impl Bridge {
         let portable = executable.parent().ok_or("无法定位运行目录。")?.join("runtime");
         let root = std::env::var_os("PERSPECTRA_LAUNCHER_DATA_DIR")
             .map(std::path::PathBuf::from).map(Ok)
-            .unwrap_or_else(|| app.path().app_data_dir())
-            .map_err(|_| "无法取得本地数据目录。")?;
+            .unwrap_or_else(|| {
+                let fallback = app.path().app_data_dir().map_err(|e| e.to_string())?;
+                let config = app.path().app_config_dir().map_err(|e| e.to_string())?.join("launcher-location.json");
+                data_location::load(&config, &fallback)
+            })
+            .map_err(|error| format!("无法取得本地数据目录：{error}"))?;
         let mut command;
         if portable.is_dir() {
             if !portable.join("node.exe").is_file() || !portable.join("launcher.mjs").is_file()
@@ -48,7 +54,7 @@ impl Bridge {
         } else {
             return Err("便携包 runtime 目录缺失，请完整解压后启动。".into());
         }
-        command.arg(root).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
+        command.arg(&root).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
         #[cfg(windows)]
         command.creation_flags(0x08000000);
         let mut child = command
@@ -85,6 +91,7 @@ impl Bridge {
         let input = child.stdin.take().ok_or("无法打开 Core 输入。")?;
         let output = BufReader::new(child.stdout.take().ok_or("无法打开 Core 输出。")?);
         Ok(Self {
+            root,
             child,
             input,
             output,
@@ -137,7 +144,33 @@ async fn launcher_request(
         if bridge.is_none() {
             *bridge = Some(Bridge::start(&app)?);
         }
-        let result = bridge.as_mut().unwrap().request(request.clone())?;
+        let core = bridge.as_mut().unwrap();
+        if matches!(request["operation"].as_str(), Some("data-location" | "data-location-save" | "data-folder-open")) {
+            let config = app.path().app_config_dir().map_err(|_| "无法取得设置目录。")?.join("launcher-location.json");
+            let locked = std::env::var_os("PERSPECTRA_LAUNCHER_DATA_DIR").is_some();
+            if request["operation"] == "data-location-save" {
+                if locked { return Err("数据目录由环境变量指定，请修改环境变量后重启。".into()); }
+                if core.request(json!({"operation":"snapshot"}))?["core"]["state"] == "running" {
+                    return Err("请先停止游戏再更改数据目录。".into());
+                }
+                let directory = request["directory"].as_str().ok_or("请选择数据目录。")?;
+                data_location::save(&config, std::path::Path::new(directory), &core.root)?;
+            }
+            if request["operation"] == "data-folder-open" {
+                let folder = match request["folder"].as_str() {
+                    Some("root") => core.root.clone(),
+                    Some("instances") => core.root.join("instances"),
+                    _ => return Err("不支持的数据目录。".into()),
+                };
+                if !folder.is_dir() { return Err("此目录尚未创建，首次游玩后会自动生成。".into()); }
+                #[cfg(windows)]
+                Command::new("explorer.exe").arg(&folder).creation_flags(0x08000000)
+                    .spawn().map_err(|_| "打开文件夹失败。")?;
+            }
+            let next = if locked { core.root.clone() } else { data_location::load(&config, &core.root)? };
+            return Ok(json!({"current":core.root,"next":next,"locked":locked}));
+        }
+        let result = core.request(request.clone())?;
         if request["operation"] == "open" {
             let url = result["url"].as_str().ok_or("游戏地址无效。")?;
             let (base, token) = url.split_once("/#token=").ok_or("游戏地址无效。")?;
