@@ -1,6 +1,6 @@
 # Windows x64 便携测试包构建
 
-候选版本：0.1.0-test2。从仓库根目录执行。构建机需要现有 pnpm/Cargo/Node；玩家机不需要这些开发工具。
+候选版本：0.1.0-test3。从仓库根目录执行。构建机需要现有 pnpm/Cargo/Node；玩家机不需要这些开发工具。
 
 ## 素材
 
@@ -19,12 +19,12 @@
 corepack pnpm@11.7.0 check
 corepack pnpm@11.7.0 launcher:check
 corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --no-bundle
-node scripts/release/build-portable.mjs dist/portable/Perspectra-0.1.0-test2-win-x64
-node scripts/release/verify-portable.mjs dist/portable/Perspectra-0.1.0-test2-win-x64 .tmp/portable-test2-smoke
-node scripts/release/archive-portable.mjs dist/portable/Perspectra-0.1.0-test2-win-x64
+node scripts/release/build-portable.mjs dist/portable/Perspectra-0.1.0-test3-win-x64
+node scripts/release/verify-portable.mjs dist/portable/Perspectra-0.1.0-test3-win-x64 .tmp/portable-test3-smoke official
+node scripts/release/archive-portable.mjs dist/portable/Perspectra-0.1.0-test3-win-x64
 ```
 
-输出目录必须不存在；验收数据目录必须全新。verify 使用本机 8046/gemini-3.7-flash，包含一次真实连接请求，需服务可用。它不代替界面试玩或干净系统验收。
+输出目录必须不存在；验收数据目录必须全新。verify 使用本机 8046/gemini-3.7-flash，包含一次真实连接请求，需服务可用。它不代替界面试玩或干净系统验收。末尾 `official` 验证内置官方包的前端与完整序章；模型服务不可用时加 `offline` 跳过真实连接，报告明确记为未验证，不影响零模型序章及离线编码检查。
 
 压缩前将本轮真实验收结果写入包根目录 `验收记录.md`；归档脚本拒绝缺少记录、存在链接或已有 ZIP 的目录。不得使用临时带调试参数的 Tauri 配置构建最终 EXE。
 

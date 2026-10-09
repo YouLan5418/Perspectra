@@ -3,7 +3,7 @@ import {cp,mkdir,readFile,writeFile,readdir,stat,access} from 'node:fs/promises'
 import {resolve,join,dirname} from 'node:path'
 import {execFileSync} from 'node:child_process'
 import {createHash} from 'node:crypto'
-const version='0.1.0-test2'
+const version='0.1.0-test3'
 const output=resolve(process.argv[2]??'dist/portable/Perspectra-'+version+'-win-x64')
 try{await access(output);throw Error('Output already exists; choose a new directory.')}catch(error){if(error.code!=='ENOENT')throw error}
 if(process.platform!=='win32'||process.arch!=='x64')throw Error('Windows x64 build required')
@@ -48,9 +48,10 @@ await writeFile(join(output,'licenses/node-dependencies.json'),JSON.stringify([.
 await cp(resolve('apps/launcher/src-tauri/target/release/perspectra-launcher.exe'),join(output,'Perspectra.exe'))
 await cp(resolve('examples/world-packs/prototype-g1'),join(output,'examples/前室与后室'),{recursive:true,dereference:true,filter})
 await cp(resolve('examples/world-packs/launcher-demo'),join(output,'examples/测试示例'),{recursive:true,dereference:true,filter})
+await cp(resolve('examples/world-packs/model-girls-official'),join(output,'examples/大模型变成美少女了'),{recursive:true,dereference:true,filter})
 await cp(resolve('scripts/release/README.zh-CN.md'),join(output,'开始试玩.md'))
 await cp(resolve('scripts/release/feedback-template.zh-CN.md'),join(output,'反馈模板.md'))
 await cp(resolve('scripts/release/clean-windows-checklist.zh-CN.md'),join(output,'干净系统验收.md'))
 execFileSync(process.execPath,['scripts/release/collect-native-licenses.mjs',join(output,'licenses/native-dependencies')],{stdio:'inherit',windowsHide:true})
-await writeFile(join(output,'build-info.json'),JSON.stringify({product:'Perspectra',version,platform:'win-x64',webview2:'154.0.4258.62',node:process.version,python:execFileSync(join(runtime,'python/python.exe'),['--version'],{encoding:'utf8'}).trim(),msvc:'14.50.35710',model:assets.repoId,baseModel:'intfloat/multilingual-e5-small',modelRevision:assets.revision,buildTime:new Date().toISOString()},null,2))
+await writeFile(join(output,'build-info.json'),JSON.stringify({product:'Perspectra',version,platform:'win-x64',webview2:'154.0.4258.62',node:process.version,python:execFileSync(join(runtime,'python/python.exe'),['--version'],{encoding:'utf8'}).trim(),msvc:'14.50.35710',model:assets.repoId,baseModel:'intfloat/multilingual-e5-small',modelRevision:assets.revision,sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8',windowsHide:true}).trim(),buildTime:new Date().toISOString()},null,2))
 console.log('Portable build ready: '+output)

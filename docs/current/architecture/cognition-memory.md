@@ -36,7 +36,7 @@ Core 不再按 16 条观察／8 条自身表达截断；首次整理前保留授
 
 同批 196 条 Source、16 次 Utility 的一次后台重放为 148.063 秒，启动请求 0.411 秒；期间对话、移动和房间隔离通过。尚未真实跨越 170k，也未完成 32k/64k/128k/192k 成组对照，不能据此宣称大窗口延迟和压缩质量已验收。
 
-宽准入仍可能交付无关认识，关键原因也可能未被选进 Delivery；持续目标牵引、人物自然度和长期认识更新收益未全面验收。一般认识家族发现和多分支更新未全面验收。当前便携候选包已包含 Python/Core/E5 资产；干净 Windows 环境及长期稳定性验收仍见[候选包记录](../studies/launcher-portable-test2-20261007.md)。程序隔离与自由文本语义一致性仍分别验收。
+宽准入仍可能交付无关认识，关键原因也可能未被选进 Delivery；持续目标牵引、人物自然度和长期认识更新收益未全面验收。一般认识家族发现和多分支更新未全面验收。当前便携候选包已包含 Python/Core/E5 资产；干净 Windows 环境及长期稳定性验收仍见[候选包记录](../studies/launcher-portable-test3-20261009.md)。程序隔离与自由文本语义一致性仍分别验收。
 
 运行与实验证据：[Activity Memory](../../../experiments/activity-memory/README.md)、[Hindsight Core](../../../experiments/hindsight-core/README.md)、[AI Girls 研究](../studies/ai-girls/README.md)。源码：[原生记忆](../../../packages/memory)、[宿主 Core](../../../tests/experiments/playtest-memory-core.ts)、[Python 桥](../../../experiments/activity-memory/core_bridge.py)、[候选准入](../../../experiments/activity-memory/candidate_admission.py)、[极简 Delivery](../../../experiments/activity-memory/minimal_delivery.py)。
 

@@ -14,21 +14,23 @@ Perspectra 希望在尽量保留自由表达和角色主体性的前提下，让
 
 ### Windows x64 便携候选版
 
-当前候选版本为 **0.1.0-test2**，自带 Node、Python、Core 记忆依赖与离线 E5 模型、WebView2 和 C++ 运行库。玩家无需安装开发工具，但仍需要自己的模型服务。
+当前候选版本为 **0.1.0-test3**，自带 Node、Python、Core 记忆依赖与离线 E5 模型、WebView2 和 C++ 运行库。玩家无需安装开发工具，但仍需要自己的模型服务。
 
-[版本与下载入口](https://github.com/YouLan5418/Perspectra/releases) · [试玩说明](scripts/release/README.zh-CN.md) · [候选版验收记录](docs/current/studies/launcher-portable-test2-20261007.md)
+[下载便携 ZIP](https://github.com/YouLan5418/Perspectra/releases/download/v0.1.0-test3/Perspectra-0.1.0-test3-win-x64.zip) · [预发布页面](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3) · [试玩说明](scripts/release/README.zh-CN.md) · [候选版验收记录](docs/current/studies/launcher-portable-test3-20261009.md)
 
-**当前候选 ZIP 已在本机构建，尚未上传为 GitHub Release 附件。** 本仓库提供源码和构建脚本；下载以实际发布的 Release 附件为准。
+**test3 已上传为 GitHub 预发布版附件。** ZIP 约 519 MB，SHA-256 见验收记录；源码与构建脚本在本仓库。它仍是小范围测试候选版，未完成干净 Windows 与长时试玩验收。
 
 完整操作见 [玩家试玩指南](docs/current/guides/player-playtest.md)。
 
 拿到测试包后：
 
 1. 完整解压，运行 `Perspectra.exe`，保留同目录的 `runtime`。
-2. 打开“模型设置”，填写 OpenAI 兼容的完整 `.../v1/chat/completions` 地址、模型标识和需要的 API Key。
+2. 打开“模型设置”，选择 OpenAI 兼容、Anthropic 或 Google 协议，填写对应的完整请求地址、模型标识和需要的 API Key。
 3. 点击“测试模型连接”，成功后应用设置。连接测试会发送一次少量请求，只验证接口响应，不保证模型能稳定遵循游戏的结构化输出协议。
-4. 载入随包的 `examples/测试示例` 目录，创建实例并开始游戏。游戏在系统默认浏览器中打开，Launcher 保持独立窗口。
+4. 载入随包的 `examples/大模型变成美少女了` 目录，创建实例并开始游戏。游戏在系统默认浏览器中打开，Launcher 保持独立窗口。
 5. 结束游戏后可以继续原进度；需要分叉时，在游戏运行且当前操作完成后，打开“故事线”保存完整节点，再停止游戏并创建新线路。
+
+`examples/大模型变成美少女了` 是官方试玩包：112 条序章表达包含 5 条中性玩家输入，结尾交还控制权；后续生活事件由真实角色模型决定。先使用占位角色与简单背景，未包含正式美术和音效。源码目录为 [model-girls-official](examples/world-packs/model-girls-official/README.md)。
 
 `examples/前室与后室` 提供官方默认界面的基础示例；`examples/测试示例` 包含社区前端、包推荐预设、变量和猜数字活动。
 
@@ -51,13 +53,13 @@ corepack pnpm@11.7.0 launcher:desktop
 $env:HCW_LOCAL_ENDPOINT = "http://127.0.0.1:8046/v1/chat/completions"
 $env:HCW_LOCAL_MODEL = "gemini-3.7-flash"
 corepack pnpm@11.7.0 experience:web `
-  --pack examples/world-packs/launcher-demo `
+  --pack examples/world-packs/model-girls-official `
   --data-dir .tmp/my-playtest
 ```
 
 地址与模型只是本机验证示例，请按自己的服务修改。如需认证，通过环境设置 `HCW_LOCAL_API_KEY`，不要写入世界包、脚本或仓库。打开终端打印的完整本机地址；其中的令牌不要公开分享。
 
-**源码网页入口默认使用原生记忆**；准备好 Python/E5 后，添加 `--memory-core` 可启用 Core 记忆。源码网页另保留 Ollama/DeepSeek 适配，当前源码 Launcher 还支持 Anthropic Messages 与 Google Gemini 原生协议，配置与限制见[模型接口协议](docs/current/model-protocols.md)；便携包以其构建时能力为准。
+**源码网页入口默认使用原生记忆**；准备好 Python/E5 后，添加 `--memory-core` 可启用 Core 记忆。源码网页另保留 Ollama/DeepSeek 适配，当前 Launcher 还支持 Anthropic Messages 与 Google Gemini 原生协议，配置与限制见[模型接口协议](docs/current/model-protocols.md)；test3 已包含这三种接口，实际模型支持与网关行为仍需分别验证。
 
 完整说明见 [创作者与真实模型试玩指南](docs/current/guides/creator-playtest.md)。
 
@@ -70,7 +72,8 @@ corepack pnpm@11.7.0 experience:web `
 | 长期记忆 | 基于角色授权经历整理认识，支持召回、宽短期上下文与后台整理 |
 | 世界状态与交互 | 移动、物品归属等明确追踪的状态经过规则裁定，再提交世界事件 |
 | Activity | 创作者定义局部活动规则、允许操作、状态与结束条件 |
-| Storyline | 保存完整节点、从历史节点分叉、保留原线并独立续玩 |
+| Storyline | 保存节点及当时记忆、分叉与独立续玩、单节点导出导入 |
+| 思考强度与运行参数 | 实例选择关闭/低/中/高；按包配置反应预算，默认期限 120 秒 |
 | 角色预设 | 全局默认、包推荐、实例覆盖、角色组和角色专属配置 |
 | 自定义前端 | HTML/CSS/JavaScript 与公共玩家接口，默认 iframe 沙箱、明确授权的受信任模式 |
 | 桌面 Launcher | 载入 v5 世界包目录、独立实例、模型配置、启停与继续游戏 |
@@ -107,9 +110,9 @@ Activity 可以在特定玩法中临时收紧允许操作、移动或表达方�
 
 玩家可以保存当前世界的完整节点，并从历史节点开启新线路，尝试另一种选择，同时保留原线路的进度。
 
-新线路恢复节点时的世界状态，并根据各角色截至该节点的授权经历重建记忆，避免直接带入原线路后来的经历。重建需要等待和模型调用，认识的具体措辞可能不同。
+新线路恢复节点时的世界状态、已安装长期档案和授权原文，并校验角色、世界、来源及时间前缀，避免带入原线路后来的认识。保存和分叉不会额外调用模型整理；旧节点没有档案时保留截至节点的授权原始经历，无法精确恢复未保存的长期摘要。
 
-当前 Storyline 是**保存、分叉与独立续玩**；源码版支持单个完整节点的文件分享导入；持续剧情阶段追踪、线路合并和完整树分享不在当前实现范围内。
+当前 Storyline 是**保存、分叉与独立续玩**；test3 支持单个完整节点的文件导出与导入；持续剧情阶段追踪、线路合并和完整树分享不在当前实现范围内。
 
 [故事线使用与边界](docs/current/storylines.md)
 
@@ -141,6 +144,7 @@ World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽
 
 可从小型示例开始验证：
 
+- `examples/world-packs/model-girls-official`：官方序章与晚餐、私密交流、蛋糕和跨日回访事件。
 - `examples/world-packs/prototype-g1`：两房间、角色和基础物品交互。
 - `examples/world-packs/launcher-demo`：Launcher 测试示例，含活动、预设与社区前端。
 - `examples/world-packs/hand-in-hand`：角色交互示例。
@@ -158,9 +162,10 @@ World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽
 - 认知隔离保证程序提供的信息范围，不保证模型永远正确理解信息或从不虚构细节。
 - 长期记忆可能交付无关认识；后台整理和大上下文的容量、性能与角色体验仍需更多测试。
 - 某些交互按钮仍显示机器 ID；没有代码签名、自动更新或跨版本存档迁移保证。
-- 此前便携候选包尚不包含本轮单节点分享；线路合并及部分预设能力尚未实现，内容格式可能继续调整。
+- test3 已包含单节点分享、末端回合重新生成和节点记忆快照；完整树分享、线路合并及部分预设能力尚未实现。
+- 本次便携验收通过完整固定序章、前端资源一致性、Core 启停与离线编码；8046 连接不可用，自由阶段真实模型未在 test3 中重新验收。
 
-完整验证证据与未完成项见 [候选版验收记录](docs/current/studies/launcher-portable-test2-20261007.md)，当前架构状态见 [项目状态](docs/current/PROJECT-STATE.md)。
+完整验证证据与未完成项见 [候选版验收记录](docs/current/studies/launcher-portable-test3-20261009.md)，当前架构状态见 [项目状态](docs/current/PROJECT-STATE.md)。
 
 ## 反馈问题与体验
 
