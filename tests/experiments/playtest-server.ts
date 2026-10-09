@@ -13,6 +13,7 @@ import type { ActionAffordance } from '@harness-world/kernel'
 export interface PlaytestState {
   readonly busy: boolean
   readonly paused: boolean
+  readonly playerFeedback?: { phase: string; message: string }
   readonly phaseLabel: string
   readonly notice: string
   readonly error: boolean

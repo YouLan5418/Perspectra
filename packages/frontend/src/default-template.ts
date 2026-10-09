@@ -217,7 +217,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    audience();
  }
  function controls(){
-   const disabled=posting||!connected||latest?.status!=='ready';
+   const disabled=posting||!connected||!['ready','error'].includes(latest?.status);
    node('send').disabled=disabled||!(node('input').value.trim()||node('narration').value.trim())||((speechScope()==='direct'||speechScope()==='private')&&!node('speech-recipient').value);
    for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.disabled=disabled;
    node('speech-recipient').disabled=disabled||!latest?.scene?.recipients?.length;
@@ -250,6 +250,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    if(!people.length){const empty=document.createElement('span');empty.className='alone';empty.textContent='眼前没有其他角色';node('characters').append(empty)}
    node('status').textContent=({ready:'可以回应',busy:view.tailRound?.regenerating?'正在处理回合':'角色正在回应',paused:'已暂停',error:'处理未完成'})[view.status];
    node('status').dataset.state=view.status;
+   node('status').title=view.feedback?.phase||'';
+   if(!pending)node('notice').textContent=view.status==='busy'?(view.feedback?.phase||'角色依次处理，已发表的回应会立即显示。'):view.feedback?.message||'';
    const nextHistory=JSON.stringify(view.history);
    if(nextHistory!==historyKey){
      const oldTop=history.scrollTop;
@@ -292,7 +294,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  }
  function send(method,payload){
    const tailOperation=method==='regenerate'||method==='selectCandidate';
-   if(posting||!connected||(tailOperation?!latest?.tailRound?.canRegenerate:latest?.status!=='ready'))return;
+   if(posting||!connected||(tailOperation?!latest?.tailRound?.canRegenerate:!['ready','error'].includes(latest?.status)))return;
    pending={method,payload,actionId:api.newActionId()};submit(pending);
  }
  node('regenerate-round').onclick=()=>send('regenerate',{tailId:latest.tailRound.id});

@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net'
 import { afterEach, expect, it, vi } from 'vitest'
 import { createPlaytestServer, type PlaytestRuntime, type PlaytestState } from '../experiments/playtest-server.ts'
 import { loadPackWeb } from '../experiments/playtest-pack-web.ts'
-import { FrontendActions, projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { FrontendActions, projectPlayerView, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
 
 const token='c'.repeat(64),servers: ReturnType<typeof createPlaytestServer>[] = [], roots:string[]=[]
 const privateState = ():PlaytestState=>({
@@ -208,4 +208,14 @@ it('rejects hidden, stale and invalid speech recipients without submitting',asyn
  expect((await send('speak',{text:'secret',scope:'direct',addresseeIds:['character:visible']},'stale')).status).toBe(400)
  expect(runtime.submit).not.toHaveBeenCalled()
  expect(projectPlayerView(privateState()).scene?.recipients).toEqual([])
+})
+
+it('delivers explicit player feedback and pushes changes even while busy remains unchanged',()=>{
+ const state={...privateState(),busy:true,playerFeedback:{phase:'角色正在处理场景与行动结果',message:''}};
+ const first=projectPlayerView(state);expect(first.feedback).toEqual(state.playerFeedback);
+ const after=projectPlayerView({...state,playerFeedback:{phase:'正在提交回应',message:''}});
+ expect(playerViewPatch(first,after)).toEqual({feedback:after.feedback});
+ const end=projectPlayerView({...state,busy:false,error:true,playerFeedback:{phase:'可以输入',message:'玩家输入已提交；已经发表的回应保留，无需重发。'}});
+ expect(end).toMatchObject({status:'error',feedback:{phase:'可以输入',message:expect.stringContaining('无需重发')}});
+ expect(JSON.stringify(end)).not.toContain('PRIVATE_');
 })

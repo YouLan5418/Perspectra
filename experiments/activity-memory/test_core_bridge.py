@@ -161,6 +161,26 @@ class UtilityTransportTest(unittest.TestCase):
         import io
         return io.StringIO(json.dumps({'choices':[{'finish_reason':finish,'message':{'content':text}}]}))
 
+    def test_json_memory_requests_disable_default_thinking(self):
+        # A reasoning-only response can exhaust max_tokens before producing any JSON.
+        with patch('urllib.request.urlopen', return_value=self.response('{"atoms":[]}')) as network:
+            self.assertEqual(bridge.utility_llm('system', 'authorized evidence'), {'atoms':[]})
+        body = json.loads(network.call_args.args[0].data)
+        self.assertEqual(body['thinking'], {'type':'disabled'})
+        self.assertEqual(body['response_format'], {'type':'json_object'})
+
+    def test_reasoning_only_budget_failure_records_safe_diagnostics(self):
+        rows = []
+        with patch('urllib.request.urlopen', return_value=self.response('', 'length')), \
+             patch.object(bridge, 'attempt_trace', side_effect=rows.append):
+            with self.assertRaisesRegex(ValueError, 'exceeded output budget'):
+                bridge.utility_llm('PRIVATE_PROMPT_MARKER', 'PRIVATE_SOURCE_MARKER')
+        failure = rows[-1]
+        self.assertEqual(failure['event'], 'rejected')
+        self.assertEqual(failure['finishReason'], 'length')
+        self.assertEqual(failure['responseChars'], 0)
+        self.assertNotIn('PRIVATE_', json.dumps(rows))
+
     def test_truncated_json_is_rejected_even_if_the_visible_object_parses(self):
         with patch('urllib.request.urlopen',return_value=self.response('{"atoms":[]}', 'length')):
             with self.assertRaisesRegex(ValueError,'exceeded output budget'):

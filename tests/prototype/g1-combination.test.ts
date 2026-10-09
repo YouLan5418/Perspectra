@@ -18,8 +18,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
   const used = new Set<string>()
   const calls: { stage: string; actor: string; continuation: boolean;
     stimulus: readonly { content: { actionType?: string; actorId?: string; movement?: Record<string, unknown> } }[];
-    memories: readonly { text: string; sourceMaxSeq: number }[]; observationSeqs: readonly number[];
-    selfObservationSeqs: readonly number[] }[] = []
+    memories: readonly { text: string; sourceMaxSeq?: number }[]; history: readonly {kind: string; content: unknown}[] }[] = []
   const server = createServer((request, response) => {
     let body = ''
     request.on('data', chunk => { body += String(chunk) })
@@ -27,11 +26,9 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
       const wire = JSON.parse(body)
       const input = JSON.parse(wire.messages.at(-1).content)
       const actor = String(input.context.character.characterId)
-      expect(input.context.character.locationId).toBe(input.context.scene.locationId)
+      expect(input.context.locationId).toBe(input.context.scene.locationId)
       calls.push({ stage, actor, continuation: input.continuation, stimulus: input.context.stimulus,
-        memories: input.context.memories,
-        observationSeqs: input.context.observations.map((record: { sourceSeq: number }) => record.sourceSeq),
-        selfObservationSeqs: input.context.selfObservations.map((record: { sourceSeq: number }) => record.sourceSeq) })
+        memories: input.context.memories, history: input.context.history })
       let answer: unknown = { decision: 'abstain' }
       if (stage === 'take' && actor === 'character:companion') {
         if (input.continuation) {
@@ -104,9 +101,8 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
 
     await submit('stale', '/act speak {"text":"留守者，你也试着拿同一把钥匙。"}')
     expect(events().filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
-    expect(calls.every(call => call.memories.every(memory =>
-      !call.observationSeqs.includes(memory.sourceMaxSeq)
-      && !call.selfObservationSeqs.includes(memory.sourceMaxSeq)))).toBe(true)
+    expect(calls.every(call => Array.isArray(call.history) && call.memories.every(memory =>
+      !('sourceMaxSeq' in memory)))).toBe(true)
     expect(events().some(event => event.eventType === 'action.resolved'
       && (event.data as Record<string, unknown>).actorId === 'character:friend'
       && (event.data as Record<string, unknown>).accepted === false)).toBe(true)
@@ -169,8 +165,8 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
       fromLocationId: 'location:back-room' })
 
     const beforeClaim = events().filter(event => event.eventType === 'entity.transferred').length
-    expect(calls.every(call => call.observationSeqs.every((seq, index) =>
-      index === 0 || call.observationSeqs[index - 1]! <= seq))).toBe(true)
+    expect(calls.every(call => call.history.every(entry =>
+      entry.kind === 'observed' || entry.kind === 'self'))).toBe(true)
     await submit('claim', '/act speak {"text":"我说钥匙已经交给留守者了，但这只是我的说法。"}')
     expect(events().filter(event => event.eventType === 'entity.transferred')).toHaveLength(beforeClaim)
     expect(currentEntityState(events(), 'entity:brass-key')?.holderId).toBe('character:companion')

@@ -1,0 +1,91 @@
+{
+  "schemaVersion": "worldpack-entities/v2",
+  "entities": [
+    {
+      "entityId": "entity:rice-batch",
+      "locationId": "location:kitchen",
+      "kind": "raw-rice-kit",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:rice-batch-take",
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:rice-batch-drop",
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:rice-batch-give",
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:rice-batch-cook-rice",
+          "definition": {
+            "id": "home:cook-rice",
+            "version": 1
+          },
+          "config": {
+            "equipmentId": "entity:rice-cooker"
+          }
+        },
+        {
+          "bindingId": "binding:rice-batch-eat-rice",
+          "definition": {
+            "id": "home:eat-rice",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "entityId": "entity:rice-cooker",
+      "locationId": "location:kitchen",
+      "kind": "rice-cooker",
+      "interactionBindings": []
+    },
+    {
+      "entityId": "entity:strawberry-cake",
+      "locationId": "location:kitchen",
+      "kind": "strawberry-cake",
+      "interactionBindings": [
+        {
+          "bindingId": "binding:strawberry-cake-take",
+          "definition": {
+            "id": "base:take",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:strawberry-cake-drop",
+          "definition": {
+            "id": "base:drop",
+            "version": 1
+          },
+          "config": {}
+        },
+        {
+          "bindingId": "binding:strawberry-cake-give",
+          "definition": {
+            "id": "base:give",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    }
+  ]
+}

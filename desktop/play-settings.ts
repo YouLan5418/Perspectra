@@ -7,7 +7,7 @@ export const PLAY_SETTING_FIELDS = [
  {key:'maximumWaves',label:'反应周期最多波次',default:3,min:1,max:10,group:'普通反应周期'},
  {key:'maximumNpcCalls',label:'NPC 模型调用总预算',default:8,min:2,max:40,group:'普通反应周期'},
  {key:'maximumCallsPerCharacter',label:'每角色最多激活次数',default:2,min:1,max:10,group:'普通反应周期'},
- {key:'reactionDeadlineSeconds',label:'反应周期总时限（秒）',default:30,min:5,max:300,group:'普通反应周期'},
+ {key:'reactionDeadlineSeconds',label:'全部角色反应总时限（秒）',default:120,min:5,max:300,group:'普通反应周期'},
  {key:'activityOpportunities',label:'活动连续处理机会',default:4,min:1,max:20,group:'Activity'},
  {key:'activityDeadlineSeconds',label:'活动处理总时限（秒）',default:90,min:5,max:600,group:'Activity'},
  {key:'memoryTriggerTokens',label:'整理触发阈值（估算 Token）',default:170000,min:4000,max:1000000,group:'Core 记忆'},

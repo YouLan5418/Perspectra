@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "worldpack-scenes/v2",
+  "scenes": [
+    {
+      "sceneId": "scene:bedroom",
+      "lifecycle": "created",
+      "locationId": "location:bedroom",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:living-room",
+      "lifecycle": "active",
+      "locationId": "location:living-room",
+      "participantIds": [
+        "character:player",
+        "character:gpt",
+        "character:claude",
+        "character:deepseek",
+        "character:glm"
+      ]
+    },
+    {
+      "sceneId": "scene:workspace",
+      "lifecycle": "created",
+      "locationId": "location:workspace",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:kitchen",
+      "lifecycle": "created",
+      "locationId": "location:kitchen",
+      "participantIds": []
+    }
+  ]
+}

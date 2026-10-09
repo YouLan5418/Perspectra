@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { brandId, type WorldAddress } from '@harness-world/contracts'
 import { SessionDeliveryAdapter, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { PlaytestMemoryCore } from '../tests/experiments/playtest-memory-core.ts'
 import { PackVariables } from '../tests/experiments/pack-variables.ts'
@@ -104,7 +104,7 @@ async function validate(directory: string, node: StoryNode, packPath: string): P
       SELECT 1 FROM world_reaction_cycles WHERE status<>'terminal' UNION ALL
       SELECT 1 FROM outbox WHERE critical=1 AND delivery_status<>'delivered' LIMIT 1`).get(Date.now())) throw new Error('分享文件不是完整静止节点。')
   } finally { db.close() }
-  const pack = await compileWorldPackSource(packPath, [interactionPackageDescription(createBasicInteractionPackage())]) as CompiledWorldPackV5
+  const pack = await compileWorldPackSource(packPath, createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5
   if (pack.assets.some(asset => asset.path === 'scripts/variables.js') !== node.files.includes('pack-variables.json')) throw new Error('分享节点的包变量文件缺失或不适用。')
   PackVariables.load(packPath, directory, pack)
   const aliases = object(JSON.parse(readFileSync(join(directory, 'memory-aliases.json'), 'utf8')))

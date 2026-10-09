@@ -19,6 +19,10 @@ export function characterExecutionResult(input: {
   const parameters = object(input.action.parameters)
   const target = object(parameters?.targetRef)
   if (status === 'accepted') {
+    const definitionId=object(parameters?.definitionRef)?.id
+    if(definitionId==='home:cook-rice'||definitionId==='home:eat-rice')return {status,description:definitionId==='home:cook-rice'
+      ?'这一份米与水已煮成一锅白米饭，放在当前房间；原食材不再可用。'
+      :'这一锅白米饭已经吃完，剩下空容器；不能再次食用或当作生米煮饭。'}
     const definition = object(parameters?.definitionRef)?.id
     const verb = definition === 'base:take' ? '取得保管' : definition === 'base:give' ? '转交保管'
       : definition === 'base:drop' ? '解除个人保管并留在当前场所' : '执行交互'
@@ -46,6 +50,9 @@ export function characterExecutionResult(input: {
     }
   }
   const descriptions: Record<string, string> = {
+    RAW_RICE_REQUIRED: '没有可用的生米与水材料，煮饭没有发生。',
+    COOKED_RICE_REQUIRED: '没有可食用的熟米饭，这次没有吃到饭。',
+    COOKER_REQUIRED: '没有可用的电饭锅，煮饭没有发生。',
     NOT_CO_LOCATED: '你和目标不在同一个地方，这次没有接触到目标。',
     NO_SHARED_SCENE: '你现在无法与目标直接互动，这次行动没有完成。',
     SCENE_UNAVAILABLE: '你目前没有能够进行这次互动的场景条件，互动没有发生。',

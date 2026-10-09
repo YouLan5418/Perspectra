@@ -36,7 +36,7 @@
 
 Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者也可显式提供局部固定演出输出。活动状态沿 activity.updated 提交；位置和物品仍走已有规则路径。宿主限定角色调用次数和链路耗时；耗尽或失败保留已提交结果，玩家可重试或逃生，未提交机会不保证精确恢复。
 
-开始/退出及恢复控制在宿主界面。当前社区前端 SDK 不提供活动管理私有接口，不能直接读内部答案或执行后台脚本。
+宿主提供开始、退出与恢复控制；公共前端也可使用当前版本绑定的开始／恢复选项及无需额外参数的活动选项。SDK 不提供活动管理私有接口，不能直接读内部答案或执行后台脚本。
 
 ### 可选固定演出输出
 
@@ -65,3 +65,17 @@ initialize 为各角色返回 public 和 private；所有角色初始化出的�
 校验包后创建新实例：检查开始条件、每个操作的合法/非法参数、轮转、结束、模型失败后的重试与逃生。分别让参与者知道不同秘密，检查角色上下文、结果描述和公开页面是否泄漏。再保存完整节点、改变状态并分叉，确认活动与变量回到节点时刻。
 
 自动化结构检查不证明自然度，也不能证明自由文本永不违背裁定。遇到玩法需求超出现有宿主支持，先记录具体体验缺口，不把任意新 JSON 字段当成已实现规则。
+
+## 5. 序章和条件生活事件
+
+[官方序章脚本](../../../examples/world-packs/model-girls-official/scripts/activity.js) 是新增能力的完整示例：
+
+- initialize 的 `world` 为玩家当前授权场景；`previous` 为上次活动的玩家视图，用于继续已有序章或进入生活菜单。
+- resolve 的第五参数 `world` 为操作主体当前授权事实，包含 locationId、characterIds 与 items.current / lastObserved。lastObserved 仅是目击记录，不能当作当前归属。
+- resolve 返回 `playerExpression: { text }` 可在明确玩家选择的操作中同步提交公开玩家表达；不能用于 NPC 代替玩家行动。普通活动仍可只返回 game、description、audience。
+- resolve 返回 `{ rejectReason: "条件说明" }` 会拒绝操作且不提交；不能与成功字段混用。
+- 可选 onPublished(state, actorId, expression) 返回 game 或 null。角色发表和游标推进同事务，不要在先前操作中提前跳过尚未发表的台词。
+
+公共 SDK 的 view.activity 只包含 title、active、phase、public。无额外参数的活动操作及绑定当前版本的开始／恢复节点选项进入 view.actions，可用普通 perform；不能伪造参数、读取 internal/private 或调用任意管理脚本。有额外输入参数的活动操作仍用宿主表单，退出、逃生和管理功能仍在宿主。
+
+快进和跳过须逐项执行同一正式路径，只压缩展示时间，不能省略角色经历。完整无角色模型序章实验：`node --import tsx tests/experiments/official-demo.ts`，新建独立 .tmp 数据，检查 112 条表达、5 条玩家输入、最后收留问题和自由交接。此实验不证明后续真实模型或长期记忆体验。

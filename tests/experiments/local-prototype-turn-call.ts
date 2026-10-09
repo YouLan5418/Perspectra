@@ -25,6 +25,7 @@ export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
   }) : []
   const interactionIds = choices.map(choice => choice.targetRef as WorldJsonObject)
   const definitions = choices.map(choice => choice.definitionRef as WorldJsonObject)
+  const versions = [...new Set(definitions.map(ref => ref.version).filter((version): version is number => typeof version === 'number'))]
   const parameterProperties: WorldJsonObject = {
     ...(move === undefined ? {} : { locationId: { type: 'string',
       ...(destinations.length === 0 ? {} : { enum: destinations.map(place => place.locationId).filter((id): id is string => typeof id === 'string') }),
@@ -36,7 +37,9 @@ export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
       bindingId: { type: 'string', enum: choices.map(choice => choice.bindingId).filter((id): id is string => typeof id === 'string') },
       definitionRef: { type: 'object', additionalProperties: false, required: ['id', 'version'],
         properties: { id: { type: 'string', enum: [...new Set(definitions.map(ref => ref.id).filter((id): id is string => typeof id === 'string'))] },
-          version: { type: 'integer', enum: [...new Set(definitions.map(ref => ref.version).filter((version): version is number => typeof version === 'number'))] } } },
+          // Equal bounds avoid this gateway returning a singleton numeric enum as a string.
+          // Host validation remains strict: no coercion or widening of accepted versions.
+          version: versions.length === 1 ? { type: 'integer', minimum: versions[0]!, maximum: versions[0]! } : { type: 'integer', enum: versions } } },
       arguments: choices.every(c => c.argumentSchema !== undefined)
         ? { type: 'object', additionalProperties: false, required: ['activityId', 'revision'], properties:
           Object.assign({}, ...choices.map(c => (c.argumentSchema as WorldJsonObject).properties)) }

@@ -1,6 +1,6 @@
 # 当前认知与记忆
 
-这是了解 Perspectra 当前记忆的首选入口。默认网页仍使用原生记忆；源码网页显式 `--memory-core` 才使用下述简化 Core 路径。Core 已有限接入，不等于正式替换默认记忆或完成桌面发布。
+这是了解 Perspectra 当前记忆的首选入口。直接源码网页默认原生记忆，显式 --memory-core 使用下述简化 Core 路径；当前 Launcher 后端启用 Core。记忆路径已接入不表示全部长期角色体验均已验收。
 
 ## 默认原生记忆
 
@@ -36,6 +36,36 @@ Core 不再按 16 条观察／8 条自身表达截断；首次整理前保留授
 
 同批 196 条 Source、16 次 Utility 的一次后台重放为 148.063 秒，启动请求 0.411 秒；期间对话、移动和房间隔离通过。尚未真实跨越 170k，也未完成 32k/64k/128k/192k 成组对照，不能据此宣称大窗口延迟和压缩质量已验收。
 
-宽准入仍可能交付无关认识，关键原因也可能未被选进 Delivery；持续目标牵引、人物自然度和长期认识更新收益未全面验收。一般认识家族发现、多分支更新和桌面 Core 资产打包未完成。程序隔离与自由文本语义一致性仍分别验收。
+宽准入仍可能交付无关认识，关键原因也可能未被选进 Delivery；持续目标牵引、人物自然度和长期认识更新收益未全面验收。一般认识家族发现和多分支更新未全面验收。当前便携候选包已包含 Python/Core/E5 资产；干净 Windows 环境及长期稳定性验收仍见[候选包记录](../studies/launcher-portable-test2-20261007.md)。程序隔离与自由文本语义一致性仍分别验收。
 
 运行与实验证据：[Activity Memory](../../../experiments/activity-memory/README.md)、[Hindsight Core](../../../experiments/hindsight-core/README.md)、[AI Girls 研究](../studies/ai-girls/README.md)。源码：[原生记忆](../../../packages/memory)、[宿主 Core](../../../tests/experiments/playtest-memory-core.ts)、[Python 桥](../../../experiments/activity-memory/core_bridge.py)、[候选准入](../../../experiments/activity-memory/candidate_admission.py)、[极简 Delivery](../../../experiments/activity-memory/minimal_delivery.py)。
+
+### 官方序章的经历边界
+
+序章模拟输出继续经过普通发表、授权观察及已有记忆输入；5 条玩家问题也正式提交，来源仅记录在活动事件审计字段。可见物品的 kind 是已提交的材料／熟饭／空容器状态；远处物品和未经授权目击的归属不会通过新增活动 world 输入暴露。第二天按钮仅改变活动公开日标签并提交明确点击的回访问题，不自动生成承诺或证明长期记忆检索已成功。完整序章无模型实验验证输入链路，跨压缩后真实召回另列体验验收。
+
+官方包真实 Gemini 样例随后验证了归档后的约定召回：近期原文已不含九点／电饭锅，授权长期交付仍含实际约定，GPT 在第二天回答正确。私密样例中 Claude 以 private 回复，GPT 没有收到秘密且同场明确表示不知道。见 [真实验收](../../../examples/world-packs/model-girls-official/LIVE-VALIDATION.md)；只证明该样例，不保证所有推断或自由表达都与权限事实一致。
+
+
+## 模型上下文呈现
+
+Claude 私下听到一句暗号后，模型历史仍包含原始话语、private 受众和来源性质；GPT 的历史仍只有它有权看到的记录。呈现步骤不会补入其他角色经历，也不改变观察投影或记忆交付权限。
+
+`characterRequestText` 在最后序列化阶段把 `observations` 与 `selfObservations` 合并成 `context.history`，使用宿主 `sourceSeq` 排序，以 observed / self 区分观察和自己的表达。模型不再接收排序序号、追踪 action/observation ID、证据 Hash、提交前缀和来源索引引用等保管字段；来源类型、正文、受众、认识置信与立场、记忆年龄保留。角色身份/设定先呈现，历史随后，当前刺激、场景、当前位置和调用阶段随后，减少追加经历时的早期文本变化。当前位置从 `character.locationId` 移到 `context.locationId`，系统说明同步解释该字段。
+
+工具 Schema、Action 参数、交互目标与绑定引用、Activity 和作者变量保留原样；历史中的 parameters / arguments 也不按元数据字段名过滤。Rulebook、Core 归档与模型追踪继续使用原始宿主请求，结果续写仅去除外层 operationId / eventRefs，保留实际行动、状态与结果描述。没有新增输出协议、持久化格式或缓存服务。
+
+针对同一盲测第 17–22 轮的 35 个旧请求作离线对比，模型用户消息估算总量减少 25.4%；同角色相邻 31 对请求的系统说明加用户文本，共同前缀加权比例从 2.47% 升到 94.63%。这是文本稳定性与本地估算，未计供应商工具序列化、缓存路由与实际 tokenizer，不能视为真实缓存命中率。85 项相关回归通过，涵盖原始宿主证据仍可归档、私密发生记录及行动结果续写。真实模型样例与剩余限制见[玩家验收记录](../../../examples/world-packs/model-girls-official/PLAYER-VALIDATION.md)。
+
+
+### 故事节点的记忆时间边界（2026-10-09）
+
+玩家在晚餐后保存节点，再在第二天形成新认识；返回晚餐节点时，只恢复晚餐当时已安装的角色档案和节点内授权原始经历。不会复制原线当前档案，也不会为了保存或分叉调用模型重新整理。
+
+保存先取消并收束后台整理，将当时已安装的各角色 archive、index 与 aliasHistory 写入不可变节点的 `core-memory.json`，与既有数据库及身份快照一起保存。恢复复用已有校验：角色、世界、档案与索引 scope、记忆前缀和完整授权 Source 前缀必须匹配节点。未来前缀、其他角色档案或来源改变会拒绝启动，保留恢复标记供重试；原线不变。历史文件名 `rebuild-memory.json` 现在只表示恢复尚未完成，不再触发 Build。
+
+未建立长期档案的角色继续使用节点内完整授权原始经历。旧节点和分享节点缺少 Core 快照时也采用此路径，不能精确还原从未保存的长期摘要，但不会引入未来认识。后续自动整理仍按上下文阈值触发，手动整理入口保持。保存、分叉和长期整理的触发分别处理。
+
+回归覆盖已有档案及原文尾部恢复、连续保存/分叉零 Build、旧节点缺少快照、未来/其他角色/来源污染拒绝、原线保护和分享。实际旧节点副本恢复到 headSeq 2227 / tick 328，记忆 runner 在任何调用时都会抛错，恢复仍成功，模型调用为零；原存档未修改。没有重新验收长期文本质量或原生界面完整点击流程。
+
+此前强制重建曾在 DeepSeek 直连遇到推理耗尽输出预算：16 次 Retain HTTP 请求均为 200，15 次完成 Token 全部为 reasoning，累计 83,806 完成 Token 中 83,378 为 reasoning。Utility JSON 请求已显式发送 `thinking: {type: disabled}`，该修复仍服务正常阈值/手动整理；保留完整 JSON 与授权校验，不把推理文本当记忆正文。失败诊断仅记录 finishReason、正文字符数和错误类型，不记录正文或凭证。此前 Gemini 分叉重建约 26.8 秒的实测属于旧流程，不代表当前分叉需要调用模型。

@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { join, resolve } from 'node:path'
 import { realpathSync } from 'node:fs'
 import { assertSettled, durableJson, flushTailData, ownStoryline, readTailSelection, restoreTail, type TailRecord, type TailSelection } from '../../desktop/tail-storage.ts'
-import { interactionPackageDescription } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource } from '@harness-world/world-pack'
 import { PlaytestBusyError, type PlaytestAction, type PlaytestState } from './playtest-server.ts'
 import type { FrozenPlaytestOptions, FrozenWorldRuntimeCore } from './playtest-frozen-runtime.ts'
@@ -50,7 +50,7 @@ export class TailRoundRuntime {
   requestInspection(enabled?: boolean) { return this.#runtime.requestInspection(enabled) }
   async state(): Promise<PlaytestState> {
     const state = await this.#runtime.state()
-    return { ...state, busy: this.#busy || state.busy, phaseLabel: this.#regenerating ? '正在重新生成末端回合' : state.phaseLabel,
+    return { ...state, ...(state.playerFeedback ? {playerFeedback:{phase:this.#regenerating?'正在重新生成末端回合':this.#busy&&!state.busy?'正在整理本轮进度':state.playerFeedback.phase,message:this.#notice||state.playerFeedback.message}}:{}), busy: this.#busy || state.busy, phaseLabel: this.#regenerating ? '正在重新生成末端回合' : state.phaseLabel,
       notice: this.#notice || state.notice,
       tailRound: this.#selection.tail ? { id: this.#selection.tail.id, worldVersion: this.#selection.version,
         candidateIds: this.#candidates().map(candidate => candidate.id),
@@ -72,15 +72,15 @@ export class TailRoundRuntime {
     this.#selection = selection
   }
   async #environment(): Promise<string> {
-    const pack = await compileWorldPackSource(resolve(this.options.packPath), [interactionPackageDescription(createBasicInteractionPackage())])
+    const pack = await compileWorldPackSource(resolve(this.options.packPath), createInstalledInteractionPackages().map(interactionPackageDescription))
     if (pack.packHash !== this.#runtime.packHash) throw new TypeError('世界包环境已改变，请结束并重新启动。')
     if (tailRuntimeIdentity() !== loadedRuntimeIdentity) throw new TypeError('运行代码已改变，请结束并重新启动。')
     const endpoint = this.options.utilityEndpoint ? new URL(this.options.utilityEndpoint) : undefined
     if (endpoint) { endpoint.username = ''; endpoint.password = ''; endpoint.search = ''; endpoint.hash = '' }
     return JSON.stringify({ runtimeRevision, executable: loadedRuntimeIdentity, packHash: pack.packHash, assets: pack.assets,
-      interaction: interactionPackageDescription(createBasicInteractionPackage()),
+      interaction: createInstalledInteractionPackages().map(interactionPackageDescription),
       provider: this.options.provider, protocol: this.options.protocol ?? 'openai', model: this.options.model ?? null, endpoint: endpoint?.href ?? null,
-      intentModel: this.options.intentModel ?? null, preset: this.options.preset ?? {}, presetMapping: this.options.presetMapping ?? {},
+      thinkingLevel: this.options.thinkingLevel ?? null, intentModel: this.options.intentModel ?? null, preset: this.options.preset ?? {}, presetMapping: this.options.presetMapping ?? {},
       playSettings:this.options.playSettings??null, tuning: this.options.tuning ?? null, memoryCore: !!this.options.memoryCore,
       memoryContextBudget: this.options.memoryContextBudget ?? null })
   }
@@ -113,6 +113,13 @@ export class TailRoundRuntime {
     return this.state()
   }
   async perform(action: PlaytestAction): Promise<PlaytestState> {
+    if(action.actionType==='interact' && ['host:activity-start','host:activity-retry'].includes(String((action.parameters.definitionRef as WorldJsonObject|undefined)?.id))){
+      const current=(await this.state()).activity
+      if(!current || (current.id??null)!==action.parameters.previousId || (current.revision??0)!==action.parameters.previousRevision)
+        throw new TypeError('活动入口已失效，请刷新')
+      const retry=(action.parameters.definitionRef as WorldJsonObject).id==='host:activity-retry'
+      return this.activityAction({activityId:retry?String(current.id):null,revision:retry?Number(current.revision):0,operation:retry?'retry':'start',parameters:{},requestId:randomUUID()})
+    }
     return this.submit('/act '+action.actionType+' '+JSON.stringify(action.parameters))
   }
   async activityAction(activity: ActivityRequest): Promise<PlaytestState> {

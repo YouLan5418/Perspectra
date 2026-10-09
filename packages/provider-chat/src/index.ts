@@ -7,3 +7,5 @@ export { objectValue, textValue } from './value.ts'
 export { prototypeTurnCall } from './prototype-turn.ts'
 
 export { providerProtocol, providerEndpoint, providerHeaders, nativeMessages, nativePayload, type ProviderProtocol } from './protocol.ts'
+
+export { thinkingLevel, thinkingRequest, type ThinkingLevel } from './thinking.ts'

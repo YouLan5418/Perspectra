@@ -187,3 +187,14 @@ it('keeps package play settings separate, restores them and preserves model defa
  await expect(core.handle({operation:'play-settings',packageId:'foreign',settings:{}})).rejects.toThrow('载入')
  expect(core.snapshot().playSettings?.[first!.id]?.maximumWaves).toBe(5)
 })
+
+it('persists thinking strength per instance and rejects unsupported explicit choices', async()=>{
+ const core=await service();await core.handle({operation:'load',path:resolve('examples/world-packs/prototype-g1')})
+ await core.handle({operation:'create',packageId:core.snapshot().packs[0]!.id,name:'thinking test'})
+ const instance=core.snapshot().instances[0]!
+ await core.handle({operation:'configure',instanceId:instance.id,model:{model:'deepseek-flash',endpoint:'https://api.deepseek.com/chat/completions',thinkingLevel:'medium'}})
+ const restored=new LauncherCore(resolve('.'),core.root);await restored.initialize()
+ expect(restored.snapshot().instances[0]!.model.thinkingLevel).toBe('medium')
+ expect(()=>localModel({model:'m',endpoint:'http://local.test/v1/chat/completions',thinkingLevel:'unknown'})).toThrow('思考强度')
+ expect(()=>localModel({model:'gemini-3.7-flash',protocol:'google',endpoint:'https://local.test/v1beta/models/gemini-3.7-flash:generateContent',thinkingLevel:'off'})).toThrow('不支持')
+})

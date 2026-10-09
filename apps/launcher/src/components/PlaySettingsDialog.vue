@@ -9,7 +9,7 @@ const store=useLauncherStore(),draft=reactive({...DEFAULT_PLAY_SETTINGS}),error=
 const groups=[...new Set(PLAY_SETTING_FIELDS.map(field=>field.group))]
 const notes:Record<string,string>={
  '表达与等待':'字符上限分别限制玩家输入、角色发布。模型输出 Token 沿用角色预设。激活包含多次请求；外层更短的时限会先触发。',
- '普通反应周期':'每角色次数统计激活机会，一次激活可能多次调用模型。调用预算包含执行后的续写；总时限限制整个周期，独立于 Activity。',
+ '普通反应周期':'每角色次数统计激活机会，一次激活可能多次调用模型。调用预算包含执行后的续写；全部角色串行处理共用总时限，默认 120 秒，包含上下文准备、模型等待和结果提交。此时限独立于 Activity。',
  'Activity':'限制活动连续处理机会与总等待时间，活动本身的规则和轮次仍由创作者定义。',
  'Core 记忆':'Token 为本地估算。整理目标和近期保留量必须小于触发阈值；保留量是近期原文目标，召回预算只限制长期记忆交付。'
 }

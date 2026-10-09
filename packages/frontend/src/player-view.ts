@@ -6,7 +6,9 @@ export interface PlayerView {
   game: { title: string }
   player: { name: string }
   scene: { locationName: string; visibleCharacters: string[]; recipients: { id: string; name: string }[] } | null
+  activity?: { title: string; active: boolean; phase: string; public: WorldJsonObject }
   status: 'ready' | 'busy' | 'paused' | 'error'
+  feedback?: { phase: string; message: string }
   settings?: PlaytestState['playerSettings']
   tailRound?: PlaytestState['tailRound']
   history: { seq: number; speaker: string; text: string; player: boolean; segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
@@ -22,7 +24,12 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
     if (affordance.actionType === 'interact') for (const option of affordance.interactions ?? []) {
       if (!option.targetRef || !option.definitionRef || typeof option.bindingId !== 'string') continue
       const definition = option.definitionRef as WorldJsonObject
-      if (typeof definition.id !== 'string' || definition.id.startsWith('activity:')) continue
+      if (typeof definition.id !== 'string') continue
+      if(definition.id.startsWith('activity:')){
+        const schema=option.argumentSchema as WorldJsonObject|undefined
+        const properties=schema?.properties as WorldJsonObject|undefined
+        if(!properties || Object.keys(properties).some(key=>key!=='activityId'&&key!=='revision'))continue
+      }
       const target = option.targetRef as WorldJsonObject
       const action: PlaytestAction = { actionType: 'interact', parameters: {
         targetRef: structuredClone(option.targetRef), definitionRef: structuredClone(option.definitionRef),
@@ -30,17 +37,28 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
       const args = action.parameters.arguments as WorldJsonObject
       const targetName = state.actionNames?.[String(target.id)] ?? String(target.id)
       const recipient = typeof args.recipientId === 'string' ? state.actionNames?.[args.recipientId] ?? args.recipientId : undefined
-      const verbs: Record<string, string> = { 'base:take': '拿取', 'base:drop': '放下' }
-      const label = definition.id === 'base:give' && recipient !== undefined
+      const verbs: Record<string, string> = { 'base:take': '拿取', 'base:drop': '放下', 'home:cook-rice': '煮白米饭', 'home:eat-rice': '吃完这锅饭' }
+      const label = definition.id.startsWith('activity:') ? String(option.label??definition.id) : definition.id === 'base:give' && recipient !== undefined
         ? '把 ' + targetName + ' 交给 ' + recipient
         : (verbs[String(definition.id)] ?? String(definition.id)) + ' · ' + targetName
       actions.push({ id: 'opt:' + createHash('sha256').update(canonicalizeWorldJson(action as unknown as WorldJsonObject)).digest('hex'), label, action })
     }
   }
+  if(state.activity && !(state.activity.game as WorldJsonObject|undefined)?.active){
+    const action:PlaytestAction={actionType:'interact',parameters:{definitionRef:{id:'host:activity-start',version:1},previousId:state.activity.id??null,previousRevision:state.activity.revision??0}}
+    actions.push({id:'opt:'+createHash('sha256').update(canonicalizeWorldJson(action as unknown as WorldJsonObject)).digest('hex'),label:'开始 '+state.activity.title,action})
+  }
+  const activityGame=state.activity?.game as WorldJsonObject|undefined
+  if(activityGame?.active && activityGame.turn!==(state.activity!.participants as string[])[0]){
+    const action:PlaytestAction={actionType:'interact',parameters:{definitionRef:{id:'host:activity-retry',version:1},previousId:state.activity!.id!,previousRevision:state.activity!.revision!}}
+    actions.push({id:'opt:'+createHash('sha256').update(canonicalizeWorldJson(action as unknown as WorldJsonObject)).digest('hex'),label:'恢复当前活动节点',action})
+  }
   return {
+    ...(state.activity?{activity:{title:String(state.activity.title),active:activityGame?.active===true,phase:String(activityGame?.phase??'not-started'),public:structuredClone(activityGame?.public??{}) as WorldJsonObject}}:{}),
     game: { title: state.world.title }, player: { name: state.world.playerName },
     scene: state.world.currentScene ? { locationName: state.world.currentScene.locationName,
       visibleCharacters: [...state.world.currentScene.presentNpcNames], recipients: (state.world.currentScene.recipients ?? []).map(({ id, name }) => ({ id, name })) } : null,
+    ...(state.playerFeedback ? { feedback: structuredClone(state.playerFeedback) } : {}),
     status: state.busy ? 'busy' : state.error ? 'error' : state.paused ? 'paused' : 'ready',
     ...(state.playerSettings?{settings:{inputCharacters:state.playerSettings.inputCharacters,reading:{fontSize:state.playerSettings.reading.fontSize,lineHeight:state.playerSettings.reading.lineHeight,autoFollow:state.playerSettings.reading.autoFollow}}}:{}),
     ...(state.tailRound ? {tailRound: state.tailRound} : {}),
@@ -50,7 +68,7 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
 }
 export function playerViewPatch(before: PlayerView, after: PlayerView): Record<string, unknown> | null {
   const changes: Record<string, unknown> = {}
-  for (const key of ['game', 'player', 'scene', 'status', 'actions', 'tailRound', 'settings'] as const) {
+  for (const key of ['game', 'player', 'scene', 'status', 'actions', 'tailRound', 'settings', 'activity', 'feedback'] as const) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
   }
   if (JSON.stringify(before.history) !== JSON.stringify(after.history)) {

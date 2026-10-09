@@ -36,12 +36,16 @@ async function fixture() {
   const source=JSON.parse(readFileSync(join(pack,'worldpack.source.json'),'utf8'))
   source.assetFiles=['scripts/variables.js','scripts/activity.js']
   writeFileSync(join(pack,'worldpack.source.json'),JSON.stringify(source))
+  const requests: WorldJsonObject[] = []
   let follow=false, followed=false, gate:Promise<void>|undefined
   const server=createServer((request,response)=>{
+    // Endpoint capability probes have no chat body; this fixture implements only POST completion.
+    if (request.method !== 'POST') { response.writeHead(404); response.end(); return }
     let body=''
     request.on('data',chunk=>{body+=String(chunk)})
     request.on('end',()=>{void(async()=>{
       const input=JSON.parse(JSON.parse(body).messages.at(-1).content)
+      requests.push(input)
       if(gate)await gate
       let answer:unknown={decision:'abstain'}
       if(follow&&!followed&&input.context.character.characterId==='character:companion'&&!input.continuation){
@@ -63,7 +67,7 @@ async function fixture() {
   const runtime=await create()
   const events=(directory=data)=>{const store=new WorldStore(join(directory,'world.sqlite'))
     try{return store.readEvents(runtime.address)}finally{store.close()}}
-  return {root,pack,data,builds,run,options,create,runtime,events,setFollow:()=>{follow=true},setGate:(value:Promise<void>|undefined)=>{gate=value}}
+  return {root,pack,data,builds,requests,run,options,create,runtime,events,setFollow:()=>{follow=true},setGate:(value:Promise<void>|undefined)=>{gate=value}}
 }
 const activityRequest=(state:{activity?:WorldJsonObject},operation:string)=>({
   activityId:state.activity?.id as string|null,revision:Number(state.activity?.revision),operation,parameters:{},requestId:randomUUID(),
@@ -97,17 +101,7 @@ it('restores one complete instant: location, custody, active game, variables and
   expect((await child.state()).activity).toEqual(active.activity)
   expect((await child.state()).packVariables?.public).toEqual({剧情:{阶段:'节点阶段'}})
   expect(existsSync(join(target,'rebuild-memory.json'))).toBe(false)
-  expect(f.builds).toHaveLength(2)
-  for(const build of f.builds){
-    const scope=build.scope as WorldJsonObject
-    expect(scope.asOfWorldSeq).toBe(node.headSeq)
-    expect(build.retainedPrefix).toBeUndefined()
-    expect((build.sources as WorldJsonObject[]).every(s=>s.characterId===scope.characterId&&Number(s.worldSeq)<=node.headSeq)).toBe(true)
-    expect(JSON.stringify(build)).not.toContain('红杉九号')
-    expect(JSON.stringify(build)).not.toContain('未来阶段')
-  }
-  expect(JSON.stringify(f.builds.find(b=>(b.scope as WorldJsonObject).characterId==='character:companion'))).toContain('青松七号')
-  expect(JSON.stringify(f.builds.find(b=>(b.scope as WorldJsonObject).characterId==='character:friend'))).not.toContain('青松七号')
+  expect(f.builds).toHaveLength(0)
   await child.activityAction(activityRequest(await child.state(),'quit'))
   await child.submit('/act speak {"text":"新故事线继续。"}')
   expect(JSON.stringify(f.events())).toBe(future)
@@ -130,22 +124,56 @@ it('refuses to save while a role call is active and leaves no selectable partial
   await expect(f.runtime.saveNode('完整节点')).resolves.toMatchObject({title:'完整节点'})
 },15_000)
 
-it('does not open a fork after partial memory failure; retries the missing role without altering its world or the original',async()=>{
-  const f=await fixture(),node=await f.runtime.saveNode('失败重试')
-  await f.runtime.close()
-  const original=JSON.stringify(f.events()),target=join(f.root,'retry')
+it('preserves installed node archives and raw tail without rebuilding or copying future memory',async()=>{
+ const f=await fixture()
+ await f.runtime.submit('/act speak {"text":"节点前的真实约定。"}')
+ await f.runtime.refreshMemory();await f.runtime.waitForMemory()
+ await f.runtime.submit('/act speak {"text":"整理后的近期原文。"}')
+ const node=await f.runtime.saveNode('已有记忆的节点')
+ const saved=JSON.parse(readFileSync(join(f.data,'story-nodes',node.id,'core-memory.json'),'utf8'))
+ expect(Object.keys(saved)).toHaveLength(2)
+ for(const cached of Object.values(saved) as WorldJsonObject[])expect(Number(((cached.archive as WorldJsonObject).scope as WorldJsonObject).asOfWorldSeq)).toBeLessThan(node.headSeq)
+ await f.runtime.submit('/act speak {"text":"后来的未来不应进入旧节点。"}')
+ await f.runtime.refreshMemory();await f.runtime.waitForMemory();await f.runtime.close()
+ const before=f.builds.length,target=join(f.root,'archived-child')
+ restoreStoryNode(f.data,node.id,target,node.packHash)
+ const child=await f.create(target)
+ expect(f.builds).toHaveLength(before)
+ for(const [actor,cached] of Object.entries(saved))expect(JSON.parse(readFileSync(join(target,'memory-core',Buffer.from(actor).toString('base64url')+'.json'),'utf8'))).toEqual(cached)
+ await child.submit('/act speak {"text":"检查原始历史尾部。"}')
+ const wire=f.requests.at(-1)!
+ expect(JSON.stringify(wire)).toContain('整理后的近期原文')
+ expect(JSON.stringify(wire)).not.toContain('后来的未来')
+ await child.close()
+},15_000)
+
+it('repeated nodes and forks below threshold never call memory Build, including old nodes without snapshots',async()=>{
+ const f=await fixture()
+ for(let i=0;i<3;i++){
+  const node=await f.runtime.saveNode('频繁保存 '+i),target=join(f.root,'frequent-'+i)
+  if(i===0){const path=join(f.data,'story-nodes',node.id);unlinkSync(join(path,'core-memory.json'));node.files=node.files.filter(name=>name!=='core-memory.json');writeFileSync(join(path,'node.json'),JSON.stringify(node))}
   restoreStoryNode(f.data,node.id,target,node.packHash)
-  const failed:CoreRunner=async input=>{
-    if(input.operation==='build'&&(input.scope as WorldJsonObject).characterId==='character:friend')throw new Error('fixture build failed')
-    return input.operation==='build'?built(input):empty
-  }
-  await expect(f.create(target,{memoryCoreRun:failed,memoryCoreBuildRun:failed})).rejects.toThrow('fixture build failed')
+  const child=await f.create(target);await child.close()
+ }
+ expect(f.builds).toHaveLength(0)
+})
+
+it('rejects future or foreign node memory before opening a fork and retains the restore marker',async()=>{
+ const f=await fixture();await f.runtime.refreshMemory();await f.runtime.waitForMemory()
+ const node=await f.runtime.saveNode('验证边界');await f.runtime.close()
+ const original=JSON.stringify(f.events())
+ for(const kind of ['future','foreign','source']){
+  const target=join(f.root,'bad-'+kind);restoreStoryNode(f.data,node.id,target,node.packHash)
+  const path=join(target,'core-memory.json'),saved=JSON.parse(readFileSync(path,'utf8'))
+  const cached=saved['character:companion']
+  if(kind==='future')cached.archive.scope.asOfWorldSeq=node.headSeq+1
+  else if(kind==='foreign')cached.archive.scope.characterId='character:friend'
+  else cached.archive.sources[0].text='来自另一条世界线的内容'
+  writeFileSync(path,JSON.stringify(saved))
+  await expect(f.create(target)).rejects.toThrow(kind==='source'?'memory source prefix changed':'another role, world or future prefix')
   expect(existsSync(join(target,'rebuild-memory.json'))).toBe(true)
   expect(JSON.stringify(f.events())).toBe(original)
-  const child=await f.create(target)
-  expect(existsSync(join(target,'rebuild-memory.json'))).toBe(false)
-  expect(JSON.stringify(f.events(target))).toBe(original)
-  await child.close()
+ }
 },15_000)
 
 it('persists real line selection and restricts forks to reachable saved nodes; Launcher returns no private snapshot data',async()=>{
@@ -185,7 +213,7 @@ it('publishes no partial node on save failure and refuses a node whose variable 
   expect(JSON.stringify(f.events())).toBe(before)
 })
 
-it('shares one historical node across independent launchers, excludes future and caches, and rebuilds authorized cognition', async()=>{
+it('shares one historical node across independent launchers, excludes future and caches, and restores authorized raw history', async()=>{
   const f=await fixture()
   await f.runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"分享阶段"}]')
   await f.runtime.submit('/act interact {"targetRef":{"kind":"entity","id":"entity:brass-key"},"bindingId":"binding:key-take","definitionRef":{"id":"base:take","version":1},"arguments":{}}')
@@ -232,10 +260,7 @@ it('shares one historical node across independent launchers, excludes future and
   expect(currentEntityState(f.events(directory),'entity:brass-key')?.holderId).toBe('character:player')
   expect((await child.state()).activity).toEqual(active.activity)
   expect((await child.state()).packVariables?.public).toEqual({剧情:{阶段:'分享阶段'}})
-  expect(f.builds).toHaveLength(2)
-  expect(JSON.stringify(f.builds)).not.toContain('红杉九号')
-  expect(JSON.stringify(f.builds.find(build=>(build.scope as WorldJsonObject).characterId==='character:friend'))).not.toContain('分享暗号青松七号')
-  expect(JSON.stringify(f.builds.find(build=>(build.scope as WorldJsonObject).characterId==='character:companion'))).toContain('分享暗号青松七号')
+  expect(f.builds).toHaveLength(0)
   await child.activityAction(activityRequest(await child.state(),'quit'))
   await child.submit('/act speak {"text":"接收者继续自己的故事。"}')
   await child.saveNode('导入后保存');await child.close()

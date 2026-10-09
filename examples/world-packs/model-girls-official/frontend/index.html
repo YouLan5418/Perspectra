@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>大模型变成美少女了？！</title><link rel="stylesheet" href="/frontend/custom/style.css"></head>
+<body><main>
+<header><strong>大模型变成美少女了？！</strong><span id="chapter">序章 · 服务暂时不可用</span><span id="time"></span><button id="history-toggle" type="button" aria-label="历史记录" title="历史记录" aria-haspopup="dialog" aria-controls="history-dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2.7 7M3 4v7h7m2-5v6l4 2"/></svg></button></header>
+<section id="stage" aria-label="公寓场景"><div class="window"></div><div class="sofa"></div><div id="cast"></div><div id="curtain"></div></section>
+<section id="dialogue" aria-live="polite"><div><strong id="speaker">欢迎回家</strong><span id="expression"></span></div><p id="line">点击“开始”阅读序章。固定演出结束后，由你决定接下来的生活。</p></section>
+<div id="play-controls"><button id="advance">开始序章</button><button id="fast">快进</button><button id="skip">跳过演出，保留完整经历</button><button id="stop" hidden>停止快进</button></div>
+<p id="response-status" role="status" aria-live="polite"></p><p id="notice" role="status"></p><button id="retry" hidden>重试同一操作</button>
+<section id="free" hidden><p id="scene"></p><div id="actions"></div>
+<form id="composer" aria-label="消息编辑框">
+<div class="main-input"><label for="input" class="sr-only">你想说什么？</label><textarea id="input" rows="2" placeholder="你想说的话……" aria-describedby="audience"></textarea></div>
+<div id="detail-panel" hidden><div class="detail-card"><label for="narration">细节描写（可选）</label><textarea id="narration" rows="2" placeholder="补充动作、姿态或表达方式，不填也可以"></textarea></div></div>
+<div class="compose-toolbar">
+<div id="audience-picker"><button id="audience-toggle" class="compose-pill audience-pill" type="button" aria-label="选择受众" aria-haspopup="menu" aria-expanded="false" aria-controls="audience-menu"><span class="compose-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-16a3 3 0 0 1 0 6m3 10v-3a6 6 0 0 0-3-5"/></svg></span><strong id="audience-label">公开</strong><span class="chevron" aria-hidden="true">⌄</span></button>
+<div id="audience-menu" role="menu" aria-label="受众范围" hidden>
+<button type="button" role="menuitem" data-scope="scene_public">公开 <small>在场角色</small></button>
+<div class="scope-group" data-scope="direct"><button type="button" role="menuitem" aria-haspopup="menu" aria-expanded="false">定向 <small>只有接收者知道</small><span aria-hidden="true">›</span></button><div class="recipient-menu" role="menu" aria-label="定向接收者" hidden></div></div>
+<div class="scope-group" data-scope="private"><button type="button" role="menuitem" aria-haspopup="menu" aria-expanded="false">私密 <small>旁观者只知交流发生</small><span aria-hidden="true">›</span></button><div class="recipient-menu" role="menu" aria-label="私密接收者" hidden></div></div>
+<button type="button" role="menuitem" data-scope="self">仅自己 <small>保留在自己的经历中</small></button>
+</div></div>
+<div id="audience-info"><button id="info-toggle" class="compose-pill" type="button" aria-label="查看受众说明" aria-expanded="false" aria-controls="info-popover"><span class="compose-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8.5h.01"/></svg></span></button><div id="info-popover" hidden><strong>受众说明</strong><p id="audience"></p></div></div>
+<span class="compose-divider" aria-hidden="true"></span>
+<button id="details-toggle" class="compose-pill" type="button" aria-expanded="false" aria-controls="detail-panel"><span class="compose-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 17 9-9 3 3-9 9-4 1zM12 9l3-3a2 2 0 0 1 3 0l.3.3a2 2 0 0 1 0 3L15 12"/></svg></span><span>细节描写</span><span class="chevron" aria-hidden="true">⌄</span></button>
+<span class="compose-spacer"></span><span class="keyboard-hint">Enter 发送 · Shift + Enter 换行</span>
+<button id="send" type="button" aria-label="发送" title="发送"><svg class="send-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg><svg class="send-spinner" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12"/></svg></button>
+</div>
+<select id="scope" hidden aria-hidden="true"><option value="scene_public">公开</option><option value="direct">定向</option><option value="private">私密</option><option value="self">仅自己</option></select><select id="recipient" hidden aria-hidden="true"></select>
+</form></section>
+<dialog id="history-dialog" aria-labelledby="history-title">
+<div class="history-heading"><div><span class="history-caption">BACKLOG</span><h2 id="history-title">历史记录</h2></div><button id="history-close" type="button" aria-label="关闭历史记录"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+<div id="history" tabindex="0" aria-label="历史对话"></div>
+<div class="history-footer"><span>Esc 返回游戏</span><button id="history-latest" type="button">回到最新</button></div>
+</dialog>
+<footer>占位人物与背景 · 静音演出 · 普通生活在输入或活动触发后推进</footer>
+</main><script src="/frontend/sdk.js"></script><script src="/frontend/custom/app.js"></script></body></html>
