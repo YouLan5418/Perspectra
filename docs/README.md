@@ -2,7 +2,7 @@
 
 | 我想了解 | 入口 |
 | --- | --- |
-| 项目现在怎么工作 | [当前架构](current/architecture/README.md) |
+| 从入门到理解当前代码 | [代码技术文档](current/architecture/README.md) |
 | 当前做到什么程度 | [项目状态](current/PROJECT-STATE.md) |
 | 运行或创作内容 | [操作指南](current/guides/README.md) |
 | 真实实验依据 | [实验入口](../experiments/README.md) |

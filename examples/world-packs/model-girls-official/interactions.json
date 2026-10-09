@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "worldpack-interactions/v1",
+  "packages": [
+    {
+      "id": "package:interactions-basic",
+      "version": 1
+    },
+    {
+      "id": "package:home-meal",
+      "version": 1
+    }
+  ],
+  "definitions": [
+    {
+      "id": "base:take",
+      "version": 1
+    },
+    {
+      "id": "base:drop",
+      "version": 1
+    },
+    {
+      "id": "base:give",
+      "version": 1
+    },
+    {
+      "id": "home:cook-rice",
+      "version": 1
+    },
+    {
+      "id": "home:eat-rice",
+      "version": 1
+    }
+  ],
+  "relationBindings": []
+}

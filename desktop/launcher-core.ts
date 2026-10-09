@@ -1,6 +1,6 @@
+import { thinkingRequest, thinkingLevel, type ThinkingLevel } from '../packages/provider-chat/src/thinking.ts'
 import { playSettings, readingPreferences, DEFAULT_READING, type PlaySettings, type ReadingPreferences } from './play-settings.ts'
 import { providerProtocol, providerEndpoint, providerHeaders, nativeMessages, nativePayload, type ProviderProtocol } from '../packages/provider-chat/src/protocol.ts'
-import { existsSync } from 'node:fs'
 import { exportStoryNode, importStoryNode } from './story-share.ts'
 import { readStoryNodes, restoreStoryNode, storyId } from './story-nodes.ts'
 import { importPresets, exportPresets, namedPreset } from '../packages/provider-chat/src/preset-library.ts'
@@ -13,12 +13,12 @@ import { mkdir, readFile, rename, writeFile, access } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { interactionPackageDescription } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { preflightSave } from './save-preflight.ts'
 import { loadPackWeb } from '../tests/experiments/playtest-pack-web.ts'
 import { hindsightPython } from '../tests/experiments/hindsight-python.ts'
 
-export interface LocalModel { model: string; endpoint: string; protocol?: ProviderProtocol }
+export interface LocalModel { model: string; endpoint: string; protocol?: ProviderProtocol; thinkingLevel?: ThinkingLevel }
 interface Pack { id: string; version: string; title: string; path: string; hash: string }
 interface Storyline { id: string; name: string; parentStorylineId: string | null; parentNodeId: string | null }
 interface Instance { currentStorylineId: string; storylines: Storyline[]; id: string; packageId: string; packageVersion: string; packHash: string; name: string; lastPlayedAt: string | null; model: LocalModel }
@@ -43,7 +43,8 @@ export function localModel(value: unknown): LocalModel {
   if (protocol === 'openai' && !url.pathname.endsWith('/chat/completions')) throw new Error('接口地址须包含 /chat/completions。')
   if (protocol === 'anthropic' && !url.pathname.endsWith('/messages')) throw new Error('Anthropic 接口须以 /messages 结尾。')
   providerEndpoint(url, protocol, model)
-  return { model, endpoint: url.href, ...(data.protocol === undefined ? {} : { protocol }) }
+  if (data.thinkingLevel !== undefined) thinkingRequest(protocol, model, thinkingLevel(data.thinkingLevel))
+  return { model, endpoint: url.href, ...(data.thinkingLevel === undefined ? {} : {thinkingLevel:thinkingLevel(data.thinkingLevel)}), ...(data.protocol === undefined ? {} : { protocol }) }
 }
 async function terminate(child: ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return
@@ -135,7 +136,7 @@ export class LauncherCore {
     await this.#presets.loadLibrary()
     await this.#recommendations()
   }
-  async #recommendations(){for(const pack of this.#index.packs){this.#recommended[pack.id]=await packPreset(pack.path);const compiled=await compileWorldPackSource(pack.path,[interactionPackageDescription(createBasicInteractionPackage())]) as CompiledWorldPackV5;this.#characters[pack.id]=packCharacters(compiled)}}
+  async #recommendations(){for(const pack of this.#index.packs){this.#recommended[pack.id]=await packPreset(pack.path);const compiled=await compileWorldPackSource(pack.path,createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5;this.#characters[pack.id]=packCharacters(compiled)}}
   #validMapping(instance:Instance,choice:ReturnType<typeof presetChoice>){const ids=new Set((this.#characters[instance.packageId]??[]).map(c=>c.id));if([...Object.keys(choice.characters??{}),...Object.keys(choice.memberships??{})].some(id=>!ids.has(id)))throw new Error('预设引用了此包之外或不可调用的角色。')}
   async #save(next: Index): Promise<void> {
     const temporary = join(this.root, 'launcher.' + randomUUID() + '.tmp')
@@ -274,7 +275,7 @@ export class LauncherCore {
       case 'load': {
         this.#idle()
         const path = resolve(text(request.path, '世界包目录'))
-        const compiled = await compileWorldPackSource(path, [interactionPackageDescription(createBasicInteractionPackage())]) as CompiledWorldPackV5
+        const compiled = await compileWorldPackSource(path, createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5
         await loadPackWeb(path)
         const recommended=await packPreset(path)
         const pack: Pack = { id: compiled.packId, version: compiled.packVersion, title: compiled.content.world.title, path, hash: compiled.packHash }
@@ -410,7 +411,7 @@ export class LauncherCore {
         const child = spawn(process.execPath,
           [...(process.env.PERSPECTRA_RUNTIME_ROOT ? [join(process.env.PERSPECTRA_RUNTIME_ROOT,'playtest.mjs')] : ['--import','tsx',join(this.repository,'tests/experiments/playtest-web-entry.ts')]), '--pack', pack.path, '--data-dir', directory, '--memory-core', '--play-settings', JSON.stringify(this.#index.playSettings?.[pack.id]??playSettings({}))], {
             cwd: this.repository, windowsHide: true,
-            env: { ...process.env, HCW_LOCAL_MODEL: instance.model.model, HCW_LOCAL_ENDPOINT: instance.model.endpoint, HCW_MODEL_PROTOCOL: instance.model.protocol ?? 'openai',
+            env: { ...process.env, HCW_LOCAL_MODEL: instance.model.model, HCW_LOCAL_ENDPOINT: instance.model.endpoint, HCW_THINKING_LEVEL: instance.model.thinkingLevel, HCW_MODEL_PROTOCOL: instance.model.protocol ?? 'openai',
               PERSPECTRA_STORY_PARENT_NODE: instance.storylines.find(l=>l.id===instance.currentStorylineId)?.parentNodeId??'',
               PERSPECTRA_READING: JSON.stringify(this.#index.preferences.reading??DEFAULT_READING),
               PERSPECTRA_PRESET_ROOT: this.root, PERSPECTRA_PRESET_INSTANCE: instance.id,
@@ -427,7 +428,7 @@ export class LauncherCore {
         })
         try {
           const ready = await new Promise<{ port: number; token: string; frontendMode: 'sandbox'|'trusted' }>((done, reject) => {
-            const timer = setTimeout(() => finish(new Error('Core 启动或故事线记忆重建超时；原线保留，可重试。')), existsSync(join(directory,'rebuild-memory.json')) ? 3_660_000 : 60_000)
+            const timer = setTimeout(() => finish(new Error('Core 启动或故事线恢复超时；原线保留，可重试。')), 60_000)
             const finish = (error?: Error, result?: { port: number; token: string; frontendMode: 'sandbox'|'trusted' }) => {
               clearTimeout(timer); child.off('message', message); child.off('exit', exit); child.off('error', failed)
               if (error) reject(error); else done(result!)

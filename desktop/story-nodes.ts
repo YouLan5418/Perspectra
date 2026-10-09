@@ -13,7 +13,7 @@ export function storyId(value: unknown): string {
   if (typeof value !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value)) throw new Error('故事节点或线路不存在。')
   return value
 }
-const NODE_FILES = ['world.sqlite', 'session.sqlite', 'memory.sqlite', 'context.sqlite', 'pack-variables.json', 'memory-aliases.json'] as const
+const NODE_FILES = ['world.sqlite', 'session.sqlite', 'memory.sqlite', 'context.sqlite', 'pack-variables.json', 'memory-aliases.json', 'core-memory.json'] as const
 export function readStoryNodes(directory: string): StoryNode[] {
   const root = join(directory, 'story-nodes')
   if (!existsSync(root)) return []
@@ -30,7 +30,7 @@ export function readStoryNodes(directory: string): StoryNode[] {
 }
 
 /** Caller holds the runtime input gate; all foreground and memory writers have stopped. */
-export async function saveStoryNode(directory: string, address: WorldAddress, packHash: string, title: string, aliases: unknown, parentNodeId: string | null = null, logicalDirectory = directory): Promise<StoryNode> {
+export async function saveStoryNode(directory: string, address: WorldAddress, packHash: string, title: string, aliases: unknown, parentNodeId: string | null = null, logicalDirectory = directory, coreMemory: unknown = {}): Promise<StoryNode> {
   if (!title.trim() || title.length > 80) throw new TypeError('节点名称须为 1 至 80 个字符。')
   const root = join(logicalDirectory, 'story-nodes'), id = randomUUID()
   mkdirSync(root, { recursive: true })
@@ -60,6 +60,7 @@ export async function saveStoryNode(directory: string, address: WorldAddress, pa
   }
   if (existsSync(join(directory, 'pack-variables.json'))) copyFileSync(join(directory, 'pack-variables.json'), join(temporary, 'pack-variables.json'))
   writeFileSync(join(temporary, 'memory-aliases.json'), JSON.stringify(aliases))
+  writeFileSync(join(temporary, 'core-memory.json'), JSON.stringify(coreMemory))
   node.files = NODE_FILES.filter(name=>existsSync(join(temporary,name)))
   writeFileSync(join(temporary, 'node.json'), JSON.stringify(node))
   renameSync(temporary, join(root, id))

@@ -1,3 +1,4 @@
+import type { ThinkingLevel } from '../../packages/provider-chat/src/thinking.ts'
 import { playSettings, DEFAULT_READING, type PlaySettings, type ReadingPreferences } from '../../desktop/play-settings.ts'
 import { providerProtocol, type ProviderProtocol } from '../../packages/provider-chat/src/protocol.ts'
 import { TailRoundRuntime } from './playtest-tail-runtime.ts'
@@ -22,7 +23,7 @@ import { SceneDecisionService, WorldApplication } from '@harness-world/applicati
 import { brandId, interactionPackageDescription, RECALL_KEYWORD_TOKENIZER_ID,
   type CharacterId, type WorldJsonObject,
   type WorldAddress } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { createChatProvider, prototypeTurnCall, type ChatCallObservation } from '@harness-world/provider-chat'
 import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
 import { CharacterViewBuilder, CharacterRuntimeAvailabilityService, PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
@@ -39,6 +40,7 @@ export interface FrozenPlaytestOptions {
   /** The v5 Pack directory: the world the author wrote, compiled here with the Host's installed packages. */
   readonly packPath: string
   readonly protocol?: ProviderProtocol
+  readonly thinkingLevel?: ThinkingLevel
   readonly provider: 'local' | 'deepseek' | 'ollama'
   readonly model?: string
   readonly preset?: RolePreset
@@ -105,6 +107,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #memoryCore: PlaytestMemoryCore | undefined
   #closeCore: (() => Promise<void>) | undefined
   #activity: PackActivity | undefined
+  #activityView: WorldJsonObject | undefined
   #workDone: Promise<void> = Promise.resolve()
   #finishWork: (() => void) | undefined
   #escaping: Promise<PlaytestState> | undefined
@@ -178,7 +181,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     }
     const protocol = providerProtocol(options.protocol)
     if (protocol !== 'openai' && options.provider !== 'local') throw new TypeError('原生协议须使用 local 配置入口。')
-    const providerOptions = { protocol, endpoint, model: this.#model,
+    const providerOptions = { ...(options.thinkingLevel === undefined ? {} : {thinkingLevel:options.thinkingLevel}), protocol, endpoint, model: this.#model,
       ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }),
       ...(options.preset===undefined?{}:{preset:options.preset}),
       inspector:this.#inspector, style: options.provider === 'ollama' ? 'format' as const : 'tool' as const, timeoutMs, onCall }
@@ -250,6 +253,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       modelId: this.#intentModel, maxOutputTokens: 1_024, timeoutMs: Math.min(timeoutMs, 60_000) }
     this.#application = new WorldApplication({
       externalCharacterActivations: true,
+      interactionPackages:createInstalledInteractionPackages(),
       worldPath: resolve(options.dataDirectory, 'world.sqlite'),
       sessionPath: resolve(options.dataDirectory, 'session.sqlite'),
       memoryPath: resolve(options.dataDirectory, 'memory.sqlite'),
@@ -267,9 +271,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
 
   static async create(options: FrozenPlaytestOptions): Promise<FrozenWorldRuntimeCore> {
     mkdirSync(resolve(options.dataDirectory), { recursive: true })
-    const pack = await compileWorldPackSource(resolve(options.packPath), [
-      interactionPackageDescription(createBasicInteractionPackage()),
-    ]) as CompiledWorldPackV5
+    const pack = await compileWorldPackSource(resolve(options.packPath), createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5
     const compiled = adaptCompiledWorldPack(pack, {
       address: { tenantId: brandId('tenant:web-playtest', 'TenantId'),
         worldId: brandId(`world:web-playtest:${pack.packHash.slice(7, 23)}`, 'WorldId'),
@@ -290,10 +292,16 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
       if (existsSync(rebuildPath)) {
         const rebuild = JSON.parse(readFileSync(rebuildPath, 'utf8')) as {headSeq:number;packHash:string}
-        if (!runtime.#memoryCore || rebuild.packHash !== pack.packHash) throw new Error('故事线记忆重建需要原游戏包与 Core 记忆。')
-        // Rebuilding derived cognition needs no world writer; a killed build must not leave a live lease.
+        if (!runtime.#memoryCore || rebuild.packHash !== pack.packHash) throw new Error('故事线记忆恢复需要原游戏包与 Core 记忆。')
+        const head = await runtime.#application.head(runtime.#address)
+        if (head.headSeq !== rebuild.headSeq) throw new Error('故事节点的世界前缀不一致。')
+        // Restoring derived archives must not hold a world writer across file installation.
         await runtime.#application.release(runtime.#address)
-        await runtime.#memoryCore.rebuildAt(runtime.#characterIds, rebuild.headSeq, AbortSignal.timeout(3_600_000))
+        const memoryPath = resolve(options.dataDirectory, 'core-memory.json')
+        const archives = existsSync(memoryPath) ? JSON.parse(readFileSync(memoryPath, 'utf8')) as WorldJsonObject : {}
+        if (!archives || typeof archives !== 'object' || Array.isArray(archives)) throw new Error('故事节点记忆快照损坏。')
+        runtime.#memoryCore.restoreArchives(archives, runtime.#characterIds)
+        runtime.#memoryCore.snapshotAliases(runtime.#characterIds)
         unlinkSync(rebuildPath)
       }
       if (options.storyNodes && readStoryNodes(options.logicalDirectory ?? options.dataDirectory).length === 0) await runtime.saveNode('首次保存节点')
@@ -325,6 +333,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
 
   async state(): Promise<PlaytestState> {
     return {
+      playerFeedback: { phase: this.#phaseLabel, message: this.#notice },
       busy: this.#busy, paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#transcript,
       playerSettings: {inputCharacters:this.#playSettings.playerInputCharacters,reading:this.#options.reading??DEFAULT_READING},
@@ -336,7 +345,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
           .map(id => [id, this.#names.get(id)!])
       }))),
       ...(this.#memoryCore ? { memoryMaintenance: this.#memoryCore.backgroundState() } : {}),
-      ...(this.#activity ? { activity: this.#activity.view(this.#playerId) } : {}),
+      ...(this.#activityView ? { activity: structuredClone(this.#activityView) } : {}),
       ...(this.#variables ? { packVariables: this.#variables.getVariables(this.#playerId) } : {}),
       world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames,
         ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }) },
@@ -429,10 +438,12 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #beginWork(): void {
     this.#abortedWork = false
     this.#busy = true
+    this.#phaseLabel = '正在提交操作'
     this.#workDone = new Promise<void>(done => { this.#finishWork = done })
   }
   #endWork(): void {
     this.#busy = false
+    this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
     this.#finishWork?.(); this.#finishWork = undefined
   }
   async activityAction(request: ActivityRequest): Promise<PlaytestState> {
@@ -458,7 +469,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       await this.#application.deliver(this.#address, 'story-node:deliver')
       await this.#application.release(this.#address)
       const aliases = this.#memoryCore?.snapshotAliases(this.#characterIds) ?? {}
-      return await saveStoryNode(this.#dataDirectory, this.#address, this.#packHash, title, aliases, this.#storyParentNodeId, this.#options.logicalDirectory)
+      return await saveStoryNode(this.#dataDirectory, this.#address, this.#packHash, title, aliases, this.#storyParentNodeId, this.#options.logicalDirectory, this.#memoryCore?.snapshotArchives(this.#characterIds) ?? {})
     } finally { this.#savingNode = false; this.#endWork() }
   }
   beginRoundRandom(values?: readonly number[]): void { this.#activity?.beginRoundRandom(values) }
@@ -510,6 +521,13 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
 
   /** Structured UI choices remain proposals and follow the same Rulebook path as /act. */
   async perform(action: PlaytestAction): Promise<PlaytestState> {
+    if(action.actionType==='interact' && ['host:activity-start','host:activity-retry'].includes(String((action.parameters.definitionRef as WorldJsonObject|undefined)?.id))){
+      const current=this.#activity?.view(this.#playerId) as WorldJsonObject|undefined
+      if(!current || (current.id??null)!==action.parameters.previousId || (current.revision??0)!==action.parameters.previousRevision)
+        throw new TypeError('活动入口已失效，请刷新')
+      const retry=(action.parameters.definitionRef as WorldJsonObject).id==='host:activity-retry'
+      return this.activityAction({activityId:retry?String(current.id):null,revision:retry?Number(current.revision):0,operation:retry?'retry':'start',parameters:{},requestId:randomUUID()})
+    }
     return this.submit(`/act ${action.actionType} ${JSON.stringify(action.parameters)}`)
   }
   /** The round result names only its first action; report any later player action rejected in the same commit. */
@@ -607,7 +625,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       const shadowFile = this.#memoryShadowFile
       const turn = new PrototypeCharacterTurn({ publicationCharacters:this.#playSettings.publicationCharacters, activationTimeoutMs:this.#playSettings.activationTimeoutSeconds*1000, address: this.#address, store, leases, availability,
         ...(this.#memoryCore === undefined ? { memory } : {}),
-        rulebooks: this.#activity?.rulebooks() ?? createCoreRulebookRegistry({ interactionPackages: [createBasicInteractionPackage()] }),
+        rulebooks: this.#activity?.rulebooks() ?? createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
         decide: this.#decideContinuation,
         onCommitted: async () => { await this.#projectCommitted(store) },
         ...(this.#activity === undefined ? {} : {
@@ -648,6 +666,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       if (activityOnly) return
       this.#activationCycle = await runPrototypeActivations({ store, address: this.#address, turn,
         afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds.filter(id => !active?.game.active || !active.participants.includes(id)), signal: this.#continuationController.signal,
+        presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
         limits: this.#tuning })
       const terminal = this.#activationCycle.terminalReason
       if (terminal === 'failed' || terminal === 'interrupted') {
@@ -659,10 +678,12 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
             : last?.failure === 'provider_failed' ? '角色模型服务未完成请求' : '角色处理失败'
         this.#error = true
         this.#notice = `玩家输入已提交；${cause}。${committed
-          ? '交互结果已提交，后续表达未完成；请看转录中的实际结果。'
-          : '本次未完成的角色行动或表达没有提交。'}`
+          ? '交互结果已提交，后续表达未完成；请看转录中的实际结果。可以继续行动，无需重发上一句。'
+          : '已经发表的回应保留；尚未完成的角色行动或表达没有提交。可以继续行动，无需重发上一句。'}`
       } else if (terminal === 'call_limit' || terminal === 'wave_limit' || terminal === 'character_limit') {
-        this.#notice = '玩家输入已提交；本轮角色反应达到预算上限，剩余反应没有继续执行。'
+        this.#notice = '玩家输入已提交；本轮角色反应达到预算上限，剩余反应没有继续执行。可以继续行动，无需重发上一句。'
+      } else {
+        this.#notice = '本轮角色处理已结束，可以继续行动；角色也可以选择不回应。'
       }
     } finally {
       memory?.close(); availability.close(); leases.close(); store.close()
@@ -720,6 +741,9 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     } finally {
       world.close()
     }
+    // Like transcript and affordances, serve the last refreshed committed projection.
+    // Polling must not open a migrating writer while tail snapshots copy the database.
+    this.#activityView = this.#activity?.view(this.#playerId)
     const activityState = this.#activity?.current()
     if (activityState?.game.active && activityState.participants.includes(this.#playerId)) {
       this.#availableActions = this.#activity!.filterAffordances(this.#availableActions, activityState, this.#playerId)

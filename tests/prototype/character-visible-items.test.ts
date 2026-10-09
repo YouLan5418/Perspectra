@@ -17,7 +17,7 @@ const observation = { eventType: 'observation.upsert', eventVersion: 1, data: { 
 const events = [...world.genesisEvents, transfer, observation]
 it('shows witnessed possession only while the holder remains visible in the same place', () => {
   expect(characterVisibleItems(world.manifest, events, actor, [actor, player]).current)
-    .toContainEqual({ entityId: 'entity:cup', holderId: player, locationId: null })
+    .toContainEqual({ entityId: 'entity:cup', holderId: player, locationId: null, kind: 'cup' })
   const away = [...events, { eventType: 'character.moved', eventVersion: 1,
     data: { characterId: player, fromLocationId: 'location:room', toLocationId: 'location:elsewhere' } }]
   const result = characterVisibleItems(world.manifest, away, actor, [actor, player])
@@ -41,5 +41,5 @@ it('does not turn dialogue into a possession fact', () => {
   const speech = { ...observation, data: { id: 'claim', value: { observerId: actor,
     content: { status: 'accepted', speech: { text: '杯子一直在我手里。' } } } } }
   expect(characterVisibleItems(world.manifest, [...events, speech], actor, [actor, player]).current)
-    .toContainEqual({ entityId: 'entity:cup', holderId: player, locationId: null })
+    .toContainEqual({ entityId: 'entity:cup', holderId: player, locationId: null, kind: 'cup' })
 })

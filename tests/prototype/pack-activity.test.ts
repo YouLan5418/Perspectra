@@ -9,6 +9,7 @@ import { CognitiveMemoryService } from '@harness-world/memory'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { FrozenWorldPlaytestRuntime, type FrozenPlaytestOptions } from '../experiments/playtest-frozen-runtime.ts'
 import { createPlaytestServer } from '../experiments/playtest-server.ts'
+import { characterRequestText } from '../../packages/provider-chat/src/character-context-text.ts'
 import type { ActivityRequest } from '../experiments/pack-activity.ts'
 
 const roots:string[]=[],servers:Server[]=[],runtimes:FrozenWorldPlaytestRuntime[]=[]
@@ -94,7 +95,7 @@ describe('creator activity and host escape',()=>{
       const head=store.head(f.runtime.address).headSeq
       const observations=new CharacterViewBuilder(store).rebuildAt(f.runtime.address,brandId('character:gpt','CharacterId'),head).observations
       const expected=observations.toSorted((left,right)=>left.sourceSeq-right.sourceSeq).slice(-8).map(o=>o.value)
-      expect(context.stimulus).toEqual(expected)
+      expect(context.stimulus).toEqual(JSON.parse(characterRequestText({context:{stimulus:expected}})).context.stimulus)
       expect(JSON.stringify(context.stimulus)).toContain('第9条交流')
     }finally{store.close()}
   })

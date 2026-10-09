@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { interactionPackageDescription } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 
 export interface SavePreflightResult {
@@ -14,9 +14,7 @@ export interface SavePreflightResult {
 
 /** Read the saved Manifest without opening a writable WorldStore or migrating old data. */
 export async function preflightSave(packPath: string, dataDirectory: string): Promise<SavePreflightResult> {
-  const pack = await compileWorldPackSource(resolve(packPath), [
-    interactionPackageDescription(createBasicInteractionPackage()),
-  ]) as CompiledWorldPackV5
+  const pack = await compileWorldPackSource(resolve(packPath), createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5
   const databasePath = resolve(currentWorldDirectory(dataDirectory), 'world.sqlite')
   if (!existsSync(databasePath)) {
     if (existsSync(dataDirectory) && readdirSync(dataDirectory).length > 0) {

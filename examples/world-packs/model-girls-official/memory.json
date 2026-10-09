@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "profile": "standard",
+      "attentionTopics": ["四个少女", "今早发生了什么", "我的代码"]
+    },
+    {
+      "characterId": "character:gpt",
+      "profile": "standard",
+      "attentionTopics": ["玩家状态", "工作", "生活", "关系", "陪伴"]
+    },
+    {
+      "characterId": "character:claude",
+      "profile": "standard",
+      "attentionTopics": ["架构", "逻辑", "异常", "真实性", "代码质量"]
+    },
+    {
+      "characterId": "character:deepseek",
+      "profile": "standard",
+      "attentionTopics": ["AI", "推理问题", "实体化原因", "新奇现象", "其他 AI"]
+    },
+    {
+      "characterId": "character:glm",
+      "profile": "standard",
+      "attentionTopics": ["代码", "电脑", "Agent", "开发环境", "工具", "当前现实问题"]
+    }
+  ]
+}

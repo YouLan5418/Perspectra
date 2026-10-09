@@ -7,6 +7,7 @@ import type { PrototypeCharacterTurn, PrototypeTurnResult } from './prototype-ch
 export async function runPrototypeActivations(input: {
   store: WorldStore; address: WorldAddress; turn: PrototypeCharacterTurn; afterSeq: number;
   characterIds: readonly CharacterId[]; signal: AbortSignal;
+  presentCharacterIds?: () => readonly CharacterId[];
   limits?: { readonly maximumWaves: number; readonly maximumNpcCalls: number; readonly maximumCallsPerCharacter: number; readonly reactionDeadlineSeconds?: number };
 }) {
   const limits = input.limits ?? { maximumWaves: 3, maximumNpcCalls: 8, maximumCallsPerCharacter: 2 }
@@ -34,8 +35,21 @@ export async function runPrototypeActivations(input: {
   let pending = candidates(input.afterSeq, true)
   for (wave = 1; wave <= limits.maximumWaves && pending.size > 0; wave++) {
     const before = input.store.head(input.address).headSeq
-    for (const characterId of input.characterIds) {
-      if (!pending.has(characterId) || (counts.get(characterId) ?? 0) >= limits.maximumCallsPerCharacter) continue
+    // Shuffle eligible roles, not observations or scripted Activity turns. Nearby roles get
+    // the first opportunities; departure observers still receive their bounded reactions.
+    const present = new Set(input.presentCharacterIds?.() ?? input.characterIds)
+    const eligible = input.characterIds.filter(id => pending.has(id)
+      && (counts.get(id) ?? 0) < limits.maximumCallsPerCharacter)
+    const shuffle = (ids: CharacterId[]) => {
+      for (let index = ids.length - 1; index > 0; index--) {
+        const other = Math.floor(Math.random() * (index + 1))
+        ;[ids[index], ids[other]] = [ids[other]!, ids[index]!]
+      }
+      return ids
+    }
+    const order = [...shuffle(eligible.filter(id => present.has(id))),
+      ...shuffle(eligible.filter(id => !present.has(id)))]
+    for (const characterId of order) {
       if (signal.aborted) return { calls, wave, terminalReason: 'interrupted', activations }
       // Reserve the result-aware reply slot; a second operation is offered only with a third slot reserved.
       if (calls + 2 > limits.maximumNpcCalls) return { calls, wave, terminalReason: 'call_limit', activations }

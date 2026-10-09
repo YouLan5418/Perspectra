@@ -97,7 +97,8 @@ def utility_request(protocol, endpoint, model, system, user, limit, api_key):
     headers = {'content-type': 'application/json'}
     if protocol == 'openai':
         body = {'model': model, 'messages': [{'role':'system','content':system},{'role':'user','content':user}],
-                'response_format': {'type':'json_object'}, 'temperature':0, 'max_tokens':limit}
+                'response_format': {'type':'json_object'}, 'temperature':0, 'max_tokens':limit,
+                'thinking': {'type':'disabled'}}
         if api_key: headers['authorization'] = 'Bearer ' + api_key
     elif protocol == 'anthropic':
         headers['anthropic-version'] = '2023-06-01'
@@ -207,6 +208,9 @@ def utility_llm(system, user, max_tokens=1600):
         if not isinstance(value,str): raise ValueError('empty memory utility JSON')
         result=json.loads(value.strip().removeprefix('```json').removesuffix('```').strip())
     except (ValueError,TypeError) as error:
+        attempt_trace({**metadata, 'event':'rejected', 'atMs':time.time_ns()/1_000_000,
+                       'finishReason':finish_reason, 'responseChars':len(value) if isinstance(value,str) else 0,
+                       'errorType':type(error).__name__})
         record.update(status='rejected',error=str(error));save();raise
     save();return result
 

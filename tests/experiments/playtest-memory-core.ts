@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { unlinkSync, appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
@@ -296,16 +296,33 @@ export class PlaytestMemoryCore {
       return [actor, this.#restoreAliases(actor, snapshot.scope, cached)]
     }))
   }
-  async rebuildAt(actors: readonly string[], prefix: number, signal: AbortSignal): Promise<void> {
+  /** Copy only installed, authorized archives. Node creation never builds new memories. */
+  snapshotArchives(actors: readonly string[]): WorldJsonObject {
+    return Object.fromEntries(actors.flatMap(actor => {
+      const cached = this.#load(actor)
+      if (!cached) return []
+      this.#validate(cached, this.#snapshot(actor))
+      return [[actor, cached]]
+    }))
+  }
+  /** Restore the node's actual memory boundary, including an explicitly empty archive set. */
+  restoreArchives(archives: WorldJsonObject, actors: readonly string[]): void {
+    if (Object.keys(archives).some(actor => !actors.includes(actor))) throw new Error('node memory contains an unknown role')
     for (const actor of actors) {
-      const snapshot = this.#snapshot(actor)
-      if (Number(snapshot.scope.asOfWorldSeq) !== prefix) throw new Error('world changed during memory rebuild')
+      const cached = archives[actor]
+      if (cached !== undefined) {
+        this.#validate(object(cached), this.#snapshot(actor))
+        this.#restoreAliases(actor, this.#snapshot(actor).scope, object(cached))
+      }
     }
-    await this.refresh(actors, signal, () => {})
     for (const actor of actors) {
-      const snapshot = this.#snapshot(actor), cached = this.#load(actor)
-      if (!cached || this.archivePrefix(actor) !== prefix) throw new Error('character memory rebuild incomplete')
-      this.#validate(cached, snapshot)
+      const cached = archives[actor], path = this.#path(actor)
+      if (cached === undefined) {
+        if (existsSync(path)) unlinkSync(path)
+      } else {
+        writeFileSync(path + '.tmp', JSON.stringify(cached))
+        renameSync(path + '.tmp', path)
+      }
     }
   }
   async waitForBackground(): Promise<void> {

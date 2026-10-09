@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import promises from 'node:fs/promises'
 import { syncBuiltinESMExports } from 'node:module'
 import { basename } from 'node:path'
-import type { WorldJsonObject } from '@harness-world/contracts'
 import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
 import type { CoreRunner } from './hindsight-python.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
@@ -51,11 +50,8 @@ function install() {
   syncBuiltinESMExports()
 }
 const run: CoreRunner = async input => {
-  if (input.operation !== 'build') return { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } }
-  // Keep the second role unfinished when the first role is installed.
-  if ((input.scope as WorldJsonObject).characterId === 'character:friend') await new Promise(() => {})
-  return { archive: { scope: input.scope!, sources: input.sources!, facts: [], episodes: [], observations: [] },
-    index: { scope: input.scope!, units: [], vectors: [] } }
+  if (input.operation === 'build') throw new Error('Node restoration must never call memory Build')
+  return { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } }
 }
 const options = { packPath: config.pack, dataDirectory: config.directory, provider: 'local' as const,
   model: 'fixture', memoryCore: true, memoryCoreRun: run, memoryCoreBuildRun: run }

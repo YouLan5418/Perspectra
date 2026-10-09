@@ -31,7 +31,7 @@ export function characterVisibleItems(manifest: CompiledWorldManifest, events: r
       && observed.transfer.toHolderId === state.holderId && observerIds.includes(state.holderId as CharacterId)
       && locationId !== undefined && currentLocation(events, state.holderId) === locationId
     if (state !== undefined && (ownOrGround || witnessedHolder)) {
-      current.push({ entityId: state.entityId, holderId: state.holderId, locationId: state.locationId })
+      current.push({ entityId: state.entityId, holderId: state.holderId, locationId: state.locationId, kind: state.kind })
     } else if (observed !== undefined) {
       lastObserved.push({ entityId: entity.entityId, holderId: observed.transfer.toHolderId ?? null,
         locationId: observed.transfer.toLocationId ?? null,

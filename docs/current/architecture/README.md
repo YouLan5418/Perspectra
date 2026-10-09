@@ -1,22 +1,46 @@
-# 当前架构
+# 当前代码技术文档
 
-Perspectra（代码与界面仍使用 Cordis World 名称）是玩家推动的多角色扮演原型：各角色以自己的授权观察、认知和记忆自主行动，关键世界状态由系统裁定提交。
+这套文档解释当前目录的实际代码，面向有一点 Agent 基础的读者。Perspectra 是玩家推动的多角色扮演原型：模型决定角色怎么回应，程序维护授权信息和已裁定的重要状态。部分代码仍使用 Cordis World 名称。
+
+## 推荐阅读顺序
+
+| 顺序 | 你会理解什么 | 文档 |
+| --- | --- | --- |
+| 1 | 用角色互动例子认识上下文、行动、事件和记忆 | [入门：从一次互动理解代码](getting-started.md) |
+| 2 | 每个目录与包负责什么，遇到问题去哪里找 | [目录与模块地图](modules.md) |
+| 3 | 从玩家输入一路找到模型调用、规则、提交和显示 | [一次输入的代码路线](code-walkthrough.md) |
+| 4 | 修改代码时怎样保持解释同步 | [文档维护规则](maintenance.md) |
+
+读前三篇即可建立代码全貌，不必先读完 ADR。源码链接便于继续深入；这里没有逐函数 API 清单。
+
+## 按问题深入
 
 | 阅读问题 | 入口 |
 | --- | --- |
-| 一次输入怎样运行 | [运行时](runtime.md) |
-| 怎样重新生成最近一回合 | [末端回合重新生成](../tail-round-regeneration.md) |
-| 自由表达与世界行为如何共存 | [Interaction](interaction.md) |
-| 当前记忆怎样工作 | [认知与记忆](cognition-memory.md) |
+| 一次输入怎样运行、什么时候停止 | [运行时](runtime.md) |
+| 自由表达与重要状态如何共存 | [Interaction](interaction.md) |
+| 原生记忆与 Core 记忆有什么不同 | [认知与记忆](cognition-memory.md) |
 | 特定玩法怎样限制行为 | [受控交互](controlled-interaction.md) |
 | 创作者怎样定义世界与活动 | [创作者运行时](creator-runtime.md) |
+| 怎样重新生成最近一回合 | [末端回合重新生成](../tail-round-regeneration.md) |
+| 节点、分叉和分享怎样工作 | [故事线](../storylines.md) |
+| 游戏页面怎样获授权 | [前端授权](../frontend-authorization.md) |
+| 角色专属和角色组预设如何应用 | [预设说明](../model-presets.md) |
+| 模型服务如何接入 | [模型接口协议](../model-protocols.md) |
+| 怎样启动桌面与游戏 | [Launcher 接入](../launcher-core-integration.md)、[当前指南](../guides/README.md) |
 
-这些页面整理当前实现，不新增设计承诺。默认原生记忆与显式 Core 实验必须分别理解；整体完成度见[当前状态](../PROJECT-STATE.md)。
+## 怎样理解这些说明
 
-桌面当前入口见 [Launcher 真实 Core 接入](../launcher-core-integration.md)：Tauri + Vue 已接通 v5 包、独立实例、Core 记忆及系统浏览器游戏页；完整节点与历史分叉后续已接入，见[故事线](../storylines.md)；分享暂未接入。第一阶段 [Mock 交付](../launcher-v1.md) 保留阶段记录，现有 Electron 入口保留。
+入门与代码路线核对日期：2026-10-08。当前源码支持桌面管理、系统浏览器游戏页、故事节点与分叉、单节点文件分享，以及末端回合重新生成；便携候选包是否包含这些变更，要读相应发行记录。
 
-游戏页面当前通过公共玩家接口与 iframe 沙箱运行；默认模板、包内 frontend/、恶意用例及限制见 [游戏前端最小沙箱实验](../frontend-v1.md)。旧 web/ 不再作为执行入口。
+直接源码网页默认原生记忆，--memory-core 才启用 Python Core；Launcher 后端启用 Core。模型接口支持 OpenAI 兼容、Anthropic Messages 和 Google Gemini 原生协议，接入范围见专题文档。
 
-社区前端授权后续已实现内容摘要、双签名记录、Windows 本机密钥、独立来源受信任模式与运行中撤销；角色专属与实例内角色组预设后续已接入（专属 > 组 > 实例默认），见 [预设说明](../model-presets.md)。验收见 [前端授权](../frontend-authorization.md)。
+专题页中的实测数字只代表对应配置与日期。源码、测试和真实体验分别核对；[项目状态](../PROJECT-STATE.md)中的提交、分支及阶段记录也不能替代实时 Git 状态。
 
-模型调用支持 OpenAI 兼容、Anthropic Messages 和 Google Gemini 原生协议；角色与 Core 记忆共用选择，接入范围和验收限制见[模型接口协议](../model-protocols.md)。
+代码变化时同步更新受影响章节，并运行：
+
+~~~powershell
+node scripts/docs/check-links.mjs
+~~~
+
+这个检查发现本地断链和模块地图遗漏，正文含义仍需读代码核对。历史设计见 [archive](../../archive/README.md)、[ADR](../../adr/README.md)和 [spec](../../spec/README.md)。

@@ -10,8 +10,9 @@ import { brandId, canonicalizeWorldJson, resolutionAuthority, type WorldAddress,
   type WorldJsonObject, type WorldEventDraft } from '@harness-world/contracts'
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
 import { SceneDecisionService } from '@harness-world/application'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
-import { createCoreRulebookRegistry, RulebookRegistry, type RulebookEvent, type RulebookResolver,
+import { characterVisibleItems } from '../../packages/application/src/character-visible-items.ts'
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
+import { currentLocation, createCoreRulebookRegistry, RulebookRegistry, type RulebookEvent, type RulebookResolver,
   type RulebookResolutionContext, type ActionAffordance, type CompiledWorldManifest } from '@harness-world/kernel'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { PrototypeInvalidOutputError, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
@@ -119,7 +120,7 @@ export class PackActivity {
   readonly title: string
   readonly npcIds: string[]
   constructor(source: string, readonly worldPath: string, readonly address: WorldAddress, readonly playerId: string) {
-    this.#script = new Script(source+'\nJSON.stringify(__method === "definition" ? activityScript.definition : __method === "simulate" && activityScript.simulate === undefined ? null : activityScript[__method](...JSON.parse(__args)))')
+    this.#script = new Script(source+'\nJSON.stringify(__method === "definition" ? activityScript.definition : (["simulate","onPublished"].includes(__method) && activityScript[__method] === undefined) ? null : activityScript[__method](...JSON.parse(__args)))')
     const definition=object(this.#call('definition',[]))
     exact(definition,['title','npcIds','operations'])
     if (typeof definition.title!=='string' || definition.title.length>80
@@ -156,7 +157,10 @@ export class PackActivity {
   }
   #call(method:string,args:unknown[]):unknown {
     const input=JSON.stringify(args)
-    if(input.length>65536)throw new RangeError('活动输入过长')
+    // A simulated model receives the role's full authorized context, unlike small game operations.
+    // Core history in the official prologue already exceeds 64 KiB; keep this path bounded at 1 MiB.
+    const maximumInput=method==='simulate'?1024*1024:65536
+    if(input.length>maximumInput)throw new RangeError('活动输入过长')
     const context=createContext(Object.assign(Object.create(null),{__method:method,__args:input, ...(method === 'initialize' ? {__initialRandom: () => this.#initialRandom()} : {})}),
       {codeGeneration:{strings:false,wasm:false},microtaskMode:'afterEvaluate'})
     let output:unknown
@@ -290,7 +294,7 @@ export class PackActivity {
         && !policy.speechChoices.includes(String(parameters.speech))))throw new TypeError('当前表达不在创作者许可内')
   }
   rulebooks():RulebookRegistry {
-    const base=createCoreRulebookRegistry({interactionPackages:[createBasicInteractionPackage()]})
+    const base=createCoreRulebookRegistry({interactionPackages:createInstalledInteractionPackages()})
       .resolve('builtin:speak-move',2,'activity',this.address)
     const resolver:RulebookResolver={
       affordances:context=>{
@@ -315,12 +319,34 @@ export class PackActivity {
       if(!op || !policy.operations.includes(operation) || op.requiresTurn&&state.game.turn!==actor)throw new TypeError('尚未轮到你或操作未被允许')
       const {activityId:_id,revision:_revision,...parameters}=args
       if(!this.#validators.get(operation)!(parameters))throw new TypeError('游戏操作参数无效')
-      const resolved=object(this.#call('resolve',[state,actor,operation,parameters]))
-      exact(resolved,['game','description','audience'])
+      const resolved=object(this.#call('resolve',[state,actor,operation,parameters,this.#worldView(context.manifest,context.events,actor,context.asOfWorldSeq)]))
+      if(Object.hasOwn(resolved,'rejectReason')){
+        exact(resolved,['rejectReason'])
+        if(typeof resolved.rejectReason!=='string'||!resolved.rejectReason.trim()||resolved.rejectReason.length>2000)throw new TypeError('活动拒绝说明无效')
+        throw new TypeError(resolved.rejectReason)
+      }
+      exact(resolved,['game','description','audience',...(Object.hasOwn(resolved,'playerExpression')?['playerExpression']:[])])
       if(typeof resolved.description!=='string'||resolved.description.length>2000
         || !['participants','self'].includes(String(resolved.audience)))throw new TypeError('游戏结果无效')
       const next={...state,revision:state.revision+1,game:this.#game(resolved.game,state.participants)}
-      return {status:'accepted' as const,events:[this.#event(next,resolved.description,actor,context.actionId??'',operation)],
+      const update=this.#event(next,resolved.description,actor,context.actionId??'',operation)
+      const scripted:WorldEventDraft[]=[]
+      if(Object.hasOwn(resolved,'playerExpression')){
+        if(actor!==this.playerId)throw new TypeError('只有玩家活动操作可以提交脚本玩家表达')
+        const expression=object(resolved.playerExpression);exact(expression,['text'])
+        if(typeof expression.text!=='string'||!expression.text.trim()||expression.text.length>2000)throw new TypeError('脚本玩家表达无效')
+        this.checkExpression(policy,{speech:expression.text})
+        const actionId=(context.actionId??'')+':scripted-player'
+        const speech=base.resolve({...context,actionId,action:{actionType:'speak',parameters:{text:expression.text,scope:'scene_public'}}})
+        if(speech.status!=='accepted')throw new TypeError('脚本玩家表达没有通过规则裁定')
+        const source={script:'scripts/activity.js',operation,activityId:state.id,revision:state.revision}
+        const sourcedUpdate={...update,data:{...object(update.data),scriptedPlayerExpression:{text:expression.text,source}}}
+        scripted.push(...speech.events,...this.#speechObservations(context.events,actor,actionId,speech.events,context.asOfWorldSeq),
+          {eventType:'action.resolved',eventVersion:1,data:{actorId:actor,actionId,actionType:'speak',accepted:true,sourceRole:'player'}})
+        return {status:'accepted' as const,events:[sourcedUpdate,...scripted],
+          observationScope:{scope:'direct' as const,recipientIds:resolved.audience==='self'?[actor]:state.participants}}
+      }
+      return {status:'accepted' as const,events:[update],
         observationScope:{scope:'direct' as const,recipientIds:resolved.audience==='self'?[actor]:state.participants}}
     }
     if(state?.game.active && state.participants.includes(actor)){
@@ -336,10 +362,41 @@ export class PackActivity {
         throw new TypeError('活动期间禁止此交互')
       }
     }
-    return base.resolve(context)
+    const result=base.resolve(context)
+    if(state?.game.active && state.participants.includes(actor) && action.actionType==='speak' && result.status==='accepted'){
+      const published=result.events.find(e=>e.eventType==='character.speak')
+      const game=this.#call('onPublished',[state,actor,published?.data??null])
+      if(game!==null){
+        const next={...state,revision:state.revision+1,game:this.#game(game,state.participants)}
+        return {...result,events:[...result.events,this.#event(next,'',actor,context.actionId??'','published')]}
+      }
+    }
+    return result
   }
   #event(state:ActivityState,description:string,actorId:string,actionId:string,operation:string):WorldEventDraft {
     return {eventType:'activity.updated',eventVersion:1,data:{state,description,actorId,actionId,operation}}
+  }
+  /** Actor-scoped facts from the same candidate prefix; never a global inventory. */
+  #worldView(manifest:CompiledWorldManifest,events:readonly RulebookEvent[],actorId:string,asOfWorldSeq:number|undefined):WorldJsonObject {
+    if(asOfWorldSeq===undefined)throw new TypeError('活动世界视图缺少提交前缀')
+    const store=new WorldStore(this.worldPath),availability=new CharacterRuntimeAvailabilityService(this.worldPath)
+    try{
+      const actor=brandId(actorId,'CharacterId')
+      const scene=new SceneDecisionService(store,availability,2).decideFromEvents(this.address,actor,events,asOfWorldSeq)
+      return {locationId:currentLocation(events,actorId)??null,
+        characterIds:[...scene.observerIds],items:characterVisibleItems(manifest,events,actor,scene.observerIds)}
+    }finally{availability.close();store.close()}
+  }
+  #speechObservations(events:readonly RulebookEvent[],actorId:string,actionId:string,drafts:readonly WorldEventDraft[],asOfWorldSeq:number|undefined):WorldEventDraft[] {
+    if(asOfWorldSeq===undefined)throw new TypeError('活动世界视图缺少提交前缀')
+    const store=new WorldStore(this.worldPath),availability=new CharacterRuntimeAvailabilityService(this.worldPath)
+    try{
+      const audience=new SceneDecisionService(store,availability,2).audienceForAction(this.address,brandId(actorId,'CharacterId'),events,asOfWorldSeq,{scope:'scene_public'})
+      const speech=drafts.find(e=>e.eventType==='character.speak')
+      if(!speech)throw new TypeError('表达裁定未生成发言事件')
+      return [...new Set([...audience.fullContentCharacterIds,actorId])].map(observerId=>({eventType:'observation.upsert',eventVersion:1,data:{
+        id:actionId+':'+observerId,value:{observerId,content:{actorId,actionType:'speak',status:'accepted',speech:speech.data}}}}))
+    }finally{availability.close();store.close()}
   }
   #resultMetadata(state:ActivityState,operation:string):WorldJsonObject {
     return {activity:{id:state.id,revision:state.revision,phase:state.game.phase,round:state.game.round,
@@ -406,7 +463,8 @@ export class PackActivity {
         if(this.npcIds.some(id=>!scene.observerIds.includes(brandId(id,'CharacterId'))))throw new TypeError('需要与游戏参与者在同一场景')
         const participants=[this.playerId,...this.npcIds]
         state={id:'activity:'+randomUUID(),revision:1,participants,game:this.#game(this.#call('initialize',[{
-          playerId:this.playerId,npcIds:this.npcIds}]),participants)}
+          playerId:this.playerId,npcIds:this.npcIds,world:this.#worldView(manifest,events,this.playerId,head.headSeq),
+          previous:current?this.scoped(current,this.playerId):null}]),participants)}
         description=this.title+'开始。';observerIds=participants
         drafts=[this.#event(state,description,this.playerId,actionId,'start')]
       }else{
@@ -485,13 +543,18 @@ export class PackActivity {
       const scope=result.observationScope
       const audience=scene.audienceForAction(this.address,brandId(this.playerId,'CharacterId'),events,head.headSeq,
         {scope:scope?.scope ?? 'scene_public',...(scope?.recipientIds===undefined?{}:{recipientIds:scope.recipientIds.map(id=>brandId(id,'CharacterId'))})})
-      const speech=result.events.find(e=>e.eventType==='character.speak')
+      const speech=action.actionType==='speak'?result.events.find(e=>e.eventType==='character.speak'):undefined
       const description=this.executionResult({manifest:manifest.manifest as CompiledWorldManifest,events:[...events,...result.events],
         actorId:brandId(this.playerId,'CharacterId'),action,status:result.status,reason:null}).description
       for(const observerId of new Set([...audience.fullContentCharacterIds,this.playerId])){
         drafts.push({eventType:'observation.upsert',eventVersion:1,data:{id:owner+':'+observerId,value:{observerId,
           content:{actorId:this.playerId,status:'accepted',actionType:action.actionType,resultDescription:description!,
-            ...(speech===undefined?{}:{speech:speech.data})}}}})
+            ...(speech===undefined?{}:{speech:speech.data}),
+            ...(result.events.find(e=>e.eventType==='entity.transferred')?{interaction:result.events.find(e=>e.eventType==='entity.transferred')!.data}:{})}}}})
+      }
+      for(const observerId of audience.occurrenceOnlyCharacterIds){
+        drafts.push({eventType:'observation.upsert',eventVersion:1,data:{id:owner+':'+observerId,value:{observerId,
+          content:{actorId:this.playerId,status:'accepted',actionType:'private_interaction',contentVisibility:'occurrence_only'}}}})
       }
       drafts.push({eventType:'action.resolved',eventVersion:1,data:{actorId:this.playerId,actionId:owner,actionType:action.actionType,accepted:true,sourceRole:'player'}},
         {eventType:'world.tick-advanced',eventVersion:1,data:{tick:head.tick+1}})

@@ -123,8 +123,9 @@ it('routes each real Core character call to its selected preset without cross-ch
   })
   try{
     await runtime.submit('你好，可以介绍这里吗？')
-    expect(calls.map(call=>call.actor)).toEqual(['character:companion','character:friend'])
-    const [first,second]=calls
+    expect(calls.map(call=>call.actor).sort()).toEqual(['character:companion','character:friend'])
+    const first=calls.find(call=>call.actor==='character:companion')
+    const second=calls.find(call=>call.actor==='character:friend')
     expect(JSON.stringify(first!.wire.messages)).toContain('companion only')
     expect(JSON.stringify(first!.wire.messages)).not.toContain('group only')
     expect(JSON.stringify(second!.wire.messages)).toContain('group only')

@@ -57,7 +57,7 @@ corepack pnpm@11.7.0 experience:web `
 
 地址与模型只是本机验证示例，请按自己的服务修改。如需认证，通过环境设置 `HCW_LOCAL_API_KEY`，不要写入世界包、脚本或仓库。打开终端打印的完整本机地址；其中的令牌不要公开分享。
 
-**源码网页入口默认使用原生记忆**；准备好 Python/E5 后，添加 `--memory-core` 可启用 Core 记忆。源码网页另保留 Ollama/DeepSeek 适配，Launcher 当前只使用 OpenAI 兼容 `chat/completions` 接口。
+**源码网页入口默认使用原生记忆**；准备好 Python/E5 后，添加 `--memory-core` 可启用 Core 记忆。源码网页另保留 Ollama/DeepSeek 适配，当前源码 Launcher 还支持 Anthropic Messages 与 Google Gemini 原生协议，配置与限制见[模型接口协议](docs/current/model-protocols.md)；便携包以其构建时能力为准。
 
 完整说明见 [创作者与真实模型试玩指南](docs/current/guides/creator-playtest.md)。
 
@@ -188,7 +188,7 @@ corepack pnpm@11.7.0 launcher:check
 
 | 想了解什么 | 入口 |
 | --- | --- |
-| 当前运行机制与权限边界 | [当前架构](docs/current/architecture/README.md) |
+| 易读的代码解释与当前运行机制 | [代码技术文档](docs/current/architecture/README.md) |
 | 当前记忆实测与性能 | [AI Girls 研究](docs/current/studies/ai-girls/README.md) |
 | Launcher 开发与运行 | [Launcher README](apps/launcher/README.md) |
 | Windows x64 便携构建 | [构建说明](scripts/release/BUILD.md) |

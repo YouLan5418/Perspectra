@@ -11,3 +11,9 @@
 当前接受可信本地作者脚本，单活动、同步裁定和有界角色链；没有多活动叠加、恶意脚本沙箱或任意宿主能力扩展。允许自由对白仍不能保证模型不泄露自身秘密或不存在叙事越权。
 
 创作入口见[创作者运行时](creator-runtime.md)和[World Pack 手册](../guides/world-pack-authoring.md)。历史方案及落地章节保留在[脚本与限制记录](../../archive/prototype-g1-g4/2026-10-02_创作者脚本与临时交互限制方案.md)，其中早期“尚未接入”表述按章节时期理解。
+
+## 一锅白米饭
+
+玩家或 NPC 在厨房对现有材料执行 `home:cook-rice`，规则检查材料仍为 raw-rice-kit、绑定电饭锅存在且同处可达；成功后同一 entity 变成 cooked-rice。`home:eat-rice` 只接受熟饭，成功变成 empty-meal-container，不能再次煮或吃。对白说“饭好了”不能使这些变化成立。
+
+实现是 interactions-basic 包目录中的独立可信 `package:home-meal@1`（[源码](../../../packages/interactions-basic/src/home.ts)），依赖现有 basic 规则，通过已支持的 InteractionDefinition / effectBuilder 和 entity.upsert 提交；原 basic 包内容身份不变。网页、桌面编译、存档预检与 CLI 都安装同一组实现。仅为当前试玩的一批米与水、一锅饭；不模拟饥饿、火候、份额和冰箱容器层级。角色可见物品中的 kind 来自授权可见的已提交状态，不从叙事推断。

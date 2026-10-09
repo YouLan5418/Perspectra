@@ -1,3 +1,4 @@
+import { thinkingLevel } from '../../packages/provider-chat/src/thinking.ts'
 import { readingPreferences } from '../../desktop/play-settings.ts'
 import { providerProtocol } from '../../packages/provider-chat/src/protocol.ts'
 import { ModelPresets, packPreset } from '../../desktop/model-presets.ts'
@@ -51,7 +52,7 @@ async function main(): Promise<void> {
   if (settings && !/^[a-f0-9-]{36}$/.test(instanceId)) throw new Error('启动预设的实例标识无效。')
   const {mode: _mode, override: _override, ...mapping} = settings?.instances[instanceId] ?? { mode: 'auto', override: {} }
   const runtime = await FrozenWorldPlaytestRuntime.create({
-    dataDirectory, provider, packPath, protocol: providerProtocol(process.env.HCW_MODEL_PROTOCOL),
+    dataDirectory, provider, packPath, ...(process.env.HCW_THINKING_LEVEL === undefined ? {} : {thinkingLevel:thinkingLevel(process.env.HCW_THINKING_LEVEL)}), protocol: providerProtocol(process.env.HCW_MODEL_PROTOCOL),
     storyNodes: !!process.send,
     ...(launch.playSettings===undefined?{}:{playSettings:launch.playSettings}),
     ...(process.env.PERSPECTRA_READING===undefined?{}:{reading:readingPreferences(JSON.parse(process.env.PERSPECTRA_READING))}),

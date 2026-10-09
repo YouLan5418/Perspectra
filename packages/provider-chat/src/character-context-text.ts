@@ -1,62 +1,68 @@
 import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
 
-function isObject(value: WorldJsonValue): value is WorldJsonObject {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
+function isObject(value: WorldJsonValue | undefined): value is WorldJsonObject {
+  return value !== null && value !== undefined && typeof value === 'object' && !Array.isArray(value)
 }
-/** A table factors repeated keys and common values; heterogeneous/empty rows keep their original shape. */
-function table(rows: readonly WorldJsonObject[]): WorldJsonValue {
-  if (rows.length < 2) return rows
-  const columns = Object.keys(rows[0]!).sort()
-  if (!rows.every(row => JSON.stringify(Object.keys(row).sort()) === JSON.stringify(columns))) return rows
-  const common: Record<string, WorldJsonValue> = {}
-  for (const key of columns) if (rows.every(row => JSON.stringify(row[key]) === JSON.stringify(rows[0]![key]))) {
-    common[key] = rows[0]![key]!
-  }
-  const varying = columns.filter(key => !Object.hasOwn(common, key))
-  return { common, columns: varying, rows: rows.map(row => varying.map(key => row[key]!)) }
+// These are host bookkeeping fields in authorized evidence, not action parameters.
+// Never apply this list to scene objects, affordances, Activity or creator variables.
+const evidenceMetadata = new Set(['actionId', 'observationId', 'observerId', 'sourceSeq', 'worldSeq',
+  'sourceId', 'sourceIds', 'sourceHash', 'sourceMaxSeq', 'sourceFactIds', 'worldAddress',
+  'asOfWorldSeq', 'bundleHash', 'operationId', 'eventRefs', 'validFromSeq', 'validToSeq',
+  'sourceSpans'])
+function evidence(value: WorldJsonValue): WorldJsonValue {
+  if (Array.isArray(value)) return value.map(evidence)
+  if (!isObject(value)) return value
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !evidenceMetadata.has(key))
+    .map(([key, item]) => [key, key === 'parameters' || key === 'arguments' ? item : evidence(item)]))
 }
-
-/** Render only this role's already-authorized cognition. No value, identifier, provenance or hash is discarded. */
-export function compactCognition(cognition: WorldJsonObject): WorldJsonObject {
-  const counts = new Map<string, number>()
-  const sourceObject = (value: WorldJsonValue) => isObject(value)
-    && typeof value.sourceKind === 'string' && typeof value.sourceId === 'string' && typeof value.sourceHash === 'string'
-  const count = (value: WorldJsonValue): void => {
-    if (sourceObject(value)) {
-      const key = JSON.stringify(value); counts.set(key, (counts.get(key) ?? 0) + 1)
-    } else if (Array.isArray(value)) value.forEach(count)
-    else if (isObject(value)) Object.values(value).forEach(count)
-  }
-  count(cognition)
-  const sources: WorldJsonObject[] = [], indices = new Map<string, number>()
-  const pack = (value: WorldJsonValue): WorldJsonValue => {
-    if (sourceObject(value) && counts.get(JSON.stringify(value))! > 1) {
-      const key = JSON.stringify(value)
-      let index = indices.get(key)
-      if (index === undefined) { index = sources.length; indices.set(key, index); sources.push(value as WorldJsonObject) }
-      return { sourceIndex: index }
-    }
-    if (Array.isArray(value)) return value.map(pack)
-    if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, pack(item)]))
-    return value
-  }
-  const result: Record<string, WorldJsonValue> = {}
-  for (const [key, value] of Object.entries(cognition)) {
-    if (Array.isArray(value) && value.length > 0 && value.every(row => isObject(row) && isObject(row.value!))) {
-      const records = value as WorldJsonObject[]
-      result[key] = {
-        records: table(records.map(({ value: _value, ...record }) => pack(record) as WorldJsonObject)),
-        values: table(records.map(record => pack(record.value!) as WorldJsonObject)),
-      }
-    } else result[key] = pack(value)
-  }
-  return { ...result, sources: table(sources) }
+function cognitionText(cognition: WorldJsonObject): WorldJsonObject {
+  return Object.fromEntries(Object.entries(cognition)
+    .filter(([key]) => !['address', 'characterId', 'asOfWorldSeq', 'bundleHash'].includes(key))
+    .map(([key, value]) => [key, Array.isArray(value) ? value.map(row => {
+      if (!isObject(row) || !isObject(row.value)) return evidence(row)
+      const { id: _id, characterId: _owner, ...rest } = row
+      return evidence(rest)
+    }) : evidence(value)]))
 }
-
+/** Final model-only presentation. Host requests, memory evidence and commits retain their original fields. */
 export function characterRequestText(request: { readonly context: WorldJsonObject }): string {
-  const cognition = request.context.cognition
-  if (cognition === undefined || !isObject(cognition)) return JSON.stringify(request)
-  return JSON.stringify({ ...request, context: { ...request.context, cognition: compactCognition(cognition) } })
+  const { character, observations, selfObservations, cognition, memories, ...dynamic } = request.context
+  const profile = isObject(character) ? Object.fromEntries(Object.entries(character)
+    .filter(([key]) => key !== 'locationId')) : character
+  const history: { seq: number; index: number; entry: WorldJsonObject }[] = []
+  const append = (records: WorldJsonValue | undefined, kind: string) => {
+    if (!Array.isArray(records)) return
+    for (const record of records) {
+      if (!isObject(record)) continue
+      // Sequence is used solely to order already-authorized evidence; it is not sent to the model.
+      const seq = typeof record.sourceSeq === 'number' ? record.sourceSeq : Number.MAX_SAFE_INTEGER
+      const payload = kind === 'observed' ? record.value : record.content
+      const { id: _id, observationId: _observationId, sourceSeq: _seq, ...fallback } = record
+      history.push({ seq, index: history.length, entry: { kind, content: evidence(payload ?? fallback) } })
+    }
+  }
+  append(observations, 'observed'); append(selfObservations, 'self')
+  history.sort((left, right) => left.seq - right.seq || left.index - right.index)
+  const context: WorldJsonObject = {
+    ...(profile === undefined ? {} : { character: profile }),
+    history: history.map(row => row.entry),
+    ...(memories === undefined ? {} : { memories: Array.isArray(memories) ? memories.map(row => {
+      if (!isObject(row)) return evidence(row)
+      const { id: _id, memoryId: _memoryId, projectionId: _projectionId, ...rest } = row
+      return evidence(rest)
+    }) : evidence(memories) }),
+    ...(isObject(cognition) ? { cognition: cognitionText(cognition) } : {}),
+    ...dynamic,
+    ...(dynamic.stimulus === undefined ? {} : { stimulus: evidence(dynamic.stimulus) }),
+    ...(isObject(character) && character.locationId !== undefined ? { locationId: character.locationId } : {}),
+  }
+  const { context: _context, ...stage } = request
+  return JSON.stringify({ context, ...stage,
+    ...(!isObject((stage as WorldJsonObject).result) ? {} : { result: Object.fromEntries(
+      Object.entries((stage as WorldJsonObject).result as WorldJsonObject)
+        .filter(([key]) => !['operationId', 'eventRefs'].includes(key))) }),
+    ...((stage as WorldJsonObject).recallEvidence === undefined ? {}
+      : { recallEvidence: evidence((stage as WorldJsonObject).recallEvidence!) }),
+  })
 }
-
-export const cognitionTableNote = 'context.cognition仅属于你本人。其表格columns是列名，rows按列顺序读取，每行都继承common。各类records和values按行一一对应，values是记录的value；数组表示原样记录。sourceIndex引用cognition.sources的对应行，保存完整来源。表格只是无损紧凑表达，认识、目标和情绪仍是你的主观状态，不是他人的知识或已确认世界事实。'
+export const characterContextNote = 'context.history 是你本人获授权的经历，按发生顺序排列；kind=observed 表示获得的观察，kind=self 表示你自己已发表的表达。当前刺激在 stimulus，当前地点在 context.locationId；历史里的地点不代表当前位置。历史与记忆中的 sourceKind/epistemicKind 表示来源性质：听到的话不证明事实成立。context.cognition 是你的主观认识、目标和情绪，不能视为他人的知识或权威世界事实。'

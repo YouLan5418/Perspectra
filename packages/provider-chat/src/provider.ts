@@ -1,3 +1,4 @@
+import { thinkingRequest, type ThinkingLevel } from './thinking.ts'
 import { nativeMessages, nativePayload, providerEndpoint, providerHeaders, providerProtocol, type ProviderProtocol } from './protocol.ts'
 import type { RequestInspector } from './request-inspector.ts'
 import { rolePreset, type RolePreset } from './preset.ts'
@@ -43,13 +44,9 @@ export interface ChatProviderOptions {
   readonly temperature?: number
   readonly maxOutputTokens?: number
   readonly toolName?: string
-  /**
-   * A forced tool call and the endpoint's reasoning mode are mutually exclusive - it answers
-   * "thinking mode does not support this tool_choice" and refuses the call - so a `tool` call states that
-   * reasoning is off. A caller that wants reasoning says `unspecified` and accepts that the answer may not
-   * be bound to the schema it was handed.
-   */
+  /** Legacy transport override; explicit character thinkingLevel takes precedence. */
   readonly thinking?: 'disabled' | 'unspecified'
+  readonly thinkingLevel?: ThinkingLevel
   /** Injected so the transport can be tested against a local endpoint instead of a vendor. */
   readonly fetch?: typeof globalThis.fetch
   readonly inspector?: RequestInspector
@@ -141,6 +138,9 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
     const messages=kind==='character'&&generation.prompt?.trim()
       ? [...prepared.messages.slice(0,1),{role:'system',content:'角色表现预设：'+generation.prompt},...prepared.messages.slice(1)] : prepared.messages
     if(kind==='character'&&generation.maxOutputTokens!==undefined)maximum=generation.maxOutputTokens
+    const level = kind === 'character' ? options.thinkingLevel : undefined
+    const enabled = level !== undefined && level !== 'off'
+    if (enabled) maximum = Math.max(maximum, {low:8192,medium:16384,high:32768}[level])
     const body: Record<string, unknown> = protocol !== 'openai'
       ? nativeBody(protocol, messages, prepared, model, maximum, generation, options, toolName)
       : style === 'tool'
@@ -150,16 +150,21 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
         ...(generation.frequencyPenalty===undefined?{}:{frequency_penalty:generation.frequencyPenalty}),
         ...(generation.presencePenalty===undefined?{}:{presence_penalty:generation.presencePenalty}),
         ...(generation.stop?.length?{stop:generation.stop}:{}),
-        ...(options.thinking === 'unspecified' ? {} : { thinking: { type: 'disabled' } }),
+        ...(level === undefined ? (options.thinking === 'unspecified' ? {} : { thinking: { type: 'disabled' } }) : thinkingRequest(protocol, model, level)),
         tools: [{ type: 'function', function: { name: toolName, description: prepared.description,
           parameters: prepared.schema } }],
-        tool_choice: { type: 'function', function: { name: toolName } } }
+        tool_choice: enabled && model.toLowerCase().includes('deepseek') ? 'auto' : { type: 'function', function: { name: toolName } } }
       : { model, messages, stream: false, format: prepared.schema,
         options: { temperature: generation.temperature ?? options.temperature ?? 0.3, num_predict: maximum,
           ...(generation.topP===undefined?{}:{top_p:generation.topP}),
           ...(generation.frequencyPenalty===undefined?{}:{frequency_penalty:generation.frequencyPenalty}),
           ...(generation.presencePenalty===undefined?{}:{presence_penalty:generation.presencePenalty}),
           ...(generation.stop?.length?{stop:generation.stop}:{}), } }
+    if (level !== undefined && protocol === 'anthropic') {
+      Object.assign(body, thinkingRequest(protocol, model, level))
+      if (enabled) { delete body.temperature; delete body.top_p }
+    }
+    if (level !== undefined && protocol === 'google') Object.assign(body.generationConfig as object, thinkingRequest(protocol, model, level))
     const sources = [...(prepared.inspection?.sources ?? [])]
     if (kind === 'character' && generation.prompt?.trim()) sources.splice(1, 0, {source:'preset',name:'附加角色提示',original:generation.prompt})
     const inspection = kind === 'character' && prepared.inspection ? {...prepared.inspection,sources} : undefined

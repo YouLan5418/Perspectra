@@ -435,3 +435,20 @@ it.each([
  expect(await f.turn.run(npc)).toMatchObject({status:'failed',failure:'invalid_output'})
  expect(f.store.head(f.address)).toEqual(before)
 })
+
+it('keeps local interaction versions numeric without a singleton enum, while rejecting string and wrong versions',async()=>{
+ let calls=0;
+ const f=fixture(async request=>{
+  if(++calls>1)return {decision:'abstain'};
+  const call=localPrototypeTurnCall(request),validate=new Ajv({strict:false}).compile(call.schema);
+  const p=(call.schema.properties as WorldJsonObject).parameters as WorldJsonObject;
+  const d=(p.properties as WorldJsonObject).definitionRef as WorldJsonObject;
+  expect((d.properties as WorldJsonObject).version).toEqual({type:'integer',minimum:1,maximum:1});
+  expect(validate(take)).toBe(true);
+  expect(validate({...take,parameters:{...take.parameters,definitionRef:{...take.parameters.definitionRef,version:'1'}}})).toBe(false);
+  expect(validate({...take,parameters:{...take.parameters,definitionRef:{...take.parameters.definitionRef,version:2}}})).toBe(false);
+  return take;
+ });
+ expect(await f.turn.run(npc)).toMatchObject({performResult:{status:'accepted'}});
+ expect(currentEntityState(f.store.readEvents(f.address),'entity:cup')?.holderId).toBe(npc);
+})

@@ -54,8 +54,8 @@ export function playerTranscript(
       if (content?.actionType === 'interact' && typeof content.actorId === 'string') {
         const transfer = object(content.interaction)
         if (typeof transfer?.entityId !== 'string') {
-          return typeof content.resultDescription === 'string' ? [{seq: observation.sourceSeq,
-            speaker: object(content.activity) === undefined ? names.get(content.actorId) ?? content.actorId : '游戏结果',
+          return typeof content.resultDescription === 'string' && content.resultDescription.trim() ? [{seq: observation.sourceSeq,
+            speaker: object(content.activity) || object(object(content.resultMetadata)?.activity) ? '游戏结果' : names.get(content.actorId) ?? content.actorId,
             text: content.resultDescription, player: false}] : []
         }
         const item = transfer.entityId

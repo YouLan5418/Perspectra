@@ -221,15 +221,21 @@ describe('optional web Core memory', () => {
     expect(response.status).toBe(200); await f.runtime.waitForMemory(); expect(builds).toBe(4)
     expect(await response.text()).not.toContain('sourceHash')
   })
+  // Memory bookkeeping consumes the original host request, never the model-only rendering.
+  function hostRequest(data: string, actor?: string): WorldJsonObject {
+    const rows = readFileSync(resolve(data, 'memory-core/model-trace.jsonl'), 'utf8').trim().split('\n')
+      .map(line => JSON.parse(line).request as WorldJsonObject)
+    return rows.findLast(row => !actor || ((row.context as WorldJsonObject).character as WorldJsonObject).characterId === actor)!
+  }
   it('keeps more than eight rounds of observations and self expressions without maintenance', async () => {
     let builds = 0
     const f = await fixture(async input => { builds++; return built(input) }, { publish: true })
     for (let i = 0; i < 12; i++) await f.runtime.submit(i === 0 ? '记住私下的安排：银杏电台。' : `继续闲聊第 ${i} 次。`)
     const requests = f.requests.filter(r => ((r.context as WorldJsonObject).character as WorldJsonObject).characterId === 'character:claude')
     const context = requests.at(-1)!.context as WorldJsonObject
-    expect((context.observations as WorldJsonObject[]).length).toBeGreaterThan(16)
-    expect((context.selfObservations as WorldJsonObject[]).length).toBeGreaterThan(8)
-    expect(JSON.stringify(context.observations)).toContain('银杏电台')
+    expect((context.history as WorldJsonObject[]).filter(row => row.kind === 'observed').length).toBeGreaterThan(16)
+    expect((context.history as WorldJsonObject[]).filter(row => row.kind === 'self').length).toBeGreaterThan(8)
+    expect(JSON.stringify(context.history)).toContain('银杏电台')
     expect(builds).toBe(0)
   })
   it('queues at the estimated token threshold, archives a complete early prefix and keeps its newer tail', async () => {
@@ -237,7 +243,7 @@ describe('optional web Core memory', () => {
     const run: CoreRunner = async input => { inputs.push(input); return input.operation === 'build' ? built(input) : empty }
     const f = await fixture(run, { publish: true, memoryContextBudget: { triggerTokens: 200_000, compactTokens: 150_000, minimumRecentTokens: 0 } })
     await f.runtime.submit('第一条。'); await f.runtime.submit('第二条。')
-    const request = f.requests.findLast(r => ((r.context as WorldJsonObject).character as WorldJsonObject).characterId === 'character:claude')!
+    const request = hostRequest(f.data, 'character:claude')
     const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run, { triggerTokens: 200_000, compactTokens: 150_000, minimumRecentTokens: 0 })
     expect(DEFAULT_MEMORY_CONTEXT_BUDGET.triggerTokens).toBe(170_000)
     // Two complete event groups approximate a 150k older prefix and a 50k newer tail.
@@ -259,7 +265,7 @@ describe('optional web Core memory', () => {
     expect((build.scope as WorldJsonObject).asOfWorldSeq).toBe(earlier)
     expect((build.sources as WorldJsonObject[]).every(source => Number(source.worldSeq) <= earlier)).toBe(true)
     await f.runtime.submit('继续。')
-    const tail = (f.requests.findLast(r => ((r.context as WorldJsonObject).character as WorldJsonObject).characterId === 'character:claude')!.context as WorldJsonObject).observations as WorldJsonObject[]
+    const tail = (hostRequest(f.data, 'character:claude').context as WorldJsonObject).observations as WorldJsonObject[]
     expect(tail.every(record => Number(record.sourceSeq) > earlier)).toBe(true)
     expect(tail.some(record => Number(record.sourceSeq) === later)).toBe(true)
     const recall = inputs.find(i => i.operation === 'recall')!
@@ -277,7 +283,7 @@ describe('optional web Core memory', () => {
     }
     const f = await fixture(run)
     await f.runtime.submit('第一条。'); await f.runtime.submit('第二条。')
-    const request = f.requests.at(-1)!
+    const request = hostRequest(f.data)
     const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run, { triggerTokens: 1000, compactTokens: 100 })
     adapter.observeContext({ context: request.context as WorldJsonObject, continuation: false }, '旧'.repeat(1000))
     expect(adapter.hasPendingCompaction).toBe(true)
@@ -353,7 +359,7 @@ describe('optional web Core memory', () => {
     expect((await f.runtime.state()).error).toBe(false)
     await f.runtime.submit('我们继续，刚才的新暗号还记得吗？')
     const context = f.requests.findLast(r => ((r.context as WorldJsonObject).character as WorldJsonObject).characterId === 'character:claude')!.context as WorldJsonObject
-    expect(JSON.stringify(context.observations)).toContain('紫杉七号')
+    expect(JSON.stringify(context.history)).toContain('紫杉七号')
   })
   it('discards an older late result rather than replacing a newer archive', async () => {
     const gates = new Map<number, () => void>()

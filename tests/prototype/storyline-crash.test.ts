@@ -65,6 +65,7 @@ async function fixture() {
   let node
   try {
     await runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"节点阶段"}]')
+    await runtime.refreshMemory(); await runtime.waitForMemory()
     node = await runtime.saveNode('安全起点')
     await runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"原线未来"}]')
     await runtime.refreshMemory(); await runtime.waitForMemory()
@@ -150,9 +151,9 @@ for (const phase of ['switch-index-before', 'switch-index-after']) {
   }, 30_000)
 }
 for (const phase of ['memory-temporary', 'memory-one-role']) {
-  it('keeps the rebuild gate and reuses only complete role archives after ' + phase, async () => {
+  it('retains the restore gate and reapplies node archives without building after ' + phase, async () => {
     const f = await fixture()
-    await f.core.handle({ operation: 'story-fork', instanceId: f.instanceId, nodeId: f.nodeId, name: '记忆重建' })
+    await f.core.handle({ operation: 'story-fork', instanceId: f.instanceId, nodeId: f.nodeId, name: '记忆恢复' })
     const lineId = f.core.snapshot().instances[0]!.currentStorylineId, directory = join(f.directory, 'storylines', lineId)
     await crash({ ...f, phase, directory, lineId })
     expect(f.original()).toEqual(f.before)
@@ -164,18 +165,21 @@ for (const phase of ['memory-temporary', 'memory-one-role']) {
     expect(archives).toHaveLength(phase === 'memory-one-role' ? 1 : 0)
     const core = await f.reload()
     expect(core.snapshot().instances[0]!.currentStorylineId).toBe(lineId)
-    // The player can return to the untouched original even while the child needs rebuilding.
+    // The player can return to the untouched original even while the child needs archive restoration.
     await core.handle({ operation: 'story-select', instanceId: f.instanceId, storylineId: 'main' })
     const original = await f.create(); await original.close()
     builds.length = 0
     const child = await f.create(directory)
     try {
       expect(existsSync(join(directory, 'rebuild-memory.json'))).toBe(false)
-      expect(builds).toHaveLength(phase === 'memory-one-role' ? 1 : 2)
+      expect(builds).toHaveLength(0)
+      const saved = JSON.parse(readFileSync(join(directory, 'core-memory.json'), 'utf8'))
+      for (const [actor, cached] of Object.entries(saved))
+        expect(JSON.parse(readFileSync(join(directory, 'memory-core', Buffer.from(actor).toString('base64url') + '.json'), 'utf8'))).toEqual(cached)
       const store = new WorldStore(join(directory, 'world.sqlite'))
       try { expect(store.readEvents(child.address)).toEqual(f.before.events.filter(event => event.seq <= f.node.headSeq)) } finally { store.close() }
       expect((await child.state()).packVariables?.public).toEqual({ 剧情: { 阶段: '节点阶段' } })
-      await child.saveNode('重建后可保存')
+      await child.saveNode('恢复后可保存')
     } finally { await child.close() }
     expect(f.original()).toEqual(f.before)
   }, 30_000)
