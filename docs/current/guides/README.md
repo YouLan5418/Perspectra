@@ -4,6 +4,8 @@
 
 | 使用者 | 要做什么 | 入口 |
 | --- | --- | --- |
+| 玩家 | 官方试玩包的序章与生活事件 | [包说明](../../../examples/world-packs/model-girls-official/README.md) |
+| 玩家/开发者 | 当前 test3 的交付和验收范围 | [便携构建记录](../studies/launcher-portable-test3-20261009.md) |
 | 玩家 | 从配置模型到续玩、预设、故事线和授权 | [玩家试玩指南](player-playtest.md) |
 | 创作者 | 复制示例、修改角色与世界、校验 v5 包 | [v5 创作指南](world-pack-authoring.md) |
 | 创作者 | 用 Launcher 或源码进行真实模型验收 | [创作者试玩](creator-playtest.md) |
