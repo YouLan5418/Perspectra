@@ -3,6 +3,7 @@ coverage/
 coverage-detail/
 dist/
 lib/
+!apps/launcher/src/lib/
 *.log
 *.sqlite
 *.sqlite-shm
