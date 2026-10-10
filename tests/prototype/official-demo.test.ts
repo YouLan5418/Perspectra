@@ -22,6 +22,18 @@ async function fixture(menu=false,kitchen=false,noCooker=false){
  const operation=async(label:string)=>{const action=projectPlayerView(await runtime.state()).actions.find(a=>a.label===label)!;expect(action).toBeDefined();return runtime.perform(action.action)}
  return {runtime,options,data,pack,events,activate,operation}
 }
+it('reuses activity state only at the same committed head and isolates returned copies',async()=>{
+ const f=await fixture();await f.activate();
+ const activity=new PackActivity(readFileSync(resolve('examples/world-packs/model-girls-official/scripts/activity.js'),'utf8'),join(f.data,'world.sqlite'),f.runtime.address,'character:player');
+ const before=activity.current()!,index=before.game.public.index;
+ Object.assign(before.game.public,{index:999});
+ const read=vi.spyOn(WorldStore.prototype,'readEventsRange');
+ expect(activity.current()!.game.public.index).toBe(index);expect(read).not.toHaveBeenCalled();
+ await f.operation('继续');read.mockClear();
+ expect(activity.current()!.game.public.index).toBe(Number(index)+1);
+ expect(read).toHaveBeenCalledWith(f.runtime.address,0,expect.any(Number),['activity.updated']);
+ read.mockClear();expect(activity.current()!.game.public.index).toBe(Number(index)+1);expect(read).not.toHaveBeenCalled();
+})
 it('atomically commits the scripted player question and cursor, hides its source from role observations, and rejects stale next actions',async()=>{
  const f=await fixture();const opened=await f.activate();expect(opened.transcript.at(-1)).toMatchObject({speaker:'游戏结果',player:false});for(let i=0;i<7;i++)await f.operation('继续');
  const gateway=new FrontendActions(f.runtime),next=projectPlayerView(await f.runtime.state()).actions.find(a=>a.label==='继续')!;
@@ -41,7 +53,7 @@ it('does not advance the NPC cursor or publish when its transaction fails; retri
  const original=WorldStore.prototype.commitRound;const spy=vi.spyOn(WorldStore.prototype,'commitRound').mockImplementation(function(this:WorldStore,...args){if(args[0].events.some(e=>e.eventType==='character.speak'))throw new Error('publication transaction failed');return original.apply(this,args)});
  await expect(f.operation('继续')).rejects.toThrow('publication transaction failed');spy.mockRestore();
  expect(f.events().filter(e=>e.eventType==='character.speak')).toHaveLength(0);expect(((await f.runtime.state()).activity!.game as WorldJsonObject).public).toMatchObject({index});
- const state=await f.runtime.state();const retry=projectPlayerView(state).actions.find(a=>a.label==='恢复当前活动节点')!;expect(retry).toBeDefined();await f.runtime.perform(retry.action);
+ const state=await f.runtime.state();const retry=projectPlayerView(state).actions.find(a=>a.label==='再次请求角色处理')!;expect(retry).toBeDefined();await f.runtime.perform(retry.action);
  expect(f.events().filter(e=>e.eventType==='character.speak')).toHaveLength(1);
 })
 it.each(['direct','private'] as const)('keeps %s content out of activity bystanders and delivers only the private occurrence when appropriate',async scope=>{
@@ -94,7 +106,7 @@ it('advances only the declared game day and records the explicit follow-up witho
 it('serves committed activity views without reopening a writer during snapshot polling',async()=>{
  const f=await fixture();await f.activate();const before=await f.runtime.state();
  const spy=vi.spyOn(PackActivity.prototype,'current').mockImplementation(()=>{throw new Error('database is locked')});
- const state=await f.runtime.state();expect(state.activity).toEqual(before.activity);expect(projectPlayerView(state).activity?.phase).toBe('prologue');expect(spy).not.toHaveBeenCalled();
+ const state=await f.runtime.state();expect(state.activity).toEqual(before.activity);expect(state.activities).toEqual(before.activities);expect(projectPlayerView(state).activity?.phase).toBe('prologue');expect(spy).not.toHaveBeenCalled();
 })
 
 it('publishes a fixed beat with a Core-sized authorized context, and bounds oversized simulation input',async()=>{
@@ -103,5 +115,5 @@ it('publishes a fixed beat with a Core-sized authorized context, and bounds over
  vi.spyOn(PackActivity.prototype,'simulate').mockImplementation(function(this:PackActivity,request){return original.call(this,{...request,context:{...request.context,authorizedHistory:'x'.repeat(size)}})});
  const first=await f.operation('继续');expect(first.error).toBe(false);expect(f.events().filter(e=>e.eventType==='character.speak')).toHaveLength(1);expect(first.debug.providerCalls).toBe(0);
  size=2*1024*1024;const failed=await f.operation('继续');expect(failed.error).toBe(true);expect(f.events().filter(e=>e.eventType==='character.speak')).toHaveLength(1);
- size=70000;const option=projectPlayerView(failed).actions.find(a=>a.label==='恢复当前活动节点')!;await f.runtime.perform(option.action);expect(f.events().filter(e=>e.eventType==='character.speak')).toHaveLength(2);
+ size=70000;const option=projectPlayerView(failed).actions.find(a=>a.label==='再次请求角色处理')!;await f.runtime.perform(option.action);expect(f.events().filter(e=>e.eventType==='character.speak')).toHaveLength(2);
 })

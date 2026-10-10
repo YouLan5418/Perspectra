@@ -45,7 +45,7 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
     regenerate:(tailId,actionId=id())=>request('regenerate',{tailId},actionId),
     selectCandidate:(tailId,candidateId,actionId=id())=>request('selectCandidate',{tailId,candidateId},actionId),
     cancelRegeneration:(actionId=id())=>request('cancelRegeneration',{},actionId),
-    perform:(optionId,actionId=id())=>request('perform',{optionId},actionId),
+    perform:(optionId,actionId=id(),npcIds)=>request('perform',{optionId,...(npcIds===undefined?{}:{npcIds})},actionId),
     resource:path=>request('resource',{path}),
     subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener)},
   });

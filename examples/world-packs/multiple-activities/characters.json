@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "玩家",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "刚来到前室，正在与同行者和留守者交谈。",
+        "speakingStyle": "由玩家决定。"
+      }
+    },
+    {
+      "characterId": "character:companion",
+      "displayName": "同行者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "与玩家熟悉，愿意帮忙查看眼前的黄铜钥匙，也会自己决定是否回应。",
+        "speakingStyle": "短句，少解释。"
+      },
+      "interactionBindings": [
+        {
+          "bindingId": "binding:companion-hold",
+          "definition": {
+            "id": "base:hold-hand",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "characterId": "character:friend",
+      "displayName": "留守者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "在前室与玩家谈话，对后室有些好奇，但有自己的节奏。",
+        "speakingStyle": "客气，偶尔简短直接。"
+      }
+    }
+  ]
+}

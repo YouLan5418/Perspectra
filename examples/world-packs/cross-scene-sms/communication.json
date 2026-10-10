@@ -1,0 +1,7 @@
+{
+  "medium": "短信",
+  "contacts": {
+    "character:player": ["character:companion"],
+    "character:companion": ["character:player"]
+  }
+}

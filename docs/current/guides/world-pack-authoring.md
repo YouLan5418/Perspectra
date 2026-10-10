@@ -9,6 +9,7 @@
 | [prototype-g1](../../../examples/world-packs/prototype-g1) | 最小角色、房间、物品与交互 |
 | [launcher-demo](../../../examples/world-packs/launcher-demo) | 变量、猜数字活动、包预设与社区前端 |
 | [hand-in-hand](../../../examples/world-packs/hand-in-hand) | 角色交互与关系解除绑定 |
+| [multiple-activities](../../../examples/world-packs/multiple-activities) | 两场独立活动、暂停、继续与作者恢复条件 |
 | [ai-girls-hosted-guess](../../../examples/world-packs/ai-girls-hosted-guess) | 主持角色私有信息与多 NPC 活动 |
 | [ai-girls-awaken-v10](../../../examples/world-packs/ai-girls-awaken-v10) | 多角色连续试玩 |
 

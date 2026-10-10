@@ -113,12 +113,16 @@ export class TailRoundRuntime {
     return this.state()
   }
   async perform(action: PlaytestAction): Promise<PlaytestState> {
-    if(action.actionType==='interact' && ['host:activity-start','host:activity-retry'].includes(String((action.parameters.definitionRef as WorldJsonObject|undefined)?.id))){
-      const current=(await this.state()).activity
+    if(action.actionType==='interact' && ['host:activity-start','host:activity-retry','host:activity-suspend','host:activity-resume','host:activity-abandon'].includes(String((action.parameters.definitionRef as WorldJsonObject|undefined)?.id))){
+      const state=await this.state()
+      const current=action.parameters.activityKey===undefined?state.activity:state.activities?.find(view=>view.activityKey===action.parameters.activityKey)
       if(!current || (current.id??null)!==action.parameters.previousId || (current.revision??0)!==action.parameters.previousRevision)
         throw new TypeError('活动入口已失效，请刷新')
-      const retry=(action.parameters.definitionRef as WorldJsonObject).id==='host:activity-retry'
-      return this.activityAction({activityId:retry?String(current.id):null,revision:retry?Number(current.revision):0,operation:retry?'retry':'start',parameters:{},requestId:randomUUID()})
+      const operation=String((action.parameters.definitionRef as WorldJsonObject).id).slice('host:activity-'.length)
+      if(operation!=='start'&&action.parameters.startParameters!==undefined)throw new TypeError('只有开始活动可选择参与者')
+      const startParameters=action.parameters.startParameters
+      if(startParameters!==undefined&&(!startParameters||typeof startParameters!=='object'||Array.isArray(startParameters)))throw new TypeError('开始参数无效')
+      return this.activityAction({...(current.activityKey===undefined?{}:{activityKey:String(current.activityKey)}),activityId:operation==='start'?null:String(current.id),revision:operation==='start'?0:Number(current.revision),operation,parameters:(startParameters as WorldJsonObject|undefined)??{},requestId:randomUUID()})
     }
     return this.submit('/act '+action.actionType+' '+JSON.stringify(action.parameters))
   }

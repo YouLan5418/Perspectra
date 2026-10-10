@@ -7,12 +7,13 @@ export interface PlayerView {
   player: { name: string }
   scene: { locationName: string; visibleCharacters: string[]; recipients: { id: string; name: string }[] } | null
   activity?: { title: string; active: boolean; phase: string; public: WorldJsonObject }
+  activities?: { key: string; title: string; active: boolean; suspended: boolean; phase: string; public: WorldJsonObject }[]
   status: 'ready' | 'busy' | 'paused' | 'error'
   feedback?: { phase: string; message: string }
   settings?: PlaytestState['playerSettings']
   tailRound?: PlaytestState['tailRound']
   history: { seq: number; speaker: string; text: string; player: boolean; segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
-  actions: { id: string; label: string; action: PlaytestAction }[]
+  actions: { id: string; label: string; action: PlaytestAction; participantSelection?: { min: number; max: number; candidates: { id: string; name: string }[] } }[]
 }
 export function projectPlayerView(state: PlaytestState): PlayerView {
   const actions: PlayerView['actions'] = []
@@ -44,17 +45,34 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
       actions.push({ id: 'opt:' + createHash('sha256').update(canonicalizeWorldJson(action as unknown as WorldJsonObject)).digest('hex'), label, action })
     }
   }
-  if(state.activity && !(state.activity.game as WorldJsonObject|undefined)?.active){
-    const action:PlaytestAction={actionType:'interact',parameters:{definitionRef:{id:'host:activity-start',version:1},previousId:state.activity.id??null,previousRevision:state.activity.revision??0}}
-    actions.push({id:'opt:'+createHash('sha256').update(canonicalizeWorldJson(action as unknown as WorldJsonObject)).digest('hex'),label:'开始 '+state.activity.title,action})
+  const activities=state.activities??(state.activity?[state.activity]:[])
+  const foreground=activities.some(activity=>(activity.game as WorldJsonObject|undefined)?.active===true)
+  for(const activity of activities){
+    const active=(activity.game as WorldJsonObject|undefined)?.active===true
+    if(!active&&foreground)continue
+    const operation=active?'suspend':activity.suspended===true?'resume':'start'
+    const action:PlaytestAction={actionType:'interact',parameters:{definitionRef:{id:'host:activity-'+operation,version:1},
+      ...(activity.activityKey===undefined?{}:{activityKey:activity.activityKey}),previousId:activity.id??null,previousRevision:activity.revision??0}}
+    const selection=operation==='start'?activity.participantSelection as WorldJsonObject|undefined:undefined
+    actions.push({id:'opt:'+createHash('sha256').update(canonicalizeWorldJson(action as unknown as WorldJsonObject)).digest('hex'),label:({suspend:'暂停 ',resume:'继续 ',start:'开始 '}[operation])+activity.title,action,
+      ...(selection?{participantSelection:structuredClone(selection) as unknown as NonNullable<PlayerView['actions'][number]['participantSelection']>}: {})})
+    if(activity.suspended===true){
+      const abandon:PlaytestAction={...action,parameters:{...action.parameters,definitionRef:{id:'host:activity-abandon',version:1}}}
+      actions.push({id:'opt:'+createHash('sha256').update(canonicalizeWorldJson(abandon as unknown as WorldJsonObject)).digest('hex'),label:'放弃 '+activity.title,action:abandon})
+    }
   }
   const activityGame=state.activity?.game as WorldJsonObject|undefined
   if(activityGame?.active && activityGame.turn!==(state.activity!.participants as string[])[0]){
     const action:PlaytestAction={actionType:'interact',parameters:{definitionRef:{id:'host:activity-retry',version:1},previousId:state.activity!.id!,previousRevision:state.activity!.revision!}}
-    actions.push({id:'opt:'+createHash('sha256').update(canonicalizeWorldJson(action as unknown as WorldJsonObject)).digest('hex'),label:'恢复当前活动节点',action})
+    actions.push({id:'opt:'+createHash('sha256').update(canonicalizeWorldJson(action as unknown as WorldJsonObject)).digest('hex'),label:'再次请求角色处理',action})
   }
   return {
     ...(state.activity?{activity:{title:String(state.activity.title),active:activityGame?.active===true,phase:String(activityGame?.phase??'not-started'),public:structuredClone(activityGame?.public??{}) as WorldJsonObject}}:{}),
+    ...(state.activities?{activities:state.activities.map(activity=>{
+      const game=activity.game as WorldJsonObject|undefined
+      return {key:String(activity.activityKey),title:String(activity.title),active:game?.active===true,suspended:activity.suspended===true,
+        phase:String(game?.phase??'not-started'),public:structuredClone(game?.public??{}) as WorldJsonObject}
+    })}:{}),
     game: { title: state.world.title }, player: { name: state.world.playerName },
     scene: state.world.currentScene ? { locationName: state.world.currentScene.locationName,
       visibleCharacters: [...state.world.currentScene.presentNpcNames], recipients: (state.world.currentScene.recipients ?? []).map(({ id, name }) => ({ id, name })) } : null,
@@ -68,7 +86,7 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
 }
 export function playerViewPatch(before: PlayerView, after: PlayerView): Record<string, unknown> | null {
   const changes: Record<string, unknown> = {}
-  for (const key of ['game', 'player', 'scene', 'status', 'actions', 'tailRound', 'settings', 'activity', 'feedback'] as const) {
+  for (const key of ['game', 'player', 'scene', 'status', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback'] as const) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
   }
   if (JSON.stringify(before.history) !== JSON.stringify(after.history)) {
@@ -115,8 +133,9 @@ export function frontendActionRequest(value: unknown, maximumCharacters = 2000):
     if (Object.keys(payload).join(',') !== 'tailId' || typeof payload.tailId !== 'string' || !/^[a-f0-9-]{36}$/.test(payload.tailId)) throw new TypeError('重新生成须引用当前末端回合')
     return {requestId:r.requestId,actionId:r.actionId,operation:'regenerate',payload:{tailId:payload.tailId}}
   }
-  if (Object.keys(payload).join(',') !== 'optionId' || typeof payload.optionId !== 'string' || payload.optionId.length > 512) throw new TypeError('行动须引用玩家当前可用的 optionId')
-  return { requestId: r.requestId, actionId: r.actionId, operation: 'perform', payload: { optionId: payload.optionId } }
+  if (Object.keys(payload).some(key=>!['optionId','npcIds'].includes(key)) || typeof payload.optionId !== 'string' || payload.optionId.length > 512) throw new TypeError('行动须引用玩家当前可用的 optionId')
+  if(Object.hasOwn(payload,'npcIds')&&(!Array.isArray(payload.npcIds)||payload.npcIds.length>8||payload.npcIds.some(id=>typeof id!=='string'||!id||id.length>200)||new Set(payload.npcIds).size!==payload.npcIds.length))throw new TypeError('活动参与者选择无效')
+  return { requestId: r.requestId, actionId: r.actionId, operation: 'perform', payload: { optionId: payload.optionId,...(Object.hasOwn(payload,'npcIds')?{npcIds:payload.npcIds}:{}) } }
 }
 /** Per-running-session deduplication, including in-flight and failed results. Never evicts IDs. */
 export class FrontendActions {
@@ -157,7 +176,12 @@ export class FrontendActions {
       const view = projectPlayerView(await this.runtime.state())
       const option = view.actions.find(a => a.id === request.payload.optionId)
       if (!option || !this.runtime.perform) throw new TypeError('该操作不在玩家当前可用操作中')
-      return projectPlayerView(await this.runtime.perform(option.action))
+      const selected=request.payload.npcIds as string[]|undefined,selection=option.participantSelection
+      if(selection){
+        if(!selected||selected.length<selection.min||selected.length>selection.max||selected.some(id=>!selection.candidates.some(candidate=>candidate.id===id)))throw new TypeError('请选择当前可用的活动参与者')
+      }else if(selected!==undefined)throw new TypeError('此操作不接受参与者选择')
+      const action=selection?{...option.action,parameters:{...option.action.parameters,startParameters:{npcIds:selected!}}}:option.action
+      return projectPlayerView(await this.runtime.perform(action))
     })
     this.#requests.set(request.actionId, { fingerprint, result })
     return result

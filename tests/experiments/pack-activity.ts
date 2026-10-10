@@ -76,11 +76,24 @@ export async function decideActivityFormat(call: ChatCall, decide: (call: ChatCa
 
 type Game = WorldJsonObject & { active: boolean; phase: string; turn: string|null; round: number;
   public: WorldJsonObject; private: WorldJsonObject; internal: WorldJsonObject }
-export type ActivityState = WorldJsonObject & { id: string; revision: number; participants: string[]; game: Game }
+export type ActivityState = WorldJsonObject & { id: string; revision: number; participants: string[]; game: Game; suspendedTurn?: string }
+
+/** Latest committed progress for each script; paused activities do not occupy the foreground. */
+export function activityProgress(events:readonly RulebookEvent[]):Map<string,ActivityState> {
+  const progress=new Map<string,ActivityState>()
+  for(const event of events)if(event.eventType==='activity.updated'){
+    const data=object(event.data),key=data.activityKey??'default'
+    if(typeof key!=='string')throw new TypeError('活动标识损坏')
+    progress.set(key,object(data.state) as ActivityState)
+  }
+  if([...progress.values()].filter(state=>object(state.game).active===true).length>1)throw new TypeError('不能同时运行多个活动')
+  return progress
+}
 type Policy = WorldJsonObject & { speech: 'free'|'none'|'choices'; speechChoices: string[];
   narration: boolean; move: boolean; interactions: string[]; operations: string[] }
 type Operation = { id: string; label: string; requiresTurn: boolean; schema: WorldJsonObject }
 export interface ActivityRequest {
+  readonly activityKey?: string
   readonly activityId: string|null
   readonly revision: number
   readonly operation: string
@@ -104,6 +117,7 @@ function json(value: WorldJsonObject): string { return Buffer.from(canonicalizeW
 
 /** Trusted, synchronous creator rules; all writes and model calls remain in the host. */
 export class PackActivity {
+  #currentState: { headSeq: number; state: ActivityState | undefined } | undefined
   #randomValues: number[] = []
   #randomReplay: readonly number[] | undefined
   #randomCursor = 0
@@ -119,19 +133,31 @@ export class PackActivity {
   readonly #validators = new Map<string, ReturnType<Ajv['compile']>>()
   readonly title: string
   readonly npcIds: string[]
-  constructor(source: string, readonly worldPath: string, readonly address: WorldAddress, readonly playerId: string) {
-    this.#script = new Script(source+'\nJSON.stringify(__method === "definition" ? activityScript.definition : (["simulate","onPublished"].includes(__method) && activityScript[__method] === undefined) ? null : activityScript[__method](...JSON.parse(__args)))')
+  readonly participantSelection?: { min: number; max: number; candidates?: string[] }
+  constructor(source: string, readonly worldPath: string, readonly address: WorldAddress, readonly playerId: string, readonly key='default') {
+    this.#script = new Script(source+'\nJSON.stringify(__method === "definition" ? activityScript.definition : __method === "hasResume" ? typeof activityScript.resume === "function" : (["simulate","onPublished","resume"].includes(__method) && activityScript[__method] === undefined) ? null : activityScript[__method](...JSON.parse(__args)))')
     const definition=object(this.#call('definition',[]))
-    exact(definition,['title','npcIds','operations'])
+    exact(definition,['title',Object.hasOwn(definition,'participants')?'participants':'npcIds','operations'])
     if (typeof definition.title!=='string' || definition.title.length>80
       || !Array.isArray(definition.operations) || definition.operations.length>16) throw new TypeError('活动定义无效')
-    this.title=definition.title; this.npcIds=strings(definition.npcIds)
+    this.title=definition.title
+    if(Object.hasOwn(definition,'participants')){
+      const selection=object(definition.participants)
+      exact(selection,['mode','min','max',...(Object.hasOwn(selection,'candidates')?['candidates']:[])])
+      if(selection.mode!=='player-select'||!Number.isSafeInteger(selection.min)||!Number.isSafeInteger(selection.max)
+        ||Number(selection.min)<1||Number(selection.max)>8||Number(selection.min)>Number(selection.max))throw new TypeError('活动参与者选择无效')
+      const candidates=selection.candidates===undefined?undefined:strings(selection.candidates)
+      if(candidates?.includes(playerId))throw new TypeError('候选 NPC 不能包含玩家')
+      this.participantSelection={min:Number(selection.min),max:Number(selection.max),...(candidates?{candidates}:{})}
+      this.npcIds=[]
+    }else this.npcIds=strings(definition.npcIds)
     if(this.npcIds.length>8 || this.npcIds.includes(playerId))throw new TypeError('活动 NPC 列表无效')
     const ajv=new Ajv({ strict:true, allErrors:false })
     this.#operations=definition.operations.map(value=>{
       const op=object(value);exact(op,['id','label','requiresTurn','schema'])
       if(typeof op.id!=='string' || !/^[a-z][a-z0-9-]{0,40}$/u.test(op.id) || typeof op.label!=='string'
         || typeof op.requiresTurn!=='boolean') throw new TypeError('操作定义无效')
+      if(['start','retry','suspend','resume','abandon'].includes(op.id))throw new TypeError('操作 ID 与宿主活动控制冲突')
       const schema=object(op.schema)
       if(schema.type!=='object' || schema.additionalProperties!==false) throw new TypeError('操作必须声明封闭对象参数')
       const properties=object(schema.properties ?? {})
@@ -143,8 +169,8 @@ export class PackActivity {
     // Validate restored committed state without publishing internal/private game data.
     this.current()
   }
-  static load(packPath:string, pack:CompiledWorldPackV5, worldPath:string,address:WorldAddress,playerId:string) {
-    const entry='scripts/activity.js', lock=pack.assets.find(a=>a.path===entry)
+  static load(packPath:string, pack:CompiledWorldPackV5, worldPath:string,address:WorldAddress,playerId:string,entry='scripts/activity.js',key='default') {
+    const lock=pack.assets.find(a=>a.path===entry)
     if(!lock)return undefined
     const file=resolve(packPath,entry)
     if(!lstatSync(file).isFile() || relative(realpathSync(packPath),realpathSync(file))!==entry.split('/').join(sep)) {
@@ -153,7 +179,7 @@ export class PackActivity {
     const bytes=readFileSync(file)
     if(bytes.length>65536 || bytes.length!==lock.size
       || 'sha256:'+createHash('sha256').update(bytes).digest('hex')!==lock.contentHash) throw new TypeError('活动脚本与编译资产不一致')
-    return new PackActivity(bytes.toString('utf8'),worldPath,address,playerId)
+    return new PackActivity(bytes.toString('utf8'),worldPath,address,playerId,key)
   }
   #call(method:string,args:unknown[]):unknown {
     const input=JSON.stringify(args)
@@ -185,20 +211,37 @@ export class PackActivity {
     if(json(game).length>65536)throw new RangeError('活动状态过长')
     return game as Game
   }
+  #validParticipants(participants:string[]):boolean {
+    const selected=participants.slice(1),selection=this.participantSelection
+    return participants[0]===this.playerId && !selected.includes(this.playerId) && (selection
+      ?selected.length>=selection.min&&selected.length<=selection.max&&selected.every(id=>!selection.candidates||selection.candidates.includes(id))
+      :json({participants})===json({participants:[this.playerId,...this.npcIds]}))
+  }
   state(events:readonly RulebookEvent[]):ActivityState|undefined {
-    const event=events.findLast(e=>e.eventType==='activity.updated')
+    const event=events.findLast(e=>e.eventType==='activity.updated'&&(object(e.data).activityKey??'default')===this.key)
     if(!event)return undefined
     const state=object(object(event.data).state)
-    exact(state,['id','revision','participants','game'])
+    exact(state,['id','revision','participants','game',...(Object.hasOwn(state,'suspendedTurn')?['suspendedTurn']:[])])
     const participants=strings(state.participants)
     if(typeof state.id!=='string' || !Number.isSafeInteger(state.revision) || Number(state.revision)<1
-      || json({participants})!==json({participants:[this.playerId,...this.npcIds]}))throw new TypeError('活动存档损坏')
+      || !this.#validParticipants(participants))throw new TypeError('活动存档损坏')
     this.#game(state.game,participants)
+    if(Object.hasOwn(state,'suspendedTurn')&&(object(state.game).active!==false||!participants.includes(String(state.suspendedTurn))))throw new TypeError('暂停活动状态损坏')
     return state as ActivityState
   }
   current():ActivityState|undefined {
     const store=new WorldStore(this.worldPath)
-    try{return this.state(store.readEvents(this.address))}finally{store.close()}
+    try {
+      const headSeq=store.head(this.address).headSeq
+      if(this.#currentState?.headSeq!==headSeq) {
+        // Activity state only depends on activity.updated. Reuse one validated prefix,
+        // and check the live head on every read, including after a failed publication.
+        const state=this.state(store.readEventsRange(this.address,0,headSeq,['activity.updated']))
+        this.#currentState={headSeq,state}
+      }
+      // Callers and creator hooks must not mutate the cached committed state.
+      return structuredClone(this.#currentState.state)
+    } finally { store.close() }
   }
   scoped(state:ActivityState,actorId:string):WorldJsonObject {
     if(!state.participants.includes(actorId))throw new TypeError('不是活动参与者')
@@ -226,9 +269,25 @@ export class PackActivity {
           revision:{const:state.revision,type:'integer'}}},
     }))
   }
-  view(actorId:string) {
+  view(actorId:string):WorldJsonObject {
     const state=this.current()
-    return {title:this.title,available:true,...(state && state.participants.includes(actorId)?{
+    let selection:WorldJsonObject|undefined
+    if(this.participantSelection&&actorId===this.playerId){
+      const store=new WorldStore(this.worldPath)
+      try{
+        const manifest=store.readManifest(this.address)!.manifest as CompiledWorldManifest,head=store.head(this.address)
+        const world=this.#worldView(manifest,store.readEvents(this.address),actorId,head.headSeq)
+        const candidates=manifest.characters.filter(character=>character.characterId!==actorId
+          &&!manifest.playerBindings.some(binding=>binding.characterId===character.characterId)
+          &&(world.characterIds as string[]).includes(character.characterId)
+          &&(!this.participantSelection!.candidates||this.participantSelection!.candidates.includes(character.characterId)))
+          .map(character=>({id:character.characterId,name:character.name}))
+        selection={min:this.participantSelection.min,max:this.participantSelection.max,candidates}
+      }finally{store.close()}
+    }
+    const member=state?.participants.includes(actorId)===true
+    return {title:this.title,activityKey:this.key,suspended:member&&state?.suspendedTurn!==undefined,available:actorId===this.playerId,
+      ...(selection?{participantSelection:selection}:{}),...(state && member?{
       ...this.scoped(state,actorId),policy:state.game.active?this.policy(state,actorId):null,
       options:state.game.active?this.options(state,actorId):[],
     }:{id:null,revision:0})}
@@ -252,7 +311,7 @@ export class PackActivity {
    */
   simulate(request:PrototypeTurnRequest):WorldJsonValue|undefined {
     const actor=String(object(request.context.character).characterId),state=this.current()
-    if(!state || !this.npcIds.includes(actor) || !state.participants.includes(actor))return undefined
+    if(!state || actor===this.playerId || !state.participants.includes(actor))return undefined
     const anchor=request.context.activity
     const metadata=request.result?.observationMetadata as WorldJsonObject|undefined
     const ended=metadata?.activity as WorldJsonObject|undefined
@@ -293,8 +352,8 @@ export class PackActivity {
       || (policy.speech==='choices' && Object.hasOwn(parameters,'speech')
         && !policy.speechChoices.includes(String(parameters.speech))))throw new TypeError('当前表达不在创作者许可内')
   }
-  rulebooks():RulebookRegistry {
-    const base=createCoreRulebookRegistry({interactionPackages:createInstalledInteractionPackages()})
+  rulebooks(external?:RulebookResolver):RulebookRegistry {
+    const base=external??createCoreRulebookRegistry({interactionPackages:createInstalledInteractionPackages()})
       .resolve('builtin:speak-move',2,'activity',this.address)
     const resolver:RulebookResolver={
       affordances:context=>{
@@ -374,7 +433,7 @@ export class PackActivity {
     return result
   }
   #event(state:ActivityState,description:string,actorId:string,actionId:string,operation:string):WorldEventDraft {
-    return {eventType:'activity.updated',eventVersion:1,data:{state,description,actorId,actionId,operation}}
+    return {eventType:'activity.updated',eventVersion:1,data:{activityKey:this.key,state,description,actorId,actionId,operation}}
   }
   /** Actor-scoped facts from the same candidate prefix; never a global inventory. */
   #worldView(manifest:CompiledWorldManifest,events:readonly RulebookEvent[],actorId:string,asOfWorldSeq:number|undefined):WorldJsonObject {
@@ -400,7 +459,7 @@ export class PackActivity {
   }
   #resultMetadata(state:ActivityState,operation:string):WorldJsonObject {
     return {activity:{id:state.id,revision:state.revision,phase:state.game.phase,round:state.game.round,
-      active:state.game.active,lifecycle:operation==='start'?'started':state.game.active?'updated':'ended'}}
+      active:state.game.active,lifecycle:operation==='suspend'?'suspended':operation==='resume'?'resumed':operation==='start'?'started':state.game.active?'updated':'ended'}}
   }
   executionResult=(input:Parameters<typeof characterExecutionResult>[0])=>{
     const parameters=object(input.action.parameters)
@@ -419,7 +478,7 @@ export class PackActivity {
     if(plan.kind==='wait'){exact(plan,['kind']);return undefined}
     exact(plan,['kind','characterId'])
     const state=this.current()
-    if(plan.kind!=='activate' || typeof plan.characterId!=='string' || !this.npcIds.includes(plan.characterId)
+    if(plan.kind!=='activate' || typeof plan.characterId!=='string' || plan.characterId===this.playerId
       || !state?.game.active || !state.participants.includes(plan.characterId))throw new TypeError('调度请求了未授权角色')
     return plan.characterId
   }
@@ -433,11 +492,11 @@ export class PackActivity {
     if(!state?.game.active)return undefined
     return this.#plan(this.#call('onOutcome',[result,this.scoped(state,this.playerId)]))
   }
-  #observations(state:ActivityState,description:string,actor:string,actionId:string,observerIds=state.participants):WorldEventDraft[] {
+  #observations(state:ActivityState,description:string,actor:string,actionId:string,observerIds=state.participants,operation=state.revision===1?'start':'result'):WorldEventDraft[] {
     return observerIds.map(observerId=>({eventType:'observation.upsert',eventVersion:1,data:{
       id:actionId+':'+observerId,value:{observerId,actionId,epistemicKind:'observed_action',
         content:{status:'accepted',actionType:'interact',actorId:actor,resultDescription:description,
-          resultMetadata:this.#resultMetadata(state,state.revision===1?'start':'result')}}}}))
+          resultMetadata:this.#resultMetadata(state,operation)}}}}))
   }
   async apply(request:ActivityRequest):Promise<boolean> {
     const store=new WorldStore(this.worldPath),leases=new WriterLeaseService(this.worldPath),owner='activity:'+request.requestId
@@ -446,6 +505,8 @@ export class PackActivity {
     try{
       lease=leases.acquire(this.address,owner,180000)
       const head=store.head(this.address),events=store.readEvents(this.address),current=this.state(events)
+      const foreground=[...activityProgress(events).values()].find(state=>state.game.active)
+      if(request.activityKey!==undefined&&request.activityKey!==this.key)throw new TypeError('活动标识不匹配')
       const input={...request,actorId:this.playerId}
       const prior=events.findLast(e=>e.eventType==='activity.updated'&&object(e.data).requestId===request.requestId)
       if(prior){
@@ -455,18 +516,51 @@ export class PackActivity {
       const actionId=owner+':action'
       let state:ActivityState,description:string,drafts:WorldEventDraft[],observerIds:string[]
       if(request.operation==='start'){
-        if(current?.game.active || request.activityId!==null || request.revision!==0)throw new TypeError('已有活动或开始请求失效')
-        if(Object.keys(request.parameters).length)throw new TypeError('开始操作没有参数')
+        if(foreground || current?.suspendedTurn!==undefined || request.activityId!==null || request.revision!==0)throw new TypeError('已有活动、存在暂停进度或开始请求失效')
+        if(this.participantSelection)exact(request.parameters,['npcIds'])
+        else if(Object.keys(request.parameters).length)throw new TypeError('开始操作没有参数')
+        const npcIds=this.participantSelection?strings(request.parameters.npcIds):this.npcIds
+        if(!this.#validParticipants([this.playerId,...npcIds]))throw new TypeError('选择的活动参与者不符合人数或候选限制')
         const manifest=store.readManifest(this.address)!.manifest as CompiledWorldManifest
-        if(this.npcIds.some(id=>!manifest.characters.some(c=>c.characterId===id) || manifest.playerBindings.some(b=>b.characterId===id)))throw new TypeError('活动 NPC 未声明')
+        if(npcIds.some(id=>!manifest.characters.some(c=>c.characterId===id) || manifest.playerBindings.some(b=>b.characterId===id)))throw new TypeError('活动 NPC 未声明')
         const scene=new SceneDecisionService(store,availability,2).decideFromEvents(this.address,brandId(this.playerId,'CharacterId'),events,head.headSeq)
-        if(this.npcIds.some(id=>!scene.observerIds.includes(brandId(id,'CharacterId'))))throw new TypeError('需要与游戏参与者在同一场景')
-        const participants=[this.playerId,...this.npcIds]
+        if(npcIds.some(id=>!scene.observerIds.includes(brandId(id,'CharacterId'))))throw new TypeError('需要与游戏参与者在同一场景')
+        const participants=[this.playerId,...npcIds]
         state={id:'activity:'+randomUUID(),revision:1,participants,game:this.#game(this.#call('initialize',[{
-          playerId:this.playerId,npcIds:this.npcIds,world:this.#worldView(manifest,events,this.playerId,head.headSeq),
+          playerId:this.playerId,npcIds,world:this.#worldView(manifest,events,this.playerId,head.headSeq),
           previous:current?this.scoped(current,this.playerId):null}]),participants)}
         description=this.title+'开始。';observerIds=participants
         drafts=[this.#event(state,description,this.playerId,actionId,'start')]
+      }else if(['suspend','resume','abandon'].includes(request.operation)){
+        if(!current||current.id!==request.activityId||current.revision!==request.revision||Object.keys(request.parameters).length)throw new TypeError('活动控制请求已失效')
+        if(request.operation==='suspend'){
+          this.#check(current,request.activityId,request.revision,this.playerId)
+          state={...current,revision:current.revision+1,suspendedTurn:current.game.turn!,game:{...current.game,active:false,turn:null}}
+          description=this.title+'已暂停，进度保留，恢复自由互动。'
+        }else if(request.operation==='abandon'){
+          if(current.suspendedTurn===undefined)throw new TypeError('只能放弃暂停中的活动')
+          const {suspendedTurn:_turn,...saved}=current
+          state={...saved,revision:current.revision+1,game:{...current.game,active:false,phase:'host-aborted',turn:null}}
+          description=this.title+'的暂停进度已放弃，已提交的经历仍保留。'
+        }else{
+          if(foreground||current.suspendedTurn===undefined)throw new TypeError('请先暂停当前活动，或选择有暂停进度的活动')
+          const {suspendedTurn,...saved}=current
+          state={...saved,revision:current.revision+1,game:{...current.game,active:true,turn:suspendedTurn}}
+          const manifest=store.readManifest(this.address)!.manifest as CompiledWorldManifest
+          const world=this.#worldView(manifest,events,this.playerId,head.headSeq)
+          const rejection=this.#call('resume',[this.scoped(state,this.playerId),world])
+          // A hook may accept remote continuation; without one, retain the original same-scene rule.
+          if(rejection!==null){
+            const result=object(rejection);exact(result,['rejectReason'])
+            if(typeof result.rejectReason!=='string'||!result.rejectReason.trim()||result.rejectReason.length>2000)throw new TypeError('活动恢复条件返回无效')
+            throw new TypeError(result.rejectReason)
+          }
+          if(this.#call('hasResume',[])!==true&&state.participants.slice(1).some(id=>!(world.characterIds as string[]).includes(id)))throw new TypeError('恢复活动需要与参与者在同一场景')
+          this.#game(state.game,state.participants)
+          description=this.title+'已恢复，继续此前进度。'
+        }
+        observerIds=[this.playerId]
+        drafts=[this.#event(state,description,this.playerId,actionId,request.operation)]
       }else{
         this.#check(current,request.activityId,request.revision,this.playerId)
         if(request.operation==='retry'){if(Object.keys(request.parameters).length)throw new TypeError('重试没有参数');return true}
@@ -484,7 +578,7 @@ export class PackActivity {
         description=String(object(drafts[0]!.data).description)
       }
       drafts[0]={...drafts[0]!,data:{...object(drafts[0]!.data),requestId:request.requestId,input}}
-      drafts.push(...this.#observations(state,description,this.playerId,actionId,observerIds),
+      drafts.push(...this.#observations(state,description,this.playerId,actionId,observerIds,request.operation),
         {eventType:'action.resolved',eventVersion:1,data:{actorId:this.playerId,actionId,actionType:'interact',accepted:true,sourceRole:'player'}},
         {eventType:'world.tick-advanced',eventVersion:1,data:{tick:head.tick+1}})
       await store.commitRound({address:this.address,transactionId:brandId(owner,'TransactionId'),roundId:brandId(owner,'InteractionRoundId'),
@@ -511,7 +605,7 @@ export class PackActivity {
     }finally{if(lease)leases.release(this.address,owner,lease.fencingToken);leases.close();store.close()}
   }
   async speak(text:string,requestId:string):Promise<void> {
-    return this.worldAction({actionType:'speak',parameters:{text,scope:'direct',addresseeIds:this.npcIds}},requestId)
+    return this.worldAction({actionType:'speak',parameters:{text,scope:'direct',addresseeIds:this.current()?.participants.slice(1)??[]}},requestId)
   }
   async worldAction(action:{actionType:string;parameters:WorldJsonObject},requestId:string):Promise<void> {
     const store=new WorldStore(this.worldPath),leases=new WriterLeaseService(this.worldPath),owner='activity-world:'+requestId

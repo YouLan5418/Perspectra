@@ -11,7 +11,8 @@ import { presetCall, presetContext, presetOutput, presetDisplay } from '../../pa
 import { rolePresetMapping, characterPreset, type RolePreset, type RolePresetMapping } from '../../packages/provider-chat/src/preset.ts'
 import { PlaytestMemoryCore, type MemoryContextBudget, type MemoryBuildOptions } from './playtest-memory-core.ts'
 import { createCoreWorker, coreRunner, type CoreRunner } from './hindsight-python.ts'
-import { decideActivityFormat, PackActivity, type ActivityRequest } from './pack-activity.ts'
+import { decideActivityFormat, type ActivityRequest } from './pack-activity.ts'
+import { PackActivities } from './pack-activities.ts'
 import { PackVariables } from './pack-variables.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
 import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
@@ -106,8 +107,9 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   readonly #effectivePresets: ReadonlyMap<string, RolePreset>
   #memoryCore: PlaytestMemoryCore | undefined
   #closeCore: (() => Promise<void>) | undefined
-  #activity: PackActivity | undefined
+  #activity: PackActivities | undefined
   #activityView: WorldJsonObject | undefined
+  #activityViews: WorldJsonObject[] | undefined
   #workDone: Promise<void> = Promise.resolve()
   #finishWork: (() => void) | undefined
   #escaping: Promise<PlaytestState> | undefined
@@ -287,7 +289,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       runtime.#storyParentNodeId = options.storyParentNodeId ?? null
       runtime.#application.activate(compiled)
       runtime.#variables = PackVariables.load(options.packPath, options.dataDirectory, pack)
-      runtime.#activity = PackActivity.load(options.packPath, pack, resolve(options.dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
+      runtime.#activity = PackActivities.load(options.packPath, pack, resolve(options.dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
       if (existsSync(rebuildPath)) {
@@ -346,6 +348,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       }))),
       ...(this.#memoryCore ? { memoryMaintenance: this.#memoryCore.backgroundState() } : {}),
       ...(this.#activityView ? { activity: structuredClone(this.#activityView) } : {}),
+      ...(this.#activityViews ? { activities: structuredClone(this.#activityViews) } : {}),
       ...(this.#variables ? { packVariables: this.#variables.getVariables(this.#playerId) } : {}),
       world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames,
         ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }) },
@@ -521,12 +524,16 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
 
   /** Structured UI choices remain proposals and follow the same Rulebook path as /act. */
   async perform(action: PlaytestAction): Promise<PlaytestState> {
-    if(action.actionType==='interact' && ['host:activity-start','host:activity-retry'].includes(String((action.parameters.definitionRef as WorldJsonObject|undefined)?.id))){
-      const current=this.#activity?.view(this.#playerId) as WorldJsonObject|undefined
+    if(action.actionType==='interact' && ['host:activity-start','host:activity-retry','host:activity-suspend','host:activity-resume','host:activity-abandon'].includes(String((action.parameters.definitionRef as WorldJsonObject|undefined)?.id))){
+      const current=action.parameters.activityKey===undefined?this.#activity?.view(this.#playerId)
+        :this.#activity?.views(this.#playerId).find(view=>view.activityKey===action.parameters.activityKey)
       if(!current || (current.id??null)!==action.parameters.previousId || (current.revision??0)!==action.parameters.previousRevision)
         throw new TypeError('活动入口已失效，请刷新')
-      const retry=(action.parameters.definitionRef as WorldJsonObject).id==='host:activity-retry'
-      return this.activityAction({activityId:retry?String(current.id):null,revision:retry?Number(current.revision):0,operation:retry?'retry':'start',parameters:{},requestId:randomUUID()})
+      const operation=String((action.parameters.definitionRef as WorldJsonObject).id).slice('host:activity-'.length)
+      if(operation!=='start'&&action.parameters.startParameters!==undefined)throw new TypeError('只有开始活动可选择参与者')
+      const startParameters=action.parameters.startParameters
+      if(startParameters!==undefined&&(!startParameters||typeof startParameters!=='object'||Array.isArray(startParameters)))throw new TypeError('开始参数无效')
+      return this.activityAction({activityKey:String(current.activityKey),activityId:operation==='start'?null:String(current.id),revision:operation==='start'?0:Number(current.revision),operation,parameters:(startParameters as WorldJsonObject|undefined)??{},requestId:randomUUID()})
     }
     return this.submit(`/act ${action.actionType} ${JSON.stringify(action.parameters)}`)
   }
@@ -744,6 +751,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     // Like transcript and affordances, serve the last refreshed committed projection.
     // Polling must not open a migrating writer while tail snapshots copy the database.
     this.#activityView = this.#activity?.view(this.#playerId)
+    this.#activityViews = this.#activity?.views(this.#playerId)
     const activityState = this.#activity?.current()
     if (activityState?.game.active && activityState.participants.includes(this.#playerId)) {
       this.#availableActions = this.#activity!.filterAffordances(this.#availableActions, activityState, this.#playerId)

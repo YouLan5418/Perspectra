@@ -68,7 +68,7 @@ perform 请求经过 Rulebook；[character-execution-result.ts](../../../package
 
 | 分支 | 说明 | 代码与详细文档 |
 | --- | --- | --- |
-| 包内活动 | 策略、操作、结果与参与者调度 | [PackActivity](../../../tests/experiments/pack-activity.ts)、[受控交互](controlled-interaction.md) |
+| 包内活动 | 独立玩法选择、暂停／继续、策略、操作、结果与参与者调度 | [PackActivities](../../../tests/experiments/pack-activities.ts)、[PackActivity](../../../tests/experiments/pack-activity.ts)、[受控交互](controlled-interaction.md) |
 | 预设 | 实例默认、角色组、专属与请求／输出／显示处理 | [preset-runtime.ts](../../../packages/provider-chat/src/preset-runtime.ts)、[预设说明](../model-presets.md) |
 | 社区前端 | 默认沙箱，授权后受信任模式；公共玩家接口 | [授权实现](../../../desktop/frontend-authorization.ts)、[资产服务](../../../tests/experiments/playtest-frontend-assets.ts)、[授权说明](../frontend-authorization.md) |
 | 故事线 | 完整节点、独立分叉与单节点文件分享 | [story-nodes.ts](../../../desktop/story-nodes.ts)、[story-share.ts](../../../desktop/story-share.ts)、[使用边界](../storylines.md) |

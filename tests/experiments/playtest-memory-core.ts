@@ -289,12 +289,18 @@ export class PlaytestMemoryCore {
   }
   /** Names only, from this role's authorized views; no provider requests or future archive is copied. */
   snapshotAliases(actors: readonly string[]): WorldJsonObject {
-    return Object.fromEntries(actors.map(actor => {
-      const snapshot = this.#snapshot(actor)
-      const cached = this.#load(actor)
-      if(cached)this.#validate(cached,snapshot)
-      return [actor, this.#restoreAliases(actor, snapshot.scope, cached)]
-    }))
+    const store = new WorldStore(resolve(this.dataDirectory, 'world.sqlite'))
+    try {
+      const head = store.head(this.address)
+      return Object.fromEntries(actors.map(actor => {
+        const scope = { worldAddress: { ...this.address }, characterId: actor, asOfWorldSeq: head.headSeq }
+        const cached = this.#load(actor)
+        // Installed archives still require source-prefix validation. Names without an archive
+        // only need their role/world/prefix checks, not a rebuild of every authorized source.
+        if (cached) this.#validate(cached, this.#snapshot(actor))
+        return [actor, structuredClone(this.#restoreAliases(actor, scope, cached))]
+      }))
+    } finally { store.close() }
   }
   /** Copy only installed, authorized archives. Node creation never builds new memories. */
   snapshotArchives(actors: readonly string[]): WorldJsonObject {

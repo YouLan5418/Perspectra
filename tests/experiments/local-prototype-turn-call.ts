@@ -41,7 +41,10 @@ export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
           // Host validation remains strict: no coercion or widening of accepted versions.
           version: versions.length === 1 ? { type: 'integer', minimum: versions[0]!, maximum: versions[0]! } : { type: 'integer', enum: versions } } },
       arguments: choices.every(c => c.argumentSchema !== undefined)
-        ? { type: 'object', additionalProperties: false, required: ['activityId', 'revision'], properties:
+        ? { type: 'object', additionalProperties: false, required:
+          ((choices[0]!.argumentSchema as WorldJsonObject).required as string[] | undefined ?? []).filter(field =>
+            choices.every(c => Array.isArray((c.argumentSchema as WorldJsonObject).required)
+              && ((c.argumentSchema as WorldJsonObject).required as string[]).includes(field))), properties:
           Object.assign({}, ...choices.map(c => (c.argumentSchema as WorldJsonObject).properties)) }
         : { type: 'object' },
     }),

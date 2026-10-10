@@ -92,7 +92,7 @@ function selfState(events: readonly StoredWorldEvent[], characterId: CharacterId
       observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: 'move', locationId } })
     }
     if (event.eventType === 'character.speak' && (typeof data.text === 'string' || data.segments !== undefined)) {
-      observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: 'speak', ...(typeof data.text === 'string' ? { text: data.text } : {}),
+      observations.push({ observationId: `self:${event.seq}`, sourceSeq: event.seq, content: { actionType: 'speak', ...(typeof data.medium === 'string' ? { medium: data.medium, addresseeIds: data.addresseeIds ?? [] } : {}), ...(typeof data.text === 'string' ? { text: data.text } : {}),
         ...(typeof data.narration === 'string' ? { narration: data.narration } : {}),
         ...(data.segments === undefined ? {} : { segments: parseExpressionSegments(data.segments) }) } })
     }

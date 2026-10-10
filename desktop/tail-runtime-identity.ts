@@ -23,7 +23,7 @@ export function tailRuntimeIdentity(): string {
     for (const name of ['desktop/tail-storage.ts','desktop/tail-runtime-identity.ts','desktop/story-nodes.ts',
       'tests/experiments/playtest-tail-runtime.ts','tests/experiments/playtest-frozen-runtime.ts',
       'tests/experiments/playtest-memory-core.ts','tests/experiments/playtest-tuning.ts',
-      'tests/experiments/pack-activity.ts','tests/experiments/pack-variables.ts',
+      'tests/experiments/pack-activity.ts','tests/experiments/pack-activities.ts','tests/experiments/pack-variables.ts',
       'tests/experiments/local-prototype-turn-call.ts','tests/experiments/hindsight-python.ts','package.json','pnpm-lock.yaml']) {
       hash.update(name).update(readFileSync(join(root,name)))
     }

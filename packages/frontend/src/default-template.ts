@@ -222,7 +222,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.disabled=disabled;
    node('speech-recipient').disabled=disabled||!latest?.scene?.recipients?.length;
    node('input').disabled=disabled;node('narration').disabled=disabled;
-   for(const button of node('actions').querySelectorAll('button'))button.disabled=disabled;
+   for(const button of node('actions').querySelectorAll('button'))button.disabled=disabled||button.dataset.unavailable==='true';
+   for(const picker of node('actions').querySelectorAll('select'))picker.disabled=disabled;
    node('retry').hidden=!pending;node('retry').disabled=posting||!connected;
    const tail=latest?.tailRound,count=tail?.candidateIds?.length||1,index=tail?.candidateIndex||1;
    roundTools.hidden=!tail?.id||!canRegenerate;
@@ -278,7 +279,15 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
        const heading=document.createElement('h3');heading.textContent=title;group.append(heading);
        for(const option of options){const button=document.createElement('button');button.type='button';
          const label=document.createElement('span');label.textContent=option.label;const arrow=document.createElement('span');arrow.textContent='↗';arrow.setAttribute('aria-hidden','true');button.append(label,arrow);
-         button.onclick=()=>send('perform',{optionId:option.id});group.append(button)}
+         if(option.participantSelection){
+           const selection=option.participantSelection,picker=document.createElement('select');picker.setAttribute('aria-label','选择参与角色');
+           picker.multiple=selection.max>1;
+           for(const candidate of selection.candidates){const item=document.createElement('option');item.value=candidate.id;item.textContent=candidate.name;picker.append(item)}
+           button.onclick=()=>{const npcIds=Array.from(picker.selectedOptions,item=>item.value);
+             if(npcIds.length<selection.min||npcIds.length>selection.max){node('notice').textContent='请选择 '+selection.min+' 至 '+selection.max+' 名参与角色';return}
+             send('perform',{optionId:option.id,npcIds})};group.append(picker);
+           if(selection.candidates.length<selection.min)button.dataset.unavailable='true';
+         }else button.onclick=()=>send('perform',{optionId:option.id});group.append(button)}
        node('actions').append(group);
      }
      if(!view.actions.length){const empty=document.createElement('p');empty.className='no-actions';empty.textContent='暂时没有可用行动，仍可通过对话表达。';node('actions').append(empty)}

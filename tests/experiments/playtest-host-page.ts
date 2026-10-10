@@ -140,11 +140,11 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
     if(!response.ok){const error=new Error(value.error||'请求失败');error.status=response.status;throw error}
     return value;
   }
-  async function send(operation,parameters={}) {
+  async function send(operation,parameters={},selected=latest?.activity) {
     if(posting)return;
-    const a=latest?.activity;
+    const a=selected;
     if(!a)return;
-    const payload={activityId:operation==='start'?null:a.id,
+    const payload={activityKey:a.activityKey,activityId:operation==='start'?null:a.id,
       revision:operation==='start'?0:a.revision,operation,parameters,requestId:crypto.randomUUID()};
     posting=true;pending=payload;clearNotice();
     try{const state=await api('/api/activity',payload);setNotice(state.error?'error':'success','activity',state.notice||'游戏操作已提交。');render(state);pending=null}
@@ -175,16 +175,28 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
     node('round').textContent=active
       ? '第 '+a.game.round+' 个游戏回合 · '+(a.game.public.statusText||(a.game.turn===a.participants[0]?'轮到你':'轮到角色'))
         +' · '+(a.game.public.lastResult||'')
-      : a.game?.phase==='host-aborted'?'活动已中止，已恢复自由互动。':a.game?.public.lastResult||'可以开始一局游戏。';
-    const key=JSON.stringify([a.id,a.revision,state.busy,state.paused,posting,pending?.requestId]);
+      : a.suspended?'活动已暂停，进度保留；可以自由互动或选择另一活动。':a.game?.phase==='host-aborted'?'活动已中止，已恢复自由互动。':a.game?.public.lastResult||'可以开始一局游戏。';
+    const key=JSON.stringify([state.activities??[a],state.busy,state.paused,posting,pending?.requestId]);
     if(key===signature)return;
     signature=key;node('options').replaceChildren();
     const add=(text,work,disabled=false)=>{
       const button=document.createElement('button');button.type='button';button.textContent=text;
       button.disabled=disabled;button.onclick=work;node('options').append(button);return button;
     };
-    if(!active)add('开始 '+a.title,()=>send('start'),state.busy||state.paused||posting);
+    if(!active)for(const choice of state.activities||[a]){
+      if(!choice.suspended&&choice.participantSelection){
+        const selection=choice.participantSelection,label=document.createElement('label');label.textContent='参与角色';
+        const picker=document.createElement('select');picker.multiple=selection.max>1;
+        for(const candidate of selection.candidates){const item=document.createElement('option');item.value=candidate.id;item.textContent=candidate.name;picker.append(item)}
+        picker.disabled=state.busy||state.paused||posting;label.append(picker);node('options').append(label);
+        add('开始 '+choice.title,()=>{const npcIds=Array.from(picker.selectedOptions,item=>item.value);
+          if(npcIds.length<selection.min||npcIds.length>selection.max){node('notice').textContent='请选择 '+selection.min+' 至 '+selection.max+' 名参与角色';return}
+          send('start',{npcIds},choice)},state.busy||state.paused||posting||selection.candidates.length<selection.min);
+      }else add((choice.suspended?'继续 ':'开始 ')+choice.title,()=>send(choice.suspended?'resume':'start',{},choice),state.busy||state.paused||posting);
+      if(choice.suspended)add('放弃 '+choice.title,()=>send('abandon',{},choice),state.busy||state.paused||posting);
+    }
     else {
+      add('暂停 '+a.title,()=>send('suspend'),state.busy||state.paused||posting);
       for(const option of a.options||[]) {
         const group=document.createElement('div');group.className='operation';
         const fields=[];
