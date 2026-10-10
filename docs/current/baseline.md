@@ -48,6 +48,6 @@ corepack pnpm@11.7.0 test:related tests/p2.integration.test.ts
 
 `vitest.config.ts` 保留广泛测试发现，供 `test:related` 与显式诊断使用。覆盖率不再作为门槛；已移除旧阶段与硬终止专属命令。`test:related` 不带路径会选择全量，日常必须明确路径。
 
-GitHub CI 使用 Windows / Node 24，不维护多平台版本矩阵。[流水线](../../.github/workflows/p0.yml)分别运行根类型检查、Lint、`launcher:check`（Vue 类型检查和 Launcher 单元测试）及原型测试。原型测试使用 `corepack pnpm@11.7.0 test --maxWorkers=1` 串行运行测试文件，降低托管 Runner 上 SQLite、HTTP 与子进程集成场景的资源竞争；测试发现范围、单项时限和失败判定保持不变。本地默认 `check` 仍使用默认并发；复现 CI 时可按流水线逐步运行。CI 不构建 Tauri、Electron 或便携发行包，也不调用真实模型；这些验证仍需按改动单独执行。
+GitHub CI 使用 Windows / Node 24，不维护多平台版本矩阵。[流水线](../../.github/workflows/p0.yml)分别运行根类型检查、Lint、`launcher:check`（Vue 类型检查和 Launcher 单元测试）及原型测试。原型测试使用 `corepack pnpm@11.7.0 test --maxWorkers=1` 串行运行测试文件，降低托管 Runner 上 SQLite、HTTP 与子进程集成场景的资源竞争；测试发现范围和失败判定保持不变。已在托管 Runner 复现超时的多轮对话、HTTP 逃离和故事节点场景使用 60–120 秒的单项测试预算；运行时模型、角色和活动时限及断言不变。活动测试清理主动关闭 HTTP 连接，并对 Windows 临时文件占用最多重试三次，失败仍报错。本地默认 `check` 仍使用默认并发；复现 CI 时可按流水线逐步运行。CI 不构建 Tauri、Electron 或便携发行包，也不调用真实模型；这些验证仍需按改动单独执行。
 
 类型检查和 Lint 暂时仍扫描旧源码与测试；尚未按新运行时依赖拆分。是否进一步缩小，应依据实际阻碍决定，不因历史文件很多就先重做工具链。上述自动化验证均不能证明真实角色自然度或自由叙述一致性；按契约另做连续试玩。
