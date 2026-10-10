@@ -110,7 +110,7 @@ it('restores one complete instant: location, custody, active game, variables and
   const resumed=await f.create(target)
   expect(f.builds).toHaveLength(before)
   expect((await resumed.state()).transcript.some(t=>t.text==='新故事线继续。')).toBe(true)
-},30_000)
+},90_000) // Multiple world snapshots and restarts on hosted Windows SQLite.
 
 it('refuses to save while a role call is active and leaves no selectable partial node',async()=>{
   const f=await fixture()
@@ -145,7 +145,7 @@ it('preserves installed node archives and raw tail without rebuilding or copying
  expect(JSON.stringify(wire)).toContain('整理后的近期原文')
  expect(JSON.stringify(wire)).not.toContain('后来的未来')
  await child.close()
-},15_000)
+},60_000) // Archive installation plus a restored interaction and shutdown.
 
 it('repeated nodes and forks below threshold never call memory Build, including old nodes without snapshots',async()=>{
  const f=await fixture()
@@ -270,7 +270,7 @@ it('shares one historical node across independent launchers, excludes future and
   await receiver.handle({operation:'story-import',packageId,path:archive,name:'再次导入'})
   expect(receiver.snapshot().instances).toHaveLength(2)
   expect(receiver.snapshot().instances[1]!.id).not.toBe(imported.id)
-},25_000)
+},90_000) // Independent launchers export/import a snapshot and continue its world.
 
 it('rejects malformed, unsafe, mismatched and inconsistent shares without publishing or changing an existing instance',async()=>{
   const f=await fixture()

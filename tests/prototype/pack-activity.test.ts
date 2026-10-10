@@ -16,8 +16,8 @@ const roots:string[]=[],servers:Server[]=[],runtimes:FrozenWorldPlaytestRuntime[
 afterEach(async()=>{
   vi.restoreAllMocks()
   for(const runtime of runtimes.splice(0))await runtime.close()
-  for(const server of servers.splice(0))await new Promise<void>(done=>server.close(()=>done()))
-  for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true})
+  for(const server of servers.splice(0)){server.closeAllConnections();await new Promise<void>(done=>server.close(()=>done()))}
+  for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true,maxRetries:3,retryDelay:100})
 })
 type Decision=(input:WorldJsonObject)=>unknown|Promise<unknown>
 async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:string)=>s,packDirectory='examples/world-packs/ai-girls-awaken-v10',provider:'ollama'|'local'='ollama',extra:Partial<FrozenPlaytestOptions>={}) {
@@ -98,7 +98,7 @@ describe('creator activity and host escape',()=>{
       expect(context.stimulus).toEqual(JSON.parse(characterRequestText({context:{stimulus:expected}})).context.stimulus)
       expect(JSON.stringify(context.stimulus)).toContain('第9条交流')
     }finally{store.close()}
-  })
+  },90_000) // Ten full interaction rounds exceed 30s on hosted Windows SQLite.
 
   it('commits alternating turns, hides internal/private state, and restores original capabilities on completion',async()=>{
     const f=await fixture(input=>input.continuation?{decision:'abstain'}:action(input))
@@ -320,12 +320,13 @@ describe('creator activity and host escape',()=>{
     expect(page).toContain('sandbox="allow-scripts"')
     expect(await inner.text()).not.toContain('id="escape"')
     const start=await f.runtime.activityAction(request(await f.runtime.state(),'start'))
-    expect((await fetch(url+'/api/escape',{method:'POST'})).status).toBe(401)
+    const denied=await fetch(url+'/api/escape',{method:'POST'})
+    expect(denied.status).toBe(401);await denied.text()
     expect((await f.runtime.state()).activity?.revision).toBe(start.activity?.revision)
     const response=await fetch(url+'/api/escape',{method:'POST',headers:{'x-playtest-token':token}})
     expect(response.status).toBe(200)
     expect((await response.json()).activity.game.active).toBe(false)
-  })
+  },60_000) // Includes host asset loading, HTTP requests and committed escape.
 })
 
 function activityOperation(input:WorldJsonObject,id:string,parameters:WorldJsonObject={}) {

@@ -237,7 +237,7 @@ describe('optional web Core memory', () => {
     expect((context.history as WorldJsonObject[]).filter(row => row.kind === 'self').length).toBeGreaterThan(8)
     expect(JSON.stringify(context.history)).toContain('银杏电台')
     expect(builds).toBe(0)
-  })
+  },120_000) // Twelve published rounds exercise growing SQLite-backed history.
   it('queues at the estimated token threshold, archives a complete early prefix and keeps its newer tail', async () => {
     const inputs: WorldJsonObject[] = []
     const run: CoreRunner = async input => { inputs.push(input); return input.operation === 'build' ? built(input) : empty }
