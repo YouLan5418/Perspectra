@@ -44,8 +44,10 @@ corepack pnpm@11.7.0 test:related packages/store-sqlite/src/store.test.ts
 corepack pnpm@11.7.0 test:related tests/p2.integration.test.ts
 ```
 
-默认 `vitest.prototype.config.ts` 选择角色私有视图隔离、物品交互裁定两组旧测试，并自动发现 `tests/prototype/**/*.test.ts`。这是当前的少量回归底线，不覆盖全部新契约；旧版本断言可以随已明确改变的行为更新。新增功能需补充相关验证，不可仅凭这两组通过宣布完成。
+默认 `vitest.prototype.config.ts` 选择角色私有视图隔离、v5 游戏包编译两组测试，并自动发现 `tests/prototype/**/*.test.ts`，包括当前角色互动、记忆、活动、故事线和进程中断回归。它不覆盖全部新契约；旧版本断言可以随已明确改变的行为更新。新增功能需补充相关验证，不可仅凭默认测试通过宣布完成。
 
-`vitest.config.ts` 保留广泛测试发现，供 `test:related` 与显式诊断使用。覆盖率不再作为门槛；已移除旧阶段与硬终止专属命令。`test:related` 不带路径会选择全量，日常必须明确路径。CI 收敛为 Windows / Node 24 的轻量 check，不再默认维护多平台版本矩阵。
+`vitest.config.ts` 保留广泛测试发现，供 `test:related` 与显式诊断使用。覆盖率不再作为门槛；已移除旧阶段与硬终止专属命令。`test:related` 不带路径会选择全量，日常必须明确路径。
+
+GitHub CI 使用 Windows / Node 24，不维护多平台版本矩阵。[流水线](../../.github/workflows/p0.yml)分别运行根类型检查、Lint、`launcher:check`（Vue 类型检查和 Launcher 单元测试）及原型测试。原型测试使用 `corepack pnpm@11.7.0 test --maxWorkers=1` 串行运行测试文件，降低托管 Runner 上 SQLite、HTTP 与子进程集成场景的资源竞争；测试发现范围、单项时限和失败判定保持不变。本地默认 `check` 仍使用默认并发；复现 CI 时可按流水线逐步运行。CI 不构建 Tauri、Electron 或便携发行包，也不调用真实模型；这些验证仍需按改动单独执行。
 
 类型检查和 Lint 暂时仍扫描旧源码与测试；尚未按新运行时依赖拆分。是否进一步缩小，应依据实际阻碍决定，不因历史文件很多就先重做工具链。上述自动化验证均不能证明真实角色自然度或自由叙述一致性；按契约另做连续试玩。
