@@ -1,0 +1,8 @@
+{
+  "medium": "通信",
+  "contacts": {
+    "character:player": ["character:friend"],
+    "character:companion": ["character:friend"],
+    "character:friend": ["character:player", "character:companion"]
+  }
+}

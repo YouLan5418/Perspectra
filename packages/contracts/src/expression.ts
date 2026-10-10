@@ -51,7 +51,7 @@ export function publicationSourceText(publication: WorldJsonObject): string {
   const ordered = publication.segments === undefined
     ? segments.toSorted((a, b) => Number(a.type === 'narration') - Number(b.type === 'narration')) : segments
   return ordered.map(segment => segment.type === 'speech'
-    ? `${publication.characterId} said: ${segment.text}`
+    ? `${publication.characterId}${typeof publication.medium === 'string' ? ` via ${publication.medium}${Array.isArray(publication.addresseeIds) ? ` to ${publication.addresseeIds.join(', ')}` : ''}` : ''} said: ${segment.text}`
     : `${publication.characterId} published narration (not an adjudicated outcome): ${segment.text}`).join('; ')
 }
 

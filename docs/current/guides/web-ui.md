@@ -53,7 +53,7 @@ const { url } = await api.resource("assets/banner.svg");
 | ready / getView | 游戏标题、玩家名、当前可见场景、状态、公开转录、当前操作 |
 | getHistory | 同一公开转录，不含角色私有 Context |
 | speak | 玩家发言或已有显式命令；仍走既有 Core 输入边界 |
-| perform | 引用当前 optionId；Core 提供参数并裁定，不能注入参数 |
+| perform | 引用当前 optionId；宿主提供参数并裁定。动态活动开始选项可额外传 npcIds，从当前授权候选中选人；其他操作不接受该字段，也不接受任意参数 |
 | subscribe | 公共视图变化，含 historyAppend；断连后重新获取快照 |
 | resource | 当前包内已加载前端素材 URL |
 
@@ -85,7 +85,7 @@ const { url } = await api.resource("assets/banner.svg");
 
 ## 公开活动选项
 
-view.activity 可提供 title、active、phase 和 public，用于显示序章章节、已提交台词及游戏日标签；不会返回角色 private、internal 或脚本玩家来源。view.actions 可包含无需额外输入参数的活动操作、当前版本绑定的开始／恢复节点选项，仍通过 perform(optionId, actionId) 执行。带额外参数的活动操作留在宿主表单；该支持不授予任意活动管理权限。
+view.activity 可提供 title、active、phase 和 public，用于显示序章章节、已提交台词及游戏日标签；不会返回角色 private、internal 或脚本玩家来源。view.activities 列出各场的 key、title、active、suspended、phase、public。view.actions 可包含无需额外输入参数的活动操作，以及当前版本绑定的开始／暂停／继续／放弃与再次请求角色处理选项，仍通过 perform(optionId, actionId) 执行。动态开始选项额外提供 participantSelection（min、max、当前候选 id/name），使用 `api.perform(optionId, actionId, npcIds)` 或 request 的 perform payload `{ optionId, npcIds }`；提交时重新检查当前候选与人数。默认前端和宿主面板提供选人控件。其他带额外参数的活动操作留在宿主表单；该支持不授予任意脚本调用权限。
 
 [官方试玩前端](../../../examples/world-packs/model-girls-official/frontend/index.html) 使用该接口逐项演出与快进，结束后提供公开、定向、私密和仅自己的原有表达范围。连接失败时保留同一 actionId 重试；活动已提交但 NPC 当前节点待发表时，可刷新视图后使用“恢复当前活动节点”。不要通过改本地 DOM 或伪造对白推进权威游标。
 

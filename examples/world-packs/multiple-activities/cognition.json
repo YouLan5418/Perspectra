@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [
+        {
+          "key": "observation:player-key",
+          "content": "前室桌上有一把黄铜钥匙。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 400
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:player-discuss-next-step",
+          "objective": {
+            "kind": "narrative",
+            "value": "和两位同伴商量接下来的行动。"
+          },
+          "priorityPermille": 600,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:player-key"
+          ]
+        }
+      ]
+    },
+    {
+      "characterId": "character:companion",
+      "observations": [
+        {
+          "key": "observation:companion-key",
+          "content": "前室桌上有一把黄铜钥匙。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 400
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:companion-understand-key",
+          "objective": {
+            "kind": "narrative",
+            "value": "弄清楚钥匙能派上什么用场。"
+          },
+          "priorityPermille": 600,
+          "targetKeys": [
+            "entity:brass-key"
+          ],
+          "basisKeys": [
+            "observation:companion-key"
+          ]
+        }
+      ]
+    },
+    {
+      "characterId": "character:friend",
+      "observations": [
+        {
+          "key": "observation:friend-front-room",
+          "content": "我正和玩家及同行者待在前室。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 350
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:friend-observe-carefully",
+          "objective": {
+            "kind": "narrative",
+            "value": "在谈话中弄清楚自己想做什么；不确定时可以直接承认。"
+          },
+          "priorityPermille": 400,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:friend-front-room"
+          ]
+        }
+      ]
+    }
+  ]
+}

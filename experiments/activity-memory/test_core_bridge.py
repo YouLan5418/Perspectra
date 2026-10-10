@@ -161,13 +161,46 @@ class UtilityTransportTest(unittest.TestCase):
         import io
         return io.StringIO(json.dumps({'choices':[{'finish_reason':finish,'message':{'content':text}}]}))
 
-    def test_json_memory_requests_disable_default_thinking(self):
-        # A reasoning-only response can exhaust max_tokens before producing any JSON.
+    def test_gemini_memory_requests_low_first(self):
         with patch('urllib.request.urlopen', return_value=self.response('{"atoms":[]}')) as network:
             self.assertEqual(bridge.utility_llm('system', 'authorized evidence'), {'atoms':[]})
         body = json.loads(network.call_args.args[0].data)
-        self.assertEqual(body['thinking'], {'type':'disabled'})
+        self.assertEqual(body['reasoning_effort'], 'low')
+        self.assertNotIn('thinking', body)
         self.assertEqual(body['response_format'], {'type':'json_object'})
+
+    def test_timeout_retries_once_with_disabled_thinking_and_same_evidence(self):
+        import urllib.error
+        for timeout in (TimeoutError('timeout'), urllib.error.URLError(TimeoutError('timeout'))):
+            with self.subTest(timeout=type(timeout).__name__), \
+                 patch('urllib.request.urlopen',side_effect=[timeout,self.response('{"atoms":[]}')]) as network, \
+                 patch.object(bridge.time,'sleep'):
+                self.assertEqual(bridge.utility_llm('system','authorized evidence'),{'atoms':[]})
+                first,second=[json.loads(call.args[0].data) for call in network.call_args_list]
+                self.assertEqual(first.pop('reasoning_effort'),'low')
+                self.assertEqual(second.pop('thinking'),{'type':'disabled'})
+                self.assertEqual(first,second)
+
+    def test_second_timeout_stops_without_third_request(self):
+        with patch('urllib.request.urlopen',side_effect=TimeoutError('timeout')) as network, patch.object(bridge.time,'sleep'):
+            with self.assertRaises(TimeoutError): bridge.utility_llm('system','authorized evidence')
+        self.assertEqual(network.call_count,2)
+
+    def test_other_errors_do_not_trigger_gemini_fallback(self):
+        import urllib.error
+        for error in (ConnectionRefusedError('refused'), urllib.error.HTTPError('http://fixture',503,'unavailable',{},None)):
+            with self.subTest(error=type(error).__name__), patch('urllib.request.urlopen',side_effect=error) as network:
+                with self.assertRaises(OSError): bridge.utility_llm('system','authorized evidence')
+                self.assertEqual(network.call_count,1)
+
+    def test_deepseek_keeps_disabled_thinking(self):
+        import os
+        with patch.dict(os.environ,{'HCW_LOCAL_MODEL':'deepseek-flash'}), \
+             patch('urllib.request.urlopen',return_value=self.response('{"atoms":[]}')) as network:
+            bridge.utility_llm('system','authorized evidence')
+        body=json.loads(network.call_args.args[0].data)
+        self.assertEqual(body['thinking'],{'type':'disabled'})
+        self.assertNotIn('reasoning_effort',body)
 
     def test_reasoning_only_budget_failure_records_safe_diagnostics(self):
         rows = []

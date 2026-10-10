@@ -99,6 +99,9 @@ def utility_request(protocol, endpoint, model, system, user, limit, api_key):
         body = {'model': model, 'messages': [{'role':'system','content':system},{'role':'user','content':user}],
                 'response_format': {'type':'json_object'}, 'temperature':0, 'max_tokens':limit,
                 'thinking': {'type':'disabled'}}
+        if 'gemini' in model.lower():
+            body.pop('thinking')
+            body['reasoning_effort'] = 'low'
         if api_key: headers['authorization'] = 'Bearer ' + api_key
     elif protocol == 'anthropic':
         headers['anthropic-version'] = '2023-06-01'
@@ -142,7 +145,7 @@ def utility_open(request, protocol, timeout):
 
 
 def utility_llm(system, user, max_tokens=1600):
-    """Existing transport/retry policy, with metadata-only per-HTTP-attempt timing."""
+    """Gemini uses low first, then one disabled-thinking retry only on timeout."""
     import math
     import urllib.request
     import urllib.error
@@ -154,15 +157,19 @@ def utility_llm(system, user, max_tokens=1600):
     model = os.getenv('HCW_LOCAL_MODEL', 'gemini-3.7-flash')
     protocol = os.getenv('HCW_MODEL_PROTOCOL', 'openai')
     body, headers, endpoint = utility_request(protocol, endpoint, model, system, user, limit, os.getenv('HCW_LOCAL_API_KEY'))
-    encoded = json.dumps(body,ensure_ascii=False).encode()
+    gemini_low = protocol == 'openai' and 'gemini' in model.lower()
+    attempts = 2 if gemini_low else 3
     call_id = uuid.uuid4().hex
     metadata = {**_utility_context.get(), 'pid':os.getpid(), 'callId':call_id, 'requestedModel':model,
                 'inputChars':len(user), 'originalInputChars':original_chars, 'requestedMaxTokens':limit, 'timeoutSeconds':120}
-    for attempt in range(3):
+    for attempt in range(attempts):
+        encoded = json.dumps(body,ensure_ascii=False).encode()
+        attempt_metadata = {**metadata, 'reasoningEffort':body.get('reasoning_effort'),
+            'thinkingType':body.get('thinking',{}).get('type')}
         started_at, started = time.time_ns() / 1_000_000, time.perf_counter()
         with _attempt_lock:
             _active_attempts += 1
-            attempt_trace({**metadata, 'attempt':attempt+1, 'event':'started', 'atMs':started_at,
+            attempt_trace({**attempt_metadata, 'attempt':attempt+1, 'event':'started', 'atMs':started_at,
                            'activeInProcess':_active_attempts})
         response, error, http_status = None, None, None
         headers_ms, body_ms = None, None
@@ -181,20 +188,24 @@ def utility_llm(system, user, max_tokens=1600):
         finally:
             root_error = getattr(error, 'reason', error)
             timed_out = isinstance(root_error, TimeoutError)
+            retry = (timed_out if gemini_low else isinstance(error, (OSError, TimeoutError))) and attempt + 1 < attempts
             with _attempt_lock:
                 _active_attempts -= 1
-                attempt_trace({**metadata, 'attempt':attempt+1, 'event':'finished', 'atMs':time.time_ns()/1_000_000,
+                attempt_trace({**attempt_metadata, 'attempt':attempt+1, 'event':'finished', 'atMs':time.time_ns()/1_000_000,
                     'durationMs':(time.perf_counter()-started)*1000, 'activeInProcess':_active_attempts,
                     'status':'returned' if response is not None else 'failed', 'timedOut':timed_out,
                     'errorType':type(error).__name__ if error else None,
                     'httpStatus':http_status if http_status is not None else getattr(error, 'code', None),
                     'headersMs':headers_ms, 'bodyReadMs':body_ms,
-                    'willRetry':isinstance(error, (OSError, TimeoutError)) and attempt < 2,
-                    'retryDelaySeconds':2*(attempt+1) if isinstance(error, (OSError, TimeoutError)) and attempt < 2 else 0,
+                    'willRetry':retry,
+                    'retryDelaySeconds':2*(attempt+1) if retry else 0,
                     'returnedModel':(response.get('model') or response.get('modelVersion')) if response is not None else None,
                     'usage':(response.get('usage') or response.get('usageMetadata')) if response is not None else None})
         if error is None: break
-        if attempt == 2: raise error
+        if not retry: raise error
+        if gemini_low:
+            body.pop('reasoning_effort',None)
+            body['thinking'] = {'type':'disabled'}
         time.sleep(2 * (attempt + 1))
     value, finish_reason, usage = utility_response(response, protocol)
     record={'model':model,'inputChars':len(user),'originalInputChars':original_chars,'requestedMaxTokens':limit,'finishReason':finish_reason,

@@ -6,6 +6,7 @@ import { basename, join, resolve, sep } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
+import { CognitiveMemoryService } from '@harness-world/memory'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import { PlaytestMemoryCore, DEFAULT_MEMORY_CONTEXT_BUDGET, MEMORY_DELIVERY_BUDGET, estimateContextTokens, type MemoryContextBudget } from '../experiments/playtest-memory-core.ts'
 import { createPlaytestServer } from '../experiments/playtest-server.ts'
@@ -14,6 +15,7 @@ import type { CoreRunner } from '../experiments/hindsight-python.ts'
 
 const roots: string[] = [], runtimes: FrozenWorldPlaytestRuntime[] = [], servers: Server[] = []
 afterEach(async () => {
+  vi.restoreAllMocks()
   for (const runtime of runtimes.splice(0)) await runtime.close()
   for (const server of servers.splice(0)) await new Promise<void>(done => server.close(() => done()))
   for (const root of roots.splice(0)) {
@@ -54,6 +56,29 @@ const ref = (source: WorldJsonObject): WorldJsonObject => Object.fromEntries(
   ['sourceId','sourceHash','epistemicKind','worldSeq','characterId','worldAddress'].map(k => [k, source[k]!]))
 
 describe('optional web Core memory', () => {
+  it('snapshots authorized names without rebuilding unarchived sources and protects its aliases from callers', async () => {
+    const f = await fixture(async () => empty)
+    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async () => empty)
+    const seq = f.head(), actor = 'character:claude'
+    const entry = { scope: { worldAddress: { ...f.runtime.address }, characterId: actor, asOfWorldSeq: seq },
+      worldSeq: seq, people: [{ characterId: actor, name: 'Claude' }] }
+    writeFileSync(join(f.data, 'memory-aliases.json'), JSON.stringify({ [actor]: [entry] }))
+    const catchUp = vi.spyOn(CognitiveMemoryService.prototype, 'catchUp')
+    const first = adapter.snapshotAliases([actor])
+    expect(first[actor]).toEqual([entry]);expect(catchUp).not.toHaveBeenCalled()
+    Object.assign((first[actor] as WorldJsonObject[])[0]!, { worldSeq: seq + 1 })
+    expect(adapter.snapshotAliases([actor])[actor]).toEqual([entry])
+    await adapter.close()
+  })
+  it.each(['role','future'] as const)('rejects %s identity seeds before snapshotting names', async kind => {
+    const f = await fixture(async () => empty), actor = 'character:claude', seq = f.head()
+    const entry = { scope: { worldAddress: { ...f.runtime.address }, characterId: kind === 'role' ? 'character:gpt' : actor,
+      asOfWorldSeq: kind === 'future' ? seq + 1 : seq }, worldSeq: seq, people: [] }
+    writeFileSync(join(f.data, 'memory-aliases.json'), JSON.stringify({ [actor]: [entry] }))
+    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async () => empty)
+    expect(() => adapter.snapshotAliases([actor])).toThrow('authorized world or prefix')
+    await adapter.close()
+  })
   it('parses the explicit switch and rejects a duplicate', () => {
     expect(parsePlaytestLaunchArguments(['--memory-core']).memoryCore).toBe(true)
     expect(parsePlaytestLaunchArguments([]).memoryCore).toBeUndefined()
@@ -101,6 +126,7 @@ describe('optional web Core memory', () => {
     const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
     await expect(adapter.project({ context: { character: { characterId: 'character:claude' }, scene: { people: [] } },
       continuation: false }, AbortSignal.timeout(2000))).rejects.toThrow('another role')
+    expect(() => adapter.snapshotAliases(['character:claude'])).toThrow('another role')
     expect(calls).toBe(before)
   })
   it('rejects delivery references from another role even when the source ID exists', async () => {

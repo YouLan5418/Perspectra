@@ -26,6 +26,7 @@ export interface PlaytestState {
   readonly packVariables?: { readonly public: WorldJsonObject; readonly private: WorldJsonObject }
   readonly memoryMaintenance?: WorldJsonObject
   readonly activity?: WorldJsonObject
+  readonly activities?: readonly WorldJsonObject[]
   readonly tailRound?: { readonly candidateIds?: readonly string[]; readonly candidateIndex?: number; readonly id: string | null; readonly worldVersion: string; readonly canRegenerate: boolean; readonly regenerating: boolean }
   readonly playerSettings?: {inputCharacters:number;reading:import('../../desktop/play-settings.ts').ReadingPreferences}
   readonly debug: Record<string, unknown>
@@ -267,7 +268,8 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
         const value = await body(request)
         if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('活动请求无效')
         const r = value as Record<string, unknown>
-        if (Object.keys(r).sort().join(',') !== 'activityId,operation,parameters,requestId,revision'
+        if (Object.keys(r).filter(key=>key!=='activityKey').sort().join(',') !== 'activityId,operation,parameters,requestId,revision'
+          || r.activityKey!==undefined&&(typeof r.activityKey!=='string'||!/^[a-z][a-z0-9-]{0,40}$/u.test(r.activityKey))
           || !(r.activityId === null || typeof r.activityId === 'string')
           || !Number.isSafeInteger(r.revision) || Number(r.revision) < 0 || typeof r.operation !== 'string'
           || typeof r.requestId !== 'string' || !/^[a-zA-Z0-9:-]{1,100}$/u.test(r.requestId)

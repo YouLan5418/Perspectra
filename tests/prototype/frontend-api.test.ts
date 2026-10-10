@@ -21,8 +21,17 @@ async function fixture(overrides:Partial<PlaytestRuntime>={}){
  const runtime:PlaytestRuntime={state:async()=>state,submit:vi.fn(async text=>{state={...state,transcript:[...state.transcript,{seq:2,speaker:'玩家',text,player:true}]};return state}),
  perform:vi.fn(async()=>state),pause:async()=>state,resume:async()=>state,close:async()=>{},...overrides}
  const web=await loadPackWeb(resolve('tests/fixtures/frontend-adversarial'))
- const server=createPlaytestServer(runtime,token,web);servers.push(server);server.listen(0,'127.0.0.1');await once(server,'listening')
- const url='http://127.0.0.1:'+(server.address() as AddressInfo).port
+ const server=createPlaytestServer(runtime,token,web);servers.push(server)
+ let url=''
+ // Windows may assign an ephemeral port blocked by WHATWG fetch (for example 6000).
+ for(let attempt=0;attempt<8;attempt++){
+  server.listen(0,'127.0.0.1');await once(server,'listening')
+  url='http://127.0.0.1:'+(server.address() as AddressInfo).port
+  try{await fetch(url);break}catch(error){
+   if(!(error instanceof Error)||!(error.cause instanceof Error)||error.cause.message!=='bad port'||attempt===7)throw error
+   await new Promise<void>(done=>server.close(()=>done()))
+  }
+ }
  const send=(operation:string,payload:unknown,actionId='action:test',requestId='request:test')=>fetch(url+'/frontend-api/v1/action',{method:'POST',headers:{'x-playtest-token':token,'content-type':'application/json'},body:JSON.stringify({operation,payload,actionId,requestId})})
  return {runtime,url,send,setState:(s:PlaytestState)=>{state=s}}
 }
@@ -34,6 +43,21 @@ it('projects only player-visible fields and never falls back to the full NPC ros
  const projected=JSON.stringify(projectPlayerView(privateState()))
  expect(projected).not.toContain('PRIVATE_')
  expect(projectPlayerView(privateState()).scene?.visibleCharacters).toEqual(['visible'])
+})
+it('offers foreground pause or independent starts/resumes without exposing private activity state',()=>{
+ let state=privateState()
+ const activity=(key:string,active:boolean,suspended:boolean)=>({activityKey:key,title:key,id:key,revision:3,participants:['player','npc'],suspended,
+  game:{active,turn:'player',phase:'playing',public:{score:2},private:{secret:'PRIVATE_ACTIVITY'},internal:{secret:'PRIVATE_INTERNAL'}}})
+ state={...state,activities:[activity('guess',false,true),activity('cards',false,false)]}
+ let view=projectPlayerView(state)
+ expect(view.actions.map(action=>action.label)).toContain('继续 guess')
+ expect(view.actions.map(action=>action.label)).toContain('开始 cards')
+ expect(JSON.stringify(view)).not.toContain('PRIVATE_')
+ state={...state,activities:[activity('guess',false,true),activity('cards',true,false)]}
+ view=projectPlayerView(state)
+ expect(view.actions.filter(action=>String((action.action.parameters.definitionRef as {id?:string}|undefined)?.id).startsWith('host:activity-')).map(action=>action.label)).toEqual(['暂停 cards'])
+ const paused=projectPlayerView({...state,activities:[activity('guess',false,true),activity('cards',false,true)]})
+ expect(playerViewPatch(view,paused)).toHaveProperty('activities')
 })
 it('blocks unauthenticated/opaque-origin access, grants no admin capability and serves sandboxed assets',async()=>{
  const {url}=await fixture()
@@ -78,6 +102,22 @@ it('accepts only current Core-provided options, rejects fabricated actions, para
  expect(runtime.perform).not.toHaveBeenCalled()
  expect((await send('perform',{optionId:'move:room-2'},'valid')).status).toBe(200)
  expect(runtime.perform).toHaveBeenCalledWith({actionType:'move',parameters:{locationId:'room-2'}})
+})
+it('accepts participant choices only on a current dynamic activity start and rejects unavailable or changed candidates',async()=>{
+ const {send,runtime,setState}=await fixture()
+ const state={...privateState(),activities:[{activityKey:'invite',title:'邀请',id:null,revision:0,
+  participantSelection:{min:1,max:1,candidates:[{id:'visible',name:'可见角色'}]}}]}
+ setState(state)
+ const option=projectPlayerView(state).actions.find(action=>action.label==='开始 邀请')!
+ for(const [id,npcIds] of [['missing',['hidden']],['many',['visible','hidden']],['duplicate',['visible','visible']]] as const)
+  expect((await send('perform',{optionId:option.id,npcIds},id)).status).toBe(400)
+ expect((await send('perform',{optionId:'move:room-2',npcIds:['visible']},'fixed')).status).toBe(400)
+ expect(runtime.perform).not.toHaveBeenCalled()
+ expect((await send('perform',{optionId:option.id,npcIds:['visible']},'selected')).status).toBe(200)
+ expect(runtime.perform).toHaveBeenCalledWith({...option.action,parameters:{...option.action.parameters,startParameters:{npcIds:['visible']}}})
+ setState({...state,activities:[{...state.activities[0]!,participantSelection:{min:1,max:1,candidates:[]}}]})
+ expect((await send('perform',{optionId:option.id,npcIds:['visible']},'stale')).status).toBe(400)
+ expect(runtime.perform).toHaveBeenCalledOnce()
 })
 it('serves only the selected pack resource map and rejects path traversal',async()=>{
  const {url}=await fixture()

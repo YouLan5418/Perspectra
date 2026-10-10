@@ -1115,6 +1115,7 @@ export class LocalMemoryStore {
           metadata = {
             observationId: data.id,
             speakerId: speech.characterId,
+            ...(typeof speech.medium === 'string' ? { medium: speech.medium, addresseeIds: speech.addresseeIds ?? [] } : {}),
             ...(speech.segments === undefined ? {} : { segments }),
             ...(speech.narration === undefined ? {} : { narration: speech.narration }),
             ...(manifestation === undefined ? {} : { manifestation: manifestation.value }),

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "玩家",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "和同行者在前室，可通过通信联系后室留守者。",
+        "speakingStyle": "由玩家决定。"
+      }
+    },
+    {
+      "characterId": "character:companion",
+      "displayName": "同行者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "与玩家在前室玩猜数游戏，可以自主处理后室留守者的通信。通信不代替游戏操作；是否暂时回应由自己决定。",
+        "speakingStyle": "短句，少解释。"
+      },
+      "interactionBindings": [
+        {
+          "bindingId": "binding:companion-hold",
+          "definition": {
+            "id": "base:hold-hand",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "characterId": "character:friend",
+      "displayName": "留守者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:back-room",
+      "portrayal": {
+        "summary": "独自在后室，有自己的节奏与兴趣，可以通过通信联系前室的玩家和同行者。你不是猜数游戏参与者。",
+        "speakingStyle": "客气，偶尔简短直接。"
+      }
+    }
+  ]
+}

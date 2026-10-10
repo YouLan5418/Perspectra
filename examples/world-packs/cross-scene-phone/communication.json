@@ -1,0 +1,11 @@
+{
+  "medium": "电话",
+  "contacts": {
+    "character:player": [
+      "character:companion"
+    ],
+    "character:companion": [
+      "character:player"
+    ]
+  }
+}

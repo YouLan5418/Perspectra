@@ -1,0 +1,41 @@
+{
+  "sourceSchemaVersion": "worldpack-source/v5",
+  "packId": "pack:cross-scene-sms",
+  "packVersion": "1.0.0",
+  "worldFile": "world.json",
+  "characterFiles": [
+    "characters.json"
+  ],
+  "locationFiles": [
+    "locations.json"
+  ],
+  "entityFiles": [
+    "entities.json"
+  ],
+  "sceneFiles": [
+    "scenes.json"
+  ],
+  "playerSlotFiles": [
+    "player-slots.json"
+  ],
+  "presentationFiles": [
+    "presentation.json"
+  ],
+  "cognitionFiles": [
+    "cognition.json"
+  ],
+  "memoryFiles": [
+    "memory.json"
+  ],
+  "documentFiles": [],
+  "markdownFiles": [],
+  "assetFiles": [
+    "communication.json"
+  ],
+  "assertionFiles": [
+    "assertions.json"
+  ],
+  "reactionFile": "reaction.json",
+  "manifestationFile": "manifestation.json",
+  "interactionFile": "interactions.json"
+}

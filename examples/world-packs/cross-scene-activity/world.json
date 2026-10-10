@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "worldpack-world/v1",
+  "title": "活动与通信组合实验",
+  "description": "玩家和同行者在前室玩猜数游戏，留守者独自在后室。活动可以明确许可通信交互；收到消息或通话不自动推进游戏轮次。",
+  "timeMode": "TURN_DRIVEN",
+  "roundQueueLimit": 16,
+  "coreProfiles": {
+    "rulebook": {
+      "rulebookId": "builtin:speak-move",
+      "version": 2
+    },
+    "sceneDecision": {
+      "pluginId": "builtin:scene-decision",
+      "version": "2.0.0"
+    },
+    "agentContext": {
+      "pluginId": "builtin:agent-context",
+      "version": "2.0.0"
+    },
+    "presentation": {
+      "profileId": "builtin:deterministic-presentation",
+      "version": "1.0.0"
+    }
+  },
+  "initialFacts": [],
+  "playerInputPolicy": {
+    "version": "player-intent/v1"
+  }
+}

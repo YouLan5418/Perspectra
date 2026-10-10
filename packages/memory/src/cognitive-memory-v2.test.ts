@@ -408,7 +408,7 @@ describe('Cognitive Memory v2', () => {
       world.close()
     }
     for (const [suffix, value, message] of [
-      ['speech', { observerId: alice, content: { speech: { characterId: bob } } }, 'speech requires'],
+      ['speech', { observerId: alice, content: { speech: { characterId: bob } } }, 'publication requires'],
       ['epistemic', { observerId: alice, content: 'text', epistemicKind: 'omniscient' }, 'epistemicKind'],
       ['value', null, 'must be an object'],
       ['id', { observerId: alice, content: 'text' }, 'observation id'],

@@ -75,7 +75,7 @@ export function playerTranscript(
       : publicationSegments(speech as WorldJsonObject).filter(segment => segment.text.trim())
     return [{
       seq: observation.sourceSeq,
-      speaker: names.get(speech.characterId) ?? speech.characterId,
+      speaker: (names.get(speech.characterId) ?? speech.characterId) + (typeof speech.medium === 'string' ? `（${speech.medium}）` : ''),
       ...(segments === undefined ? {} : { segments }),
       text: segments !== undefined ? segments.map(segment => segment.type === 'narration' ? `（${segment.text}）` : segment.text).join('\n') : stage === undefined ? speech.text as string : [`（${stage}）`, speech.text].filter(Boolean).join('\n'),
       player: speech.characterId === playerId,
