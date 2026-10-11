@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    {
+      "locationId": "location:front-room",
+      "name": "前室"
+    },
+    {
+      "locationId": "location:back-room",
+      "name": "后室"
+    },
+    {
+      "locationId": "location:work-room",
+      "name": "工作室"
+    },
+    {
+      "locationId": "location:archive-room",
+      "name": "档案室"
+    }
+  ]
+}

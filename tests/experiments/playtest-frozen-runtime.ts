@@ -14,6 +14,7 @@ import { createCoreWorker, coreRunner, type CoreRunner } from './hindsight-pytho
 import { decideActivityFormat, type ActivityRequest } from './pack-activity.ts'
 import { PackActivities } from './pack-activities.ts'
 import { PackVariables } from './pack-variables.ts'
+import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
 import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
 import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
@@ -28,7 +29,7 @@ import { createInstalledInteractionPackages } from '@harness-world/interactions-
 import { createChatProvider, prototypeTurnCall, type ChatCallObservation } from '@harness-world/provider-chat'
 import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
 import { CharacterViewBuilder, CharacterRuntimeAvailabilityService, PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { createCoreRulebookRegistry } from '@harness-world/kernel'
+import { createCoreRulebookRegistry, currentLocation } from '@harness-world/kernel'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { PrototypeCharacterTurn, type PrototypeRecallShadowObservation, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
@@ -66,6 +67,10 @@ export interface FrozenPlaytestOptions {
   readonly worldVersion?: string
   readonly logicalDirectory?: string
   readonly publicationAudit?: InterventionOptions
+  /** Experiment control for comparing the former wave scheduler with dynamic dispatch. */
+  readonly serialScheduling?: boolean
+  /** Measurement control: ordinary work stays dynamic, autonomy waits for it to finish. */
+  readonly stagedAutonomy?: boolean
 }
 
 const LOCAL_ENDPOINT = 'http://127.0.0.1:8045/v1/chat/completions'
@@ -85,7 +90,7 @@ export function isFrozenPackDirectory(packPath: string): boolean {
   }
 }
 
-/** The prototype web host: player submission commits first, then bounded sequential NPC activations. */
+/** Player submission commits first; ordinary NPC work then uses bounded dynamic dispatch. */
 export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   readonly #worldVersion: string
   readonly #options: FrozenPlaytestOptions
@@ -108,6 +113,9 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #memoryCore: PlaytestMemoryCore | undefined
   #closeCore: (() => Promise<void>) | undefined
   #activity: PackActivities | undefined
+  #autonomy: PackAutonomy | undefined
+  #autonomyCycle: Record<string, unknown> | undefined
+  #modelCallBudget: { remaining: number; exhausted: boolean } | undefined
   #activityView: WorldJsonObject | undefined
   #activityViews: WorldJsonObject[] | undefined
   #workDone: Promise<void> = Promise.resolve()
@@ -133,6 +141,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #debug: Record<string, unknown> = {}
   #shadow: JevShadow | undefined
   #busy = false
+  #allowInterruption = false
   #paused = false
   #notice = ''
   #error = false
@@ -230,7 +239,18 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       this.#memoryCore?.observeContext(request, prepared.messages.map(message => message.content).join('\n')
         + JSON.stringify(prepared.schema)+(effectivePreset?.prompt??''))
       const simulated = this.#activity?.simulate(request)
-      const decide = async (call: typeof prepared) => presetOutput(simulated === undefined ? await roleProvider.decide(call, signal) : simulated, effectivePreset!, signal,
+      const callProvider = async (call: typeof prepared) => {
+        signal.throwIfAborted()
+        if (this.#modelCallBudget) {
+          if (this.#modelCallBudget.remaining <= 0) {
+            this.#modelCallBudget.exhausted = true
+            throw new Error('自主处理模型调用预算已耗尽')
+          }
+          this.#modelCallBudget.remaining--
+        }
+        return roleProvider.decide(call, signal)
+      }
+      const decide = async (call: typeof prepared) => presetOutput(simulated === undefined ? await callProvider(call) : simulated, effectivePreset!, signal,
         request.context.expressionPolicy as WorldJsonObject | undefined, settings.publicationCharacters)
       const raw = request.context.activity === undefined && simulated === undefined ? await decide(prepared)
         : await decideActivityFormat(prepared, decide, signal, prototypeTurnCall(request).schema)
@@ -244,7 +264,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       return auditBeforePublication({ request, raw, history, options: options.publicationAudit, signal,
         decide: async revised => {
           const call = await prepare(revised), replacement = this.#activity?.simulate(revised)
-          return presetOutput(replacement === undefined ? await roleProvider.decide(call, signal) : replacement,
+          return presetOutput(replacement === undefined ? await callProvider(call) : replacement,
             effectivePreset!, signal, revised.context.expressionPolicy as WorldJsonObject | undefined)
         } })
     }
@@ -287,6 +307,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     try {
       runtime.#packHash = pack.packHash
       runtime.#storyParentNodeId = options.storyParentNodeId ?? null
+      runtime.#autonomy = PackAutonomy.load(options.packPath, pack, runtime.#playerId)
       runtime.#application.activate(compiled)
       runtime.#variables = PackVariables.load(options.packPath, options.dataDirectory, pack)
       runtime.#activity = PackActivities.load(options.packPath, pack, resolve(options.dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
@@ -336,7 +357,9 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   async state(): Promise<PlaytestState> {
     return {
       playerFeedback: { phase: this.#phaseLabel, message: this.#notice },
-      busy: this.#busy, paused: this.#paused, phaseLabel: this.#phaseLabel,
+      busy: this.#busy, canInterrupt: this.#busy && this.#allowInterruption && !this.#abortedWork
+        && !this.#paused && !this.#escaping && !this.#closing,
+      paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#transcript,
       playerSettings: {inputCharacters:this.#playSettings.playerInputCharacters,reading:this.#options.reading??DEFAULT_READING},
       availableActions: this.#availableActions,
@@ -374,6 +397,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       if (text.startsWith('/') && !text.startsWith('/act ')) throw new TypeError('活动期间禁止变量调试与未声明命令。')
       this.#beginWork()
       try {
+        this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
         await this.#application.release(this.#address)
         if (text.startsWith('/act ')) {
           const match = /^\/act (speak|move|interact) (.+)$/u.exec(text)
@@ -439,12 +463,15 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   }
 
   #beginWork(): void {
+    this.#allowInterruption=false
+    this.#autonomyCycle = undefined
     this.#abortedWork = false
     this.#busy = true
     this.#phaseLabel = '正在提交操作'
     this.#workDone = new Promise<void>(done => { this.#finishWork = done })
   }
   #endWork(): void {
+    this.#allowInterruption=false
     this.#busy = false
     this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
     this.#finishWork?.(); this.#finishWork = undefined
@@ -455,6 +482,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     if (!this.#activity) throw new TypeError('本包没有安装游戏脚本。')
     this.#beginWork(); this.#error = false
     try {
+      this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
       await this.#application.release(this.#address)
       const changed = await this.#activity.apply(request)
       this.#notice = changed ? '游戏操作已提交。' : '已返回原提交结果，没有再次执行。'
@@ -630,13 +658,22 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       memory = new CognitiveMemoryService(resolve(this.#dataDirectory, 'memory.sqlite'),
         store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
       const shadowFile = this.#memoryShadowFile
-      const turn = new PrototypeCharacterTurn({ publicationCharacters:this.#playSettings.publicationCharacters, activationTimeoutMs:this.#playSettings.activationTimeoutSeconds*1000, address: this.#address, store, leases, availability,
-        ...(this.#memoryCore === undefined ? { memory } : {}),
-        rulebooks: this.#activity?.rulebooks() ?? createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+      const createTurn = (autonomous = false) => {
+        const base = this.#activity?.rulebooks() ?? createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
+        return new PrototypeCharacterTurn({ publicationCharacters:this.#playSettings.publicationCharacters, activationTimeoutMs:this.#playSettings.activationTimeoutSeconds*1000, address: this.#address, store, leases, availability,
+        ...(this.#memoryCore === undefined ? { memory: memory! } : {}),
+        rulebooks: autonomous ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address)) : base,
         decide: this.#decideContinuation,
         onCommitted: async () => { await this.#projectCommitted(store) },
+        allowUnrelatedCommits: !this.#options.serialScheduling && this.#variables===undefined
+          && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
+        projectContext: (context: WorldJsonObject, canPerform: boolean) => {
+          const projected = this.#activity?.projectContext(context, canPerform) ?? context
+          return autonomous ? {...projected, autonomy: {
+            instruction: '现在是你自主处理自身目标的机会。依据自己的目标、经历和眼前情况决定是否行动；可以表达或 abstain。没有新消息不代表发生了你不知道的事。',
+          }} : projected
+        },
         ...(this.#activity === undefined ? {} : {
-          projectContext: (context: WorldJsonObject, canPerform: boolean) => this.#activity!.projectContext(context, canPerform),
           validateDecision: (decision: WorldJsonObject, request: PrototypeTurnRequest) => this.#activity!.validateDecision(decision, request),
           executionResult: this.#activity.executionResult,
         }),
@@ -645,8 +682,14 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         recentSelfObservations: this.#tuning.recentSelfObservations,
         ...(shadowFile === undefined ? {} : { onRecallShadow: (observation: PrototypeRecallShadowObservation) =>
           appendFileSync(shadowFile, JSON.stringify(observation) + '\n') }), })
+      }
+      const turn = createTurn()
       this.#phaseLabel = '角色正在处理场景与行动结果'
       const active = this.#activity?.current()
+      const due = this.#playSettings.autonomyOpportunities === 0 ? [] : (this.#autonomy?.due(store, this.#address,
+        this.#playerId, this.#rootBeforeSeq, store.head(this.#address).headSeq) ?? [])
+        // Activity owns its participants' opportunities; autonomy never takes over its turn.
+        .filter(role => !active?.game.active || !active.participants.includes(role.characterId))
       let selected = this.#activity?.schedule()
       // Creator selects the next participant; the host bounds the entire chain.
       const activitySignal = AbortSignal.any([this.#continuationController.signal, AbortSignal.timeout(this.#playSettings.activityDeadlineSeconds*1000)])
@@ -670,19 +713,37 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         this.#notice = '活动处理已取消或超时；已提交结果保留，未完成操作没有换手。'
         this.#error = true
       }
-      if (activityOnly) return
-      this.#activationCycle = await runPrototypeActivations({ store, address: this.#address, turn,
-        afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds.filter(id => !active?.game.active || !active.participants.includes(id)), signal: this.#continuationController.signal,
+      this.#allowInterruption=!this.#activity?.current()?.game.active
+      if (activityOnly) {
+        await this.#activateAutonomous(store, createTurn, due, new Map())
+        return
+      }
+      const dynamic = !this.#options.serialScheduling && this.#variables===undefined
+        && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined
+      const integratedAutonomy = dynamic && !this.#options.stagedAutonomy && due.length>0
+      const {autonomy, ...cycle} = await runPrototypeActivations({ store, address: this.#address, turn,
+        afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds.filter(id => !due.some(role => role.characterId === id)
+          && (!active?.game.active || !active.participants.includes(id))), signal: this.#continuationController.signal,
         presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
+        ...(dynamic ? {locationId:(id:CharacterId)=>currentLocation(store.readEvents(this.#address),id)??null}:{}),
+        ...(integratedAutonomy ? {autonomy:{turn:createTurn(true),
+          roles:due.map(role=>({characterId:role.characterId,opportunities:Math.min(role.opportunities,this.#playSettings.autonomyOpportunities)})),
+          maximumNpcCalls:this.#playSettings.autonomyNpcCalls,deadlineSeconds:this.#playSettings.autonomyDeadlineSeconds,
+          reactionLimits:{maximumWaves:this.#playSettings.autonomyReactionWaves,maximumNpcCalls:this.#playSettings.autonomyReactionCalls,
+            maximumCallsPerCharacter:this.#playSettings.maximumCallsPerCharacter}}}:{}),
         limits: this.#tuning })
+      this.#activationCycle = cycle
+      this.#autonomyCycle = autonomy
       const terminal = this.#activationCycle.terminalReason
       if (terminal === 'failed' || terminal === 'interrupted') {
-        const last = this.#activationCycle.activations.at(-1)?.result
-        const committed = last?.performResult !== undefined
+        const failureStatus = terminal === 'interrupted' ? 'interrupted' : 'failed'
+        const relevant = this.#activationCycle.activations.find(activation => activation.result.status === failureStatus)?.result
+          ?? this.#activationCycle.activations.at(-1)?.result
+        const committed = relevant?.performResult !== undefined
         const cause = terminal === 'interrupted' ? '角色处理被打断或超时'
-          : last?.failure === 'invalid_output' ? '角色返回格式无效'
-            : last?.failure === 'preset_failed' ? '角色预设处理失败，请检查提示节点与文本规则'
-            : last?.failure === 'provider_failed' ? '角色模型服务未完成请求' : '角色处理失败'
+          : relevant?.failure === 'invalid_output' ? '角色返回格式无效'
+            : relevant?.failure === 'preset_failed' ? '角色预设处理失败，请检查提示节点与文本规则'
+            : relevant?.failure === 'provider_failed' ? '角色模型服务未完成请求' : '角色处理失败'
         this.#error = true
         this.#notice = `玩家输入已提交；${cause}。${committed
           ? '交互结果已提交，后续表达未完成；请看转录中的实际结果。可以继续行动，无需重发上一句。'
@@ -692,10 +753,80 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       } else {
         this.#notice = '本轮角色处理已结束，可以继续行动；角色也可以选择不回应。'
       }
+      if (autonomy) this.#autonomyNotice(autonomy.terminalReason)
+      else if (!this.#continuationController.signal.aborted) {
+        const counts = new Map<CharacterId, number>()
+        for (const activation of this.#activationCycle.activations) counts.set(activation.characterId, (counts.get(activation.characterId) ?? 0) + 1)
+        await this.#activateAutonomous(store, createTurn, due, counts)
+      }
     } finally {
+      this.#allowInterruption=false
       memory?.close(); availability.close(); leases.close(); store.close()
       this.#continuationController = undefined
+      this.#modelCallBudget = undefined
       if (!this.#paused && !this.#escaping) this.#memoryCore?.startPending()
+    }
+  }
+
+  async #activateAutonomous(store: WorldStore, createTurn: (autonomous?: boolean) => PrototypeCharacterTurn,
+    due: AutonomousRole[], counts: Map<CharacterId, number>): Promise<void> {
+    if (!due.length || this.#paused || this.#abortedWork || !this.#continuationController) return
+    const settings = this.#playSettings
+    const signal = AbortSignal.any([this.#continuationController.signal, AbortSignal.timeout(settings.autonomyDeadlineSeconds * 1000)])
+    const before = store.head(this.#address).headSeq
+    const activations: {characterId: CharacterId; result: Awaited<ReturnType<PrototypeCharacterTurn['run']>>}[] = []
+    this.#modelCallBudget = {remaining: settings.autonomyNpcCalls, exhausted: false}
+    let calls = 0, reason = 'quiescent'
+    const turn = createTurn(true)
+    outer: for (let opportunity = 0; opportunity < settings.autonomyOpportunities; opportunity++) {
+      for (const role of due) {
+        if (opportunity >= role.opportunities) continue
+        if (this.#paused || signal.aborted) { reason = 'interrupted'; break outer }
+        const remaining = Math.min(settings.autonomyNpcCalls - calls, this.#modelCallBudget.remaining)
+        if (remaining < 2) { reason = 'call_limit'; break outer }
+        const stimulus = new CharacterViewBuilder(store).rebuildAt(this.#address, role.characterId, store.head(this.#address).headSeq)
+          .observations.filter(o => o.sourceSeq > this.#rootBeforeSeq).map(o => o.value as WorldJsonObject)
+        const result = await turn.run(role.characterId, {signal, maxCalls: 2, maxModelCalls: remaining, stimulus})
+        calls += result.calls
+        activations.push({characterId: role.characterId, result})
+        counts.set(role.characterId, (counts.get(role.characterId) ?? 0) + 1)
+        if (result.status === 'failed' || result.status === 'interrupted') {
+          reason = this.#modelCallBudget.exhausted ? 'call_limit' : result.status
+          break outer
+        }
+      }
+    }
+    const autonomousCalls = settings.autonomyNpcCalls - this.#modelCallBudget.remaining
+    let reactions: Awaited<ReturnType<typeof runPrototypeActivations>> | undefined
+    if (!signal.aborted && !this.#paused && reason !== 'failed' && reason !== 'interrupted' && settings.autonomyReactionWaves > 0) {
+      this.#modelCallBudget = {remaining: settings.autonomyReactionCalls, exhausted: false}
+      const active = this.#activity?.current()
+      reactions = await runPrototypeActivations({store, address: this.#address, turn: createTurn(), afterSeq: before, signal,
+        characterIds: this.#characterIds.filter(id => !due.some(role => role.characterId === id)
+          && (!active?.game.active || !active.participants.includes(id))),
+        presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(p => brandId(p.id, 'CharacterId')),
+        ...(!this.#options.serialScheduling && this.#variables===undefined && !active?.game.active
+          && this.#options.publicationAudit===undefined ? {locationId:(id:CharacterId)=>currentLocation(store.readEvents(this.#address),id)??null}:{}),
+        initialCounts: counts, strictCallBudget: true,
+        limits: {maximumWaves: settings.autonomyReactionWaves, maximumNpcCalls: settings.autonomyReactionCalls,
+          maximumCallsPerCharacter: settings.maximumCallsPerCharacter, reactionDeadlineSeconds: settings.autonomyDeadlineSeconds},
+      })
+      if (this.#modelCallBudget.exhausted) reason = 'call_limit'
+      else if (reactions.terminalReason !== 'quiescent') reason = reactions.terminalReason
+    }
+    if (signal.aborted) reason = 'interrupted'
+    const reactionCalls = reactions === undefined ? 0 : settings.autonomyReactionCalls - this.#modelCallBudget.remaining
+    this.#autonomyCycle = {activations, autonomousCalls, reactionCalls, reactions, terminalReason: reason}
+    this.#modelCallBudget = undefined
+    this.#autonomyNotice(reason)
+  }
+
+  #autonomyNotice(reason: string): void {
+    if (reason === 'failed' || reason === 'interrupted') {
+      this.#error = true
+      this.#notice = '玩家输入及已提交的角色行动保留；自主处理失败或超时，未完成的机会已丢弃，可以继续行动。'
+    } else if (reason !== 'quiescent') {
+      this.#notice = '自主行动或后续反应达到预算上限；已提交结果保留，未使用机会不积攒，可以继续行动。'
     }
   }
 
@@ -760,6 +891,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       headSeq: head.headSeq, tick: head.tick, worldVersion: this.#worldVersion, manifestVersion: this.#manifestVersion,
       outputProtocol: 'perform/publish(segments)/abstain', memoryMode: this.#memoryCore ? 'core' : 'native',
       activationCycle: this.#activationCycle ?? null,
+      autonomy: this.#autonomyCycle ?? null,
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),
     }
     this.#shadow?.observe(head.headSeq)

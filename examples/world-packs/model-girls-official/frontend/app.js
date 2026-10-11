@@ -2,16 +2,17 @@
  const api=window.Perspectra,node=id=>document.getElementById(id);
  const people=[['GPT','🐉','#d9e9de'],['Claude','📚','#efd8b7'],['DeepSeek','🐳','#afd3ed'],['GLM','💻','#c7bfdf']];
  let waitingSince=0,historyKey;
- let view,posting=false,pending=null,auto=false,connected=true;
+ let view,posting=false,pending=null,auto=false,connected=true,requestVersion=0,submittedPlayers=0;
  for(const [name,icon,color] of people){const el=document.createElement('div');el.className='girl';el.dataset.name=name;el.dataset.icon=icon;el.style.setProperty('--color',color);const label=document.createElement('span');label.textContent=name;el.append(label);node('cast').append(el)}
  const inPrologue=()=>view?.activity?.active&&view.activity.phase==='prologue';
  const nextOption=()=>view?.actions.find(a=>a.label==='继续')??view?.actions.find(a=>a.label==='恢复当前活动节点');
  const startOption=()=>view?.actions.find(a=>a.label.startsWith('开始 '));
  const canInteract=()=>view&&connected&&!posting&&!auto&&['ready','error'].includes(view.status);
+ const canSpeak=()=>canInteract()||(view?.canInterrupt&&connected&&!posting&&!auto);
  function infoOpen(open){node('info-popover').hidden=!open;node('info-toggle').setAttribute('aria-expanded',String(open));}
  function menuOpen(open){if(open)infoOpen(false);node('audience-menu').hidden=!open;node('audience-toggle').setAttribute('aria-expanded',String(open));if(!open)openRecipients(null);}
  function openRecipients(scope){for(const group of document.querySelectorAll('.scope-group')){const open=group.dataset.scope===scope;group.querySelector('.recipient-menu').hidden=!open;group.querySelector('button').setAttribute('aria-expanded',String(open));}}
- function chooseAudience(scope,id){if(!canInteract())return;if(['direct','private'].includes(scope)&&!view.scene?.recipients?.some(p=>p.id===id))return;node('scope').value=scope;node('recipient').value=id||'';audience();menuOpen(false);node('input').focus();}
+ function chooseAudience(scope,id){if(!canSpeak())return;if(['direct','private'].includes(scope)&&!view.scene?.recipients?.some(p=>p.id===id))return;node('scope').value=scope;node('recipient').value=id||'';audience();menuOpen(false);node('input').focus();}
  function audience(){const scope=node('scope').value,name=node('recipient').selectedOptions[0]?.textContent;node('audience-label').textContent=({scene_public:'公开',direct:'定向',private:'私密',self:'仅自己'})[scope]+(name&&['direct','private'].includes(scope)?' · '+name:'');node('audience').textContent=scope==='direct'?(name?'只有 '+name+' 收到，其他人不知道交流发生。':'请选择一位在场角色作为接收者。'):scope==='private'?(name?'只有 '+name+' 收到完整内容，旁观者只知道发生了私密交流。':'请选择一位在场角色作为接收者。'):scope==='self'?'只保留在你自己的经历中。':'在场且有权观察的角色收到完整内容。';}
  function refreshRecipients(recipients){const select=node('recipient');if(select.dataset.loaded==='true'&&JSON.stringify([...select.options].map(o=>[o.value,o.textContent]))===JSON.stringify(recipients.map(p=>[p.id,p.name])))return;select.dataset.loaded='true';const old=select.value;select.replaceChildren();for(const person of recipients){const option=document.createElement('option');option.value=person.id;option.textContent=person.name;select.append(option)}select.value=recipients.some(p=>p.id===old)?old:'';
    for(const group of document.querySelectorAll('.scope-group')){const menu=group.querySelector('.recipient-menu');menu.replaceChildren();for(const person of recipients){const b=document.createElement('button');b.type='button';b.setAttribute('role','menuitem');b.textContent=person.name;b.onclick=()=>chooseAudience(group.dataset.scope,person.id);menu.append(b)}if(!recipients.length){const p=document.createElement('p');p.textContent='当前没有可选择的在场角色';menu.append(p)}}
@@ -39,6 +40,11 @@
  node('history-dialog').addEventListener('close',()=>{document.body.classList.remove('history-open');node('history-toggle').focus()});
  node('history-dialog').addEventListener('click',event=>{if(event.target!==node('history-dialog'))return;const r=event.target.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)event.target.close()});
  function render(next){
+   if(posting&&pending?.method==='speak'&&next.canInterrupt&&next.history.filter(line=>line.player).length>submittedPlayers){
+     if(node('input').value.trim()===pending.payload.text)node('input').value='';
+     if(node('narration').value.trim()===(pending.payload.narration||''))node('narration').value='';
+     posting=false;pending=null;requestVersion++;
+   }
    if(next.status==='busy'&&!waitingSince)waitingSince=Date.now();if(next.status!=='busy')waitingSince=0;
    view=next;responseStatus();const prologue=inPrologue(),started=view.activity?.phase!=='not-started',beat=view.activity?.public.lastBeat;
    node('free').hidden=prologue||!started;node('play-controls').hidden=started&&!prologue;
@@ -55,14 +61,14 @@
    node('actions').replaceChildren();for(const option of view.actions){if(option.label==='继续')continue;const b=document.createElement('button');b.textContent=option.label;b.onclick=()=>send('perform',{optionId:option.id});b.disabled=posting||auto||!['ready','error'].includes(view.status);node('actions').append(b)}
    node('advance').textContent=prologue?'继续':'开始序章';node('advance').disabled=posting||auto||!connected||!['ready','error'].includes(view.status)||!(prologue?nextOption():startOption());
    for(const id of ['fast','skip'])node(id).disabled=posting||auto||!prologue||!['ready','error'].includes(view.status);node('stop').hidden=!auto;
-   for(const id of ['input','narration','scope','recipient','send','audience-toggle'])node(id).disabled=posting||auto||!connected||!['ready','error'].includes(view.status);
-   const loading=connected&&(posting||view.status==='busy');node('send').classList.toggle('loading',loading);node('send').setAttribute('aria-busy',String(loading));node('send').title=loading?'正在处理，请稍候':'发送';if(!canInteract())menuOpen(false);
-   node('retry').hidden=!pending;node('retry').disabled=posting||!connected;
+   for(const id of ['input','narration','scope','recipient','send','audience-toggle'])node(id).disabled=!canSpeak();
+   const loading=connected&&(posting||(view.status==='busy'&&!view.canInterrupt));node('send').classList.toggle('loading',loading);node('send').setAttribute('aria-busy',String(loading));node('send').title=loading?'正在处理，请稍候':view.canInterrupt?'接着说，打断尚未完成的回应':'发送';if(!canSpeak())menuOpen(false);
+   const retryAllowed=['ready','error'].includes(view.status)||(pending?.method==='speak'&&view.canInterrupt===true);node('retry').hidden=!pending;node('retry').disabled=posting||!connected||!retryAllowed;
  }
- function responseStatus(){if(!view)return;const el=node('response-status');el.dataset.state=view.status;el.textContent=view.status==='busy'?(view.feedback?.phase||'正在处理')+' · 已等待 '+Math.floor((Date.now()-waitingSince)/1000)+' 秒。角色依次处理，已发表的回应会立即显示。':view.status==='paused'?'角色已暂停，请使用外层恢复。':view.feedback?.message||'可以继续行动。';}
+ function responseStatus(){if(!view)return;const el=node('response-status');el.dataset.state=view.status;el.textContent=view.canInterrupt?'可以接着说；尚未完成的回应会被打断，已发生的行动保留。':view.status==='busy'?(view.feedback?.phase||'正在处理')+' · 已等待 '+Math.floor((Date.now()-waitingSince)/1000)+' 秒。已发表的回应会立即显示。':view.status==='paused'?'角色已暂停，请使用外层恢复。':view.feedback?.message||'可以继续行动。';}
  setInterval(responseStatus,1000);
- async function execute(work){pending=work;posting=true;render(view);try{const next=await api.request(work.method,work.payload,work.actionId);pending=null;if(next.status==='error')auto=false;node('notice').textContent='';if(work.method==='speak'){node('input').value='';node('narration').value=''}render(next);return next}catch(error){auto=false;node('notice').textContent=error.message+'。已提交的经历保留；可重试同一操作或使用外层活动恢复。';throw error}finally{posting=false;render(view)}}
- async function send(method,payload){if(!canInteract())return;try{await execute({method,payload,actionId:api.newActionId()})}catch{}}
+ async function execute(work){const version=++requestVersion;submittedPlayers=view?.history.filter(line=>line.player).length||0;pending=work;posting=true;render(view);try{await api.request(work.method,work.payload,work.actionId);if(version!==requestVersion)return view;const next=await api.getView();if(version!==requestVersion)return view;pending=null;if(next.status==='error')auto=false;node('notice').textContent='';if(work.method==='speak'){if(node('input').value.trim()===work.payload.text)node('input').value='';if(node('narration').value.trim()===(work.payload.narration||''))node('narration').value=''}render(next);return next}catch(error){if(version!==requestVersion)return view;auto=false;node('notice').textContent=error.message+'。已提交的经历保留；可重试同一操作或使用外层活动恢复。';throw error}finally{if(version===requestVersion){posting=false;render(view)}}}
+ async function send(method,payload){if(!(method==='speak'?canSpeak():canInteract()))return;try{await execute({method,payload,actionId:api.newActionId()})}catch{}}
  node('advance').onclick=()=>{const option=inPrologue()?nextOption():startOption();if(option)send('perform',{optionId:option.id})};
  async function forward(skip){if(auto||posting||!inPrologue())return;auto=true;document.body.classList.toggle('skipping',skip);node('notice').textContent=skip?'正在合法提交剩余剧情，完成后交还输入……':'快进中，可随时停止。';render(view);try{while(auto&&inPrologue()){const option=nextOption();if(!option)break;await execute({method:'perform',payload:{optionId:option.id},actionId:api.newActionId()});if(!skip)await new Promise(resolve=>setTimeout(resolve,180));}}catch{}finally{auto=false;document.body.classList.remove('skipping');render(view)}}
  node('fast').onclick=()=>forward(false);node('skip').onclick=()=>forward(true);node('stop').onclick=()=>{auto=false;};

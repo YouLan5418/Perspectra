@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "玩家",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:back-room",
+      "portrayal": {
+        "summary": "在前后室间整理个人笔记。",
+        "speakingStyle": "由玩家决定。"
+      }
+    },
+    {
+      "characterId": "character:companion",
+      "displayName": "同行者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "在前室等候，与玩家简短交流今天的安排，通常留在前室。",
+        "speakingStyle": "短句，少解释。"
+      },
+      "interactionBindings": [
+        {
+          "bindingId": "binding:companion-hold",
+          "definition": {
+            "id": "base:hold-hand",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "characterId": "character:friend",
+      "displayName": "保管员",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:work-room",
+      "portrayal": {
+        "summary": "细心、自主安排工作的保管员。眼下要把工作室的黄铜钥匙妥善安置到档案室，完成后休息，不必向别人汇报。",
+        "speakingStyle": "客气，偶尔简短直接。"
+      }
+    },
+    {
+      "characterId": "character:witness",
+      "displayName": "值守者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:back-room",
+      "portrayal": {
+        "summary": "在后室值守，留意玩家的来去。通常留在后室，可以简短回应，也可以安静休息。",
+        "speakingStyle": "简短自然。"
+      }
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
@@ -49,14 +49,20 @@ describe('the web playtest on a frozen world', () => {
     let entered!: () => void, release!: () => void
     const waiting = new Promise<void>(done => { entered = done })
     const gate = new Promise<void>(done => { release = done })
-    let calls = 0
-    const server = createServer(async (_request, response) => {
-      const call = ++calls
-      if (call === 3) { entered(); await gate }
-      const answer = call === 1 ? { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:living-room' } }
-        : call === 2 ? { decision: 'publish', segments: [{ type: 'speech', text: '另一个房间的私密回复。' }] } : { decision: 'abstain' }
-      response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
+    let movingId = '', movingName = ''
+    const server = createServer((request, response) => {
+      let body = ''; request.on('data', chunk => { body += String(chunk) })
+      request.on('end', () => { void (async () => {
+        const input = JSON.parse(JSON.parse(body).messages.at(-1).content)
+        const actor = input.context.character.characterId as string
+        if (!movingId) { movingId = actor; movingName = input.context.character.name }
+        if (actor !== movingId) { entered(); await gate }
+        const answer = actor !== movingId ? { decision: 'abstain' }
+          : input.continuation ? { decision: 'publish', segments: [{ type: 'speech', text: '另一个房间的私密回复。' }] }
+            : { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:living-room' } }
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
+      })() })
     }); servers.push(server)
     const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
       packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'ollama', model: 'fixture',
@@ -64,10 +70,15 @@ describe('the web playtest on a frozen world', () => {
     let pending: Promise<unknown> | undefined
     try {
       pending = runtime.submit('大家早上好。'); await waiting
+      await vi.waitFor(() => {
+        const store = new WorldStore(resolve(root, 'world.sqlite'))
+        try { expect(store.readEvents(runtime.address).some(event => event.eventType === 'character.speak'
+          && JSON.stringify(event.data).includes('另一个房间的私密回复'))).toBe(true) } finally { store.close() }
+      }, { timeout: 10000 })
       const interim = await runtime.state()
       expect(interim.busy).toBe(true)
-      expect(interim.world.currentScene?.presentNpcNames).not.toContain('Claude')
-      expect(interim.transcript.some(line => line.speaker === 'Claude' && line.text.includes('移动'))).toBe(true)
+      expect(interim.world.currentScene?.presentNpcNames).not.toContain(movingName)
+      expect(interim.transcript.some(line => line.speaker === movingName && line.text.includes('移动'))).toBe(true)
       expect(JSON.stringify(interim)).not.toContain('另一个房间的私密回复')
       await runtime.pause(); release(); await pending
       expect(JSON.stringify(await runtime.state())).not.toContain('另一个房间的私密回复')
@@ -283,6 +294,7 @@ describe('the web playtest on a frozen world', () => {
       utilityEndpoint: `http://127.0.0.1:${port}/api/chat` })
     const first = await open()
     let initialHead: number
+    let initialHolder: string | null | undefined
     try {
       const state = await first.submit('/act speak {"text":"大家早安。"}')
       expect(state.error).toBe(true)
@@ -292,7 +304,9 @@ describe('the web playtest on a frozen world', () => {
       const store = new WorldStore(resolve(root, 'world.sqlite'))
       try {
         const events = store.readEvents(first.address)
-        expect(currentEntityState(events, 'entity:phone')?.holderId).toBe('character:claude')
+        initialHolder = currentEntityState(events, 'entity:phone')?.holderId
+        // Any eligible shuffled observer may receive the first opportunity.
+        expect(['character:claude', 'character:deepseek', 'character:glm', 'character:gpt']).toContain(initialHolder)
         expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
         initialHead = store.head(first.address).headSeq
       } finally { store.close() }
@@ -304,12 +318,16 @@ describe('the web playtest on a frozen world', () => {
       expect(calls).toBe(callsBeforeReopen)
       expect(state.debug.headSeq).toBe(initialHead!)
       const store = new WorldStore(resolve(root, 'world.sqlite'))
-      try { expect(store.readEvents(reopened.address).filter(event => event.eventType === 'entity.transferred')).toHaveLength(1) }
+      try {
+        const events = store.readEvents(reopened.address)
+        expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
+        expect(currentEntityState(events, 'entity:phone')?.holderId).toBe(initialHolder)
+      }
       finally { store.close() }
     } finally { await reopened.close() }
   }, 30_000)
 
-  it('activates all NPCs sequentially, with take and move results before anyone else is called', async () => {
+  it('gives eligible NPCs bounded opportunities and commits each operation before its own continuation', async () => {
     const root = mkdtempSync(join(tmpdir(), 'single-activation-web-')); roots.push(root)
     const seen: { actor: string; continuation: boolean }[] = []
     const acted = new Set<string>()
@@ -356,10 +374,11 @@ describe('the web playtest on a frozen world', () => {
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
       expect(state.error).toBe(false)
-      expect(seen.slice(0, 4)).toEqual([
-        { actor: 'character:claude', continuation: false }, { actor: 'character:claude', continuation: true },
-        { actor: 'character:deepseek', continuation: false }, { actor: 'character:deepseek', continuation: true },
-      ])
+      for (const actor of ['character:claude','character:deepseek']) {
+        const first=seen.findIndex(entry=>entry.actor===actor&&!entry.continuation)
+        const continuation=seen.findIndex(entry=>entry.actor===actor&&entry.continuation)
+        expect(first).toBeGreaterThanOrEqual(0);expect(continuation).toBeGreaterThan(first)
+      }
       expect(new Set(seen.map(entry => entry.actor)).size).toBe(4)
       expect(seen.length).toBeLessThanOrEqual(8)
       expect(state.transcript.some(line => line.text.includes('手机拿到了'))).toBe(true)

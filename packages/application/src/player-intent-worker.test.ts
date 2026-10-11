@@ -110,7 +110,7 @@ it.each(['request', 'response'])('rejects a self-consistent Context %s that diff
   } finally { s.close() }
 })
 
-it('fails closed on lost PlayerBinding and tolerates an empty interaction affordance catalog', () => {
+it('fails closed on lost PlayerBinding and clarifies text when speech is not afforded', () => {
   const s = fixture()
   try {
     const world = frozenIntentWorld()
@@ -122,7 +122,7 @@ it('fails closed on lost PlayerBinding and tolerates an empty interaction afford
     const result = preparePlayerIntent({ ...s.job, principalId: 'principal:player' }, world.manifest, [],
       { ...resolver, affordances: () => [{ actionType: 'interact', actionVersion: 1, parameters: {} }] } as typeof resolver,
       prepared.profile, 10, world.manifestHash, 0)
-    expect('request' in result && result.binding.affordances).toEqual([])
+    expect(result).toEqual({ clarification: 'action is not currently afforded' })
   } finally { s.close() }
 })
 

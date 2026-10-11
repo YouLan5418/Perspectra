@@ -1099,7 +1099,12 @@ describe('WorldStore and temporal projections', () => {
     const path = database('fork-policy.sqlite')
     const root = fixtureAddress('depth-0')
     const store = new WorldStore(path, undefined, () => 777)
-    const manifest = { address: root, name: 'fork-policy' } as const
+    const manifest = {
+      schemaVersion: 10,
+      address: root,
+      name: 'fork-policy',
+      registries: { events: { definitions: [{ name: 'world.created', version: 1 }] } },
+    } as const
     const genesisEvents = [{ eventType: 'world.created', eventVersion: 1, data: { name: 'fork-policy' } }] as const
     const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
     store.activateBranch({

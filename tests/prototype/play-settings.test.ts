@@ -7,6 +7,9 @@ import { localPrototypeTurnCall } from '../experiments/local-prototype-turn-call
 it('validates local settings and rejects contradictory memory limits',()=>{
  expect(playSettings({})).toEqual(DEFAULT_PLAY_SETTINGS)
  expect(playSettings({maximumWaves:5}).maximumWaves).toBe(5)
+ expect(playSettings({})).toMatchObject({autonomyOpportunities:1,autonomyNpcCalls:3,autonomyReactionWaves:1,autonomyReactionCalls:4,autonomyDeadlineSeconds:60})
+ expect(playSettings({autonomyOpportunities:0,autonomyReactionWaves:0}).autonomyOpportunities).toBe(0)
+ for(const value of [{autonomyNpcCalls:1},{autonomyReactionCalls:1},{autonomyOpportunities:-1},{autonomyDeadlineSeconds:0}])expect(()=>playSettings(value)).toThrow()
  for(const value of [{maximumWaves:0},{maximumWaves:null},{maximumNpcCalls:1},{unknown:1},{memoryTriggerTokens:10000},{memoryRecentTokens:170000}])expect(()=>playSettings(value)).toThrow()
  const settings=playSettings({publicationCharacters:3000,playerInputCharacters:4000})
  expect(parsePlaytestLaunchArguments(['--play-settings',JSON.stringify(settings)]).playSettings).toEqual(settings)

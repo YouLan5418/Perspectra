@@ -44,6 +44,13 @@ it('projects only player-visible fields and never falls back to the full NPC ros
  expect(projected).not.toContain('PRIVATE_')
  expect(projectPlayerView(privateState()).scene?.visibleCharacters).toEqual(['visible'])
 })
+it('includes interrupt availability in player-view updates',()=>{
+ const before=projectPlayerView(privateState())
+ const state=privateState()
+ const after=projectPlayerView({...state,busy:true,canInterrupt:true,transcript:[...state.transcript,{seq:2,speaker:'玩家',text:'继续说',player:true}]})
+ expect(after.canInterrupt).toBe(true)
+ expect(playerViewPatch(before,after)).toMatchObject({status:'busy',canInterrupt:true,historyAppend:[{speaker:'玩家',text:'继续说',player:true}]})
+})
 it('offers foreground pause or independent starts/resumes without exposing private activity state',()=>{
  let state=privateState()
  const activity=(key:string,active:boolean,suspended:boolean)=>({activityKey:key,title:key,id:key,revision:3,participants:['player','npc'],suspended,

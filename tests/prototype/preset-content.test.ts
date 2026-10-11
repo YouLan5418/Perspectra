@@ -134,7 +134,11 @@ it('reports request-dependent preset expansion failure without calling the provi
  try{
   const state=await runtime.submit('/narrate 我抬手示意。')
   expect(state.error).toBe(true);expect(state.notice).toContain('角色预设处理失败');expect(state.notice).not.toContain('模型服务')
-  expect(state.debug.activationCycle).toMatchObject({activations:[{result:{failure:'preset_failed'}}]});expect(fetch).not.toHaveBeenCalled()
+  expect(state.debug.activationCycle).toHaveProperty('activations.length',2)
+  expect(state.debug.activationCycle).toMatchObject({activations:expect.arrayContaining(
+    ['character:companion','character:friend'].map(characterId=>expect.objectContaining({characterId,
+      result:expect.objectContaining({status:'failed',failure:'preset_failed'})})))})
+  expect(fetch).not.toHaveBeenCalled()
  }finally{await runtime.close()}
 })
 

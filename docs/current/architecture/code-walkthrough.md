@@ -1,6 +1,6 @@
 # 一次输入的代码路线
 
-核对日期：2026-10-08。建议先读[入门说明](getting-started.md)。下面是关键控制点，省略底层辅助调用；看具体分支时再顺着源码展开。
+核对日期：2026-10-11。建议先读[入门说明](getting-started.md)。下面是关键控制点，省略底层辅助调用；看具体分支时再顺着源码展开。
 
 ## 1. 从哪里启动
 
@@ -26,9 +26,17 @@ package.json 的 experience:web 指向 [playtest-web-entry.ts](../../../tests/ex
 
 普通场景提交玩家输入后，宿主刷新视图并调用 #activateCharacters。活动输入先检查活动策略，不能把普通场景分支套到所有活动上。
 
+普通 NPC 处理期间，宿主可通过公开 `canInterrupt` 标记当前是否允许继续输入。玩家插话后，[TailRoundRuntime](../../../tests/experiments/playtest-tail-runtime.ts) 取消旧回合尚未提交的 NPC 计算，等待旧调用和末端回合结算，再处理新输入；已经提交的行动保留。活动仍运行时不会开放这一插话入口。
+
 ## 4. NPC 如何获得处理机会
 
 [runPrototypeActivations](../../../packages/application/src/prototype-activation-cycle.ts)扫描新提交的 observation.upsert，选择相关 NPC，按有界波次处理。它跟踪调用数、各角色激活数和期限。
+
+2026-10-11 动态调度实验在符合条件的普通入口中按已提交观察动态派发角色，不设置整波完成屏障。最多两个在途激活，场外最多一个；派发时地点不能与在途角色相同，同一角色不并行。优先级依次为当前场景、较少 stale 重算、较少已完成激活，同级再随机排序。任务先预留调用预算；角色模型计算期间不占写租约，结果进入串行提交队列。模型返回时和取租约读取最新前缀后都会比较授权 view、认知、场景成员、可见物品与 affordances；全局事件序号单独变化不会废弃结果。最大波次预算限制因果深度；同一角色、同一预算来源合并待处理观察时取最深深度，较浅观察或 stale 重算不能把它降浅，超限观察仍以 `wave_limit` 收束。stale 会占用总模型调用预算但不计完成激活；每个角色连续 stale 最多重算一次，再次 stale 会停止该角色本轮。`inactive` 只停止该角色本轮；一个角色的模型失败会记录在对应结果中并允许其他已在途任务收束。在途移动合流后已有结果续写继续，旧视图通过 stale 收束，地点互斥不保证在途角色一直身处不同地点。具体边界见[实验记录](../studies/dynamic-scheduling-20261011.md)。
+
+动态路径只用于未启用 `--serial-scheduling` 且没有包变量脚本、活动参与者排程或 `publicationAudit` 的普通反应。其余情形走原串行路径。NPC 插话、动态派发及其边界见[实验记录](../studies/dynamic-scheduling-20261011.md)。
+
+2026-10-11 实验分支另由[PackAutonomy](../../../tests/experiments/pack-autonomy.ts)从成功玩家提交计算到期角色。动态条件满足时，宿主把角色及剩余自主机会传入同一个 runPrototypeActivations；普通、自主及后续反应共用并发槽位、地点互斥与提交队列，各有调用预算。到期角色的普通根回应并入自主机会，后续反应沿用其他角色已有的激活计数。观察来源和因果深度只在内存队列中记录，不加入模型刺激；消费旧观察后按剩余来源计费。普通期限与自主期限独立，stale 重算及已提交结果续写仍保留原预算归属。频率从事件前缀推导；无需新增观察也可调用 Character Turn，唤醒不授予额外知识。活动入口、变量脚本、发布审计或串行控制仍分段处理；仅用于对照的 stagedAutonomy 保留普通动态派发、延后自主启动。实现与对照见[接入记录](../studies/autonomy-dynamic-dispatch-20261011.md)，作者声明与启动器预算见[创作者运行时](creator-runtime.md#关键角色自主行动2026-10-11实验分支)。
 
 普通默认值见 [playtest-tuning.ts](../../../tests/experiments/playtest-tuning.ts)与[游玩设置](../../../desktop/play-settings.ts)：3 波、8 次模型调用、每角色最多 2 次激活、30 秒周期期限。启动配置可覆盖。“一次激活”可能包含执行结果后的再次调用，不等于“一次模型请求”。活动有自己的链和预算，见[创作者运行时](creator-runtime.md)。
 
@@ -72,6 +80,7 @@ perform 请求经过 Rulebook；[character-execution-result.ts](../../../package
 | 预设 | 实例默认、角色组、专属与请求／输出／显示处理 | [preset-runtime.ts](../../../packages/provider-chat/src/preset-runtime.ts)、[预设说明](../model-presets.md) |
 | 社区前端 | 默认沙箱，授权后受信任模式；公共玩家接口 | [授权实现](../../../desktop/frontend-authorization.ts)、[资产服务](../../../tests/experiments/playtest-frontend-assets.ts)、[授权说明](../frontend-authorization.md) |
 | 故事线 | 完整节点、独立分叉与单节点文件分享 | [story-nodes.ts](../../../desktop/story-nodes.ts)、[story-share.ts](../../../desktop/story-share.ts)、[使用边界](../storylines.md) |
+| 动态角色调度与插话 | 跨地点有限并发、串行事实提交、角色视图过期检查及玩家中断 | [动态调度实验](../studies/dynamic-scheduling-20261011.md)、[activation-cycle](../../../packages/application/src/prototype-activation-cycle.ts)、[对照驱动](../../../tests/experiments/dynamic-scheduling.ts)、[样例包](../../../examples/world-packs/dynamic-scheduling/README.md) |
 | 末端重新生成 | 完整起点、隔离重演与候选选择 | [TailRoundRuntime](../../../tests/experiments/playtest-tail-runtime.ts)、[tail-storage.ts](../../../desktop/tail-storage.ts)、[详细说明](../tail-round-regeneration.md) |
 
 ## 8. 解释基于什么

@@ -20,7 +20,7 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
       if(data.type==='response'){
         const work=pending.get(data.requestId);if(!work)return;
         pending.delete(data.requestId);clearTimeout(work.timer);
-        if(data.ok){if(data.view)view=data.view;work.resolve(data.result??data.view)}
+        if(data.ok){if(data.view&&work.method==='view')view=data.view;work.resolve(data.result??data.view)}
         else {const error=new Error(data.error||'请求失败');error.retryable=data.retryable!==false;work.reject(error)};
       }
     };
@@ -32,7 +32,7 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
     const requestId='request:'+Date.now()+':'+(++counter);
     return new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>{pending.delete(requestId);reject(new Error('请求超时；请保留 actionId 重试或查看公开历史。'))},180000);
-      pending.set(requestId,{resolve,reject,timer});
+      pending.set(requestId,{resolve,reject,timer,method});
       port.postMessage({type:'request',requestId,method,payload,...(actionId?{actionId}:{})});
     });
   }

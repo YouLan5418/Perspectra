@@ -189,7 +189,7 @@ h2{font:600 var(--fs-h2)/1.4 var(--font-story);margin:0 0 14px;overflow-wrap:any
 
 export const DEFAULT_SCRIPT = String.raw`(() => {
  const api=window.Perspectra,node=id=>document.getElementById(id);
- let latest,posting=false,pending,connected=false,historyKey='',actionsKey='',canRegenerate=false;
+ let latest,posting=false,pending,connected=false,historyKey='',actionsKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
  const roundTools=node('round-tools');
  const history=node('history');
  const QUOTE=/([“”"「『][^“”"」』\n]*[“”"」』])/;
@@ -217,14 +217,16 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    audience();
  }
  function controls(){
-   const disabled=posting||!connected||!['ready','error'].includes(latest?.status);
+   const disabled=posting||!connected||(!['ready','error'].includes(latest?.status)&&!latest?.canInterrupt);
+   const actionDisabled=posting||!connected||!['ready','error'].includes(latest?.status);
    node('send').disabled=disabled||!(node('input').value.trim()||node('narration').value.trim())||((speechScope()==='direct'||speechScope()==='private')&&!node('speech-recipient').value);
    for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.disabled=disabled;
    node('speech-recipient').disabled=disabled||!latest?.scene?.recipients?.length;
    node('input').disabled=disabled;node('narration').disabled=disabled;
-   for(const button of node('actions').querySelectorAll('button'))button.disabled=disabled||button.dataset.unavailable==='true';
-   for(const picker of node('actions').querySelectorAll('select'))picker.disabled=disabled;
-   node('retry').hidden=!pending;node('retry').disabled=posting||!connected;
+   for(const button of node('actions').querySelectorAll('button'))button.disabled=actionDisabled||button.dataset.unavailable==='true';
+   for(const picker of node('actions').querySelectorAll('select'))picker.disabled=actionDisabled;
+  const retryAllowed=['ready','error'].includes(latest?.status)||(pending?.method==='speak'&&latest?.canInterrupt===true);
+  node('retry').hidden=!pending;node('retry').disabled=posting||!connected||!retryAllowed;
    const tail=latest?.tailRound,count=tail?.candidateIds?.length||1,index=tail?.candidateIndex||1;
    roundTools.hidden=!tail?.id||!canRegenerate;
    node('candidate-count').textContent=index+'/'+count;
@@ -239,6 +241,11 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  history.onscroll=()=>{node('latest').hidden=history.scrollHeight-history.scrollTop-history.clientHeight<70};
  node('latest').onclick=bottom;
  function render(view){
+   if(posting&&pending?.method==='speak'&&view.canInterrupt&&view.history.filter(line=>line.player).length>submittedPlayers){
+     if(node('input').value.trim()===pending.payload.text)node('input').value='';
+     if(node('narration').value.trim()===(pending.payload.narration||''))node('narration').value='';
+     posting=false;pending=null;requestVersion++;
+   }
    latest=view;renderRecipients(view);
    const reading=view.settings?.reading||{fontSize:17,lineHeight:1.9,autoFollow:true};
    document.documentElement.style.setProperty('--fs-story',reading.fontSize+'px');document.documentElement.style.setProperty('--story-line-height',String(reading.lineHeight));
@@ -249,10 +256,10 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const people=view.scene?.visibleCharacters||[];
    for(const name of people){const chip=document.createElement('span');chip.className='character';chip.textContent=name;node('characters').append(chip)}
    if(!people.length){const empty=document.createElement('span');empty.className='alone';empty.textContent='眼前没有其他角色';node('characters').append(empty)}
-   node('status').textContent=({ready:'可以回应',busy:view.tailRound?.regenerating?'正在处理回合':'角色正在回应',paused:'已暂停',error:'处理未完成'})[view.status];
+   node('status').textContent=({ready:'可以回应',busy:view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'角色正在回应',paused:'已暂停',error:'处理未完成'})[view.status];
    node('status').dataset.state=view.status;
    node('status').title=view.feedback?.phase||'';
-   if(!pending)node('notice').textContent=view.status==='busy'?(view.feedback?.phase||'角色依次处理，已发表的回应会立即显示。'):view.feedback?.message||'';
+   if(!pending)node('notice').textContent=view.canInterrupt?'可继续输入；尚未完成的回应会被打断，已发生的行动保留。':view.status==='busy'?(view.feedback?.phase||'角色正在处理，已发表的回应会立即显示。'):view.feedback?.message||'';
    const nextHistory=JSON.stringify(view.history);
    if(nextHistory!==historyKey){
      const oldTop=history.scrollTop;
@@ -294,16 +301,19 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    }
    controls();
  }
- async function refresh(){try{const view=await api.getView();connected=true;render(view)}catch(error){node('notice').textContent=error.message;connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}}
+ async function refresh(expectedVersion){try{const view=await api.getView();if(expectedVersion!==requestVersion)return;connected=true;render(view)}catch(error){if(expectedVersion!==requestVersion)return;node('notice').textContent=error.message;connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}}
  async function submit(request){
+   const version=++requestVersion;submittedPlayers=latest?.history.filter(line=>line.player).length||0;
    posting=true;controls();node('notice').textContent='正在提交……';
-   try{render(await api.request(request.method,request.payload,request.actionId));if(request.method==='speak'){node('input').value='';node('narration').value='';}pending=null;node('notice').textContent=''}
-   catch(error){if((request.method==='regenerate'||request.method==='selectCandidate')&&error.retryable===false)pending=null;node('notice').textContent=error.message+(pending?'；可重试查询同一操作结果。':'')}
-   finally{posting=false;await refresh();controls()}
+   try{await api.request(request.method,request.payload,request.actionId);if(version!==requestVersion)return;
+     const view=await api.getView();if(version!==requestVersion)return;
+     if(request.method==='speak'){if(node('input').value.trim()===request.payload.text)node('input').value='';if(node('narration').value.trim()===(request.payload.narration||''))node('narration').value=''}pending=null;node('notice').textContent='';render(view)}
+   catch(error){if(version!==requestVersion)return;if((request.method==='regenerate'||request.method==='selectCandidate')&&error.retryable===false)pending=null;node('notice').textContent=error.message+(pending?'；可重试查询同一操作结果。':'')}
+   finally{if(version===requestVersion){await refresh(version);if(version===requestVersion){posting=false;controls()}}}
  }
  function send(method,payload){
    const tailOperation=method==='regenerate'||method==='selectCandidate';
-   if(posting||!connected||(tailOperation?!latest?.tailRound?.canRegenerate:!['ready','error'].includes(latest?.status)))return;
+   if(posting||!connected||(tailOperation?!latest?.tailRound?.canRegenerate:!['ready','error'].includes(latest?.status)&&!(method==='speak'&&latest?.canInterrupt)))return;
    pending={method,payload,actionId:api.newActionId()};submit(pending);
  }
  node('regenerate-round').onclick=()=>send('regenerate',{tailId:latest.tailRound.id});

@@ -1,0 +1,26 @@
+{
+  "characters": [
+    {
+      "characterId": "character:friend",
+      "triggers": [
+        {
+          "actionType": "speak"
+        },
+        {
+          "actionType": "move"
+        },
+        {
+          "actionType": "interact",
+          "definitionId": "base:take"
+        }
+      ],
+      "everyPlayerTurns": 1,
+      "opportunities": 1,
+      "interactions": [],
+      "locationIds": [
+        "location:front-room",
+        "location:back-room"
+      ]
+    }
+  ]
+}

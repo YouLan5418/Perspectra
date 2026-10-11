@@ -1,0 +1,28 @@
+{
+  "characters": [
+    {
+      "characterId": "character:friend",
+      "triggers": [
+        {
+          "actionType": "speak"
+        },
+        {
+          "actionType": "move"
+        }
+      ],
+      "everyPlayerTurns": 1,
+      "opportunities": 6,
+      "interactions": [
+        "base:take",
+        "base:drop"
+      ],
+      "locationIds": [
+        "location:work-room",
+        "location:archive-room"
+      ],
+      "targetIds": [
+        "entity:brass-key"
+      ]
+    }
+  ]
+}

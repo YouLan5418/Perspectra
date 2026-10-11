@@ -152,7 +152,8 @@ describe('creator activity and host escape',()=>{
     expect(f.inputs).toHaveLength(2)
     const g=await fixture(input=>input.continuation?{decision:'abstain'}:action(input,'pass'))
     const gstart=await g.runtime.activityAction(request(await g.runtime.state(),'start'))
-    expect((await g.runtime.activityAction(request(gstart,'pass'))).activity?.revision).toBe(3)
+    const gafter=await g.runtime.activityAction(request(gstart,'pass'))
+    expect(gafter.activity?.revision,gafter.notice).toBe(3)
   })
   it('does not switch turns or publish a game result when the transaction fails',async()=>{
     const f=await fixture(),before=(await f.runtime.state()).debug.headSeq

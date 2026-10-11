@@ -12,6 +12,8 @@ import type { ActionAffordance } from '@harness-world/kernel'
 
 export interface PlaytestState {
   readonly busy: boolean
+  /** Public permission to submit another player input, cancelling only unfinished NPC work. */
+  readonly canInterrupt?: boolean
   readonly paused: boolean
   readonly playerFeedback?: { phase: string; message: string }
   readonly phaseLabel: string

@@ -7,6 +7,7 @@
 | 示例 | 适合验证 |
 | --- | --- |
 | [prototype-g1](../../../examples/world-packs/prototype-g1) | 最小角色、房间、物品与交互 |
+| [character-autonomy](../../../examples/world-packs/character-autonomy/README.md) | 实验分支的关键角色自主行动、作者触发与区域许可 |
 | [launcher-demo](../../../examples/world-packs/launcher-demo) | 变量、猜数字活动、包预设与社区前端 |
 | [hand-in-hand](../../../examples/world-packs/hand-in-hand) | 角色交互与关系解除绑定 |
 | [multiple-activities](../../../examples/world-packs/multiple-activities) | 两场独立活动、暂停、继续与作者恢复条件 |
