@@ -1,5 +1,7 @@
 # 当前项目状态
 
+**语言 / Languages：[简体中文](PROJECT-STATE.md) | [English](PROJECT-STATE.en.md)**
+
 核对日期：2026-10-10。Perspectra 是玩家推动的多角色 RP 原型；角色自主表达，系统维护认知权限和已裁定的重要世界状态。当前机制见[代码技术文档](architecture/README.md)，历史阶段见[旧状态记录](../archive/prototype-g1-g4/PROJECT-STATE-history-through-20261009.md)。
 
 ## 当前入口
