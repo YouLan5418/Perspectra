@@ -1,5 +1,7 @@
 # Perspectra：项目愿景与核心设计理念
 
+**语言 / Languages：[简体中文](vision.md) | [English](vision.en.md)**
+
 > **文档性质：产品愿景与设计原则。** 本文描述 Perspectra 希望实现的游戏形态及长期方向，并不表示所有能力已经实现。当前源码、测试范围与发行包状态以 [项目状态](PROJECT-STATE.md) 和仓库 README 为准。
 
 ## 一、项目定位
