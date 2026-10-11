@@ -1,5 +1,7 @@
 # Perspectra 文档
 
+**语言 / Languages：[简体中文](README.md) | [English](README.en.md)**
+
 | 我想了解 | 入口 |
 | --- | --- |
 | 产品愿景：最终想做什么游戏 | [Perspectra 项目愿景与核心设计理念](current/vision.md) |
