@@ -9,6 +9,7 @@ export interface PlayerView {
   activity?: { title: string; active: boolean; phase: string; public: WorldJsonObject }
   activities?: { key: string; title: string; active: boolean; suspended: boolean; phase: string; public: WorldJsonObject }[]
   status: 'ready' | 'busy' | 'paused' | 'error'
+  canInterrupt?: boolean
   feedback?: { phase: string; message: string }
   settings?: PlaytestState['playerSettings']
   tailRound?: PlaytestState['tailRound']
@@ -78,6 +79,7 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
       visibleCharacters: [...state.world.currentScene.presentNpcNames], recipients: (state.world.currentScene.recipients ?? []).map(({ id, name }) => ({ id, name })) } : null,
     ...(state.playerFeedback ? { feedback: structuredClone(state.playerFeedback) } : {}),
     status: state.busy ? 'busy' : state.error ? 'error' : state.paused ? 'paused' : 'ready',
+    ...(state.canInterrupt===undefined?{}:{canInterrupt:state.canInterrupt}),
     ...(state.playerSettings?{settings:{inputCharacters:state.playerSettings.inputCharacters,reading:{fontSize:state.playerSettings.reading.fontSize,lineHeight:state.playerSettings.reading.lineHeight,autoFollow:state.playerSettings.reading.autoFollow}}}:{}),
     ...(state.tailRound ? {tailRound: state.tailRound} : {}),
     history: state.transcript.map(line => ({ seq: line.seq, speaker: line.speaker, text: line.text, player: line.player, ...(line.segments === undefined ? {} : { segments: line.segments }) })),
@@ -86,7 +88,7 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
 }
 export function playerViewPatch(before: PlayerView, after: PlayerView): Record<string, unknown> | null {
   const changes: Record<string, unknown> = {}
-  for (const key of ['game', 'player', 'scene', 'status', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback'] as const) {
+  for (const key of ['game', 'player', 'scene', 'status', 'canInterrupt', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback'] as const) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
   }
   if (JSON.stringify(before.history) !== JSON.stringify(after.history)) {

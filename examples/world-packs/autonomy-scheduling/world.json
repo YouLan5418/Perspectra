@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "worldpack-world/v1",
+  "title": "自主目标与并行调度组合实验",
+  "description": "保管员独自在工作室，目标是把黄铜钥匙安置到档案室。玩家在前后室往返，其他角色分别处理自己的观察。",
+  "timeMode": "TURN_DRIVEN",
+  "roundQueueLimit": 16,
+  "coreProfiles": {
+    "rulebook": {
+      "rulebookId": "builtin:speak-move",
+      "version": 2
+    },
+    "sceneDecision": {
+      "pluginId": "builtin:scene-decision",
+      "version": "2.0.0"
+    },
+    "agentContext": {
+      "pluginId": "builtin:agent-context",
+      "version": "2.0.0"
+    },
+    "presentation": {
+      "profileId": "builtin:deterministic-presentation",
+      "version": "1.0.0"
+    }
+  },
+  "initialFacts": [],
+  "playerInputPolicy": {
+    "version": "player-intent/v1"
+  }
+}

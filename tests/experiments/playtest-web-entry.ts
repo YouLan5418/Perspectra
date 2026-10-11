@@ -60,6 +60,7 @@ async function main(): Promise<void> {
     preset:settings?settings.effective(instanceId,recommended):process.env.PERSPECTRA_ROLE_PRESET===undefined?recommended:rolePreset(JSON.parse(process.env.PERSPECTRA_ROLE_PRESET)),
     presetMapping:settings?rolePresetMapping(mapping):rolePresetMapping(JSON.parse(process.env.PERSPECTRA_ROLE_MAPPING??'{}')),
     ...(launch.memoryCore ? { memoryCore: true } : {}),
+    ...(launch.serialScheduling?{serialScheduling:true}:{}),
     ...(launch.tuning === undefined ? {} : { tuning: launch.tuning }),
     ...(shadowAudit === undefined ? {} : { shadowAudit }),
     ...(model === undefined ? {} : { model }),

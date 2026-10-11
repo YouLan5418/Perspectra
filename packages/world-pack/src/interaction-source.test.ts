@@ -1,5 +1,9 @@
-import { hashWorldJson, type InteractionPackageDescription } from '@harness-world/contracts'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { hashWorldJson, interactionPackageDescription, type InteractionPackageDescription } from '@harness-world/contracts'
+import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { describe, expect, it } from 'vitest'
+import { compileWorldPackSource } from './tooling.ts'
 import {
   compileInteractionCatalog,
   parseCompiledWorldPackV5,
@@ -41,7 +45,9 @@ const entity = (bindings: readonly { readonly bindingId: string; readonly id?: s
 
 describe('interaction source rejection', () => {
   it('rejects the v5 manifest outside its own version and over the file limit', () => {
-    expect(() => parseWorldPackSourceManifestV5({ sourceSchemaVersion: 'worldpack-source/v4' }))
+    const manifest = JSON.parse(readFileSync(new URL('../../../examples/world-packs/prototype-g1/worldpack.source.json', import.meta.url), 'utf8'))
+    expect(() => parseWorldPackSourceManifestV5(manifest)).not.toThrow()
+    expect(() => parseWorldPackSourceManifestV5({ ...manifest, sourceSchemaVersion: 'worldpack-source/v4' }))
       .toThrow(/must be worldpack-source\/v5/u)
     // V4 accepts exactly 512 declared files; the interaction file is the one that tips it over.
     const one = (name: string) => [name]
@@ -176,7 +182,10 @@ describe('interaction source rejection', () => {
     expect(compiled.packages[0]!.dependencies).toEqual([{ id: 'base:rule', version: 1 }])
   })
 
-  it('rejects a compiled envelope that is not a v5 envelope', () => {
-    expect(() => parseCompiledWorldPackV5({ compiledSchemaVersion: 'worldpack/v4' })).toThrow(/must be worldpack\/v5/u)
+  it('rejects a compiled envelope that is not a v5 envelope', async () => {
+    const pack = await compileWorldPackSource(fileURLToPath(new URL('../../../examples/world-packs/prototype-g1/', import.meta.url)),
+      [interactionPackageDescription(createBasicInteractionPackage())])
+    expect(() => parseCompiledWorldPackV5(pack)).not.toThrow()
+    expect(() => parseCompiledWorldPackV5({ ...pack, compiledSchemaVersion: 'worldpack/v4' })).toThrow(/must be worldpack\/v5/u)
   })
 })

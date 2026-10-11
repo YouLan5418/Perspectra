@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "worldpack-world/v1",
+  "title": "前台与后台动态调度实验",
+  "description": "玩家和留守者在后室，同行者与目击者在前室。玩家移动到前室后，分别给予离开与到达的见证者处理机会。",
+  "timeMode": "TURN_DRIVEN",
+  "roundQueueLimit": 16,
+  "coreProfiles": {
+    "rulebook": {
+      "rulebookId": "builtin:speak-move",
+      "version": 2
+    },
+    "sceneDecision": {
+      "pluginId": "builtin:scene-decision",
+      "version": "2.0.0"
+    },
+    "agentContext": {
+      "pluginId": "builtin:agent-context",
+      "version": "2.0.0"
+    },
+    "presentation": {
+      "profileId": "builtin:deterministic-presentation",
+      "version": "1.0.0"
+    }
+  },
+  "initialFacts": [],
+  "playerInputPolicy": {
+    "version": "player-intent/v1"
+  }
+}

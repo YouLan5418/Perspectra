@@ -21,6 +21,7 @@ export class TailRoundRuntime {
   #runtime: FrozenWorldRuntimeCore
   #selection: TailSelection
   #busy = false
+  #interrupting = false
   #closed = false
   #escaping = false
   #candidate: FrozenWorldRuntimeCore | undefined
@@ -50,7 +51,8 @@ export class TailRoundRuntime {
   requestInspection(enabled?: boolean) { return this.#runtime.requestInspection(enabled) }
   async state(): Promise<PlaytestState> {
     const state = await this.#runtime.state()
-    return { ...state, ...(state.playerFeedback ? {playerFeedback:{phase:this.#regenerating?'正在重新生成末端回合':this.#busy&&!state.busy?'正在整理本轮进度':state.playerFeedback.phase,message:this.#notice||state.playerFeedback.message}}:{}), busy: this.#busy || state.busy, phaseLabel: this.#regenerating ? '正在重新生成末端回合' : state.phaseLabel,
+    return { ...state, canInterrupt:state.canInterrupt===true && !this.#interrupting && !this.#regenerating && !this.#closed && !this.#escaping,
+      ...(state.playerFeedback ? {playerFeedback:{phase:this.#regenerating?'正在重新生成末端回合':this.#busy&&!state.busy?'正在整理本轮进度':state.playerFeedback.phase,message:this.#notice||state.playerFeedback.message}}:{}), busy: this.#busy || state.busy, phaseLabel: this.#regenerating ? '正在重新生成末端回合' : state.phaseLabel,
       notice: this.#notice || state.notice,
       tailRound: this.#selection.tail ? { id: this.#selection.tail.id, worldVersion: this.#selection.version,
         candidateIds: this.#candidates().map(candidate => candidate.id),
@@ -81,6 +83,8 @@ export class TailRoundRuntime {
       interaction: createInstalledInteractionPackages().map(interactionPackageDescription),
       provider: this.options.provider, protocol: this.options.protocol ?? 'openai', model: this.options.model ?? null, endpoint: endpoint?.href ?? null,
       thinkingLevel: this.options.thinkingLevel ?? null, intentModel: this.options.intentModel ?? null, preset: this.options.preset ?? {}, presetMapping: this.options.presetMapping ?? {},
+      serialScheduling: !!this.options.serialScheduling,
+      stagedAutonomy: !!this.options.stagedAutonomy,
       playSettings:this.options.playSettings??null, tuning: this.options.tuning ?? null, memoryCore: !!this.options.memoryCore,
       memoryContextBudget: this.options.memoryContextBudget ?? null })
   }
@@ -106,6 +110,16 @@ export class TailRoundRuntime {
     } finally { this.#runtime.releaseCognition(); this.#end() }
   }
   async submit(text: string, idempotencyKey?: string): Promise<PlaytestState> {
+    if (this.#interrupting) throw new PlaytestBusyError('正在受理新的输入，请稍候。')
+    if (this.#busy) {
+      this.#interrupting=true
+      try {
+        const state=await this.#runtime.state()
+        if (!state.canInterrupt || this.#regenerating || this.#closed || this.#escaping) throw new PlaytestBusyError('请等待当前操作完成。')
+        this.#runtime.abortWork()
+        await this.#done
+      } finally {this.#interrupting=false}
+    }
     if (text.startsWith('/vars ')) {
       this.#begin()
       try { this.#write({ ...this.#selection, tail: null }); await this.#runtime.submit(text) } finally { this.#end() }
@@ -113,6 +127,7 @@ export class TailRoundRuntime {
     return this.state()
   }
   async perform(action: PlaytestAction): Promise<PlaytestState> {
+    if (this.#busy || this.#interrupting) throw new PlaytestBusyError('请等待当前操作完成。')
     if(action.actionType==='interact' && ['host:activity-start','host:activity-retry','host:activity-suspend','host:activity-resume','host:activity-abandon'].includes(String((action.parameters.definitionRef as WorldJsonObject|undefined)?.id))){
       const state=await this.state()
       const current=action.parameters.activityKey===undefined?state.activity:state.activities?.find(view=>view.activityKey===action.parameters.activityKey)

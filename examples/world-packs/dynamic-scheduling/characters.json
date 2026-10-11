@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "玩家",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:back-room",
+      "portrayal": {
+        "summary": "你在后室与留守者交谈，可以走到前室继续互动。",
+        "speakingStyle": "由玩家决定。"
+      }
+    },
+    {
+      "characterId": "character:companion",
+      "displayName": "同行者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "你在前室整理桌面，愿意自然招呼来到这里的人，也有自己的判断。",
+        "speakingStyle": "短句，少解释。"
+      },
+      "interactionBindings": [
+        {
+          "bindingId": "binding:companion-hold",
+          "definition": {
+            "id": "base:hold-hand",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "characterId": "character:friend",
+      "displayName": "留守者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:back-room",
+      "portrayal": {
+        "summary": "你在后室阅读自己的工作笔记，独立思考今天的安排。你可以自己决定回应、继续阅读或采取行动。",
+        "speakingStyle": "客气，偶尔简短直接。"
+      }
+    },
+    {
+      "characterId": "character:witness",
+      "displayName": "目击者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "你在前室与同行者一起休息。听到新的交流时，可以根据自己知道的情况接话。",
+        "speakingStyle": "简短自然，不代替别人决定。"
+      },
+      "interactionBindings": []
+    }
+  ]
+}

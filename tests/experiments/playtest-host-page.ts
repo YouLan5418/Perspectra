@@ -45,7 +45,7 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
   function applyView(next,notify=true){
     if(!playerView){playerView=next;return}
     const changes={};
-    for(const key of ['game','player','scene','status','actions','tailRound','settings','activity','feedback'])if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key];
+    for(const key of ['game','player','scene','status','canInterrupt','actions','tailRound','settings','activity','activities','feedback'])if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key];
     if(JSON.stringify(playerView.history)!==JSON.stringify(next.history)){
       const prefix=playerView.history.length<=next.history.length&&playerView.history.every((line,i)=>JSON.stringify(line)===JSON.stringify(next.history[i]));
       if(prefix)changes.historyAppend=next.history.slice(playerView.history.length);else changes.history=next.history;

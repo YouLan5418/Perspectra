@@ -6,6 +6,7 @@ export interface PlaytestLaunchArguments {
   readonly tuning?: PlaytestTuning
   readonly provider: 'local' | 'ollama' | 'deepseek'
   readonly memoryCore?: boolean
+  readonly serialScheduling?: boolean
   readonly packPath?: string
   readonly dataDirectory?: string
   readonly shadowConfigPath?: string
@@ -20,8 +21,10 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
   let tuning: PlaytestTuning | undefined
   let settings: PlaySettings | undefined
   let memoryCore = false
+  let serialScheduling = false
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]
+    if (argument==='--serial-scheduling') {if(serialScheduling)throw new Error('--serial-scheduling may be supplied only once');serialScheduling=true;continue}
     if (argument === '--memory-core') {
       if (memoryCore) throw new Error('--memory-core may be supplied only once')
       memoryCore = true; continue
@@ -55,6 +58,7 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
   if(settings && tuning)throw new Error('--play-settings 与 --tuning 不可同时使用。')
   return {
     provider,
+    ...(serialScheduling?{serialScheduling:true}:{}),
     ...(settings===undefined?{}:{playSettings:settings}),
     ...(memoryCore ? { memoryCore: true } : {}),
     ...(tuning === undefined ? {} : { tuning }),

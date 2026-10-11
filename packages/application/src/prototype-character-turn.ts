@@ -1,6 +1,6 @@
 import { characterVisibleItems } from './character-visible-items.ts'
 import { randomUUID } from 'node:crypto'
-import { brandId, parseExpressionSegments, resolutionAuthority, type CharacterId, type WorldAddress, type WorldEventDraft,
+import { brandId, canonicalizeWorldJson, parseExpressionSegments, resolutionAuthority, type CharacterId, type WorldAddress, type WorldEventDraft,
   type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { characterRelationObservations, currentCharacterLifecycle,
   type CompiledWorldManifest, type RulebookRegistry } from '@harness-world/kernel'
@@ -34,10 +34,24 @@ export interface PrototypeRecallShadowObservation {
   readonly excludedSourceSeqs: readonly number[]
 }
 export interface PrototypeTurnResult {
-  readonly status: 'published' | 'abstained' | 'budget_exhausted' | 'interrupted' | 'failed'
+  readonly status: 'published' | 'abstained' | 'budget_exhausted' | 'interrupted' | 'inactive' | 'stale' | 'failed'
   readonly calls: number
+  /** Last prefix actually read by the model; scheduling must not consume later observations. */
+  readonly asOfWorldSeq?: number
   readonly performResult?: WorldJsonObject
   readonly failure?: 'provider_failed' | 'invalid_output' | 'preset_failed'
+}
+
+// Turns sharing one store may compute independently, but serialize their complete commit/projection.
+// Nothing here survives a process or becomes part of the world's durable protocol.
+const commits = new WeakMap<WorldStore, Promise<void>>()
+async function commitInOrder<T>(store: WorldStore, work: () => Promise<T>): Promise<T> {
+  const previous = commits.get(store) ?? Promise.resolve()
+  let release!: () => void
+  const current = new Promise<void>(done => { release = done })
+  commits.set(store, current)
+  await previous
+  try { return await work() } finally { release(); if (commits.get(store) === current) commits.delete(store) }
 }
 
 function object(value: unknown): WorldJsonObject {
@@ -61,7 +75,7 @@ function keys(value: WorldJsonObject, allowed: readonly string[]): void {
  * Intermediate model work is ephemeral; a committed operation is never rolled back for a failed reply.
  */
 export class PrototypeCharacterTurn {
-  #busy = false
+  readonly #active = new Set<CharacterId>()
   readonly #manifest: CompiledWorldManifest
   readonly #manifestHash
   readonly #scene: SceneDecisionService
@@ -88,6 +102,8 @@ export class PrototypeCharacterTurn {
     readonly activationTimeoutMs?: number
     readonly recentObservations?: number
     readonly recentSelfObservations?: number
+    /** Only the ordinary, locally adjudicated path permits reusing an unchanged authorized view. */
+    readonly allowUnrelatedCommits?: boolean
   }) {
     if(options.activationTimeoutMs!==undefined&&(!Number.isSafeInteger(options.activationTimeoutMs)||options.activationTimeoutMs<1000||options.activationTimeoutMs>600000))throw new RangeError('invalid activation timeout')
     parseExpressionSegments([{type:'speech',text:'x'}],options.publicationCharacters??2000)
@@ -101,11 +117,28 @@ export class PrototypeCharacterTurn {
     this.#view = new CharacterViewBuilder(options.store)
   }
 
+  #visibleState(characterId: CharacterId, asOfWorldSeq: number, canPerform: boolean): string {
+    const history = this.options.store.readEvents(this.options.address, asOfWorldSeq)
+    const { asOfWorldSeq: _viewSeq, bundleHash: _viewHash, ...view } = this.#view.rebuildAt(this.options.address, characterId, asOfWorldSeq)
+    const { asOfWorldSeq: _cognitionSeq, bundleHash: _cognitionHash, ...cognition } = new CognitionProjectionRebuilder(this.options.store)
+      .rebuildCharacterAt(this.options.address, characterId, asOfWorldSeq)
+    const scene = this.#scene.decideFromEvents(this.options.address, characterId, history, asOfWorldSeq)
+    const rules = this.options.rulebooks.resolve(this.#manifest.rulebook.rulebookId, this.#manifest.rulebook.version, 'turn-view', this.options.address)
+    const affordances = rules.affordances({manifest:this.#manifest,manifestHash:this.#manifestHash,
+      events:history,characterId,asOfWorldSeq,publicationCharacters:this.options.publicationCharacters??2000,
+      resolutionAuthority:resolutionAuthority('agent','standard')}).filter(value => canPerform || value.actionType === 'speak')
+    return Buffer.from(canonicalizeWorldJson({ view, cognition, people: scene.observerIds, affordances,
+      items: characterVisibleItems(this.#manifest, history, characterId, scene.observerIds) } as unknown as WorldJsonObject)).toString('utf8')
+  }
+
   async run(characterId: CharacterId, options: { readonly signal?: AbortSignal; readonly maxCalls?: 1 | 2 | 3;
+    /** Strict decision-call ceiling, including the optional recall follow-up. */
+    readonly maxModelCalls?: number;
+    readonly onCommitted?: (asOfWorldSeq: number, headSeq: number) => void;
     readonly stimulus?: readonly WorldJsonObject[];
     readonly continuationOf?: { readonly actionId: string; readonly afterSeq?: number;
       readonly action: { readonly actionType: string; readonly parameters: WorldJsonValue } } } = {}): Promise<PrototypeTurnResult> {
-    if (this.#busy) throw new Error('single-turn prototype is busy')
+    if (this.#active.has(characterId)) throw new Error('character turn is busy')
     if (this.options.store.activeReactionCycle(this.options.address) !== undefined) {
       throw new Error('finish the existing Reaction Cycle before using the isolated prototype')
     }
@@ -113,7 +146,7 @@ export class PrototypeCharacterTurn {
       || this.#manifest.playerBindings.some(binding => binding.characterId === characterId)) {
       throw new TypeError('activation requires a declared NPC')
     }
-    this.#busy = true
+    this.#active.add(characterId)
     const ownerId = `prototype-turn:${randomUUID()}`
     const signal = options.signal === undefined ? AbortSignal.timeout(this.options.activationTimeoutMs??120_000)
       : AbortSignal.any([options.signal, AbortSignal.timeout(this.options.activationTimeoutMs??120_000)])
@@ -122,10 +155,11 @@ export class PrototypeCharacterTurn {
     let recalledThisActivation = false
     let performResult: WorldJsonObject | undefined
     let modelFailure: PrototypeTurnResult['failure']
+    let asOfWorldSeq: number | undefined
     const done = (status: PrototypeTurnResult['status']): PrototypeTurnResult => ({ status, calls,
+      ...(asOfWorldSeq === undefined ? {} : { asOfWorldSeq }),
       ...(performResult === undefined ? {} : { performResult }) })
     try {
-      lease = this.options.leases.acquire(this.options.address, ownerId, Math.max(180_000,(this.options.activationTimeoutMs??120_000)+60_000))
       if (options.continuationOf !== undefined) {
         const prior = this.options.store.readEvents(this.options.address).findLast(event => event.eventType === 'action.resolved'
           && event.seq > (options.continuationOf!.afterSeq ?? 0)
@@ -139,23 +173,31 @@ export class PrototypeCharacterTurn {
       const maxCalls = options.continuationOf === undefined ? (options.maxCalls ?? 2) : 2
       for (let step = options.continuationOf === undefined ? 0 : 1; step < maxCalls; step += 1) {
         signal.throwIfAborted()
-        const canPerform = options.continuationOf === undefined && (step === 0 || (step === 1 && maxCalls === 3))
-        const head = this.options.store.head(this.options.address)
-        const history = this.options.store.readEvents(this.options.address, head.headSeq)
+        if (calls >= (options.maxModelCalls ?? Infinity)) return done('budget_exhausted')
+        const remaining = (options.maxModelCalls ?? Infinity) - calls
+        const canPerform = remaining >= 2 && options.continuationOf === undefined && (step === 0 || (step === 1 && maxCalls === 3))
+        let head = this.options.store.head(this.options.address)
+        asOfWorldSeq = head.headSeq
+        let history = this.options.store.readEvents(this.options.address, head.headSeq)
+        const state = this.options.allowUnrelatedCommits ? this.#visibleState(characterId, head.headSeq, canPerform) : undefined
+        const isCurrent = () => {
+          const current = this.options.store.head(this.options.address).headSeq
+          return current === asOfWorldSeq || (state !== undefined && state === this.#visibleState(characterId, current, canPerform))
+        }
         const sourceTicks = new Map(history.map(event => [event.seq, event.tick]))
         const withSourceAge = (memory: RecalledMemory) => {
           const sourceTick = sourceTicks.get(memory.sourceMaxSeq)
           if (sourceTick === undefined) throw new Error('memory source event is missing')
           return { ...memory, sourceAgeTicks: head.tick - sourceTick }
         }
-        if (currentCharacterLifecycle(history, characterId) !== 'active') return done('interrupted')
+        if (currentCharacterLifecycle(history, characterId) !== 'active') return done('inactive')
         const rules = this.options.rulebooks.resolve(this.#manifest.rulebook.rulebookId,
           this.#manifest.rulebook.version, ownerId, this.options.address)
-        const ruleContext = { publicationCharacters:this.options.publicationCharacters??2000, manifest: this.#manifest, manifestHash: this.#manifestHash,
+        let ruleContext = { publicationCharacters:this.options.publicationCharacters??2000, manifest: this.#manifest, manifestHash: this.#manifestHash,
           events: history, characterId, asOfWorldSeq: head.headSeq,
           resolutionAuthority: resolutionAuthority('agent', 'standard') }
         const view = this.#view.rebuildAt(this.options.address, characterId, head.headSeq)
-        const scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
+        let scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
         const character = this.#manifest.characters.find(value => value.characterId === characterId)!
         const recalled = this.options.memory?.prepareStimulus({
           address: this.options.address, roundId: brandId(`${ownerId}:${step}:memory`, 'InteractionRoundId'),
@@ -218,7 +260,7 @@ export class PrototypeCharacterTurn {
           manifest: this.#manifest, events: history, actorId: characterId,
           action: object(performResult.action) as { actionType: string; parameters: WorldJsonValue },
           status: String(performResult.status), reason: typeof performResult.reason === 'string' ? performResult.reason : null })
-        const canRecall = this.options.memory !== undefined && !recalledThisActivation && performResult === undefined
+        const canRecall = remaining >= 3 && this.options.memory !== undefined && !recalledThisActivation && performResult === undefined
         const request: PrototypeTurnRequest = { context, continuation: step !== 0, canPerform, canRecall,
           ...(visibleResult === undefined ? {} : { result: { ...visibleResult,
             instruction: canPerform
@@ -227,9 +269,7 @@ export class PrototypeCharacterTurn {
         let raw = await this.options.decide(request, signal)
         modelFailure = undefined
         signal.throwIfAborted()
-        // A changed world means this output is stale, including a change while awaiting the model.
-        if (this.options.store.head(this.options.address).headSeq !== head.headSeq) return done('interrupted')
-        lease = this.options.leases.renew(this.options.address, ownerId, lease.fencingToken, Math.max(180_000,(this.options.activationTimeoutMs??120_000)+60_000))
+        if (!isCurrent()) return done('stale')
         modelFailure = 'invalid_output'
         let decision = object(raw)
         this.options.validateDecision?.(decision, request)
@@ -260,11 +300,11 @@ export class PrototypeCharacterTurn {
           raw = await this.options.decide({ ...request, canRecall: false, recallEvidence }, signal)
           modelFailure = undefined
           signal.throwIfAborted()
-          if (this.options.store.head(this.options.address).headSeq !== head.headSeq) return done('interrupted')
-          lease = this.options.leases.renew(this.options.address, ownerId, lease.fencingToken, Math.max(180_000,(this.options.activationTimeoutMs??120_000)+60_000))
+          if (!isCurrent()) return done('stale')
           modelFailure = 'invalid_output'
           decision = object(raw)
           this.options.validateDecision?.(decision, request)
+          if (decision.decision === 'perform' && calls + 1 > (options.maxModelCalls ?? Infinity)) return done('budget_exhausted')
         }
         if (decision.decision === 'abstain') {
           keys(decision, ['decision'])
@@ -294,6 +334,20 @@ export class PrototypeCharacterTurn {
           action = { actionType: decision.actionType, parameters }
         } else throw new TypeError('operation budget exhausted; publish or abstain only')
         modelFailure = undefined
+        const committed = await commitInOrder(this.options.store, async () => {
+        signal.throwIfAborted()
+        if (!isCurrent()) return false
+        lease = this.options.leases.acquire(this.options.address, ownerId, 30_000)
+        try {
+        // Resolve and grant audiences at the latest prefix, never at a speculative model prefix.
+        head = this.options.store.head(this.options.address)
+        history = this.options.store.readEvents(this.options.address, head.headSeq)
+        // The head may advance between the earlier freshness check and acquiring the lease.
+        // Recheck while holding the lease before using the latest prefix to resolve this output.
+        if (!isCurrent()) return false
+        ruleContext = { ...ruleContext, events: history, asOfWorldSeq: head.headSeq }
+        scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
+        this.options.validateDecision?.(decision, request)
         const roundId = brandId(`${ownerId}:${step}`, 'InteractionRoundId')
         const actionId = `${roundId}:action`
         const resolution = rules.resolve({ ...ruleContext, action, roundId, actionId })
@@ -363,9 +417,19 @@ export class PrototypeCharacterTurn {
             reason: resolution.reason ?? null, resolutionAuthority: ruleContext.resolutionAuthority },
         })
         await this.options.onCommitted?.()
-        if (action.actionType === 'speak') return done(resolution.status === 'accepted' ? 'published' : 'failed')
-        performResult = { operationId: actionId, action, status: resolution.status, reason: resolution.reason ?? null,
+        options.onCommitted?.(asOfWorldSeq!, this.options.store.head(this.options.address).headSeq)
+        if (action.actionType !== 'speak') performResult = { operationId: actionId, action, status: resolution.status, reason: resolution.reason ?? null,
           eventRefs: resolution.events.map((_, index) => head.headSeq + index + 1) }
+        return resolution.status
+        } finally {
+          this.options.leases.release(this.options.address, ownerId, lease.fencingToken)
+          lease = undefined
+        }
+        })
+        if (committed === false) return done('stale')
+        if (action.actionType === 'speak') {
+          return done(committed === 'accepted' ? 'published' : 'failed')
+        }
       }
       return done('budget_exhausted')
     } catch (error) {
@@ -377,7 +441,7 @@ export class PrototypeCharacterTurn {
       return { ...done('failed'), failure: modelFailure }
     } finally {
       if (lease !== undefined) this.options.leases.release(this.options.address, ownerId, lease.fencingToken)
-      this.#busy = false
+      this.#active.delete(characterId)
     }
   }
 }

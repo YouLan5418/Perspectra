@@ -6,6 +6,49 @@
 
 World Pack 用于定义人物、地点、物品、认知、场景、叙事与 Interaction。当前网页接受 `worldpack-source/v5` 源目录，以宿主已安装能力编译；旧格式不会自动回退到旧运行时。可参考 `ai-girls-awaken-v10`、`prototype-g1` 和 `hand-in-hand`。
 
+## 关键角色自主行动（2026-10-11，实验分支）
+
+例如玩家与同行者在前室说话，独自在后室的留守者也可以整理自己的安排，决定移动后再参加讨论。唤醒只提供处理机会，不会把前室发言或私语传给场外角色。目标复用角色自身 cognition/goals，表达、沉默、操作与结果续写仍由同一个 Character Turn 处理。
+
+世界包在 `worldpack.source.json` 的 `assetFiles` 登记 `autonomy.json`，宿主按已编译资源摘要读取声明；没有登记就不加载。不增加包格式版本或独立活动，也不执行新的作者脚本。最小样例见[character-autonomy](../../../examples/world-packs/character-autonomy/README.md)。
+
+```json
+{
+  "characters": [{
+    "characterId": "character:friend",
+    "triggers": [{"actionType": "move"}, {"actionType": "interact", "definitionId": "base:take"}],
+    "everyPlayerTurns": 2,
+    "opportunities": 1,
+    "interactions": ["base:take"],
+    "locationIds": ["location:front-room", "location:back-room"],
+    "targetIds": ["entity:brass-key"]
+  }]
+}
+```
+
+| 字段 | 含义 |
+| --- | --- |
+| characters | 最多 8 个不重复的已声明 NPC，不可包含玩家 |
+| triggers | 匹配成功提交的 speak/move/interact；interact 可按 definitionId 限定。多个条件为“或” |
+| 活动触发 | 可写 `{"activityKey":"default","operation":"guess"}`，只匹配实际玩家活动操作 |
+| everyPlayerTurns | 每累计多少个符合条件的玩家提交触发一次，1–100；失败、重复请求、NPC 行动和活动开始/重试/暂停/恢复/放弃不计数 |
+| opportunities | 作者请求的自主激活次数，1–100；实际取启动器机会限制与此值的较小值 |
+| interactions | 此次自主激活可尝试的交互定义 ID 白名单，空列表仅保留表达和区域内移动 |
+| locationIds | 可自主处理与移动的已声明地点；角色当前不在范围内则本次不给机会 |
+| targetIds | 可选的受控目标 ID 白名单；限定直接目标及裁定返回的非自身角色/实体/关系绑定，不扩大原有可见性 |
+
+同一玩家事务即使匹配多个条件也只计一次。宿主从完整已提交事件及现有行动记录推导次数，不使用世界 tick，不另存计数器；节点、分叉与末端候选随同一事件前缀恢复。取消、沉默、预算未覆盖的机会不补发、不积攒，不恢复未提交队列。
+
+默认每个自主机会最多一次受控操作及结果续写；有调用余量时可主动召回补问。作者交互和区域限制同时过滤 affordances 并在 Rulebook 裁定时检查，不能靠直接模型参数绕过；声明也不能赋予宿主未安装的交互能力。自定义交互中的所有业务语义仍由其实现负责，运行时不解析自由文字来证明目标已完成。
+
+启动器按游戏包保存独立资源上限，下次启动生效：每角色 1 次自主机会、全部自主角色 3 次模型调用、后续反应 1 波/4 次调用，自主及后续共用 60 秒。机会设 0 关闭自主唤醒，反应波次设 0 关闭后续连锁；模型请求与单角色时限继续复用既有设置。召回、格式修正、stale 重算和结果续写都占用所属调用预算，Core 记忆 Utility 沿用自身预算。
+
+动态条件满足时，普通观察者与到期关键角色同时进入待派发队列；最多两个在途激活，场外最多一个，当前场景优先。派发时排除相同地点及同一角色；在途移动合流后，已提交结果续写继续，过期视图重算。关键角色的普通根回应合并到自主机会，刺激仍来自自己的授权观察。自主行动提交后即可为其他授权观察者派发有界反应，不等待所有自主机会结束；普通与后续反应沿用本回合已有激活计数，到期角色不因这段连锁增加自主次数。普通、自主及后续反应分别限制调用数。普通回应已就绪时可合并自主观察，避免重复调用；后续只剩自主来源的观察则使用自主后续预算。普通截止不取消独立自主机会，反之亦然；玩家取消/暂停停止全部未提交计算。
+
+当前主动 Activity 优先拥有参与者调度，自主调度跳过这些参与者；非参与者仍可因声明的玩家活动操作自主处理，不获得活动私有上下文。没有活动参与者排程、变量脚本或 `publicationAudit` 且未启用 `--serial-scheduling` 时，自主机会复用上述动态队列及其公平优先级；其他入口保留普通、自主、后续反应的分段处理。多角色预算不足时不保证全部轮到，场外任务仍逐个执行。独立测量控制 stagedAutonomy 可保留旧分段方式，未加入 Launcher 设置。源码与实测见[接入记录](../studies/autonomy-dynamic-dispatch-20261011.md)。尚不支持动态脚本触发、自动目标完成判定、墙钟自治或后台常驻。
+
+实现：[包声明与许可](../../../tests/experiments/pack-autonomy.ts)、[宿主](../../../tests/experiments/playtest-frozen-runtime.ts)、[启动器参数](../../../desktop/play-settings.ts)。自动回归见[自主调度测试](../../../tests/prototype/character-autonomy.test.ts)，真实模型情况见[实验记录](../studies/character-autonomy-20261011.md)。本分支源码能力不代表发行包已更新。
+
 Interaction 定义和绑定提供玩法可选行为，规则负责重要状态的资格与结果。角色与地点定义不等于运行中当前位置；运行时通过提交事件和当前 view 获得状态。创作者仅在当前玩法明确追踪的机制中增加状态约束，不必结构化所有叙事细节。
 
 ## 包内活动

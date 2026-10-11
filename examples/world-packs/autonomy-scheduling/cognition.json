@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [],
+      "goals": []
+    },
+    {
+      "characterId": "character:companion",
+      "observations": [],
+      "goals": []
+    },
+    {
+      "characterId": "character:friend",
+      "observations": [
+        {
+          "key": "observation:friend-key",
+          "content": "工作室的桌上有黄铜钥匙，档案室是这把钥匙的存放地点。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 600
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:friend-store-key",
+          "objective": {
+            "kind": "narrative",
+            "value": "把工作室里的黄铜钥匙妥善安置到档案室，解除个人保管。根据实际行动结果推进；完成后可以休息，不要反复拿起和搬动已经放妥的钥匙。"
+          },
+          "priorityPermille": 800,
+          "targetKeys": [
+            "entity:brass-key"
+          ],
+          "basisKeys": [
+            "observation:friend-key"
+          ]
+        }
+      ]
+    },
+    {
+      "characterId": "character:witness",
+      "observations": [],
+      "goals": []
+    }
+  ]
+}

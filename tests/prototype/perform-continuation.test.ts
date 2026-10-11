@@ -44,7 +44,7 @@ function fixture(decide: (request: PrototypeTurnRequest, signal: AbortSignal) =>
     roundId: brandId('round:genesis', 'InteractionRoundId'), correlationId: 'test' })
   const turn = new PrototypeCharacterTurn({ ...limits, address, store, leases, availability,
     rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }), decide })
-  return { turn, store, address, directory }
+  return { turn, store, address, directory, leases }
 }
 
 it('commits perform before continuation, then publishes the result-aware expression', async () => {
@@ -121,6 +121,45 @@ it('rechecks a stale item proposal against the latest possession before executio
   const events = f.store.readEvents(f.address)
   expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
   expect(currentEntityState(events, 'entity:cup')?.holderId).toBe(npc)
+})
+
+it('rechecks the authorized view after acquiring the writer lease and releases it when stale', async () => {
+  const f = fixture(async () => ({ decision: 'publish', segments: [{ type: 'speech', text: '基于旧观察的答复' }] }))
+  const acquire = f.leases.acquire.bind(f.leases)
+  let injected = false
+  let injectedCommit: Promise<unknown> | undefined
+  f.leases.acquire = (address, ownerId, ttlMs) => {
+    if (!injected && ownerId.startsWith('prototype-turn:')) {
+      injected = true
+      const external = acquire(address, 'external-writer-before-lease-check')
+      const head = f.store.head(address)
+      injectedCommit = f.store.commitRound({
+        address,
+        transactionId: brandId('transaction:lease-race', 'TransactionId'),
+        roundId: brandId('round:lease-race', 'InteractionRoundId'),
+        expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
+        events: [
+          { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:lease-race', value: {
+            observerId: npc, actionId: 'external:action', content: { actorId: 'character:player',
+              actionType: 'speak', status: 'accepted', speech: { characterId: 'character:player', text: '新的可见信息' } },
+          } } },
+          { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1,
+            roundId: 'round:lease-race' } },
+        ],
+        outbox: [], writerFencingToken: external.fencingToken, correlationId: 'lease-race',
+      })
+      f.leases.release(address, external.ownerId, external.fencingToken)
+    }
+    return acquire(address, ownerId, ttlMs)
+  }
+
+  const result = await f.turn.run(npc)
+  await injectedCommit
+  expect(injected).toBe(true)
+  expect(result.status).toBe('stale')
+  expect(f.store.readEvents(f.address).filter(event => event.eventType === 'character.speak')).toHaveLength(0)
+  const next = acquire(f.address, 'writer-after-stale-result')
+  expect(f.leases.release(f.address, next.ownerId, next.fencingToken)).toBe(true)
 })
 
 it.each(['throw', 'second-operation', 'mixed-draft', 'abstain', 'cancel'] as const)(
@@ -208,7 +247,7 @@ it('keeps another character private observations out of both model calls', async
 
 it('supports a pure expression without invoking perform or a continuation', async () => {
   const f = fixture(async () => ({ decision: 'publish', segments: [{ type: 'narration', text: '轻轻笑了笑。' }] }))
-  expect(await f.turn.run(npc)).toEqual({ status: 'published', calls: 1 })
+  expect(await f.turn.run(npc)).toMatchObject({ status: 'published', calls: 1 })
   const events = f.store.readEvents(f.address)
   expect(currentEntityState(events, 'entity:cup')?.holderId).toBeNull()
   expect(events.filter(event => ['entity.transferred', 'character.moved', 'character.relation-started'].includes(event.eventType)))
