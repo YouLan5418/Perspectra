@@ -2,6 +2,7 @@
 
 | 我想了解 | 入口 |
 | --- | --- |
+| 产品愿景：最终想做什么游戏 | [Perspectra 项目愿景与核心设计理念](current/vision.md) |
 | 普通玩家开始试玩 | [玩家指南](current/guides/player-playtest.md)、[官方试玩包](../examples/world-packs/model-girls-official/README.md) |
 | 最新便携包与验收状态 | [test3 构建记录](current/studies/launcher-portable-test3-20261009.md)、[构建方法](../scripts/release/BUILD.md) |
 | 从入门到理解当前代码 | [代码技术文档](current/architecture/README.md) |
