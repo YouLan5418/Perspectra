@@ -1,5 +1,7 @@
 # Perspectra
 
+**语言 / Languages：[简体中文](README.md) | [English](README.en.md)**
+
 **致力于打造以 AI 角色为核心，融合 Galgame、RPG 与生活模拟 SLG 的半开放式游戏运行平台。**
 
 Perspectra 希望让玩家与拥有独立认知、长期经历和自主行动能力的角色共同生活在持续变化的游戏世界中：自由交流与规则化交互并存，创作者定义关键行为与玩法，重要世界事实由系统裁定。
