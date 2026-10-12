@@ -1,0 +1,141 @@
+[
+  {
+    "case": "E",
+    "rounds": 12,
+    "packHash": "sha256:951e20eed0d007a426a06a630abb5be7481acbf0b16527878440dcdd0d510ddd",
+    "model": "gemini-3.8-flash",
+    "settings": {
+      "playerInputCharacters": 2000,
+      "publicationCharacters": 900,
+      "modelTimeoutSeconds": 60,
+      "activationTimeoutSeconds": 120,
+      "maximumWaves": 3,
+      "maximumNpcCalls": 8,
+      "maximumCallsPerCharacter": 2,
+      "reactionDeadlineSeconds": 180,
+      "autonomyOpportunities": 1,
+      "autonomyNpcCalls": 8,
+      "autonomyReactionWaves": 2,
+      "autonomyReactionCalls": 6,
+      "autonomyDeadlineSeconds": 180,
+      "activityOpportunities": 4,
+      "activityDeadlineSeconds": 90,
+      "memoryTriggerTokens": 170000,
+      "memoryCompactTokens": 120000,
+      "memoryRecentTokens": 16000,
+      "memoryMaxItems": 6,
+      "memoryMaxJsonChars": 12000
+    },
+    "initialLocations": {
+      "character:player": "location:inn",
+      "character:priestess": "location:inn",
+      "character:rival": "location:church"
+    },
+    "databaseIntegrity": {
+      "world.sqlite": [
+        "ok"
+      ],
+      "memory.sqlite": [
+        "ok"
+      ]
+    },
+    "memorySourcesByActor": {
+      "character:player": 38,
+      "character:priestess": 40,
+      "character:rival": 40
+    },
+    "integrityChecks": 12,
+    "failures": [],
+    "errorRounds": [],
+    "rejectedActions": [],
+    "transfers": [
+      {
+        "seq": 47,
+        "characterId": "character:player",
+        "entityId": "entity:cure-record",
+        "fromHolderId": "character:player",
+        "fromLocationId": null,
+        "interactionId": "base:give",
+        "toHolderId": "character:priestess",
+        "toLocationId": null
+      }
+    ],
+    "finalDocument": {
+      "entityId": "entity:cure-record",
+      "locationId": null,
+      "holderId": "character:priestess",
+      "kind": "展开的《双途疗咒摘要》原件，正文清晰可见：银露缓解法需要三日准备，风险较低；烛印速净法当晚可用，但可能造成永久记忆损伤，施术前必须说明此风险并征得患者同意。两法都只是候选方案，不保证治愈。"
+    },
+    "rivalOpportunitiesWithEmptyStimulus": [
+      {
+        "call": 1,
+        "round": 1,
+        "proposal": {
+          "actionType": "interact",
+          "decision": "perform",
+          "parameters": {
+            "bindingId": "binding:silver-take",
+            "targetRef": {
+              "id": "entity:silver-kit",
+              "kind": "entity"
+            },
+            "definitionRef": {
+              "id": "base:take",
+              "version": 1
+            },
+            "arguments": {}
+          }
+        }
+      },
+      {
+        "call": 4,
+        "round": 2,
+        "proposal": {
+          "parameters": {
+            "locationId": "location:archive"
+          },
+          "decision": "perform",
+          "actionType": "move"
+        }
+      },
+      {
+        "call": 6,
+        "round": 3,
+        "proposal": {
+          "decision": "perform",
+          "parameters": {
+            "targetRef": {
+              "kind": "entity",
+              "id": "entity:reserve-kit"
+            },
+            "arguments": {},
+            "bindingId": "binding:reserve-take",
+            "definitionRef": {
+              "version": 1,
+              "id": "base:take"
+            }
+          },
+          "actionType": "interact"
+        }
+      },
+      {
+        "call": 31,
+        "round": 11,
+        "proposal": {
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:church"
+          },
+          "actionType": "move"
+        }
+      }
+    ],
+    "abstentions": [
+      {
+        "round": 10,
+        "actor": "character:rival"
+      }
+    ],
+    "limits": "Mechanical ownership, audience and replay checks only; semantic claims require human review."
+  }
+]

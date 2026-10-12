@@ -1,0 +1,25 @@
+{
+  "boundary": "Manual semantic review; not strategy assertions or automatic NPC intervention.",
+  "observations": [
+    {
+      "case": "live-HqjfpM/E",
+      "round": 7,
+      "speechSeq": 197,
+      "callIndices": [
+        20
+      ],
+      "issue": "Priestess continuation scene contains only herself at church, but publication says player is beside her. Authoritative player at inn; player received no such speech."
+    },
+    {
+      "case": "live-HqjfpM/E",
+      "round": 4,
+      "speechSeq": 134,
+      "issue": "Rival narration attributes the document to player hands, while authoritative holder is priestess. No transfer or persistent holder change resulted."
+    },
+    {
+      "case": "live-HqjfpM/E",
+      "round": 6,
+      "issue": "Player driver repeats a material handover request after accepted give in round 5. NPCs correctly point out prior handover; this repetition is driver behavior, not NPC failure."
+    }
+  ]
+}

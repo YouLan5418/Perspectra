@@ -1,0 +1,39 @@
+{
+  "name": "E",
+  "rounds": 12,
+  "calls": 38,
+  "elapsedMs": 160660,
+  "inputTokens": 151692,
+  "outputTokens": 3815,
+  "totalTokens": 160598,
+  "callsWithUsage": 38,
+  "errorRounds": [
+    4
+  ],
+  "finalEntities": {
+    "entity:cure-record": {
+      "entityId": "entity:cure-record",
+      "locationId": null,
+      "holderId": "character:priestess",
+      "kind": "展开的《双途疗咒摘要》原件，正文清晰可见：银露缓解法需要三日准备，风险较低；烛印速净法当晚可用，但可能造成永久记忆损伤，施术前必须说明此风险并征得患者同意。两法都只是候选方案，不保证治愈。"
+    },
+    "entity:silver-kit": {
+      "entityId": "entity:silver-kit",
+      "locationId": null,
+      "holderId": "character:rival",
+      "kind": "封装的一份银露材料，可用于候选缓解法；不是已完成的治疗。"
+    },
+    "entity:reserve-kit": {
+      "entityId": "entity:reserve-kit",
+      "locationId": null,
+      "holderId": "character:rival",
+      "kind": "封装的一份备用银露材料，可用于候选缓解法；不是已完成的治疗。"
+    }
+  },
+  "finalRecord": {
+    "entityId": "entity:cure-record",
+    "locationId": null,
+    "holderId": "character:priestess",
+    "kind": "展开的《双途疗咒摘要》原件，正文清晰可见：银露缓解法需要三日准备，风险较低；烛印速净法当晚可用，但可能造成永久记忆损伤，施术前必须说明此风险并征得患者同意。两法都只是候选方案，不保证治愈。"
+  }
+}

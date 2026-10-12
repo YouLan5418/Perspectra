@@ -1,0 +1,156 @@
+[
+  {
+    "case": "E",
+    "rounds": 12,
+    "packHash": "sha256:951e20eed0d007a426a06a630abb5be7481acbf0b16527878440dcdd0d510ddd",
+    "model": "gemini-3.8-flash",
+    "settings": {
+      "playerInputCharacters": 2000,
+      "publicationCharacters": 900,
+      "modelTimeoutSeconds": 60,
+      "activationTimeoutSeconds": 120,
+      "maximumWaves": 3,
+      "maximumNpcCalls": 8,
+      "maximumCallsPerCharacter": 2,
+      "reactionDeadlineSeconds": 180,
+      "autonomyOpportunities": 1,
+      "autonomyNpcCalls": 8,
+      "autonomyReactionWaves": 2,
+      "autonomyReactionCalls": 6,
+      "autonomyDeadlineSeconds": 180,
+      "activityOpportunities": 4,
+      "activityDeadlineSeconds": 90,
+      "memoryTriggerTokens": 170000,
+      "memoryCompactTokens": 120000,
+      "memoryRecentTokens": 16000,
+      "memoryMaxItems": 6,
+      "memoryMaxJsonChars": 12000
+    },
+    "initialLocations": {
+      "character:player": "location:inn",
+      "character:priestess": "location:inn",
+      "character:rival": "location:church"
+    },
+    "databaseIntegrity": {
+      "world.sqlite": [
+        "ok"
+      ],
+      "memory.sqlite": [
+        "ok"
+      ]
+    },
+    "memorySourcesByActor": {
+      "character:player": 29,
+      "character:priestess": 35,
+      "character:rival": 35
+    },
+    "integrityChecks": 12,
+    "failures": [],
+    "errorRounds": [],
+    "rejectedActions": [],
+    "transfers": [
+      {
+        "seq": 47,
+        "characterId": "character:player",
+        "entityId": "entity:cure-record",
+        "fromHolderId": "character:player",
+        "fromLocationId": null,
+        "interactionId": "base:give",
+        "toHolderId": "character:priestess",
+        "toLocationId": null
+      }
+    ],
+    "finalDocument": {
+      "entityId": "entity:cure-record",
+      "locationId": null,
+      "holderId": "character:priestess",
+      "kind": "展开的《双途疗咒摘要》原件，正文清晰可见：银露缓解法需要三日准备，风险较低；烛印速净法当晚可用，但可能造成永久记忆损伤，施术前必须说明此风险并征得患者同意。两法都只是候选方案，不保证治愈。"
+    },
+    "rivalOpportunitiesWithEmptyStimulus": [
+      {
+        "call": 1,
+        "round": 1,
+        "proposal": {
+          "decision": "perform",
+          "parameters": {
+            "arguments": {},
+            "targetRef": {
+              "kind": "entity",
+              "id": "entity:silver-kit"
+            },
+            "bindingId": "binding:silver-take",
+            "definitionRef": {
+              "id": "base:take",
+              "version": 1
+            }
+          },
+          "actionType": "interact"
+        }
+      },
+      {
+        "call": 4,
+        "round": 2,
+        "proposal": {
+          "actionType": "move",
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:archive"
+          }
+        }
+      },
+      {
+        "call": 6,
+        "round": 3,
+        "proposal": {
+          "parameters": {
+            "arguments": {},
+            "targetRef": {
+              "kind": "entity",
+              "id": "entity:reserve-kit"
+            },
+            "definitionRef": {
+              "id": "base:take",
+              "version": 1
+            },
+            "bindingId": "binding:reserve-take"
+          },
+          "decision": "perform",
+          "actionType": "interact"
+        }
+      },
+      {
+        "call": 23,
+        "round": 9,
+        "proposal": {
+          "scope": "scene_public",
+          "segments": [
+            {
+              "type": "narration",
+              "text": "塞维恩从容地自随身侧袋中取出一只规整封装的木匣，上面附有教会的净化蜡封与鉴证铭签，平稳地托于案台之上，向伊蕾示意。"
+            },
+            {
+              "text": "“您做事如此严谨，正合仪轨的要旨。这便是主剂‘银露’与调和萃质的封装件。”",
+              "type": "speech"
+            },
+            {
+              "text": "“依典籍所录，主剂以净泉晨露融汇霜华草精粹而成，配以微量圣所祝圣的银析矿粉，能在不伤及脉络的前提下，逐步渗入并剥离附着的晦暗咒力；而那份备用基底则是用于平衡寒性、防止灵力回冲的沉香木髓。”",
+              "type": "speech"
+            },
+            {
+              "type": "speech",
+              "text": "“封装皆完好无损，封蜡亦未有裂纹。您尽可仔细检视封印与批注。至于开封与温火化剂，待洛恩阁下回来、时辰底定之后，我们再当面破封调配，以保效力最盛。”"
+            }
+          ],
+          "decision": "publish"
+        }
+      }
+    ],
+    "abstentions": [
+      {
+        "round": 9,
+        "actor": "character:priestess"
+      }
+    ],
+    "limits": "Mechanical ownership, audience and replay checks only; semantic claims require human review."
+  }
+]

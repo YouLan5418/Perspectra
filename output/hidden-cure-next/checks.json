@@ -1,0 +1,61 @@
+{
+  "beforeLive": {
+    "files": 4,
+    "testsPassed": 37,
+    "command": "pnpm test:related hidden-cure character-autonomy dynamic-scheduling character-visible-items --fileParallelism=false"
+  },
+  "newExperimentRegression": {
+    "testsPassed": 3
+  },
+  "typecheck": "passed",
+  "lint": "passed",
+  "fullDefaultCheck": {
+    "passed": false,
+    "filesPassed": 48,
+    "filesFailed": 3,
+    "testsPassed": 420,
+    "testsFailed": 19,
+    "failures": [
+      {
+        "file": "storyline-crash.test.ts",
+        "tests": 13,
+        "reason": "taskkill failed: 1"
+      },
+      {
+        "file": "tail-round.test.ts",
+        "tests": 5,
+        "reason": "taskkill failed"
+      },
+      {
+        "file": "jev-shadow-runtime.test.ts",
+        "tests": 1,
+        "reason": "fixture provider call count 4 versus 3"
+      }
+    ]
+  },
+  "serialFocusedRecheck": {
+    "filesPassed": 5,
+    "testsPassed": 40,
+    "filesFailed": 1,
+    "testsFailed": 1,
+    "failure": "jev-shadow-runtime fixture call count mismatch reproduced; no source changes to those runtime paths"
+  },
+  "documents": {
+    "passed": true,
+    "pages": 12,
+    "localLinks": 279
+  },
+  "authoritativeAudits": {
+    "runs": 5,
+    "cases": 9,
+    "rounds": 84,
+    "mechanicalFailures": 0,
+    "npcFormatErrorRounds": 2,
+    "semanticReviewSeparate": true
+  },
+  "experimentWorkerCleanupCheck": {
+    "residualOwnedWorkersFound": 0,
+    "scope": "exact storyline-crash-worker/tail-crash-worker script matches created after 2026-10-11 23:09:50 local time"
+  },
+  "scope": "No runtime, permission or scheduler changes. Simulated fixtures establish regressions only; all D/E gameplay uses actual Gemini service."
+}
