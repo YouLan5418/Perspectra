@@ -1,0 +1,66 @@
+{
+  "sourceRevision": "23c37beadfce339663b5e73f580b3e7fe7cae5dd",
+  "recordedFrom": "Commands and results executed in the author session; this file is an index, not raw process output.",
+  "automatedRegression": [
+    {
+      "command": "corepack pnpm@11.7.0 test:related tests/prototype/character-autonomy.test.ts tests/prototype/dynamic-scheduling.test.ts packages/application/src/character-visible-items.test.ts --fileParallelism=false",
+      "matchedFiles": 2,
+      "passedTests": 33,
+      "exitCode": 0,
+      "note": "The third filter matched no file; correct visible-items test was run separately."
+    },
+    {
+      "command": "corepack pnpm@11.7.0 test:related tests/prototype/character-visible-items.test.ts tests/p2.integration.test.ts packages/store-sqlite/src/character-view.test.ts packages/interaction-runtime/src/runtime.test.ts --fileParallelism=false",
+      "matchedFiles": 3,
+      "passedTests": 7,
+      "exitCode": 0,
+      "note": "The runtime filter matched no file."
+    },
+    {
+      "command": "corepack pnpm@11.7.0 test:related tests/prototype/hidden-cure.test.ts --fileParallelism=false",
+      "matchedFiles": 1,
+      "passedTests": 1,
+      "exitCode": 0,
+      "note": "Initial test assertion assumed a nonexistent ok field; corrected to the actual integrity API head/event counts."
+    }
+  ],
+  "checks": [
+    {
+      "command": "corepack pnpm@11.7.0 typecheck",
+      "exitCode": 0
+    },
+    {
+      "command": "corepack pnpm@11.7.0 lint",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/docs/check-links.mjs",
+      "exitCode": 0,
+      "pages": 12,
+      "localLinks": 278
+    },
+    {
+      "command": "git -c safe.directory=... diff --check",
+      "exitCode": 0
+    },
+    {
+      "command": "python tests/experiments/hidden-cure-audit.py output/hidden-cure/live-vuTX5e",
+      "exitCode": 0,
+      "meaning": "mechanical evidence only; B turn 6 output failure remains recorded"
+    },
+    {
+      "command": "node --import tsx tests/experiments/hidden-cure.ts",
+      "exitCode": 1,
+      "meaning": "all 24 turns completed; one invalid NPC publication caused the nonzero exit"
+    }
+  ],
+  "notRun": [
+    "full repository tests",
+    "GUI",
+    "native Tauri build",
+    "portable release",
+    "Core memory",
+    "long-run character acceptance",
+    "hard-crash tests"
+  ]
+}

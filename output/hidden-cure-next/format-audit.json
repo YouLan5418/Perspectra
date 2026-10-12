@@ -1,0 +1,40 @@
+{
+  "source": "D:\\DeepSeek Harness\\Perspectra V1\\output\\hidden-cure\\live-vuTX5e\\B\\record.json",
+  "actor": "character:priestess",
+  "round": 6,
+  "proposal": {
+    "decision": "publish",
+    "scope": "direct",
+    "segments": [
+      {
+        "text": "伊蕾微微蹙起眉头，目光在空空的密藏柜与塞维恩之间扫过，神情虽依旧温和，却多了一份审慎与坚持。",
+        "type": "narration"
+      },
+      {
+        "type": "speech",
+        "text": "卷宗不在原处确实有些反常。既然那份文书名为《双途疗咒摘要》，想必除了你提到的‘烛印速净法’，还记载了另一种途径吧？塞维恩，无论选择哪种方式，其代价、风险与施术要求我都必须亲眼核实、彻底弄清楚，绝不能在信息不明的情况下仓促进行。而且，关于治疗方案的选择，我也会和洛恩共同商量。在此之前，我们不如再在档案室里仔细找找看那份卷宗，或者看看借阅记录，或许它只是被放错了位置？"
+      }
+    ]
+  },
+  "visiblePeople": {
+    "locationId": "location:archive",
+    "people": [
+      {
+        "characterId": "character:priestess",
+        "name": "神官伊蕾"
+      },
+      {
+        "characterId": "character:rival",
+        "name": "教会成员塞维恩"
+      }
+    ]
+  },
+  "localSchemaAccepts": true,
+  "genericSchemaAccepts": true,
+  "existingRepairDecisions": 1,
+  "hostAcceptance": false,
+  "hostReason": "publication scope and addressees do not match",
+  "evidenceBoundary": "Schema replay only. Host rejection is established by original B6 debug/turn source; no publication or recipient inferred.",
+  "conclusion": "Both schemas omit the conditional requirement. Existing schema-only repair accepts this proposal immediately; ordinary turns also do not invoke activity repair.",
+  "minimumRecommendation": "Align direct/private nonempty addresseeIds with host validation, then reuse one bounded format-only retry on ordinary turns. Preserve visible recipient enum and fail closed; do not infer recipients."
+}

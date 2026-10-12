@@ -1,0 +1,8 @@
+{
+  "checkedAt": "2026-10-11T14:51:19.663479+00:00",
+  "endpoint": "http://127.0.0.1:8045/v1/models",
+  "httpStatus": 200,
+  "requestedModel": "gemini-3.8-flash",
+  "advertised": true,
+  "note": "Advertised gateway identifier only; not independent verification of upstream model identity."
+}

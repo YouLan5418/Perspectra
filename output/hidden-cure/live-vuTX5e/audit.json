@@ -1,0 +1,392 @@
+[
+  {
+    "case": "A",
+    "rounds": 8,
+    "packHash": "sha256:c007b7c624385b4d95b1a794a28b401c506a6b12de60dbdd9fdde6bb7cdb5045",
+    "model": "gemini-3.8-flash",
+    "settings": {
+      "playerInputCharacters": 2000,
+      "publicationCharacters": 900,
+      "modelTimeoutSeconds": 60,
+      "activationTimeoutSeconds": 120,
+      "maximumWaves": 3,
+      "maximumNpcCalls": 8,
+      "maximumCallsPerCharacter": 2,
+      "reactionDeadlineSeconds": 180,
+      "autonomyOpportunities": 1,
+      "autonomyNpcCalls": 8,
+      "autonomyReactionWaves": 2,
+      "autonomyReactionCalls": 6,
+      "autonomyDeadlineSeconds": 180,
+      "activityOpportunities": 4,
+      "activityDeadlineSeconds": 90,
+      "memoryTriggerTokens": 170000,
+      "memoryCompactTokens": 120000,
+      "memoryRecentTokens": 16000,
+      "memoryMaxItems": 6,
+      "memoryMaxJsonChars": 12000
+    },
+    "initialLocations": {
+      "character:player": "location:inn",
+      "character:priestess": "location:inn",
+      "character:rival": "location:church"
+    },
+    "databaseIntegrity": {
+      "world.sqlite": [
+        "ok"
+      ],
+      "memory.sqlite": [
+        "ok"
+      ]
+    },
+    "memorySourcesByActor": {
+      "character:player": 25,
+      "character:priestess": 25,
+      "character:rival": 26
+    },
+    "integrityChecks": 8,
+    "failures": [],
+    "errorRounds": [],
+    "rejectedActions": [],
+    "transfers": [
+      {
+        "seq": 51,
+        "characterId": "character:rival",
+        "entityId": "entity:cure-record",
+        "fromHolderId": null,
+        "fromLocationId": "location:archive",
+        "interactionId": "base:take",
+        "toHolderId": "character:rival",
+        "toLocationId": null
+      },
+      {
+        "seq": 119,
+        "characterId": "character:rival",
+        "entityId": "entity:cure-record",
+        "fromHolderId": "character:rival",
+        "fromLocationId": null,
+        "interactionId": "base:give",
+        "toHolderId": "character:priestess",
+        "toLocationId": null
+      }
+    ],
+    "finalDocument": {
+      "entityId": "entity:cure-record",
+      "locationId": null,
+      "holderId": "character:priestess",
+      "kind": "展开的《双途疗咒摘要》原件，正文清晰可见：银露缓解法需要三日准备，风险较低；烛印速净法当晚可用，但可能造成永久记忆损伤，施术前必须说明此风险并征得患者同意。两法都只是候选方案，不保证治愈。"
+    },
+    "rivalOpportunitiesWithEmptyStimulus": [
+      {
+        "call": 1,
+        "round": 1,
+        "proposal": {
+          "decision": "perform",
+          "actionType": "move",
+          "parameters": {
+            "locationId": "location:archive"
+          }
+        }
+      },
+      {
+        "call": 4,
+        "round": 2,
+        "proposal": {
+          "actionType": "interact",
+          "decision": "perform",
+          "parameters": {
+            "definitionRef": {
+              "version": 1,
+              "id": "base:take"
+            },
+            "arguments": {},
+            "bindingId": "binding:record-take",
+            "targetRef": {
+              "id": "entity:cure-record",
+              "kind": "entity"
+            }
+          }
+        }
+      },
+      {
+        "call": 7,
+        "round": 3,
+        "proposal": {
+          "decision": "perform",
+          "parameters": {
+            "locationId": "location:inn"
+          },
+          "actionType": "move"
+        }
+      }
+    ],
+    "abstentions": [],
+    "limits": "Mechanical ownership, audience and replay checks only; semantic claims require human review."
+  },
+  {
+    "case": "B",
+    "rounds": 8,
+    "packHash": "sha256:c007b7c624385b4d95b1a794a28b401c506a6b12de60dbdd9fdde6bb7cdb5045",
+    "model": "gemini-3.8-flash",
+    "settings": {
+      "playerInputCharacters": 2000,
+      "publicationCharacters": 900,
+      "modelTimeoutSeconds": 60,
+      "activationTimeoutSeconds": 120,
+      "maximumWaves": 3,
+      "maximumNpcCalls": 8,
+      "maximumCallsPerCharacter": 2,
+      "reactionDeadlineSeconds": 180,
+      "autonomyOpportunities": 1,
+      "autonomyNpcCalls": 8,
+      "autonomyReactionWaves": 2,
+      "autonomyReactionCalls": 6,
+      "autonomyDeadlineSeconds": 180,
+      "activityOpportunities": 4,
+      "activityDeadlineSeconds": 90,
+      "memoryTriggerTokens": 170000,
+      "memoryCompactTokens": 120000,
+      "memoryRecentTokens": 16000,
+      "memoryMaxItems": 6,
+      "memoryMaxJsonChars": 12000
+    },
+    "initialLocations": {
+      "character:player": "location:inn",
+      "character:priestess": "location:inn",
+      "character:rival": "location:church"
+    },
+    "databaseIntegrity": {
+      "world.sqlite": [
+        "ok"
+      ],
+      "memory.sqlite": [
+        "ok"
+      ]
+    },
+    "memorySourcesByActor": {
+      "character:player": 11,
+      "character:priestess": 16,
+      "character:rival": 19
+    },
+    "integrityChecks": 8,
+    "failures": [],
+    "errorRounds": [
+      6
+    ],
+    "rejectedActions": [],
+    "transfers": [
+      {
+        "seq": 50,
+        "characterId": "character:player",
+        "entityId": "entity:cure-record",
+        "fromHolderId": null,
+        "fromLocationId": "location:archive",
+        "interactionId": "base:take",
+        "toHolderId": "character:player",
+        "toLocationId": null
+      }
+    ],
+    "finalDocument": {
+      "entityId": "entity:cure-record",
+      "locationId": null,
+      "holderId": "character:player",
+      "kind": "展开的《双途疗咒摘要》原件，正文清晰可见：银露缓解法需要三日准备，风险较低；烛印速净法当晚可用，但可能造成永久记忆损伤，施术前必须说明此风险并征得患者同意。两法都只是候选方案，不保证治愈。"
+    },
+    "rivalOpportunitiesWithEmptyStimulus": [
+      {
+        "call": 8,
+        "round": 4,
+        "proposal": {
+          "decision": "publish",
+          "scope": "self",
+          "segments": [
+            {
+              "type": "narration",
+              "text": "塞维恩在常年存放重要卷宗的架格与桌案前仔细翻查，却并未见到那份熟悉的《双途疗咒摘要》。他的眉头微微皱起，眼中闪过一丝疑虑与不悦。"
+            },
+            {
+              "type": "speech",
+              "text": "奇怪……摘要不在这里？难道有人先一步动过教会的卷宗？"
+            }
+          ]
+        }
+      },
+      {
+        "call": 12,
+        "round": 5,
+        "proposal": {
+          "decision": "publish",
+          "addresseeIds": [
+            "character:priestess"
+          ],
+          "scope": "direct",
+          "segments": [
+            {
+              "text": "塞维恩收敛起方才的惊疑，转过身面向伊蕾，神色间多了一分严肃与歉意，但依旧保持着条理与克制。",
+              "type": "narration"
+            },
+            {
+              "text": "原本这份卷宗一直归档在左侧的密藏柜第三层……但很不寻常的是，它此刻并不在原位，案台周围也无归还痕迹。档案室平日少有外人出入，卷宗失落绝非寻常琐事，我随后定会彻底排查。",
+              "type": "speech"
+            },
+            {
+              "text": "他放缓了语调，安抚似地看向伊蕾，目光诚恳而笃定。",
+              "type": "narration"
+            },
+            {
+              "type": "speech",
+              "text": "伊蕾，不必为此过度忧虑，更不要动了心神加重诅咒负担。即便那份摘要暂时未见，其中记载的核心法门——也就是我方才提到的‘烛印速净法’——其要领与施术脉络我早已了然于心。此法今晚便能为你施用，彻底遏制诅咒的蔓延。只要你信得过我，我愿全力为你主导此次净化。"
+            }
+          ]
+        }
+      },
+      {
+        "call": 13,
+        "round": 6,
+        "proposal": {
+          "decision": "abstain"
+        }
+      }
+    ],
+    "abstentions": [
+      {
+        "round": 5,
+        "actor": "character:priestess"
+      },
+      {
+        "round": 6,
+        "actor": "character:rival"
+      }
+    ],
+    "limits": "Mechanical ownership, audience and replay checks only; semantic claims require human review."
+  },
+  {
+    "case": "C",
+    "rounds": 8,
+    "packHash": "sha256:c007b7c624385b4d95b1a794a28b401c506a6b12de60dbdd9fdde6bb7cdb5045",
+    "model": "gemini-3.8-flash",
+    "settings": {
+      "playerInputCharacters": 2000,
+      "publicationCharacters": 900,
+      "modelTimeoutSeconds": 60,
+      "activationTimeoutSeconds": 120,
+      "maximumWaves": 3,
+      "maximumNpcCalls": 8,
+      "maximumCallsPerCharacter": 2,
+      "reactionDeadlineSeconds": 180,
+      "autonomyOpportunities": 1,
+      "autonomyNpcCalls": 8,
+      "autonomyReactionWaves": 2,
+      "autonomyReactionCalls": 6,
+      "autonomyDeadlineSeconds": 180,
+      "activityOpportunities": 4,
+      "activityDeadlineSeconds": 90,
+      "memoryTriggerTokens": 170000,
+      "memoryCompactTokens": 120000,
+      "memoryRecentTokens": 16000,
+      "memoryMaxItems": 6,
+      "memoryMaxJsonChars": 12000
+    },
+    "initialLocations": {
+      "character:player": "location:inn",
+      "character:priestess": "location:inn",
+      "character:rival": "location:church"
+    },
+    "databaseIntegrity": {
+      "world.sqlite": [
+        "ok"
+      ],
+      "memory.sqlite": [
+        "ok"
+      ]
+    },
+    "memorySourcesByActor": {
+      "character:player": 25,
+      "character:priestess": 25,
+      "character:rival": 25
+    },
+    "integrityChecks": 8,
+    "failures": [],
+    "errorRounds": [],
+    "rejectedActions": [],
+    "transfers": [
+      {
+        "seq": 51,
+        "characterId": "character:rival",
+        "entityId": "entity:cure-record",
+        "fromHolderId": null,
+        "fromLocationId": "location:archive",
+        "interactionId": "base:take",
+        "toHolderId": "character:rival",
+        "toLocationId": null
+      },
+      {
+        "seq": 113,
+        "characterId": "character:rival",
+        "entityId": "entity:cure-record",
+        "fromHolderId": "character:rival",
+        "fromLocationId": null,
+        "interactionId": "base:give",
+        "toHolderId": "character:priestess",
+        "toLocationId": null
+      }
+    ],
+    "finalDocument": {
+      "entityId": "entity:cure-record",
+      "locationId": null,
+      "holderId": "character:priestess",
+      "kind": "展开的《双途疗咒摘要》原件，正文清晰可见：银露缓解法需要三日准备，风险较低；烛印速净法当晚可用，但可能造成永久记忆损伤，施术前必须说明此风险并征得患者同意。两法都只是候选方案，不保证治愈。"
+    },
+    "rivalOpportunitiesWithEmptyStimulus": [
+      {
+        "call": 1,
+        "round": 1,
+        "proposal": {
+          "parameters": {
+            "locationId": "location:archive"
+          },
+          "decision": "perform",
+          "actionType": "move"
+        }
+      },
+      {
+        "call": 4,
+        "round": 2,
+        "proposal": {
+          "decision": "perform",
+          "actionType": "interact",
+          "parameters": {
+            "bindingId": "binding:record-take",
+            "definitionRef": {
+              "id": "base:take",
+              "version": 1
+            },
+            "targetRef": {
+              "kind": "entity",
+              "id": "entity:cure-record"
+            },
+            "arguments": {}
+          }
+        }
+      },
+      {
+        "call": 7,
+        "round": 3,
+        "proposal": {
+          "decision": "perform",
+          "actionType": "move",
+          "parameters": {
+            "locationId": "location:inn"
+          }
+        }
+      }
+    ],
+    "abstentions": [
+      {
+        "round": 8,
+        "actor": "character:rival"
+      }
+    ],
+    "limits": "Mechanical ownership, audience and replay checks only; semantic claims require human review."
+  }
+]

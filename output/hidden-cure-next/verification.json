@@ -1,0 +1,271 @@
+{
+  "experiments": [
+    {
+      "name": "D1",
+      "rounds": 8,
+      "calls": 21,
+      "elapsedMs": 116717,
+      "inputTokens": 64847,
+      "outputTokens": 1790,
+      "totalTokens": 69172,
+      "callsWithUsage": 21,
+      "errorRounds": [],
+      "directory": "output\\hidden-cure-next\\live-tZcNIZ\\D1",
+      "reasoningTokens": 2535,
+      "reportedCachedInputTokens": 3057,
+      "activationStatuses": {
+        "published": 9,
+        "abstained": 7,
+        "stale": 1
+      },
+      "errors": [],
+      "npcOperationsAccepted": 3,
+      "npcOperationsRejected": [
+        {
+          "seq": 50,
+          "actor": "character:rival",
+          "reason": "INVALID_INTERACTION_PARAMETERS"
+        }
+      ],
+      "httpFailures": 0,
+      "transportFailures": 0,
+      "schemaCapturedCalls": 21
+    },
+    {
+      "name": "D2",
+      "rounds": 8,
+      "calls": 20,
+      "elapsedMs": 97884,
+      "inputTokens": 64388,
+      "outputTokens": 1707,
+      "totalTokens": 68857,
+      "callsWithUsage": 20,
+      "errorRounds": [],
+      "directory": "output\\hidden-cure-next\\live-tZcNIZ\\D2",
+      "reasoningTokens": 2762,
+      "reportedCachedInputTokens": 9692,
+      "activationStatuses": {
+        "published": 8,
+        "abstained": 8
+      },
+      "errors": [],
+      "npcOperationsAccepted": 4,
+      "npcOperationsRejected": [],
+      "httpFailures": 0,
+      "transportFailures": 0,
+      "schemaCapturedCalls": 20
+    },
+    {
+      "name": "D3",
+      "rounds": 8,
+      "calls": 20,
+      "elapsedMs": 77945,
+      "inputTokens": 58062,
+      "outputTokens": 1892,
+      "totalTokens": 62114,
+      "callsWithUsage": 20,
+      "errorRounds": [],
+      "directory": "output\\hidden-cure-next\\live-tZcNIZ\\D3",
+      "reasoningTokens": 2160,
+      "reportedCachedInputTokens": 0,
+      "activationStatuses": {
+        "published": 12,
+        "abstained": 4
+      },
+      "errors": [],
+      "npcOperationsAccepted": 3,
+      "npcOperationsRejected": [],
+      "httpFailures": 0,
+      "transportFailures": 0,
+      "schemaCapturedCalls": 20
+    },
+    {
+      "name": "D1",
+      "rounds": 8,
+      "calls": 19,
+      "elapsedMs": 117496,
+      "inputTokens": 64448,
+      "outputTokens": 2166,
+      "totalTokens": 68837,
+      "callsWithUsage": 19,
+      "errorRounds": [],
+      "directory": "output\\hidden-cure-next\\live-tylN8q\\D1",
+      "reasoningTokens": 2223,
+      "reportedCachedInputTokens": 6062,
+      "activationStatuses": {
+        "published": 9,
+        "abstained": 7
+      },
+      "errors": [],
+      "npcOperationsAccepted": 3,
+      "npcOperationsRejected": [],
+      "httpFailures": 0,
+      "transportFailures": 0,
+      "schemaCapturedCalls": 19
+    },
+    {
+      "name": "D2",
+      "rounds": 8,
+      "calls": 21,
+      "elapsedMs": 92049,
+      "inputTokens": 61805,
+      "outputTokens": 1547,
+      "totalTokens": 65236,
+      "callsWithUsage": 21,
+      "errorRounds": [],
+      "directory": "output\\hidden-cure-next\\live-tylN8q\\D2",
+      "reasoningTokens": 1884,
+      "reportedCachedInputTokens": 2271,
+      "activationStatuses": {
+        "published": 8,
+        "abstained": 8
+      },
+      "errors": [],
+      "npcOperationsAccepted": 4,
+      "npcOperationsRejected": [
+        {
+          "seq": 50,
+          "actor": "character:rival",
+          "reason": "INVALID_INTERACTION_PARAMETERS"
+        }
+      ],
+      "httpFailures": 0,
+      "transportFailures": 0,
+      "schemaCapturedCalls": 21
+    },
+    {
+      "name": "D3",
+      "rounds": 8,
+      "calls": 19,
+      "elapsedMs": 93033,
+      "inputTokens": 48782,
+      "outputTokens": 1774,
+      "totalTokens": 53215,
+      "callsWithUsage": 19,
+      "errorRounds": [
+        4
+      ],
+      "directory": "output\\hidden-cure-next\\live-tylN8q\\D3",
+      "reasoningTokens": 2659,
+      "reportedCachedInputTokens": 0,
+      "activationStatuses": {
+        "published": 9,
+        "abstained": 6,
+        "failed": 1
+      },
+      "errors": [
+        {
+          "round": 4,
+          "actor": "character:rival",
+          "failure": "invalid_output"
+        }
+      ],
+      "npcOperationsAccepted": 2,
+      "npcOperationsRejected": [],
+      "httpFailures": 0,
+      "transportFailures": 0,
+      "schemaCapturedCalls": 19
+    },
+    {
+      "name": "E",
+      "rounds": 12,
+      "calls": 32,
+      "elapsedMs": 156803,
+      "inputTokens": 170771,
+      "outputTokens": 5250,
+      "totalTokens": 179895,
+      "callsWithUsage": 32,
+      "errorRounds": [],
+      "directory": "output\\hidden-cure-next\\live-uOYExc\\E",
+      "reasoningTokens": 3874,
+      "reportedCachedInputTokens": 0,
+      "activationStatuses": {
+        "published": 23,
+        "stale": 1,
+        "abstained": 1
+      },
+      "errors": [],
+      "npcOperationsAccepted": 7,
+      "npcOperationsRejected": [],
+      "httpFailures": 0,
+      "transportFailures": 0,
+      "schemaCapturedCalls": 32
+    },
+    {
+      "name": "E",
+      "rounds": 12,
+      "calls": 38,
+      "elapsedMs": 160660,
+      "inputTokens": 151692,
+      "outputTokens": 3815,
+      "totalTokens": 160598,
+      "callsWithUsage": 38,
+      "errorRounds": [
+        4
+      ],
+      "directory": "output\\hidden-cure-next\\live-FYPfvr\\E",
+      "reasoningTokens": 5091,
+      "reportedCachedInputTokens": 0,
+      "activationStatuses": {
+        "published": 21,
+        "abstained": 2,
+        "failed": 1
+      },
+      "errors": [
+        {
+          "round": 4,
+          "actor": "character:rival",
+          "failure": "invalid_output"
+        }
+      ],
+      "npcOperationsAccepted": 12,
+      "npcOperationsRejected": [],
+      "httpFailures": 0,
+      "transportFailures": 0,
+      "schemaCapturedCalls": 38
+    },
+    {
+      "name": "E",
+      "rounds": 12,
+      "calls": 37,
+      "elapsedMs": 205915,
+      "inputTokens": 209466,
+      "outputTokens": 5841,
+      "totalTokens": 220347,
+      "callsWithUsage": 37,
+      "errorRounds": [],
+      "directory": "output\\hidden-cure-next\\live-HqjfpM\\E",
+      "reasoningTokens": 5040,
+      "reportedCachedInputTokens": 0,
+      "activationStatuses": {
+        "published": 23,
+        "stale": 1,
+        "abstained": 1
+      },
+      "errors": [],
+      "npcOperationsAccepted": 12,
+      "npcOperationsRejected": [],
+      "httpFailures": 0,
+      "transportFailures": 0,
+      "schemaCapturedCalls": 37
+    }
+  ],
+  "totals": {
+    "rounds": 84,
+    "calls": 227,
+    "elapsedMs": 1118502,
+    "inputTokens": 894261,
+    "outputTokens": 25782,
+    "reasoningTokens": 28228,
+    "totalTokens": 948271,
+    "callsWithUsage": 227,
+    "npcOperationsAccepted": 50,
+    "httpFailures": 0,
+    "transportFailures": 0,
+    "schemaCapturedCalls": 227,
+    "callLatencyMedianMs": 4416,
+    "callLatencyP95Ms": 12272,
+    "callLatencyMaxMs": 25881
+  },
+  "limits": "Descriptive, sequential runs. E player policies differ. Includes failed/stale calls; usage is gateway accounting, not a monetary invoice."
+}
