@@ -5,6 +5,7 @@
       "entityId": "entity:brass-key",
       "locationId": "location:front-room",
       "kind": "key",
+      "name": "黄铜钥匙",
       "interactionBindings": [
         {
           "bindingId": "binding:key-take",
@@ -36,6 +37,7 @@
       "entityId": "entity:thermos",
       "locationId": "location:front-room",
       "kind": "thermos",
+      "name": "保温壶",
       "interactionBindings": [
         {
           "bindingId": "binding:thermos-take",

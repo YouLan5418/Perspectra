@@ -48,3 +48,13 @@ it('describes the actual completed take and remaining own possession', () => {
       definitionRef: { id: 'base:take', version: 1 } } } }).description)
     .toBe('你刚刚成功取得保管（物品：entity:cup）。该物品目前仍由你保管；不要求一直握在手里。')
 })
+
+it('uses the author-declared Entity label instead of the runtime identity when one exists', () => {
+  const named = { ...world.manifest, entities: world.manifest.entities.map(entity =>
+    entity.entityId === 'entity:cup' ? { ...entity, name: '茶杯' } : entity) }
+  const description = characterExecutionResult({ ...input, manifest: named, status: 'accepted', reason: null,
+    action: { actionType: 'interact', parameters: { targetRef: { kind: 'entity', id: 'entity:cup' },
+      definitionRef: { id: 'base:take', version: 1 } } } }).description
+  expect(description).toContain('（物品：茶杯）')
+  expect(description).not.toContain('entity:cup')
+})
