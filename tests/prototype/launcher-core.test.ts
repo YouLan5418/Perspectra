@@ -3,6 +3,8 @@ import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LauncherCore, localModel } from '../../desktop/launcher-core.ts'
+import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
+import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
 
 const roots: string[] = []
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))) })
@@ -51,6 +53,7 @@ describe('real Launcher metadata and authority boundary', () => {
       await expect(core.handle({ operation })).rejects.toThrow('不支持')
     }
     await expect(core.handle({ operation: 'open' })).rejects.toThrow('尚未启动')
+    await expect(core.handle({ operation: 'creator-debug', instanceId: 'missing' })).rejects.toThrow('启动当前实例')
   })
   it('rejects credential-bearing endpoints and non-chat URLs', () => {
     for (const endpoint of ['file:///tmp/x', 'http://key:secret@localhost/v1/chat/completions', 'http://localhost/v1/chat/completions?key=secret', 'http://localhost/v1']) {
@@ -187,6 +190,23 @@ it('keeps package play settings separate, restores them and preserves model defa
  await expect(core.handle({operation:'play-settings',packageId:first!.id,settings:{maximumWaves:0}})).rejects.toThrow()
  await expect(core.handle({operation:'play-settings',packageId:'foreign',settings:{}})).rejects.toThrow('载入')
  expect(core.snapshot().playSettings?.[first!.id]?.maximumWaves).toBe(5)
+})
+
+it('restores global audio preferences and rejects invalid updates without changing saved metadata',async()=>{
+ const core=await service(),audio={volume:35,muted:true,voiceEnabled:true}
+ await core.handle({operation:'preferences',theme:'dark',largeText:false,audio})
+ // Existing appearance requests must not erase audio preferences.
+ await core.handle({operation:'preferences',theme:'light',largeText:true})
+ const restored=new LauncherCore(resolve('.'),core.root);await restored.initialize()
+ expect(restored.snapshot().preferences.audio).toEqual(audio)
+ const runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:join(core.root,'presentation-world'),
+  packPath:resolve('examples/world-packs/prototype-g1'),provider:'local',model:'fixture',
+  audio:restored.snapshot().preferences.audio!})
+ try{expect(projectPlayerView(await runtime.state()).settings?.audio).toEqual(audio)}finally{await runtime.close()}
+ const before=await readFile(join(core.root,'launcher.json'),'utf8')
+ await expect(core.handle({operation:'preferences',theme:'dark',largeText:false,audio:{...audio,volume:-1}})).rejects.toThrow('音量')
+ expect(await readFile(join(core.root,'launcher.json'),'utf8')).toBe(before)
+ expect(core.snapshot().preferences.audio).toEqual(audio)
 })
 
 it('persists thinking strength per instance and rejects unsupported explicit choices', async()=>{

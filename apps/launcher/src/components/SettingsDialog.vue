@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { DEFAULT_READING, readingPreferences } from '../../../../desktop/play-settings.ts'
+import { DEFAULT_READING, readingPreferences, DEFAULT_AUDIO, audioPreferences } from '../../../../desktop/play-settings.ts'
 import { useLauncherStore } from '../stores/launcher.ts'
 import { chooseDataDirectory, dataLocation, type DataLocation } from '../services/desktop.ts'
 import { Button } from './ui/button/index.ts'
@@ -8,12 +8,12 @@ import DialogFrame from './DialogFrame.vue'
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 const store = useLauncherStore()
-const draft = reactive({ theme: 'system' as 'system' | 'light' | 'dark', largeText: false, reading:{...DEFAULT_READING} })
+const draft = reactive({ theme: 'system' as 'system' | 'light' | 'dark', largeText: false, reading:{...DEFAULT_READING}, audio:{...DEFAULT_AUDIO} })
 const location = ref<DataLocation | null>(null)
 const error = ref(''), saving = ref(false)
 watch(() => props.open, async open => {
  if (!open) return
- Object.assign(draft, { theme: store.theme, largeText: store.largeText, reading:{...store.reading} })
+ Object.assign(draft, { theme: store.theme, largeText: store.largeText, reading:{...store.reading}, audio:{...store.audio} })
  error.value = ''; location.value = null
  if (store.real) {
   try { location.value = await dataLocation() }
@@ -34,13 +34,19 @@ async function openFolder(folder: 'root' | 'instances') {
  catch (e) { error.value = typeof e === 'string' ? e : '打开文件夹失败。' }
 }
 async function save() {
- try{if (await store.savePreferences(draft.theme, draft.largeText,readingPreferences(draft.reading))) emit('close')}catch(e){error.value=e instanceof Error?e.message:'阅读设置无效。'}
+ try{if (await store.savePreferences(draft.theme, draft.largeText,readingPreferences(draft.reading),audioPreferences(draft.audio))) emit('close')}catch(e){error.value=e instanceof Error?e.message:'设置无效。'}
 }
 </script>
-<template><DialogFrame :open="open" title="全局设置" description="调整启动器外观和本机数据保存位置。" @close="emit('close')">
+<template><DialogFrame :open="open" title="全局设置" description="调整外观、阅读与声音偏好，以及本机数据保存位置。" @close="emit('close')">
  <div class="form-field"><label for="launcher-theme">主题</label><select id="launcher-theme" v-model="draft.theme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></div>
  <label class="checkbox-row"><input v-model="draft.largeText" type="checkbox" />使用较大文字</label>
  <details class="play-settings-group"><summary>默认前端阅读偏好</summary><p class="muted">作用于下次启动的官方游戏前端。社区前端可自行选择是否采用。</p><div class="settings-grid"><div class="form-field"><label for="reading-font">对话字号（14–28）</label><input id="reading-font" v-model.number="draft.reading.fontSize" type="number" min="14" max="28" step="1" /></div><div class="form-field"><label for="reading-line-height">对话行距（1.4–2.4）</label><input id="reading-line-height" v-model.number="draft.reading.lineHeight" type="number" min="1.4" max="2.4" step="0.1" /></div></div><label class="checkbox-row"><input v-model="draft.reading.autoFollow" type="checkbox" />靠近底部时自动跟随最新对话</label></details>
+ <details class="play-settings-group"><summary>声音偏好</summary>
+  <p class="muted">下次启动游戏时生效，供支持音频的游戏界面采用。官方舞台暂未提供音乐与语音播放。</p>
+  <div class="form-field"><label for="audio-volume">音量（0–100）</label><input id="audio-volume" v-model.number="draft.audio.volume" type="number" min="0" max="100" step="1" /></div>
+  <label class="checkbox-row"><input v-model="draft.audio.muted" type="checkbox" />静音</label>
+  <label class="checkbox-row"><input v-model="draft.audio.voiceEnabled" type="checkbox" />启用语音朗读</label>
+ </details>
  <div class="settings-section">
   <div class="form-field"><label for="data-directory">当前数据根目录</label><input id="data-directory" :value="store.dataDirectory || '浏览器预览不保存实际实例数据'" readonly /></div>
   <div class="settings-folder-actions"><Button variant="outline" :disabled="!store.real" @click="openFolder('root')">打开文件夹</Button><Button variant="outline" :disabled="!store.real || !location || location.locked || store.busy || saving || store.core.state === 'running'" @click="chooseDirectory">更改数据目录</Button></div>
@@ -54,5 +60,5 @@ async function save() {
   <p class="muted">启动器配置：根目录中的 launcher.json。预设：preset-settings.json 与 preset-library.json。游戏包保留在载入时的原始位置。</p>
  </div>
  <p v-if="error" role="alert">{{ error }}</p>
- <div class="dialog-actions"><Button variant="outline" :disabled="saving" @click="emit('close')">关闭</Button><Button :disabled="store.busy || saving" @click="save">应用外观</Button></div>
+ <div class="dialog-actions"><Button variant="outline" :disabled="saving" @click="emit('close')">关闭</Button><Button :disabled="store.busy || saving" @click="save">保存设置</Button></div>
 </DialogFrame></template>

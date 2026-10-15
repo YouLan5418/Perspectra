@@ -1,4 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
+import type { CreatorDebugQuery, CreatorDebugSnapshot } from '../../../../tests/experiments/creator-debug.ts'
 import type { CoreSnapshot } from '../core-types.ts'
 export async function coreRequest(operation: string, data: Record<string, unknown> = {}): Promise<CoreSnapshot> {
   return invoke<CoreSnapshot>('launcher_request', { request: { operation, ...data } })
@@ -17,6 +18,9 @@ export async function choosePackageFile(): Promise<string | null> { return choos
 
 export async function inspectRequests(instanceId: string, enabled?: boolean): Promise<import('../../../../packages/provider-chat/src/request-inspector.ts').InspectorSnapshot> {
  return invoke('launcher_request', { request: { operation: 'request-inspector', instanceId, ...(enabled === undefined ? {} : { enabled }) } })
+}
+export async function inspectCreator(instanceId: string, query: CreatorDebugQuery = {}): Promise<CreatorDebugSnapshot> {
+ return invoke('launcher_request', { request: { operation: 'creator-debug', instanceId, query } })
 }
 
 export async function savePresetFile(text: string, name: string): Promise<boolean> {

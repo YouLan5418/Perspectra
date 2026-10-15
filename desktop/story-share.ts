@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { closeSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { brandId, type WorldAddress } from '@harness-world/contracts'
+import { brandId, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
 import { SessionDeliveryAdapter, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
@@ -13,7 +13,7 @@ import { preflightSave } from './save-preflight.ts'
 import { readStoryNodes, restoreStoryNode, storyId, type StoryNode } from './story-nodes.ts'
 
 // A bounded JSON container replaces ZIP extraction. Only these literal filenames can be written.
-const SHARE_FILES = ['world.sqlite', 'session.sqlite', 'pack-variables.json', 'memory-aliases.json']
+const SHARE_FILES = ['world.sqlite', 'session.sqlite', 'pack-variables.json', 'memory-aliases.json', 'core-memory.json']
 const MAX_FILE = 64 * 1024 * 1024, MAX_TOTAL = 96 * 1024 * 1024, MAX_CONTAINER = 129 * 1024 * 1024
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('故事线文件格式无效。')
@@ -112,7 +112,13 @@ async function validate(directory: string, node: StoryNode, packPath: string): P
     && (character.lifecycle ?? 'active') === 'active').map(character => character.characterId)
   if (Object.keys(aliases).some(actor => !actors.includes(actor as typeof actors[number]))) throw new Error('身份历史包含游戏包之外的角色。')
   const memory = new PlaytestMemoryCore(directory, address, async () => { throw new Error('import must not call a model') })
-  try { memory.snapshotAliases(actors) } finally { await memory.close() }
+  try {
+    if (node.files.includes('core-memory.json')) {
+      const archives = object(JSON.parse(readFileSync(join(directory, 'core-memory.json'), 'utf8')))
+      memory.restoreArchives(archives as WorldJsonObject, actors)
+    }
+    memory.snapshotAliases(actors)
+  } finally { await memory.close() }
 }
 export async function exportStoryNode(source: string, nodeId: string, destination: string, packPath: string): Promise<void> {
   if (extname(destination) !== '.perspectra-story') throw new Error('导出文件须使用 .perspectra-story 扩展名。')

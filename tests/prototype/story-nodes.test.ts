@@ -213,17 +213,23 @@ it('publishes no partial node on save failure and refuses a node whose variable 
   expect(JSON.stringify(f.events())).toBe(before)
 })
 
-it('shares one historical node across independent launchers, excludes future and caches, and restores authorized raw history', async()=>{
+it('shares one historical node across independent launchers, preserves installed memories and excludes future and caches', async()=>{
   const f=await fixture()
   await f.runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"分享阶段"}]')
   await f.runtime.submit('/act interact {"targetRef":{"kind":"entity","id":"entity:brass-key"},"bindingId":"binding:key-take","definitionRef":{"id":"base:take","version":1},"arguments":{}}')
   f.setFollow();await f.runtime.submit('/act move {"locationId":"location:back-room"}')
   await f.runtime.submit('/act speak {"text":"只有后室的人知道：分享暗号青松七号。"}')
+  await f.runtime.refreshMemory();await f.runtime.waitForMemory()
   const active=await f.runtime.activityAction(activityRequest(await f.runtime.state(),'start'))
   const node=await f.runtime.saveNode('朋友的起点'),saved=f.events()
+  const memories=JSON.parse(readFileSync(join(f.data,'story-nodes',node.id,'core-memory.json'),'utf8'))
+  expect(Object.keys(memories)).toHaveLength(2)
+  expect(JSON.stringify(memories['character:friend'])).not.toContain('分享暗号青松七号')
+  expect(JSON.stringify(memories['character:companion'])).toContain('分享暗号青松七号')
   await f.runtime.activityAction(activityRequest(await f.runtime.state(),'quit'))
   await f.runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"后来的未来"}]')
   await f.runtime.submit('/act speak {"text":"后来秘密红杉九号。"}')
+  await f.runtime.refreshMemory();await f.runtime.waitForMemory()
   await f.runtime.close()
   const original=JSON.stringify(f.events())
   // These files must not travel with the snapshot, even when present in its directory.
@@ -235,9 +241,15 @@ it('shares one historical node across independent launchers, excludes future and
   const senderId=sender.snapshot().instances[0]!.id
   cpSync(f.data,join(f.root,'sender','instances',senderId),{recursive:true})
   const archive=join(f.root,'朋友的故事.perspectra-story')
-  await sender.handle({operation:'story-export',instanceId:senderId,nodeId:node.id,path:archive})
+  await sender.handle({operation:'configure',instanceId:senderId,model:{model:'fixture',endpoint:f.options.utilityEndpoint}})
+  try {
+    await sender.handle({operation:'start',instanceId:senderId})
+    await sender.handle({operation:'story-export',instanceId:senderId,nodeId:node.id,path:archive})
+    expect(sender.snapshot().core.state).toBe('running')
+  } finally { await sender.stop() }
   const content=JSON.parse(readFileSync(archive,'utf8'))
-  expect(Object.keys(content.files).sort()).toEqual(['memory-aliases.json','pack-variables.json','session.sqlite','world.sqlite'])
+  expect(Object.keys(content.files).sort()).toEqual(['core-memory.json','memory-aliases.json','pack-variables.json','session.sqlite','world.sqlite'])
+  expect(JSON.parse(Buffer.from(content.files['core-memory.json'],'base64').toString('utf8'))).toEqual(memories)
   expect(content.node.parentNodeId).toBeNull()
   const decoded=Object.values(content.files).map(bytes=>Buffer.from(bytes as string,'base64').toString('utf8')).join('')
   expect(decoded).not.toContain('REQUEST-SECRET');expect(decoded).not.toContain('DERIVED-CACHE-SECRET')
@@ -255,6 +267,7 @@ it('shares one historical node across independent launchers, excludes future and
   expect(existsSync(join(directory,'memory-core'))).toBe(false)
   f.builds.length=0
   const child=await f.create(directory)
+  for(const [actor,cached] of Object.entries(memories))expect(JSON.parse(readFileSync(join(directory,'memory-core',Buffer.from(actor).toString('base64url')+'.json'),'utf8'))).toEqual(cached)
   expect(f.events(directory)).toEqual(saved)
   expect(currentLocation(f.events(directory),'character:player')).toBe('location:back-room')
   expect(currentEntityState(f.events(directory),'entity:brass-key')?.holderId).toBe('character:player')
@@ -275,6 +288,7 @@ it('shares one historical node across independent launchers, excludes future and
 it('rejects malformed, unsafe, mismatched and inconsistent shares without publishing or changing an existing instance',async()=>{
   const f=await fixture()
   await f.runtime.submit('/act speak {"text":"节点前的会话事实。"}')
+  await f.runtime.refreshMemory();await f.runtime.waitForMemory()
   const node=await f.runtime.saveNode('校验节点');await f.runtime.close()
   const file=join(f.root,'校验.perspectra-story');await exportStoryNode(f.data,node.id,file,f.pack)
   const valid=JSON.parse(readFileSync(file,'utf8')),root=join(f.root,'receiver'),core=new LauncherCore(resolve('.'),root)
@@ -282,6 +296,11 @@ it('rejects malformed, unsafe, mismatched and inconsistent shares without publis
   const packageId=core.snapshot().packs[0]!.id
   await core.handle({operation:'create',packageId,name:'已有实例'})
   const index=readFileSync(join(root,'launcher.json'),'utf8'),events=JSON.stringify(f.events())
+  const editMemory=(value:typeof valid,mutate:(cached:{archive:{scope:Record<string,unknown>;sources:Record<string,unknown>[]};index:{scope:Record<string,unknown>}})=>void)=>{
+    const archives=JSON.parse(Buffer.from(value.files['core-memory.json'],'base64').toString('utf8'))
+    mutate(archives['character:companion'])
+    value.files['core-memory.json']=Buffer.from(JSON.stringify(archives)).toString('base64')
+  }
   const variants:[string,(value:typeof valid)=>void][]=[
     ['路径越界',value=>{value.node.files.push('../escape.txt');value.files['../escape.txt']='eA=='}],
     ['缺少会话',value=>{value.node.files=value.node.files.filter((name:string)=>name!=='session.sqlite');delete value.files['session.sqlite']}],
@@ -292,6 +311,10 @@ it('rejects malformed, unsafe, mismatched and inconsistent shares without publis
     ['包内容不同',value=>{value.node.packHash='sha256:different'}],
     ['无效编码',value=>{value.files['world.sqlite']='not base64!'}],
     ['身份越权',value=>{const aliases=JSON.parse(Buffer.from(value.files['memory-aliases.json'],'base64').toString('utf8'));aliases['character:companion']=[{scope:{characterId:'character:friend',worldAddress:f.runtime.address,asOfWorldSeq:node.headSeq},worldSeq:node.headSeq}];value.files['memory-aliases.json']=Buffer.from(JSON.stringify(aliases)).toString('base64')}],
+    ['未来记忆',value=>editMemory(value,cached=>{cached.archive.scope.asOfWorldSeq=node.headSeq+1;cached.index.scope.asOfWorldSeq=node.headSeq+1})],
+    ['其他角色记忆',value=>editMemory(value,cached=>{cached.archive.scope.characterId='character:friend';cached.index.scope.characterId='character:friend'})],
+    ['记忆来源污染',value=>editMemory(value,cached=>{cached.archive.sources[0]!.text='另一条故事线的私密经历'})],
+    ['记忆文件损坏',value=>{value.files['core-memory.json']=Buffer.from('{').toString('base64')}],
   ]
   for(const [label,mutate] of variants){
     const edited=structuredClone(valid);mutate(edited);writeFileSync(file,JSON.stringify(edited))
