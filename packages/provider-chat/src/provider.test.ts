@@ -108,6 +108,23 @@ describe('the adapter a real endpoint is called through', () => {
       .propose({})).rejects.toThrow('carries no exact provider request')
   })
 
+  it('reports the HTTP status of a refusal, and no status for an endpoint that never answered', async () => {
+    const refused: ChatCallObservation[] = []
+    await expect(createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
+      fetch: endpoint({ error: 'Penalty is not enabled for this model' }, 400).fetchImpl,
+      onCall: observation => refused.push(observation) }).propose({ exactProviderRequest: exact }))
+      .rejects.toThrow('HTTP 400')
+    expect(refused[0]).toMatchObject({ status: 'failed', httpStatus: 400 })
+
+    const unreachable: ChatCallObservation[] = []
+    const dead = (async () => { throw new Error('connect ECONNREFUSED') }) as unknown as typeof globalThis.fetch
+    await expect(createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
+      fetch: dead, onCall: observation => unreachable.push(observation) })
+      .propose({ exactProviderRequest: exact })).rejects.toThrow('ECONNREFUSED')
+    expect(unreachable[0]!.status).toBe('failed')
+    expect(unreachable[0]!.httpStatus).toBeUndefined()
+  })
+
   it('gives up on its own deadline, and reports every call without content', async () => {
     const observed: ChatCallObservation[] = []
     const stalling = (async (_url: URL, init: { signal: AbortSignal }) => await new Promise((_resolve, reject) => {

@@ -1,7 +1,9 @@
 import type { InspectorSnapshot } from '../../packages/provider-chat/src/request-inspector.ts'
+import { creatorDebugQuery, type CreatorDebugQuery, type CreatorDebugSnapshot } from './creator-debug.ts'
 import { frontendAsset, type FrontendPolicy } from './playtest-frontend-assets.ts'
 import { projectPlayerView, playerViewPatch, frontendActionRequest, FrontendActions } from '../../packages/frontend/src/player-view.ts'
 import { FRONTEND_CAPABILITIES } from './playtest-pack-web.ts'
+import { frontendSpeechInput, type FrontendHostServices, type FrontendSpeechAudio } from '../../packages/frontend/src/speech.ts'
 import { HOST_ACTIVITY_PAGE } from './playtest-host-page.ts'
 import type { ActivityRequest } from './pack-activity.ts'
 import { timingSafeEqual } from 'node:crypto'
@@ -19,7 +21,7 @@ export interface PlaytestState {
   readonly phaseLabel: string
   readonly notice: string
   readonly error: boolean
-  readonly transcript: readonly { readonly seq: number; readonly speaker: string; readonly text: string; readonly player: boolean; readonly segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
+  readonly transcript: readonly { readonly seq: number; readonly speaker: string; readonly speakerId?: import('@harness-world/contracts').CharacterId; readonly text: string; readonly player: boolean; readonly segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
   readonly world: { readonly title: string; readonly playerName: string; readonly npcNames: readonly string[];
     readonly currentScene?: { readonly locationName: string; readonly presentNpcNames: readonly string[]; readonly recipients?: readonly { readonly id: string; readonly name: string }[] } }
   /** Names only for references already exposed in current player options. */
@@ -30,7 +32,7 @@ export interface PlaytestState {
   readonly activity?: WorldJsonObject
   readonly activities?: readonly WorldJsonObject[]
   readonly tailRound?: { readonly candidateIds?: readonly string[]; readonly candidateIndex?: number; readonly id: string | null; readonly worldVersion: string; readonly canRegenerate: boolean; readonly regenerating: boolean }
-  readonly playerSettings?: {inputCharacters:number;reading:import('../../desktop/play-settings.ts').ReadingPreferences}
+  readonly playerSettings?: {inputCharacters:number;reading:import('../../desktop/play-settings.ts').ReadingPreferences;audio?:import('../../desktop/play-settings.ts').AudioPreferences}
   readonly debug: Record<string, unknown>
 }
 
@@ -45,6 +47,7 @@ export interface PlaytestRuntime {
   regenerate?(tailId: string, requestId: string): Promise<PlaytestState>
   cancelRegeneration?(): Promise<PlaytestState>
   requestInspection?(enabled?: boolean): InspectorSnapshot
+  creatorDebug?(query?: CreatorDebugQuery): CreatorDebugSnapshot
   state(): Promise<PlaytestState>
   submit(text: string): Promise<PlaytestState>
   perform?(action: PlaytestAction): Promise<PlaytestState>
@@ -131,7 +134,7 @@ function submittedAction(value: unknown): PlaytestAction {
   return { actionType: record.actionType, parameters: record.parameters as WorldJsonObject }
 }
 
-export function createPlaytestServer(runtime: PlaytestRuntime, token: string, packWeb?: PackWeb, policy: FrontendPolicy = {mode:'sandbox',origin:'',revision:0}): Server {
+export function createPlaytestServer(runtime: PlaytestRuntime, token: string, packWeb?: PackWeb, policy: FrontendPolicy = {mode:'sandbox',origin:'',revision:0}, services: FrontendHostServices = {}): Server {
   if (!/^[a-f0-9]{64}$/.test(token)) throw new TypeError('playtest token must be 32 random bytes in hexadecimal')
   const frontendActions = new FrontendActions(runtime)
   let subscriptions = 0
@@ -158,9 +161,33 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
           if(!useDefault&&policy.mode==='trusted')capabilities.push('external-network','browser-storage')
           if (!runtime.regenerate && capabilities.includes('regenerate')) capabilities.splice(capabilities.indexOf('regenerate'),1)
           if (!runtime.perform) capabilities.splice(capabilities.indexOf('perform'),capabilities.includes('perform')?1:0)
+          if (!services.synthesizeSpeech && capabilities.includes('speech')) capabilities.splice(capabilities.indexOf('speech'),1)
           json(response,200,{apiVersion:1,frontend:useDefault?'default':'custom',frontendMode:useDefault?'sandbox':policy.mode,frontendOrigin:useDefault||policy.mode!=='trusted'?'':policy.origin,capabilities,view:projectPlayerView(await runtime.state())}); return
         }
         if (request.method === 'GET' && url.pathname === '/frontend-api/v1/view') { json(response,200,projectPlayerView(await runtime.state())); return }
+        if (request.method === 'POST' && url.pathname === '/frontend-api/v1/speech') {
+          if (!services.synthesizeSpeech) { json(response,404,{error:'语音合成未安装'}); return }
+          if (request.headers['content-type']?.split(';')[0] !== 'application/json') throw new TypeError('请求必须是 JSON')
+          const value = await body(request,100_000)
+          const input = frontendSpeechInput(projectPlayerView(await runtime.state()),value)
+          const controller = new AbortController(), abort = () => controller.abort()
+          response.once('close',abort)
+          let audio: FrontendSpeechAudio
+          try { audio = await services.synthesizeSpeech(input,controller.signal) }
+          catch { if (!response.destroyed) json(response,502,{error:'语音合成未完成，可继续无声阅读'}); return }
+          finally { response.off('close',abort) }
+          if (response.destroyed) return
+          // Candidate replacement must not deliver audio for a now-unavailable paragraph.
+          const latest = projectPlayerView(await runtime.state())
+          let current: typeof input | undefined
+          try { current = frontendSpeechInput(latest,value) } catch (error) {
+            if (!(error instanceof TypeError)) throw error
+          }
+          if (JSON.stringify(current) !== JSON.stringify(input)) { json(response,409,{error:'语音段落已变化，请按当前阅读内容重新请求'}); return }
+          if (!audio || !['audio/mpeg','audio/ogg','audio/wav'].includes(audio.contentType) || !(audio.bytes instanceof Uint8Array)
+            || !audio.bytes.byteLength || audio.bytes.byteLength > 32 * 1024 * 1024) { json(response,502,{error:'语音适配器未返回有效音频'}); return }
+          headers(response,audio.contentType); response.end(audio.bytes); return
+        }
         if (request.method === 'POST' && url.pathname === '/frontend-api/v1/action') {
           if (request.headers['content-type']?.split(';')[0] !== 'application/json') throw new TypeError('请求必须是 JSON')
           const inputCharacters=(await runtime.state()).playerSettings?.inputCharacters??2000
@@ -222,6 +249,11 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
           json(response,200,runtime.requestInspection(value.enabled))
         }
         return
+      }
+      if (url.pathname === '/api/creator-debug' && request.method === 'GET') {
+        if (!runtime.creatorDebug) { json(response,404,{error:'创作者调试不可用'}); return }
+        if ([...url.searchParams.keys()].some(key => url.searchParams.getAll(key).length !== 1)) throw new TypeError('调试查询字段不能重复')
+        json(response,200,runtime.creatorDebug(creatorDebugQuery(Object.fromEntries(url.searchParams)))); return
       }
       if (request.method === 'GET' && url.pathname === '/api/state') {
         json(response, 200, await runtimeCall(() => runtime.state()))

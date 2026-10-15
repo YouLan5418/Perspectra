@@ -49,6 +49,9 @@ export class PackActivities {
     this.#selection={events,entry};return entry
   }
   current(){return this.#selected()?.current()}
+  debugStates(events: readonly RulebookEvent[]): WorldJsonObject[] {
+    return [...this.#entries.entries()].map(([activityKey, entry]) => ({ activityKey, state: structuredClone(entry.state(events)) ?? null }))
+  }
   view(actorId:string){return this.#selected()?.view(actorId)}
   views(actorId:string):WorldJsonObject[]{return [...this.#entries.values()].map(entry=>entry.view(actorId))}
   beginRoundRandom(values?:readonly number[]):void {for(const entry of this.#entries.values())entry.beginRoundRandom(values)}

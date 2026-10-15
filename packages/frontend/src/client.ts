@@ -17,6 +17,7 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
       if(data.type==='initialized'){info=data;view=data.view;connected(data);return}
       if(data.type==='view-patch'){merge(data.changes);for(const listener of listeners)listener({type:'view-patch',changes:data.changes,view});return}
       if(data.type==='disconnected'){for(const listener of listeners)listener(data);return}
+      if(data.type==='presentation'){for(const listener of listeners)listener(data);return}
       if(data.type==='response'){
         const work=pending.get(data.requestId);if(!work)return;
         pending.delete(data.requestId);clearTimeout(work.timer);
@@ -47,6 +48,7 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
     cancelRegeneration:(actionId=id())=>request('cancelRegeneration',{},actionId),
     perform:(optionId,actionId=id(),npcIds)=>request('perform',{optionId,...(npcIds===undefined?{}:{npcIds})},actionId),
     resource:path=>request('resource',{path}),
+    synthesizeSpeech:(seq,segmentIndex,text)=>request('synthesizeSpeech',{seq,segmentIndex,text}),
     subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener)},
   });
 })();`;

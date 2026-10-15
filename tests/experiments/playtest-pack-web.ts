@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import { lstat, readFile, readdir, realpath } from 'node:fs/promises'
 import { extname, join, relative, resolve, sep } from 'node:path'
 
-export const FRONTEND_CAPABILITIES = ['view', 'history', 'speak', 'perform', 'regenerate', 'subscribe', 'resources'] as const
+export const FRONTEND_CAPABILITIES = ['view', 'history', 'speak', 'perform', 'regenerate', 'subscribe', 'resources', 'speech'] as const
+export const FRONTEND_RESOURCE_LIMITS = { files: 2048, fileBytes: 64 * 1024 * 1024, totalBytes: 512 * 1024 * 1024 } as const
 export interface FrontendManifest { apiVersion: 1; capabilities: string[] }
 export interface PackWebAsset { readonly bytes: Buffer; readonly contentType: string }
 export interface PackWeb { readonly page: Buffer; readonly assets: ReadonlyMap<string, PackWebAsset>; readonly manifest: FrontendManifest; readonly digest: string }
@@ -29,7 +30,8 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
       if (info.isDirectory()) { await visit(file); continue }
       const path = relative(root, file).split(sep).join('/')
       if (!info.isFile() || !mime[extname(path).toLowerCase()]) throw new Error('前端资源格式不支持。')
-      if (++count > 100 || info.size > 8 * 1024 * 1024 || (total += info.size) > 16 * 1024 * 1024) throw new Error('前端资源数量或大小超出实验限制。')
+      if (++count > FRONTEND_RESOURCE_LIMITS.files || info.size > FRONTEND_RESOURCE_LIMITS.fileBytes || (total += info.size) > FRONTEND_RESOURCE_LIMITS.totalBytes)
+        throw new Error('前端资源超出限制：最多 2048 个文件、单文件 64 MiB、合计 512 MiB。')
       const bytes = await readFile(file)
       if (bytes.length !== info.size) throw new Error('前端文件在载入过程中变化。')
       assets.set('/frontend/custom/' + path, { bytes, contentType: mime[extname(path).toLowerCase()]! })

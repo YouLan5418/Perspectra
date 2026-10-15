@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { afterEach, expect, it, vi } from 'vitest'
+import { brandId } from '@harness-world/contracts'
 import { createPlaytestServer, type PlaytestRuntime, type PlaytestState } from '../experiments/playtest-server.ts'
 import { loadPackWeb } from '../experiments/playtest-pack-web.ts'
 import { FrontendActions, projectPlayerView, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
@@ -44,6 +45,23 @@ it('projects only player-visible fields and never falls back to the full NPC ros
  expect(projected).not.toContain('PRIVATE_')
  expect(projectPlayerView(privateState()).scene?.visibleCharacters).toEqual(['visible'])
 })
+it('projects speaker identity and audio preferences with explicit field selection in HTTP and SSE patches',async()=>{
+ const state=privateState(),speakerId=brandId('character:remote','CharacterId')
+ const audio={volume:35,muted:true,voiceEnabled:true,privateToken:'PRIVATE_AUDIO'}
+ const next={...state,playerSettings:{inputCharacters:2000,reading:{fontSize:17,lineHeight:1.9,autoFollow:true},audio},
+  transcript:[Object.assign({seq:2,speaker:'visible（电话）',speakerId,text:'远处的问候',player:false},{privateContext:'PRIVATE_CONTEXT'})]}
+ const view=projectPlayerView(next)
+ expect(view.history[0]?.speakerId).toBe(speakerId)
+ expect(view.scene?.recipients).toEqual([])
+ expect(view.settings?.audio).toEqual({volume:35,muted:true,voiceEnabled:true})
+ expect(JSON.stringify(view)).not.toContain('PRIVATE_')
+ expect(playerViewPatch(projectPlayerView(state),view)).toMatchObject({settings:{audio:{volume:35}},history:[{speakerId}]})
+ const changed=projectPlayerView({...next,playerSettings:{...next.playerSettings,audio:{...audio,volume:60}}})
+ expect(playerViewPatch(view,changed)).toMatchObject({settings:{audio:{volume:60}}})
+ const {url}=await fixture({state:async()=>next})
+ const publicView=await(await fetch(url+'/frontend-api/v1/view',{headers:{'x-playtest-token':token}})).json()
+ expect(publicView).toEqual(view)
+})
 it('includes interrupt availability in player-view updates',()=>{
  const before=projectPlayerView(privateState())
  const state=privateState()
@@ -78,6 +96,10 @@ it('blocks unauthenticated/opaque-origin access, grants no admin capability and 
  expect(page.headers.get('content-security-policy')).toContain("sandbox allow-scripts")
  expect(page.headers.get('content-security-policy')).toContain("connect-src 'none'")
  expect((await fetch(url)).headers.get('content-security-policy')).toContain('/frontend/')
+ const portrait=await fetch(url+'/frontend/assets/gpt-6.png')
+ expect(portrait.status).toBe(200)
+ expect(portrait.headers.get('content-type')).toBe('image/png')
+ expect(Buffer.from(await portrait.arrayBuffer()).subarray(0,8).toString('hex')).toBe('89504e470d0a1a0a')
 })
 it('deduplicates concurrent submissions and rejects same-ID payload changes',async()=>{
  let release!:()=>void

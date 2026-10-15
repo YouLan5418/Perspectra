@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { playSettings, DEFAULT_PLAY_SETTINGS, readingPreferences } from '../../desktop/play-settings.ts'
+import { playSettings, DEFAULT_PLAY_SETTINGS, readingPreferences, audioPreferences } from '../../desktop/play-settings.ts'
 import { parsePlaytestLaunchArguments } from '../experiments/playtest-launch.ts'
 import { prototypeTurnCall } from '@harness-world/provider-chat'
 import { parseExpressionSegments } from '@harness-world/contracts'
@@ -16,6 +16,11 @@ it('validates local settings and rejects contradictory memory limits',()=>{
  expect(()=>parsePlaytestLaunchArguments(['--play-settings','{}','--tuning','{}'])).toThrow()
  expect(readingPreferences({fontSize:22,lineHeight:2,autoFollow:false})).toEqual({fontSize:22,lineHeight:2,autoFollow:false})
  expect(()=>readingPreferences({fontSize:100,lineHeight:2,autoFollow:false})).toThrow()
+})
+it('validates presentation audio preferences without accepting arbitrary template data',()=>{
+ expect(audioPreferences({volume:0,muted:true,voiceEnabled:false})).toEqual({volume:0,muted:true,voiceEnabled:false})
+ for(const value of [{volume:101,muted:false,voiceEnabled:false},{volume:NaN,muted:false,voiceEnabled:false},
+  {volume:50,muted:'false',voiceEnabled:false},{volume:50,muted:false,voiceEnabled:true,apiKey:'secret'}])expect(()=>audioPreferences(value)).toThrow()
 })
 it('uses the same publication limit in native/local schemas, instructions and aggregate validation',()=>{
  const request={continuation:false,context:{publicationCharacters:3000,character:{characterId:'npc'},affordances:[]}}

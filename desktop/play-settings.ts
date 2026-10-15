@@ -45,3 +45,14 @@ export function readingPreferences(value:unknown):ReadingPreferences{
  ||typeof v.lineHeight!=='number'||!Number.isFinite(v.lineHeight)||v.lineHeight<1.4||v.lineHeight>2.4||typeof v.autoFollow!=='boolean')throw new TypeError('阅读字号须为 14–28，行距须为 1.4–2.4。')
  return {fontSize:v.fontSize,lineHeight:v.lineHeight,autoFollow:v.autoFollow}
 }
+
+/** Presentation preferences only. Templates decide whether to provide audio playback. */
+export interface AudioPreferences {volume:number;muted:boolean;voiceEnabled:boolean}
+export const DEFAULT_AUDIO: AudioPreferences={volume:80,muted:false,voiceEnabled:false}
+export function audioPreferences(value:unknown):AudioPreferences{
+ if(!value||typeof value!=='object'||Array.isArray(value))throw new TypeError('音频设置无效。')
+ const v=value as Record<string,unknown>
+ if(Object.keys(v).sort().join(',')!=='muted,voiceEnabled,volume'||typeof v.volume!=='number'||!Number.isInteger(v.volume)||v.volume<0||v.volume>100
+ ||typeof v.muted!=='boolean'||typeof v.voiceEnabled!=='boolean')throw new TypeError('音量须为 0–100 的整数，静音和语音开关须为布尔值。')
+ return {volume:v.volume,muted:v.muted,voiceEnabled:v.voiceEnabled}
+}

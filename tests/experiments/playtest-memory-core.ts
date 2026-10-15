@@ -121,15 +121,15 @@ export class PlaytestMemoryCore {
     this.#aliases.set(actor, entries)
     return entries
   }
-  #snapshot(actor: string): { scope: WorldJsonObject; sources: WorldJsonObject[]; tick: number } {
+  #snapshot(actor: string, catchUp = true): { scope: WorldJsonObject; sources: WorldJsonObject[]; tick: number } {
     const store = new WorldStore(resolve(this.dataDirectory, 'world.sqlite'))
-    const memory = new CognitiveMemoryService(resolve(this.dataDirectory, 'memory.sqlite'), store,
-      undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
+    const memory = catchUp ? new CognitiveMemoryService(resolve(this.dataDirectory, 'memory.sqlite'), store,
+      undefined, 2, RECALL_KEYWORD_TOKENIZER_ID) : undefined
     try {
       const head = store.head(this.address)
-      memory.catchUp(this.address, brandId(actor, 'CharacterId'), head.headSeq, 'web-core-memory')
+      memory?.catchUpReceipt(this.address, brandId(actor, 'CharacterId'), head.headSeq, 'web-core-memory')
       // The host supplies timestamps only for the character's already authorized source rows.
-      const ticks = new Map(store.readEvents(this.address).map(e => [e.seq, e.tick]))
+      const ticks = new Map(store.readEventTicks(this.address, head.headSeq).map(e => [e.seq, e.tick]))
       const db = new DatabaseSync(resolve(this.dataDirectory, 'memory.sqlite'), { readOnly: true })
       type Row = { source_id: string; source_hash: string; epistemic_kind: string; source_seq: number; text_value: string }
       let rows: Row[]
@@ -144,7 +144,7 @@ export class PlaytestMemoryCore {
           return { sourceId: r.source_id, sourceHash: r.source_hash, epistemicKind: r.epistemic_kind,
             worldSeq: r.source_seq, characterId: actor, worldAddress: { ...this.address }, text: r.text_value, knownTick: tick }
         }) }
-    } finally { memory.close(); store.close() }
+    } finally { memory?.close(); store.close() }
   }
   #validate(cached: WorldJsonObject, snapshot: { scope: WorldJsonObject; sources: WorldJsonObject[]; tick: number }): void {
     const archive = object(cached.archive), scope = object(archive.scope), index = object(cached.index)
@@ -310,6 +310,22 @@ export class PlaytestMemoryCore {
       this.#validate(cached, this.#snapshot(actor))
       return [[actor, cached]]
     }))
+  }
+  /** Validate an installed archive without catch-up, recall or model work. */
+  inspectArchive(actor: string, offset: number, limit: number): { archivePrefix: number | null;
+    sections: Record<string, { total: number; items: WorldJsonValue[]; hasMore: boolean }>; maintenance: WorldJsonObject } {
+    const cached = this.#load(actor)
+    const jobs = [...this.#jobs.values()].filter(job => job.actor === actor)
+    const maintenance: WorldJsonObject = { pendingPrefix: this.#pending.get(actor) ?? null,
+      jobs: jobs.map(job => ({ prefix: job.prefix, status: job.started ? 'running' : 'queued' })) }
+    if (!cached) return { archivePrefix: null, sections: {}, maintenance }
+    this.#validate(cached, this.#snapshot(actor, false))
+    const archive = object(cached.archive)
+    const sections = Object.fromEntries(Object.entries(archive).filter(([, value]) => Array.isArray(value)).map(([key, value]) => {
+      const rows = value as WorldJsonValue[]
+      return [key, { total: rows.length, items: structuredClone(rows.slice(offset, offset + limit)), hasMore: offset + limit < rows.length }]
+    }))
+    return { archivePrefix: Number(object(archive.scope).asOfWorldSeq), sections, maintenance }
   }
   /** Restore the node's actual memory boundary, including an explicitly empty archive set. */
   restoreArchives(archives: WorldJsonObject, actors: readonly string[]): void {

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { PlaytestState, PlaytestAction, PlaytestRuntime } from '../../../tests/experiments/playtest-server.ts'
-import { canonicalizeWorldJson, type WorldJsonObject } from '@harness-world/contracts'
+import { canonicalizeWorldJson, type CharacterId, type WorldJsonObject } from '@harness-world/contracts'
 
 export interface PlayerView {
   game: { title: string }
@@ -10,10 +10,11 @@ export interface PlayerView {
   activities?: { key: string; title: string; active: boolean; suspended: boolean; phase: string; public: WorldJsonObject }[]
   status: 'ready' | 'busy' | 'paused' | 'error'
   canInterrupt?: boolean
+  expression?: { speech: 'free' | 'none' | 'choices'; speechChoices: string[]; narration: boolean }
   feedback?: { phase: string; message: string }
   settings?: PlaytestState['playerSettings']
   tailRound?: PlaytestState['tailRound']
-  history: { seq: number; speaker: string; text: string; player: boolean; segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
+  history: { seq: number; speaker: string; speakerId?: CharacterId; text: string; player: boolean; segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
   actions: { id: string; label: string; action: PlaytestAction; participantSelection?: { min: number; max: number; candidates: { id: string; name: string }[] } }[]
 }
 export function projectPlayerView(state: PlaytestState): PlayerView {
@@ -63,11 +64,15 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
     }
   }
   const activityGame=state.activity?.game as WorldJsonObject|undefined
+  const expressionPolicy = activityGame?.active ? state.activity?.policy as WorldJsonObject | undefined : undefined
   if(activityGame?.active && activityGame.turn!==(state.activity!.participants as string[])[0]){
     const action:PlaytestAction={actionType:'interact',parameters:{definitionRef:{id:'host:activity-retry',version:1},previousId:state.activity!.id!,previousRevision:state.activity!.revision!}}
     actions.push({id:'opt:'+createHash('sha256').update(canonicalizeWorldJson(action as unknown as WorldJsonObject)).digest('hex'),label:'再次请求角色处理',action})
   }
   return {
+    expression: { speech: expressionPolicy?.speech === 'none' ? 'none' : expressionPolicy?.speech === 'choices' ? 'choices' : 'free',
+      speechChoices: Array.isArray(expressionPolicy?.speechChoices) ? expressionPolicy.speechChoices.filter((value): value is string => typeof value === 'string') : [],
+      narration: expressionPolicy?.narration !== false },
     ...(state.activity?{activity:{title:String(state.activity.title),active:activityGame?.active===true,phase:String(activityGame?.phase??'not-started'),public:structuredClone(activityGame?.public??{}) as WorldJsonObject}}:{}),
     ...(state.activities?{activities:state.activities.map(activity=>{
       const game=activity.game as WorldJsonObject|undefined
@@ -80,15 +85,16 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
     ...(state.playerFeedback ? { feedback: structuredClone(state.playerFeedback) } : {}),
     status: state.busy ? 'busy' : state.error ? 'error' : state.paused ? 'paused' : 'ready',
     ...(state.canInterrupt===undefined?{}:{canInterrupt:state.canInterrupt}),
-    ...(state.playerSettings?{settings:{inputCharacters:state.playerSettings.inputCharacters,reading:{fontSize:state.playerSettings.reading.fontSize,lineHeight:state.playerSettings.reading.lineHeight,autoFollow:state.playerSettings.reading.autoFollow}}}:{}),
+    ...(state.playerSettings?{settings:{inputCharacters:state.playerSettings.inputCharacters,reading:{fontSize:state.playerSettings.reading.fontSize,lineHeight:state.playerSettings.reading.lineHeight,autoFollow:state.playerSettings.reading.autoFollow},
+      ...(state.playerSettings.audio?{audio:{volume:state.playerSettings.audio.volume,muted:state.playerSettings.audio.muted,voiceEnabled:state.playerSettings.audio.voiceEnabled}}:{})}}:{}),
     ...(state.tailRound ? {tailRound: state.tailRound} : {}),
-    history: state.transcript.map(line => ({ seq: line.seq, speaker: line.speaker, text: line.text, player: line.player, ...(line.segments === undefined ? {} : { segments: line.segments }) })),
+    history: state.transcript.map(line => ({ seq: line.seq, speaker: line.speaker, ...(line.speakerId === undefined ? {} : {speakerId:line.speakerId}), text: line.text, player: line.player, ...(line.segments === undefined ? {} : { segments: line.segments }) })),
     actions,
   }
 }
 export function playerViewPatch(before: PlayerView, after: PlayerView): Record<string, unknown> | null {
   const changes: Record<string, unknown> = {}
-  for (const key of ['game', 'player', 'scene', 'status', 'canInterrupt', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback'] as const) {
+  for (const key of ['game', 'player', 'scene', 'status', 'canInterrupt', 'expression', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback'] as const) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
   }
   if (JSON.stringify(before.history) !== JSON.stringify(after.history)) {

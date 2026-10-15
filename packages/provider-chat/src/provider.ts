@@ -19,6 +19,8 @@ export interface ChatCallObservation {
   readonly model: string
   readonly durationMs: number
   readonly status: 'ok' | 'failed'
+  /** HTTP status when the endpoint answered at all. Absent for transport failures, so a refusal stays distinguishable from an unreachable service. */
+  readonly httpStatus?: number
 }
 
 /**
@@ -170,10 +172,12 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
     const inspection = kind === 'character' && prepared.inspection ? {...prepared.inspection,sources} : undefined
     const inspectionId = options.inspector?.begin(body, inspection, messages, model)
     const started = performance.now()
+    let httpStatus: number | undefined
     try {
       const timeout = AbortSignal.timeout(timeoutMs)
       const response = await post(providerEndpoint(options.endpoint, protocol, model), { method: 'POST', redirect: 'error', headers,
         body: JSON.stringify(body), signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]) })
+      httpStatus = response.status
       if (!response.ok) {
         // The endpoint's own words about what it refused are the operator's only clue, so they travel with
         // the failure rather than being replaced by a status code.
@@ -187,7 +191,8 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
       return payload
     } catch (error: unknown) {
       options.inspector?.finish(inspectionId, 'failed', Math.round(performance.now() - started))
-      options.onCall?.({ kind, model, durationMs: Math.round(performance.now() - started), status: 'failed' })
+      options.onCall?.({ kind, model, durationMs: Math.round(performance.now() - started), status: 'failed',
+        ...(httpStatus === undefined ? {} : { httpStatus }) })
       throw error
     }
   }

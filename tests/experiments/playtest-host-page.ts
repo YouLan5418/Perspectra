@@ -3,27 +3,192 @@ export const HOST_ACTIVITY_PAGE = String.raw`<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Perspectra 试玩</title>
 <style>
-:root{color-scheme:light;font:13px "Segoe UI","Microsoft YaHei",system-ui;background:#f4f3ef;color:#344237;--border:#dee3d7}*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;height:100dvh;display:flex;flex-direction:column}button,input,select,summary{font:inherit}button,summary{cursor:pointer}button:disabled{opacity:.45;cursor:default}:focus-visible{outline:2px solid #688e77;outline-offset:3px}
-header{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 32px;background:#fafbf6;border-bottom:1px solid var(--border);flex-shrink:0}.brand{display:flex;align-items:center;gap:13px}.brand strong{font-size:18px;font-weight:600;letter-spacing:-.6px}.brand small{font-size:10px;color:#8b9681;border-left:1px solid #dce1d5;padding-left:13px}#frontend-status{font-size:10px;color:#85917b;line-height:1.5}.toolbar{display:flex;align-items:center;gap:8px}button{padding:8px 12px;border:1px solid #dce3d3;border-radius:6px;background:#fdfefb;color:#607653}button:hover:not(:disabled){background:#edf2e5}#escape{color:#94654e;background:transparent;border-color:#e3dcd1;font-size:11px;white-space:nowrap}
-#tools{position:relative}#tools>summary{list-style:none;border:1px solid #dce3d3;border-radius:6px;padding:8px 12px;font-size:11px;background:#fff}#tools>summary::-webkit-details-marker{display:none}.tool-menu{position:absolute;right:0;top:40px;width:220px;padding:8px;background:#fdfefb;border:1px solid #dce3d3;border-radius:9px;box-shadow:0 8px 30px #34423716;display:grid;gap:4px}.tool-menu button{text-align:left;border:0;background:transparent;font-size:12px}.tool-menu p{margin:4px 8px 6px;font-size:10px;line-height:1.6;color:#939e89}
-#notice,#memory-status{margin:0;flex-shrink:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.6;background:#f5f4e9}#notice:not(:empty),#memory-status:not(:empty){padding:8px 32px;border-bottom:1px solid #e5e3d5}#notice[data-type="error"]{color:#995b43;background:#fbf0e9}#notice[data-type="success"]{color:#54734d}#memory-status{color:#7c885e}
-#game{position:static;order:1;flex-shrink:0;width:calc(100% - 32px);margin:0 16px 12px;padding:15px 16px;background:#fdfef9;border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 24px #34423712;max-height:40dvh;overflow:auto}.activity-heading{display:flex;align-items:center;gap:8px;list-style:none;cursor:pointer}.activity-heading::-webkit-details-marker{display:none}#activity-toggle{margin-left:auto;font-size:10px;color:#8d9b80}#game[open] #activity-toggle{font-size:0}#game[open] #activity-toggle:after{content:"收起玩法";font-size:10px}.activity-heading small{font-size:10px;letter-spacing:1px;color:#93a183}.activity-heading strong{font-weight:600;font-size:13px;min-width:0;overflow-wrap:anywhere}#activity-toggle{flex-shrink:0}#round{margin:8px 0 12px;color:#869476;font-size:11px;line-height:1.7}#options{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}.operation{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;border:1px solid #e3e9da;border-radius:7px;padding:8px;background:#f7f9f1}.operation label{display:flex;gap:6px;align-items:center;font-size:11px;color:#82926e}.operation input,.operation select{padding:7px 9px;border:1px solid #dce3d3;border-radius:5px;background:#fff;max-width:160px;min-width:0;width:100px}.operation input[type="checkbox"]{width:auto}#options button{font-size:11px}
+:root{
+  color-scheme:dark;font:13px/1.6 "Segoe UI","Microsoft YaHei",sans-serif;
+  background:#090f1a;color:#f2ede3;
+  --gold:#e3c086;--gold-hover:#eed4a7;--gold-line:#e3c08659;
+  --danger:#e59b86;--muted:#c2cad4;--faint:#8d99ad;
+  --line:#a9bed62b;--line-strong:#c4cedb3b;
+  --ease-out:cubic-bezier(0.16, 1, 0.3, 1);
+}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;height:100dvh;position:relative;overflow:hidden;background:#090f1a}
+button,input,select,summary{font:inherit}
+button,summary{cursor:pointer}
+button{
+  padding:8px 14px;border:1px solid var(--line);border-radius:8px;
+  background:#141f33cc;color:#f2ede3;
+  transition:all .2s var(--ease-out);
+}
+button:hover:not(:disabled){
+  background:#26364f;border-color:#a9bed65e;transform:translateY(-1px);
+  box-shadow:0 4px 12px rgba(0,0,0,.25);
+}
+button:active:not(:disabled){transform:translateY(0) scale(.98)}
+button:disabled{opacity:.38;cursor:default;transform:none!important;box-shadow:none!important}
+:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 
-iframe{display:block;width:100%;flex:1;min-height:0;border:0;background:#f4f3ef}@media(max-width:640px){header{padding:12px 14px;flex-wrap:wrap;gap:8px}.brand{gap:8px}.brand small{padding-left:8px}.toolbar{margin-left:auto}#frontend-status{max-width:160px}#game{position:static;order:1;width:calc(100% - 28px);margin:0 14px 12px;padding:12px;max-height:28dvh;flex-shrink:0;box-shadow:none}#notice:not(:empty),#memory-status:not(:empty){padding:8px 14px}.tool-menu{width:210px}.operation{max-width:100%}.activity-heading{flex-wrap:wrap}}
-@media(prefers-color-scheme:dark){
-:root{color-scheme:dark;background:#101010;color:#e5e5e5;--border:#353535}
-:focus-visible{outline-color:#d0d0d0}
-header{background:#161616}.brand small{color:#999;border-color:#353535}#frontend-status{color:#b0b0b0}
-button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}button:hover:not(:disabled){background:#282828}
-#escape{color:#d5aa8c;border-color:#404040}.tool-menu{background:#191919;border-color:#353535;box-shadow:0 8px 30px #0005}.tool-menu p{color:#999}
-#notice,#memory-status{background:#202020;color:#b0b0b0}#notice:not(:empty),#memory-status:not(:empty){border-color:#353535}#notice[data-type="error"]{color:#e4ad96;background:#30221e}#notice[data-type="success"]{color:#d0d0d0}
-#game{background:#191919;box-shadow:0 6px 24px #0004}#activity-toggle,.activity-heading small,#round,.operation label{color:#b0b0b0}
-.operation{background:#202020;border-color:#353535}.operation input,.operation select{background:#161616;color:#e5e5e5;border-color:#404040}iframe{background:#101010}
+header{
+  position:absolute;inset:0 0 auto;z-index:10;height:46px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 22px;background:#0d1627f2;backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line-strong);
+}
+.brand strong{font-size:13px;letter-spacing:1px;color:var(--gold)}
+.brand small,#frontend-status{display:none}
+.toolbar{display:flex;align-items:center;gap:6px}
+.toolbar button{padding:5px 11px;font-size:11px}
+#host-tail-tools{display:flex;align-items:center;gap:4px;margin-right:4px}
+#host-candidate-count{font-size:11px;color:var(--faint)}
+#escape{
+  margin-left:8px;color:#eda98f;border-color:#e59b864d;background:transparent;
+}
+#escape:hover:not(:disabled){background:#e59b8618;border-color:#e59b8680}
+#tools{position:relative}
+#tools>summary{
+  list-style:none;padding:5px 12px;border:1px solid var(--line);
+  border-radius:6px;font-size:11px;transition:all .2s var(--ease-out);
+}
+#tools>summary:hover{background:#172233;border-color:#a9bed655}
+#tools>summary::-webkit-details-marker{display:none}
+.tool-menu{
+  position:absolute;right:0;top:38px;width:230px;padding:8px;
+  background:#131e33f6;backdrop-filter:blur(16px);
+  border:1px solid var(--line-strong);border-radius:10px;
+  box-shadow:0 16px 48px rgba(0,0,0,.6);display:grid;gap:4px;
+  animation:menuPop .2s var(--ease-out);
+}
+@keyframes menuPop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.tool-menu button{text-align:left;border:0;background:transparent;border-radius:6px;padding:6px 10px}
+.tool-menu button:hover:not(:disabled){color:var(--gold);background:#1e2d4d80}
+.tool-menu p{margin:4px 8px;font-size:10px;color:var(--faint)}
+
+iframe{
+  position:absolute;inset:46px 0 0;width:100%;height:calc(100dvh - 46px);
+  border:0;background:#090f1a;
+}
+
+#game{
+  position:absolute;z-index:8;right:20px;top:56px;width:310px;margin:0;padding:16px 18px;
+  background:rgba(13,23,40,.82);
+  border:1px solid var(--line-strong);border-radius:16px;
+  box-shadow:0 18px 50px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);
+  max-height:calc(100dvh - 80px);overflow:auto;
+  backdrop-filter:blur(24px) saturate(160%);
+  -webkit-backdrop-filter:blur(24px) saturate(160%);
+  transition:border-color .2s var(--ease-out),padding .25s var(--ease-out);
+}
+#game:hover{border-color:rgba(227,192,134,.28)}
+#game:not([open]){width:310px;padding:10px 14px}
+#game[open] > :not(summary){
+  animation:expandDown .26s var(--ease-out);
+}
+@keyframes expandDown{
+  from{opacity:0;transform:translateY(-8px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.activity-heading{display:grid;grid-template-columns:1fr auto;gap:3px 8px;list-style:none}
+.activity-heading::-webkit-details-marker{display:none}
+.activity-heading small{font-size:9px;letter-spacing:2px;color:var(--gold);text-transform:uppercase}
+.activity-heading strong{font-size:15px;font-weight:600;grid-column:1;overflow-wrap:anywhere}
+#activity-toggle{grid-column:2;grid-row:1/4;align-self:center;font-size:10px;color:var(--gold)}
+#card-status{grid-column:1;font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+#activity-toggle:after{content:"展开操作"}
+#game[open] #activity-toggle:after{content:"返回情景"}
+
+#round{color:var(--faint);font-size:11px;letter-spacing:1px;margin:12px 0 2px}
+.activity-section-label{font-size:10px;letter-spacing:1px;color:var(--gold);margin:14px 0 7px;text-transform:uppercase}
+#activity-objective{
+  font-size:13px;line-height:1.85;color:var(--muted);margin:6px 0 12px;
+  padding-left:12px;border-left:2px solid var(--gold);
+  white-space:pre-wrap;overflow-wrap:anywhere;background:rgba(227,192,134,.04);
+  border-radius:0 6px 6px 0;padding:6px 0 6px 12px;
+}
+#activity-state{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0 14px;
+}
+#activity-state div{
+  padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+  background:#0a1220c0;min-width:0;transition:border-color .2s var(--ease-out);
+}
+#activity-state div:hover{border-color:var(--gold-line)}
+#activity-state dt{font-size:10px;color:var(--faint);letter-spacing:1px}
+#activity-state dd{
+  margin:4px 0 0;font-size:17px;font-weight:600;color:var(--gold);overflow-wrap:anywhere;
+}
+#options,#management{display:flex;flex-direction:column;gap:8px}
+.operation{
+  border:1px solid var(--line);border-radius:12px;padding:14px;
+  background:#131f3666;display:grid;gap:12px;
+  transition:border-color .2s var(--ease-out);
+}
+.operation:hover{border-color:rgba(169,190,214,.35)}
+.operation label{display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--muted)}
+.operation input,.operation select,#options>label select{
+  padding:10px 12px;border:1px solid var(--line);border-radius:8px;
+  background:#0a1220;color:#f2ede3;min-width:0;width:100%;
+  transition:border-color .2s var(--ease-out),box-shadow .2s var(--ease-out);
+}
+.operation input:focus,.operation select:focus,#options>label select:focus{
+  border-color:var(--gold-line);box-shadow:0 0 0 3px rgba(227,192,134,.12);outline:none;
+}
+.operation input[type="checkbox"]{width:auto;align-self:flex-start}
+
+#options>button,.operation>button{
+  background:linear-gradient(135deg,#e3c086,#d4ad6e);color:#171107;
+  border:0;font-weight:600;text-align:center;padding:10px 16px;border-radius:8px;
+  box-shadow:0 2px 10px rgba(227,192,134,.22);
+  transition:all .2s var(--ease-out);
+}
+#options>button:hover:not(:disabled),.operation>button:hover:not(:disabled){
+  background:linear-gradient(135deg,#eed4a7,#e3c086);
+  box-shadow:0 4px 16px rgba(227,192,134,.35);transform:translateY(-1px);
+}
+#options>button:active:not(:disabled),.operation>button:active:not(:disabled){transform:translateY(0) scale(.98)}
+#options>button[data-tone="danger"]{
+  background:transparent;color:#eda98f;border:1px solid #e59b864d;font-weight:400;box-shadow:none;
+}
+#options>button[data-tone="danger"]:hover:not(:disabled){
+  background:#e59b8618;border-color:#e59b8680;
+}
+#management{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+#management button{
+  font-size:11px;color:var(--muted);text-align:left;border:0;background:transparent;padding:6px 6px;border-radius:6px;
+}
+#management button:hover:not(:disabled){color:var(--gold);background:#17223380}
+#activity-feedback{
+  font-size:12px;color:var(--gold);white-space:pre-wrap;overflow-wrap:anywhere;padding-top:10px;
+}
+#activity-feedback[data-type="error"]{color:#edaa96}
+#activity-feedback:empty,#management:empty{display:none}
+
+#notice,#memory-status{
+  position:absolute;z-index:11;top:58px;left:20px;max-width:min(680px,calc(100% - 40px));
+  margin:0;color:#e8cd97;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;
+}
+#memory-status{top:100px}
+#notice:not(:empty),#memory-status:not(:empty){
+  padding:10px 18px;background:#18223af2;border:1px solid var(--line-strong);
+  box-shadow:0 12px 38px rgba(0,0,0,.6);backdrop-filter:blur(16px);
+}
+#notice[data-type="error"]{color:#edaa96;border-color:#e59b8655}
+
+@media(min-width:1600px){
+  #game{right:28px;width:340px;padding:20px}
+  #game:not([open]){width:340px}
+}
+@media(max-width:760px){
+  header{padding:6px 14px}
+  .toolbar{gap:4px}.toolbar button{font-size:10px}
+  #game{right:12px;top:54px;width:calc(100% - 24px);max-height:38dvh}
+  #game:not([open]){width:220px;max-height:90px}
+  #escape{font-size:10px;margin-left:4px}
+  #notice,#memory-status{left:12px}
 }
 </style></head><body>
-<header><div class="brand"><strong>Perspectra</strong><small>游玩中</small></div><span id="frontend-status" role="status">正在载入</span><div class="toolbar"><span id="host-tail-tools" hidden><button id="host-candidate-prev" type="button" aria-label="上一个候选">‹</button><span id="host-candidate-count"></span><button id="host-candidate-next" type="button" aria-label="下一个候选">›</button><button id="regenerate" type="button" aria-label="重新生成" title="重新生成此回合" disabled>↻</button></span><details id="tools"><summary>游戏工具 ···</summary><div class="tool-menu"><button id="cancel-regenerate" type="button" hidden>取消重新生成</button><button id="reload-frontend" type="button">重新加载界面</button><button id="default-frontend" type="button">切换官方默认界面</button><button id="memory" type="button" hidden>整理长期记忆</button><p>这些操作不会清空已提交的进度。</p></div></details><button id="escape" type="button" title="逃生：中止活动并恢复自由互动">中止活动 / 恢复</button></div></header>
+<header><div class="brand"><strong>Perspectra</strong><small>游玩中</small></div><span id="frontend-status" role="status">正在载入</span><div class="toolbar"><span id="host-tail-tools" hidden><button id="host-candidate-prev" type="button" aria-label="上一个候选">‹</button><span id="host-candidate-count"></span><button id="host-candidate-next" type="button" aria-label="下一个候选">›</button><button id="regenerate" type="button" aria-label="重新生成" title="重新生成此回合" disabled>↻</button></span><details id="tools"><summary>游戏工具 ···</summary><div class="tool-menu"><button id="cancel-regenerate" type="button" hidden>取消重新生成</button><button id="reload-frontend" type="button">重新加载界面</button><button id="default-frontend" type="button">切换官方默认界面</button><button id="memory" type="button" hidden>整理长期记忆</button><p>这些操作不会清空已提交的进度。</p></div></details><button id="escape" type="button" title="逃生：中止活动并恢复自由互动">中止活动 · 逃生</button></div></header>
 <p id="notice" role="status"></p><p id="memory-status" role="status"></p>
-<details id="game" hidden><summary class="activity-heading"><small>活动</small><strong id="title"></strong><span id="activity-toggle">展开玩法</span></summary><p id="round"></p><div id="options"></div></details>
+<details id="game" hidden><summary class="activity-heading"><small>当前活动</small><strong id="title"></strong><span id="activity-toggle"></span><span id="card-status"></span></summary><p id="round"></p><p id="activity-objective"></p><dl id="activity-state"></dl><p class="activity-section-label">可执行操作</p><div id="options"></div><p id="activity-feedback" role="status"></p><div id="management"></div></details>
 <iframe id="experience" title="游戏界面" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
 <script>
 (() => {
@@ -34,8 +199,8 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
   const node=id=>document.getElementById(id);
   const frame=node('experience');
   let port=null,connected=false,frameLoaded=false,frontendReady=false,useDefault=false,init=null,playerView=null;
-  let epoch=0,streamController=null;
-  function revoke(){epoch++;if(port)port.close();port=null;connected=false;frameLoaded=false;frontendReady=false}
+  let epoch=0,streamController=null,readingPending=true,historyOpen=false,presentationMode='reading',readHistorySignature='',shownActivity,panelOpenSent=null;
+  function revoke(){readingPending=true;historyOpen=false;shownActivity=undefined;panelOpenSent=null;readHistorySignature='';node('game').open=false;epoch++;if(port)port.close();port=null;connected=false;frameLoaded=false;frontendReady=false}
   async function publicApi(path,payload){
     const response=await fetch('/frontend-api/v1/'+path,{method:payload===undefined?'GET':'POST',
       headers:{'x-playtest-token':token,'content-type':'application/json'},...(payload===undefined?{}:{body:JSON.stringify(payload)})});
@@ -45,11 +210,16 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
   function applyView(next,notify=true){
     if(!playerView){playerView=next;return}
     const changes={};
-    for(const key of ['game','player','scene','status','canInterrupt','actions','tailRound','settings','activity','activities','feedback'])if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key];
+    const selected=tail=>tail?.candidateIds?.[(tail.candidateIndex||1)-1]||null;
+    const candidateChanged=playerView.tailRound?.id&&playerView.tailRound.id===next.tailRound?.id&&selected(playerView.tailRound)!==selected(next.tailRound);
+    if(init?.frontend==='default'&&candidateChanged){readingPending=true;shownActivity=next.activity?{title:next.activity.title,game:{active:next.activity.active,phase:next.activity.phase,public:next.activity.public}}:null;node('game').open=false;panelPresentation()}
+
+    for(const key of ['game','player','scene','status','canInterrupt','expression','actions','tailRound','settings','activity','activities','feedback'])if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key];
     if(JSON.stringify(playerView.history)!==JSON.stringify(next.history)){
       const prefix=playerView.history.length<=next.history.length&&playerView.history.every((line,i)=>JSON.stringify(line)===JSON.stringify(next.history[i]));
       if(prefix)changes.historyAppend=next.history.slice(playerView.history.length);else changes.history=next.history;
     }
+    if(init?.frontend==='default'&&JSON.stringify(playerView.history)!==JSON.stringify(next.history)){readingPending=true;if(!changes.historyAppend)shownActivity=next.activity?{title:next.activity.title,game:{active:next.activity.active,phase:next.activity.phase,public:next.activity.public}}:null;node('game').open=false;panelPresentation()}
     playerView=next;if(notify&&Object.keys(changes).length)post({type:'view-patch',changes});
   }
   async function connect(){
@@ -60,8 +230,8 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
       if(current!==epoch||!r||r.type!=='request'||typeof r.requestId!=='string'||!/^[a-zA-Z0-9:-]{1,100}$/.test(r.requestId))return;
       const reply=value=>{if(current===epoch)channel.port1.postMessage({type:'response',requestId:r.requestId,...value})};
       try{
-        if(JSON.stringify(r).length>Math.max(8192,(playerView?.settings?.inputCharacters||2000)*6+2048)||!r.payload||typeof r.payload!=='object'||Array.isArray(r.payload))throw new Error('前端请求格式无效');
-        const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',resource:'resources'}[r.method];
+        if(JSON.stringify(r).length>(r.method==='synthesizeSpeech'?100000:Math.max(8192,(playerView?.settings?.inputCharacters||2000)*6+2048))||!r.payload||typeof r.payload!=='object'||Array.isArray(r.payload))throw new Error('前端请求格式无效');
+        const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',resource:'resources',synthesizeSpeech:'speech'}[r.method];
         if(!grant||!init.capabilities.includes(grant))throw new Error('前端没有该能力');
         if(['view','history'].includes(r.method)){
           if(Object.keys(r.payload).length)throw new Error('查询不接受额外参数');
@@ -72,13 +242,19 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
           if(Object.keys(r.payload).join(',')!=='path')throw new Error('资源请求格式无效');
           const result=await publicApi('resource',{path:r.payload.path});reply({ok:true,result});return;
         }
+        if(r.method==='synthesizeSpeech'){
+          const response=await fetch('/frontend-api/v1/speech',{method:'POST',headers:{'x-playtest-token':token,'content-type':'application/json'},body:JSON.stringify(r.payload)});
+          if(!response.ok){const value=await response.json();const error=new Error(value.error||'语音合成未完成');error.status=response.status;throw error}
+          const contentType=response.headers.get('content-type'),bytes=await response.arrayBuffer();
+          reply({ok:true,result:{contentType,bytes}});return;
+        }
         const view=await publicApi('action',{requestId:r.requestId,actionId:r.actionId,operation:r.method,payload:r.payload});
         applyView(view);reply({ok:true,view});
       }catch(error){reply({ok:false,error:error.message||'前端操作失败',retryable:error.status!==400})}
     };
     port.start();
     frame.contentWindow.postMessage({type:'frontend-connect',apiVersion:1},init.frontendMode==='trusted'?init.frontendOrigin:'*',[channel.port2]);
-    post({type:'initialized',apiVersion:1,frontendMode:init.frontendMode,capabilities:init.capabilities,view:playerView});
+    post({type:'initialized',apiVersion:1,frontendMode:init.frontendMode,capabilities:init.capabilities,view:playerView});panelPresentation();
     node('frontend-status').textContent=init.frontend==='default'?'官方默认模板 · 沙箱':init.frontendMode==='trusted'?'游戏包前端 · 受信任':'游戏包前端 · 沙箱';
   }
   window.addEventListener('message',event=>{
@@ -86,10 +262,19 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
     if(event.source!==frame.contentWindow||event.origin!==expected||event.data?.type!=='frontend-ready'||event.data.apiVersion!==1)return;
     frontendReady=true;connect();
   });
+  window.addEventListener('message',event=>{
+    if(init?.frontend!=='default'||event.source!==frame.contentWindow||event.origin!=='null'||event.data?.type!=='frontend-reading'||typeof event.data.pending!=='boolean')return;
+    const changed=readingPending!==event.data.pending||historyOpen!==event.data.historyOpen||presentationMode!==event.data.mode||readHistorySignature!==event.data.historySignature;
+    readingPending=event.data.pending;historyOpen=event.data.historyOpen===true;presentationMode=event.data.mode;readHistorySignature=event.data.historySignature;
+    if(presentationMode==='response'||historyOpen)node('game').open=false;
+    panelPresentation();if(changed){signature='';if(latest)render(latest);}
+
+  });
   frame.onload=()=>{frameLoaded=true;connect()};
   async function mount(fallback=false){
     revoke();useDefault=fallback;
     init=await publicApi('init'+(fallback?'?template=default':''));
+    readingPending=init.frontend==='default';historyOpen=false;signature='';if(latest)render(latest);
     playerView=init.view;
     frame.setAttribute('sandbox',init.frontendMode==='trusted'?'allow-scripts allow-same-origin':'allow-scripts');
     frame.src=init.frontend==='custom'&&!fallback?(init.frontendOrigin||'')+'/frontend/custom/index.html':'/frontend/default.html';
@@ -119,11 +304,12 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
   window.addEventListener('pagehide',()=>{streamController?.abort();revoke()});
   mount().then(events).catch(()=>node('frontend-status').textContent='前端初始化失败');
 
-  let latest, posting=false, signature='', pending=null, activityActive=false;
+  let latest, posting=false, signature='', pending=null;
   // Page-local presentation only. Sequence orders notices, not requests or world events.
-  let currentNotice=null, noticeSequence=0;
+  let currentNotice=null, noticeSequence=0,noticeTimer=null;
   function setNotice(type,operation,content){
-    currentNotice={type,operation,content,sequence:++noticeSequence};renderNotice();
+    clearTimeout(noticeTimer);currentNotice={type,operation,content,sequence:++noticeSequence};renderNotice();
+    if(type==='success'){const sequence=noticeSequence;noticeTimer=setTimeout(()=>{if(currentNotice?.sequence===sequence)clearNotice()},4000)}
   }
   function clearNotice(){currentNotice=null;renderNotice()}
   function renderNotice(){
@@ -131,6 +317,7 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
     target.dataset.type=currentNotice?.type||'';
     target.dataset.operation=currentNotice?.operation||'';
     target.dataset.sequence=currentNotice?String(currentNotice.sequence):'';
+    const feedback=node('activity-feedback');feedback.textContent=currentNotice?.operation==='activity'?currentNotice.content:'';feedback.dataset.type=currentNotice?.type||'';if(currentNotice?.operation==='activity')target.textContent='';
   }
   async function api(path,payload) {
     const response=await fetch(path,{method:payload===undefined?'GET':'POST',
@@ -141,7 +328,7 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
     return value;
   }
   async function send(operation,parameters={},selected=latest?.activity) {
-    if(posting)return;
+    if(posting||readingPending||node('game').hidden)return;
     const a=selected;
     if(!a)return;
     const payload={activityKey:a.activityKey,activityId:operation==='start'?null:a.id,
@@ -167,36 +354,46 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
     node('memory-status').textContent=m&&(m.running+m.queued)>0?'长期记忆在后台整理，可继续游玩。':m&&m.failed>0?'部分角色整理失败，继续使用原档案。':m&&m.completed>0?'后台记忆整理完成。':'';
     renderNotice();
     const a=state.activity;
-    node('game').hidden=!a;
-    if(!a)return;
-    node('title').textContent=a.title;
-    const active=a.game?.active;
-    if(Boolean(active)!==activityActive){node('game').open=Boolean(active)&&init?.frontend==='default';activityActive=Boolean(active)}
-    node('round').textContent=active
-      ? '第 '+a.game.round+' 个游戏回合 · '+(a.game.public.statusText||(a.game.turn===a.participants[0]?'轮到你':'轮到角色'))
-        +' · '+(a.game.public.lastResult||'')
-      : a.suspended?'活动已暂停，进度保留；可以自由互动或选择另一活动。':a.game?.phase==='host-aborted'?'活动已中止，已恢复自由互动。':a.game?.public.lastResult||'可以开始一局游戏。';
-    const key=JSON.stringify([state.activities??[a],state.busy,state.paused,posting,pending?.requestId]);
+    const rawHistory=JSON.stringify(state.transcript.map(line=>[line.seq,line.speaker,line.text,line.segments]));
+    const selected=tail=>tail?.candidateIds?.[(tail.candidateIndex||1)-1]||null;
+    const blocked=init?.frontend==='default'&&(readingPending||rawHistory!==readHistorySignature||selected(state.tailRound)!==selected(playerView?.tailRound));
+    if(shownActivity===undefined||!blocked)shownActivity=a?structuredClone(a):null;
+    const shown=shownActivity;
+    node('game').hidden=!shown||historyOpen;
+    panelPresentation();
+    if(blocked)node('activity-feedback').textContent='阅读当前演出后继续操作。';
+    else if(!currentNotice&&shown?.game?.public?.lastResult)node('activity-feedback').textContent=shown.game.public.lastResult;
+    if(!shown||!a)return;
+    node('title').textContent=shown.title;
+    const active=a.game?.active,display=shown.game?.public||{};
+    node('card-status').textContent=(shown.suspended?'已暂停 · 进度保留':display.statusText||(shown.game?.active?'进行中':'尚未开始'))+(Number.isFinite(shown.game?.round)?' · 第 '+shown.game.round+' 回合':'');
+    const phaseNames={playing:'进行中',investigation:'调查',prologue:'序章',finished:'已结束','host-aborted':'已中止'};
+    node('round').textContent=(display.phaseLabel||phaseNames[shown.game?.phase]||shown.game?.phase||'准备')+(Number.isFinite(shown.game?.round)?' · 第 '+shown.game.round+' 回合':'');
+    node('activity-objective').textContent=display.objective||display.instructions||display.description||'请选择当前允许的操作，完成后继续阅读情景中的回应。';
+    node('activity-state').replaceChildren();
+    const labels={round:'回合',clues:'线索',funds:'资金',stock:'库存',score:'得分',attempts:'次数',health:'生命',phase:'阶段'};
+    for(const [key,value] of Object.entries(display)){if(['statusText','lastResult','objective','instructions','description','phaseLabel'].includes(key)||value===null||typeof value==='object')continue;const block=document.createElement('div'),label=document.createElement('dt'),content=document.createElement('dd');label.textContent=labels[key]||key;content.textContent=typeof value==='object'?JSON.stringify(value):String(value);block.append(label,content);node('activity-state').append(block)}
+    const key=JSON.stringify([state.activities??[a],state.busy,state.paused,posting,blocked,pending?.requestId]);
     if(key===signature)return;
-    signature=key;node('options').replaceChildren();
-    const add=(text,work,disabled=false)=>{
+    signature=key;node('options').replaceChildren();node('management').replaceChildren();
+    const add=(text,work,disabled=false,management=false)=>{
       const button=document.createElement('button');button.type='button';button.textContent=text;
-      button.disabled=disabled;button.onclick=work;node('options').append(button);return button;
+      button.disabled=disabled;button.onclick=work;node(management?'management':'options').append(button);return button;
     };
     if(!active)for(const choice of state.activities||[a]){
       if(!choice.suspended&&choice.participantSelection){
         const selection=choice.participantSelection,label=document.createElement('label');label.textContent='参与角色';
         const picker=document.createElement('select');picker.multiple=selection.max>1;
         for(const candidate of selection.candidates){const item=document.createElement('option');item.value=candidate.id;item.textContent=candidate.name;picker.append(item)}
-        picker.disabled=state.busy||state.paused||posting;label.append(picker);node('options').append(label);
+        picker.disabled=state.busy||state.paused||posting||blocked;label.append(picker);node('options').append(label);
         add('开始 '+choice.title,()=>{const npcIds=Array.from(picker.selectedOptions,item=>item.value);
           if(npcIds.length<selection.min||npcIds.length>selection.max){node('notice').textContent='请选择 '+selection.min+' 至 '+selection.max+' 名参与角色';return}
-          send('start',{npcIds},choice)},state.busy||state.paused||posting||selection.candidates.length<selection.min);
-      }else add((choice.suspended?'继续 ':'开始 ')+choice.title,()=>send(choice.suspended?'resume':'start',{},choice),state.busy||state.paused||posting);
-      if(choice.suspended)add('放弃 '+choice.title,()=>send('abandon',{},choice),state.busy||state.paused||posting);
+          send('start',{npcIds},choice)},state.busy||state.paused||posting||blocked||selection.candidates.length<selection.min);
+      }else add((choice.suspended?'恢复 ':'开始 ')+choice.title,()=>send(choice.suspended?'resume':'start',{},choice),state.busy||state.paused||posting||blocked);
+      if(choice.suspended){const giveUp=add('放弃 '+choice.title,()=>send('abandon',{},choice),state.busy||state.paused||posting||blocked);giveUp.dataset.tone='danger'}
     }
     else {
-      add('暂停 '+a.title,()=>send('suspend'),state.busy||state.paused||posting);
+      add('暂停活动 · 保留进度',()=>send('suspend'),state.busy||state.paused||posting||blocked,true);
       for(const option of a.options||[]) {
         const group=document.createElement('div');group.className='operation';
         const fields=[];
@@ -204,26 +401,27 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
           if(key==='activityId'||key==='revision')continue;
           const label=document.createElement('label');label.textContent=schema.title||key;
           let input;
-          if(schema.enum){input=document.createElement('select');
-            for(const item of schema.enum){const op=document.createElement('option');op.value=String(item);op.textContent=String(item);input.append(op)}}
+          const candidates=schema.enum?.map(value=>({value,label:String(value)}))||(Array.isArray(schema.oneOf)&&schema.oneOf.every(choice=>Object.hasOwn(choice,'const'))?schema.oneOf.map(choice=>({value:choice.const,label:choice.title||String(choice.const)})):null);
+          if(candidates){input=document.createElement('select');
+            for(const [index,item] of candidates.entries()){const op=document.createElement('option');op.value=String(index);op.textContent=item.label;input.append(op)}}
           else {input=document.createElement('input');input.type=schema.type==='integer'||schema.type==='number'?'number':schema.type==='boolean'?'checkbox':'text';
             if(schema.minimum!==undefined)input.min=schema.minimum;if(schema.maximum!==undefined)input.max=schema.maximum;}
-          input.disabled=state.busy||state.paused||posting;
-          label.append(input);group.append(label);fields.push([key,schema,input]);
+          input.disabled=state.busy||state.paused||posting||blocked;
+          label.append(input);group.append(label);fields.push([key,schema,input,candidates]);
         }
         const button=document.createElement('button');button.textContent=option.label;button.type='button';
-        button.disabled=state.busy||state.paused||posting;
+        button.disabled=state.busy||state.paused||posting||blocked;
         button.onclick=()=> {
           const parameters={};
-          for(const [key,schema,input] of fields) {
+          for(const [key,schema,input,candidates] of fields) {
             if(input.type!=='checkbox'&&input.value===''){node('notice').textContent='请先填写 '+(schema.title||key);return;}
-            parameters[key]=schema.type==='integer'||schema.type==='number'?Number(input.value):schema.type==='boolean'?input.checked:input.value;
+            parameters[key]=candidates?candidates[Number(input.value)].value:schema.type==='integer'||schema.type==='number'?Number(input.value):schema.type==='boolean'?input.checked:input.value;
           }
           send(option.definitionRef.id.slice('activity:'.length),parameters);
         };
         group.append(button);node('options').append(group);
       }
-      if(a.game.turn!==a.participants[0])add('再次请求角色处理',()=>send('retry'),state.busy||state.paused||posting);
+      if(a.game.turn!==a.participants[0])add('重试角色处理',()=>send('retry'),state.busy||state.paused||posting||blocked,true);
     }
     if(pending)add('重试同一请求',async()=>{
       if(posting)return;posting=true;clearNotice();
@@ -233,6 +431,12 @@ button,#tools>summary{background:#191919;color:#e5e5e5;border-color:#353535}butt
     },state.busy||posting);
   }
   async function refresh(){try{render(await api('/api/state'))}catch(error){if(currentNotice?.operation!=='activity'||currentNotice.type!=='error')setNotice('error','refresh',error.message+'；逃生入口仍可使用。')}}
+  function panelPresentation(){
+    const open=!!node('game').open&&!node('game').hidden&&!historyOpen;
+    document.body.dataset.panel=init?.frontend==='default'&&open?'open':'closed';
+    if(panelOpenSent!==open){panelOpenSent=open;post({type:'presentation',activityOpen:open})}
+  }
+  node('game').ontoggle=()=>{panelPresentation()};
   let regenerationRequest=null;
   node('regenerate').onclick=async()=>{
     node('tools').open=false;
