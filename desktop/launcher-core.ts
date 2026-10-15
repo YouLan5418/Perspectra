@@ -1,5 +1,6 @@
 import { thinkingRequest, thinkingLevel, type ThinkingLevel } from '../packages/provider-chat/src/thinking.ts'
-import { playSettings, readingPreferences, DEFAULT_READING, type PlaySettings, type ReadingPreferences } from './play-settings.ts'
+import { creatorDebugQuery } from '../tests/experiments/creator-debug.ts'
+import { playSettings, readingPreferences, DEFAULT_READING, audioPreferences, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences } from './play-settings.ts'
 import { providerProtocol, providerEndpoint, providerHeaders, nativeMessages, nativePayload, type ProviderProtocol } from '../packages/provider-chat/src/protocol.ts'
 import { exportStoryNode, importStoryNode } from './story-share.ts'
 import { readStoryNodes, restoreStoryNode, storyId } from './story-nodes.ts'
@@ -22,7 +23,7 @@ export interface LocalModel { model: string; endpoint: string; protocol?: Provid
 interface Pack { id: string; version: string; title: string; path: string; hash: string }
 interface Storyline { id: string; name: string; parentStorylineId: string | null; parentNodeId: string | null }
 interface Instance { currentStorylineId: string; storylines: Storyline[]; id: string; packageId: string; packageVersion: string; packHash: string; name: string; lastPlayedAt: string | null; model: LocalModel }
-interface Index { packs: Pack[]; instances: Instance[]; defaults: LocalModel; preferences: { largeText: boolean; theme?: 'system' | 'light' | 'dark'; reading?: ReadingPreferences }; playSettings?: Record<string,PlaySettings> }
+interface Index { packs: Pack[]; instances: Instance[]; defaults: LocalModel; preferences: { largeText: boolean; theme?: 'system' | 'light' | 'dark'; reading?: ReadingPreferences; audio?: AudioPreferences }; playSettings?: Record<string,PlaySettings> }
 function packCharacters(pack:CompiledWorldPackV5){const player=pack.content.playerSlots[0]?.characterId;return pack.content.characters.filter(c=>c.characterId!==player&&c.controllerClass!=='manual'&&(c.lifecycle??'active')==='active').map(c=>({id:c.characterId,name:c.displayName}))}
 const defaults: LocalModel = { model: 'gemini-3.7-flash', endpoint: 'http://127.0.0.1:8046/v1/chat/completions' }
 function object(value: unknown): Record<string, unknown> {
@@ -128,7 +129,7 @@ export class LauncherCore {
       if (preferences.theme !== undefined && (typeof preferences.theme !== 'string' || !['system','light','dark'].includes(preferences.theme))) throw new Error('theme')
       if (typeof preferences.largeText !== 'boolean') throw new Error('largeText')
       const settings = parsed.playSettings === undefined ? {} : Object.fromEntries(Object.entries(object(parsed.playSettings)).map(([id,value])=>{if(!packs.some(pack=>pack.id===id))throw new Error('unknown package settings');return [id,playSettings(value)]}))
-      this.#index = { playSettings:settings, packs, instances, defaults: localModel(parsed.defaults), preferences: { largeText: preferences.largeText, ...(preferences.theme === undefined ? {} : {theme: preferences.theme as 'system' | 'light' | 'dark'}), ...(preferences.reading===undefined?{}:{reading:readingPreferences(preferences.reading)}) } }
+      this.#index = { playSettings:settings, packs, instances, defaults: localModel(parsed.defaults), preferences: { largeText: preferences.largeText, ...(preferences.theme === undefined ? {} : {theme: preferences.theme as 'system' | 'light' | 'dark'}), ...(preferences.reading===undefined?{}:{reading:readingPreferences(preferences.reading)}), ...(preferences.audio===undefined?{}:{audio:audioPreferences(preferences.audio)}) } }
     } catch (error: unknown) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw new Error('Launcher 配置损坏；请检查 launcher.json，未覆盖已有数据。')
     }
@@ -219,6 +220,16 @@ export class LauncherCore {
         if (!response.ok) throw new Error('请求检查器读取失败。')
         return await response.json()
       }
+      case 'creator-debug': {
+        if (!this.#active || this.#active.instanceId !== request.instanceId) throw new Error('请先启动当前实例。')
+        const query = creatorDebugQuery((request.query ?? {}) as Record<string, unknown>)
+        const target = new URL(this.#active.url), token = target.hash.slice('#token='.length)
+        target.hash = ''; target.pathname = '/api/creator-debug'; target.search = ''
+        for (const [key, value] of Object.entries(query)) target.searchParams.set(key, String(value))
+        const response = await fetch(target, { headers: { 'x-playtest-token': token }, signal: AbortSignal.timeout(10000) })
+        if (!response.ok) throw new Error('创作者调试读取失败。')
+        return await response.json()
+      }
       case 'preset-library-add': {
         await this.#presets.addLibrary([namedPreset(request.entry)]);return this.snapshot()
       }
@@ -287,7 +298,6 @@ export class LauncherCore {
         return this.snapshot()
       }
       case 'story-export': {
-        this.#idle()
         const instance=this.#instance(request.instanceId), nodeId=storyId(request.nodeId)
         const history=this.#storyHistory(instance), reachable=new Set<string>()
         let current=history.storylines.find(line=>line.id===instance.currentStorylineId)!.currentNodeId
@@ -376,7 +386,7 @@ export class LauncherCore {
       }
       case 'preferences': {
         if ((typeof request.theme !== 'string' || !['system','light','dark'].includes(request.theme)) || typeof request.largeText !== 'boolean') throw new TypeError('外观设置无效。')
-        await this.#save({ ...this.#index, preferences: { ...this.#index.preferences, theme: request.theme as 'system' | 'light' | 'dark', largeText: request.largeText, ...(request.reading===undefined?{}:{reading:readingPreferences(request.reading)}) } })
+        await this.#save({ ...this.#index, preferences: { ...this.#index.preferences, theme: request.theme as 'system' | 'light' | 'dark', largeText: request.largeText, ...(request.reading===undefined?{}:{reading:readingPreferences(request.reading)}), ...(request.audio===undefined?{}:{audio:audioPreferences(request.audio)}) } })
         return this.snapshot()
       }
       case 'settings': {
@@ -414,6 +424,7 @@ export class LauncherCore {
             env: { ...process.env, HCW_LOCAL_MODEL: instance.model.model, HCW_LOCAL_ENDPOINT: instance.model.endpoint, HCW_THINKING_LEVEL: instance.model.thinkingLevel, HCW_MODEL_PROTOCOL: instance.model.protocol ?? 'openai',
               PERSPECTRA_STORY_PARENT_NODE: instance.storylines.find(l=>l.id===instance.currentStorylineId)?.parentNodeId??'',
               PERSPECTRA_READING: JSON.stringify(this.#index.preferences.reading??DEFAULT_READING),
+              PERSPECTRA_AUDIO: JSON.stringify(this.#index.preferences.audio??DEFAULT_AUDIO),
               PERSPECTRA_PRESET_ROOT: this.root, PERSPECTRA_PRESET_INSTANCE: instance.id,
               PERSPECTRA_ROLE_PRESET: undefined, PERSPECTRA_ROLE_MAPPING: undefined,
               HCW_LOCAL_API_KEY: typeof request.apiKey === 'string' ? request.apiKey : '',

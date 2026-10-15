@@ -83,7 +83,7 @@ it.each([false, true])('shares only the saved communication prefix, rebuilds nat
   writeFileSync(join(f.source, 'story-nodes', f.node.id, 'context.sqlite'), 'REQUEST-CACHE-SECRET')
   await exportStoryNode(f.source, f.node.id, archive, packPath)
   const shared = JSON.parse(readFileSync(archive, 'utf8')) as { files: Record<string, string> }
-  expect(Object.keys(shared.files).sort()).toEqual(['memory-aliases.json', 'session.sqlite', 'world.sqlite'])
+  expect(Object.keys(shared.files).sort()).toEqual(['core-memory.json', 'memory-aliases.json', 'session.sqlite', 'world.sqlite'])
   expect(Object.values(shared.files).map(bytes => Buffer.from(bytes, 'base64').toString()).join('')).not.toContain('未来暗号鸢尾')
   const receiverRoot = join(f.root, 'receiver')
   const imported = await importStoryNode(archive, receiverRoot, packPath, f.node.packHash), directory = join(receiverRoot, imported.id)

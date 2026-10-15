@@ -87,6 +87,54 @@ it('exports the selected node and selects a newly imported independent instance'
   expect(store.instances).toHaveLength(2)
 })
 
+it('saves and exports the new node while keeping the game running and both operations locked',async()=>{
+  const data=snapshot()
+  const running={state:'running',mode:'real',instanceId:'instance-1'}
+  const line={id:'main',name:'主故事线',parentStorylineId:null,parentNodeId:null,currentNodeId:'old',source:{kind:'original',label:'本地实例',storylineId:null,nodeId:null,turn:0}}
+  const old={id:'old',parentNodeId:null,turn:1,title:'旧节点',summary:'',createdAt:'2026-10-15T00:00:00Z'}
+  const saved={...old,id:'new',parentNodeId:'old',turn:2,title:'当前进度'}
+  const state=(updated=false)=>({...data,core:running,instances:[{...data.instances[0]!,currentStorylineId:'main',storylines:[{...line,currentNodeId:updated?'new':'old'}],nodes:updated?[old,saved]:[old]}]})
+  bridge.request.mockResolvedValue(state())
+  const store=useLauncherStore();await store.initialize()
+  bridge.request.mockImplementation(async(operation)=>{
+    expect(store.busy).toBe(true)
+    if(operation==='story-export')expect(store.currentNode?.id).toBe('new')
+    await store.refresh() // Polling cannot overwrite the newly saved node between requests.
+    return state(true)
+  })
+  expect(await store.exportCurrentStory('当前进度','C:/current.perspectra-story')).toBe(true)
+  expect(bridge.request.mock.calls.slice(1)).toEqual([
+    ['story-save',{instanceId:'instance-1',title:'当前进度'}],
+    ['story-export',{instanceId:'instance-1',nodeId:'new',path:'C:/current.perspectra-story'}],
+  ])
+  expect(store.core.state).toBe('running');expect(store.busy).toBe(false)
+})
+
+it('never exports an older node after a failed or unconfirmed save and reports a saved node when only export fails',async()=>{
+  const data=snapshot(),running={state:'running',mode:'real',instanceId:'instance-1'}
+  bridge.request.mockResolvedValue({...data,core:running})
+  const store=useLauncherStore();await store.initialize()
+  bridge.request.mockRejectedValue(new Error('请等待当前行动完成'))
+  expect(await store.exportCurrentStory('分享','C:/share.perspectra-story')).toBe(false)
+  expect(store.notice).toContain('当前行动')
+  expect(bridge.request.mock.calls.some(call=>call[0]==='story-export')).toBe(false)
+  bridge.request.mockResolvedValue({...data,core:running})
+  expect(await store.exportCurrentStory('分享','C:/share.perspectra-story')).toBe(false)
+  expect(store.notice).toContain('未找到新保存')
+  expect(bridge.request.mock.calls.some(call=>call[0]==='story-export')).toBe(false)
+  const node={id:'saved',parentNodeId:null,turn:2,title:'分享',summary:'',createdAt:'2026-10-15T00:00:00Z'}
+  const line={id:'main',name:'主线',parentStorylineId:null,parentNodeId:null,currentNodeId:node.id,source:{kind:'original',label:'本地实例',storylineId:null,nodeId:null,turn:0}}
+  bridge.request.mockImplementation(async(operation)=>{
+    if(operation==='story-export')throw new Error('目标目录不可写')
+    return {...data,core:running,instances:[{...data.instances[0]!,currentStorylineId:'main',storylines:[line],nodes:[node]}]}
+  })
+  expect(await store.exportCurrentStory('分享','C:/share.perspectra-story')).toBe(false)
+  expect(store.currentNode?.id).toBe('saved')
+  expect(store.notice).toContain('完整节点已保存，导出失败')
+  expect(store.notice).toContain('目标目录不可写')
+  expect(store.busy).toBe(false)
+})
+
 it('binds session credentials to the selected protocol as well as endpoint',async()=>{
  const store=useLauncherStore();await store.initialize()
  store.providers=[{id:'local',label:'native',endpoint,protocol:'anthropic',apiKey:'private-key'}]
@@ -116,4 +164,19 @@ it('saves play settings for the selected package and restores global reading pre
  expect(store.currentPlaySettings.maximumWaves).toBe(5)
  expect(store.reading.autoFollow).toBe(false)
  expect(store.currentModel?.model).toBe('actual-model')
+})
+
+it('restores and saves audio preferences through the existing preferences operation',async()=>{
+ const store=useLauncherStore();await store.initialize()
+ expect(store.audio).toEqual({volume:80,muted:false,voiceEnabled:false})
+ const audio={volume:35,muted:true,voiceEnabled:true}
+ bridge.request.mockResolvedValue({...snapshot(),preferences:{theme:'dark',largeText:false,audio}})
+ await store.refresh()
+ expect(store.audio).toEqual(audio)
+ expect(await store.savePreferences('dark',false,undefined,{...audio,volume:60})).toBe(true)
+ expect(bridge.request).toHaveBeenLastCalledWith('preferences',{theme:'dark',largeText:false,audio:{...audio,volume:60}})
+ expect(store.audio.volume).toBe(60)
+ bridge.request.mockRejectedValueOnce(new Error('保存失败'))
+ expect(await store.savePreferences('dark',false,undefined,{...audio,volume:10})).toBe(false)
+ expect(store.audio.volume).toBe(60)
 })

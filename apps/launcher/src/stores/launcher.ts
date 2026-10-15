@@ -1,4 +1,4 @@
-import { DEFAULT_PLAY_SETTINGS, DEFAULT_READING, type PlaySettings, type ReadingPreferences } from '../../../../desktop/play-settings.ts'
+import { DEFAULT_PLAY_SETTINGS, DEFAULT_READING, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences } from '../../../../desktop/play-settings.ts'
 import { isTauri } from '@tauri-apps/api/core'
 import { coreRequest, openGame } from '../services/desktop.ts'
 import type { CoreSnapshot, LocalModel, RolePreset, PresetChoice } from '../core-types.ts'
@@ -20,6 +20,7 @@ export const useLauncherStore = defineStore('launcher', () => {
   const dataDirectory = ref('')
   const largeText = ref(false)
   const reading = ref({...DEFAULT_READING})
+  const audio = ref({...DEFAULT_AUDIO})
   const packagePlaySettings = ref<Record<string,PlaySettings>>({})
   const currentPlaySettings = computed(()=>packagePlaySettings.value[selectedPackageId.value]??DEFAULT_PLAY_SETTINGS)
   const theme = ref<'system' | 'light' | 'dark'>('system')
@@ -118,6 +119,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     largeText.value = snapshot.preferences?.largeText ?? false
     theme.value = snapshot.preferences?.theme ?? 'system'
     reading.value = snapshot.preferences?.reading ?? {...DEFAULT_READING}
+    audio.value = snapshot.preferences?.audio ?? {...DEFAULT_AUDIO}
     packagePlaySettings.value = snapshot.playSettings??{}
     dataDirectory.value = snapshot.dataDirectory
     packages.value = snapshot.packs.map(p => ({ id: p.id, version: p.version, title: p.title, subtitle: '本地世界包', description: '由真实 Core 校验与运行。进度保存在独立实例中。',
@@ -134,7 +136,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     if (busy.value) return false
     busy.value = true
     try { applySnapshot(await coreRequest(operation, data)); return true }
-    catch (error) { notice.value = typeof error === 'string' ? error : '本机操作失败，请重试。'; return false }
+    catch (error) { notice.value = typeof error === 'string' ? error : error instanceof Error ? error.message : '本机操作失败，请重试。'; return false }
     finally { busy.value = false }
   }
   async function initialize() {
@@ -155,11 +157,12 @@ export const useLauncherStore = defineStore('launcher', () => {
     notice.value = '默认模型已保存；API Key 仅在本次会话中保留。'
     return true
   }
-  async function savePreferences(nextTheme: 'system' | 'light' | 'dark', nextLargeText: boolean, nextReading?: ReadingPreferences) {
-    if (real && !await action('preferences', { theme: nextTheme, largeText: nextLargeText, ...(nextReading===undefined?{}:{reading:nextReading}) })) return false
+  async function savePreferences(nextTheme: 'system' | 'light' | 'dark', nextLargeText: boolean, nextReading?: ReadingPreferences, nextAudio?: AudioPreferences) {
+    if (real && !await action('preferences', { theme: nextTheme, largeText: nextLargeText, ...(nextReading===undefined?{}:{reading:nextReading}), ...(nextAudio===undefined?{}:{audio:nextAudio}) })) return false
     theme.value = nextTheme; largeText.value = nextLargeText
     if(nextReading)reading.value={...nextReading}
-    notice.value = '外观设置已应用。'
+    if(nextAudio)audio.value={...nextAudio}
+    notice.value = '设置已保存；阅读和音频偏好将在下次启动游戏时提供给前端。'
     return true
   }
   async function savePlaySettings(settings:PlaySettings){
@@ -180,7 +183,7 @@ export const useLauncherStore = defineStore('launcher', () => {
       notice.value = '实例接口与当前密钥绑定的地址不同；请在模型设置填写该接口的密钥，或清空密钥后启动。'
       return
     }
-    notice.value='正在启动故事线；新分叉会重新整理角色记忆，可能需要等待数分钟。'
+    notice.value='正在启动故事线，恢复角色记忆与已提交进度。'
     if (!await action('start', { instanceId: selectedInstanceId.value, apiKey: providers.value[0]?.apiKey ?? '' })) return
     await reopenGame()
   }
@@ -199,7 +202,7 @@ export const useLauncherStore = defineStore('launcher', () => {
   async function forkStory(nodeId: string, name: string): Promise<boolean> {
     if (!real) { forkAt(nodeId,name); return true }
     if (!await action('story-fork',{instanceId:selectedInstanceId.value,nodeId,name})) return false
-    notice.value='新故事线已创建；首次开始会重新整理角色记忆，请等待。原线保留。'
+    notice.value='新故事线已创建；首次开始恢复节点当时的角色记忆。原线保留。'
     return true
   }
   async function saveStoryNode(title: string): Promise<boolean> {
@@ -215,21 +218,50 @@ export const useLauncherStore = defineStore('launcher', () => {
     notice.value='完整节点已导出。接收者需要相同游戏包，并使用自己的模型继续。'
     return true
   }
+  async function exportCurrentStory(title: string, path: string): Promise<boolean> {
+    if (!real || busy.value) return false
+    const instanceId = selectedInstanceId.value
+    if (core.value.state !== 'running' || core.value.instanceId !== instanceId) {
+      notice.value = '请先启动当前实例，再保存当前进度并导出；也可直接导出已保存节点。'
+      return false
+    }
+    const previousNodes = new Set(currentInstance.value?.nodes.map(node => node.id))
+    busy.value = true
+    let saved = false
+    try {
+      notice.value = '正在保存当前完整节点，请等待。'
+      applySnapshot(await coreRequest('story-save', { instanceId, title }))
+      saved = true
+      const nodeId = currentNode.value?.id
+      if (currentInstance.value?.id !== instanceId || !nodeId || previousNodes.has(nodeId)) {
+        throw new Error('未找到新保存的完整节点，请查看节点列表后重试。')
+      }
+      notice.value = '完整节点已保存，正在导出。'
+      applySnapshot(await coreRequest('story-export', { instanceId, nodeId, path }))
+      notice.value = '当前进度已保存并导出，可以继续游玩。接收者需要相同游戏包。'
+      return true
+    } catch (error) {
+      const message = typeof error === 'string' ? error : error instanceof Error ? error.message : '本机操作失败，请重试。'
+      notice.value = saved ? '完整节点已保存，导出失败：' + message + ' 可从已保存节点重试。' : message
+      return false
+    } finally { busy.value = false }
+  }
   async function importStory(path: string, name: string): Promise<boolean> {
     if (!real) return false
     const previous=new Set(instances.value.map(instance=>instance.id))
     if (!await action('story-import',{packageId:selectedPackageId.value,path,name})) return false
     selectedInstanceId.value=instances.value.find(instance=>!previous.has(instance.id))?.id??selectedInstanceId.value
-    notice.value='已导入为独立实例；首次开始需要等待角色记忆重建。已有实例保留。'
+    notice.value='已导入为独立实例；首次开始恢复存档中的角色记忆。已有实例保留。'
     return true
   }
   async function refresh() {
     if (real && initialized.value && !busy.value) {
-      try { applySnapshot(await coreRequest('snapshot')) } catch { notice.value = 'Core 连接已关闭，请重启 Launcher。' }
+      try { const snapshot = await coreRequest('snapshot'); if (!busy.value) applySnapshot(snapshot) }
+      catch { notice.value = 'Core 连接已关闭，请重启 Launcher。' }
     }
   }
 
-  return { exportStory,importStory,selectStoryline,forkStory,saveStoryNode,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, defaults, currentRealModel, initialize, refresh, loadRealPackage, saveSettings, configureModel, startGame, stopGame, reopenGame, packages, instances, profiles, providers, globalDefaultModelId, dataDirectory, largeText, theme, reading, currentPlaySettings, savePlaySettings, savePreferences, notice,
+  return { exportStory,exportCurrentStory,importStory,selectStoryline,forkStory,saveStoryNode,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, defaults, currentRealModel, initialize, refresh, loadRealPackage, saveSettings, configureModel, startGame, stopGame, reopenGame, packages, instances, profiles, providers, globalDefaultModelId, dataDirectory, largeText, theme, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
     selectedPackageId, selectedInstanceId, core, selectedPackage, currentInstance, currentStoryline,
     currentNode, currentModel, currentHistory, gameInstances, selectPackage, newInstance, loadMockPackage,
     forkAt, importMockStory, startMock, stopMock }
