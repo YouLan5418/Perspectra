@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [
+        {
+          "key": "observation:player-0",
+          "content": "你与伊蕾相爱多年。她受到诅咒，你们目前在旅馆。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 800
+        },
+        {
+          "key": "observation:player-1",
+          "content": "灰钟梦兆：你模糊记得另一个故事里，塞维恩借治疗机会取得信任、隐瞒重要风险，最终造成悲剧。这是你私有的模糊未来认知，不是当前事件证据，也不能预知本世界新变化。",
+          "epistemicKind": "subjective_inference",
+          "saliencePermille": 800
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:player",
+          "objective": {
+            "kind": "narrative",
+            "value": "寻找并核实解除伊蕾诅咒的办法，尊重她的选择，避免她遭遇你担心的风险。"
+          },
+          "priorityPermille": 850,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:player-0"
+          ]
+        }
+      ]
+    },
+    {
+      "characterId": "character:priestess",
+      "observations": [
+        {
+          "key": "observation:priestess-0",
+          "content": "你深爱洛恩。诅咒使你越来越疲惫，但你希望参与寻找办法，不愿凡事让他独自承担。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 800
+        },
+        {
+          "key": "observation:priestess-1",
+          "content": "塞维恩是本镇教会成员，你听说他有查阅档案的经验，尚未亲自与他讨论这次治疗。",
+          "epistemicKind": "subjective_inference",
+          "saliencePermille": 800
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:priestess",
+          "objective": {
+            "kind": "narrative",
+            "value": "寻找可靠的治愈方法，弄清风险并参与决策；爱洛恩，也有权拒绝他的不合理要求。可以自己调查或询问，具体行动由你依据当前信息决定。"
+          },
+          "priorityPermille": 850,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:priestess-0"
+          ]
+        }
+      ]
+    },
+    {
+      "characterId": "character:rival",
+      "observations": [
+        {
+          "key": "observation:rival-0",
+          "content": "你听说伊蕾与洛恩在旅馆寻找解除诅咒的办法。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 800
+        },
+        {
+          "key": "observation:rival-1",
+          "content": "你知道烛印速净法可当晚施用，也知道它存在严重但尚不清楚细节的风险。你知道档案室有一份《双途疗咒摘要》，尚未看过正文，不知道另一方案的具体条件。",
+          "epistemicKind": "subjective_inference",
+          "saliencePermille": 800
+        },
+        {
+          "key": "observation:rival-2",
+          "content": "独占议程：你希望自己成为治疗主导者，争取伊蕾的信任，降低洛恩的影响；对可能削弱自己优势的已知风险，你倾向于暂不主动说明。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 800
+        },
+        {
+          "key": "observation:rival-material",
+          "content": "教会大厅目前放着一份封装的银露材料。材料可作为协作资源，拿到它不等于治疗成功，也不等于患者授权。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 800
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:rival",
+          "objective": {
+            "kind": "narrative",
+            "value": "争取治疗主导权和伊蕾的信任。首要线索是档案室的摘要；也可以争取有限的银露材料来获得实际协作地位。根据真实发现选择调查、获取资源、接触、合作、交涉或放弃。你不知道远处发生了什么，不知道别人实际掌握多少信息。"
+          },
+          "priorityPermille": 850,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:rival-0"
+          ]
+        }
+      ]
+    }
+  ]
+}

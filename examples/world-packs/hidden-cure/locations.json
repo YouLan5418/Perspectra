@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    {
+      "locationId": "location:inn",
+      "name": "旅馆"
+    },
+    {
+      "locationId": "location:church",
+      "name": "教会大厅"
+    },
+    {
+      "locationId": "location:archive",
+      "name": "档案室"
+    }
+  ]
+}

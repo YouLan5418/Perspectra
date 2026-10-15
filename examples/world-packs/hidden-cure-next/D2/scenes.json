@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "worldpack-scenes/v2",
+  "scenes": [
+    {
+      "sceneId": "scene:inn",
+      "lifecycle": "active",
+      "locationId": "location:inn",
+      "participantIds": [
+        "character:player",
+        "character:priestess"
+      ]
+    },
+    {
+      "sceneId": "scene:church",
+      "lifecycle": "active",
+      "locationId": "location:church",
+      "participantIds": [
+        "character:rival"
+      ]
+    },
+    {
+      "sceneId": "scene:archive",
+      "lifecycle": "created",
+      "locationId": "location:archive",
+      "participantIds": []
+    }
+  ]
+}

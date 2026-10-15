@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "worldpack-world/v1",
+  "title": "被隐瞒的治疗方案",
+  "description": "成年冒险者、受诅咒的神官与教会成员，在旅馆、教会大厅、档案室中争取治疗信息与自主选择。只有声明的移动与物品保管受控；本实验没有治疗或诅咒计时机制。",
+  "timeMode": "TURN_DRIVEN",
+  "roundQueueLimit": 16,
+  "coreProfiles": {
+    "rulebook": {
+      "rulebookId": "builtin:speak-move",
+      "version": 2
+    },
+    "sceneDecision": {
+      "pluginId": "builtin:scene-decision",
+      "version": "2.0.0"
+    },
+    "agentContext": {
+      "pluginId": "builtin:agent-context",
+      "version": "2.0.0"
+    },
+    "presentation": {
+      "profileId": "builtin:deterministic-presentation",
+      "version": "1.0.0"
+    }
+  },
+  "initialFacts": [],
+  "playerInputPolicy": {
+    "version": "player-intent/v1"
+  }
+}
