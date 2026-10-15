@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "profile": "standard",
+      "attentionTopics": [
+        "治疗",
+        "摘要",
+        "伊蕾",
+        "洛恩",
+        "塞维恩"
+      ]
+    },
+    {
+      "characterId": "character:priestess",
+      "profile": "standard",
+      "attentionTopics": [
+        "治疗",
+        "摘要",
+        "伊蕾",
+        "洛恩",
+        "塞维恩"
+      ]
+    },
+    {
+      "characterId": "character:rival",
+      "profile": "standard",
+      "attentionTopics": [
+        "治疗",
+        "摘要",
+        "伊蕾",
+        "洛恩",
+        "塞维恩"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "characters": [
+    {
+      "characterId": "character:priestess",
+      "triggers": [
+        {
+          "actionType": "speak"
+        },
+        {
+          "actionType": "move"
+        },
+        {
+          "actionType": "interact"
+        }
+      ],
+      "everyPlayerTurns": 1,
+      "opportunities": 1,
+      "interactions": [
+        "base:take",
+        "base:drop",
+        "base:give"
+      ],
+      "locationIds": [
+        "location:inn",
+        "location:church",
+        "location:archive"
+      ],
+      "targetIds": [
+        "entity:cure-record",
+        "character:player",
+        "character:priestess",
+        "character:rival",
+        "entity:silver-kit",
+        "entity:reserve-kit"
+      ]
+    },
+    {
+      "characterId": "character:rival",
+      "triggers": [
+        {
+          "actionType": "speak"
+        },
+        {
+          "actionType": "move"
+        },
+        {
+          "actionType": "interact"
+        }
+      ],
+      "everyPlayerTurns": 1,
+      "opportunities": 1,
+      "interactions": [
+        "base:take",
+        "base:drop",
+        "base:give"
+      ],
+      "locationIds": [
+        "location:inn",
+        "location:church",
+        "location:archive"
+      ],
+      "targetIds": [
+        "entity:cure-record",
+        "character:player",
+        "character:priestess",
+        "character:rival",
+        "entity:silver-kit",
+        "entity:reserve-kit"
+      ]
+    }
+  ]
+}

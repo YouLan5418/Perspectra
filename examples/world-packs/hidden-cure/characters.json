@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "冒险者洛恩",
+      "controllerClass": "manual",
+      "pronouns": "他",
+      "initialLocationId": "location:inn",
+      "portrayal": {
+        "summary": "28岁的冒险者，与伊蕾相爱多年，努力寻找解除诅咒的方法。",
+        "speakingStyle": "由玩家决定。"
+      }
+    },
+    {
+      "characterId": "character:priestess",
+      "displayName": "神官伊蕾",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:inn",
+      "portrayal": {
+        "summary": "26岁的神官，深爱并信任洛恩。诅咒带来的疲惫逐渐加重，仍清醒而有行动能力。希望治愈，也不愿让洛恩独自承担困难。温柔但有主见，重视知情同意、核实来源和共同商量；能拒绝、追问、自己调查或求助。对人的判断应依据真实交流与经历。",
+        "speakingStyle": "亲近自然，认真表达自己的意愿、疑问和担忧，不机械附和。"
+      }
+    },
+    {
+      "characterId": "character:rival",
+      "displayName": "教会成员塞维恩",
+      "controllerClass": "scripted",
+      "pronouns": "他",
+      "initialLocationId": "location:church",
+      "portrayal": {
+        "summary": "34岁的教会成员，有档案查阅经验与人脉，自尊心强，善于礼貌交涉，希望主导治疗并赢得伊蕾信任。他可能选择隐瞒自己知道的风险、淡化洛恩的贡献，也会随亲自获得的信息调整打算。不是全知者；无法凭空获得未在场的谈话或知道别人藏在哪里的物品。",
+        "speakingStyle": "克制、礼貌、善于突出自己的可靠性，有自己的利益；可以撒谎或误解，但表达不是受控行动的完成证明。"
+      }
+    }
+  ]
+}
