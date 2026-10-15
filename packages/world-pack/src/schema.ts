@@ -933,12 +933,13 @@ export function parseWorldPackEntitiesSourceV2(input: unknown, file = 'entities.
   const entities = arrayAt(root.entities, file, '/entities').map((entry, index): WorldPackEntitySourceV2 => {
     const at = `/entities/${index}`
     const raw = objectAt(entry, file, at)
-    exactKeys(raw, ['entityId', 'locationId', 'kind'], ['interactionBindings'], file, at)
-    const { interactionBindings, ...core } = raw
+    exactKeys(raw, ['entityId', 'locationId', 'kind'], ['name', 'interactionBindings'], file, at)
+    const { interactionBindings, name, ...core } = raw
     const base = parseEntityCore(core, file, at)
+    const labelled: WorldPackEntitySourceV2 = name === undefined ? base : { ...base, name: textAt(name, file, `${at}/name`) }
     return interactionBindings === undefined
-      ? base
-      : { ...base, interactionBindings: parseInteractionBindings(interactionBindings, file, `${at}/interactionBindings`) }
+      ? labelled
+      : { ...labelled, interactionBindings: parseInteractionBindings(interactionBindings, file, `${at}/interactionBindings`) }
   })
   if (entities.length > MAX_ENTITIES) failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '/entities', `must contain at most ${MAX_ENTITIES} entities`)
   unique(entities.map(value => value.entityId), file, '/entities')

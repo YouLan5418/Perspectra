@@ -54,6 +54,8 @@ export interface WorldPackEntitySourceV2 extends WorldJsonObject {
   readonly entityId: string
   readonly locationId: string
   readonly kind: string
+  /** Player-facing label. Absent falls back to entityId in Host projections; never selects a definition or changes state. */
+  readonly name?: string
   /** Absent means the target declares no interaction. An empty array is equivalent and allowed. */
   readonly interactionBindings?: readonly WorldPackInteractionBindingSource[]
 }

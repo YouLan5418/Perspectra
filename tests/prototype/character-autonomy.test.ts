@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
 import { type WorldJsonObject } from '@harness-world/contracts'
-import { currentEntityState, currentLocation } from '@harness-world/kernel'
+import { currentEntityState, currentLocation, createCoreRulebookRegistry, type CompiledWorldManifest } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { compileWorldPackSource } from '@harness-world/world-pack'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
@@ -46,7 +46,7 @@ async function fixture(change?: (role: {-readonly [K in keyof WorldJsonObject]: 
     let body = ''; request.on('data', chunk => { body += String(chunk) })
     request.on('end', () => {void (async()=>{
       try {
-        const input = JSON.parse(JSON.parse(body).messages.at(-1).content) as WorldJsonObject
+        const input = JSON.parse(JSON.parse(body).messages.findLast((message:{role:string})=>message.role==='user').content) as WorldJsonObject
         requests.push(input)
         const output = await decision(input)
         if (!response.destroyed) {
@@ -165,8 +165,28 @@ it.each(['location', 'interaction', 'target'])('enforces the autonomous %s restr
   f.setDecision(input => !context(input).autonomy ? {decision: 'abstain'} : input.continuation
     ? publish('这次没有执行。') : restriction === 'location' ? move('location:front-room') : take())
   const state = await f.runtime.submit('请继续做你自己的事')
-  expect(state.error).toBe(false)
-  expect(autonomous(f.requests)[1]!.result).toMatchObject({status: 'rejected'})
+  if(restriction==='location') {
+    expect(state.error).toBe(false)
+    expect(autonomous(f.requests)[1]!.result).toMatchObject({status:'rejected'})
+  } else {
+    // No legal interact branch exists: strict format validation now stops this proposal before execution.
+    expect(state.error).toBe(true)
+    expect(autonomous(f.requests)).toHaveLength(2)
+    expect(state.debug.autonomy).toMatchObject({autonomousCalls:2})
+    expect(f.events().filter(event=>event.eventType==='action.resolved'&&object(event.data).actorId==='character:friend')).toHaveLength(0)
+  }
+  // Keep independently checking execution authority, even when the model boundary rejects first.
+  const compiled=await compileWorldPackSource(f.pack,createInstalledInteractionPackages().map(interactionPackageDescription))
+  const policy=PackAutonomy.load(f.pack,compiled,'character:player')!
+  const base=createCoreRulebookRegistry({interactionPackages:createInstalledInteractionPackages()})
+  const rules=policy.rulebooks(base.resolve('builtin:speak-move',2,'test',f.runtime.address)).resolve('builtin:speak-move',2,'test',f.runtime.address)
+  const store=new WorldStore(join(f.runtime.dataDirectory,'world.sqlite'))
+  try {
+    const proposal=restriction==='location'?move('location:front-room'):take()
+    expect(rules.resolve({manifest:store.readManifest(f.runtime.address)!.manifest as CompiledWorldManifest,
+      events:store.readEvents(f.runtime.address),characterId:'character:friend',
+      action:{actionType:proposal.actionType,actionVersion:1,parameters:proposal.parameters}})).toMatchObject({status:'rejected',events:[]})
+  } finally {store.close()}
   expect(currentLocation(f.events(), 'character:friend')).toBe('location:back-room')
   expect(currentEntityState(f.events(), 'entity:brass-key')?.holderId).toBe(null)
   expect(JSON.stringify(context(autonomous(f.requests)[0]!).affordances)).not.toContain(restriction === 'location' ? 'location:front-room' : 'binding:key-take')

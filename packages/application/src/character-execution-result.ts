@@ -26,8 +26,11 @@ export function characterExecutionResult(input: {
     const definition = object(parameters?.definitionRef)?.id
     const verb = definition === 'base:take' ? '取得保管' : definition === 'base:give' ? '转交保管'
       : definition === 'base:drop' ? '解除个人保管并留在当前场所' : '执行交互'
-    const actual = target?.kind === 'entity' && typeof target.id === 'string'
-      ? `你刚刚成功${verb}（物品：${target.id}）。` : '这次行动已经成功执行。'
+    // The character reads a label when the author declared one; entityId stays the fallback for unnamed targets.
+    const entityId = target?.kind === 'entity' && typeof target.id === 'string' ? target.id : undefined
+    const entityLabel = entityId === undefined ? undefined
+      : input.manifest.entities.find(entity => entity.entityId === entityId)?.name ?? entityId
+    const actual = entityLabel === undefined ? '这次行动已经成功执行。' : `你刚刚成功${verb}（物品：${entityLabel}）。`
     const state = target?.kind === 'entity' && typeof target.id === 'string' ? currentEntityState(input.events, target.id) : undefined
     return { status, description: actual + (state?.holderId === input.actorId ? '该物品目前仍由你保管；不要求一直握在手里。' : '当前状态请以本次可见场景为准。') }
   }

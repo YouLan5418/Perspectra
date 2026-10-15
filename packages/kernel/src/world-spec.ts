@@ -22,7 +22,8 @@ import {
 } from '@harness-world/contracts'
 
 export interface LocationSpec extends WorldJsonObject { readonly locationId: string; readonly name: string }
-export interface EntitySpec extends WorldJsonObject { readonly entityId: string; readonly locationId: string; readonly kind: string }
+/** `name` is an author-supplied player-facing label for Entities. It never selects a definition or changes state. */
+export interface EntitySpec extends WorldJsonObject { readonly entityId: string; readonly locationId: string; readonly kind: string; readonly name?: string }
 export interface CharacterSpec extends WorldJsonObject { readonly characterId: CharacterId; readonly name: string; readonly locationId: string | null }
 export interface PlayerBindingSpec extends WorldJsonObject { readonly principalId: string; readonly characterId: CharacterId; readonly sessionId: SessionId }
 export interface PluginSpec extends WorldJsonObject { readonly pluginId: string; readonly version: string }
