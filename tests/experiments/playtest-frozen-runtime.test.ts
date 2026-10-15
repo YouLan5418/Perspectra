@@ -3,9 +3,22 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
+import { FrozenWorldPlaytestRuntime, providerFailureNotice } from './playtest-frozen-runtime.ts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
+
+describe('provider failure notice', () => {
+  it('names the likely cause from the status class without quoting the endpoint', () => {
+    expect(providerFailureNotice(undefined)).toBe('角色模型服务未完成请求')
+    expect(providerFailureNotice(400)).toContain('HTTP 400')
+    expect(providerFailureNotice(400)).toContain('frequencyPenalty')
+    expect(providerFailureNotice(422)).toContain('预设中的生成参数')
+    expect(providerFailureNotice(401)).toContain('凭证')
+    expect(providerFailureNotice(404)).toContain('模型标识')
+    expect(providerFailureNotice(429)).toContain('限流')
+    expect(providerFailureNotice(500)).toBe('角色模型服务未完成请求（HTTP 500）')
+  })
+})
 
 /**
  * The page's own runtime, driven the way a person drives it - with a local endpoint standing in for a
@@ -43,6 +56,24 @@ function interactionFixture():string {
 }
 
 describe('the web playtest on a frozen world', () => {
+
+  it('reports the failed role HTTP status without exposing endpoint details', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'role-http-status-')); roots.push(root)
+    const server = createServer((_request, response) => {
+      response.writeHead(400, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ error: 'private endpoint detail' }))
+    })
+    servers.push(server)
+    const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
+      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+    try {
+      const state = await runtime.submit('/act speak {"text":"大家早安。"}')
+      expect(state.error).toBe(true)
+      expect(state.notice).toContain('HTTP 400')
+      expect(state.notice).not.toContain('private endpoint detail')
+    } finally { await runtime.close() }
+  })
 
   it('keeps a committed reply in another room private during incremental projection', async () => {
     const root = mkdtempSync(join(tmpdir(), 'incremental-private-')); roots.push(root)
@@ -282,7 +313,7 @@ describe('the web playtest on a frozen world', () => {
       const answer = calls === 1 ? { decision: 'perform', actionType: 'interact', parameters: {
         targetRef: { kind: 'entity', id: 'entity:phone' }, bindingId: 'binding:phone-take',
         definitionRef: { id: 'base:take', version: 1 }, arguments: {},
-      } } : calls === 2 ? { decision: 'publish', extra: true, segments: [{ type: 'speech', text: '没完成的续写' }] }
+      } } : calls <= 3 ? { decision: 'publish', extra: true, segments: [{ type: 'speech', text: '没完成的续写' }] }
         : { decision: 'abstain' }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))

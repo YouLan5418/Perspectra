@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
+import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import { PlaytestMemoryCore, DEFAULT_MEMORY_CONTEXT_BUDGET, MEMORY_DELIVERY_BUDGET, estimateContextTokens, type MemoryContextBudget } from '../experiments/playtest-memory-core.ts'
@@ -56,6 +56,52 @@ const ref = (source: WorldJsonObject): WorldJsonObject => Object.fromEntries(
   ['sourceId','sourceHash','epistemicKind','worldSeq','characterId','worldAddress'].map(k => [k, source[k]!]))
 
 describe('optional web Core memory', () => {
+  it('projects a fresh authorized snapshot with one view build and propagates catch-up failure', async () => {
+    const f = await fixture(async () => empty), before = f.head()
+    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async () => { throw new Error('no installed archive') })
+    try {
+      const builds = vi.spyOn(CharacterViewBuilder.prototype, 'rebuildAt')
+      const ticks = vi.spyOn(WorldStore.prototype, 'readEventTicks')
+      const history = vi.spyOn(WorldStore.prototype, 'readEvents').mockImplementation(() => { throw new Error('snapshot must not load full event payloads') })
+      const request = { context: { character: { characterId: 'character:claude', name: 'Claude' },
+        scene: { people: [] }, stimulus: [], observations: [], selfObservations: [] }, continuation: false }
+      const projected = await adapter.project(request, AbortSignal.timeout(5000))
+      expect(builds).toHaveBeenCalledTimes(1)
+      expect(ticks).toHaveBeenCalledWith(f.runtime.address, before)
+      expect(history).not.toHaveBeenCalled()
+      expect(projected.context.memories).toEqual([])
+      expect(f.head()).toBe(before)
+      ticks.mockReturnValueOnce([])
+      await expect(adapter.project(request, AbortSignal.timeout(5000))).rejects.toThrow('authorized source timestamp is missing')
+      const failure = new Error('memory prefix verification failed')
+      vi.spyOn(CognitiveMemoryService.prototype, 'catchUpReceipt').mockImplementation(() => { throw failure })
+      await expect(adapter.project(request, AbortSignal.timeout(5000))).rejects.toThrow(failure)
+    } finally { await adapter.close() }
+  })
+
+  it('inspects installed memory without catch-up, model work or world changes and rejects corrupt sources', async () => {
+    let calls = 0
+    const f = await fixture(async input => { calls++; return input.operation === 'build' ? built(input) : empty })
+    await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
+    const actor = 'character:claude', before = f.head(), beforeCalls = calls
+    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async () => { throw new Error('inspection must not call Core') })
+    const catchUp = vi.spyOn(CognitiveMemoryService.prototype, 'catchUp')
+    const receipt = vi.spyOn(CognitiveMemoryService.prototype, 'catchUpReceipt')
+    const snapshot = adapter.inspectArchive(actor, 0, 1)
+    expect(snapshot.archivePrefix).toBe(before)
+    expect(snapshot.sections.sources?.items).toHaveLength(1)
+    expect(snapshot.sections.sources?.hasMore).toBe(true)
+    expect(catchUp).not.toHaveBeenCalled()
+    expect(receipt).not.toHaveBeenCalled()
+    expect(f.head()).toBe(before); expect(calls).toBe(beforeCalls)
+    const path = join(f.data, 'memory-core', Buffer.from(actor).toString('base64url') + '.json')
+    const original = readFileSync(path, 'utf8'), cached = JSON.parse(original)
+    cached.archive.sources[0].text = 'tampered'
+    writeFileSync(path, JSON.stringify(cached))
+    expect(() => adapter.inspectArchive(actor, 0, 1)).toThrow('source prefix changed')
+    writeFileSync(path, original)
+    await adapter.close()
+  })
   it('snapshots authorized names without rebuilding unarchived sources and protects its aliases from callers', async () => {
     const f = await fixture(async () => empty)
     const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async () => empty)

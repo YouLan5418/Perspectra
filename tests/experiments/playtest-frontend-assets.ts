@@ -3,12 +3,19 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { FRONTEND_SDK } from '../../packages/frontend/src/client.ts'
 import { DEFAULT_PAGE, DEFAULT_STYLE, DEFAULT_SCRIPT } from '../../packages/frontend/src/default-template.ts'
 import type { PackWeb } from './playtest-pack-web.ts'
+import { readFileSync } from 'node:fs'
+
+// Fixed public asset only; never expose pic/ or a caller-selected filesystem path.
+const defaultPortrait = readFileSync(import.meta.url.endsWith('.mjs')
+  ? new URL('./frontend-assets/gpt-6.png', import.meta.url)
+  : new URL('../../packages/frontend/assets/gpt-6.png', import.meta.url))
 export interface FrontendPolicy { mode: 'sandbox'|'trusted'; origin: string; revision: number }
 export function frontendAsset(request:IncomingMessage,response:ServerResponse,pack:PackWeb|undefined,hostOrigin:string,mode:'sandbox'|'trusted'):boolean{
   const url=new URL(request.url??'/','http://127.0.0.1')
   if(request.method!=='GET'||!url.pathname.startsWith('/frontend/'))return false
   const origin='http://'+request.headers.host
-  const builtins:Record<string,{contentType:string;bytes:string}>={
+  const builtins:Record<string,{contentType:string;bytes:string|Buffer}>={
+    '/frontend/assets/gpt-6.png':{contentType:'image/png',bytes:defaultPortrait},
     '/frontend/sdk.js':{contentType:'text/javascript; charset=utf-8',bytes:FRONTEND_SDK},
     '/frontend/default.html':{contentType:'text/html; charset=utf-8',bytes:DEFAULT_PAGE},
     '/frontend/default.css':{contentType:'text/css; charset=utf-8',bytes:DEFAULT_STYLE},

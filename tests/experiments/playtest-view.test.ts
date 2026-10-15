@@ -38,11 +38,11 @@ describe('player-facing playtest transcript', () => {
       [player, '玩家'], ['character:bob', 'Bob'],
     ]), player)
     expect(transcript).toEqual([
-      { seq: 3, speaker: '玩家', text: 'player speech', player: true },
-      { seq: 4, speaker: 'Bob', text: '（避开玩家的视线，声音压得很低）\nvisible speech', player: false },
-      { seq: 7, speaker: 'Bob', text: '移动到了另一个地点。', player: false },
-      { seq: 8, speaker: 'Bob', text: '拿取了一个物品。', player: false },
-      { seq: 9, speaker: 'Bob', text: '（指尖蜷起，又慢慢松开。）', player: false },
+      { seq: 3, speaker: '玩家', speakerId: player, text: 'player speech', player: true },
+      { seq: 4, speaker: 'Bob', speakerId: 'character:bob', text: '（避开玩家的视线，声音压得很低）\nvisible speech', player: false },
+      { seq: 7, speaker: 'Bob', speakerId: 'character:bob', text: '移动到了另一个地点。', player: false },
+      { seq: 8, speaker: 'Bob', speakerId: 'character:bob', text: '拿取了一个物品。', player: false },
+      { seq: 9, speaker: 'Bob', speakerId: 'character:bob', text: '（指尖蜷起，又慢慢松开。）', player: false },
     ])
     expect(JSON.stringify(transcript)).not.toMatch(/REJECTED_CANARY|PRIVATE_CLAIM_CANARY/)
   })
@@ -61,7 +61,51 @@ describe('player-facing playtest transcript', () => {
       ], selfObservations: [], claims: [], goals: [], visibility: [], bundleHash: 'sha256:view',
     } as CharacterView
     expect(playerTranscript(view, new Map(), player)).toEqual([
-      { seq: 2, speaker: 'character:unknown', text: 'hello', player: false },
+      { seq: 2, speaker: 'character:unknown', speakerId: 'character:unknown', text: 'hello', player: false },
     ])
+  })
+
+  it('shows author-declared Entity labels instead of runtime identities', () => {
+    const player = brandId('character:player', 'CharacterId')
+    const address = { tenantId: brandId('tenant:test', 'TenantId'), worldId: brandId('world:test', 'WorldId'),
+      branchId: brandId('branch:main', 'BranchId') }
+    const view = {
+      address,
+      characterId: player, asOfWorldSeq: 3, lifecycleState: 'active', locationId: 'location:room', scenes: [],
+      observations: [
+        { kind: 'observation', id: 'transfer', sourceSeq: 2, value: { observerId: player,
+          content: { status: 'accepted', actorId: 'character:bob', actionType: 'interact',
+            interaction: { entityId: 'entity:brass-key', toHolderId: 'character:bob' } } } },
+        { kind: 'observation', id: 'move', sourceSeq: 3, value: { observerId: player,
+          content: { status: 'accepted', actorId: 'character:bob', actionType: 'move',
+            movement: { characterId: 'character:bob', toLocationId: 'location:back-room' } } } },
+      ], selfObservations: [], claims: [], goals: [], visibility: [], bundleHash: 'sha256:view',
+    } as CharacterView
+    const transcript = playerTranscript(view, new Map([['character:bob', 'Bob']]), player, {
+      entityNames: new Map([['entity:brass-key', '黄铜钥匙']]),
+      locationNames: new Map([['location:back-room', '后室']]),
+    })
+    expect(transcript).toEqual([
+      { seq: 2, speaker: 'Bob', speakerId: 'character:bob', text: '黄铜钥匙 已交由Bob保管。', player: false },
+      { seq: 3, speaker: 'Bob', speakerId: 'character:bob', text: '移动到了后室。', player: false },
+    ])
+    expect(JSON.stringify(transcript)).not.toContain('entity:brass-key')
+  })
+
+  it('keeps the runtime identity when the author declared no Entity label', () => {
+    const player = brandId('character:player', 'CharacterId')
+    const address = { tenantId: brandId('tenant:test', 'TenantId'), worldId: brandId('world:test', 'WorldId'),
+      branchId: brandId('branch:main', 'BranchId') }
+    const view = {
+      address,
+      characterId: player, asOfWorldSeq: 2, lifecycleState: 'active', locationId: 'location:room', scenes: [],
+      observations: [
+        { kind: 'observation', id: 'transfer', sourceSeq: 2, value: { observerId: player,
+          content: { status: 'accepted', actorId: 'character:bob', actionType: 'interact',
+            interaction: { entityId: 'entity:unnamed', toHolderId: null } } } },
+      ], selfObservations: [], claims: [], goals: [], visibility: [], bundleHash: 'sha256:view',
+    } as CharacterView
+    expect(playerTranscript(view, new Map([['character:bob', 'Bob']]), player,
+      { entityNames: new Map() })[0]?.text).toBe('entity:unnamed 已解除个人保管，留在当前场所。')
   })
 })

@@ -73,6 +73,14 @@ it('applies the speaker preset to display copies while retaining published text'
   expect(JSON.stringify(projected)).toContain('原文')
   expect(JSON.stringify(view)).not.toContain('展示')
 })
+
+it('cleans pre-action expressions without rewriting the controlled operation',async()=>{
+ const operation={decision:'perform',actionType:'move',parameters:{locationId:'location:inn'}}
+ const before={segments:[{type:'speech',text:'<draft>私密</draft>我先走了。'}],scope:'private',addresseeIds:['character:player']}
+ expect(await presetOutput({...operation,before},{textRules:[rule('output')]})).toEqual({...operation,before:{...before,segments:[{type:'speech',text:'我先走了。'}]}})
+ await expect(presetOutput({...operation,before:{...before,segments:[{type:'speech',text:'<draft>全部</draft>'}]}},{textRules:[rule('output')]})).rejects.toThrow()
+ await expect(presetOutput({...operation,before:{...before,after:'尚未执行的结果'}},{})).rejects.toThrow()
+})
 it('publishes cleaned text through the real Core, isolates role prompts, projects display and restores it on restart', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'preset-content-')); roots.push(dir)
   const requests: Record<string, unknown>[] = [], answered = new Set<string>()

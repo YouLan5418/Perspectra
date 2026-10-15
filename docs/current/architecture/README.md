@@ -22,9 +22,12 @@
 | 原生记忆与 Core 记忆有什么不同 | [认知与记忆](cognition-memory.md) |
 | 特定玩法怎样限制行为 | [受控交互](controlled-interaction.md) |
 | 创作者怎样定义世界与活动 | [创作者运行时](creator-runtime.md) |
+| 创作者怎样检查位置、物品、私有上下文与记忆 | [创作者调试接口](../creator-debug-api.md) |
 | 怎样重新生成最近一回合 | [末端回合重新生成](../tail-round-regeneration.md) |
 | 节点、分叉和分享怎样工作 | [故事线](../storylines.md) |
 | 游戏页面怎样获授权 | [前端授权](../frontend-authorization.md) |
+| 默认舞台怎样播放对白和活动 | [默认情景舞台](../frontend-stage.md) |
+| 创作者用前端插件能做到什么、还缺什么 | [前端表现插件的能力边界](../studies/frontend-plugin-capability-boundary.md) |
 | 角色专属和角色组预设如何应用 | [预设说明](../model-presets.md) |
 | 模型服务如何接入 | [模型接口协议](../model-protocols.md) |
 | 怎样启动桌面与游戏 | [Launcher 接入](../launcher-core-integration.md)、[当前指南](../guides/README.md) |

@@ -8,12 +8,14 @@ export interface MessageSource {
 export interface CallInspection {
   characterId: string
   continuation: boolean
+  asOfWorldSeq?: number
   sources: MessageSource[]
 }
 export interface InspectedRequest {
   id: number
   characterId: string
   continuation: boolean
+  asOfWorldSeq?: number
   model: string
   startedAt: string
   status: 'pending' | 'ok' | 'failed'
@@ -38,13 +40,18 @@ export class RequestInspector {
   #enabled = false
   #next = 0
   #requests: InspectedRequest[] = []
-  configure(enabled: boolean): InspectorSnapshot { this.#enabled = enabled; this.#requests = []; return this.snapshot() }
+  #characters = new Map<string, InspectedRequest>()
+  configure(enabled: boolean): InspectorSnapshot { this.#enabled = enabled; this.#requests = []; this.#characters.clear(); return this.snapshot() }
+  latest(characterId: string): InspectedRequest | null { return structuredClone(this.#characters.get(characterId) ?? null) }
+  get enabled(): boolean { return this.#enabled }
+  status(characterId: string): InspectedRequest['status'] | 'not_captured' { return this.#characters.get(characterId)?.status ?? 'not_captured' }
   snapshot(): InspectorSnapshot { return structuredClone({ enabled: this.#enabled, requests: this.#requests }) }
   begin(body: Record<string, unknown>, info?: CallInspection, logicalMessages?: readonly ChatMessage[], model?: string): number | undefined {
     if (!this.#enabled || !info) return undefined
     const serialized = JSON.stringify(body)
     const id = ++this.#next
     const request: InspectedRequest = { id, characterId: info.characterId, continuation: info.continuation,
+      ...(info.asOfWorldSeq === undefined ? {} : { asOfWorldSeq: info.asOfWorldSeq }),
       model: model ?? String(body.model), startedAt: new Date().toISOString(), status: 'pending', body: null,
       messages: [], contextParts: [], estimatedBodyTokens: estimateRequestTokens(serialized),
       estimatedToolTokens: estimateRequestTokens(JSON.stringify(body.tools ?? body.format ?? {})) }
@@ -69,10 +76,16 @@ export class RequestInspector {
     }
     this.#requests.push(request)
     if (this.#requests.length > 4) this.#requests.shift()
+    this.#characters.delete(request.characterId)
+    this.#characters.set(request.characterId, request)
+    // Latest call per role, bounded to 8M retained request characters / 32 roles.
+    while (this.#characters.size > 32 || [...this.#characters.values()].reduce((sum, item) => sum + JSON.stringify(item).length, 0) > 8_000_000) {
+      this.#characters.delete(this.#characters.keys().next().value!)
+    }
     return id
   }
   finish(id: number | undefined, status: 'ok' | 'failed', durationMs: number, response?: unknown): void {
-    const request = this.#requests.find(r => r.id === id)
+    const request = this.#requests.find(r => r.id === id) ?? [...this.#characters.values()].find(r => r.id === id)
     if (!request) return
     request.status = status; request.durationMs = durationMs
     const root = response as Record<string, unknown> | undefined

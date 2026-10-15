@@ -49,6 +49,10 @@ export class TailRoundRuntime {
   get address() { return this.#runtime.address }
   get dataDirectory(): string { return resolve(this.options.dataDirectory, this.#selection.directory) }
   requestInspection(enabled?: boolean) { return this.#runtime.requestInspection(enabled) }
+  creatorDebug(query: import('./creator-debug.ts').CreatorDebugQuery = {}) {
+    if (this.#closed || this.#regenerating || this.#interrupting) throw new PlaytestBusyError('请等待世界切换完成。')
+    return this.#runtime.creatorDebug(query)
+  }
   async state(): Promise<PlaytestState> {
     const state = await this.#runtime.state()
     return { ...state, canInterrupt:state.canInterrupt===true && !this.#interrupting && !this.#regenerating && !this.#closed && !this.#escaping,
@@ -85,6 +89,9 @@ export class TailRoundRuntime {
       thinkingLevel: this.options.thinkingLevel ?? null, intentModel: this.options.intentModel ?? null, preset: this.options.preset ?? {}, presetMapping: this.options.presetMapping ?? {},
       serialScheduling: !!this.options.serialScheduling,
       stagedAutonomy: !!this.options.stagedAutonomy,
+      continueAfterPublish: !!this.options.continueAfterPublish,
+      beforeActionExpression: !!this.options.beforeActionExpression,
+      ...(this.options.recentExecutionEvidence ? {recentExecutionEvidence:true} : {}),
       playSettings:this.options.playSettings??null, tuning: this.options.tuning ?? null, memoryCore: !!this.options.memoryCore,
       memoryContextBudget: this.options.memoryContextBudget ?? null })
   }

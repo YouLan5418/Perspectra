@@ -34,6 +34,10 @@ describe('pack-owned variables',()=>{
       {op:'replace',path:'/private/number',value:3},{op:'replace',path:'/private/flag',value:true}])
     expect(vars.getVariables('character:claude').private).toEqual({secret:'',number:0,flag:false})
     expect(JSON.stringify(vars.getVariables('character:player'))).not.toContain('only-gpt')
+    const debug = vars.debugSnapshot()
+    expect(debug.characters['character:gpt']?.secret).toBe('only-gpt')
+    Object.assign(debug.characters['character:gpt']!, { secret: 'changed' })
+    expect(vars.debugSnapshot().characters['character:gpt']?.secret).toBe('only-gpt')
     const restored=PackVariables.load(f.packPath,f.data,f.pack)!
     expect(restored.getVariables('character:gpt').private).toEqual({secret:'only-gpt',number:3,flag:true})
     expect(()=>restored.getVariables('character:unknown')).toThrow(/角色/u)

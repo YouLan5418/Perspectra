@@ -1,193 +1,39 @@
+import { createReadingPlayback } from './reading-playback.ts'
+import { STAGE_STYLE } from './stage-style.ts'
+
 export const DEFAULT_PAGE = String.raw`<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Perspectra 对话</title><link rel="stylesheet" href="/frontend/default.css"></head>
 <body><main>
-  <header class="world-header"><div><p class="eyebrow">你的故事，正在继续</p><h1 id="title">正在进入世界</h1></div><span id="status" role="status">正在连接</span></header>
-  <div class="workspace">
-    <aside class="sidebar" aria-label="场景与行动">
-      <section class="scene-card"><p class="eyebrow">当前场景</p><h2 id="scene">场景尚未开始</h2><div id="characters" aria-label="当前可见角色"></div></section>
-      <details class="action-panel" open><summary>可用行动 <span id="action-count">0</span></summary><div id="actions"></div></details>
-      <p class="hint">发言与细节描写可以一起发送。行动选项由当前场景与规则提供；选择后会直接执行。</p>
-    </aside>
-    <section class="conversation" aria-label="故事与对话">
-      <div class="conversation-heading"><span>故事与对话</span><span id="player"></span></div>
-      <section id="history" aria-label="玩家可见对话记录" aria-live="polite" aria-relevant="additions text"></section>
-      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
-      <button id="latest" class="latest secondary" type="button" hidden>回到最新对话 ↓</button>
-      <div class="composer"><div class="audience-heading"><strong>发送消息</strong><span id="audience-badge">公开发言</span></div>
+  <div class="backdrop" aria-hidden="true"></div>
+  <header class="world-header"><div class="scene-heading"><div><p class="eyebrow">PERSPECTRA / SCENE</p><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><button id="history-toggle" type="button" aria-expanded="false">文字记录</button><button id="actions-toggle" type="button" aria-expanded="false">行动 <span id="action-count">0</span></button></nav></header>
+  <div id="characters" aria-label="当前可见角色"></div>
+  <p id="movement-toast" class="movement-toast" role="status" hidden></p>
+  <section class="stage-bottom" aria-label="故事与对话">
+    <div class="dialogue-wrap" id="dialogue-wrap"><div class="dialogue-meta"><strong id="speaker" class="speaker-label">序幕</strong><span id="reading-count" class="reading-count"></span></div><button id="dialogue" class="dialogue" type="button" aria-label="阅读下一段">世界正在醒来……</button><div id="auto-progress" class="auto-progress" hidden><div id="auto-progress-bar" class="auto-progress-bar"></div></div><div class="dialogue-footer"><span id="continue-hint">点击对话框继续 · 空格推进 · 滚轮</span><button id="auto-read" type="button" aria-pressed="false">自动</button><button id="skip-read" type="button">跳到已提交末尾</button>      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
+</div></div>
+<div class="feedback"><p id="notice" role="status"></p><button id="retry" class="secondary" type="button" hidden>重试同一操作</button></div>      <div class="composer" id="composer" hidden><div class="reply-context" id="reply-context" role="button" tabindex="0" title="点击返回对白"><span id="reply-speaker"></span><p id="reply-summary"></p></div><div class="audience-heading"><strong>发送消息</strong><span id="audience-badge">公开发言</span></div>
         <fieldset class="audience-options"><legend class="visually-hidden">发言范围</legend>
-          <label><input type="radio" name="speech-scope" value="scene_public" checked>公开 — 在场且有权观察的角色都能听见</label>
-          <label><input type="radio" name="speech-scope" value="direct">定向 — 只有指定接收者收到，其他人不知情</label>
-          <label><input type="radio" name="speech-scope" value="private">私密 — 其他人只知道发生了私密交流</label>
-          <label><input type="radio" name="speech-scope" value="self">仅自己 — 不向其他角色发送</label>
+          <label><input type="radio" name="speech-scope" value="scene_public" checked>公开</label>
+          <label><input type="radio" name="speech-scope" value="direct">定向</label>
+          <label><input type="radio" name="speech-scope" value="private">私密</label>
+          <label><input type="radio" name="speech-scope" value="self">仅自己</label>
         </fieldset>
         <div id="recipient-panel" hidden><label for="speech-recipient">接收对象</label><select id="speech-recipient"></select><p id="recipient-hint" class="hint" hidden>当前没有可接收发言的角色。</p></div>
-        <label class="visually-hidden" for="input">写下你的回应</label><textarea id="input" maxlength="2000" placeholder="说出你想对角色说的话……" rows="2"></textarea>
+        <div id="expression-choices" class="expression-choices"></div><label class="visually-hidden" for="input">写下你的回应</label><textarea id="input" maxlength="2000" placeholder="说出你想对角色说的话……" rows="2"></textarea>
         <details class="narration-composer" id="narration-panel"><summary>细节描写 <span>可选 · 与发言一起提交</span></summary><label class="visually-hidden" for="narration">细节描写</label><textarea id="narration" maxlength="2000" placeholder="描写你的动作、神态或语气。不会直接改变位置或物品归属。" rows="2"></textarea></details>
         <p id="audience-preview" class="audience-preview" aria-live="polite"></p><div class="composer-footer"><span>Enter 发送 · Shift + Enter 换行</span><button id="send" type="button">发送 <span aria-hidden="true">↑</span></button></div>
-        <div class="feedback"><p id="notice" role="status"></p><button id="retry" class="secondary" type="button" hidden>重试同一操作</button></div>
-      </div>
-    </section>
 
-  </div>
+      </div>
+  </section>
+  <section id="history-panel" class="panel history-panel" aria-label="文字记录" hidden><div class="panel-header"><span>文字记录 · <span id="player"></span></span><button id="history-close" type="button" aria-label="关闭文字记录">×</button></div><section id="history" aria-label="玩家可见对话记录"></section><button id="latest" class="latest secondary" type="button" hidden>回到最新对话 ↓</button></section>
+  <section id="action-panel" class="panel action-panel" aria-label="可用行动" hidden><div class="panel-header"><span>当前可用行动</span><button id="actions-close" type="button" aria-label="关闭行动">×</button></div><div id="actions"></div></section>
 </main><script src="/frontend/sdk.js"></script><script src="/frontend/default.js"></script></body></html>`;
 
-export const DEFAULT_STYLE = String.raw`
-/* ===== 设计变量：改外观优先改这里 ===== */
-:root{
-  color-scheme:light;
-  /* 底色与面板 */
-  --bg:#f4f3ef;--surface:#fdfdf9;--surface-2:#fafbf6;--surface-sunken:#eeefe7;
-  --border:#dfe3d8;--border-soft:#eceee6;
-  /* 文字（均满足 AA 对比度） */
-  --text:#2b362e;--text-story:#2c3830;--text-act:#5c675a;--text-muted:#5d675c;--text-faint:#6b746a;
-  /* 强调色与玩家气泡 */
-  --accent:#2f5a47;--accent-hover:#244a3a;--on-accent:#fff;--accent-soft:#e6ede2;--accent-line:#cdd9c7;
-  --player-bg:#e8f0e4;--player-border:#d3e1cd;
-  /* 状态色 */
-  --ok:#5d8a58;--busy:#b08a3c;--warn:#8a5a2e;--danger:#a5563f;
-  /* 角色专属色：色相由脚本按角色名选取，这里只定明度 */
-  --char-bg-l:88%;--char-fg-l:30%;
-  --shadow:0 4px 18px rgb(48 61 52 / .06);
-  /* 字体：故事正文可换成自带字体，未安装时自动回退到界面字体 */
-  --font-ui:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
-  --font-story:"LXGW WenKai","Noto Serif SC","Source Han Serif SC","Segoe UI","Microsoft YaHei",system-ui,sans-serif;
-  /* 字号梯度 */
-  --fs-xs:12px;--fs-sm:13px;--fs-md:15px;--fs-story:17px;--fs-title:28px;--fs-h2:19px;
-  /* 圆角 */
-  --r-sm:6px;--r-md:10px;--r-lg:14px;
-}
-@media (prefers-color-scheme:dark){
-  :root{
-    color-scheme:dark;
-    --bg:#101010;--surface:#191919;--surface-2:#161616;--surface-sunken:#202020;
-    --border:#353535;--border-soft:#2b2b2b;
-    --text:#e5e5e5;--text-story:#ededed;--text-act:#b0b0b0;--text-muted:#b0b0b0;--text-faint:#999999;
-    --accent:#d0d0d0;--accent-hover:#eeeeee;--on-accent:#111111;--accent-soft:#282828;--accent-line:#404040;
-    --player-bg:#252525;--player-border:#3a3a3a;
-    --ok:#d0d0d0;--busy:#d9b45f;--warn:#d9a46a;--danger:#e0917c;
-    --char-bg-l:24%;--char-fg-l:76%;
-    --shadow:0 4px 18px rgb(0 0 0 / .25);
-  }
-}
-
-/* ===== 基础 ===== */
-:root{font:var(--fs-md)/1.6 var(--font-ui);background:var(--bg);color:var(--text)}
-*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0}
-button,textarea,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:default}
-button:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-main{max-width:1320px;height:100dvh;min-height:430px;margin:auto;padding:26px 36px 28px;display:flex;flex-direction:column;gap:22px}
-
-/* ===== 标题栏 ===== */
-.world-header{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-shrink:0}
-.eyebrow{margin:0 0 8px;font-size:var(--fs-xs);letter-spacing:1px;color:var(--text-muted)}
-h1{font:600 var(--fs-title)/1.35 var(--font-story);letter-spacing:0;margin:0;overflow-wrap:anywhere}
-#status{display:flex;align-items:center;gap:8px;flex-shrink:0;border:1px solid var(--border);border-radius:30px;padding:7px 13px;font-size:var(--fs-sm);color:var(--text-muted);background:var(--surface-2)}
-#status:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok)}
-#status[data-state="busy"]:before{background:var(--busy)}
-#status[data-state="error"],#status[data-state="paused"],#status[data-state="disconnected"]{color:var(--warn)}
-#status[data-state="error"]:before,#status[data-state="disconnected"]:before{background:var(--danger)}
-
-/* ===== 布局 ===== */
-.workspace{display:grid;grid-template-columns:300px minmax(0,1fr);gap:24px;min-height:0;flex:1}
-.conversation{min-width:0;display:flex;flex-direction:column;position:relative;min-height:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow)}
-.conversation-heading{display:flex;justify-content:space-between;gap:15px;padding:14px 26px;border-bottom:1px solid var(--border-soft);color:var(--text-muted);font-size:var(--fs-sm)}
-.conversation-heading #player{color:var(--text-faint);font-size:var(--fs-sm)}
-
-/* ===== 对话记录 ===== */
-#history{flex:1;min-height:0;overflow:auto;padding:28px 30px 8px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;overscroll-behavior:contain}
-.line{display:flex;gap:14px;max-width:min(100%,46rem);margin:0 0 28px}
-.avatar{width:34px;height:34px;display:grid;place-items:center;flex-shrink:0;border-radius:10px;font-size:var(--fs-sm);background:var(--accent-soft);color:var(--accent)}
-.line:not(.player) .avatar{background:hsl(var(--hue,140) 26% var(--char-bg-l));color:hsl(var(--hue,140) 32% var(--char-fg-l))}
-.message{min-width:0;flex:1}
-.speaker{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);margin:4px 0 6px}
-.line:not(.player) .speaker{color:hsl(var(--hue,140) 30% var(--char-fg-l))}
-.text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:var(--story-line-height,1.9);font:var(--fs-story)/var(--story-line-height,1.9) var(--font-story);color:var(--text-story)}
-.text .act{color:var(--text-act)}.text .say{color:var(--text-story)}
-.line.player{margin-left:auto;flex-direction:row-reverse}
-.line.player .message{flex:0 1 auto;max-width:38rem}
-.line.player .speaker{text-align:right}
-.line.player .text{background:var(--player-bg);border:1px solid var(--player-border);border-radius:var(--r-md) 2px var(--r-md) var(--r-md);padding:11px 16px}
-.empty-history{padding:56px 8px;color:var(--text-muted);text-align:center;line-height:1.9}
-.empty-history strong{display:block;font:500 20px/1.5 var(--font-story);color:var(--text);margin-bottom:10px}
-
-/* ===== 输入区 ===== */
-.composer{padding:16px 24px 14px;border-top:1px solid var(--border-soft);background:var(--surface-2)}
-.composer label{font-size:var(--fs-sm);color:var(--text-muted);display:block;margin-bottom:8px}
-textarea{display:block;width:100%;min-height:76px;max-height:170px;resize:vertical;line-height:1.7;padding:0;border:0;background:transparent;color:var(--text-story);font-size:var(--fs-md)}
-textarea:focus{outline:none}
-textarea:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:2px}
-textarea::placeholder{color:var(--text-faint)}
-.composer-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:8px}
-.composer-footer>span{font-size:var(--fs-xs);color:var(--text-faint)}
-button{border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--accent);padding:9px 14px;transition:background .15s,border-color .15s}
-button:hover:not(:disabled){background:var(--accent-soft);border-color:var(--accent-line)}
-#send{background:var(--accent);border-color:var(--accent);color:var(--on-accent);min-width:92px;padding:9px 16px;font-weight:600}
-#send:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
-#send:disabled{background:var(--accent-soft);border-color:var(--accent-line);color:var(--text-faint);opacity:1}
-#send span{margin-left:14px}
-.feedback:has(#notice:empty):has(#retry[hidden]){display:none}
-.feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px}
-#notice{margin:0;color:var(--warn);font-size:var(--fs-sm);line-height:1.6;overflow-wrap:anywhere}
-.secondary{font-size:var(--fs-xs);padding:6px 11px}
-/* 浮动按钮固定在记录区上方，避免遮挡可变高度的发送区。 */
-.latest{position:absolute;align-self:center;top:64px;right:24px;bottom:auto;box-shadow:var(--shadow);background:var(--surface)}
-
-.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-.narration-composer{margin-top:10px;border-top:1px solid var(--border-soft);padding-top:8px}
-.narration-composer summary{cursor:pointer;color:var(--text-muted);font-size:var(--fs-sm)}
-.narration-composer summary span{margin-left:8px;font-size:var(--fs-xs);color:var(--text-faint)}
-.narration-composer textarea{margin-top:8px;min-height:56px;max-height:110px}
-/* ===== 发言受众 ===== */
-.audience-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
-#audience-badge{font-size:var(--fs-xs);border-radius:20px;background:var(--accent-soft);padding:2px 9px}
-.audience-options{border:0;margin:0 0 8px;padding:0;display:grid;gap:4px}
-.composer .audience-options label{display:flex;align-items:center;gap:8px;margin:0;color:var(--text)}
-.audience-options input{accent-color:var(--accent);flex-shrink:0}
-#speech-recipient{width:100%;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);padding:7px 10px;margin-bottom:8px}
-#speech-recipient:focus-visible,.audience-options input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.audience-preview{margin:8px 0 0;font-size:var(--fs-xs);color:var(--text-muted);line-height:1.6}
-.composer{flex-shrink:0;max-height:calc(100% - 100px);overflow:auto}
-/* ===== 侧栏 ===== */
-.sidebar{overflow:auto;min-height:0;scrollbar-width:thin}
-.scene-card{padding:20px;border:1px solid var(--border);border-radius:var(--r-md);background:linear-gradient(165deg,var(--surface-sunken),var(--accent-soft));margin-bottom:16px}
-h2{font:600 var(--fs-h2)/1.4 var(--font-story);margin:0 0 14px;overflow-wrap:anywhere}
-#characters{display:flex;gap:7px;flex-wrap:wrap}
-.character{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:4px 9px;font-size:var(--fs-sm);color:var(--text-muted)}
-.alone{font-size:var(--fs-sm);color:var(--text-faint)}
-.action-panel{border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);overflow:hidden}
-.action-panel>summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none;padding:15px 16px;font-size:var(--fs-md);font-weight:600}
-.action-panel>summary::-webkit-details-marker{display:none}
-#action-count{font-size:var(--fs-xs);font-weight:400;color:var(--text-muted);background:var(--accent-soft);border-radius:var(--r-sm);padding:2px 7px}
-.action-group{padding:0 14px 15px}
-.action-group h3{margin:0 0 8px;padding-top:3px;color:var(--text-muted);font-size:var(--fs-xs);letter-spacing:.5px;font-weight:600}
-.action-group+.action-group{border-top:1px solid var(--border-soft);padding-top:14px}
-.action-group button{display:flex;width:100%;justify-content:space-between;gap:8px;text-align:left;align-items:center;color:var(--text);border-color:var(--border);background:var(--surface);margin:6px 0 0;padding:10px 12px;font-size:var(--fs-sm);line-height:1.6;overflow-wrap:anywhere}
-.action-group button:hover:not(:disabled){border-color:var(--accent)}
-.action-group button span:last-child{color:var(--text-faint)}
-.no-actions{padding:0 16px 16px;margin:0;color:var(--text-muted);font-size:var(--fs-sm);line-height:1.7}
-.hint{font-size:var(--fs-xs);color:var(--text-faint);line-height:1.9;padding:0 7px;margin:14px 0}
-
-.round-tools{display:flex;align-items:center;gap:4px;margin:4px 0 18px 42px;color:var(--text-muted);font-size:var(--fs-xs)}
-.round-tools button{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;padding:4px;border:0;border-radius:6px;background:transparent;color:var(--text-muted)}
-.round-tools button:hover:not(:disabled){background:var(--accent-soft);color:var(--text)}
-.round-tools span{font-variant-numeric:tabular-nums;min-width:32px;text-align:center}
-.round-tools[hidden],.round-tools [hidden]{display:none!important}
-/* ===== 响应式 ===== */
-@media(max-width:850px){main{padding:20px;gap:18px}.workspace{grid-template-columns:240px minmax(0,1fr);gap:16px}}
-@media(max-width:640px){
-  main{height:auto;min-height:100dvh;padding:18px 14px;gap:16px}
-  .world-header{align-items:flex-start;gap:10px}h1{font-size:24px}#status{font-size:var(--fs-xs);padding:6px 9px}
-  .workspace{display:flex;flex-direction:column;gap:16px}
-  .conversation{min-height:480px;height:68dvh;flex-shrink:0}.conversation-heading{padding:13px 16px}
-  #history{padding:20px 16px 6px}.line{max-width:100%;gap:10px}.composer{padding:15px 16px}
-  .sidebar{overflow:visible;order:1}.scene-card{padding:16px;margin-bottom:12px}#characters{gap:6px}
-  .action-panel>summary{padding:14px}.action-group button{padding:11px}.hint{margin-bottom:0}
-}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
-`;
+export const DEFAULT_STYLE = STAGE_STYLE;
 
 export const DEFAULT_SCRIPT = String.raw`(() => {
+ const playback=(${createReadingPlayback.toString()})();
  const api=window.Perspectra,node=id=>document.getElementById(id);
  let latest,posting=false,pending,connected=false,historyKey='',actionsKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
  const roundTools=node('round-tools');
@@ -217,16 +63,31 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    audience();
  }
  function controls(){
-   const disabled=posting||!connected||(!['ready','error'].includes(latest?.status)&&!latest?.canInterrupt);
-   const actionDisabled=posting||!connected||!['ready','error'].includes(latest?.status);
-   node('send').disabled=disabled||!(node('input').value.trim()||node('narration').value.trim())||((speechScope()==='direct'||speechScope()==='private')&&!node('speech-recipient').value);
+   const policy=latest?.expression||{speech:'free',speechChoices:[],narration:true};
+   const readingBlocked=playback.pending();
+   const disabled=readingBlocked||posting||!connected||(!['ready','error'].includes(latest?.status)&&!latest?.canInterrupt);
+   const actionDisabled=readingBlocked||posting||!connected||!['ready','error'].includes(latest?.status);
+   node('send').disabled=disabled||(policy.speech!=='free'&&!policy.narration)||!((policy.speech==='free'&&node('input').value.trim())||(policy.narration&&node('narration').value.trim()))||((speechScope()==='direct'||speechScope()==='private')&&!node('speech-recipient').value);
    for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.disabled=disabled;
    node('speech-recipient').disabled=disabled||!latest?.scene?.recipients?.length;
-   node('input').disabled=disabled;node('narration').disabled=disabled;
+   node('input').disabled=disabled||policy.speech!=='free';node('input').hidden=policy.speech!=='free';node('narration').disabled=disabled||!policy.narration;node('narration-panel').hidden=!policy.narration;
+   for(const button of node('expression-choices').querySelectorAll('button'))button.disabled=disabled||(['direct','private'].includes(speechScope())&&!node('speech-recipient').value);
+   const canReply=!disabled&&(policy.speech!=='none'||policy.narration);
+   const mode=readingBlocked||posting||(!canReply&&!activityOpen)?'reading':activityOpen?'activity':(composerExpanded&&canReply)?'response':'reading';
+   document.querySelector('main').dataset.mode=mode;
+   document.querySelector('main').dataset.hasActivity=String(!!(latest?.activity||latest?.activities?.length));
+   if(connected&&latest?.status==='ready')node('status').textContent=mode==='response'?'等待你的回应':mode==='activity'?'可以操作':readingBlocked?'阅读中':'已读完';
+   node('composer').hidden=mode!=='response';node('dialogue-wrap').hidden=mode==='response';
+   const unit=playback.current();node('reply-speaker').textContent=unit?.speaker||'当前情景';node('reply-summary').textContent=unit?.text||'故事从你的回应开始。';
+   node('actions-toggle').disabled=actionDisabled;
+   if(actionDisabled)node('action-panel').hidden=true;
+   node('actions-toggle').setAttribute('aria-expanded',String(!node('action-panel').hidden));
+   node('continue-hint').textContent=readingBlocked?'点击对话框继续 · 空格推进 · 滚轮':latest?.status==='busy'?'等待后续处理；新结果到达后继续阅读':canReply?'已读完 · 点击对话框开始回应 · 空格 / Enter':'已读完 · 可以选择行动';
    for(const button of node('actions').querySelectorAll('button'))button.disabled=actionDisabled||button.dataset.unavailable==='true';
    for(const picker of node('actions').querySelectorAll('select'))picker.disabled=actionDisabled;
   const retryAllowed=['ready','error'].includes(latest?.status)||(pending?.method==='speak'&&latest?.canInterrupt===true);
   node('retry').hidden=!pending;node('retry').disabled=posting||!connected||!retryAllowed;
+   parent.postMessage({type:'frontend-reading',pending:readingBlocked,historyOpen:!node('history-panel').hidden,mode,historySignature:JSON.stringify((latest?.history||[]).map(line=>[line.seq,line.speaker,line.text,line.segments]))},'*');
    const tail=latest?.tailRound,count=tail?.candidateIds?.length||1,index=tail?.candidateIndex||1;
    roundTools.hidden=!tail?.id||!canRegenerate;
    node('candidate-count').textContent=index+'/'+count;
@@ -246,17 +107,16 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      if(node('narration').value.trim()===(pending.payload.narration||''))node('narration').value='';
      posting=false;pending=null;requestVersion++;
    }
-   latest=view;renderRecipients(view);
+   const candidate=tail=>tail?.candidateIds?.[(tail.candidateIndex||1)-1]||null;
+   if(latest?.tailRound?.id&&latest.tailRound.id===view.tailRound?.id&&candidate(latest.tailRound)!==candidate(view.tailRound))playback.invalidateScene();
+   latest=view;renderRecipients(view);const hadPending=playback.pending();playback.update(view.history);if(!hadPending&&playback.pending())composerExpanded=false;renderStage();
+   const expression=view.expression||{speech:'free',speechChoices:[],narration:true};
+   if(JSON.stringify(expression)!==expressionKey){expressionKey=JSON.stringify(expression);node('expression-choices').replaceChildren();if(expression.speech==='choices')for(const text of expression.speechChoices){const button=document.createElement('button');button.type='button';button.textContent=text;button.onclick=()=>send('speak',{text,scope:speechScope(),addresseeIds:['direct','private'].includes(speechScope())?[node('speech-recipient').value]:[]});node('expression-choices').append(button)}}
    const reading=view.settings?.reading||{fontSize:17,lineHeight:1.9,autoFollow:true};
    document.documentElement.style.setProperty('--fs-story',reading.fontSize+'px');document.documentElement.style.setProperty('--story-line-height',String(reading.lineHeight));
    node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
    node('title').textContent=view.game.title;node('player').textContent='你 · '+view.player.name;
-   node('scene').textContent=view.scene?.locationName||'场景尚未开始';
-   node('characters').replaceChildren();
-   const people=view.scene?.visibleCharacters||[];
-   for(const name of people){const chip=document.createElement('span');chip.className='character';chip.textContent=name;node('characters').append(chip)}
-   if(!people.length){const empty=document.createElement('span');empty.className='alone';empty.textContent='眼前没有其他角色';node('characters').append(empty)}
-   node('status').textContent=({ready:'可以回应',busy:view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'角色正在回应',paused:'已暂停',error:'处理未完成'})[view.status];
+   node('status').textContent=({ready:playback.pending()?'阅读中':'可以回应',busy:view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'角色正在回应',paused:'已暂停',error:'处理未完成'})[view.status];
    node('status').dataset.state=view.status;
    node('status').title=view.feedback?.phase||'';
    if(!pending)node('notice').textContent=view.canInterrupt?'可继续输入；尚未完成的回应会被打断，已发生的行动保留。':view.status==='busy'?(view.feedback?.phase||'角色正在处理，已发表的回应会立即显示。'):view.feedback?.message||'';
@@ -274,7 +134,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
        const text=document.createElement('div');text.className='text';if(line.segments){for(const segment of line.segments){const span=document.createElement('span');span.className=segment.type==='speech'?'say':'act';span.textContent=segment.text;text.append(span,document.createElement('br'));}}else fillText(text,line.text);
        message.append(speaker,text);article.append(avatar,message);history.append(article);
      }
-     history.append(roundTools);
+
      if(follow)bottom();else{history.scrollTop=oldTop;node('latest').hidden=false}
    }
    const nextActions=JSON.stringify(view.actions);
@@ -313,20 +173,98 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  }
  function send(method,payload){
    const tailOperation=method==='regenerate'||method==='selectCandidate';
-   if(posting||!connected||(tailOperation?!latest?.tailRound?.canRegenerate:!['ready','error'].includes(latest?.status)&&!(method==='speak'&&latest?.canInterrupt)))return;
-   pending={method,payload,actionId:api.newActionId()};submit(pending);
+   if(posting||!connected||(!tailOperation&&playback.pending())||(tailOperation?!latest?.tailRound?.canRegenerate:!['ready','error'].includes(latest?.status)&&!(method==='speak'&&latest?.canInterrupt)))return;
+   composerExpanded=false;node('action-panel').hidden=true;pending={method,payload,actionId:api.newActionId()};submit(pending);
  }
  node('regenerate-round').onclick=()=>send('regenerate',{tailId:latest.tailRound.id});
  function choose(offset){const tail=latest?.tailRound,id=tail?.candidateIds?.[(tail.candidateIndex||1)-1+offset];if(id)send('selectCandidate',{tailId:tail.id,candidateId:id})}
  node('candidate-prev').onclick=()=>choose(-1);node('candidate-next').onclick=()=>choose(1);
  node('cancel-round').onclick=async()=>{try{await api.cancelRegeneration()}catch(error){node('notice').textContent=error.message}};
  node('retry').onclick=()=>{if(!posting&&connected&&pending)submit(pending)};
- node('send').onclick=()=>{const text=node('input').value.trim(),narration=node('narration').value.trim();if(text||narration){const maximum=latest?.settings?.inputCharacters||2000;if(text.length+narration.length>maximum){node('notice').textContent='发言与描写合计不能超过 '+maximum+' 个字符';return}const scope=speechScope(),addresseeIds=scope==='direct'||scope==='private'?[node('speech-recipient').value]:[];if((scope==='direct'||scope==='private')&&!addresseeIds[0])return;send('speak',{text,narration,scope,addresseeIds})}};
+ node('send').onclick=()=>{const text=latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim(),narration=latest?.expression?.narration===false?'':node('narration').value.trim();if(text||narration){const maximum=latest?.settings?.inputCharacters||2000;if(text.length+narration.length>maximum){node('notice').textContent='发言与描写合计不能超过 '+maximum+' 个字符';return}const scope=speechScope(),addresseeIds=scope==='direct'||scope==='private'?[node('speech-recipient').value]:[];if((scope==='direct'||scope==='private')&&!addresseeIds[0])return;send('speak',{text,narration,scope,addresseeIds})}};
  for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.onchange=()=>{audience();controls()};
  node('speech-recipient').onchange=()=>{audience();controls()};
  audience();
  node('input').oninput=controls;node('narration').oninput=controls;
  node('input').onkeydown=node('narration').onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();node('send').click()}};
- api.subscribe(event=>{if(event.view){connected=true;render(event.view)}if(event.type==='disconnected'){connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}});
+ let composerExpanded=false,activityOpen=false,auto=false,autoTimer=null,autoKey='',expressionKey='',sceneKey='',toastTimer=null;
+ function updateAutoProgress(duration){
+   const wrap=node('auto-progress'),bar=node('auto-progress-bar');
+   if(!wrap||!bar)return;
+   if(duration>0){
+     wrap.hidden=false;bar.style.transition='none';bar.style.width='0%';
+     void bar.offsetWidth;
+     bar.style.transition='width '+duration+'ms linear';bar.style.width='100%';
+   }else{
+     wrap.hidden=true;bar.style.transition='none';bar.style.width='0%';
+   }
+ }
+ function renderStage(){
+   const unit=playback.current();
+   node('speaker').textContent=unit?.speaker||'序幕';node('dialogue').replaceChildren();fillText(node('dialogue'),unit?.text||'看看眼前的世界，向角色打个招呼吧。');
+   node('dialogue').dataset.type=unit?.type||'speech';node('reading-count').textContent=playback.pending()?'待阅读 '+playback.remaining()+' 段':'已读完';
+   node('dialogue').classList.remove('fade-in');void node('dialogue').offsetWidth;node('dialogue').classList.add('fade-in');
+   const scene=playback.stageScene(latest?.scene||null),key=JSON.stringify(scene);
+   if(key!==sceneKey){
+     if(sceneKey&&scene?.locationName){node('movement-toast').textContent='当前情景 · '+scene.locationName;node('movement-toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>node('movement-toast').hidden=true,3500)}
+    sceneKey=key;node('scene').textContent=scene?.locationName||'情景尚未开始';
+    if(scene?.locationName){let hue=0;for(const ch of scene.locationName)hue=(hue*31+ch.codePointAt(0))>>>0;document.documentElement.style.setProperty('--scene-hue',String(hue%360))}
+    node('characters').replaceChildren();
+    for(const {id,name} of scene?.recipients||[]){const portrait=document.createElement('div');portrait.className='portrait';portrait.dataset.characterId=id;portrait.style.setProperty('--hue',String(hueOf(name)));
+      const badge=document.createElement('div');badge.className='portrait-badge';badge.hidden=true;badge.textContent=Array.from(name)[0]||'◇';
+      const slug=String(name).toLowerCase().split(/[\s（(·]/)[0];
+      const img=document.createElement('img');img.src='/frontend/assets/'+encodeURIComponent(slug)+'.png';img.alt=name+'的立绘';img.onerror=()=>{img.remove();badge.hidden=false};portrait.append(img,badge);
+      const label=document.createElement('span');label.className='character-name';label.textContent=name;portrait.append(label);node('characters').append(portrait)}
+     if(!scene?.recipients.length){const empty=document.createElement('span');empty.className='alone';empty.textContent='片刻的宁静';node('characters').append(empty)}
+   }
+   for(const portrait of node('characters').children)portrait.classList.toggle('speaking',!!unit?.speakerId&&unit.speakerId===portrait.dataset.characterId);
+   scheduleAuto();
+ }
+ function scheduleAuto(){
+   const key=JSON.stringify(playback.current());
+   if(autoTimer&&autoKey===key&&auto&&node('history-panel').hidden)return;
+   clearTimeout(autoTimer);autoTimer=null;autoKey=key;updateAutoProgress(0);
+   if(auto&&playback.pending()&&node('history-panel').hidden){
+     const duration=Math.max(2500,Math.min(14000,(playback.current()?.text.length||0)*90));
+     updateAutoProgress(duration);
+     autoTimer=setTimeout(()=>{autoTimer=null;updateAutoProgress(0);advance()},duration);
+   }
+ }
+ function canReplyNow(){
+   const policy=latest?.expression||{speech:'free',speechChoices:[],narration:true};
+   return !posting&&connected&&(['ready','error'].includes(latest?.status)||latest?.canInterrupt)&&(policy.speech!=='none'||policy.narration);
+ }
+ function advance(){
+   if(!node('history-panel').hidden)return;
+   updateAutoProgress(0);
+   if(playback.pending()){
+     playback.advance();
+     renderStage();
+     controls();
+   }else if(canReplyNow()){
+     composerExpanded=true;
+     if(activityOpen)activityOpen=false;
+     controls();
+     node('input').focus();
+   }
+ }
+ function historyPanel(open){node('history-panel').hidden=!open;node('history-toggle').setAttribute('aria-expanded',String(open));if(open){clearTimeout(autoTimer);autoTimer=null;updateAutoProgress(0);node('history-close').focus();bottom()}else{node('history-toggle').focus();scheduleAuto()}controls()}
+ node('dialogue').onclick=advance;
+ node('skip-read').onclick=()=>{updateAutoProgress(0);playback.skip();renderStage();if(canReplyNow())composerExpanded=true;controls();if(canReplyNow())node('input').focus()};
+ node('auto-read').onclick=()=>{auto=!auto;node('auto-read').setAttribute('aria-pressed',String(auto));node('auto-read').classList.toggle('active',auto);scheduleAuto()};
+ node('history-toggle').onclick=()=>historyPanel(node('history-panel').hidden);node('history-close').onclick=()=>historyPanel(false);
+ node('actions-toggle').onclick=()=>{node('action-panel').hidden=!node('action-panel').hidden;controls()};node('actions-close').onclick=()=>{node('action-panel').hidden=true;controls()};
+ node('reply-context').onclick=()=>{composerExpanded=false;controls()};
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'){historyPanel(false);node('action-panel').hidden=true;composerExpanded=false;controls();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
+ let lastWheel=0;
+ document.addEventListener('wheel',event=>{
+   if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
+   if(node('history').contains(event.target))return;
+   const now=Date.now();
+   if(now-lastWheel<280)return;
+   if(event.deltaY<-40&&node('history-panel').hidden){lastWheel=now;historyPanel(true)}
+   else if(event.deltaY>40&&node('history-panel').hidden){lastWheel=now;advance()}
+ },{passive:true});
+ api.subscribe(event=>{if(event.type==='presentation'){activityOpen=event.activityOpen===true;if(activityOpen)composerExpanded=false;controls()}if(event.view){connected=true;render(event.view)}if(event.type==='disconnected'){connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}});
  controls();api.ready.then(info=>{canRegenerate=info.capabilities.includes('regenerate');connected=true;render(info.view)}).catch(error=>{node('notice').textContent=error.message;controls()});
 })();`;

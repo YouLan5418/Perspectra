@@ -20,6 +20,7 @@ for(const file of await readdir(crt)){if(!file.endsWith('.dll'))continue;for(con
 
 await cp(resolve('.tmp/hindsight-vector-venv/Lib/site-packages'),join(runtime,'python/Lib/site-packages'),{recursive:true,dereference:true,filter})
 const inputs=new Set()
+await cp(resolve('packages/frontend/assets'),join(runtime,'frontend-assets'),{recursive:true})
 for(const [entry,file] of [['desktop/launcher-entry.ts','launcher.mjs'],['tests/experiments/playtest-web-entry.ts','playtest.mjs']]){
 const result=await build({entryPoints:[entry],outfile:join(runtime,file),bundle:true,platform:'node',target:'node24',format:'esm',external:['jieba-wasm'],legalComments:'eof',metafile:true,banner:{js:"import {createRequire as __createRequire} from 'node:module'; const require=__createRequire(import.meta.url);"}})
 for(const path of Object.keys(result.metafile.inputs))inputs.add(resolve(path))

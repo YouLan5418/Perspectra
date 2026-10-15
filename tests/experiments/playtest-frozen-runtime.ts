@@ -1,5 +1,8 @@
 import type { ThinkingLevel } from '../../packages/provider-chat/src/thinking.ts'
-import { playSettings, DEFAULT_READING, type PlaySettings, type ReadingPreferences } from '../../desktop/play-settings.ts'
+import { creatorDebugQuery, type CreatorDebugQuery, type CreatorDebugSnapshot } from './creator-debug.ts'
+import { currentEntityState, currentCharacterLifecycle } from '../../packages/kernel/src/rulebook.ts'
+import { currentSceneStates } from '../../packages/kernel/src/interactions.ts'
+import { playSettings, DEFAULT_READING, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences } from '../../desktop/play-settings.ts'
 import { providerProtocol, type ProviderProtocol } from '../../packages/provider-chat/src/protocol.ts'
 import { TailRoundRuntime } from './playtest-tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../../desktop/tail-storage.ts'
@@ -10,6 +13,7 @@ import { RequestInspector } from '../../packages/provider-chat/src/request-inspe
 import { presetCall, presetContext, presetOutput, presetDisplay } from '../../packages/provider-chat/src/preset-runtime.ts'
 import { rolePresetMapping, characterPreset, type RolePreset, type RolePresetMapping } from '../../packages/provider-chat/src/preset.ts'
 import { PlaytestMemoryCore, type MemoryContextBudget, type MemoryBuildOptions } from './playtest-memory-core.ts'
+import { recentExecutionContext } from '../../packages/application/src/recent-execution-context.ts'
 import { createCoreWorker, coreRunner, type CoreRunner } from './hindsight-python.ts'
 import { decideActivityFormat, type ActivityRequest } from './pack-activity.ts'
 import { PackActivities } from './pack-activities.ts'
@@ -54,6 +58,7 @@ export interface FrozenPlaytestOptions {
   readonly timeoutMs?: number
   readonly playSettings?: PlaySettings
   readonly reading?: ReadingPreferences
+  readonly audio?: AudioPreferences
   readonly tuning?: PlaytestTuning
   readonly shadowAudit?: ShadowOptions
   readonly memoryShadow?: boolean
@@ -71,6 +76,11 @@ export interface FrozenPlaytestOptions {
   readonly serialScheduling?: boolean
   /** Measurement control: ordinary work stays dynamic, autonomy waits for it to finish. */
   readonly stagedAutonomy?: boolean
+  /** Experiment only: one bounded decision after a pre-action publication; default off. */
+  readonly continueAfterPublish?: boolean
+  readonly beforeActionExpression?: boolean
+  /** Read-only recent execution presentation; no planning calls or persistent strategy. */
+  readonly recentExecutionEvidence?: boolean
 }
 
 const LOCAL_ENDPOINT = 'http://127.0.0.1:8045/v1/chat/completions'
@@ -90,17 +100,85 @@ export function isFrozenPackDirectory(packPath: string): boolean {
   }
 }
 
+/**
+ * The endpoint's own refusal text may echo the request, so it never reaches the notice. The HTTP status
+ * class is enough to name the likely cause, which is what a creator debugging their own preset needs.
+ */
+export function providerFailureNotice(httpStatus: number | undefined): string {
+  if (httpStatus === undefined) return '角色模型服务未完成请求'
+  if (httpStatus === 400 || httpStatus === 422) {
+    return `角色模型请求被服务拒绝（HTTP ${httpStatus}）；请检查预设中的生成参数（如 frequencyPenalty、presencePenalty、stop）与模型标识是否被该服务支持`
+  }
+  if (httpStatus === 401 || httpStatus === 403) return `角色模型服务拒绝认证（HTTP ${httpStatus}）；请在模型设置中检查该实例的凭证`
+  if (httpStatus === 404) return `角色模型服务找不到该模型（HTTP ${httpStatus}）；请检查模型标识`
+  if (httpStatus === 429) return `角色模型服务限流（HTTP ${httpStatus}）；请稍后重试或降低调用预算`
+  return `角色模型服务未完成请求（HTTP ${httpStatus}）`
+}
+
 /** Player submission commits first; ordinary NPC work then uses bounded dynamic dispatch. */
 export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   readonly #worldVersion: string
   readonly #options: FrozenPlaytestOptions
   readonly #inspector = new RequestInspector()
   requestInspection(enabled?: boolean) { return enabled === undefined ? this.#inspector.snapshot() : this.#inspector.configure(enabled) }
+  creatorDebug(input: CreatorDebugQuery = {}): CreatorDebugSnapshot {
+    if (this.#closing) throw new TypeError('运行实例已关闭')
+    const query = creatorDebugQuery(input as Record<string, unknown>)
+    if (query.characterId !== undefined && !this.#names.has(query.characterId)) throw new TypeError('未知角色')
+    const store = new WorldStore(resolve(this.#dataDirectory, 'world.sqlite'))
+    try {
+      const head = store.head(this.#address), events = store.readEvents(this.#address, head.headSeq)
+      if ((query.afterSeq ?? 0) > head.headSeq) throw new TypeError('查询游标超过当前世界时刻')
+      const scenes = currentSceneStates(events), limit = query.limit ?? 50
+      const characters = [...this.#names].map(([id, name]) => {
+        const locationId = currentLocation(events, id) ?? null
+        return { id, name, locationId, locationName: locationId === null ? null : this.#locationNames.get(locationId) ?? locationId,
+          sceneIds: scenes.filter(scene => scene.lifecycle !== 'closed' && scene.participantIds.includes(id)).map(scene => scene.sceneId),
+          lifecycle: currentCharacterLifecycle(events, id) ?? 'unknown',
+          lastMovementSeq: events.findLast(event => event.eventType === 'character.moved' && (event.data as WorldJsonObject).characterId === id)?.seq ?? null,
+          processing: { transport: this.#inspector.status(id),
+            lastActivation: this.#activationCycle?.activations.findLast(activation => activation.characterId === id)?.result ?? null } }
+      })
+      const entityIds = [...new Set(events.filter(event => event.eventType === 'entity.upsert').map(event => String((event.data as WorldJsonObject).entityId)))]
+      const entities = entityIds.map(id => {
+        const state = currentEntityState(events, id)!
+        const holderLocation = characters.find(character => character.id === state.holderId)?.locationId ?? null
+        const initial = events.findLast(event => event.eventType === 'entity.upsert' && (event.data as WorldJsonObject).entityId === id)!
+        return { id, name: String((initial.data as WorldJsonObject).name ?? id), state,
+          holderMeaning: 'custody' as const, effectiveLocationId: state.locationId ?? holderLocation,
+          locationBasis: state.locationId !== null ? 'entity' as const : holderLocation !== null ? 'holder' as const : 'unknown' as const,
+          lastChangeSeq: events.findLast(event => event.eventType.startsWith('entity.') && (event.data as WorldJsonObject).entityId === id)!.seq }
+      })
+      const selectedEvents = query.afterSeq === undefined ? events.slice(-limit) : events.filter(event => event.seq > query.afterSeq!).slice(0, limit)
+      const nextAfterSeq = selectedEvents.at(-1)?.seq ?? query.afterSeq ?? head.headSeq
+      const result: CreatorDebugSnapshot = { capturedAt: new Date().toISOString(), address: this.#address, worldVersion: this.#worldVersion,
+        headSeq: head.headSeq, tick: head.tick, busy: this.#busy, paused: this.#paused,
+        captureEnabled: this.#inspector.enabled, characters, entities,
+        variables: this.#variables?.debugSnapshot() ?? null, activities: this.#activity?.debugStates(events) ?? [],
+        events: { items: selectedEvents, nextAfterSeq, hasMore: nextAfterSeq < head.headSeq },
+        limitations: ['holderId 表示保管或携带，不证明法律所有权。', '物品随保管者的位置是推导值，不表示精确物理位置。',
+          '事件中的 observation.upsert 记录实际信息接收者；对白的 addresseeIds 不等于全部观察者。',
+          '调用状态是传输证据，lastActivation 是最近已完成周期结果；未采集或正在调度时不推测角色意图。',
+          '包变量为当前安装值，独立于事件日志；本接口不重建过去变量。'] }
+      if (query.characterId !== undefined) {
+        const id = query.characterId
+        const archive = this.#memoryCore?.inspectArchive(id, query.memoryOffset ?? 0, limit)
+        result.character = { id, currentView: new CharacterViewBuilder(store).rebuildAt(this.#address, brandId(id, 'CharacterId'), head.headSeq),
+          latestRequest: this.#inspector.latest(id), contextNotice: 'currentView 是当前授权视图；latestRequest 是启用采集后该角色最近一次实际请求，时刻可能早于当前世界。每角色保留最近一次，超出总容量会淘汰。',
+          memory: { mode: this.#memoryCore ? 'core' : 'native', archivePrefix: archive?.archivePrefix ?? null,
+            sections: archive?.sections ?? {}, maintenance: archive?.maintenance ?? null,
+            notice: this.#memoryCore ? '已安装档案分页，不触发整理或召回。本次实际召回见 latestRequest.contextParts 的 memories。' : '原生完整记忆档案尚未接入；授权经历见 currentView，本次召回见实际请求。' } }
+      }
+      return structuredClone(result)
+    } finally { store.close() }
+  }
   readonly #application: WorldApplication
   readonly #address
   readonly #principalId: string
   readonly #playerId: CharacterId
   readonly #names: ReadonlyMap<string, string>
+  /** Author-declared Entity labels. Entities without `name` are absent and fall back to entityId at the projection. */
+  readonly #entityNames: ReadonlyMap<string, string>
   readonly #title: string
   readonly #playerName: string
   readonly #npcNames: readonly string[]
@@ -148,10 +226,11 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #phaseLabel = '可以输入'
   #providerCalls = 0
   #lastCall: ChatCallObservation | null = null
+  readonly #roleCalls = new Map<string, ChatCallObservation>()
   #lastPlayerIntent: string | null = null
   #rootBeforeSeq = 0
   #continuationController: AbortController | undefined
-  readonly #decideContinuation: (request: PrototypeTurnRequest, signal: AbortSignal) => Promise<unknown>
+  readonly #decideContinuation: (request: PrototypeTurnRequest, signal: AbortSignal, reserveFormatRetry?: () => boolean) => Promise<unknown>
 
   private constructor(options: FrozenPlaytestOptions, compiled: ReturnType<typeof adaptCompiledWorldPack>,
     intentEnabled: boolean) {
@@ -171,6 +250,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     this.#playerId = binding.characterId
     this.#names = new Map(compiled.manifest.characters.map(character => [character.characterId, character.name]))
     this.#locationNames = new Map(compiled.manifest.locations.map(location => [location.locationId, location.name]))
+    this.#entityNames = new Map(compiled.manifest.entities.flatMap(entity =>
+      typeof (entity as { name?: unknown }).name === 'string' ? [[entity.entityId, (entity as { name: string }).name]] : []))
     this.#sceneVersion = compiled.manifest.contentPack?.runtimeCapabilities.sceneDecisionVersion === 2 ? 2 : 1
     this.#title = compiled.manifest.metadata.title
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
@@ -202,7 +283,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     if([...Object.keys(mapping.characters??{}),...Object.keys(mapping.memberships??{})].some(id=>!characters.some(c=>c.actorId===id)))throw new TypeError('预设引用了此包之外或不可调用的角色。')
     const effectivePresets=new Map(characters.map(c=>[String(c.actorId),characterPreset(options.preset??{},mapping,c.actorId)]))
     this.#effectivePresets=effectivePresets
-    const roleProviders=new Map(characters.map(c=>[String(c.actorId),createChatProvider({...providerOptions,preset:effectivePresets.get(c.actorId)!})]))
+    const roleProviders=new Map(characters.map(c=>[String(c.actorId),createChatProvider({...providerOptions,preset:effectivePresets.get(c.actorId)!,
+      onCall: observation => { onCall(observation); this.#roleCalls.set(String(c.actorId), observation) }})]))
     this.#characterIds = characters.map(character => character.actorId)
     if (options.memoryCore) {
       if (options.provider !== 'local') throw new TypeError('实验 Core 网页须使用 local 配置入口。')
@@ -217,13 +299,15 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         { ...options.memoryBuildConcurrency, run: options.memoryCoreBuildRun ?? coreRunner(coreEnvironment),
           worldVersion: this.#worldVersion, versionValid: () => !this.#closing }, {maxItems:settings.memoryMaxItems,maxJsonChars:settings.memoryMaxJsonChars})
     }
-    this.#decideContinuation = async (request, signal) => {
+    this.#decideContinuation = async (request, signal, reserveFormatRetry) => {
       if (this.#memoryCore) request = await this.#memoryCore.project(request, signal)
+      if (options.recentExecutionEvidence === true) request = { ...request, context: recentExecutionContext(request.context) }
       const character = request.context.character as WorldJsonObject
       const variables = this.#variables?.getVariables(String(character.characterId))
       if (variables) request = { ...request, context: { ...request.context,
         packVariables: { public: variables.public, private: variables.private } } }
       const characterId=String(character.characterId)
+      this.#roleCalls.delete(characterId)
       const roleProvider=roleProviders.get(characterId)
       if(!roleProvider)throw new TypeError('当前角色没有可调用的预设配置。')
       const effectivePreset=effectivePresets.get(characterId)
@@ -252,8 +336,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       }
       const decide = async (call: typeof prepared) => presetOutput(simulated === undefined ? await callProvider(call) : simulated, effectivePreset!, signal,
         request.context.expressionPolicy as WorldJsonObject | undefined, settings.publicationCharacters)
-      const raw = request.context.activity === undefined && simulated === undefined ? await decide(prepared)
-        : await decideActivityFormat(prepared, decide, signal, prototypeTurnCall(request).schema)
+      const raw = await decideActivityFormat(prepared, decide, signal, prototypeTurnCall(request).schema,
+        request.context.activity === undefined && simulated === undefined ? reserveFormatRetry ?? (() => false) : undefined)
       this.#memoryCore?.recordDecision(request, raw)
       signal.throwIfAborted()
       if (this.#closing || this.#abortedWork) throw new Error('角色任务世界版本已失效。')
@@ -361,13 +445,13 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         && !this.#paused && !this.#escaping && !this.#closing,
       paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#transcript,
-      playerSettings: {inputCharacters:this.#playSettings.playerInputCharacters,reading:this.#options.reading??DEFAULT_READING},
+      playerSettings: {inputCharacters:this.#playSettings.playerInputCharacters,reading:this.#options.reading??DEFAULT_READING,audio:{...(this.#options.audio??DEFAULT_AUDIO)}},
       availableActions: this.#availableActions,
       actionNames: Object.fromEntries(this.#availableActions.flatMap(a => (a.interactions ?? []).flatMap(option => {
         const recipient = (option.arguments as WorldJsonObject | undefined)?.recipientId
         const target = (option.targetRef as WorldJsonObject | undefined)?.id
-        return [recipient, target].filter((id): id is string => typeof id === 'string' && this.#names.has(id))
-          .map(id => [id, this.#names.get(id)!])
+        return [recipient, target].filter((id): id is string => typeof id === 'string' && (this.#names.has(id) || this.#entityNames.has(id)))
+          .map(id => [id, this.#names.get(id) ?? this.#entityNames.get(id)!])
       }))),
       ...(this.#memoryCore ? { memoryMaintenance: this.#memoryCore.backgroundState() } : {}),
       ...(this.#activityView ? { activity: structuredClone(this.#activityView) } : {}),
@@ -664,6 +748,10 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         ...(this.#memoryCore === undefined ? { memory: memory! } : {}),
         rulebooks: autonomous ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address)) : base,
         decide: this.#decideContinuation,
+        continueAfterPublish: this.#options.continueAfterPublish===true && this.#variables===undefined
+          && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
+        beforeActionExpression: this.#options.beforeActionExpression===true && this.#variables===undefined
+          && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
         onCommitted: async () => { await this.#projectCommitted(store) },
         allowUnrelatedCommits: !this.#options.serialScheduling && this.#variables===undefined
           && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
@@ -731,19 +819,23 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
           maximumNpcCalls:this.#playSettings.autonomyNpcCalls,deadlineSeconds:this.#playSettings.autonomyDeadlineSeconds,
           reactionLimits:{maximumWaves:this.#playSettings.autonomyReactionWaves,maximumNpcCalls:this.#playSettings.autonomyReactionCalls,
             maximumCallsPerCharacter:this.#playSettings.maximumCallsPerCharacter}}}:{}),
-        limits: this.#tuning })
+        strictCallBudget: true, limits: this.#tuning })
       this.#activationCycle = cycle
       this.#autonomyCycle = autonomy
       const terminal = this.#activationCycle.terminalReason
       if (terminal === 'failed' || terminal === 'interrupted') {
         const failureStatus = terminal === 'interrupted' ? 'interrupted' : 'failed'
-        const relevant = this.#activationCycle.activations.find(activation => activation.result.status === failureStatus)?.result
-          ?? this.#activationCycle.activations.at(-1)?.result
+        const activation = this.#activationCycle.activations.find(activation => activation.result.status === failureStatus)
+          ?? this.#activationCycle.activations.at(-1)
+        const relevant = activation?.result
+        const failedCall = activation === undefined ? undefined : this.#roleCalls.get(String(activation.characterId))
         const committed = relevant?.performResult !== undefined
         const cause = terminal === 'interrupted' ? '角色处理被打断或超时'
           : relevant?.failure === 'invalid_output' ? '角色返回格式无效'
             : relevant?.failure === 'preset_failed' ? '角色预设处理失败，请检查提示节点与文本规则'
-            : relevant?.failure === 'provider_failed' ? '角色模型服务未完成请求' : '角色处理失败'
+            : relevant?.failure === 'provider_failed'
+              ? providerFailureNotice(failedCall?.status === 'failed' ? failedCall.httpStatus : undefined)
+              : '角色处理失败'
         this.#error = true
         this.#notice = `玩家输入已提交；${cause}。${committed
           ? '交互结果已提交，后续表达未完成；请看转录中的实际结果。可以继续行动，无需重发上一句。'
@@ -838,7 +930,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     try {
       const scene = new SceneDecisionService(store, availability, this.#sceneVersion)
         .decideFromEvents(this.#address, this.#playerId, store.readEvents(this.#address, head.headSeq), head.headSeq)
-      this.#transcript = playerTranscript(await presetDisplay(view, this.#effectivePresets), this.#names, this.#playerId)
+      this.#transcript = playerTranscript(await presetDisplay(view, this.#effectivePresets), this.#names, this.#playerId,
+        { entityNames: this.#entityNames, locationNames: this.#locationNames })
       this.#currentScene = {
         locationName: view.locationId === null ? '未知地点' : this.#locationNames.get(view.locationId) ?? view.locationId,
         recipients: scene.observerIds.filter(id => id !== this.#playerId).map(id => ({ id, name: this.#names.get(id) ?? id })),
@@ -854,7 +947,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       this.#application.characterViewForPrincipal(this.#address, this.#principalId, this.#playerId),
       this.#application.head(this.#address),
     ])
-    this.#transcript = playerTranscript(await presetDisplay(view, this.#effectivePresets), this.#names, this.#playerId)
+    this.#transcript = playerTranscript(await presetDisplay(view, this.#effectivePresets), this.#names, this.#playerId,
+        { entityNames: this.#entityNames, locationNames: this.#locationNames })
     this.#availableActions = await this.#application.playerAffordancesForPrincipal(
       this.#address, this.#principalId, this.#playerId, view.asOfWorldSeq)
 

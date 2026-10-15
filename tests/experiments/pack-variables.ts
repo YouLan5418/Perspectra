@@ -87,6 +87,10 @@ export class PackVariables {
   getVariables(characterId:string):View {
     return this.#call('getVariables',[this.#current(characterId),characterId])
   }
+  /** Installed values only; inspection never executes author scripts. */
+  debugSnapshot(): { public: WorldJsonObject; characters: Record<string, WorldJsonObject> } {
+    return structuredClone({ public: this.#saved.public, characters: this.#saved.characters })
+  }
   applyPatch(characterId:string,operations:unknown):View {
     // The script sees public values and only this actor's private values.
     const next=this.#call('applyPatch',[this.#current(characterId),operations,characterId])

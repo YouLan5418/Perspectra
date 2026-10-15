@@ -175,6 +175,8 @@ Token 分项是本地文本估算，不是模型 tokenizer 计数。请求 JSON 
 
 这是调用级请求检查器，尚不保存每条正则的执行轨迹、输出草稿或语义裁定。ok 表示 Provider 传输与载荷提取成功，不保证 Core 接受决策。当前不承诺 assistant prefill；本机网关验证见 [验证报告](studies/request-inspector-prefill.md)。historyDepth 和条件节点仍未实现；命名预设库见下一节。
 
+2026-10-13 新增[创作者只读调试接口](creator-debug-api.md)：全局检查器仍展示最近 4 次，额外按角色保留最近一次实际调用，最多 32 个角色及约 800 万序列化字符，停止采集时一起清空。新接口关联当前位置、物品、变量、活动与已安装 Core 档案；尚未新增 Launcher 界面或发行包。
+
 
 ## 8. 命名预设库与编辑体验（2026-10-07）
 
@@ -219,3 +221,5 @@ Inspector 同样使用宽面板；自动刷新默认开启，每 3 秒只在窗�
 ```
 
 版本标记属于交换文件，不进入模型请求、RolePreset、游戏包 model-preset.json 或已有 Launcher 内部存储。版本不匹配时明确拒绝，不猜测或自动迁移。
+
+酒馆预设可用根目录的 `preset:import` 命令离线转换。例如先设置变量、再读取变量的节点，会按选中的 `prompt_order` 保留执行顺序，并以 `chatHistory` 划分 Context 前后；未列入该顺序的节点保持禁用。`promptOnly` 规则的 placement 含 1 时生成 input 规则、含 2 时生成 history 规则，同时包含时分别生成；`markdownOnly` 生成 display 规则。history 阶段覆盖历史表达，不能精确保留酒馆按消息角色或楼层筛选的语义，导入后仍需核对。格式和宏校验不代表预设行为等价，真实角色体验尚需试玩。

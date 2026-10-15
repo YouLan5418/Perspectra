@@ -2,7 +2,7 @@ import { publicationSegments, type WorldJsonObject } from '@harness-world/contra
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { compareWorldText, type CharacterId, type CharacterView } from '@harness-world/contracts'
+import { brandId, compareWorldText, type CharacterId, type CharacterView } from '@harness-world/contracts'
 import type { CompiledWorldManifest } from '@harness-world/kernel'
 import type { PlaytestState } from './playtest-server.ts'
 
@@ -39,10 +39,16 @@ export function playtestModelCharacters(
     }))
 }
 
+export interface PlayerTranscriptLabels {
+  readonly entityNames?: ReadonlyMap<string, string>
+  readonly locationNames?: ReadonlyMap<string, string>
+}
+
 export function playerTranscript(
   view: CharacterView,
   names: ReadonlyMap<string, string>,
   playerId: CharacterId,
+  labels: PlayerTranscriptLabels = {},
 ): PlaytestState['transcript'] {
   return view.observations.flatMap(observation => {
     const content = object(object(observation.value)?.content)
@@ -56,17 +62,25 @@ export function playerTranscript(
         if (typeof transfer?.entityId !== 'string') {
           return typeof content.resultDescription === 'string' && content.resultDescription.trim() ? [{seq: observation.sourceSeq,
             speaker: object(content.activity) || object(object(content.resultMetadata)?.activity) ? '游戏结果' : names.get(content.actorId) ?? content.actorId,
+            ...(object(content.activity) || object(object(content.resultMetadata)?.activity) ? {} : {speakerId: brandId(content.actorId, 'CharacterId')}),
             text: content.resultDescription, player: false}] : []
         }
-        const item = transfer.entityId
+        // The player reads a label, not the runtime identity of the entity.
+        const item = labels.entityNames?.get(transfer.entityId) ?? transfer.entityId
         const destination = transfer.toHolderId === null ? '解除个人保管，留在当前场所' : `交由${names.get(String(transfer.toHolderId)) ?? transfer.toHolderId}保管`
-        return [{ seq: observation.sourceSeq, speaker: names.get(content.actorId) ?? content.actorId, text: `${item} 已${destination}。`, player: content.actorId === playerId }]
+        return [{ seq: observation.sourceSeq, speaker: names.get(content.actorId) ?? content.actorId, speakerId: brandId(content.actorId, 'CharacterId'), text: `${item} 已${destination}。`, player: content.actorId === playerId }]
       }
       if ((content?.actionType !== 'move' && content?.actionType !== 'take') || typeof content.actorId !== 'string') return []
-      const actionText = content.actionType === 'move' ? '移动到了另一个地点。' : '拿取了一个物品。'
+      const movement = object(content.movement)
+      const movedTo = typeof movement?.toLocationId === 'string'
+        ? labels.locationNames?.get(movement.toLocationId) ?? movement.toLocationId : undefined
+      const actionText = content.actionType === 'move'
+        ? movedTo === undefined ? '移动到了另一个地点。' : `移动到了${movedTo}。`
+        : '拿取了一个物品。'
       return [{
         seq: observation.sourceSeq,
         speaker: names.get(content.actorId) ?? content.actorId,
+        speakerId: brandId(content.actorId, 'CharacterId'),
         text: stage === undefined ? actionText : `（${stage}）\n${actionText}`,
         player: content.actorId === playerId,
       }]
@@ -76,6 +90,7 @@ export function playerTranscript(
     return [{
       seq: observation.sourceSeq,
       speaker: (names.get(speech.characterId) ?? speech.characterId) + (typeof speech.medium === 'string' ? `（${speech.medium}）` : ''),
+      speakerId: brandId(speech.characterId, 'CharacterId'),
       ...(segments === undefined ? {} : { segments }),
       text: segments !== undefined ? segments.map(segment => segment.type === 'narration' ? `（${segment.text}）` : segment.text).join('\n') : stage === undefined ? speech.text as string : [`（${stage}）`, speech.text].filter(Boolean).join('\n'),
       player: speech.characterId === playerId,
