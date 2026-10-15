@@ -24,7 +24,7 @@ const actor=(input:WorldJsonObject)=>String(object(object(input.context).charact
 const publish=(text:string)=>({decision:'publish',segments:[{type:'speech',text}]})
 const move=(locationId:string)=>({decision:'perform',actionType:'move',parameters:{locationId}})
 const deferred=()=>{let resolve!:()=>void;const promise=new Promise<void>(done=>{resolve=done});releases.push(resolve);return {promise,resolve}}
-async function fixture(witness=false, serialScheduling=false){
+async function fixture(witness=false, serialScheduling=false, continueAfterPublish=false){
   const root=mkdtempSync(join(tmpdir(),'dynamic-scheduling-'));roots.push(root)
   const pack=join(root,'pack'),data=join(root,'data')
   cpSync(resolve('examples/world-packs/prototype-g1'),pack,{recursive:true})
@@ -41,20 +41,53 @@ async function fixture(witness=false, serialScheduling=false){
   const server=createServer((request,response)=>{
     let body='';request.on('data',chunk=>{body+=String(chunk)})
     request.on('end',()=>{void(async()=>{
-      const wire=JSON.parse(body),input=JSON.parse(wire.messages.at(-1).content) as WorldJsonObject
+      const wire=JSON.parse(body),input=JSON.parse(wire.messages.findLast((message:{role:string})=>message.role==='user').content) as WorldJsonObject
       requests.push(input)
       try{const output=await decide(input);if(!response.destroyed){response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify({message:{content:JSON.stringify(output)}}))}}
       catch{if(!response.destroyed){response.writeHead(503);response.end('fixture unavailable')}}
     })()})
   });servers.push(server);await new Promise<void>(done=>server.listen(0,'127.0.0.1',done))
   const runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:data,packPath:pack,provider:'ollama',model:'fixture',
-    utilityEndpoint:`http://127.0.0.1:${(server.address() as {port:number}).port}/api/chat`,timeoutMs:10000,serialScheduling,
+    utilityEndpoint:`http://127.0.0.1:${(server.address() as {port:number}).port}/api/chat`,timeoutMs:10000,serialScheduling,continueAfterPublish,
     tuning:{maximumWaves:3,maximumNpcCalls:12,maximumCallsPerCharacter:2,reactionDeadlineSeconds:30,recentObservations:16,recentSelfObservations:8}})
   runtimes.push(runtime)
   const events=()=>{const store=new WorldStore(join(runtime.dataDirectory,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
   return {root,data,runtime,requests,events,setDecision:(fn:typeof decide)=>{decide=fn}}
 }
 const enterFront='/act move {"locationId":"location:front-room"}'
+
+it('continues the same host activation after speaking, refreshes its scene and counts every HTTP call',async()=>{
+ const f=await fixture(false,false,true)
+ let started=false
+ f.setDecision(input=>{
+  if(actor(input)!=='character:companion')return {decision:'abstain'}
+  if(!started){started=true;return publish('我去后室看看。')}
+  if(input.afterPublication)return move('location:back-room')
+  return {decision:'abstain'}
+ })
+ const state=await f.runtime.submit(enterFront)
+ expect(state.error).toBe(false)
+ expect(currentLocation(f.events(),'character:companion')).toBe('location:back-room')
+ expect(f.requests.some(input=>input.afterPublication===true)).toBe(true)
+ expect(object(state.debug.activationCycle).calls).toBe(f.requests.length)
+ expect(Number(object(state.debug.activationCycle).calls)).toBeLessThanOrEqual(12)
+})
+
+it.each([false,true])('repairs a normal role through the host with counted calls (serial=%s)',async serial=>{
+  const f=await fixture(false,serial)
+  let companionCalls=0
+  f.setDecision(input=>actor(input)==='character:companion'
+    ? ++companionCalls===1?{...publish('非法受众不应发表'),scope:'direct'}
+      : companionCalls===2?publish('正常修正的回复'):{decision:'abstain'}
+    : {decision:'abstain'})
+  const state=await f.runtime.submit(enterFront)
+  expect(state.error).toBe(false)
+  expect(state.transcript.some(line=>line.text.includes('正常修正的回复'))).toBe(true)
+  expect(state.transcript.some(line=>line.text.includes('非法受众不应发表'))).toBe(false)
+  const cycle=object(state.debug.activationCycle)
+  expect(cycle.calls).toBe(f.requests.length)
+  expect(Number(cycle.calls)).toBeLessThanOrEqual(12)
+})
 
 it('dispatches a new foreground reaction before a slow off-scene decision finishes, without exposing its reply',async()=>{
   vi.spyOn(Math,'random').mockReturnValue(0.5)
@@ -177,7 +210,7 @@ it('keeps the serial comparison path and does not overlap same-scene requests',a
 it('bounds repeated stale replanning for one character',async()=>{
   const actorId='character:stale' as never
   const event={seq:1,eventType:'observation.upsert',data:{value:{observerId:actorId,content:{actorId:'character:other',status:'accepted'}}}}
-  const store={head:()=>({headSeq:1}),readEvents:()=>[event]} as never
+  const store={head:()=>({headSeq:1}),readEventsRange:(_address:unknown,after:number,head:number)=>[event].filter(event=>event.seq>after&&event.seq<=head)} as never
   let attempts=0
   const turn={run:async()=>{attempts++;return {status:'stale',calls:1,asOfWorldSeq:1}}} as never
   const result=await runPrototypeActivations({store,address:{} as never,turn,afterSeq:0,characterIds:[actorId],
@@ -194,7 +227,7 @@ it('keeps the deepest causal depth when observations for one actor arrive at dif
   const event=(seq:number,observerId:string)=>({seq,eventType:'observation.upsert',data:{value:{observerId,
     content:{actorId:'character:source',status:'accepted'}}}})
   const events=[event(1,deepRoot),event(2,shallowRoot)]
-  const store={head:()=>({headSeq:events.at(-1)!.seq}),readEvents:()=>events} as never
+  const store={head:()=>({headSeq:events.at(-1)!.seq}),readEventsRange:(_address:unknown,after:number,head:number)=>events.filter(event=>event.seq>after&&event.seq<=head)} as never
   const deepCommitted=deferred(),calls:string[]=[]
   const turn={run:async(id:string,options:{readonly onCommitted?:(asOf:number,head:number)=>void})=>{
     calls.push(id)
@@ -240,7 +273,7 @@ it('charges new autonomous observations to their reaction budget after older ord
   const event=(seq:number,observerId:string)=>({seq,eventType:'observation.upsert',data:{value:{observerId,
     content:{actorId:'character:source',status:'accepted',marker:seq}}}})
   const events=[event(1,foreground),event(2,other)]
-  const store={head:()=>({headSeq:events.at(-1)!.seq}),readEvents:()=>events} as never
+  const store={head:()=>({headSeq:events.at(-1)!.seq}),readEventsRange:(_address:unknown,after:number,head:number)=>events.filter(event=>event.seq>after&&event.seq<=head)} as never
   const foregroundStarted=deferred(),ordinaryCommitted=deferred(),autonomousCommitted=deferred()
   let foregroundCalls=0
   const turn={run:async(id:string,options:{stimulus:WorldJsonObject[];onCommitted:(through:number,head:number)=>void})=>{
@@ -266,7 +299,7 @@ it('charges new autonomous observations to their reaction budget after older ord
 it.each(['ordinary','autonomous'])('keeps the %s deadline separate from the other dispatch budget',async(expiring)=>{
   const foreground='character:foreground',autonomous='character:autonomous',expired=deferred()
   const events=[{seq:1,eventType:'observation.upsert',data:{value:{observerId:foreground,content:{actorId:'character:player',status:'accepted'}}}}]
-  const store={head:()=>({headSeq:1}),readEvents:()=>events} as never
+  const store={head:()=>({headSeq:1}),readEventsRange:(_address:unknown,after:number,head:number)=>events.filter(event=>event.seq>after&&event.seq<=head)} as never
   const run=(kind:string)=>async(_id:string,options:{signal:AbortSignal})=>{
     if(kind===expiring){
       if(!options.signal.aborted)await new Promise<void>(done=>options.signal.addEventListener('abort',()=>done(),{once:true}))

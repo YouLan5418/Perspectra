@@ -19,6 +19,7 @@ Launcher 的模型设置与实例“模型”弹窗可选择协议。模型设�
 ## 调用边界
 
 - 复用现有 ChatCall、授权角色上下文和决策 Schema。供应商适配器只转换 HTTP 请求与响应；perform 仍经过 Host / Rulebook / Event 提交。
+- OpenAI 兼容 local 入口将多个交互共用的目标 ID 和绑定 ID 去重后写入工具 Schema 的枚举；可选交互及 Host 的原始角色协议校验保持不变。
 - Anthropic 使用 input_schema 工具和 auto 工具选择，避免把 forced tool 支持当作所有模型的前提；只接受一次指定工具调用，或交给 Host 验证的 JSON 正文。
 - Google 使用 functionDeclarations.parametersJsonSchema 与 ANY 模式。没有把旧本地 Gemini 网关的 Schema 改写直接套用到原生接口。
 - 思考块不作为角色决策。多工具、错误工具名、空响应和 token 截断失败；不增加供应商侧自动执行或隐式重试。

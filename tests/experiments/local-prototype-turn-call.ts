@@ -1,3 +1,5 @@
+// JSON Schema conditionals use a data property named `then`, not a Promise method.
+/* oxlint-disable unicorn/no-thenable */
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { prototypeTurnCall } from '@harness-world/provider-chat'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
@@ -5,6 +7,7 @@ import type { PrototypeTurnRequest } from '../../packages/application/src/protot
 /** The local Gemini gateway treats a root oneOf as if only its first choice were available. */
 export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
   const prepared = prototypeTurnCall(request)
+  const beforeSchema=(prepared.schema.oneOf as WorldJsonObject[]).map(branch=>(branch.properties as WorldJsonObject).before).find(value=>value!==undefined)
   const maximum=Number(request.context.publicationCharacters??2000)
   const expression = request.context.expressionPolicy as WorldJsonObject | undefined
   const speechAllowed = expression?.speech !== 'none'
@@ -33,8 +36,8 @@ export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
     ...(choices.length === 0 ? {} : {
       targetRef: { type: 'object', additionalProperties: false, required: ['kind', 'id'],
         properties: { kind: { type: 'string', enum: [...new Set(interactionIds.map(ref => ref.kind).filter((id): id is string => typeof id === 'string'))] },
-          id: { type: 'string', enum: interactionIds.map(ref => ref.id).filter((id): id is string => typeof id === 'string') } } },
-      bindingId: { type: 'string', enum: choices.map(choice => choice.bindingId).filter((id): id is string => typeof id === 'string') },
+          id: { type: 'string', enum: [...new Set(interactionIds.map(ref => ref.id).filter((id): id is string => typeof id === 'string'))] } } },
+      bindingId: { type: 'string', enum: [...new Set(choices.map(choice => choice.bindingId).filter((id): id is string => typeof id === 'string'))] },
       definitionRef: { type: 'object', additionalProperties: false, required: ['id', 'version'],
         properties: { id: { type: 'string', enum: [...new Set(definitions.map(ref => ref.id).filter((id): id is string => typeof id === 'string'))] },
           // Equal bounds avoid this gateway returning a singleton numeric enum as a string.
@@ -50,7 +53,19 @@ export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
     }),
   }
   return { ...prepared,
-    schema: { type: 'object', additionalProperties: false, required: ['decision'], properties: {
+    schema: { type: 'object', additionalProperties: false, required: ['decision'], allOf: [
+      { if: { properties: { decision: { const: 'publish' } } }, then: { required: ['segments'],
+        allOf: ((prepared.schema.oneOf as WorldJsonObject[]).find(branch =>
+          (branch.properties as WorldJsonObject).decision && ((branch.properties as WorldJsonObject).decision as WorldJsonObject).const === 'publish')?.allOf ?? []) },
+      },
+      { if: { properties: { decision: { const: 'recall' } } }, then: { required: ['query'] } },
+      { if: { properties: { decision: { const: 'perform' } } }, then: { required: ['actionType', 'parameters'], allOf: [
+        { if: { properties: { actionType: { const: 'move' } } }, then: { properties: { parameters: { required: ['locationId'] } } } },
+        { if: { properties: { actionType: { const: 'interact' } } }, then: { properties: { parameters: { required: ['targetRef', 'bindingId', 'definitionRef', 'arguments'] } } } },
+      ] } },
+      ...(beforeSchema===undefined?[]:[{if:{required:['before']},then:{properties:{decision:{const:'perform'}}}}]),
+    ], properties: {
+      ...(beforeSchema===undefined?{}:{before:beforeSchema}),
       decision: { type: 'string', enum: ['abstain', ...(speechAllowed || narrationAllowed ? ['publish'] : []),
         ...(request.canRecall === true ? ['recall'] : []), ...(actionTypes.length > 0 ? ['perform'] : [])],
         description: 'publish 需要有序 segments；recall 需要 query；perform 需要 actionType 和 parameters。' },

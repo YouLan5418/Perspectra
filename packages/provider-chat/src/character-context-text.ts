@@ -1,4 +1,5 @@
 import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
+import { characterActionExplanations, characterActionExplanationsNote } from './character-action-explanations.ts'
 
 function isObject(value: WorldJsonValue | undefined): value is WorldJsonObject {
   return value !== null && value !== undefined && typeof value === 'object' && !Array.isArray(value)
@@ -25,7 +26,7 @@ function cognitionText(cognition: WorldJsonObject): WorldJsonObject {
     }) : evidence(value)]))
 }
 /** Final model-only presentation. Host requests, memory evidence and commits retain their original fields. */
-export function characterRequestText(request: { readonly context: WorldJsonObject }): string {
+export function characterRequestText(request: { readonly context: WorldJsonObject; readonly canPerform?: boolean; readonly continuation?: boolean }): string {
   const { character, observations, selfObservations, cognition, memories, ...dynamic } = request.context
   const profile = isObject(character) ? Object.fromEntries(Object.entries(character)
     .filter(([key]) => key !== 'locationId')) : character
@@ -53,16 +54,23 @@ export function characterRequestText(request: { readonly context: WorldJsonObjec
     }) : evidence(memories) }),
     ...(isObject(cognition) ? { cognition: cognitionText(cognition) } : {}),
     ...dynamic,
+    ...(dynamic.recentExecutionEvidence === undefined ? {} : { recentExecutionEvidence: evidence(dynamic.recentExecutionEvidence) }),
     ...(dynamic.stimulus === undefined ? {} : { stimulus: evidence(dynamic.stimulus) }),
     ...(isObject(character) && character.locationId !== undefined ? { locationId: character.locationId } : {}),
   }
   const { context: _context, ...stage } = request
-  return JSON.stringify({ context, ...stage,
+  const explanations = (request.canPerform ?? !request.continuation) ? characterActionExplanations(context) : []
+  const result = (stage as WorldJsonObject).result
+  const moved = isObject(result) && result.status === 'accepted' && isObject(result.action) && result.action.actionType === 'move'
+  return JSON.stringify({ context: { ...context, ...(explanations.length ? { actionExplanations: explanations } : {}) }, ...stage,
     ...(!isObject((stage as WorldJsonObject).result) ? {} : { result: Object.fromEntries(
       Object.entries((stage as WorldJsonObject).result as WorldJsonObject)
         .filter(([key]) => !['operationId', 'eventRefs'].includes(key))) }),
     ...((stage as WorldJsonObject).recallEvidence === undefined ? {}
       : { recallEvidence: evidence((stage as WorldJsonObject).recallEvidence!) }),
+    ...(moved ? { currentSceneAfterMove: { locationId: context.locationId ?? null,
+      people: isObject(context.scene) ? context.scene.people ?? [] : [],
+      instruction: '这是移动成功后的当前授权场景。离开不等于别人与你同行；不在此名单的人不能被描写成已经在身旁。历史谈话对象不代表现在在场。' } } : {}),
   })
 }
-export const characterContextNote = 'context.history 是你本人获授权的经历，按发生顺序排列；kind=observed 表示获得的观察，kind=self 表示你自己已发表的表达。当前刺激在 stimulus，当前地点在 context.locationId；历史里的地点不代表当前位置。历史与记忆中的 sourceKind/epistemicKind 表示来源性质：听到的话不证明事实成立。context.cognition 是你的主观认识、目标和情绪，不能视为他人的知识或权威世界事实。'
+export const characterContextNote = 'context.history 是你本人获授权的经历，按发生顺序排列；kind=observed 表示获得的观察，kind=self 表示你自己已发表的表达。当前刺激在 stimulus，当前地点在 context.locationId；历史里的地点不代表当前位置。历史与记忆中的 sourceKind/epistemicKind 表示来源性质：听到的话不证明事实成立。context.cognition 是你的主观认识、目标和情绪，不能视为他人的知识或权威世界事实。' + characterActionExplanationsNote
