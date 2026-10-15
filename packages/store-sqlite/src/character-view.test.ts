@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { brandId, type WorldAddress, type WorldEventDraft } from '@harness-world/contracts'
+import { brandId, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder } from './character-view.ts'
 import { WorldStore } from './world-store.ts'
 
@@ -42,6 +42,60 @@ async function commit(store: WorldStore, worldAddress: WorldAddress, suffix: str
 }
 
 describe('CharacterViewBuilder', () => {
+  it('reads one prefix for self-state and projections, applies removals, and returns independent views', async () => {
+    const store = new WorldStore(database('single-prefix.sqlite'))
+    try {
+      const target = address('single-prefix'), character = brandId('character:a', 'CharacterId')
+      const other = brandId('character:b', 'CharacterId')
+      store.createBranch(target)
+      await commit(store, target, 'single-prefix-created', [
+        { eventType: 'character.created', eventVersion: 1, data: { characterId: character, locationId: 'location:home' } },
+        { eventType: 'scene.upsert', eventVersion: 1, data: { sceneId: 'scene:shared', value: { participantIds: [character, other] } } },
+        { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:old', value: { observerId: character, content: 'removed' } } },
+        { eventType: 'claim.upsert', eventVersion: 1, data: { id: 'claim:old', value: { characterId: character, proposition: 'removed' } } },
+        { eventType: 'goal.upsert', eventVersion: 1, data: { id: 'goal:old', value: { characterId: character, goal: 'removed' } } },
+        { eventType: 'visibility.upsert', eventVersion: 1, data: { id: 'visibility:old', value: { observerId: character, sceneId: 'scene:shared', visible: false } } },
+        { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:other', value: { observerId: other, content: 'OTHER_PRIVATE' } } },
+      ])
+      const oldSeq = store.head(target).headSeq
+      await commit(store, target, 'single-prefix-removed', [
+        { eventType: 'observation.remove', eventVersion: 1, data: { id: 'observation:old' } },
+        { eventType: 'claim.remove', eventVersion: 1, data: { id: 'claim:old' } },
+        { eventType: 'goal.remove', eventVersion: 1, data: { id: 'goal:old' } },
+        { eventType: 'visibility.remove', eventVersion: 1, data: { id: 'visibility:old' } },
+        { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:new', value: { observerId: character, content: 'new' } } },
+      ])
+      const head = store.head(target).headSeq, builder = new CharacterViewBuilder(store)
+      const reads = vi.spyOn(store, 'readEventsRange')
+      const view = builder.rebuildAt(target, character, head)
+      expect(reads).toHaveBeenCalledTimes(1)
+      expect(view.locationId).toBe('location:home')
+      expect(view.observations.map(record => record.id)).toEqual(['observation:new'])
+      expect(view.claims).toEqual([]); expect(view.goals).toEqual([]); expect(view.visibility).toEqual([])
+      expect(view.scenes.map(scene => scene.sceneId)).toEqual(['scene:shared'])
+      expect(JSON.stringify(view)).not.toContain('OTHER_PRIVATE')
+      const hash = view.bundleHash
+      Object.assign(view.observations[0]!.value as WorldJsonObject, { content: 'caller mutation' })
+      expect(builder.rebuildAt(target, character, head).bundleHash).toBe(hash)
+      const old = builder.rebuildAt(target, character, oldSeq)
+      expect(old.observations.map(record => record.id)).toEqual(['observation:old'])
+      expect(old.claims.map(record => record.id)).toEqual(['claim:old'])
+      expect(old.goals.map(record => record.id)).toEqual(['goal:old'])
+      expect(old.scenes).toEqual([])
+    } finally { store.close() }
+  })
+
+  it('does not treat projection removal metadata as character creation evidence', async () => {
+    const store = new WorldStore(database('remove-only.sqlite'))
+    try {
+      const target = address('remove-only'), character = brandId('character:absent', 'CharacterId')
+      store.createBranch(target)
+      await commit(store, target, 'remove-only', [{ eventType: 'claim.remove', eventVersion: 1,
+        data: { id: 'claim:absent', value: { characterId: character } } }])
+      expect(() => new CharacterViewBuilder(store).rebuildAt(target, character, 1)).toThrow('no creation event')
+    } finally { store.close() }
+  })
+
   it('combines only one character owner scope and excludes parent future canaries', async () => {
     const store = new WorldStore(database('views.sqlite'))
     const parent = address('parent')

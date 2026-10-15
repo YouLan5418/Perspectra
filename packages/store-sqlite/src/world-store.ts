@@ -1246,6 +1246,17 @@ export class WorldStore {
     return this.#readEventsByKey(worldAddressKey(address), 0, asOfSeq)
   }
 
+  /** Read timestamps in the effective branch prefix without loading event payloads. */
+  readEventTicks(address: WorldAddress, asOfSeq: number): Pick<StoredWorldEvent, 'seq' | 'tick'>[] {
+    if (!Number.isSafeInteger(asOfSeq) || asOfSeq < 0 || asOfSeq > this.head(address).headSeq) {
+      throw new RangeError('invalid event timestamp prefix')
+    }
+    return this.#eventRangesByKey(worldAddressKey(address), 0, asOfSeq).flatMap(range =>
+      this.#db.prepare(`
+        SELECT seq, tick FROM events WHERE address_key = ? AND seq > ? AND seq <= ? ORDER BY seq
+      `).all(range.addressKey, range.afterSeq, range.asOfSeq) as Pick<StoredWorldEvent, 'seq' | 'tick'>[])
+  }
+
   /** Read and verify one durable Reaction Cycle without opening another SQLite connection. */
   readReactionCycle(address: WorldAddress, cycleId: ReactionCycleId): StoredReactionCycleBundle | undefined {
     return readReactionCycleById(this.#db, address, cycleId)
@@ -2010,12 +2021,11 @@ export class WorldStore {
     }
   }
 
-  #readEventsByKey(
+  #eventRangesByKey(
     addressKey: string,
     afterSeq: number,
     asOfSeq: number,
-    eventTypes?: readonly string[],
-  ): StoredWorldEvent[] {
+  ): { address: WorldAddress; addressKey: string; afterSeq: number; asOfSeq: number }[] {
     const branch = this.#db.prepare(`
       SELECT tenant_id, world_id, branch_id, parent_address_key, fork_seq FROM branches WHERE address_key = ?
     `).get(addressKey) as BranchRow | undefined
@@ -2030,27 +2040,36 @@ export class WorldStore {
       : Math.min(asOfSeq, branch.fork_seq as number)
     const inherited = branch.parent_address_key === null || parentAsOf <= afterSeq
       ? []
-      : this.#readEventsByKey(branch.parent_address_key, afterSeq, parentAsOf, eventTypes)
-    const lowerBound = Math.max(branch.fork_seq ?? 0, afterSeq)
+      : this.#eventRangesByKey(branch.parent_address_key, afterSeq, parentAsOf)
+    return [...inherited, { address, addressKey, afterSeq: Math.max(branch.fork_seq ?? 0, afterSeq), asOfSeq }]
+  }
+
+  #readEventsByKey(
+    addressKey: string,
+    afterSeq: number,
+    asOfSeq: number,
+    eventTypes?: readonly string[],
+  ): StoredWorldEvent[] {
     const typeFilter = eventTypes === undefined
       ? ''
       : `AND event_type IN (${eventTypes.map(() => '?').join(', ')})`
-    const rows = this.#db.prepare(`
-      SELECT seq, tick, event_type, event_version, data_json, previous_hash, event_hash, transaction_id, event_ordinal
-      FROM events WHERE address_key = ? AND seq > ? AND seq <= ? ${typeFilter} ORDER BY seq
-    `).all(addressKey, lowerBound, asOfSeq, ...(eventTypes ?? [])) as unknown as EventRow[]
-    const local = rows.map(row => ({
-      address,
-      seq: row.seq,
-      tick: row.tick,
-      eventType: row.event_type,
-      eventVersion: row.event_version,
-      data: parseWorldJson(row.data_json),
-      previousHash: row.previous_hash,
-      eventHash: row.event_hash,
-      transactionId: row.transaction_id as StoredWorldEvent['transactionId'],
-      eventOrdinal: row.event_ordinal,
-    }))
-    return [...inherited, ...local]
+    return this.#eventRangesByKey(addressKey, afterSeq, asOfSeq).flatMap(range => {
+      const rows = this.#db.prepare(`
+        SELECT seq, tick, event_type, event_version, data_json, previous_hash, event_hash, transaction_id, event_ordinal
+        FROM events WHERE address_key = ? AND seq > ? AND seq <= ? ${typeFilter} ORDER BY seq
+      `).all(range.addressKey, range.afterSeq, range.asOfSeq, ...(eventTypes ?? [])) as unknown as EventRow[]
+      return rows.map(row => ({
+        address: range.address,
+        seq: row.seq,
+        tick: row.tick,
+        eventType: row.event_type,
+        eventVersion: row.event_version,
+        data: parseWorldJson(row.data_json),
+        previousHash: row.previous_hash,
+        eventHash: row.event_hash,
+        transactionId: row.transaction_id as StoredWorldEvent['transactionId'],
+        eventOrdinal: row.event_ordinal,
+      }))
+    })
   }
 }
