@@ -47,8 +47,8 @@ export async function runPrototypeActivations(input: PrototypeActivationInput): 
   let calls = 0, wave = 0, hitCharacterLimit = false
   const candidates = (afterSeq: number, rootStimulus = false) => {
     const result = new Map<CharacterId, WorldJsonObject[]>()
-    for (const event of input.store.readEvents(input.address)) {
-      if (event.seq <= afterSeq || event.eventType !== 'observation.upsert') continue
+    const head = input.store.head(input.address).headSeq
+    for (const event of input.store.readEventsRange(input.address, afterSeq, head, ['observation.upsert'])) {
       const value = (event.data as WorldJsonObject).value as WorldJsonObject
       const content = value.content as WorldJsonObject | undefined
       if (content === undefined || content.status !== 'accepted' || content.actorId === value.observerId) continue
@@ -146,8 +146,7 @@ async function runDynamicActivations(input: PrototypeActivationInput): Promise<P
   }
   const collect = (source: 'ordinary'|'autonomyReaction', depth:number, root=false) => {
     const head = input.store.head(input.address).headSeq
-    for (const event of input.store.readEvents(input.address)) {
-      if (event.seq <= cursor || event.seq > head || event.eventType !== 'observation.upsert') continue
+    for (const event of input.store.readEventsRange(input.address, cursor, head, ['observation.upsert'])) {
       const value = (event.data as WorldJsonObject).value as WorldJsonObject
       const content = value.content as WorldJsonObject | undefined
       if (!content || content.status !== 'accepted' || content.actorId === value.observerId) continue

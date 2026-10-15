@@ -12,23 +12,93 @@ import { PlaytestMemoryCore } from '../experiments/playtest-memory-core.ts'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { brandId, hashWorldJson, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
 import { createCoreRulebookRegistry, currentEntityState, currentLocation } from '@harness-world/kernel'
 import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { prototypeTurnCall } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
+import { decideActivityFormat } from '../experiments/pack-activity.ts'
 
 const cleanup: (() => void)[] = []
-afterEach(() => { for (const close of cleanup.splice(0).reverse()) close() })
+afterEach(() => { vi.restoreAllMocks(); for (const close of cleanup.splice(0).reverse()) close() })
 const npc = brandId('character:npc', 'CharacterId')
+const repairedSpeech = { decision: 'publish', segments: [{ type: 'speech', text: '修正后的回应' }] }
 const take = { decision: 'perform', actionType: 'interact', parameters: {
   targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:entity:cup:base:take',
   definitionRef: { id: 'base:take', version: 1 }, arguments: {},
 } }
 
-function fixture(decide: (request: PrototypeTurnRequest, signal: AbortSignal) => Promise<unknown>, extra: WorldEventDraft[] = [], limits: {publicationCharacters?:number;activationTimeoutMs?:number} = {}) {
+it('continues from a committed expression to one action and its result within three calls',async()=>{
+ let calls=0
+ const f=fixture(async request=>{
+  calls++
+  if(calls===1){expect(request.canContinueAfterPublish).toBe(true);return repairedSpeech}
+  if(calls===2){
+   expect(request.afterPublication).toBe(true)
+   expect(request.result).toBeUndefined()
+   expect(f.store.readEvents(f.address).filter(e=>e.eventType==='character.speak')).toHaveLength(1)
+   expect(JSON.stringify(request.context.selfObservations)).toContain('修正后的回应')
+   return take
+  }
+  expect(request.afterPublication).toBeUndefined()
+  expect(request.canPerform).toBe(false)
+  expect(request.result?.status).toBe('accepted')
+  return {decision:'abstain'}
+ },[],{continueAfterPublish:true})
+ expect(await f.turn.run(npc,{maxModelCalls:3})).toMatchObject({status:'abstained',calls:3,performResult:{status:'accepted'}})
+ expect(f.store.readEvents(f.address).filter(e=>e.eventType==='entity.transferred')).toHaveLength(1)
+})
+
+it.each([false,true])('ends after publication with less than three calls available (enabled=%s)',async enabled=>{
+ let calls=0
+ const f=fixture(async request=>{calls++;expect(request.canContinueAfterPublish??false).toBe(false);return repairedSpeech},[],{continueAfterPublish:enabled})
+ expect(await f.turn.run(npc,{maxModelCalls:2})).toMatchObject({status:'published',calls:1})
+ expect(calls).toBe(1)
+})
+
+it('ends on the second publication and never loops endlessly',async()=>{
+ const f=fixture(async()=>repairedSpeech,[],{continueAfterPublish:true})
+ expect(await f.turn.run(npc,{maxModelCalls:8})).toMatchObject({status:'published',calls:2})
+ expect(f.store.readEvents(f.address).filter(e=>e.eventType==='character.speak')).toHaveLength(2)
+})
+
+it('keeps the first expression and discards a cancelled post-publication action',async()=>{
+ const controller=new AbortController()
+ const f=fixture(async request=>{
+  if(!request.afterPublication)return repairedSpeech
+  controller.abort();return take
+ },[],{continueAfterPublish:true})
+ expect(await f.turn.run(npc,{maxModelCalls:3,signal:controller.signal})).toMatchObject({status:'interrupted',calls:2})
+ expect(f.store.readEvents(f.address).filter(e=>e.eventType==='character.speak')).toHaveLength(1)
+ expect(f.store.readEvents(f.address).filter(e=>e.eventType==='entity.transferred')).toHaveLength(0)
+})
+
+it('does not continue when formatting the first publication consumes its remaining action budget',async()=>{
+ let requests=0
+ const f=fixture(async(request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>
+  ++requests===1?{...repairedSpeech,scope:'private'}:repairedSpeech,signal,prototypeTurnCall(request).schema,reserve),[],{continueAfterPublish:true})
+ expect(await f.turn.run(npc,{maxModelCalls:3})).toMatchObject({status:'published',calls:2})
+ expect(requests).toBe(2)
+})
+
+it('preserves publication and action when the third output is malformed and there is no repair margin',async()=>{
+ let calls=0
+ const f=fixture(async(request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>{
+  calls++
+  if(calls===1)return repairedSpeech
+  if(calls===2)return take
+  return {decision:'publish',segments:['speech:非法片段形状']}
+ },signal,prototypeTurnCall(request).schema,reserve),[],{continueAfterPublish:true})
+ expect(await f.turn.run(npc,{maxModelCalls:3})).toMatchObject({status:'failed',failure:'invalid_output',calls:3,performResult:{status:'accepted'}})
+ expect(calls).toBe(3)
+ expect(f.store.readEvents(f.address).filter(e=>e.eventType==='character.speak')).toHaveLength(1)
+ expect(f.store.readEvents(f.address).filter(e=>e.eventType==='entity.transferred')).toHaveLength(1)
+ expect(currentEntityState(f.store.readEvents(f.address),'entity:cup')?.holderId).toBe(npc)
+})
+
+function fixture(decide: (request: PrototypeTurnRequest, signal: AbortSignal, reserveFormatRetry?: () => boolean) => Promise<unknown>, extra: WorldEventDraft[] = [], limits: {publicationCharacters?:number;activationTimeoutMs?:number;continueAfterPublish?:boolean;beforeActionExpression?:boolean;allowUnrelatedCommits?:boolean;onCommitted?:()=>Promise<void>} = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'perform-prototype-'))
   cleanup.push(() => rmSync(directory, { recursive: true, force: true }))
   const path = join(directory, 'world.sqlite')
@@ -46,6 +116,157 @@ function fixture(decide: (request: PrototypeTurnRequest, signal: AbortSignal) =>
     rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }), decide })
   return { turn, store, address, directory, leases }
 }
+
+it('commits a private pre-action expression, one action and a result-based expression in two model calls',async()=>{
+ let calls=0
+ const before={segments:[{type:'speech',text:'敏感开场：我现在拿起杯子。'}],scope:'private',addresseeIds:['character:player']}
+ const f=fixture(async request=>{
+  if(++calls===1) {
+   expect(request.canExpressBeforeAction).toBe(true)
+   for(const call of [prototypeTurnCall(request),localPrototypeTurnCall(request)]) {
+    expect(new Ajv({strict:false}).compile(call.schema)({...take,before})).toBe(true)
+    expect(new Ajv({strict:false}).compile(call.schema)({...take,before:{...before,scope:'scene_public'}})).toBe(false)
+   }
+   return {...take,before}
+  }
+  expect(request.canExpressBeforeAction).toBe(false)
+  expect(request.result?.status).toBe('accepted')
+  expect(JSON.stringify(request.context.selfObservations)).toContain('敏感开场')
+  expect(currentEntityState(f.store.readEvents(f.address),'entity:cup')?.holderId).toBe(npc)
+  return {decision:'publish',segments:[{type:'speech',text:'现在已经拿到了。'}]}
+ },[],{beforeActionExpression:true})
+ expect(await f.turn.run(npc,{maxModelCalls:2})).toMatchObject({status:'published',calls:2,performResult:{status:'accepted'}})
+ const events=f.store.readEvents(f.address)
+ const first=events.findIndex(e=>e.eventType==='character.speak'), transfer=events.findIndex(e=>e.eventType==='entity.transferred')
+ expect(first).toBeLessThan(transfer)
+ expect(transfer).toBeLessThan(events.findLastIndex(e=>e.eventType==='character.speak'))
+ expect(events.filter(e=>e.eventType==='entity.transferred')).toHaveLength(1)
+ const bob=new CharacterViewBuilder(f.store).rebuildAt(f.address,brandId('character:bob','CharacterId'),f.store.head(f.address).headSeq)
+ expect(JSON.stringify(bob.observations)).not.toContain('敏感开场')
+})
+
+it('keeps the pre-action expression when the controlled action is rejected and returns the actual failure',async()=>{
+ const f=fixture(async request=>{
+  if(!request.continuation)return {...take,parameters:{...take.parameters,bindingId:'missing'},before:{segments:[{type:'speech',text:'我试试看。'}]}}
+  expect(request.result?.status).toBe('rejected')
+  return {decision:'publish',segments:[{type:'speech',text:'没能拿到。'}]}
+ },[],{beforeActionExpression:true})
+ expect(await f.turn.run(npc,{maxModelCalls:2})).toMatchObject({status:'published',calls:2,performResult:{status:'rejected'}})
+ const events=f.store.readEvents(f.address)
+ expect(events.filter(e=>e.eventType==='character.speak')).toHaveLength(2)
+ expect(events.filter(e=>e.eventType==='entity.transferred')).toHaveLength(0)
+})
+
+it('retains the pre-action expression and committed operation when result expression fails',async()=>{
+ const f=fixture(async request=>request.continuation?{decision:'publish',segments:[]}:
+  {...take,before:{segments:[{type:'speech',text:'我现在试试。'}]}},[],{beforeActionExpression:true})
+ expect(await f.turn.run(npc,{maxModelCalls:2})).toMatchObject({status:'failed',failure:'invalid_output',calls:2,performResult:{status:'accepted'}})
+ const events=f.store.readEvents(f.address)
+ expect(events.filter(e=>e.eventType==='character.speak')).toHaveLength(1)
+ expect(events.filter(e=>e.eventType==='entity.transferred')).toHaveLength(1)
+ expect(currentEntityState(events,'entity:cup')?.holderId).toBe(npc)
+})
+
+it('rejects a pre-generated post-action expression before any commit',async()=>{
+ const decision={...take,before:{segments:[{type:'speech',text:'我试试看。'}]},after:{segments:[{type:'speech',text:'拿到了。'}]}}
+ const f=fixture(async request=>{
+  for(const call of [prototypeTurnCall(request),localPrototypeTurnCall(request)])expect(new Ajv({strict:false}).compile(call.schema)(decision)).toBe(false)
+  return decision
+ },[],{beforeActionExpression:true})
+ const head=f.store.head(f.address)
+ expect(await f.turn.run(npc)).toMatchObject({status:'failed',failure:'invalid_output'})
+ expect(f.store.head(f.address)).toEqual(head)
+})
+
+it.each([false,true])('rejects malformed pre-action expressions before any commit (enabled=%s)',async enabled=>{
+ const f=fixture(async()=>({...take,before:{segments:[{type:'speech',text:'不应提交'}],scope:'private',addresseeIds:['character:hidden']}}),[],{beforeActionExpression:enabled})
+ const head=f.store.head(f.address)
+ expect(await f.turn.run(npc)).toMatchObject({status:'failed',failure:'invalid_output'})
+ expect(f.store.head(f.address)).toEqual(head)
+})
+
+it('cannot pre-publish and act without a reserved result call',async()=>{
+ const f=fixture(async request=>{
+  expect(request.canPerform).toBe(false)
+  expect(request.canExpressBeforeAction).toBe(false)
+  return {...take,before:{segments:[{type:'speech',text:'预算不足不应发布'}]}}
+ },[],{beforeActionExpression:true})
+ const head=f.store.head(f.address)
+ expect(await f.turn.run(npc,{maxModelCalls:1})).toMatchObject({status:'failed',failure:'invalid_output'})
+ expect(f.store.head(f.address)).toEqual(head)
+})
+
+it('stops after the committed pre-action expression when interrupted before execution',async()=>{
+ const controller=new AbortController()
+ const f=fixture(async()=>({...take,before:{segments:[{type:'speech',text:'即将尝试。'}]}}),[],
+  {beforeActionExpression:true,onCommitted:async()=>{controller.abort()}})
+ expect(await f.turn.run(npc,{maxModelCalls:2,signal:controller.signal})).toMatchObject({status:'interrupted',calls:1})
+ const events=f.store.readEvents(f.address)
+ expect(events.filter(e=>e.eventType==='character.speak')).toHaveLength(1)
+ expect(events.filter(e=>e.eventType==='entity.transferred')).toHaveLength(0)
+})
+
+it.each([prototypeTurnCall, localPrototypeTurnCall])('rejects audience contradictions and missing interaction arguments before execution', async call => {
+  const f = fixture(async request => {
+    const validate = new Ajv({strict:false}).compile(call(request).schema)
+    for (const value of [
+      {...repairedSpeech,scope:'direct'},
+      {...repairedSpeech,scope:'private',addresseeIds:[]},
+      {...repairedSpeech,scope:'scene_public',addresseeIds:['character:player']},
+      {...take,parameters:{targetRef:take.parameters.targetRef,bindingId:take.parameters.bindingId,definitionRef:take.parameters.definitionRef}},
+    ]) expect(validate(value)).toBe(false)
+    expect(validate({...repairedSpeech,scope:'private',addresseeIds:['character:player']})).toBe(true)
+    expect(validate({...repairedSpeech,addresseeIds:['character:player']})).toBe(true)
+    return {decision:'abstain'}
+  })
+  expect(await f.turn.run(npc)).toMatchObject({status:'abstained',calls:1})
+})
+
+it('repairs ordinary output once, counts the call and never publishes the invalid expression', async () => {
+  let requests=0
+  const f=fixture(async (request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>
+    ++requests===1?{...repairedSpeech,scope:'direct'}:repairedSpeech,signal,prototypeTurnCall(request).schema,reserve))
+  expect(await f.turn.run(npc,{maxModelCalls:2})).toMatchObject({status:'published',calls:2})
+  expect(requests).toBe(2)
+  expect(f.store.readEvents(f.address).filter(e=>e.eventType==='character.speak')).toHaveLength(1)
+})
+
+it('does not call a format repair beyond the activation budget', async () => {
+  let requests=0
+  const f=fixture(async (request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>{
+    requests++;return {...repairedSpeech,scope:'direct'}
+  },signal,prototypeTurnCall(request).schema,reserve))
+  expect(await f.turn.run(npc,{maxModelCalls:1})).toMatchObject({status:'failed',failure:'invalid_output',calls:1})
+  expect(requests).toBe(1)
+  expect(f.store.readEvents(f.address).filter(e=>e.eventType==='character.speak')).toHaveLength(0)
+})
+
+it('reserves a result continuation after repairing an action, or leaves it uncommitted', async () => {
+  for(const budget of [2,3]) {
+    let requests=0
+    const f=fixture(async (request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>{
+      requests++
+      if(request.continuation)return repairedSpeech
+      return requests===1?{...take,parameters:{...take.parameters,arguments:undefined} as unknown as WorldJsonObject}:take
+    },signal,prototypeTurnCall(request).schema,reserve))
+    const result=await f.turn.run(npc,{maxModelCalls:budget})
+    expect(result).toMatchObject({status:budget===2?'budget_exhausted':'published',calls:budget})
+    expect(requests).toBe(budget)
+    expect(f.store.readEvents(f.address).filter(e=>e.eventType==='entity.transferred')).toHaveLength(budget===2?0:1)
+  }
+})
+
+it('keeps a committed action when both continuation outputs have invalid audiences', async () => {
+  let requests=0
+  const f=fixture(async (request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>{
+    requests++;return request.continuation?{...repairedSpeech,scope:'direct'}:take
+  },signal,prototypeTurnCall(request).schema,reserve))
+  expect(await f.turn.run(npc,{maxModelCalls:3})).toMatchObject({status:'failed',failure:'invalid_output',calls:3,performResult:{status:'accepted'}})
+  expect(requests).toBe(3)
+  expect(currentEntityState(f.store.readEvents(f.address),'entity:cup')?.holderId).toBe(npc)
+  expect(f.store.readEvents(f.address).filter(e=>e.eventType==='entity.transferred')).toHaveLength(1)
+  expect(f.store.readEvents(f.address).filter(e=>e.eventType==='character.speak')).toHaveLength(0)
+})
 
 it('commits perform before continuation, then publishes the result-aware expression', async () => {
   let calls = 0
@@ -123,8 +344,21 @@ it('rechecks a stale item proposal against the latest possession before executio
   expect(currentEntityState(events, 'entity:cup')?.holderId).toBe(npc)
 })
 
-it('rechecks the authorized view after acquiring the writer lease and releases it when stale', async () => {
-  const f = fixture(async () => ({ decision: 'publish', segments: [{ type: 'speech', text: '基于旧观察的答复' }] }))
+it('prepares a dynamic decision with one history read and one authorized view build', async () => {
+  const f = fixture(async request => {
+    expect(history).toHaveBeenCalledTimes(1)
+    expect(views).toHaveBeenCalledTimes(1)
+    expect(request.context.character).toMatchObject({ characterId: npc, locationId: 'location:room' })
+    expect(request.context.affordances).not.toEqual([])
+    return { decision: 'abstain' }
+  }, [], { allowUnrelatedCommits: true })
+  const history = vi.spyOn(f.store, 'readEvents')
+  const views = vi.spyOn(CharacterViewBuilder.prototype, 'rebuildAt')
+  expect(await f.turn.run(npc)).toMatchObject({ status: 'abstained', calls: 1 })
+})
+
+it.each([false, true])('rechecks the authorized view after acquiring the writer lease and releases it when stale (dynamic=%s)', async allowUnrelatedCommits => {
+  const f = fixture(async () => ({ decision: 'publish', segments: [{ type: 'speech', text: '基于旧观察的答复' }] }), [], { allowUnrelatedCommits })
   const acquire = f.leases.acquire.bind(f.leases)
   let injected = false
   let injectedCommit: Promise<unknown> | undefined

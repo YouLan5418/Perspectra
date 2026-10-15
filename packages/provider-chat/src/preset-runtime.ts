@@ -108,11 +108,20 @@ export function presetCall(call: ChatCall, preset: RolePreset, request: RoleRequ
   }
   return { ...call, messages: [...call.messages.slice(0, 1), ...before, ...call.messages.slice(1), ...after],
     inspection:{characterId:String(character?.characterId??''),continuation:request.continuation,
+      ...(typeof (request.context.cognition as WorldJsonObject | undefined)?.asOfWorldSeq === 'number'
+        ? {asOfWorldSeq: Number((request.context.cognition as WorldJsonObject).asOfWorldSeq)} : {}),
       sources:[{source:'core',name:'Core 固定契约'},...beforeSources,...call.messages.slice(1).map(()=>({source:'context',name:'当前角色授权上下文'})),...afterSources]} }
 }
 /** Reject malformed originals before cleaning; domain validation still runs on the resulting expression. */
 export async function presetOutput(raw: WorldJsonValue, preset: RolePreset, signal?: AbortSignal, expression?: WorldJsonObject, maximumCharacters = 2000): Promise<WorldJsonValue> {
   const decision = object(raw)
+  if(decision?.decision==='perform'&&decision.before!==undefined) {
+    const before=object(decision.before)
+    if(!before||Object.keys(before).some(key=>!['segments','scope','addresseeIds'].includes(key)))throw new TypeError('行动前表达包含不支持的字段。')
+    const revised=object(await presetOutput({decision:'publish',...before},preset,signal,expression,maximumCharacters))!
+    const {decision: _decision,...cleaned}=revised
+    return {...decision,before:cleaned}
+  }
   if (decision?.decision !== 'publish' || !preset.textRules?.some(rule => rule.enabled && rule.stage === 'output')) return raw
   if (Object.keys(decision).some(key => !['decision', 'segments', 'scope', 'addresseeIds'].includes(key))) throw new TypeError('表达包含不支持的字段。')
   const segments = parseExpressionSegments(decision.segments,maximumCharacters)

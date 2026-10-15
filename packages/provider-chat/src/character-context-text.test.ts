@@ -3,6 +3,17 @@ import type { WorldJsonObject } from '@harness-world/contracts'
 import { characterRequestText } from './character-context-text.ts'
 import { prototypeTurnCall } from './prototype-turn.ts'
 const source = {sourceKind:'reported_speech',sourceId:'event:private',sourceHash:'sha256:internal'}
+it('highlights only the newly authorized scene after a successful move',()=>{
+ const context:WorldJsonObject={character:{characterId:'character:a',locationId:'church'},scene:{people:[{characterId:'character:a',name:'甲'}]},
+  observations:[{sourceSeq:1,value:{content:{text:'乙刚才与你说话'}}}]}
+ const request={context,continuation:true,result:{status:'accepted',action:{actionType:'move',parameters:{locationId:'church'}}}}
+ const rendered=JSON.parse(characterRequestText(request))
+ expect(rendered.currentSceneAfterMove).toMatchObject({locationId:'church',people:context.scene && (context.scene as WorldJsonObject).people})
+ expect(JSON.stringify(rendered.currentSceneAfterMove)).not.toContain('乙')
+ const rejected={...request,result:{...request.result,status:'rejected'}}
+ expect(JSON.parse(characterRequestText(rejected)).currentSceneAfterMove).toBeUndefined()
+ expect(request.context).toEqual(context)
+})
 it('removes host evidence metadata while preserving subjective provenance, original speech and action references', () => {
  const context:WorldJsonObject={character:{characterId:'character:a',name:'甲',locationId:'location:kitchen'},
   cognition:{address:{worldId:'world:internal'},characterId:'character:a',asOfWorldSeq:99,bundleHash:'sha256:bundle',
