@@ -13,7 +13,7 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { ProjectionRebuilder } from './projection.ts'
+import { PROJECTION_EVENT_TYPES, rebuildProjectionFromEvents } from './projection.ts'
 import type { WorldStore } from './world-store.ts'
 
 const CHARACTER_VIEW_EVENT_TYPES = [
@@ -30,6 +30,9 @@ const CHARACTER_VIEW_EVENT_TYPES = [
   'scene.upsert',
   'visibility.upsert',
 ] as const
+
+const CHARACTER_VIEW_EVENT_TYPE_SET = new Set<string>(CHARACTER_VIEW_EVENT_TYPES)
+const CHARACTER_VIEW_READ_EVENT_TYPES = [...CHARACTER_VIEW_EVENT_TYPES, ...PROJECTION_EVENT_TYPES]
 
 function object(value: WorldJsonValue): WorldJsonObject | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as WorldJsonObject : undefined
@@ -112,17 +115,19 @@ export class CharacterViewBuilder {
     if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
     const head = this.worldStore.head(address)
     if (asOfWorldSeq > head.headSeq) throw new RangeError('asOfWorldSeq cannot be later than the branch head')
-    const events = this.worldStore.readEventsRange(address, 0, asOfWorldSeq, CHARACTER_VIEW_EVENT_TYPES)
+    const events = this.worldStore.readEventsRange(address, 0, asOfWorldSeq, CHARACTER_VIEW_READ_EVENT_TYPES)
     heartbeat?.()
-    const projections = new ProjectionRebuilder(this.worldStore).rebuildAt(address, asOfWorldSeq, heartbeat)
+    const projections = rebuildProjectionFromEvents(address, asOfWorldSeq, events, heartbeat)
     const observations = projections.observations.filter(record => owned(record, characterId, 'observerId'))
     const claims = projections.claims.filter(record => owned(record, characterId, 'characterId'))
     const goals = projections.goals.filter(record => owned(record, characterId, 'characterId'))
     const visibility = projections.visibility.filter(record => owned(record, characterId, 'observerId'))
-    const scenes = [...sceneChanges(events, heartbeat).values()]
+    // Projection removals affect the maps, not the existing self-state/creation evidence.
+    const viewEvents = events.filter(event => CHARACTER_VIEW_EVENT_TYPE_SET.has(event.eventType))
+    const scenes = [...sceneChanges(viewEvents, heartbeat).values()]
       .filter(scene => visibleScene(scene, characterId, visibility))
       .sort((left, right) => compareWorldText(left.sceneId, right.sceneId))
-    const self = selfState(events, characterId, heartbeat)
+    const self = selfState(viewEvents, characterId, heartbeat)
     const base = {
       address,
       characterId,

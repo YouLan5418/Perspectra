@@ -33,9 +33,6 @@ export function openMigratedDatabase(path: string, applicationId: number, migrat
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
   const db = new DatabaseSync(path)
   try {
-    db.exec('PRAGMA journal_mode = WAL')
-    db.exec('PRAGMA synchronous = FULL')
-    db.exec('PRAGMA foreign_keys = ON')
     db.exec('PRAGMA busy_timeout = 5000')
     const existingApplicationId = readPragmaInteger(db, 'application_id')
     const existingVersion = readPragmaInteger(db, 'user_version')
@@ -46,6 +43,13 @@ export function openMigratedDatabase(path: string, applicationId: number, migrat
     if (existingVersion > targetVersion) {
       throw new Error(`SQLite user_version mismatch: expected at most ${targetVersion}, got ${existingVersion}`)
     }
+    // WAL persists in the database; the other settings belong to each connection.
+    const journal = db.prepare('PRAGMA journal_mode').get() as { journal_mode: string }
+    if (journal.journal_mode !== 'wal') db.exec('PRAGMA journal_mode = WAL')
+    db.exec('PRAGMA synchronous = FULL')
+    db.exec('PRAGMA foreign_keys = ON')
+    // Opening an already initialized database does not need the writer lock or a commit.
+    if (existingApplicationId === applicationId && existingVersion === targetVersion) return db
     db.exec('BEGIN IMMEDIATE')
     try {
       db.exec(`PRAGMA application_id = ${applicationId}`)

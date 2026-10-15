@@ -14,7 +14,7 @@ import {
 import { openOwnedDatabase, parseWorldJson, PROJECTION_APPLICATION_ID, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 import type { WorldStore } from './world-store.ts'
 
-const PROJECTION_EVENT_TYPES = [
+export const PROJECTION_EVENT_TYPES = [
   'claim.remove',
   'claim.upsert',
   'goal.remove',
@@ -118,31 +118,40 @@ export class ProjectionStore {
   }
 }
 
+/** Replay an exact effective prefix already read by the host. */
+export function rebuildProjectionFromEvents(
+  address: WorldAddress, asOfWorldSeq: number, events: readonly StoredWorldEvent[], heartbeat?: () => void,
+): ProjectionBundle {
+  const state = emptyState()
+  for (const [index, event] of events.entries()) {
+    if (index % 128 === 0) heartbeat?.()
+    const change = projectionOperation(event)
+    if (change === undefined) continue
+    if (change.operation === 'remove') {
+      state[change.kind].delete(change.id)
+    } else {
+      state[change.kind].set(change.id, { kind: change.kind, id: change.id, value: change.value as WorldJsonValue, sourceSeq: event.seq })
+    }
+  }
+  heartbeat?.()
+  const sorted = (kind: ProjectionKind): ProjectionRecord[] => [...state[kind].keys()]
+    .sort(compareWorldText)
+    .map(id => state[kind].get(id) as ProjectionRecord)
+  const observations = sorted('observation')
+  const claims = sorted('claim')
+  const goals = sorted('goal')
+  const visibility = sorted('visibility')
+  const base = { address, asOfWorldSeq, observations, claims, goals, visibility }
+  return { ...base, bundleHash: hashWorldJson('world-projection-bundle', base) }
+}
+
 /** Pure event replay for fork-point CharacterView components. */
 export class ProjectionRebuilder {
   constructor(private readonly worldStore: WorldStore) {}
 
   /** Rebuild Observation, Claim, Goal, and Visibility exactly as of forkSeq. */
   rebuildAt(address: WorldAddress, forkSeq: number, heartbeat?: () => void): ProjectionBundle {
-    const state = emptyState()
-    for (const [index, event] of this.worldStore.readEventsRange(address, 0, forkSeq, PROJECTION_EVENT_TYPES).entries()) {
-      if (index % 128 === 0) heartbeat?.()
-      const change = projectionOperation(event)!
-      if (change.operation === 'remove') {
-        state[change.kind].delete(change.id)
-      } else {
-        state[change.kind].set(change.id, { kind: change.kind, id: change.id, value: change.value as WorldJsonValue, sourceSeq: event.seq })
-      }
-    }
-    heartbeat?.()
-    const sorted = (kind: ProjectionKind): ProjectionRecord[] => [...state[kind].keys()]
-      .sort(compareWorldText)
-      .map(id => state[kind].get(id) as ProjectionRecord)
-    const observations = sorted('observation')
-    const claims = sorted('claim')
-    const goals = sorted('goal')
-    const visibility = sorted('visibility')
-    const base = { address, asOfWorldSeq: forkSeq, observations, claims, goals, visibility }
-    return { ...base, bundleHash: hashWorldJson('world-projection-bundle', base) }
+    return rebuildProjectionFromEvents(address, forkSeq,
+      this.worldStore.readEventsRange(address, 0, forkSeq, PROJECTION_EVENT_TYPES), heartbeat)
   }
 }

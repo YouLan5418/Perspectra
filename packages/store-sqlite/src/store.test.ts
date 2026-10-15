@@ -195,6 +195,40 @@ describe('SQLite ownership helpers', () => {
     expect(afterFailure.prepare(`SELECT name FROM sqlite_schema WHERE name = 'rolled_back'`).get()).toBeUndefined()
     afterFailure.close()
   })
+
+  it('opens an initialized database during a write without exposing uncommitted rows', () => {
+    const path = database('concurrent-open.sqlite')
+    const schema = 'CREATE TABLE owned(id INTEGER PRIMARY KEY, value TEXT NOT NULL) STRICT;'
+    const writer = openOwnedDatabase(path, 1234, schema)
+    try {
+      writer.exec("INSERT INTO owned VALUES (1, 'committed'); BEGIN IMMEDIATE; UPDATE owned SET value = 'pending';")
+      try {
+        const reader = openOwnedDatabase(path, 1234, schema)
+        try {
+          expect(reader.prepare('SELECT value FROM owned').get()).toEqual({ value: 'committed' })
+          expect(reader.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' })
+          expect(reader.prepare('PRAGMA synchronous').get()).toEqual({ synchronous: 2 })
+          expect(reader.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 })
+          expect(reader.prepare('PRAGMA busy_timeout').get()).toEqual({ timeout: 5000 })
+        } finally { reader.close() }
+      } finally { writer.exec('ROLLBACK') }
+      expect(writer.prepare('SELECT value FROM owned').get()).toEqual({ value: 'committed' })
+    } finally { writer.close() }
+  })
+
+  it('stamps an unowned current-version database and restores WAL when opening it', () => {
+    const path = database('unstamped-current.sqlite')
+    const raw = new DatabaseSync(path)
+    try { raw.exec('CREATE TABLE owned(id INTEGER PRIMARY KEY) STRICT; PRAGMA user_version = 1;') }
+    finally { raw.close() }
+    const owned = openOwnedDatabase(path, 1234, 'CREATE TABLE owned(id INTEGER PRIMARY KEY) STRICT;')
+    try {
+      expect(readPragmaInteger(owned, 'application_id')).toBe(1234)
+      expect(readPragmaInteger(owned, 'user_version')).toBe(1)
+      expect(owned.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' })
+      expect(owned.prepare('SELECT * FROM owned').all()).toEqual([])
+    } finally { owned.close() }
+  })
 })
 
 describe('World schema v18', () => {
@@ -1002,6 +1036,7 @@ describe('WorldStore and temporal projections', () => {
     const genesisChild = fixtureAddress('genesis-child')
     store.forkBranch(parent, genesisChild, 0)
     expect(store.head(genesisChild)).toEqual({ headSeq: 0, tick: 0, eventHash: 'genesis' })
+    expect(store.readEventTicks(genesisChild, 0)).toEqual([])
     expect(() => store.forkBranch(parent, child, forkSeq)).toThrow()
     const parentHead = store.head(parent)
     await store.commitRound({
@@ -1051,6 +1086,39 @@ describe('WorldStore and temporal projections', () => {
     expect(() => store.forkBranch(parent, fixtureAddress('bad-negative'), -1)).toThrow(RangeError)
     expect(() => store.forkBranch(parent, fixtureAddress('bad-future'), 999)).toThrow(RangeError)
     store.close()
+  })
+
+  it('reads timestamp prefixes through nested forks without inheriting parent future ticks', async () => {
+    const store = new WorldStore(database('fork-timestamps.sqlite'))
+    const root = fixtureAddress('ticks-root'), child = fixtureAddress('ticks-child'), grandchild = fixtureAddress('ticks-grandchild')
+    const append = async (address: WorldAddress, name: string, count = 1) => {
+      const head = store.head(address)
+      await store.commitRound({ ...fixtureCommitRequest(address),
+        transactionId: brandId(`transaction:${name}`, 'TransactionId'), roundId: brandId(`round:${name}`, 'InteractionRoundId'),
+        expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
+        events: Array.from({ length: count }, () => ({ eventType: 'fixture.event', eventVersion: 1, data: { name } })), outbox: [],
+      })
+    }
+    try {
+      store.createBranch(root)
+      await append(root, 'ticks-base', 2)
+      store.forkBranch(root, child, 2)
+      await append(root, 'ticks-root-future-1')
+      await append(root, 'ticks-root-future-2')
+      await append(child, 'ticks-child-local', 2)
+      store.forkBranch(child, grandchild, 3)
+      await append(child, 'ticks-child-future')
+      await append(grandchild, 'ticks-grandchild-local')
+      expect(store.readEventTicks(child, 4)).toEqual([
+        { seq: 1, tick: 1 }, { seq: 2, tick: 1 }, { seq: 3, tick: 2 }, { seq: 4, tick: 2 },
+      ])
+      expect(store.readEventTicks(grandchild, 4)).toEqual([
+        { seq: 1, tick: 1 }, { seq: 2, tick: 1 }, { seq: 3, tick: 2 }, { seq: 4, tick: 3 },
+      ])
+      expect(store.readEventTicks(grandchild, 2)).toEqual([{ seq: 1, tick: 1 }, { seq: 2, tick: 1 }])
+      expect(store.readEventTicks(grandchild, 4)).toEqual(store.readEvents(grandchild, 4).map(({ seq, tick }) => ({ seq, tick })))
+      for (const prefix of [-1, 0.5, 5]) expect(() => store.readEventTicks(grandchild, prefix)).toThrow(RangeError)
+    } finally { store.close() }
   })
 
   it('fails closed when an effective Authority lookup encounters a corrupted ancestor link', async () => {
