@@ -25,6 +25,22 @@ function cognitionText(cognition: WorldJsonObject): WorldJsonObject {
       return evidence(rest)
     }) : evidence(value)]))
 }
+/** Presentation of already-authorized item rows only; never query the world to fill missing items. */
+function itemBoundaries(items: WorldJsonValue | undefined, actorId: WorldJsonValue | undefined): WorldJsonValue | undefined {
+  if (!isObject(items) || typeof actorId !== 'string' || !Array.isArray(items.current) || !Array.isArray(items.lastObserved)) return items
+  return { ...items,
+    current: items.current.map(row => {
+      if (!isObject(row) || typeof row.entityId !== 'string'
+        || (typeof row.holderId !== 'string' && row.holderId !== null)) return row
+      return { ...row, narrativeBoundary: row.holderId === actorId
+        ? '当前由你保管；无需一直握在手中，转交保管须经过交互成功结算。'
+        : '当前不由你保管；不能客观描写你已从随身口袋取出，或已取得、转交其保管。' }
+    }),
+    lastObserved: items.lastObserved.map(row => isObject(row) && typeof row.entityId === 'string'
+      ? { ...row, narrativeBoundary: '仅有上次观察，当前归属与位置未确认；不能把旧观察写成现在的客观事实。' } : row),
+    narrativeBoundaryNote: '以上只约束当下客观的受控结果，不改变角色原有认识；仍可误认、说谎、回忆、假设或尝试。触碰、临时托起查看不等于取得或解除保管。未列出的物品不代表你已知其归属或位置，不能仅凭旧话或提及就补成当前可见事实。',
+  }
+}
 /** Final model-only presentation. Host requests, memory evidence and commits retain their original fields. */
 export function characterRequestText(request: { readonly context: WorldJsonObject; readonly canPerform?: boolean; readonly continuation?: boolean }): string {
   const { character, observations, selfObservations, cognition, memories, ...dynamic } = request.context
@@ -54,6 +70,7 @@ export function characterRequestText(request: { readonly context: WorldJsonObjec
     }) : evidence(memories) }),
     ...(isObject(cognition) ? { cognition: cognitionText(cognition) } : {}),
     ...dynamic,
+    ...(dynamic.items === undefined ? {} : { items: itemBoundaries(dynamic.items, isObject(character) ? character.characterId : undefined)! }),
     ...(dynamic.recentExecutionEvidence === undefined ? {} : { recentExecutionEvidence: evidence(dynamic.recentExecutionEvidence) }),
     ...(dynamic.stimulus === undefined ? {} : { stimulus: evidence(dynamic.stimulus) }),
     ...(isObject(character) && character.locationId !== undefined ? { locationId: character.locationId } : {}),
