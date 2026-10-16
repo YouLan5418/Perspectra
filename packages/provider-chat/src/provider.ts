@@ -1,6 +1,6 @@
 import { thinkingRequest, type ThinkingLevel } from './thinking.ts'
 import { nativeMessages, nativePayload, providerEndpoint, providerHeaders, providerProtocol, type ProviderProtocol } from './protocol.ts'
-import type { RequestInspector } from './request-inspector.ts'
+import type { PresetOrigin, RequestInspector } from './request-inspector.ts'
 import { rolePreset, type RolePreset } from './preset.ts'
 import type { WorldJsonValue } from '@harness-world/contracts'
 import { objectValue, textValue } from './value.ts'
@@ -52,6 +52,7 @@ export interface ChatProviderOptions {
   /** Injected so the transport can be tested against a local endpoint instead of a vendor. */
   readonly fetch?: typeof globalThis.fetch
   readonly inspector?: RequestInspector
+  readonly presetOrigin?: PresetOrigin
   readonly onCall?: (observation: ChatCallObservation) => void
 }
 
@@ -169,10 +170,12 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
     if (level !== undefined && protocol === 'google') Object.assign(body.generationConfig as object, thinkingRequest(protocol, model, level))
     const sources = [...(prepared.inspection?.sources ?? [])]
     if (kind === 'character' && generation.prompt?.trim()) sources.splice(1, 0, {source:'preset',name:'附加角色提示',original:generation.prompt})
-    const inspection = kind === 'character' && prepared.inspection ? {...prepared.inspection,sources} : undefined
+    const inspection = kind === 'character' && prepared.inspection ? {...prepared.inspection,sources,
+      preset: {origin: options.presetOrigin ?? {scope:'base' as const, characterId:prepared.inspection.characterId,name:'默认预设'},value:generation}} : undefined
     const inspectionId = options.inspector?.begin(body, inspection, messages, model)
     const started = performance.now()
     let httpStatus: number | undefined
+    let responseBody: unknown
     try {
       const timeout = AbortSignal.timeout(timeoutMs)
       const response = await post(providerEndpoint(options.endpoint, protocol, model), { method: 'POST', redirect: 'error', headers,
@@ -184,13 +187,14 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
         const detail = (await response.text()).slice(0, 512)
         throw new ChatTransportError(`chat endpoint returned HTTP ${response.status}${detail.length === 0 ? '' : `: ${detail}`}`)
       }
-      const responseBody: unknown = await response.json()
+      responseBody = await response.json()
       const payload = protocol === 'openai' ? payloadOf(responseBody, style) : nativePayload(responseBody, protocol, toolName)
-      options.inspector?.finish(inspectionId, 'ok', Math.round(performance.now() - started), responseBody)
+      options.inspector?.finish(inspectionId, 'ok', Math.round(performance.now() - started), responseBody, {httpStatus})
       options.onCall?.({ kind, model, durationMs: Math.round(performance.now() - started), status: 'ok' })
       return payload
     } catch (error: unknown) {
-      options.inspector?.finish(inspectionId, 'failed', Math.round(performance.now() - started))
+      options.inspector?.finish(inspectionId, 'failed', Math.round(performance.now() - started), responseBody,
+        {...(httpStatus === undefined ? {} : {httpStatus}), failure:signal?.aborted ? 'cancelled' : responseBody !== undefined ? 'invalid_envelope' : httpStatus !== undefined && httpStatus >= 400 ? 'http' : 'transport'})
       options.onCall?.({ kind, model, durationMs: Math.round(performance.now() - started), status: 'failed',
         ...(httpStatus === undefined ? {} : { httpStatus }) })
       throw error

@@ -1,5 +1,7 @@
 import { thinkingRequest, thinkingLevel, type ThinkingLevel } from '../packages/provider-chat/src/thinking.ts'
 import { creatorDebugQuery } from '../tests/experiments/creator-debug.ts'
+import { creatorRecordsQuery } from '../tests/experiments/creator-records.ts'
+import { creatorHistoryQuery } from '../tests/experiments/creator-history.ts'
 import { playSettings, readingPreferences, DEFAULT_READING, audioPreferences, DEFAULT_AUDIO, palettePreference, DEFAULT_PALETTE, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from './play-settings.ts'
 import { providerProtocol, providerEndpoint, providerHeaders, nativeMessages, nativePayload, type ProviderProtocol } from '../packages/provider-chat/src/protocol.ts'
 import { exportStoryNode, importStoryNode } from './story-share.ts'
@@ -241,11 +243,14 @@ export class LauncherCore {
         if (!response.ok) throw new Error('请求检查器读取失败。')
         return await response.json()
       }
+      case 'creator-records':
+      case 'creator-history':
       case 'creator-debug': {
         if (!this.#active || this.#active.instanceId !== request.instanceId) throw new Error('请先启动当前实例。')
-        const query = creatorDebugQuery((request.query ?? {}) as Record<string, unknown>)
+        const parse = request.operation === 'creator-records' ? creatorRecordsQuery : request.operation === 'creator-history' ? creatorHistoryQuery : creatorDebugQuery
+        const query = parse((request.query ?? {}) as Record<string, unknown>)
         const target = new URL(this.#active.url), token = target.hash.slice('#token='.length)
-        target.hash = ''; target.pathname = '/api/creator-debug'; target.search = ''
+        target.hash = ''; target.pathname = '/api/'+request.operation; target.search = ''
         for (const [key, value] of Object.entries(query)) target.searchParams.set(key, String(value))
         const response = await fetch(target, { headers: { 'x-playtest-token': token }, signal: AbortSignal.timeout(10000) })
         if (!response.ok) throw new Error('创作者调试读取失败。')

@@ -12,8 +12,11 @@ export interface CreatorDebugSnapshot {
   capturedAt: string
   address: WorldAddress
   worldVersion: string
+  title: string
   headSeq: number
   tick: number
+  packHash: string
+  storyParentNodeId: string | null
   busy: boolean
   paused: boolean
   captureEnabled: boolean

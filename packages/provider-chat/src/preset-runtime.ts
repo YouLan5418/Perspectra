@@ -38,7 +38,7 @@ export async function processPresetText(jobs: readonly TextJob[], signal?: Abort
 function object(value: unknown): WorldJsonObject | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as WorldJsonObject : undefined
 }
-interface RoleRequest { context: WorldJsonObject; continuation: boolean }
+interface RoleRequest { context: WorldJsonObject; continuation: boolean; decisionId?: string }
 /** Only expression fields of authorized observations are transformed. Facts and affordances stay intact. */
 export async function presetContext<T extends RoleRequest>(request: T, preset: RolePreset, playerId: string, signal?: AbortSignal): Promise<T> {
   if (!preset.textRules?.some(rule => rule.enabled && (rule.stage === 'input' || rule.stage === 'history'))) return request
@@ -103,11 +103,12 @@ export function presetCall(call: ChatCall, preset: RolePreset, request: RoleRequ
       const messages = node.position === 'beforeContext' ? before : after
       const sources = node.position === 'beforeContext' ? beforeSources : afterSources
       messages.push({ role: node.role, content })
-      sources.push({source:'preset:'+node.id,name:node.name,original:node.content,macroExpanded:content!==node.content})
+      sources.push({source:'preset:'+node.id,name:node.name,nodeId:node.id,position:node.position,original:node.content,macroExpanded:content!==node.content})
     }
   }
   return { ...call, messages: [...call.messages.slice(0, 1), ...before, ...call.messages.slice(1), ...after],
     inspection:{characterId:String(character?.characterId??''),continuation:request.continuation,
+      ...(request.decisionId === undefined ? {} : {decisionId:request.decisionId}),
       ...(typeof (request.context.cognition as WorldJsonObject | undefined)?.asOfWorldSeq === 'number'
         ? {asOfWorldSeq: Number((request.context.cognition as WorldJsonObject).asOfWorldSeq)} : {}),
       sources:[{source:'core',name:'Core 固定契约'},...beforeSources,...call.messages.slice(1).map(()=>({source:'context',name:'当前角色授权上下文'})),...afterSources]} }

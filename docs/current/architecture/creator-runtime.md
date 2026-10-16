@@ -1,5 +1,9 @@
 # 当前创作者运行时
 
+创作者观测接口见[调试接口](../creator-debug-api.md)：例如钥匙从同行者交给留守者，可以查询保管与地点历史、实际观察受众、对应行动参数和裁定，再检查角色当次使用的预设与上下文。2026-10-15 已接通事件历史和可重启读取的私有调用记录，继续沿用宿主权限；仅查询不会触发作者脚本、召回或模型调用。
+
+同一天补齐了第一版[创作者控制台](../creator-debug-api.md#创作者控制台)：在 Launcher 游戏详情里打开，左侧是游戏／故事线／角色导航，中间是「对话」连续阅读与「轨迹」紧凑表格，右侧是按对象变化的详情面板；世界总览、角色、物品、变量和活动共用同一套列表框架。它只做读取与合并：`apps/launcher/src/creator` 下的 [store.ts](../../../apps/launcher/src/creator/store.ts) 负责分页、轮询去重与选择状态，[model.ts](../../../apps/launcher/src/creator/model.ts) 把已提交事件与私有记录合成一条轨迹，[source.ts](../../../apps/launcher/src/creator/source.ts) 在真实实例与浏览器 Mock 样例之间切换。合并规则不超出接口已有的证据：未读到正文的记录只显示「已记录」，失败与未发表内容默认收在「显示处理过程」之后。真实运行实例、长会话容量与发行包仍未验收。
+
 > [跨场景短信实验样例](../studies/cross-scene-communication-20261010.md)允许声明媒介名称和有向联系人；[电话实验](../studies/cross-scene-phone-20261010.md)进一步支持自主接听与持续连接，但仅独立实验入口加载。默认网页、活动脚本与 Launcher 尚未安装此能力；改名为托梦不会自动实现睡眠条件或匿名来源。
 
 > [活动与通信组合实验](../studies/cross-scene-activity-20261010.md)已用活动现有 `interactions` 白名单裁定通信：允许时可以收发与接听，禁止时直接提交也不能绕过；默认宿主尚未安装这套组合规则。
@@ -65,7 +69,7 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 先看[字段手册](../guides/world-pack-authoring.md)、[试玩步骤](../guides/creator-playtest.md)和[自定义网页](../guides/web-ui.md)。`frontend/` 使用显式 manifest 和 iframe 公共玩家接口，只改展示，不改变世界包编译身份；未提供时使用官方默认模板。新实验使用独立数据目录。
 
-Launcher 游戏库（2026-10-16）界面配色由全局设置的主题色决定（樱色默认，另有灯火、月夜、森林；保存在 launcher.json 的 preferences.palette，经 PERSPECTRA_PALETTE 传给游戏进程），以世界包封面作为首屏：在包根目录放 `cover.webp`、`cover.png` 或 `cover.jpg`（≤4 MB，建议 16:9 横图、主体偏右，左下留给标题），[launcher-core](../../../desktop/launcher-core.ts) 载入或启动时读取，经单独的 `pack-cover` 请求交给页面，不随 2.5 秒快照轮询重复传输；简介取 `world.json` 的 `description`。封面不进入编译产物，也不改变包 Hash。缺少封面时启动器按标题首字生成排版封面。模型与存档留在「游玩准备」；角色预设、请求探查、前端权限与调度预算收进默认折叠的「引擎与创作者工具」。已用浏览器 Mock 与 `launcher-core` 测试核对；Tauri 真机窗口与发行包未验收。
+Launcher 游戏库（2026-10-16）界面配色由全局设置的主题色决定（樱色默认，另有灯火、月夜、森林；保存在 launcher.json 的 preferences.palette，经 PERSPECTRA_PALETTE 传给游戏进程），以世界包封面作为首屏：在包根目录放 `cover.webp`、`cover.png` 或 `cover.jpg`（≤4 MB，建议 16:9 横图、主体偏右，左下留给标题），[launcher-core](../../../desktop/launcher-core.ts) 载入或启动时读取，经单独的 `pack-cover` 请求交给页面，不随 2.5 秒快照轮询重复传输；简介取 `world.json` 的 `description`。封面不进入编译产物，也不改变包 Hash。缺少封面时启动器按标题首字生成排版封面。模型与存档留在「游玩准备」；角色预设、请求探查、创作者控制台、前端权限与调度预算收进默认折叠的「引擎与创作者工具」。已用浏览器 Mock 与 `launcher-core` 测试核对；Tauri 真机窗口与发行包未验收。
 
 实现：[活动桥](../../../tests/experiments/pack-activity.ts)、[活动选择](../../../tests/experiments/pack-activities.ts)、[World Pack 工具](../../../packages/world-pack)、[主持示例](../../../examples/world-packs/ai-girls-hosted-guess)。当前不承诺任意玩法零宿主改动、多活动并行或不可信脚本沙箱。短冒烟不等于长试玩验收。
 

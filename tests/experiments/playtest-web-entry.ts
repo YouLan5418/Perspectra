@@ -60,6 +60,15 @@ async function main(): Promise<void> {
     ...(process.env.PERSPECTRA_PALETTE===undefined||process.env.PERSPECTRA_PALETTE===''?{}:{palette:palettePreference(process.env.PERSPECTRA_PALETTE)}),
     ...(process.env.PERSPECTRA_STORY_PARENT_NODE ? {storyParentNodeId:process.env.PERSPECTRA_STORY_PARENT_NODE} : {}),
     preset:settings?settings.effective(instanceId,recommended):process.env.PERSPECTRA_ROLE_PRESET===undefined?recommended:rolePreset(JSON.parse(process.env.PERSPECTRA_ROLE_PRESET)),
+    presetBaseSource:settings ? {
+      mode:settings.instances[instanceId]?.mode ?? 'auto',
+      layers:settings.instances[instanceId]?.mode === 'custom' ? [{name:'实例自定义',value:settings.instances[instanceId]!.override}]
+        : settings.instances[instanceId]?.mode === 'global' ? [{name:'全局预设',value:settings.global}]
+          : [{name:'全局预设',value:settings.global},{name:'游戏包推荐',value:recommended}],
+    } : {mode:process.env.PERSPECTRA_ROLE_PRESET === undefined ? 'pack' : 'explicit',layers:[{
+      name:process.env.PERSPECTRA_ROLE_PRESET === undefined ? '游戏包推荐' : '运行配置',
+      value:process.env.PERSPECTRA_ROLE_PRESET === undefined ? recommended : rolePreset(JSON.parse(process.env.PERSPECTRA_ROLE_PRESET)),
+    }]},
     presetMapping:settings?rolePresetMapping(mapping):rolePresetMapping(JSON.parse(process.env.PERSPECTRA_ROLE_MAPPING??'{}')),
     ...(launch.memoryCore ? { memoryCore: true } : {}),
     ...(launch.serialScheduling?{serialScheduling:true}:{}),

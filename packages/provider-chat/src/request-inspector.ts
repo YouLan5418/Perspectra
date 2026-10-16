@@ -1,18 +1,33 @@
 import type { ChatMessage } from './wire.ts'
+import { randomUUID } from 'node:crypto'
+import { inspectResponse, type InspectedResponse } from './inspection-response.ts'
+import type { RolePreset } from './preset.ts'
+export interface PresetBaseSource { mode: 'auto' | 'global' | 'custom' | 'pack' | 'explicit'; layers: {name:string;value:RolePreset}[] }
+export interface PresetOrigin { scope: 'base' | 'character' | 'group'; characterId: string; groupId?: string; name: string; base?: PresetBaseSource }
 export interface MessageSource {
   source: string
   name: string
   original?: string
   macroExpanded?: boolean
+  nodeId?: string
+  position?: 'beforeContext' | 'afterContext'
 }
 export interface CallInspection {
   characterId: string
   continuation: boolean
   asOfWorldSeq?: number
   sources: MessageSource[]
+  decisionId?: string
+  preset?: { origin: PresetOrigin; value: RolePreset }
 }
 export interface InspectedRequest {
   id: number
+  recordId: string
+  decisionId?: string
+  preset?: { origin: PresetOrigin; value: RolePreset }
+  response?: InspectedResponse
+  httpStatus?: number
+  failure?: 'http' | 'transport' | 'cancelled' | 'invalid_envelope'
   characterId: string
   continuation: boolean
   asOfWorldSeq?: number
@@ -35,13 +50,15 @@ export function estimateRequestTokens(text: string): number {
   for (const char of text) { if (char.codePointAt(0)! < 128) ascii++; else other++ }
   return Math.ceil(ascii / 3 + other)
 }
-/** Opt-in volatile snapshots only. Never receives headers, credentials, or provider response text. */
+/** Opt-in host-only snapshots. Persistence, when installed, is owned by the host. */
 export class RequestInspector {
+  constructor(private readonly onRecord?: (request: InspectedRequest) => void) {}
   #enabled = false
   #next = 0
   #requests: InspectedRequest[] = []
   #characters = new Map<string, InspectedRequest>()
-  configure(enabled: boolean): InspectorSnapshot { this.#enabled = enabled; this.#requests = []; this.#characters.clear(); return this.snapshot() }
+  #pending = new Map<number, InspectedRequest>()
+  configure(enabled: boolean): InspectorSnapshot { this.#enabled = enabled; this.#requests = []; this.#characters.clear(); this.#pending.clear(); return this.snapshot() }
   latest(characterId: string): InspectedRequest | null { return structuredClone(this.#characters.get(characterId) ?? null) }
   get enabled(): boolean { return this.#enabled }
   status(characterId: string): InspectedRequest['status'] | 'not_captured' { return this.#characters.get(characterId)?.status ?? 'not_captured' }
@@ -50,7 +67,9 @@ export class RequestInspector {
     if (!this.#enabled || !info) return undefined
     const serialized = JSON.stringify(body)
     const id = ++this.#next
-    const request: InspectedRequest = { id, characterId: info.characterId, continuation: info.continuation,
+    const request: InspectedRequest = { id, recordId: randomUUID(), characterId: info.characterId, continuation: info.continuation,
+      ...(info.decisionId === undefined ? {} : {decisionId: info.decisionId}),
+      ...(info.preset === undefined ? {} : {preset: structuredClone(info.preset)}),
       ...(info.asOfWorldSeq === undefined ? {} : { asOfWorldSeq: info.asOfWorldSeq }),
       model: model ?? String(body.model), startedAt: new Date().toISOString(), status: 'pending', body: null,
       messages: [], contextParts: [], estimatedBodyTokens: estimateRequestTokens(serialized),
@@ -75,19 +94,28 @@ export class RequestInspector {
       }
     }
     this.#requests.push(request)
+    this.#pending.set(id, request)
     if (this.#requests.length > 4) this.#requests.shift()
     this.#characters.delete(request.characterId)
     this.#characters.set(request.characterId, request)
-    // Latest call per role, bounded to 8M retained request characters / 32 roles.
+    this.onRecord?.(structuredClone(request))
+    this.#trimCharacters()
+    return id
+  }
+  #trimCharacters(): void {
+    // Bound finished response content as well as request snapshots.
     while (this.#characters.size > 32 || [...this.#characters.values()].reduce((sum, item) => sum + JSON.stringify(item).length, 0) > 8_000_000) {
       this.#characters.delete(this.#characters.keys().next().value!)
     }
-    return id
   }
-  finish(id: number | undefined, status: 'ok' | 'failed', durationMs: number, response?: unknown): void {
-    const request = this.#requests.find(r => r.id === id) ?? [...this.#characters.values()].find(r => r.id === id)
+  finish(id: number | undefined, status: 'ok' | 'failed', durationMs: number, response?: unknown,
+    detail: { httpStatus?: number; failure?: InspectedRequest['failure'] } = {}): void {
+    const request = id === undefined ? undefined : this.#pending.get(id)
     if (!request) return
+    this.#pending.delete(request.id)
     request.status = status; request.durationMs = durationMs
+    Object.assign(request, detail)
+    if (response !== undefined) request.response = inspectResponse(response)
     const root = response as Record<string, unknown> | undefined
     const usage = (root?.usage ?? root?.usageMetadata) as Record<string, unknown> | undefined
     const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
@@ -96,5 +124,7 @@ export class RequestInspector {
     const total = finite(usage?.total_tokens ?? usage?.totalTokenCount)
     if (input !== undefined || output !== undefined || total !== undefined) request.usage = {
       ...(input === undefined ? {} : {inputTokens:input}), ...(output === undefined ? {} : {outputTokens:output}), ...(total === undefined ? {} : {totalTokens:total}) }
+    this.onRecord?.(structuredClone(request))
+    this.#trimCharacters()
   }
 }

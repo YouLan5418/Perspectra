@@ -42,7 +42,7 @@ async function copy(text:string){try{await navigator.clipboard.writeText(text);n
 <template>
  <DialogFrame wide :open="open" title="实际角色请求 Inspector" description="检查真实调用的消息、授权上下文与请求参数。" @close="emit('close')">
   <div class="toolbar"><strong>{{ snapshot?.enabled?'正在采集':'采集未启用' }} · {{ snapshot?.requests.length??0 }}/4 条</strong><Button :disabled="busy||!snapshot" @click="refresh(!snapshot?.enabled)">{{ snapshot?.enabled?'停止并清空':'启用采集' }}</Button><Button variant="outline" :disabled="busy" @click="refresh()">刷新</Button><Button variant="outline" :disabled="busy||!snapshot?.requests.length" @click="refresh(snapshot?.enabled)">清空记录</Button><label><input v-model="automatic" type="checkbox"> 自动刷新（3 秒）</label></div>
-  <p class="hint">仅保留本次运行最近 4 次角色调用；私有上下文不进入游戏前端。停止采集会清空，关闭窗口会继续采集。</p>
+  <p class="hint">此窗口展示最近 4 次调用；启用后完整记录保存在本地创作者档案。停止采集或清空只清理临时视图，已保存历史保留。关闭窗口继续采集，私有内容不进入游戏前端。</p>
   <p v-if="error" role="alert">{{ error }}</p><p v-if="notice" role="status">{{ notice }}</p>
   <p v-if="snapshot&&!snapshot.requests.length">{{ snapshot.enabled?'等待角色互动。进行一次游戏互动后，这里会更新。':'启用采集后，再进行一次角色互动。' }}</p>
   <div v-if="snapshot?.requests.length" class="toolbar"><label>角色<select v-model="actor"><option value="">全部角色</option><option v-for="id in actors" :key="id" :value="id">{{ label(id) }}</option></select></label><label>调用<select v-model="selected" @change="followLatest=false"><option v-for="request in requests" :key="request.id" :value="request.id">#{{ request.id }} · {{ label(request.characterId) }} · {{ request.continuation?'继续处理':'新刺激' }} · {{ request.status }}</option></select></label><button @click="latest">{{ followLatest?'跟随最新调用':'切回最新调用' }}</button></div>
