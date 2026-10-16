@@ -117,6 +117,97 @@ function fixture(decide: (request: PrototypeTurnRequest, signal: AbortSignal, re
   return { turn, store, address, directory, leases }
 }
 
+const playerElsewhere: WorldEventDraft[] = [
+  { eventType: 'character.moved', eventVersion: 1, data: { characterId: 'character:player', fromLocationId: 'location:room', toLocationId: 'location:next' } },
+  { eventType: 'scene.member_left', eventVersion: 1, data: { sceneId: 'scene:room', characterId: 'character:player' } },
+]
+const unreachableSpeech = { decision: 'publish', scope: 'private', addresseeIds: ['character:player'],
+  segments: [{ type: 'speech', text: '场外秘密不能传播' }] }
+
+it('returns failed delivery to the NPC and permits its own movement and result-based expression', async () => {
+  let calls = 0
+  const f = fixture(async request => {
+    if (++calls === 1) return unreachableSpeech
+    expect(request.continuation).toBe(true)
+    if (calls === 2) {
+      expect(request.result).toMatchObject({ status: 'rejected', action: { actionType: 'speak' } })
+      expect(request.result?.description).toContain('没有传达给任何收件人')
+      expect(JSON.stringify(request.result)).not.toContain('SPEECH_RECIPIENT_UNREACHABLE')
+      expect(request.canPerform).toBe(true)
+      return { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:next' } }
+    }
+    expect(request.result).toMatchObject({ status: 'accepted', action: { actionType: 'move' } })
+    return { decision: 'publish', segments: [{ type: 'speech', text: '我到下一间房了。' }] }
+  }, playerElsewhere)
+  expect(await f.turn.run(npc, { maxModelCalls: 3 })).toMatchObject({ status: 'published', calls: 3 })
+  const events = f.store.readEvents(f.address)
+  expect(events.filter(event => event.eventType === 'action.rejected')).toHaveLength(1)
+  expect(events.filter(event => event.eventType === 'character.moved' && (event.data as WorldJsonObject).characterId === npc)).toHaveLength(1)
+  expect(events.filter(event => event.eventType === 'character.speak')).toHaveLength(1)
+  expect(JSON.stringify(events.filter(event => event.eventType === 'observation.upsert'))).not.toContain('场外秘密不能传播')
+  const rejected = events.find(event => event.eventType === 'action.rejected')!
+  expect(events.filter(event => event.transactionId === rejected.transactionId && event.eventType === 'observation.upsert')
+    .map(event => ((event.data as WorldJsonObject).value as WorldJsonObject).observerId)).toEqual([npc])
+})
+
+it.each([1, 2, 8])('bounds rejected speech recovery by its call budget and one retry (budget=%s)', async budget => {
+  const f = fixture(async () => unreachableSpeech, playerElsewhere)
+  expect(await f.turn.run(npc, { maxModelCalls: budget })).toMatchObject({ status: 'failed', calls: Math.min(budget, 2) })
+  const events = f.store.readEvents(f.address)
+  expect(events.filter(event => event.eventType === 'character.speak')).toHaveLength(0)
+  expect(events.filter(event => event.eventType === 'action.rejected')).toHaveLength(Math.min(budget, 2))
+})
+
+it('does not execute the attached operation after its pre-action speech fails delivery', async () => {
+  let calls = 0
+  const { decision: _decision, ...before } = unreachableSpeech
+  const f = fixture(async request => {
+    if (++calls === 1) return { ...take, before }
+    expect(request.result).toMatchObject({ status: 'rejected', action: { actionType: 'speak' } })
+    return { decision: 'abstain' }
+  }, playerElsewhere, { beforeActionExpression: true })
+  expect(await f.turn.run(npc, { maxModelCalls: 2 })).toMatchObject({ status: 'abstained', calls: 2 })
+  expect(f.store.readEvents(f.address).some(event => event.eventType === 'entity.transferred')).toBe(false)
+})
+
+it('preserves a committed operation while recovering from an unreachable result expression', async () => {
+  let calls = 0
+  const f = fixture(async request => {
+    if (++calls === 1) return take
+    if (calls === 2) return unreachableSpeech
+    expect(request.canPerform).toBe(false)
+    expect(request.result).toMatchObject({ status: 'rejected', action: { actionType: 'speak' } })
+    return { decision: 'abstain' }
+  }, playerElsewhere)
+  expect(await f.turn.run(npc, { maxModelCalls: 3 })).toMatchObject({ status: 'abstained', calls: 3, performResult: { status: 'accepted' } })
+  expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBe(npc)
+})
+
+it('stops a cancelled recovery and does not expand the implicit call budget', async () => {
+  const controller = new AbortController()
+  const cancelled = fixture(async () => unreachableSpeech, playerElsewhere, { onCommitted: async () => { controller.abort() } })
+  expect(await cancelled.turn.run(npc, { maxModelCalls: 3, signal: controller.signal })).toMatchObject({ status: 'interrupted', calls: 1 })
+  let calls = 0
+  const bounded = fixture(async request => {
+    if (++calls === 1) return unreachableSpeech
+    expect(request.canPerform).toBe(false)
+    return { decision: 'abstain' }
+  }, playerElsewhere)
+  expect(await bounded.turn.run(npc)).toMatchObject({ status: 'abstained', calls: 2 })
+})
+
+it('explains an out-of-scene recipient during the existing schema repair without publishing the rejected words', async () => {
+  let requests = 0
+  const f = fixture(async (request, signal, reserve) => decideActivityFormat(prototypeTurnCall(request), async call => {
+    if (++requests === 1) return unreachableSpeech
+    expect(JSON.stringify(call.messages)).toContain('上一次表达没有发表，也没有传达给对方')
+    return repairedSpeech
+  }, signal, prototypeTurnCall(request).schema, reserve), playerElsewhere)
+  expect(await f.turn.run(npc, { maxModelCalls: 2 })).toMatchObject({ status: 'published', calls: 2 })
+  expect(f.store.readEvents(f.address).filter(event => event.eventType === 'character.speak').map(event => event.data))
+    .toEqual([expect.objectContaining({ segments: repairedSpeech.segments })])
+})
+
 it('commits a private pre-action expression, one action and a result-based expression in two model calls',async()=>{
  let calls=0
  const before={segments:[{type:'speech',text:'敏感开场：我现在拿起杯子。'}],scope:'private',addresseeIds:['character:player']}

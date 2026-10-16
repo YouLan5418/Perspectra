@@ -164,11 +164,15 @@ export class PrototypeCharacterTurn {
       : AbortSignal.any([options.signal, AbortSignal.timeout(this.options.activationTimeoutMs??120_000)])
     let lease: ReturnType<WriterLeaseService['acquire']> | undefined
     let calls = 0
+    let modelCallLimit = options.maxModelCalls ?? Infinity
     let recalledThisActivation = false
     let performResult: WorldJsonObject | undefined
+    let publicationFailure: WorldJsonObject | undefined
+    let retriedPublication = false
     let modelFailure: PrototypeTurnResult['failure']
     let asOfWorldSeq: number | undefined
     let performedAttempts = 0, afterPublication = false
+    let attempt = 0
     let decisionId: string | null = null
     const done = (status: PrototypeTurnResult['status']): PrototypeTurnResult => {
       this.options.onTrace?.('turn',characterId,decisionId,{status,calls,...(status !== 'failed' || modelFailure === undefined ? {} : {failure:modelFailure})})
@@ -181,7 +185,7 @@ export class PrototypeCharacterTurn {
       let repaired = false
       return this.options.decide({...request,decisionId}, signal, () => {
         signal.throwIfAborted()
-        if (repaired || calls >= (options.maxModelCalls ?? Infinity)) return false
+        if (repaired || calls >= modelCallLimit) return false
         repaired = true
         calls += 1
         return true
@@ -202,9 +206,10 @@ export class PrototypeCharacterTurn {
       const continuing = this.options.continueAfterPublish === true && options.continuationOf === undefined && maxCalls >= 2
       const maximumSteps = continuing ? 3 : maxCalls
       for (let step = options.continuationOf === undefined ? 0 : 1; step < maximumSteps; step += 1) {
+        const attemptId = attempt++
         signal.throwIfAborted()
-        if (calls >= (options.maxModelCalls ?? Infinity)) return done('budget_exhausted')
-        const remaining = (options.maxModelCalls ?? Infinity) - calls
+        if (calls >= modelCallLimit) return done('budget_exhausted')
+        const remaining = modelCallLimit - calls
         const canPerform = remaining >= 2 && options.continuationOf === undefined && (continuing
           ? performedAttempts < maxCalls - 1 && step < maximumSteps - 1
           : step === 0 || (step === 1 && maxCalls === 3))
@@ -236,10 +241,10 @@ export class PrototypeCharacterTurn {
         let scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
         const character = this.#manifest.characters.find(value => value.characterId === characterId)!
         const recalled = this.options.memory?.prepareStimulus({
-          address: this.options.address, roundId: brandId(`${ownerId}:${step}:memory`, 'InteractionRoundId'),
+          address: this.options.address, roundId: brandId(`${ownerId}:${attemptId}:memory`, 'InteractionRoundId'),
           participantId: characterId, characterId, asOfWorldSeq: head.headSeq,
           stimulus: options.stimulus ?? [], sceneCharacterIds: scene.observerIds,
-          correlationId: `prototype-memory:${ownerId}:${step}`,
+          correlationId: `prototype-memory:${ownerId}:${attemptId}`,
         })
         const afterSeq = this.options.shortTermAfterSeq?.(characterId)
         const ordered = view.observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq)
@@ -294,18 +299,21 @@ export class PrototypeCharacterTurn {
         context = this.options.projectContext?.(context, canPerform) ?? context
         calls += 1
         modelFailure = 'provider_failed'
-        const visibleResult = performResult === undefined ? undefined : (this.options.executionResult ?? characterExecutionResult)({
+        const latestResult = publicationFailure ?? performResult
+        const visibleResult = latestResult === undefined ? undefined : (this.options.executionResult ?? characterExecutionResult)({
           manifest: this.#manifest, events: history, actorId: characterId,
-          action: object(performResult.action) as { actionType: string; parameters: WorldJsonValue },
-          status: String(performResult.status), reason: typeof performResult.reason === 'string' ? performResult.reason : null })
+          action: object(latestResult.action) as { actionType: string; parameters: WorldJsonValue },
+          status: String(latestResult.status), reason: typeof latestResult.reason === 'string' ? latestResult.reason : null })
         const canRecall = remaining >= 3 && this.options.memory !== undefined && !recalledThisActivation && performResult === undefined
-        const request: PrototypeTurnRequest = { context, continuation: step !== 0, canPerform, canRecall,
+        const request: PrototypeTurnRequest = { context, continuation: step !== 0 || publicationFailure !== undefined, canPerform, canRecall,
           canExpressBeforeAction: canPerform && this.options.beforeActionExpression===true && context.activity===undefined,
           ...(continuing ? {canContinueAfterPublish, ...(afterPublication ? {afterPublication:true} : {})} : {}),
           ...(visibleResult === undefined ? {} : { result: { ...visibleResult,
-            instruction: canPerform
+            instruction: publicationFailure !== undefined
+              ? '上次表达没有传达给收件人。请依据当前授权场景重新决定；只能选择本次提供的行动、表达或 abstain。'
+              : canPerform
               ? '你已看到上次执行的真实结果。还可以申请一次受控交互，或直接表达或 abstain；未执行的后续状态变化不能写成既成事实。'
-              : expressionAfterExecution, action: performResult!.action! } }) }
+              : expressionAfterExecution, action: latestResult!.action! } }) }
         let raw = await decide(request)
         modelFailure = undefined
         let controlledCommitted=false
@@ -337,7 +345,7 @@ export class PrototypeCharacterTurn {
           const recallEvidence: WorldJsonObject = { query: decision.query, memories,
             note: '仅是你可访问记忆中的相关证据；他人发言不证明其内容，未找到也不证明事件未发生。' }
           this.options.onTrace?.('recall',characterId,decisionId,{asOfWorldSeq:head.headSeq,...recallEvidence})
-          if (calls >= (options.maxModelCalls ?? Infinity)) return done('budget_exhausted')
+          if (calls >= modelCallLimit) return done('budget_exhausted')
           calls += 1
           modelFailure = 'provider_failed'
           raw = await decide({ ...request, canRecall: false, recallEvidence })
@@ -347,7 +355,7 @@ export class PrototypeCharacterTurn {
           modelFailure = 'invalid_output'
           decision = object(raw)
           this.options.validateDecision?.(decision, request)
-          if (decision.decision === 'perform' && calls + 1 > (options.maxModelCalls ?? Infinity)) return done('budget_exhausted')
+          if (decision.decision === 'perform' && calls + 1 > modelCallLimit) return done('budget_exhausted')
         }
         if (decision.decision === 'abstain') {
           keys(decision, ['decision'])
@@ -355,13 +363,14 @@ export class PrototypeCharacterTurn {
         }
         let action: { actionType: string; parameters: WorldJsonValue }
         let beforeAction: { actionType: string; parameters: WorldJsonValue } | undefined
+        let rejectedPublication: WorldJsonObject | undefined
         const publication = (expression: WorldJsonObject) => {
           keys(expression, ['segments', 'scope', 'addresseeIds'])
           const segments = parseExpressionSegments(expression.segments,this.options.publicationCharacters??2000)
           const addresseeIds = expression.addresseeIds ?? []
           if (!Array.isArray(addresseeIds) || new Set(addresseeIds).size !== addresseeIds.length || addresseeIds.some(id => typeof id !== 'string'
-            || id === characterId || !scene.observerIds.includes(brandId(id, 'CharacterId')))) {
-            throw new TypeError('addressee must be another visible character')
+            || id === characterId || !this.#manifest.characters.some(character => character.characterId === id))) {
+            throw new TypeError('addressee must be another declared character')
           }
           const scope = expression.scope ?? (addresseeIds.length === 0 ? 'scene_public' : 'direct')
           if (typeof scope !== 'string' || !['scene_public', 'direct', 'private', 'self'].includes(scope)
@@ -375,7 +384,7 @@ export class PrototypeCharacterTurn {
           const {decision: _decision, ...expression}=decision
           action = publication(expression)
         } else if (decision.decision === 'perform' && canPerform) {
-          if (calls + 1 > (options.maxModelCalls ?? Infinity)) return done('budget_exhausted')
+          if (calls + 1 > modelCallLimit) return done('budget_exhausted')
           keys(decision, ['decision', 'actionType', 'parameters', 'before'])
           if (decision.actionType !== 'move' && decision.actionType !== 'interact') throw new TypeError('unsupported operation')
           const parameters = object(decision.parameters)
@@ -407,10 +416,13 @@ export class PrototypeCharacterTurn {
         ruleContext = { ...ruleContext, events: history, asOfWorldSeq: head.headSeq }
         scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
         this.options.validateDecision?.(decision, request)
-        const roundId = brandId(`${ownerId}:${step}${beforeAction!==undefined&&index===0?':before':''}`, 'InteractionRoundId')
+        const roundId = brandId(`${ownerId}:${attemptId}${beforeAction!==undefined&&index===0?':before':''}`, 'InteractionRoundId')
         const actionId = `${roundId}:action`
         const actionStartedAt = new Date().toISOString(), actionStarted = performance.now()
         const resolution = rules.resolve({ ...ruleContext, action, roundId, actionId })
+        if (action.actionType === 'speak' && resolution.reason === 'SPEECH_RECIPIENT_UNREACHABLE') {
+          rejectedPublication = { action, status: resolution.status, reason: resolution.reason }
+        }
         const events: WorldEventDraft[] = [...resolution.events]
         if (resolution.status === 'accepted' && action.actionType === 'move') {
           events.push(...this.#scene.transitionForMove(this.options.address, history, characterId,
@@ -498,15 +510,25 @@ export class PrototypeCharacterTurn {
         }
         })
         if (committed === false) return done('stale')
+        if (rejectedPublication !== undefined && !retriedPublication
+          && calls < (options.maxModelCalls ?? maxCalls)) {
+          retriedPublication = true
+          modelCallLimit = options.maxModelCalls ?? maxCalls
+          publicationFailure = rejectedPublication
+          // Retry one failed publication using the existing step and remaining model budget.
+          step -= 1
+          continue
+        }
         if(beforeAction!==undefined&&!controlledCommitted)return done('failed')
         if (action.actionType === 'speak') {
-          if(committed==='accepted' && canContinueAfterPublish && (options.maxModelCalls ?? Infinity)-calls>=2) {
+          if(committed==='accepted' && canContinueAfterPublish && modelCallLimit-calls>=2) {
             afterPublication=true
             continue
           }
           return done(committed === 'accepted' ? 'published' : 'failed')
         }
         performedAttempts += 1
+        publicationFailure = undefined
         afterPublication=false
       }
       return done('budget_exhausted')

@@ -53,6 +53,7 @@ export function characterExecutionResult(input: {
     }
   }
   const descriptions: Record<string, string> = {
+    SPEECH_RECIPIENT_UNREACHABLE: '指定对象中有人不在当前可交流范围，这次表达没有传达给任何收件人。你可以根据当前场景重新决定行动、表达或结束。',
     RAW_RICE_REQUIRED: '没有可用的生米与水材料，煮饭没有发生。',
     COOKED_RICE_REQUIRED: '没有可食用的熟米饭，这次没有吃到饭。',
     COOKER_REQUIRED: '没有可用的电饭锅，煮饭没有发生。',

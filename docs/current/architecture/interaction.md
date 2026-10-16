@@ -76,6 +76,12 @@ NPC 的发布范围可选 `scene_public`（公开）、`direct`（仅指定对�
 
 程序没有直接修改物品归属，不代表叙事一致性已经通过。真实试玩仍有自由叙述虚构受控事实、私语送达等问题；其他角色相信未提交转移也属于体验失败，不能把任意自然语言永不越权当成已证明保证。
 
+2026-10-17 修复定向表达的静默丢失：例如 A 向另一房间的 B 私语，现会明确拒绝整次发布；即使另一个指定收件人在场，也不会部分送达。普通 `direct/private` 要求全部收件人属于发布时当前场景的有效观察者（包括成员、位置、生命周期及可见性），Rulebook 和观察投递复用 [场景读取与观察者过滤](../../../packages/kernel/src/scene-state.ts)。拒绝不产生 `character.speak`，仅发话者收到失败结果；场外对象和同场旁观者都不会因此获知内容、收到发生观察或获得反应机会。成功发布时 `private` 的同场非收件人仍只收到 occurrence_only；`direct` 的非收件人没有观察。之后入场也不会补发旧表达。普通发话不提供远程通信，短信和电话仍走各自授权交互。
+
+NPC 的模型 Schema 继续只列当前可见收件人；选错时沿用已有一次格式修正，明确提示原话未发表、未传达。如果合法形状的提案到达执行裁定后因收件人不可达而被拒，Character Turn 最多额外重新决策一次，消耗原有模型调用和时间预算；预算足够时可自行移动、改换合法表达或结束。没有显式调用上限的入口，恢复过程仍以原有 maxCalls 限制调用；已经执行成功的动作保留，行动前表达被拒则不执行附带动作。未知 ID、重复收件人和非法字段仍是输出错误。失败反馈不揭示目标的远处位置或隐藏状态。
+
+本次自动回归覆盖两种 scope 的同场接受、场外／离场／不可见／不可用拒绝、混合收件人整次拒绝、玩家真实提交和后续同场新发话、观察隔离与记忆来源、NPC 失败反馈／自主重新选择／预算及重试上限，以及原有通信实验。本机 8045 / gemini-3.8-flash 在新目录 `.tmp/speech-delivery-live-1792167062418/` 完成两次故障注入：执行拒绝后的真实决策为 abstain，Schema 修正后的真实决策为向同场 Bob 公开问候；两次均未传播注入的场外私语。错误提案为人工注入，不能计作模型自然出错率，也未验证长期互动或自主移动后的交流体验。证据为该目录 `result.json` 与两个子目录的 `world.sqlite`；本次未重建发行包。2026-10-16 原探针未按本次提交的事务筛选发生观察，不能作为 direct 会产生 occurrence_only 的依据。
+
 依据：[现行原型契约](../prototype-contract.md)、[World Pack 手册](../guides/world-pack-authoring.md)、[G1/G2 验收](../../archive/prototype-g1-g4/PROTOTYPE-G1-G2-ACCEPTANCE.md)、[Gemini 试玩](../../archive/prototype-g1-g4/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)。代码：[交互执行包](../../../packages/interaction-runtime)、[基础交互](../../../packages/interactions-basic)、[Character Turn](../../../packages/application/src/prototype-character-turn.ts)。
 
 ### 2026-10-09：官方同居包的 Gemini 料理验证
