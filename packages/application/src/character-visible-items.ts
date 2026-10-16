@@ -31,9 +31,11 @@ export function characterVisibleItems(manifest: CompiledWorldManifest, events: r
       && observed.transfer.toHolderId === state.holderId && observerIds.includes(state.holderId as CharacterId)
       && locationId !== undefined && currentLocation(events, state.holderId) === locationId
     if (state !== undefined && (ownOrGround || witnessedHolder)) {
-      current.push({ entityId: state.entityId, holderId: state.holderId, locationId: state.locationId, kind: state.kind })
+      current.push({ entityId: state.entityId, ...(entity.name === undefined ? {} : { name: entity.name }),
+        holderId: state.holderId, locationId: state.locationId, kind: state.kind })
     } else if (observed !== undefined) {
-      lastObserved.push({ entityId: entity.entityId, holderId: observed.transfer.toHolderId ?? null,
+      lastObserved.push({ entityId: entity.entityId, ...(entity.name === undefined ? {} : { name: entity.name }),
+        holderId: observed.transfer.toHolderId ?? null,
         locationId: observed.transfer.toLocationId ?? null,
         ...(observed.description === undefined ? {} : { lastObservedDescription: observed.description }),
         note: '这是你上次观察到的交互结果；目前不能确认该物品的归属或位置。' })

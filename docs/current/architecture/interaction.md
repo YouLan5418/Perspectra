@@ -36,6 +36,14 @@ NPC 的发布范围可选 `scene_public`（公开）、`direct`（仅指定对�
 
 真实模型验证：初次默认端口 8045 拒绝连接；按用户提供的 `127.0.0.1:8046` 使用 `gemini-3.7-flash` 与 prototype-g1，在新 `.tmp/ordered-expression-live-1791441609114/` 目录完成两轮输入。第一轮同行者实际发布 speech → narration → speech → narration，第二轮发布 narration → speech → narration → speech；事件与玩家 transcript 均保留类型、原文及顺序。共 6 次模型调用、3 次发布和 1 次弃权。第二轮两次取钥匙尝试均被 `INVALID_INTERACTION_PARAMETERS` 拒绝（最终请求的 definitionRef.version 为字符串 `"1"`），没有物品转移事件；角色收到拒绝后继续表达，没有宣称取得钥匙。因此已验证交替表达及拒绝后的续写，未验证成功执行交互后的续写，也不代表长期试玩或任意叙事越权均已验收。证据见该目录 `evidence.json` 与 `world.sqlite`。本轮未重建桌面发行包，未修改默认服务端口。
 
+## 物品 Context 边界提示
+
+2026-10-17 核对：例如角色已获授权看到钥匙由玩家保管，最终模型文本会提醒“当前不由你保管”，避免把取出或转交保管直接描写成已完成。角色自己保管时提示转交仍需交互成功；`lastObserved` 只提示当前归属和位置未确认。误认、说谎、回忆、假设、尝试及普通接触仍允许。
+
+[物品投影](../../../packages/application/src/character-visible-items.ts)只给已有授权行补上作者定义的名称；[模型文本](../../../packages/provider-chat/src/character-context-text.ts)在副本中添加提示，不从玩家提及生成新的物品行或否定事实，不泄露未观察到的持有人，不把提示写成观察、记忆来源或权威事件。没有新状态机制、额外模型调用或语义审查阶段，规则与事件仍负责裁定保管变化。
+
+[物品边界回归](../../../tests/prototype/item-narrative-boundaries.test.ts)覆盖当前保管、交互后刷新、秘密转移、旧观察和错认保留，并检查渲染不修改原请求。自动化不能证明任意自然语言绝不越权；本次未重跑真实模型对照或重建发行包。此前的 [Narrative Guardian 影子实验已归档](../../archive/narrative-guardian-shadow-20261017.md)，当前宿主不再接入该审查器；物品提示独立工作。
+
 ## 当前自由度与限制
 
 ### 2026-10-12：普通角色体验衔接实验
