@@ -24,7 +24,7 @@
 | --- | --- | --- |
 | [contracts](../../../packages/contracts) | 共用数据类型、ID、动作与事件约定 | [ID](../../../packages/contracts/src/ids.ts)、[表达片段](../../../packages/contracts/src/expression.ts)；定义形状，不执行模型 |
 | [application](../../../packages/application) | 连接输入、上下文、角色处理和世界执行 | [单角色处理](../../../packages/application/src/prototype-character-turn.ts)、[有界调度](../../../packages/application/src/prototype-activation-cycle.ts)、[WorldApplication](../../../packages/application/src/world-application.ts)；同时保留旧 Round／Reaction 实现 |
-| [kernel](../../../packages/kernel) | 世界规则、行动裁定与启动 | [规则注册](../../../packages/kernel/src/rulebook-registry.ts)、[WorldKernel](../../../packages/kernel/src/world-kernel.ts)；不负责角色写台词 |
+| [kernel](../../../packages/kernel) | 世界规则、行动裁定、场景事实读取与启动 | [规则注册](../../../packages/kernel/src/rulebook-registry.ts)、[WorldKernel](../../../packages/kernel/src/world-kernel.ts)；不负责角色写台词 |
 | [store-sqlite](../../../packages/store-sqlite) | 事件存取、原子提交、角色视图和相关持久化 | [WorldStore](../../../packages/store-sqlite/src/world-store.ts)、[CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts) |
 | [memory](../../../packages/memory) | 原生角色记忆与认知上下文 | [上下文服务](../../../packages/memory/src/cognitive-context.ts)、[本地记忆](../../../packages/memory/src/local-memory.ts)；Python Core 不在此包 |
 | [provider-chat](../../../packages/provider-chat) | 模型协议、角色决策请求、预设和请求检查 | [角色协议](../../../packages/provider-chat/src/prototype-turn.ts)、[接口适配](../../../packages/provider-chat/src/protocol.ts)、[上下文文本](../../../packages/provider-chat/src/character-context-text.ts) |

@@ -67,7 +67,10 @@ export async function decideActivityFormat(call: ChatCall, decide: (call: ChatCa
   }
   const revised: ChatCall = { ...call, schema: numericBounds(retrySchema) as WorldJsonObject,
     messages: [...call.messages, { role: 'system', content:
-    '上一次返回不符合本次工具 JSON schema。请重新选择一个合法分支；perform 只含 decision、actionType、parameters；对白属于 publish。'
+      (validate.errors?.some(issue => (issue.instancePath.includes('/addresseeIds') && issue.keyword === 'enum')
+        || (issue.keyword === 'additionalProperties' && issue.params.additionalProperty === 'addresseeIds'))
+        ? '指定收件人不在当前可交流范围，上一次表达没有发表，也没有传达给对方。只能使用当前场景列出的收件人。\n' : '')
+      + '上一次返回不符合本次工具 JSON schema。请重新选择一个合法分支；perform 只含 decision、actionType、parameters；对白属于 publish。'
     + 'integer/number 字段必须返回 JSON 数值，不能用带引号的字符串代替；尤其 definitionRef.version 和 arguments.revision。'
     + '不改变上下文、可用操作或剩余预算，不预先声称执行成功。格式错误：' + JSON.stringify(issues) }] }
   const second = await decide(revised)

@@ -5,6 +5,30 @@ import { SubmitActionsValidator } from '../../packages/agents/src/submit-actions
 import { brandId, interactionPackageDescription } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
+import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
+import type { WorldEventDraft } from '@harness-world/contracts'
+
+it.each(['direct', 'private'])('rejects every recipient of %s speech when any target is unreachable', scope => {
+  const world = frozenInteractionWorld(), rules = new SpeakMoveRulebook()
+  const speak = (events: readonly WorldEventDraft[], addresseeIds = ['character:npc']) => rules.resolve(
+    world.manifest, events, 'character:player', { actionType: 'speak', parameters: { text: '未送达的秘密', scope, addresseeIds } })
+  expect(speak(world.genesisEvents).status).toBe('accepted')
+  const unavailable: WorldEventDraft[][] = [
+    [{ eventType: 'character.moved', eventVersion: 1, data: { characterId: 'character:npc', toLocationId: 'location:next' } }],
+    [{ eventType: 'scene.member_left', eventVersion: 1, data: { sceneId: 'scene:room', characterId: 'character:npc' } }],
+    [{ eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: 'character:npc', lifecycleState: 'departed' } }],
+    [{ eventType: 'visibility.upsert', eventVersion: 1, data: { id: 'hidden-npc', value: { sceneId: 'scene:room', observerId: 'character:npc', visible: false } } }],
+  ]
+  for (const extra of unavailable) {
+    const prefix = [...world.genesisEvents, ...extra]
+    for (const recipients of [['character:npc'], ['character:bob', 'character:npc']]) {
+      const result = speak(prefix, recipients)
+      expect(result).toMatchObject({ status: 'rejected', reason: 'SPEECH_RECIPIENT_UNREACHABLE', observationScope: { scope: 'self' } })
+      expect(result.events.map(event => event.eventType)).toEqual(['action.rejected'])
+      expect(JSON.stringify(result)).not.toContain('未送达的秘密')
+    }
+  }
+})
 
 it('publishes silent expression without granting movement, possession, or a new observation scope', async () => {
   const pack = await compileWorldPackSource(resolve('examples/world-packs/prototype-g1'), [
