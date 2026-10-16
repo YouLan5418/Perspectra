@@ -14,6 +14,8 @@ export class PrototypeInvalidOutputError extends TypeError {}
 export class PrototypePresetError extends Error {}
 
 export interface PrototypeTurnRequest {
+  /** Host diagnostic correlation only; not included in model-visible context. */
+  readonly decisionId?: string
   readonly context: WorldJsonObject
   readonly continuation: boolean
   readonly canPerform?: boolean
@@ -98,6 +100,7 @@ export class PrototypeCharacterTurn {
     readonly executionResult?: (input: Parameters<typeof characterExecutionResult>[0]) =>
       ReturnType<typeof characterExecutionResult> & { readonly observationMetadata?: WorldJsonObject }
     readonly onRecallShadow?: (observation: PrototypeRecallShadowObservation) => void
+    readonly onTrace?: (kind: 'action' | 'turn' | 'recall', characterId: string, decisionId: string | null, data: WorldJsonObject) => void
     /** Host projection runs after the complete action transaction, never on model output. */
     readonly onCommitted?: () => Promise<void>
     /** With Core, preserve the authorized tail after its successfully archived prefix. */
@@ -166,12 +169,17 @@ export class PrototypeCharacterTurn {
     let modelFailure: PrototypeTurnResult['failure']
     let asOfWorldSeq: number | undefined
     let performedAttempts = 0, afterPublication = false
-    const done = (status: PrototypeTurnResult['status']): PrototypeTurnResult => ({ status, calls,
+    let decisionId: string | null = null
+    const done = (status: PrototypeTurnResult['status']): PrototypeTurnResult => {
+      this.options.onTrace?.('turn',characterId,decisionId,{status,calls,...(status !== 'failed' || modelFailure === undefined ? {} : {failure:modelFailure})})
+      return { status, calls,
       ...(asOfWorldSeq === undefined ? {} : { asOfWorldSeq }),
-      ...(performResult === undefined ? {} : { performResult }) })
+      ...(performResult === undefined ? {} : { performResult }) }
+    }
     const decide = (request: PrototypeTurnRequest) => {
+      decisionId = randomUUID()
       let repaired = false
-      return this.options.decide(request, signal, () => {
+      return this.options.decide({...request,decisionId}, signal, () => {
         signal.throwIfAborted()
         if (repaired || calls >= (options.maxModelCalls ?? Infinity)) return false
         repaired = true
@@ -328,6 +336,7 @@ export class PrototypeCharacterTurn {
           // A search result is a bounded, attributed selection of this character's sources, not a verdict.
           const recallEvidence: WorldJsonObject = { query: decision.query, memories,
             note: '仅是你可访问记忆中的相关证据；他人发言不证明其内容，未找到也不证明事件未发生。' }
+          this.options.onTrace?.('recall',characterId,decisionId,{asOfWorldSeq:head.headSeq,...recallEvidence})
           if (calls >= (options.maxModelCalls ?? Infinity)) return done('budget_exhausted')
           calls += 1
           modelFailure = 'provider_failed'
@@ -400,6 +409,7 @@ export class PrototypeCharacterTurn {
         this.options.validateDecision?.(decision, request)
         const roundId = brandId(`${ownerId}:${step}${beforeAction!==undefined&&index===0?':before':''}`, 'InteractionRoundId')
         const actionId = `${roundId}:action`
+        const actionStartedAt = new Date().toISOString(), actionStarted = performance.now()
         const resolution = rules.resolve({ ...ruleContext, action, roundId, actionId })
         const events: WorldEventDraft[] = [...resolution.events]
         if (resolution.status === 'accepted' && action.actionType === 'move') {
@@ -472,6 +482,10 @@ export class PrototypeCharacterTurn {
             eventRefs: resolution.events.map((_, index) => head.headSeq + index + 1) }
         }
         ownPrefix=this.options.store.head(this.options.address).headSeq
+        this.options.onTrace?.('action',characterId,decisionId,{actionId,action:action as unknown as WorldJsonObject,
+          status:resolution.status,reason:resolution.reason ?? null,afterSeq:head.headSeq,headSeq:ownPrefix,
+          startedAt:actionStartedAt,durationMs:Math.round(performance.now()-actionStarted),
+          eventRefs:events.map((_,index)=>head.headSeq+index+1)})
         await this.options.onCommitted?.()
         options.onCommitted?.(asOfWorldSeq!, ownPrefix)
         lastStatus=resolution.status

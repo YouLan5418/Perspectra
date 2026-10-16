@@ -20,7 +20,7 @@ it('is opt-in, bounded, detached, and clears private requests on disable', () =>
  inspector.finish(6,'ok',1,{usage:{prompt_tokens:10}})
  expect(inspector.snapshot().requests).toEqual([])
 })
-it('captures the exact transport body after generation overrides and prompt injection, without headers or response text', async () => {
+it('captures exact requests, preset sources and returned model content, without headers or credentials', async () => {
  const inspector=new RequestInspector();inspector.configure(true)
  let sent:unknown
  const provider=createChatProvider({endpoint:new URL('http://localhost/test'),model:'m',apiKey:'TEST_SECRET',inspector,
@@ -37,7 +37,9 @@ it('captures the exact transport body after generation overrides and prompt inje
  expect(capture.contextParts.find(p=>p.name==='memories')?.content).toBe('["PRIVATE_MEMORY"]')
  expect(capture).toMatchObject({continuation:true,status:'ok',usage:{inputTokens:101,outputTokens:9,totalTokens:110}})
  expect(JSON.stringify(capture)).not.toContain('TEST_SECRET')
- expect(JSON.stringify(capture)).not.toContain('RESPONSE_PRIVATE')
+ expect(capture.response).toMatchObject({content:['RESPONSE_PRIVATE'],thinkingStatus:'not_provided'})
+ expect(capture.preset?.value).toMatchObject({prompt:'附加规则',temperature:0.8})
+ expect(capture.messages.at(-1)?.source).toMatchObject({nodeId:'style',position:'afterContext'})
 })
 it('records transport failure without copying the endpoint error body', async () => {
  const inspector=new RequestInspector();inspector.configure(true)
@@ -50,6 +52,15 @@ it('omits oversized bodies explicitly', () => {
  const inspector=new RequestInspector();inspector.configure(true)
  inspector.begin({...body,messages:[{role:'user',content:'x'.repeat(1_000_001)}]},info)
  expect(inspector.snapshot().requests[0]).toMatchObject({body:null,messages:[],omitted:expect.any(String)})
+})
+it('retains returned thinking for invalid envelopes without persisting opaque response fields',async()=>{
+ const inspector=new RequestInspector();inspector.configure(true)
+ const provider=createChatProvider({endpoint:new URL('http://localhost/test'),model:'m',inspector,
+  fetch:async()=>new Response(JSON.stringify({choices:[{message:{reasoning_content:'RETURNED_THOUGHT',signature:'OPAQUE_SECRET'}}],headers:{authorization:'HEADER_SECRET'}}))})
+ await expect(provider.decide({messages:body.messages,schema:{},description:'x',inspection:info},new AbortController().signal)).rejects.toThrow('no payload')
+ expect(inspector.snapshot().requests[0]).toMatchObject({status:'failed',httpStatus:200,failure:'invalid_envelope',response:{thinkingStatus:'provided',thinking:[{kind:'text',text:'RETURNED_THOUGHT'}]}})
+ expect(JSON.stringify(inspector.snapshot())).not.toContain('OPAQUE_SECRET')
+ expect(JSON.stringify(inspector.snapshot())).not.toContain('HEADER_SECRET')
 })
 it('requires the host token and exposes no Inspector in Frontend API', async () => {
  const inspector=new RequestInspector();inspector.configure(true);inspector.begin(body,info)

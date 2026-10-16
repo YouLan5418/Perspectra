@@ -36,7 +36,7 @@ for (const protocol of ['anthropic','google'] as const) {
     expect(inspected.model).toBe('chosen')
     expect(inspected.messages[1]!.source.source).toBe('context')
     expect(inspected.usage).toMatchObject({inputTokens:12,outputTokens:5})
-    expect(JSON.stringify(inspected)).not.toContain('private reasoning')
+    expect(inspected.response?.thinking).toEqual([{kind:protocol === 'google' ? 'summary' : 'text',text:'private reasoning'}])
     expect(JSON.stringify(inspected)).not.toContain('secret')
   })
   it(`${protocol}: cancellation, HTTP failures and unsupported prefill cannot produce a decision`, async () => {

@@ -1,4 +1,6 @@
 import type { ThinkingLevel } from '../../packages/provider-chat/src/thinking.ts'
+import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
+import { creatorHistory, creatorHistoryQuery, type CreatorHistoryQuery } from './creator-history.ts'
 import { creatorDebugQuery, type CreatorDebugQuery, type CreatorDebugSnapshot } from './creator-debug.ts'
 import { currentEntityState, currentCharacterLifecycle } from '../../packages/kernel/src/rulebook.ts'
 import { currentSceneStates } from '../../packages/kernel/src/interactions.ts'
@@ -10,6 +12,7 @@ import { PrototypePresetError } from '../../packages/application/src/prototype-c
 import { saveStoryNode, readStoryNodes } from '../../desktop/story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
 import { RequestInspector } from '../../packages/provider-chat/src/request-inspector.ts'
+import type { PresetBaseSource } from '../../packages/provider-chat/src/request-inspector.ts'
 import { presetCall, presetContext, presetOutput, presetDisplay } from '../../packages/provider-chat/src/preset-runtime.ts'
 import { rolePresetMapping, characterPreset, type RolePreset, type RolePresetMapping } from '../../packages/provider-chat/src/preset.ts'
 import { PlaytestMemoryCore, type MemoryContextBudget, type MemoryBuildOptions } from './playtest-memory-core.ts'
@@ -24,7 +27,7 @@ import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
 import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { resolve } from 'node:path'
+import { resolve, relative, basename } from 'node:path'
 import { SceneDecisionService, WorldApplication } from '@harness-world/application'
 import { brandId, interactionPackageDescription, RECALL_KEYWORD_TOKENIZER_ID,
   type CharacterId, type WorldJsonObject,
@@ -50,6 +53,7 @@ export interface FrozenPlaytestOptions {
   readonly provider: 'local' | 'deepseek' | 'ollama'
   readonly model?: string
   readonly preset?: RolePreset
+  readonly presetBaseSource?: PresetBaseSource
   readonly presetMapping?: RolePresetMapping
   readonly intentModel?: string
   /** The Host's Secret, from the environment. It is never written to the data directory. */
@@ -120,8 +124,25 @@ export function providerFailureNotice(httpStatus: number | undefined): string {
 export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   readonly #worldVersion: string
   readonly #options: FrozenPlaytestOptions
-  readonly #inspector = new RequestInspector()
-  requestInspection(enabled?: boolean) { return enabled === undefined ? this.#inspector.snapshot() : this.#inspector.configure(enabled) }
+  readonly #records: CreatorRecords
+  readonly #inspector: RequestInspector
+  requestInspection(enabled?: boolean) {
+    if (enabled === undefined) return this.#inspector.snapshot()
+    this.#records.configure(enabled)
+    return this.#inspector.configure(enabled)
+  }
+  creatorRecords(query: CreatorRecordsQuery = {}) { return this.#records.query(query,this.#inspector.enabled) }
+  inheritCreatorBase(baseId: string, branchId: string): void {this.#records.inheritBase(baseId,branchId)}
+  creatorHistory(input: CreatorHistoryQuery = {}) {
+    if (this.#closing) throw new TypeError('运行实例已关闭')
+    const query = creatorHistoryQuery(input as Record<string,unknown>)
+    if (query.characterId !== undefined && !this.#names.has(query.characterId)) throw new TypeError('未知角色')
+    const store = new WorldStore(resolve(this.#dataDirectory,'world.sqlite'))
+    try {
+      if (query.entityId !== undefined && currentEntityState(store.readEvents(this.#address),query.entityId) === undefined) throw new TypeError('未知物品')
+      return {...creatorHistory(store,this.#address,this.#worldVersion,query),scope:structuredClone(this.#records.scope)}
+    } finally {store.close()}
+  }
   creatorDebug(input: CreatorDebugQuery = {}): CreatorDebugSnapshot {
     if (this.#closing) throw new TypeError('运行实例已关闭')
     const query = creatorDebugQuery(input as Record<string, unknown>)
@@ -152,8 +173,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       })
       const selectedEvents = query.afterSeq === undefined ? events.slice(-limit) : events.filter(event => event.seq > query.afterSeq!).slice(0, limit)
       const nextAfterSeq = selectedEvents.at(-1)?.seq ?? query.afterSeq ?? head.headSeq
-      const result: CreatorDebugSnapshot = { capturedAt: new Date().toISOString(), address: this.#address, worldVersion: this.#worldVersion,
-        headSeq: head.headSeq, tick: head.tick, busy: this.#busy, paused: this.#paused,
+      const result: CreatorDebugSnapshot = { capturedAt: new Date().toISOString(), address: this.#address, worldVersion: this.#worldVersion,title:this.#title,
+        headSeq: head.headSeq, tick: head.tick, packHash:this.#packHash,storyParentNodeId:this.#storyParentNodeId,busy: this.#busy, paused: this.#paused,
         captureEnabled: this.#inspector.enabled, characters, entities,
         variables: this.#variables?.debugSnapshot() ?? null, activities: this.#activity?.debugStates(events) ?? [],
         events: { items: selectedEvents, nextAfterSeq, hasMore: nextAfterSeq < head.headSeq },
@@ -239,6 +260,11 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     this.#worldVersion = options.worldVersion ?? randomUUID()
     this.#address = compiled.manifest.address
     this.#dataDirectory = options.dataDirectory
+    const logicalRoot = options.logicalDirectory ?? options.dataDirectory
+    this.#records = new CreatorRecords(logicalRoot,{address:this.#address,worldVersion:this.#worldVersion,
+      branchId:relative(logicalRoot,options.dataDirectory).replaceAll('\\','/') || '.',runId:randomUUID()})
+    this.#inspector = new RequestInspector(request => this.#records.save(request))
+    this.#inspector.configure(this.#records.captureEnabled())
     this.#playSettings = playSettings(options.playSettings??{})
     const settings=this.#playSettings
     this.#tuning = options.tuning ?? {...DEFAULT_PLAYTEST_TUNING,maximumWaves:settings.maximumWaves,maximumNpcCalls:settings.maximumNpcCalls,maximumCallsPerCharacter:settings.maximumCallsPerCharacter,reactionDeadlineSeconds:settings.reactionDeadlineSeconds}
@@ -285,6 +311,10 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     const effectivePresets=new Map(characters.map(c=>[String(c.actorId),characterPreset(options.preset??{},mapping,c.actorId)]))
     this.#effectivePresets=effectivePresets
     const roleProviders=new Map(characters.map(c=>[String(c.actorId),createChatProvider({...providerOptions,preset:effectivePresets.get(c.actorId)!,
+      presetOrigin:Object.hasOwn(mapping.characters??{},c.actorId) ? {scope:'character',characterId:String(c.actorId),name:'角色专属预设'}
+        : mapping.memberships?.[c.actorId] ? {scope:'group',characterId:String(c.actorId),groupId:mapping.memberships[c.actorId]!,name:mapping.groups![mapping.memberships[c.actorId]!]!.name}
+          : {scope:'base',characterId:String(c.actorId),name:'默认预设',
+            base:options.presetBaseSource ?? {mode:'explicit',layers:[{name:'运行配置',value:effectivePresets.get(c.actorId)!}]}},
       onCall: observation => { onCall(observation); this.#roleCalls.set(String(c.actorId), observation) }})]))
     this.#characterIds = characters.map(character => character.actorId)
     if (options.memoryCore) {
@@ -339,6 +369,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         request.context.expressionPolicy as WorldJsonObject | undefined, settings.publicationCharacters)
       const raw = await decideActivityFormat(prepared, decide, signal, prototypeTurnCall(request).schema,
         request.context.activity === undefined && simulated === undefined ? reserveFormatRetry ?? (() => false) : undefined)
+      if (this.#inspector.enabled) this.#records.trace('decision',characterId,request.decisionId ?? null,
+        {source:simulated === undefined ? 'model' : 'script',value:raw as WorldJsonObject})
       this.#memoryCore?.recordDecision(request, raw)
       signal.throwIfAborted()
       if (this.#closing || this.#abortedWork) throw new Error('角色任务世界版本已失效。')
@@ -603,6 +635,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     await this.settleRound()
     const aliases = this.#memoryCore?.snapshotAliases(this.#characterIds) ?? {}
     await snapshotTail(this.#dataDirectory, target, this.#address, aliases)
+    this.#records.snapshotBase(basename(target))
   }
   async refreshMemory(): Promise<PlaytestState> {
     if (this.#savingNode || this.#closing) throw new PlaytestBusyError('正在保存节点。')
@@ -749,6 +782,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         ...(this.#memoryCore === undefined ? { memory: memory! } : {}),
         rulebooks: autonomous ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address)) : base,
         decide: this.#decideContinuation,
+        onTrace:(kind,characterId,decisionId,data) => { if(this.#inspector.enabled)this.#records.trace(kind,characterId,decisionId,data) },
         continueAfterPublish: this.#options.continueAfterPublish===true && this.#variables===undefined
           && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
         beforeActionExpression: this.#options.beforeActionExpression===true && this.#variables===undefined

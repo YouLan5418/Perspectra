@@ -1,4 +1,6 @@
 import type { InspectorSnapshot } from '../../packages/provider-chat/src/request-inspector.ts'
+import { creatorRecordsQuery, type CreatorRecordsQuery, type CreatorRecordsSnapshot } from './creator-records.ts'
+import { creatorHistoryQuery, type CreatorHistoryQuery, type CreatorHistorySnapshot } from './creator-history.ts'
 import { creatorDebugQuery, type CreatorDebugQuery, type CreatorDebugSnapshot } from './creator-debug.ts'
 import { frontendAsset, type FrontendPolicy } from './playtest-frontend-assets.ts'
 import { projectPlayerView, playerViewPatch, frontendActionRequest, FrontendActions } from '../../packages/frontend/src/player-view.ts'
@@ -48,6 +50,8 @@ export interface PlaytestRuntime {
   cancelRegeneration?(): Promise<PlaytestState>
   requestInspection?(enabled?: boolean): InspectorSnapshot
   creatorDebug?(query?: CreatorDebugQuery): CreatorDebugSnapshot
+  creatorRecords?(query?: CreatorRecordsQuery): CreatorRecordsSnapshot
+  creatorHistory?(query?: CreatorHistoryQuery): CreatorHistorySnapshot
   state(): Promise<PlaytestState>
   submit(text: string): Promise<PlaytestState>
   perform?(action: PlaytestAction): Promise<PlaytestState>
@@ -254,6 +258,14 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
         if (!runtime.creatorDebug) { json(response,404,{error:'创作者调试不可用'}); return }
         if ([...url.searchParams.keys()].some(key => url.searchParams.getAll(key).length !== 1)) throw new TypeError('调试查询字段不能重复')
         json(response,200,runtime.creatorDebug(creatorDebugQuery(Object.fromEntries(url.searchParams)))); return
+      }
+      if (['/api/creator-records','/api/creator-history'].includes(url.pathname) && request.method === 'GET') {
+        if ([...url.searchParams.keys()].some(key=>url.searchParams.getAll(key).length !== 1)) throw new TypeError('查询字段不能重复')
+        const query = Object.fromEntries(url.searchParams)
+        if (url.pathname === '/api/creator-records' && runtime.creatorRecords) json(response,200,runtime.creatorRecords(creatorRecordsQuery(query)))
+        else if (url.pathname === '/api/creator-history' && runtime.creatorHistory) json(response,200,runtime.creatorHistory(creatorHistoryQuery(query)))
+        else json(response,404,{error:'创作者查询不可用'})
+        return
       }
       if (request.method === 'GET' && url.pathname === '/api/state') {
         json(response, 200, await runtimeCall(() => runtime.state()))

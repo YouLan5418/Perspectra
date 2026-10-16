@@ -48,7 +48,20 @@ export class TailRoundRuntime {
   }
   get address() { return this.#runtime.address }
   get dataDirectory(): string { return resolve(this.options.dataDirectory, this.#selection.directory) }
-  requestInspection(enabled?: boolean) { return this.#runtime.requestInspection(enabled) }
+  requestInspection(enabled?: boolean) {
+    if (this.#closed || this.#regenerating || this.#interrupting) throw new PlaytestBusyError('请等待世界切换完成。')
+    return this.#runtime.requestInspection(enabled)
+  }
+  creatorRecords(query: import('./creator-records.ts').CreatorRecordsQuery = {}) {
+    if (this.#closed || this.#regenerating || this.#interrupting) throw new PlaytestBusyError('请等待世界切换完成。')
+    return this.#runtime.creatorRecords(query)
+  }
+  creatorHistory(query: import('./creator-history.ts').CreatorHistoryQuery = {}) {
+    if (this.#closed || this.#regenerating || this.#interrupting) throw new PlaytestBusyError('请等待世界切换完成。')
+    return {...this.#runtime.creatorHistory(query),selection:{worldVersion:this.#selection.version,
+      tailId:this.#selection.tail?.id ?? null,candidateId:this.#selection.tail?.selected ?? null,
+      candidateIds:this.#candidates().map(candidate=>candidate.id)}}
+  }
   creatorDebug(query: import('./creator-debug.ts').CreatorDebugQuery = {}) {
     if (this.#closed || this.#regenerating || this.#interrupting) throw new PlaytestBusyError('请等待世界切换完成。')
     return this.#runtime.creatorDebug(query)
@@ -173,6 +186,7 @@ export class TailRoundRuntime {
       const head = await this.#runtime.settleRound()
       if (head.headSeq !== tail.headSeq || head.tick !== tail.tick) throw new TypeError('末端回合之后已有新的世界变化。')
       restoreTail(join(this.options.dataDirectory,'.tail','bases',tail.base),resolve(this.options.dataDirectory,directory))
+      this.#runtime.inheritCreatorBase(tail.base,directory)
       const {shadowAudit: _shadow, ...isolatedOptions} = this.options
       const candidateOptions = { ...isolatedOptions, dataDirectory: resolve(this.options.dataDirectory,directory),
         logicalDirectory: this.options.dataDirectory, worldVersion: version, storyNodes: false, memoryShadow: false }

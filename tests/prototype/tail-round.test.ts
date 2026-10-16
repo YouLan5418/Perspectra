@@ -70,6 +70,38 @@ const actor=(input:WorldJsonObject)=>String(object(object(input.context).charact
 const tail=async(runtime:FrozenWorldPlaytestRuntime)=>(await runtime.state()).tailRound!.id!
 const regenerate=async(runtime:FrozenWorldPlaytestRuntime)=>runtime.regenerate(await tail(runtime),randomUUID())
 
+it('retains private creator records across candidate switches while keeping branches and exact action links separate',async()=>{
+  const f=await fixture(),runtime=f.runtime
+  runtime.requestInspection(true)
+  f.setDecision(input=>actor(input)==='character:companion' ? input.continuation ? {decision:'abstain'} : take() : {decision:'abstain'})
+  await runtime.submit('请拿钥匙。')
+  const base=readTailSelection(f.data)!.tail!.base
+  expect(readFileSync(join(f.data,'.tail','bases',base,'snapshot.json'),'utf8')).not.toContain('creator-debug')
+  const original=runtime.creatorRecords({kind:'action',characterId:'character:companion'})
+  expect(original.items.length).toBeGreaterThan(0)
+  const action=runtime.creatorRecords({recordId:original.items[0]!.id}).record!
+  const data=action.data as WorldJsonObject
+  const events=runtime.creatorHistory({entityId:'entity:brass-key',limit:100})
+  expect(events.items.some(item=>item.actionId===data.actionId)).toBe(true)
+  const requests=runtime.creatorRecords({kind:'request',decisionId:action.decisionId!})
+  expect(requests.items.length).toBeGreaterThan(0)
+  const oldTail=(await runtime.state()).tailRound!,oldCandidate=oldTail.candidateIds![0]!
+  f.setDecision(()=>({decision:'abstain'}))
+  await regenerate(runtime)
+  expect(runtime.requestInspection().enabled).toBe(true)
+  expect(runtime.creatorRecords().scope.branchId).not.toBe(original.scope.branchId)
+  expect(runtime.creatorRecords({recordId:action.id}).record).toBeNull()
+  expect(runtime.creatorRecords({recordId:action.id,branchId:original.scope.branchId}).record).toEqual(action)
+  expect(runtime.creatorHistory().selection?.candidateIds).toHaveLength(2)
+  await runtime.selectCandidate((await tail(runtime)),oldCandidate,randomUUID())
+  expect(runtime.creatorRecords({recordId:action.id}).record).toEqual(action)
+  expect(JSON.stringify(projectPlayerView(await runtime.state()))).not.toContain(action.id)
+  await runtime.submit('继续聊聊。')
+  await regenerate(runtime)
+  expect(runtime.creatorRecords({recordId:action.id}).record).toEqual(action)
+  expect(runtime.creatorRecords({recordId:action.id}).record?.scope.branchId).toBe(original.scope.branchId)
+})
+
 it('replaces all effects of the tail, keeps the old result, repeats from one base and survives reopen',async()=>{
   const f=await fixture(),runtime=f.runtime
   f.setDecision(input=>actor(input)==='character:companion' ? input.continuation ? { decision:'publish', segments: [{ type: 'speech', text: '旧回合独有暗号紫檀四号。' }] } : take() : {decision:'abstain'})

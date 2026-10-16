@@ -1,5 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import type { CreatorDebugQuery, CreatorDebugSnapshot } from '../../../../tests/experiments/creator-debug.ts'
+import type { CreatorRecordsQuery, CreatorRecordsSnapshot } from '../../../../tests/experiments/creator-records.ts'
+import type { CreatorHistoryQuery, CreatorHistorySnapshot } from '../../../../tests/experiments/creator-history.ts'
 import type { CoreSnapshot } from '../core-types.ts'
 export async function coreRequest(operation: string, data: Record<string, unknown> = {}): Promise<CoreSnapshot> {
   return invoke<CoreSnapshot>('launcher_request', { request: { operation, ...data } })
@@ -25,6 +27,12 @@ export async function inspectRequests(instanceId: string, enabled?: boolean): Pr
 }
 export async function inspectCreator(instanceId: string, query: CreatorDebugQuery = {}): Promise<CreatorDebugSnapshot> {
  return invoke('launcher_request', { request: { operation: 'creator-debug', instanceId, query } })
+}
+export async function inspectCreatorRecords(instanceId: string, query: CreatorRecordsQuery = {}): Promise<CreatorRecordsSnapshot> {
+ return invoke('launcher_request', {request:{operation:'creator-records',instanceId,query}})
+}
+export async function inspectCreatorHistory(instanceId: string, query: CreatorHistoryQuery = {}): Promise<CreatorHistorySnapshot> {
+ return invoke('launcher_request', {request:{operation:'creator-history',instanceId,query}})
 }
 
 export async function savePresetFile(text: string, name: string): Promise<boolean> {

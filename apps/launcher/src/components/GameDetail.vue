@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   Gauge,
+  LayoutList,
   ExternalLink,
   ChevronDown,
   Download,
@@ -26,7 +27,7 @@ import {
 } from '@lucide/vue'
 import { useLauncherStore } from '../stores/launcher.ts'
 
-defineEmits<{ model: []; preset: []; story: []; import: []; export: []; settings: [] }>()
+defineEmits<{ model: []; preset: []; story: []; import: []; export: []; settings: []; creator: [] }>()
 const store = useLauncherStore()
 const playSettingsOpen = ref(false)
 const frontendOpen = ref(false)
@@ -167,7 +168,7 @@ const thinkingLabel = { off: '关闭', low: '低', medium: '中', high: '高' } 
         <details class="advanced" :open="advancedOpen" @toggle="advancedOpen = ($event.target as HTMLDetailsElement).open">
           <summary>
             <span class="advanced-title">引擎与创作者工具</span>
-            <span class="advanced-caption">角色预设、请求探查、前端权限与调度预算</span>
+            <span class="advanced-caption">角色预设、请求探查、创作者控制台、前端权限与调度预算</span>
             <ChevronDown :size="16" class="advanced-chevron" />
           </summary>
           <div class="tool-grid">
@@ -187,6 +188,15 @@ const thinkingLabel = { off: '关闭', low: '低', medium: '中', high: '高' } 
                 <p>{{ inspectorAvailable ? '查看角色上下文装配与最终发送的请求' : '游戏运行后可查看角色上下文、预设展开与完整请求' }}</p>
               </div>
               <button class="link-button" :disabled="!inspectorAvailable" @click="inspectorOpen = true">查看<ArrowRight :size="14" /></button>
+            </div>
+
+            <div class="tool-tile">
+              <LayoutList :size="17" class="tool-icon" />
+              <div class="tool-copy">
+                <strong>创作者控制台<span v-if="inspectorAvailable" class="live-badge"><span class="pulse-light"></span>实时</span></strong>
+                <p>只读查看已提交对话与受众、行动裁定、物品流转，以及启用采集后的模型请求与思考</p>
+              </div>
+              <button class="link-button" @click="$emit('creator')">打开<ArrowRight :size="14" /></button>
             </div>
 
             <div v-if="store.real" class="tool-tile">
