@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, basename, sep } from 'node:path'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
@@ -19,10 +19,10 @@ afterEach(async () => {
   }
 })
 // Deterministic bridge verifies host authority/restoration; real Python retrieval is tested separately.
-const run: CoreRunner = async input => input.operation === 'build'
+const run = vi.fn<CoreRunner>(async input => input.operation === 'build'
   ? { archive: { scope: input.scope!, sources: input.sources!, facts: [], episodes: [], observations: [] },
     index: { scope: input.scope!, units: [], vectors: [] } }
-  : { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } }
+  : { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } })
 async function open(path: string, phone: boolean) {
   const r = await crossSceneRuntime(path, async request => {
     if (phone && (request.context.character as WorldJsonObject).characterId === friend && !request.continuation) {
@@ -64,11 +64,15 @@ it.each([false, true])('Core sources stay authorized and node rollback/share pre
   expect(child.memoryCore!.archivePrefix(friend)).toBe(prefix)
   expect(JSON.stringify(child.memoryCore!.snapshotArchives([friend]))).not.toContain('鸢尾')
   const archive = join(root, 'node.perspectra-story'); await exportStoryNode(sourcePath, node.id, archive, packPath)
-  expect(Object.keys((JSON.parse(readFileSync(archive, 'utf8')) as { files: object }).files)).not.toContain('core-memory.json')
+  const files = (JSON.parse(readFileSync(archive, 'utf8')) as { files: Record<string, string> }).files
+  expect(files).toHaveProperty('core-memory.json')
+  expect(JSON.parse(Buffer.from(files['core-memory.json']!, 'base64').toString('utf8'))).toEqual(archives)
+  const callsBeforeImport = run.mock.calls.length
   const imported = await importStoryNode(archive, join(root, 'receiver'), packPath, node.packHash)
   const receiver = await open(join(root, 'receiver', imported.id), phone)
-  expect(receiver.memoryCore!.archivePrefix(friend)).toBe(0)
-  await receiver.refreshMemory()
+  expect(run.mock.calls).toHaveLength(callsBeforeImport)
+  expect(receiver.memoryCore!.archivePrefix(friend)).toBe(prefix)
   expect(receiver.memoryCore!.snapshotArchives([friend, 'character:companion'])).toEqual(archives)
+  expect(JSON.stringify(receiver.memoryCore!.snapshotArchives([friend]))).not.toContain('鸢尾')
   expect(receiver.activities!.current()).toEqual(child.activities!.current())
 })

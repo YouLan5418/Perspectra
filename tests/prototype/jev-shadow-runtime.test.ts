@@ -2,14 +2,18 @@ import { createServer } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import { type ShadowRecord } from '../experiments/jev-shadow.ts'
 import { claimCriteria, type ClaimQuestion, type ClaimKind } from '../experiments/jev-shadow-claims-client.ts'
 
-it('the actual web runtime publishes while Jev is pending and has the same model calls, transcript and world results with shadow off/on', async () => {
+afterEach(() => vi.restoreAllMocks())
+
+it.each([0, 0.999])('Jev stays nonblocking and preserves calls, transcript and world results with fixed scheduling (%s)', async random => {
+  // Both arms must use the same role order; independent random shuffles can legitimately cost 3 or 4 calls.
+  vi.spyOn(Math, 'random').mockReturnValue(random)
   async function play(enabled: boolean) {
     const root = mkdtempSync(join(tmpdir(), 'jev-shadow-web-'))
     let calls = 0, performed = false
