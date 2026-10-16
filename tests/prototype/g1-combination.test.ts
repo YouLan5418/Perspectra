@@ -3,7 +3,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { currentCharacterRelations, currentEntityState, currentLocation } from '@harness-world/kernel'
+import { brandId, resolutionAuthority } from '@harness-world/contracts'
+import { createCoreRulebookRegistry, currentCharacterRelations, currentEntityState, currentLocation, type CompiledWorldManifest } from '@harness-world/kernel'
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 
@@ -16,6 +18,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
   const root = mkdtempSync(join(tmpdir(), 'prototype-g1-combination-'))
   let stage = 'hold'
   const used = new Set<string>()
+  const fixtureErrors: unknown[] = []
   const calls: { stage: string; actor: string; continuation: boolean;
     stimulus: readonly { content: { actionType?: string; actorId?: string; movement?: Record<string, unknown> } }[];
     memories: readonly { text: string; sourceMaxSeq?: number }[]; history: readonly {kind: string; content: unknown}[] }[] = []
@@ -23,8 +26,11 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
     let body = ''
     request.on('data', chunk => { body += String(chunk) })
     request.on('end', () => {
+      try {
       const wire = JSON.parse(body)
-      const input = JSON.parse(wire.messages.at(-1).content)
+      // A format retry appends a plain-language user message after the original JSON context.
+      const input = JSON.parse(wire.messages.findLast((message: { role: string; content: string }) =>
+        message.role === 'user' && message.content.trimStart().startsWith('{')).content)
       const actor = String(input.context.character.characterId)
       expect(input.context.locationId).toBe(input.context.scene.locationId)
       calls.push({ stage, actor, continuation: input.continuation, stimulus: input.context.stimulus,
@@ -58,6 +64,10 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
       }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
+      } catch (error) {
+        fixtureErrors.push(error)
+        response.writeHead(500).end('fixture failed')
+      }
     })
   })
   let runtime: FrozenWorldPlaytestRuntime | undefined
@@ -70,6 +80,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
     const submit = async (next: string, text: string) => {
       stage = next
       const state = await runtime!.submit(text)
+      expect(fixtureErrors).toEqual([])
       expect(state.error, `${next}: ${state.notice}`).toBe(false)
       return state
     }
@@ -103,9 +114,25 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
     expect(events().filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
     expect(calls.every(call => Array.isArray(call.history) && call.memories.every(memory =>
       !('sourceMaxSeq' in memory)))).toBe(true)
+    // The unavailable take is rejected by the strict model schema; its one correction abstains.
+    expect(calls.filter(call => call.stage === 'stale' && call.actor === 'character:friend')).toHaveLength(2)
     expect(events().some(event => event.eventType === 'action.resolved'
       && (event.data as Record<string, unknown>).actorId === 'character:friend'
-      && (event.data as Record<string, unknown>).accepted === false)).toBe(true)
+      && (event.data as Record<string, unknown>).actionType === 'interact')).toBe(false)
+    // A forged request must still fail execution authority if it bypasses model-side visibility.
+    const store = new WorldStore(resolve(root, 'world.sqlite'))
+    try {
+      const rules = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
+        .resolve('builtin:speak-move', 2, 'test', runtime.address)
+      const locked = store.readManifest(runtime.address)!
+      expect(rules.resolve({ manifest: locked.manifest as CompiledWorldManifest, manifestHash: locked.manifestHash,
+        asOfWorldSeq: store.head(runtime.address).headSeq, actionId: brandId('g1:forged-take', 'ActionId'),
+        resolutionAuthority: resolutionAuthority('agent', 'standard'),
+        events: store.readEvents(runtime.address), characterId: 'character:friend',
+        action: { actionType: keyAction.actionType, actionVersion: 1, parameters: keyAction.parameters } }))
+        .toMatchObject({ status: 'rejected', reason: 'PARTICIPANT_NOT_AUTHORIZED',
+          events: [{ eventType: 'action.rejected' }] })
+    } finally { store.close() }
 
     const movedState = await submit('move', '/act move {"locationId":"location:back-room"}')
     expect(currentLocation(events(), 'character:player')).toBe('location:back-room')
