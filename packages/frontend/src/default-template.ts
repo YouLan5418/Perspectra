@@ -6,24 +6,31 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
 <title>Perspectra 对话</title><link rel="stylesheet" href="/frontend/default.css"></head>
 <body><main>
   <div class="backdrop" aria-hidden="true"></div>
-  <header class="world-header"><div class="scene-heading"><div><p class="eyebrow">PERSPECTRA / SCENE</p><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><button id="history-toggle" type="button" aria-expanded="false">文字记录</button><button id="actions-toggle" type="button" aria-expanded="false">行动 <span id="action-count">0</span></button></nav></header>
+  <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><button id="history-toggle" type="button" aria-expanded="false">文字记录</button><button id="actions-toggle" type="button" aria-expanded="false">行动 <span id="action-count">0</span></button></nav></header>
   <div id="characters" aria-label="当前可见角色"></div>
   <p id="movement-toast" class="movement-toast" role="status" hidden></p>
   <section class="stage-bottom" aria-label="故事与对话">
-    <div class="dialogue-wrap" id="dialogue-wrap"><div class="dialogue-meta"><strong id="speaker" class="speaker-label">序幕</strong><span id="reading-count" class="reading-count"></span></div><button id="dialogue" class="dialogue" type="button" aria-label="阅读下一段">世界正在醒来……</button><div id="auto-progress" class="auto-progress" hidden><div id="auto-progress-bar" class="auto-progress-bar"></div></div><div class="dialogue-footer"><span id="continue-hint">点击对话框继续 · 空格推进 · 滚轮</span><button id="auto-read" type="button" aria-pressed="false">自动</button><button id="skip-read" type="button">跳到已提交末尾</button>      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
+    <div class="dialogue-wrap" id="dialogue-wrap"><div class="dialogue-meta"><strong id="speaker" class="speaker-label">序幕</strong><span id="reading-count" class="reading-count"></span></div><button id="dialogue" class="dialogue" type="button" aria-label="阅读下一段">世界正在醒来……</button><div id="auto-progress" class="auto-progress" hidden><div id="auto-progress-bar" class="auto-progress-bar"></div></div><div class="dialogue-footer"><span id="continue-hint">点击继续</span><button id="auto-read" type="button" aria-pressed="false">自动</button><button id="skip-read" type="button" title="跳到已经发生的最新内容">跳过</button>      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
 </div></div>
-<div class="feedback"><p id="notice" role="status"></p><button id="retry" class="secondary" type="button" hidden>重试同一操作</button></div>      <div class="composer" id="composer" hidden><div class="reply-context" id="reply-context" role="button" tabindex="0" title="点击返回对白"><span id="reply-speaker"></span><p id="reply-summary"></p></div><div class="audience-heading"><strong>发送消息</strong><span id="audience-badge">公开发言</span></div>
-        <fieldset class="audience-options"><legend class="visually-hidden">发言范围</legend>
-          <label><input type="radio" name="speech-scope" value="scene_public" checked>公开</label>
-          <label><input type="radio" name="speech-scope" value="direct">定向</label>
-          <label><input type="radio" name="speech-scope" value="private">私密</label>
-          <label><input type="radio" name="speech-scope" value="self">仅自己</label>
-        </fieldset>
-        <div id="recipient-panel" hidden><label for="speech-recipient">接收对象</label><select id="speech-recipient"></select><p id="recipient-hint" class="hint" hidden>当前没有可接收发言的角色。</p></div>
+<div class="feedback"><p id="notice" role="status"></p><button id="retry" class="secondary" type="button" hidden>重试同一操作</button></div>      <div class="composer" id="composer" hidden><div class="reply-context" id="reply-context" role="button" tabindex="0" title="点击返回对白"><span id="reply-speaker"></span><p id="reply-summary"></p></div>
+        <div class="composer-body"><div class="composer-main">
         <div id="expression-choices" class="expression-choices"></div><label class="visually-hidden" for="input">写下你的回应</label><textarea id="input" maxlength="2000" placeholder="说出你想对角色说的话……" rows="2"></textarea>
-        <details class="narration-composer" id="narration-panel"><summary>细节描写 <span>可选 · 与发言一起提交</span></summary><label class="visually-hidden" for="narration">细节描写</label><textarea id="narration" maxlength="2000" placeholder="描写你的动作、神态或语气。不会直接改变位置或物品归属。" rows="2"></textarea></details>
-        <p id="audience-preview" class="audience-preview" aria-live="polite"></p><div class="composer-footer"><span>Enter 发送 · Shift + Enter 换行</span><button id="send" type="button">发送 <span aria-hidden="true">↑</span></button></div>
-
+        <div class="composer-footer"><div class="audience-picker" id="audience-picker">
+          <button id="audience-button" class="audience-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="audience-menu"><span class="audience-dot" aria-hidden="true"></span><span id="audience-badge">公开发言</span><span class="chevron" aria-hidden="true">▴</span></button>
+          <div id="audience-menu" class="audience-menu" hidden>
+            <fieldset class="audience-options"><legend>谁能听到这句话</legend>
+              <label data-tip="当前场景里有权观察的角色都会收到完整内容。"><input type="radio" name="speech-scope" value="scene_public" checked><span>公开</span><small>在场的人都能听到</small></label>
+              <label data-tip="只有选定的角色收到内容，其他角色不会观察到这次发言。"><input type="radio" name="speech-scope" value="direct"><span>定向</span><small>只说给一个人</small></label>
+              <label data-tip="只有选定的角色收到内容；其他有权观察的角色只知道你们在私下交谈。"><input type="radio" name="speech-scope" value="private"><span>私密</span><small>悄悄话，旁人只看到在交谈</small></label>
+              <label data-tip="只留给你自己，不会传播给任何角色。"><input type="radio" name="speech-scope" value="self"><span>仅自己</span><small>不让任何角色知道</small></label>
+            </fieldset>
+          </div>
+        </div>
+        <div id="recipient-panel" hidden><label for="speech-recipient">对</label><select id="speech-recipient"></select><p id="recipient-hint" class="hint" hidden>当前没有可接收发言的角色。</p></div>
+<details class="narration-composer" id="narration-panel"><summary title="描写你的动作、神态或语气（可选），与发言一起发送">描写</summary><label class="visually-hidden" for="narration">细节描写</label><textarea id="narration" maxlength="2000" placeholder="动作、神态或语气（可选）" rows="1" title="不会直接改变位置或物品归属"></textarea></details>
+        <span class="composer-keys">Enter 发送 · Shift+Enter 换行</span><button id="send" type="button">发送 <span aria-hidden="true">↑</span></button></div>
+        <p id="audience-preview" class="visually-hidden" aria-live="polite"></p>
+        </div><div id="quick-actions" class="quick-actions" role="group" aria-label="可以尝试的行动" hidden></div></div>
       </div>
   </section>
   <section id="history-panel" class="panel history-panel" aria-label="文字记录" hidden><div class="panel-header"><span>文字记录 · <span id="player"></span></span><button id="history-close" type="button" aria-label="关闭文字记录">×</button></div><section id="history" aria-label="玩家可见对话记录"></section><button id="latest" class="latest secondary" type="button" hidden>回到最新对话 ↓</button></section>
@@ -53,7 +60,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    node('recipient-hint').hidden=!!latest?.scene?.recipients?.length;
    const name=select.value?select.selectedOptions[0].textContent:'指定角色';
    node('audience-badge').textContent=({scene_public:'公开发言',direct:'定向发言',private:'私密交流',self:'自我表达'})[scope];
-   node('audience-preview').textContent=({scene_public:'发送效果：当前场景有权观察的角色将收到完整内容。',direct:'发送效果：只有 '+name+' 收到内容，其他角色不会获得这次发言的观察。',private:'发送效果：只有 '+name+' 收到内容，其他有权观察的角色仅知道发生了私密交流。',self:'发送效果：只有玩家自己保留这段表达，不会向其他角色传播。'})[scope];
+   const preview=({scene_public:'发送效果：当前场景有权观察的角色将收到完整内容。',direct:'发送效果：只有 '+name+' 收到内容，其他角色不会获得这次发言的观察。',private:'发送效果：只有 '+name+' 收到内容，其他有权观察的角色仅知道发生了私密交流。',self:'发送效果：只有玩家自己保留这段表达，不会向其他角色传播。'})[scope];
+   node('audience-preview').textContent=preview;node('audience-button').title=preview;
  }
  function renderRecipients(view){
    const select=node('speech-recipient'),previous=select.value;
@@ -69,6 +77,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const actionDisabled=readingBlocked||posting||!connected||!['ready','error'].includes(latest?.status);
    node('send').disabled=disabled||(policy.speech!=='free'&&!policy.narration)||!((policy.speech==='free'&&node('input').value.trim())||(policy.narration&&node('narration').value.trim()))||((speechScope()==='direct'||speechScope()==='private')&&!node('speech-recipient').value);
    for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.disabled=disabled;
+   node('audience-button').disabled=disabled;if(disabled)audienceMenu(false);
    node('speech-recipient').disabled=disabled||!latest?.scene?.recipients?.length;
    node('input').disabled=disabled||policy.speech!=='free';node('input').hidden=policy.speech!=='free';node('narration').disabled=disabled||!policy.narration;node('narration-panel').hidden=!policy.narration;
    for(const button of node('expression-choices').querySelectorAll('button'))button.disabled=disabled||(['direct','private'].includes(speechScope())&&!node('speech-recipient').value);
@@ -82,9 +91,10 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    node('actions-toggle').disabled=actionDisabled;
    if(actionDisabled)node('action-panel').hidden=true;
    node('actions-toggle').setAttribute('aria-expanded',String(!node('action-panel').hidden));
-   node('continue-hint').textContent=readingBlocked?'点击对话框继续 · 空格推进 · 滚轮':latest?.status==='busy'?'等待后续处理；新结果到达后继续阅读':canReply?'已读完 · 点击对话框开始回应 · 空格 / Enter':'已读完 · 可以选择行动';
+   node('continue-hint').textContent=readingBlocked?'点击或按空格继续 · 上滚查看记录':latest?.status==='busy'?'角色还在回应，新内容到达后继续':canReply?'轮到你了 · 点击这里回应':'已读完 · 可以选择行动';
    for(const button of node('actions').querySelectorAll('button'))button.disabled=actionDisabled||button.dataset.unavailable==='true';
    for(const picker of node('actions').querySelectorAll('select'))picker.disabled=actionDisabled;
+   for(const button of node('quick-actions').querySelectorAll('button[data-option]'))button.disabled=actionDisabled;
   const retryAllowed=['ready','error'].includes(latest?.status)||(pending?.method==='speak'&&latest?.canInterrupt===true);
   node('retry').hidden=!pending;node('retry').disabled=posting||!connected||!retryAllowed;
    parent.postMessage({type:'frontend-reading',pending:readingBlocked,historyOpen:!node('history-panel').hidden,mode,historySignature:JSON.stringify((latest?.history||[]).map(line=>[line.seq,line.speaker,line.text,line.segments]))},'*');
@@ -112,6 +122,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    latest=view;renderRecipients(view);const hadPending=playback.pending();playback.update(view.history);if(!hadPending&&playback.pending())composerExpanded=false;renderStage();
    const expression=view.expression||{speech:'free',speechChoices:[],narration:true};
    if(JSON.stringify(expression)!==expressionKey){expressionKey=JSON.stringify(expression);node('expression-choices').replaceChildren();if(expression.speech==='choices')for(const text of expression.speechChoices){const button=document.createElement('button');button.type='button';button.textContent=text;button.onclick=()=>send('speak',{text,scope:speechScope(),addresseeIds:['direct','private'].includes(speechScope())?[node('speech-recipient').value]:[]});node('expression-choices').append(button)}}
+   document.documentElement.dataset.palette=['sakura','lamp','moon','forest'].includes(view.settings?.palette)?view.settings.palette:'sakura';
    const reading=view.settings?.reading||{fontSize:17,lineHeight:1.9,autoFollow:true};
    document.documentElement.style.setProperty('--fs-story',reading.fontSize+'px');document.documentElement.style.setProperty('--story-line-height',String(reading.lineHeight));
    node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
@@ -158,9 +169,47 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
        node('actions').append(group);
      }
      if(!view.actions.length){const empty=document.createElement('p');empty.className='no-actions';empty.textContent='暂时没有可用行动，仍可通过对话表达。';node('actions').append(empty)}
+     renderQuickActions(view.actions);
    }
    controls();
  }
+ /* 回应时的右栏行动：每类一个按钮，按下后弹出该类可选行动（与发言受众相同的交互）；与当前说话者相关的排在前面。需要选人的行动打开「行动」面板完成。 */
+ const QUICK_GROUPS={activity:'活动',people:'与角色',items:'物品与互动',move:'移动'};
+ let quickOpen=null;
+ function actionGroup(option){const action=option.action||{},p=action.parameters||{},definition=String(p.definitionRef?.id||'');
+   if(action.actionType==='move')return 'move';
+   if(definition.startsWith('host:activity')||definition.startsWith('activity:'))return 'activity';
+   if(p.targetRef?.kind==='character'||typeof p.arguments?.recipientId==='string')return 'people';
+   return 'items'}
+ function relevance(option){const unit=playback.current(),p=option.action?.parameters||{};let score=0;
+   if(unit?.speakerId&&(p.targetRef?.id===unit.speakerId||p.arguments?.recipientId===unit.speakerId))score+=3;
+   if(unit?.speaker&&option.label.includes(unit.speaker))score+=2;return score}
+ function quickMenu(group){quickOpen=group;for(const wrap of node('quick-actions').querySelectorAll('.quick-group')){const open=wrap.dataset.group===group;
+   wrap.querySelector('.quick-menu').hidden=!open;wrap.querySelector('.group-button').setAttribute('aria-expanded',String(open))}}
+ function renderQuickActions(actions){
+   const box=node('quick-actions');box.replaceChildren();box.hidden=!actions.length;if(!actions.length){quickOpen=null;return}
+   const groups=new Map(),order=Object.keys(QUICK_GROUPS);
+   actions.map((option,index)=>({option,index,score:relevance(option)})).sort((a,b)=>b.score-a.score||a.index-b.index)
+     .forEach(entry=>{const group=actionGroup(entry.option);if(!groups.has(group))groups.set(group,[]);groups.get(group).push(entry)});
+   const best=group=>Math.max(...groups.get(group).map(entry=>entry.score));
+   if(quickOpen&&!groups.has(quickOpen))quickOpen=null;
+   const caption=document.createElement('small');caption.textContent='可以尝试';box.append(caption);
+   for(const group of [...groups.keys()].sort((a,b)=>best(b)-best(a)||order.indexOf(a)-order.indexOf(b))){
+     const entries=groups.get(group),wrap=document.createElement('div');wrap.className='quick-group';wrap.dataset.group=group;
+     const button=document.createElement('button');button.type='button';button.className='group-button';button.setAttribute('aria-haspopup','true');
+     button.setAttribute('aria-expanded',String(quickOpen===group));if(best(group)>0)button.classList.add('related');
+     const name=document.createElement('span');name.textContent=QUICK_GROUPS[group];const count=document.createElement('span');count.className='count';count.textContent=String(entries.length);
+     button.append(name,count);button.onclick=()=>quickMenu(quickOpen===group?null:group);
+     const menu=document.createElement('div');menu.className='quick-menu';menu.hidden=quickOpen!==group;
+     const title=document.createElement('p');title.textContent=QUICK_GROUPS[group]+' · '+entries.length+' 项';menu.append(title);
+     for(const {option,score} of entries){const item=document.createElement('button');item.type='button';item.dataset.option=option.id;item.textContent=option.label;
+       if(score>0){item.classList.add('related');item.title='与刚才说话的角色有关'}
+       if(option.participantSelection){item.classList.add('needs-choice');item.title='需要选择参与角色';item.onclick=()=>{quickMenu(null);node('action-panel').hidden=false;controls()}}
+       else item.onclick=()=>{quickMenu(null);send('perform',{optionId:option.id})};
+       menu.append(item)}
+     wrap.append(button,menu);box.append(wrap)}
+ }
+ document.addEventListener('click',event=>{if(quickOpen&&!node('quick-actions').contains(event.target))quickMenu(null)});
  async function refresh(expectedVersion){try{const view=await api.getView();if(expectedVersion!==requestVersion)return;connected=true;render(view)}catch(error){if(expectedVersion!==requestVersion)return;node('notice').textContent=error.message;connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}}
  async function submit(request){
    const version=++requestVersion;submittedPlayers=latest?.history.filter(line=>line.player).length||0;
@@ -182,10 +231,14 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  node('cancel-round').onclick=async()=>{try{await api.cancelRegeneration()}catch(error){node('notice').textContent=error.message}};
  node('retry').onclick=()=>{if(!posting&&connected&&pending)submit(pending)};
  node('send').onclick=()=>{const text=latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim(),narration=latest?.expression?.narration===false?'':node('narration').value.trim();if(text||narration){const maximum=latest?.settings?.inputCharacters||2000;if(text.length+narration.length>maximum){node('notice').textContent='发言与描写合计不能超过 '+maximum+' 个字符';return}const scope=speechScope(),addresseeIds=scope==='direct'||scope==='private'?[node('speech-recipient').value]:[];if((scope==='direct'||scope==='private')&&!addresseeIds[0])return;send('speak',{text,narration,scope,addresseeIds})}};
- for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.onchange=()=>{audience();controls()};
+ for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.onchange=()=>{audience();audienceMenu(false);controls();if(['direct','private'].includes(speechScope()))node('speech-recipient').focus()};
+ function audienceMenu(open){node('audience-menu').hidden=!open;node('audience-button').setAttribute('aria-expanded',String(open))}
+ node('audience-button').onclick=()=>audienceMenu(node('audience-menu').hidden);
+ document.addEventListener('click',event=>{if(!node('audience-picker').contains(event.target))audienceMenu(false)});
  node('speech-recipient').onchange=()=>{audience();controls()};
  audience();
  node('input').oninput=controls;node('narration').oninput=controls;
+ node('narration-panel').addEventListener('toggle',()=>{if(node('narration-panel').open)node('narration').focus()});
  node('input').onkeydown=node('narration').onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();node('send').click()}};
  let composerExpanded=false,activityOpen=false,auto=false,autoTimer=null,autoKey='',expressionKey='',sceneKey='',toastTimer=null;
  function updateAutoProgress(duration){
@@ -217,6 +270,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
       const label=document.createElement('span');label.className='character-name';label.textContent=name;portrait.append(label);node('characters').append(portrait)}
      if(!scene?.recipients.length){const empty=document.createElement('span');empty.className='alone';empty.textContent='片刻的宁静';node('characters').append(empty)}
    }
+   if(latest)renderQuickActions(latest.actions||[]);
    for(const portrait of node('characters').children)portrait.classList.toggle('speaking',!!unit?.speakerId&&unit.speakerId===portrait.dataset.characterId);
    scheduleAuto();
  }
@@ -255,7 +309,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  node('history-toggle').onclick=()=>historyPanel(node('history-panel').hidden);node('history-close').onclick=()=>historyPanel(false);
  node('actions-toggle').onclick=()=>{node('action-panel').hidden=!node('action-panel').hidden;controls()};node('actions-close').onclick=()=>{node('action-panel').hidden=true;controls()};
  node('reply-context').onclick=()=>{composerExpanded=false;controls()};
- document.addEventListener('keydown',event=>{if(event.key==='Escape'){historyPanel(false);node('action-panel').hidden=true;composerExpanded=false;controls();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!node('audience-menu').hidden){audienceMenu(false);node('audience-button').focus();return}if(quickOpen){const group=quickOpen;quickMenu(null);node('quick-actions').querySelector('[data-group="'+group+'"] .group-button')?.focus();return}historyPanel(false);node('action-panel').hidden=true;composerExpanded=false;controls();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
  let lastWheel=0;
  document.addEventListener('wheel',event=>{
    if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;

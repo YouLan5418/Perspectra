@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useStorage } from '@vueuse/core'
 import PlaySettingsDialog from './PlaySettingsDialog.vue'
 import RequestInspectorDialog from './RequestInspectorDialog.vue'
 import FrontendAuthorizationDialog from './FrontendAuthorizationDialog.vue'
 import {
   ArrowRight,
+  Play,
   GitFork,
   Cpu,
   Check,
@@ -12,24 +14,25 @@ import {
   BookOpen,
   Plus,
   Square,
-  Sparkles,
   SlidersHorizontal,
   Activity,
-  Compass,
   ShieldCheck,
   ShieldAlert,
   Gauge,
-  Layers,
   ExternalLink,
+  ChevronDown,
+  Download,
+  Upload,
 } from '@lucide/vue'
 import { useLauncherStore } from '../stores/launcher.ts'
-import { Button } from './ui/button/index.ts'
 
 defineEmits<{ model: []; preset: []; story: []; import: []; export: []; settings: [] }>()
 const store = useLauncherStore()
 const playSettingsOpen = ref(false)
 const frontendOpen = ref(false)
 const inspectorOpen = ref(false)
+/** 引擎与创作者工具默认收起；玩家展开后记住选择。 */
+const advancedOpen = useStorage('perspectra.launcher.advanced-open', false)
 const inspectorAvailable = computed(() => store.core.state === 'running' && 'instanceId' in store.core && store.core.instanceId === store.selectedInstanceId)
 const running = computed(() => store.core.state === 'running')
 const validationText = computed(() => ({
@@ -37,215 +40,184 @@ const validationText = computed(() => ({
   degraded: '可以运行，可能降级',
   blocked: '无法运行',
 })[store.selectedPackage?.validation.status ?? 'blocked'])
+const playBlockedReason = computed(() => {
+  if (!store.initialized) return '本机初始化未完成'
+  if (store.selectedPackage?.validation.status === 'blocked') return '世界包未通过校验'
+  if (!store.currentModel) return '还没有可用模型，请先完成模型设置'
+  return ''
+})
+const lastPlayed = computed(() => store.currentInstance?.lastPlayedAt ? new Date(store.currentInstance.lastPlayedAt).toLocaleDateString() : '')
+const thinkingLabel = { off: '关闭', low: '低', medium: '中', high: '高' } as const
 </script>
 
 <template>
   <Transition name="detail-transition" mode="out-in">
     <main v-if="store.selectedPackage && store.currentInstance" :key="store.selectedPackage.id" class="game-detail">
-    <!-- Game Header Identity -->
-    <section class="game-identity">
-      <div class="detail-cover" :class="store.selectedPackage.artwork" aria-hidden="true">
-        <BookOpen :size="32" :stroke-width="1.6" />
-      </div>
-      <div class="identity-copy">
-        <div class="identity-meta">
-          <span class="package-badge">本地世界包</span>
-          <span>v{{ store.selectedPackage.version }}</span>
-          <span>{{ store.selectedPackage.genre }}</span>
+      <!-- 首屏：世界包封面与开始游戏 -->
+      <section class="hero" :class="[store.selectedPackage.artwork, { 'has-cover': store.selectedPackage.cover }]" aria-label="游戏封面">
+        <img v-if="store.selectedPackage.cover" class="hero-art" :src="store.selectedPackage.cover" alt="" />
+        <div v-else class="hero-art hero-fallback" aria-hidden="true">
+          <span class="hero-glyph">{{ store.selectedPackage.title.slice(0, 1) }}</span>
         </div>
-        <h1>{{ store.selectedPackage.title }}</h1>
-        <p class="game-subtitle">{{ store.selectedPackage.subtitle }}</p>
-      </div>
-    </section>
+        <div class="hero-shade" aria-hidden="true"></div>
 
-    <p class="game-description">{{ store.selectedPackage.description }}</p>
+        <div class="hero-body">
+          <div class="hero-meta">
+            <span v-if="store.selectedPackage.genre">{{ store.selectedPackage.genre }}</span>
+            <span>v{{ store.selectedPackage.version }}</span>
+            <span class="validation" :class="store.selectedPackage.validation.status">
+              <Check v-if="store.selectedPackage.validation.status === 'ready'" :size="13" />
+              <AlertTriangle v-else :size="13" />
+              {{ validationText }}
+            </span>
+          </div>
+          <h1 class="hero-title">{{ store.selectedPackage.title }}</h1>
+          <p v-if="store.selectedPackage.subtitle" class="hero-subtitle">{{ store.selectedPackage.subtitle }}</p>
 
-    <!-- Instance Selector -->
-    <div class="instance-row">
-      <span class="instance-label"><Layers :size="14" />当前游玩实例</span>
-      <select id="instance-select" v-model="store.selectedInstanceId" :disabled="running || store.busy" aria-label="选择游玩实例">
-        <option v-for="instance in store.gameInstances" :key="instance.id" :value="instance.id">{{ instance.name }}</option>
-      </select>
-      <button class="text-button" :disabled="running || store.busy" @click="store.newInstance('第 ' + (store.gameInstances.length + 1) + ' 次游玩')">
-        <Plus :size="14" />新建独立实例
-      </button>
-    </div>
-
-    <!-- Play & Story Hero Card -->
-    <section class="continue-section" aria-label="当前故事线">
-      <div class="story-summary">
-        <div v-if="running" class="running-pill">
-          <span class="pulse-light"></span>
-          <span>Core 运行中 · 端口 {{ store.real ? '8046' : '模拟' }}</span>
-        </div>
-        <div class="section-label">
-          <GitFork :size="13" />
-          <span>当前激活故事线</span>
-        </div>
-        <h2>{{ store.currentStoryline?.name }}</h2>
-        <p>{{ store.real ? '最近保存节点：' + (store.currentNode?.title ?? '尚未保存') : store.currentNode?.title }}</p>
-        <div class="progress-meta">
-          <span v-if="!store.real" class="progress-badge">第 <strong>{{ store.currentNode?.turn ?? 0 }}</strong> 轮</span>
-          <span class="progress-badge">{{ store.currentInstance.storylines.length }} 条分支故事线</span>
-          <span v-if="store.currentInstance.lastPlayedAt" class="progress-badge">上次游玩: {{ new Date(store.currentInstance.lastPlayedAt).toLocaleDateString() }}</span>
-        </div>
-        <p v-if="store.currentStoryline?.source.kind !== 'original'" class="source-note">
-          来源：{{ store.currentStoryline?.source.label }} / {{ store.real ? '时刻 ' : '第 ' }}{{ store.currentStoryline?.source.turn }}{{ store.real ? '' : ' 轮' }}
-        </p>
-      </div>
-      <div class="continue-action">
-        <Button v-if="running" variant="outline" class="continue-button running" @click="store.stopGame()">
-          <Square :size="15" />{{ store.real ? '结束当前游戏' : '结束模拟会话' }}
-        </Button>
-        <Button v-else class="continue-button" :disabled="store.busy || !store.initialized || store.selectedPackage.validation.status === 'blocked' || !store.currentModel" @click="store.startGame()">
-          {{ store.busy ? '正在启动…' : store.currentInstance.lastPlayedAt ? '继续游戏' : '开始游戏' }}
-          <ArrowRight :size="16" />
-        </Button>
-        <button v-if="running && store.real" class="text-button" :disabled="store.busy" @click="store.reopenGame()">
-          <ExternalLink :size="13" />重新打开游戏网页
-        </button>
-        <small>{{ store.real ? '系统浏览器 · Core 权威记忆' : '仅模拟启动预览' }}</small>
-      </div>
-    </section>
-
-    <p v-if="store.currentInstance?.storyError" role="alert">{{ store.currentInstance.storyError }}</p>
-
-    <!-- Grouped Configurations -->
-    <div class="settings-groups">
-      <!-- Group 1: AI & Characters -->
-      <section class="settings-group" aria-label="AI 与角色生态">
-        <div class="group-header">
-          <div class="group-title"><Sparkles :size="16" /><span>AI 与角色生态</span></div>
-          <span class="group-caption">大模型推理接口、提示词预设与请求探查</span>
-        </div>
-        <div class="configuration-rows">
-          <!-- Model Row -->
-          <div class="configuration-row">
-            <div class="row-icon-box"><Cpu :size="19" /></div>
-            <div class="configuration-content">
-              <strong>
-                模型设置
-                <span v-if="store.real && store.currentRealModel.thinkingLevel" class="card-badge">
-                  思考: {{ ({ off: '关闭', low: '低', medium: '中', high: '高' } as const)[store.currentRealModel.thinkingLevel] }}
-                </span>
-              </strong>
-              <p>
-                {{ store.currentModel?.label ?? '当前没有可用模型' }}
-                <span v-if="store.currentModel">
-                  {{ store.currentInstance.model.overridesEnabled ? ' · 已开启多角色独立映射' : ' · 所有角色继承此默认模型' }}
-                </span>
-              </p>
-            </div>
-            <button class="text-button" :disabled="running || store.busy" @click="store.currentModel ? $emit('model') : $emit('settings')">
-              {{ store.currentModel ? '修改' : '前往模型设置' }}<ArrowRight :size="14" />
+          <div class="hero-actions">
+            <button v-if="running" class="play-button running" @click="store.stopGame()">
+              <Square :size="16" fill="currentColor" />{{ store.real ? '结束当前游戏' : '结束模拟会话' }}
+            </button>
+            <button v-else class="play-button" :disabled="store.busy || Boolean(playBlockedReason)" @click="store.startGame()">
+              <Play :size="18" fill="currentColor" />
+              {{ store.busy ? '正在启动…' : store.currentInstance.lastPlayedAt ? '继续游戏' : '开始游戏' }}
+            </button>
+            <button v-if="running && store.real" class="hero-ghost" :disabled="store.busy" @click="store.reopenGame()">
+              <ExternalLink :size="15" />重新打开游戏网页
+            </button>
+            <button class="hero-ghost" :disabled="store.busy" @click="$emit('story')">
+              <GitFork :size="15" />故事线与存档
             </button>
           </div>
-
-          <!-- Character Preset Row -->
-          <div v-if="store.real" class="configuration-row">
-            <div class="row-icon-box"><SlidersHorizontal :size="19" /></div>
-            <div class="configuration-content">
-              <strong>角色预设与人设</strong>
-              <p>附加世界观提示词、语气约束与独立生成参数，支持导入导出预设库</p>
-            </div>
-            <button class="text-button" :disabled="running || store.busy" @click="$emit('preset')">
-              定制预设<ArrowRight :size="14" />
-            </button>
-          </div>
-
-          <!-- Request Inspector Row -->
-          <div v-if="store.real" class="configuration-row">
-            <div class="row-icon-box"><Activity :size="19" /></div>
-            <div class="configuration-content">
-              <strong>
-                实际模型请求探查
-                <span v-if="inspectorAvailable" class="card-badge active-pulse">
-                  <span class="pulse-light"></span>实时可用
-                </span>
-              </strong>
-              <p>{{ inspectorAvailable ? '游戏进行中，可实时查看角色上下文装配与最终 Prompt' : '游戏运行后可实时探查角色上下文、预设展开与发送至大模型的完整请求' }}</p>
-            </div>
-            <button class="text-button" :disabled="!inspectorAvailable" @click="inspectorOpen = true">
-              查看探查器<ArrowRight :size="14" />
-            </button>
-          </div>
+          <p class="hero-hint">
+            <template v-if="running"><span class="pulse-light"></span>{{ store.real ? 'Core 运行中 · 游戏在系统浏览器中打开' : '模拟会话进行中' }}</template>
+            <template v-else-if="playBlockedReason">{{ playBlockedReason }}</template>
+            <template v-else>{{ store.real ? '在系统浏览器中打开 · 角色记忆由 Core 保存' : '浏览器预览 · 仅模拟启动' }}</template>
+          </p>
+          <ul v-if="store.selectedPackage.validation.issues.length" class="hero-issues">
+            <li v-for="issue in store.selectedPackage.validation.issues" :key="issue">{{ issue }}</li>
+          </ul>
         </div>
       </section>
 
-      <!-- Group 2: World & System Environment -->
-      <section class="settings-group" aria-label="世界与系统环境">
-        <div class="group-header">
-          <div class="group-title"><Compass :size="16" /><span>世界与系统环境</span></div>
-          <span class="group-caption">故事线分支、安全沙箱与引擎调度预算</span>
-        </div>
-        <div class="configuration-rows">
-          <!-- Storyline Row -->
-          <div class="configuration-row">
-            <div class="row-icon-box"><GitFork :size="19" /></div>
-            <div class="configuration-content">
-              <strong>故事线分支管理</strong>
-              <p>保存完整世界节点，保留过往记忆，随时开启另一种未来的探索</p>
-            </div>
-            <div class="story-actions">
-              <button class="text-button" :disabled="!store.real || store.busy || running" @click="$emit('import')">导入存档</button>
-              <button class="text-button" :disabled="!store.real || store.busy || Boolean(store.currentInstance?.storyError)" @click="$emit('export')">导出存档</button>
-              <button class="text-button" :disabled="store.busy" @click="$emit('story')">管理分支<ArrowRight :size="14" /></button>
-            </div>
-          </div>
+      <div class="detail-body">
+        <p v-if="store.currentInstance.storyError" class="story-error" role="alert">{{ store.currentInstance.storyError }}</p>
 
-          <!-- Frontend Security Row -->
-          <div v-if="store.real" class="configuration-row">
-            <div class="row-icon-box">
-              <ShieldCheck v-if="store.currentFrontend?.mode === 'trusted'" :size="19" />
-              <ShieldAlert v-else :size="19" />
+        <!-- 当前进度 -->
+        <section class="progress-card" aria-label="当前进度">
+          <div class="progress-main">
+            <span class="eyebrow">当前故事线</span>
+            <h2>{{ store.currentStoryline?.name }}</h2>
+            <p class="progress-node">{{ store.real ? '最近保存节点：' + (store.currentNode?.title ?? '尚未保存') : store.currentNode?.title }}</p>
+            <div class="progress-chips">
+              <span v-if="!store.real">第 <strong>{{ store.currentNode?.turn ?? 0 }}</strong> 轮</span>
+              <span>{{ store.currentInstance.storylines.length }} 条故事线</span>
+              <span v-if="lastPlayed">上次游玩 {{ lastPlayed }}</span>
             </div>
-            <div class="configuration-content">
-              <strong>
-                游戏前端与安全沙箱
-                <span class="card-badge">
-                  {{ store.currentFrontend?.mode === 'trusted' ? '已信任授权' : store.currentFrontend?.kind === 'default' ? '官方默认模板' : '受限沙箱运行' }}
+            <p v-if="store.currentStoryline?.source.kind !== 'original'" class="progress-source">
+              来源：{{ store.currentStoryline?.source.label }} / {{ store.real ? '时刻 ' : '第 ' }}{{ store.currentStoryline?.source.turn }}{{ store.real ? '' : ' 轮' }}
+            </p>
+          </div>
+          <div class="progress-instance">
+            <label for="instance-select" class="eyebrow">游玩实例</label>
+            <select id="instance-select" v-model="store.selectedInstanceId" :disabled="running || store.busy">
+              <option v-for="instance in store.gameInstances" :key="instance.id" :value="instance.id">{{ instance.name }}</option>
+            </select>
+            <button class="link-button" :disabled="running || store.busy" @click="store.newInstance('第 ' + (store.gameInstances.length + 1) + ' 次游玩')">
+              <Plus :size="14" />新建独立实例
+            </button>
+          </div>
+        </section>
+
+        <div class="detail-columns">
+          <section v-if="store.selectedPackage.description" class="about" aria-label="关于这个世界">
+            <h2 class="section-title">关于这个世界</h2>
+            <p>{{ store.selectedPackage.description }}</p>
+          </section>
+
+          <section class="prep" aria-label="游玩准备">
+            <h2 class="section-title">游玩准备</h2>
+            <div class="prep-row">
+              <Cpu :size="18" class="prep-icon" />
+              <div class="prep-copy">
+                <strong>模型</strong>
+                <span>
+                  {{ store.currentModel?.label ?? '尚未设置' }}<template v-if="store.real && store.currentRealModel.thinkingLevel"> · 思考{{ thinkingLabel[store.currentRealModel.thinkingLevel] }}</template>
                 </span>
-              </strong>
-              <p>{{ store.currentFrontend?.mode === 'trusted' ? '当前自定义前端代码与完整权限已由你明确授权' : store.currentFrontend?.kind === 'default' ? '采用系统内置官方默认舞台模板，保障沙箱隔离' : '自包含前端运行在默认沙箱中' }}</p>
+              </div>
+              <button class="link-button" :disabled="running || store.busy" @click="store.currentModel ? $emit('model') : $emit('settings')">
+                {{ store.currentModel ? '修改' : '去设置' }}<ArrowRight :size="14" />
+              </button>
             </div>
-            <button class="text-button" :disabled="store.busy" @click="frontendOpen = true">
-              检查权限<ArrowRight :size="14" />
-            </button>
-          </div>
-
-          <!-- Play Settings / Budget Row -->
-          <div class="configuration-row">
-            <div class="row-icon-box"><Gauge :size="19" /></div>
-            <div class="configuration-content">
-              <strong>引擎调度预算</strong>
-              <p>{{ store.currentPlaySettings.maximumWaves }} 波循环上限 · {{ store.currentPlaySettings.maximumNpcCalls }} 次调用预算 · {{ store.currentPlaySettings.reactionDeadlineSeconds }} 秒超时限制</p>
+            <div class="prep-row">
+              <GitFork :size="18" class="prep-icon" />
+              <div class="prep-copy">
+                <strong>存档</strong>
+                <span>导入朋友的故事，或导出你的进度</span>
+              </div>
+              <div class="prep-actions">
+                <button class="link-button" :disabled="!store.real || store.busy || running" @click="$emit('import')"><Download :size="14" />导入</button>
+                <button class="link-button" :disabled="!store.real || store.busy || Boolean(store.currentInstance.storyError)" @click="$emit('export')"><Upload :size="14" />导出</button>
+              </div>
             </div>
-            <button class="text-button" :disabled="running || store.busy" @click="playSettingsOpen = true">
-              调整预算<ArrowRight :size="14" />
-            </button>
-          </div>
+          </section>
         </div>
-      </section>
-    </div>
 
-    <!-- Bottom Actions -->
-    <div class="detail-bottom">
-      <div class="validation" :class="store.selectedPackage.validation.status">
-        <Check v-if="store.selectedPackage.validation.status === 'ready'" :size="15" />
-        <AlertTriangle v-else :size="15" />
-        <span>{{ validationText }}<small>{{ store.real ? ' · 本机环境已校验' : ' · 模拟校验' }}</small></span>
+        <!-- 引擎与创作者工具：默认收起 -->
+        <details class="advanced" :open="advancedOpen" @toggle="advancedOpen = ($event.target as HTMLDetailsElement).open">
+          <summary>
+            <span class="advanced-title">引擎与创作者工具</span>
+            <span class="advanced-caption">角色预设、请求探查、前端权限与调度预算</span>
+            <ChevronDown :size="16" class="advanced-chevron" />
+          </summary>
+          <div class="tool-grid">
+            <div v-if="store.real" class="tool-tile">
+              <SlidersHorizontal :size="17" class="tool-icon" />
+              <div class="tool-copy">
+                <strong>角色预设与人设</strong>
+                <p>附加世界观提示词、语气约束与独立生成参数，支持导入导出预设库</p>
+              </div>
+              <button class="link-button" :disabled="running || store.busy" @click="$emit('preset')">定制<ArrowRight :size="14" /></button>
+            </div>
+
+            <div v-if="store.real" class="tool-tile">
+              <Activity :size="17" class="tool-icon" />
+              <div class="tool-copy">
+                <strong>模型请求探查<span v-if="inspectorAvailable" class="live-badge"><span class="pulse-light"></span>实时</span></strong>
+                <p>{{ inspectorAvailable ? '查看角色上下文装配与最终发送的请求' : '游戏运行后可查看角色上下文、预设展开与完整请求' }}</p>
+              </div>
+              <button class="link-button" :disabled="!inspectorAvailable" @click="inspectorOpen = true">查看<ArrowRight :size="14" /></button>
+            </div>
+
+            <div v-if="store.real" class="tool-tile">
+              <ShieldCheck v-if="store.currentFrontend?.mode === 'trusted'" :size="17" class="tool-icon" />
+              <ShieldAlert v-else :size="17" class="tool-icon" />
+              <div class="tool-copy">
+                <strong>游戏前端权限<span class="plain-badge">{{ store.currentFrontend?.mode === 'trusted' ? '已信任' : store.currentFrontend?.kind === 'default' ? '官方模板' : '沙箱' }}</span></strong>
+                <p>{{ store.currentFrontend?.mode === 'trusted' ? '当前自定义前端代码与完整权限已由你明确授权' : store.currentFrontend?.kind === 'default' ? '采用内置官方舞台模板，运行在沙箱中' : '自包含前端运行在默认沙箱中' }}</p>
+              </div>
+              <button class="link-button" :disabled="store.busy" @click="frontendOpen = true">检查<ArrowRight :size="14" /></button>
+            </div>
+
+            <div class="tool-tile">
+              <Gauge :size="17" class="tool-icon" />
+              <div class="tool-copy">
+                <strong>引擎调度预算</strong>
+                <p>{{ store.currentPlaySettings.maximumWaves }} 波循环上限 · {{ store.currentPlaySettings.maximumNpcCalls }} 次调用预算 · {{ store.currentPlaySettings.reactionDeadlineSeconds }} 秒超时</p>
+              </div>
+              <button class="link-button" :disabled="running || store.busy" @click="playSettingsOpen = true">调整<ArrowRight :size="14" /></button>
+            </div>
+          </div>
+        </details>
       </div>
-    </div>
-
-      <p v-for="issue in store.selectedPackage.validation.issues" :key="issue" class="validation-issue">{{ issue }}</p>
     </main>
 
     <main v-else key="empty" class="empty-state">
-      <BookOpen :size="36" />
+      <BookOpen :size="36" :stroke-width="1.4" />
       <h1>{{ store.busy ? '正在读取本机实例…' : '载入一个世界包，开始你的故事。' }}</h1>
       <p v-if="!store.initialized">本机初始化未完成。</p>
-      <Button v-if="store.real && !store.initialized" :disabled="store.busy" @click="store.initialize()">重试初始化</Button>
-      <Button v-if="store.selectedPackage && !store.currentInstance" :disabled="store.busy" @click="store.newInstance('第一次游玩')">创建实例</Button>
+      <button v-if="store.real && !store.initialized" class="play-button compact" :disabled="store.busy" @click="store.initialize()">重试初始化</button>
+      <button v-if="store.selectedPackage && !store.currentInstance" class="play-button compact" :disabled="store.busy" @click="store.newInstance('第一次游玩')">创建实例</button>
     </main>
   </Transition>
 
@@ -254,7 +226,3 @@ const validationText = computed(() => ({
   <PlaySettingsDialog :open="playSettingsOpen" @close="playSettingsOpen = false" />
   <FrontendAuthorizationDialog :open="frontendOpen" @close="frontendOpen = false" />
 </template>
-
-<style scoped>
-.story-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
-</style>

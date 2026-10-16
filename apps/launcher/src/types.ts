@@ -5,6 +5,8 @@ export interface ModelRecommendation { capability: 'fast' | 'balanced' | 'high';
 export interface GamePackage {
   readonly id: string; readonly version: string; readonly title: string; readonly subtitle: string
   readonly description: string; readonly genre: string; readonly artwork: 'inn' | 'town' | 'sea'
+  /** 世界包根目录约定封面（data URL）；缺失时启动器用 artwork 色调生成排版封面。 */
+  readonly cover?: string
   readonly recommendation: ModelRecommendation; readonly validation: PackageValidation
 }
 export interface ModelProfile {

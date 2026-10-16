@@ -1,6 +1,6 @@
 import { thinkingRequest, thinkingLevel, type ThinkingLevel } from '../packages/provider-chat/src/thinking.ts'
 import { creatorDebugQuery } from '../tests/experiments/creator-debug.ts'
-import { playSettings, readingPreferences, DEFAULT_READING, audioPreferences, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences } from './play-settings.ts'
+import { playSettings, readingPreferences, DEFAULT_READING, audioPreferences, DEFAULT_AUDIO, palettePreference, DEFAULT_PALETTE, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from './play-settings.ts'
 import { providerProtocol, providerEndpoint, providerHeaders, nativeMessages, nativePayload, type ProviderProtocol } from '../packages/provider-chat/src/protocol.ts'
 import { exportStoryNode, importStoryNode } from './story-share.ts'
 import { readStoryNodes, restoreStoryNode, storyId } from './story-nodes.ts'
@@ -23,8 +23,20 @@ export interface LocalModel { model: string; endpoint: string; protocol?: Provid
 interface Pack { id: string; version: string; title: string; path: string; hash: string }
 interface Storyline { id: string; name: string; parentStorylineId: string | null; parentNodeId: string | null }
 interface Instance { currentStorylineId: string; storylines: Storyline[]; id: string; packageId: string; packageVersion: string; packHash: string; name: string; lastPlayedAt: string | null; model: LocalModel }
-interface Index { packs: Pack[]; instances: Instance[]; defaults: LocalModel; preferences: { largeText: boolean; theme?: 'system' | 'light' | 'dark'; reading?: ReadingPreferences; audio?: AudioPreferences }; playSettings?: Record<string,PlaySettings> }
+interface Index { packs: Pack[]; instances: Instance[]; defaults: LocalModel; preferences: { largeText: boolean; theme?: 'system' | 'light' | 'dark'; palette?: Palette; reading?: ReadingPreferences; audio?: AudioPreferences }; playSettings?: Record<string,PlaySettings> }
 function packCharacters(pack:CompiledWorldPackV5){const player=pack.content.playerSlots[0]?.characterId;return pack.content.characters.filter(c=>c.characterId!==player&&c.controllerClass!=='manual'&&(c.lifecycle??'active')==='active').map(c=>({id:c.characterId,name:c.displayName}))}
+/** 世界包根目录的约定封面；只供启动器展示，不进入编译产物与世界事实。 */
+const COVER_FILES = [['cover.webp','image/webp'],['cover.png','image/png'],['cover.jpg','image/jpeg'],['cover.jpeg','image/jpeg']] as const
+const COVER_LIMIT = 4 * 1024 * 1024
+async function packCover(path: string): Promise<string | null> {
+  for (const [name, type] of COVER_FILES) {
+    try {
+      const bytes = await readFile(join(path, name))
+      return bytes.length > COVER_LIMIT ? null : 'data:' + type + ';base64,' + bytes.toString('base64')
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return null }
+  }
+  return null
+}
 const defaults: LocalModel = { model: 'gemini-3.7-flash', endpoint: 'http://127.0.0.1:8046/v1/chat/completions' }
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('请求无效。')
@@ -97,6 +109,14 @@ export class LauncherCore {
   #characters: Record<string,{id:string;name:string}[]> = {}
   #presets: ModelPresets
   #recommended: Record<string,RolePreset> = {}
+  #details: Record<string,{description:string;hasCover:boolean}> = {}
+  #covers: Record<string,string> = {}
+  async #describe(pack: Pack, compiled: CompiledWorldPackV5) {
+    const cover = await packCover(pack.path)
+    if (cover) this.#covers[pack.id] = cover
+    else delete this.#covers[pack.id]
+    this.#details[pack.id] = { description: compiled.content.world.description ?? '', hasCover: cover !== null }
+  }
   constructor(readonly repository: string, readonly root: string) { this.#presets=new ModelPresets(root) }
   async initialize(): Promise<void> {
     await mkdir(this.root, { recursive: true })
@@ -129,7 +149,7 @@ export class LauncherCore {
       if (preferences.theme !== undefined && (typeof preferences.theme !== 'string' || !['system','light','dark'].includes(preferences.theme))) throw new Error('theme')
       if (typeof preferences.largeText !== 'boolean') throw new Error('largeText')
       const settings = parsed.playSettings === undefined ? {} : Object.fromEntries(Object.entries(object(parsed.playSettings)).map(([id,value])=>{if(!packs.some(pack=>pack.id===id))throw new Error('unknown package settings');return [id,playSettings(value)]}))
-      this.#index = { playSettings:settings, packs, instances, defaults: localModel(parsed.defaults), preferences: { largeText: preferences.largeText, ...(preferences.theme === undefined ? {} : {theme: preferences.theme as 'system' | 'light' | 'dark'}), ...(preferences.reading===undefined?{}:{reading:readingPreferences(preferences.reading)}), ...(preferences.audio===undefined?{}:{audio:audioPreferences(preferences.audio)}) } }
+      this.#index = { playSettings:settings, packs, instances, defaults: localModel(parsed.defaults), preferences: { largeText: preferences.largeText, ...(preferences.theme === undefined ? {} : {theme: preferences.theme as 'system' | 'light' | 'dark'}), ...(preferences.palette===undefined?{}:{palette:palettePreference(preferences.palette)}), ...(preferences.reading===undefined?{}:{reading:readingPreferences(preferences.reading)}), ...(preferences.audio===undefined?{}:{audio:audioPreferences(preferences.audio)}) } }
     } catch (error: unknown) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw new Error('Launcher 配置损坏；请检查 launcher.json，未覆盖已有数据。')
     }
@@ -137,7 +157,7 @@ export class LauncherCore {
     await this.#presets.loadLibrary()
     await this.#recommendations()
   }
-  async #recommendations(){for(const pack of this.#index.packs){this.#recommended[pack.id]=await packPreset(pack.path);const compiled=await compileWorldPackSource(pack.path,createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5;this.#characters[pack.id]=packCharacters(compiled)}}
+  async #recommendations(){for(const pack of this.#index.packs){this.#recommended[pack.id]=await packPreset(pack.path);const compiled=await compileWorldPackSource(pack.path,createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5;this.#characters[pack.id]=packCharacters(compiled);await this.#describe(pack,compiled)}}
   #validMapping(instance:Instance,choice:ReturnType<typeof presetChoice>){const ids=new Set((this.#characters[instance.packageId]??[]).map(c=>c.id));if([...Object.keys(choice.characters??{}),...Object.keys(choice.memberships??{})].some(id=>!ids.has(id)))throw new Error('预设引用了此包之外或不可调用的角色。')}
   async #save(next: Index): Promise<void> {
     const temporary = join(this.root, 'launcher.' + randomUUID() + '.tmp')
@@ -175,13 +195,14 @@ export class LauncherCore {
     }
   }
   snapshot() {
-    return { ...this.#index, instances:this.#index.instances.map(i=>({...i,...this.#storySnapshot(i)})), presets:{library:structuredClone(this.#presets.library),characters:this.#characters,global:this.#presets.global,instances:this.#presets.instances,recommended:this.#recommended}, frontends: this.#frontends, dataDirectory: this.root, core: this.#active ? { state: 'running', mode: 'real', instanceId: this.#active.instanceId, frontendMode:this.#active.frontendMode }
+    return { ...this.#index, instances:this.#index.instances.map(i=>({...i,...this.#storySnapshot(i)})), presets:{library:structuredClone(this.#presets.library),characters:this.#characters,global:this.#presets.global,instances:this.#presets.instances,recommended:this.#recommended}, packDetails: this.#details, frontends: this.#frontends, dataDirectory: this.root, core: this.#active ? { state: 'running', mode: 'real', instanceId: this.#active.instanceId, frontendMode:this.#active.frontendMode }
       : this.#error ? { state: 'error', mode: 'real', message: this.#error } : { state: 'idle', mode: 'real' } }
   }
   async handle(value: unknown): Promise<unknown> {
     const request = object(value)
     switch (request.operation) {
       case 'snapshot': return this.snapshot()
+      case 'pack-cover': return { packageId: request.packageId, dataUrl: this.#covers[text(request.packageId, '包 ID', 200)] ?? null }
       case 'test-model': {
         const model=localModel(request.model)
         if(request.apiKey!==undefined&&(typeof request.apiKey!=='string'||request.apiKey.length>8192))throw new Error('API Key 无效。')
@@ -295,6 +316,7 @@ export class LauncherCore {
         await this.#save({ ...this.#index, packs: [...this.#index.packs.filter(p => p.id !== pack.id), pack] })
         this.#recommended[pack.id]=recommended
         this.#characters[pack.id]=packCharacters(compiled)
+        await this.#describe(pack,compiled)
         return this.snapshot()
       }
       case 'story-export': {
@@ -386,7 +408,7 @@ export class LauncherCore {
       }
       case 'preferences': {
         if ((typeof request.theme !== 'string' || !['system','light','dark'].includes(request.theme)) || typeof request.largeText !== 'boolean') throw new TypeError('外观设置无效。')
-        await this.#save({ ...this.#index, preferences: { ...this.#index.preferences, theme: request.theme as 'system' | 'light' | 'dark', largeText: request.largeText, ...(request.reading===undefined?{}:{reading:readingPreferences(request.reading)}), ...(request.audio===undefined?{}:{audio:audioPreferences(request.audio)}) } })
+        await this.#save({ ...this.#index, preferences: { ...this.#index.preferences, theme: request.theme as 'system' | 'light' | 'dark', largeText: request.largeText, ...(request.palette===undefined?{}:{palette:palettePreference(request.palette)}), ...(request.reading===undefined?{}:{reading:readingPreferences(request.reading)}), ...(request.audio===undefined?{}:{audio:audioPreferences(request.audio)}) } })
         return this.snapshot()
       }
       case 'settings': {
@@ -425,6 +447,7 @@ export class LauncherCore {
               PERSPECTRA_STORY_PARENT_NODE: instance.storylines.find(l=>l.id===instance.currentStorylineId)?.parentNodeId??'',
               PERSPECTRA_READING: JSON.stringify(this.#index.preferences.reading??DEFAULT_READING),
               PERSPECTRA_AUDIO: JSON.stringify(this.#index.preferences.audio??DEFAULT_AUDIO),
+              PERSPECTRA_PALETTE: this.#index.preferences.palette??DEFAULT_PALETTE,
               PERSPECTRA_PRESET_ROOT: this.root, PERSPECTRA_PRESET_INSTANCE: instance.id,
               PERSPECTRA_ROLE_PRESET: undefined, PERSPECTRA_ROLE_MAPPING: undefined,
               HCW_LOCAL_API_KEY: typeof request.apiKey === 'string' ? request.apiKey : '',

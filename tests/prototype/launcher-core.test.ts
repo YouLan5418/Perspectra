@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile, rm, mkdir } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm, mkdir, cp } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -33,6 +33,21 @@ describe('real Launcher metadata and authority boundary', () => {
     expect(disk).not.toContain('must-not-persist')
     expect(disk).not.toContain('apiKey')
     expect(restored.snapshot().core.state).toBe('idle')
+  })
+  it('reads the pack description and an optional root cover only for display', async () => {
+    const core = await service()
+    const path = join(core.root, 'pack-with-cover')
+    await cp(resolve('examples/world-packs/launcher-demo'), path, { recursive: true })
+    await writeFile(join(path, 'cover.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    await core.handle({ operation: 'load', path })
+    const pack = core.snapshot().packs[0]!
+    expect(core.snapshot().packDetails[pack.id]).toEqual({ description: expect.stringContaining('黄铜钥匙'), hasCover: true })
+    expect(await core.handle({ operation: 'pack-cover', packageId: pack.id })).toEqual({ packageId: pack.id, dataUrl: 'data:image/png;base64,iVBORw==' })
+    await rm(join(path, 'cover.png'))
+    const restored = new LauncherCore(resolve('.'), core.root)
+    await restored.initialize()
+    expect(restored.snapshot().packDetails[pack.id]!.hasCover).toBe(false)
+    expect(await restored.handle({ operation: 'pack-cover', packageId: pack.id })).toEqual({ packageId: pack.id, dataUrl: null })
   })
   it('rejects invalid packs without altering the index', async () => {
     const core = await service()
@@ -167,6 +182,16 @@ it('persists appearance separately from models and rejects invalid theme without
  const before = await readFile(join(core.root,'launcher.json'),'utf8')
  expect(before).not.toContain('must-not-persist')
  await expect(core.handle({operation:'preferences',theme:'invalid',largeText:false})).rejects.toThrow('外观设置无效')
+ expect(await readFile(join(core.root,'launcher.json'),'utf8')).toBe(before)
+})
+
+it('persists the interface palette and rejects unknown palettes without overwriting settings', async () => {
+ const core = await service()
+ await core.handle({operation:'preferences',theme:'system',largeText:false,palette:'moon'})
+ const restored = new LauncherCore(resolve('.'),core.root); await restored.initialize()
+ expect(restored.snapshot().preferences).toEqual({theme:'system',largeText:false,palette:'moon'})
+ const before = await readFile(join(core.root,'launcher.json'),'utf8')
+ await expect(core.handle({operation:'preferences',theme:'system',largeText:false,palette:'neon'})).rejects.toThrow('主题色无效')
  expect(await readFile(join(core.root,'launcher.json'),'utf8')).toBe(before)
 })
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { DEFAULT_READING, readingPreferences, DEFAULT_AUDIO, audioPreferences } from '../../../../desktop/play-settings.ts'
+import { DEFAULT_READING, readingPreferences, DEFAULT_AUDIO, audioPreferences, DEFAULT_PALETTE, palettePreference, type Palette } from '../../../../desktop/play-settings.ts'
 import { useLauncherStore } from '../stores/launcher.ts'
 import { chooseDataDirectory, dataLocation, type DataLocation } from '../services/desktop.ts'
 import { Button } from './ui/button/index.ts'
@@ -8,12 +8,18 @@ import DialogFrame from './DialogFrame.vue'
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 const store = useLauncherStore()
-const draft = reactive({ theme: 'system' as 'system' | 'light' | 'dark', largeText: false, reading:{...DEFAULT_READING}, audio:{...DEFAULT_AUDIO} })
+const draft = reactive({ theme: 'system' as 'system' | 'light' | 'dark', palette: DEFAULT_PALETTE as Palette, largeText: false, reading:{...DEFAULT_READING}, audio:{...DEFAULT_AUDIO} })
+const paletteChoices: { value: Palette; name: string; hint: string }[] = [
+ { value: 'sakura', name: '樱色', hint: '恋爱 · 日常' },
+ { value: 'lamp', name: '灯火', hint: '温暖 · 悬疑' },
+ { value: 'moon', name: '月夜', hint: '科幻 · 冷峻' },
+ { value: 'forest', name: '森林', hint: '奇幻 · 冒险' },
+]
 const location = ref<DataLocation | null>(null)
 const error = ref(''), saving = ref(false)
 watch(() => props.open, async open => {
  if (!open) return
- Object.assign(draft, { theme: store.theme, largeText: store.largeText, reading:{...store.reading}, audio:{...store.audio} })
+ Object.assign(draft, { theme: store.theme, palette: store.palette, largeText: store.largeText, reading:{...store.reading}, audio:{...store.audio} })
  error.value = ''; location.value = null
  if (store.real) {
   try { location.value = await dataLocation() }
@@ -34,11 +40,17 @@ async function openFolder(folder: 'root' | 'instances') {
  catch (e) { error.value = typeof e === 'string' ? e : '打开文件夹失败。' }
 }
 async function save() {
- try{if (await store.savePreferences(draft.theme, draft.largeText,readingPreferences(draft.reading),audioPreferences(draft.audio))) emit('close')}catch(e){error.value=e instanceof Error?e.message:'设置无效。'}
+ try{if (await store.savePreferences(draft.theme, draft.largeText,readingPreferences(draft.reading),audioPreferences(draft.audio),palettePreference(draft.palette))) emit('close')}catch(e){error.value=e instanceof Error?e.message:'设置无效。'}
 }
 </script>
 <template><DialogFrame :open="open" title="全局设置" description="调整外观、阅读与声音偏好，以及本机数据保存位置。" @close="emit('close')">
  <div class="form-field"><label for="launcher-theme">主题</label><select id="launcher-theme" v-model="draft.theme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></div>
+ <fieldset class="palette-picker"><legend>主题色</legend>
+  <label v-for="choice in paletteChoices" :key="choice.value" class="palette-choice" :class="{ active: draft.palette === choice.value }" :data-swatch="choice.value">
+   <input v-model="draft.palette" type="radio" name="palette" :value="choice.value" /><span class="swatch" aria-hidden="true"></span><strong>{{ choice.name }}</strong><small>{{ choice.hint }}</small>
+  </label>
+  <p class="muted">作用于启动器、官方游戏舞台与创作者控制台；游戏舞台在下次启动时生效。</p>
+ </fieldset>
  <label class="checkbox-row"><input v-model="draft.largeText" type="checkbox" />使用较大文字</label>
  <details class="play-settings-group"><summary>默认前端阅读偏好</summary><p class="muted">作用于下次启动的官方游戏前端。社区前端可自行选择是否采用。</p><div class="settings-grid"><div class="form-field"><label for="reading-font">对话字号（14–28）</label><input id="reading-font" v-model.number="draft.reading.fontSize" type="number" min="14" max="28" step="1" /></div><div class="form-field"><label for="reading-line-height">对话行距（1.4–2.4）</label><input id="reading-line-height" v-model.number="draft.reading.lineHeight" type="number" min="1.4" max="2.4" step="0.1" /></div></div><label class="checkbox-row"><input v-model="draft.reading.autoFollow" type="checkbox" />靠近底部时自动跟随最新对话</label></details>
  <details class="play-settings-group"><summary>声音偏好</summary>

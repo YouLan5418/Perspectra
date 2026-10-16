@@ -14,6 +14,7 @@ import PresetDialog from './PresetDialog.vue'
 
 const store = useLauncherStore()
 watch(() => store.theme, theme => { document.documentElement.dataset.theme = theme }, { immediate: true })
+watch(() => store.palette, palette => { document.documentElement.dataset.palette = palette }, { immediate: true })
 
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
 watch(() => store.notice, text => {

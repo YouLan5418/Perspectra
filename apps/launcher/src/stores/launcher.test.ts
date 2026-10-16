@@ -149,8 +149,12 @@ it('applies appearance without changing the running instance or sending session 
  store.providers=[{id:'local',label:'local',endpoint,apiKey:'private-key'}]
  bridge.request.mockResolvedValue({...snapshot(),preferences:{theme:'dark',largeText:true},core:{state:'running',mode:'real',instanceId:'instance-1'}})
  expect(await store.savePreferences('dark',true)).toBe(true)
- expect(bridge.request).toHaveBeenLastCalledWith('preferences',{theme:'dark',largeText:true})
+ expect(bridge.request).toHaveBeenLastCalledWith('preferences',{theme:'dark',largeText:true,palette:'sakura'})
  expect(store.theme).toBe('dark'); expect(store.largeText).toBe(true)
+ bridge.request.mockResolvedValue({...snapshot(),preferences:{theme:'dark',largeText:true,palette:'moon'},core:{state:'running',mode:'real',instanceId:'instance-1'}})
+ expect(await store.savePreferences('dark',true,undefined,undefined,'moon')).toBe(true)
+ expect(bridge.request).toHaveBeenLastCalledWith('preferences',{theme:'dark',largeText:true,palette:'moon'})
+ expect(store.palette).toBe('moon')
  expect(store.core.state).toBe('running'); expect(store.providers[0]!.apiKey).toBe('private-key')
 })
 
@@ -174,7 +178,7 @@ it('restores and saves audio preferences through the existing preferences operat
  await store.refresh()
  expect(store.audio).toEqual(audio)
  expect(await store.savePreferences('dark',false,undefined,{...audio,volume:60})).toBe(true)
- expect(bridge.request).toHaveBeenLastCalledWith('preferences',{theme:'dark',largeText:false,audio:{...audio,volume:60}})
+ expect(bridge.request).toHaveBeenLastCalledWith('preferences',{theme:'dark',largeText:false,palette:'sakura',audio:{...audio,volume:60}})
  expect(store.audio.volume).toBe(60)
  bridge.request.mockRejectedValueOnce(new Error('保存失败'))
  expect(await store.savePreferences('dark',false,undefined,{...audio,volume:10})).toBe(false)

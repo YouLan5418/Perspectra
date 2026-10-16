@@ -6,7 +6,7 @@ export const modelProfiles: ModelProfile[] = [
   { id: 'gpt', label: 'GPT', providerId: 'local', model: 'gpt', capability: 'high', contextTokens: 262144, toolCalling: true },
 ]
 export const packages: GamePackage[] = [
-  { id: 'snow-inn', version: '1.2.0', title: '雪夜旅店', subtitle: '风雪之外，每个人都有未说完的故事。', description: '山路被一场突如其来的暴雪封住。你和几位陌生人留在同一家旅店，壁炉仍燃着，窗外的脚步声却越来越近。接下来的故事，由你们一起写下。', genre: '悬疑 · 群像 · 自由扮演', artwork: 'inn', recommendation: { capability: 'balanced', contextTokens: 131072, toolCalling: true }, validation: { status: 'ready', issues: [], simulated: true } },
+  { id: 'snow-inn', version: '1.2.0', title: '雪夜旅店', subtitle: '风雪之外，每个人都有未说完的故事。', description: '山路被一场突如其来的暴雪封住。你和几位陌生人留在同一家旅店，壁炉仍燃着，窗外的脚步声却越来越近。接下来的故事，由你们一起写下。', genre: '悬疑 · 群像 · 自由扮演', artwork: 'inn', cover: '/mock-covers/snow-inn.svg', recommendation: { capability: 'balanced', contextTokens: 131072, toolCalling: true }, validation: { status: 'ready', issues: [], simulated: true } },
   { id: 'quiet-town', version: '0.8.2', title: '回声小镇', subtitle: '最后一班列车之后，小镇又安静下来。', description: '你带着一封没有署名的信重返故乡。那些熟悉的人似乎都在等待一个答案，而废弃车站的广播，每晚都会准时响起。', genre: '探索 · 日常 · 秘密', artwork: 'town', recommendation: { capability: 'high', contextTokens: 262144, toolCalling: true }, validation: { status: 'degraded', issues: ['示例：可选环境音扩展缺失；文字游戏仍可继续。'], simulated: true } },
   { id: 'last-light', version: '0.3.0', title: '最后一座灯塔', subtitle: '海雾深处，有人还在等待光。', description: '在无人航行的海岸，灯塔管理员收到了一张来自明天的明信片。', genre: '奇幻 · 探索', artwork: 'sea', recommendation: { capability: 'balanced', contextTokens: 131072, toolCalling: true }, validation: { status: 'blocked', issues: ['示例：必要世界定义文件缺失。'], simulated: true } },
 ]
