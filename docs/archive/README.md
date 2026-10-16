@@ -8,6 +8,7 @@ archive 记录过去设计、阶段实施、审查与试玩。“当时完成”
 - [phase-7-9c](phase-7-9c/README.md)
 - [prototype-g1-g4](prototype-g1-g4/README.md)（含[截至 2026-10-09 的旧状态页](prototype-g1-g4/PROJECT-STATE-history-through-20261009.md)）
 - [reviews](reviews/README.md)
+- [Narrative Guardian 影子实验归档](narrative-guardian-shadow-20261017.md)
 - [v0-phase-0-6](v0-phase-0-6/README.md)
 - [逐文件迁移清单](document-migration.md)
 - [本次整理报告](document-organization-report.md)
