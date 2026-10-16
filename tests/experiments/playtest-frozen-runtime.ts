@@ -2,7 +2,7 @@ import type { ThinkingLevel } from '../../packages/provider-chat/src/thinking.ts
 import { creatorDebugQuery, type CreatorDebugQuery, type CreatorDebugSnapshot } from './creator-debug.ts'
 import { currentEntityState, currentCharacterLifecycle } from '../../packages/kernel/src/rulebook.ts'
 import { currentSceneStates } from '../../packages/kernel/src/interactions.ts'
-import { playSettings, DEFAULT_READING, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences } from '../../desktop/play-settings.ts'
+import { playSettings, DEFAULT_READING, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../../desktop/play-settings.ts'
 import { providerProtocol, type ProviderProtocol } from '../../packages/provider-chat/src/protocol.ts'
 import { TailRoundRuntime } from './playtest-tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../../desktop/tail-storage.ts'
@@ -59,6 +59,7 @@ export interface FrozenPlaytestOptions {
   readonly playSettings?: PlaySettings
   readonly reading?: ReadingPreferences
   readonly audio?: AudioPreferences
+  readonly palette?: Palette
   readonly tuning?: PlaytestTuning
   readonly shadowAudit?: ShadowOptions
   readonly memoryShadow?: boolean
@@ -445,7 +446,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         && !this.#paused && !this.#escaping && !this.#closing,
       paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#transcript,
-      playerSettings: {inputCharacters:this.#playSettings.playerInputCharacters,reading:this.#options.reading??DEFAULT_READING,audio:{...(this.#options.audio??DEFAULT_AUDIO)}},
+      playerSettings: {inputCharacters:this.#playSettings.playerInputCharacters,reading:this.#options.reading??DEFAULT_READING,audio:{...(this.#options.audio??DEFAULT_AUDIO)},...(this.#options.palette?{palette:this.#options.palette}:{})},
       availableActions: this.#availableActions,
       actionNames: Object.fromEntries(this.#availableActions.flatMap(a => (a.interactions ?? []).flatMap(option => {
         const recipient = (option.arguments as WorldJsonObject | undefined)?.recipientId

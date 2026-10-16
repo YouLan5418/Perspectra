@@ -7,6 +7,10 @@ export async function coreRequest(operation: string, data: Record<string, unknow
 export async function openGame(): Promise<void> {
   await invoke('launcher_request', { request: { operation: 'open' } })
 }
+export async function packCover(packageId: string): Promise<string | null> {
+  const result = await invoke<{ dataUrl: string | null }>('launcher_request', { request: { operation: 'pack-cover', packageId } })
+  return result.dataUrl
+}
 export async function choosePackageDirectory(): Promise<string | null> {
   if (!isTauri()) return null
   const { open } = await import('@tauri-apps/plugin-dialog')

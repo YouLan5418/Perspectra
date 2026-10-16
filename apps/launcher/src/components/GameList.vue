@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ChevronsLeft, ChevronsRight, Library, Layers, Cpu, SlidersHorizontal, Settings, Plus } from '@lucide/vue'
+import { ChevronsLeft, ChevronsRight, Library, Cpu, SlidersHorizontal, Settings, Plus } from '@lucide/vue'
 import { useLauncherStore } from '../stores/launcher.ts'
 
 defineProps<{ activePanel: string | null }>()
@@ -13,7 +13,7 @@ const collapsed = ref(false)
   <aside class="game-sidebar" :class="{ collapsed }" aria-label="游戏列表">
     <div class="sidebar-brand">
       <a href="#" class="wordmark" aria-label="Perspectra 首页" @click.prevent>
-        <span class="brand-icon"><Layers :size="21" :stroke-width="1.8" /></span>
+        <span class="brand-icon" aria-hidden="true">P</span>
         <span class="brand-name">Perspectra</span>
       </a>
       <button class="icon-button collapse-button" :aria-label="collapsed ? '展开侧栏' : '收起侧栏'" :title="collapsed ? '展开侧栏' : '收起侧栏'" @click="collapsed = !collapsed">
@@ -51,13 +51,15 @@ const collapsed = ref(false)
         :disabled="store.busy || store.core.state === 'running'"
         @click="store.selectPackage(game.id)"
       >
-        <span class="game-thumb" :class="game.artwork" aria-hidden="true"><span class="thumb-window"></span></span>
+        <span class="game-thumb" :class="game.artwork" aria-hidden="true">
+          <img v-if="game.cover" :src="game.cover" alt="" />
+          <span v-else class="thumb-glyph">{{ game.title.slice(0, 1) }}</span>
+        </span>
         <span class="game-entry-text">
           <strong>{{ game.title }}</strong>
           <small>{{ game.validation.status === 'blocked' ? '需要检查' : store.instances.some(i => i.packageId === game.id && i.lastPlayedAt) ? '最近游玩' : '尚未开始' }}</small>
         </span>
-        <span v-if="game.id === store.selectedPackageId" class="selected-dot" aria-hidden="true"></span>
-      </button>
+              </button>
       <p v-if="!store.packages.length" class="sidebar-empty">载入游戏包后，世界会出现在这里。</p>
     </nav>
 

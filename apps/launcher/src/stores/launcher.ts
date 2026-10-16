@@ -1,6 +1,6 @@
-import { DEFAULT_PLAY_SETTINGS, DEFAULT_READING, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences } from '../../../../desktop/play-settings.ts'
+import { DEFAULT_PLAY_SETTINGS, DEFAULT_READING, DEFAULT_AUDIO, DEFAULT_PALETTE, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../../../../desktop/play-settings.ts'
 import { isTauri } from '@tauri-apps/api/core'
-import { coreRequest, openGame } from '../services/desktop.ts'
+import { coreRequest, openGame, packCover } from '../services/desktop.ts'
 import type { CoreSnapshot, LocalModel, RolePreset, PresetChoice } from '../core-types.ts'
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
@@ -24,6 +24,7 @@ export const useLauncherStore = defineStore('launcher', () => {
   const packagePlaySettings = ref<Record<string,PlaySettings>>({})
   const currentPlaySettings = computed(()=>packagePlaySettings.value[selectedPackageId.value]??DEFAULT_PLAY_SETTINGS)
   const theme = ref<'system' | 'light' | 'dark'>('system')
+  const palette = ref<Palette>(DEFAULT_PALETTE)
   const notice = ref('')
   const selectedPackage = computed(() => packages.value.find(pack => pack.id === selectedPackageId.value))
   const currentInstance = computed(() => instances.value.find(instance => instance.id === selectedInstanceId.value))
@@ -111,6 +112,14 @@ export const useLauncherStore = defineStore('launcher', () => {
     if(!await action('frontend-revoke',{instanceId:selectedInstanceId.value}))return false
     notice.value='前端授权已撤销，恢复沙箱；运行中的页面将切换官方默认模板。';return true
   }
+  const artworks = ['inn', 'town', 'sea'] as const
+  /** 封面只在首次出现时单独读取一次，避免随 2.5 秒快照轮询反复传输图片。 */
+  const covers = ref<Record<string, string>>({})
+  async function loadCover(id: string) {
+    covers.value[id] = ''
+    try { const url = await packCover(id); if (url) { covers.value[id] = url; packages.value = packages.value.map(p => p.id === id ? { ...p, cover: url } : p) } }
+    catch { /* 封面只是展示资源；读取失败时保留排版封面。 */ }
+  }
   function applySnapshot(snapshot: CoreSnapshot) {
     presets.value=snapshot.presets??{library:[],characters:{},global:{},instances:{},recommended:{}}
     frontends.value=snapshot.frontends
@@ -118,17 +127,19 @@ export const useLauncherStore = defineStore('launcher', () => {
     defaults.value = snapshot.defaults
     largeText.value = snapshot.preferences?.largeText ?? false
     theme.value = snapshot.preferences?.theme ?? 'system'
+    palette.value = snapshot.preferences?.palette ?? DEFAULT_PALETTE
     reading.value = snapshot.preferences?.reading ?? {...DEFAULT_READING}
     audio.value = snapshot.preferences?.audio ?? {...DEFAULT_AUDIO}
     packagePlaySettings.value = snapshot.playSettings??{}
     dataDirectory.value = snapshot.dataDirectory
-    packages.value = snapshot.packs.map(p => ({ id: p.id, version: p.version, title: p.title, subtitle: '本地世界包', description: '由真实 Core 校验与运行。进度保存在独立实例中。',
-      genre: '互动故事', artwork: 'inn', recommendation: { capability: 'balanced', contextTokens: 0, toolCalling: true }, validation: { status: 'ready', issues: [], simulated: false } }))
+    packages.value = snapshot.packs.map((p, index) => ({ id: p.id, version: p.version, title: p.title, subtitle: '', description: snapshot.packDetails?.[p.id]?.description ?? '',
+      genre: '', artwork: artworks[index % artworks.length]!, ...(covers.value[p.id] ? { cover: covers.value[p.id] } : {}), recommendation: { capability: 'balanced', contextTokens: 0, toolCalling: true }, validation: { status: 'ready', issues: [], simulated: false } }))
     profiles.value = snapshot.instances.map(i => ({ id: i.id, label: i.model.model, model: i.model.model, providerId: 'local', capability: 'balanced', contextTokens: 0, toolCalling: true }))
     instances.value = snapshot.instances.map(i => ({ ...i, model: { defaultModelId: i.id, overridesEnabled: false, groups: {}, characters: {} }, currentStorylineId: i.currentStorylineId ?? 'main',
       storylines: i.storylines ?? [{ id: 'main', name: '主故事线', parentStorylineId: null, parentNodeId: null, currentNodeId: 'head', source: { kind: 'original', label: '本地实例', storylineId: null, nodeId: null, turn: 0 } }],
       nodes: i.nodes ?? [{ id: 'head', parentNodeId: null, title: i.lastPlayedAt ? '已保存的世界进度' : '新的旅程', summary: '', turn: 0, createdAt: '' }], localSettings: { textSize: 'standard' } }))
     core.value = snapshot.core
+    for (const [id, detail] of Object.entries(snapshot.packDetails ?? {})) if (detail.hasCover && !(id in covers.value)) void loadCover(id)
     if (!packages.value.some(p => p.id === selectedPackageId.value)) selectedPackageId.value = packages.value[0]?.id ?? ''
     if (!instances.value.some(i => i.id === selectedInstanceId.value && i.packageId === selectedPackageId.value)) selectedInstanceId.value = instances.value.find(i => i.packageId === selectedPackageId.value)?.id ?? ''
   }
@@ -157,9 +168,9 @@ export const useLauncherStore = defineStore('launcher', () => {
     notice.value = '默认模型已保存；API Key 仅在本次会话中保留。'
     return true
   }
-  async function savePreferences(nextTheme: 'system' | 'light' | 'dark', nextLargeText: boolean, nextReading?: ReadingPreferences, nextAudio?: AudioPreferences) {
-    if (real && !await action('preferences', { theme: nextTheme, largeText: nextLargeText, ...(nextReading===undefined?{}:{reading:nextReading}), ...(nextAudio===undefined?{}:{audio:nextAudio}) })) return false
-    theme.value = nextTheme; largeText.value = nextLargeText
+  async function savePreferences(nextTheme: 'system' | 'light' | 'dark', nextLargeText: boolean, nextReading?: ReadingPreferences, nextAudio?: AudioPreferences, nextPalette: Palette = palette.value) {
+    if (real && !await action('preferences', { theme: nextTheme, largeText: nextLargeText, palette: nextPalette, ...(nextReading===undefined?{}:{reading:nextReading}), ...(nextAudio===undefined?{}:{audio:nextAudio}) })) return false
+    theme.value = nextTheme; largeText.value = nextLargeText; palette.value = nextPalette
     if(nextReading)reading.value={...nextReading}
     if(nextAudio)audio.value={...nextAudio}
     notice.value = '设置已保存；阅读和音频偏好将在下次启动游戏时提供给前端。'
@@ -261,7 +272,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     }
   }
 
-  return { exportStory,exportCurrentStory,importStory,selectStoryline,forkStory,saveStoryNode,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, defaults, currentRealModel, initialize, refresh, loadRealPackage, saveSettings, configureModel, startGame, stopGame, reopenGame, packages, instances, profiles, providers, globalDefaultModelId, dataDirectory, largeText, theme, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
+  return { exportStory,exportCurrentStory,importStory,selectStoryline,forkStory,saveStoryNode,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, defaults, currentRealModel, initialize, refresh, loadRealPackage, saveSettings, configureModel, startGame, stopGame, reopenGame, packages, instances, profiles, providers, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
     selectedPackageId, selectedInstanceId, core, selectedPackage, currentInstance, currentStoryline,
     currentNode, currentModel, currentHistory, gameInstances, selectPackage, newInstance, loadMockPackage,
     forkAt, importMockStory, startMock, stopMock }

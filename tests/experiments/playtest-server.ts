@@ -32,7 +32,7 @@ export interface PlaytestState {
   readonly activity?: WorldJsonObject
   readonly activities?: readonly WorldJsonObject[]
   readonly tailRound?: { readonly candidateIds?: readonly string[]; readonly candidateIndex?: number; readonly id: string | null; readonly worldVersion: string; readonly canRegenerate: boolean; readonly regenerating: boolean }
-  readonly playerSettings?: {inputCharacters:number;reading:import('../../desktop/play-settings.ts').ReadingPreferences;audio?:import('../../desktop/play-settings.ts').AudioPreferences}
+  readonly playerSettings?: {inputCharacters:number;reading:import('../../desktop/play-settings.ts').ReadingPreferences;audio?:import('../../desktop/play-settings.ts').AudioPreferences;palette?:import('../../desktop/play-settings.ts').Palette}
   readonly debug: Record<string, unknown>
 }
 
