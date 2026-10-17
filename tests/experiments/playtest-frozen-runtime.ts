@@ -71,6 +71,8 @@ export interface FrozenPlaytestOptions {
   readonly memoryCore?: boolean
   readonly memoryCoreRun?: CoreRunner
   readonly memoryCoreBuildRun?: CoreRunner
+  /** Starts the Core runners for one memory model; defaults to a lazy Python worker plus one-shot builds. */
+  readonly memoryCoreRunners?: (environment: NodeJS.ProcessEnv) => MemoryRunners
   readonly memoryBuildConcurrency?: Omit<MemoryBuildOptions, 'run'>
   readonly memoryContextBudget?: MemoryContextBudget
   readonly storyNodes?: boolean
@@ -92,6 +94,7 @@ export interface FrozenPlaytestOptions {
 }
 
 export type { RuntimeModel, RuntimeRoleModels }
+export interface MemoryRunners { readonly recall: CoreRunner; readonly build: CoreRunner; readonly close?: () => Promise<void> }
 
 const LOCAL_ENDPOINT = 'http://127.0.0.1:8045/v1/chat/completions'
 const LOCAL_MODEL = 'gemini-3.7-flash'
@@ -335,15 +338,31 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     this.#characterIds = characters.map(character => character.actorId)
     if (options.memoryCore) {
       if (options.provider !== 'local') throw new TypeError('实验 Core 网页须使用 local 配置入口。')
-      const coreEnvironment = {
-        HCW_LOCAL_MODEL: this.#model, HCW_LOCAL_ENDPOINT: endpoint.href, HCW_MODEL_PROTOCOL: protocol,
-        ...(options.apiKey === undefined ? {} : { HCW_LOCAL_API_KEY: options.apiKey }),
-        HCW_HINDSIGHT_UTILITY_ATTEMPTS: resolve(options.dataDirectory, 'memory-core', 'utility-attempts.jsonl'),
+      // One runner group per distinct memory model; each Python process sees only its own model's key.
+      const defaultMemory: RuntimeModel = options.roleModels?.memory ?? { protocol, endpoint: endpoint.href, model: this.#model,
+        ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }) }
+      const startRunners = options.memoryCoreRunners ?? ((environment: NodeJS.ProcessEnv): MemoryRunners => {
+        const worker = createCoreWorker(environment)
+        return { recall: worker.run, build: coreRunner(environment), close: worker.close }
+      })
+      const groups = new Map<string, MemoryRunners>()
+      const runnersFor = (target: RuntimeModel): MemoryRunners => {
+        const key = JSON.stringify([target.protocol, target.endpoint, target.model, target.apiKey ?? ''])
+        let runners = groups.get(key)
+        if (runners === undefined) {
+          runners = startRunners({ HCW_LOCAL_MODEL: target.model, HCW_LOCAL_ENDPOINT: target.endpoint, HCW_MODEL_PROTOCOL: target.protocol,
+            HCW_LOCAL_API_KEY: target.apiKey ?? '',
+            HCW_HINDSIGHT_UTILITY_ATTEMPTS: resolve(options.dataDirectory, 'memory-core', 'utility-attempts.jsonl') })
+          groups.set(key, runners)
+        }
+        return runners
       }
-      const worker = options.memoryCoreRun === undefined ? createCoreWorker(coreEnvironment) : undefined
-      this.#closeCore = worker?.close
-      this.#memoryCore = new PlaytestMemoryCore(options.dataDirectory, this.#address, options.memoryCoreRun ?? worker!.run, options.memoryContextBudget ?? {triggerTokens:settings.memoryTriggerTokens,compactTokens:settings.memoryCompactTokens,minimumRecentTokens:settings.memoryRecentTokens},
-        { ...options.memoryBuildConcurrency, run: options.memoryCoreBuildRun ?? coreRunner(coreEnvironment),
+      const shared = options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined ? runnersFor(defaultMemory) : undefined
+      const own = options.memoryCoreRun === undefined
+        ? new Map(Object.entries(roleModels).map(([id, role]) => [id, runnersFor(role.memory)])) : new Map<string, MemoryRunners>()
+      this.#closeCore = async () => { await Promise.all([...groups.values()].map(runners => runners.close?.())) }
+      this.#memoryCore = new PlaytestMemoryCore(options.dataDirectory, this.#address, options.memoryCoreRun ?? shared!.recall, options.memoryContextBudget ?? {triggerTokens:settings.memoryTriggerTokens,compactTokens:settings.memoryCompactTokens,minimumRecentTokens:settings.memoryRecentTokens},
+        { ...options.memoryBuildConcurrency, run: options.memoryCoreBuildRun ?? shared!.build, runFor: actor => own.get(actor),
           worldVersion: this.#worldVersion, versionValid: () => !this.#closing }, {maxItems:settings.memoryMaxItems,maxJsonChars:settings.memoryMaxJsonChars})
     }
     this.#decideContinuation = async (request, signal, reserveFormatRetry) => {
