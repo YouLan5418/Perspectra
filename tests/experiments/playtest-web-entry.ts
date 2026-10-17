@@ -1,6 +1,7 @@
 import { thinkingLevel } from '../../packages/provider-chat/src/thinking.ts'
 import { readingPreferences, audioPreferences, palettePreference } from '../../desktop/play-settings.ts'
 import { providerProtocol } from '../../packages/provider-chat/src/protocol.ts'
+import { runtimeRoleModels } from '../../desktop/model-connections.ts'
 import { ModelPresets, packPreset } from '../../desktop/model-presets.ts'
 import { rolePreset, rolePresetMapping } from '../../packages/provider-chat/src/preset.ts'
 import { createTrustedFrontendServer, type FrontendPolicy } from './playtest-frontend-assets.ts'
@@ -30,6 +31,10 @@ async function main(): Promise<void> {
     : provider === 'ollama' ? process.env.HCW_OLLAMA_MODEL : process.env.HCW_LOCAL_MODEL
   const apiKey = provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY
     : provider === 'local' ? process.env.HCW_LOCAL_API_KEY : undefined
+  // Keys stay in this process's memory only; the Core Python workers receive just the key of their own target.
+  const roleModels = process.env.PERSPECTRA_ROLE_MODELS
+    ? runtimeRoleModels(JSON.parse(process.env.PERSPECTRA_ROLE_MODELS), JSON.parse(process.env.PERSPECTRA_MODEL_KEYS || '{}')) : undefined
+  delete process.env.PERSPECTRA_MODEL_KEYS
   if (packPath === undefined || !isFrozenPackDirectory(packPath)) {
     throw new Error('请通过 --pack 指定 worldpack-source/v5 世界源目录；旧 Pack 已不再由网页试玩入口运行')
   }
@@ -71,6 +76,7 @@ async function main(): Promise<void> {
     }]},
     presetMapping:settings?rolePresetMapping(mapping):rolePresetMapping(JSON.parse(process.env.PERSPECTRA_ROLE_MAPPING??'{}')),
     ...(launch.memoryCore ? { memoryCore: true } : {}),
+    ...(roleModels === undefined ? {} : { roleModels }),
     ...(launch.serialScheduling?{serialScheduling:true}:{}),
     ...(launch.tuning === undefined ? {} : { tuning: launch.tuning }),
     ...(shadowAudit === undefined ? {} : { shadowAudit }),

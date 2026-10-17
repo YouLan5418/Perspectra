@@ -1,12 +1,12 @@
 import { DEFAULT_PLAY_SETTINGS, DEFAULT_READING, DEFAULT_AUDIO, DEFAULT_PALETTE, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../../../../desktop/play-settings.ts'
 import { isTauri } from '@tauri-apps/api/core'
-import { coreRequest, openGame, packCover } from '../services/desktop.ts'
-import type { CoreSnapshot, LocalModel, RolePreset, PresetChoice } from '../core-types.ts'
+import { coreRequest, openGame, packCover, listConnectionModels, setConnectionKey, connectionKeyStatus } from '../services/desktop.ts'
+import type { CoreSnapshot, RolePreset, PresetChoice, ModelConnection, InstanceModels } from '../core-types.ts'
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { packages as fixtures, modelProfiles, createMockInstance, createFreshInstance } from '../mock.ts'
+import { packages as fixtures, modelProfiles, createMockInstance, createFreshInstance, mockCharacters } from '../mock.ts'
 import { availableModel, historyTo } from '../domain.ts'
-import type { CoreStatus, ProviderSettings, GamePackage } from '../types.ts'
+import type { CoreStatus, GamePackage } from '../types.ts'
 
 export const useLauncherStore = defineStore('launcher', () => {
   const packages = ref<GamePackage[]>(isTauri() ? [] : [...fixtures])
@@ -15,7 +15,12 @@ export const useLauncherStore = defineStore('launcher', () => {
   const selectedPackageId = ref('snow-inn')
   const selectedInstanceId = ref(instances.value[0]?.id ?? '')
   const core = ref<CoreStatus>({ state: 'idle', mode: isTauri() ? 'real' : 'mock' })
-  const providers = ref<ProviderSettings[]>([{ id: 'local', label: '本地 / OpenAI 兼容接口', endpoint: '', apiKey: '' }])
+  const connections = ref<ModelConnection[]>([])
+  /** Which connections have a key in the OS credential store; the keys themselves never reach the page. */
+  const storedKeys = ref(new Set<string>())
+  const mockKeys = new Map<string, string>()
+  const modelLists = ref<Record<string, { models: string[]; error?: string; loading: boolean }>>({})
+  const lastModels = ref<InstanceModels | undefined>()
   const globalDefaultModelId = ref<string | null>('flash')
   const dataDirectory = ref('')
   const largeText = ref(false)
@@ -37,7 +42,21 @@ export const useLauncherStore = defineStore('launcher', () => {
     selectedPackageId.value = id
     selectedInstanceId.value = instances.value.find(instance => instance.packageId === id)?.id ?? ''
   }
-  async function newInstance(name: string) { if (real) { if (await action('create', { packageId: selectedPackageId.value, name })) { selectedInstanceId.value = instances.value.at(-1)?.id ?? ''; notice.value = '已创建独立实例。' }; return }
+  async function newInstance(name: string) { if (real) {
+      let models: InstanceModels | undefined
+      const first = connections.value[0]
+      // Same rule as Core: a remembered choice only counts while its connection still exists.
+      const remembered = lastModels.value && connections.value.some(c => c.id === lastModels.value!.decision.connectionId) && (!lastModels.value.memory || connections.value.some(c => c.id === lastModels.value!.memory!.connectionId))
+      if (!remembered && first) {
+        await refreshModels(first.id)
+        const model = modelLists.value[first.id]?.models[0]
+        if (model) models = { decision: { connectionId: first.id, model } }
+      }
+      if (await action('create', { packageId: selectedPackageId.value, name, ...(models ? { models } : {}) })) {
+        selectedInstanceId.value = instances.value.at(-1)?.id ?? ''
+        notice.value = connections.value.length ? '已创建独立实例。' : '已创建独立实例；请先在模型设置添加连接，再到模型配置选择模型。'
+      }
+      return }
     const pack = selectedPackage.value
     if (!pack) return
     const instance = createFreshInstance(pack.id, pack.version, name)
@@ -90,11 +109,14 @@ export const useLauncherStore = defineStore('launcher', () => {
   const real = isTauri()
   const busy = ref(false)
   const initialized = ref(!real)
-  const defaults = ref<LocalModel>({ model: 'gemini-3.7-flash', endpoint: 'http://127.0.0.1:8046/v1/chat/completions' })
   const realInstances = ref<CoreSnapshot['instances']>([])
-  const currentRealModel = computed(() => realInstances.value.find(i => i.id === selectedInstanceId.value)?.model ?? defaults.value)
+  const currentRealInstance = computed(() => realInstances.value.find(i => i.id === selectedInstanceId.value))
+  // Mock mode keeps choices in memory so the dialog's save and summary can be checked without Core.
+  const mockModels = ref<Record<string, InstanceModels>>({})
+  const currentModels = computed(() => real ? currentRealInstance.value?.models : mockModels.value[selectedInstanceId.value])
+  const connectionName = (id: string) => connections.value.find(c => c.id === id)?.name
   const presets=ref<CoreSnapshot['presets']>({library:[],characters:{},global:{},instances:{},recommended:{}})
-  const presetCharacters=computed(()=>presets.value.characters[selectedPackageId.value]??[])
+  const presetCharacters=computed(()=>presets.value.characters[selectedPackageId.value]??(real?[]:mockCharacters))
   const effectivePreset=computed(()=>{const choice=presets.value.instances[selectedInstanceId.value];return choice?.mode==='custom'?choice.override:choice?.mode==='global'?presets.value.global:{...presets.value.global,...presets.value.recommended[selectedPackageId.value]}})
   async function inspectPreset(){return action('preset-inspect')}
   async function saveGlobalPreset(preset:RolePreset){return action('preset-global',{preset})}
@@ -124,7 +146,8 @@ export const useLauncherStore = defineStore('launcher', () => {
     presets.value=snapshot.presets??{library:[],characters:{},global:{},instances:{},recommended:{}}
     frontends.value=snapshot.frontends
     realInstances.value = snapshot.instances
-    defaults.value = snapshot.defaults
+    connections.value = snapshot.connections ?? []
+    lastModels.value = snapshot.lastModels
     largeText.value = snapshot.preferences?.largeText ?? false
     theme.value = snapshot.preferences?.theme ?? 'system'
     palette.value = snapshot.preferences?.palette ?? DEFAULT_PALETTE
@@ -132,9 +155,14 @@ export const useLauncherStore = defineStore('launcher', () => {
     audio.value = snapshot.preferences?.audio ?? {...DEFAULT_AUDIO}
     packagePlaySettings.value = snapshot.playSettings??{}
     dataDirectory.value = snapshot.dataDirectory
-    packages.value = snapshot.packs.map((p, index) => ({ id: p.id, version: p.version, title: p.title, subtitle: '', description: snapshot.packDetails?.[p.id]?.description ?? '',
-      genre: '', artwork: artworks[index % artworks.length]!, ...(covers.value[p.id] ? { cover: covers.value[p.id] } : {}), recommendation: { capability: 'balanced', contextTokens: 0, toolCalling: true }, validation: { status: 'ready', issues: [], simulated: false } }))
-    profiles.value = snapshot.instances.map(i => ({ id: i.id, label: i.model.model, model: i.model.model, providerId: 'local', capability: 'balanced', contextTokens: 0, toolCalling: true }))
+    for (const [id, detail] of Object.entries(snapshot.packDetails ?? {})) if (!detail.hasCover) delete covers.value[id]
+    packages.value = snapshot.packs.map((p, index) => {
+      const detail = snapshot.packDetails?.[p.id]
+      return { id: p.id, version: p.version, title: p.title, subtitle: '', description: detail?.description ?? '',
+        genre: '', artwork: artworks[index % artworks.length]!, ...(covers.value[p.id] ? { cover: covers.value[p.id] } : {}), recommendation: { capability: 'balanced', contextTokens: 0, toolCalling: true },
+        validation: { status: detail?.error ? 'blocked' : 'ready', issues: detail?.error ? [detail.error] : [], simulated: false } }
+    })
+    profiles.value = snapshot.instances.flatMap(i => i.models ? [{ id: i.id, label: i.models.decision.model, model: i.models.decision.model, providerId: i.models.decision.connectionId, capability: 'balanced' as const, contextTokens: 0, toolCalling: true }] : [])
     instances.value = snapshot.instances.map(i => ({ ...i, model: { defaultModelId: i.id, overridesEnabled: false, groups: {}, characters: {} }, currentStorylineId: i.currentStorylineId ?? 'main',
       storylines: i.storylines ?? [{ id: 'main', name: '主故事线', parentStorylineId: null, parentNodeId: null, currentNodeId: 'head', source: { kind: 'original', label: '本地实例', storylineId: null, nodeId: null, turn: 0 } }],
       nodes: i.nodes ?? [{ id: 'head', parentNodeId: null, title: i.lastPlayedAt ? '已保存的世界进度' : '新的旅程', summary: '', turn: 0, createdAt: '' }], localSettings: { textSize: 'standard' } }))
@@ -152,7 +180,49 @@ export const useLauncherStore = defineStore('launcher', () => {
   }
   async function initialize() {
     if (!real) return
-    if (await action('snapshot')) initialized.value = true
+    if (await action('snapshot')) { initialized.value = true; await refreshKeyStatus() }
+  }
+  async function refreshKeyStatus() {
+    try { storedKeys.value = new Set(await connectionKeyStatus(connections.value.map(c => c.id))) }
+    catch { /* Status is a hint only; starting still reads the store directly. */ }
+  }
+  async function saveConnection(connection: ModelConnection, apiKey?: string): Promise<boolean> {
+    const previous = connections.value.find(c => c.id === connection.id)
+    const origin = (endpoint: string) => { try { return new URL(endpoint).origin } catch { return endpoint } }
+    const moved = previous !== undefined && origin(previous.endpoint) !== origin(connection.endpoint)
+    if (real) { if (!await action('connection-save', { connection })) return false }
+    else connections.value = connections.value.some(c => c.id === connection.id) ? connections.value.map(c => c.id === connection.id ? connection : c) : [...connections.value, connection]
+    delete modelLists.value[connection.id]
+    // A key never follows its connection to another host (the desktop shell enforces this too).
+    if (moved && apiKey === undefined) apiKey = ''
+    if (apiKey !== undefined) {
+      try { if (real) await setConnectionKey(connection.id, apiKey); else if (apiKey) mockKeys.set(connection.id, apiKey); else mockKeys.delete(connection.id) }
+      catch (error) { notice.value = typeof error === 'string' ? error : '连接已保存，但 API Key 保存失败。'; return false }
+      const next = new Set(storedKeys.value)
+      if (apiKey) next.add(connection.id); else next.delete(connection.id)
+      storedKeys.value = next
+    }
+    notice.value = '模型连接已保存。'
+    return true
+  }
+  async function removeConnection(id: string): Promise<boolean> {
+    if (real) { if (!await action('connection-remove', { connectionId: id })) return false }
+    else { connections.value = connections.value.filter(c => c.id !== id); mockKeys.delete(id) }
+    const next = new Set(storedKeys.value); next.delete(id); storedKeys.value = next
+    delete modelLists.value[id]
+    notice.value = '模型连接已删除。'
+    return true
+  }
+  async function refreshModels(id: string): Promise<void> {
+    modelLists.value[id] = { models: modelLists.value[id]?.models ?? [], loading: true }
+    try { modelLists.value[id] = { models: real ? await listConnectionModels(id) : ['mock-flash', 'mock-pro'], loading: false } }
+    catch (error) { modelLists.value[id] = { models: [], loading: false, error: typeof error === 'string' ? error : error instanceof Error ? error.message : '模型列表获取失败。' } }
+  }
+  async function configureModels(models: InstanceModels): Promise<boolean> {
+    if (!real) mockModels.value = { ...mockModels.value, [selectedInstanceId.value]: models }
+    else if (!await action('configure', { instanceId: selectedInstanceId.value, models })) return false
+    notice.value = '实例模型配置已保存。'
+    return true
   }
   async function loadRealPackage(path: string) {
     if (!await action('load', { path })) return false
@@ -160,12 +230,6 @@ export const useLauncherStore = defineStore('launcher', () => {
     selectedInstanceId.value = instances.value.find(i => i.packageId === selectedPackageId.value)?.id ?? ''
     if (!selectedInstanceId.value) await newInstance('第一次游玩')
     notice.value = '世界包已校验；实例数据将写入独立目录。'
-    return true
-  }
-  async function saveSettings(model: LocalModel, apiKey: string, nextLargeText = largeText.value) {
-    if (!await action('settings', { model, largeText: nextLargeText })) return false
-    providers.value = [{ id: 'local', label: '模型接口', protocol: model.protocol ?? 'openai', endpoint: model.endpoint, apiKey }]
-    notice.value = '默认模型已保存；API Key 仅在本次会话中保留。'
     return true
   }
   async function savePreferences(nextTheme: 'system' | 'light' | 'dark', nextLargeText: boolean, nextReading?: ReadingPreferences, nextAudio?: AudioPreferences, nextPalette: Palette = palette.value) {
@@ -182,20 +246,10 @@ export const useLauncherStore = defineStore('launcher', () => {
     notice.value='游玩参数已保存，将作用于此包各实例的下一次启动。'
     return true
   }
-  async function configureModel(model: LocalModel) {
-    if (!await action('configure', { instanceId: selectedInstanceId.value, model })) return false
-    notice.value = '实例模型配置已保存。'
-    return true
-  }
   async function startGame() {
     if (!real) { startMock(); return }
-    const provider = providers.value[0]
-    if (provider?.apiKey && (provider.endpoint !== currentRealModel.value.endpoint || (provider.protocol ?? 'openai') !== (currentRealModel.value.protocol ?? 'openai'))) {
-      notice.value = '实例接口与当前密钥绑定的地址不同；请在模型设置填写该接口的密钥，或清空密钥后启动。'
-      return
-    }
     notice.value='正在启动故事线，恢复角色记忆与已提交进度。'
-    if (!await action('start', { instanceId: selectedInstanceId.value, apiKey: providers.value[0]?.apiKey ?? '' })) return
+    if (!await action('start', { instanceId: selectedInstanceId.value })) return
     await reopenGame()
   }
   async function reopenGame() {
@@ -272,7 +326,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     }
   }
 
-  return { exportStory,exportCurrentStory,importStory,selectStoryline,forkStory,saveStoryNode,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, defaults, currentRealModel, initialize, refresh, loadRealPackage, saveSettings, configureModel, startGame, stopGame, reopenGame, packages, instances, profiles, providers, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
+  return { exportStory,exportCurrentStory,importStory,selectStoryline,forkStory,saveStoryNode,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, realInstances, currentRealInstance, currentModels, connectionName, connections, storedKeys, modelLists, lastModels, saveConnection, removeConnection, refreshModels, configureModels, initialize, refresh, loadRealPackage, startGame, stopGame, reopenGame, packages, instances, profiles, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
     selectedPackageId, selectedInstanceId, core, selectedPackage, currentInstance, currentStoryline,
     currentNode, currentModel, currentHistory, gameInstances, selectPackage, newInstance, loadMockPackage,
     forkAt, importMockStory, startMock, stopMock }

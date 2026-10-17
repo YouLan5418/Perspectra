@@ -1,8 +1,9 @@
-import { mkdtemp, readFile, writeFile, rm, mkdir, cp } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, writeFile, rm, mkdir, cp } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { LauncherCore, localModel } from '../../desktop/launcher-core.ts'
+import { LauncherCore } from '../../desktop/launcher-core.ts'
+import { modelConnection } from '../../desktop/model-connections.ts'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
 
@@ -19,6 +20,13 @@ async function service() {
   const core = new LauncherCore(resolve('.'), root)
   await core.initialize()
   return core
+}
+const local = { id: '6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10', name: '本地', protocol: 'openai', endpoint: 'http://127.0.0.1:8046/v1/chat/completions' } as const
+const deepseek = { id: '7a2d3b5f-2e1c-4d4a-8b62-1e7d2c8f3a21', name: 'DeepSeek', protocol: 'openai', endpoint: 'https://api.deepseek.com/chat/completions' } as const
+async function withPack(core: LauncherCore, names: string[] = ['first']) {
+  await core.handle({ operation: 'load', path: resolve('examples/world-packs/prototype-g1') })
+  for (const name of names) await core.handle({ operation: 'create', packageId: core.snapshot().packs[0]!.id, name })
+  return core.snapshot().instances
 }
 describe('real Launcher metadata and authority boundary', () => {
   it('explains denied save directory creation without starting Core or changing metadata', async () => {
@@ -41,21 +49,31 @@ describe('real Launcher metadata and authority boundary', () => {
 
   it('loads real packs and persists independent instances and their model choices', async () => {
     const core = await service()
-    await core.handle({ operation: 'load', path: resolve('examples/world-packs/prototype-g1') })
-    const pack = core.snapshot().packs[0]!
-    await core.handle({ operation: 'create', packageId: pack.id, name: 'first' })
-    await core.handle({ operation: 'create', packageId: pack.id, name: 'second' })
-    const [first, second] = core.snapshot().instances
+    await core.handle({ operation: 'connection-save', connection: local })
+    const [first, second] = await withPack(core, ['first', 'second'])
     expect(first!.id).not.toBe(second!.id)
-    await core.handle({ operation: 'configure', instanceId: first!.id, model: { model: 'my-model', endpoint: 'http://127.0.0.1:8046/v1/chat/completions' }, apiKey: 'must-not-persist' })
+    expect(second!.needsModel).toBe(true)
+    await core.handle({ operation: 'configure', instanceId: first!.id, models: { decision: { connectionId: local.id, model: 'my-model' } }, apiKeys: { [local.id]: 'must-not-persist' } })
     const restored = new LauncherCore(resolve('.'), core.root)
     await restored.initialize()
-    expect(restored.snapshot().instances[0]!.model.model).toBe('my-model')
-    expect(restored.snapshot().instances[1]!.model.model).toBe('gemini-3.7-flash')
+    expect(restored.snapshot().instances[0]!.models?.decision.model).toBe('my-model')
+    expect(restored.snapshot().instances[1]!.needsModel).toBe(true)
+    expect(restored.snapshot().lastModels).toEqual({ decision: { connectionId: local.id, model: 'my-model' } })
     const disk = await readFile(join(core.root, 'launcher.json'), 'utf8')
     expect(disk).not.toContain('must-not-persist')
     expect(disk).not.toContain('apiKey')
     expect(restored.snapshot().core.state).toBe('idle')
+  })
+  it('gives new instances the last saved choice, or the one the launcher proposes', async () => {
+    const core = await service()
+    await core.handle({ operation: 'connection-save', connection: local })
+    await core.handle({ operation: 'load', path: resolve('examples/world-packs/prototype-g1') })
+    const packageId = core.snapshot().packs[0]!.id
+    await core.handle({ operation: 'create', packageId, name: 'proposed', models: { decision: { connectionId: local.id, model: 'listed-first' } } })
+    expect(core.snapshot().instances[0]!.models?.decision.model).toBe('listed-first')
+    await core.handle({ operation: 'configure', instanceId: core.snapshot().instances[0]!.id, models: { decision: { connectionId: local.id, model: 'chosen' } } })
+    await core.handle({ operation: 'create', packageId, name: 'remembered', models: { decision: { connectionId: local.id, model: 'ignored' } } })
+    expect(core.snapshot().instances[1]!.models?.decision.model).toBe('chosen')
   })
   it('reads the pack description and an optional root cover only for display', async () => {
     const core = await service()
@@ -77,9 +95,46 @@ describe('real Launcher metadata and authority boundary', () => {
     await expect(core.handle({ operation: 'load', path: core.root })).rejects.toThrow()
     expect(core.snapshot().packs).toHaveLength(0)
   })
+  it.each(['missing', 'source', 'preset'])('isolates a %s package on initialization and clears its stale display data', async failure => {
+    const core = await service()
+    const path = join(core.root, 'broken-pack')
+    await cp(resolve('examples/world-packs/launcher-demo'), path, { recursive: true })
+    await writeFile(join(path, 'cover.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    await core.handle({ operation: 'load', path })
+    const brokenId = core.snapshot().packs[0]!.id
+    await core.handle({ operation: 'create', packageId: brokenId, name: '保留实例' })
+    const instanceId = core.snapshot().instances[0]!.id
+    // The broken package comes first, so loading must continue to the healthy one.
+    await core.handle({ operation: 'load', path: resolve('examples/world-packs/prototype-g1') })
+    const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
+    if (failure === 'missing') await rm(path, { recursive: true })
+    else await writeFile(join(path, failure === 'source' ? 'worldpack.source.json' : 'model-preset.json'), '{broken')
+    const restored = new LauncherCore(resolve('.'), core.root)
+    await expect(restored.initialize()).resolves.toBeUndefined()
+    // Also refresh the already populated object: cached characters/cover must disappear.
+    await expect(core.handle({ operation: 'preset-inspect' })).resolves.toBeDefined()
+    for (const launcher of [core, restored]) {
+      const snapshot = launcher.snapshot()
+      expect(snapshot.packs).toHaveLength(2)
+      expect(snapshot.instances[0]!.id).toBe(instanceId)
+      expect(snapshot.packDetails[brokenId]).toMatchObject({ hasCover: false, error: expect.stringContaining('世界包') })
+      expect(snapshot.presets.characters[brokenId] ?? []).toEqual([])
+      expect(snapshot.presets.recommended[brokenId]).toBeUndefined()
+      expect(snapshot.presets.characters['pack:prototype-g1']!.length).toBeGreaterThan(0)
+      expect(await launcher.handle({ operation: 'pack-cover', packageId: brokenId })).toMatchObject({ dataUrl: null })
+      await expect(launcher.handle({ operation: 'start', instanceId })).rejects.toThrow('世界包')
+    }
+    expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
+    await rm(path, { recursive: true, force: true })
+    await cp(resolve('examples/world-packs/launcher-demo'), path, { recursive: true })
+    await restored.handle({ operation: 'load', path })
+    expect(restored.snapshot().packDetails[brokenId]).not.toHaveProperty('error')
+    expect(restored.snapshot().presets.characters[brokenId]!.length).toBeGreaterThan(0)
+    expect(restored.snapshot().instances[0]!.id).toBe(instanceId)
+  })
   it('does not overwrite corrupt metadata or accept an instance path as an ID', async () => {
     const core = await service()
-    const original = JSON.stringify({ packs: [], instances: [{ id: '../outside' }], defaults: {} })
+    const original = JSON.stringify({ packs: [], instances: [{ id: '../outside' }], connections: [] })
     await writeFile(join(core.root, 'launcher.json'), original)
     await expect(new LauncherCore(resolve('.'), core.root).initialize()).rejects.toThrow('配置损坏')
     expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(original)
@@ -95,21 +150,84 @@ describe('real Launcher metadata and authority boundary', () => {
   })
   it('rejects credential-bearing endpoints and non-chat URLs', () => {
     for (const endpoint of ['file:///tmp/x', 'http://key:secret@localhost/v1/chat/completions', 'http://localhost/v1/chat/completions?key=secret', 'http://localhost/v1']) {
-      expect(() => localModel({ model: 'test', endpoint })).toThrow()
+      expect(() => modelConnection({ ...local, endpoint })).toThrow()
     }
   })
 })
 
-it('persists large text, restores an old index with defaults and rejects invalid preferences',async()=>{
- const core=await service(),model=core.snapshot().defaults
- await core.handle({operation:'settings',model,largeText:true,apiKey:'must-not-persist'})
+describe('model connections in the launcher index', () => {
+  it('migrates an old single-endpoint index once and keeps a backup of the original file', async () => {
+    const core = await service()
+    await withPack(core)
+    const current = JSON.parse(await readFile(join(core.root, 'launcher.json'), 'utf8')) as Record<string, unknown>
+    const instances = current.instances as Record<string, unknown>[]
+    const old = { packs: current.packs, preferences: current.preferences, defaults: { model: 'gemini-3.7-flash', endpoint: local.endpoint },
+      instances: instances.map(({ models: _models, ...instance }) => ({ ...instance, model: { model: 'old-model', endpoint: 'https://api.deepseek.com/chat/completions', thinkingLevel: 'medium' } })) }
+    const text = JSON.stringify(old)
+    await writeFile(join(core.root, 'launcher.json'), text)
+    const restored = new LauncherCore(resolve('.'), core.root); await restored.initialize()
+    const snapshot = restored.snapshot()
+    expect(snapshot.connections.map(c => c.name)).toEqual(['127.0.0.1:8046', 'api.deepseek.com'])
+    expect(snapshot.instances[0]!.models).toEqual({ decision: { connectionId: snapshot.connections[1]!.id, model: 'old-model', thinkingLevel: 'medium' } })
+    expect(snapshot.lastModels?.decision.connectionId).toBe(snapshot.connections[0]!.id)
+    const backups = (await readdir(core.root)).filter(name => /^launcher\.backup-.+\.json$/.test(name))
+    expect(backups).toHaveLength(1)
+    expect(await readFile(join(core.root, backups[0]!), 'utf8')).toBe(text)
+    const disk = await readFile(join(core.root, 'launcher.json'), 'utf8')
+    expect(disk).not.toContain('"defaults"')
+    expect(disk).not.toContain('"model":{')
+  })
+  it('marks instances whose connection was removed and refuses to start them', async () => {
+    const core = await service()
+    await core.handle({ operation: 'connection-save', connection: local })
+    const [instance] = await withPack(core)
+    await core.handle({ operation: 'configure', instanceId: instance!.id, models: { decision: { connectionId: local.id, model: 'm' } } })
+    await core.handle({ operation: 'connection-remove', connectionId: local.id })
+    expect(core.snapshot().instances[0]!.brokenConnection).toBe(true)
+    await expect(core.handle({ operation: 'start', instanceId: instance!.id })).rejects.toThrow('连接已删除')
+    const restored = new LauncherCore(resolve('.'), core.root); await restored.initialize()
+    expect(restored.snapshot().instances[0]!.brokenConnection).toBe(true)
+  })
+  it('refuses to start an instance without a model', async () => {
+    const core = await service()
+    const [instance] = await withPack(core)
+    await expect(core.handle({ operation: 'start', instanceId: instance!.id })).rejects.toThrow('请先在模型配置中选择模型')
+  })
+  it('rejects choices that reference unknown connections or characters outside the pack', async () => {
+    const core = await service()
+    await core.handle({ operation: 'connection-save', connection: local })
+    const [instance] = await withPack(core)
+    const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
+    await expect(core.handle({ operation: 'configure', instanceId: instance!.id, models: { decision: { connectionId: deepseek.id, model: 'm' } } })).rejects.toThrow('连接不存在')
+    await expect(core.handle({ operation: 'configure', instanceId: instance!.id, models: { decision: { connectionId: local.id, model: 'm' }, characters: { 'character:foreign': { decision: { connectionId: local.id, model: 'x' } } } } })).rejects.toThrow('此包之外')
+    expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
+  })
+  it('lists models with the session key and never stores or exposes it', async () => {
+    const core = await service()
+    await core.handle({ operation: 'connection-save', connection: local })
+    const fetch = vi.fn(); vi.stubGlobal('fetch', fetch)
+    try {
+      fetch.mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'b' }, { id: 'a' }] })))
+      expect(await core.handle({ operation: 'list-models', connectionId: local.id, apiKeys: { [local.id]: 'PRIVATE_KEY' } })).toEqual({ models: ['a', 'b'] })
+      expect(String(fetch.mock.calls[0]![0])).toBe('http://127.0.0.1:8046/v1/models')
+      expect(fetch.mock.calls[0]![1].headers.authorization).toBe('Bearer PRIVATE_KEY')
+      await expect(core.handle({ operation: 'list-models', connectionId: deepseek.id })).rejects.toThrow('连接不存在')
+      expect(JSON.stringify(core.snapshot())).not.toContain('PRIVATE_KEY')
+      expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).not.toContain('PRIVATE_KEY')
+    } finally { vi.unstubAllGlobals() }
+  })
+})
+
+it('persists large text and rejects invalid preferences',async()=>{
+ const core=await service()
+ await core.handle({operation:'settings',largeText:true,apiKey:'must-not-persist'})
  const restored=new LauncherCore(resolve('.'),core.root);await restored.initialize()
  expect(restored.snapshot().preferences.largeText).toBe(true)
- await restored.handle({operation:'settings',model})
+ await restored.handle({operation:'settings'})
  expect(restored.snapshot().preferences.largeText).toBe(true)
- await expect(restored.handle({operation:'settings',model,largeText:'true'})).rejects.toThrow('字体')
+ await expect(restored.handle({operation:'settings',largeText:'true'})).rejects.toThrow('字体')
  expect(restored.snapshot().preferences.largeText).toBe(true)
- await restored.handle({operation:'settings',model,largeText:false})
+ await restored.handle({operation:'settings',largeText:false})
  const again=new LauncherCore(resolve('.'),core.root);await again.initialize()
  expect(again.snapshot().preferences.largeText).toBe(false)
  const disk=JSON.parse(await readFile(join(core.root,'launcher.json'),'utf8'))
@@ -120,8 +238,8 @@ it('persists large text, restores an old index with defaults and rejects invalid
 })
 
  it('isolates corrupt story history without changing files or blocking healthy instances',async()=>{
-  const core=await service();await core.handle({operation:'load',path:resolve('examples/world-packs/prototype-g1')})
-  for(const name of ['broken','healthy'])await core.handle({operation:'create',packageId:core.snapshot().packs[0]!.id,name})
+  const core=await service();await core.handle({operation:'connection-save',connection:local})
+  await withPack(core,['broken','healthy'])
   const broken=core.snapshot().instances[0]!,nodeId='11111111-1111-4111-8111-111111111111'
   const directory=join(core.root,'instances',broken.id,'story-nodes',nodeId);await mkdir(directory,{recursive:true});await writeFile(join(directory,'node.json'),'{')
   const index=await readFile(join(core.root,'launcher.json'),'utf8')
@@ -132,8 +250,8 @@ it('persists large text, restores an old index with defaults and rejects invalid
   await expect(restored.handle({operation:'story-fork',instanceId:broken.id,nodeId,name:'forbidden'})).rejects.toThrow()
   expect(await readFile(join(directory,'node.json'),'utf8')).toBe('{')
   expect(await readFile(join(core.root,'launcher.json'),'utf8')).toBe(index)
-  await restored.handle({operation:'configure',instanceId:restored.snapshot().instances[1]!.id,model:{model:'healthy-model',endpoint:'http://127.0.0.1:8046/v1/chat/completions'}})
-  expect(restored.snapshot().instances[1]!.model.model).toBe('healthy-model')
+  await restored.handle({operation:'configure',instanceId:restored.snapshot().instances[1]!.id,models:{decision:{connectionId:local.id,model:'healthy-model'}}})
+  expect(restored.snapshot().instances[1]!.models?.decision.model).toBe('healthy-model')
  })
  it('rejects invalid enabled macros atomically on save and import',async()=>{
   const core=await service();await core.handle({operation:'load',path:resolve('examples/world-packs/prototype-g1')});await core.handle({operation:'create',packageId:core.snapshot().packs[0]!.id,name:'macro'})
@@ -158,17 +276,18 @@ it('keeps stored invalid macros editable without weakening save or import checks
 })
 
 it('tests model connectivity without persisting secrets or echoing provider content',async()=>{
- const core=await service(),before=JSON.stringify(core.snapshot()),model={model:'fixture',endpoint:'http://127.0.0.1:8046/v1/chat/completions'}
+ const core=await service();await core.handle({operation:'connection-save',connection:local})
+ const before=JSON.stringify(core.snapshot()),request={operation:'test-model',connectionId:local.id,model:'fixture'}
  const fetch=vi.fn();vi.stubGlobal('fetch',fetch)
  try{
   fetch.mockResolvedValueOnce(new Response(JSON.stringify({choices:[{message:{content:'PRIVATE_RESPONSE'}}]}),{status:200}))
-  expect(await core.handle({operation:'test-model',model,apiKey:'PRIVATE_KEY'})).toEqual({message:expect.stringContaining('已响应')})
+  expect(await core.handle({...request,apiKeys:{[local.id]:'PRIVATE_KEY'}})).toEqual({message:expect.stringContaining('已响应')})
   expect(fetch.mock.calls[0]![1].headers.authorization).toBe('Bearer PRIVATE_KEY')
   expect(JSON.parse(fetch.mock.calls[0]![1].body).messages).toEqual([{role:'user',content:expect.stringContaining('不包含游戏内容')}])
-  for(const [status,expected] of [[401,'认证'],[429,'限流'],[500,'HTTP 500']] as const){fetch.mockResolvedValueOnce(new Response('PRIVATE_PROVIDER_ERROR',{status}));await expect(core.handle({operation:'test-model',model})).rejects.toThrow(expected)}
-  fetch.mockResolvedValueOnce(new Response('{'));await expect(core.handle({operation:'test-model',model})).rejects.toThrow('JSON')
-  fetch.mockResolvedValueOnce(new Response(JSON.stringify({choices:[]})));await expect(core.handle({operation:'test-model',model})).rejects.toThrow('有效文本')
-  fetch.mockRejectedValueOnce(new Error('PRIVATE_NETWORK'));await expect(core.handle({operation:'test-model',model})).rejects.toThrow('连接失败')
+  for(const [status,expected] of [[401,'认证'],[429,'限流'],[500,'HTTP 500']] as const){fetch.mockResolvedValueOnce(new Response('PRIVATE_PROVIDER_ERROR',{status}));await expect(core.handle(request)).rejects.toThrow(expected)}
+  fetch.mockResolvedValueOnce(new Response('{'));await expect(core.handle(request)).rejects.toThrow('JSON')
+  fetch.mockResolvedValueOnce(new Response(JSON.stringify({choices:[]})));await expect(core.handle(request)).rejects.toThrow('有效文本')
+  fetch.mockRejectedValueOnce(new Error('PRIVATE_NETWORK'));await expect(core.handle(request)).rejects.toThrow('连接失败')
   expect(JSON.stringify(core.snapshot())).toBe(before)
  }finally{vi.unstubAllGlobals()}
 })
@@ -178,30 +297,30 @@ it('persists native protocols and uses their headers and responses in connection
  const fetch=vi.fn();vi.stubGlobal('fetch',fetch)
  try {
   for(const protocol of ['anthropic','google'] as const) {
-   const model={protocol,model:'selected',endpoint:protocol==='google'?'https://native.test/v1beta/models/old:generateContent':'https://native.test/v1/messages'}
-   await core.handle({operation:'settings',model})
+   const connection={...local,protocol,endpoint:protocol==='google'?'https://native.test/v1beta/models/old:generateContent':'https://native.test/v1/messages'}
+   await core.handle({operation:'connection-save',connection})
    const restored=new LauncherCore(resolve('.'),core.root);await restored.initialize()
-   expect(restored.snapshot().defaults).toEqual(model)
+   expect(restored.snapshot().connections).toEqual([connection])
    fetch.mockResolvedValueOnce(new Response(JSON.stringify(protocol==='anthropic'?{content:[{type:'text',text:'OK'}]}:{candidates:[{content:{parts:[{text:'OK'}]}}]})))
-   await expect(core.handle({operation:'test-model',model,apiKey:'SESSION_ONLY'})).resolves.toEqual({message:expect.stringContaining('已响应')})
+   await expect(core.handle({operation:'test-model',connectionId:local.id,model:'selected',apiKeys:{[local.id]:'SESSION_ONLY'}})).resolves.toEqual({message:expect.stringContaining('已响应')})
    const [url,init]=fetch.mock.calls.at(-1)!
    expect(String(url)).toContain(protocol==='google'?'/models/selected:generateContent':'/messages')
    if(protocol==='google')expect(JSON.parse(init.body)).not.toHaveProperty('systemInstruction')
    expect(init.headers).toMatchObject(protocol==='google'?{'x-goog-api-key':'SESSION_ONLY'}:{'x-api-key':'SESSION_ONLY'})
    expect(await readFile(join(core.root,'launcher.json'),'utf8')).not.toContain('SESSION_ONLY')
   }
-  expect(()=>localModel({protocol:'invalid',model:'m',endpoint:'https://native.test/v1/messages'})).toThrow()
-  expect(()=>localModel({protocol:'anthropic',model:'m',endpoint:'https://native.test/v1/chat/completions'})).toThrow()
+  await expect(core.handle({operation:'connection-save',connection:{...local,protocol:'invalid'}})).rejects.toThrow()
+  await expect(core.handle({operation:'connection-save',connection:{...local,protocol:'anthropic'}})).rejects.toThrow()
  } finally {vi.unstubAllGlobals()}
 })
 
 it('persists appearance separately from models and rejects invalid theme without overwriting settings', async () => {
- const core = await service(), model = core.snapshot().defaults
+ const core = await service()
+ await core.handle({operation:'connection-save',connection:local})
  await core.handle({operation:'preferences',theme:'dark',largeText:true,apiKey:'must-not-persist'})
- await core.handle({operation:'settings',model})
  const restored = new LauncherCore(resolve('.'),core.root); await restored.initialize()
  expect(restored.snapshot().preferences).toEqual({theme:'dark',largeText:true})
- expect(restored.snapshot().defaults).toEqual(model)
+ expect(restored.snapshot().connections).toEqual([local])
  const before = await readFile(join(core.root,'launcher.json'),'utf8')
  expect(before).not.toContain('must-not-persist')
  await expect(core.handle({operation:'preferences',theme:'invalid',largeText:false})).rejects.toThrow('外观设置无效')
@@ -218,8 +337,9 @@ it('persists the interface palette and rejects unknown palettes without overwrit
  expect(await readFile(join(core.root,'launcher.json'),'utf8')).toBe(before)
 })
 
-it('keeps package play settings separate, restores them and preserves model defaults and instances',async()=>{
+it('keeps package play settings separate, restores them and preserves model connections and instances',async()=>{
  const core=await service()
+ await core.handle({operation:'connection-save',connection:local})
  await core.handle({operation:'load',path:resolve('examples/world-packs/prototype-g1')})
  await core.handle({operation:'load',path:resolve('examples/world-packs/launcher-demo')})
  const [first,second]=core.snapshot().packs
@@ -233,7 +353,7 @@ it('keeps package play settings separate, restores them and preserves model defa
  expect(restored.snapshot().playSettings?.[first!.id]).toMatchObject({autonomyNpcCalls:5,autonomyReactionWaves:2})
  expect(restored.snapshot().playSettings?.[second!.id]).toBeUndefined()
  expect(restored.snapshot().instances).toEqual(before.instances)
- expect(restored.snapshot().defaults).toEqual(before.defaults)
+ expect(restored.snapshot().connections).toEqual(before.connections)
  expect(restored.snapshot().preferences.reading).toEqual({fontSize:22,lineHeight:2,autoFollow:false})
  await expect(core.handle({operation:'play-settings',packageId:first!.id,settings:{maximumWaves:0}})).rejects.toThrow()
  await expect(core.handle({operation:'play-settings',packageId:'foreign',settings:{}})).rejects.toThrow('载入')
@@ -258,12 +378,14 @@ it('restores global audio preferences and rejects invalid updates without changi
 })
 
 it('persists thinking strength per instance and rejects unsupported explicit choices', async()=>{
- const core=await service();await core.handle({operation:'load',path:resolve('examples/world-packs/prototype-g1')})
- await core.handle({operation:'create',packageId:core.snapshot().packs[0]!.id,name:'thinking test'})
- const instance=core.snapshot().instances[0]!
- await core.handle({operation:'configure',instanceId:instance.id,model:{model:'deepseek-flash',endpoint:'https://api.deepseek.com/chat/completions',thinkingLevel:'medium'}})
+ const core=await service()
+ await core.handle({operation:'connection-save',connection:deepseek})
+ const google={id:'8b3e4c60-3f2d-4e5b-9c73-2f8e3d904b32',name:'Google',protocol:'google',endpoint:'https://local.test/v1beta/models/gemini-3.7-flash:generateContent'}
+ await core.handle({operation:'connection-save',connection:google})
+ const [instance]=await withPack(core,['thinking test'])
+ await core.handle({operation:'configure',instanceId:instance!.id,models:{decision:{connectionId:deepseek.id,model:'deepseek-flash',thinkingLevel:'medium'}}})
  const restored=new LauncherCore(resolve('.'),core.root);await restored.initialize()
- expect(restored.snapshot().instances[0]!.model.thinkingLevel).toBe('medium')
- expect(()=>localModel({model:'m',endpoint:'http://local.test/v1/chat/completions',thinkingLevel:'unknown'})).toThrow('思考强度')
- expect(()=>localModel({model:'gemini-3.7-flash',protocol:'google',endpoint:'https://local.test/v1beta/models/gemini-3.7-flash:generateContent',thinkingLevel:'off'})).toThrow('不支持')
+ expect(restored.snapshot().instances[0]!.models?.decision.thinkingLevel).toBe('medium')
+ await expect(core.handle({operation:'configure',instanceId:instance!.id,models:{decision:{connectionId:deepseek.id,model:'m',thinkingLevel:'unknown'}}})).rejects.toThrow('思考强度')
+ await expect(core.handle({operation:'configure',instanceId:instance!.id,models:{decision:{connectionId:google.id,model:'gemini-3.7-flash',thinkingLevel:'off'}}})).rejects.toThrow('不支持')
 })

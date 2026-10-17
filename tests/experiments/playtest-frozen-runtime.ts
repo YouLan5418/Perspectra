@@ -6,6 +6,7 @@ import { currentEntityState, currentCharacterLifecycle } from '../../packages/ke
 import { currentSceneStates } from '../../packages/kernel/src/interactions.ts'
 import { playSettings, DEFAULT_READING, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../../desktop/play-settings.ts'
 import { providerProtocol, type ProviderProtocol } from '../../packages/provider-chat/src/protocol.ts'
+import type { RuntimeModel, RuntimeRoleModels } from '../../desktop/model-connections.ts'
 import { TailRoundRuntime } from './playtest-tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../../desktop/tail-storage.ts'
 import { PrototypePresetError } from '../../packages/application/src/prototype-character-turn.ts'
@@ -70,6 +71,8 @@ export interface FrozenPlaytestOptions {
   readonly memoryCore?: boolean
   readonly memoryCoreRun?: CoreRunner
   readonly memoryCoreBuildRun?: CoreRunner
+  /** Starts the Core runners for one memory model; defaults to a lazy Python worker plus one-shot builds. */
+  readonly memoryCoreRunners?: (environment: NodeJS.ProcessEnv) => MemoryRunners
   readonly memoryBuildConcurrency?: Omit<MemoryBuildOptions, 'run'>
   readonly memoryContextBudget?: MemoryContextBudget
   readonly storyNodes?: boolean
@@ -86,7 +89,12 @@ export interface FrozenPlaytestOptions {
   readonly beforeActionExpression?: boolean
   /** Read-only recent execution presentation; no planning calls or persistent strategy. */
   readonly recentExecutionEvidence?: boolean
+  /** Launcher-resolved per-character models; characters absent here use the default model above. */
+  readonly roleModels?: RuntimeRoleModels
 }
+
+export type { RuntimeModel, RuntimeRoleModels }
+export interface MemoryRunners { readonly recall: CoreRunner; readonly build: CoreRunner; readonly close?: () => Promise<void> }
 
 const LOCAL_ENDPOINT = 'http://127.0.0.1:8045/v1/chat/completions'
 const LOCAL_MODEL = 'gemini-3.7-flash'
@@ -310,9 +318,18 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     const characters = playtestModelCharacters(compiled.manifest, this.#playerId)
     const mapping=rolePresetMapping(options.presetMapping??{})
     if([...Object.keys(mapping.characters??{}),...Object.keys(mapping.memberships??{})].some(id=>!characters.some(c=>c.actorId===id)))throw new TypeError('预设引用了此包之外或不可调用的角色。')
+    const roleModels=options.roleModels?.characters ?? {}
+    if(options.roleModels !== undefined && options.provider !== 'local') throw new TypeError('按角色模型须使用 local 配置入口。')
+    if(Object.keys(roleModels).some(id=>!characters.some(c=>c.actorId===id)))throw new TypeError('模型配置引用了此包之外或不可调用的角色。')
+    // An override replaces the whole target, so the default key and thinking level never reach another provider.
+    const {thinkingLevel:_thinking,apiKey:_key,...sharedOptions}=providerOptions
+    const decisionTarget=(id:string)=>{const own=roleModels[id]?.decision;return own===undefined?providerOptions:{...sharedOptions,
+      protocol:own.protocol,endpoint:new URL(own.endpoint),model:own.model,
+      ...(own.thinkingLevel===undefined?{}:{thinkingLevel:own.thinkingLevel}),...(own.apiKey===undefined?{}:{apiKey:own.apiKey})}}
+    const roleProtocols=new Map(characters.map(c=>[String(c.actorId),decisionTarget(String(c.actorId)).protocol]))
     const effectivePresets=new Map(characters.map(c=>[String(c.actorId),characterPreset(options.preset??{},mapping,c.actorId)]))
     this.#effectivePresets=effectivePresets
-    const roleProviders=new Map(characters.map(c=>[String(c.actorId),createChatProvider({...providerOptions,preset:effectivePresets.get(c.actorId)!,
+    const roleProviders=new Map(characters.map(c=>[String(c.actorId),createChatProvider({...decisionTarget(String(c.actorId)),preset:effectivePresets.get(c.actorId)!,
       presetOrigin:Object.hasOwn(mapping.characters??{},c.actorId) ? {scope:'character',characterId:String(c.actorId),name:'角色专属预设'}
         : mapping.memberships?.[c.actorId] ? {scope:'group',characterId:String(c.actorId),groupId:mapping.memberships[c.actorId]!,name:mapping.groups![mapping.memberships[c.actorId]!]!.name}
           : {scope:'base',characterId:String(c.actorId),name:'默认预设',
@@ -321,15 +338,31 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     this.#characterIds = characters.map(character => character.actorId)
     if (options.memoryCore) {
       if (options.provider !== 'local') throw new TypeError('实验 Core 网页须使用 local 配置入口。')
-      const coreEnvironment = {
-        HCW_LOCAL_MODEL: this.#model, HCW_LOCAL_ENDPOINT: endpoint.href, HCW_MODEL_PROTOCOL: protocol,
-        ...(options.apiKey === undefined ? {} : { HCW_LOCAL_API_KEY: options.apiKey }),
-        HCW_HINDSIGHT_UTILITY_ATTEMPTS: resolve(options.dataDirectory, 'memory-core', 'utility-attempts.jsonl'),
+      // One runner group per distinct memory model; each Python process sees only its own model's key.
+      const defaultMemory: RuntimeModel = options.roleModels?.memory ?? { protocol, endpoint: endpoint.href, model: this.#model,
+        ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }) }
+      const startRunners = options.memoryCoreRunners ?? ((environment: NodeJS.ProcessEnv): MemoryRunners => {
+        const worker = createCoreWorker(environment)
+        return { recall: worker.run, build: coreRunner(environment), close: worker.close }
+      })
+      const groups = new Map<string, MemoryRunners>()
+      const runnersFor = (target: RuntimeModel): MemoryRunners => {
+        const key = JSON.stringify([target.protocol, target.endpoint, target.model, target.apiKey ?? ''])
+        let runners = groups.get(key)
+        if (runners === undefined) {
+          runners = startRunners({ HCW_LOCAL_MODEL: target.model, HCW_LOCAL_ENDPOINT: target.endpoint, HCW_MODEL_PROTOCOL: target.protocol,
+            HCW_LOCAL_API_KEY: target.apiKey ?? '',
+            HCW_HINDSIGHT_UTILITY_ATTEMPTS: resolve(options.dataDirectory, 'memory-core', 'utility-attempts.jsonl') })
+          groups.set(key, runners)
+        }
+        return runners
       }
-      const worker = options.memoryCoreRun === undefined ? createCoreWorker(coreEnvironment) : undefined
-      this.#closeCore = worker?.close
-      this.#memoryCore = new PlaytestMemoryCore(options.dataDirectory, this.#address, options.memoryCoreRun ?? worker!.run, options.memoryContextBudget ?? {triggerTokens:settings.memoryTriggerTokens,compactTokens:settings.memoryCompactTokens,minimumRecentTokens:settings.memoryRecentTokens},
-        { ...options.memoryBuildConcurrency, run: options.memoryCoreBuildRun ?? coreRunner(coreEnvironment),
+      const shared = options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined ? runnersFor(defaultMemory) : undefined
+      const own = options.memoryCoreRun === undefined
+        ? new Map(Object.entries(roleModels).map(([id, role]) => [id, runnersFor(role.memory)])) : new Map<string, MemoryRunners>()
+      this.#closeCore = async () => { await Promise.all([...groups.values()].map(runners => runners.close?.())) }
+      this.#memoryCore = new PlaytestMemoryCore(options.dataDirectory, this.#address, options.memoryCoreRun ?? shared!.recall, options.memoryContextBudget ?? {triggerTokens:settings.memoryTriggerTokens,compactTokens:settings.memoryCompactTokens,minimumRecentTokens:settings.memoryRecentTokens},
+        { ...options.memoryBuildConcurrency, run: options.memoryCoreBuildRun ?? shared!.build, runFor: actor => own.get(actor),
           worldVersion: this.#worldVersion, versionValid: () => !this.#closing }, {maxItems:settings.memoryMaxItems,maxJsonChars:settings.memoryMaxJsonChars})
     }
     this.#decideContinuation = async (request, signal, reserveFormatRetry) => {
@@ -347,7 +380,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       const prepare = async (visible: PrototypeTurnRequest) => {
         try {
           const projected = await presetContext(visible, effectivePreset!, String(this.#playerId), signal)
-          return presetCall(options.provider === 'local' && protocol === 'openai' ? localPrototypeTurnCall(projected) : prototypeTurnCall(projected),
+          return presetCall(options.provider === 'local' && roleProtocols.get(characterId) !== 'google' ? localPrototypeTurnCall(projected) : prototypeTurnCall(projected),
             effectivePreset!, projected, this.#playerName, {character:this.#names.get(characterId)??characterId,
               scene:this.#locationNames.get(String((projected.context.scene as WorldJsonObject | undefined)?.locationId))??String((projected.context.scene as WorldJsonObject | undefined)?.locationId??'')})
         } catch(error) { signal.throwIfAborted(); throw new PrototypePresetError('角色预设准备失败。', {cause:error}) }

@@ -1,34 +1,64 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useLauncherStore } from '../stores/launcher.ts'
+import { draftModels, geminiRequired, modelsDraft, type LayerDraft, type ModelsDraft } from '../model-choices.ts'
 import { Button } from './ui/button/index.ts'
 import DialogFrame from './DialogFrame.vue'
+import ModelPicker from './ModelPicker.vue'
+import ThinkingOptions from './ThinkingOptions.vue'
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 const store = useLauncherStore()
-const draft = reactive({ thinkingLevel: 'off' as 'off' | 'low' | 'medium' | 'high', protocol: 'openai' as 'openai' | 'anthropic' | 'google', model: '', endpoint: '' })
-watch(() => props.open, open => { if (open) Object.assign(draft, { ...store.currentRealModel, thinkingLevel: store.currentRealModel.thinkingLevel ?? (/gemini-(?:[3-9]|2\.5-pro)/i.test(store.currentRealModel.model) ? 'low' : 'off'), protocol: store.currentRealModel.protocol ?? 'openai' }) })
+const draft = ref<ModelsDraft>(modelsDraft(undefined, []))
+const models = computed(() => draftModels(draft.value))
+watch(() => props.open, open => {
+  if (!open) return
+  draft.value = modelsDraft(store.currentRealInstance?.brokenConnection ? undefined : store.currentModels, store.presetCharacters.map(c => c.id))
+})
+// Choosing a Gemini model that cannot turn thinking off moves the choice to the lowest allowed level.
+function keepThinkingValid(layer: LayerDraft) { if (layer.thinkingLevel === 'off' && geminiRequired(layer.decision?.model ?? '')) layer.thinkingLevel = 'low' }
+watch(draft, value => { keepThinkingValid(value); for (const role of Object.values(value.characters)) keepThinkingValid(role) }, { deep: true })
+const overrides = computed(() => Object.values(draft.value.characters).filter(role => role.override).length)
 async function save() {
-  if (store.real && !await store.configureModel({ ...draft })) return
+  if (!models.value) return
+  if (!await store.configureModels(models.value)) return
   emit('close')
 }
 </script>
-<template><DialogFrame :open="open" title="模型配置" description="此配置属于当前实例；所有角色与记忆整理共用此模型接口。" @close="emit('close')">
-  <div class="form-field"><label for="instance-protocol">接口协议</label><select id="instance-protocol" v-model="draft.protocol"><option value="openai">OpenAI 兼容</option><option value="anthropic">Anthropic Messages</option><option value="google">Google Gemini</option></select></div>
-  <p class="muted">填写完整请求地址：OpenAI 为 /v1/chat/completions；Anthropic 为 /v1/messages；Google 为 /v1beta/models/模型:generateContent，实际使用下方模型标识。API Key 不放入地址。</p>
-  <div class="form-field"><label for="instance-model">模型标识</label><input id="instance-model" v-model="draft.model" autocomplete="off" /></div>
-  <div class="form-field"><label for="instance-endpoint">接口地址</label><input id="instance-endpoint" v-model="draft.endpoint" type="url" autocomplete="off" /></div>
-  <div class="form-field"><label>角色思考强度</label><div class="thinking-options" role="group" aria-label="角色思考强度"><button v-for="option in ([{value:'off',label:'关闭'},{value:'low',label:'低'},{value:'medium',label:'中'},{value:'high',label:'高'}] as const)" :key="option.value" :disabled="option.value==='off' && /gemini-(?:[3-9]|2\.5-pro)/i.test(draft.model)" type="button" :aria-pressed="draft.thinkingLevel===option.value" :class="{selected:draft.thinkingLevel===option.value}" @click="draft.thinkingLevel=option.value">{{ option.label }}</button></div></div>
-  <p class="muted">仅影响角色决策，记忆整理和玩家输入解析保持原设置。更强的思考可能增加等待与消耗；DeepSeek 的中、高分别对应原生 high、max。Gemini 部分型号不能完全关闭。</p>
-  <p v-if="draft.model.toLowerCase().includes('gemini') && draft.protocol==='openai'" class="muted">通过网关使用 Gemini 时，实际强度由网关映射决定；网关强制配置可能覆盖选择。不支持关闭的型号已禁用该档。</p>
-  <p class="inline-info">角色独立映射暂未接入。认证在左下角“模型设置”填写，仅保留在本次会话。</p>
-  <div class="dialog-actions"><Button variant="outline" @click="emit('close')">取消</Button><Button :disabled="store.busy || store.core.state === 'running'" @click="save">保存配置</Button></div>
+<template><DialogFrame :open="open" title="模型配置" description="为这个实例选择角色使用的模型。连接与 API Key 在左下角“模型设置”里管理。" @close="emit('close')">
+  <p v-if="store.currentRealInstance?.brokenConnection" class="inline-info">此实例原先使用的连接已删除，请重新选择。</p>
+  <p v-if="!store.connections.length" class="inline-info">还没有模型连接。请先在左下角“模型设置”添加连接。</p>
+  <template v-else>
+    <ModelPicker v-model="draft.decision" label="所有角色" id-prefix="instance-default" />
+    <ThinkingOptions v-model="draft.thinkingLevel" :model="draft.decision?.model ?? ''" label="角色思考强度" />
+    <p class="muted">仅影响角色决策。更强的思考可能增加等待与消耗；DeepSeek 的中、高分别对应原生 high、max。Gemini 部分型号不能完全关闭。</p>
+    <label class="check-row"><input v-model="draft.memoryFollows" type="checkbox" /> 记忆整理跟随上面的决策模型</label>
+    <ModelPicker v-if="!draft.memoryFollows" v-model="draft.memory" label="记忆整理" id-prefix="instance-memory" />
+    <section v-if="store.presetCharacters.length" class="role-section">
+      <h3>按角色单独设置<span v-if="overrides" class="muted"> · {{ overrides }} 个角色单独配置</span></h3>
+      <p class="muted">适合给重要角色换推理更强、文笔更好的模型，次要角色继续用默认模型。</p>
+      <div v-for="character in store.presetCharacters" :key="character.id" class="role-row">
+        <template v-if="draft.characters[character.id]">
+          <label class="check-row"><input :checked="!draft.characters[character.id]!.override" type="checkbox"
+            @change="draft.characters[character.id]!.override = !($event.target as HTMLInputElement).checked" /> <strong>{{ character.name }}</strong> 跟随默认</label>
+          <div v-if="draft.characters[character.id]!.override" class="role-body">
+            <ModelPicker v-model="draft.characters[character.id]!.decision" :label="character.name" :id-prefix="'role-' + character.id" />
+            <ThinkingOptions v-model="draft.characters[character.id]!.thinkingLevel" :model="draft.characters[character.id]!.decision?.model ?? ''" :label="character.name + ' · 思考强度'" />
+            <label class="check-row"><input v-model="draft.characters[character.id]!.memoryFollows" type="checkbox" /> 记忆整理跟随该角色的决策模型</label>
+            <ModelPicker v-if="!draft.characters[character.id]!.memoryFollows" v-model="draft.characters[character.id]!.memory" :label="character.name + ' · 记忆整理'" :id-prefix="'role-memory-' + character.id" />
+          </div>
+        </template>
+      </div>
+    </section>
+  </template>
+  <p v-if="store.connections.length && !models" class="muted">每个已选择的模型位置都需要填写模型标识。</p>
+  <div class="dialog-actions"><Button variant="outline" @click="emit('close')">取消</Button><Button :disabled="store.busy || store.core.state === 'running' || !models" @click="save">保存配置</Button></div>
 </DialogFrame></template>
 
 <style scoped>
-.thinking-options{display:flex;gap:4px;padding:4px;background:var(--surface-soft,#f1f5f9);border-radius:12px}
-.thinking-options button{flex:1;border:0;border-radius:8px;padding:9px 14px;background:transparent;cursor:pointer;color:inherit}
-.thinking-options button.selected{background:#2563eb;color:white}
-.thinking-options button:disabled{opacity:.4;cursor:not-allowed}
-.thinking-options button:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.check-row{display:flex;align-items:center;gap:8px;cursor:pointer}
+.role-section{display:grid;gap:10px;border-top:1px solid var(--border);padding-top:14px}
+.role-section h3{margin:0;font-size:15px}
+.role-row{display:grid;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:12px}
+.role-body{display:grid;gap:12px}
 </style>

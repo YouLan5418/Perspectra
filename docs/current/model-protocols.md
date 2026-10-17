@@ -1,10 +1,14 @@
 # 模型接口协议
 
-日期：2026-10-08。当前源码已接通 OpenAI 兼容、Anthropic Messages 和 Google Gemini Developer API 的非流式请求。DeepSeek 的 Anthropic 兼容入口已通过短场景真实调用；Anthropic 官方与 Google 原生模型尚未验收。
+日期：2026-10-17。当前源码已接通 OpenAI 兼容、Anthropic Messages 和 Google Gemini Developer API 的非流式请求，以及按角色选择决策和记忆整理模型。DeepSeek 的 Anthropic 兼容入口已通过短场景真实调用；Anthropic 官方与 Google 原生模型尚未验收。此次模型连接功能未重建发行包。
 
 ## 配置
 
-Launcher 的模型设置与实例“模型”弹窗可选择协议。模型设置只影响新实例，已有实例单独修改。API Key 仍仅在 Launcher 会话内保留，并绑定协议和完整接口地址；不写入实例配置或分享文件。
+例如让普通角色使用 Flash、重要角色 Claude 使用更强模型：先添加两条连接，在实例“模型 → 修改”设置默认决策模型，再在“按角色单独设置”取消 Claude 的“跟随默认”，选择另一连接和模型。记忆整理默认跟随该角色的决策模型；取消对应勾选后可单独选择。保存并重新启动生效，游戏详情显示“另有 N 个角色单独配置”。模型选择不支持角色组；角色组仍只用于预设。
+
+Launcher 左下角“模型设置”管理多条模型连接，每条连接记住名称、协议和完整接口地址，可以“查看模型”列出该接口当前可用的模型；实例的“模型”弹窗从这些连接里选模型，不再重填协议和地址。API Key 按连接存入 Windows 凭据管理器，重启 Launcher 后仍在；它不写入 `launcher.json`、实例配置或分享文件，只在列模型、测试连接和启动游戏时由桌面壳读取并随请求传给 Node 后端。
+
+列模型的地址由完整请求地址推导：OpenAI 兼容把末尾 `/chat/completions` 换成 `/models`；Anthropic 把 `/messages` 换成 `/models` 并跟随分页；Google 取 `/models/模型:generateContent` 前的 `/models` 并只保留支持 `generateContent` 的模型。网关不提供列表时会提示失败，仍可直接输入模型标识。
 
 | 协议 | 完整请求地址示例 | 认证 |
 | --- | --- | --- |
@@ -19,11 +23,11 @@ Launcher 的模型设置与实例“模型”弹窗可选择协议。模型设�
 ## 调用边界
 
 - 复用现有 ChatCall、授权角色上下文和决策 Schema。供应商适配器只转换 HTTP 请求与响应；perform 仍经过 Host / Rulebook / Event 提交。
-- OpenAI 兼容 local 入口将多个交互共用的目标 ID 和绑定 ID 去重后写入工具 Schema 的枚举；可选交互及 Host 的原始角色协议校验保持不变。
+- OpenAI 兼容和 Anthropic 的 local 入口复用扁平决策 Schema，避免兼容网关把根 `oneOf` 只解释为首个 `abstain` 分支；多个交互共用的目标 ID 和绑定 ID 去重后写入枚举。Host 仍按原始角色协议检查输出，可选交互、受众和 Rulebook 权限不放宽。Google 原生入口继续使用原 Schema。
 - Anthropic 使用 input_schema 工具和 auto 工具选择，避免把 forced tool 支持当作所有模型的前提；只接受一次指定工具调用，或交给 Host 验证的 JSON 正文。
 - Google 使用 functionDeclarations.parametersJsonSchema 与 ANY 模式。没有把旧本地 Gemini 网关的 Schema 改写直接套用到原生接口。
 - 思考块不作为角色决策。多工具、错误工具名、空响应和 token 截断失败；不增加供应商侧自动执行或隐式重试。
-- Core 记忆的 Python utility_llm 使用同一协议、模型、地址和会话密钥。Anthropic 正文要求 JSON，Google 使用 JSON MIME；原有 JSON 检查、授权边界与重试策略继续执行。
+- Core 记忆的 Python utility_llm 使用该角色生效的记忆模型、协议、地址和连接 Key。未覆盖的角色沿用实例默认记忆选择；角色单独选择决策模型且未指定记忆模型时，记忆跟随该角色决策，不继承默认层另选的记忆模型。决策思考强度不传给记忆 Utility，后者沿用已有请求参数。Anthropic 正文要求 JSON，Google 使用 JSON MIME；原有 JSON 检查、授权边界与重试策略继续执行。
 - 请求检查器展示实际请求体，同时按转换前消息保留来源标签；原生用量映射到已有输入/输出 token 字段。检查器不接收认证头，不保存思考正文。
 
 ## 预设与已接受限制
@@ -35,6 +39,8 @@ Anthropic 不支持 frequencyPenalty / presencePenalty，设置时明确拒绝�
 连接测试只验证文本响应，不证明当前世界的完整 Schema 被供应商接受，也不验证记忆整理与角色自然度。默认 2048 输出 token 对思考模型可能不足，可以提高输出上限；不静默重发。
 
 ## 验证
+
+2026-10-17 本机 8045 网关的两协议验收中，Claude 使用 `claude-sonnet-4-6`、其他角色使用 `gemini-3.8-flash`，决策及各自的三个记忆整理阶段路由正确，四份档案成功安装；修复后 Claude 两轮均正常发表。两条连接注入的随机测试 Key 未出现在数据目录全部 93 个文件中。此前两次 Claude 整理因无效 JSON 被拒，仍是已接受的供应商输出限制。环境、自动检查和未验收范围见[本轮记录](studies/launcher-role-models-20261017.md)。
 
 自动化覆盖原生认证头、真实决策 Schema 的请求构造、响应提取、思考隔离、截断、错误工具、取消、配置持久化及请求检查器。两种协议分别通过本机 HTTP 模拟供应商运行取钥匙 → 放回 → 续写，检查两次受控事实提交与最终保管状态。Python 验证原生记忆请求、JSON 解析和截断拒绝。
 
