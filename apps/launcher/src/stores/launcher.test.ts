@@ -79,6 +79,10 @@ it('proposes the first listed model for a new instance when nothing was chosen b
   await store.newInstance('沿用')
   expect(bridge.list).not.toHaveBeenCalled()
   expect(bridge.request).toHaveBeenLastCalledWith('create', { packageId: 'pack:real', name: '沿用' })
+  bridge.request.mockImplementation(async () => ({ ...snapshot(), lastModels: { decision: { connectionId: '00000000-0000-4000-8000-000000000000', model: 'deleted' } } }))
+  await store.refresh(); bridge.list.mockResolvedValueOnce(['m1'])
+  await store.newInstance('连接已删')
+  expect(bridge.request).toHaveBeenLastCalledWith('create', { packageId: 'pack:real', name: '连接已删', models: { decision: { connectionId, model: 'm1' } } })
 })
 
 it('forwards only an explicitly confirmed digest and scopes revoke to the selected instance', async () => {
