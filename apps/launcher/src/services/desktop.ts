@@ -49,9 +49,21 @@ export async function savePresetFile(text: string, name: string): Promise<boolea
  return true
 }
 
-export async function testModelConnection(model: import('../core-types.ts').LocalModel, apiKey: string): Promise<string> {
- const result=await invoke<{message:string}>('launcher_request',{request:{operation:'test-model',model,apiKey}})
+/** Keys are added by the desktop shell from the credential store; the page never sends them here. */
+export async function testModelConnection(connectionId: string, model: string): Promise<string> {
+ const result=await invoke<{message:string}>('launcher_request',{request:{operation:'test-model',connectionId,model}})
  return result.message
+}
+export async function listConnectionModels(connectionId: string): Promise<string[]> {
+ const result=await invoke<{models:string[]}>('launcher_request',{request:{operation:'list-models',connectionId}})
+ return result.models
+}
+export async function setConnectionKey(connectionId: string, apiKey: string): Promise<void> {
+ await invoke('launcher_request',{request:{operation:'connection-key-set',connectionId,apiKey}})
+}
+export async function connectionKeyStatus(connectionIds: string[]): Promise<string[]> {
+ const result=await invoke<{stored:string[]}>('launcher_request',{request:{operation:'connection-key-status',connectionIds}})
+ return result.stored
 }
 
 export async function chooseStoryFile(): Promise<string | null> {
