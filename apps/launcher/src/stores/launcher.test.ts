@@ -1,8 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-const bridge = vi.hoisted(() => ({ request: vi.fn(), open: vi.fn(), list: vi.fn(), setKey: vi.fn(), keyStatus: vi.fn() }))
+const bridge = vi.hoisted(() => ({ request: vi.fn(), open: vi.fn(), creator: vi.fn(), list: vi.fn(), setKey: vi.fn(), keyStatus: vi.fn() }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
-vi.mock('../services/desktop.ts', () => ({ coreRequest: bridge.request, openGame: bridge.open, listConnectionModels: bridge.list, setConnectionKey: bridge.setKey, connectionKeyStatus: bridge.keyStatus }))
+vi.mock('../services/desktop.ts', () => ({ coreRequest: bridge.request, openGame: bridge.open, openCreator: bridge.creator, listConnectionModels: bridge.list, setConnectionKey: bridge.setKey, connectionKeyStatus: bridge.keyStatus }))
 import { useLauncherStore } from './launcher.ts'
 const endpoint = 'http://127.0.0.1:8046/v1/chat/completions'
 const connectionId = '6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10'
@@ -138,8 +138,17 @@ it('uses real saved nodes and persists storyline operations through Core instead
   expect(store.currentHistory.map(n=>n.id)).toEqual(['node-root','node-main-future'])
   await store.forkStory('node-root','新线')
   expect(bridge.request).toHaveBeenCalledWith('story-fork',{instanceId:'instance-1',nodeId:'node-root',name:'新线'})
-  await store.saveStoryNode('保存点')
-  expect(bridge.request).toHaveBeenCalledWith('story-save',{instanceId:'instance-1',title:'保存点'})
+  // Saving progress moved to the game page toolbar; the launcher only switches, forks, imports and exports.
+  expect('saveStoryNode' in store).toBe(false)
+})
+
+it('opens the creator page through the desktop shell and reports failures',async()=>{
+  const store=useLauncherStore();await store.initialize()
+  await store.openCreator()
+  expect(bridge.creator).toHaveBeenCalledOnce()
+  bridge.creator.mockRejectedValueOnce(new Error('游戏尚未启动。'))
+  await store.openCreator()
+  expect(store.notice).toBe('游戏尚未启动。')
 })
 
 it('exports the selected node and selects a newly imported independent instance',async()=>{

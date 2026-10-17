@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue'
 import { useStorage } from '@vueuse/core'
 import PlaySettingsDialog from './PlaySettingsDialog.vue'
-import RequestInspectorDialog from './RequestInspectorDialog.vue'
 import FrontendAuthorizationDialog from './FrontendAuthorizationDialog.vue'
 import {
   ArrowRight,
@@ -31,7 +30,6 @@ defineEmits<{ model: []; preset: []; story: []; import: []; export: []; settings
 const store = useLauncherStore()
 const playSettingsOpen = ref(false)
 const frontendOpen = ref(false)
-const inspectorOpen = ref(false)
 /** 引擎与创作者工具默认收起；玩家展开后记住选择。 */
 const advancedOpen = useStorage('perspectra.launcher.advanced-open', false)
 const inspectorAvailable = computed(() => store.core.state === 'running' && 'instanceId' in store.core && store.core.instanceId === store.selectedInstanceId)
@@ -183,15 +181,6 @@ const thinkingLabel = { off: '关闭', low: '低', medium: '中', high: '高' } 
               <button class="link-button" :disabled="running || store.busy" @click="$emit('preset')">定制<ArrowRight :size="14" /></button>
             </div>
 
-            <div v-if="store.real" class="tool-tile">
-              <Activity :size="17" class="tool-icon" />
-              <div class="tool-copy">
-                <strong>模型请求探查<span v-if="inspectorAvailable" class="live-badge"><span class="pulse-light"></span>实时</span></strong>
-                <p>{{ inspectorAvailable ? '查看角色上下文装配与最终发送的请求' : '游戏运行后可查看角色上下文、预设展开与完整请求' }}</p>
-              </div>
-              <button class="link-button" :disabled="!inspectorAvailable" @click="inspectorOpen = true">查看<ArrowRight :size="14" /></button>
-            </div>
-
             <div class="tool-tile">
               <LayoutList :size="17" class="tool-icon" />
               <div class="tool-copy">
@@ -234,7 +223,6 @@ const thinkingLabel = { off: '关闭', low: '低', medium: '中', high: '高' } 
   </Transition>
 
   <!-- Dialogs outside transition -->
-  <RequestInspectorDialog :open="inspectorOpen && running" :instance-id="store.selectedInstanceId" :characters="store.presetCharacters" @close="inspectorOpen = false" />
   <PlaySettingsDialog :open="playSettingsOpen" @close="playSettingsOpen = false" />
   <FrontendAuthorizationDialog :open="frontendOpen" @close="frontendOpen = false" />
 </template>

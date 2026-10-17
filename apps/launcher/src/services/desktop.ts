@@ -1,13 +1,14 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
-import type { CreatorDebugQuery, CreatorDebugSnapshot } from '../../../../tests/experiments/creator-debug.ts'
-import type { CreatorRecordsQuery, CreatorRecordsSnapshot } from '../../../../tests/experiments/creator-records.ts'
-import type { CreatorHistoryQuery, CreatorHistorySnapshot } from '../../../../tests/experiments/creator-history.ts'
 import type { CoreSnapshot } from '../core-types.ts'
 export async function coreRequest(operation: string, data: Record<string, unknown> = {}): Promise<CoreSnapshot> {
   return invoke<CoreSnapshot>('launcher_request', { request: { operation, ...data } })
 }
 export async function openGame(): Promise<void> {
   await invoke('launcher_request', { request: { operation: 'open' } })
+}
+/** 创作者页面与玩家页面同一本地服务器；地址由桌面端校验后交给系统浏览器。 */
+export async function openCreator(): Promise<void> {
+  await invoke('launcher_request', { request: { operation: 'open-creator' } })
 }
 export async function packCover(packageId: string): Promise<string | null> {
   const result = await invoke<{ dataUrl: string | null }>('launcher_request', { request: { operation: 'pack-cover', packageId } })
@@ -21,19 +22,6 @@ export async function choosePackageDirectory(): Promise<string | null> {
 }
 /** Retained only for browser Mock preview compatibility. */
 export async function choosePackageFile(): Promise<string | null> { return choosePackageDirectory() }
-
-export async function inspectRequests(instanceId: string, enabled?: boolean): Promise<import('../../../../packages/provider-chat/src/request-inspector.ts').InspectorSnapshot> {
- return invoke('launcher_request', { request: { operation: 'request-inspector', instanceId, ...(enabled === undefined ? {} : { enabled }) } })
-}
-export async function inspectCreator(instanceId: string, query: CreatorDebugQuery = {}): Promise<CreatorDebugSnapshot> {
- return invoke('launcher_request', { request: { operation: 'creator-debug', instanceId, query } })
-}
-export async function inspectCreatorRecords(instanceId: string, query: CreatorRecordsQuery = {}): Promise<CreatorRecordsSnapshot> {
- return invoke('launcher_request', {request:{operation:'creator-records',instanceId,query}})
-}
-export async function inspectCreatorHistory(instanceId: string, query: CreatorHistoryQuery = {}): Promise<CreatorHistorySnapshot> {
- return invoke('launcher_request', {request:{operation:'creator-history',instanceId,query}})
-}
 
 export async function savePresetFile(text: string, name: string): Promise<boolean> {
  if (isTauri()) {

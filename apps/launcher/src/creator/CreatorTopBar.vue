@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { ArrowLeft, ChevronDown, ChevronUp, RefreshCw, SlidersHorizontal } from '@lucide/vue'
+import { ChevronDown, ChevronUp, RefreshCw, SlidersHorizontal } from '@lucide/vue'
 import { KIND_LABEL } from './format.ts'
 import { useCreatorStore } from './store.ts'
 import type { StatusTone, TraceKind } from './types.ts'
 
 const props = defineProps<{ gameTitle: string; storyline: string }>()
-const emit = defineEmits<{ close: [] }>()
 const store = useCreatorStore()
 
 const candidateLabel = computed(() => {
@@ -51,7 +50,6 @@ const detailCount = computed(() => store.trace.length)
         <span class="cr-tag" :class="statusTone"><i class="cr-dot" />{{ statusLabel }}</span>
         <span class="cr-tag line">采集 {{ store.captureEnabled ? '已开启' : '未开启' }}</span>
         <span class="cr-tag line">世界 v{{ store.world?.worldVersion ?? '—' }} · 序号 {{ store.world?.headSeq ?? 0 }} · tick {{ store.world?.tick ?? 0 }}</span>
-        <button class="cr-button" @click="emit('close')"><ArrowLeft :size="13" />返回游戏库</button>
       </div>
     </div>
 

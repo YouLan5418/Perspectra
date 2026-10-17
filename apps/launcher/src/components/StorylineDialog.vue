@@ -24,14 +24,10 @@ async function chooseLine(id: string) {
 async function fork() {
   if (await store.forkStory(selectedNodeId.value, name.value.trim())) emit('close')
 }
-const nodeTitle = ref('我的节点')
-async function saveNode() {
-  if (await store.saveStoryNode(nodeTitle.value.trim())) selectedNodeId.value = store.currentNode?.id ?? ''
-}
 </script>
 
 <template>
-  <DialogFrame wide :open="open" title="故事线分支管理" description="过去的选择会一直保留。保存完整世界节点，结束游戏后从这里开启自己的故事，恢复节点当时的角色记忆。" @close="emit('close')">
+  <DialogFrame wide :open="open" title="故事线分支管理" description="过去的选择会一直保留。在游戏页面保存进度，结束游戏后从这里开启自己的故事，恢复节点当时的角色记忆。" @close="emit('close')">
     <p v-if="store.currentInstance?.storyError" role="alert">{{ store.currentInstance.storyError }}</p>
 
     <div class="storyline-list">
@@ -45,14 +41,8 @@ async function saveNode() {
       </button>
     </div>
 
-    <div v-if="store.real && store.core.state === 'running'" class="form-field">
-      <label for="node-title">保存当前静止时刻</label>
-      <input id="node-title" v-model="nodeTitle" maxlength="80" />
-      <Button :disabled="store.busy || !nodeTitle.trim()" @click="saveNode">保存完整节点</Button>
-      <p class="muted">请等待当前行动结束；保存会取消未完成的后台记忆整理。结束游戏后可切换或分叉。</p>
-    </div>
 
-    <p v-if="store.real && !store.currentInstance?.storyError && !store.currentHistory.length" class="muted">暂无完整节点。开始游戏后可保存当前节点；旧历史不会自动补成节点。</p>
+    <p v-if="store.real && !store.currentInstance?.storyError && !store.currentHistory.length" class="muted">暂无完整节点。开始游戏后可在游戏页面工具栏“保存进度”；旧历史不会自动补成节点。</p>
 
     <div class="form-field">
       <label for="history-node">从历史节点开始</label>

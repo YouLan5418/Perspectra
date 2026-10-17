@@ -56,4 +56,4 @@ export interface Selection {
 }
 
 /** 控制台里的页面；与左侧导航一一对应。 */
-export type ConsoleView = 'conversation' | 'trace' | 'world' | 'characters' | 'entities' | 'variables' | 'activities'
+export type ConsoleView = 'conversation' | 'trace' | 'requests' | 'world' | 'characters' | 'entities' | 'variables' | 'activities'

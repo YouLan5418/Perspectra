@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vue-tsc --noEmit && vite build && vite build --config vite.creator.config.ts",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",
     "preview": "vite preview --host 127.0.0.1",
     "tauri": "tauri",
-    "desktop": "tauri dev"
+    "desktop": "tauri dev",
+    "creator:dev": "vite --host 127.0.0.1 --config vite.creator.config.ts"
   },
   "dependencies": {
     "@lucide/vue": "^1.52.0",
