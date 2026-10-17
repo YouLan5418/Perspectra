@@ -19,6 +19,8 @@ const testModel = ref(''), testing = ref(false), testNotice = ref('')
 watch(() => props.open, open => { if (!open) { editing.value = null; draft.apiKey = ''; pendingRemove.value = null; testNotice.value = '' } })
 const users = (id: string) => store.realInstances.filter(i => [i.models?.decision, i.models?.memory, ...Object.values(i.models?.characters ?? {}).flatMap(c => [c.decision, c.memory])].some(t => t?.connectionId === id)).map(i => i.name)
 const removing = computed(() => pendingRemove.value ? users(pendingRemove.value) : [])
+const origin = (endpoint: string) => { try { return new URL(endpoint).origin } catch { return endpoint } }
+const hostChanged = computed(() => { const saved = store.connections.find(c => c.id === draft.id); return !!saved && origin(saved.endpoint) !== origin(draft.endpoint.trim()) })
 function startEdit(connection?: ModelConnection) {
   Object.assign(draft, connection ? { ...connection, apiKey: '', clearKey: false } : { id: crypto.randomUUID(), name: '', protocol: 'openai', endpoint: '', apiKey: '', clearKey: false })
   editing.value = draft.id; testNotice.value = ''; testModel.value = ''
@@ -92,6 +94,7 @@ async function test(id: string) {
     <p class="muted">填写完整请求地址：OpenAI 为 /v1/chat/completions；Anthropic 为 /v1/messages；Google 为 /v1beta/models/模型:generateContent。API Key 不放入地址。</p>
     <div class="form-field"><label for="connection-key">API Key</label>
       <input id="connection-key" v-model="draft.apiKey" type="password" :disabled="draft.clearKey" :placeholder="store.storedKeys.has(draft.id) ? '已保存；留空表示不修改' : '本地网关不需要可留空'" autocomplete="off" spellcheck="false" />
+      <small v-if="hostChanged && store.storedKeys.has(draft.id) && !draft.apiKey" class="muted">接口主机已变化：保存后会清除原 API Key，如需要请重新填写。</small>
       <label v-if="store.storedKeys.has(draft.id)" class="checkbox-row"><input v-model="draft.clearKey" type="checkbox" />清除已保存的 API Key</label>
     </div>
     <div class="dialog-actions"><Button type="button" variant="outline" @click="editing = null">取消</Button><Button type="submit" :disabled="store.busy || !draft.name.trim() || !draft.endpoint.trim()">保存连接</Button></div>

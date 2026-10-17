@@ -178,9 +178,14 @@ export const useLauncherStore = defineStore('launcher', () => {
     catch { /* Status is a hint only; starting still reads the store directly. */ }
   }
   async function saveConnection(connection: ModelConnection, apiKey?: string): Promise<boolean> {
+    const previous = connections.value.find(c => c.id === connection.id)
+    const origin = (endpoint: string) => { try { return new URL(endpoint).origin } catch { return endpoint } }
+    const moved = previous !== undefined && origin(previous.endpoint) !== origin(connection.endpoint)
     if (real) { if (!await action('connection-save', { connection })) return false }
     else connections.value = connections.value.some(c => c.id === connection.id) ? connections.value.map(c => c.id === connection.id ? connection : c) : [...connections.value, connection]
     delete modelLists.value[connection.id]
+    // A key never follows its connection to another host (the desktop shell enforces this too).
+    if (moved && apiKey === undefined) apiKey = ''
     if (apiKey !== undefined) {
       try { if (real) await setConnectionKey(connection.id, apiKey); else if (apiKey) mockKeys.set(connection.id, apiKey); else mockKeys.delete(connection.id) }
       catch (error) { notice.value = typeof error === 'string' ? error : '连接已保存，但 API Key 保存失败。'; return false }

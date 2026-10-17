@@ -37,6 +37,17 @@ pub fn remove(id: &str) {
     }
 }
 
+/// Scheme, host and port; a key must not follow its connection to another provider.
+pub fn same_origin(old: &str, new: &str) -> bool {
+    // Endpoints arrive normalised by the Node core (URL.href), so scheme://authority is enough.
+    fn origin(url: &str) -> Option<String> {
+        let (scheme, rest) = url.split_once("://")?;
+        let authority = rest.split('/').next()?;
+        Some(format!("{}://{}", scheme, authority).to_ascii_lowercase())
+    }
+    matches!((origin(old), origin(new)), (Some(a), Some(b)) if a == b)
+}
+
 /// Replaces any `apiKeys` the page sent with the stored keys for `ids`.
 pub fn inject(request: &mut Value, ids: &[String], lookup: impl Fn(&str) -> Option<String>) {
     let Some(object) = request.as_object_mut() else { return };
@@ -64,6 +75,15 @@ mod tests {
         let mut request = json!({"operation":"start"});
         inject(&mut request, &["a".into(), "b".into()], |id| (id == "b").then(|| "k".to_string()));
         assert_eq!(request["apiKeys"], json!({"b":"k"}));
+    }
+
+    #[test]
+    fn keys_follow_a_connection_only_within_the_same_origin() {
+        assert!(same_origin("http://127.0.0.1:8046/v1/chat/completions", "http://127.0.0.1:8046/v2/chat/completions"));
+        assert!(!same_origin("https://api.deepseek.com/chat/completions", "https://gateway.example/v1/chat/completions"));
+        assert!(!same_origin("http://127.0.0.1:8046/v1/chat/completions", "http://127.0.0.1:8047/v1/chat/completions"));
+        assert!(!same_origin("https://api.example/v1/messages", "http://api.example/v1/messages"));
+        assert!(same_origin("https://API.example/v1/messages", "https://api.example/v1/messages"));
     }
 
     #[test]
