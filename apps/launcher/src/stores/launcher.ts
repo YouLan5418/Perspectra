@@ -2,7 +2,7 @@ import { DEFAULT_PLAY_SETTINGS, DEFAULT_READING, DEFAULT_AUDIO, DEFAULT_PALETTE,
 import { isTauri } from '@tauri-apps/api/core'
 import { coreRequest, openGame, openCreator as openCreatorPage, packCover, listConnectionModels, setConnectionKey, connectionKeyStatus } from '../services/desktop.ts'
 import type { CoreSnapshot, RolePreset, PresetChoice, ModelConnection, InstanceModels } from '../core-types.ts'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { packages as fixtures, modelProfiles, createMockInstance, createFreshInstance, mockCharacters } from '../mock.ts'
 import { availableModel, historyTo } from '../domain.ts'
@@ -138,7 +138,8 @@ export const useLauncherStore = defineStore('launcher', () => {
       ? models.decision.model + (overrides ? ` · 另有 ${overrides} 个角色单独配置` : '')
       : currentModel.value?.label ?? '未选择模型'
     const front = currentFrontend.value
-    const frontend: 'sandbox' | 'trusted' | 'default' = front?.mode === 'trusted' ? 'trusted' : !front || front.kind === 'default' ? 'default' : 'sandbox'
+    const frontend: 'sandbox' | 'trusted' | 'default' | 'unknown' = !front ? (real ? 'unknown' : 'default')
+      : front.mode === 'trusted' ? 'trusted' : front.kind === 'default' ? 'default' : 'sandbox'
     const blockedReason = !initialized.value ? '本机初始化未完成'
       : selectedPackage.value?.validation.status === 'blocked' ? '世界包未通过校验'
       : broken ? '模型连接已删除，请在本局设置里重新选择'
@@ -154,13 +155,20 @@ export const useLauncherStore = defineStore('launcher', () => {
       { id: 'story', group: '游玩', label: '存档', summary: `${summary.storyline} · ${currentInstance.value?.storylines.length ?? 0} 条故事线`, action: '管理' },
       { id: 'model', group: '游玩', label: '模型', summary: summary.model, action: '更换' },
       { id: 'preset', group: '游玩', label: '角色预设', summary: presetMode === 'global' ? '仅用全局默认' : presetMode === 'custom' ? '实例自定义' : '采用包推荐', action: '调整' },
-      { id: 'frontend', group: '游玩', label: '前端权限', summary: { sandbox: '沙箱（自定义前端）', trusted: '已信任', default: '官方模板' }[summary.frontend],
+      { id: 'frontend', group: '游玩', label: '前端权限', summary: { sandbox: '沙箱（自定义前端）', trusted: '已信任', default: '官方模板', unknown: '检查中' }[summary.frontend],
         action: sandboxed ? '解除沙箱' : '查看', warn: sandboxed },
       { id: 'play', group: '进阶', label: '运行参数', summary: `${play.maximumWaves} 波 · ${play.maximumNpcCalls} 次调用 · ${play.reactionDeadlineSeconds} 秒`, action: '调整' },
       { id: 'creator', group: '进阶', label: '创作者工具', summary: running.value ? '控制台 · 模型请求' : '启动游戏后可用', action: '打开', disabled: !running.value },
     ]
   })
   async function inspectFrontend(){return action('frontend-inspect',{instanceId:selectedInstanceId.value})}
+  /** 前端权限只在检查后才知道；选中一个还没检查过的实例时补查一次，主屏的沙箱状态才可信。 */
+  // 后台补查不占用 busy，以免和玩家紧接着的操作抢锁；失败时保持“检查中”，打开前端权限页会再查一次。
+  watch([selectedInstanceId, initialized], async ([id, ready]) => {
+    if (!real || !ready || !id || frontends.value[id]) return
+    try { const snapshot = await coreRequest('frontend-inspect', { instanceId: id }); frontends.value = snapshot.frontends }
+    catch { /* shown as 检查中 */ }
+  })
   async function grantFrontend(expectedDigest:string,confirmed:boolean){
     if(!await action('frontend-grant',{instanceId:selectedInstanceId.value,expectedDigest,confirmed}))return false
     notice.value='已授权此实例的当前前端；内容变化后需重新确认。';return true

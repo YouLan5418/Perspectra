@@ -13,7 +13,7 @@ async function windowAction(action: 'minimize' | 'toggleMaximize' | 'close') {
 </script>
 
 <template>
-  <header class="title-bar" data-tauri-drag-region @dblclick="windowAction('toggleMaximize')">
+  <header class="title-bar" data-tauri-drag-region>
     <span class="title-mark" data-tauri-drag-region><span class="title-icon" aria-hidden="true">P</span>Perspectra</span>
     <div class="title-actions">
       <button class="title-button" aria-label="全局设置" title="全局设置" @click="$emit('openSettings')"><Settings :size="16" /></button>

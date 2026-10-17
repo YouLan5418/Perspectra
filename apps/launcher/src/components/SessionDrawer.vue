@@ -18,6 +18,10 @@ provide('launcher-embedded', true)
 const store = useLauncherStore()
 const page = ref<Page | null>(null)
 const exportNodeId = ref('')
+/** 有未保存草稿的页面在这里登记检查函数；返回或关闭前先确认。 */
+const dirtyCheck = { current: null as null | (() => boolean) }
+provide('launcher-dirty', dirtyCheck)
+function leave(): boolean { return !dirtyCheck.current?.() || confirm('有未保存的修改，确定离开？') }
 const groups = computed(() => (['游玩', '进阶'] as const).map(group => ({ group, rows: store.drawerRows.filter(row => row.group === group) })))
 
 watch(() => [props.open, props.section] as const, ([open, section]) => {
@@ -27,9 +31,15 @@ function choose(id: DrawerSection) {
   if (id === 'creator') { void store.openCreator(); return }
   page.value = id
 }
-function back() { page.value = page.value === 'import' || page.value === 'export' ? 'story' : null }
+function back() { if (!leave()) return; page.value = page.value === 'import' || page.value === 'export' ? 'story' : null }
+function close() { if (leave()) emit('close') }
+// 详情页里的草稿属于打开时的实例；实例或包一变就回到首页，避免把 A 的草稿存进 B。
+watch(() => [store.selectedInstanceId, store.selectedPackageId], () => { page.value = null })
+const runningNotice = computed(() => !store.running || page.value === 'frontend' ? ''
+  : page.value === 'story' || page.value === 'import' || page.value === 'export' ? '游戏运行中：可以浏览和导出存档，切换故事线与导入需先结束游戏'
+  : '修改将在下次启动游戏时生效')
 function showExport(nodeId = '') { exportNodeId.value = nodeId; page.value = 'export' }
-function onKey(event: KeyboardEvent) { if (event.key === 'Escape' && props.open && !page.value) emit('close') }
+function onKey(event: KeyboardEvent) { if (event.key === 'Escape' && props.open && !page.value && !document.querySelector('.settings-window')) emit('close') }
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 const shown = (name: Page) => props.open && page.value === name
@@ -37,22 +47,22 @@ const shown = (name: Page) => props.open && page.value === name
 
 <template>
   <Transition name="drawer">
-    <div v-if="open" class="drawer-scrim" @click.self="emit('close')">
+    <div v-if="open" class="drawer-scrim" @click.self="close">
       <aside class="session-drawer" aria-label="本局设置">
         <header class="drawer-head">
           <button v-if="page" class="drawer-icon" aria-label="返回" @click="back"><ChevronLeft :size="18" /></button>
           <div class="drawer-title">
             <strong>{{ store.selectedPackage?.title ?? '本局设置' }}</strong>
             <div class="drawer-instance">
-              <select v-model="store.selectedInstanceId" aria-label="游玩实例" :disabled="store.running || store.busy">
+              <select v-model="store.selectedInstanceId" aria-label="游玩实例" :disabled="store.running || store.busy || Boolean(page)">
                 <option v-for="instance in store.gameInstances" :key="instance.id" :value="instance.id">{{ instance.name }}</option>
               </select>
               <button class="drawer-link" :disabled="store.running || store.busy" @click="store.newInstance('第 ' + (store.gameInstances.length + 1) + ' 次游玩')"><Plus :size="13" />新建实例</button>
             </div>
           </div>
-          <button class="drawer-icon" aria-label="关闭本局设置" @click="emit('close')"><X :size="18" /></button>
+          <button class="drawer-icon" aria-label="关闭本局设置" @click="close"><X :size="18" /></button>
         </header>
-        <p v-if="store.running" class="drawer-running" role="status">修改将在下次启动游戏时生效</p>
+        <p v-if="runningNotice" class="drawer-running" role="status">{{ runningNotice }}</p>
 
         <div class="drawer-body">
           <template v-if="!page">

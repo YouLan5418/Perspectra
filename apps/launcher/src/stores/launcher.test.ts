@@ -223,6 +223,16 @@ it('summarizes the home stage: model, overrides, front-end mode and why play is 
   expect(store.stageSummary.frontend).toBe('trusted')
 })
 
+it('inspects the selected front end instead of assuming the official template',async()=>{
+  const data=snapshot()
+  bridge.request.mockImplementation(async(operation)=>operation==='frontend-inspect'
+    ?{...data,frontends:{'instance-1':{kind:'custom',mode:'sandbox',digest:'d',capabilities:[]}}}:data)
+  const store=useLauncherStore()
+  await store.initialize()
+  await vi.waitFor(()=>expect(bridge.request).toHaveBeenCalledWith('frontend-inspect',{instanceId:'instance-1'}))
+  await vi.waitFor(()=>expect(store.stageSummary.frontend).toBe('sandbox'))
+})
+
 it('lists the session drawer rows with summaries, a sandbox warning and creator availability',async()=>{
   const data=snapshot()
   bridge.request.mockImplementation(async()=>({...data,frontends:{'instance-1':{kind:'custom',mode:'sandbox',digest:'d',capabilities:[]}}}))
@@ -236,7 +246,7 @@ it('lists the session drawer rows with summaries, a sandbox warning and creator 
   expect(row('creator')).toMatchObject({disabled:true,summary:'启动游戏后可用'})
   bridge.request.mockImplementation(async()=>({...data,core:{state:'running',mode:'real',instanceId:'instance-1',storylineId:'main',url:''}}))
   await store.refresh()
-  expect(row('frontend')).toMatchObject({warn:false,action:'查看'})
+  expect(row('frontend')).toMatchObject({summary:'检查中',warn:false,action:'查看'})
   expect(row('creator').disabled).toBe(false)
 })
 

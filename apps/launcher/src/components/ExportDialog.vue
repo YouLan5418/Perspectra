@@ -20,7 +20,7 @@ watch(() => props.open, open => {
   nodeId.value = props.initialNodeId || store.currentNode?.id || ''
   error.value = ''
   store.notice = ''
-})
+}, { immediate: true })
 async function save() {
   if (choosing.value || store.busy || unavailable.value) return
   choosing.value = true

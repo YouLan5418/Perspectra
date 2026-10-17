@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, nextTick } from 'vue'
+import { ref, watch, computed, nextTick, inject, onBeforeUnmount } from 'vue'
 import { characterPreset, rolePreset, type RolePreset } from '../../../../packages/provider-chat/src/preset.ts'
 import type { PresetChoice } from '../core-types.ts'
 import { useLauncherStore } from '../stores/launcher.ts'
@@ -87,7 +87,7 @@ watch(() => props.open, async open => {
   resetDraft()
   await nextTick(); ready = true; loading.value = false
   initial.value = JSON.stringify({global:globalDraft.value,choice:choice.value})
-})
+}, { immediate: true })
 function number(key: typeof numeric[number], event: Event) {
   const value = (event.target as HTMLInputElement).value
   if (value === '') delete draft.value[key]
@@ -130,6 +130,9 @@ function applyLibrary(preset:RolePreset){
  if(scope.value==='group'&&selectedGroup.value)selectedGroup.value.preset=clone(preset)
  setDraft(preset)
 }
+const dirtyCheck=inject<{current:null|(()=>boolean)}|null>('launcher-dirty',null)
+watch(()=>props.open,open=>{if(dirtyCheck)dirtyCheck.current=open?()=>dirty.value:null},{immediate:true})
+onBeforeUnmount(()=>{if(dirtyCheck)dirtyCheck.current=null})
 function requestClose(){if(dirty.value)discard.value=true;else emit('close')}
 async function save() {
  try {

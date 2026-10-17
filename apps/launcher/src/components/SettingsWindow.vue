@@ -62,6 +62,7 @@ function cancel() {
      <button v-for="item in categories" :key="item.id" :class="{ active: category === item.id }" @click="category = item.id">{{ item.label }}</button>
     </nav>
     <div class="settings-pane">
+     <p v-if="store.running" class="settings-running" role="status">游戏运行中：模型接口、阅读与声音的修改将在下次启动游戏时生效；外观立即作用于启动器。</p>
      <template v-if="category === 'connections'">
       <p class="inline-info">连接修改立即保存，不受下方“取消 / 应用 / 保存”影响。</p>
       <ModelSettingsDialog :open="true" @close="cancel" />
@@ -72,7 +73,7 @@ function cancel() {
   <label v-for="choice in paletteChoices" :key="choice.value" class="palette-choice" :class="{ active: store.preferencesDraft.palette === choice.value }" :data-swatch="choice.value">
    <input v-model="store.preferencesDraft.palette" type="radio" name="palette" :value="choice.value" /><span class="swatch" aria-hidden="true"></span><strong>{{ choice.name }}</strong><small>{{ choice.hint }}</small>
   </label>
-  <p class="muted">作用于启动器、官方游戏舞台与创作者控制台；游戏舞台在下次启动时生效。</p>
+  <p class="muted">作用于启动器与官方游戏舞台；游戏舞台在下次启动时生效。</p>
  </fieldset>
  <label class="checkbox-row"><input v-model="store.preferencesDraft.largeText" type="checkbox" />使用较大文字</label>
 
@@ -137,4 +138,5 @@ function cancel() {
 .settings-block h4, .settings-title { margin: 0; font-size: 14px; }
 .settings-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
 .settings-foot .muted { margin-right: auto; }
+.settings-running { margin: 0; padding: 7px 12px; border-radius: 8px; font-size: 12.5px; background: color-mix(in srgb, var(--warning) 16%, transparent); }
 </style>
