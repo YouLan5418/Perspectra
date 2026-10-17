@@ -1,19 +1,18 @@
-import { thinkingRequest, thinkingLevel, type ThinkingLevel } from '../packages/provider-chat/src/thinking.ts'
 import { creatorDebugQuery } from '../tests/experiments/creator-debug.ts'
 import { creatorRecordsQuery } from '../tests/experiments/creator-records.ts'
 import { creatorHistoryQuery } from '../tests/experiments/creator-history.ts'
 import { playSettings, readingPreferences, DEFAULT_READING, audioPreferences, DEFAULT_AUDIO, palettePreference, DEFAULT_PALETTE, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from './play-settings.ts'
-import { providerProtocol, providerEndpoint, providerHeaders, nativeMessages, nativePayload, type ProviderProtocol } from '../packages/provider-chat/src/protocol.ts'
+import { providerEndpoint, providerHeaders, nativeMessages, nativePayload } from '../packages/provider-chat/src/protocol.ts'
 import { exportStoryNode, importStoryNode } from './story-share.ts'
 import { readStoryNodes, restoreStoryNode, storyId } from './story-nodes.ts'
 import { importPresets, exportPresets, namedPreset } from '../packages/provider-chat/src/preset-library.ts'
 import { ModelPresets, packPreset, presetChoice } from './model-presets.ts'
-import { modelEndpoint } from './model-connections.ts'
+import { brokenModels, instanceModels, listModels, migrateModels, modelConnection, modelEnvironment, storedModels, type InstanceModels, type ModelConnection } from './model-connections.ts'
 import { rolePreset, type RolePreset } from '../packages/provider-chat/src/preset.ts'
 import { FrontendAuthorizations, type FrontendIdentity } from './frontend-authorization.ts'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile, access } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile, access, copyFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { interactionPackageDescription } from '@harness-world/contracts'
@@ -22,11 +21,10 @@ import { preflightSave } from './save-preflight.ts'
 import { loadPackWeb } from '../tests/experiments/playtest-pack-web.ts'
 import { hindsightPython } from '../tests/experiments/hindsight-python.ts'
 
-export interface LocalModel { model: string; endpoint: string; protocol?: ProviderProtocol; thinkingLevel?: ThinkingLevel }
 interface Pack { id: string; version: string; title: string; path: string; hash: string }
 interface Storyline { id: string; name: string; parentStorylineId: string | null; parentNodeId: string | null }
-interface Instance { currentStorylineId: string; storylines: Storyline[]; id: string; packageId: string; packageVersion: string; packHash: string; name: string; lastPlayedAt: string | null; model: LocalModel }
-interface Index { packs: Pack[]; instances: Instance[]; defaults: LocalModel; preferences: { largeText: boolean; theme?: 'system' | 'light' | 'dark'; palette?: Palette; reading?: ReadingPreferences; audio?: AudioPreferences }; playSettings?: Record<string,PlaySettings> }
+interface Instance { currentStorylineId: string; storylines: Storyline[]; id: string; packageId: string; packageVersion: string; packHash: string; name: string; lastPlayedAt: string | null; models?: InstanceModels }
+interface Index { packs: Pack[]; instances: Instance[]; connections: ModelConnection[]; lastModels?: InstanceModels; preferences: { largeText: boolean; theme?: 'system' | 'light' | 'dark'; palette?: Palette; reading?: ReadingPreferences; audio?: AudioPreferences }; playSettings?: Record<string,PlaySettings> }
 function packCharacters(pack:CompiledWorldPackV5){const player=pack.content.playerSlots[0]?.characterId;return pack.content.characters.filter(c=>c.characterId!==player&&c.controllerClass!=='manual'&&(c.lifecycle??'active')==='active').map(c=>({id:c.characterId,name:c.displayName}))}
 /** 世界包根目录的约定封面；只供启动器展示，不进入编译产物与世界事实。 */
 const COVER_FILES = [['cover.webp','image/webp'],['cover.png','image/png'],['cover.jpg','image/jpeg'],['cover.jpeg','image/jpeg']] as const
@@ -40,7 +38,6 @@ async function packCover(path: string): Promise<string | null> {
   }
   return null
 }
-const defaults: LocalModel = { model: 'gemini-3.7-flash', endpoint: 'http://127.0.0.1:8046/v1/chat/completions' }
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('请求无效。')
   return value as Record<string, unknown>
@@ -49,14 +46,12 @@ function text(value: unknown, label: string, max = 4096): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(label + '无效。')
   return value.trim()
 }
-export function localModel(value: unknown): LocalModel {
+/** Keys arrive per request from the Tauri credential store and are never kept here. */
+function apiKeys(value: unknown): Record<string, string> {
+  if (value === undefined) return {}
   const data = object(value)
-  const model = text(data.model, '模型名称', 120)
-  const endpoint = text(data.endpoint, '接口地址')
-  const protocol = providerProtocol(data.protocol)
-  const url = modelEndpoint(endpoint, protocol)
-  if (data.thinkingLevel !== undefined) thinkingRequest(protocol, model, thinkingLevel(data.thinkingLevel))
-  return { model, endpoint: url.href, ...(data.thinkingLevel === undefined ? {} : {thinkingLevel:thinkingLevel(data.thinkingLevel)}), ...(data.protocol === undefined ? {} : { protocol }) }
+  for (const key of Object.values(data)) if (typeof key !== 'string' || key.length > 8192) throw new Error('API Key 无效。')
+  return data as Record<string, string>
 }
 async function terminate(child: ChildProcess): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return
@@ -75,7 +70,7 @@ async function terminate(child: ChildProcess): Promise<void> {
 
 /** Local launcher metadata and child ownership only; world state stays in the existing runtime. */
 export class LauncherCore {
-  #index: Index = { packs: [], instances: [], defaults: { ...defaults }, preferences: { largeText: false } }
+  #index: Index = { packs: [], instances: [], connections: [], preferences: { largeText: false } }
   #child: ChildProcess | undefined
   #active: { instanceId: string; url: string; frontendMode: 'sandbox'|'trusted' } | undefined
   #error = ''
@@ -119,9 +114,14 @@ export class LauncherCore {
   constructor(readonly repository: string, readonly root: string) { this.#presets=new ModelPresets(root) }
   async initialize(): Promise<void> {
     await mkdir(this.root, { recursive: true })
+    let migrated = false
     try {
       const parsed = object(JSON.parse(await readFile(join(this.root, 'launcher.json'), 'utf8')))
       if (!Array.isArray(parsed.packs) || !Array.isArray(parsed.instances)) throw new Error('index')
+      migrated = parsed.connections === undefined && parsed.defaults !== undefined
+      const migration = migrated ? migrateModels(parsed) : undefined
+      const connections = migration ? migration.connections : (Array.isArray(parsed.connections) ? parsed.connections : []).map(modelConnection)
+      if (new Set(connections.map(c => c.id)).size !== connections.length) throw new Error('connections')
       const packs = parsed.packs.map(value => {
         const p = object(value)
         return { id: text(p.id, '包 ID'), version: text(p.version, '包版本'), title: text(p.title, '包名称'), path: text(p.path, '包路径'), hash: text(p.hash, '包 Hash') }
@@ -139,18 +139,27 @@ export class LauncherCore {
         const currentStorylineId = i.currentStorylineId === undefined ? 'main' : text(i.currentStorylineId,'故事线 ID',40)
         if (!lines.length || new Set(lines.map(l=>l.id)).size !== lines.length || !lines.some(l=>l.id===currentStorylineId)
           || lines.some(l=>l.parentStorylineId !== null && !lines.some(p=>p.id===l.parentStorylineId))) throw new Error('storyline references')
-        return { currentStorylineId, storylines:lines, id, packageId: text(i.packageId, '包 ID'), packageVersion: text(i.packageVersion, '包版本'), packHash: text(i.packHash, '包 Hash'),
-          name: text(i.name, '实例名称', 80), lastPlayedAt: i.lastPlayedAt as string | null, model: localModel(i.model) }
+        const instance: Instance = { currentStorylineId, storylines:lines, id, packageId: text(i.packageId, '包 ID'), packageVersion: text(i.packageVersion, '包版本'), packHash: text(i.packHash, '包 Hash'),
+          name: text(i.name, '实例名称', 80), lastPlayedAt: i.lastPlayedAt as string | null }
+        const models = migration ? migration.instanceModels[id] : i.models === undefined ? undefined : storedModels(i.models)
+        return models === undefined ? instance : { ...instance, models }
       })
+      const lastModels = migration ? migration.lastModels : parsed.lastModels === undefined ? undefined : storedModels(parsed.lastModels)
       if (new Set(packs.map(p => p.id)).size !== packs.length || new Set(instances.map(i => i.id)).size !== instances.length
         || instances.some(i => !packs.some(p => p.id === i.packageId))) throw new Error('index references')
       const preferences = parsed.preferences === undefined ? { largeText: false } : object(parsed.preferences)
       if (preferences.theme !== undefined && (typeof preferences.theme !== 'string' || !['system','light','dark'].includes(preferences.theme))) throw new Error('theme')
       if (typeof preferences.largeText !== 'boolean') throw new Error('largeText')
       const settings = parsed.playSettings === undefined ? {} : Object.fromEntries(Object.entries(object(parsed.playSettings)).map(([id,value])=>{if(!packs.some(pack=>pack.id===id))throw new Error('unknown package settings');return [id,playSettings(value)]}))
-      this.#index = { playSettings:settings, packs, instances, defaults: localModel(parsed.defaults), preferences: { largeText: preferences.largeText, ...(preferences.theme === undefined ? {} : {theme: preferences.theme as 'system' | 'light' | 'dark'}), ...(preferences.palette===undefined?{}:{palette:palettePreference(preferences.palette)}), ...(preferences.reading===undefined?{}:{reading:readingPreferences(preferences.reading)}), ...(preferences.audio===undefined?{}:{audio:audioPreferences(preferences.audio)}) } }
+      this.#index = { playSettings:settings, packs, instances, connections, ...(lastModels === undefined ? {} : { lastModels }), preferences: { largeText: preferences.largeText, ...(preferences.theme === undefined ? {} : {theme: preferences.theme as 'system' | 'light' | 'dark'}), ...(preferences.palette===undefined?{}:{palette:palettePreference(preferences.palette)}), ...(preferences.reading===undefined?{}:{reading:readingPreferences(preferences.reading)}), ...(preferences.audio===undefined?{}:{audio:audioPreferences(preferences.audio)}) } }
     } catch (error: unknown) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw new Error('Launcher 配置损坏；请检查 launcher.json，未覆盖已有数据。')
+      migrated = false
+    }
+    if (migrated) {
+      // One-time move to model connections; the untouched original stays beside the new index.
+      await copyFile(join(this.root, 'launcher.json'), join(this.root, 'launcher.backup-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json'))
+      await this.#save(this.#index)
     }
     await this.#presets.load()
     await this.#presets.loadLibrary()
@@ -170,6 +179,16 @@ export class LauncherCore {
     return instance
   }
   #idle(): void { if (this.#child) throw new Error('请先结束当前游戏。') }
+  #connection(id: unknown): ModelConnection {
+    const connection = this.#index.connections.find(c => c.id === id)
+    if (!connection) throw new Error('模型连接不存在。')
+    return connection
+  }
+  /** New instances take the last saved choice, else the launcher's proposal, else wait for one. */
+  #newModels(proposed: unknown, packageId: string): InstanceModels | undefined {
+    if (this.#index.lastModels && !brokenModels(this.#index.lastModels, this.#index.connections)) return { decision: this.#index.lastModels.decision, ...(this.#index.lastModels.memory ? { memory: this.#index.lastModels.memory } : {}) }
+    return proposed === undefined ? undefined : instanceModels(proposed, this.#index.connections, (this.#characters[packageId] ?? []).map(c => c.id))
+  }
   #storyDirectory(instance: Instance, lineId = instance.currentStorylineId): string {
     if (!instance.storylines.some(l=>l.id===lineId)) throw new Error('故事线不存在。')
     const root = join(this.root, 'instances', instance.id)
@@ -194,7 +213,7 @@ export class LauncherCore {
     }
   }
   snapshot() {
-    return { ...this.#index, instances:this.#index.instances.map(i=>({...i,...this.#storySnapshot(i)})), presets:{library:structuredClone(this.#presets.library),characters:this.#characters,global:this.#presets.global,instances:this.#presets.instances,recommended:this.#recommended}, packDetails: this.#details, frontends: this.#frontends, dataDirectory: this.root, core: this.#active ? { state: 'running', mode: 'real', instanceId: this.#active.instanceId, frontendMode:this.#active.frontendMode }
+    return { ...this.#index, instances:this.#index.instances.map(i=>({...i,...this.#storySnapshot(i),needsModel:!i.models,brokenConnection:i.models?brokenModels(i.models,this.#index.connections):false})), presets:{library:structuredClone(this.#presets.library),characters:this.#characters,global:this.#presets.global,instances:this.#presets.instances,recommended:this.#recommended}, packDetails: this.#details, frontends: this.#frontends, dataDirectory: this.root, core: this.#active ? { state: 'running', mode: 'real', instanceId: this.#active.instanceId, frontendMode:this.#active.frontendMode }
       : this.#error ? { state: 'error', mode: 'real', message: this.#error } : { state: 'idle', mode: 'real' } }
   }
   async handle(value: unknown): Promise<unknown> {
@@ -202,17 +221,33 @@ export class LauncherCore {
     switch (request.operation) {
       case 'snapshot': return this.snapshot()
       case 'pack-cover': return { packageId: request.packageId, dataUrl: this.#covers[text(request.packageId, '包 ID', 200)] ?? null }
+      case 'connection-save': {
+        const connection=modelConnection(request.connection)
+        const exists=this.#index.connections.some(c=>c.id===connection.id)
+        await this.#save({...this.#index,connections:exists?this.#index.connections.map(c=>c.id===connection.id?connection:c):[...this.#index.connections,connection]})
+        return this.snapshot()
+      }
+      case 'connection-remove': {
+        const id=this.#connection(request.connectionId).id
+        await this.#save({...this.#index,connections:this.#index.connections.filter(c=>c.id!==id)})
+        return this.snapshot()
+      }
+      case 'list-models': {
+        const connection=this.#connection(request.connectionId)
+        return {models:await listModels(connection,apiKeys(request.apiKeys)[connection.id])}
+      }
       case 'test-model': {
-        const model=localModel(request.model)
-        if(request.apiKey!==undefined&&(typeof request.apiKey!=='string'||request.apiKey.length>8192))throw new Error('API Key 无效。')
+        const connection=this.#connection(request.connectionId)
+        const model={model:text(request.model,'模型标识',120),endpoint:connection.endpoint}
+        const key=apiKeys(request.apiKeys)[connection.id]
         let response:Response
-        const protocol = providerProtocol(model.protocol)
+        const protocol = connection.protocol
         const messages = [{role:'user',content:'请只回复 OK。这是连接测试，不包含游戏内容。'}]
         const body = protocol === 'openai' ? {model:model.model,messages,max_tokens:128}
           : protocol === 'anthropic' ? {model:model.model,...nativeMessages(messages,protocol),max_tokens:128}
           : {...nativeMessages(messages,protocol),generationConfig:{maxOutputTokens:128}}
         try { response=await fetch(providerEndpoint(new URL(model.endpoint),protocol,model.model),{method:'POST',redirect:'error',
-          headers:providerHeaders(protocol,typeof request.apiKey==='string'?request.apiKey:undefined),
+          headers:providerHeaders(protocol,key),
           body:JSON.stringify(body),signal:AbortSignal.timeout(15000)}) }
         catch { throw new Error('模型连接失败或超过 15 秒；请检查接口地址、服务是否启动和网络。') }
         if(response.status===401||response.status===403)throw new Error('模型接口拒绝认证；请检查 API Key 与访问权限。')
@@ -340,7 +375,9 @@ export class LauncherCore {
         const imported=await importStoryNode(text(request.path,'故事线文件'),join(this.root,'instances'),pack.path,pack.hash)
         const instance:Instance={id:imported.id,packageId:pack.id,packageVersion:pack.version,packHash:pack.hash,name,
           currentStorylineId:'main',storylines:[{id:'main',name:'导入 · '+imported.node.title,parentStorylineId:null,parentNodeId:null}],
-          model:{...this.#index.defaults},lastPlayedAt:null}
+          lastPlayedAt:null}
+        const models=this.#newModels(undefined,pack.id)
+        if(models)instance.models=models
         await this.#save({...this.#index,instances:[...this.#index.instances,instance]})
         return this.snapshot()
       }
@@ -397,7 +434,9 @@ export class LauncherCore {
         const pack = this.#index.packs.find(p => p.id === request.packageId)
         if (!pack) throw new Error('请先载入世界包。')
         const instance: Instance = { currentStorylineId:'main',storylines:[{id:'main',name:'主故事线',parentStorylineId:null,parentNodeId:null}], id: randomUUID(), packageId: pack.id, packageVersion: pack.version, packHash: pack.hash,
-          name: text(request.name, '实例名称', 80), model: { ...this.#index.defaults }, lastPlayedAt: null }
+          name: text(request.name, '实例名称', 80), lastPlayedAt: null }
+        const models = this.#newModels(request.models, pack.id)
+        if (models) instance.models = models
         await this.#save({ ...this.#index, instances: [...this.#index.instances, instance] })
         return this.snapshot()
       }
@@ -416,20 +455,23 @@ export class LauncherCore {
       case 'settings': {
         this.#idle()
         if (request.largeText !== undefined && typeof request.largeText !== 'boolean') throw new TypeError('字体设置无效。')
-        await this.#save({ ...this.#index, defaults: localModel(request.model),
+        await this.#save({ ...this.#index,
           preferences: { ...this.#index.preferences, largeText: request.largeText === undefined ? this.#index.preferences.largeText : request.largeText } })
         return this.snapshot()
       }
       case 'configure': {
         this.#idle()
         const instance = this.#instance(request.instanceId)
-        const model = localModel(request.model)
-        await this.#save({ ...this.#index, instances: this.#index.instances.map(i => i === instance ? { ...i, model } : i) })
+        const models = instanceModels(request.models, this.#index.connections, (this.#characters[instance.packageId] ?? []).map(c => c.id))
+        await this.#save({ ...this.#index, lastModels: { decision: models.decision, ...(models.memory ? { memory: models.memory } : {}) },
+          instances: this.#index.instances.map(i => i === instance ? { ...i, models } : i) })
         return this.snapshot()
       }
       case 'start': {
         this.#idle(); this.#error = ''
         const instance = this.#instance(request.instanceId)
+        if (!instance.models) throw new Error('请先在模型配置中选择模型。')
+        const modelEnv = modelEnvironment(instance.models, this.#index.connections, apiKeys(request.apiKeys))
         const pack = this.#index.packs.find(p => p.id === instance.packageId)!
         const directory = this.#storyDirectory(instance)
         const preflight = await preflightSave(pack.path, directory)
@@ -441,18 +483,16 @@ export class LauncherCore {
         this.#recommended[pack.id]=recommended
         const choice=this.#presets.instances[instance.id]
         if(choice)this.#validMapping(instance,choice)
-        if (request.apiKey !== undefined && (typeof request.apiKey !== 'string' || request.apiKey.length > 8192)) throw new Error('API Key 无效。')
         const child = spawn(process.execPath,
           [...(process.env.PERSPECTRA_RUNTIME_ROOT ? [join(process.env.PERSPECTRA_RUNTIME_ROOT,'playtest.mjs')] : ['--import','tsx',join(this.repository,'tests/experiments/playtest-web-entry.ts')]), '--pack', pack.path, '--data-dir', directory, '--memory-core', '--play-settings', JSON.stringify(this.#index.playSettings?.[pack.id]??playSettings({}))], {
             cwd: this.repository, windowsHide: true,
-            env: { ...process.env, HCW_LOCAL_MODEL: instance.model.model, HCW_LOCAL_ENDPOINT: instance.model.endpoint, HCW_THINKING_LEVEL: instance.model.thinkingLevel, HCW_MODEL_PROTOCOL: instance.model.protocol ?? 'openai',
+            env: { ...process.env, HCW_THINKING_LEVEL: undefined, ...modelEnv,
               PERSPECTRA_STORY_PARENT_NODE: instance.storylines.find(l=>l.id===instance.currentStorylineId)?.parentNodeId??'',
               PERSPECTRA_READING: JSON.stringify(this.#index.preferences.reading??DEFAULT_READING),
               PERSPECTRA_AUDIO: JSON.stringify(this.#index.preferences.audio??DEFAULT_AUDIO),
               PERSPECTRA_PALETTE: this.#index.preferences.palette??DEFAULT_PALETTE,
               PERSPECTRA_PRESET_ROOT: this.root, PERSPECTRA_PRESET_INSTANCE: instance.id,
               PERSPECTRA_ROLE_PRESET: undefined, PERSPECTRA_ROLE_MAPPING: undefined,
-              HCW_LOCAL_API_KEY: typeof request.apiKey === 'string' ? request.apiKey : '',
               PERSPECTRA_FRONTEND_APPROVED_SHA256: frontend.mode==='trusted'?frontend.identity.digest:'' }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
           })
         this.#child = child

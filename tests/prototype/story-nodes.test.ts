@@ -241,7 +241,9 @@ it('shares one historical node across independent launchers, preserves installed
   const senderId=sender.snapshot().instances[0]!.id
   cpSync(f.data,join(f.root,'sender','instances',senderId),{recursive:true})
   const archive=join(f.root,'朋友的故事.perspectra-story')
-  await sender.handle({operation:'configure',instanceId:senderId,model:{model:'fixture',endpoint:f.options.utilityEndpoint}})
+  const senderConnection='6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10'
+  await sender.handle({operation:'connection-save',connection:{id:senderConnection,name:'fixture',protocol:'openai',endpoint:f.options.utilityEndpoint}})
+  await sender.handle({operation:'configure',instanceId:senderId,models:{decision:{connectionId:senderConnection,model:'fixture'}}})
   try {
     await sender.handle({operation:'start',instanceId:senderId})
     await sender.handle({operation:'story-export',instanceId:senderId,nodeId:node.id,path:archive})
@@ -256,12 +258,15 @@ it('shares one historical node across independent launchers, preserves installed
   expect(decoded).not.toContain('后来秘密红杉九号');expect(decoded).not.toContain('后来的未来')
   const receiverRoot=join(f.root,'receiver'),receiver=new LauncherCore(resolve('.'),receiverRoot)
   await receiver.initialize();await receiver.handle({operation:'load',path:f.pack})
-  await receiver.handle({operation:'settings',model:{model:'receiver-own-model',endpoint:'http://127.0.0.1:8046/v1/chat/completions'}})
+  const receiverConnection='7a2d3b5f-2e1c-4d4a-8b62-1e7d2c8f3a21'
+  await receiver.handle({operation:'connection-save',connection:{id:receiverConnection,name:'own',protocol:'openai',endpoint:'http://127.0.0.1:8046/v1/chat/completions'}})
+  await receiver.handle({operation:'create',packageId,name:'自己的实例'})
+  await receiver.handle({operation:'configure',instanceId:receiver.snapshot().instances[0]!.id,models:{decision:{connectionId:receiverConnection,model:'receiver-own-model'}}})
   await receiver.handle({operation:'story-import',packageId,path:archive,name:'我的续篇'})
-  const imported=receiver.snapshot().instances[0]!,directory=join(receiverRoot,'instances',imported.id)
+  const imported=receiver.snapshot().instances.at(-1)!,directory=join(receiverRoot,'instances',imported.id)
   expect(imported.id).not.toBe(senderId);expect(imported.nodes).toHaveLength(1)
   expect(imported.nodes[0]!.id).not.toBe(node.id);expect(imported.nodes[0]!.parentNodeId).toBeNull()
-  expect(imported.model.model).toBe('receiver-own-model')
+  expect(imported.models?.decision.model).toBe('receiver-own-model')
   expect(existsSync(join(directory,'context.sqlite'))).toBe(false)
   expect(existsSync(join(directory,'memory.sqlite'))).toBe(false)
   expect(existsSync(join(directory,'memory-core'))).toBe(false)
@@ -279,10 +284,10 @@ it('shares one historical node across independent launchers, preserves installed
   await child.saveNode('导入后保存');await child.close()
   expect(JSON.stringify(f.events())).toBe(original)
   const reloaded=new LauncherCore(resolve('.'),receiverRoot);await reloaded.initialize()
-  expect(reloaded.snapshot().instances[0]!.nodes).toHaveLength(2)
+  expect(reloaded.snapshot().instances.find(i=>i.id===imported.id)!.nodes).toHaveLength(2)
   await receiver.handle({operation:'story-import',packageId,path:archive,name:'再次导入'})
-  expect(receiver.snapshot().instances).toHaveLength(2)
-  expect(receiver.snapshot().instances[1]!.id).not.toBe(imported.id)
+  expect(receiver.snapshot().instances).toHaveLength(3)
+  expect(receiver.snapshot().instances[2]!.id).not.toBe(imported.id)
 },90_000) // Independent launchers export/import a snapshot and continue its world.
 
 it('rejects malformed, unsafe, mismatched and inconsistent shares without publishing or changing an existing instance',async()=>{
