@@ -197,11 +197,11 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
 
 /* Base Layout */
 .launcher {
+  position: relative;
   height: 100dvh;
-  min-height: 540px;
+  overflow: hidden;
   font-size: var(--font-body);
-  background: var(--background);
-  transition: background 0.3s ease;
+  background: var(--stage);
 }
 .workspace {
   display: flex;
@@ -862,7 +862,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
 /* Notice / Toast */
 .notice {
   position: fixed;
-  bottom: 48px;
+  top: 52px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 60;
@@ -881,8 +881,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
 }
 .notice-fade-enter-active { transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
 .notice-fade-leave-active { transition: opacity 0.2s ease-in, transform 0.2s ease-in; }
-.notice-fade-enter-from { opacity: 0; transform: translate(-50%, 14px) scale(0.96); }
-.notice-fade-leave-to { opacity: 0; transform: translate(-50%, 10px) scale(0.96); }
+.notice-fade-enter-from { opacity: 0; transform: translate(-50%, -12px) scale(0.96); }
+.notice-fade-leave-to { opacity: 0; transform: translate(-50%, -8px) scale(0.96); }
 .empty-state {
   display: flex;
   flex-direction: column;

@@ -252,3 +252,21 @@ it('restores and saves audio preferences through the existing preferences operat
  expect(await store.savePreferences('dark',false,undefined,{...audio,volume:10})).toBe(false)
  expect(store.audio.volume).toBe(60)
 })
+
+it('summarizes the home stage: model, overrides, front-end mode and why play is blocked',async()=>{
+  const data=snapshot()
+  bridge.request.mockImplementation(async()=>({...data,
+    instances:[{...data.instances[0]!,models:{...data.instances[0]!.models,characters:{'char:a':{decision:{connectionId,model:'other'}}}}}],
+    frontends:{'instance-1':{kind:'custom',mode:'sandbox',digest:'d',capabilities:[]}}}))
+  const store=useLauncherStore();await store.initialize()
+  expect(store.stageSummary).toMatchObject({title:'真实包',storyline:'主故事线',model:'actual-model · 另有 1 个角色单独配置',frontend:'sandbox',blockedReason:''})
+  expect(store.running).toBe(false)
+  bridge.request.mockImplementation(async()=>({...data,instances:[{...data.instances[0]!,models:undefined}],
+    frontends:{'instance-1':{kind:'default',mode:'sandbox',digest:'d',capabilities:[]}}}))
+  await store.refresh()
+  expect(store.stageSummary.blockedReason).toBe('还没有可用模型，请先完成模型设置')
+  expect(store.stageSummary.frontend).toBe('default')
+  bridge.request.mockImplementation(async()=>({...data,frontends:{'instance-1':{kind:'custom',mode:'trusted',digest:'d',capabilities:[]}}}))
+  await store.refresh()
+  expect(store.stageSummary.frontend).toBe('trusted')
+})

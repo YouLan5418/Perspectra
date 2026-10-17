@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import { Circle, X } from '@lucide/vue'
+import { X } from '@lucide/vue'
 import { useLauncherStore } from '../stores/launcher.ts'
-import GameList from './GameList.vue'
-import GameDetail from './GameDetail.vue'
+import TitleBar from './TitleBar.vue'
+import PackRail from './PackRail.vue'
+import HomeStage from './HomeStage.vue'
 import ModelConfigDialog from './ModelConfigDialog.vue'
 import StorylineDialog from './StorylineDialog.vue'
 import ImportDialog from './ImportDialog.vue'
@@ -41,6 +42,10 @@ onUnmounted(() => {
 })
 const panel = ref<'model' | 'model-settings' | 'story' | 'import' | 'export' | 'settings' | 'package' | 'preset' | null>(null)
 const exportNodeId = ref('')
+/** 主屏状态标签与“⋯”打开本局设置；抽屉接入前暂由原对话框承接。 */
+function openDrawer(section?: 'model' | 'frontend' | 'story') {
+  panel.value = section === 'model' ? 'model' : 'story'
+}
 function showExport(nodeId = '') {
   exportNodeId.value = nodeId
   panel.value = 'export'
@@ -49,36 +54,9 @@ function showExport(nodeId = '') {
 
 <template>
   <div class="launcher" :class="{ 'large-text': store.largeText }">
-    <div class="workspace">
-      <GameList
-        :active-panel="panel"
-        @model="panel = 'model-settings'"
-        @preset="panel = 'preset'"
-        @settings="panel = 'settings'"
-        @load="panel = 'package'"
-      />
-      <div class="launcher-content">
-        <div class="detail-scroll">
-          <GameDetail
-            @model="panel = 'model'"
-            @preset="panel = 'preset'"
-            @story="panel = 'story'"
-            @import="panel = 'import'"
-            @export="showExport()"
-            @settings="panel = 'model-settings'"
-            @creator="store.openCreator()"
-          />
-        </div>
-        <footer class="statusbar">
-          <span :class="{ 'status-running': store.core.state === 'running', 'status-error': store.core.state === 'error' }">
-            <Circle :size="7" fill="currentColor" />
-            {{ store.busy ? '正在处理…' : store.core.state === 'running' ? 'Core 运行中' : store.core.state === 'error' ? 'Core 异常' : '准备就绪' }}
-          </span>
-          <span>{{ store.real ? '本机 · 独立实例' : 'Mock 浏览器预览' }}</span>
-          <span class="version">Perspectra 0.1.0</span>
-        </footer>
-      </div>
-    </div>
+    <HomeStage @open-drawer="openDrawer" @load="panel = 'package'" />
+    <PackRail @load="panel = 'package'" />
+    <TitleBar @open-settings="panel = 'settings'" />
     <Transition name="notice-fade">
       <div v-if="store.notice && panel !== 'export'" class="notice" role="status">
         <span>{{ store.notice }}</span>

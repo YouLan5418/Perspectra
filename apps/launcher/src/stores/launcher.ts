@@ -125,6 +125,23 @@ export const useLauncherStore = defineStore('launcher', () => {
   async function libraryAction(operation:string,data:Record<string,unknown>){return action(operation,data)}
   const frontends=ref<CoreSnapshot['frontends']>({})
   const currentFrontend=computed(()=>frontends.value[selectedInstanceId.value])
+  const running = computed(() => core.value.state === 'running')
+  /** 主屏与抽屉共用的一行摘要：包名、故事线、模型、前端权限，以及开始按钮为什么不可用。 */
+  const stageSummary = computed(() => {
+    const broken = real && currentRealInstance.value?.brokenConnection === true
+    const models = currentModels.value
+    const overrides = Object.keys(models?.characters ?? {}).length
+    const model = broken ? '模型连接已删除' : models
+      ? models.decision.model + (overrides ? ` · 另有 ${overrides} 个角色单独配置` : '')
+      : currentModel.value?.label ?? '未选择模型'
+    const front = currentFrontend.value
+    const frontend: 'sandbox' | 'trusted' | 'default' = front?.mode === 'trusted' ? 'trusted' : !front || front.kind === 'default' ? 'default' : 'sandbox'
+    const blockedReason = !initialized.value ? '本机初始化未完成'
+      : selectedPackage.value?.validation.status === 'blocked' ? '世界包未通过校验'
+      : broken ? '模型连接已删除，请在本局设置里重新选择'
+      : !currentModel.value ? '还没有可用模型，请先完成模型设置' : ''
+    return { title: selectedPackage.value?.title ?? '', storyline: currentStoryline.value?.name ?? '主故事线', model, frontend, blockedReason }
+  })
   async function inspectFrontend(){return action('frontend-inspect',{instanceId:selectedInstanceId.value})}
   async function grantFrontend(expectedDigest:string,confirmed:boolean){
     if(!await action('frontend-grant',{instanceId:selectedInstanceId.value,expectedDigest,confirmed}))return false
@@ -324,7 +341,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     }
   }
 
-  return { exportStory,exportCurrentStory,importStory,selectStoryline,forkStory,openCreator,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, realInstances, currentRealInstance, currentModels, connectionName, connections, storedKeys, modelLists, lastModels, saveConnection, removeConnection, refreshModels, configureModels, initialize, refresh, loadRealPackage, startGame, stopGame, reopenGame, packages, instances, profiles, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
+  return { running, stageSummary, exportStory,exportCurrentStory,importStory,selectStoryline,forkStory,openCreator,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, realInstances, currentRealInstance, currentModels, connectionName, connections, storedKeys, modelLists, lastModels, saveConnection, removeConnection, refreshModels, configureModels, initialize, refresh, loadRealPackage, startGame, stopGame, reopenGame, packages, instances, profiles, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
     selectedPackageId, selectedInstanceId, core, selectedPackage, currentInstance, currentStoryline,
     currentNode, currentModel, currentHistory, gameInstances, selectPackage, newInstance, loadMockPackage,
     forkAt, importMockStory, startMock, stopMock }
