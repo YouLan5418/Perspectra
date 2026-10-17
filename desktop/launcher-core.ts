@@ -427,26 +427,6 @@ export class LauncherCore {
         await this.#save({...this.#index,instances:this.#index.instances.map(i=>i===instance?next:i)})
         return this.snapshot()
       }
-      case 'story-save': {
-        const instance=this.#instance(request.instanceId), title=text(request.title,'节点名称',80)
-        if(this.#active?.instanceId!==instance.id || !this.#child)throw new Error('请先启动此实例，再保存静止节点。')
-        const child=this.#child, requestId=randomUUID()
-        await new Promise<void>((done,reject)=>{
-          const timer=setTimeout(()=>finish(new Error('节点保存未确认；请查看节点列表后重试。')),60_000)
-          const finish=(error?:Error)=>{clearTimeout(timer);child.off('message',message);child.off('exit',exited);if(error)reject(error);else done()}
-          const message=(value:unknown)=>{
-            if(!value||typeof value!=='object')return
-            const r=value as {type?:string;requestId?:string;message?:string}
-            if(r.requestId!==requestId)return
-            if(r.type==='story-saved')finish()
-            if(r.type==='story-save-failed')finish(new Error(r.message??'节点保存失败。'))
-          }
-          const exited=()=>finish(new Error('Core 已退出，节点未确认。'))
-          child.on('message',message);child.once('exit',exited)
-          child.send({type:'story-save',requestId,title},error=>{if(error)finish(new Error('节点请求发送失败。'))})
-        })
-        return this.snapshot()
-      }
       case 'create': {
         this.#idle()
         const pack = this.#index.packs.find(p => p.id === request.packageId)

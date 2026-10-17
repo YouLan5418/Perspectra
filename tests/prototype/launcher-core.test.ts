@@ -144,7 +144,7 @@ describe('real Launcher metadata and authority boundary', () => {
   })
   it('does not expose world writes or share/fork operations', async () => {
     const core = await service()
-    for (const operation of ['fork', 'export', 'writeEvent', 'runCommand']) {
+    for (const operation of ['fork', 'export', 'writeEvent', 'runCommand', 'story-save']) {
       await expect(core.handle({ operation })).rejects.toThrow('不支持')
     }
     await expect(core.handle({ operation: 'open' })).rejects.toThrow('尚未启动')
