@@ -58,3 +58,11 @@ it('uses the author-declared Entity label instead of the runtime identity when o
   expect(description).toContain('（物品：茶杯）')
   expect(description).not.toContain('entity:cup')
 })
+
+it('reports a pack-defined state change by its new kind, in wording that also reads well for observers', () => {
+  const cooked = { eventType: 'entity.upsert', eventVersion: 1, data: { entityId: 'entity:cup', locationId: 'location:room', kind: '一杯热可可' } }
+  const result = characterExecutionResult({ ...input, events: [...input.events, cooked], status: 'accepted', reason: null,
+    action: { actionType: 'interact', parameters: { targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: { id: 'dinner:cook-home', version: 1 } } } })
+  expect(result.description).toMatch(/现在是：一杯热可可。$/u)
+  expect(result.description).not.toMatch(/你|执行交互/u)
+})

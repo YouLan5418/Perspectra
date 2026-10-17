@@ -32,6 +32,10 @@ export function characterExecutionResult(input: {
       : input.manifest.entities.find(entity => entity.entityId === entityId)?.name ?? entityId
     const actual = entityLabel === undefined ? '这次行动已经成功执行。' : `你刚刚成功${verb}（物品：${entityLabel}）。`
     const state = target?.kind === 'entity' && typeof target.id === 'string' ? currentEntityState(input.events, target.id) : undefined
+    // A pack-defined state change reports the author-written result kind, without second-person wording,
+    // so the transcript line reads the same for the actor and for observers.
+    if (state !== undefined && typeof definition === 'string' && !definition.startsWith('base:'))
+      return { status, description: `${entityLabel}现在是：${state.kind}。` }
     return { status, description: actual + (state?.holderId === input.actorId ? '该物品目前仍由你保管；不要求一直握在手里。' : '当前状态请以本次可见场景为准。') }
   }
   if (target?.kind === 'entity' && typeof target.id === 'string') {
