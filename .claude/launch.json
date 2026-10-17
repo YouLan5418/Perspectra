@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "launcher", "runtimeExecutable": "corepack", "runtimeArgs": ["pnpm@11.7.0", "--filter", "@perspectra/launcher", "exec", "vite", "--host", "127.0.0.1", "--port", "1430"], "port": 1430 },
+    { "name": "creator", "runtimeExecutable": "corepack", "runtimeArgs": ["pnpm@11.7.0", "--filter", "@perspectra/launcher", "creator:dev"], "port": 1421 }
+  ]
+}
