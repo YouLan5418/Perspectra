@@ -29,7 +29,7 @@ async function revoke(){if(await store.revokeFrontend())emit('close')}
   </template>
   <div class="dialog-actions">
    <Button variant="outline" @click="emit('close')">保持当前模式</Button>
-   <Button v-if="info?.kind==='custom' && (info.mode==='trusted' || store.core.state==='running')" variant="outline" :disabled="store.busy" @click="revoke">撤销授权并恢复沙箱</Button>
+   <Button v-if="info?.kind==='custom' && (info.mode==='trusted' || store.core.state==='running')" variant="outline" :disabled="store.busy" @click="revoke">撤销授权并恢复沙箱（立即生效）</Button>
    <Button v-if="info?.kind==='custom' && info.mode!=='trusted'" :disabled="!confirmed || store.busy || store.core.state==='running'" @click="grant">授权当前前端</Button>
   </div>
  </DialogFrame>
