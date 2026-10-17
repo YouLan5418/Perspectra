@@ -6,6 +6,11 @@ import { LauncherCore, localModel } from '../../desktop/launcher-core.ts'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
 
+vi.mock('node:fs/promises', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...actual, mkdir: vi.fn(actual.mkdir) }
+})
+
 const roots: string[] = []
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))) })
 async function service() {
@@ -16,6 +21,24 @@ async function service() {
   return core
 }
 describe('real Launcher metadata and authority boundary', () => {
+  it('explains denied save directory creation without starting Core or changing metadata', async () => {
+    const core = await service()
+    await core.handle({ operation: 'load', path: resolve('examples/world-packs/prototype-g1') })
+    await core.handle({ operation: 'create', packageId: core.snapshot().packs[0]!.id, name: 'permission test' })
+    const instanceId = core.snapshot().instances[0]!.id
+    const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
+    vi.stubEnv('HCW_HINDSIGHT_PYTHON', process.execPath)
+    try {
+      for (const code of ['EPERM', 'EACCES']) {
+        vi.mocked(mkdir).mockRejectedValueOnce(Object.assign(new Error('private path and diagnostic'), { code }))
+        await expect(core.handle({ operation: 'start', instanceId })).rejects.toThrow('无法创建游戏存档目录（权限不足）')
+        expect(core.snapshot().core.state).toBe('idle')
+        expect(core.snapshot().instances[0]!.lastPlayedAt).toBeNull()
+        expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
+      }
+    } finally { vi.unstubAllEnvs(); await core.stop() }
+  })
+
   it('loads real packs and persists independent instances and their model choices', async () => {
     const core = await service()
     await core.handle({ operation: 'load', path: resolve('examples/world-packs/prototype-g1') })
