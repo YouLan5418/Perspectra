@@ -1,4 +1,4 @@
-import { DEFAULT_PLAY_SETTINGS, DEFAULT_READING, DEFAULT_AUDIO, DEFAULT_PALETTE, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../../../../desktop/play-settings.ts'
+import { DEFAULT_PLAY_SETTINGS, DEFAULT_READING, DEFAULT_AUDIO, DEFAULT_PALETTE, readingPreferences, audioPreferences, palettePreference, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../../../../desktop/play-settings.ts'
 import { isTauri } from '@tauri-apps/api/core'
 import { coreRequest, openGame, openCreator as openCreatorPage, packCover, listConnectionModels, setConnectionKey, connectionKeyStatus } from '../services/desktop.ts'
 import type { CoreSnapshot, RolePreset, PresetChoice, ModelConnection, InstanceModels } from '../core-types.ts'
@@ -275,6 +275,17 @@ export const useLauncherStore = defineStore('launcher', () => {
     notice.value = '设置已保存；阅读和音频偏好将在下次启动游戏时提供给前端。'
     return true
   }
+  /** 设置窗口的草稿：外观、阅读与声音；“应用 / 保存”提交，“取消”回到最近一次应用的值。 */
+  const appliedPreferences = () => ({ theme: theme.value, palette: palette.value, largeText: largeText.value, reading: { ...reading.value }, audio: { ...audio.value } })
+  const preferencesDraft = ref(appliedPreferences())
+  const preferencesDirty = computed(() => JSON.stringify(preferencesDraft.value) !== JSON.stringify(appliedPreferences()))
+  function resetPreferencesDraft() { preferencesDraft.value = appliedPreferences() }
+  async function applyPreferences() {
+    const draft = preferencesDraft.value
+    if (!await savePreferences(draft.theme, draft.largeText, readingPreferences(draft.reading), audioPreferences(draft.audio), palettePreference(draft.palette))) return false
+    resetPreferencesDraft()
+    return true
+  }
   async function savePlaySettings(settings:PlaySettings){
     if(real){if(!await action('play-settings',{packageId:selectedPackageId.value,settings}))return false}
     else packagePlaySettings.value={...packagePlaySettings.value,[selectedPackageId.value]:settings}
@@ -331,7 +342,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     }
   }
 
-  return { running, stageSummary, drawerRows, exportStory,importStory,selectStoryline,forkStory,openCreator,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, realInstances, currentRealInstance, currentModels, connectionName, connections, storedKeys, modelLists, lastModels, saveConnection, removeConnection, refreshModels, configureModels, initialize, refresh, loadRealPackage, startGame, stopGame, reopenGame, packages, instances, profiles, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
+  return { running, stageSummary, drawerRows, preferencesDraft, preferencesDirty, resetPreferencesDraft, applyPreferences, exportStory,importStory,selectStoryline,forkStory,openCreator,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, realInstances, currentRealInstance, currentModels, connectionName, connections, storedKeys, modelLists, lastModels, saveConnection, removeConnection, refreshModels, configureModels, initialize, refresh, loadRealPackage, startGame, stopGame, reopenGame, packages, instances, profiles, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
     selectedPackageId, selectedInstanceId, core, selectedPackage, currentInstance, currentStoryline,
     currentNode, currentModel, currentHistory, gameInstances, selectPackage, newInstance, loadMockPackage,
     forkAt, importMockStory, startMock, stopMock }

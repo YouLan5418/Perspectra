@@ -14,7 +14,7 @@ import PlaySettingsDialog from './PlaySettingsDialog.vue'
 type Page = Exclude<DrawerSection, 'creator'> | 'import' | 'export'
 const props = defineProps<{ open: boolean; section: DrawerSection | null }>()
 const emit = defineEmits<{ close: [] }>()
-provide('launcher-drawer', true)
+provide('launcher-embedded', true)
 const store = useLauncherStore()
 const page = ref<Page | null>(null)
 const exportNodeId = ref('')

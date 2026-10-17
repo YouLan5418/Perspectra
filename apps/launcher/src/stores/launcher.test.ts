@@ -239,3 +239,18 @@ it('lists the session drawer rows with summaries, a sandbox warning and creator 
   expect(row('frontend')).toMatchObject({warn:false,action:'查看'})
   expect(row('creator').disabled).toBe(false)
 })
+
+it('applies the settings window draft once and can reset it to the last applied values',async()=>{
+  const store=useLauncherStore();await store.initialize()
+  store.resetPreferencesDraft()
+  expect(store.preferencesDirty).toBe(false)
+  store.preferencesDraft.theme='dark';store.preferencesDraft.largeText=true
+  expect(store.preferencesDirty).toBe(true)
+  bridge.request.mockClear()
+  expect(await store.applyPreferences()).toBe(true)
+  expect(bridge.request.mock.calls.filter(call=>call[0]==='preferences')).toHaveLength(1)
+  expect(store.theme).toBe('dark');expect(store.preferencesDirty).toBe(false)
+  store.preferencesDraft.theme='light'
+  store.resetPreferencesDraft()
+  expect(store.preferencesDraft.theme).toBe('dark');expect(store.preferencesDirty).toBe(false)
+})
