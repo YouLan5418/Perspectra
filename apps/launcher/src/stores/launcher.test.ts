@@ -1,17 +1,22 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-const bridge = vi.hoisted(() => ({ request: vi.fn(), open: vi.fn() }))
+const bridge = vi.hoisted(() => ({ request: vi.fn(), open: vi.fn(), list: vi.fn(), setKey: vi.fn(), keyStatus: vi.fn() }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
-vi.mock('../services/desktop.ts', () => ({ coreRequest: bridge.request, openGame: bridge.open }))
+vi.mock('../services/desktop.ts', () => ({ coreRequest: bridge.request, openGame: bridge.open, listConnectionModels: bridge.list, setConnectionKey: bridge.setKey, connectionKeyStatus: bridge.keyStatus }))
 import { useLauncherStore } from './launcher.ts'
 const endpoint = 'http://127.0.0.1:8046/v1/chat/completions'
+const connectionId = '6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10'
+const connection = { id: connectionId, name: '本地', protocol: 'openai' as const, endpoint }
 const snapshot = () => ({
   packs: [{ id: 'pack:real', version: '1.0.0', title: '真实包', path: 'local', hash: 'hash' }],
-  instances: [{ id: 'instance-1', packageId: 'pack:real', packageVersion: '1.0.0', packHash: 'hash', name: '实例', lastPlayedAt: null, model: { model: 'actual-model', endpoint } }],
-  frontends: {},
-  defaults: { model: 'actual-model', endpoint }, dataDirectory: 'private-data', core: { state: 'idle', mode: 'real' },
+  instances: [{ id: 'instance-1', packageId: 'pack:real', packageVersion: '1.0.0', packHash: 'hash', name: '实例', lastPlayedAt: null, needsModel: false, brokenConnection: false, models: { decision: { connectionId, model: 'actual-model' } } }],
+  frontends: {}, connections: [connection],
+  dataDirectory: 'private-data', core: { state: 'idle', mode: 'real' },
 })
-beforeEach(() => { setActivePinia(createPinia()); bridge.request.mockReset(); bridge.open.mockReset(); bridge.request.mockImplementation(async () => snapshot()) })
+beforeEach(() => {
+  setActivePinia(createPinia()); for (const mock of Object.values(bridge)) mock.mockReset()
+  bridge.request.mockImplementation(async () => snapshot()); bridge.keyStatus.mockResolvedValue([])
+})
 it('native initialization starts empty and uses Core metadata rather than fixtures', async () => {
   const store = useLauncherStore()
   expect(store.packages).toEqual([])
@@ -22,16 +27,48 @@ it('native initialization starts empty and uses Core metadata rather than fixtur
   expect(store.currentInstance?.nodes[0]?.turn).toBe(0)
   expect(store.core.mode).toBe('real')
 })
-it('does not forward a session API key to another instance endpoint', async () => {
+it('starts a game without sending any key from the page', async () => {
   const store = useLauncherStore()
   await store.initialize()
-  store.providers = [{ id: 'local', label: 'local', endpoint: 'https://other.example/v1/chat/completions', apiKey: 'private-key' }]
   await store.startGame()
-  expect(bridge.request.mock.calls.filter(call => call[0] === 'start')).toHaveLength(0)
-  expect(store.notice).toContain('密钥绑定')
-  store.providers[0]!.endpoint = endpoint
-  await store.startGame()
-  expect(bridge.request).toHaveBeenCalledWith('start', { instanceId: 'instance-1', apiKey: 'private-key' })
+  expect(bridge.request).toHaveBeenCalledWith('start', { instanceId: 'instance-1' })
+})
+
+it('saves the connection before its key and remembers that a key is stored', async () => {
+  const store = useLauncherStore(); await store.initialize()
+  expect(await store.saveConnection(connection, 'K')).toBe(true)
+  expect(bridge.request).toHaveBeenCalledWith('connection-save', { connection })
+  expect(bridge.setKey).toHaveBeenCalledWith(connectionId, 'K')
+  expect(bridge.request.mock.invocationCallOrder.at(-1)!).toBeLessThan(bridge.setKey.mock.invocationCallOrder[0]!)
+  expect(store.storedKeys.has(connectionId)).toBe(true)
+  await store.saveConnection(connection)
+  expect(bridge.setKey).toHaveBeenCalledTimes(1)
+})
+
+it('keeps a readable error when a model list cannot be fetched', async () => {
+  const store = useLauncherStore(); await store.initialize()
+  bridge.list.mockRejectedValueOnce('此接口不提供模型列表；可直接输入模型标识。')
+  await store.refreshModels(connectionId)
+  expect(store.modelLists[connectionId]).toEqual({ models: [], loading: false, error: expect.stringContaining('不提供模型列表') })
+  bridge.list.mockResolvedValueOnce(['a', 'b'])
+  await store.refreshModels(connectionId)
+  expect(store.modelLists[connectionId]).toEqual({ models: ['a', 'b'], loading: false })
+})
+
+it('proposes the first listed model for a new instance when nothing was chosen before', async () => {
+  const store = useLauncherStore(); await store.initialize()
+  bridge.list.mockResolvedValueOnce(['m1', 'm2'])
+  await store.newInstance('新实例')
+  expect(bridge.request).toHaveBeenCalledWith('create', { packageId: 'pack:real', name: '新实例', models: { decision: { connectionId, model: 'm1' } } })
+  bridge.request.mockImplementation(async () => ({ ...snapshot(), connections: [] }))
+  await store.refresh()
+  await store.newInstance('无连接')
+  expect(bridge.request).toHaveBeenLastCalledWith('create', { packageId: 'pack:real', name: '无连接' })
+  bridge.request.mockImplementation(async () => ({ ...snapshot(), lastModels: { decision: { connectionId, model: 'kept' } } }))
+  await store.refresh(); bridge.list.mockClear()
+  await store.newInstance('沿用')
+  expect(bridge.list).not.toHaveBeenCalled()
+  expect(bridge.request).toHaveBeenLastCalledWith('create', { packageId: 'pack:real', name: '沿用' })
 })
 
 it('forwards only an explicitly confirmed digest and scopes revoke to the selected instance', async () => {
@@ -135,18 +172,9 @@ it('never exports an older node after a failed or unconfirmed save and reports a
   expect(store.busy).toBe(false)
 })
 
-it('binds session credentials to the selected protocol as well as endpoint',async()=>{
- const store=useLauncherStore();await store.initialize()
- store.providers=[{id:'local',label:'native',endpoint,protocol:'anthropic',apiKey:'private-key'}]
- await store.startGame()
- expect(bridge.request.mock.calls.filter(call=>call[0]==='start')).toHaveLength(0)
- expect(store.notice).toContain('密钥绑定')
-})
-
-it('applies appearance without changing the running instance or sending session credentials', async () => {
+it('applies appearance without changing the running instance', async () => {
  const store=useLauncherStore(); await store.initialize()
  store.core={state:'running',mode:'real',instanceId:'instance-1'}
- store.providers=[{id:'local',label:'local',endpoint,apiKey:'private-key'}]
  bridge.request.mockResolvedValue({...snapshot(),preferences:{theme:'dark',largeText:true},core:{state:'running',mode:'real',instanceId:'instance-1'}})
  expect(await store.savePreferences('dark',true)).toBe(true)
  expect(bridge.request).toHaveBeenLastCalledWith('preferences',{theme:'dark',largeText:true,palette:'sakura'})
@@ -155,7 +183,7 @@ it('applies appearance without changing the running instance or sending session 
  expect(await store.savePreferences('dark',true,undefined,undefined,'moon')).toBe(true)
  expect(bridge.request).toHaveBeenLastCalledWith('preferences',{theme:'dark',largeText:true,palette:'moon'})
  expect(store.palette).toBe('moon')
- expect(store.core.state).toBe('running'); expect(store.providers[0]!.apiKey).toBe('private-key')
+ expect(store.core.state).toBe('running')
 })
 
 it('saves play settings for the selected package and restores global reading preferences',async()=>{
