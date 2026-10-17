@@ -495,6 +495,7 @@ export class LauncherCore {
             cwd: this.repository, windowsHide: true,
             env: { ...process.env, HCW_THINKING_LEVEL: undefined, ...modelEnv,
               PERSPECTRA_STORY_PARENT_NODE: instance.storylines.find(l=>l.id===instance.currentStorylineId)?.parentNodeId??'',
+              PERSPECTRA_STORY_NAME: instance.storylines.find(l=>l.id===instance.currentStorylineId)!.name,
               PERSPECTRA_READING: JSON.stringify(this.#index.preferences.reading??DEFAULT_READING),
               PERSPECTRA_AUDIO: JSON.stringify(this.#index.preferences.audio??DEFAULT_AUDIO),
               PERSPECTRA_PALETTE: this.#index.preferences.palette??DEFAULT_PALETTE,
