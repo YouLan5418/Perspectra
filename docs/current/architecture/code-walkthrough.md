@@ -1,12 +1,12 @@
 # 一次输入的代码路线
 
-核对日期：2026-10-11。建议先读[入门说明](getting-started.md)。下面是关键控制点，省略底层辅助调用；看具体分支时再顺着源码展开。
+核对日期：2026-10-18。建议先读[入门说明](getting-started.md)。下面是关键控制点，省略底层辅助调用；看具体分支时再顺着源码展开。
 
 ## 1. 从哪里启动
 
 package.json 的 experience:web 指向 [playtest-web-entry.ts](../../../tests/experiments/playtest-web-entry.ts)。它读取参数与包，创建 FrozenWorldPlaytestRuntime 和本机 HTTP 服务。
 
-桌面路径为：Vue Launcher → Tauri 请求桥 → Node LauncherCore → 网页宿主子进程 → 系统浏览器游戏页。对应 [desktop.ts](../../../apps/launcher/src/services/desktop.ts)、[main.rs](../../../apps/launcher/src-tauri/src/main.rs)、[launcher-entry.ts](../../../desktop/launcher-entry.ts)、[launcher-core.ts](../../../desktop/launcher-core.ts)。Launcher 管理实例和进程，具体游戏仍由网页宿主运行。旧 [Electron main](../../../desktop/main.ts)是另一个保留入口。
+桌面路径为：Vue Launcher → Tauri 请求桥 → Node LauncherCore → 网页宿主子进程 → 系统浏览器游戏页。对应 [desktop.ts](../../../apps/launcher/src/services/desktop.ts)、[main.rs](../../../apps/launcher/src-tauri/src/main.rs)、[launcher-entry.ts](../../../desktop/launcher-entry.ts)、[launcher-core.ts](../../../desktop/launcher-core.ts)。Launcher 管理实例和进程，具体游戏仍由网页宿主运行。游戏运行时，同一个网页宿主还托管只读的创作者页面（/creator），由 Launcher 交给系统浏览器打开，见[创作者调试接口](../creator-debug-api.md)。旧 [Electron main](../../../desktop/main.ts)是另一个保留入口。
 
 ## 2. 世界包如何成为可运行世界
 
@@ -26,21 +26,23 @@ package.json 的 experience:web 指向 [playtest-web-entry.ts](../../../tests/ex
 
 普通场景提交玩家输入后，宿主刷新视图并调用 #activateCharacters。活动输入先检查活动策略，不能把普通场景分支套到所有活动上。
 
-普通 NPC 处理期间，宿主可通过公开 `canInterrupt` 标记当前是否允许继续输入。玩家插话后，[TailRoundRuntime](../../../tests/experiments/playtest-tail-runtime.ts) 取消旧回合尚未提交的 NPC 计算，等待旧调用和末端回合结算，再处理新输入；已经提交的行动保留。活动仍运行时不会开放这一插话入口。行动按钮与发言共用这一入口；只剩玩家场景之外的角色在处理时，玩家视图直接显示可以回应，场内正在处理的角色以 `responders` 点名，见[运行时说明](runtime.md)。
+NPC 处理途中玩家也可以插话，规则见下一节末尾。
 
 ## 4. NPC 如何获得处理机会
 
-[runPrototypeActivations](../../../packages/application/src/prototype-activation-cycle.ts)扫描新提交的 observation.upsert，选择相关 NPC，按有界波次处理。它跟踪调用数、各角色激活数和期限。
+先看一个例子：玩家在客厅说“谁看见我的钥匙了？”。客厅里的 A、B 听见了，厨房里的 C 没听见。[runPrototypeActivations](../../../packages/application/src/prototype-activation-cycle.ts) 看到新提交的观察，给 A、B 各一次处理机会。A 回答“在桌上”，这句话又成了 B 的新观察，B 可能再回应一次——这就是“下一波”。到没人有新东西要处理，或者次数、时间用完，这一轮就停下。
 
-2026-10-11 动态调度实验在符合条件的普通入口中按已提交观察动态派发角色，不设置整波完成屏障。最多两个在途激活，场外最多一个；派发时地点不能与在途角色相同，同一角色不并行。优先级依次为当前场景、较少 stale 重算、较少已完成激活，同级再随机排序。任务先预留调用预算；角色模型计算期间不占写租约，结果进入串行提交队列。模型返回时和取租约读取最新前缀后都会比较授权 view、认知、场景成员、可见物品与 affordances；全局事件序号单独变化不会废弃结果。最大波次预算限制因果深度；同一角色、同一预算来源合并待处理观察时取最深深度，较浅观察或 stale 重算不能把它降浅，超限观察仍以 `wave_limit` 收束。stale 会占用总模型调用预算但不计完成激活；每个角色连续 stale 最多重算一次，再次 stale 会停止该角色本轮。`inactive` 只停止该角色本轮；一个角色的模型失败会记录在对应结果中并允许其他已在途任务收束。在途移动合流后已有结果续写继续，旧视图通过 stale 收束，地点互斥不保证在途角色一直身处不同地点。具体边界见[实验记录](../studies/dynamic-scheduling-20261011.md)。
+**上限。** 默认 3 波、8 次模型调用、每个角色最多 2 次激活。源码网页默认整轮 30 秒（[playtest-tuning.ts](../../../tests/experiments/playtest-tuning.ts)），Launcher 默认 120 秒（[游玩设置](../../../desktop/play-settings.ts)），都能在启动配置里改。“一次激活”可能包含行动结果出来后的续写调用，所以不等于“一次模型请求”。活动有自己独立的链和预算，见[创作者运行时](creator-runtime.md)。
 
-动态路径只用于未启用 `--serial-scheduling` 且没有包变量脚本、活动参与者排程或 `publicationAudit` 的普通反应。其余情形走原串行路径。NPC 插话、动态派发及其边界见[实验记录](../studies/dynamic-scheduling-20261011.md)。
+**并发（动态调度）。** 普通场景下，最多同时有两个角色在等模型返回，其中最多一个在玩家场景之外；同一地点、同一角色不会同时跑两份。谁先跑按这个顺序排：玩家所在场景优先，其次是重算次数少的、已完成次数少的，同级随机。模型思考时不占写锁；结果出来后排队逐个提交，提交前检查这个角色看到的东西（视图、场景成员、可见物品、可选操作）有没有变。变了就算“过期”（stale），丢掉这次结果重算一次；再过期就停止这个角色本轮。别的角色提交了无关事件，不会让它过期。
 
-2026-10-11 实验分支另由[PackAutonomy](../../../tests/experiments/pack-autonomy.ts)从成功玩家提交计算到期角色。动态条件满足时，宿主把角色及剩余自主机会传入同一个 runPrototypeActivations；普通、自主及后续反应共用并发槽位、地点互斥与提交队列，各有调用预算。到期角色的普通根回应并入自主机会，后续反应沿用其他角色已有的激活计数。观察来源和因果深度只在内存队列中记录，不加入模型刺激；消费旧观察后按剩余来源计费。普通期限与自主期限独立，stale 重算及已提交结果续写仍保留原预算归属。频率从事件前缀推导；无需新增观察也可调用 Character Turn，唤醒不授予额外知识。活动入口、变量脚本、发布审计或串行控制仍分段处理；仅用于对照的 stagedAutonomy 保留普通动态派发、延后自主启动。实现与对照见[接入记录](../studies/autonomy-dynamic-dispatch-20261011.md)，作者声明与启动器预算见[创作者运行时](creator-runtime.md#关键角色自主行动2026-10-11实验分支)。
+以下情况不走并发，改为逐个串行：启动时加了 `--serial-scheduling`、包里有变量脚本、活动正在指定参与者、或启用了发布审计。细节和边界见[动态调度实验](../studies/dynamic-scheduling-20261011.md)。
 
-普通默认值见 [playtest-tuning.ts](../../../tests/experiments/playtest-tuning.ts)与[游玩设置](../../../desktop/play-settings.ts)：3 波、8 次模型调用、每角色最多 2 次激活、30 秒周期期限。启动配置可覆盖。“一次激活”可能包含执行结果后的再次调用，不等于“一次模型请求”。活动有自己的链和预算，见[创作者运行时](creator-runtime.md)。
+**角色自主行动。** 世界包可以声明某些角色到时间会主动做点什么。[PackAutonomy](../../../tests/experiments/pack-autonomy.ts) 在玩家每次成功提交后算出谁“到点了”，把它们和普通反应放进同一个 runPrototypeActivations，共用并发和提交队列，但调用预算和时限分开算。被唤醒只是多一次处理机会，不会让角色多知道任何东西。实现见[接入记录](../studies/autonomy-dynamic-dispatch-20261011.md)，作者怎么声明见[创作者运行时](creator-runtime.md#关键角色自主行动2026-10-11实验分支)。
 
-角色可以放弃；没有新刺激或达到预算后结束。调度不给角色预先写台词。
+**玩家插话。** 只要宿主公开的 `canInterrupt` 为真，玩家就能在 NPC 处理途中继续说话或点行动按钮。[TailRoundRuntime](../../../tests/experiments/playtest-tail-runtime.ts) 会取消旧回合还没提交的 NPC 计算，已经提交的保留。如果只剩玩家场景外的角色在处理，页面直接显示可以回应；场内仍在处理的角色列在 `responders` 里。活动进行中不开放插话。见[运行时](runtime.md)。
+
+角色随时可以放弃。调度只决定“给不给一次机会”，从不替角色写台词或定情绪。
 
 ## 5. 角色拿到什么、返回什么
 

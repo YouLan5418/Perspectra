@@ -22,7 +22,7 @@
 | 原生记忆与 Core 记忆有什么不同 | [认知与记忆](cognition-memory.md) |
 | 特定玩法怎样限制行为 | [受控交互](controlled-interaction.md) |
 | 创作者怎样定义世界与活动 | [创作者运行时](creator-runtime.md) |
-| 创作者怎样检查位置、物品、私有上下文与记忆 | [创作者调试接口](../creator-debug-api.md) |
+| 创作者怎样检查位置、物品、私有上下文与记忆 | [创作者调试接口](../creator-debug-api.md)（浏览器里的只读创作者页面） |
 | 怎样重新生成最近一回合 | [末端回合重新生成](../tail-round-regeneration.md) |
 | 节点、分叉和分享怎样工作 | [故事线](../storylines.md) |
 | 游戏页面怎样获授权 | [前端授权](../frontend-authorization.md) |
@@ -31,14 +31,17 @@
 | 角色专属和角色组预设如何应用 | [预设说明](../model-presets.md) |
 | 模型服务如何接入 | [模型接口协议](../model-protocols.md) |
 | 怎样启动桌面与游戏 | [Launcher 接入](../launcher-core-integration.md)、[当前指南](../guides/README.md) |
+| Launcher 的模型连接与按角色模型 | [模型接口协议](../model-protocols.md)、[运行时](runtime.md) |
 
 ## 怎样理解这些说明
 
-入门与代码路线核对日期：2026-10-08。当前源码支持桌面管理、系统浏览器游戏页、故事节点与分叉、单节点文件分享，以及末端回合重新生成；test3 已包含这些变更、官方试玩包、思考强度与节点记忆快照，构建验证范围见[便携记录](../studies/launcher-portable-test3-20261009.md)。
+本页核对日期：2026-10-18。入门、模块地图和代码路线的核对日期分别写在各自页首。
 
-直接源码网页默认原生记忆，--memory-core 才启用 Python Core；Launcher 后端启用 Core。模型接口支持 OpenAI 兼容、Anthropic Messages 和 Google Gemini 原生协议，接入范围见专题文档。
+当前源码能做的事：桌面 Launcher 管理世界包和实例，游戏在系统浏览器里运行；支持故事节点、分叉和单节点文件分享，末端回合重新生成，多条模型连接与按角色选模型，以及只读的浏览器创作者页面。便携包 test3 只含 2026-10-09 之前的部分，哪些新功能不在包里见[项目状态](../PROJECT-STATE.md)。
 
-专题页中的实测数字只代表对应配置与日期。源码、测试和真实体验分别核对；[项目状态](../PROJECT-STATE.md)中的提交、分支及阶段记录也不能替代实时 Git 状态。
+两个容易混的“Core”：直接运行源码网页时默认用原生记忆，加 --memory-core 才启用 Python 长期记忆（Core 记忆）；Launcher 启动的游戏总是用 Core 记忆。“Launcher Core”则是桌面管理后端，和记忆无关。
+
+专题页里的实测数字只代表当时的配置和日期。源码是否接通、自动测试覆盖什么、真实试玩是否通过，要分开看；文档中提到的提交号也不能代替实时 Git 状态。
 
 代码变化时同步更新受影响章节，并运行：
 

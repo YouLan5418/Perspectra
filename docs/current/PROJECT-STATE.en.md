@@ -2,49 +2,69 @@
 
 **Languages: [English](PROJECT-STATE.en.md) | [简体中文](PROJECT-STATE.md)**
 
-**Verified against the Chinese project status on 2026-10-10.** This page translates that snapshot; it is not a new independent source audit. Perspectra is currently a **player-driven multi-character roleplay prototype**: characters have independent expression, while the system manages knowledge permissions and important, adjudicated world state. For the implemented mechanisms, see the [architecture documentation](architecture/README.md) (Chinese), and for earlier phases see the [historical status record](../archive/prototype-g1-g4/PROJECT-STATE-history-through-20261009.md) (Chinese).
+Checked on 2026-10-18 against main commit `0289605`. This page translates the Chinese status page; Git remains the source of truth.
 
-For the intended long-term game direction rather than current functionality, see the [product vision](vision.en.md).
+In one sentence: Perspectra is a player-driven, multi-character roleplay prototype. The model decides what each character says and tries to do; the program decides who is allowed to know what, and whether important state such as item ownership or location actually changed.
 
-## Entry points
+For how it works, see the [architecture documentation](architecture/README.md) (Chinese). For the long-term direction, see the [product vision](vision.en.md). Earlier phases are in the [historical status record](../archive/prototype-g1-g4/PROJECT-STATE-history-through-20261009.md) (Chinese).
 
-| Scope | Status and link |
-| --- | --- |
-| Portable player build | Windows x64 **0.1.0-test3**, available as a [GitHub pre-release](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3); see [build acceptance](studies/launcher-portable-test3-20261009.md) (Chinese) |
-| Official demo | *The LLMs Became Anime Girls?!* (`大模型变成美少女了？！`): source pack `examples/world-packs/model-girls-official`, packaged as `examples/大模型变成美少女了`; see its [README](../../examples/world-packs/model-girls-official/README.md) |
-| Launcher | Tauri/Vue; loads v5 source directories, manages independent instances, models, presets, runtime settings, Core lifecycle, and browser-based gameplay; see [development entry](../../apps/launcher/README.md) |
-| Web entry from source | Uses native memory by default; pass `--memory-core` for the Python Core. The launcher uses Core |
-| Git | `main` tracks `origin/main` in `YouLan5418/Perspectra`. The Chinese snapshot mentioned commit `23200ed` for then-current official pack/runtime changes; inspect Git for the actual latest state |
+## Two versions to keep apart
 
-## Connected gameplay paths and boundaries
+| Version | What it is | Note |
+| --- | --- | --- |
+| Portable build 0.1.0-test3 | Windows x64 ZIP built on 2026-10-09, published as a [GitHub pre-release](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3); see [build acceptance](studies/launcher-portable-test3-20261009.md) (Chinese) | Does not contain the changes listed in the next section |
+| Current source on main | In sync with origin/main; contains everything after test3 | No new portable build yet; new features can only be tried from source |
 
-- The prologue reuses an Activity to simulate model outputs: **112 committed expressions**, including **five neutral player questions**, flow through normal commit, observation, and memory handling. Control returns to the player at the end; the script does not accept the characters' request to stay on behalf of the player.
-- Dinner, private conversation, cake, and next-day follow-up have conditional entry points. Subsequent decisions use real character models. Characters and backgrounds are placeholders; food portions, full physical simulation, and finished sound design are not provided.
-- Public, targeted, private, and self-only expression follow the existing permission model. The demo includes audience selection, loading feedback, and Galgame-style permission-filtered history. Programmatic isolation cannot eliminate model hallucinations.
-- Multiple characters use **bounded, observation-driven reactions** and, in the 2026-10-10 status snapshot, serialized processing. On each wave, on-scene candidates are shuffled, with off-scene candidates processed afterwards. Defaults are three waves, eight model calls, and a 120-second deadline; packs can override budgets. This is **not persistent background autonomy**. More recent autonomous-action work is experimental; see the [creator runtime](architecture/creator-runtime.md) (Chinese) for its precise scope.
-- The model interfaces include OpenAI-compatible, Anthropic Messages, and native Google Gemini protocols. Per-instance thinking effort can be off/low/medium/high, affecting character decisions and outcome continuation. Certain Gemini configurations reject “off”; models and gateways have not all been validated.
-- Final character context combines authorized observations and the character's own expressions into `history`, removes host-only tracking fields, and places dynamic information after history. Location is in `context.locationId`; the host retains full provenance. Improved common text prefixes do **not** prove actual provider cache hit rates.
-- Important movement, item transfers, and mechanics still go through Action / Rulebook / Event commits. Free-form narration and database facts can still contradict one another; both require real playtest checks.
+When a document says "current source", assume the feature is not in test3.
+
+## What source gained after test3 (2026-10-15 to 10-18)
+
+**Launcher redesign.** The window is filled by the world pack's cover, with a thin rail on the left for switching packs. Clicking "⋯" or a status tag slides out a session drawer for saves, models, character presets, frontend permission, runtime settings and creator tools. The ⚙ button opens a settings window. Settings can be edited while a game runs and take effect at the next start. See [Launcher integration](launcher-core-integration.md) (Chinese).
+
+**Model connections and per-character models.** Several connections (OpenAI-compatible, Anthropic, Google) can be saved; API keys live in Windows Credential Manager and survive restarts. Each instance picks its own model, and an important character can use a stronger model with its own memory-consolidation model. See [model protocols](model-protocols.md) and the [acceptance record](studies/launcher-role-models-20261017.md) (both Chinese).
+
+**Creator page.** While a game runs, the launcher can open a read-only browser page showing the conversation, action trace, actual model requests, item custody and character memory. It never changes the world. See [creator debug API](creator-debug-api.md) (Chinese).
+
+**Game page.** The default stage uses a scenic layout with four colour palettes, and its toolbar can "save progress" as a story node directly. See [default stage](frontend-stage.md) (Chinese).
+
+**Character behaviour fixes.**
+- Speaking to someone who cannot hear is rejected; the character gets at most one more decision (walk over, rephrase or drop it) instead of pretending the line was heard.
+- Model requests now state who currently holds each authorised item, reducing ownership mix-ups.
+- When only characters outside the player's scene are still processing, the player no longer has to wait.
+- Rejected actions come with clearer reasons; follow-up continuations after an action have a call limit.
+
+**Authoring and presets.**
+- New demo pack *Apology Dinner* (`examples/world-packs/model-girls-dinner`): four roommates, one dinner, no fixed ending. Activities can declare one-click operations and narration.
+- Items in a world pack can have display names instead of machine IDs.
+- A `cover.webp/png/jpg` in the pack root becomes the launcher cover.
+- SillyTavern presets can be converted offline with `preset:import`; the launcher UI still cannot import SillyTavern files directly. A native writing preset set ships as [native-writing-suite.json](../../preset/native-writing-suite.json).
+
+## What can be played
+
+- **Official prologue**: 112 fixed expressions (5 of them neutral player lines) go through the normal commit, observation and memory path, then control returns to the player without accepting anything on the player's behalf.
+- **Life events**: dinner, private talk, cake and next-day visits have trigger conditions; what happens next is decided by real character models. Art is placeholder; no final sound.
+- **Speech scope**: public, directed, private or self only. The program keeps unauthorised characters from receiving content; it cannot guarantee the model never invents things.
+- **Multi-character reactions**: after each player input, relevant characters get bounded chances to respond, act or stay silent (source web defaults: 3 waves, 8 calls, 30 s; launcher reaction deadline defaults to 120 s and is configurable per pack). There is no continuously running background autonomy.
+- **Model protocols**: OpenAI-compatible, Anthropic Messages and native Google Gemini. Thinking effort off/low/medium/high; some Gemini models cannot turn it off.
+- **Important state**: movement, item transfer and mechanic state only change through rule adjudication. A character saying "I've got it" does not make it so; such narrative contradictions need separate playtest checks.
 
 ## Memory and storylines
 
-Before Core memory consolidation is queued, the host freezes each character's authorized Source prefix. Play can continue while background consolidation runs; installation rechecks world version and prefix. Current experimental defaults use an estimated ~170k context soft trigger, consolidate an older ~120k, and preserve ~16k overlap of recent raw history. These are **estimates**, not exact provider tokenization or hard capacity guarantees. Failure or cancellation preserves installed archives and raw experience.
+**Long-term memory (Core)**: at roughly 170k estimated context tokens, the background consolidates the older ~120k into a long-term profile and keeps ~16k of raw text as overlap. Play continues meanwhile; failure or cancellation keeps the existing profile and raw text. These are local estimates, not exact provider token counts.
 
-A complete story checkpoint saves world, session, variables, identity history, and then-installed long-term archives. Branching restores only that point-in-time copy, checking character, world, time, and source permissions without rebuilding memory through extra model calls. Old checkpoints without memory archives fall back to authorized raw experience up to that point; they cannot perfectly recreate missing summaries. The original timeline remains intact. Subsequent memory consolidation follows the normal trigger or a manual request.
+**Storylines**: a full node stores the world, session, variables and the long-term profiles installed at that time. Forking restores those copies with consistency checks and no model calls. A single node can be exported to a file for someone else to import (no keys, model settings or request logs, but it does contain private character history). Only one line runs at a time; whole-tree sharing, merging lines and cross-pack migration are not implemented. See [storylines](storylines.md) (Chinese).
 
-A single node can be exported/imported into a separate instance using the same pack; exports exclude Core archives, request traces, model settings, and credentials, but **still contain private world history recorded in the node**. Only one storyline runs at a time. Whole-tree sharing, branch merging, and cross-pack migration are not available. See [Storyline](storylines.md) (Chinese).
+**Regenerating the last round** reruns the same starting point and input and lets you switch between candidates until the next input. It is different from forking a node or retrying an activity; see [tail-round regeneration](tail-round-regeneration.md) (Chinese).
 
-Tail-round regeneration reuses the same player input and initial state, fixes the long-term memory archive, executes candidate outcomes in isolation, and lets the user select the resulting world and expressions as a whole. Submitting the next input closes the prior selection group. This is distinct from branching or Activity retries; see [Tail-round regeneration](tail-round-regeneration.md) (Chinese).
+## How far validation goes
 
-## Validation scope
-
-| Evidence | What it demonstrates | What it does not demonstrate |
+| Evidence | Shows | Does not show |
 | --- | --- | --- |
-| Default checks on **2026-10-09**: type and lint checks, **361 tests across 41 files** passing; 14 launcher tests passing | Basic mechanical regressions passed in that snapshot; fixed scheduling and legacy model-field tests | End-to-end play by ordinary users, or quality with arbitrary models |
-| **55 checkpoint-related tests**, plus restored data from an older real checkpoint | Archive/raw-history restoration, rejection of future/cross-character/source contamination, zero memory Build retries after forced shutdown; old snapshot restored at **2,227 events / tick 328** | Long-term character dialogue quality; no modifications to original save |
-| Portable test3: full scripted prologue, frontend asset consistency, Core lifecycle, offline **1×384** encoding, native process launch, and ZIP integrity | The package includes the then-current code and demo; bundled dependencies could run with an isolated local PATH | Clean Windows environment, full GUI walkthrough, re-testing unrestricted real-model dialogue in test3 |
-| Earlier Gemini demo samples: free-play handoff, private interaction, cooking, cake, and memory recall | Visible behavior in those specific real-model sample sessions | Coverage of every test3 mechanic or all free-form deviations |
+| 2026-10-17 redesign branch full test run: 65 files, 567 tests passed (serial); `launcher:check` passed | Mechanical regressions were clean before merging | A fresh full run on merged main; a full playthrough by an ordinary player |
+| 2026-10-17 per-character model acceptance: Claude on Anthropic, three others on OpenAI-compatible, four profiles consolidated, keys not written to disk | Per-character routing and consolidation work with real models | Long-session memory quality; official direct endpoints; credentials across native restarts |
+| Launcher redesign: unit tests, browser mock, real host serving creator page and save API | UI logic and backend endpoints work | Native Tauri window clicks, continuous real-model play, a release build |
+| test3: full prologue, Core start/stop, offline encoding, ZIP checks | That portable build ran on the build machine | A clean Windows machine; free-play model behaviour |
 
-See the [player validation](../../examples/world-packs/model-girls-official/PLAYER-VALIDATION.md), [real-model validation](../../examples/world-packs/model-girls-official/LIVE-VALIDATION.md), and [AI Girls memory research](studies/ai-girls/README.md) (mostly Chinese). The local model endpoint on port 8046 was unavailable during test3 packaging, so free-form character interactions were not re-tested for that build.
+Still needed: blind playtests by ordinary players, long-history performance and memory quality, more refuse/leave/return scenarios, clean Windows acceptance, and a new portable build from current source. No code signing, auto-update or cross-version save migration is promised.
 
-Outstanding work includes ordinary-player blind tests, long-session performance and memory-quality checks, more refusal/departure/return scenarios, and clean Windows stability validation. There is no code signing, automatic updater, or cross-version save migration guarantee. **A build running locally is not the same thing as release-ready gameplay.**
+More real samples: [player validation](../../examples/world-packs/model-girls-official/PLAYER-VALIDATION.md), [live model validation](../../examples/world-packs/model-girls-official/LIVE-VALIDATION.md) and [memory studies](studies/ai-girls/README.md) (Chinese).

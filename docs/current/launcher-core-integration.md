@@ -1,12 +1,21 @@
 # Launcher 首轮真实 Core 接入
 
-> 2026-10-07 更新：本文保留首轮接入时的验收记录。当前已有故事线、预设、前端授权、独立连接测试及 Windows x64 便携候选包；下文旧版“依赖本机源码”“分叉和连接测试未接入”不再描述当前版本。现状与未通过的发布门禁见 [便携候选版验收](studies/launcher-portable-release-20261007.md)。
+> **怎么读这一页。** 本页从 2026-10-06 首轮接入记录起步，后面多次补充。第 1、3 节已同步到 2026-10-18 的当前源码；第 5、6 节里“分叉、连接测试未接入”“依赖本机源码”之类的首轮限制只是历史记录，现在已不成立。故事线的当前行为见[故事线](storylines.md)，便携包的发布门禁见 [test3 构建记录](studies/launcher-portable-test3-20261009.md)。
 
-> 本页保留 2026-10-06 首轮记录。当前已接通本地完整节点、分叉、切换和单节点分享；2026-10-15 源码支持运行中保存并导出、分享节点当时的长期档案，恢复不额外调用模型整理。当前行为及与旧发行包的区别见[故事线](storylines.md)。下文首轮限制不代表当前能力。
+## 当前 Launcher 长什么样（2026-10-17 改版，当前源码）
 
-> 2026-10-17 启动器改版（当前源码）：例如玩家打开启动器，看到的是铺满窗口的世界包封面，左侧细栏是各个世界包的小图标，左下是包名和三个可点的状态标签（故事线、模型、前端权限：沙箱 / 已信任 / 官方模板），右下是“开始游戏 / 继续游戏”。点“⋯”或状态标签，右侧滑出半透明的本局抽屉：存档、模型、角色预设、前端权限、运行参数、创作者工具，每一行在抽屉里翻页编辑，不再叠对话框。右上角 ⚙ 打开设置窗口：模型接口、外观、阅读与声音、数据位置、关于，底部“取消 / 应用 / 保存”只作用于外观、阅读与声音，模型接口仍即时保存。游戏运行中主按钮变“结束游戏”，旁边是“回到游戏页面”和“打开创作者页面”；设置可以继续修改，抽屉与设置窗口提示“修改将在下次启动游戏时生效”，切包、切实例、切换故事线、导入和授予前端信任仍要先结束游戏，撤销信任立即生效。源码：[LauncherShell](../../apps/launcher/src/components/LauncherShell.vue)、[HomeStage](../../apps/launcher/src/components/HomeStage.vue)、[PackRail](../../apps/launcher/src/components/PackRail.vue)、[SessionDrawer](../../apps/launcher/src/components/SessionDrawer.vue)、[SettingsWindow](../../apps/launcher/src/components/SettingsWindow.vue)；原有对话框通过 [DialogFrame](../../apps/launcher/src/components/DialogFrame.vue) 的内嵌模式放进抽屉和设置窗口。已用启动器单测、浏览器 Mock 预览和真实 playtest 服务器（创作者页、保存接口）核对；Tauri 无边框窗口实机、真实模型试玩与发行包未验收。
+- **首页**：铺满窗口的世界包封面；左侧细栏是各世界包的小图标；左下是包名和三个可点的状态标签（故事线、模型、前端权限：沙箱 / 已信任 / 官方模板）；右下是“开始游戏 / 继续游戏”。
+- **本局抽屉**：点“⋯”或状态标签，右侧滑出半透明抽屉，含存档、模型、角色预设、前端权限、运行参数、创作者工具。每项在抽屉里翻页编辑，不再一层层叠对话框。
+- **设置窗口**：右上角 ⚙，含模型接口、外观、阅读与声音、数据位置、关于。底部“取消 / 应用 / 保存”只管外观、阅读与声音；模型接口的修改即时保存。
+- **游戏运行中**：主按钮变“结束游戏”，旁边是“回到游戏页面”和“打开创作者页面”。设置仍可修改，界面提示“修改将在下次启动游戏时生效”。切包、切实例、切换故事线、导入存档和授予前端信任要先结束游戏；撤销信任立即生效。
 
-> 2026-10-17 核对模型连接与按角色模型选择：第 1、3 节已同步当前源码；第 5 节及第 6 节的首轮限制保留历史记录。连接 Key 现存 Windows 凭据管理器，角色决策与记忆可分别选模型；本轮未重建发行包。
+源码：[LauncherShell](../../apps/launcher/src/components/LauncherShell.vue)、[HomeStage](../../apps/launcher/src/components/HomeStage.vue)、[PackRail](../../apps/launcher/src/components/PackRail.vue)、[SessionDrawer](../../apps/launcher/src/components/SessionDrawer.vue)、[SettingsWindow](../../apps/launcher/src/components/SettingsWindow.vue)；原有对话框通过 [DialogFrame](../../apps/launcher/src/components/DialogFrame.vue) 的内嵌模式放进抽屉和设置窗口。
+
+验证范围：启动器单测、浏览器 Mock 预览、真实 playtest 服务器（创作者页、保存接口）。Tauri 无边框窗口实机点击、真实模型试玩和发行包未验收。
+
+模型连接（2026-10-17）：可保存多条连接，Key 存 Windows 凭据管理器；每个实例选自己的模型，角色决策与记忆整理还能按角色分别选，见[模型接口协议](model-protocols.md)。以上改动都还没有重建进便携包。
+
+## 首轮接入记录（2026-10-06）
 
 | 属性 | 内容 |
 | --- | --- |

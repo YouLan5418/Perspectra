@@ -13,6 +13,7 @@
 | [multiple-activities](../../../examples/world-packs/multiple-activities) | 两场独立活动、暂停、继续与作者恢复条件 |
 | [ai-girls-hosted-guess](../../../examples/world-packs/ai-girls-hosted-guess) | 主持角色私有信息与多 NPC 活动 |
 | [ai-girls-awaken-v10](../../../examples/world-packs/ai-girls-awaken-v10) | 多角色连续试玩 |
+| [model-girls-dinner](../../../examples/world-packs/model-girls-dinner/README.md) | 角色各有秘密的多人局、物品显示名、一键活动操作与旁白 |
 
 复制整个目录到自己的新目录。独立作品设置新的 `packId`，保留所有引用一致；修改正式内容时提升 `packVersion`。不要只改版本号期待旧存档自动迁移，运行时也校验实际内容摘要。
 
@@ -54,7 +55,7 @@ my-world/
 | sourceSchemaVersion、packId、packVersion | v5 源版本、内容包身份、作者版本 |
 | worldFile | 世界配置、初始事实与当前宿主 profile |
 | characterFiles | 角色 ID、人设、控制类型、初始位置与交互绑定 |
-| locationFiles / entityFiles | 地点与对象；定义不等于可绕过规则改变运行中位置/归属 |
+| locationFiles / entityFiles | 地点与对象；定义不等于可绕过规则改变运行中位置/归属。物品可加可选的 `name`（如“玻璃蒸馏器”），玩家界面和角色收到的行动结果会用这个名字，而不是 `entity:distiller` |
 | sceneFiles / playerSlotFiles | 初始场景、参与者、玩家绑定；引用须存在 |
 | presentationFiles | 世界与角色的展示配置 |
 | cognitionFiles / memoryFiles | 角色各自初始认知、目标及记忆配置；不把秘密写成人人可见的描述 |
@@ -65,6 +66,7 @@ my-world/
 | assetFiles | Core 资产；启用后端变量或活动脚本时登记固定脚本路径 |
 | model-preset.json | 可选包推荐预设，独立读取；详见预设文档 |
 | frontend/ | 可选社区前端，独立 manifest 与内容授权；详见前端指南 |
+| cover.webp / cover.png / cover.jpg | 可选 Launcher 封面，放在包根目录，≤4 MB，建议 16:9。不参与编译，也不改变包 Hash；详见[创作者运行时](../architecture/creator-runtime.md) |
 
 JSON 用 UTF-8，不写注释、尾随逗号或未知字段。各文件 schemaVersion 不全相同，不可统一替换成 v5。ID 使用稳定、合法、唯一的值；改角色 ID 时一起修改场景、认知、玩家槽和活动的引用。私有认知的 basisKeys 必须对应合法来源，不能引用其他角色的私密信息冒充已知。
 
