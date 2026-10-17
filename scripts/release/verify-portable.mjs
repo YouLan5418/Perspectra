@@ -1,4 +1,5 @@
 import {spawn} from 'node:child_process'
+import {randomUUID} from 'node:crypto'
 import {resolve,join} from 'node:path'
 import {mkdir,writeFile,readFile} from 'node:fs/promises'
 import {DEFAULT_PAGE,DEFAULT_STYLE,DEFAULT_SCRIPT} from '../../packages/frontend/src/default-template.ts'
@@ -12,8 +13,10 @@ let stderr='';child.stderr.on('data',chunk=>stderr+=chunk);child.on('error',e=>{
 const request=async value=>{const pending=next();child.stdin.write(JSON.stringify(value)+'\n');const reply=await pending;if(!reply.ok)throw Error(reply.error);return reply.result}
 try{
 const first=await request({operation:'snapshot'});if(first.packs.length!==0)throw Error('not a fresh root')
-await request({operation:'load',path:join(root,'examples',packName)});const snapshot=await request({operation:'snapshot'});await request({operation:'create',packageId:snapshot.packs[0].id,name:'便携验证'})
-const connection=process.argv[5]==='offline'?{message:'Skipped: offline verification'}:await request({operation:'test-model',model:{endpoint:'http://127.0.0.1:8046/v1/chat/completions',model:'gemini-3.7-flash'}})
+const connectionId=randomUUID(),model='gemini-3.7-flash'
+await request({operation:'connection-save',connection:{id:connectionId,name:'本地 8046 网关',protocol:'openai',endpoint:'http://127.0.0.1:8046/v1/chat/completions'}})
+await request({operation:'load',path:join(root,'examples',packName)});const snapshot=await request({operation:'snapshot'});await request({operation:'create',packageId:snapshot.packs[0].id,name:'便携验证',models:{decision:{connectionId,model}}})
+const connection=process.argv[5]==='offline'?{message:'Skipped: offline verification'}:await request({operation:'test-model',connectionId,model})
 const started=await request({operation:'start',instanceId:(await request({operation:'snapshot'})).instances[0].id})
 if(started.core.state!=='running')throw Error('Core not running')
 const opened=await request({operation:'open'}),origin=new URL(opened.url).origin
