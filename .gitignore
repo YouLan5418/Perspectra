@@ -16,3 +16,5 @@ lib/
 # Browser automation scratch output; final evidence belongs in its .tmp experiment.
 .playwright-cli/
 output/playwright/
+
+.superpowers/
