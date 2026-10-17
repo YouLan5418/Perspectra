@@ -1,6 +1,3 @@
-import { creatorDebugQuery } from '../tests/experiments/creator-debug.ts'
-import { creatorRecordsQuery } from '../tests/experiments/creator-records.ts'
-import { creatorHistoryQuery } from '../tests/experiments/creator-history.ts'
 import { playSettings, readingPreferences, DEFAULT_READING, audioPreferences, DEFAULT_AUDIO, palettePreference, DEFAULT_PALETTE, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from './play-settings.ts'
 import { providerEndpoint, providerHeaders, nativeMessages, nativePayload } from '../packages/provider-chat/src/protocol.ts'
 import { exportStoryNode, importStoryNode } from './story-share.ts'
@@ -282,30 +279,6 @@ export class LauncherCore {
         }
         return {message:'模型接口已响应。此测试不验证游戏所需的结构化输出。'}
       }
-      case 'request-inspector': {
-        if (!this.#active || this.#active.instanceId !== request.instanceId) throw new Error('请先启动当前实例。')
-        if (request.enabled !== undefined && typeof request.enabled !== 'boolean') throw new Error('检查器开关无效。')
-        const target = new URL(this.#active.url), token = target.hash.slice('#token='.length)
-        target.hash = ''; target.pathname = '/api/request-inspector'
-        const response = await fetch(target, {method:request.enabled===undefined?'GET':'POST',
-          headers:{'x-playtest-token':token,'content-type':'application/json'},
-          ...(request.enabled===undefined?{}:{body:JSON.stringify({enabled:request.enabled})}),signal:AbortSignal.timeout(5000)})
-        if (!response.ok) throw new Error('请求检查器读取失败。')
-        return await response.json()
-      }
-      case 'creator-records':
-      case 'creator-history':
-      case 'creator-debug': {
-        if (!this.#active || this.#active.instanceId !== request.instanceId) throw new Error('请先启动当前实例。')
-        const parse = request.operation === 'creator-records' ? creatorRecordsQuery : request.operation === 'creator-history' ? creatorHistoryQuery : creatorDebugQuery
-        const query = parse((request.query ?? {}) as Record<string, unknown>)
-        const target = new URL(this.#active.url), token = target.hash.slice('#token='.length)
-        target.hash = ''; target.pathname = '/api/'+request.operation; target.search = ''
-        for (const [key, value] of Object.entries(query)) target.searchParams.set(key, String(value))
-        const response = await fetch(target, { headers: { 'x-playtest-token': token }, signal: AbortSignal.timeout(10000) })
-        if (!response.ok) throw new Error('创作者调试读取失败。')
-        return await response.json()
-      }
       case 'preset-library-add': {
         await this.#presets.addLibrary([namedPreset(request.entry)]);return this.snapshot()
       }
@@ -531,6 +504,12 @@ export class LauncherCore {
           this.#active = { instanceId: instance.id, url: 'http://127.0.0.1:' + ready.port + '/#token=' + ready.token, frontendMode:ready.frontendMode }
           return this.snapshot()
         } catch (error) { await this.stop(); throw error }
+      }
+      case 'open-creator': {
+        if (!this.#active) throw new Error('游戏尚未启动。')
+        const target = new URL(this.#active.url)
+        target.pathname = '/creator/'
+        return { url: target.href }
       }
       case 'open': {
         if (!this.#active) throw new Error('游戏尚未启动。')

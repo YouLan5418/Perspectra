@@ -28,6 +28,34 @@ async function withPack(core: LauncherCore, names: string[] = ['first']) {
   for (const name of names) await core.handle({ operation: 'create', packageId: core.snapshot().packs[0]!.id, name })
   return core.snapshot().instances
 }
+async function runningService(customFrontend = false) {
+  const core = await service()
+  await core.handle({ operation: 'connection-save', connection: local })
+  await core.handle({ operation: 'load', path: resolve(customFrontend ? 'examples/world-packs/launcher-demo' : 'examples/world-packs/prototype-g1') })
+  const packageId = core.snapshot().packs[0]!.id
+  await core.handle({ operation: 'create', packageId, name: '运行设置测试', models: { decision: { connectionId: local.id, model: 'before' } } })
+  const instanceId = core.snapshot().instances[0]!.id
+  const runtime = join(core.root, 'fake-runtime')
+  await mkdir(runtime)
+  await writeFile(join(runtime, 'playtest.mjs'), String.raw`
+import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+const root = process.env.PERSPECTRA_PRESET_ROOT
+const log = value => appendFileSync(join(root, 'child.jsonl'), JSON.stringify(value) + '\n')
+const presetPath = join(root, 'preset-settings.json')
+const snapshot = { models: JSON.parse(process.env.PERSPECTRA_ROLE_MODELS), reading: process.env.PERSPECTRA_READING,
+  settings: process.argv.at(-1), presets: existsSync(presetPath) ? JSON.parse(readFileSync(presetPath, 'utf8')) : null }
+log({ type: 'started', snapshot })
+process.on('message', message => {
+  if (message.type === 'frontend-revoke') { log(message); process.send({ type: 'frontend-revoked' }) }
+  if (message.type === 'shutdown') { log({ type: 'stopped', snapshot }); process.disconnect() }
+})
+process.send({ type: 'ready', port: 12345, token: 'a'.repeat(64), frontendMode: process.env.PERSPECTRA_FRONTEND_APPROVED_SHA256 ? 'trusted' : 'sandbox' })
+`)
+  vi.stubEnv('PERSPECTRA_RUNTIME_ROOT', runtime)
+  vi.stubEnv('HCW_HINDSIGHT_PYTHON', process.execPath)
+  return { core, instanceId, packageId, log: async () => (await readFile(join(core.root, 'child.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line)) }
+}
 describe('real Launcher metadata and authority boundary', () => {
   it('explains denied save directory creation without starting Core or changing metadata', async () => {
     const core = await service()
@@ -148,7 +176,18 @@ describe('real Launcher metadata and authority boundary', () => {
       await expect(core.handle({ operation })).rejects.toThrow('不支持')
     }
     await expect(core.handle({ operation: 'open' })).rejects.toThrow('尚未启动')
-    await expect(core.handle({ operation: 'creator-debug', instanceId: 'missing' })).rejects.toThrow('启动当前实例')
+    await expect(core.handle({ operation: 'open-creator' })).rejects.toThrow('游戏尚未启动')
+    for (const operation of ['creator-debug', 'creator-history', 'creator-records', 'request-inspector']) {
+      await expect(core.handle({ operation, instanceId: 'missing' })).rejects.toThrow('不支持')
+    }
+  })
+  it('opens the creator page on the active host with the host token', async () => {
+    const { core, instanceId } = await runningService()
+    try {
+      await core.handle({ operation: 'start', instanceId })
+      expect(await core.handle({ operation: 'open-creator' })).toEqual({ url: 'http://127.0.0.1:12345/creator/#token=' + 'a'.repeat(64) })
+      expect(await core.handle({ operation: 'open' })).toEqual({ url: 'http://127.0.0.1:12345/#token=' + 'a'.repeat(64) })
+    } finally { await core.stop(); vi.unstubAllEnvs() }
   })
   it('rejects credential-bearing endpoints and non-chat URLs', () => {
     for (const endpoint of ['file:///tmp/x', 'http://key:secret@localhost/v1/chat/completions', 'http://localhost/v1/chat/completions?key=secret', 'http://localhost/v1']) {
