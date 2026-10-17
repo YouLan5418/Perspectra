@@ -10,7 +10,7 @@ export interface CoreSnapshot {
   instances: { storyError?:string; currentStorylineId?:string; storylines?:import('./types.ts').Storyline[]; nodes?:import('./types.ts').StoryNode[]; id: string; packageId: string; packageVersion: string; packHash: string; name: string; lastPlayedAt: string | null; models?: InstanceModels; needsModel: boolean; brokenConnection: boolean }[]
   connections: ModelConnection[]
   lastModels?: InstanceModels
-  packDetails?: Record<string,{description:string;hasCover:boolean}>
+  packDetails?: Record<string,{description:string;hasCover:boolean;error?:string}>
   frontends: Record<string,{kind:'default'|'custom';mode:'sandbox'|'trusted';digest:string;capabilities:string[]}>
   presets: {library:import('../../../packages/provider-chat/src/preset-library.ts').LibraryPreset[];characters:Record<string,{id:string;name:string}[]>;global:RolePreset;instances:Record<string,PresetChoice>;recommended:Record<string,RolePreset>}
   preferences?: { largeText: boolean; theme?: 'system' | 'light' | 'dark'; palette?: Palette; reading?: ReadingPreferences; audio?: AudioPreferences }

@@ -72,6 +72,43 @@ describe('real Launcher metadata and authority boundary', () => {
     await expect(core.handle({ operation: 'load', path: core.root })).rejects.toThrow()
     expect(core.snapshot().packs).toHaveLength(0)
   })
+  it.each(['missing', 'source', 'preset'])('isolates a %s package on initialization and clears its stale display data', async failure => {
+    const core = await service()
+    const path = join(core.root, 'broken-pack')
+    await cp(resolve('examples/world-packs/launcher-demo'), path, { recursive: true })
+    await writeFile(join(path, 'cover.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    await core.handle({ operation: 'load', path })
+    const brokenId = core.snapshot().packs[0]!.id
+    await core.handle({ operation: 'create', packageId: brokenId, name: '保留实例' })
+    const instanceId = core.snapshot().instances[0]!.id
+    // The broken package comes first, so loading must continue to the healthy one.
+    await core.handle({ operation: 'load', path: resolve('examples/world-packs/prototype-g1') })
+    const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
+    if (failure === 'missing') await rm(path, { recursive: true })
+    else await writeFile(join(path, failure === 'source' ? 'worldpack.source.json' : 'model-preset.json'), '{broken')
+    const restored = new LauncherCore(resolve('.'), core.root)
+    await expect(restored.initialize()).resolves.toBeUndefined()
+    // Also refresh the already populated object: cached characters/cover must disappear.
+    await expect(core.handle({ operation: 'preset-inspect' })).resolves.toBeDefined()
+    for (const launcher of [core, restored]) {
+      const snapshot = launcher.snapshot()
+      expect(snapshot.packs).toHaveLength(2)
+      expect(snapshot.instances[0]!.id).toBe(instanceId)
+      expect(snapshot.packDetails[brokenId]).toMatchObject({ hasCover: false, error: expect.stringContaining('世界包') })
+      expect(snapshot.presets.characters[brokenId] ?? []).toEqual([])
+      expect(snapshot.presets.recommended[brokenId]).toBeUndefined()
+      expect(snapshot.presets.characters['pack:prototype-g1']!.length).toBeGreaterThan(0)
+      expect(await launcher.handle({ operation: 'pack-cover', packageId: brokenId })).toMatchObject({ dataUrl: null })
+      await expect(launcher.handle({ operation: 'start', instanceId })).rejects.toThrow('世界包')
+    }
+    expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
+    await rm(path, { recursive: true, force: true })
+    await cp(resolve('examples/world-packs/launcher-demo'), path, { recursive: true })
+    await restored.handle({ operation: 'load', path })
+    expect(restored.snapshot().packDetails[brokenId]).not.toHaveProperty('error')
+    expect(restored.snapshot().presets.characters[brokenId]!.length).toBeGreaterThan(0)
+    expect(restored.snapshot().instances[0]!.id).toBe(instanceId)
+  })
   it('does not overwrite corrupt metadata or accept an instance path as an ID', async () => {
     const core = await service()
     const original = JSON.stringify({ packs: [], instances: [{ id: '../outside' }], connections: [] })
