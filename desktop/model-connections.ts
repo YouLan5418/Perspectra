@@ -152,11 +152,39 @@ export function resolveRoleModels(models: InstanceModels, connections: readonly 
   return { default: base, characters }
 }
 
-/** The single model the runtime already understands; only the key for that connection is passed. */
+/**
+ * The default decision keeps the single-model variables the runtime already reads; per-character targets travel
+ * as resolved JSON without keys, and only the keys those targets reference travel beside them.
+ */
 export function modelEnvironment(models: InstanceModels, connections: readonly ModelConnection[], apiKeys: Readonly<Record<string, string>>): Record<string, string> {
-  const decision = resolveRoleModels(models, connections).default.decision
+  const roles = resolveRoleModels(models, connections), decision = roles.default.decision
+  const used = new Set([roles.default, ...Object.values(roles.characters)].flatMap(role => [role.decision.connectionId, role.memory.connectionId]))
+  const keys = Object.fromEntries([...used].flatMap(id => apiKeys[id] ? [[id, apiKeys[id]]] : []))
   return { HCW_LOCAL_MODEL: decision.model, HCW_LOCAL_ENDPOINT: decision.endpoint, HCW_MODEL_PROTOCOL: decision.protocol,
-    ...(decision.thinkingLevel === undefined ? {} : { HCW_THINKING_LEVEL: decision.thinkingLevel }), HCW_LOCAL_API_KEY: apiKeys[decision.connectionId] ?? '' }
+    ...(decision.thinkingLevel === undefined ? {} : { HCW_THINKING_LEVEL: decision.thinkingLevel }), HCW_LOCAL_API_KEY: apiKeys[decision.connectionId] ?? '',
+    PERSPECTRA_ROLE_MODELS: JSON.stringify(roles), PERSPECTRA_MODEL_KEYS: JSON.stringify(keys) }
+}
+
+/** One fully resolved call target as the game process uses it; the key is only ever held in memory. */
+export interface RuntimeModel { readonly protocol: ProviderProtocol; readonly endpoint: string; readonly model: string; readonly thinkingLevel?: ThinkingLevel; readonly apiKey?: string }
+/** `memory` is the default layer's memory model; characters absent here use the default layer. */
+export interface RuntimeRoleModels { readonly memory?: RuntimeModel; readonly characters: Readonly<Record<string, { readonly decision: RuntimeModel; readonly memory: RuntimeModel }>> }
+
+/** Game-process side of `modelEnvironment`: rejoins each target with its connection key. */
+export function runtimeRoleModels(roles: unknown, apiKeys: unknown): RuntimeRoleModels {
+  const keys = record(apiKeys, '模型凭证无效。')
+  const target = (value: unknown, withThinking: boolean): RuntimeModel => {
+    const data = record(value, '角色模型配置无效。')
+    const protocol = providerProtocol(data.protocol), key = typeof data.connectionId === 'string' ? keys[data.connectionId] : undefined
+    return { protocol, endpoint: modelEndpoint(String(data.endpoint), protocol).href, model: modelId(data.model),
+      ...(withThinking && data.thinkingLevel !== undefined ? { thinkingLevel: thinkingLevel(data.thinkingLevel) } : {}),
+      ...(typeof key === 'string' && key ? { apiKey: key } : {}) }
+  }
+  const data = record(roles, '角色模型配置无效。'), base = record(data.default, '角色模型配置无效。')
+  return { memory: target(base.memory, false), characters: Object.fromEntries(Object.entries(record(data.characters, '角色模型配置无效。')).map(([id, value]) => {
+    const role = record(value, '角色模型配置无效。')
+    return [id, { decision: target(role.decision, true), memory: target(role.memory, false) }]
+  })) }
 }
 
 /** One-time move from the single-endpoint index: one connection per distinct protocol + address. */

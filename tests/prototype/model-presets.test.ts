@@ -138,3 +138,32 @@ it('routes each real Core character call to its selected preset without cross-ch
   await expect(FrozenWorldPlaytestRuntime.create({packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'foreign'),provider:'ollama',
     presetMapping:{characters:{'character:foreign':{prompt:'not allowed'}}}})).rejects.toThrow('此包之外')
 })
+it('routes each character\'s decision call to its own model and endpoint',async()=>{
+  const calls:{url:string;model:unknown;key:string|null;actor:string}[]=[]
+  vi.stubGlobal('fetch',(async(url:unknown,init:RequestInit)=>{
+    const wire=JSON.parse(String(init.body)) as {model?:unknown;messages:{content:unknown}[]}
+    const headers=new Headers(init.headers),anthropic=String(url).includes('/v1/messages')
+    const input=JSON.parse(String(wire.messages.at(-1)!.content)) as {context:{character:{characterId:string}}}
+    calls.push({url:String(url),model:wire.model,key:headers.get('authorization')??headers.get('x-api-key'),actor:input.context.character.characterId})
+    const answer={decision:'abstain'}
+    return new Response(JSON.stringify(anthropic?{content:[{type:'tool_use',name:'submit_actions',input:answer}]}
+      :{choices:[{message:{tool_calls:[{function:{name:'submit_actions',arguments:JSON.stringify(answer)}}]}}]}))
+  }) as typeof fetch)
+  const dir=await root()
+  const other={protocol:'anthropic' as const,endpoint:'https://other.test/v1/messages',model:'strong',apiKey:'K2'}
+  const runtime=await FrozenWorldPlaytestRuntime.create({
+    packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'world'),provider:'local',
+    model:'base',utilityEndpoint:'http://default.test/v1/chat/completions',apiKey:'K1',
+    roleModels:{characters:{'character:companion':{decision:other,memory:other}}},
+  })
+  try{
+    await runtime.submit('你好，可以介绍这里吗？')
+    const companion=calls.filter(call=>call.actor==='character:companion'),friend=calls.filter(call=>call.actor==='character:friend')
+    expect(companion.length).toBeGreaterThan(0);expect(friend.length).toBeGreaterThan(0)
+    for(const call of companion)expect(call).toMatchObject({url:other.endpoint,model:'strong',key:'K2'})
+    for(const call of friend)expect(call).toMatchObject({url:'http://default.test/v1/chat/completions',model:'base',key:'Bearer K1'})
+    expect(JSON.stringify(friend)).not.toContain('K2')
+  }finally{await runtime.close()}
+  await expect(FrozenWorldPlaytestRuntime.create({packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'foreign'),provider:'local',
+    roleModels:{characters:{'character:foreign':{decision:other,memory:other}}}})).rejects.toThrow('此包之外')
+})

@@ -6,6 +6,7 @@ import { currentEntityState, currentCharacterLifecycle } from '../../packages/ke
 import { currentSceneStates } from '../../packages/kernel/src/interactions.ts'
 import { playSettings, DEFAULT_READING, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../../desktop/play-settings.ts'
 import { providerProtocol, type ProviderProtocol } from '../../packages/provider-chat/src/protocol.ts'
+import type { RuntimeModel, RuntimeRoleModels } from '../../desktop/model-connections.ts'
 import { TailRoundRuntime } from './playtest-tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../../desktop/tail-storage.ts'
 import { PrototypePresetError } from '../../packages/application/src/prototype-character-turn.ts'
@@ -86,7 +87,11 @@ export interface FrozenPlaytestOptions {
   readonly beforeActionExpression?: boolean
   /** Read-only recent execution presentation; no planning calls or persistent strategy. */
   readonly recentExecutionEvidence?: boolean
+  /** Launcher-resolved per-character models; characters absent here use the default model above. */
+  readonly roleModels?: RuntimeRoleModels
 }
+
+export type { RuntimeModel, RuntimeRoleModels }
 
 const LOCAL_ENDPOINT = 'http://127.0.0.1:8045/v1/chat/completions'
 const LOCAL_MODEL = 'gemini-3.7-flash'
@@ -310,9 +315,18 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     const characters = playtestModelCharacters(compiled.manifest, this.#playerId)
     const mapping=rolePresetMapping(options.presetMapping??{})
     if([...Object.keys(mapping.characters??{}),...Object.keys(mapping.memberships??{})].some(id=>!characters.some(c=>c.actorId===id)))throw new TypeError('预设引用了此包之外或不可调用的角色。')
+    const roleModels=options.roleModels?.characters ?? {}
+    if(options.roleModels !== undefined && options.provider !== 'local') throw new TypeError('按角色模型须使用 local 配置入口。')
+    if(Object.keys(roleModels).some(id=>!characters.some(c=>c.actorId===id)))throw new TypeError('模型配置引用了此包之外或不可调用的角色。')
+    // An override replaces the whole target, so the default key and thinking level never reach another provider.
+    const {thinkingLevel:_thinking,apiKey:_key,...sharedOptions}=providerOptions
+    const decisionTarget=(id:string)=>{const own=roleModels[id]?.decision;return own===undefined?providerOptions:{...sharedOptions,
+      protocol:own.protocol,endpoint:new URL(own.endpoint),model:own.model,
+      ...(own.thinkingLevel===undefined?{}:{thinkingLevel:own.thinkingLevel}),...(own.apiKey===undefined?{}:{apiKey:own.apiKey})}}
+    const roleProtocols=new Map(characters.map(c=>[String(c.actorId),decisionTarget(String(c.actorId)).protocol]))
     const effectivePresets=new Map(characters.map(c=>[String(c.actorId),characterPreset(options.preset??{},mapping,c.actorId)]))
     this.#effectivePresets=effectivePresets
-    const roleProviders=new Map(characters.map(c=>[String(c.actorId),createChatProvider({...providerOptions,preset:effectivePresets.get(c.actorId)!,
+    const roleProviders=new Map(characters.map(c=>[String(c.actorId),createChatProvider({...decisionTarget(String(c.actorId)),preset:effectivePresets.get(c.actorId)!,
       presetOrigin:Object.hasOwn(mapping.characters??{},c.actorId) ? {scope:'character',characterId:String(c.actorId),name:'角色专属预设'}
         : mapping.memberships?.[c.actorId] ? {scope:'group',characterId:String(c.actorId),groupId:mapping.memberships[c.actorId]!,name:mapping.groups![mapping.memberships[c.actorId]!]!.name}
           : {scope:'base',characterId:String(c.actorId),name:'默认预设',
@@ -347,7 +361,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       const prepare = async (visible: PrototypeTurnRequest) => {
         try {
           const projected = await presetContext(visible, effectivePreset!, String(this.#playerId), signal)
-          return presetCall(options.provider === 'local' && protocol === 'openai' ? localPrototypeTurnCall(projected) : prototypeTurnCall(projected),
+          return presetCall(options.provider === 'local' && roleProtocols.get(characterId) === 'openai' ? localPrototypeTurnCall(projected) : prototypeTurnCall(projected),
             effectivePreset!, projected, this.#playerName, {character:this.#names.get(characterId)??characterId,
               scene:this.#locationNames.get(String((projected.context.scene as WorldJsonObject | undefined)?.locationId))??String((projected.context.scene as WorldJsonObject | undefined)?.locationId??'')})
         } catch(error) { signal.throwIfAborted(); throw new PrototypePresetError('角色预设准备失败。', {cause:error}) }
