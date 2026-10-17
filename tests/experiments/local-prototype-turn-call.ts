@@ -4,7 +4,7 @@ import type { WorldJsonObject } from '@harness-world/contracts'
 import { prototypeTurnCall } from '@harness-world/provider-chat'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 
-/** The local Gemini gateway treats a root oneOf as if only its first choice were available. */
+/** Local OpenAI/Anthropic gateways can treat a root oneOf as only its first choice. Host validation stays strict. */
 export function localPrototypeTurnCall(request: PrototypeTurnRequest) {
   const prepared = prototypeTurnCall(request)
   const beforeSchema=(prepared.schema.oneOf as WorldJsonObject[]).map(branch=>(branch.properties as WorldJsonObject).before).find(value=>value!==undefined)
