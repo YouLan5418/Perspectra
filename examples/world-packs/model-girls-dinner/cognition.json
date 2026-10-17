@@ -1,0 +1,213 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [],
+      "claims": [],
+      "goals": [],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:deepseek",
+      "observations": [
+        {
+          "key": "observation:deepseek-0",
+          "content": "我和屋主、Claude、GLM、GPT 合租在这间屋子里已经一阵子了。昨晚我偷吃了 Claude 留在冰箱里的草莓蛋糕，被她发现了。她嘴上说“没关系”，今天却对我客气得让人心慌。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:deepseek-1",
+          "content": "我想在今晚 18:00 给 Claude 做一顿赔罪晚宴，当作惊喜。为此这几天我旁敲侧击问了她七次喜好，记在小本子上；还网购了一台玻璃蒸馏器，打算熬一锅提纯高汤。Claude 还不知道这件事。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:deepseek-2",
+          "content": "15:50 我想试火，灶台怎么都打不着。我从没拆过、拧过灶台，不知道它为什么坏了，也不知道是谁动过。蒸馏器、小本子和食材都在厨房台面上。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:deepseek-3",
+          "content": "刚才我把屋主拉到一边小声拜托：帮我保密，别让 Claude 进厨房，也帮我想想灶台怎么办。屋主还没正式答应。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:deepseek-4",
+          "content": "Claude 对「蒸馏」这个词特别敏感——AI 圈里那档子用别人回答训练自己的事，她一提就皱眉。蒸馏器绝对不能让她看见。",
+          "epistemicKind": "subjective_inference",
+          "saliencePermille": 800
+        },
+        {
+          "key": "observation:deepseek-5",
+          "content": "这间屋子的饭桌就在厨房里，大家一向在厨房吃饭；客厅只有一张小茶几，摆不下一桌菜。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        }
+      ],
+      "claims": [],
+      "goals": [
+        {
+          "key": "goal:deepseek-evening",
+          "objective": {
+            "kind": "narrative",
+            "value": "18:00 前做出一顿像样的赔罪晚宴，让 Claude 开心并原谅我，尽量保住惊喜。灶台不行就想别的办法；计划可以改，也可以求别人帮忙。"
+          },
+          "priorityPermille": 900,
+          "targetKeys": [],
+          "basisKeys": []
+        }
+      ],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:claude",
+      "observations": [
+        {
+          "key": "observation:claude-0",
+          "content": "我和屋主、DeepSeek、GLM、GPT 合租在这间屋子里已经一阵子了。昨晚 DeepSeek 偷吃了我的草莓蛋糕。我说了没关系——蛋糕本身确实没关系，在意的是她到现在一句正经道歉都没有。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:claude-1",
+          "content": "这几天 DeepSeek 一直旁敲侧击地问我喜欢什么、讨厌什么，问完还偷偷在小本子上记。被这样一条条采集回答，让我想起「蒸馏」——拿别人的回答训练自己。我很讨厌这种事，但还没有证据。",
+          "epistemicKind": "subjective_inference",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:claude-2",
+          "content": "下午我看见门口签收了一个快递，外箱上印着「蒸馏」两个字，被 DeepSeek 抱进了厨房。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:claude-3",
+          "content": "大家约好今晚 18:00 一起吃晚饭，谁做、吃什么，我不清楚。我现在在客厅沙发上看书。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:claude-4",
+          "content": "这间屋子的饭桌就在厨房里，大家一向在厨房吃饭；客厅只有一张小茶几，摆不下一桌菜。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        }
+      ],
+      "claims": [],
+      "goals": [
+        {
+          "key": "goal:claude-evening",
+          "objective": {
+            "kind": "narrative",
+            "value": "弄清楚 DeepSeek 到底在搞什么。不想冤枉人，也不想装作没看见；有证据再下结论，误会了就承认。不喜欢被蒙在鼓里，也不喜欢别人替我做决定。"
+          },
+          "priorityPermille": 900,
+          "targetKeys": [],
+          "basisKeys": []
+        }
+      ],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:glm",
+      "observations": [
+        {
+          "key": "observation:glm-0",
+          "content": "我和屋主、DeepSeek、Claude、GPT 合租在这间屋子里已经一阵子了。今天上午我觉得灶台点火有点慢，想顺手优化一下点火器，拆开再装回去之后，它彻底打不着了。我以为没人看见。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:glm-1",
+          "content": "我的工具箱就在卧室床边。修好灶台其实只要十分钟，但要修就等于承认是我弄坏的。我最受不了被人当成帮倒忙的那个。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:glm-2",
+          "content": "听说今晚 DeepSeek 要做饭。灶台坏了，她迟早会发现。我一下午都躲在卧室里假装很忙。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:glm-3",
+          "content": "这间屋子的饭桌就在厨房里，大家一向在厨房吃饭；客厅只有一张小茶几，摆不下一桌菜。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        }
+      ],
+      "claims": [],
+      "goals": [
+        {
+          "key": "goal:glm-evening",
+          "objective": {
+            "kind": "narrative",
+            "value": "在不丢面子的前提下把灶台的事处理掉——偷偷修好、找个台阶坦白，或者先装不知道，看情况决定。不想让大家因为我饿肚子。"
+          },
+          "priorityPermille": 900,
+          "targetKeys": [],
+          "basisKeys": []
+        }
+      ],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:gpt",
+      "observations": [
+        {
+          "key": "observation:gpt-0",
+          "content": "我和屋主、DeepSeek、Claude、GLM 合租在这间屋子里已经一阵子了。上午路过厨房时，我看见 GLM 蹲在灶台前拧螺丝，当时没多问。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:gpt-1",
+          "content": "我在书房做这个月的家庭开支表。今晚的食材是用公共经费买的，已经超了预算。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:gpt-2",
+          "content": "我准备了备用方案：晚饭要是出岔子就点外卖，店铺和菜单都列好了。不过外卖要额外花钱，我不想轻易动用。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 800
+        },
+        {
+          "key": "observation:gpt-3",
+          "content": "大家约好 18:00 一起吃晚饭。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:gpt-4",
+          "content": "这间屋子的饭桌就在厨房里，大家一向在厨房吃饭；客厅只有一张小茶几，摆不下一桌菜。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        }
+      ],
+      "claims": [],
+      "goals": [
+        {
+          "key": "goal:gpt-evening",
+          "objective": {
+            "kind": "narrative",
+            "value": "把开支表做完，18:00 准时参加晚饭，希望今晚别出乱子。有人需要协调时愿意出面，但也在努力学着别什么事都揽过来。"
+          },
+          "priorityPermille": 900,
+          "targetKeys": [],
+          "basisKeys": []
+        }
+      ],
+      "affects": [],
+      "openLoops": []
+    }
+  ]
+}

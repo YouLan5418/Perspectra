@@ -19,3 +19,5 @@
 玩家或 NPC 在厨房对现有材料执行 `home:cook-rice`，规则检查材料仍为 raw-rice-kit、绑定电饭锅存在且同处可达；成功后同一 entity 变成 cooked-rice。`home:eat-rice` 只接受熟饭，成功变成 empty-meal-container，不能再次煮或吃。对白说“饭好了”不能使这些变化成立。
 
 实现是 interactions-basic 包目录中的独立可信 `package:home-meal@1`（[源码](../../../packages/interactions-basic/src/home.ts)），依赖现有 basic 规则，通过已支持的 InteractionDefinition / effectBuilder 和 entity.upsert 提交；原 basic 包内容身份不变。网页、桌面编译、存档预检与 CLI 都安装同一组实现。仅为当前试玩的一批米与水、一锅饭；不模拟饥饿、火候、份额和冰箱容器层级。角色可见物品中的 kind 来自授权可见的已提交状态，不从叙事推断。
+
+2026-10-17 增加同目录的 `package:dinner-party@1`（[源码](../../../packages/interactions-basic/src/dinner.ts)），供[《赔罪晚宴》试玩包](../../../examples/world-packs/model-girls-dinner/README.md)使用。它只做一件事：把一个已声明物品从作者写定的 kind 换成另一个 kind，保留实体 ID。修理需要绑定配置指定的工具在场，家常菜需要指定灶台处于可用 kind，大餐另需蒸馏器在场；接受与产生的 kind 全部写在世界包的绑定配置里，交互定义本身不含菜谱或故障模拟。前置条件不满足时按钮不出现。

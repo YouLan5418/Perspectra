@@ -2,6 +2,7 @@ import { hashWorldJson, canonicalizeWorldJson, type InteractionPackageImplementa
   type InteractionExecutionContext, type InteractionDefinitionSpec, type WorldEventDraft } from '@harness-world/contracts'
 import { interactionPackageHash } from '@harness-world/interaction-runtime'
 import { createBasicInteractionPackage } from './basic.ts'
+import { createDinnerInteractionPackage } from './dinner.ts'
 
 const ref=(id:string)=>({id,version:1})
 const lock=(id:string)=>({ref:ref(id),dependencies:[],implementationHash:hashWorldJson('home-meal-implementation',{id,revision:1})})
@@ -45,4 +46,4 @@ export function createHomeInteractionPackage():InteractionPackageImplementation 
   definitions:['home:cook-rice','home:eat-rice'].map(id=>({spec:definition(id,id==='home:cook-rice'),implementationHash:lock(id).implementationHash}))}
   return {...contents,lock:{ref:ref('package:home-meal'),dependencies:[ref('package:interactions-basic')],implementationHash:interactionPackageHash(contents)}}
 }
-export const createInstalledInteractionPackages=()=>[createBasicInteractionPackage(),createHomeInteractionPackage()]
+export const createInstalledInteractionPackages=()=>[createBasicInteractionPackage(),createHomeInteractionPackage(),createDinnerInteractionPackage()]

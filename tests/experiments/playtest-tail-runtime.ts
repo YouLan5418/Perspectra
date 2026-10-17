@@ -152,6 +152,12 @@ export class TailRoundRuntime {
   }
   async perform(action: PlaytestAction): Promise<PlaytestState> {
     if (this.#busy || this.#interrupting) await this.#interruptIfBusy()
+    if(action.actionType==='interact' && (action.parameters.definitionRef as WorldJsonObject|undefined)?.id==='host:activity-quick'){
+      const operation=String(action.parameters.operation)
+      const current=(await this.state()).activities?.find(view=>view.activityKey===action.parameters.activityKey)
+      if(!current || !(current.quickOperations as WorldJsonObject[]|undefined)?.some(op=>op.id===operation))throw new TypeError('活动入口已失效，请刷新')
+      return this.activityAction({activityKey:String(current.activityKey),activityId:null,revision:0,operation,parameters:{},requestId:randomUUID()})
+    }
     if(action.actionType==='interact' && ['host:activity-start','host:activity-retry','host:activity-suspend','host:activity-resume','host:activity-abandon'].includes(String((action.parameters.definitionRef as WorldJsonObject|undefined)?.id))){
       const state=await this.state()
       const current=action.parameters.activityKey===undefined?state.activity:state.activities?.find(view=>view.activityKey===action.parameters.activityKey)

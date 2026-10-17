@@ -96,7 +96,7 @@ export function activityProgress(events:readonly RulebookEvent[]):Map<string,Act
 }
 type Policy = WorldJsonObject & { speech: 'free'|'none'|'choices'; speechChoices: string[];
   narration: boolean; move: boolean; interactions: string[]; operations: string[] }
-type Operation = { id: string; label: string; requiresTurn: boolean; schema: WorldJsonObject }
+type Operation = { id: string; label: string; requiresTurn: boolean; schema: WorldJsonObject; quick: boolean }
 export interface ActivityRequest {
   readonly activityKey?: string
   readonly activityId: string|null
@@ -159,17 +159,20 @@ export class PackActivity {
     if(this.npcIds.length>8 || this.npcIds.includes(playerId))throw new TypeError('活动 NPC 列表无效')
     const ajv=new Ajv({ strict:true, allErrors:false })
     this.#operations=definition.operations.map(value=>{
-      const op=object(value);exact(op,['id','label','requiresTurn','schema'])
+      const op=object(value);exact(op,['id','label','requiresTurn','schema',...(Object.hasOwn(op,'quick')?['quick']:[])])
       if(typeof op.id!=='string' || !/^[a-z][a-z0-9-]{0,40}$/u.test(op.id) || typeof op.label!=='string'
-        || typeof op.requiresTurn!=='boolean') throw new TypeError('操作定义无效')
+        || typeof op.requiresTurn!=='boolean' || (Object.hasOwn(op,'quick') && typeof op.quick!=='boolean')) throw new TypeError('操作定义无效')
       if(['start','retry','suspend','resume','abandon'].includes(op.id))throw new TypeError('操作 ID 与宿主活动控制冲突')
       const schema=object(op.schema)
       if(schema.type!=='object' || schema.additionalProperties!==false) throw new TypeError('操作必须声明封闭对象参数')
       const properties=object(schema.properties ?? {})
       if(Object.hasOwn(properties,'activityId') || Object.hasOwn(properties,'revision'))throw new TypeError('活动参数不得覆盖宿主版本字段')
+      // A quick operation starts a player-only activity and applies itself in one player action.
+      if(op.quick===true && (this.participantSelection!==undefined || this.npcIds.length>0 || Object.keys(properties).length>0))
+        throw new TypeError('快捷操作只适用于仅玩家参与、无参数的活动操作')
       if(this.#validators.has(op.id))throw new TypeError('重复的活动操作')
       this.#validators.set(op.id,ajv.compile(schema))
-      return {id:op.id,label:op.label,requiresTurn:op.requiresTurn,schema}
+      return {id:op.id,label:op.label,requiresTurn:op.requiresTurn,schema,quick:op.quick===true}
     })
     // Validate restored committed state without publishing internal/private game data.
     this.current()
@@ -291,7 +294,10 @@ export class PackActivity {
       }finally{store.close()}
     }
     const member=state?.participants.includes(actorId)===true
+    const quick=actorId===this.playerId && !state?.game.active && state?.suspendedTurn===undefined
+      ? this.#operations.filter(op=>op.quick).map(op=>({id:op.id,label:op.label})) : []
     return {title:this.title,activityKey:this.key,suspended:member&&state?.suspendedTurn!==undefined,available:actorId===this.playerId,
+      ...(quick.length?{quickOperations:quick}:{}),
       ...(selection?{participantSelection:selection}:{}),...(state && member?{
       ...this.scoped(state,actorId),policy:state.game.active?this.policy(state,actorId):null,
       options:state.game.active?this.options(state,actorId):[],
@@ -397,14 +403,18 @@ export class PackActivity {
       const scripted:WorldEventDraft[]=[]
       if(Object.hasOwn(resolved,'playerExpression')){
         if(actor!==this.playerId)throw new TypeError('只有玩家活动操作可以提交脚本玩家表达')
-        const expression=object(resolved.playerExpression);exact(expression,['text'])
-        if(typeof expression.text!=='string'||!expression.text.trim()||expression.text.length>2000)throw new TypeError('脚本玩家表达无效')
-        this.checkExpression(policy,{speech:expression.text})
+        // `narration` describes what happens around the player instead of putting words in their mouth.
+        const expression=object(resolved.playerExpression),field=Object.hasOwn(expression,'narration')?'narration':'text'
+        exact(expression,[field])
+        const content=expression[field]
+        if(typeof content!=='string'||!content.trim()||content.length>2000)throw new TypeError('脚本玩家表达无效')
+        this.checkExpression(policy,field==='text'?{speech:content}:{narration:content})
         const actionId=(context.actionId??'')+':scripted-player'
-        const speech=base.resolve({...context,actionId,action:{actionType:'speak',parameters:{text:expression.text,scope:'scene_public'}}})
+        const speech=base.resolve({...context,actionId,action:{actionType:'speak',parameters:{
+          ...(field==='text'?{text:content}:{text:'',narration:content}),scope:'scene_public'}}})
         if(speech.status!=='accepted')throw new TypeError('脚本玩家表达没有通过规则裁定')
         const source={script:'scripts/activity.js',operation,activityId:state.id,revision:state.revision}
-        const sourcedUpdate={...update,data:{...object(update.data),scriptedPlayerExpression:{text:expression.text,source}}}
+        const sourcedUpdate={...update,data:{...object(update.data),scriptedPlayerExpression:{[field]:content,source}}}
         scripted.push(...speech.events,...this.#speechObservations(context.events,actor,actionId,speech.events,context.asOfWorldSeq),
           {eventType:'action.resolved',eventVersion:1,data:{actorId:actor,actionId,actionType:'speak',accepted:true,sourceRole:'player'}})
         return {status:'accepted' as const,events:[sourcedUpdate,...scripted],
@@ -504,6 +514,20 @@ export class PackActivity {
           resultMetadata:this.#resultMetadata(state,operation)}}}}))
   }
   async apply(request:ActivityRequest):Promise<boolean> {
+    if(request.activityId===null && this.#operations.some(op=>op.quick && op.id===request.operation)){
+      // Two ordinary commits: a management start, then the counted operation. A retry reuses both request IDs.
+      if(request.revision!==0 || Object.keys(request.parameters).length)throw new TypeError('快捷操作请求已失效')
+      const startId=request.requestId+':start'
+      const startedNow=await this.apply({...request,operation:'start',requestId:startId})
+      const store=new WorldStore(this.worldPath)
+      let started:ActivityState
+      try{
+        const update=store.readEvents(this.address).findLast(e=>e.eventType==='activity.updated'&&object(e.data).requestId===startId)
+        if(!update)throw new TypeError('快捷操作的活动没有开始')
+        started=object(update.data).state as unknown as ActivityState
+      }finally{store.close()}
+      return await this.apply({...request,activityId:started.id,revision:started.revision}) || startedNow
+    }
     const store=new WorldStore(this.worldPath),leases=new WriterLeaseService(this.worldPath),owner='activity:'+request.requestId
     const availability=new CharacterRuntimeAvailabilityService(this.worldPath)
     let lease:ReturnType<WriterLeaseService['acquire']>|undefined
