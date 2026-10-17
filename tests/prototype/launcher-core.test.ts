@@ -34,6 +34,8 @@ describe('real Launcher metadata and authority boundary', () => {
     await core.handle({ operation: 'load', path: resolve('examples/world-packs/prototype-g1') })
     await core.handle({ operation: 'create', packageId: core.snapshot().packs[0]!.id, name: 'permission test' })
     const instanceId = core.snapshot().instances[0]!.id
+    await core.handle({ operation: 'connection-save', connection: deepseek })
+    await core.handle({ operation: 'configure', instanceId, models: { decision: { connectionId: deepseek.id, model: 'deepseek-chat' } } })
     const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
     vi.stubEnv('HCW_HINDSIGHT_PYTHON', process.execPath)
     try {
