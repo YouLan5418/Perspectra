@@ -168,7 +168,7 @@ async function save() {
     </section></div>
     <p>仅用于角色模型请求。模型接口、工具协议、玩家意图解释、记忆整理和世界裁定沿用 Core 配置。</p>
     <p v-if="error" role="alert">{{ error }}</p>
-    <div class="dialog-actions preset-savebar"><span>{{ dirty ? '有未保存修改' : '配置已保存' }}</span><Button variant="outline" @click="requestClose">取消</Button><Button :disabled="store.busy || store.core.state === 'running'" @click="save">保存全部配置</Button></div>
+    <div class="dialog-actions preset-savebar"><span>{{ dirty ? '有未保存修改' : '配置已保存' }}</span><Button variant="outline" @click="requestClose">取消</Button><Button :disabled="store.busy" @click="save">保存全部配置</Button></div>
     <div v-if="discard" class="dialog-actions"><span>还有未保存的配置。</span><Button variant="outline" @click="discard=false">继续编辑</Button><Button variant="outline" @click="emit('close')">放弃修改</Button></div>
     </template><template v-else><p>{{ error || '正在读取包角色与预设…' }}</p><Button variant="outline" @click="emit('close')">取消</Button></template>
   </DialogFrame>

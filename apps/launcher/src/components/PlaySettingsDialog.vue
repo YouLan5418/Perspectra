@@ -24,8 +24,8 @@ async function save(){
  <details v-for="(group,index) in groups" :key="group" class="play-settings-group" :open="index<2">
   <summary>{{ group }}<span>{{ index>=2?'高级':'' }}</span></summary>
   <p class="muted">{{ notes[group] }}</p>
-  <div class="play-settings-grid"><div v-for="field in PLAY_SETTING_FIELDS.filter(field=>field.group===group)" :key="field.key" class="form-field"><label :for="'play-'+field.key">{{ field.label }}</label><input :id="'play-'+field.key" v-model.number="draft[field.key]" type="number" :min="field.min" :max="field.max" step="1" :disabled="store.busy || store.core.state==='running'" /><small class="muted">{{ field.min }}–{{ field.max }} · 默认 {{ field.default }}</small></div></div>
+  <div class="play-settings-grid"><div v-for="field in PLAY_SETTING_FIELDS.filter(field=>field.group===group)" :key="field.key" class="form-field"><label :for="'play-'+field.key">{{ field.label }}</label><input :id="'play-'+field.key" v-model.number="draft[field.key]" type="number" :min="field.min" :max="field.max" step="1" :disabled="store.busy" /><small class="muted">{{ field.min }}–{{ field.max }} · 默认 {{ field.default }}</small></div></div>
  </details>
  <p v-if="error" role="alert">{{ error }}</p>
- <div class="dialog-actions"><Button variant="outline" :disabled="store.busy || store.core.state==='running'" @click="Object.assign(draft,DEFAULT_PLAY_SETTINGS)">恢复默认值</Button><Button variant="outline" @click="emit('close')">取消</Button><Button :disabled="store.busy || store.core.state==='running'" @click="save">保存游玩参数</Button></div>
+ <div class="dialog-actions"><Button variant="outline" :disabled="store.busy" @click="Object.assign(draft,DEFAULT_PLAY_SETTINGS)">恢复默认值</Button><Button variant="outline" @click="emit('close')">取消</Button><Button :disabled="store.busy" @click="save">保存游玩参数</Button></div>
 </DialogFrame></template>

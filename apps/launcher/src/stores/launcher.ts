@@ -8,6 +8,9 @@ import { packages as fixtures, modelProfiles, createMockInstance, createFreshIns
 import { availableModel, historyTo } from '../domain.ts'
 import type { CoreStatus, GamePackage } from '../types.ts'
 
+export type DrawerSection = 'story' | 'model' | 'preset' | 'frontend' | 'play' | 'creator'
+export interface DrawerRow { id: DrawerSection; group: '游玩' | '进阶'; label: string; summary: string; action: string; warn?: boolean; disabled?: boolean }
+
 export const useLauncherStore = defineStore('launcher', () => {
   const packages = ref<GamePackage[]>(isTauri() ? [] : [...fixtures])
   const instances = ref<import('../types.ts').GameInstance[]>(isTauri() ? [] : [createMockInstance(), createFreshInstance('quiet-town', '0.8.2', '新的旅程'), createFreshInstance('last-light', '0.3.0', '第一次游玩')])
@@ -141,6 +144,21 @@ export const useLauncherStore = defineStore('launcher', () => {
       : broken ? '模型连接已删除，请在本局设置里重新选择'
       : !currentModel.value ? '还没有可用模型，请先完成模型设置' : ''
     return { title: selectedPackage.value?.title ?? '', storyline: currentStoryline.value?.name ?? '主故事线', model, frontend, blockedReason }
+  })
+  /** 本局抽屉的行：顺序即界面顺序；摘要只用已有状态，不额外请求。 */
+  const drawerRows = computed((): DrawerRow[] => {
+    const summary = stageSummary.value, play = currentPlaySettings.value
+    const presetMode = presets.value.instances[selectedInstanceId.value]?.mode
+    const sandboxed = summary.frontend === 'sandbox'
+    return [
+      { id: 'story', group: '游玩', label: '存档', summary: `${summary.storyline} · ${currentInstance.value?.storylines.length ?? 0} 条故事线`, action: '管理' },
+      { id: 'model', group: '游玩', label: '模型', summary: summary.model, action: '更换' },
+      { id: 'preset', group: '游玩', label: '角色预设', summary: presetMode === 'global' ? '仅用全局默认' : presetMode === 'custom' ? '实例自定义' : '采用包推荐', action: '调整' },
+      { id: 'frontend', group: '游玩', label: '前端权限', summary: { sandbox: '沙箱（自定义前端）', trusted: '已信任', default: '官方模板' }[summary.frontend],
+        action: sandboxed ? '解除沙箱' : '查看', warn: sandboxed },
+      { id: 'play', group: '进阶', label: '运行参数', summary: `${play.maximumWaves} 波 · ${play.maximumNpcCalls} 次调用 · ${play.reactionDeadlineSeconds} 秒`, action: '调整' },
+      { id: 'creator', group: '进阶', label: '创作者工具', summary: running.value ? '控制台 · 模型请求' : '启动游戏后可用', action: '打开', disabled: !running.value },
+    ]
   })
   async function inspectFrontend(){return action('frontend-inspect',{instanceId:selectedInstanceId.value})}
   async function grantFrontend(expectedDigest:string,confirmed:boolean){
@@ -298,34 +316,6 @@ export const useLauncherStore = defineStore('launcher', () => {
     notice.value='完整节点已导出。接收者需要相同游戏包，并使用自己的模型继续。'
     return true
   }
-  async function exportCurrentStory(title: string, path: string): Promise<boolean> {
-    if (!real || busy.value) return false
-    const instanceId = selectedInstanceId.value
-    if (core.value.state !== 'running' || core.value.instanceId !== instanceId) {
-      notice.value = '请先启动当前实例，再保存当前进度并导出；也可直接导出已保存节点。'
-      return false
-    }
-    const previousNodes = new Set(currentInstance.value?.nodes.map(node => node.id))
-    busy.value = true
-    let saved = false
-    try {
-      notice.value = '正在保存当前完整节点，请等待。'
-      applySnapshot(await coreRequest('story-save', { instanceId, title }))
-      saved = true
-      const nodeId = currentNode.value?.id
-      if (currentInstance.value?.id !== instanceId || !nodeId || previousNodes.has(nodeId)) {
-        throw new Error('未找到新保存的完整节点，请查看节点列表后重试。')
-      }
-      notice.value = '完整节点已保存，正在导出。'
-      applySnapshot(await coreRequest('story-export', { instanceId, nodeId, path }))
-      notice.value = '当前进度已保存并导出，可以继续游玩。接收者需要相同游戏包。'
-      return true
-    } catch (error) {
-      const message = typeof error === 'string' ? error : error instanceof Error ? error.message : '本机操作失败，请重试。'
-      notice.value = saved ? '完整节点已保存，导出失败：' + message + ' 可从已保存节点重试。' : message
-      return false
-    } finally { busy.value = false }
-  }
   async function importStory(path: string, name: string): Promise<boolean> {
     if (!real) return false
     const previous=new Set(instances.value.map(instance=>instance.id))
@@ -341,7 +331,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     }
   }
 
-  return { running, stageSummary, exportStory,exportCurrentStory,importStory,selectStoryline,forkStory,openCreator,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, realInstances, currentRealInstance, currentModels, connectionName, connections, storedKeys, modelLists, lastModels, saveConnection, removeConnection, refreshModels, configureModels, initialize, refresh, loadRealPackage, startGame, stopGame, reopenGame, packages, instances, profiles, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
+  return { running, stageSummary, drawerRows, exportStory,importStory,selectStoryline,forkStory,openCreator,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, realInstances, currentRealInstance, currentModels, connectionName, connections, storedKeys, modelLists, lastModels, saveConnection, removeConnection, refreshModels, configureModels, initialize, refresh, loadRealPackage, startGame, stopGame, reopenGame, packages, instances, profiles, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
     selectedPackageId, selectedInstanceId, core, selectedPackage, currentInstance, currentStoryline,
     currentNode, currentModel, currentHistory, gameInstances, selectPackage, newInstance, loadMockPackage,
     forkAt, importMockStory, startMock, stopMock }

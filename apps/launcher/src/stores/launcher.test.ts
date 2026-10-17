@@ -164,54 +164,6 @@ it('exports the selected node and selects a newly imported independent instance'
   expect(store.instances).toHaveLength(2)
 })
 
-it('saves and exports the new node while keeping the game running and both operations locked',async()=>{
-  const data=snapshot()
-  const running={state:'running',mode:'real',instanceId:'instance-1'}
-  const line={id:'main',name:'主故事线',parentStorylineId:null,parentNodeId:null,currentNodeId:'old',source:{kind:'original',label:'本地实例',storylineId:null,nodeId:null,turn:0}}
-  const old={id:'old',parentNodeId:null,turn:1,title:'旧节点',summary:'',createdAt:'2026-10-15T00:00:00Z'}
-  const saved={...old,id:'new',parentNodeId:'old',turn:2,title:'当前进度'}
-  const state=(updated=false)=>({...data,core:running,instances:[{...data.instances[0]!,currentStorylineId:'main',storylines:[{...line,currentNodeId:updated?'new':'old'}],nodes:updated?[old,saved]:[old]}]})
-  bridge.request.mockResolvedValue(state())
-  const store=useLauncherStore();await store.initialize()
-  bridge.request.mockImplementation(async(operation)=>{
-    expect(store.busy).toBe(true)
-    if(operation==='story-export')expect(store.currentNode?.id).toBe('new')
-    await store.refresh() // Polling cannot overwrite the newly saved node between requests.
-    return state(true)
-  })
-  expect(await store.exportCurrentStory('当前进度','C:/current.perspectra-story')).toBe(true)
-  expect(bridge.request.mock.calls.slice(1)).toEqual([
-    ['story-save',{instanceId:'instance-1',title:'当前进度'}],
-    ['story-export',{instanceId:'instance-1',nodeId:'new',path:'C:/current.perspectra-story'}],
-  ])
-  expect(store.core.state).toBe('running');expect(store.busy).toBe(false)
-})
-
-it('never exports an older node after a failed or unconfirmed save and reports a saved node when only export fails',async()=>{
-  const data=snapshot(),running={state:'running',mode:'real',instanceId:'instance-1'}
-  bridge.request.mockResolvedValue({...data,core:running})
-  const store=useLauncherStore();await store.initialize()
-  bridge.request.mockRejectedValue(new Error('请等待当前行动完成'))
-  expect(await store.exportCurrentStory('分享','C:/share.perspectra-story')).toBe(false)
-  expect(store.notice).toContain('当前行动')
-  expect(bridge.request.mock.calls.some(call=>call[0]==='story-export')).toBe(false)
-  bridge.request.mockResolvedValue({...data,core:running})
-  expect(await store.exportCurrentStory('分享','C:/share.perspectra-story')).toBe(false)
-  expect(store.notice).toContain('未找到新保存')
-  expect(bridge.request.mock.calls.some(call=>call[0]==='story-export')).toBe(false)
-  const node={id:'saved',parentNodeId:null,turn:2,title:'分享',summary:'',createdAt:'2026-10-15T00:00:00Z'}
-  const line={id:'main',name:'主线',parentStorylineId:null,parentNodeId:null,currentNodeId:node.id,source:{kind:'original',label:'本地实例',storylineId:null,nodeId:null,turn:0}}
-  bridge.request.mockImplementation(async(operation)=>{
-    if(operation==='story-export')throw new Error('目标目录不可写')
-    return {...data,core:running,instances:[{...data.instances[0]!,currentStorylineId:'main',storylines:[line],nodes:[node]}]}
-  })
-  expect(await store.exportCurrentStory('分享','C:/share.perspectra-story')).toBe(false)
-  expect(store.currentNode?.id).toBe('saved')
-  expect(store.notice).toContain('完整节点已保存，导出失败')
-  expect(store.notice).toContain('目标目录不可写')
-  expect(store.busy).toBe(false)
-})
-
 it('applies appearance without changing the running instance', async () => {
  const store=useLauncherStore(); await store.initialize()
  store.core={state:'running',mode:'real',instanceId:'instance-1'}
@@ -269,4 +221,21 @@ it('summarizes the home stage: model, overrides, front-end mode and why play is 
   bridge.request.mockImplementation(async()=>({...data,frontends:{'instance-1':{kind:'custom',mode:'trusted',digest:'d',capabilities:[]}}}))
   await store.refresh()
   expect(store.stageSummary.frontend).toBe('trusted')
+})
+
+it('lists the session drawer rows with summaries, a sandbox warning and creator availability',async()=>{
+  const data=snapshot()
+  bridge.request.mockImplementation(async()=>({...data,frontends:{'instance-1':{kind:'custom',mode:'sandbox',digest:'d',capabilities:[]}}}))
+  const store=useLauncherStore();await store.initialize()
+  expect(store.drawerRows.map(r=>[r.group,r.id])).toEqual([['游玩','story'],['游玩','model'],['游玩','preset'],['游玩','frontend'],['进阶','play'],['进阶','creator']])
+  const row=(id:string)=>store.drawerRows.find(r=>r.id===id)!
+  expect(row('story').summary).toBe('主故事线 · 1 条故事线')
+  expect(row('model').summary).toBe('actual-model')
+  expect(row('preset').summary).toBe('采用包推荐')
+  expect(row('frontend')).toMatchObject({summary:'沙箱（自定义前端）',warn:true,action:'解除沙箱'})
+  expect(row('creator')).toMatchObject({disabled:true,summary:'启动游戏后可用'})
+  bridge.request.mockImplementation(async()=>({...data,core:{state:'running',mode:'real',instanceId:'instance-1',storylineId:'main',url:''}}))
+  await store.refresh()
+  expect(row('frontend')).toMatchObject({warn:false,action:'查看'})
+  expect(row('creator').disabled).toBe(false)
 })

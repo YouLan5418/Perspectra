@@ -25,9 +25,9 @@ async function save() {
   emit('close')
 }
 </script>
-<template><DialogFrame :open="open" title="模型配置" description="为这个实例选择角色使用的模型。连接与 API Key 在左下角“模型设置”里管理。" @close="emit('close')">
+<template><DialogFrame :open="open" title="模型配置" description="为这个实例选择角色使用的模型。连接与 API Key 在右上角 ⚙ 的“模型接口”里管理。" @close="emit('close')">
   <p v-if="store.currentRealInstance?.brokenConnection" class="inline-info">此实例原先使用的连接已删除，请重新选择。</p>
-  <p v-if="!store.connections.length" class="inline-info">还没有模型连接。请先在左下角“模型设置”添加连接。</p>
+  <p v-if="!store.connections.length" class="inline-info">还没有模型连接。请先在右上角 ⚙ 的“模型接口”添加连接。</p>
   <template v-else>
     <ModelPicker v-model="draft.decision" label="所有角色" id-prefix="instance-default" />
     <ThinkingOptions v-model="draft.thinkingLevel" :model="draft.decision?.model ?? ''" label="角色思考强度" />
@@ -52,7 +52,7 @@ async function save() {
     </section>
   </template>
   <p v-if="store.connections.length && !models" class="muted">每个已选择的模型位置都需要填写模型标识。</p>
-  <div class="dialog-actions"><Button variant="outline" @click="emit('close')">取消</Button><Button :disabled="store.busy || store.core.state === 'running' || !models" @click="save">保存配置</Button></div>
+  <div class="dialog-actions"><Button variant="outline" @click="emit('close')">取消</Button><Button :disabled="store.busy || !models" @click="save">保存配置</Button></div>
 </DialogFrame></template>
 
 <style scoped>

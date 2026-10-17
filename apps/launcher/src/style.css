@@ -1174,3 +1174,9 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
 @media (max-width: 600px) {
   .play-settings-grid, .settings-grid { grid-template-columns: 1fr; }
 }
+
+/* 抽屉内嵌的设置页：沿用原对话框内容，只换掉外框 */
+.drawer-panel { display: grid; gap: 14px; font-size: 13.5px; }
+.drawer-panel-head h2 { margin: 0 0 4px; font-family: var(--font-display); font-size: 17px; }
+.drawer-panel-head p { margin: 0; color: var(--muted-foreground); font-size: 12.5px; line-height: 1.7; }
+.drawer-panel .dialog-actions { position: sticky; bottom: -20px; padding: 10px 0; background: linear-gradient(transparent, var(--background) 30%); }

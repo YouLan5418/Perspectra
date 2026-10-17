@@ -63,7 +63,7 @@ async function test(id: string) {
         <div class="connection-actions">
           <Button variant="outline" size="sm" @click="toggle(connection.id)">{{ expanded === connection.id ? '收起模型' : '查看模型' }}</Button>
           <Button variant="outline" size="sm" :disabled="store.busy" @click="startEdit(connection)">编辑</Button>
-          <Button variant="outline" size="sm" :disabled="store.busy || store.core.state === 'running'" @click="remove(connection.id)">{{ pendingRemove === connection.id ? '确认删除' : '删除' }}</Button>
+          <Button variant="outline" size="sm" :disabled="store.busy" @click="remove(connection.id)">{{ pendingRemove === connection.id ? '确认删除' : '删除' }}</Button>
         </div>
       </div>
       <p v-if="pendingRemove === connection.id" class="inline-info">以下实例正在使用这条连接：{{ removing.join('、') }}。删除后需要在这些实例里重新选择模型。</p>
