@@ -197,6 +197,54 @@ describe('real Launcher metadata and authority boundary', () => {
 })
 
 describe('model connections in the launcher index', () => {
+  it('settings writes while running apply on next start', async () => {
+    const { core, instanceId, packageId, log } = await runningService()
+    try {
+      await core.handle({ operation: 'start', instanceId })
+      const before = (await log())[0].snapshot
+      await core.handle({ operation: 'settings', largeText: true })
+      await core.handle({ operation: 'preset-global', preset: { prompt: '全局新预设' } })
+      await core.handle({ operation: 'preset-save', instanceId, global: { prompt: '全局新预设' }, choice: { mode: 'global', override: {} } })
+      await core.handle({ operation: 'preset-instance', instanceId, choice: { mode: 'custom', override: { prompt: '实例新预设' } } })
+      await core.handle({ operation: 'play-settings', packageId, settings: { maximumWaves: 2 } })
+      await core.handle({ operation: 'preferences', theme: 'light', largeText: true, reading: { fontSize: 19, lineHeight: 1.9, autoFollow: true } })
+      await core.handle({ operation: 'connection-save', connection: { ...local, endpoint: 'http://127.0.0.1:8047/v1/chat/completions' } })
+      await core.handle({ operation: 'connection-save', connection: deepseek })
+      await core.handle({ operation: 'connection-remove', connectionId: deepseek.id })
+      await core.handle({ operation: 'configure', instanceId, models: { decision: { connectionId: local.id, model: 'after' } } })
+      expect(await log()).toHaveLength(1)
+      await core.stop()
+      expect((await log())[1]).toEqual({ type: 'stopped', snapshot: before })
+      await core.handle({ operation: 'start', instanceId })
+      const after = (await log())[2].snapshot
+      expect(after.models.default.decision).toMatchObject({ model: 'after', endpoint: 'http://127.0.0.1:8047/v1/chat/completions' })
+      expect(JSON.parse(after.settings).maximumWaves).toBe(2)
+      expect(after.presets.instances[instanceId]).toMatchObject({ mode: 'custom', override: { prompt: '实例新预设' } })
+      expect(after.reading).not.toBe(before.reading)
+    } finally { await core.stop(); vi.unstubAllEnvs() }
+  })
+  it('still refuses risky operations while running', async () => {
+    const { core, instanceId } = await runningService()
+    try {
+      await core.handle({ operation: 'start', instanceId })
+      for (const operation of ['story-select', 'story-fork', 'story-import', 'frontend-grant', 'create', 'load', 'start']) {
+        await expect(core.handle({ operation, instanceId })).rejects.toThrow('请先结束当前游戏。')
+      }
+    } finally { await core.stop(); vi.unstubAllEnvs() }
+  })
+  it('revoke still applies immediately', async () => {
+    const { core, instanceId, log } = await runningService(true)
+    try {
+      await core.handle({ operation: 'frontend-inspect', instanceId })
+      const expectedDigest = core.snapshot().frontends[instanceId]!.digest
+      await core.handle({ operation: 'frontend-grant', instanceId, expectedDigest, confirmed: true })
+      await core.handle({ operation: 'start', instanceId })
+      expect(core.snapshot().core).toMatchObject({ state: 'running', frontendMode: 'trusted' })
+      await core.handle({ operation: 'frontend-revoke', instanceId })
+      expect(core.snapshot().core).toMatchObject({ state: 'running', frontendMode: 'sandbox' })
+      expect(await log()).toContainEqual({ type: 'frontend-revoke' })
+    } finally { await core.stop(); vi.unstubAllEnvs() }
+  })
   it('migrates an old single-endpoint index once and keeps a backup of the original file', async () => {
     const core = await service()
     await withPack(core)
