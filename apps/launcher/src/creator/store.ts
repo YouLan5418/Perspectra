@@ -55,9 +55,9 @@ export const useCreatorStore = defineStore('creator', () => {
   /** 末端候选来自 history 的 selection；切换期间接口返回 409，这里只展示最近一次成功读取。 */
   const candidate = ref<{ id: string | null; ids: string[]; tailId: string | null }>({ id: null, ids: [], tailId: null })
 
-  const preview = computed(() => source.preview)
+  const preview = computed(() => !token.value)
   const captureEnabled = computed(() => world.value?.captureEnabled ?? false)
-  const sourceBusy = computed(() => source.preview ? false : (world.value?.busy ?? false))
+  const sourceBusy = computed(() => preview.value ? false : (world.value?.busy ?? false))
   const paused = computed(() => world.value?.paused === true)
   const characters = computed(() => world.value?.characters ?? [])
   const entities = computed(() => world.value?.entities ?? [])

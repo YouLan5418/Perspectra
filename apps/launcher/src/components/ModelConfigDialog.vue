@@ -14,7 +14,7 @@ const models = computed(() => draftModels(draft.value))
 watch(() => props.open, open => {
   if (!open) return
   draft.value = modelsDraft(store.currentRealInstance?.brokenConnection ? undefined : store.currentModels, store.presetCharacters.map(c => c.id))
-})
+}, { immediate: true })
 // Choosing a Gemini model that cannot turn thinking off moves the choice to the lowest allowed level.
 function keepThinkingValid(layer: LayerDraft) { if (layer.thinkingLevel === 'off' && geminiRequired(layer.decision?.model ?? '')) layer.thinkingLevel = 'low' }
 watch(draft, value => { keepThinkingValid(value); for (const role of Object.values(value.characters)) keepThinkingValid(role) }, { deep: true })

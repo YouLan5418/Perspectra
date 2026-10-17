@@ -33,3 +33,15 @@ describe('creator page data source', () => {
     expect((await source.meta()).title).toBeTruthy()
   })
 })
+
+describe('creator store connection state', () => {
+  it('stops reporting preview once a real token is attached, even if read before attaching', async () => {
+    const { createPinia, setActivePinia } = await import('pinia')
+    const { useCreatorStore } = await import('./store.ts')
+    setActivePinia(createPinia())
+    const store = useCreatorStore()
+    expect(store.preview).toBe(true)
+    store.attach(TOKEN)
+    expect(store.preview).toBe(false)
+  })
+})

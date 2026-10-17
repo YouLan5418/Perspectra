@@ -14,7 +14,7 @@ const notes:Record<string,string>={
  '自主行动':'仅作用于作者声明的自主角色。机会取作者请求与此上限的较小值；0 关闭自主唤醒。自主行动和后续反应分别计费，共用总时限；召回补问、格式修正与结果续写均消耗调用预算。触发频率、交互和范围由作者定义。',
  'Core 记忆':'Token 为本地估算。整理目标和近期保留量必须小于触发阈值；保留量是近期原文目标，召回预算只限制长期记忆交付。'
 }
-watch(()=>props.open,open=>{if(open){Object.assign(draft,store.currentPlaySettings);error.value=''}})
+watch(()=>props.open,open=>{if(open){Object.assign(draft,store.currentPlaySettings);error.value=''}}, { immediate: true })
 async function save(){
  try{error.value='';if(await store.savePlaySettings(playSettings(draft)))emit('close')}
  catch(e){error.value=e instanceof Error?e.message:'游玩参数无效。'}

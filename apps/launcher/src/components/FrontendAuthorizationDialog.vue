@@ -7,7 +7,7 @@ const props=defineProps<{open:boolean}>()
 const emit=defineEmits<{close:[]}>()
 const store=useLauncherStore(),confirmed=ref(false)
 const info=computed(()=>store.currentFrontend)
-watch(()=>props.open,async open=>{confirmed.value=false;if(open)await store.inspectFrontend()})
+watch(()=>props.open,async open=>{confirmed.value=false;if(open)await store.inspectFrontend()}, { immediate: true })
 async function grant(){if(await store.grantFrontend(info.value?.digest??'',confirmed.value))emit('close')}
 async function revoke(){if(await store.revokeFrontend())emit('close')}
 </script>

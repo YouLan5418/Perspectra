@@ -16,7 +16,7 @@ watch(() => props.open, open => {
     selectedNodeId.value = store.currentNode?.id ?? ''
     name.value = '我的新故事'
   }
-})
+}, { immediate: true })
 
 async function chooseLine(id: string) {
   if (await store.selectStoryline(id)) selectedNodeId.value = store.currentNode?.id ?? ''

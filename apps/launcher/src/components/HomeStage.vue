@@ -8,7 +8,7 @@ defineEmits<{ openDrawer: [section?: 'model' | 'frontend' | 'story']; load: [] }
 const store = useLauncherStore()
 const pack = computed(() => store.selectedPackage)
 const summary = computed(() => store.stageSummary)
-const frontendLabel = computed(() => ({ sandbox: '沙箱', trusted: '已信任前端', default: '官方模板' })[summary.value.frontend])
+const frontendLabel = computed(() => ({ sandbox: '沙箱', trusted: '已信任前端', default: '官方模板', unknown: '检查前端中' })[summary.value.frontend])
 const playLabel = computed(() => store.busy ? '正在启动…' : store.currentInstance?.lastPlayedAt ? '继续游戏' : '开始游戏')
 </script>
 
@@ -25,7 +25,7 @@ const playLabel = computed(() => store.busy ? '正在启动…' : store.currentI
         <button class="stage-chip" title="故事线与存档" @click="$emit('openDrawer', 'story')"><GitFork :size="13" />{{ summary.storyline }}</button>
         <button class="stage-chip" title="模型设置" @click="$emit('openDrawer', 'model')"><Cpu :size="13" />{{ summary.model }}</button>
         <button class="stage-chip" :class="{ warn: summary.frontend === 'sandbox', trusted: summary.frontend === 'trusted' }" title="前端权限" @click="$emit('openDrawer', 'frontend')">
-          <ShieldCheck v-if="summary.frontend !== 'sandbox'" :size="13" /><ShieldAlert v-else :size="13" />{{ frontendLabel }}
+          <ShieldCheck v-if="summary.frontend === 'trusted' || summary.frontend === 'default'" :size="13" /><ShieldAlert v-else :size="13" />{{ frontendLabel }}
         </button>
       </div>
       <p v-if="!store.running && summary.blockedReason" class="stage-blocked" role="status">{{ summary.blockedReason }}</p>

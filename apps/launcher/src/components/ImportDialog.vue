@@ -9,7 +9,7 @@ const props = defineProps<{ open: boolean; mode: 'package' | 'story' }>()
 const emit = defineEmits<{ close: [] }>()
 const store = useLauncherStore()
 const path = ref(''), error = ref(''), name = ref('从朋友的故事继续')
-watch(() => props.open, open => { if (open) { path.value = ''; error.value = ''; name.value = '从朋友的故事继续' } })
+watch(() => props.open, open => { if (open) { path.value = ''; error.value = ''; name.value = '从朋友的故事继续' } }, { immediate: true })
 async function choose() {
   try { path.value = await (props.mode === 'story' ? chooseStoryFile() : choosePackageDirectory()) ?? '' }
   catch { error.value = '文件选择失败，请重试。' }
