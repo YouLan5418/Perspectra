@@ -446,7 +446,13 @@ export class LauncherCore {
         const directory = this.#storyDirectory(instance)
         const preflight = await preflightSave(pack.path, directory)
         if (preflight.packHash !== instance.packHash) throw new Error('世界包内容与创建实例时不同，请恢复原包。')
-        await access(hindsightPython())
+        try { await access(hindsightPython()) }
+        catch (error) {
+          const code = (error as NodeJS.ErrnoException).code
+          if (code === 'ENOENT') throw new Error('本机记忆所需的 Python 环境不存在。请准备开发环境，或设置 HCW_HINDSIGHT_PYTHON 后重启启动器。')
+          if (code === 'EACCES' || code === 'EPERM') throw new Error('无法访问本机记忆所需的 Python 环境（权限不足）。请检查运行环境的访问权限。')
+          throw error
+        }
         try { await mkdir(directory, { recursive: true }) }
         catch (error) {
           const code = (error as NodeJS.ErrnoException).code
