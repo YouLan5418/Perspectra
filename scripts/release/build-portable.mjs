@@ -7,6 +7,7 @@ const version='0.1.0-test3'
 const output=resolve(process.argv[2]??'dist/portable/Perspectra-'+version+'-win-x64')
 try{await access(output);throw Error('Output already exists; choose a new directory.')}catch(error){if(error.code!=='ENOENT')throw error}
 if(process.platform!=='win32'||process.arch!=='x64')throw Error('Windows x64 build required')
+try{await access(resolve('apps/launcher/dist-creator/index.html'))}catch(error){if(error.code!=='ENOENT')throw error;throw Error('Run launcher:build first; creator page is missing.')}
 const pythonHome=process.env.PERSPECTRA_BUILD_PYTHON_HOME??readFileSyncConfig()
 function readFileSyncConfig(){const text=execFileSync(process.execPath,['-e',"process.stdout.write(require('fs').readFileSync('.tmp/hindsight-vector-venv/pyvenv.cfg','utf8'))"],{encoding:'utf8'});const match=text.match(/^home = (.+)$/m);if(!match)throw Error('Python base not found');return match[1].trim()}
 const runtime=join(output,'runtime');await mkdir(runtime,{recursive:true})
@@ -21,6 +22,7 @@ for(const file of await readdir(crt)){if(!file.endsWith('.dll'))continue;for(con
 await cp(resolve('.tmp/hindsight-vector-venv/Lib/site-packages'),join(runtime,'python/Lib/site-packages'),{recursive:true,dereference:true,filter})
 const inputs=new Set()
 await cp(resolve('packages/frontend/assets'),join(runtime,'frontend-assets'),{recursive:true})
+await cp(resolve('apps/launcher/dist-creator'),join(runtime,'creator-assets'),{recursive:true})
 for(const [entry,file] of [['desktop/launcher-entry.ts','launcher.mjs'],['tests/experiments/playtest-web-entry.ts','playtest.mjs']]){
 const result=await build({entryPoints:[entry],outfile:join(runtime,file),bundle:true,platform:'node',target:'node24',format:'esm',external:['jieba-wasm'],legalComments:'eof',metafile:true,banner:{js:"import {createRequire as __createRequire} from 'node:module'; const require=__createRequire(import.meta.url);"}})
 for(const path of Object.keys(result.metafile.inputs))inputs.add(resolve(path))

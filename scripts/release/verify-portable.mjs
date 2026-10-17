@@ -1,11 +1,12 @@
 import {spawn} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
 import {resolve,join} from 'node:path'
-import {mkdir,writeFile,readFile} from 'node:fs/promises'
+import {mkdir,writeFile,readFile,access} from 'node:fs/promises'
 import {DEFAULT_PAGE,DEFAULT_STYLE,DEFAULT_SCRIPT} from '../../packages/frontend/src/default-template.ts'
 import {HOST_ACTIVITY_PAGE} from '../../tests/experiments/playtest-host-page.ts'
 const root=resolve(process.argv[2]),data=resolve(process.argv[3]);await mkdir(data,{recursive:true})
 const official=process.argv[4]==='official',packName=official?'大模型变成美少女了':'前室与后室'
+await access(join(root,'runtime/creator-assets/index.html'))
 const runtime=join(root,'runtime');const env={...process.env,PATH:'C:\\Windows\\System32;C:\\Windows\\System32\\WindowsPowerShell\\v1.0',PERSPECTRA_RUNTIME_ROOT:runtime,HCW_HINDSIGHT_PYTHON:join(runtime,'python/python.exe'),HCW_HINDSIGHT_CORE_DIR:join(runtime,'experiments/hindsight-core'),HCW_HINDSIGHT_ONNX_DIR:join(runtime,'models/e5-small'),HCW_HINDSIGHT_CACHE_DIR:join(data,'cache'),HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',PYTHONNOUSERSITE:'1',PYTHONDONTWRITEBYTECODE:'1',PYTHONHOME:undefined,PYTHONPATH:undefined}
 const child=spawn(join(runtime,'node.exe'),[join(runtime,'launcher.mjs'),join(data,'launcher')],{cwd:runtime,env,windowsHide:true,stdio:['pipe','pipe','pipe']})
 let buffer='';const queue=[];const next=()=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('IPC deadline')),60000);queue.push(v=>{clearTimeout(timer);resolve(v)})});child.stdout.setEncoding('utf8');child.stdout.on('data',chunk=>{buffer+=chunk;for(;;){const i=buffer.indexOf('\n');if(i<0)break;const line=buffer.slice(0,i);buffer=buffer.slice(i+1);queue.shift()?.(JSON.parse(line))}})
@@ -20,6 +21,8 @@ const connection=process.argv[5]==='offline'?{message:'Skipped: offline verifica
 const started=await request({operation:'start',instanceId:(await request({operation:'snapshot'})).instances[0].id})
 if(started.core.state!=='running')throw Error('Core not running')
 const opened=await request({operation:'open'}),origin=new URL(opened.url).origin
+const creatorPage=await fetch(origin+'/creator/',{signal:AbortSignal.timeout(15000)})
+if(creatorPage.status!==200||await creatorPage.text()!==await readFile(join(runtime,'creator-assets/index.html'),'utf8'))throw Error('Portable creator page differs from the bundled build')
 for(const [path,expected] of [['/',HOST_ACTIVITY_PAGE],['/frontend/default.html',DEFAULT_PAGE],['/frontend/default.css',DEFAULT_STYLE],['/frontend/default.js',DEFAULT_SCRIPT]]){
  const response=await fetch(origin+path,{signal:AbortSignal.timeout(15000)})
  if(!response.ok||await response.text()!==expected)throw Error('Portable frontend differs from current source: '+path)

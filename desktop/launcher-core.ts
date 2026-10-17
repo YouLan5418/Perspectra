@@ -1,6 +1,3 @@
-import { creatorDebugQuery } from '../tests/experiments/creator-debug.ts'
-import { creatorRecordsQuery } from '../tests/experiments/creator-records.ts'
-import { creatorHistoryQuery } from '../tests/experiments/creator-history.ts'
 import { playSettings, readingPreferences, DEFAULT_READING, audioPreferences, DEFAULT_AUDIO, palettePreference, DEFAULT_PALETTE, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from './play-settings.ts'
 import { providerEndpoint, providerHeaders, nativeMessages, nativePayload } from '../packages/provider-chat/src/protocol.ts'
 import { exportStoryNode, importStoryNode } from './story-share.ts'
@@ -282,30 +279,6 @@ export class LauncherCore {
         }
         return {message:'模型接口已响应。此测试不验证游戏所需的结构化输出。'}
       }
-      case 'request-inspector': {
-        if (!this.#active || this.#active.instanceId !== request.instanceId) throw new Error('请先启动当前实例。')
-        if (request.enabled !== undefined && typeof request.enabled !== 'boolean') throw new Error('检查器开关无效。')
-        const target = new URL(this.#active.url), token = target.hash.slice('#token='.length)
-        target.hash = ''; target.pathname = '/api/request-inspector'
-        const response = await fetch(target, {method:request.enabled===undefined?'GET':'POST',
-          headers:{'x-playtest-token':token,'content-type':'application/json'},
-          ...(request.enabled===undefined?{}:{body:JSON.stringify({enabled:request.enabled})}),signal:AbortSignal.timeout(5000)})
-        if (!response.ok) throw new Error('请求检查器读取失败。')
-        return await response.json()
-      }
-      case 'creator-records':
-      case 'creator-history':
-      case 'creator-debug': {
-        if (!this.#active || this.#active.instanceId !== request.instanceId) throw new Error('请先启动当前实例。')
-        const parse = request.operation === 'creator-records' ? creatorRecordsQuery : request.operation === 'creator-history' ? creatorHistoryQuery : creatorDebugQuery
-        const query = parse((request.query ?? {}) as Record<string, unknown>)
-        const target = new URL(this.#active.url), token = target.hash.slice('#token='.length)
-        target.hash = ''; target.pathname = '/api/'+request.operation; target.search = ''
-        for (const [key, value] of Object.entries(query)) target.searchParams.set(key, String(value))
-        const response = await fetch(target, { headers: { 'x-playtest-token': token }, signal: AbortSignal.timeout(10000) })
-        if (!response.ok) throw new Error('创作者调试读取失败。')
-        return await response.json()
-      }
       case 'preset-library-add': {
         await this.#presets.addLibrary([namedPreset(request.entry)]);return this.snapshot()
       }
@@ -331,13 +304,13 @@ export class LauncherCore {
         return {saved:true}
       }
       case 'preset-save': {
-        this.#idle();const instance=this.#instance(request.instanceId),choice=presetChoice(request.choice)
+        const instance=this.#instance(request.instanceId),choice=presetChoice(request.choice)
         this.#validMapping(instance,choice)
         await this.#presets.save(rolePreset(request.global),{...this.#presets.instances,[instance.id]:choice});return this.snapshot()
       }
       case 'preset-inspect': await this.#recommendations(); return this.snapshot()
-      case 'preset-global': this.#idle(); await this.#presets.save(rolePreset(request.preset),this.#presets.instances); return this.snapshot()
-      case 'preset-instance': {this.#idle();const instance=this.#instance(request.instanceId);const choice=presetChoice(request.choice);this.#validMapping(instance,choice);await this.#presets.save(this.#presets.global,{...this.#presets.instances,[instance.id]:choice});return this.snapshot()}
+      case 'preset-global':  await this.#presets.save(rolePreset(request.preset),this.#presets.instances); return this.snapshot()
+      case 'preset-instance': {const instance=this.#instance(request.instanceId);const choice=presetChoice(request.choice);this.#validMapping(instance,choice);await this.#presets.save(this.#presets.global,{...this.#presets.instances,[instance.id]:choice});return this.snapshot()}
       case 'frontend-inspect': {
         await this.#inspect(this.#instance(request.instanceId))
         return this.snapshot()
@@ -427,26 +400,6 @@ export class LauncherCore {
         await this.#save({...this.#index,instances:this.#index.instances.map(i=>i===instance?next:i)})
         return this.snapshot()
       }
-      case 'story-save': {
-        const instance=this.#instance(request.instanceId), title=text(request.title,'节点名称',80)
-        if(this.#active?.instanceId!==instance.id || !this.#child)throw new Error('请先启动此实例，再保存静止节点。')
-        const child=this.#child, requestId=randomUUID()
-        await new Promise<void>((done,reject)=>{
-          const timer=setTimeout(()=>finish(new Error('节点保存未确认；请查看节点列表后重试。')),60_000)
-          const finish=(error?:Error)=>{clearTimeout(timer);child.off('message',message);child.off('exit',exited);if(error)reject(error);else done()}
-          const message=(value:unknown)=>{
-            if(!value||typeof value!=='object')return
-            const r=value as {type?:string;requestId?:string;message?:string}
-            if(r.requestId!==requestId)return
-            if(r.type==='story-saved')finish()
-            if(r.type==='story-save-failed')finish(new Error(r.message??'节点保存失败。'))
-          }
-          const exited=()=>finish(new Error('Core 已退出，节点未确认。'))
-          child.on('message',message);child.once('exit',exited)
-          child.send({type:'story-save',requestId,title},error=>{if(error)finish(new Error('节点请求发送失败。'))})
-        })
-        return this.snapshot()
-      }
       case 'create': {
         this.#idle()
         const pack = this.#index.packs.find(p => p.id === request.packageId)
@@ -459,7 +412,6 @@ export class LauncherCore {
         return this.snapshot()
       }
       case 'play-settings': {
-        this.#idle()
         const pack=this.#index.packs.find(pack=>pack.id===request.packageId)
         if(!pack)throw new Error('请先载入游戏包。')
         await this.#save({...this.#index,playSettings:{...this.#index.playSettings,[pack.id]:playSettings(request.settings)}})
@@ -471,14 +423,12 @@ export class LauncherCore {
         return this.snapshot()
       }
       case 'settings': {
-        this.#idle()
         if (request.largeText !== undefined && typeof request.largeText !== 'boolean') throw new TypeError('字体设置无效。')
         await this.#save({ ...this.#index,
           preferences: { ...this.#index.preferences, largeText: request.largeText === undefined ? this.#index.preferences.largeText : request.largeText } })
         return this.snapshot()
       }
       case 'configure': {
-        this.#idle()
         const instance = this.#instance(request.instanceId)
         const models = instanceModels(request.models, this.#index.connections, (this.#characters[instance.packageId] ?? []).map(c => c.id))
         await this.#save({ ...this.#index, lastModels: { decision: models.decision, ...(models.memory ? { memory: models.memory } : {}) },
@@ -515,6 +465,7 @@ export class LauncherCore {
             cwd: this.repository, windowsHide: true,
             env: { ...process.env, HCW_THINKING_LEVEL: undefined, ...modelEnv,
               PERSPECTRA_STORY_PARENT_NODE: instance.storylines.find(l=>l.id===instance.currentStorylineId)?.parentNodeId??'',
+              PERSPECTRA_STORY_NAME: instance.storylines.find(l=>l.id===instance.currentStorylineId)!.name,
               PERSPECTRA_READING: JSON.stringify(this.#index.preferences.reading??DEFAULT_READING),
               PERSPECTRA_AUDIO: JSON.stringify(this.#index.preferences.audio??DEFAULT_AUDIO),
               PERSPECTRA_PALETTE: this.#index.preferences.palette??DEFAULT_PALETTE,
@@ -550,6 +501,12 @@ export class LauncherCore {
           this.#active = { instanceId: instance.id, url: 'http://127.0.0.1:' + ready.port + '/#token=' + ready.token, frontendMode:ready.frontendMode }
           return this.snapshot()
         } catch (error) { await this.stop(); throw error }
+      }
+      case 'open-creator': {
+        if (!this.#active) throw new Error('游戏尚未启动。')
+        const target = new URL(this.#active.url)
+        target.pathname = '/creator/'
+        return { url: target.href }
       }
       case 'open': {
         if (!this.#active) throw new Error('游戏尚未启动。')

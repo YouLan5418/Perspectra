@@ -82,7 +82,11 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 完整节点保存当时已安装的 Core 档案，分叉仅恢复节点快照并校验授权来源和时间前缀，不调用 Build；旧节点没有档案时保留截至节点的完整授权原始经历。启动恢复失败仍保留现有恢复标记。详见[故事节点记忆边界](cognition-memory.md#故事节点的记忆时间边界2026-10-09)。
 
-2026-10-15 Launcher 游戏详情增加直接“导出存档”：运行中先复用 `story-save` 保存静止完整节点，再以返回的新节点执行 `story-export`；UI 在两步间保持操作锁，保存失败不导出旧节点，写出失败保留已保存节点。单独导出历史节点只读不可变副本，无需结束游戏。分享包含节点已有的长期档案，并在导入公布前复用角色、世界、前缀和授权来源校验；切换、分叉、导入仍要求停止当前游戏。没有新增世界事件、运行协议或存档版本；范围仍为单节点，见[故事线分享](../storylines.md#9-单节点分享2026-10-15)。
+2026-10-17 保存入口改为游戏宿主页工具栏：例如晚餐后点“保存进度”，再由 Launcher 导出该节点。宿主的 `POST /api/story-save` 校验 token、标题和现有静止条件，复用原保存机制；删除 Launcher 的 `story-save` 和子进程保存 IPC。历史节点导出仍只读副本，切换、分叉与导入要求停止游戏，见[故事线](../storylines.md)。本轮未改变世界事实或存档格式。
+
+同日后端新增 `open-creator`，返回当前宿主的 `/creator/#token=…`，Rust 只允许 `http://127.0.0.1:<有效端口>` 和指定页面路径。创作者静态资源由 [creator assets](../../../tests/experiments/playtest-creator-assets.ts) 提供，私有数据仍只由鉴权 HTTP 接口返回；旧 Launcher 创作者透传已删除，见[接口说明](../creator-debug-api.md)。
+
+运行中可保存连接、实例模型、预设、阅读／声音与游玩参数；当前子进程使用启动快照，下次启动才采用新设置。模型 Key 在 Rust 的启动／连接测试请求中读取，游戏入口启动时构造模型与记忆 runner，没有发现运行中的游戏重新读取连接或 Key。危险操作继续拒绝；撤销前端信任仍通过 IPC 立即生效。相关 HTTP、子进程与 Rust 校验测试通过，打包后无模型接口冒烟通过；新 Launcher UI 由另一分支交付，原生点击、真实模型体验与完整便携发行包尚未验收。
 
 核心实现入口：[网页宿主](../../../tests/experiments/playtest-frozen-runtime.ts)、[Character Turn](../../../packages/application/src/prototype-character-turn.ts)、[网页玩家视图](../../../tests/experiments/playtest-view.ts)、[Core 桥](../../../tests/experiments/playtest-memory-core.ts)。性能证据见[研究索引](../studies/ai-girls/README.md)。一次真实轨迹仍出现普通反应约 30 秒中断；增量显示没有消除整轮等待。
 

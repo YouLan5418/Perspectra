@@ -1,30 +1,34 @@
 # 创作者只读调试接口
 
-核对日期：2026-10-15。世界快照、完整事件历史、私有调用记录与预设快照接口已接通；Launcher 内的[创作者控制台](#创作者控制台)已实现第一版，尚未重建发行包。
+核对日期：2026-10-17。世界快照、完整事件历史、私有调用记录与预设快照接口已接通。后端改版将创作者入口移到同源浏览器页面；Launcher 前端改版独立交付，完整发行包尚未重建。
 
 例如钥匙已经交给另一名角色，但角色仍说自己拿着：先查 entities 的保管关系和最近事件，再选中角色查 currentView 的授权观察、latestRequest 的清洗后历史与本次召回，最后检查长期记忆来源。工具只读已安装数据，不执行交互、召回、补齐来源或调用模型。
 
-## 从 Launcher 调用
+## 从浏览器创作者页读取
 
-Launcher 原生服务提供三个查询，底层使用 `launcher_request`，只允许检查当前已启动实例：
+例如创作者要检查晚餐时钥匙的去向：游戏启动后，由 Launcher 发出 `open-creator`，Rust 校验本机地址和令牌后用系统浏览器打开 `/creator/#token=…`。旧的 `creator-debug / creator-history / creator-records / request-inspector` Launcher operation 已删除；HTTP 接口保持原有数据形状。
 
-| 方法 | operation / 宿主 GET 路由 | 用途 |
-| --- | --- | --- |
-| inspectCreator | creator-debug / /api/creator-debug | 当前世界、角色视图、变量、活动和 Core 档案 |
-| inspectCreatorHistory | creator-history / /api/creator-history | 对话事件、受众、行动参数、裁定与物品历史 |
-| inspectCreatorRecords | creator-records / /api/creator-records | 已保存请求、响应、思考、预设与执行关联 |
+| 路由 | 用途 |
+| --- | --- |
+| GET /api/creator-meta | `{ title, storyline, characters: [{ id, name }] }`；角色来自包中可调用角色列表，与预设选择同源 |
+| GET /api/creator-debug | 当前世界、角色视图、变量、活动和 Core 档案 |
+| GET /api/creator-history | 对话事件、受众、行动参数、裁定与物品历史 |
+| GET /api/creator-records | 已保存请求、响应、思考、预设与执行关联 |
+| GET / POST /api/request-inspector | 读取采集状态，或用 `{ enabled: boolean }` 修改采集开关 |
 
-在 Launcher 源码组件中可以这样读取当前角色：
+页面用同源 fetch 携带 `x-playtest-token` 读取上述数据。例如拿到本页宿主 token 后查询某角色：
 
 ```typescript
-import { inspectCreator } from '../services/desktop.ts'
-
-const world = await inspectCreator(instanceId)
-const characterId = world.characters[0]?.id
-const detail = characterId === undefined ? world : await inspectCreator(instanceId, { characterId, limit: 50 })
+const response = await fetch('/api/creator-debug?characterId=character%3Acompanion&limit=50', {
+  headers: { 'x-playtest-token': token },
+})
+if (!response.ok) throw new Error(`创作者数据读取失败（${response.status}）`)
+const detail = await response.json()
 ```
 
-宿主 HTTP 入口为 `GET /api/creator-debug`，沿用 `x-playtest-token` 与同源检查。token 只由宿主持有；游戏 iframe 的 Perspectra SDK 和 Frontend API 均不开放本接口。采集开关复用现有 `/api/request-inspector`，Launcher 使用 `inspectRequests(instanceId, true)`。未开启采集仍可读当前世界，但没有实际调用快照。
+静态页本身公开，数据接口需要宿主令牌和同源检查；游戏 iframe 的 SDK 与 Frontend API 均不开放这些接口。`/creator/` 使用 `script-src 'self'`，不放宽玩家宿主页 CSP；开发资源目录为 `apps/launcher/dist-creator`，打包运行时为 `runtime/creator-assets`。资源目录缺失返回 503「创作者页面未构建」，越界路径返回 404。故事线名称由启动时 `PERSPECTRA_STORY_NAME` 传入，命令行直接启动时默认「主故事线」。
+
+本次已验证静态页、鉴权、路径穿越和打包后接口；原生 Launcher 点击、真实模型长会话及完整便携发行包未验收。旧版 Launcher 内控制台的界面记录保留在下文，前端改版合并后才形成完整新流程。
 
 ## 查询参数
 
@@ -109,7 +113,7 @@ request、decision、action、turn、recall 通过 decisionId 关联。格式重
 
 ## 创作者控制台
 
-Launcher 游戏详情里的「创作者控制台」是全窗口只读界面，进入后左侧是游戏、故事线与角色，中间是阅读与检索，右侧是选中内容详情。运行中的实例直接读上面三个接口；浏览器 Mock 预览（`launcher:dev`）改用结构相同的固定样例，不连接真实实例。
+下面保留改版前的界面记录。原 Launcher 游戏详情里的「创作者控制台」是全窗口只读界面，进入后左侧是游戏、故事线与角色，中间是阅读与检索，右侧是选中内容详情。运行中的实例直接读上面三个接口；浏览器 Mock 预览（`launcher:dev`）改用结构相同的固定样例，不连接真实实例。
 
 - 顶部两行：第一行是运行身份与宿主状态，第二行是视图切换、筛选和刷新；底部状态栏显示采集开关、最近更新、事件／记录条数、失败与收起条数。
 - 「对话」按连续阅读排版，正文最宽约 880px。已提交表达带头像、角色、序号和受众标签；模型思考默认折叠在对应回应上方，工具调用与召回作为紧凑条目穿插；被拒行动显示为行动行。
