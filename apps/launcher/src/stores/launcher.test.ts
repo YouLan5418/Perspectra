@@ -45,6 +45,16 @@ it('saves the connection before its key and remembers that a key is stored', asy
   expect(bridge.setKey).toHaveBeenCalledTimes(1)
 })
 
+it('forgets the stored key when a connection moves to another host', async () => {
+  bridge.keyStatus.mockResolvedValue([connectionId])
+  const store = useLauncherStore(); await store.initialize()
+  expect(store.storedKeys.has(connectionId)).toBe(true)
+  await store.saveConnection({ ...connection, endpoint: 'http://127.0.0.1:8046/v2/chat/completions' })
+  expect(store.storedKeys.has(connectionId)).toBe(true)
+  await store.saveConnection({ ...connection, endpoint: 'https://gateway.example/v1/chat/completions' })
+  expect(store.storedKeys.has(connectionId)).toBe(false)
+})
+
 it('keeps a readable error when a model list cannot be fetched', async () => {
   const store = useLauncherStore(); await store.initialize()
   bridge.list.mockRejectedValueOnce('此接口不提供模型列表；可直接输入模型标识。')

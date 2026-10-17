@@ -172,6 +172,13 @@ async fn launcher_request(
             return Ok(json!({"current":core.root,"next":next,"locked":locked}));
         }
         let mut request = request;
+        // A stored key must not follow its connection to another host; read the old address first.
+        let previous_endpoint = if request["operation"] == "connection-save" {
+            let snapshot = core.request(json!({"operation":"snapshot"}))?;
+            let id = request["connection"]["id"].as_str().unwrap_or_default().to_string();
+            snapshot["connections"].as_array().and_then(|list| list.iter().find(|c| c["id"] == id.as_str()))
+                .and_then(|c| c["endpoint"].as_str().map(String::from))
+        } else { None };
         match request["operation"].as_str() {
             Some("connection-key-set") => {
                 let id = request["connectionId"].as_str().ok_or("连接标识无效。")?;
@@ -196,6 +203,12 @@ async fn launcher_request(
             _ => model_keys::inject(&mut request, &[], |_| None),
         }
         let result = core.request(request.clone())?;
+        if let (Some(old), Some(id)) = (previous_endpoint, request["connection"]["id"].as_str()) {
+            let saved = result["connections"].as_array().and_then(|list| list.iter().find(|c| c["id"] == id)).and_then(|c| c["endpoint"].as_str());
+            if saved.is_some_and(|new| !model_keys::same_origin(&old, new)) {
+                model_keys::remove(id);
+            }
+        }
         if request["operation"] == "connection-remove" {
             if let Some(id) = request["connectionId"].as_str() {
                 model_keys::remove(id);
