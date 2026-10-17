@@ -103,7 +103,7 @@ export class LauncherCore {
   #characters: Record<string,{id:string;name:string}[]> = {}
   #presets: ModelPresets
   #recommended: Record<string,RolePreset> = {}
-  #details: Record<string,{description:string;hasCover:boolean}> = {}
+  #details: Record<string,{description:string;hasCover:boolean;error?:string}> = {}
   #covers: Record<string,string> = {}
   async #describe(pack: Pack, compiled: CompiledWorldPackV5) {
     const cover = await packCover(pack.path)
@@ -165,7 +165,25 @@ export class LauncherCore {
     await this.#presets.loadLibrary()
     await this.#recommendations()
   }
-  async #recommendations(){for(const pack of this.#index.packs){this.#recommended[pack.id]=await packPreset(pack.path);const compiled=await compileWorldPackSource(pack.path,createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5;this.#characters[pack.id]=packCharacters(compiled);await this.#describe(pack,compiled)}}
+  async #recommendations() {
+    for (const pack of this.#index.packs) {
+      try {
+        const recommended = await packPreset(pack.path)
+        const compiled = await compileWorldPackSource(pack.path, createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5
+        await this.#describe(pack, compiled)
+        this.#recommended[pack.id] = recommended
+        this.#characters[pack.id] = packCharacters(compiled)
+      } catch {
+        // Package files are external to the index; one unavailable package must
+        // not hide other games or leave stale author metadata available.
+        delete this.#recommended[pack.id]
+        delete this.#characters[pack.id]
+        delete this.#covers[pack.id]
+        this.#details[pack.id] = { description: '', hasCover: false,
+          error: '世界包无法读取或校验，可能已移动、缺失或损坏；请恢复包文件后重新载入。' }
+      }
+    }
+  }
   #validMapping(instance:Instance,choice:ReturnType<typeof presetChoice>){const ids=new Set((this.#characters[instance.packageId]??[]).map(c=>c.id));if([...Object.keys(choice.characters??{}),...Object.keys(choice.memberships??{})].some(id=>!ids.has(id)))throw new Error('预设引用了此包之外或不可调用的角色。')}
   async #save(next: Index): Promise<void> {
     const temporary = join(this.root, 'launcher.' + randomUUID() + '.tmp')
@@ -470,6 +488,8 @@ export class LauncherCore {
       case 'start': {
         this.#idle(); this.#error = ''
         const instance = this.#instance(request.instanceId)
+        const packError = this.#details[instance.packageId]?.error
+        if (packError) throw new Error(packError)
         if (!instance.models) throw new Error('请先在模型配置中选择模型。')
         const modelEnv = modelEnvironment(instance.models, this.#index.connections, apiKeys(request.apiKeys))
         const pack = this.#index.packs.find(p => p.id === instance.packageId)!

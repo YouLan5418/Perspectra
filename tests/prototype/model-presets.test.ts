@@ -47,7 +47,10 @@ it('loads optional package recommendations and Launcher selections without chang
  expect(restored.snapshot().presets).toEqual(core.snapshot().presets)
  await expect(core.handle({operation:'preset-instance',instanceId:'other',choice:{mode:'auto',override:{}}})).rejects.toThrow('实例不存在')
  await writeFile(join(pack,'model-preset.json'),'{"tools":[]}')
- await expect(core.handle({operation:'preset-inspect'})).rejects.toThrow('model-preset.json')
+ await core.handle({operation:'preset-inspect'})
+ expect(core.snapshot().packDetails['pack:prototype-g1']?.error).toContain('世界包')
+ expect(core.snapshot().presets.global).toEqual({topP:.9})
+ expect(core.snapshot().presets.instances[id]).toEqual({mode:'custom',override:{prompt:'instance'}})
 })
 it('adds portrayal settings only to character calls and keeps Host messages, schema and intent limits',async()=>{
  const sent:Record<string,unknown>[]=[]

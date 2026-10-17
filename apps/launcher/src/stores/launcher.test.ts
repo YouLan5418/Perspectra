@@ -34,6 +34,23 @@ it('starts a game without sending any key from the page', async () => {
   expect(bridge.request).toHaveBeenCalledWith('start', { instanceId: 'instance-1' })
 })
 
+it('keeps unavailable packages visible and blocks them without blocking other games', async () => {
+  const original = snapshot()
+  const error = '世界包无法读取或校验；请恢复包文件后重新载入。'
+  bridge.request.mockResolvedValue({ ...original,
+    packs: [...original.packs, { ...original.packs[0], id: 'pack:healthy' }],
+    packDetails: { 'pack:real': { description: '', hasCover: false, error } },
+  })
+  const store = useLauncherStore(); await store.initialize()
+  expect(store.initialized).toBe(true)
+  expect(store.selectedPackage?.validation).toEqual({ status: 'blocked', issues: [error], simulated: false })
+  expect(store.packages.find(pack => pack.id === 'pack:healthy')?.validation.status).toBe('ready')
+  expect(store.currentInstance?.id).toBe('instance-1')
+  bridge.request.mockResolvedValue(original)
+  await store.refresh()
+  expect(store.selectedPackage?.validation.status).toBe('ready')
+})
+
 it('saves the connection before its key and remembers that a key is stored', async () => {
   const store = useLauncherStore(); await store.initialize()
   expect(await store.saveConnection(connection, 'K')).toBe(true)

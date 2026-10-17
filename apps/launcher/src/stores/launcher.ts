@@ -155,8 +155,13 @@ export const useLauncherStore = defineStore('launcher', () => {
     audio.value = snapshot.preferences?.audio ?? {...DEFAULT_AUDIO}
     packagePlaySettings.value = snapshot.playSettings??{}
     dataDirectory.value = snapshot.dataDirectory
-    packages.value = snapshot.packs.map((p, index) => ({ id: p.id, version: p.version, title: p.title, subtitle: '', description: snapshot.packDetails?.[p.id]?.description ?? '',
-      genre: '', artwork: artworks[index % artworks.length]!, ...(covers.value[p.id] ? { cover: covers.value[p.id] } : {}), recommendation: { capability: 'balanced', contextTokens: 0, toolCalling: true }, validation: { status: 'ready', issues: [], simulated: false } }))
+    for (const [id, detail] of Object.entries(snapshot.packDetails ?? {})) if (!detail.hasCover) delete covers.value[id]
+    packages.value = snapshot.packs.map((p, index) => {
+      const detail = snapshot.packDetails?.[p.id]
+      return { id: p.id, version: p.version, title: p.title, subtitle: '', description: detail?.description ?? '',
+        genre: '', artwork: artworks[index % artworks.length]!, ...(covers.value[p.id] ? { cover: covers.value[p.id] } : {}), recommendation: { capability: 'balanced', contextTokens: 0, toolCalling: true },
+        validation: { status: detail?.error ? 'blocked' : 'ready', issues: detail?.error ? [detail.error] : [], simulated: false } }
+    })
     profiles.value = snapshot.instances.flatMap(i => i.models ? [{ id: i.id, label: i.models.decision.model, model: i.models.decision.model, providerId: i.models.decision.connectionId, capability: 'balanced' as const, contextTokens: 0, toolCalling: true }] : [])
     instances.value = snapshot.instances.map(i => ({ ...i, model: { defaultModelId: i.id, overridesEnabled: false, groups: {}, characters: {} }, currentStorylineId: i.currentStorylineId ?? 'main',
       storylines: i.storylines ?? [{ id: 'main', name: '主故事线', parentStorylineId: null, parentNodeId: null, currentNodeId: 'head', source: { kind: 'original', label: '本地实例', storylineId: null, nodeId: null, turn: 0 } }],
