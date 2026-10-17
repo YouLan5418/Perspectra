@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod data_location;
+mod model_keys;
 use serde_json::{json, Value};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -170,7 +171,36 @@ async fn launcher_request(
             let next = if locked { core.root.clone() } else { data_location::load(&config, &core.root)? };
             return Ok(json!({"current":core.root,"next":next,"locked":locked}));
         }
+        let mut request = request;
+        match request["operation"].as_str() {
+            Some("connection-key-set") => {
+                let id = request["connectionId"].as_str().ok_or("连接标识无效。")?;
+                let key = request["apiKey"].as_str().ok_or("API Key 无效。")?;
+                model_keys::set(id, key)?;
+                return Ok(json!({ "saved": true }));
+            }
+            Some("connection-key-status") => {
+                let ids = request["connectionIds"].as_array().ok_or("连接标识无效。")?;
+                let stored: Vec<&str> = ids.iter().filter_map(Value::as_str).filter(|id| model_keys::get(id).is_some()).collect();
+                return Ok(json!({ "stored": stored }));
+            }
+            Some("list-models" | "test-model") => {
+                let ids: Vec<String> = request["connectionId"].as_str().map(|id| vec![id.to_string()]).unwrap_or_default();
+                model_keys::inject(&mut request, &ids, model_keys::get);
+            }
+            Some("start") => {
+                let snapshot = core.request(json!({"operation":"snapshot"}))?;
+                let ids: Vec<String> = snapshot["connections"].as_array().map(|list| list.iter().filter_map(|c| c["id"].as_str().map(String::from)).collect()).unwrap_or_default();
+                model_keys::inject(&mut request, &ids, model_keys::get);
+            }
+            _ => model_keys::inject(&mut request, &[], |_| None),
+        }
         let result = core.request(request.clone())?;
+        if request["operation"] == "connection-remove" {
+            if let Some(id) = request["connectionId"].as_str() {
+                model_keys::remove(id);
+            }
+        }
         if request["operation"] == "open" {
             let url = result["url"].as_str().ok_or("游戏地址无效。")?;
             let (base, token) = url.split_once("/#token=").ok_or("游戏地址无效。")?;
