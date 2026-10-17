@@ -34,7 +34,9 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 
 首次启动显示空游戏列表。点击“载入游戏包”，选择包含 `worldpack.source.json` 的目录，例如 `examples/world-packs/ai-girls-awaken-v10`。载入时复用 v5 编译器及网页资源检查，随后创建首个独立实例。
 
-新实例默认使用用户确认的 `http://127.0.0.1:8046/v1/chat/completions` 和 `gemini-3.7-flash`。模型设置保存新实例默认接口/模型；已有实例在自己的“模型”弹窗修改。需要认证时在模型设置填写 API Key：只在本次 Launcher 会话内保留，并绑定填写的接口，地址不同的实例不会自动收到该密钥。
+例子：玩家在“模型设置”添加“本地 8046 网关”和“DeepSeek 官方”两条连接，并给后者填 API Key；之后在某个实例的“模型 → 修改”里选连接“DeepSeek 官方”，从下拉列表挑 `deepseek-flash` 保存，开始游戏即可，不需要复制模型名。
+
+连接（名称、协议、完整地址）保存在 `launcher.json` 的 `connections`；实例保存 `models.decision`（连接 ID、模型、思考强度）。新实例沿用最近一次保存的实例选择；从未保存过时，Launcher 用第一条连接列出的第一个模型；没有连接时实例显示“尚未设置”，开始前须先选模型。删除仍被引用的连接需二次确认，引用它的实例显示“连接已删除”且拒绝启动。API Key 按连接存入 Windows 凭据管理器（`Perspectra` / `model-connection/<连接 ID>`），由 Rust 桥在列模型、测试和启动请求里注入，网页和 Node 都不保存。
 
 “开始游戏”启动真实 Core 后打开系统浏览器。“结束游戏”关闭 Core，已提交进度保留；“继续游戏”重新打开同一实例。浏览器关闭不会停止 Core，Launcher 中可重新打开游戏。关闭 Launcher 会停止其拥有的游戏进程。
 
@@ -73,11 +75,11 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
       └─ memory-core/
 ```
 
-`launcher.json` 保存包 ID、版本、路径及实际编译 Hash，实例 ID、名称、包引用、最后启动时间、实例模型，以及新实例默认模型。保存通过临时文件加 rename 完成；损坏时明确失败，不覆盖原索引。新实例仅创建索引项，首次开始游戏才初始化世界数据。
+`launcher.json` 保存包 ID、版本、路径及实际编译 Hash，实例 ID、名称、包引用、最后启动时间、实例模型选择、模型连接和最近一次的模型选择。旧版单接口索引（`defaults` 与实例 `model`）在首次加载时一次性迁移为连接，原文件备份为同目录 `launcher.backup-<时间>.json`；迁移后的连接没有 Key，需要在模型设置补填一次。保存通过临时文件加 rename 完成；损坏时明确失败，不覆盖原索引。新实例仅创建索引项，首次开始游戏才初始化世界数据。
 
 包内容不复制到实例、不由 Launcher 修改。开始游戏前复用现有只读存档预检；包 Hash 改变或不兼容时拒绝继续。实例目录只能从索引中的本地 UUID 派生，不接受前端传入任意存档路径。
 
-API Key 不进入索引、包、参数列表或分享对象；启动时经 stdio 请求和子进程环境传给既有运行时。Core 自己管理已提交数据；Launcher 不返回角色私有 Context、记忆档案或模型正文。私有调查日志仍遵循现有运行时说明。
+API Key 不进入索引、包、参数列表或分享对象；启动时 Rust 桥从凭据管理器读出，经 stdio 请求交给 Node，再只把所选连接的 Key 放进子进程环境传给既有运行时。当前运行时仍只接收一个模型：实例的默认决策模型，记忆整理也用它；按角色指定模型尚未接通。Core 自己管理已提交数据；Launcher 不返回角色私有 Context、记忆档案或模型正文。私有调查日志仍遵循现有运行时说明。
 
 进程关系为 Tauri → Node 桥接 → 既有网页 Core → 按需启动的 Python 记忆进程。停止首先使用已有 IPC shutdown，超过等待期限才清理自己拥有的游戏进程树。Windows Job Object 用于 Launcher 意外退出时回收桥接及其后代，不承担未提交反应的精确恢复。
 

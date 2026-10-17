@@ -4,7 +4,9 @@
 
 ## 配置
 
-Launcher 的模型设置与实例“模型”弹窗可选择协议。模型设置只影响新实例，已有实例单独修改。API Key 仍仅在 Launcher 会话内保留，并绑定协议和完整接口地址；不写入实例配置或分享文件。
+Launcher 左下角“模型设置”管理多条模型连接，每条连接记住名称、协议和完整接口地址，可以“查看模型”列出该接口当前可用的模型；实例的“模型”弹窗从这些连接里选模型，不再重填协议和地址。API Key 按连接存入 Windows 凭据管理器，重启 Launcher 后仍在；它不写入 `launcher.json`、实例配置或分享文件，只在列模型、测试连接和启动游戏时由桌面壳读取并随请求传给 Node 后端。
+
+列模型的地址由完整请求地址推导：OpenAI 兼容把末尾 `/chat/completions` 换成 `/models`；Anthropic 把 `/messages` 换成 `/models` 并跟随分页；Google 取 `/models/模型:generateContent` 前的 `/models` 并只保留支持 `generateContent` 的模型。网关不提供列表时会提示失败，仍可直接输入模型标识。
 
 | 协议 | 完整请求地址示例 | 认证 |
 | --- | --- | --- |
