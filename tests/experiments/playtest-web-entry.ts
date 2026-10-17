@@ -17,6 +17,9 @@ import { parsePlaytestLaunchArguments } from './playtest-launch.ts'
 import { FrozenWorldPlaytestRuntime, isFrozenPackDirectory } from './playtest-frozen-runtime.ts'
 import { createPlaytestServer } from './playtest-server.ts'
 import { loadPackWeb } from './playtest-pack-web.ts'
+import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
+import { interactionPackageDescription } from '@harness-world/contracts'
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { defaultPlaytestDirectory } from './playtest-view.ts'
 
 async function main(): Promise<void> {
@@ -50,6 +53,10 @@ async function main(): Promise<void> {
     process.stdout.write(`Jev 影子审计已启用：已发布的对白和叙述将发送到 OpenRouter。日志：${logPath}\n`)
   }
   const packWeb = await loadPackWeb(packPath)
+  const compiled = await compileWorldPackSource(packPath, createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5
+  const playerId = compiled.content.playerSlots[0]?.characterId
+  const creatorMeta = { title: compiled.content.world.title, storyline: process.env.PERSPECTRA_STORY_NAME || '主故事线',
+    characters: compiled.content.characters.filter(c => c.characterId !== playerId && c.controllerClass !== 'manual' && (c.lifecycle ?? 'active') === 'active').map(c => ({ id: c.characterId, name: c.displayName })) }
   const recommended = await packPreset(packPath)
   const settings = process.env.PERSPECTRA_PRESET_ROOT ? new ModelPresets(process.env.PERSPECTRA_PRESET_ROOT) : undefined
   if (settings) await settings.load()
@@ -89,7 +96,7 @@ async function main(): Promise<void> {
   const approved=process.env.PERSPECTRA_FRONTEND_APPROVED_SHA256
   const trustedAssets=approved&&packWeb?.digest===approved&&process.send ? createTrustedFrontendServer(packWeb,policy,()=>hostOrigin) : undefined
   let hostOrigin=''
-  const server = createPlaytestServer(runtime, token, packWeb, policy)
+  const server = createPlaytestServer(Object.assign(runtime, { creatorMeta: () => structuredClone(creatorMeta) }), token, packWeb, policy)
   let closing = false
   const close = async () => {
     if (closing) return

@@ -3,6 +3,7 @@ import { creatorRecordsQuery, type CreatorRecordsQuery, type CreatorRecordsSnaps
 import { creatorHistoryQuery, type CreatorHistoryQuery, type CreatorHistorySnapshot } from './creator-history.ts'
 import { creatorDebugQuery, type CreatorDebugQuery, type CreatorDebugSnapshot } from './creator-debug.ts'
 import { frontendAsset, type FrontendPolicy } from './playtest-frontend-assets.ts'
+import { creatorAsset, creatorAssetDirectory } from './playtest-creator-assets.ts'
 import { projectPlayerView, playerViewPatch, frontendActionRequest, FrontendActions } from '../../packages/frontend/src/player-view.ts'
 import { FRONTEND_CAPABILITIES } from './playtest-pack-web.ts'
 import { frontendSpeechInput, type FrontendHostServices, type FrontendSpeechAudio } from '../../packages/frontend/src/speech.ts'
@@ -49,6 +50,7 @@ export interface PlaytestAction {
 
 
 export interface PlaytestRuntime {
+  creatorMeta?(): { title: string; storyline: string; characters: { id: string; name: string }[] }
   saveNode?(title: string): Promise<{ id: string; title: string }>
   selectCandidate?(tailId: string, candidateId: string, requestId: string): Promise<PlaytestState>
   regenerate?(tailId: string, requestId: string): Promise<PlaytestState>
@@ -88,7 +90,7 @@ function authorized(request: IncomingMessage, token: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right)
 }
 
-function headers(response: ServerResponse, contentType: string, customPage = false, embedded = false): void {
+export function headers(response: ServerResponse, contentType: string, customPage = false, embedded = false): void {
   response.setHeader('content-type', contentType)
   response.setHeader('cache-control', 'no-store')
   response.setHeader('x-content-type-options', 'nosniff')
@@ -143,7 +145,7 @@ function submittedAction(value: unknown): PlaytestAction {
   return { actionType: record.actionType, parameters: record.parameters as WorldJsonObject }
 }
 
-export function createPlaytestServer(runtime: PlaytestRuntime, token: string, packWeb?: PackWeb, policy: FrontendPolicy = {mode:'sandbox',origin:'',revision:0}, services: FrontendHostServices = {}): Server {
+export function createPlaytestServer(runtime: PlaytestRuntime, token: string, packWeb?: PackWeb, policy: FrontendPolicy = {mode:'sandbox',origin:'',revision:0}, services: FrontendHostServices = {}, creatorDirectory: URL | null = creatorAssetDirectory()): Server {
   if (!/^[a-f0-9]{64}$/.test(token)) throw new TypeError('playtest token must be 32 random bytes in hexadecimal')
   const frontendActions = new FrontendActions(runtime)
   let subscriptions = 0
@@ -155,6 +157,7 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
       if (request.headers.origin !== undefined && request.headers.origin !== origin && url.pathname.startsWith('/api/')) {
         json(response, 403, { error: 'Core 接口仅供同源宿主调用' }); return
       }
+      if (creatorAsset(request, response, creatorDirectory)) return
       if (request.method === 'GET' && url.pathname === '/') {
         headers(response, 'text/html; charset=utf-8')
         response.setHeader('content-security-policy', String(response.getHeader('content-security-policy')) + '; frame-src ' + origin + '/frontend/' + (policy.mode==='trusted'?' '+policy.origin+'/frontend/':''))
@@ -258,6 +261,10 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
           json(response,200,runtime.requestInspection(value.enabled))
         }
         return
+      }
+      if (url.pathname === '/api/creator-meta' && request.method === 'GET') {
+        if (!runtime.creatorMeta) { json(response, 501, { error: '创作者元信息不可用' }); return }
+        json(response, 200, runtime.creatorMeta()); return
       }
       if (url.pathname === '/api/creator-debug' && request.method === 'GET') {
         if (!runtime.creatorDebug) { json(response,404,{error:'创作者调试不可用'}); return }
