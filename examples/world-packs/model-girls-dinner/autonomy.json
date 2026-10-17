@@ -1,0 +1,96 @@
+{
+  "characters": [
+    {
+      "characterId": "character:deepseek",
+      "triggers": [
+        {
+          "activityKey": "evening",
+          "operation": "wait"
+        }
+      ],
+      "everyPlayerTurns": 1,
+      "opportunities": 1,
+      "interactions": [
+        "base:take",
+        "base:drop",
+        "base:give",
+        "dinner:cook-cold",
+        "dinner:cook-home",
+        "dinner:cook-feast"
+      ],
+      "locationIds": [
+        "location:living-room",
+        "location:kitchen",
+        "location:bedroom",
+        "location:workspace"
+      ]
+    },
+    {
+      "characterId": "character:claude",
+      "triggers": [
+        {
+          "activityKey": "evening",
+          "operation": "wait"
+        }
+      ],
+      "everyPlayerTurns": 1,
+      "opportunities": 1,
+      "interactions": [
+        "base:take",
+        "base:drop",
+        "base:give"
+      ],
+      "locationIds": [
+        "location:living-room",
+        "location:kitchen",
+        "location:bedroom",
+        "location:workspace"
+      ]
+    },
+    {
+      "characterId": "character:glm",
+      "triggers": [
+        {
+          "activityKey": "evening",
+          "operation": "wait"
+        }
+      ],
+      "everyPlayerTurns": 1,
+      "opportunities": 1,
+      "interactions": [
+        "base:take",
+        "base:drop",
+        "base:give",
+        "dinner:repair"
+      ],
+      "locationIds": [
+        "location:living-room",
+        "location:kitchen",
+        "location:bedroom",
+        "location:workspace"
+      ]
+    },
+    {
+      "characterId": "character:gpt",
+      "triggers": [
+        {
+          "activityKey": "evening",
+          "operation": "wait"
+        }
+      ],
+      "everyPlayerTurns": 1,
+      "opportunities": 1,
+      "interactions": [
+        "base:take",
+        "base:drop",
+        "base:give"
+      ],
+      "locationIds": [
+        "location:living-room",
+        "location:kitchen",
+        "location:bedroom",
+        "location:workspace"
+      ]
+    }
+  ]
+}

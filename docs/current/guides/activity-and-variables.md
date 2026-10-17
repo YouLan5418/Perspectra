@@ -116,6 +116,8 @@ initialize 为各角色返回 public 和 private；所有角色初始化出的�
 - initialize 的 `world` 为玩家当前授权场景；`previous` 为上次活动的玩家视图，用于继续已有序章或进入生活菜单。
 - resolve 的第五参数 `world` 为操作主体当前授权事实，包含 locationId、characterIds 与 items.current / lastObserved。lastObserved 仅是目击记录，不能当作当前归属。
 - resolve 返回 `playerExpression: { text }` 可在明确玩家选择的操作中同步提交公开玩家表达；不能用于 NPC 代替玩家行动。普通活动仍可只返回 game、description、audience。
+- 也可返回 `playerExpression: { narration }`，以玩家名下的旁白提交，例如赔罪晚宴的“过了 5 分钟，墙上的钟指向 16:05。”，不替玩家说台词。在场角色照常观察到它。
+- 操作定义可加 `quick: true`。例如晚宴时钟的“等 5 分钟”直接出现在玩家行动菜单里，点一下即可：宿主先开始活动，再执行该操作，分成两次普通提交；开始不计入自主触发，操作照常计入。声明了快捷操作的活动不再显示“开始”入口。仅适用于只有玩家参与、没有参与者选择、操作没有参数的活动；操作仍须被开始后的 policy 允许，否则拒绝并保留已开始的活动，玩家可在卡片里关闭。
 - resolve 返回 `{ rejectReason: "条件说明" }` 会拒绝操作且不提交；不能与成功字段混用。
 - 可选 onPublished(state, actorId, expression) 返回 game 或 null。角色发表和游标推进同事务，不要在先前操作中提前跳过尚未发表的台词。
 

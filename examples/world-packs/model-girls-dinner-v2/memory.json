@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "profile": "standard",
+      "attentionTopics": [
+        "晚宴",
+        "灶台",
+        "蒸馏器",
+        "谁知道了什么"
+      ]
+    },
+    {
+      "characterId": "character:deepseek",
+      "profile": "standard",
+      "attentionTopics": [
+        "赔罪晚宴",
+        "Claude 的心情",
+        "灶台",
+        "蒸馏器",
+        "惊喜"
+      ]
+    },
+    {
+      "characterId": "character:claude",
+      "profile": "standard",
+      "attentionTopics": [
+        "DeepSeek",
+        "蒸馏",
+        "道歉",
+        "小本子",
+        "诚实"
+      ]
+    },
+    {
+      "characterId": "character:glm",
+      "profile": "standard",
+      "attentionTopics": [
+        "灶台",
+        "工具箱",
+        "面子",
+        "谁发现了"
+      ]
+    },
+    {
+      "characterId": "character:gpt",
+      "profile": "standard",
+      "attentionTopics": [
+        "晚饭安排",
+        "预算",
+        "外卖",
+        "GLM 和灶台",
+        "时间"
+      ]
+    }
+  ]
+}

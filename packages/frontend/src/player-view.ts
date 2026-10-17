@@ -42,7 +42,8 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
       const args = action.parameters.arguments as WorldJsonObject
       const targetName = state.actionNames?.[String(target.id)] ?? String(target.id)
       const recipient = typeof args.recipientId === 'string' ? state.actionNames?.[args.recipientId] ?? args.recipientId : undefined
-      const verbs: Record<string, string> = { 'base:take': '拿取', 'base:drop': '放下', 'home:cook-rice': '煮白米饭', 'home:eat-rice': '吃完这锅饭' }
+      const verbs: Record<string, string> = { 'base:take': '拿取', 'base:drop': '放下', 'home:cook-rice': '煮白米饭', 'home:eat-rice': '吃完这锅饭',
+        'dinner:repair': '修理', 'dinner:cook-cold': '做一桌凉拌冷盘', 'dinner:cook-home': '开火做家常菜', 'dinner:cook-feast': '用蒸馏器熬高汤做大餐' }
       const label = definition.id.startsWith('activity:') ? String(option.label??definition.id) : definition.id === 'base:give' && recipient !== undefined
         ? '把 ' + targetName + ' 交给 ' + recipient
         : (verbs[String(definition.id)] ?? String(definition.id)) + ' · ' + targetName
@@ -54,6 +55,16 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
   for(const activity of activities){
     const active=(activity.game as WorldJsonObject|undefined)?.active===true
     if(!active&&foreground)continue
+    const quick=!active&&activity.suspended!==true&&Array.isArray(activity.quickOperations)?activity.quickOperations as WorldJsonObject[]:[]
+    if(quick.length){
+      // One-click operations replace the start entry; the host starts and applies them in one player action.
+      for(const option of quick){
+        const action:PlaytestAction={actionType:'interact',parameters:{definitionRef:{id:'host:activity-quick',version:1},
+          activityKey:String(activity.activityKey),operation:String(option.id)}}
+        actions.push({id:'opt:'+createHash('sha256').update(canonicalizeWorldJson(action as unknown as WorldJsonObject)).digest('hex'),label:String(option.label),action})
+      }
+      continue
+    }
     const operation=active?'suspend':activity.suspended===true?'resume':'start'
     const action:PlaytestAction={actionType:'interact',parameters:{definitionRef:{id:'host:activity-'+operation,version:1},
       ...(activity.activityKey===undefined?{}:{activityKey:activity.activityKey}),previousId:activity.id??null,previousRevision:activity.revision??0}}

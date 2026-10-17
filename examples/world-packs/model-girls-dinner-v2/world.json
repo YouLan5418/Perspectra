@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "worldpack-world/v1",
+  "title": "大模型变成美少女了？！ · 赔罪晚宴 v2",
+  "description": "周六 16:00 的合租屋。昨晚 DeepSeek 偷吃了 Claude 的草莓蛋糕；DeepSeek 刚才小声拜托你：她想在 18:00 给 Claude 做一顿赔罪晚宴当惊喜，可灶台打不着火了，请你保密、别让 Claude 进厨房，也帮她想想办法。Claude 在客厅看书，GLM 一下午躲在卧室，GPT 在书房。时间不会自己走：在“行动”里选“等 5/10/20 分钟”，每等一次，大家都会各自忙一阵；饭菜准备好后开始“晚宴”。没有预定结局。",
+  "timeMode": "TURN_DRIVEN",
+  "roundQueueLimit": 16,
+  "coreProfiles": {
+    "rulebook": {
+      "rulebookId": "builtin:speak-move",
+      "version": 2
+    },
+    "sceneDecision": {
+      "pluginId": "builtin:scene-decision",
+      "version": "2.0.0"
+    },
+    "agentContext": {
+      "pluginId": "builtin:agent-context",
+      "version": "2.0.0"
+    },
+    "presentation": {
+      "profileId": "builtin:deterministic-presentation",
+      "version": "1.0.0"
+    }
+  },
+  "initialFacts": [],
+  "playerInputPolicy": {
+    "version": "player-intent/v1"
+  }
+}

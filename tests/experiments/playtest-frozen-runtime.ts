@@ -688,6 +688,12 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
 
   /** Structured UI choices remain proposals and follow the same Rulebook path as /act. */
   async perform(action: PlaytestAction): Promise<PlaytestState> {
+    if(action.actionType==='interact' && (action.parameters.definitionRef as WorldJsonObject|undefined)?.id==='host:activity-quick'){
+      const operation=String(action.parameters.operation)
+      const current=this.#activity?.views(this.#playerId)?.find(view=>view.activityKey===action.parameters.activityKey)
+      if(!current || !(current.quickOperations as WorldJsonObject[]|undefined)?.some(op=>op.id===operation))throw new TypeError('活动入口已失效，请刷新')
+      return this.activityAction({activityKey:String(current.activityKey),activityId:null,revision:0,operation,parameters:{},requestId:randomUUID()})
+    }
     if(action.actionType==='interact' && ['host:activity-start','host:activity-retry','host:activity-suspend','host:activity-resume','host:activity-abandon'].includes(String((action.parameters.definitionRef as WorldJsonObject|undefined)?.id))){
       const current=action.parameters.activityKey===undefined?this.#activity?.view(this.#playerId)
         :this.#activity?.views(this.#playerId).find(view=>view.activityKey===action.parameters.activityKey)
@@ -922,7 +928,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     const activations: {characterId: CharacterId; result: Awaited<ReturnType<PrototypeCharacterTurn['run']>>}[] = []
     this.#modelCallBudget = {remaining: settings.autonomyNpcCalls, exhausted: false}
     let calls = 0, reason = 'quiescent'
-    const turn = createTurn(true)
+    const turn = this.#track(createTurn(true))
     outer: for (let opportunity = 0; opportunity < settings.autonomyOpportunities; opportunity++) {
       for (const role of due) {
         if (opportunity >= role.opportunities) continue
@@ -946,7 +952,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     if (!signal.aborted && !this.#paused && reason !== 'failed' && reason !== 'interrupted' && settings.autonomyReactionWaves > 0) {
       this.#modelCallBudget = {remaining: settings.autonomyReactionCalls, exhausted: false}
       const active = this.#activity?.current()
-      reactions = await runPrototypeActivations({store, address: this.#address, turn: createTurn(), afterSeq: before, signal,
+      reactions = await runPrototypeActivations({store, address: this.#address, turn: this.#track(createTurn()), afterSeq: before, signal,
         characterIds: this.#characterIds.filter(id => !due.some(role => role.characterId === id)
           && (!active?.game.active || !active.participants.includes(id))),
         presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(p => brandId(p.id, 'CharacterId')),
