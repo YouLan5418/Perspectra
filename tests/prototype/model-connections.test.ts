@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { listModels, modelConnection, modelPage, modelsListUrl, type ModelConnection } from '../../desktop/model-connections.ts'
+import { instanceModels, listModels, migrateModels, modelConnection, modelEnvironment, modelPage, modelsListUrl, resolveRoleModels, type ModelConnection } from '../../desktop/model-connections.ts'
 
 const id = '6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10'
 const openai: ModelConnection = { id, name: '本地', protocol: 'openai', endpoint: 'http://127.0.0.1:8046/v1/chat/completions' }
@@ -61,5 +61,55 @@ describe('model connections', () => {
       expect(error?.message).not.toContain('K-SECRET')
       expect(error?.message).not.toContain('PRIVATE')
     }
+  })
+})
+
+describe('instance model choices', () => {
+  const other: ModelConnection = { id: '7a2d3b5f-2e1c-4d4a-8b62-1e7d2c8f3a21', name: '其他', protocol: 'openai', endpoint: 'https://other.test/v1/chat/completions' }
+  const connections = [openai, other]
+  const characters = ['character:companion', 'character:friend']
+
+  it('accepts a minimal choice and rejects unknown connections, empty models, foreign characters and extra fields', () => {
+    expect(instanceModels({ decision: { connectionId: id, model: 'm' } }, connections, characters)).toEqual({ decision: { connectionId: id, model: 'm' } })
+    for (const bad of [
+      { decision: { connectionId: '00000000-0000-4000-8000-000000000000', model: 'm' } },
+      { decision: { connectionId: id, model: ' ' } },
+      { decision: { connectionId: id, model: 'x'.repeat(121) } },
+      { decision: { connectionId: id, model: 'm' }, extra: 1 },
+      { decision: { connectionId: id, model: 'm', thinkingLevel: 'unknown' } },
+    ]) expect(() => instanceModels(bad, connections, characters)).toThrow()
+    expect(() => instanceModels({ decision: { connectionId: id, model: 'm' }, characters: { 'character:foreign': {} } }, connections, characters)).toThrow('此包之外')
+  })
+
+  it('resolves memory to follow decision unless a character overrides it', () => {
+    const roles = resolveRoleModels({ decision: { connectionId: id, model: 'base', thinkingLevel: 'low' }, characters: {
+      'character:companion': { decision: { connectionId: other.id, model: 'strong', thinkingLevel: 'high' } },
+      'character:friend': { decision: { connectionId: other.id, model: 'quick' }, memory: { connectionId: id, model: 'cheap' } },
+    } }, connections)
+    expect(roles.default.decision).toEqual({ connectionId: id, protocol: 'openai', endpoint: openai.endpoint, model: 'base', thinkingLevel: 'low' })
+    expect(roles.default.memory).toEqual({ connectionId: id, protocol: 'openai', endpoint: openai.endpoint, model: 'base' })
+    expect(roles.characters['character:companion']!.memory).toEqual({ connectionId: other.id, protocol: 'openai', endpoint: other.endpoint, model: 'strong' })
+    expect(roles.characters['character:friend']!.memory.model).toBe('cheap')
+    expect(resolveRoleModels({ decision: { connectionId: id, model: 'base' } }, connections).characters).toEqual({})
+  })
+
+  it('migrates old defaults and instance models into connections', () => {
+    const migrated = migrateModels({
+      defaults: { model: 'gemini-3.7-flash', endpoint: 'http://127.0.0.1:8046/v1/chat/completions' },
+      instances: [
+        { id: 'a', model: { model: 'local-a', endpoint: 'http://127.0.0.1:8046/v1/chat/completions', thinkingLevel: 'medium' } },
+        { id: 'b', model: { model: 'claude-x', protocol: 'anthropic', endpoint: 'https://api.anthropic.com/v1/messages' } },
+      ],
+    })
+    expect(migrated.connections.map(c => c.name)).toEqual(['127.0.0.1:8046', 'api.anthropic.com'])
+    const [local, remote] = migrated.connections
+    expect(migrated.instanceModels.a).toEqual({ decision: { connectionId: local!.id, model: 'local-a', thinkingLevel: 'medium' } })
+    expect(migrated.instanceModels.b).toEqual({ decision: { connectionId: remote!.id, model: 'claude-x' } })
+    expect(migrated.lastModels).toEqual({ decision: { connectionId: local!.id, model: 'gemini-3.7-flash' } })
+  })
+
+  it('builds the launch environment from the default decision and its connection key only', () => {
+    const env = modelEnvironment({ decision: { connectionId: other.id, model: 'm', thinkingLevel: 'low' } }, connections, { [other.id]: 'K-OTHER', [id]: 'K-LOCAL' })
+    expect(env).toEqual({ HCW_LOCAL_MODEL: 'm', HCW_LOCAL_ENDPOINT: other.endpoint, HCW_MODEL_PROTOCOL: 'openai', HCW_THINKING_LEVEL: 'low', HCW_LOCAL_API_KEY: 'K-OTHER' })
   })
 })

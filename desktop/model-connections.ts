@@ -1,5 +1,6 @@
 import { providerHeaders, providerProtocol, type ProviderProtocol } from '../packages/provider-chat/src/protocol.ts'
-import type { ThinkingLevel } from '../packages/provider-chat/src/thinking.ts'
+import { thinkingLevel, thinkingRequest, type ThinkingLevel } from '../packages/provider-chat/src/thinking.ts'
+import { randomUUID } from 'node:crypto'
 
 /** One remembered provider address. Its key lives in the OS credential store, never here. */
 export interface ModelConnection { id: string; name: string; protocol: ProviderProtocol; endpoint: string }
@@ -79,4 +80,101 @@ export async function listModels(connection: ModelConnection, apiKey: string | u
     next = result.next
   }
   return [...found].sort()
+}
+
+function modelId(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim() || value.trim().length > 120) throw new Error('模型标识无效。')
+  return value.trim()
+}
+function only(data: Record<string, unknown>, keys: readonly string[], message: string): void {
+  if (Object.keys(data).some(key => !keys.includes(key))) throw new Error(message)
+}
+function storedTarget(value: unknown, withThinking: boolean): DecisionTarget {
+  const data = record(value, '模型选择无效。')
+  only(data, withThinking ? ['connectionId', 'model', 'thinkingLevel'] : ['connectionId', 'model'], '模型选择包含不支持的字段。')
+  if (typeof data.connectionId !== 'string' || !/^[a-f0-9-]{36}$/.test(data.connectionId)) throw new Error('连接标识无效。')
+  return { connectionId: data.connectionId, model: modelId(data.model), ...(data.thinkingLevel === undefined ? {} : { thinkingLevel: thinkingLevel(data.thinkingLevel) }) }
+}
+
+/** Shape only: used when loading, so a deleted connection never blocks opening the Launcher. */
+export function storedModels(value: unknown): InstanceModels {
+  const data = record(value, '实例模型配置无效。')
+  only(data, ['decision', 'memory', 'characters'], '实例模型配置包含不支持的字段。')
+  const characters = data.characters === undefined ? undefined : Object.fromEntries(Object.entries(record(data.characters, '角色模型配置无效。')).map(([id, entry]) => {
+    if (!id || id.length > 200) throw new Error('角色 ID 无效。')
+    const item = record(entry, '角色模型配置无效。')
+    only(item, ['decision', 'memory'], '角色模型配置包含不支持的字段。')
+    return [id, { ...(item.decision === undefined ? {} : { decision: storedTarget(item.decision, true) }), ...(item.memory === undefined ? {} : { memory: storedTarget(item.memory, false) }) }]
+  }))
+  return { decision: storedTarget(data.decision, true), ...(data.memory === undefined ? {} : { memory: storedTarget(data.memory, false) }), ...(characters === undefined ? {} : { characters }) }
+}
+
+/** Write-time check: every choice names an existing connection and every override a callable character. */
+export function instanceModels(value: unknown, connections: readonly ModelConnection[], characterIds: readonly string[]): InstanceModels {
+  const models = storedModels(value)
+  const check = (target: DecisionTarget) => {
+    const connection = connections.find(c => c.id === target.connectionId)
+    if (!connection) throw new Error('所选模型连接不存在。')
+    if (target.thinkingLevel !== undefined) thinkingRequest(connection.protocol, target.model, target.thinkingLevel)
+  }
+  check(models.decision); if (models.memory) check(models.memory)
+  for (const [id, entry] of Object.entries(models.characters ?? {})) {
+    if (!characterIds.includes(id)) throw new Error('模型配置引用了此包之外或不可调用的角色。')
+    if (entry.decision) check(entry.decision)
+    if (entry.memory) check(entry.memory)
+  }
+  return models
+}
+
+export function brokenModels(models: InstanceModels, connections: readonly ModelConnection[]): boolean {
+  const targets = [models.decision, models.memory, ...Object.values(models.characters ?? {}).flatMap(c => [c.decision, c.memory])]
+  return targets.some(target => target !== undefined && !connections.some(c => c.id === target.connectionId))
+}
+
+export interface ResolvedModel { connectionId: string; protocol: ProviderProtocol; endpoint: string; model: string; thinkingLevel?: ThinkingLevel }
+export interface RoleModels { default: { decision: ResolvedModel; memory: ResolvedModel }; characters: Record<string, { decision: ResolvedModel; memory: ResolvedModel }> }
+
+function resolved(target: DecisionTarget, connections: readonly ModelConnection[], withThinking: boolean): ResolvedModel {
+  const connection = connections.find(c => c.id === target.connectionId)
+  if (!connection) throw new Error('模型连接已删除，请在模型配置中重新选择。')
+  return { connectionId: connection.id, protocol: connection.protocol, endpoint: connection.endpoint, model: target.model,
+    ...(withThinking && target.thinkingLevel !== undefined ? { thinkingLevel: target.thinkingLevel } : {}) }
+}
+
+/** Memory follows the decision it sits beside unless chosen explicitly; overrides fall back to the default layer. */
+export function resolveRoleModels(models: InstanceModels, connections: readonly ModelConnection[]): RoleModels {
+  const base = { decision: resolved(models.decision, connections, true), memory: resolved(models.memory ?? models.decision, connections, false) }
+  const characters = Object.fromEntries(Object.entries(models.characters ?? {}).filter(([, entry]) => entry.decision || entry.memory).map(([id, entry]) => {
+    const decision = entry.decision ? resolved(entry.decision, connections, true) : base.decision
+    const memory = entry.memory ? resolved(entry.memory, connections, false) : entry.decision ? resolved(entry.decision, connections, false) : base.memory
+    return [id, { decision, memory }]
+  }))
+  return { default: base, characters }
+}
+
+/** The single model the runtime already understands; only the key for that connection is passed. */
+export function modelEnvironment(models: InstanceModels, connections: readonly ModelConnection[], apiKeys: Readonly<Record<string, string>>): Record<string, string> {
+  const decision = resolveRoleModels(models, connections).default.decision
+  return { HCW_LOCAL_MODEL: decision.model, HCW_LOCAL_ENDPOINT: decision.endpoint, HCW_MODEL_PROTOCOL: decision.protocol,
+    ...(decision.thinkingLevel === undefined ? {} : { HCW_THINKING_LEVEL: decision.thinkingLevel }), HCW_LOCAL_API_KEY: apiKeys[decision.connectionId] ?? '' }
+}
+
+/** One-time move from the single-endpoint index: one connection per distinct protocol + address. */
+export function migrateModels(parsed: Record<string, unknown>): { connections: ModelConnection[]; instanceModels: Record<string, InstanceModels>; lastModels: InstanceModels | undefined } {
+  const connections: ModelConnection[] = []
+  const choose = (value: unknown): InstanceModels => {
+    const old = record(value, '旧模型配置无效。')
+    const protocol = providerProtocol(old.protocol)
+    const url = modelEndpoint(String(old.endpoint), protocol)
+    let connection = connections.find(c => c.protocol === protocol && c.endpoint === url.href)
+    if (!connection) { connection = { id: randomUUID(), name: url.host, protocol, endpoint: url.href }; connections.push(connection) }
+    return { decision: { connectionId: connection.id, model: modelId(old.model), ...(old.thinkingLevel === undefined ? {} : { thinkingLevel: thinkingLevel(old.thinkingLevel) }) } }
+  }
+  const lastModels = parsed.defaults === undefined ? undefined : choose(parsed.defaults)
+  const instances = Array.isArray(parsed.instances) ? parsed.instances : []
+  const instanceModels = Object.fromEntries(instances.flatMap(value => {
+    const instance = record(value, '旧实例无效。')
+    return instance.model === undefined ? [] : [[String(instance.id), choose(instance.model)]]
+  }))
+  return { connections, instanceModels, lastModels }
 }
