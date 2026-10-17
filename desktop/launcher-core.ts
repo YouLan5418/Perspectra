@@ -8,6 +8,7 @@ import { exportStoryNode, importStoryNode } from './story-share.ts'
 import { readStoryNodes, restoreStoryNode, storyId } from './story-nodes.ts'
 import { importPresets, exportPresets, namedPreset } from '../packages/provider-chat/src/preset-library.ts'
 import { ModelPresets, packPreset, presetChoice } from './model-presets.ts'
+import { modelEndpoint } from './model-connections.ts'
 import { rolePreset, type RolePreset } from '../packages/provider-chat/src/preset.ts'
 import { FrontendAuthorizations, type FrontendIdentity } from './frontend-authorization.ts'
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -52,12 +53,8 @@ export function localModel(value: unknown): LocalModel {
   const data = object(value)
   const model = text(data.model, '模型名称', 120)
   const endpoint = text(data.endpoint, '接口地址')
-  const url = new URL(endpoint)
   const protocol = providerProtocol(data.protocol)
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请使用不含认证参数的 HTTP/HTTPS 地址。')
-  if (protocol === 'openai' && !url.pathname.endsWith('/chat/completions')) throw new Error('接口地址须包含 /chat/completions。')
-  if (protocol === 'anthropic' && !url.pathname.endsWith('/messages')) throw new Error('Anthropic 接口须以 /messages 结尾。')
-  providerEndpoint(url, protocol, model)
+  const url = modelEndpoint(endpoint, protocol)
   if (data.thinkingLevel !== undefined) thinkingRequest(protocol, model, thinkingLevel(data.thinkingLevel))
   return { model, endpoint: url.href, ...(data.thinkingLevel === undefined ? {} : {thinkingLevel:thinkingLevel(data.thinkingLevel)}), ...(data.protocol === undefined ? {} : { protocol }) }
 }
