@@ -35,6 +35,8 @@ export function estimateContextTokens(text: string): number {
 type Snapshot = { scope: WorldJsonObject; sources: WorldJsonObject[]; tick: number }
 export interface MemoryBuildOptions {
   readonly run?: CoreRunner
+  /** A character's own memory model; characters without one use the shared runners. */
+  readonly runFor?: (actor: string) => { readonly recall: CoreRunner; readonly build: CoreRunner } | undefined
   readonly roleConcurrency?: number
   readonly retainConcurrency?: number
   readonly worldVersion?: string
@@ -55,6 +57,7 @@ export class PlaytestMemoryCore {
   readonly #pending = new Map<string, number>()
   readonly #jobs = new Map<string, BuildJob>()
   readonly #buildRun: CoreRunner
+  readonly #runFor: MemoryBuildOptions['runFor']
   readonly #roleConcurrency: number
   readonly #retainConcurrency: number
   readonly #worldVersion: string
@@ -79,6 +82,7 @@ export class PlaytestMemoryCore {
     this.#worldVersion = build.worldVersion ?? randomUUID()
     this.#versionValid = build.versionValid ?? (() => !this.#closed)
     this.#buildRun = build.run ?? run
+    this.#runFor = build.runFor
     this.#roleConcurrency = build.roleConcurrency ?? 2
     this.#retainConcurrency = build.retainConcurrency ?? 2
     if (![this.#roleConcurrency, this.#retainConcurrency].every(n => Number.isInteger(n) && n >= 1 && n <= 4)
@@ -235,7 +239,7 @@ export class PlaytestMemoryCore {
         items: context.items ?? [], stimulus: context.stimulus ?? [], observations: context.observations ?? [],
         selfObservations: context.selfObservations ?? [] },
         ...(request.recallEvidence === undefined ? {} : { recallEvidence: { query: request.recallEvidence.query! } }) }
-      result = await this.run({ operation: 'recall', archive: cached.archive!, index: cached.index!,
+      result = await (this.#runFor?.(actor)?.recall ?? this.run)({ operation: 'recall', archive: cached.archive!, index: cached.index!,
         request: queryRequest, tick: snapshot.tick, observations: true, deliveryMode: 'minimal',
         deliveryBudget: this.deliveryBudget }, signal)
       memories = result.delivery as WorldJsonObject[]
@@ -417,7 +421,7 @@ export class PlaytestMemoryCore {
       this.#trace({ event: 'started', buildId: job.id, actor: job.actor, prefix: job.prefix,
         atMs: startedAt, queueMs: startedAt - job.frozenAt, activeBuilds: this.#active })
       const signal = AbortSignal.any([job.controller.signal, AbortSignal.timeout(600_000)])
-      void Promise.resolve().then(() => this.#buildRun(job.input, signal)).then(async result => {
+      void Promise.resolve().then(() => (this.#runFor?.(job.actor)?.build ?? this.#buildRun)(job.input, signal)).then(async result => {
         if (this.#installationGate) await this.#installationGate
         signal.throwIfAborted()
         if (this.#closed || !this.#versionValid() || job.worldVersion !== this.#worldVersion) throw new Error('memory task world version expired')
