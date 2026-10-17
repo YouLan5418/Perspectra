@@ -6,7 +6,7 @@
 
 | 目录 | 负责什么 | 推荐先读 |
 | --- | --- | --- |
-| [apps/launcher](../../../apps/launcher) | Vue 界面与 Tauri 桌面外壳 | [界面状态](../../../apps/launcher/src/stores/launcher.ts)、[桌面请求](../../../apps/launcher/src/services/desktop.ts)、[创作者控制台](../../../apps/launcher/src/creator/store.ts)、[Rust 桥](../../../apps/launcher/src-tauri/src/main.rs) |
+| [apps/launcher](../../../apps/launcher) | Vue 启动器、Tauri 桌面外壳，以及在系统浏览器打开的创作者页面（独立 Vite 入口） | [界面状态](../../../apps/launcher/src/stores/launcher.ts)、[主界面](../../../apps/launcher/src/components/LauncherShell.vue)、[桌面请求](../../../apps/launcher/src/services/desktop.ts)、[创作者页面](../../../apps/launcher/src/creator/main.ts)、[Rust 桥](../../../apps/launcher/src-tauri/src/main.rs) |
 | [desktop](../../../desktop) | Launcher 的 Node 后端、实例数据、模型连接、预设、故事节点；也保留 Electron 入口 | [LauncherCore](../../../desktop/launcher-core.ts)、[模型连接](../../../desktop/model-connections.ts)、[Node 入口](../../../desktop/launcher-entry.ts) |
 | [tests/experiments](../../../tests/experiments) | **当前网页宿主与实验驱动混放于此**，不能整体当成闲置测试 | [网页入口](../../../tests/experiments/playtest-web-entry.ts)、[实际宿主](../../../tests/experiments/playtest-frozen-runtime.ts) |
 | [experiments](../../../experiments) | Python 记忆实现、实验工具、数据和报告 | [记忆实验](../../../experiments/activity-memory/README.md) |
@@ -42,7 +42,7 @@
 | 要改或排查什么 | 先查哪里 | 再查哪里 |
 | --- | --- | --- |
 | Launcher 按钮、列表与设置 | apps/launcher 组件与 store | desktop/launcher-core.ts 与 Rust 桥 |
-| 创作者控制台的对话、轨迹与详情 | apps/launcher/src/creator/store.ts、model.ts | tests/experiments/creator-debug.ts、creator-history.ts、creator-records.ts |
+| 创作者页面的对话、轨迹、模型请求与详情 | apps/launcher/src/creator/store.ts、model.ts、source.ts | tests/experiments/creator-debug.ts、creator-history.ts、creator-records.ts |
 | 游戏内对白与状态显示 | frontend/default-template.ts、playtest-view.ts | playtest-server.ts；社区模板另查包内 frontend/ |
 | 角色知道了秘密 | character-view.ts、prototype-character-turn.ts | 原生记忆或 playtest-memory-core.ts 的来源和交付 |
 | 模型格式错误 | provider-chat/prototype-turn.ts、local-prototype-turn-call.ts | prototype-character-turn.ts；活动另查 pack-activity.ts |

@@ -4,6 +4,8 @@
 
 > 本页保留 2026-10-06 首轮记录。当前已接通本地完整节点、分叉、切换和单节点分享；2026-10-15 源码支持运行中保存并导出、分享节点当时的长期档案，恢复不额外调用模型整理。当前行为及与旧发行包的区别见[故事线](storylines.md)。下文首轮限制不代表当前能力。
 
+> 2026-10-17 启动器改版（当前源码）：例如玩家打开启动器，看到的是铺满窗口的世界包封面，左侧细栏是各个世界包的小图标，左下是包名和三个可点的状态标签（故事线、模型、前端权限：沙箱 / 已信任 / 官方模板），右下是“开始游戏 / 继续游戏”。点“⋯”或状态标签，右侧滑出半透明的本局抽屉：存档、模型、角色预设、前端权限、运行参数、创作者工具，每一行在抽屉里翻页编辑，不再叠对话框。右上角 ⚙ 打开设置窗口：模型接口、外观、阅读与声音、数据位置、关于，底部“取消 / 应用 / 保存”只作用于外观、阅读与声音，模型接口仍即时保存。游戏运行中主按钮变“结束游戏”，旁边是“回到游戏页面”和“打开创作者页面”；设置可以继续修改，抽屉与设置窗口提示“修改将在下次启动游戏时生效”，切包、切实例、切换故事线、导入和授予前端信任仍要先结束游戏，撤销信任立即生效。源码：[LauncherShell](../../apps/launcher/src/components/LauncherShell.vue)、[HomeStage](../../apps/launcher/src/components/HomeStage.vue)、[PackRail](../../apps/launcher/src/components/PackRail.vue)、[SessionDrawer](../../apps/launcher/src/components/SessionDrawer.vue)、[SettingsWindow](../../apps/launcher/src/components/SettingsWindow.vue)；原有对话框通过 [DialogFrame](../../apps/launcher/src/components/DialogFrame.vue) 的内嵌模式放进抽屉和设置窗口。已用启动器单测、浏览器 Mock 预览和真实 playtest 服务器（创作者页、保存接口）核对；Tauri 无边框窗口实机、真实模型试玩与发行包未验收。
+
 > 2026-10-17 核对模型连接与按角色模型选择：第 1、3 节已同步当前源码；第 5 节及第 6 节的首轮限制保留历史记录。连接 Key 现存 Windows 凭据管理器，角色决策与记忆可分别选模型；本轮未重建发行包。
 
 | 属性 | 内容 |
@@ -58,7 +60,7 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 | [desktop.ts](../../apps/launcher/src/services/desktop.ts) | 原生目录选择、Core 请求、浏览器打开 |
 | [launcher.ts](../../apps/launcher/src/stores/launcher.ts) | 原生启动空索引，读取真实数据；阻止并发界面操作；低频刷新进程状态；会话密钥按接口隔离 |
 | [types.ts](../../apps/launcher/src/types.ts) | 增加真实 Core 状态，保留此前 Mock 展示类型 |
-| LauncherShell、GameList、GameDetail | 真实状态与启停；首次空状态和重试；故事线/分享明确禁用 |
+| LauncherShell、GameList、GameDetail（2026-10-17 已由 HomeStage、PackRail、SessionDrawer 取代） | 真实状态与启停；首次空状态和重试；故事线/分享明确禁用 |
 | ImportDialog、ModelConfigDialog、SettingsDialog | v5 目录载入，实例模型，全局默认及会话密钥 |
 | [launcher-core.test.ts](../../tests/prototype/launcher-core.test.ts) | 5 项实例索引、配置损坏、无效包、权限及认证字段回归 |
 | [launcher.test.ts](../../apps/launcher/src/stores/launcher.test.ts) | 2 项原生初始化和跨接口密钥隔离回归 |

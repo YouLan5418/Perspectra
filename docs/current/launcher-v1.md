@@ -1,6 +1,6 @@
 # Perspectra Launcher V1 交付说明
 
-> 本文保留第一阶段 Mock 交付记录。后续已接通真实运行，当前能力与限制见 [首轮真实 Core 接入](launcher-core-integration.md)。
+> 本文保留第一阶段 Mock 交付记录，下文的文件表与目录树是当时的结构；2026-10-17 改版后的界面见[首轮真实 Core 接入](launcher-core-integration.md)顶部说明。后续已接通真实运行，当前能力与限制见 [首轮真实 Core 接入](launcher-core-integration.md)。
 
 | 属性 | 内容 |
 | --- | --- |
