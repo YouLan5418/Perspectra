@@ -214,17 +214,10 @@ async fn launcher_request(
                 model_keys::remove(id);
             }
         }
-        if request["operation"] == "open" {
+        if request["operation"] == "open" || request["operation"] == "open-creator" {
             let url = result["url"].as_str().ok_or("游戏地址无效。")?;
-            let (base, token) = url.split_once("/#token=").ok_or("游戏地址无效。")?;
-            let port = base
-                .strip_prefix("http://127.0.0.1:")
-                .and_then(|p| p.parse::<u16>().ok())
-                .filter(|p| *p > 0);
-            if port.is_none() || token.len() != 64 || !token.bytes().all(|b| b.is_ascii_hexdigit())
-            {
-                return Err("游戏地址无效。".into());
-            }
+            let path = if request["operation"] == "open-creator" { "/creator/" } else { "/" };
+            validated_local_url(url, path)?;
             #[cfg(windows)]
             {
                 Command::new("rundll32.exe")
@@ -245,6 +238,42 @@ async fn launcher_request(
     .await
     .map_err(|_| "本机操作执行失败。")?
 }
+fn validated_local_url(url: &str, path: &str) -> Result<(), String> {
+    let invalid = || "游戏地址无效。".to_string();
+    if !matches!(path, "/" | "/creator/") { return Err(invalid()); }
+    let suffix = format!("{path}#token=");
+    let (base, token) = url.split_once(&suffix).ok_or_else(invalid)?;
+    let port = base.strip_prefix("http://127.0.0.1:").ok_or_else(invalid)?;
+    if port.is_empty() || !port.bytes().all(|b| b.is_ascii_digit())
+        || port.parse::<u16>().ok().filter(|p| *p > 0).is_none()
+        || token.len() != 64 || !token.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod local_url_tests {
+    use super::validated_local_url;
+    #[test]
+    fn allows_only_the_requested_host_page_and_loopback_port() {
+        let token = "a".repeat(64);
+        for path in ["/", "/creator/"] {
+            for port in ["1", "65535"] {
+                assert!(validated_local_url(&format!("http://127.0.0.1:{port}{path}#token={token}"), path).is_ok());
+            }
+            for base in ["https://127.0.0.1:1", "http://localhost:1", "http://127.0.0.1:0", "http://127.0.0.1:65536", "http://127.0.0.1:+1", "http://127.0.0.1:1@evil.test", "http://127.0.0.1:1/extra"] {
+                assert!(validated_local_url(&format!("{base}{path}#token={token}"), path).is_err());
+            }
+            for bad_token in ["a".repeat(63), "g".repeat(64), format!("{token}&extra=1")] {
+                assert!(validated_local_url(&format!("http://127.0.0.1:1{path}#token={bad_token}"), path).is_err());
+            }
+        }
+        assert!(validated_local_url(&format!("http://127.0.0.1:1/creator/#token={token}"), "/").is_err());
+        assert!(validated_local_url(&format!("http://127.0.0.1:1/#token={token}"), "/creator/").is_err());
+    }
+}
+
 fn main() {
     if let Ok(executable) = std::env::current_exe() {
         if let Some(folder) = executable.parent() {
