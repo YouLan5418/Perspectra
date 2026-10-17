@@ -91,7 +91,13 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 ## 角色思考强度
 
-玩家在启动器“模型 → 修改”选择关闭、低、中、高，保存为当前实例的模型配置；新实例沿用最近一次保存的选择。选项在下一次启动传入运行时，仅影响角色决策及行动结果续写，玩家输入解析和记忆 Utility 沿用原配置。未设置的新字段不改变已有实例；不会重写存档事件。
+例如默认角色用 Flash、Claude 用强模型时，玩家在启动器“模型 → 修改”设置默认模型，再在“按角色单独设置”为 Claude 选择另一连接、模型和思考强度。记忆整理可跟随同层决策或单独选择。未覆盖角色使用默认层；新实例仅沿用最近保存的默认决策和默认记忆选择，不复制旧实例的角色覆盖。
+
+2026-10-17 核对：[modelEnvironment](../../../desktop/model-connections.ts) 用 `PERSPECTRA_ROLE_MODELS` 传递无 Key 的解析目标，`PERSPECTRA_MODEL_KEYS` 传递被引用的连接 Key；[游戏入口](../../../tests/experiments/playtest-web-entry.ts)合并后立即删除后一个环境变量。运行时为各角色建立自己的 provider，整体替换协议、地址、模型、思考强度与 Key。记忆按不同配置复用 runner 组，每组 Python 只接收该组的连接 Key，档案与授权 scope 仍按角色隔离。具体传递和进程边界见[Launcher 接入](../launcher-core-integration.md#3-数据与进程)。
+
+玩家可选择关闭、低、中、高思考强度，保存后在下一次启动生效，仅影响角色决策及行动结果续写。玩家输入解析不新增模型配置；记忆 Utility 使用角色生效的记忆模型和既有参数，不沿用决策思考档位。模型选择不会重写存档事件。源码已接通，发行包尚未重建。
+
+本轮在 8045 网关验证两种协议的角色决策、四份记忆档案安装与非空测试 Key 不落盘；也修复了 Anthropic 路径根 `oneOf` 造成持续 `abstain` 的兼容问题。真实整理曾被无效 JSON 拒绝，最终成功不证明稳定质量。检查命令、证据和限制见[按角色模型验收](../studies/launcher-role-models-20261017.md)。
 
 OpenAI 兼容模型使用 reasoning_effort；DeepSeek 单独发送 thinking 开关，低、中、高映射为 low、high、max，开启时采用 auto 工具选择，返回仍经过现有解析、Schema 和 Rulebook 校验。Google 原生 Gemini 3 使用 thinkingLevel，旧支持型号使用 0 / 1024 / 4096 / 16384 思考预算；不支持完全关闭的 Gemini 3 / 2.5 Pro 在界面禁用关闭，宿主拒绝保存该选择。Anthropic 原生使用 disabled 或 enabled 加预算，开启时不发送与思考冲突的 temperature / top_p；现有 auto 工具选择保持不变。
 
