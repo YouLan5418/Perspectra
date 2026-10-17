@@ -438,7 +438,14 @@ export class LauncherCore {
         const preflight = await preflightSave(pack.path, directory)
         if (preflight.packHash !== instance.packHash) throw new Error('世界包内容与创建实例时不同，请恢复原包。')
         await access(hindsightPython())
-        await mkdir(directory, { recursive: true })
+        try { await mkdir(directory, { recursive: true }) }
+        catch (error) {
+          const code = (error as NodeJS.ErrnoException).code
+          if (code === 'EACCES' || code === 'EPERM') {
+            throw new Error('无法创建游戏存档目录（权限不足）。请检查启动器的运行权限，或在全局设置选择可写的数据目录。')
+          }
+          throw error
+        }
         const frontend=await this.#inspect(instance)
         const recommended=await packPreset(pack.path)
         this.#recommended[pack.id]=recommended
