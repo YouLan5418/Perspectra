@@ -7,7 +7,7 @@
 | 目录 | 负责什么 | 推荐先读 |
 | --- | --- | --- |
 | [apps/launcher](../../../apps/launcher) | Vue 界面与 Tauri 桌面外壳 | [界面状态](../../../apps/launcher/src/stores/launcher.ts)、[桌面请求](../../../apps/launcher/src/services/desktop.ts)、[创作者控制台](../../../apps/launcher/src/creator/store.ts)、[Rust 桥](../../../apps/launcher/src-tauri/src/main.rs) |
-| [desktop](../../../desktop) | Launcher 的 Node 后端、实例数据、预设、故事节点；也保留 Electron 入口 | [LauncherCore](../../../desktop/launcher-core.ts)、[Node 入口](../../../desktop/launcher-entry.ts) |
+| [desktop](../../../desktop) | Launcher 的 Node 后端、实例数据、模型连接、预设、故事节点；也保留 Electron 入口 | [LauncherCore](../../../desktop/launcher-core.ts)、[模型连接](../../../desktop/model-connections.ts)、[Node 入口](../../../desktop/launcher-entry.ts) |
 | [tests/experiments](../../../tests/experiments) | **当前网页宿主与实验驱动混放于此**，不能整体当成闲置测试 | [网页入口](../../../tests/experiments/playtest-web-entry.ts)、[实际宿主](../../../tests/experiments/playtest-frozen-runtime.ts) |
 | [experiments](../../../experiments) | Python 记忆实现、实验工具、数据和报告 | [记忆实验](../../../experiments/activity-memory/README.md) |
 | [examples/world-packs](../../../examples/world-packs) | 可运行世界包和创作样例 | [Launcher 示例](../../../examples/world-packs/launcher-demo/worldpack.source.json) |
