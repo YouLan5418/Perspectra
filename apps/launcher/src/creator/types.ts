@@ -21,6 +21,8 @@ export interface TraceNode {
   tone: StatusTone
   characterId: string | null
   summary: string
+  /** 发言正文按对白 / 旁白分段，对话视图据此区分排版。 */
+  segments?: { type: 'speech' | 'narration'; text: string }[] | undefined
   detail: string
   durationMs?: number | undefined
   /** 同一决策处理组；对话视图按组把处理链折叠到对应回应上方。 */

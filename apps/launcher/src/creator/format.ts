@@ -76,12 +76,32 @@ export function asRecord(value: unknown): Record<string, unknown> {
 
 export function asArray(value: unknown): unknown[] { return Array.isArray(value) ? value : [] }
 
+export interface Segment { type: 'speech' | 'narration'; text: string }
+
+/** 表达正文：NPC 发布用有序 segments，玩家发布用 text / narration 两个字段。 */
+export function expressionSegments(value: unknown): Segment[] {
+  const data = asRecord(value)
+  const segments = asArray(data.segments).map(asRecord)
+    .filter(item => (item.type === 'speech' || item.type === 'narration') && typeof item.text === 'string' && item.text.trim())
+    .map(item => ({ type: item.type as Segment['type'], text: item.text as string }))
+  if (segments.length) return segments
+  return [
+    ...(text(data.narration).trim() ? [{ type: 'narration' as const, text: text(data.narration) }] : []),
+    ...(text(data.text).trim() ? [{ type: 'speech' as const, text: text(data.text) }] : []),
+  ]
+}
+
+/** 单行摘要：旁白加括号，与对白区分。 */
+export function segmentsText(segments: Segment[]): string {
+  return segments.map(segment => segment.type === 'narration' ? `（${segment.text.trim()}）` : segment.text.trim()).join(' ')
+}
+
 /** 就近取首个非空显示文本。观察内容是对象时优先取常见的人读字段。 */
 export function readable(value: unknown): string {
   if (typeof value === 'string') return value
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
   const record = asRecord(value)
-  for (const key of ['text', 'content', 'description', 'summary', 'label', 'proposition', 'message', 'narration']) {
+  for (const key of ['text', 'content', 'description', 'resultDescription', 'summary', 'label', 'proposition', 'message', 'narration']) {
     const found = record[key]
     if (typeof found === 'string' && found.trim()) return found
   }

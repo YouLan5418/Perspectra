@@ -60,6 +60,18 @@ function audience(node: TraceNode) {
 
 function initial(name: string): string { return name.slice(0, 1) }
 
+/** 合并观察行：一位观察者显示名字，多位显示人数，名单放在副文本。 */
+function rowActor(entry: ConversationEntry): string {
+  const members = entry.members ?? []
+  if (members.length > 1) return `${members.length} 位观察者`
+  return store.label(entry.node!.characterId) || '世界'
+}
+function rowDetail(entry: ConversationEntry): string {
+  const members = entry.members ?? []
+  if (members.length > 1) return members.map(node => store.label(node.characterId)).join('、')
+  return entry.node!.detail
+}
+
 function scrollToEnd() {
   void nextTick(() => { const element = scroller.value; if (element) element.scrollTop = element.scrollHeight })
 }
@@ -93,7 +105,7 @@ onMounted(() => { if (store.follow) scrollToEnd() })
           <button v-for="node in entry.process" :key="node.key" class="cr-process-row" :class="{ selected: store.selectedKey === node.key }"
             :data-key="node.key" @click="store.selectNode(node)">
             <span class="cr-kind" :class="node.tone">{{ KIND_LABEL[node.kind] }}</span>
-            <strong style="font-size: 12px; min-width: 48px">{{ store.label(node.characterId) || '世界' }}</strong>
+            <strong class="cr-compact-actor">{{ store.label(node.characterId) || '世界' }}</strong>
             <span class="cr-compact-main">{{ node.summary }}</span>
             <span class="cr-tag line">{{ node.statusLabel }}</span>
             <span v-if="node.durationMs !== undefined" class="cr-cell-num">{{ durationLabel(node.durationMs) }}</span>
@@ -136,15 +148,24 @@ onMounted(() => { if (store.follow) scrollToEnd() })
               <span v-for="(tag, index) in audience(entry.node!)" :key="index" class="cr-tag" :class="tag.tone">{{ tag.text }}</span>
             </span>
           </div>
-          <p class="cr-message-body">{{ entry.node!.summary }}</p>
+          <p class="cr-message-body">
+            <template v-if="entry.node!.segments?.length">
+              <span v-for="(segment, index) in entry.node!.segments" :key="index" :class="segment.type === 'narration' ? 'cr-narration' : 'cr-speech'">{{ segment.text }}</span>
+            </template>
+            <template v-else>{{ entry.node!.summary }}</template>
+          </p>
         </article>
+
+        <div v-else-if="entry.node!.kind === 'world'" class="cr-divider" :data-key="entry.node!.key" @click="store.selectNode(entry.node!)">
+          <span>{{ entry.node!.summary }}</span>
+        </div>
 
         <div v-else class="cr-compact" :class="{ selected: store.selectedKey === entry.node!.key }" :data-key="entry.node!.key"
           tabindex="0" @click="store.selectNode(entry.node!)" @keydown.enter="store.selectNode(entry.node!)">
           <span class="cr-kind" :class="entry.node!.tone">{{ KIND_LABEL[entry.node!.kind] }}</span>
-          <strong style="font-size: 12.5px; min-width: 56px">{{ store.label(entry.node!.characterId) || '世界' }}</strong>
-          <span class="cr-compact-main">{{ entry.node!.summary }}</span>
-          <span v-if="entry.node!.detail" class="cr-cell-sub">{{ entry.node!.detail }}</span>
+          <strong class="cr-compact-actor">{{ rowActor(entry) }}</strong>
+          <span class="cr-compact-main" :title="entry.node!.summary">{{ entry.node!.summary }}</span>
+          <span v-if="rowDetail(entry)" class="cr-cell-sub" :title="rowDetail(entry)">{{ rowDetail(entry) }}</span>
           <span class="cr-tag" :class="entry.node!.tone">{{ entry.node!.statusLabel }}</span>
           <span v-if="entry.node!.durationMs !== undefined" class="cr-cell-num">{{ durationLabel(entry.node!.durationMs) }}</span>
         </div>

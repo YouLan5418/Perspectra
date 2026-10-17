@@ -50,8 +50,12 @@ export const MOCK_EVENTS: StoredWorldEvent[] = [
   ev(75, 42, 'observation.upsert', OBSERVATION('observation:lu:3', 'character:lu', { text: '玩家说自己手里有钥匙。', actionId: 'action:p:3' }), T3),
   ev(76, 42, 'world.tick-advanced', { tick: 43, roundId: 'round-43' }, T3),
   ev(77, 43, 'action.resolved', { roundId: 'round-43', actionId: 'action:lu:1', actorId: 'character:lu', actionType: 'speak', accepted: true, sourceRole: 'character' }, T4),
-  ev(78, 43, 'character.speak', { characterId: 'character:lu', text: '……钥匙不是在我这儿吗？', addresseeIds: ['character:player'] }, T4),
-  ev(79, 43, 'observation.upsert', OBSERVATION('observation:player:2', 'character:player', { text: '陆遥举了举手里的钥匙。', actionId: 'action:lu:1' }), T4),
+  // NPC 发布使用有序 segments；观察内容与真实运行时同形（actorId / resultDescription / speech）。
+  ev(78, 43, 'character.speak', { characterId: 'character:lu', segments: [{ type: 'narration', text: '举了举手里的钥匙' }, { type: 'speech', text: '……钥匙不是在我这儿吗？' }],
+    addresseeIds: ['character:player'], scope: 'scene', replyTo: null, declaredSpeechAct: null }, T4),
+  ev(79, 43, 'observation.upsert', { id: 'observation:player:2', value: { observerId: 'character:player', actionId: 'action:lu:1', content: {
+    actorId: 'character:lu', actionType: 'speak', status: 'accepted', resultDescription: '这次行动已经成功执行。当前状态请以本次可见场景为准。',
+    speech: { characterId: 'character:lu', segments: [{ type: 'narration', text: '举了举手里的钥匙' }, { type: 'speech', text: '……钥匙不是在我这儿吗？' }] } } } }, T4),
   ev(80, 43, 'character.moved', { characterId: 'character:lu', fromLocationId: 'location:front-room', toLocationId: 'location:back-room' }, T4),
   ev(81, 43, 'world.tick-advanced', { tick: 44, roundId: 'round-44' }, T4),
 ]
@@ -61,7 +65,7 @@ const MOCK_ACTIONS: Record<string, Record<string, unknown>> = {
   'action:lin:1': { actionId: 'action:lin:1', actorId: 'character:lin', actionType: 'interact', actionVersion: 1, parameters: { entityId: 'entity:brass-key', targetRef: { kind: 'character', id: 'character:lu' } } },
   'action:p:2': { actionId: 'action:p:2', actorId: 'character:player', actionType: 'interact', actionVersion: 1, parameters: { entityId: 'entity:brass-key', intent: 'claim' } },
   'action:p:3': { actionId: 'action:p:3', actorId: 'character:player', actionType: 'speak', actionVersion: 1, parameters: { text: '我手里这把钥匙，是刚才从前台拿的。' } },
-  'action:lu:1': { actionId: 'action:lu:1', actorId: 'character:lu', actionType: 'speak', actionVersion: 1, parameters: { text: '……钥匙不是在我这儿吗？' } },
+  'action:lu:1': { actionId: 'action:lu:1', actorId: 'character:lu', actionType: 'speak', actionVersion: 1, parameters: { segments: [{ type: 'narration', text: '举了举手里的钥匙' }, { type: 'speech', text: '……钥匙不是在我这儿吗？' }] } },
 }
 
 /** 受追踪物品的保管／地点变更；随携带者移动不是独立转移。 */
