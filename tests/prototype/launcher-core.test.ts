@@ -57,6 +57,21 @@ process.send({ type: 'ready', port: 12345, token: 'a'.repeat(64), frontendMode: 
   return { core, instanceId, packageId, log: async () => (await readFile(join(core.root, 'child.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line)) }
 }
 describe('real Launcher metadata and authority boundary', () => {
+  it('explains a missing memory interpreter before starting Core or changing saved progress', async () => {
+    const core = await service()
+    await core.handle({ operation: 'connection-save', connection: local })
+    const [instance] = await withPack(core)
+    await core.handle({ operation: 'configure', instanceId: instance!.id, models: { decision: { connectionId: local.id, model: 'fixture' } } })
+    const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
+    vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(core.root, 'missing-python.exe'))
+    try {
+      await expect(core.handle({ operation: 'start', instanceId: instance!.id })).rejects.toThrow('本机记忆所需的 Python 环境不存在')
+      expect(core.snapshot().core.state).toBe('idle')
+      expect(core.snapshot().instances[0]!.lastPlayedAt).toBeNull()
+      expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
+      await expect(readdir(join(core.root, 'instances', instance!.id))).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally { vi.unstubAllEnvs(); await core.stop() }
+  })
   it('explains denied save directory creation without starting Core or changing metadata', async () => {
     const core = await service()
     await core.handle({ operation: 'load', path: resolve('examples/world-packs/prototype-g1') })
