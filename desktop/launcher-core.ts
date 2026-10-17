@@ -304,13 +304,13 @@ export class LauncherCore {
         return {saved:true}
       }
       case 'preset-save': {
-        this.#idle();const instance=this.#instance(request.instanceId),choice=presetChoice(request.choice)
+        const instance=this.#instance(request.instanceId),choice=presetChoice(request.choice)
         this.#validMapping(instance,choice)
         await this.#presets.save(rolePreset(request.global),{...this.#presets.instances,[instance.id]:choice});return this.snapshot()
       }
       case 'preset-inspect': await this.#recommendations(); return this.snapshot()
-      case 'preset-global': this.#idle(); await this.#presets.save(rolePreset(request.preset),this.#presets.instances); return this.snapshot()
-      case 'preset-instance': {this.#idle();const instance=this.#instance(request.instanceId);const choice=presetChoice(request.choice);this.#validMapping(instance,choice);await this.#presets.save(this.#presets.global,{...this.#presets.instances,[instance.id]:choice});return this.snapshot()}
+      case 'preset-global':  await this.#presets.save(rolePreset(request.preset),this.#presets.instances); return this.snapshot()
+      case 'preset-instance': {const instance=this.#instance(request.instanceId);const choice=presetChoice(request.choice);this.#validMapping(instance,choice);await this.#presets.save(this.#presets.global,{...this.#presets.instances,[instance.id]:choice});return this.snapshot()}
       case 'frontend-inspect': {
         await this.#inspect(this.#instance(request.instanceId))
         return this.snapshot()
@@ -412,7 +412,6 @@ export class LauncherCore {
         return this.snapshot()
       }
       case 'play-settings': {
-        this.#idle()
         const pack=this.#index.packs.find(pack=>pack.id===request.packageId)
         if(!pack)throw new Error('请先载入游戏包。')
         await this.#save({...this.#index,playSettings:{...this.#index.playSettings,[pack.id]:playSettings(request.settings)}})
@@ -424,14 +423,12 @@ export class LauncherCore {
         return this.snapshot()
       }
       case 'settings': {
-        this.#idle()
         if (request.largeText !== undefined && typeof request.largeText !== 'boolean') throw new TypeError('字体设置无效。')
         await this.#save({ ...this.#index,
           preferences: { ...this.#index.preferences, largeText: request.largeText === undefined ? this.#index.preferences.largeText : request.largeText } })
         return this.snapshot()
       }
       case 'configure': {
-        this.#idle()
         const instance = this.#instance(request.instanceId)
         const models = instanceModels(request.models, this.#index.connections, (this.#characters[instance.packageId] ?? []).map(c => c.id))
         await this.#save({ ...this.#index, lastModels: { decision: models.decision, ...(models.memory ? { memory: models.memory } : {}) },
