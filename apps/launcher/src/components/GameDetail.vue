@@ -144,7 +144,7 @@ const thinkingLabel = { off: '关闭', low: '低', medium: '中', high: '高' } 
                 <strong>模型</strong>
                 <span>
                   <template v-if="store.real && store.currentRealInstance?.brokenConnection">连接已删除，请重新选择</template>
-                  <template v-else-if="store.real && store.currentModels">{{ store.currentModels.decision.model }} · {{ store.connectionName(store.currentModels.decision.connectionId) }}<template v-if="store.currentModels.decision.thinkingLevel"> · 思考{{ thinkingLabel[store.currentModels.decision.thinkingLevel] }}</template></template>
+                  <template v-else-if="store.currentModels">{{ store.currentModels.decision.model }} · {{ store.connectionName(store.currentModels.decision.connectionId) }}<template v-if="store.currentModels.decision.thinkingLevel"> · 思考{{ thinkingLabel[store.currentModels.decision.thinkingLevel] }}</template><template v-if="Object.keys(store.currentModels.characters ?? {}).length">；另有 {{ Object.keys(store.currentModels.characters ?? {}).length }} 个角色单独配置</template></template>
                   <template v-else>{{ store.currentModel?.label ?? '尚未设置' }}</template>
                 </span>
               </div>

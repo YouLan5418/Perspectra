@@ -4,7 +4,7 @@ import { coreRequest, openGame, packCover, listConnectionModels, setConnectionKe
 import type { CoreSnapshot, RolePreset, PresetChoice, ModelConnection, InstanceModels } from '../core-types.ts'
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { packages as fixtures, modelProfiles, createMockInstance, createFreshInstance } from '../mock.ts'
+import { packages as fixtures, modelProfiles, createMockInstance, createFreshInstance, mockCharacters } from '../mock.ts'
 import { availableModel, historyTo } from '../domain.ts'
 import type { CoreStatus, GamePackage } from '../types.ts'
 
@@ -111,10 +111,12 @@ export const useLauncherStore = defineStore('launcher', () => {
   const initialized = ref(!real)
   const realInstances = ref<CoreSnapshot['instances']>([])
   const currentRealInstance = computed(() => realInstances.value.find(i => i.id === selectedInstanceId.value))
-  const currentModels = computed(() => currentRealInstance.value?.models)
+  // Mock mode keeps choices in memory so the dialog's save and summary can be checked without Core.
+  const mockModels = ref<Record<string, InstanceModels>>({})
+  const currentModels = computed(() => real ? currentRealInstance.value?.models : mockModels.value[selectedInstanceId.value])
   const connectionName = (id: string) => connections.value.find(c => c.id === id)?.name
   const presets=ref<CoreSnapshot['presets']>({library:[],characters:{},global:{},instances:{},recommended:{}})
-  const presetCharacters=computed(()=>presets.value.characters[selectedPackageId.value]??[])
+  const presetCharacters=computed(()=>presets.value.characters[selectedPackageId.value]??(real?[]:mockCharacters))
   const effectivePreset=computed(()=>{const choice=presets.value.instances[selectedInstanceId.value];return choice?.mode==='custom'?choice.override:choice?.mode==='global'?presets.value.global:{...presets.value.global,...presets.value.recommended[selectedPackageId.value]}})
   async function inspectPreset(){return action('preset-inspect')}
   async function saveGlobalPreset(preset:RolePreset){return action('preset-global',{preset})}
@@ -212,7 +214,8 @@ export const useLauncherStore = defineStore('launcher', () => {
     catch (error) { modelLists.value[id] = { models: [], loading: false, error: typeof error === 'string' ? error : error instanceof Error ? error.message : '模型列表获取失败。' } }
   }
   async function configureModels(models: InstanceModels): Promise<boolean> {
-    if (!await action('configure', { instanceId: selectedInstanceId.value, models })) return false
+    if (!real) mockModels.value = { ...mockModels.value, [selectedInstanceId.value]: models }
+    else if (!await action('configure', { instanceId: selectedInstanceId.value, models })) return false
     notice.value = '实例模型配置已保存。'
     return true
   }

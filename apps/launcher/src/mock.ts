@@ -40,3 +40,6 @@ export function createFreshInstance(packageId: string, version: string, name: st
   const main = instance.storylines[0]!
   return { ...instance, lastPlayedAt: null, nodes: [opening], storylines: [{ ...main, currentNodeId: opening.id }] }
 }
+
+/** Callable characters shown by the model and preset dialogs in browser mock mode. */
+export const mockCharacters = [{ id: 'character:innkeeper', name: '旅店老板' }, { id: 'character:traveler', name: '旅人' }]
