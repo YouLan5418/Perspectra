@@ -291,7 +291,8 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
         if (value.title.length > 80) throw new RangeError('节点名称不能超过 80 个字符')
         const now = new Date()
         const title = value.title.trim() || `保存于 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-        json(response, 200, { node: await runtime.saveNode(title) }); return
+        const node = await runtime.saveNode(title)
+        json(response, 200, { node: { id: node.id, title: node.title } }); return
       }
       if (request.method === 'POST' && url.pathname === '/api/regenerate') {
         if (!runtime.regenerate) { json(response,404,{error:'重新生成不可用'}); return }

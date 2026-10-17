@@ -22,7 +22,7 @@ async function start(saveNode?: (title: string) => Promise<{ id: string; title: 
 }
 
 it('saves a node with the given title', async () => {
-  const save = vi.fn(async (title: string) => ({ id: 'node-1', title }))
+  const save = vi.fn(async (title: string) => ({ id: 'node-1', title, internal: 'not exposed' }))
   const post = await start(save)
   const response = await post(' 晚饭后 ')
   expect(response.status).toBe(200)
