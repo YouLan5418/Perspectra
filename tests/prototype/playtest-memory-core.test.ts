@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import { once } from 'node:events'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -478,4 +478,56 @@ it('delivers the configured recall budget to Core while preserving authorized ev
  await f.runtime.submit('继续。')
  expect(inputs.filter(input=>input.operation==='recall').length).toBeGreaterThan(0)
  for(const input of inputs.filter(input=>input.operation==='recall'))expect(input.deliveryBudget).toEqual({maxItems:2,maxJsonChars:3000})
+})
+it('uses each character\'s own memory runner for recall and build', async () => {
+  const a: WorldJsonObject[] = [], b: WorldJsonObject[] = []
+  const runner = (inputs: WorldJsonObject[]): CoreRunner => async input => { inputs.push(input); return input.operation === 'build' ? built(input) : empty }
+  const f = await fixture(runner(b))
+  const own = runner(a)
+  const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, runner(b), undefined,
+    { run: runner(b), runFor: actor => actor === 'character:claude' ? { recall: own, build: own } : undefined })
+  await adapter.refresh(['character:claude', 'character:gpt'], AbortSignal.timeout(5000), () => {})
+  await adapter.project({ context: { character: { characterId: 'character:claude', name: 'Claude' },
+    scene: { people: [] }, stimulus: [], observations: [], selfObservations: [] }, continuation: false }, AbortSignal.timeout(2000))
+  expect(a.map(input => input.operation).sort()).toEqual(['build', 'recall'])
+  const actorOf = (input: WorldJsonObject) => String(((input.scope ?? (input.archive as WorldJsonObject).scope) as WorldJsonObject).characterId)
+  expect(a.map(actorOf)).toEqual(['character:claude', 'character:claude'])
+  expect(b.map(actorOf)).not.toContain('character:claude')
+  expect(b.map(actorOf)).toContain('character:gpt')
+})
+it('starts one Core runner per distinct memory model and never writes a key to the data directory', async () => {
+  const data = mkdtempSync(join(tmpdir(), 'memory-web-test-')); roots.push(data)
+  const provider = createServer((req, res) => { req.resume(); req.on('end', () => {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ decision: 'abstain' }) } }] })) }) })
+  servers.push(provider); provider.listen(0, '127.0.0.1'); await once(provider, 'listening')
+  const port = (provider.address() as { port: number }).port, endpoint = `http://127.0.0.1:${port}/v1/chat/completions`
+  const groups: { env: Record<string, string>; inputs: WorldJsonObject[]; closed: boolean }[] = []
+  const strong = { protocol: 'openai' as const, endpoint, model: 'strong', apiKey: 'MEMORY_KEY_STRONG' }
+  const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: data,
+    packPath: resolve('examples/world-packs/ai-girls-hosted-guess'), provider: 'local', model: 'fixture', utilityEndpoint: endpoint, apiKey: 'MEMORY_KEY_BASE',
+    memoryCore: true, roleModels: { characters: {
+      'character:claude': { decision: strong, memory: strong },
+      'character:gpt': { decision: strong, memory: { protocol: 'openai', endpoint, model: 'fixture', apiKey: 'MEMORY_KEY_BASE' } } } },
+    memoryCoreRunners: env => {
+      const group = { env: env as Record<string, string>, inputs: [] as WorldJsonObject[], closed: false }; groups.push(group)
+      const run: CoreRunner = async input => { group.inputs.push(input); return input.operation === 'build' ? built(input) : empty }
+      return { recall: run, build: run, close: async () => { group.closed = true } }
+    } })
+  runtimes.push(runtime)
+  expect(groups).toHaveLength(2)
+  const [base, own] = [groups.find(g => g.env.HCW_LOCAL_MODEL === 'fixture')!, groups.find(g => g.env.HCW_LOCAL_MODEL === 'strong')!]
+  expect(base.env).toMatchObject({ HCW_LOCAL_ENDPOINT: endpoint, HCW_MODEL_PROTOCOL: 'openai', HCW_LOCAL_API_KEY: 'MEMORY_KEY_BASE' })
+  expect(own.env).toMatchObject({ HCW_LOCAL_API_KEY: 'MEMORY_KEY_STRONG' })
+  expect(base.env.HCW_HINDSIGHT_UTILITY_ATTEMPTS).toBe(own.env.HCW_HINDSIGHT_UTILITY_ATTEMPTS)
+  await runtime.submit('你好。')
+  await runtime.refreshMemory(); await runtime.waitForMemory()
+  const actors = (g: typeof base) => g.inputs.map(input => String((input.scope as WorldJsonObject).characterId))
+  expect(actors(own)).toEqual(['character:claude'])
+  expect(actors(base)).toContain('character:gpt')
+  expect(actors(base)).not.toContain('character:claude')
+  await runtime.close(); runtimes.splice(runtimes.indexOf(runtime), 1)
+  expect(groups.every(g => g.closed)).toBe(true)
+  const files = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? files(join(dir, e.name)) : [join(dir, e.name)])
+  for (const file of files(data)) expect(readFileSync(file).toString('latin1')).not.toMatch(/MEMORY_KEY_/)
 })

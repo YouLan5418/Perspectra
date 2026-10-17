@@ -143,11 +143,13 @@ const thinkingLabel = { off: '关闭', low: '低', medium: '中', high: '高' } 
               <div class="prep-copy">
                 <strong>模型</strong>
                 <span>
-                  {{ store.currentModel?.label ?? '尚未设置' }}<template v-if="store.real && store.currentRealModel.thinkingLevel"> · 思考{{ thinkingLabel[store.currentRealModel.thinkingLevel] }}</template>
+                  <template v-if="store.real && store.currentRealInstance?.brokenConnection">连接已删除，请重新选择</template>
+                  <template v-else-if="store.currentModels">{{ store.currentModels.decision.model }} · {{ store.connectionName(store.currentModels.decision.connectionId) }}<template v-if="store.currentModels.decision.thinkingLevel"> · 思考{{ thinkingLabel[store.currentModels.decision.thinkingLevel] }}</template><template v-if="Object.keys(store.currentModels.characters ?? {}).length">；另有 {{ Object.keys(store.currentModels.characters ?? {}).length }} 个角色单独配置</template></template>
+                  <template v-else>{{ store.currentModel?.label ?? '尚未设置' }}</template>
                 </span>
               </div>
-              <button class="link-button" :disabled="running || store.busy" @click="store.currentModel ? $emit('model') : $emit('settings')">
-                {{ store.currentModel ? '修改' : '去设置' }}<ArrowRight :size="14" />
+              <button class="link-button" :disabled="running || store.busy" @click="store.real && !store.connections.length ? $emit('settings') : $emit('model')">
+                {{ store.real && !store.connections.length ? '去设置' : '修改' }}<ArrowRight :size="14" />
               </button>
             </div>
             <div class="prep-row">

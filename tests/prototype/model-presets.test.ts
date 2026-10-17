@@ -47,7 +47,10 @@ it('loads optional package recommendations and Launcher selections without chang
  expect(restored.snapshot().presets).toEqual(core.snapshot().presets)
  await expect(core.handle({operation:'preset-instance',instanceId:'other',choice:{mode:'auto',override:{}}})).rejects.toThrow('实例不存在')
  await writeFile(join(pack,'model-preset.json'),'{"tools":[]}')
- await expect(core.handle({operation:'preset-inspect'})).rejects.toThrow('model-preset.json')
+ await core.handle({operation:'preset-inspect'})
+ expect(core.snapshot().packDetails['pack:prototype-g1']?.error).toContain('世界包')
+ expect(core.snapshot().presets.global).toEqual({topP:.9})
+ expect(core.snapshot().presets.instances[id]).toEqual({mode:'custom',override:{prompt:'instance'}})
 })
 it('adds portrayal settings only to character calls and keeps Host messages, schema and intent limits',async()=>{
  const sent:Record<string,unknown>[]=[]
@@ -137,4 +140,37 @@ it('routes each real Core character call to its selected preset without cross-ch
   }finally{await runtime.close()}
   await expect(FrozenWorldPlaytestRuntime.create({packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'foreign'),provider:'ollama',
     presetMapping:{characters:{'character:foreign':{prompt:'not allowed'}}}})).rejects.toThrow('此包之外')
+})
+it('routes each character\'s decision call to its own model and endpoint',async()=>{
+  const calls:{url:string;model:unknown;key:string|null;actor:string}[]=[]
+  vi.stubGlobal('fetch',(async(url:unknown,init:RequestInit)=>{
+    const wire=JSON.parse(String(init.body)) as {model?:unknown;messages:{content:unknown}[];tools:{input_schema?:{oneOf?:unknown;properties?:{decision?:{enum?:string[]}}}}[]}
+    const headers=new Headers(init.headers),anthropic=String(url).includes('/v1/messages')
+    const input=JSON.parse(String(wire.messages.at(-1)!.content)) as {context:{character:{characterId:string}}}
+    calls.push({url:String(url),model:wire.model,key:headers.get('authorization')??headers.get('x-api-key'),actor:input.context.character.characterId})
+    // The gateway keeps only the first root oneOf branch (abstain). A flat
+    // decision enum must preserve publish for an Anthropic character override.
+    const canPublish=anthropic && wire.tools[0]?.input_schema?.properties?.decision?.enum?.includes('publish')
+    const answer=canPublish?{decision:'publish',segments:[{type:'speech',text:'我也想回应。'}]}:{decision:'abstain'}
+    return new Response(JSON.stringify(anthropic?{content:[{type:'tool_use',name:'submit_actions',input:answer}]}
+      :{choices:[{message:{tool_calls:[{function:{name:'submit_actions',arguments:JSON.stringify(answer)}}]}}]}))
+  }) as typeof fetch)
+  const dir=await root()
+  const other={protocol:'anthropic' as const,endpoint:'https://other.test/v1/messages',model:'strong',apiKey:'K2'}
+  const runtime=await FrozenWorldPlaytestRuntime.create({
+    packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'world'),provider:'local',
+    model:'base',utilityEndpoint:'http://default.test/v1/chat/completions',apiKey:'K1',
+    roleModels:{characters:{'character:companion':{decision:other,memory:other}}},
+  })
+  try{
+    const result=await runtime.submit('你好，可以介绍这里吗？')
+    expect(result.transcript.some(line=>line.text.includes('我也想回应。'))).toBe(true)
+    const companion=calls.filter(call=>call.actor==='character:companion'),friend=calls.filter(call=>call.actor==='character:friend')
+    expect(companion.length).toBeGreaterThan(0);expect(friend.length).toBeGreaterThan(0)
+    for(const call of companion)expect(call).toMatchObject({url:other.endpoint,model:'strong',key:'K2'})
+    for(const call of friend)expect(call).toMatchObject({url:'http://default.test/v1/chat/completions',model:'base',key:'Bearer K1'})
+    expect(JSON.stringify(friend)).not.toContain('K2')
+  }finally{await runtime.close()}
+  await expect(FrozenWorldPlaytestRuntime.create({packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'foreign'),provider:'local',
+    roleModels:{characters:{'character:foreign':{decision:other,memory:other}}}})).rejects.toThrow('此包之外')
 })
