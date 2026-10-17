@@ -1,6 +1,6 @@
 # 新原型基线与接手说明
 
-> 本文保留原型起点说明及当前检查命令；基线分支、旧工作树和“已完成与下一步”描述建立时状态，不是当前完成度。现行入口与后续实现见[项目状态](PROJECT-STATE.md)和[当前架构](architecture/README.md)。
+> 本文有两部分：前两节是 2026-09-15 原型起点的历史记录（基线分支、旧工作树、当时的下一步），不代表现在做到哪；最后一节“按风险验证”是现在仍在用的检查命令。现状见[项目状态](PROJECT-STATE.md)和[当前架构](architecture/README.md)。
 
 ## 基线选择
 
@@ -20,7 +20,7 @@
 
 这不是最小运行时，也没有证据表明该提交已经通过新契约的真实体验验收。原有 Receipt、Hash、兼容和耐久调度仍存在；基线选择只是减少需要拆除的部分。
 
-## 已完成与下一步
+## 当时的下一步（历史）
 
 基线建立时仅调整工作树和开发门禁。后续已进行 [第一轮上下文呈现实测](../archive/prototype-g1-g4/PROTOTYPE-PLAYTEST-01.md) 与 [第二轮自由表达实测](../archive/prototype-g1-g4/PROTOTYPE-PLAYTEST-02.md)。完整 perform → 结果 → 续写循环尚未实现；当前进展与限制以这两份记录为准。
 
@@ -46,8 +46,15 @@ corepack pnpm@11.7.0 test:related tests/p2.integration.test.ts
 
 默认 `vitest.prototype.config.ts` 选择角色私有视图隔离、v5 游戏包编译两组测试，并自动发现 `tests/prototype/**/*.test.ts`，包括当前角色互动、记忆、活动、故事线和进程中断回归。它不覆盖全部新契约；旧版本断言可以随已明确改变的行为更新。新增功能需补充相关验证，不可仅凭默认测试通过宣布完成。
 
+本机跑完整 `check` 有两个环境前提：故事分享等集成用例需要能找到 Python/E5 记忆环境（可用 `HCW_HINDSIGHT_PYTHON`、`HCW_HINDSIGHT_ONNX_DIR` 指定）；硬中断测试需要能执行 `taskkill`。受限沙箱里这两类用例会失败，这是环境问题，不要靠跳过用例或改断言来“修好”。
+
 `vitest.config.ts` 保留广泛测试发现，供 `test:related` 与显式诊断使用。覆盖率不再作为门槛；已移除旧阶段与硬终止专属命令。`test:related` 不带路径会选择全量，日常必须明确路径。
 
-GitHub CI 使用 Windows / Node 24，不维护多平台版本矩阵。[流水线](../../.github/workflows/p0.yml)分别运行根类型检查、Lint、`launcher:check`（Vue 类型检查和 Launcher 单元测试）及原型测试。原型测试使用 `corepack pnpm@11.7.0 test --maxWorkers=1` 串行运行测试文件，降低托管 Runner 上 SQLite、HTTP 与子进程集成场景的资源竞争；测试发现范围和失败判定保持不变。已在托管 Runner 复现超时的多轮对话、HTTP 逃离和故事节点场景使用 60–120 秒的单项测试预算；运行时模型、角色和活动时限及断言不变。活动测试清理主动关闭 HTTP 连接，并对 Windows 临时文件占用最多重试三次，失败仍报错。本地默认 `check` 仍使用默认并发；复现 CI 时可按流水线逐步运行。CI 不构建 Tauri、Electron 或便携发行包，也不调用真实模型；这些验证仍需按改动单独执行。
+GitHub CI（[流水线](../../.github/workflows/p0.yml)）只在 Windows / Node 24 上跑，分四步：根类型检查、Lint、`launcher:check`（Vue 类型检查和 Launcher 单元测试）、原型测试。几点说明：
+
+- 原型测试在 CI 上用 `corepack pnpm@11.7.0 test --maxWorkers=1` 逐个文件串行跑，避免托管机器上 SQLite、HTTP 和子进程互相抢资源。本地 `check` 仍用默认并发；想复现 CI 就按流水线一步步跑。
+- 少数在托管机器上超时过的场景（多轮对话、HTTP 逃离、故事节点）单独放宽到 60–120 秒的测试时限；运行时本身的模型、角色、活动时限和断言都没改。
+- 活动测试结束时会主动关闭 HTTP 连接；Windows 临时文件被占用时最多重试三次，仍失败就报错。
+- CI 不构建 Tauri、Electron 或便携包，也不调用真实模型，这些要按改动另外验证。
 
 类型检查和 Lint 暂时仍扫描旧源码与测试；尚未按新运行时依赖拆分。是否进一步缩小，应依据实际阻碍决定，不因历史文件很多就先重做工具链。上述自动化验证均不能证明真实角色自然度或自由叙述一致性；按契约另做连续试玩。

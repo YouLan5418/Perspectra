@@ -26,6 +26,8 @@ The current candidate build is **0.1.0-test3**. It bundles Node, Python, Core me
 
 Detailed instructions: [Player playtest guide](docs/current/guides/player-playtest.md) (Chinese).
 
+> test3 was built on 2026-10-09. Since then the launcher in source has been redesigned (single-screen home, session drawer, multiple model connections, per-character models, creator page). The steps below apply to the test3 build only; see [project status](docs/current/PROJECT-STATE.en.md) for the differences.
+
 After downloading:
 
 1. Fully extract the archive, then run `Perspectra.exe`. Keep the bundled `runtime` directory beside it.
@@ -38,7 +40,7 @@ The bundled official demo `examples/大模型变成美少女了` (roughly, *The 
 
 The bundled `examples/前室与后室` demonstrates the default frontend, while `examples/测试示例` includes a community frontend, pack-recommended presets, variables, and a number-guessing activity.
 
-The launcher uses Core memory. API keys are held only for the current session and are not stored in the game pack or save files; you will need to enter them again after restarting the launcher. Check the settings to locate your data directory. Stop the game and exit the launcher before backing up data.
+The launcher uses Core memory. In test3, API keys are held only for the current session and must be re-entered after restarting the launcher; current source stores them per connection in Windows Credential Manager. Neither writes keys into the game pack or save files. Check the settings to locate your data directory. Stop the game and exit the launcher before backing up data.
 
 ### Run from source
 
@@ -80,7 +82,8 @@ See the [creator and real-model playtest guide](docs/current/guides/creator-play
 | Reasoning settings and budgets | Off/low/medium/high selectable per instance; pack-configurable reaction budgets, with a 120-second default deadline |
 | Character presets | Global defaults, pack recommendations, instance overrides, character groups, and per-character settings |
 | Custom frontends | HTML/CSS/JavaScript via a public player interface; sandboxed iframe by default, with an explicitly authorized trusted mode |
-| Desktop launcher | Loads v5 source-pack directories, creates separate instances, configures models, starts/stops, and resumes play |
+| Desktop launcher | Loads v5 source-pack directories, creates separate instances, configures models, starts/stops, and resumes play; current source adds multiple model connections and per-character models |
+| Creator page (current source) | While a game runs, a read-only browser page shows the conversation, action trace, actual model requests, item custody and character memory |
 
 These paths are wired into the runtime, but passing automated checks or short local playtests does not validate every gameplay style, model, or machine.
 
@@ -126,7 +129,7 @@ Presets support character instructions, generation settings, prompt nodes, basic
 
 The selection order within an instance is **character-specific > character group > instance default**. Presets can guide portrayal, but they do not replace knowledge boundaries, world rules, or Core's structured-output contract.
 
-Direct SillyTavern preset import is not supported. Assistant prefill and custom context templates are also not connected yet.
+The launcher cannot import SillyTavern presets directly; source provides a `preset:import` command that converts them offline into the native format, which still needs checking in play. Assistant prefill and custom context templates are also not connected yet.
 
 [Preset details](docs/current/model-presets.md) (Chinese)
 
@@ -149,6 +152,7 @@ World Pack v5 defines characters, initial knowledge, locations, items, scenes, p
 Existing examples include:
 
 - `examples/world-packs/model-girls-official`: official prologue plus dinner, private conversation, cake, and next-day follow-up events.
+- `examples/world-packs/model-girls-dinner`: *Apology Dinner*, a four-roommate dinner with no prologue and no fixed ending, using one-click activity operations and narration.
 - `examples/world-packs/prototype-g1`: a two-room interaction example with characters and items.
 - `examples/world-packs/launcher-demo`: launcher demo with an activity, presets, and community frontend.
 - `examples/world-packs/hand-in-hand`: character interaction example.
@@ -165,7 +169,7 @@ The current launcher loads World Pack v5 **source directories**, not ZIP archive
 - Real models may produce invalid formats, fail operations, repeat responses, or overstep their authority in narration. A successful connection test is not proof of stable gameplay.
 - Knowledge isolation controls information supplied by the program; it cannot guarantee a model never fabricates details or makes an incorrect inference.
 - Long-term recall can deliver irrelevant memories. Background consolidation, large-context performance, and sustained character quality need further testing.
-- Some interaction controls still show machine-oriented IDs. There is no code signing, automatic updater, or guaranteed cross-version save migration.
+- Interaction controls may still show machine IDs when the author gives no item display name. There is no code signing, automatic updater, or guaranteed cross-version save migration.
 - test3 contains single-node sharing, tail-round regeneration, and checkpointed character-memory snapshots. Whole-tree sharing, timeline merging, and some preset capabilities remain unfinished.
 - Portable validation covered the scripted prologue, frontend assets, Core startup/shutdown, and offline embedding. The model endpoint at port 8046 was unavailable during test3 acceptance, so unrestricted real-model interactions were **not** re-tested for that build.
 
