@@ -45,7 +45,9 @@ export const useLauncherStore = defineStore('launcher', () => {
   async function newInstance(name: string) { if (real) {
       let models: InstanceModels | undefined
       const first = connections.value[0]
-      if (!lastModels.value && first) {
+      // Same rule as Core: a remembered choice only counts while its connection still exists.
+      const remembered = lastModels.value && connections.value.some(c => c.id === lastModels.value!.decision.connectionId) && (!lastModels.value.memory || connections.value.some(c => c.id === lastModels.value!.memory!.connectionId))
+      if (!remembered && first) {
         await refreshModels(first.id)
         const model = modelLists.value[first.id]?.models[0]
         if (model) models = { decision: { connectionId: first.id, model } }
