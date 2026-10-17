@@ -1,6 +1,6 @@
 import type { CreatorHistoryItem } from '../../../../tests/experiments/creator-history.ts'
 import type { CreatorRecord } from '../../../../tests/experiments/creator-records.ts'
-import { asArray, asRecord, inlineJson, readable, requestStatus, text, turnStatus } from './format.ts'
+import { asArray, asRecord, expressionSegments, inlineJson, readable, requestStatus, segmentsText, text, turnStatus } from './format.ts'
 import type { NameTables, TraceNode } from './types.ts'
 
 export type { TraceNode } from './types.ts'
@@ -33,9 +33,28 @@ export function actionLabel(action: Record<string, unknown> | null, names: NameT
   const destination = entityId ? shorten(entityId, names.entities)
     : characterId ? shorten(characterId, names.characters)
       : locationId ? shorten(locationId, names.locations) : ''
-  const spoken = text(parameters.text)
+  const spoken = segmentsText(expressionSegments(parameters))
   const tail = destination || (spoken ? `“${spoken.slice(0, 40)}”` : '')
   return tail ? `${type} · ${tail}` : type
+}
+
+const ACTIVITY_OPERATION: Record<string, string> = { start: '开始', pause: '暂停', resume: '继续', abandon: '放弃', end: '结束', published: '记入表达' }
+const ACTION_VERB: Record<string, string> = { speak: '发言', move: '移动', interact: '互动', take: '拿取', give: '交给' }
+
+/** 观察正文 → 一句人读摘要：对白、移动、结果说明依次优先，原始结构留给详情面板。 */
+function observationSummary(content: Record<string, unknown>, names: NameTables): string {
+  if (text(content.contentVisibility) === 'occurrence_only') return '只知道发生了一次互动，看不到内容'
+  const actor = shorten(text(content.actorId), names.characters)
+  const spoken = segmentsText(expressionSegments(content.speech))
+  if (spoken) return `${actor ? `${actor} 说：` : ''}${spoken}`
+  const movement = asRecord(content.movement)
+  if (text(movement.toLocationId)) return `${shorten(text(movement.characterId), names.characters) || actor} 移动到 ${shorten(text(movement.toLocationId), names.locations)}`
+  const description = text(content.resultDescription).trim()
+  const actionType = text(content.actionType)
+  const verb = ACTION_VERB[actionType] ?? actionType
+  if (description) return [actor && verb ? `${actor} ${verb}` : actor, description].filter(Boolean).join('：')
+  const fallback = readable(content)
+  return fallback ? inlineJson(fallback, 140) : ''
 }
 
 function speakAudience(item: CreatorHistoryItem): string {
@@ -61,20 +80,21 @@ function eventNode(item: CreatorHistoryItem, names: NameTables): TraceNode {
   switch (event.eventType) {
     case 'character.speak':
       return { ...base, key: `e${event.seq}`, kind: 'speak', characterId: actorId, statusKey: 'committed', statusLabel: '已提交', tone: 'accent',
-        summary: readable(data.text ?? data.narration) || '（空表达）', detail: speakAudience(item) }
+        summary: segmentsText(expressionSegments(data)) || '（空表达）', segments: expressionSegments(data), detail: speakAudience(item) }
     case 'observation.upsert': {
       const observerId = text(value.observerId)
-      const visibility = text(asRecord(value.content).contentVisibility)
+      const content = asRecord(value.content)
+      const visibility = text(content.contentVisibility)
+      const summary = observationSummary(content, names)
       return { ...base, key: `e${event.seq}`, kind: 'observation', characterId: observerId || actorId, statusKey: visibility || 'committed',
         statusLabel: visibility === 'occurrence_only' ? '仅知发生' : '已提交', tone: visibility === 'occurrence_only' ? 'muted' : 'ok',
-        summary: readable(value.content) ? `收到观察：${readable(value.content)}` : '收到一条观察',
-        detail: item.actionId ? `关联行动 ${item.actionId}` : '' }
+        summary: summary || '收到一条观察', detail: '' }
     }
     case 'action.resolved': {
       const accepted = data.accepted === true
       return { ...base, key: `e${event.seq}`, kind: 'action', characterId: actorId, statusKey: accepted ? 'accepted' : 'rejected',
         statusLabel: accepted ? '已通过' : '被拒绝', tone: accepted ? 'ok' : 'danger',
-        summary: actionLabel(item.action, names), detail: [item.actionId, text(data.reason)].filter(Boolean).join(' · ') }
+        summary: actionLabel(item.action ?? { actionType: data.actionType }, names), detail: text(data.reason) }
     }
     case 'action.rejected':
       return { ...base, key: `e${event.seq}`, kind: 'action', characterId: actorId, statusKey: 'rejected', statusLabel: '被拒绝', tone: 'danger',
@@ -99,10 +119,10 @@ function eventNode(item: CreatorHistoryItem, names: NameTables): TraceNode {
     }
     case 'activity.updated':
       return { ...base, key: `e${event.seq}`, kind: 'activity', characterId: text(data.actorId) || actorId, statusKey: 'committed', statusLabel: '已提交', tone: 'accent',
-        summary: `活动 ${text(data.activityKey) || 'default'} · ${text(data.operation) || '更新'}`, detail: readable(data.description) || text(data.state) }
+        summary: `活动 ${text(data.activityKey) || 'default'} · ${ACTIVITY_OPERATION[text(data.operation)] ?? (text(data.operation) || '更新')}`, detail: readable(data.description) }
     case 'world.tick-advanced':
       return { ...base, key: `e${event.seq}`, kind: 'world', characterId: null, statusKey: 'committed', statusLabel: '已提交', tone: 'muted',
-        summary: `世界推进到 tick ${text(data.tick)}`, detail: text(data.roundId) }
+        summary: `世界推进到 tick ${text(data.tick)}`, detail: '' }
     default:
       return { ...base, key: `e${event.seq}`, kind: 'event', characterId: actorId, statusKey: 'committed', statusLabel: '已提交', tone: 'muted',
         summary: `${event.eventType}${item.actionId ? ` · ${actionLabel(item.action, names)}` : ''}`, detail: inlineJson(data, 120) }
@@ -157,7 +177,7 @@ function recordNode(record: RecordSummary, detail: CreatorRecord | undefined, na
         statusLabel: accepted ? '已通过' : summaryStatus === 'rejected' ? '被拒绝' : '已记录', tone: accepted ? 'ok' : summaryStatus === 'rejected' ? 'danger' : 'muted',
         actionId, processing: false,
         summary: loaded ? actionLabel(Object.keys(action).length ? action : null, names) : '行动记录 · 正在读取正文',
-        detail: [actionId, text(data.reason)].filter(Boolean).join(' · ') }
+        detail: text(data.reason) }
     }
     case 'turn': {
       const status = summaryStatus ?? text(data.status)
@@ -266,6 +286,8 @@ export interface ConversationEntry {
   /** 消息上方的模型处理链（上下文、召回、思考、工具）。 */
   process: TraceNode[]
   node?: TraceNode
+  /** 同一行动分发给多位观察者时合并为一行，这里是全部观察条目。 */
+  members?: TraceNode[]
 }
 
 /** 处理步骤：折叠在对应回应上方，或作为未发表的处理过程单独成条。 */
@@ -277,7 +299,19 @@ export function buildConversation(nodes: TraceNode[]): ConversationEntry[] {
   let buffer: TraceNode[] = []
   let group = ''
   const flush = () => { if (buffer.length) entries.push({ key: `${buffer[0]!.key}:p`, kind: 'process', process: buffer }); buffer = [] }
+  // 发言的听众已标在消息头上，对应的通过行动与逐人观察在阅读视图里不再重复列出；
+  // 活动推进行已说明发生了什么，同一行动的通过行也不再单列。
+  const spoken = new Set(nodes.filter(node => node.kind === 'speak' && node.actionId).map(node => node.actionId!))
+  const shown = new Set(nodes.filter(node => (node.kind === 'speak' || node.kind === 'activity') && node.actionId).map(node => node.actionId!))
   for (const node of nodes) {
+    if (node.actionId && node.kind === 'observation' && spoken.has(node.actionId)) continue
+    if (node.actionId && node.kind === 'action' && node.tone !== 'danger' && shown.has(node.actionId)) continue
+    if (node.kind === 'observation' && node.actionId) {
+      const last = entries.at(-1)
+      if (last?.kind === 'row' && last.node?.kind === 'observation' && last.node.actionId === node.actionId) { last.members!.push(node); continue }
+      entries.push({ key: node.key, kind: 'row', process: [], node, members: [node] })
+      continue
+    }
     if (STEP_KINDS.has(node.kind)) {
       // 只有处理步骤会开启新的一组；中间穿插的已提交事件不打断归组。
       if (node.groupId !== group) { flush(); group = node.groupId }

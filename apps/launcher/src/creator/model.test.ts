@@ -110,7 +110,47 @@ describe('对话排版', () => {
     const nodes = buildTrace({ history: events, records, details, names })
     const entries = buildConversation(nodes.filter(node => !node.processing))
     const kinds = entries.map(entry => `${entry.kind}:${entry.node?.kind ?? entry.process.map(node => node.kind).join('+')}`)
-    expect(kinds).toEqual(['row:observation', 'row:action', 'message:speak'])
+    expect(kinds).toEqual(['row:observation', 'message:speak'])
+  })
+
+  it('NPC 的分段发言显示正文，不再显示为空表达', () => {
+    const npc = history({ event: event(5, 'character.speak', { characterId: 'character:lu',
+      segments: [{ type: 'narration', text: '放下筷子' }, { type: 'speech', text: '我先说。' }] }), actorId: 'character:lu', actionId: 'action:2' })
+    const node = buildTrace({ history: [npc], records: [], details: {}, names })[0]
+    expect(node?.summary).toBe('（放下筷子） 我先说。')
+    expect(node?.segments?.map(segment => segment.type)).toEqual(['narration', 'speech'])
+  })
+
+  it('观察摘要取人读内容，同一行动的多条观察合并为一行', () => {
+    const content = (observerId: string) => ({ observerId, actionId: 'action:3', content: { actorId: 'character:lin', actionType: 'interact',
+      status: 'accepted', resultDescription: '晚宴开始。' } })
+    const nodes = buildTrace({ history: [
+      history({ event: event(6, 'observation.upsert', { id: 'o6', value: content('character:lin') }), actionId: 'action:3' }),
+      history({ event: event(7, 'observation.upsert', { id: 'o7', value: content('character:lu') }), actionId: 'action:3' }),
+    ], records: [], details: {}, names })
+    expect(nodes[0]?.summary).toBe('林澄 互动：晚宴开始。')
+    const entries = buildConversation(nodes)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]?.members?.map(node => node.characterId)).toEqual(['character:lin', 'character:lu'])
+  })
+
+  it('活动推进对应的通过行动不单列，没有行动参数时仍显示行动类型', () => {
+    const resolved = history({ event: event(10, 'action.resolved', { actionId: 'activity:1:action', actionType: 'interact', actorId: 'character:lin', accepted: true }),
+      actorId: 'character:lin', actionId: 'activity:1:action' })
+    const activity = history({ event: event(11, 'activity.updated', { actionId: 'activity:1:action', activityKey: 'dinner', operation: 'start', description: '晚宴开始。' }),
+      actorId: 'character:lin', actionId: 'activity:1:action' })
+    const nodes = buildTrace({ history: [activity, resolved], records: [], details: {}, names })
+    expect(nodes.find(node => node.kind === 'action')?.summary).toBe('interact')
+    expect(nodes.find(node => node.kind === 'activity')?.summary).toBe('活动 dinner · 开始')
+    expect(buildConversation(nodes).map(entry => entry.node?.kind)).toEqual(['activity'])
+  })
+
+  it('发言对应的观察与通过行动不在阅读视图里重复', () => {
+    const speech = history({ event: event(8, 'character.speak', { characterId: 'character:lin', text: '好。' }), actorId: 'character:lin', actionId: 'action:4' })
+    const seen = history({ event: event(9, 'observation.upsert', { id: 'o9', value: { observerId: 'character:lu', actionId: 'action:4',
+      content: { actorId: 'character:lin', actionType: 'speak', speech: { text: '好。' } } } }), actionId: 'action:4' })
+    const entries = buildConversation(buildTrace({ history: [speech, seen], records: [], details: {}, names }))
+    expect(entries.map(entry => entry.kind)).toEqual(['message'])
   })
 
   it('沉默回合的处理链单独成条，供「显示处理过程」展开', () => {
