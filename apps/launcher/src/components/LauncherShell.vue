@@ -7,8 +7,7 @@ import PackRail from './PackRail.vue'
 import HomeStage from './HomeStage.vue'
 import ImportDialog from './ImportDialog.vue'
 import SessionDrawer from './SessionDrawer.vue'
-import SettingsDialog from './SettingsDialog.vue'
-import ModelSettingsDialog from './ModelSettingsDialog.vue'
+import SettingsWindow from './SettingsWindow.vue'
 
 const store = useLauncherStore()
 watch(() => store.theme, theme => { document.documentElement.dataset.theme = theme }, { immediate: true })
@@ -37,7 +36,7 @@ onUnmounted(() => {
   clearInterval(poll)
   if (noticeTimer) clearTimeout(noticeTimer)
 })
-const panel = ref<'model-settings' | 'settings' | 'package' | null>(null)
+const panel = ref<'settings' | 'package' | null>(null)
 /** 主屏状态标签直达对应行；“⋯”打开抽屉首页。 */
 const drawer = ref<{ open: boolean; section: DrawerSection | null }>({ open: false, section: null })
 function openDrawer(section?: DrawerSection) { drawer.value = { open: true, section: section ?? null } }
@@ -57,7 +56,6 @@ function openDrawer(section?: DrawerSection) { drawer.value = { open: true, sect
     <p v-if="store.core.state === 'error'" class="notice" role="alert">{{ store.core.message }}</p>
     <SessionDrawer :open="drawer.open" :section="drawer.section" @close="drawer.open = false" />
     <ImportDialog :open="panel === 'package'" mode="package" @close="panel = null" />
-    <ModelSettingsDialog :open="panel === 'model-settings'" @close="panel = null" />
-    <SettingsDialog :open="panel === 'settings'" @close="panel = null" />
+    <SettingsWindow v-if="panel === 'settings'" @close="panel = null" />
   </div>
 </template>

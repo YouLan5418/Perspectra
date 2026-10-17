@@ -3,8 +3,8 @@ import { inject } from 'vue'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog/index.ts'
 defineProps<{ open: boolean; title: string; description: string; wide?: boolean }>()
 defineEmits<{ close: [] }>()
-/** 放进本局抽屉时只渲染标题与内容，不再弹出叠加的对话框。 */
-const embedded = inject('launcher-drawer', false)
+/** 放进本局抽屉或设置窗口时只渲染标题与内容，不再弹出叠加的对话框。 */
+const embedded = inject('launcher-embedded', false)
 </script>
 <template>
   <section v-if="embedded && open" class="drawer-panel" :aria-label="title">
