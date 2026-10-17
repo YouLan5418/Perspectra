@@ -10,6 +10,8 @@ export interface PlayerView {
   activities?: { key: string; title: string; active: boolean; suspended: boolean; phase: string; public: WorldJsonObject }[]
   status: 'ready' | 'busy' | 'paused' | 'error'
   canInterrupt?: boolean
+  /** In-scene roles currently forming a response; off-scene roles are never listed. */
+  responders?: string[]
   expression?: { speech: 'free' | 'none' | 'choices'; speechChoices: string[]; narration: boolean }
   feedback?: { phase: string; message: string }
   settings?: PlaytestState['playerSettings']
@@ -63,6 +65,7 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
       actions.push({id:'opt:'+createHash('sha256').update(canonicalizeWorldJson(abandon as unknown as WorldJsonObject)).digest('hex'),label:'放弃 '+activity.title,action:abandon})
     }
   }
+  const background = state.busy && state.background === true
   const activityGame=state.activity?.game as WorldJsonObject|undefined
   const expressionPolicy = activityGame?.active ? state.activity?.policy as WorldJsonObject | undefined : undefined
   if(activityGame?.active && activityGame.turn!==(state.activity!.participants as string[])[0]){
@@ -82,9 +85,11 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
     game: { title: state.world.title }, player: { name: state.world.playerName },
     scene: state.world.currentScene ? { locationName: state.world.currentScene.locationName,
       visibleCharacters: [...state.world.currentScene.presentNpcNames], recipients: (state.world.currentScene.recipients ?? []).map(({ id, name }) => ({ id, name })) } : null,
-    ...(state.playerFeedback ? { feedback: structuredClone(state.playerFeedback) } : {}),
-    status: state.busy ? 'busy' : state.error ? 'error' : state.paused ? 'paused' : 'ready',
-    ...(state.canInterrupt===undefined?{}:{canInterrupt:state.canInterrupt}),
+    // Off-scene work stays invisible: the player sees an idle scene and acting cancels that work.
+    ...(state.playerFeedback ? { feedback: background ? { phase: '可以输入', message: state.playerFeedback.message } : structuredClone(state.playerFeedback) } : {}),
+    status: state.busy && !background ? 'busy' : state.error ? 'error' : state.paused ? 'paused' : 'ready',
+    ...(state.canInterrupt===undefined||background?{}:{canInterrupt:state.canInterrupt}),
+    ...(state.busy && !background && state.responders?.length ? { responders: [...state.responders] } : {}),
     ...(state.playerSettings?{settings:{inputCharacters:state.playerSettings.inputCharacters,reading:{fontSize:state.playerSettings.reading.fontSize,lineHeight:state.playerSettings.reading.lineHeight,autoFollow:state.playerSettings.reading.autoFollow},
       ...(state.playerSettings.audio?{audio:{volume:state.playerSettings.audio.volume,muted:state.playerSettings.audio.muted,voiceEnabled:state.playerSettings.audio.voiceEnabled}}:{}),
       ...(state.playerSettings.palette?{palette:state.playerSettings.palette}:{})}}:{}),
@@ -95,7 +100,7 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
 }
 export function playerViewPatch(before: PlayerView, after: PlayerView): Record<string, unknown> | null {
   const changes: Record<string, unknown> = {}
-  for (const key of ['game', 'player', 'scene', 'status', 'canInterrupt', 'expression', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback'] as const) {
+  for (const key of ['game', 'player', 'scene', 'status', 'canInterrupt', 'responders', 'expression', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback'] as const) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
   }
   if (JSON.stringify(before.history) !== JSON.stringify(after.history)) {

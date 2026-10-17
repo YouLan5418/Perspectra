@@ -155,6 +155,36 @@ it('accepts a new player input through the frontend before the off-scene model r
   expect(regenerated.transcript.filter(line=>line.player&&line.text==='现在听我这句')).toHaveLength(1)
 },60000)
 
+it('presents off-scene work as idle and lets a move button cancel it',async()=>{
+  const f=await fixture(),entered=deferred(),slow=deferred()
+  f.setDecision(async input=>{if(actor(input)==='character:friend'){entered.resolve();await slow.promise;return publish('玩家走后的场外嘀咕')}return {decision:'abstain'}})
+  const first=f.runtime.submit(enterFront)
+  await entered.promise
+  await vi.waitFor(async()=>expect((await f.runtime.state()).background).toBe(true),{timeout:10000})
+  const state=await f.runtime.state()
+  expect(state.busy).toBe(true);expect(state.responders).toEqual([])
+  const view=projectPlayerView(state)
+  expect(view.status).toBe('ready');expect(view.canInterrupt).toBeUndefined();expect(view.responders).toBeUndefined()
+  expect(JSON.stringify(view)).not.toContain('留守者 正在')
+  const second=await f.runtime.perform({actionType:'move',parameters:{locationId:'location:back-room'}})
+  await first
+  expect(second.busy).toBe(false)
+  expect(currentLocation(f.events(),'character:player')).toBe('location:back-room')
+  expect(f.events().some(event=>JSON.stringify(event.data).includes('玩家走后的场外嘀咕'))).toBe(false)
+},60000)
+
+it('names only in-scene roles that are forming a response',async()=>{
+  const f=await fixture(),entered=deferred(),slow=deferred()
+  f.setDecision(async input=>{if(actor(input)==='character:friend'){entered.resolve();await slow.promise}return {decision:'abstain'}})
+  const turn=f.runtime.submit('先在后室说一句')
+  await entered.promise
+  const state=await f.runtime.state()
+  expect(state.background).toBe(false);expect(state.responders).toEqual(['留守者'])
+  expect(projectPlayerView(state)).toMatchObject({status:'busy',responders:['留守者']})
+  slow.resolve();await turn
+  expect((await f.runtime.state()).responders).toEqual([])
+},60000)
+
 it('replans the second move when two in-flight roles choose to exchange rooms',async()=>{
   const f=await fixture(),started=deferred(),release=deferred()
   let friendDecisions=0,companionDecisions=0

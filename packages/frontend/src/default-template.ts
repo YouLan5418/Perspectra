@@ -127,7 +127,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    document.documentElement.style.setProperty('--fs-story',reading.fontSize+'px');document.documentElement.style.setProperty('--story-line-height',String(reading.lineHeight));
    node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
    node('title').textContent=view.game.title;node('player').textContent='你 · '+view.player.name;
-   node('status').textContent=({ready:playback.pending()?'阅读中':'可以回应',busy:view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'角色正在回应',paused:'已暂停',error:'处理未完成'})[view.status];
+   node('status').textContent=({ready:playback.pending()?'阅读中':'可以回应',busy:view.responders?.length?view.responders.join('、')+' 正在回应':view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'角色正在回应',paused:'已暂停',error:'处理未完成'})[view.status];
    node('status').dataset.state=view.status;
    node('status').title=view.feedback?.phase||'';
    if(!pending)node('notice').textContent=view.canInterrupt?'可继续输入；尚未完成的回应会被打断，已发生的行动保留。':view.status==='busy'?(view.feedback?.phase||'角色正在处理，已发表的回应会立即显示。'):view.feedback?.message||'';

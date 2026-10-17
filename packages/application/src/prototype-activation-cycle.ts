@@ -3,6 +3,8 @@ import { brandId, type CharacterId, type WorldAddress, type WorldJsonObject, typ
 import type { WorldStore } from '@harness-world/store-sqlite'
 import type { PrototypeCharacterTurn, PrototypeTurnResult } from './prototype-character-turn.ts'
 
+/** Only `run` is used, so a Host may observe which roles are being processed. */
+export type ActivationTurn = Pick<PrototypeCharacterTurn, 'run'>
 type Activation = { characterId: CharacterId; result: PrototypeTurnResult }
 interface ActivationResult {
   calls: number; wave: number; terminalReason: string; activations: Activation[];
@@ -19,7 +21,7 @@ interface PrototypeActivationResult extends ActivationResult {
 }
 /** Ephemeral, bounded scheduling; committed observations survive, unfinished activations need not. */
 export interface PrototypeActivationInput {
-  store: WorldStore; address: WorldAddress; turn: PrototypeCharacterTurn; afterSeq: number;
+  store: WorldStore; address: WorldAddress; turn: ActivationTurn; afterSeq: number;
   characterIds: readonly CharacterId[]; signal: AbortSignal;
   presentCharacterIds?: () => readonly CharacterId[];
   /** Optional decisions already handled elsewhere in the same player turn. */
@@ -31,7 +33,7 @@ export interface PrototypeActivationInput {
   limits?: ActivationLimits;
   /** Explicit autonomous opportunities share the dispatcher, never expand observation permission. */
   autonomy?: {
-    turn: PrototypeCharacterTurn;
+    turn: ActivationTurn;
     roles: readonly {characterId: CharacterId; opportunities: number}[];
     maximumNpcCalls: number; deadlineSeconds: number;
     reactionLimits: ActivationLimits;

@@ -18,6 +18,10 @@ export interface PlaytestState {
   readonly busy: boolean
   /** Public permission to submit another player input, cancelling only unfinished NPC work. */
   readonly canInterrupt?: boolean
+  /** Only roles outside the player's scene are still processing; acting cancels their unfinished work. */
+  readonly background?: boolean
+  /** Names of roles in the player's scene whose activation is running; off-scene roles are never named. */
+  readonly responders?: readonly string[]
   readonly paused: boolean
   readonly playerFeedback?: { phase: string; message: string }
   readonly phaseLabel: string
