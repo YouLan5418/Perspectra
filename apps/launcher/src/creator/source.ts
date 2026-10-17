@@ -1,13 +1,17 @@
-import { isTauri } from '@tauri-apps/api/core'
 import type { CreatorDebugQuery, CreatorDebugSnapshot } from '../../../../tests/experiments/creator-debug.ts'
 import type { CreatorHistoryQuery, CreatorHistorySnapshot } from '../../../../tests/experiments/creator-history.ts'
 import type { CreatorRecordsQuery, CreatorRecordsSnapshot } from '../../../../tests/experiments/creator-records.ts'
-import { inspectCreator, inspectCreatorHistory, inspectCreatorRecords, inspectRequests } from '../services/desktop.ts'
+import type { InspectorSnapshot } from '../../../../packages/provider-chat/src/request-inspector.ts'
 import { MOCK_RECORDS, mockDebug, mockHistory } from './mock.ts'
+
+/** 创作者页面需要的只读元信息，由 playtest 服务器 `/api/creator-meta` 提供。 */
+export interface CreatorMeta { title: string; storyline: string; characters: { id: string; name: string }[] }
 
 /** 创作者读取入口。预览模式用固定样例，结构与真实接口一致。 */
 export interface CreatorSource {
   readonly preview: boolean
+  meta(): Promise<CreatorMeta>
+  requests(enabled?: boolean): Promise<InspectorSnapshot>
   debug(query?: CreatorDebugQuery): Promise<CreatorDebugSnapshot>
   history(query?: CreatorHistoryQuery): Promise<CreatorHistorySnapshot>
   records(query?: CreatorRecordsQuery): Promise<CreatorRecordsSnapshot>
@@ -18,6 +22,8 @@ const wait = () => new Promise(resolve => setTimeout(resolve, 120))
 
 const previewSource: CreatorSource = {
   preview: true,
+  async meta() { await wait(); return { title: '预览世界', storyline: '主故事线', characters: [] } },
+  async requests(enabled) { await wait(); return { enabled: enabled ?? false, requests: [] } },
   async debug(query = {}) { await wait(); return mockDebug(query.characterId) },
   async history(query = {}) {
     await wait()
@@ -60,13 +66,31 @@ const previewSource: CreatorSource = {
   async setCapture() { await wait() },
 }
 
-export function creatorSource(instanceId: string): CreatorSource {
-  if (!isTauri()) return previewSource
+/** 同源读取运行中游戏的创作者接口；token 与玩家页面相同，没有 token 时使用预览样例。 */
+export function creatorSource(token: string, fetcher: typeof fetch = (...args) => fetch(...args)): CreatorSource {
+  if (!token) return previewSource
+  const read = async <T>(path: string, init?: RequestInit): Promise<T> => {
+    const response = await fetcher(path, init ?? { headers: { 'x-playtest-token': token } })
+    if (!response.ok) throw new Error(`创作者数据读取失败（${response.status}）`)
+    return await response.json() as T
+  }
+  const get = <T>(path: string, query: object = {}) => {
+    const search = new URLSearchParams()
+    for (const [key, value] of Object.entries(query)) if (value !== undefined) search.set(key, String(value))
+    const text = search.toString()
+    return read<T>(text ? path + '?' + text : path)
+  }
+  const requests = (enabled?: boolean) => enabled === undefined
+    ? read<InspectorSnapshot>('/api/request-inspector')
+    : read<InspectorSnapshot>('/api/request-inspector', { method: 'POST',
+      headers: { 'x-playtest-token': token, 'content-type': 'application/json' }, body: JSON.stringify({ enabled }) })
   return {
     preview: false,
-    debug: query => inspectCreator(instanceId, query),
-    history: query => inspectCreatorHistory(instanceId, query),
-    records: query => inspectCreatorRecords(instanceId, query),
-    async setCapture(enabled) { await inspectRequests(instanceId, enabled) },
+    meta: () => get('/api/creator-meta'),
+    requests,
+    debug: query => get('/api/creator-debug', query),
+    history: query => get('/api/creator-history', query),
+    records: query => get('/api/creator-records', query),
+    async setCapture(enabled) { await requests(enabled) },
   }
 }

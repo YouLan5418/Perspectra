@@ -1,6 +1,6 @@
 import { DEFAULT_PLAY_SETTINGS, DEFAULT_READING, DEFAULT_AUDIO, DEFAULT_PALETTE, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../../../../desktop/play-settings.ts'
 import { isTauri } from '@tauri-apps/api/core'
-import { coreRequest, openGame, packCover, listConnectionModels, setConnectionKey, connectionKeyStatus } from '../services/desktop.ts'
+import { coreRequest, openGame, openCreator as openCreatorPage, packCover, listConnectionModels, setConnectionKey, connectionKeyStatus } from '../services/desktop.ts'
 import type { CoreSnapshot, RolePreset, PresetChoice, ModelConnection, InstanceModels } from '../core-types.ts'
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
@@ -270,12 +270,10 @@ export const useLauncherStore = defineStore('launcher', () => {
     notice.value='新故事线已创建；首次开始恢复节点当时的角色记忆。原线保留。'
     return true
   }
-  async function saveStoryNode(title: string): Promise<boolean> {
-    if (!real) return false
-    notice.value='正在保存完整节点，请等待。'
-    if (!await action('story-save',{instanceId:selectedInstanceId.value,title})) return false
-    notice.value='已保存完整节点，可结束游戏后从这里分叉。'
-    return true
+  async function openCreator() {
+    if (!real) { notice.value = '浏览器预览没有运行中的游戏；可用 creator:dev 查看创作者页面样例。'; return }
+    try { await openCreatorPage(); notice.value = '创作者页面已在系统浏览器打开。' }
+    catch (error) { notice.value = error instanceof Error ? error.message : '创作者页面打开失败。' }
   }
   async function exportStory(nodeId: string, path: string): Promise<boolean> {
     if (!real) return false
@@ -326,7 +324,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     }
   }
 
-  return { exportStory,exportCurrentStory,importStory,selectStoryline,forkStory,saveStoryNode,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, realInstances, currentRealInstance, currentModels, connectionName, connections, storedKeys, modelLists, lastModels, saveConnection, removeConnection, refreshModels, configureModels, initialize, refresh, loadRealPackage, startGame, stopGame, reopenGame, packages, instances, profiles, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
+  return { exportStory,exportCurrentStory,importStory,selectStoryline,forkStory,openCreator,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, realInstances, currentRealInstance, currentModels, connectionName, connections, storedKeys, modelLists, lastModels, saveConnection, removeConnection, refreshModels, configureModels, initialize, refresh, loadRealPackage, startGame, stopGame, reopenGame, packages, instances, profiles, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
     selectedPackageId, selectedInstanceId, core, selectedPackage, currentInstance, currentStoryline,
     currentNode, currentModel, currentHistory, gameInstances, selectPackage, newInstance, loadMockPackage,
     forkAt, importMockStory, startMock, stopMock }

@@ -18,3 +18,4 @@ lib/
 output/playwright/
 
 .superpowers/
+apps/launcher/dist-creator/

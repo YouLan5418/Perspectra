@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Activity, Boxes, Braces, Circle, Globe, ListTree, MessagesSquare, PanelLeftClose, PanelLeftOpen, Users } from '@lucide/vue'
+import { Activity, Boxes, Braces, Circle, Globe, ListTree, MessagesSquare, Send, PanelLeftClose, PanelLeftOpen, Users } from '@lucide/vue'
 import { useCreatorStore } from './store.ts'
 
 const store = useCreatorStore()
 defineProps<{ gameTitle: string; storyline: string; candidate: string; preview: boolean }>()
 
 const groups = [
-  { label: '对话与轨迹', items: [{ id: 'conversation', label: '对话', icon: MessagesSquare }, { id: 'trace', label: '轨迹', icon: ListTree }] },
+  { label: '对话与轨迹', items: [{ id: 'conversation', label: '对话', icon: MessagesSquare }, { id: 'trace', label: '轨迹', icon: ListTree }, { id: 'requests', label: '模型请求', icon: Send }] },
   { label: '世界', items: [{ id: 'world', label: '世界总览', icon: Globe }, { id: 'characters', label: '角色', icon: Users }, { id: 'entities', label: '物品', icon: Boxes }, { id: 'variables', label: '变量', icon: Braces }, { id: 'activities', label: '活动', icon: Activity }] },
 ] as const
 

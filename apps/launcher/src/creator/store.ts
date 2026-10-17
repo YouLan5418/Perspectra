@@ -5,7 +5,7 @@ import type { CreatorHistoryItem } from '../../../../tests/experiments/creator-h
 import type { CreatorRecord } from '../../../../tests/experiments/creator-records.ts'
 import { buildConversation, buildTrace, type ConversationEntry, type RecordSummary } from './model.ts'
 import { KIND_LABEL } from './format.ts'
-import { creatorSource, type CreatorSource } from './source.ts'
+import { creatorSource, type CreatorMeta, type CreatorSource } from './source.ts'
 import type { ConsoleView, NameTables, Selection, StatusTone, TraceKind, TraceNode } from './types.ts'
 
 /** 接口单次上限 100；一屏按一页加载，更早内容按需向前翻。 */
@@ -19,8 +19,9 @@ export const EMPTY_SERVER: ServerFilters = { characterId: '', entityId: '', sear
 export const EMPTY_LOCAL: LocalFilters = { kinds: [], tones: [] }
 
 export const useCreatorStore = defineStore('creator', () => {
-  const instanceId = ref('')
+  const token = ref('')
   let source: CreatorSource = creatorSource('')
+  const meta = ref<CreatorMeta>({ title: '', storyline: '', characters: [] })
 
   /** 快照含递归 JSON 结构；用 shallowRef 避免深层类型展开，替换时整体赋值。 */
   const world = shallowRef<CreatorDebugSnapshot | null>(null)
@@ -313,10 +314,16 @@ export const useCreatorStore = defineStore('creator', () => {
   const hiddenProcessCount = computed(() => showProcess.value ? 0 : trace.value.filter(node => node.processing).length)
 
   function focus(nodeKey: string) { focusKey.value = ''; focusKey.value = nodeKey }
-  function attach(nextInstanceId: string) {
-    if (instanceId.value === nextInstanceId) return
-    instanceId.value = nextInstanceId
-    source = creatorSource(nextInstanceId)
+  /** 页面的游戏名、故事线与角色名；失败时保留旧值，由数据读取的错误提示说明。 */
+  async function loadMeta() {
+    try { meta.value = await source.meta() } catch { /* the snapshot load reports connection errors */ }
+  }
+  /** 请求视图直接读写同一数据源，避免在页面里另建一条连接。 */
+  function inspectRequests(enabled?: boolean) { return source.requests(enabled) }
+  function attach(nextToken: string) {
+    if (token.value === nextToken) return
+    token.value = nextToken
+    source = creatorSource(nextToken)
     world.value = null
     history.value = []
     records.value = []
@@ -336,7 +343,7 @@ export const useCreatorStore = defineStore('creator', () => {
   }
 
   return {
-    instanceId, preview, world, history, records, details, loading, busy, error, updatedAt, added, follow,
+    token, meta, loadMeta, inspectRequests, preview, world, history, records, details, loading, busy, error, updatedAt, added, follow,
     server, local, showProcess, selection, detailOpen, detailWidth, navCollapsed, view,
     entityHistory, characterDetails, historyFloor, recordFloor, recordTotal, candidate, focusKey,
     captureEnabled, sourceBusy, paused, characters, entities, activities, truncated,

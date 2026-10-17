@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { Circle, X } from '@lucide/vue'
 import { useLauncherStore } from '../stores/launcher.ts'
 import GameList from './GameList.vue'
@@ -11,7 +11,6 @@ import ExportDialog from './ExportDialog.vue'
 import SettingsDialog from './SettingsDialog.vue'
 import ModelSettingsDialog from './ModelSettingsDialog.vue'
 import PresetDialog from './PresetDialog.vue'
-import CreatorConsole from '../creator/CreatorConsole.vue'
 
 const store = useLauncherStore()
 watch(() => store.theme, theme => { document.documentElement.dataset.theme = theme }, { immediate: true })
@@ -46,17 +45,11 @@ function showExport(nodeId = '') {
   exportNodeId.value = nodeId
   panel.value = 'export'
 }
-/** 创作者控制台占据整个窗口；关闭后回到游戏库。 */
-const creatorOpen = ref(false)
-const creatorTitle = computed(() => store.selectedPackage?.title ?? '未选择游戏')
-const creatorStoryline = computed(() => store.currentStoryline?.name ?? '主故事线')
 </script>
 
 <template>
   <div class="launcher" :class="{ 'large-text': store.largeText }">
-    <CreatorConsole v-if="creatorOpen" :instance-id="store.selectedInstanceId" :game-title="creatorTitle"
-      :storyline="creatorStoryline" @close="creatorOpen = false" />
-    <div v-else class="workspace">
+    <div class="workspace">
       <GameList
         :active-panel="panel"
         @model="panel = 'model-settings'"
@@ -73,7 +66,7 @@ const creatorStoryline = computed(() => store.currentStoryline?.name ?? '主故�
             @import="panel = 'import'"
             @export="showExport()"
             @settings="panel = 'model-settings'"
-            @creator="creatorOpen = true"
+            @creator="store.openCreator()"
           />
         </div>
         <footer class="statusbar">
