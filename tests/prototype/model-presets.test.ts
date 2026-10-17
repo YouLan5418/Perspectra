@@ -141,11 +141,14 @@ it('routes each real Core character call to its selected preset without cross-ch
 it('routes each character\'s decision call to its own model and endpoint',async()=>{
   const calls:{url:string;model:unknown;key:string|null;actor:string}[]=[]
   vi.stubGlobal('fetch',(async(url:unknown,init:RequestInit)=>{
-    const wire=JSON.parse(String(init.body)) as {model?:unknown;messages:{content:unknown}[]}
+    const wire=JSON.parse(String(init.body)) as {model?:unknown;messages:{content:unknown}[];tools:{input_schema?:{oneOf?:unknown;properties?:{decision?:{enum?:string[]}}}}[]}
     const headers=new Headers(init.headers),anthropic=String(url).includes('/v1/messages')
     const input=JSON.parse(String(wire.messages.at(-1)!.content)) as {context:{character:{characterId:string}}}
     calls.push({url:String(url),model:wire.model,key:headers.get('authorization')??headers.get('x-api-key'),actor:input.context.character.characterId})
-    const answer={decision:'abstain'}
+    // The gateway keeps only the first root oneOf branch (abstain). A flat
+    // decision enum must preserve publish for an Anthropic character override.
+    const canPublish=anthropic && wire.tools[0]?.input_schema?.properties?.decision?.enum?.includes('publish')
+    const answer=canPublish?{decision:'publish',segments:[{type:'speech',text:'我也想回应。'}]}:{decision:'abstain'}
     return new Response(JSON.stringify(anthropic?{content:[{type:'tool_use',name:'submit_actions',input:answer}]}
       :{choices:[{message:{tool_calls:[{function:{name:'submit_actions',arguments:JSON.stringify(answer)}}]}}]}))
   }) as typeof fetch)
@@ -157,7 +160,8 @@ it('routes each character\'s decision call to its own model and endpoint',async(
     roleModels:{characters:{'character:companion':{decision:other,memory:other}}},
   })
   try{
-    await runtime.submit('你好，可以介绍这里吗？')
+    const result=await runtime.submit('你好，可以介绍这里吗？')
+    expect(result.transcript.some(line=>line.text.includes('我也想回应。'))).toBe(true)
     const companion=calls.filter(call=>call.actor==='character:companion'),friend=calls.filter(call=>call.actor==='character:friend')
     expect(companion.length).toBeGreaterThan(0);expect(friend.length).toBeGreaterThan(0)
     for(const call of companion)expect(call).toMatchObject({url:other.endpoint,model:'strong',key:'K2'})

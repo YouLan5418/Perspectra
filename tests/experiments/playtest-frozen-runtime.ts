@@ -380,7 +380,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       const prepare = async (visible: PrototypeTurnRequest) => {
         try {
           const projected = await presetContext(visible, effectivePreset!, String(this.#playerId), signal)
-          return presetCall(options.provider === 'local' && roleProtocols.get(characterId) === 'openai' ? localPrototypeTurnCall(projected) : prototypeTurnCall(projected),
+          return presetCall(options.provider === 'local' && roleProtocols.get(characterId) !== 'google' ? localPrototypeTurnCall(projected) : prototypeTurnCall(projected),
             effectivePreset!, projected, this.#playerName, {character:this.#names.get(characterId)??characterId,
               scene:this.#locationNames.get(String((projected.context.scene as WorldJsonObject | undefined)?.locationId))??String((projected.context.scene as WorldJsonObject | undefined)?.locationId??'')})
         } catch(error) { signal.throwIfAborted(); throw new PrototypePresetError('角色预设准备失败。', {cause:error}) }
