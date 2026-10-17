@@ -26,7 +26,7 @@ package.json 的 experience:web 指向 [playtest-web-entry.ts](../../../tests/ex
 
 普通场景提交玩家输入后，宿主刷新视图并调用 #activateCharacters。活动输入先检查活动策略，不能把普通场景分支套到所有活动上。
 
-普通 NPC 处理期间，宿主可通过公开 `canInterrupt` 标记当前是否允许继续输入。玩家插话后，[TailRoundRuntime](../../../tests/experiments/playtest-tail-runtime.ts) 取消旧回合尚未提交的 NPC 计算，等待旧调用和末端回合结算，再处理新输入；已经提交的行动保留。活动仍运行时不会开放这一插话入口。
+普通 NPC 处理期间，宿主可通过公开 `canInterrupt` 标记当前是否允许继续输入。玩家插话后，[TailRoundRuntime](../../../tests/experiments/playtest-tail-runtime.ts) 取消旧回合尚未提交的 NPC 计算，等待旧调用和末端回合结算，再处理新输入；已经提交的行动保留。活动仍运行时不会开放这一插话入口。行动按钮与发言共用这一入口；只剩玩家场景之外的角色在处理时，玩家视图直接显示可以回应，场内正在处理的角色以 `responders` 点名，见[运行时说明](runtime.md)。
 
 ## 4. NPC 如何获得处理机会
 

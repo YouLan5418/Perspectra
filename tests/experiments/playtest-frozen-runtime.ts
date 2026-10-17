@@ -24,7 +24,7 @@ import { PackVariables } from './pack-variables.ts'
 import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
 import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
-import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
+import { runPrototypeActivations, type ActivationTurn } from '../../packages/application/src/prototype-activation-cycle.ts'
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve, relative, basename } from 'node:path'
@@ -242,6 +242,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #shadow: JevShadow | undefined
   #busy = false
   #allowInterruption = false
+  /** Roles whose scheduled activation is running; only the host status reads it. */
+  readonly #running = new Map<string, number>()
   #paused = false
   #notice = ''
   #error = false
@@ -472,10 +474,16 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   }
 
   async state(): Promise<PlaytestState> {
+    const canInterrupt = this.#busy && this.#allowInterruption && !this.#abortedWork
+      && !this.#paused && !this.#escaping && !this.#closing
+    // The player waits only for roles in their own scene. Off-scene work never names its role.
+    const present = new Set((this.#currentScene?.recipients ?? []).map(person => person.id))
+    const running = [...this.#running.keys()]
+    const responders = running.filter(id => present.has(id)).map(id => this.#names.get(id) ?? id)
     return {
       playerFeedback: { phase: this.#phaseLabel, message: this.#notice },
-      busy: this.#busy, canInterrupt: this.#busy && this.#allowInterruption && !this.#abortedWork
-        && !this.#paused && !this.#escaping && !this.#closing,
+      busy: this.#busy, canInterrupt,
+      background: canInterrupt && running.length > 0 && responders.length === 0, responders,
       paused: this.#paused, phaseLabel: this.#phaseLabel,
       notice: this.#notice, error: this.#error, transcript: this.#transcript,
       playerSettings: {inputCharacters:this.#playSettings.playerInputCharacters,reading:this.#options.reading??DEFAULT_READING,audio:{...(this.#options.audio??DEFAULT_AUDIO)},...(this.#options.palette?{palette:this.#options.palette}:{})},
@@ -624,6 +632,16 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   roundRandom(): number[] { return this.#activity?.roundRandom() ?? [] }
   holdCognition(): void { this.#memoryCore?.holdInstallation() }
   releaseCognition(): void { this.#memoryCore?.releaseInstallation() }
+  #track(turn: ActivationTurn): ActivationTurn {
+    return { run: (characterId, options) => {
+      const id = String(characterId)
+      this.#running.set(id, (this.#running.get(id) ?? 0) + 1)
+      return turn.run(characterId, options).finally(() => {
+        const left = (this.#running.get(id) ?? 1) - 1
+        if (left > 0) this.#running.set(id, left); else this.#running.delete(id)
+      })
+    } }
+  }
   abortWork(): void { this.#abortedWork = true; this.#continuationController?.abort() }
   async settleRound() {
     if (this.#busy || this.#escaping || this.#paused) throw new PlaytestBusyError('当前玩家回合尚未完成。')
@@ -844,12 +862,12 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       const dynamic = !this.#options.serialScheduling && this.#variables===undefined
         && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined
       const integratedAutonomy = dynamic && !this.#options.stagedAutonomy && due.length>0
-      const {autonomy, ...cycle} = await runPrototypeActivations({ store, address: this.#address, turn,
+      const {autonomy, ...cycle} = await runPrototypeActivations({ store, address: this.#address, turn: this.#track(turn),
         afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds.filter(id => !due.some(role => role.characterId === id)
           && (!active?.game.active || !active.participants.includes(id))), signal: this.#continuationController.signal,
         presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
         ...(dynamic ? {locationId:(id:CharacterId)=>currentLocation(store.readEvents(this.#address),id)??null}:{}),
-        ...(integratedAutonomy ? {autonomy:{turn:createTurn(true),
+        ...(integratedAutonomy ? {autonomy:{turn:this.#track(createTurn(true)),
           roles:due.map(role=>({characterId:role.characterId,opportunities:Math.min(role.opportunities,this.#playSettings.autonomyOpportunities)})),
           maximumNpcCalls:this.#playSettings.autonomyNpcCalls,deadlineSeconds:this.#playSettings.autonomyDeadlineSeconds,
           reactionLimits:{maximumWaves:this.#playSettings.autonomyReactionWaves,maximumNpcCalls:this.#playSettings.autonomyReactionCalls,

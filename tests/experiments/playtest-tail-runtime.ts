@@ -68,7 +68,8 @@ export class TailRoundRuntime {
   }
   async state(): Promise<PlaytestState> {
     const state = await this.#runtime.state()
-    return { ...state, canInterrupt:state.canInterrupt===true && !this.#interrupting && !this.#regenerating && !this.#closed && !this.#escaping,
+    const canInterrupt = state.canInterrupt===true && !this.#interrupting && !this.#regenerating && !this.#closed && !this.#escaping
+    return { ...state, canInterrupt, background:state.background===true && canInterrupt,
       ...(state.playerFeedback ? {playerFeedback:{phase:this.#regenerating?'正在重新生成末端回合':this.#busy&&!state.busy?'正在整理本轮进度':state.playerFeedback.phase,message:this.#notice||state.playerFeedback.message}}:{}), busy: this.#busy || state.busy, phaseLabel: this.#regenerating ? '正在重新生成末端回合' : state.phaseLabel,
       notice: this.#notice || state.notice,
       tailRound: this.#selection.tail ? { id: this.#selection.tail.id, worldVersion: this.#selection.version,
@@ -129,17 +130,20 @@ export class TailRoundRuntime {
       return result
     } finally { this.#runtime.releaseCognition(); this.#end() }
   }
-  async submit(text: string, idempotencyKey?: string): Promise<PlaytestState> {
+  /** A new player input or action cancels unfinished NPC work; committed results stay. */
+  async #interruptIfBusy(): Promise<void> {
     if (this.#interrupting) throw new PlaytestBusyError('正在受理新的输入，请稍候。')
-    if (this.#busy) {
-      this.#interrupting=true
-      try {
-        const state=await this.#runtime.state()
-        if (!state.canInterrupt || this.#regenerating || this.#closed || this.#escaping) throw new PlaytestBusyError('请等待当前操作完成。')
-        this.#runtime.abortWork()
-        await this.#done
-      } finally {this.#interrupting=false}
-    }
+    if (!this.#busy) return
+    this.#interrupting=true
+    try {
+      const state=await this.#runtime.state()
+      if (!state.canInterrupt || this.#regenerating || this.#closed || this.#escaping) throw new PlaytestBusyError('请等待当前操作完成。')
+      this.#runtime.abortWork()
+      await this.#done
+    } finally {this.#interrupting=false}
+  }
+  async submit(text: string, idempotencyKey?: string): Promise<PlaytestState> {
+    if (this.#busy || this.#interrupting) await this.#interruptIfBusy()
     if (text.startsWith('/vars ')) {
       this.#begin()
       try { this.#write({ ...this.#selection, tail: null }); await this.#runtime.submit(text) } finally { this.#end() }
@@ -147,7 +151,7 @@ export class TailRoundRuntime {
     return this.state()
   }
   async perform(action: PlaytestAction): Promise<PlaytestState> {
-    if (this.#busy || this.#interrupting) throw new PlaytestBusyError('请等待当前操作完成。')
+    if (this.#busy || this.#interrupting) await this.#interruptIfBusy()
     if(action.actionType==='interact' && ['host:activity-start','host:activity-retry','host:activity-suspend','host:activity-resume','host:activity-abandon'].includes(String((action.parameters.definitionRef as WorldJsonObject|undefined)?.id))){
       const state=await this.state()
       const current=action.parameters.activityKey===undefined?state.activity:state.activities?.find(view=>view.activityKey===action.parameters.activityKey)
@@ -293,6 +297,8 @@ export class TailRoundRuntime {
     return this.state()
   }
   async saveNode(title: string) {
+    // Off-scene work is presented as idle; saving cancels it instead of rejecting the player.
+    if (this.#busy && (await this.state()).background) await this.#interruptIfBusy()
     this.#begin()
     try { return await this.#runtime.saveNode(title) } finally { this.#end() }
   }
