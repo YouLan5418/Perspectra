@@ -15,7 +15,7 @@ import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
 import { parsePlaytestLaunchArguments } from './playtest-launch.ts'
 import { FrozenWorldPlaytestRuntime, isFrozenPackDirectory } from './playtest-frozen-runtime.ts'
-import { PlaytestBusyError, createPlaytestServer } from './playtest-server.ts'
+import { createPlaytestServer } from './playtest-server.ts'
 import { loadPackWeb } from './playtest-pack-web.ts'
 import { defaultPlaytestDirectory } from './playtest-view.ts'
 
@@ -107,12 +107,6 @@ async function main(): Promise<void> {
   process.once('SIGINT', () => { void close().then(() => { process.exitCode = 0 }) })
   process.once('SIGTERM', () => { void close().then(() => { process.exitCode = 0 }) })
   process.on('message', message => {
-    if (message !== null && typeof message === 'object' && 'type' in message && message.type === 'story-save'
-      && 'requestId' in message && typeof message.requestId === 'string' && 'title' in message && typeof message.title === 'string') {
-      const requestId = message.requestId
-      void runtime.saveNode(message.title).then(node => process.send?.({type:'story-saved', requestId, node}))
-        .catch(error => process.send?.({type:'story-save-failed', requestId, message:error instanceof PlaytestBusyError ? error.message : '节点保存失败，原故事线保留。'}))
-    }
     if(message!==null&&typeof message==='object'&&'type' in message&&message.type==='frontend-revoke'){
       policy.mode='sandbox';policy.revision++
       process.send?.({type:'frontend-revoked'})

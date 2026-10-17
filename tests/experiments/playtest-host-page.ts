@@ -153,7 +153,7 @@ iframe{
   #notice,#memory-status{left:12px}
 }
 </style></head><body>
-<header><div class="brand"><strong>Perspectra</strong><small>游玩中</small></div><span id="frontend-status" role="status">正在载入</span><div class="toolbar"><span id="host-tail-tools" hidden><button id="host-candidate-prev" type="button" aria-label="上一个候选">‹</button><span id="host-candidate-count"></span><button id="host-candidate-next" type="button" aria-label="下一个候选">›</button><button id="regenerate" type="button" aria-label="重新生成" title="重新生成此回合" disabled>↻</button></span><details id="tools"><summary>工具 ···</summary><div class="tool-menu"><button id="cancel-regenerate" type="button" hidden>取消重新生成</button><button id="reload-frontend" type="button">重新加载界面</button><button id="default-frontend" type="button">切换官方默认界面</button><button id="memory" type="button" hidden>整理长期记忆</button><p>这些操作不会清空已提交的进度。</p></div></details><button id="escape" type="button" title="逃生：中止活动并恢复自由互动">中止活动</button></div></header>
+<header><div class="brand"><strong>Perspectra</strong><small>游玩中</small></div><span id="frontend-status" role="status">正在载入</span><div class="toolbar"><span id="host-tail-tools" hidden><button id="host-candidate-prev" type="button" aria-label="上一个候选">‹</button><span id="host-candidate-count"></span><button id="host-candidate-next" type="button" aria-label="下一个候选">›</button><button id="regenerate" type="button" aria-label="重新生成" title="重新生成此回合" disabled>↻</button></span><details id="tools"><summary>工具 ···</summary><div class="tool-menu"><button id="cancel-regenerate" type="button" hidden>取消重新生成</button><button id="reload-frontend" type="button">重新加载界面</button><button id="default-frontend" type="button">切换官方默认界面</button><button id="memory" type="button" hidden>整理长期记忆</button><p>这些操作不会清空已提交的进度。</p></div></details><button id="save-progress" type="button">保存进度</button><button id="escape" type="button" title="逃生：中止活动并恢复自由互动">中止活动</button></div></header>
 <p id="notice" role="status"></p><p id="memory-status" role="status"></p>
 <details id="game" hidden><summary class="activity-heading"><small>当前活动</small><strong id="title"></strong><span id="activity-toggle"></span><span id="card-status"></span></summary><p id="round"></p><p id="activity-objective"></p><dl id="activity-state"></dl><p class="activity-section-label">可执行操作</p><div id="options"></div><p id="activity-feedback" role="status"></p><div id="management"></div></details>
 <iframe id="experience" title="游戏界面" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
@@ -431,6 +431,14 @@ iframe{
     try{const state=await api(latest?.memoryMaintenance&&(latest.memoryMaintenance.running+latest.memoryMaintenance.queued)>0?'/api/memory/cancel':'/api/memory/refresh',{});setNotice(state.error?'error':'success','memory',state.notice||'记忆操作已提交。');render(state)}
     catch(error){setNotice('error','memory',error.message)}
     finally{posting=false;await refresh()}
+  };
+  node('save-progress').onclick=async()=>{
+    const title=prompt('节点名称（可留空）');
+    if(title===null)return;
+    node('save-progress').disabled=true;
+    try{const result=await api('/api/story-save',{title});setNotice('success','story-save','已保存：'+result.node.title)}
+    catch(error){setNotice('error','story-save',error.message)}
+    finally{node('save-progress').disabled=false}
   };
   node('escape').onclick=async()=>{
     // Independent of current turn, creator options, pause or in-flight model work.

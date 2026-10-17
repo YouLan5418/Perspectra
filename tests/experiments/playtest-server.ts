@@ -49,6 +49,7 @@ export interface PlaytestAction {
 
 
 export interface PlaytestRuntime {
+  saveNode?(title: string): Promise<{ id: string; title: string }>
   selectCandidate?(tailId: string, candidateId: string, requestId: string): Promise<PlaytestState>
   regenerate?(tailId: string, requestId: string): Promise<PlaytestState>
   cancelRegeneration?(): Promise<PlaytestState>
@@ -274,6 +275,16 @@ export function createPlaytestServer(runtime: PlaytestRuntime, token: string, pa
       if (request.method === 'GET' && url.pathname === '/api/state') {
         json(response, 200, await runtimeCall(() => runtime.state()))
         return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/story-save') {
+        if (!runtime.saveNode) { json(response, 501, { error: '此运行时不支持保存进度' }); return }
+        if (request.headers['content-type']?.split(';')[0] !== 'application/json') throw new TypeError('请求必须是 JSON')
+        const value = await body(request) as { title?: unknown } | null
+        if (!value || Array.isArray(value) || Object.keys(value).join(',') !== 'title' || typeof value.title !== 'string') throw new TypeError('请求必须只包含 title')
+        if (value.title.length > 80) throw new RangeError('节点名称不能超过 80 个字符')
+        const now = new Date()
+        const title = value.title.trim() || `保存于 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+        json(response, 200, { node: await runtime.saveNode(title) }); return
       }
       if (request.method === 'POST' && url.pathname === '/api/regenerate') {
         if (!runtime.regenerate) { json(response,404,{error:'重新生成不可用'}); return }
