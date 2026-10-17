@@ -64,7 +64,7 @@ const collapsed = ref(false)
     </nav>
 
     <nav class="sidebar-bottom" aria-label="工具与设置">
-      <button class="sidebar-tool" :class="{ active: activePanel === 'model-settings' }" :disabled="store.busy || store.core.state === 'running'" title="模型接口与新实例默认模型" @click="$emit('model')">
+      <button class="sidebar-tool" :class="{ active: activePanel === 'model-settings' }" :disabled="store.busy || store.core.state === 'running'" title="模型连接与 API Key" @click="$emit('model')">
         <Cpu :size="18" /><span>模型设置</span>
       </button>
       <button class="sidebar-tool" :class="{ active: activePanel === 'preset' }" :disabled="!store.real || !store.currentInstance || store.busy || store.core.state === 'running'" title="角色预设与预设库" @click="$emit('preset')">
