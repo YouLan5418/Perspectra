@@ -57,7 +57,7 @@ NPC 自己决定怎么处理。当前普通角色决策包括 publish（发布�
 | 入口 | 用途 | 记忆选择 |
 | --- | --- | --- |
 | launcher:desktop | Tauri 桌面 Launcher 管理实例，启动系统浏览器里的游戏；运行中可再打开只读的创作者页面 | Launcher 后端启用 Core 记忆 |
-| experience:web | 直接启动源码网页宿主 | 默认原生记忆；加 --memory-core 启用 Core |
+| experience:web | 直接启动源码网页宿主 | 默认 Core 记忆，需 Python/E5；加 --memory-native 改用原生记忆 |
 | launcher:dev | 浏览和开发 Launcher 的 Mock 界面 | 不启动真实游戏 Core |
 
 “Core 记忆”是 Python 长期记忆桥；“Launcher Core”是桌面管理后端，两者职责不同。启动步骤和环境要求见[源码试玩指南](../guides/creator-playtest.md)与[Launcher 开发说明](../../../apps/launcher/README.md)。

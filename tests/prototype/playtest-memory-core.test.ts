@@ -125,10 +125,25 @@ describe('optional web Core memory', () => {
     expect(() => adapter.snapshotAliases([actor])).toThrow('authorized world or prefix')
     await adapter.close()
   })
-  it('parses the explicit switch and rejects a duplicate', () => {
+  it('defaults to Core, takes native only explicitly, and rejects a duplicate', () => {
     expect(parsePlaytestLaunchArguments(['--memory-core']).memoryCore).toBe(true)
-    expect(parsePlaytestLaunchArguments([]).memoryCore).toBeUndefined()
+    expect(parsePlaytestLaunchArguments([]).memoryCore).toBe(true)
+    expect(parsePlaytestLaunchArguments(['--memory-native']).memoryCore).toBeUndefined()
     expect(() => parsePlaytestLaunchArguments(['--memory-core','--memory-core'])).toThrow('once')
+    expect(() => parsePlaytestLaunchArguments(['--ollama'])).toThrow('--memory-native')
+  })
+  it('refuses to start default Core without Python or E5, before creating the save directory', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'memory-web-test-core-env-')); roots.push(root)
+    const data = join(root, 'data'), options = { packPath: resolve('examples/world-packs/prototype-g1'), dataDirectory: data,
+      provider: 'local' as const, model: 'fixture', memoryCore: true }
+    vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'missing-python.exe'))
+    try {
+      await expect(FrozenWorldPlaytestRuntime.create(options)).rejects.toThrow('Python 环境不存在')
+      writeFileSync(join(root, 'python.exe'), ''); vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'python.exe'))
+      vi.stubEnv('HCW_HINDSIGHT_ONNX_DIR', join(root, 'no-e5'))
+      await expect(FrozenWorldPlaytestRuntime.create(options)).rejects.toThrow('E5 编码器不存在')
+      expect(readdirSync(root)).not.toContain('data')
+    } finally { vi.unstubAllEnvs() }
   })
   it('refreshes authorized prefixes without world events; core requests omit private activity and variables', async () => {
     const inputs: WorldJsonObject[] = []

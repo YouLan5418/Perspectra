@@ -32,7 +32,7 @@ export async function playTavernSlice(packPath: string, output: string, model = 
   const dataDirectory = resolve(output), local = relative(resolve('.tmp'), dataDirectory)
   if (!local || local.startsWith('..') || isAbsolute(local) || existsSync(dataDirectory)) throw new TypeError('请使用 .tmp 内全新的数据目录')
   mkdirSync(dataDirectory, {recursive: true})
-  const runtime = await FrozenWorldPlaytestRuntime.create({packPath:resolve(packPath),dataDirectory,provider:'local',model,
+  const runtime = await FrozenWorldPlaytestRuntime.create({packPath:resolve(packPath),dataDirectory,provider:'local',model,memoryCore:true,
     utilityEndpoint:process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8045/v1/chat/completions',
     ...(process.env.HCW_LOCAL_API_KEY ? {apiKey:process.env.HCW_LOCAL_API_KEY} : {}),timeoutMs:60000})
   const turns: WorldJsonObject[] = []
@@ -53,7 +53,7 @@ export async function playTavernSlice(packPath: string, output: string, model = 
     const summary={model,memoryMode:final.debug.memoryMode,turns:turns.length,
         errors:turns.filter(row=>row.error).length,totalCalls:final.debug.providerCalls,
         durationsMs:turns.map(row=>row.durationMs),
-        limitations:['不是与酒馆的同模型 A/B','原生记忆；Launcher Core 记忆另行验收','需要人工阅读转录判断角色自然度和秘密泄漏']}
+        limitations:['不是与酒馆的同模型 A/B','Core 记忆，与 Launcher 一致；后台整理完成前长期交付为空','需要人工阅读转录判断角色自然度和秘密泄漏']}
     writeFileSync(resolve(dataDirectory,'summary.json'),JSON.stringify(summary,null,2))
     writeFileSync(resolve(dataDirectory,'transcript.json'),JSON.stringify(final.transcript,null,2))
   } finally {await runtime.close()}

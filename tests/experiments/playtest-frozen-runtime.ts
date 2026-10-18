@@ -18,7 +18,7 @@ import { presetCall, presetContext, presetOutput, presetDisplay } from '../../pa
 import { rolePresetMapping, characterPreset, type RolePreset, type RolePresetMapping } from '../../packages/provider-chat/src/preset.ts'
 import { PlaytestMemoryCore, type MemoryContextBudget, type MemoryBuildOptions } from './playtest-memory-core.ts'
 import { recentExecutionContext } from '../../packages/application/src/recent-execution-context.ts'
-import { createCoreWorker, coreRunner, type CoreRunner } from './hindsight-python.ts'
+import { assertCoreEnvironment, createCoreWorker, coreRunner, type CoreRunner } from './hindsight-python.ts'
 import { decideActivityFormat, type ActivityRequest } from './pack-activity.ts'
 import { PackActivities } from './pack-activities.ts'
 import { PackVariables } from './pack-variables.ts'
@@ -1091,6 +1091,9 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
 /** Public runtime owns one logical storyline and its replaceable tail. */
 export class FrozenWorldPlaytestRuntime extends TailRoundRuntime {
   static async create(options: FrozenPlaytestOptions): Promise<FrozenWorldPlaytestRuntime> {
+    // Only the default runners start Python; injected runners (tests, studies) bring their own.
+    if (options.memoryCore && options.memoryCoreRunners === undefined
+      && (options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined)) assertCoreEnvironment()
     return TailRoundRuntime.open(options, value => FrozenWorldRuntimeCore.create(value))
   }
 }

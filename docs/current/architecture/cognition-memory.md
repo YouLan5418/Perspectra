@@ -14,9 +14,9 @@
 
 > [工具耗时排查](../studies/core-utility-timing-20261010.md)确认 Python Core 的 thinking.disabled 未约束本机 Gemini 网关。按用户要求，当前 Gemini 的 OpenAI 兼容 Core 请求先发 reasoning_effort=low，仅超时后重试一次，移除该字段并改发 thinking.disabled；第二次失败停止。每次仍为 120 秒，并记录实际尝试的参数档位。非超时错误不触发这条回退；其他模型与原生协议沿用既有配置。客户端字段不证明网关真正关闭思考或执行输出上限。
 
-这是了解 Perspectra 当前记忆的首选入口。直接源码网页默认原生记忆，显式 --memory-core 使用下述简化 Core 路径；当前 Launcher 后端启用 Core。记忆路径已接入不表示全部长期角色体验均已验收。
+这是了解 Perspectra 当前记忆的首选入口。源码网页与 Launcher 现在默认都走下述简化 Core 路径；原生记忆只在显式 `--memory-native` 时使用，用于不装 Python 的离线调试。记忆路径已接入不表示全部长期角色体验均已验收。
 
-## 默认原生记忆
+## 原生记忆（显式 --memory-native）
 
 默认路径仍由 CognitiveMemoryService / LocalMemoryStore 从当前角色授权观察 catch-up 到指定世界前缀。prepareStimulus 按刺激及场景线索准备召回材料，角色也可在允许的决策阶段主动 recall 一次，再自行回应。来源类型和引用随结果保留；未命中不代表没有发生。近期观察／自身表达沿原生窗口，不套用 Core 的宽窗口或后台参数。
 

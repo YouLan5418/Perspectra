@@ -107,7 +107,9 @@ function launchBackend(packPath: string, dataDirectory: string, model: ModelChoi
     ? join(repository, 'dist', 'backend', 'playtest.mjs')
     : join(repository, 'tests', 'experiments', 'playtest-web-entry.ts')
   const arguments_ = [...(app.isPackaged ? [] : ['--import', 'tsx']), entry,
-    '--pack', packPath, '--data-dir', dataDirectory, '--tuning', JSON.stringify(tuning)]
+    '--pack', packPath, '--data-dir', dataDirectory, '--tuning', JSON.stringify(tuning),
+    // The legacy Electron shell never prepared Core's Python environment; keep its native memory explicit.
+    '--memory-native']
   if (model.provider === 'ollama') arguments_.push('--ollama')
   if (model.provider === 'deepseek') arguments_.push('--deepseek')
   const env: NodeJS.ProcessEnv = { ...process.env, ...(app.isPackaged ? { ELECTRON_RUN_AS_NODE: '1' } : {}) }

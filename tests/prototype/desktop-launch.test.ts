@@ -37,7 +37,7 @@ describe('desktop launch boundary', () => {
     const entry = bundled ? resolve('dist/backend/playtest.mjs') : resolve('tests/experiments/playtest-web-entry.ts')
     const child = spawn(process.execPath, [
       ...(bundled ? [] : ['--import', 'tsx']), entry,
-      '--ollama', '--pack', pack, '--data-dir', directory,
+      '--ollama', '--memory-native', '--pack', pack, '--data-dir', directory,
       '--tuning', JSON.stringify({ maximumWaves: 1, maximumNpcCalls: 2, maximumCallsPerCharacter: 1,
         reactionDeadlineSeconds: 15, recentObservations: 4, recentSelfObservations: 0 }),
     ], { cwd: resolve('.'), stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true,

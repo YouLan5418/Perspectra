@@ -34,7 +34,7 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/launcher-demo --
 
 需要认证时仅在当前进程设置 `HCW_LOCAL_API_KEY`。打开终端打印的完整回环地址；其中 token 不对外分享。未设置环境变量时源码网页默认地址为 8045；Launcher 默认配置为 8046，两者不是同一配置来源。
 
-源码网页默认原生记忆。按 [记忆实验说明](../../../experiments/activity-memory/README.md) 准备 Python/E5 后，可在上述命令加 `--memory-core`；当前该路径用于本机 OpenAI 兼容服务，不与 `--ollama` / `--deepseek` 混用。可单独加 `--ollama` 作原生记忆对照，不把不同模型和记忆路径混为同一验收结果。
+源码网页默认使用 Core 记忆，与 Launcher 一致；先按 [记忆实验说明](../../../experiments/activity-memory/README.md) 准备 Python/E5，缺少时启动直接报错。Core 用于 local 配置入口，`--ollama` / `--deepseek` 必须同时加 `--memory-native`。原生记忆只取最近 16 条观察的滑动窗口，结果不代表玩家体验，不把不同模型和记忆路径混为同一验收结果。
 
 ## 4. 最小真实验收清单
 

@@ -4,16 +4,16 @@ import { DEFAULT_PLAYTEST_TUNING } from './playtest-tuning.ts'
 
 describe('creator playtest launch arguments', () => {
   it('accepts provider, v5 source directory, and data directory in any order', () => {
-    expect(parsePlaytestLaunchArguments([])).toEqual({ provider: 'local' })
-    expect(parsePlaytestLaunchArguments(['--jev-shadow', 'items.json'])).toEqual({ provider: 'local', shadowConfigPath: 'items.json' })
+    expect(parsePlaytestLaunchArguments([])).toEqual({ provider: 'local', memoryCore: true })
+    expect(parsePlaytestLaunchArguments(['--jev-shadow', 'items.json'])).toEqual({ provider: 'local', memoryCore: true, shadowConfigPath: 'items.json' })
     expect(parsePlaytestLaunchArguments([
-      '--pack', 'world-source', '--ollama', '--data-dir', 'world-data',
+      '--pack', 'world-source', '--ollama', '--memory-native', '--data-dir', 'world-data',
     ])).toEqual({
       provider: 'ollama', packPath: 'world-source', dataDirectory: 'world-data',
     })
-    expect(parsePlaytestLaunchArguments(['--deepseek'])).toEqual({ provider: 'deepseek' })
+    expect(parsePlaytestLaunchArguments(['--deepseek', '--memory-native'])).toEqual({ provider: 'deepseek' })
     expect(parsePlaytestLaunchArguments(['--tuning', JSON.stringify(DEFAULT_PLAYTEST_TUNING)])).toEqual({
-      provider: 'local', tuning: DEFAULT_PLAYTEST_TUNING,
+      provider: 'local', memoryCore: true, tuning: DEFAULT_PLAYTEST_TUNING,
     })
   })
 
@@ -31,6 +31,9 @@ describe('creator playtest launch arguments', () => {
     ['--interactions', 'legacy.json'],
     ['--action-groups'],
     ['--recall-keyword', 'legacy'],
+    ['--ollama'],
+    ['--deepseek', '--memory-core'],
+    ['--memory-core', '--memory-native'],
   ])('rejects an unsupported or ambiguous command line %#', (...args) => {
     expect(() => parsePlaytestLaunchArguments(args)).toThrow()
   })

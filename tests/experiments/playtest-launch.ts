@@ -20,14 +20,14 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
   let shadowConfigPath: string | undefined
   let tuning: PlaytestTuning | undefined
   let settings: PlaySettings | undefined
-  let memoryCore = false
+  let memory: 'core' | 'native' | undefined
   let serialScheduling = false
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]
     if (argument==='--serial-scheduling') {if(serialScheduling)throw new Error('--serial-scheduling may be supplied only once');serialScheduling=true;continue}
-    if (argument === '--memory-core') {
-      if (memoryCore) throw new Error('--memory-core may be supplied only once')
-      memoryCore = true; continue
+    if (argument === '--memory-core' || argument === '--memory-native') {
+      if (memory !== undefined) throw new Error('--memory-core / --memory-native may be supplied only once')
+      memory = argument === '--memory-core' ? 'core' : 'native'; continue
     }
     if (argument === '--deepseek' || argument === '--ollama') {
       provider = argument === '--deepseek' ? 'deepseek' : 'ollama'
@@ -56,6 +56,10 @@ export function parsePlaytestLaunchArguments(args: readonly string[]): PlaytestL
     }
   }
   if(settings && tuning)throw new Error('--play-settings 与 --tuning 不可同时使用。')
+  // Core is the default, matching what the Launcher gives players; native memory is an explicit offline choice.
+  if (provider !== 'local' && memory !== 'native')
+    throw new Error(`${provider === 'ollama' ? '--ollama' : '--deepseek'} 入口暂不支持 Core 记忆；离线调试请同时加 --memory-native。`)
+  const memoryCore = memory !== 'native'
   return {
     provider,
     ...(serialScheduling?{serialScheduling:true}:{}),

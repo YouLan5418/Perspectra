@@ -3,14 +3,14 @@
 | 属性 | 内容 |
 | --- | --- |
 | 当前状态 | 6.0—6.6简化实验及网页有限接入完成；Context地点缺陷已修复 |
-| 正常入口 | 新启动的源码网页显式使用 `--memory-core`；未传开关时沿用原生记忆 |
+| 正常入口 | 源码网页默认使用 Core（`--memory-core` 仍可显式写出）；只有 `--memory-native` 才用原生记忆 |
 | 当前策略 | 原检索 + 简单ID候选准入 + 极简Delivery；JEV不作为必经；宽短期尾部、按上下文体积自动整理及手动整理 |
 | 证据范围 | 有真实双角色、跨房间与浏览器实测；单轨迹不证明稳定收益或完整产品验收 |
 | 历史 | [历史命令与记录](HISTORY.md)，保留此前的配置、失败与对照 |
 
 ## 1. 独立环境与网页试玩
 
-在仓库根目录准备 Python 3.12 环境。依赖、E5 revision和资产校验描述位于仓库；环境和模型权重放在忽略的`.tmp`中。
+在仓库根目录准备 Python 3.12 环境。依赖、E5 revision和资产校验描述位于仓库；环境和模型权重放在忽略的`.tmp`中。本机已有便携包时，也可把其中的 Python 3.12（依赖版本与下方要求一致）复制到 `.tmp/hindsight-python312`，再用它 `-m venv --system-site-packages .tmp/hindsight-vector-venv`，并复制 E5 到 `.tmp/hindsight-e5-small` 后运行 `setup-vector.py` 校验哈希。
 
 ```powershell
 corepack pnpm@11.7.0 install --frozen-lockfile
@@ -25,7 +25,7 @@ corepack pnpm@11.7.0 experience:web --memory-core --pack examples/world-packs/pr
 
 每个新实验使用未占用的数据目录。打开终端打印的带token本机地址；需要API认证时只通过`HCW_LOCAL_API_KEY`传入，不写进文件。`HCW_HINDSIGHT_PYTHON`、`HCW_HINDSIGHT_CORE_DIR`和`HCW_HINDSIGHT_ONNX_DIR`可显式覆盖本地路径。默认模型为`gemini-3.7-flash`，网关别名不证明底层模型身份。
 
-Core 开关支持 local 配置入口下的 OpenAI、Anthropic 和 Google 协议；选择方式见[模型接口协议](../../docs/current/model-protocols.md)。Ollama/DeepSeek 独立入口不能同时启用 Core。桌面发布目录尚未打包Python、Core和E5资产。
+Core 开关支持 local 配置入口下的 OpenAI、Anthropic 和 Google 协议；选择方式见[模型接口协议](../../docs/current/model-protocols.md)。Ollama/DeepSeek 独立入口不能启用 Core，须显式加 `--memory-native`。桌面发布目录尚未打包Python、Core和E5资产。
 
 ## 2. 当前运行路径
 
