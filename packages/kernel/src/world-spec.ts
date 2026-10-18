@@ -511,6 +511,7 @@ export function characterInteractionManifestRegistries(): ManifestRegistries {
       'character.relation-ended',
       'character.relation-started',
       'activity.updated',
+      'status.updated',
     ]),
   }
 }
