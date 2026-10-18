@@ -22,6 +22,7 @@
 | 原生记忆与 Core 记忆有什么不同 | [认知与记忆](cognition-memory.md) |
 | 特定玩法怎样限制行为 | [受控交互](controlled-interaction.md) |
 | 创作者怎样定义世界与活动 | [创作者运行时](creator-runtime.md) |
+| 如何按权限交付设定、区分角色态度与客观变量 | [世界设定](../guides/world-knowledge.md) |
 | 创作者怎样检查位置、物品、私有上下文与记忆 | [创作者调试接口](../creator-debug-api.md)（浏览器里的只读创作者页面） |
 | 怎样重新生成最近一回合 | [末端回合重新生成](../tail-round-regeneration.md) |
 | 节点、分叉和分享怎样工作 | [故事线](../storylines.md) |

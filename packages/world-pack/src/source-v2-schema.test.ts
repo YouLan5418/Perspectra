@@ -197,7 +197,7 @@ describe('World Pack v2 Document metadata', () => {
   it.each([
     [{ ...documentsV2(), schemaVersion: 'worldpack-documents/v1' }, 'PACK_SOURCE_INVALID'],
     [{ ...documentsV2(), documents: {} }, 'PACK_SOURCE_INVALID'],
-    [{ ...documentsV2(), documents: Array.from({ length: 513 }, (_, index) => ({ documentId: `document:${index}`, contentRef: `text/${index}.md`, usage: 'world_context', audience: 'public' })) }, 'PACK_LIMIT_EXCEEDED'],
+    [{ ...documentsV2(), documents: Array.from({ length: 4097 }, (_, index) => ({ documentId: `document:${index}`, contentRef: `text/${index}.md`, usage: 'world_context', audience: 'public' })) }, 'PACK_LIMIT_EXCEEDED'],
     [{ ...documentsV2(), documents: [documentsV2().documents[0], documentsV2().documents[0]] }, 'PACK_DUPLICATE_ID'],
     [{ ...documentsV2(), documents: [{ ...documentsV2().documents[0], extra: true }] }, 'PACK_UNKNOWN_FIELD'],
     [{ ...documentsV2(), documents: [{ ...documentsV2().documents[0], usage: 'system_prompt' }] }, 'PACK_SOURCE_INVALID'],

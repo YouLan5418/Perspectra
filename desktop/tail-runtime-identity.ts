@@ -25,6 +25,7 @@ export function tailRuntimeIdentity(): string {
       'tests/experiments/playtest-memory-core.ts','tests/experiments/playtest-tuning.ts',
       'tests/experiments/pack-activity.ts','tests/experiments/pack-activities.ts','tests/experiments/pack-variables.ts',
       'tests/experiments/pack-autonomy.ts','desktop/play-settings.ts',
+      'tests/experiments/pack-knowledge.ts','tests/experiments/pack-json-asset.ts',
       'tests/experiments/local-prototype-turn-call.ts','tests/experiments/hindsight-python.ts','package.json','pnpm-lock.yaml']) {
       hash.update(name).update(readFileSync(join(root,name)))
     }

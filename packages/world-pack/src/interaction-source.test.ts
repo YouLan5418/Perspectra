@@ -49,7 +49,7 @@ describe('interaction source rejection', () => {
     expect(() => parseWorldPackSourceManifestV5(manifest)).not.toThrow()
     expect(() => parseWorldPackSourceManifestV5({ ...manifest, sourceSchemaVersion: 'worldpack-source/v4' }))
       .toThrow(/must be worldpack-source\/v5/u)
-    // V4 accepts exactly 512 declared files; the interaction file is the one that tips it over.
+    // V5 accepts exactly 4096 declared files; the interaction file is the one that tips it over.
     const one = (name: string) => [name]
     expect(() => parseWorldPackSourceManifestV5({
       sourceSchemaVersion: 'worldpack-source/v5', packId: 'pack:limit', packVersion: '1.0.0',
@@ -59,8 +59,8 @@ describe('interaction source rejection', () => {
       cognitionFiles: one('cognition.json'), memoryFiles: one('memory.json'), documentFiles: one('documents.json'),
       markdownFiles: one('readme.md'), assertionFiles: one('assertions.json'),
       reactionFile: 'reaction.json', manifestationFile: 'manifestation.json', interactionFile: 'interactions.json',
-      assetFiles: Array.from({ length: 498 }, (_, index) => `asset-${index}.bin`),
-    })).toThrow(/at most 512 files/u)
+      assetFiles: Array.from({ length: 4082 }, (_, index) => `asset-${index}.bin`),
+    })).toThrow(/at most 4096 files/u)
   })
 
   it('rejects target and selection documents outside their own version', () => {

@@ -22,6 +22,7 @@ import { createCoreWorker, coreRunner, type CoreRunner } from './hindsight-pytho
 import { decideActivityFormat, type ActivityRequest } from './pack-activity.ts'
 import { PackActivities } from './pack-activities.ts'
 import { PackVariables } from './pack-variables.ts'
+import { PackKnowledge } from './pack-knowledge.ts'
 import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
 import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
@@ -230,6 +231,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #finishWork: (() => void) | undefined
   #escaping: Promise<PlaytestState> | undefined
   #variables: PackVariables | undefined
+  #knowledge: PackKnowledge | undefined
   #activationCycle: Awaited<ReturnType<typeof runPrototypeActivations>> | undefined
   readonly #provider: 'local' | 'deepseek' | 'ollama'
   readonly #manifestVersion: number
@@ -373,6 +375,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       if (variables) request = { ...request, context: { ...request.context,
         packVariables: { public: variables.public, private: variables.private } } }
       const characterId=String(character.characterId)
+      if (this.#knowledge) request = {...request, context: {...request.context, knowledge: this.#knowledge.select(request.context)}}
       this.#roleCalls.delete(characterId)
       const roleProvider=roleProviders.get(characterId)
       if(!roleProvider)throw new TypeError('当前角色没有可调用的预设配置。')
@@ -462,6 +465,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       runtime.#autonomy = PackAutonomy.load(options.packPath, pack, runtime.#playerId)
       runtime.#application.activate(compiled)
       runtime.#variables = PackVariables.load(options.packPath, options.dataDirectory, pack)
+      runtime.#knowledge = PackKnowledge.load(options.packPath, pack)
       runtime.#activity = PackActivities.load(options.packPath, pack, resolve(options.dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')

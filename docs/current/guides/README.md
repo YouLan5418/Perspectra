@@ -12,6 +12,7 @@
 | 创作者 | 用 Launcher 或源码进行真实模型验收 | [创作者试玩](creator-playtest.md) |
 | 创作者 | 在浏览器里只读查看对话、物品去向、模型请求与记忆 | [创作者调试接口](../creator-debug-api.md) |
 | 创作者 | 添加活动、公开和私有变量 | [活动与变量](activity-and-variables.md) |
+| 创作者 | 按权限和关键词交付设定、区分角色态度与客观变量 | [世界设定](world-knowledge.md) |
 | 前端作者 | HTML/CSS/JS、公共接口、沙箱边界 | [自定义前端](web-ui.md) |
 | 源码使用者 | 安装、启动及检查命令 | [本机运行](local-runbook.md) |
 

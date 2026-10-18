@@ -19,3 +19,6 @@ output/playwright/
 
 .superpowers/
 apps/launcher/dist-creator/
+
+# Local SillyTavern character cards; source text stays off Git.
+Tavern Card/

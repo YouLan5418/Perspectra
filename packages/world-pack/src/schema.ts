@@ -122,7 +122,8 @@ const EXACT_SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u
 const WORLD_HASH = /^sha256:[0-9a-f]{64}$/u
 const KIBIBYTE = 1024
 const MEBIBYTE = 1024 * KIBIBYTE
-const MAX_EXPLICIT_FILES = 512
+// Each document is its own Markdown file, so the file limit follows the document limit.
+const MAX_EXPLICIT_FILES = 4096
 const MAX_SOURCE_JSON_BYTES = MEBIBYTE
 const MAX_COMPILED_BYTES = 16 * MEBIBYTE
 const MAX_MARKDOWN_BYTES = 256 * KIBIBYTE
@@ -132,7 +133,7 @@ const MAX_LOCATIONS = 512
 const MAX_ENTITIES = 512
 const MAX_COGNITION_RECORDS_PER_KIND = 512
 const MAX_PORTRAYAL_TERMS = 128
-const MAX_DOCUMENTS = 512
+const MAX_DOCUMENTS = 4096
 // Interaction limits profile interaction-limits/v1, frozen in the implementation contract.
 const MAX_INTERACTION_BINDINGS = 4096
 const MAX_INTERACTION_CONFIG_BYTES = 4096
