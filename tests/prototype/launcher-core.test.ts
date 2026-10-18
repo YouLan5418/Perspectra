@@ -44,6 +44,7 @@ const root = process.env.PERSPECTRA_PRESET_ROOT
 const log = value => appendFileSync(join(root, 'child.jsonl'), JSON.stringify(value) + '\n')
 const presetPath = join(root, 'preset-settings.json')
 const snapshot = { models: JSON.parse(process.env.PERSPECTRA_ROLE_MODELS), reading: process.env.PERSPECTRA_READING,
+  hostPlugins: JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS),
   settings: process.argv.at(-1), presets: existsSync(presetPath) ? JSON.parse(readFileSync(presetPath, 'utf8')) : null }
 log({ type: 'started', snapshot })
 process.on('message', message => {
@@ -462,6 +463,34 @@ it('keeps package play settings separate, restores them and preserves model conn
  await expect(core.handle({operation:'play-settings',packageId:first!.id,settings:{maximumWaves:0}})).rejects.toThrow()
  await expect(core.handle({operation:'play-settings',packageId:'foreign',settings:{}})).rejects.toThrow('载入')
  expect(core.snapshot().playSettings?.[first!.id]?.maximumWaves).toBe(5)
+})
+
+it('persists host plugin choices without importing modules in Launcher and rejects invalid updates', async () => {
+ const core = await service()
+ const hostPlugins = [{id:'tts',path:resolve('uninstalled-tts.mjs'),enabled:true}]
+ await core.handle({operation:'preferences',theme:'system',largeText:false,hostPlugins})
+ await core.handle({operation:'preferences',theme:'light',largeText:true})
+ const restored = new LauncherCore(resolve('.'),core.root); await restored.initialize()
+ expect(restored.snapshot().preferences.hostPlugins).toEqual(hostPlugins)
+ const before = await readFile(join(core.root,'launcher.json'),'utf8')
+ await expect(core.handle({operation:'preferences',theme:'system',largeText:false,
+  hostPlugins:[{...hostPlugins[0],path:'https://example.com/plugin.mjs'}]})).rejects.toThrow('绝对路径')
+ expect(await readFile(join(core.root,'launcher.json'),'utf8')).toBe(before)
+})
+
+it('passes only saved plugin choices at startup and applies changes on the next game launch', async () => {
+ const {core,instanceId,log} = await runningService()
+ try {
+  const enabled = [{id:'tts',path:resolve('uninstalled-tts.mjs'),enabled:true}]
+  await core.handle({operation:'preferences',theme:'system',largeText:false,hostPlugins:enabled})
+  await core.handle({operation:'start',instanceId})
+  const disabled = [{...enabled[0]!,enabled:false}]
+  await core.handle({operation:'preferences',theme:'system',largeText:false,hostPlugins:disabled})
+  expect((await log()).filter(entry=>entry.type==='started').map(entry=>entry.snapshot.hostPlugins)).toEqual([enabled])
+  await core.stop()
+  await core.handle({operation:'start',instanceId})
+  expect((await log()).filter(entry=>entry.type==='started').map(entry=>entry.snapshot.hostPlugins)).toEqual([enabled,disabled])
+ } finally { await core.stop(); vi.unstubAllEnvs() }
 })
 
 it('restores global audio preferences and rejects invalid updates without changing saved metadata',async()=>{

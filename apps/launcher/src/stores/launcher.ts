@@ -1,4 +1,5 @@
 import { DEFAULT_PLAY_SETTINGS, DEFAULT_READING, DEFAULT_AUDIO, DEFAULT_PALETTE, readingPreferences, audioPreferences, palettePreference, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../../../../desktop/play-settings.ts'
+import { hostPluginSettings, type HostPluginSettings } from '../../../../desktop/host-plugin-settings.ts'
 import { isTauri } from '@tauri-apps/api/core'
 import { coreRequest, openGame, openCreator as openCreatorPage, packCover, listConnectionModels, setConnectionKey, connectionKeyStatus } from '../services/desktop.ts'
 import type { CoreSnapshot, RolePreset, PresetChoice, ModelConnection, InstanceModels } from '../core-types.ts'
@@ -29,6 +30,7 @@ export const useLauncherStore = defineStore('launcher', () => {
   const largeText = ref(false)
   const reading = ref({...DEFAULT_READING})
   const audio = ref({...DEFAULT_AUDIO})
+  const hostPlugins = ref<HostPluginSettings[]>([])
   const packagePlaySettings = ref<Record<string,PlaySettings>>({})
   const currentPlaySettings = computed(()=>packagePlaySettings.value[selectedPackageId.value]??DEFAULT_PLAY_SETTINGS)
   const theme = ref<'system' | 'light' | 'dark'>('system')
@@ -196,6 +198,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     palette.value = snapshot.preferences?.palette ?? DEFAULT_PALETTE
     reading.value = snapshot.preferences?.reading ?? {...DEFAULT_READING}
     audio.value = snapshot.preferences?.audio ?? {...DEFAULT_AUDIO}
+    hostPlugins.value = snapshot.preferences?.hostPlugins ?? []
     packagePlaySettings.value = snapshot.playSettings??{}
     dataDirectory.value = snapshot.dataDirectory
     for (const [id, detail] of Object.entries(snapshot.packDetails ?? {})) if (!detail.hasCover) delete covers.value[id]
@@ -275,22 +278,24 @@ export const useLauncherStore = defineStore('launcher', () => {
     notice.value = '世界包已校验；实例数据将写入独立目录。'
     return true
   }
-  async function savePreferences(nextTheme: 'system' | 'light' | 'dark', nextLargeText: boolean, nextReading?: ReadingPreferences, nextAudio?: AudioPreferences, nextPalette: Palette = palette.value) {
-    if (real && !await action('preferences', { theme: nextTheme, largeText: nextLargeText, palette: nextPalette, ...(nextReading===undefined?{}:{reading:nextReading}), ...(nextAudio===undefined?{}:{audio:nextAudio}) })) return false
+  async function savePreferences(nextTheme: 'system' | 'light' | 'dark', nextLargeText: boolean, nextReading?: ReadingPreferences, nextAudio?: AudioPreferences, nextPalette: Palette = palette.value, nextPlugins?: HostPluginSettings[]) {
+    const plugins = nextPlugins === undefined ? undefined : hostPluginSettings(nextPlugins)
+    if (real && !await action('preferences', { theme: nextTheme, largeText: nextLargeText, palette: nextPalette, ...(nextReading===undefined?{}:{reading:nextReading}), ...(nextAudio===undefined?{}:{audio:nextAudio}), ...(plugins===undefined?{}:{hostPlugins:plugins}) })) return false
     theme.value = nextTheme; largeText.value = nextLargeText; palette.value = nextPalette
     if(nextReading)reading.value={...nextReading}
     if(nextAudio)audio.value={...nextAudio}
-    notice.value = '设置已保存；阅读和音频偏好将在下次启动游戏时提供给前端。'
+    if(plugins)hostPlugins.value=plugins
+    notice.value = '设置已保存；阅读、音频偏好与插件选择将在下次启动游戏时生效。'
     return true
   }
-  /** 设置窗口的草稿：外观、阅读与声音；“应用 / 保存”提交，“取消”回到最近一次应用的值。 */
-  const appliedPreferences = () => ({ theme: theme.value, palette: palette.value, largeText: largeText.value, reading: { ...reading.value }, audio: { ...audio.value } })
+  /** 设置窗口的草稿；“应用 / 保存”提交，“取消”回到最近一次应用的值。 */
+  const appliedPreferences = () => ({ theme: theme.value, palette: palette.value, largeText: largeText.value, reading: { ...reading.value }, audio: { ...audio.value }, hostPlugins: hostPlugins.value.map(plugin => ({...plugin})) })
   const preferencesDraft = ref(appliedPreferences())
   const preferencesDirty = computed(() => JSON.stringify(preferencesDraft.value) !== JSON.stringify(appliedPreferences()))
   function resetPreferencesDraft() { preferencesDraft.value = appliedPreferences() }
   async function applyPreferences() {
     const draft = preferencesDraft.value
-    if (!await savePreferences(draft.theme, draft.largeText, readingPreferences(draft.reading), audioPreferences(draft.audio), palettePreference(draft.palette))) return false
+    if (!await savePreferences(draft.theme, draft.largeText, readingPreferences(draft.reading), audioPreferences(draft.audio), palettePreference(draft.palette), draft.hostPlugins)) return false
     resetPreferencesDraft()
     return true
   }
@@ -350,7 +355,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     }
   }
 
-  return { running, stageSummary, drawerRows, preferencesDraft, preferencesDirty, resetPreferencesDraft, applyPreferences, exportStory,importStory,selectStoryline,forkStory,openCreator,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, realInstances, currentRealInstance, currentModels, connectionName, connections, storedKeys, modelLists, lastModels, saveConnection, removeConnection, refreshModels, configureModels, initialize, refresh, loadRealPackage, startGame, stopGame, reopenGame, packages, instances, profiles, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, currentPlaySettings, savePlaySettings, savePreferences, notice,
+  return { running, stageSummary, drawerRows, preferencesDraft, preferencesDirty, resetPreferencesDraft, applyPreferences, exportStory,importStory,selectStoryline,forkStory,openCreator,savePresetDrafts,libraryAction,presetCharacters,presets,effectivePreset,inspectPreset,saveGlobalPreset,saveInstancePreset,currentFrontend,inspectFrontend,grantFrontend,revokeFrontend,real, busy, initialized, realInstances, currentRealInstance, currentModels, connectionName, connections, storedKeys, modelLists, lastModels, saveConnection, removeConnection, refreshModels, configureModels, initialize, refresh, loadRealPackage, startGame, stopGame, reopenGame, packages, instances, profiles, globalDefaultModelId, dataDirectory, largeText, theme, palette, reading, audio, hostPlugins, currentPlaySettings, savePlaySettings, savePreferences, notice,
     selectedPackageId, selectedInstanceId, core, selectedPackage, currentInstance, currentStoryline,
     currentNode, currentModel, currentHistory, gameInstances, selectPackage, newInstance, loadMockPackage,
     forkAt, importMockStory, startMock, stopMock }

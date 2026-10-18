@@ -1,4 +1,5 @@
 import type { PlaySettings, ReadingPreferences, AudioPreferences, Palette } from '../../../desktop/play-settings.ts'
+import type { HostPluginSettings } from '../../../desktop/host-plugin-settings.ts'
 import type { RolePreset, RolePresetMapping } from '../../../packages/provider-chat/src/preset.ts'
 export type { RolePreset, RolePresetMapping }
 export interface PresetChoice extends RolePresetMapping {mode:'auto'|'global'|'custom';override:RolePreset}
@@ -13,7 +14,7 @@ export interface CoreSnapshot {
   packDetails?: Record<string,{description:string;hasCover:boolean;error?:string}>
   frontends: Record<string,{kind:'default'|'custom';mode:'sandbox'|'trusted';digest:string;capabilities:string[]}>
   presets: {library:import('../../../packages/provider-chat/src/preset-library.ts').LibraryPreset[];characters:Record<string,{id:string;name:string}[]>;global:RolePreset;instances:Record<string,PresetChoice>;recommended:Record<string,RolePreset>}
-  preferences?: { largeText: boolean; theme?: 'system' | 'light' | 'dark'; palette?: Palette; reading?: ReadingPreferences; audio?: AudioPreferences }
+  preferences?: { largeText: boolean; theme?: 'system' | 'light' | 'dark'; palette?: Palette; reading?: ReadingPreferences; audio?: AudioPreferences; hostPlugins?: HostPluginSettings[] }
   playSettings?: Record<string,PlaySettings>
   dataDirectory: string
   core: { state: 'idle' | 'running' | 'error'; mode: 'real'; instanceId?: string; message?: string; frontendMode?: 'sandbox'|'trusted' }

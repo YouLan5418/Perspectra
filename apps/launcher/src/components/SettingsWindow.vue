@@ -10,9 +10,9 @@ import ModelSettingsDialog from './ModelSettingsDialog.vue'
 const emit = defineEmits<{ close: [] }>()
 provide('launcher-embedded', true)
 const store = useLauncherStore()
-type Category = 'connections' | 'appearance' | 'reading' | 'data' | 'about'
+type Category = 'connections' | 'appearance' | 'reading' | 'plugins' | 'data' | 'about'
 const categories: { id: Category; label: string }[] = [
- { id: 'connections', label: '模型接口' }, { id: 'appearance', label: '外观' }, { id: 'reading', label: '阅读与声音' }, { id: 'data', label: '数据位置' }, { id: 'about', label: '关于' },
+ { id: 'connections', label: '模型接口' }, { id: 'appearance', label: '外观' }, { id: 'reading', label: '阅读与声音' }, { id: 'plugins', label: '插件' }, { id: 'data', label: '数据位置' }, { id: 'about', label: '关于' },
 ]
 const category = ref<Category>('connections')
 const paletteChoices: { value: Palette; name: string; hint: string }[] = [
@@ -49,8 +49,11 @@ async function apply(close: boolean) {
  catch (e) { error.value = e instanceof Error ? e.message : '设置无效。' }
 }
 function cancel() {
- if (store.preferencesDirty && !confirm('外观、阅读与声音有未应用的修改，确定放弃？')) return
+ if (store.preferencesDirty && !confirm('设置有未应用的修改，确定放弃？')) return
  store.resetPreferencesDraft(); emit('close')
+}
+function addPlugin() {
+ store.preferencesDraft.hostPlugins.push({ id: `plugin-${crypto.randomUUID()}`, path: '', enabled: false })
 }
 </script>
 <template>
@@ -62,7 +65,7 @@ function cancel() {
      <button v-for="item in categories" :key="item.id" :class="{ active: category === item.id }" @click="category = item.id">{{ item.label }}</button>
     </nav>
     <div class="settings-pane">
-     <p v-if="store.running" class="settings-running" role="status">游戏运行中：模型接口、阅读与声音的修改将在下次启动游戏时生效；外观立即作用于启动器。</p>
+     <p v-if="store.running" class="settings-running" role="status">游戏运行中：模型接口、阅读、声音与插件的修改将在下次启动游戏时生效；外观立即作用于启动器。</p>
      <template v-if="category === 'connections'">
       <p class="inline-info">连接修改立即保存，不受下方“取消 / 应用 / 保存”影响。</p>
       <ModelSettingsDialog :open="true" @close="cancel" />
@@ -88,6 +91,17 @@ function cancel() {
  </section>
 
      </template>
+     <template v-else-if="category === 'plugins'">
+      <p class="muted">插件在下次启动游戏时加载。只添加你信任的本地插件；它们与游戏宿主拥有相同的本机访问权限。</p>
+      <p class="muted">语音插件提供合成服务；“阅读与声音”中的朗读开关控制是否播放。当前未附带合成器，官方舞台暂未接入语音播放。</p>
+      <section v-for="(plugin, index) in store.preferencesDraft.hostPlugins" :key="index" class="settings-block">
+       <div class="form-field"><label :for="`plugin-id-${index}`">插件 ID</label><input :id="`plugin-id-${index}`" v-model="plugin.id" maxlength="64" /></div>
+       <div class="form-field"><label :for="`plugin-path-${index}`">插件文件（.mjs / .js 绝对路径）</label><input :id="`plugin-path-${index}`" v-model="plugin.path" /></div>
+       <label class="checkbox-row"><input v-model="plugin.enabled" type="checkbox" />启动游戏时加载此插件</label>
+       <Button variant="outline" @click="store.preferencesDraft.hostPlugins.splice(index, 1)">移除</Button>
+      </section>
+      <Button variant="outline" :disabled="store.preferencesDraft.hostPlugins.length >= 16" @click="addPlugin">添加本地插件</Button>
+     </template>
      <template v-else-if="category === 'data'">
  <div class="settings-section">
   <div class="form-field"><label for="data-directory">当前数据根目录</label><input id="data-directory" :value="store.dataDirectory || '浏览器预览不保存实际实例数据'" readonly /></div>
@@ -110,7 +124,7 @@ function cancel() {
     </div>
    </div>
    <footer class="settings-foot">
-    <span class="muted">{{ store.preferencesDirty ? '外观、阅读与声音有未应用的修改' : '' }}</span>
+    <span class="muted">{{ store.preferencesDirty ? '设置有未应用的修改' : '' }}</span>
     <Button variant="outline" @click="cancel">取消</Button>
     <Button variant="outline" :disabled="store.busy || !store.preferencesDirty" @click="apply(false)">应用</Button>
     <Button :disabled="store.busy" @click="apply(true)">保存</Button>

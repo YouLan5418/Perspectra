@@ -1,4 +1,6 @@
 import { thinkingLevel } from '../../packages/provider-chat/src/thinking.ts'
+import { loadHostPlugins, type HostPlugins } from '../../desktop/host-plugins.ts'
+import { hostPluginSettings } from '../../desktop/host-plugin-settings.ts'
 import { readingPreferences, audioPreferences, palettePreference } from '../../desktop/play-settings.ts'
 import { providerProtocol } from '../../packages/provider-chat/src/protocol.ts'
 import { runtimeRoleModels } from '../../desktop/model-connections.ts'
@@ -21,6 +23,9 @@ import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { defaultPlaytestDirectory } from './playtest-view.ts'
+
+let hostPlugins: HostPlugins | undefined
+let startupRuntime: FrozenWorldPlaytestRuntime | undefined
 
 async function main(): Promise<void> {
   const launch = parsePlaytestLaunchArguments(process.argv.slice(2))
@@ -63,6 +68,7 @@ async function main(): Promise<void> {
   const instanceId = process.env.PERSPECTRA_PRESET_INSTANCE ?? ''
   if (settings && !/^[a-f0-9-]{36}$/.test(instanceId)) throw new Error('启动预设的实例标识无效。')
   const {mode: _mode, override: _override, ...mapping} = settings?.instances[instanceId] ?? { mode: 'auto', override: {} }
+  hostPlugins = await loadHostPlugins(hostPluginSettings(JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS ?? '[]')))
   const runtime = await FrozenWorldPlaytestRuntime.create({
     dataDirectory, provider, packPath, ...(process.env.HCW_THINKING_LEVEL === undefined ? {} : {thinkingLevel:thinkingLevel(process.env.HCW_THINKING_LEVEL)}), protocol: providerProtocol(process.env.HCW_MODEL_PROTOCOL),
     storyNodes: !!process.send,
@@ -91,17 +97,18 @@ async function main(): Promise<void> {
     ...(apiKey === undefined ? {} : { apiKey }),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),
   })
+  startupRuntime = runtime
   const token = randomBytes(32).toString('hex')
   const policy:FrontendPolicy={mode:'sandbox',origin:'',revision:0}
   const approved=process.env.PERSPECTRA_FRONTEND_APPROVED_SHA256
   const trustedAssets=approved&&packWeb?.digest===approved&&process.send ? createTrustedFrontendServer(packWeb,policy,()=>hostOrigin) : undefined
   let hostOrigin=''
-  const server = createPlaytestServer(Object.assign(runtime, { creatorMeta: () => structuredClone(creatorMeta) }), token, packWeb, policy)
+  const server = createPlaytestServer(Object.assign(runtime, { creatorMeta: () => structuredClone(creatorMeta) }), token, packWeb, policy, hostPlugins.services)
   let closing = false
   const close = async () => {
     if (closing) return
     closing = true
-    const closingRuntime = runtime.close()
+    const closingResources = Promise.allSettled([runtime.close(), hostPlugins!.close()])
     if (server.listening) {
       await new Promise<void>((resolveClose, rejectClose) => {
         server.close(error => error === undefined ? resolveClose() : rejectClose(error))
@@ -109,7 +116,7 @@ async function main(): Promise<void> {
       })
     }
     if(trustedAssets?.listening){trustedAssets.closeAllConnections();await new Promise<void>(done=>trustedAssets.close(()=>done()))}
-    await closingRuntime
+    for (const result of await closingResources) if (result.status === 'rejected') throw result.reason
   }
   process.once('SIGINT', () => { void close().then(() => { process.exitCode = 0 }) })
   process.once('SIGTERM', () => { void close().then(() => { process.exitCode = 0 }) })
@@ -145,6 +152,8 @@ async function main(): Promise<void> {
 try {
   await main()
 } catch (error: unknown) {
+  const cleanup = await Promise.allSettled([hostPlugins?.close(), startupRuntime?.close()])
+  if (cleanup.some(result => result.status === 'rejected')) console.error('启动失败后的资源清理未完成。')
   const message = error instanceof Error ? error.message : '未知错误'
   process.send?.({ type: 'startup-error', message }, () => process.disconnect?.())
   console.error('本机试玩页启动失败：', message)

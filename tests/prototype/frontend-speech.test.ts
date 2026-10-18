@@ -1,9 +1,13 @@
 import { once } from 'node:events'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { afterEach, expect, it, vi } from 'vitest'
 import { brandId } from '@harness-world/contracts'
 import { createPlaytestServer, type PlaytestState } from '../experiments/playtest-server.ts'
 import type { FrontendHostServices, FrontendSpeechAudio } from '../../packages/frontend/src/speech.ts'
+import { loadHostPlugins } from '../../desktop/host-plugins.ts'
 
 const servers: ReturnType<typeof createPlaytestServer>[] = [], token = 'c'.repeat(64)
 const wav: FrontendSpeechAudio = {contentType:'audio/wav',bytes:new Uint8Array([82,73,70,70])}
@@ -66,4 +70,33 @@ it('rejects audio after a candidate removes the paragraph and hides adapter fail
   const failed=await fixture({synthesizeSpeech:async()=>{throw new TypeError('PRIVATE_PROVIDER_KEY')}})
   const response=await failed.send(paragraph)
   expect(response.status).toBe(502);expect(await response.text()).not.toContain('PRIVATE_PROVIDER_KEY')
+})
+
+it('serves a dynamically loaded Cordis plugin through the same authorization boundary', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'perspectra-speech-plugin-'))
+  const path = join(root, 'speech.mjs'), inputPath = join(root, 'input.json')
+  await writeFile(path, `import { writeFileSync } from 'node:fs';
+    export default function(ctx) {
+      ctx.effect(() => ctx.frontendServices.registerSpeech(async input => {
+        writeFileSync(new URL('./input.json', import.meta.url), JSON.stringify(input));
+        return {contentType:'audio/wav',bytes:new Uint8Array([82,73,70,70])};
+      }));
+    }`)
+  const session = await loadHostPlugins([{id:'tts',path,enabled:true}])
+  try {
+    const {url,send,submit} = await fixture(session.services)
+    expect((await send({...paragraph,text:'PRIVATE_DEBUG'})).status).toBe(400)
+    await expect(readFile(inputPath)).rejects.toThrow()
+    const response = await send(paragraph)
+    expect(response.status).toBe(200)
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(wav.bytes)
+    expect(JSON.parse(await readFile(inputPath,'utf8'))).toEqual({
+      ...paragraph,type:'speech',speakerId:'character:remote',
+    })
+    expect(submit).not.toHaveBeenCalled()
+    await session.close()
+    const init=await(await fetch(url+'/frontend-api/v1/init',{headers:{'x-playtest-token':token}})).json()
+    expect(init.capabilities).not.toContain('speech')
+    expect((await send(paragraph)).status).toBe(404)
+  } finally { await session.close(); await rm(root,{recursive:true,force:true}) }
 })

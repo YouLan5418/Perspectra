@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
-import { basename, relative, resolve } from 'node:path'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { basename, join, relative, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { preflightSave } from '../../desktop/save-preflight.ts'
 
@@ -25,6 +25,12 @@ async function freshDirectory(): Promise<string> {
 describe('desktop launch boundary', () => {
   it('starts a local world, serves authorized state, closes, and refuses another pack for that save', async () => {
     const directory = await freshDirectory()
+    const pluginDirectory = await freshDirectory(), pluginPath = join(pluginDirectory, 'speech.mjs')
+    await writeFile(pluginPath, `import { writeFileSync } from 'node:fs';
+      export default function(ctx) {
+        ctx.effect(() => ctx.frontendServices.registerSpeech(async () => ({contentType:'audio/wav',bytes:new Uint8Array([1])})));
+        ctx.effect(() => () => writeFileSync(new URL('./plugin-closed', import.meta.url), 'yes'));
+      }`)
     const pack = resolve('examples/world-packs/hand-in-hand')
     expect((await preflightSave(pack, directory)).kind).toBe('new')
     const bundled = process.env.HCW_TEST_DESKTOP_BUNDLE === '1'
@@ -34,7 +40,11 @@ describe('desktop launch boundary', () => {
       '--ollama', '--pack', pack, '--data-dir', directory,
       '--tuning', JSON.stringify({ maximumWaves: 1, maximumNpcCalls: 2, maximumCallsPerCharacter: 1,
         reactionDeadlineSeconds: 15, recentObservations: 4, recentSelfObservations: 0 }),
-    ], { cwd: resolve('.'), stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true })
+    ], { cwd: resolve('.'), stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true,
+      env: {...process.env,PERSPECTRA_HOST_PLUGINS:JSON.stringify([
+        {id:'tts',path:pluginPath,enabled:true},
+        {id:'disabled',path:join(pluginDirectory,'not-installed.mjs'),enabled:false},
+      ])} })
     let stderr = ''
     child.stderr?.on('data', chunk => { stderr += String(chunk) })
     try {
@@ -57,9 +67,12 @@ describe('desktop launch boundary', () => {
       const state = await response.json() as { world: { title: string }; availableActions?: readonly { actionType: string }[] }
       expect(state.world.title).toBe('山脊上的两只手')
       expect(state.availableActions?.map(value => value.actionType)).toContain('interact')
+      const init = await (await fetch(`${origin}/frontend-api/v1/init`, { headers: { 'x-playtest-token': ready.token } })).json()
+      expect(init.capabilities).toContain('speech')
       child.send({ type: 'shutdown' })
       const exitCode = await new Promise<number | null>(resolveExit => child.once('exit', resolveExit))
       expect(exitCode).toBe(0)
+      expect(await readFile(join(pluginDirectory,'plugin-closed'),'utf8')).toBe('yes')
       expect((await preflightSave(pack, directory)).kind).toBe('resume')
       await expect(preflightSave(resolve('examples/world-packs/prototype-g1'), directory))
         .rejects.toThrow('世界包与存档中的世界不一致')

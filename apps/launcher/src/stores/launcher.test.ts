@@ -190,6 +190,23 @@ it('saves play settings for the selected package and restores global reading pre
  expect(store.currentModel?.model).toBe('actual-model')
 })
 
+it('keeps plugin drafts separate from playback preferences and saves through the preferences operation', async () => {
+ const store = useLauncherStore(); await store.initialize(); store.resetPreferencesDraft()
+ expect(store.hostPlugins).toEqual([])
+ const plugin = {id:'tts',path:'C:/plugins/tts.mjs',enabled:true}
+ store.preferencesDraft.hostPlugins.push({...plugin})
+ expect(store.preferencesDirty).toBe(true); expect(store.hostPlugins).toEqual([])
+ store.resetPreferencesDraft(); expect(store.preferencesDraft.hostPlugins).toEqual([])
+ store.preferencesDraft.hostPlugins.push({...plugin})
+ bridge.request.mockResolvedValue({...snapshot(),preferences:{theme:'system',largeText:false,hostPlugins:[plugin]}})
+ expect(await store.applyPreferences()).toBe(true)
+ expect(bridge.request).toHaveBeenLastCalledWith('preferences',expect.objectContaining({hostPlugins:[plugin],audio:{volume:80,muted:false,voiceEnabled:false}}))
+ expect(store.hostPlugins).toEqual([plugin]); expect(store.preferencesDirty).toBe(false)
+ store.preferencesDraft.hostPlugins[0]!.path='relative.mjs'
+ await expect(store.applyPreferences()).rejects.toThrow('绝对路径')
+ expect(store.hostPlugins).toEqual([plugin])
+})
+
 it('restores and saves audio preferences through the existing preferences operation',async()=>{
  const store=useLauncherStore();await store.initialize()
  expect(store.audio).toEqual({volume:80,muted:false,voiceEnabled:false})

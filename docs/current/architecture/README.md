@@ -27,6 +27,7 @@
 | 节点、分叉和分享怎样工作 | [故事线](../storylines.md) |
 | 游戏页面怎样获授权 | [前端授权](../frontend-authorization.md) |
 | 默认舞台怎样播放对白和活动 | [默认情景舞台](../frontend-stage.md) |
+| 启动器怎样选择 Cordis 宿主插件、注册语音服务 | [宿主插件](../host-plugins.md) |
 | 创作者用前端插件能做到什么、还缺什么 | [前端表现插件的能力边界](../studies/frontend-plugin-capability-boundary.md) |
 | 角色专属和角色组预设如何应用 | [预设说明](../model-presets.md) |
 | 模型服务如何接入 | [模型接口协议](../model-protocols.md) |

@@ -13,9 +13,9 @@ export interface FrontendSpeechAudio {
   contentType: 'audio/mpeg' | 'audio/ogg' | 'audio/wav'
   bytes: Uint8Array
 }
-/** Optional host injection; implementations own provider configuration and any cache. */
+/** Optional host service; implementations own provider configuration and any cache. */
 export interface FrontendHostServices {
-  synthesizeSpeech?: (input: FrontendSpeechInput, signal: AbortSignal) => Promise<FrontendSpeechAudio>
+  synthesizeSpeech?: ((input: FrontendSpeechInput, signal: AbortSignal) => Promise<FrontendSpeechAudio>) | undefined
 }
 
 export function frontendSpeechInput(view: PlayerView, value: unknown): FrontendSpeechInput {

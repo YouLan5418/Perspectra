@@ -26,9 +26,9 @@ interface FrontendHostServices {
 // audio: { contentType: 'audio/mpeg' | 'audio/ogg' | 'audio/wav', bytes: Uint8Array }
 ```
 
-这是可选回调，不是默认合成实现。未来在宿主启动组合处提供该回调，适配器自己管理云端或本地服务、音色映射、凭证、费用限制与缓存；不改 `FrozenWorldPlaytestRuntime`、application / kernel、规则提交或记忆。不提供动态模块加载器、Launcher TTS 配置或通用插件管理层。
+这是可选回调，不是默认合成实现。2026-10-18 已增加 [Cordis 宿主插件装载](../host-plugins.md)：插件注册合成服务，Launcher 保存本地模块路径与加载开关，下次启动生效。适配器自己管理云端或本地服务、音色映射、凭证、费用限制与缓存；不改 `FrozenWorldPlaytestRuntime`、application / kernel、规则提交或记忆。当前只提供可信本地模块装载与语音服务注册，没有通用前端扩展或供应商配置界面。
 
-模板的 manifest 声明 `speech` 后，还必须等宿主实际安装回调才会得到该能力；默认启动入口当前未安装。沿用 `Perspectra.ready` 检查 `capabilities`。模板已有阅读游标 `playback`，并在玩家点击时解锁过 `audioContext` 后，可用：
+模板的 manifest 声明 `speech` 后，还必须等宿主实际安装服务才会得到该能力；默认插件列表为空。沿用 `Perspectra.ready` 检查 `capabilities`。模板已有阅读游标 `playback`，并在玩家点击时解锁过 `audioContext` 后，可用：
 
 ```js
 const unit = playback.current();
