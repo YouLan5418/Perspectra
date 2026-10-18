@@ -10,7 +10,7 @@ import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 export type StatusValue = number | string | boolean
 export interface StatusChange { holderId: string | null; key: string; value: StatusValue }
 export interface StatusReveal { observerId: string; holderId: string | null; key: string; value: StatusValue }
-export type StatusSource = { kind: 'initial' } | { kind: 'operation'; operation: string; actorId: string }
+export type StatusSource = { kind: 'initial' } | { kind: 'operation'; operation: string; actorId: string; activityKey?: string }
   | { kind: 'activity'; activityKey: string; actorId: string } | { kind: 'round'; round: number }
 export interface StatusEventData { source: StatusSource; changes: StatusChange[]; reveals: StatusReveal[] }
 export interface StatusTruth { public: Record<string, StatusValue>; characters: Record<string, Record<string, StatusValue>> }
@@ -241,7 +241,7 @@ export class PackStatus {
     exact(value, ['source', 'changes', 'reveals'])
     const source = object(data.source, '状态来源')
     if (source.kind === 'initial') exact(source, ['kind'])
-    else if (source.kind === 'operation') exact(source, ['kind', 'operation', 'actorId'])
+    else if (source.kind === 'operation') exact(source, ['kind', 'operation', 'actorId'], ['activityKey'])
     else if (source.kind === 'activity') exact(source, ['kind', 'activityKey', 'actorId'])
     else if (source.kind === 'round') exact(source, ['kind', 'round'])
     else throw new TypeError('状态来源无效')
@@ -258,9 +258,10 @@ export class PackStatus {
     for (const change of data.changes) {
       exact(object(change, '状态变化'), ['holderId', 'key', 'value'])
       const status = this.#status(change.key), holderId = this.#holder(status, change.holderId)
-      // Scope-on-change: an activity-scoped status changes only through one of its own activities.
+      // Scope-on-change: an activity-scoped status changes only inside one of its own activities,
+      // through that activity's resolve or a status.js operation recorded with that activityKey.
       if (status.activities && source.kind !== 'initial'
-        && (source.kind !== 'activity' || !status.activities.includes(String(source.activityKey)))) {
+        && (typeof source.activityKey !== 'string' || !status.activities.includes(source.activityKey))) {
         throw new TypeError('状态 ' + status.key + ' 只能由指定活动改变')
       }
       next.set(slot(holderId, status.key), this.#value(status, change.value))

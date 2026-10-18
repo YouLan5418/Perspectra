@@ -136,12 +136,15 @@ describe('pack status', () => {
   it('validate rejects an operation-sourced change to an activity-scoped status', () => {
     const status = PackStatus.parse(market, pack), events = [status.initialEvent()], scene = ['character:gpt']
     const change = { holderId: 'character:gpt', key: 'hp', value: 25 }
-    for (const source of [{ kind: 'operation', operation: 'drink-potion', actorId: 'character:gpt' },
+    const potion = { kind: 'operation', operation: 'drink-potion', actorId: 'character:gpt' } as const
+    for (const source of [potion, { ...potion, activityKey: 'chess' },
       { kind: 'round', round: 1 }, { kind: 'activity', activityKey: 'chess', actorId: 'character:gpt' }] as const) {
       expect(() => status.validate(events, { source, changes: [change], reveals: [] }, scene)).toThrow(/活动/u)
     }
-    expect(() => status.validate(events, { source: { kind: 'activity', activityKey: 'duel', actorId: 'character:gpt' },
-      changes: [change], reveals: [] }, scene)).not.toThrow()
+    for (const source of [{ kind: 'activity', activityKey: 'duel', actorId: 'character:gpt' },
+      { ...potion, activityKey: 'duel' }] as const) {
+      expect(() => status.validate(events, { source, changes: [change], reveals: [] }, scene)).not.toThrow()
+    }
     // Unscoped statuses accept changes from activities too.
     expect(() => status.validate(events, { source: { kind: 'activity', activityKey: 'chess', actorId: 'character:gpt' },
       changes: [{ holderId: 'character:gpt', key: 'money', value: 1 }], reveals: [] }, scene)).not.toThrow()
