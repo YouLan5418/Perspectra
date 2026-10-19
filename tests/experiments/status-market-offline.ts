@@ -8,7 +8,7 @@ import type { PlaytestState } from './playtest-server.ts'
 // A model-free run of examples/world-packs/status-market: scripted NPC decisions drive a theft, the player
 // buys and checks the purse, and the round hook advances time. Only the player's status bar and the
 // status values each role was given are saved.
-const PLAYER = 'character:player', THIEF = 'character:companion'
+const PLAYER = 'character:player', THIEF = 'character:companion', BYSTANDER = 'character:friend'
 const directory = resolve('.tmp', 'status-market-' + Date.now())
 mkdirSync(directory, { recursive: true })
 const object = (value: unknown) => value as WorldJsonObject
@@ -57,6 +57,10 @@ const checks = {
   timeAdvancesTenPerRound: steps.map(step => step.time).join(',') === '10,20,30,40',
   thiefNeverSeesPlayerPurse: roleKnown.filter(r => r.actor === THIEF)
     .every(r => !(r.knownStatus as { holderId: string | null }[]).some(s => s.holderId === PLAYER)),
+  // The bystander is never told anyone's purse but its own.
+  bystanderSeesOnlyOwnPurse: roleKnown.some(r => r.actor === BYSTANDER) && roleKnown.filter(r => r.actor === BYSTANDER)
+    .every(r => (r.knownStatus as { key: string; holderId: string | null }[])
+      .every(s => s.key !== 'money' || s.holderId === BYSTANDER)),
   noErrors: steps.every(step => !step.error),
 }
 const summary = { directory, steps: steps.map(({ statusBar: _, ...step }) => step), checks }
