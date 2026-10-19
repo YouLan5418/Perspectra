@@ -234,6 +234,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #escaping: Promise<PlaytestState> | undefined
   #variables: PackVariables | undefined
   #status: PackStatus | undefined
+  #statusRoundError: string | undefined
   #knowledge: PackKnowledge | undefined
   #activationCycle: Awaited<ReturnType<typeof runPrototypeActivations>> | undefined
   readonly #provider: 'local' | 'deepseek' | 'ollama'
@@ -553,6 +554,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         providerCalls: this.#providerCalls, paused: this.#paused, lastPlayerIntent: this.#lastPlayerIntent,
         playerInputMode: this.#intentEnabled ? 'command-controlled' : 'legacy-speech',
         lastProviderCall: this.#lastCall,
+        ...(this.#statusRoundError === undefined ? {} : { statusRoundError: this.#statusRoundError }),
         ...(this.#shadow === undefined ? {} : { shadowAudit: this.#shadow.stats() }) },
     }
   }
@@ -581,6 +583,23 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         } else await this.#activity.speak(text, idempotencyKey ?? randomUUID())
         this.#notice = '操作已提交；单纯对白不消耗游戏行动回合。'
         await this.#activateCharacters(true)
+      } finally { try { await this.#refresh() } finally { this.#endWork() } }
+      return this.state()
+    }
+    if (text.startsWith('/status ')) {
+      if (!this.#status) throw new TypeError('本包没有状态脚本')
+      const match = /^\/status ([a-z][a-z0-9-]*) (.+)$/su.exec(text)
+      if (match === null) throw new TypeError('状态命令格式无效')
+      const parameters = JSON.parse(match[2]!) as WorldJsonObject
+      this.#beginWork(); this.#error = false; this.#notice = ''
+      try {
+        this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
+        await this.#application.release(this.#address)
+        const changed = await this.#status.apply(resolve(this.#dataDirectory, 'world.sqlite'), this.#address, this.#playerId,
+          match[1]!, parameters, idempotencyKey ?? randomUUID())
+        // A retried request returns its original result; it starts no second round.
+        this.#notice = changed ? '状态操作已提交。' : '已返回原提交结果，没有再次执行。'
+        if (changed) { await this.#refresh(); await this.#activateCharacters(); await this.#endStatusRound() }
       } finally { try { await this.#refresh() } finally { this.#endWork() } }
       return this.state()
     }
@@ -621,6 +640,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         const playerNotice = this.#playerResolutionNotice(key, result.result.headSeq)
         await this.#refresh()
         await this.#activateCharacters()
+        await this.#endStatusRound()
         if (playerNotice !== undefined) this.#notice = [playerNotice, this.#notice].filter(Boolean).join(' ')
       }
     } catch (error: unknown) {
@@ -660,9 +680,16 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       await this.#application.release(this.#address)
       const changed = await this.#activity.apply(request)
       this.#notice = changed ? '游戏操作已提交。' : '已返回原提交结果，没有再次执行。'
-      if (changed) await this.#activateCharacters(true)
+      if (changed) { await this.#activateCharacters(true); await this.#endStatusRound() }
     } finally { try { await this.#refresh() } finally { this.#endWork() } }
     return this.state()
+  }
+  /** The accepted player input's round is over: run the status hook once, recording (not retrying) a failure. */
+  async #endStatusRound(): Promise<void> {
+    if (!this.#status || this.#escaping || this.#closing) return
+    await this.#application.release(this.#address)
+    const result = await this.#status.endRound(resolve(this.#dataDirectory, 'world.sqlite'), this.#address)
+    this.#statusRoundError = result.ok ? undefined : result.error
   }
   async saveNode(title: string) {
     if (this.#busy || this.#escaping || this.#closing || this.#paused) throw new PlaytestBusyError('请等待当前行动完成并恢复 NPC 后保存节点。')

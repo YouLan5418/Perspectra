@@ -169,6 +169,10 @@ export class TailRoundRuntime {
       if(startParameters!==undefined&&(!startParameters||typeof startParameters!=='object'||Array.isArray(startParameters)))throw new TypeError('开始参数无效')
       return this.activityAction({...(current.activityKey===undefined?{}:{activityKey:String(current.activityKey)}),activityId:operation==='start'?null:String(current.id),revision:operation==='start'?0:Number(current.revision),operation,parameters:(startParameters as WorldJsonObject|undefined)??{},requestId:randomUUID()})
     }
+    const id=(action.parameters.definitionRef as WorldJsonObject|undefined)?.id
+    // Recorded as text input, so regenerating the round replays the same status operation.
+    if(action.actionType==='interact'&&typeof id==='string'&&id.startsWith('status:'))
+      return this.submit('/status '+id.slice('status:'.length)+' '+JSON.stringify(action.parameters.arguments??{}))
     return this.submit('/act '+action.actionType+' '+JSON.stringify(action.parameters))
   }
   async activityAction(activity: ActivityRequest): Promise<PlaytestState> {

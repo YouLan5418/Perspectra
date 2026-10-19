@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { relative, resolve, sep } from 'node:path'
 import { createContext, Script } from 'node:vm'
-import { brandId, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
+import { brandId, canonicalizeWorldJson, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
 import { rejectRulebookResolution, type ActionAffordance, type CompiledWorldManifest, type RulebookEvent, type RulebookResolution,
   type RulebookResolver } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
@@ -34,7 +34,9 @@ export interface StatusOperation {
 /** One status operation's outcome. A rejection names the actor's own mistake or the author's
  * `rejectReason`; it commits nothing and reveals no value. Author or host faults throw instead. */
 export type Adjudication = { status: 'rejected'; reason: string }
-  | { status: 'accepted'; event: WorldEventDraft; description: string; observationScope: NonNullable<RulebookResolution['observationScope']> }
+  | { status: 'accepted'; event: WorldEventDraft; description: string; observationScope: NonNullable<RulebookResolution['observationScope']>
+    /** The actor and the characters in its authorized scene: who a `scene` audience reaches. */
+    sceneIds: readonly string[] }
 
 export const KNOWN_STATUS_NOTE = '这是你上次确认的状态值；current=false 表示之后可能已经改变，你并不知道现在的值。'
 const ENTRY = 'scripts/status.js'
@@ -304,6 +306,14 @@ export class PackStatus {
     }
   }
 
+  /** Reveals carry the value as of this event; the host fills it in and never trusts an author value. */
+  #revealAfter(events: readonly RulebookEvent[], changes: readonly StatusChange[]) {
+    const after = this.#slots(events)
+    for (const change of changes) after.set(slot(object(change, '状态变化').holderId as string | null, String(change.key)), change.value)
+    return (observerId: unknown, holderId: unknown, key: unknown) =>
+      ({ observerId, holderId, key, value: after.get(slot(holderId as string | null, String(key))) }) as StatusReveal
+  }
+
   /** Host adjudication of one status operation on a commit prefix. NPC rulebook turns and player
    * operations share it; the caller commits the returned event, or nothing when this throws. */
   #adjudicate(input: { readonly worldPath: string; readonly address: WorldAddress; readonly playerId: string
@@ -335,12 +345,7 @@ export class PackStatus {
     exact(result, ['changes', 'reveals', 'description', 'audience'])
     if (typeof result.description !== 'string' || result.description.length > 2000) throw new TypeError('状态操作结果描述无效')
     if (!Array.isArray(result.changes) || !Array.isArray(result.reveals)) throw new TypeError('状态变化或告知必须是列表')
-    const changes = result.changes as StatusChange[]
-    // Reveals carry the value as of this event; the host fills it in and never trusts an author value.
-    const after = this.#slots(events)
-    for (const change of changes) after.set(slot(object(change, '状态变化').holderId as string | null, String(change.key)), change.value)
-    const reveal = (observerId: unknown, holderId: unknown, key: unknown) =>
-      ({ observerId, holderId, key, value: after.get(slot(holderId as string | null, String(key))) }) as StatusReveal
+    const changes = result.changes as StatusChange[], reveal = this.#revealAfter(events, changes)
     const reveals = result.reveals.map(value => {
       const r = object(value, '状态告知')
       exact(r, ['observerId', 'holderId', 'key'])
@@ -366,7 +371,7 @@ export class PackStatus {
       observationScope = { scope: 'direct', recipientIds }
     }
     return { status: 'accepted', event: { eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject },
-      description: result.description, observationScope }
+      description: result.description, observationScope, sceneIds }
   }
 
   /** Wraps a rulebook: offers this actor's status operations and adjudicates `status:` interactions. */
@@ -421,19 +426,96 @@ export class PackStatus {
     return typeof description === 'string' ? { status: 'accepted', description } : characterExecutionResult(input)
   }
 
-  /** Commits the initial values once, as their own round, when the world has no status event yet. */
-  async ensureInitial(worldPath: string, address: WorldAddress, playerId: string): Promise<void> {
-    const store = new WorldStore(worldPath), leases = new WriterLeaseService(worldPath), owner = 'status-initial:' + randomUUID()
+  /** One host round under the writer lease; `build` sees the committed head and returns nothing to commit nothing.
+   * Resolves to whether a round was committed. */
+  async #commitRound(worldPath: string, address: WorldAddress, owner: string,
+    build: (store: WorldStore, head: { headSeq: number; tick: number }) => { events: WorldEventDraft[]; authority: WorldJsonObject } | undefined): Promise<boolean> {
+    const store = new WorldStore(worldPath), leases = new WriterLeaseService(worldPath)
     let lease: ReturnType<WriterLeaseService['acquire']> | undefined
     try {
       lease = leases.acquire(address, owner, 180000)
-      const head = store.head(address)
-      if (store.readEventsRange(address, 0, head.headSeq, ['status.updated']).length) return
+      const head = store.head(address), round = build(store, head)
+      if (!round) return false
       await store.commitRound({ address, transactionId: brandId(owner, 'TransactionId'), roundId: brandId(owner, 'InteractionRoundId'),
         expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
-        events: [this.initialEvent(), { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1 } }],
-        outbox: [], writerFencingToken: lease.fencingToken, correlationId: owner,
-        authority: { actorId: playerId, source: 'status-initial', status: 'accepted' } })
+        events: [...round.events, { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1 } }],
+        outbox: [], writerFencingToken: lease.fencingToken, correlationId: owner, authority: round.authority })
+      return true
     } finally { if (lease) leases.release(address, owner, lease.fencingToken); leases.close(); store.close() }
+  }
+
+  /** Commits the initial values once, as their own round, when the world has no status event yet. */
+  async ensureInitial(worldPath: string, address: WorldAddress, playerId: string): Promise<void> {
+    await this.#commitRound(worldPath, address, 'status-initial:' + randomUUID(), (store, head) =>
+      store.readEventsRange(address, 0, head.headSeq, ['status.updated']).length ? undefined
+        : { events: [this.initialEvent()], authority: { actorId: playerId, source: 'status-initial', status: 'accepted' } })
+  }
+
+  /** The player's own status operation, adjudicated like an NPC's and committed as its own round with its
+   * result observations. A rejection throws with the reason and commits nothing. Resolves to false when the
+   * request was already committed, so a retry neither runs the operation nor ends another round. */
+  apply(worldPath: string, address: WorldAddress, playerId: string, operation: string, parameters: WorldJsonObject,
+    requestId: string): Promise<boolean> {
+    const owner = 'status:' + requestId, actionId = owner + ':action', request = { operation, parameters }
+    return this.#commitRound(worldPath, address, owner, (store, head) => {
+      const prior = store.readRoundAuthority(address, brandId(owner, 'TransactionId'))
+      if (prior) {
+        const same = (value: unknown) => Buffer.from(canonicalizeWorldJson(value as WorldJsonObject)).toString('utf8')
+        if (same(prior.authority.request) !== same(request)) throw new TypeError('同一请求不能改变内容')
+        return undefined
+      }
+      const events = store.readEvents(address), manifest = store.readManifest(address)!.manifest as CompiledWorldManifest
+      const result = this.#adjudicate({ worldPath, address, playerId, manifest, events, asOfWorldSeq: head.headSeq,
+        actorId: playerId, operationId: operation, parameters })
+      if (result.status === 'rejected') throw new TypeError(result.reason)
+      const scope = result.observationScope
+      const observerIds = scope.scope === 'direct' ? (scope.recipientIds ?? []).map(String) : result.sceneIds
+      return { authority: { actorId: playerId, request, status: 'accepted' }, events: [result.event,
+        ...observerIds.map(observerId => ({ eventType: 'observation.upsert', eventVersion: 1, data: {
+          id: actionId + ':' + observerId, value: { observerId, actionId, epistemicKind: 'observed_action',
+            content: { status: 'accepted', actionType: 'interact', actorId: playerId, resultDescription: result.description } } } })),
+        { eventType: 'action.resolved', eventVersion: 1,
+          data: { actorId: playerId, actionId, actionType: 'interact', accepted: true, sourceRole: 'player' } }] }
+    })
+  }
+
+  /** Runs the optional `onRoundEnd` hook once after an accepted player input and commits its result as the
+   * round's last status event. A failing hook commits nothing and is not retried; storage faults still throw. */
+  async endRound(worldPath: string, address: WorldAddress): Promise<{ ok: boolean; error?: string }> {
+    let error: string | undefined
+    await this.#commitRound(worldPath, address, 'status-round:' + randomUUID(), store => {
+      const events = store.readEvents(address)
+      const round = events.filter(e => e.eventType === 'status.updated' && statusData(e).source.kind === 'round').length + 1
+      let data: StatusEventData | undefined
+      try { data = this.#roundResult(events, round) } catch (cause) {
+        error = cause instanceof Error ? cause.message : String(cause)
+        return undefined
+      }
+      return data && { events: [{ eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }],
+        authority: { source: 'status-round', round, status: 'accepted' } }
+    })
+    return error === undefined ? { ok: true } : { ok: false, error }
+  }
+
+  #roundResult(events: readonly RulebookEvent[], round: number): StatusEventData | undefined {
+    const output = this.#call('onRoundEnd', [this.truth(events), round])
+    if (output === null) return undefined
+    const result = object(output, '每轮结果')
+    exact(result, ['changes', 'reveals'])
+    if (!Array.isArray(result.changes) || !Array.isArray(result.reveals)) throw new TypeError('状态变化或告知必须是列表')
+    const changes = result.changes as StatusChange[], reveal = this.#revealAfter(events, changes)
+    const reveals = result.reveals.map(value => {
+      const r = object(value, '状态告知')
+      exact(r, ['observerId', 'holderId', 'key'])
+      // The hook has no actor and so no scene: it may tell only the owner of a status it changed here.
+      if (r.observerId !== r.holderId || !changes.some(c => c.holderId === r.holderId && c.key === r.key)) {
+        throw new TypeError('每轮钩子只能告知被改状态的归属者本人')
+      }
+      return reveal(r.observerId, r.holderId, r.key)
+    })
+    const data: StatusEventData = { source: { kind: 'round', round }, changes, reveals }
+    // The owner rule above replaces the scene rule; activity-scoped statuses are refused by validate.
+    this.validate(events, data, this.#characterIds)
+    return data
   }
 }
