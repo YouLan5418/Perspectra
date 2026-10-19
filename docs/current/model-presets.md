@@ -123,7 +123,7 @@ Launcher 的角色预设弹窗新增节点和文本规则编辑，支持添加�
 
 ### 原生结构
 
-可直接参考 [自然互动示例](../../preset/native-natural.json)。`nodes` 与 `textRules` 都使用数组顺序，不另外添加排序协议。
+`nodes` 与 `textRules` 都使用数组顺序，不另外添加排序协议。本机如有 `preset/native-natural.json`，可作为自然互动示例；`preset/` 已列入 Git 忽略，不随源码分发。
 
 | 字段 | 含义与限制 |
 | --- | --- |

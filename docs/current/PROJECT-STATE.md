@@ -37,7 +37,7 @@
 - 新试玩包《赔罪晚宴》（`examples/world-packs/model-girls-dinner`）：四个室友、一场晚宴、没有预定结局。活动可以声明“一键操作”和旁白。见[活动与状态](guides/activity-and-variables.md)。
 - 世界包里的物品可以写显示名，界面不再只显示机器 ID。
 - 世界包根目录放 `cover.webp/png/jpg` 就会作为 Launcher 封面。
-- 酒馆（SillyTavern）预设可用 `preset:import` 命令离线转换成原生格式；Launcher 界面本身仍不能直接导入酒馆文件。另附一套原生写作预设 [native-writing-suite.json](../../preset/native-writing-suite.json)。见[预设说明](model-presets.md)。
+- 酒馆（SillyTavern）预设可用 `preset:import` 命令离线转换成原生格式；Launcher 界面本身仍不能直接导入酒馆文件。本机预设保存在已忽略的 `preset/`，不随源码分发；已有的 `native-writing-suite.json` 仍可从本机导入。见[预设说明](model-presets.md)。
 
 ## 已经能玩的部分
 

@@ -37,7 +37,7 @@ When a document says "current source", assume the feature is not in test3.
 - New demo pack *Apology Dinner* (`examples/world-packs/model-girls-dinner`): four roommates, one dinner, no fixed ending. Activities can declare one-click operations and narration.
 - Items in a world pack can have display names instead of machine IDs.
 - A `cover.webp/png/jpg` in the pack root becomes the launcher cover.
-- SillyTavern presets can be converted offline with `preset:import`; the launcher UI still cannot import SillyTavern files directly. A native writing preset set ships as [native-writing-suite.json](../../preset/native-writing-suite.json).
+- SillyTavern presets can be converted offline with `preset:import`; the launcher UI still cannot import SillyTavern files directly. Local presets live in the ignored `preset/` directory and are not distributed with the source. An existing local `native-writing-suite.json` can still be imported.
 
 ## What can be played
 
