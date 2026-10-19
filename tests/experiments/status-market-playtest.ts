@@ -36,7 +36,17 @@ const theft = [
   '算了，也可能是我自己记错了。我们再逛逛吧。',
   '天快黑了，今天就到这儿吧。',
 ]
-const inputSets = { market, theft } as const
+// Same opening as `theft`, but the player's lines never say which way the purse changed.
+const unattended = [
+  ...theft.slice(0, 5),
+  '（拿起钱袋掂了掂）嗯？',
+  '/status check-purse {}',
+  '你们谁动过我的钱袋吗？',
+  '同行者，你刚才站得离桌子最近吧？',
+  '好吧，不管怎么样，谢谢你们帮我看着。',
+  '天快黑了，今天就到这儿吧。',
+]
+const inputSets = { market, theft, unattended } as const
 
 /** Real provider run on the status-market sample with Core memory. A rejected /status is recorded and play continues. */
 export async function playStatusMarket(output: string, model: string, set: keyof typeof inputSets = 'market') {
@@ -77,6 +87,6 @@ export async function playStatusMarket(output: string, model: string, set: keyof
   } finally { await runtime.close() }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (!process.argv[2] || !process.argv[3]) throw new TypeError('用法：status-market-playtest.ts <.tmp/新数据目录> <模型> [market|theft]')
+  if (!process.argv[2] || !process.argv[3]) throw new TypeError('用法：status-market-playtest.ts <.tmp/新数据目录> <模型> [market|theft|unattended]')
   await playStatusMarket(process.argv[2], process.argv[3], (process.argv[4] ?? 'market') as keyof typeof inputSets)
 }

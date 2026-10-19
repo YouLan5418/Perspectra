@@ -41,7 +41,7 @@
           "key": "goal:companion-short-of-money",
           "objective": {
             "kind": "narrative",
-            "value": "今晚收摊前凑出至少三十还赌债。"
+            "value": "把欠玩家的三十还上，最好别让对方知道是谁还的。"
           },
           "priorityPermille": 600,
           "targetKeys": [],

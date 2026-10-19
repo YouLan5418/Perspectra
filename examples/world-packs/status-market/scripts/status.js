@@ -21,6 +21,10 @@ globalThis.statusScript = {
       // 只有 NPC 可以偷；目标必须是当前场景里的角色，由宿主校验。
       { id: 'steal', label: '偷窃', characterParameters: ['targetId'], actors: 'npc',
         schema: { ...object, required: ['targetId'], properties: { targetId: { type: 'string' } } } },
+      // 与偷窃同样是“别人暗中改动你的余额”，只是方向相反：悄悄把钱塞进对方钱袋。
+      { id: 'slip-money', label: '悄悄往别人钱袋里塞钱', characterParameters: ['targetId'], actors: 'npc',
+        schema: { ...object, required: ['targetId', 'amount'], properties: { targetId: { type: 'string' },
+          amount: { type: 'integer', minimum: 1, maximum: 1000 } } } },
       { id: 'check-purse', label: '查看钱包', schema: { ...object, properties: {} } },
       { id: 'accept-task', label: '领取演示委托', schema: { ...object, properties: {} } },
       { id: 'finish-task', label: '完成演示委托', schema: { ...object, properties: {} } },
@@ -34,7 +38,7 @@ globalThis.statusScript = {
   // Only known values decide which options appear. The host applies this again when executing.
   policy(known) {
     const stage = known.self.quests?.market?.stage
-    return { operations: ['buy', 'steal', 'check-purse',
+    return { operations: ['buy', 'steal', 'slip-money', 'check-purse',
       ...(!stage ? ['accept-task'] : stage === 'active' ? ['finish-task'] : stage === 'done' ? ['claim-reward'] : [])] }
   },
   resolve(truth, actorId, operationId, parameters) {
@@ -75,6 +79,15 @@ globalThis.statusScript = {
       return { changes: [{ holderId: parameters.targetId, key: 'money', value: victim.money - amount },
         { holderId: actorId, key: 'money', value: own.money + amount }],
       reveals: [purse], description: '偷偷摸走了 ' + amount, audience: 'self' }
+    }
+    if (operationId === 'slip-money') {
+      if (parameters.targetId === actorId) return { rejectReason: '不能往自己的钱袋里塞钱' }
+      if (own.money < parameters.amount) return { changes: [], reveals: [purse], description: '钱不够，没塞成', audience: 'self' }
+      const receiver = truth.characters[parameters.targetId]
+      // 收钱的人同样不会被告知：状态栏继续显示上次确认的余额，并标为可能已过期。
+      return { changes: [{ holderId: parameters.targetId, key: 'money', value: receiver.money + parameters.amount },
+        { holderId: actorId, key: 'money', value: own.money - parameters.amount }],
+      reveals: [purse], description: '悄悄往对方钱袋里塞了 ' + parameters.amount, audience: 'self' }
     }
     if (operationId === 'check-purse') return { changes: [], reveals: [purse], description: '低头看了看钱包', audience: 'self' }
     return { rejectReason: '没有这个操作' }

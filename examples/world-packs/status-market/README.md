@@ -1,11 +1,11 @@
 # 集市钱袋：状态栏示例
 
-玩家、同行者和留守者在集市摊位前闲逛，每人带着 100 的钱。同行者手头拮据，可能趁人多偷玩家的钱。偷窃成功后真实余额变成 70，但结果只告诉同行者：玩家的状态栏仍显示 100，并立刻标为“上次确认”（角色上下文里同样是 current=false）。也就是说，失主马上知道钱袋有了变化，但不知道现在是多少、是谁动的；执行“查看钱包”或付账后，才看到真实余额。对“暗中偷窃”而言这是当前的限制：失主会察觉到“有变化”。留守者从头到尾不知道两人的余额。时间是所有人都看得到的公共状态，每轮结束加 10。
+玩家、同行者和留守者在集市摊位前闲逛，每人带着 100 的钱。同行者上个月借了玩家三十一直没还，想趁玩家不注意悄悄塞回钱袋（包里也保留了偷窃操作）。暗中塞钱或偷窃之后，结果只告诉动手的人：玩家的状态栏仍显示 100，并立刻标为“上次确认”（角色上下文里同样是 current=false）。也就是说，失主马上知道钱袋有了变化，但不知道现在是多少、是谁动的；执行“查看钱包”或付账后，才看到真实余额。对“暗中偷窃”而言这是当前的限制：失主会察觉到“有变化”。留守者从头到尾不知道两人的余额。时间是所有人都看得到的公共状态，每轮结束加 10。
 
 本包从 [prototype-g1](../prototype-g1) 复制，只改了名称、人设与认知文字，并在 `worldpack.source.json` 的 assetFiles 登记 [scripts/status.js](scripts/status.js)：
 
 - 状态：`money`（每个角色一份，只告知本人）、`time`（公共，alwaysKnown）。
-- 操作：`buy`（参数 price）、`steal`（只有 NPC 能做，targetId 必须是在场角色；不能偷自己）、`check-purse`（无参数，出现在行动菜单里）。
+- 操作：`buy`（参数 price）、`slip-money`（悄悄往别人钱袋里塞钱，参数 targetId、amount；只有 NPC 能做）、`steal`（只有 NPC 能做，targetId 必须是在场角色；不能偷自己）、`check-purse`（无参数，出现在行动菜单里）。
 - 每轮钩子：时间加 10。
 
 2026-10-19 新增结构化委托示例：`quests` 是按稳定 ID 索引的对象，每个委托有 stage 与 notes 数组，并由作者 JSON Schema 校验。点击“领取演示委托 → 完成演示委托 → 领取委托报酬”，最后余额增加 30、阶段变为 claimed，同次提交保证不会只加钱而漏记领取。这个演示用显式完成操作展示机制；实际游戏应在 resolve 中检查自己的完成条件。
@@ -24,7 +24,7 @@ node --import tsx tests/experiments/status-market-offline.ts
 
 ## 真实模型试玩
 
-2026-10-19 已用 OpenCode DeepSeek v4.1 flash 和 Core 记忆跑过一次 14 轮试玩，记录见[真实试玩](../../../docs/current/studies/status-market-deepseek-playtest-20261019.md)；驱动为 [status-market-playtest.ts](../../../tests/experiments/status-market-playtest.ts)。那次同行者没有偷窃，下面的手动步骤仍可用于专门验收偷窃路径。
+2026-10-19 已用 OpenCode DeepSeek v4.1 flash 和 Core 记忆跑过一次 14 轮试玩，记录见[真实试玩](../../../docs/current/studies/status-market-deepseek-playtest-20261019.md)；驱动为 [status-market-playtest.ts](../../../tests/experiments/status-market-playtest.ts)。前三次（含给偷窃机会、加强动机）同行者都没有偷；第四次换成“悄悄还钱”后，同行者第一次有机会就塞了 30，失主状态栏一直显示“上次确认 100”，查看钱包后变成 130。驱动的输入组有 `market`、`theft`、`unattended`。
 
 ### 手动试玩
 
