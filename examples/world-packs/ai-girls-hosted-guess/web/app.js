@@ -85,23 +85,6 @@
         }
       }
     }
-    node('variables-card').hidden = !state.packVariables
-    node('variables').replaceChildren()
-    if (state.packVariables) {
-      const show = (value, path) => {
-        for (const [key, item] of Object.entries(value)) {
-          const label = [...path, key]
-          if (item && typeof item === 'object') show(item, label)
-          else {
-            const row = document.createElement('p')
-            row.textContent = label.join(' · ') + '：' + String(item)
-            node('variables').append(row)
-          }
-        }
-      }
-      show(state.packVariables.public, [])
-      show(state.packVariables.private, ['仅自己知道'])
-    }
     transcript.replaceChildren()
     if (state.transcript.length === 0) {
       const empty = document.createElement('p')

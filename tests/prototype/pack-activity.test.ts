@@ -135,7 +135,6 @@ describe('creator activity and host escape',()=>{
     const before=pending.debug.headSeq
     await expect(f.runtime.activityAction(request(pending,'guess',{value:10}))).rejects.toThrow(/轮到/u)
     await expect(f.runtime.activityAction(request(start,'guess',{value:10}))).rejects.toThrow(/失效/u)
-    await expect(f.runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"绕过"}]')).rejects.toThrow()
     await expect(f.runtime.perform({actionType:'move',parameters:{locationId:'location:living-room'}})).rejects.toThrow()
     await expect(f.runtime.activityAction(request(pending,'quit',{narration:'非法'}))).rejects.toThrow(/参数/u)
     expect((await f.runtime.state()).debug.headSeq).toBe(before)
@@ -293,7 +292,6 @@ describe('creator activity and host escape',()=>{
     const view=await response.json()
     expect(view.scene.locationName).toBe('客厅')
     expect(view).not.toHaveProperty('debug')
-    expect(view).not.toHaveProperty('packVariables')
     const committed=f.events().length
     expect(committed).toBeGreaterThan(before)
     expect(await (await send('move:location:living-room','move')).json()).toEqual(view)

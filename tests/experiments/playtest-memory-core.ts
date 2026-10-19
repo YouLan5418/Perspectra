@@ -50,7 +50,7 @@ interface BuildJob {
   started: boolean; failure?: unknown
 }
 
-/** Host adapter only. Python never receives a world path, pack variables or other roles' views. */
+/** Host adapter only. Python never receives a world path, status values or other roles' views. */
 export class PlaytestMemoryCore {
   readonly #directory: string
   readonly #aliases = new Map<string, WorldJsonObject[]>()

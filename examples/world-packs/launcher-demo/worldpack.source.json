@@ -30,7 +30,6 @@
   "documentFiles": [],
   "markdownFiles": [],
   "assetFiles": [
-    "scripts/variables.js",
     "scripts/activity.js"
   ],
   "assertionFiles": [

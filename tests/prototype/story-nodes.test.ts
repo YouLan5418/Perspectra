@@ -13,6 +13,7 @@ import type { CoreRunner } from '../experiments/hindsight-python.ts'
 import { readStoryNodes, restoreStoryNode, saveStoryNode } from '../../desktop/story-nodes.ts'
 import { exportStoryNode } from '../../desktop/story-share.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
+import { knownTime, statusMarketWithoutRoundHook } from './fixtures/status-market-no-hook.ts'
 
 const roots: string[] = [], servers: Server[] = [], runtimes: FrozenWorldPlaytestRuntime[] = []
 afterEach(async () => {
@@ -30,11 +31,11 @@ async function fixture() {
   const pack=join(root,'pack'),data=join(root,'data')
   cpSync(resolve('examples/world-packs/prototype-g1'),pack,{recursive:true})
   mkdirSync(join(pack,'scripts'))
-  cpSync(resolve('examples/world-packs/ai-girls-awaken-v10/scripts/variables.js'),join(pack,'scripts/variables.js'))
+  writeFileSync(join(pack,'scripts/status.js'),statusMarketWithoutRoundHook())
   const activity=readFileSync(resolve('examples/world-packs/ai-girls-awaken-v10/scripts/activity.js'),'utf8').replaceAll('character:gpt','character:companion')
   writeFileSync(join(pack,'scripts/activity.js'),activity)
   const source=JSON.parse(readFileSync(join(pack,'worldpack.source.json'),'utf8'))
-  source.assetFiles=['scripts/variables.js','scripts/activity.js']
+  source.assetFiles=['scripts/status.js','scripts/activity.js']
   writeFileSync(join(pack,'worldpack.source.json'),JSON.stringify(source))
   const requests: WorldJsonObject[] = []
   let follow=false, followed=false, gate:Promise<void>|undefined
@@ -73,9 +74,9 @@ const activityRequest=(state:{activity?:WorldJsonObject},operation:string)=>({
   activityId:state.activity?.id as string|null,revision:Number(state.activity?.revision),operation,parameters:{},requestId:randomUUID(),
 })
 
-it('restores one complete instant: location, custody, active game, variables and role-authorized memory; keeps the original future',async()=>{
+it('restores one complete instant: location, custody, active game, status and role-authorized memory; keeps the original future',async()=>{
   const f=await fixture()
-  await f.runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"节点阶段"}]')
+  await f.runtime.submit('/status set-time {"value":5}')
   await f.runtime.submit('/act interact {"targetRef":{"kind":"entity","id":"entity:brass-key"},"bindingId":"binding:key-take","definitionRef":{"id":"base:take","version":1},"arguments":{}}')
   f.setFollow()
   await f.runtime.submit('/act move {"locationId":"location:back-room"}')
@@ -87,7 +88,7 @@ it('restores one complete instant: location, custody, active game, variables and
   await f.runtime.activityAction(activityRequest(await f.runtime.state(),'quit'))
   await f.runtime.submit('/act interact {"targetRef":{"kind":"entity","id":"entity:brass-key"},"bindingId":"binding:key-drop","definitionRef":{"id":"base:drop","version":1},"arguments":{}}')
   await f.runtime.submit('/act move {"locationId":"location:front-room"}')
-  await f.runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"未来阶段"}]')
+  await f.runtime.submit('/status set-time {"value":9}')
   await f.runtime.submit('/act speak {"text":"未来秘密：红杉九号。"}')
   const future=JSON.stringify(f.events())
   await f.runtime.close()
@@ -99,7 +100,7 @@ it('restores one complete instant: location, custody, active game, variables and
   expect(currentLocation(f.events(target),'character:player')).toBe('location:back-room')
   expect(currentEntityState(f.events(target),'entity:brass-key')?.holderId).toBe('character:player')
   expect((await child.state()).activity).toEqual(active.activity)
-  expect((await child.state()).packVariables?.public).toEqual({剧情:{阶段:'节点阶段'}})
+  expect(knownTime(await child.state())).toBe(5)
   expect(existsSync(join(target,'rebuild-memory.json'))).toBe(false)
   expect(f.builds).toHaveLength(0)
   await child.activityAction(activityRequest(await child.state(),'quit'))
@@ -202,20 +203,20 @@ it('persists real line selection and restricts forks to reachable saved nodes; L
 },20_000)
 
 
-it('publishes no partial node on save failure and refuses a node whose variable file is missing',async()=>{
+it('publishes no partial node on save failure and refuses a node whose recorded file is missing',async()=>{
   const f=await fixture(),node=await f.runtime.saveNode('完整记录')
   const before=JSON.stringify(f.events())
   await expect(saveStoryNode(f.data,f.runtime.address,node.packHash,'失败节点',1n)).rejects.toThrow()
   expect(readStoryNodes(f.data).map(n=>n.id)).toEqual([node.id])
   expect(JSON.stringify(f.events())).toBe(before)
-  unlinkSync(join(f.data,'story-nodes',node.id,'pack-variables.json'))
+  unlinkSync(join(f.data,'story-nodes',node.id,'memory-aliases.json'))
   expect(()=>restoreStoryNode(f.data,node.id,join(f.root,'broken'),node.packHash)).toThrow('文件缺失')
   expect(JSON.stringify(f.events())).toBe(before)
 })
 
 it('shares one historical node across independent launchers, preserves installed memories and excludes future and caches', async()=>{
   const f=await fixture()
-  await f.runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"分享阶段"}]')
+  await f.runtime.submit('/status set-time {"value":5}')
   await f.runtime.submit('/act interact {"targetRef":{"kind":"entity","id":"entity:brass-key"},"bindingId":"binding:key-take","definitionRef":{"id":"base:take","version":1},"arguments":{}}')
   f.setFollow();await f.runtime.submit('/act move {"locationId":"location:back-room"}')
   await f.runtime.submit('/act speak {"text":"只有后室的人知道：分享暗号青松七号。"}')
@@ -227,7 +228,7 @@ it('shares one historical node across independent launchers, preserves installed
   expect(JSON.stringify(memories['character:friend'])).not.toContain('分享暗号青松七号')
   expect(JSON.stringify(memories['character:companion'])).toContain('分享暗号青松七号')
   await f.runtime.activityAction(activityRequest(await f.runtime.state(),'quit'))
-  await f.runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"后来的未来"}]')
+  await f.runtime.submit('/status set-time {"value":9}')
   await f.runtime.submit('/act speak {"text":"后来秘密红杉九号。"}')
   await f.runtime.refreshMemory();await f.runtime.waitForMemory()
   await f.runtime.close()
@@ -250,12 +251,12 @@ it('shares one historical node across independent launchers, preserves installed
     expect(sender.snapshot().core.state).toBe('running')
   } finally { await sender.stop() }
   const content=JSON.parse(readFileSync(archive,'utf8'))
-  expect(Object.keys(content.files).sort()).toEqual(['core-memory.json','memory-aliases.json','pack-variables.json','session.sqlite','world.sqlite'])
+  expect(Object.keys(content.files).sort()).toEqual(['core-memory.json','memory-aliases.json','session.sqlite','world.sqlite'])
   expect(JSON.parse(Buffer.from(content.files['core-memory.json'],'base64').toString('utf8'))).toEqual(memories)
   expect(content.node.parentNodeId).toBeNull()
   const decoded=Object.values(content.files).map(bytes=>Buffer.from(bytes as string,'base64').toString('utf8')).join('')
   expect(decoded).not.toContain('REQUEST-SECRET');expect(decoded).not.toContain('DERIVED-CACHE-SECRET')
-  expect(decoded).not.toContain('后来秘密红杉九号');expect(decoded).not.toContain('后来的未来')
+  expect(decoded).not.toContain('后来秘密红杉九号')
   const receiverRoot=join(f.root,'receiver'),receiver=new LauncherCore(resolve('.'),receiverRoot)
   await receiver.initialize();await receiver.handle({operation:'load',path:f.pack})
   const receiverConnection='7a2d3b5f-2e1c-4d4a-8b62-1e7d2c8f3a21'
@@ -277,7 +278,7 @@ it('shares one historical node across independent launchers, preserves installed
   expect(currentLocation(f.events(directory),'character:player')).toBe('location:back-room')
   expect(currentEntityState(f.events(directory),'entity:brass-key')?.holderId).toBe('character:player')
   expect((await child.state()).activity).toEqual(active.activity)
-  expect((await child.state()).packVariables?.public).toEqual({剧情:{阶段:'分享阶段'}})
+  expect(knownTime(await child.state())).toBe(5)
   expect(f.builds).toHaveLength(0)
   await child.activityAction(activityRequest(await child.state(),'quit'))
   await child.submit('/act speak {"text":"接收者继续自己的故事。"}')
@@ -309,7 +310,6 @@ it('rejects malformed, unsafe, mismatched and inconsistent shares without publis
   const variants:[string,(value:typeof valid)=>void][]=[
     ['路径越界',value=>{value.node.files.push('../escape.txt');value.files['../escape.txt']='eA=='}],
     ['缺少会话',value=>{value.node.files=value.node.files.filter((name:string)=>name!=='session.sqlite');delete value.files['session.sqlite']}],
-    ['缺少变量',value=>{value.node.files=value.node.files.filter((name:string)=>name!=='pack-variables.json');delete value.files['pack-variables.json']}],
     ['时刻不符',value=>{value.node.headSeq++}],
     ['数据库损坏',value=>{value.files['world.sqlite']=Buffer.from('broken database').toString('base64')}],
     ['会话游标损坏',value=>{const path=join(f.root,'edited-session.sqlite');writeFileSync(path,Buffer.from(value.files['session.sqlite'],'base64'));const db=new DatabaseSync(path);try{db.prepare('UPDATE session_delivery_cursor SET last_delivery_seq=last_delivery_seq+1').run()}finally{db.close()}value.files['session.sqlite']=readFileSync(path).toString('base64')}],

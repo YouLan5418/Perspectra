@@ -97,7 +97,6 @@ export async function snapshotTail(directory: string, target: string, address: W
     try { await backup(db,join(target,name)) } finally { db.close() }
     files.push(name)
   }
-  if (existsSync(join(directory,'pack-variables.json'))) { copyFileSync(join(directory,'pack-variables.json'),join(target,'pack-variables.json')); files.push('pack-variables.json') }
   durableJson(join(target,'memory-aliases.json'),aliases); files.push('memory-aliases.json')
   const core = join(directory,'memory-core')
   if (existsSync(core)) for (const name of readdirSync(core).filter(n => /^[A-Za-z0-9_-]+\.json$/.test(n))) {
@@ -108,7 +107,7 @@ export async function snapshotTail(directory: string, target: string, address: W
   durableJson(join(target,'snapshot.json'),{ files: files.map(name => ({name, digest: createHash('sha256').update(readFileSync(join(target,name))).digest('hex')})) })
 }
 export function flushTailData(directory: string): void {
-  for (const name of ['world.sqlite','session.sqlite','memory.sqlite','context.sqlite','pack-variables.json','memory-aliases.json']) {
+  for (const name of ['world.sqlite','session.sqlite','memory.sqlite','context.sqlite','memory-aliases.json']) {
     const path = join(directory,name)
     if (existsSync(path)) flush(path)
     if (name.endsWith('.sqlite') && existsSync(path+'-wal')) flush(path+'-wal')
@@ -122,7 +121,7 @@ export function restoreTail(base: string, target: string): void {
   mkdirSync(target,{recursive:true})
   if (readdirSync(target).length) throw new Error('候选目录必须为空。')
   for (const file of manifest.files) {
-    if (!/^(world|session|memory|context)\.sqlite$|^pack-variables\.json$|^memory-aliases\.json$|^memory-core\/[A-Za-z0-9_-]+\.json$/.test(file.name)
+    if (!/^(world|session|memory|context)\.sqlite$|^memory-aliases\.json$|^memory-core\/[A-Za-z0-9_-]+\.json$/.test(file.name)
       || createHash('sha256').update(readFileSync(join(base,file.name))).digest('hex') !== file.digest) throw new Error('回合起点文件损坏。')
     if (file.name.startsWith('memory-core/')) mkdirSync(join(target,'memory-core'),{recursive:true})
     copyFileSync(join(base,file.name),join(target,file.name))

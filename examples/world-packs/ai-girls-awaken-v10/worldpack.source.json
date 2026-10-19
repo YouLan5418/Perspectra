@@ -37,7 +37,6 @@
     "text/glm-history.zh-CN.md"
   ],
   "assetFiles": [
-    "scripts/variables.js",
     "scripts/activity.js"
   ],
   "assertionFiles": [

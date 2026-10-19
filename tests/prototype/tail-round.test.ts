@@ -11,6 +11,7 @@ import { currentEntityState } from '@harness-world/kernel'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import type { CoreRunner } from '../experiments/hindsight-python.ts'
+import { knownTime, statusMarketWithoutRoundHook } from './fixtures/status-market-no-hook.ts'
 import { readTailSelection } from '../../desktop/tail-storage.ts'
 import { readStoryNodes } from '../../desktop/story-nodes.ts'
 import { preflightSave } from '../../desktop/save-preflight.ts'
@@ -33,10 +34,10 @@ async function fixture(core = false, build?: CoreRunner) {
   const pack=join(root,'pack'),data=join(root,'data')
   cpSync(resolve('examples/world-packs/prototype-g1'),pack,{recursive:true})
   mkdirSync(join(pack,'scripts'))
-  cpSync(resolve('examples/world-packs/ai-girls-awaken-v10/scripts/variables.js'),join(pack,'scripts/variables.js'))
+  writeFileSync(join(pack,'scripts/status.js'),statusMarketWithoutRoundHook())
   writeFileSync(join(pack,'scripts/activity.js'),readFileSync(resolve('examples/world-packs/ai-girls-awaken-v10/scripts/activity.js'),'utf8').replaceAll('character:gpt','character:companion'))
   const source=JSON.parse(readFileSync(join(pack,'worldpack.source.json'),'utf8'))
-  source.assetFiles=['scripts/variables.js','scripts/activity.js']
+  source.assetFiles=['scripts/status.js','scripts/activity.js']
   writeFileSync(join(pack,'worldpack.source.json'),JSON.stringify(source))
   let decide: (input: WorldJsonObject) => unknown | Promise<unknown> = () => ({decision:'abstain'})
   const requests: WorldJsonObject[] = [], memoryRequests: WorldJsonObject[] = []
@@ -179,8 +180,9 @@ it('keeps a failed or cancelled candidate invisible, prevents concurrent writers
   expect(readFileSync(join(f.data,'current-world.json'),'utf8')).toBe(selection)
 },30_000)
 
-it('replays activity initialization through permissions with identical randomness and restores variables',async()=>{
-  const f=await fixture(),state=await f.runtime.state()
+it('replays activity initialization through permissions with identical randomness and restores status',async()=>{
+  const f=await fixture()
+  await f.runtime.submit('/status set-time {"value":5}')
   const started=await f.runtime.activityAction({activityId:null,revision:0,operation:'start',parameters:{},requestId:randomUUID()})
   const activity=object(f.events().findLast(e=>e.eventType==='activity.updated')!.data).state
   const answer=object(object(object(activity).game).internal).answer
@@ -188,7 +190,7 @@ it('replays activity initialization through permissions with identical randomnes
   const replay=object(f.events().findLast(e=>e.eventType==='activity.updated')!.data).state
   expect(object(object(object(replay).game).internal).answer).toBe(answer)
   expect((await f.runtime.state()).activity?.revision).toBe(started.activity?.revision)
-  expect((await f.runtime.state()).packVariables).toEqual(state.packVariables)
+  expect(knownTime(await f.runtime.state())).toBe(5)
   await expect(f.runtime.activityAction({activityId:null,revision:0,operation:'start',parameters:{},requestId:randomUUID()})).rejects.toThrow('失效')
 },30_000)
 
@@ -200,7 +202,7 @@ it('rejects changed scripts and corrupt snapshots before modifying the current w
   await expect(regenerate(f.runtime)).rejects.toThrow('环境')
   writeFileSync(file,script)
   const selection=readTailSelection(f.data)!
-  writeFileSync(join(f.data,'.tail','bases',selection.tail!.base,'pack-variables.json'),'{}')
+  writeFileSync(join(f.data,'.tail','bases',selection.tail!.base,'memory-aliases.json'),'corrupt')
   await expect(regenerate(f.runtime)).rejects.toThrow('损坏')
   expect(JSON.stringify(f.events())).toBe(before)
 },20_000)

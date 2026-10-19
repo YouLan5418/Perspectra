@@ -158,12 +158,12 @@ describe('optional web Core memory', () => {
     const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
     await adapter.project({ context: { character: { characterId: 'character:claude', name: 'Claude' },
       scene: { people: [] }, stimulus: [], observations: [], selfObservations: [],
-      activity: { private: 'private-answer' }, packVariables: { private: 'private-variable' } }, continuation: false }, AbortSignal.timeout(2000))
+      activity: { private: 'private-answer' }, knownStatus: [{ key: 'money', label: '余额', holderId: 'character:claude', value: 'private-status', current: true }] }, continuation: false }, AbortSignal.timeout(2000))
     const recall = inputs.at(-1)!
     expect(recall.operation).toBe('recall')
     expect(recall.deliveryMode).toBe('minimal')
     expect(JSON.stringify(recall.request)).not.toContain('private-answer')
-    expect(JSON.stringify(recall.request)).not.toContain('private-variable')
+    expect(JSON.stringify(recall.request)).not.toContain('private-status')
     expect(Object.keys(recall)).not.toContain('worldPath')
     await f.runtime.submit('早上好，今天打算做些什么？')
     expect(f.requests.length).toBeGreaterThan(0)

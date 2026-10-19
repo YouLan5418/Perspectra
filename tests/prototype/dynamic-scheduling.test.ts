@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -10,6 +10,7 @@ import { runPrototypeActivations } from '../../packages/application/src/prototyp
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import { readTailSelection } from '../../desktop/tail-storage.ts'
 import { FrontendActions, projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { statusMarketWithoutRoundHook } from './fixtures/status-market-no-hook.ts'
 
 const roots:string[]=[], servers:Server[]=[], runtimes:FrozenWorldPlaytestRuntime[]=[], releases:(()=>void)[]=[]
 afterEach(async()=>{
@@ -24,7 +25,7 @@ const actor=(input:WorldJsonObject)=>String(object(object(input.context).charact
 const publish=(text:string)=>({decision:'publish',segments:[{type:'speech',text}]})
 const move=(locationId:string)=>({decision:'perform',actionType:'move',parameters:{locationId}})
 const deferred=()=>{let resolve!:()=>void;const promise=new Promise<void>(done=>{resolve=done});releases.push(resolve);return {promise,resolve}}
-async function fixture(witness=false, serialScheduling=false, continueAfterPublish=false){
+async function fixture(witness=false, serialScheduling=false, continueAfterPublish=false, status=false){
   const root=mkdtempSync(join(tmpdir(),'dynamic-scheduling-'));roots.push(root)
   const pack=join(root,'pack'),data=join(root,'data')
   cpSync(resolve('examples/world-packs/prototype-g1'),pack,{recursive:true})
@@ -36,6 +37,11 @@ async function fixture(witness=false, serialScheduling=false, continueAfterPubli
   scenes.scenes[0].participantIds=['character:companion',...(witness?['character:witness']:[])]
   scenes.scenes[1].lifecycle='active';scenes.scenes[1].participantIds=['character:player','character:friend']
   writeFileSync(join(pack,'scenes.json'),JSON.stringify(scenes))
+  if(status){
+    mkdirSync(join(pack,'scripts'),{recursive:true});writeFileSync(join(pack,'scripts/status.js'),statusMarketWithoutRoundHook())
+    const source=JSON.parse(readFileSync(join(pack,'worldpack.source.json'),'utf8'));source.assetFiles=['scripts/status.js']
+    writeFileSync(join(pack,'worldpack.source.json'),JSON.stringify(source))
+  }
   let decide:(input:WorldJsonObject)=>unknown|Promise<unknown>=()=>({decision:'abstain'})
   const requests:WorldJsonObject[]=[]
   const server=createServer((request,response)=>{
@@ -235,6 +241,24 @@ it('keeps the serial comparison path and does not overlap same-scene requests',a
   f.setDecision(async()=>{active++;peak=Math.max(peak,active);await new Promise<void>(done=>setTimeout(done,5));active--;return {decision:'abstain'}})
   await f.runtime.submit(enterFront)
   expect(peak).toBe(1)
+},60000)
+
+it('still runs both scenes concurrently in a pack with a status script',async()=>{
+  const f=await fixture(false,false,false,true),friend=deferred(),companion=deferred()
+  let active=0,peak=0
+  // Each first decision waits for the other role's to arrive: only concurrent dispatch can finish this round.
+  f.setDecision(async input=>{
+    if(input.continuation)return {decision:'abstain'}
+    active++;peak=Math.max(peak,active)
+    if(actor(input)==='character:friend'){friend.resolve();await companion.promise}
+    else if(actor(input)==='character:companion'){companion.resolve();await friend.promise}
+    active--;return {decision:'abstain'}
+  })
+  const state=await f.runtime.submit(enterFront)
+  expect(state.error).toBe(false)
+  expect(peak).toBe(2)
+  const activated=(object(state.debug.activationCycle).activations as WorldJsonObject[]).map(activation=>activation.characterId)
+  expect(activated).toEqual(expect.arrayContaining(['character:companion','character:friend']))
 },60000)
 
 it('bounds repeated stale replanning for one character',async()=>{

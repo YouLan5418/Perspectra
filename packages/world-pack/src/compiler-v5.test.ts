@@ -127,7 +127,7 @@ describe('WorldPackCompilerV5', () => {
     expect(pack.interactions.definitions).toEqual([])
     expect(pack.interactions.bindings).toEqual([])
     expect(pack.content.entities).toEqual([])
-    expect(pack.assets.some(asset => asset.path === 'scripts/variables.js')).toBe(true)
+    expect(pack.assets.some(asset => asset.path === 'scripts/activity.js')).toBe(true)
     const compiled = adaptCompiledWorldPack(pack, {
       address, principalId: 'principal:worldpack-v5', sessionId: brandId('session:worldpack-v5', 'SessionId'),
     })

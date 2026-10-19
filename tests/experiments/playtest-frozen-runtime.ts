@@ -21,7 +21,6 @@ import { recentExecutionContext } from '../../packages/application/src/recent-ex
 import { assertCoreEnvironment, createCoreWorker, coreRunner, type CoreRunner } from './hindsight-python.ts'
 import { decideActivityFormat, type ActivityRequest } from './pack-activity.ts'
 import { PackActivities } from './pack-activities.ts'
-import { PackVariables } from './pack-variables.ts'
 import { KNOWN_STATUS_NOTE, PackStatus } from './pack-status.ts'
 import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
 import { PackKnowledge } from './pack-knowledge.ts'
@@ -189,13 +188,13 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       const result: CreatorDebugSnapshot = { capturedAt: new Date().toISOString(), address: this.#address, worldVersion: this.#worldVersion,title:this.#title,
         headSeq: head.headSeq, tick: head.tick, packHash:this.#packHash,storyParentNodeId:this.#storyParentNodeId,busy: this.#busy, paused: this.#paused,
         captureEnabled: this.#inspector.enabled, characters, entities,
-        variables: truth ? { public: truth.public, characters: truth.characters } : this.#variables?.debugSnapshot() ?? null,
+        variables: truth ? { public: truth.public, characters: truth.characters } : null,
         activities: this.#activity?.debugStates(events) ?? [],
         events: { items: selectedEvents, nextAfterSeq, hasMore: nextAfterSeq < head.headSeq },
         limitations: ['holderId 表示保管或携带，不证明法律所有权。', '物品随保管者的位置是推导值，不表示精确物理位置。',
           '事件中的 observation.upsert 记录实际信息接收者；对白的 addresseeIds 不等于全部观察者。',
           '调用状态是传输证据，lastActivation 是最近已完成周期结果；未采集或正在调度时不推测角色意图。',
-          truth ? '状态为事件日志中的当前真实值；玩家和角色只看到各自上次确认的值。' : '包变量为当前安装值，独立于事件日志；本接口不重建过去变量。'] }
+          ...(truth ? ['状态为事件日志中的当前真实值；玩家和角色只看到各自上次确认的值。'] : [])] }
       if (query.characterId !== undefined) {
         const id = query.characterId
         const archive = this.#memoryCore?.inspectArchive(id, query.memoryOffset ?? 0, limit)
@@ -235,7 +234,6 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #workDone: Promise<void> = Promise.resolve()
   #finishWork: (() => void) | undefined
   #escaping: Promise<PlaytestState> | undefined
-  #variables: PackVariables | undefined
   #status: PackStatus | undefined
   #statusRoundError: string | undefined
   #knowledge: PackKnowledge | undefined
@@ -379,9 +377,6 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       if (this.#memoryCore) request = await this.#memoryCore.project(request, signal)
       if (options.recentExecutionEvidence === true) request = { ...request, context: recentExecutionContext(request.context) }
       const character = request.context.character as WorldJsonObject
-      const variables = this.#variables?.getVariables(String(character.characterId))
-      if (variables) request = { ...request, context: { ...request.context,
-        packVariables: { public: variables.public, private: variables.private } } }
       const characterId=String(character.characterId)
       if (this.#knowledge) request = {...request, context: {...request.context, knowledge: this.#knowledge.select(request.context)}}
       if (this.#status) {
@@ -479,7 +474,6 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       runtime.#storyParentNodeId = options.storyParentNodeId ?? null
       runtime.#autonomy = PackAutonomy.load(options.packPath, pack, runtime.#playerId)
       runtime.#application.activate(compiled)
-      runtime.#variables = PackVariables.load(options.packPath, options.dataDirectory, pack)
       runtime.#status = PackStatus.load(options.packPath, pack)
       await runtime.#status?.ensureInitial(resolve(options.dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
       runtime.#knowledge = PackKnowledge.load(options.packPath, pack)
@@ -552,7 +546,6 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       ...(this.#memoryCore ? { memoryMaintenance: this.#memoryCore.backgroundState() } : {}),
       ...(this.#activityView ? { activity: structuredClone(this.#activityView) } : {}),
       ...(this.#activityViews ? { activities: structuredClone(this.#activityViews) } : {}),
-      ...(this.#variables ? { packVariables: this.#variables.getVariables(this.#playerId) } : {}),
       ...(this.#statusBar ? { statusBar: structuredClone(this.#statusBar) } : {}),
       world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames,
         ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }) },
@@ -617,12 +610,6 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         this.#notice = changed ? '状态操作已提交。' : '已返回原提交结果，没有再次执行。'
         if (changed) { await this.#refresh(); await this.#activateCharacters(); await this.#endStatusRound() }
       } finally { try { await this.#refresh() } finally { this.#endWork() } }
-      return this.state()
-    }
-    if (text.startsWith('/vars ')) {
-      if (!this.#variables) throw new TypeError('本包没有变量脚本')
-      this.#variables.applyPatch(this.#playerId, JSON.parse(text.slice(6)))
-      this.#notice = '包变量已更新。'
       return this.state()
     }
     this.#beginWork()
@@ -908,12 +895,12 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         rulebooks: autonomous ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address)) : base,
         decide: this.#decideContinuation,
         onTrace:(kind,characterId,decisionId,data) => { if(this.#inspector.enabled)this.#records.trace(kind,characterId,decisionId,data) },
-        continueAfterPublish: this.#options.continueAfterPublish===true && this.#variables===undefined
+        continueAfterPublish: this.#options.continueAfterPublish===true
           && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
-        beforeActionExpression: this.#options.beforeActionExpression===true && this.#variables===undefined
+        beforeActionExpression: this.#options.beforeActionExpression===true
           && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
         onCommitted: async () => { await this.#projectCommitted(store) },
-        allowUnrelatedCommits: !this.#options.serialScheduling && this.#variables===undefined
+        allowUnrelatedCommits: !this.#options.serialScheduling
           && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
         projectContext: (context: WorldJsonObject, canPerform: boolean) => {
           const projected = this.#activity?.projectContext(context, canPerform) ?? context
@@ -969,7 +956,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         await this.#activateAutonomous(store, createTurn, due, new Map())
         return
       }
-      const dynamic = !this.#options.serialScheduling && this.#variables===undefined
+      const dynamic = !this.#options.serialScheduling
         && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined
       const integratedAutonomy = dynamic && !this.#options.stagedAutonomy && due.length>0
       const {autonomy, ...cycle} = await runPrototypeActivations({ store, address: this.#address, turn: this.#track(turn),
@@ -1060,7 +1047,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         characterIds: this.#characterIds.filter(id => !due.some(role => role.characterId === id)
           && (!active?.game.active || !active.participants.includes(id))),
         presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(p => brandId(p.id, 'CharacterId')),
-        ...(!this.#options.serialScheduling && this.#variables===undefined && !active?.game.active
+        ...(!this.#options.serialScheduling && !active?.game.active
           && this.#options.publicationAudit===undefined ? {locationId:(id:CharacterId)=>currentLocation(store.readEvents(this.#address),id)??null}:{}),
         initialCounts: counts, strictCallBudget: true,
         limits: {maximumWaves: settings.autonomyReactionWaves, maximumNpcCalls: settings.autonomyReactionCalls,

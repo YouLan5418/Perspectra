@@ -25,7 +25,7 @@ it('removes host evidence metadata while preserving subjective provenance, origi
   memories:[{memoryId:'memory:internal',sourceIds:['event:private'],sourceAgeTicks:5,epistemicKind:'reported_speech',text:'仅听说，并未目击',keyEvidence:[source]}],
   stimulus:[{observerId:'character:a',actionId:'action:internal',content:{actorId:'character:b',status:'accepted'}}],
   affordances:[{actionType:'interact',interactions:[{targetRef:{id:'entity:cake',kind:'entity'},bindingId:'binding:give',definitionRef:{id:'base:give',version:1},arguments:{recipientId:'character:b'}}]}],
-  activity:{id:'activity:game',revision:9,game:{turn:'character:a'}},packVariables:{private:{sourceHash:'creator-authored-value'}}}
+  activity:{id:'activity:game',revision:9,game:{turn:'character:a'}},knownStatus:[{key:'sourceHash',label:'来源',holderId:'character:a',value:'creator-authored-value',current:true}]}
  const request={context,continuation:true,result:{operationId:'operation:internal',eventRefs:[99],status:'accepted',description:'已经交付',action:{actionType:'interact',parameters:{targetRef:{id:'entity:cake',kind:'entity'}}}}}
  const before=JSON.stringify(request), rendered=JSON.parse(prototypeTurnCall(request).messages.at(-1)!.content)
  for(const text of ['sha256:internal','sha256:bundle','world:internal','event:private','claim:internal','observation:internal','action:internal','operation:internal'])expect(JSON.stringify(rendered)).not.toContain(text)
@@ -34,7 +34,7 @@ it('removes host evidence metadata while preserving subjective provenance, origi
  expect(rendered.context.memories[0]).toMatchObject({sourceAgeTicks:5,epistemicKind:'reported_speech',text:'仅听说，并未目击'})
  expect(rendered.context.affordances).toEqual(context.affordances)
  expect(rendered.context.activity).toEqual(context.activity)
- expect(rendered.context.packVariables).toEqual(context.packVariables)
+ expect(rendered.context.knownStatus).toEqual(context.knownStatus)
  expect(rendered.result).toMatchObject({status:'accepted',description:'已经交付',action:request.result.action})
  expect(rendered.context.character.locationId).toBeUndefined()
  expect(rendered.context.locationId).toBe('location:kitchen')

@@ -144,10 +144,7 @@ export class TailRoundRuntime {
   }
   async submit(text: string, idempotencyKey?: string): Promise<PlaytestState> {
     if (this.#busy || this.#interrupting) await this.#interruptIfBusy()
-    if (text.startsWith('/vars ')) {
-      this.#begin()
-      try { this.#write({ ...this.#selection, tail: null }); await this.#runtime.submit(text) } finally { this.#end() }
-    } else await this.#run({ text }, idempotencyKey)
+    await this.#run({ text }, idempotencyKey)
     return this.state()
   }
   async perform(action: PlaytestAction): Promise<PlaytestState> {

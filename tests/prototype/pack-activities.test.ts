@@ -38,7 +38,7 @@ async function fixture(secondHook='',dynamic?:{min:number;max:number;candidates?
     writeFileSync(file,readFileSync(file,'utf8').replace("npcIds: ['character:companion']",'participants: '+JSON.stringify({mode:'player-select',...dynamic})))
   }
   const manifest=JSON.parse(readFileSync(join(pack,'worldpack.source.json'),'utf8'))
-  manifest.assetFiles=['scripts/variables.js','scripts/activities/guess.js','scripts/activities/other.js']
+  manifest.assetFiles=['scripts/activities/guess.js','scripts/activities/other.js']
   writeFileSync(join(pack,'worldpack.source.json'),JSON.stringify(manifest))
   const inputs:WorldJsonObject[]=[]
   const server=createServer((request,response)=>{

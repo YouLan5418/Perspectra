@@ -13,7 +13,7 @@ export function storyId(value: unknown): string {
   if (typeof value !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value)) throw new Error('故事节点或线路不存在。')
   return value
 }
-const NODE_FILES = ['world.sqlite', 'session.sqlite', 'memory.sqlite', 'context.sqlite', 'pack-variables.json', 'memory-aliases.json', 'core-memory.json'] as const
+const NODE_FILES = ['world.sqlite', 'session.sqlite', 'memory.sqlite', 'context.sqlite', 'memory-aliases.json', 'core-memory.json'] as const
 export function readStoryNodes(directory: string): StoryNode[] {
   const root = join(directory, 'story-nodes')
   if (!existsSync(root)) return []
@@ -58,7 +58,6 @@ export async function saveStoryNode(directory: string, address: WorldAddress, pa
     const db = new DatabaseSync(path, { readOnly: true })
     try { await backup(db, join(temporary, name)) } finally { db.close() }
   }
-  if (existsSync(join(directory, 'pack-variables.json'))) copyFileSync(join(directory, 'pack-variables.json'), join(temporary, 'pack-variables.json'))
   writeFileSync(join(temporary, 'memory-aliases.json'), JSON.stringify(aliases))
   writeFileSync(join(temporary, 'core-memory.json'), JSON.stringify(coreMemory))
   node.files = NODE_FILES.filter(name=>existsSync(join(temporary,name)))

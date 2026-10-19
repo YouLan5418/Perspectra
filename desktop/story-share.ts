@@ -8,12 +8,12 @@ import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { PlaytestMemoryCore } from '../tests/experiments/playtest-memory-core.ts'
-import { PackVariables } from '../tests/experiments/pack-variables.ts'
+import { PackStatus } from '../tests/experiments/pack-status.ts'
 import { preflightSave } from './save-preflight.ts'
 import { readStoryNodes, restoreStoryNode, storyId, type StoryNode } from './story-nodes.ts'
 
 // A bounded JSON container replaces ZIP extraction. Only these literal filenames can be written.
-const SHARE_FILES = ['world.sqlite', 'session.sqlite', 'pack-variables.json', 'memory-aliases.json', 'core-memory.json']
+const SHARE_FILES = ['world.sqlite', 'session.sqlite', 'memory-aliases.json', 'core-memory.json']
 const MAX_FILE = 64 * 1024 * 1024, MAX_TOTAL = 96 * 1024 * 1024, MAX_CONTAINER = 129 * 1024 * 1024
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('故事线文件格式无效。')
@@ -105,8 +105,7 @@ async function validate(directory: string, node: StoryNode, packPath: string): P
       SELECT 1 FROM outbox WHERE critical=1 AND delivery_status<>'delivered' LIMIT 1`).get(Date.now())) throw new Error('分享文件不是完整静止节点。')
   } finally { db.close() }
   const pack = await compileWorldPackSource(packPath, createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5
-  if (pack.assets.some(asset => asset.path === 'scripts/variables.js') !== node.files.includes('pack-variables.json')) throw new Error('分享节点的包变量文件缺失或不适用。')
-  PackVariables.load(packPath, directory, pack)
+  PackStatus.load(packPath, pack)
   const aliases = object(JSON.parse(readFileSync(join(directory, 'memory-aliases.json'), 'utf8')))
   const actors = pack.content.characters.filter(character => character.controllerClass !== 'manual'
     && (character.lifecycle ?? 'active') === 'active').map(character => character.characterId)

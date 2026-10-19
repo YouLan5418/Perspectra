@@ -18,7 +18,7 @@ const privateState = ():PlaytestState=>({
  busy:false,paused:false,error:false,phaseLabel:'PRIVATE_PHASE',notice:'PRIVATE_NOTICE',
  world:{title:'实验世界',playerName:'玩家',npcNames:['visible','PRIVATE_NPC'],currentScene:{locationName:'前室',presentNpcNames:['visible']}},
  transcript:[Object.assign({seq:1,speaker:'visible',text:'你好',player:false},{context:'PRIVATE_CONTEXT'})],
- packVariables:{public:{safe:1},private:{secret:'PRIVATE_VARIABLE'}},debug:{secret:'PRIVATE_DEBUG'},
+ debug:{secret:'PRIVATE_DEBUG'},
  availableActions:[{actionType:'move',actionVersion:1,destinations:[{locationId:'room-2',name:'后室'}]}],
 })
 async function fixture(overrides:Partial<PlaytestRuntime>={}){

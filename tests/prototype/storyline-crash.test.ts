@@ -10,6 +10,7 @@ import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { readStoryNodes } from '../../desktop/story-nodes.ts'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import type { CoreRunner } from '../experiments/hindsight-python.ts'
+import { knownTime, statusMarketWithoutRoundHook } from './fixtures/status-market-no-hook.ts'
 
 const roots: string[] = [], children = new Set<ChildProcess>()
 async function kill(child: ChildProcess) {
@@ -50,9 +51,9 @@ async function fixture() {
   const pack = join(temporary, 'pack'), root = join(temporary, 'launcher')
   cpSync(resolve('examples/world-packs/prototype-g1'), pack, { recursive: true })
   mkdirSync(join(pack, 'scripts'))
-  cpSync(resolve('examples/world-packs/ai-girls-awaken-v10/scripts/variables.js'), join(pack, 'scripts/variables.js'))
+  writeFileSync(join(pack, 'scripts/status.js'), statusMarketWithoutRoundHook())
   const source = JSON.parse(readFileSync(join(pack, 'worldpack.source.json'), 'utf8'))
-  source.assetFiles = ['scripts/variables.js']
+  source.assetFiles = ['scripts/status.js']
   writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(source))
   const core = new LauncherCore(resolve('.'), root)
   await core.initialize(); await core.handle({ operation: 'load', path: pack })
@@ -64,17 +65,17 @@ async function fixture() {
   const runtime = await create()
   let node
   try {
-    await runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"节点阶段"}]')
+    await runtime.submit('/status set-time {"value":5}')
     await runtime.refreshMemory(); await runtime.waitForMemory()
     node = await runtime.saveNode('安全起点')
-    await runtime.submit('/vars [{"op":"replace","path":"/public/剧情/阶段","value":"原线未来"}]')
+    await runtime.submit('/status set-time {"value":9}')
     await runtime.refreshMemory(); await runtime.waitForMemory()
     expect(readdirSync(join(directory, 'memory-core')).filter(name => name.endsWith('.json'))).toHaveLength(2)
   } finally { await runtime.close() }
   const original = () => {
     integrity(directory)
     const store = new WorldStore(join(directory, 'world.sqlite'))
-    try { return { events: store.readEvents(runtime.address), variables: readFileSync(join(directory, 'pack-variables.json'), 'utf8'),
+    try { return { events: store.readEvents(runtime.address),
       cognition: Object.fromEntries(readdirSync(join(directory, 'memory-core')).filter(name => name.endsWith('.json'))
         .map(name => [name, readFileSync(join(directory, 'memory-core', name), 'utf8')])) } } finally { store.close() }
   }
@@ -131,7 +132,7 @@ for (const phase of ['fork-copy', 'fork-index-before']) {
     const lineId = core.snapshot().instances[0]!.currentStorylineId
     expect(abandoned).not.toContain(lineId)
     const runtime = await f.create(join(f.directory, 'storylines', lineId))
-    try { expect((await runtime.state()).packVariables?.public).toEqual({ 剧情: { 阶段: '节点阶段' } }) } finally { await runtime.close() }
+    try { expect(knownTime(await runtime.state())).toBe(5) } finally { await runtime.close() }
     expect(f.original()).toEqual(f.before)
   }, 30_000)
 }
@@ -178,7 +179,7 @@ for (const phase of ['memory-temporary', 'memory-one-role']) {
         expect(JSON.parse(readFileSync(join(directory, 'memory-core', Buffer.from(actor).toString('base64url') + '.json'), 'utf8'))).toEqual(cached)
       const store = new WorldStore(join(directory, 'world.sqlite'))
       try { expect(store.readEvents(child.address)).toEqual(f.before.events.filter(event => event.seq <= f.node.headSeq)) } finally { store.close() }
-      expect((await child.state()).packVariables?.public).toEqual({ 剧情: { 阶段: '节点阶段' } })
+      expect(knownTime(await child.state())).toBe(5)
       await child.saveNode('恢复后可保存')
     } finally { await child.close() }
     expect(f.original()).toEqual(f.before)
@@ -203,7 +204,7 @@ for (const phase of ['share-export-temporary', 'share-import-file', 'share-impor
     integrity(directory)
     const imported=await f.create(directory)
     try{
-      expect((await imported.state()).packVariables?.public).toEqual({剧情:{阶段:'节点阶段'}})
+      expect(knownTime(await imported.state())).toBe(5)
       await imported.saveNode('导入中断后继续')
     }finally{await imported.close()}
     expect(f.original()).toEqual(f.before)
