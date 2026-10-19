@@ -5,15 +5,14 @@
       "characterId": "character:player",
       "profile": "standard",
       "attentionTopics": [
-        "钥匙",
-        "同行者"
+        "同行者",
+        "钱"
       ]
     },
     {
       "characterId": "character:companion",
       "profile": "standard",
       "attentionTopics": [
-        "钥匙",
         "钱袋"
       ]
     },

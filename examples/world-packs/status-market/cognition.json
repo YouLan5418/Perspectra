@@ -5,8 +5,8 @@
       "characterId": "character:player",
       "observations": [
         {
-          "key": "observation:player-key",
-          "content": "摊位桌上有一把黄铜钥匙。",
+          "key": "observation:player-market",
+          "content": "集市里人挤人，摊位前很热闹。",
           "epistemicKind": "direct_observation",
           "saliencePermille": 400
         }
@@ -21,7 +21,7 @@
           "priorityPermille": 600,
           "targetKeys": [],
           "basisKeys": [
-            "observation:player-key"
+            "observation:player-market"
           ]
         }
       ]
@@ -30,25 +30,23 @@
       "characterId": "character:companion",
       "observations": [
         {
-          "key": "observation:companion-key",
-          "content": "摊位桌上有一把黄铜钥匙。",
+          "key": "observation:companion-market",
+          "content": "集市里人挤人，大家的钱袋都揣在身上。",
           "epistemicKind": "direct_observation",
           "saliencePermille": 400
         }
       ],
       "goals": [
         {
-          "key": "goal:companion-understand-key",
+          "key": "goal:companion-short-of-money",
           "objective": {
             "kind": "narrative",
-            "value": "弄清楚钥匙能派上什么用场。"
+            "value": "手头拮据，想办法让自己的钱包宽裕一点。"
           },
           "priorityPermille": 600,
-          "targetKeys": [
-            "entity:brass-key"
-          ],
+          "targetKeys": [],
           "basisKeys": [
-            "observation:companion-key"
+            "observation:companion-market"
           ]
         }
       ]

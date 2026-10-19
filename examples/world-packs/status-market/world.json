@@ -1,7 +1,7 @@
 {
   "schemaVersion": "worldpack-world/v1",
   "title": "集市钱袋",
-  "description": "玩家、同行者和留守者同在集市摊位前。每个人身上带着钱，时间随每轮推进；谁也看不到别人的钱袋，自己的余额也只在确认时才准。摊位桌上有一把黄铜钥匙，后巷可供移动。",
+  "description": "玩家、同行者和留守者同在集市摊位前。每个人身上带着钱，时间随每轮推进；谁也看不到别人的钱袋，自己的余额也只在确认时才准。后巷可供移动。",
   "timeMode": "TURN_DRIVEN",
   "roundQueueLimit": 16,
   "coreProfiles": {
