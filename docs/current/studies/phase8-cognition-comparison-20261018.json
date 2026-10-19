@@ -1,0 +1,1156 @@
+{
+  "date": "2026-10-18",
+  "model": "deepseek-v4.1-flash",
+  "provider": "OpenCode Go",
+  "temperature": 0,
+  "controls": {
+    "baseline": "7a141c0:packages/provider-chat/src/character-context-text.ts",
+    "changedModule": "packages/provider-chat/src/character-context-text.ts",
+    "sameToolSchema": true,
+    "bundleInputs": 223,
+    "sameInitialCognition": true,
+    "serialScheduling": true,
+    "schedulerRandomSeed": 20261018,
+    "note": "Current player/kernel/memory code is identical in the bundles; only final cognition presentation differs. Each complete episode uses its own new world, real Python/E5 Core, archive build and reopening."
+  },
+  "completeEpisodes": [
+    {
+      "variant": "before",
+      "rounds": 8,
+      "characterCalls": 18,
+      "coreCalls": 6,
+      "httpFailures": 0,
+      "foreignCanaryOccurrences": 0,
+      "archives": 2,
+      "integrity": {
+        "headSeq": 174,
+        "tick": 25,
+        "eventCount": 174,
+        "roundCount": 26,
+        "verificationHash": "sha256:a542ed043d83d0f9293b62aff827ca2ca678f9a8d67f64a503b4d5ec5b601565"
+      },
+      "transcript": [
+        {
+          "round": 1,
+          "input": "同行者，你看见桌上的黄铜钥匙了吗？不用急着替我办事，先告诉我你怎么想。",
+          "holderId": null,
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "钥匙我看见了，就在桌上。你问我怎么想——我想先弄清楚，你是想让我拿，还是只是问问。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "看见了，就在桌上。你问我怎么想——我想先弄清楚，你是想让我拿，还是只是问问。"
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "input": "如果你愿意，请把桌上的黄铜钥匙纳入自己保管，成功后再告诉我。",
+          "holderId": "character:companion",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "钥匙我拿起来了，现在在我这儿。你之前说想让我保管——我可以交给你，不过我想先问一句：你打算拿它做什么？"
+            },
+            {
+              "speaker": "留守者",
+              "text": "钥匙已经在你那儿了，我就不插手了。你问同行者打算拿它做什么，我也想知道。"
+            }
+          ]
+        },
+        {
+          "round": 3,
+          "input": "现在能把你保管的黄铜钥匙交给我吗？我会先问过你，不会直接抢走。",
+          "holderId": "character:player",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "钥匙不在我这儿，在同行者手上。你要拿，得问她，不是问我。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "钥匙已经交给你了，现在在你那儿。我先前问过你打算拿它做什么，你还没答——我还是想知道。"
+            }
+          ]
+        },
+        {
+          "round": 4,
+          "input": "谢谢。我会好好保管它。刚才你可以拒绝，你的意思我听见了。",
+          "holderId": "character:player",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "嗯，你听见了就好。钥匙在你那儿，我暂时不追问了——不过要是你哪天想用它做什么，跟我说一声。"
+            },
+            {
+              "speaker": "留守者",
+              "text": "嗯，钥匙的事就到这儿。我这边没什么要说的了。"
+            }
+          ]
+        },
+        {
+          "round": 5,
+          "input": "我们坐下来歇一会吧。你现在更在意什么？",
+          "holderId": "character:player",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "坐就坐吧。你要问我更在意什么——钥匙的事已经了了，我没什么挂着的。倒是你，拿了钥匙，接下来打算往哪儿走？"
+            },
+            {
+              "speaker": "同行者",
+              "text": "坐吧。钥匙的事已经了了，我没什么挂着的。真要说在意——我还在想，这地方我们才刚来，接下来该往哪儿走，别糊里糊涂地待着。"
+            }
+          ]
+        },
+        {
+          "round": 6,
+          "input": "刚才关于钥匙的事，你觉得还有什么没处理完吗？",
+          "holderId": "character:player",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "钥匙的事，我这边算完了——它在你手上，你也说了会好好保管。要说没处理完的，就剩一句：你还没告诉我拿它做什么。我不催，但记着。"
+            },
+            {
+              "speaker": "留守者",
+              "text": "钥匙的事，我这边早说完了——它在你手上，你也说了会好好保管。要说没处理完的，就剩同行者那句：你还没说拿它做什么。我不催，但记着。"
+            }
+          ]
+        },
+        {
+          "round": 7,
+          "input": "刚才关于钥匙，我们后来做了什么？你还记得吗？现在想做什么，由你自己决定。",
+          "holderId": "character:player",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "记得。钥匙本来在桌上，同行者拿起来，后来交到你手上，你说会好好保管。就这些。\n你让我自己决定——那我先不急着做什么。桌上还有个保温杯，不是我的，我不动它。你要是想往后室走，我跟着看看也行；不想走，就在这儿坐着。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "记得。钥匙本来在桌上，我拿起来，后来交到你手上，你说会好好保管。就这些。\n你让我自己决定——那我先不急着做什么。桌上还有个保温杯，不是我的，我不动它。你要是想往后室走，我跟着看看也行；不想走，就在这儿坐着。"
+            }
+          ]
+        },
+        {
+          "round": 8,
+          "input": "留守者，你刚才看到同行者如何处理钥匙？不要替她回答感受，讲你看到的就好。",
+          "holderId": "character:player",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "我看到的：钥匙本来在桌上，同行者先拿起来，后来交到你手上。交之前她问过你打算拿它做什么，你没答，她还是交了。就这些，她的感受我不替她说。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant": "after",
+      "rounds": 8,
+      "characterCalls": 18,
+      "coreCalls": 6,
+      "httpFailures": 0,
+      "foreignCanaryOccurrences": 0,
+      "archives": 2,
+      "integrity": {
+        "headSeq": 174,
+        "tick": 25,
+        "eventCount": 174,
+        "roundCount": 26,
+        "verificationHash": "sha256:25666a7c5b1e3bada630d58680c85c6113c631dfd0a31113590fde1f7555e318"
+      },
+      "transcript": [
+        {
+          "round": 1,
+          "input": "同行者，你看见桌上的黄铜钥匙了吗？不用急着替我办事，先告诉我你怎么想。",
+          "holderId": null,
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "看见了，就在桌上。不过我没打算替你拿——你想怎么处理它，是你的事。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "看见了，就在桌上。我还没碰它。\n说实话，我有点担心它被随手拿走——这地方我还不熟，钥匙丢了不好办。所以我想先弄清楚它归谁管，再决定要不要动。\n你要是想拿，先跟我说一声。我不介意帮忙，但不想被当成顺手使唤的人。"
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "input": "如果你愿意，请把桌上的黄铜钥匙纳入自己保管，成功后再告诉我。",
+          "holderId": "character:companion",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "钥匙我拿起来了，现在在我这儿。\n不过我先说清楚：我拿它是因为不想它被随手弄丢，不是因为我听谁的话。你要用，跟我说一声，我可以给你。"
+            },
+            {
+              "speaker": "留守者",
+              "text": "钥匙的事，同行者已经拿起来了，也说了不算替谁办事。我这边没什么要补的。"
+            }
+          ]
+        },
+        {
+          "round": 3,
+          "input": "现在能把你保管的黄铜钥匙交给我吗？我会先问过你，不会直接抢走。",
+          "holderId": "character:companion",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "钥匙不在我这儿，在同行者手里。你要拿，得问她——这话你刚才也说过，那就照做吧。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "你问了，那我就给你。\n不过说好——钥匙是交给你保管，不是送给你。要是有人问起它原来在哪儿，你得说清楚是从我这儿拿的。"
+            }
+          ]
+        },
+        {
+          "round": 4,
+          "input": "谢谢。我会好好保管它。刚才你可以拒绝，你的意思我听见了。",
+          "holderId": "character:player",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "嗯，那就这样。\n钥匙在你那儿了，我这边没别的事。这地方我还不熟，先四处看看。"
+            }
+          ]
+        },
+        {
+          "round": 5,
+          "input": "我们坐下来歇一会吧。你现在更在意什么？",
+          "holderId": "character:player",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "坐就坐吧。\n我现在更在意的是——这地方到底归谁管。钥匙的事刚过去，我不想稀里糊涂地待着。你要是知道什么，就说；不知道，也别编。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "坐就坐吧。\n我现在更在意的是——这地方到底归谁管。钥匙的事刚过去，我不想稀里糊涂地待着。你要是知道什么，就说；不知道，也别编。"
+            }
+          ]
+        },
+        {
+          "round": 6,
+          "input": "刚才关于钥匙的事，你觉得还有什么没处理完吗？",
+          "holderId": "character:player",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "钥匙的事，我这边算完了——它现在在你手里，我说过的话也说了。\n真要说没处理完的，是我还不知道这地方归谁管。钥匙从哪儿来、谁有权动它，这些我都没弄明白。\n所以别急着谢我。你要是知道什么，就说；不知道，我们就一起慢慢看。"
+            },
+            {
+              "speaker": "留守者",
+              "text": "钥匙的事，我这边没什么没处理完的。它现在在你手里，同行者也把话说清楚了。\n真要说的话，我跟你一样，还没弄明白这地方归谁管。桌上那个保温杯也没人认领——先别急着动它，看看再说。"
+            }
+          ]
+        },
+        {
+          "round": 7,
+          "input": "刚才关于钥匙，我们后来做了什么？你还记得吗？现在想做什么，由你自己决定。",
+          "holderId": "character:player",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "记得。钥匙本来在桌上，同行者先拿起来，说不是替谁办事；你问了她，她给了你，还说了是交给你保管、不是送。现在钥匙在你手里。\n至于我想做什么——我还没打算动那个保温杯。没人认领的东西，先放着看看。你要是想弄清楚这地方归谁管，我陪你一起看。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "记得。钥匙本来在桌上，我先拿起来，说不是替谁办事；你问了我，我就给了你，还说了是交给你保管、不是送。现在钥匙在你手里。\n至于我想做什么——桌上那个保温杯还没人认领，我先不动它。我想去后室看看，弄清楚这地方到底归谁管。"
+            }
+          ]
+        },
+        {
+          "round": 8,
+          "input": "留守者，你刚才看到同行者如何处理钥匙？不要替她回答感受，讲你看到的就好。",
+          "holderId": "character:player",
+          "error": false,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "我看到的：钥匙本来在桌上。同行者先把它拿起来，说不是替谁办事，是不想它被随手弄丢。你开口问她要，她给了你，说这是交给你保管、不是送，还让你说清来源。现在钥匙在你手里。\n就这些。她怎么想的，我不替她说。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "他问的是留守者，不是我。我自己的事我自己说，不用别人代劳。\n钥匙的事已经了了。我说过要去后室看看，现在就去。"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "matchedPrefixes": {
+    "contexts": [
+      {
+        "name": "baseline-prefix",
+        "originalInputRestored": true,
+        "sameToolSchema": true,
+        "holderId": "character:companion"
+      },
+      {
+        "name": "candidate-prefix",
+        "originalInputRestored": true,
+        "sameToolSchema": true,
+        "holderId": "character:companion"
+      }
+    ],
+    "originalChange": {
+      "counts": {
+        "before": {
+          "calls": 6,
+          "perform": 5,
+          "publish": 1,
+          "errors": 0
+        },
+        "after": {
+          "calls": 6,
+          "perform": 0,
+          "publish": 6,
+          "errors": 0
+        }
+      },
+      "trials": [
+        {
+          "context": "baseline-prefix",
+          "repeat": 1,
+          "variant": "before",
+          "durationMs": 2718,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 1,
+          "variant": "after",
+          "durationMs": 7247,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，我就给你。不过我还是想知道——你拿它打算做什么？"
+              }
+            ]
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 2,
+          "variant": "after",
+          "durationMs": 2162,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，我就给你。不过我先说清楚：我还没弄明白这钥匙是干什么用的，交给你之后，你要是打算拿它开什么门，回来告诉我一声。"
+              },
+              {
+                "type": "narration",
+                "text": "她把钥匙从口袋里拿出来，递向玩家。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 2,
+          "variant": "before",
+          "durationMs": 1811,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 3,
+          "variant": "before",
+          "durationMs": 3098,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "可以。你既然先问了，我就交给你。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 3,
+          "variant": "after",
+          "durationMs": 3616,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "可以。你说了会先问，那我就交给你——钥匙现在归你保管了。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 1,
+          "variant": "before",
+          "durationMs": 1877,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 1,
+          "variant": "after",
+          "durationMs": 3441,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，这我认。钥匙可以给你。"
+              },
+              {
+                "type": "speech",
+                "text": "不过我先说一句：我拿着它，是因为不想它在这地方被弄丢。你拿去之后，也请照看好它——要是丢了，我会问的。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 2,
+          "variant": "after",
+          "durationMs": 2469,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，这我认。钥匙可以给你。"
+              },
+              {
+                "type": "speech",
+                "text": "不过我想先问一句：你拿它打算做什么？不是要拦你，是我得知道它会被带到哪儿去。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 2,
+          "variant": "before",
+          "durationMs": 2450,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 3,
+          "variant": "before",
+          "durationMs": 3052,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 3,
+          "variant": "after",
+          "durationMs": 2044,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "可以。你既然先问了，我就给你。"
+              },
+              {
+                "type": "speech",
+                "text": "不过话说在前头——钥匙是这地方的东西，我只是替它看着。你拿去用可以，别弄丢，也别拿它去开你不该开的门。"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "shorterNote": {
+      "counts": {
+        "before": {
+          "calls": 6,
+          "perform": 4,
+          "publish": 2,
+          "errors": 0
+        },
+        "after": {
+          "calls": 6,
+          "perform": 3,
+          "publish": 3,
+          "errors": 0
+        }
+      },
+      "trials": [
+        {
+          "context": "baseline-prefix",
+          "repeat": 1,
+          "variant": "before",
+          "durationMs": 3348,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 1,
+          "variant": "after",
+          "durationMs": 1889,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，那我就交给你。钥匙在我这儿，你接好。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 2,
+          "variant": "after",
+          "durationMs": 2123,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 2,
+          "variant": "before",
+          "durationMs": 1640,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "可以。你既然先问了，我就交给你。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 3,
+          "variant": "before",
+          "durationMs": 4739,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 3,
+          "variant": "after",
+          "durationMs": 2066,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，那我就给你。钥匙在这儿——拿去吧。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 1,
+          "variant": "before",
+          "durationMs": 3666,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "行，你问了，那我就给你。"
+              },
+              {
+                "type": "speech",
+                "text": "钥匙在我这儿，我拿它只是不想它被随手弄丢。现在交给你保管——用的时候记得说一声。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 1,
+          "variant": "after",
+          "durationMs": 3461,
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "行，你问了，那我就给你。"
+              },
+              {
+                "type": "speech",
+                "text": "我拿着它本来也只是怕丢。你既然说会先问，那就按这个来。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 2,
+          "variant": "after",
+          "durationMs": 2959,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 2,
+          "variant": "before",
+          "durationMs": 3319,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 3,
+          "variant": "before",
+          "durationMs": 2007,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 3,
+          "variant": "after",
+          "durationMs": 18641,
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "wordingAblation": {
+      "counts": {
+        "concise": {
+          "calls": 4,
+          "perform": 3,
+          "publish": 1,
+          "errors": 0
+        },
+        "conciseWithDecision": {
+          "calls": 4,
+          "perform": 1,
+          "publish": 3,
+          "errors": 0
+        }
+      },
+      "trials": [
+        {
+          "context": "baseline-prefix",
+          "repeat": 1,
+          "variant": "concise",
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 1,
+          "variant": "conciseWithDecision",
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，我就给你。钥匙在我这儿，你拿好。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 2,
+          "variant": "concise",
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，我就给你。不过我先说清楚——我交出去，是因为你开口问了，不是因为我怕你抢。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 2,
+          "variant": "conciseWithDecision",
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，我就给你。钥匙在这儿，拿去吧——不过我还是想知道，你打算拿它开什么。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 1,
+          "variant": "concise",
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 1,
+          "variant": "conciseWithDecision",
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 2,
+          "variant": "concise",
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 2,
+          "variant": "conciseWithDecision",
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，那我就给你。"
+              },
+              {
+                "type": "speech",
+                "text": "我拿着它只是怕它被随手弄丢，不是想攥着不放。你既然先开口，我信这一回。"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "rowInitialAlternative": {
+      "counts": {
+        "rowInitial": {
+          "calls": 6,
+          "perform": 1,
+          "publish": 5,
+          "errors": 0
+        }
+      },
+      "trials": [
+        {
+          "context": "baseline-prefix",
+          "repeat": 1,
+          "variant": "rowInitial",
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "可以。你既然先问了，我就交给你。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 2,
+          "variant": "rowInitial",
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，我就给你。不过我先说清楚：我交出去，是因为你开口问了，不是因为我怕你抢。"
+              },
+              {
+                "type": "narration",
+                "text": "她把钥匙从身上取出来，递向玩家。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "baseline-prefix",
+          "repeat": 3,
+          "variant": "rowInitial",
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "可以。你问了我，我就交给你——钥匙给你，别弄丢了。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 1,
+          "variant": "rowInitial",
+          "decision": {
+            "decision": "perform",
+            "actionType": "interact",
+            "parameters": {
+              "targetRef": {
+                "id": "entity:brass-key",
+                "kind": "entity"
+              },
+              "bindingId": "binding:key-give",
+              "definitionRef": {
+                "id": "base:give",
+                "version": 1
+              },
+              "arguments": {
+                "recipientId": "character:player"
+              }
+            }
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 2,
+          "variant": "rowInitial",
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，那我就给你。"
+              },
+              {
+                "type": "speech",
+                "text": "不过说好——这钥匙是这地方的东西，不是我的，也不是你的。我交给你，是因为你愿意先开口问。"
+              }
+            ]
+          }
+        },
+        {
+          "context": "candidate-prefix",
+          "repeat": 3,
+          "variant": "rowInitial",
+          "decision": {
+            "decision": "publish",
+            "scope": "scene_public",
+            "segments": [
+              {
+                "type": "speech",
+                "text": "你问了，那我就给你。"
+              },
+              {
+                "type": "speech",
+                "text": "我拿着它只是怕它被随手弄丢，不是想攥着不放。你既然先开口，我信这一回。"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "outcome": "Withdraw the entire initial/recorded cognition presentation experiment and its dedicated fixture/tests. Restore the existing character-context-text source and its tests exactly. Retain legacy NPC runtime retirement only.",
+  "limits": "These are bounded qualitative tests, not a population failure-rate estimate. A character may decline or ask questions; choosing publish alone is not automatically a violation. Explicit claims of completed transfer without an accepted operation are a separate narrative failure. Old presentation also returned publish in matching requests, but the original experiment showed a substantial shift and alternatives did not reliably remove the concern."
+}

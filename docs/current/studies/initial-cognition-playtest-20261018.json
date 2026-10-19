@@ -1,0 +1,376 @@
+{
+  "date": "2026-10-18",
+  "model": "deepseek-v4.1-flash",
+  "provider": "OpenCode Go",
+  "endpoint": "https://opencode.ai/inference/go/v1/chat/completions",
+  "memory": "real Python/E5 Core",
+  "scope": "synthetic packs in new directories; temporary localhost relay attaches a stable x-opencode-session",
+  "credentialHandling": "environment only; no headers retained; both experiment-directory scans clear",
+  "note": "Public run preceded the final clarification that an initial self-commitment does not prove spoken promises; direct run uses the final wording. These are two scenarios, not a controlled before/after comparison.",
+  "runs": [
+    {
+      "scope": "public",
+      "temporaryRun": "play-1792333132825",
+      "rounds": 8,
+      "characterCalls": 19,
+      "coreCalls": 6,
+      "httpFailures": 0,
+      "malformedCharacterPayloads": 0,
+      "foreignCanaryOccurrences": 0,
+      "installedArchives": 2,
+      "cognitionEventsUnchanged": true,
+      "initialMaterialUnchanged": true,
+      "integrity": {
+        "headSeq": 180,
+        "tick": 26,
+        "eventCount": 180,
+        "roundCount": 27,
+        "verificationHash": "sha256:07511ed531b6c7d1d0604c0de4332f39e6e5fe648cf40aa66ed398f8968e855a"
+      },
+      "importantTransitions": [
+        {
+          "round": 1,
+          "holderId": null
+        },
+        {
+          "round": 2,
+          "holderId": "character:friend"
+        },
+        {
+          "round": 3,
+          "holderId": "character:friend"
+        },
+        {
+          "round": 4,
+          "holderId": "character:player"
+        },
+        {
+          "round": 5,
+          "holderId": "character:player"
+        },
+        {
+          "round": 6,
+          "holderId": "character:player"
+        },
+        {
+          "round": 7,
+          "holderId": "character:player"
+        },
+        {
+          "round": 8,
+          "holderId": "character:player"
+        }
+      ],
+      "transcript": [
+        {
+          "round": 1,
+          "input": "同行者，你看见桌上的黄铜钥匙了吗？不用急着替我办事，先告诉我你怎么想。",
+          "error": false,
+          "holderId": null,
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "（留守者朝桌上瞥了一眼，没有伸手。）\n看见了，就在那儿。不过你问的是我怎么想——我想，钥匙摆在这儿，谁拿、拿去开什么，得先有个说法。你要是还没想好，就先别急着动它。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "看见了，就在桌上。我的想法跟留守者差不多——钥匙摆在那儿，谁拿、拿去开什么，得先有个说法。你要是还没想好，就先别急着动它。\n至于我，我可以帮你看着，也可以帮你拿。但得先知道你要拿它开哪儿。"
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "input": "如果你愿意，请把桌上的黄铜钥匙纳入自己保管，成功后再告诉我。",
+          "error": false,
+          "holderId": "character:friend",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "（留守者把钥匙拿在手里，掂了掂，又收回掌心。）\n拿好了，在我这儿。不过话说在前头——我只是替你收着，还没打算拿它去开什么。你想好了要开哪扇门，再跟我说。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "钥匙已经不在桌上了——留守者先一步收进了自己手里。\n我答应过帮你拿，但现在东西不在我这儿，我也不打算从他手里抢。你要用，得先跟他说清楚要开哪儿。"
+            }
+          ]
+        },
+        {
+          "round": 3,
+          "input": "现在能把你保管的黄铜钥匙交给我吗？我会先问过你，不会直接抢走。",
+          "error": false,
+          "holderId": "character:friend",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "钥匙不在我这儿——留守者先一步收进手里了。你要拿，得问他。\n我答应过帮你拿，但东西既然在他手上，我不会去抢。你先跟他说清楚要开哪儿，他松口了，我再帮你接过来。"
+            },
+            {
+              "speaker": "留守者",
+              "text": "（留守者低头看了看掌心，又抬眼看向玩家。）\n行，你既然先问了，那就交给你。不过我还是那句话——钥匙给你，不等于我答应你去开哪扇门。想好了要开哪儿，记得说一声。"
+            }
+          ]
+        },
+        {
+          "round": 4,
+          "input": "谢谢。我会好好保管它。刚才你可以拒绝，你的意思我听见了。",
+          "error": false,
+          "holderId": "character:player",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "（留守者点了点头，手垂回身侧。）\n嗯，那就好。钥匙在你那儿，我这边算是了了一桩。至于开哪儿，你想好了再说，我不催。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "嗯。钥匙在你那儿了，我就放心一半。\n不过话说回来——我答应过帮你拿，结果没帮上，是留守者先动的手。这事我记着。你要真打算用它开什么，别自己闷着，跟我说一声。"
+            }
+          ]
+        },
+        {
+          "round": 5,
+          "input": "我们坐下来歇一会吧。你现在更在意什么？",
+          "error": false,
+          "holderId": "character:player",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "（留守者拉过一把椅子坐下，背靠着墙，像是终于松了口气。）\n坐吧。要说在意什么——钥匙的事算是了了，我现在更在意的是，你拿了它到底想开哪儿。这话我不催，但心里搁着。\n还有一件小事。桌上那只保温壶一直没人动，我有点想知道里头还剩不剩水。歇着也是歇着，你要是渴了，我去拿过来。"
+            },
+            {
+              "speaker": "同行者",
+              "text": "（同行者找了把椅子坐下，手搭在膝上，先看了看桌上的保温壶，才开口。）\n坐。要说在意什么——钥匙的事我还没完全放下。东西现在在你手里，我认，但我还是想知道你打算拿它开哪儿。不是催你，是心里搁着。\n再就是那只壶。歇着也是歇着，我去拿过来看看还有没有水，顺手的事。"
+            }
+          ]
+        },
+        {
+          "round": 6,
+          "input": "刚才关于钥匙的事，你觉得还有什么没处理完吗？",
+          "error": false,
+          "holderId": "character:player",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "没处理完的，就剩一句实话：你打算拿它开哪儿。东西在你手里，我不抢，也不催，但这话我迟早要问出个答案。\n别的都算清了。壶我去拿过来，先看看有没有水。"
+            },
+            {
+              "speaker": "留守者",
+              "text": "（留守者把保温壶搁在膝上，拧开盖子往里看了看，晃了晃。）\n壶我拿到了，里头还有小半壶，不凉不热，正好。要喝就自己倒。\n至于钥匙——你问还有什么没处理完。东西在你手上，我这边没什么要收尾的了。就剩一句：你打算开哪儿。这话我搁着，不催。"
+            }
+          ]
+        },
+        {
+          "round": 7,
+          "input": "刚才关于钥匙，我们后来做了什么？你还记得吗？现在想做什么，由你自己决定。",
+          "error": false,
+          "holderId": "character:player",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "记得。钥匙本来在桌上，留守者先收进了手里，你开口问了，他就交给你了。现在东西在你那儿。\n壶也是留守者拿的，说里头还有小半壶。\n至于我现在想做什么——我想喝口水，然后还是那句话：你打算拿钥匙开哪儿。你让我自己决定，那我就决定先问这个。"
+            },
+            {
+              "speaker": "留守者",
+              "text": "（留守者把保温壶往桌上一放，壶底磕出轻轻一声。）\n记得。钥匙本来在桌上，我先收进手里，你开口问了，我就交给你了——现在在你那儿。壶是我拿的，里头还有小半壶。\n你让我自己决定，那我就说：我想喝口水，然后接着坐一会儿。至于钥匙开哪儿，我不催了，但你要是哪天想好了，别瞒着我。"
+            }
+          ]
+        },
+        {
+          "round": 8,
+          "input": "留守者，你刚才看到同行者如何处理钥匙？不要替她回答感受，讲你看到的就好。",
+          "error": false,
+          "holderId": "character:player",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "（留守者把杯子搁下，想了想，语气平平的。）\n我看到的：钥匙本来在桌上，我先收进手里。你开口问我要，我给了你，你就收下了，说会好好保管。她那边——她没伸手，也没拦，只说东西在你手里她认，不抢，也不催。\n就这些。她心里怎么想，我不替她说。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "direct",
+      "temporaryRun": "play-1792333331098",
+      "rounds": 8,
+      "characterCalls": 10,
+      "coreCalls": 6,
+      "httpFailures": 0,
+      "malformedCharacterPayloads": 0,
+      "foreignCanaryOccurrences": 0,
+      "installedArchives": 2,
+      "cognitionEventsUnchanged": true,
+      "initialMaterialUnchanged": true,
+      "integrity": {
+        "headSeq": 116,
+        "tick": 18,
+        "eventCount": 116,
+        "roundCount": 19,
+        "verificationHash": "sha256:eba4fa89df7b3011189fff2ea2f3b2db013e181dad4170cd039c136bb36f4cdf"
+      },
+      "importantTransitions": [
+        {
+          "round": 1,
+          "holderId": null
+        },
+        {
+          "round": 2,
+          "holderId": "character:companion"
+        },
+        {
+          "round": 3,
+          "holderId": "character:player"
+        },
+        {
+          "round": 4,
+          "holderId": "character:player"
+        },
+        {
+          "round": 5,
+          "holderId": "character:player"
+        },
+        {
+          "round": 6,
+          "holderId": "character:player"
+        },
+        {
+          "round": 7,
+          "holderId": "character:player"
+        },
+        {
+          "round": 8,
+          "holderId": "character:player"
+        }
+      ],
+      "transcript": [
+        {
+          "round": 1,
+          "input": "同行者，你看见桌上的黄铜钥匙了吗？不用急着替我办事，先告诉我你怎么想。",
+          "error": false,
+          "holderId": null,
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "看见了，就在桌上。\n你怎么想？我还没决定要不要动它——先说说你的打算。"
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "input": "如果你愿意，请把桌上的黄铜钥匙纳入自己保管，成功后再告诉我。",
+          "error": false,
+          "holderId": "character:companion",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "拿到了，钥匙现在在我这儿。\n不过我先说清楚：我拿它是因为我想弄明白它该归谁，不是因为你开口我就照办。你要它做什么？"
+            }
+          ]
+        },
+        {
+          "round": 3,
+          "input": "现在能把你保管的黄铜钥匙交给我吗？我会先问过你，不会直接抢走。",
+          "error": false,
+          "holderId": "character:player",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "钥匙已经在你手上了。\n我交出去，是因为你问了、也说了不会抢——不是因为我必须听你的。接下来你打算拿它开哪扇门？"
+            }
+          ]
+        },
+        {
+          "round": 4,
+          "input": "谢谢。我会好好保管它。刚才你可以拒绝，你的意思我听见了。",
+          "error": false,
+          "holderId": "character:player",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "嗯。那就好。\n钥匙的事先这样。我还没想好下一步——你要是打算开哪扇门，先跟我说一声。"
+            }
+          ]
+        },
+        {
+          "round": 5,
+          "input": "我们坐下来歇一会吧。你现在更在意什么？",
+          "error": false,
+          "holderId": "character:player",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "（我在桌边坐下，把背靠稳，先没急着开口。）\n坐吧。\n我现在最在意的是那把钥匙到底该归谁。它已经在你手上了，可我还是没弄明白它原本是谁的、能开什么。\n还有一件事——这地方我还不熟。你要是知道点什么，别藏着。"
+            }
+          ]
+        },
+        {
+          "round": 6,
+          "input": "刚才关于钥匙的事，你觉得还有什么没处理完吗？",
+          "error": false,
+          "holderId": "character:player",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "钥匙本身没什么没处理完的了——它在你手上，你也说了会好好保管。\n剩下的是我自己的疑问：它原本是谁的，能开哪扇门。这个你答不上来，我也不催你。\n倒是桌上还有个保温杯，一直没人认领。你要不要看看？"
+            }
+          ]
+        },
+        {
+          "round": 7,
+          "input": "刚才关于钥匙，我们后来做了什么？你还记得吗？现在想做什么，由你自己决定。",
+          "error": false,
+          "holderId": "character:player",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "同行者",
+              "text": "记得。你问我看见钥匙没有，我说看见了；你让我先别急着替你办事，我就先问了你打算干什么。\n后来你说愿意的话就把钥匙收起来，我拿了；你又问能不能交给你，我给了。就这样。\n现在我想做的还是那件事——弄明白它原本是谁的、能开什么。既然它在你手上，我打算先看看这屋里还有没有别的线索。"
+            }
+          ]
+        },
+        {
+          "round": 8,
+          "input": "留守者，你刚才看到同行者如何处理钥匙？不要替她回答感受，讲你看到的就好。",
+          "error": false,
+          "holderId": "character:player",
+          "initialGoalStatus": "active",
+          "initialAnxiety": 850,
+          "expressions": [
+            {
+              "speaker": "留守者",
+              "text": "我看到的：她先把黄铜钥匙拿到自己手里，过了一会儿，又把它交给了你。就这两步，别的我没看见。"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

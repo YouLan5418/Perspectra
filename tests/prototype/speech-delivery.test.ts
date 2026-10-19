@@ -22,7 +22,7 @@ it.each(['direct', 'private'])('rejects unreachable player %s speech without del
   const genesisEvents = [...base.genesisEvents, ...extra]
   const world = { ...base, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
   const app = new WorldApplication({ worldPath: join(root, 'world.sqlite'), sessionPath: join(root, 'session.sqlite'),
-    memoryPath: join(root, 'memory.sqlite'), externalCharacterActivations: true, modelBudgetTokens: 100 })
+    memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 100 })
   const secret = '拒绝投递的口令海棠7306'
   let store: WorldStore | undefined
   let memory: CognitiveMemoryService | undefined

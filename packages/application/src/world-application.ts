@@ -1,46 +1,43 @@
 import { Context } from '@deepseek-ai/cordis'
-import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
 import {
+  WorldError,
   assertProtocolString,
   canonicalizeWorldJson,
-  compareWorldText,
   failWorld,
   hashWorldJson,
   resolutionAuthority,
-  WorldError,
   worldAddressKey,
   type CharacterId,
-  type RuntimeAvailabilityState,
+  type CharacterView,
+  type DeliveryId,
+  type FaultInjector,
   type InteractionPackageImplementation,
   type InteractionRoundId,
   type ReactionCycleId,
   type ReactionCycleStatus,
   type ReactionCycleView,
   type ReactionListQuery,
-  type CharacterView,
-  type DeliveryId,
-  type FaultInjector,
+  type RecallTokenizerId,
+  type RuntimeAvailabilityState,
   type SessionId,
   type StoredRoundAuthority,
-  type RecallTokenizerId,
   type StoredWorldEvent,
   type TransactionId,
   type WorldAddress,
-  type WorldJsonValue,
+  type WorldJsonValue
 } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import {
   FrozenInteractionRulebook,
   WorldBootstrap,
   createCoreRulebookRegistry,
-  parsePlayerRoundResult,
   parsePlayerActionInput,
+  parsePlayerRoundResult,
   runtimeManifestFromStored,
   runtimeManifestFromStoredRecord,
+  type ActionAffordance,
   type CompiledWorldManifest,
   type CompiledWorldSpec,
-  type ActionAffordance,
   type PlayerActionInput,
   type PlayerRoundResult,
   type RulebookRegistry,
@@ -50,12 +47,6 @@ import {
   type RecallCandidateDiagnostics,
   type RecalledMemory,
 } from '@harness-world/memory'
-import {
-  ContextReceiptStore,
-  ContinuityCheckpointService,
-  ProviderCallStore,
-  ProviderQualityStore,
-} from '@harness-world/agents'
 import {
   DeterministicPresenter,
   type PresentationResult,
@@ -72,7 +63,8 @@ import {
   BranchQuarantineService,
   CharacterRuntimeAvailabilityService,
   CharacterViewBuilder,
-  type DeadLetterRecord,
+  PLAYER_INPUT_TRANSITIONS,
+  PlayerInputJobs,
   ProjectionRebuilder,
   RoundInbox,
   SessionDeliveryAdapter,
@@ -83,33 +75,26 @@ import {
   WorldOutbox,
   WorldStore,
   WriterLeaseService,
+  type DeadLetterRecord,
+  type PlayerInputJob, type PlayerInputStatus,
 } from '@harness-world/store-sqlite'
+import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import {
   BranchOperationCoordinator,
   type ArchiveBranchResult,
   type ForkAtHeadResult,
 } from './branch-operation-coordinator.ts'
 import { PlayerInputInterpreter, type PlayerInputInterpretation } from './player-input.ts'
-import { PlayerIntentWorker, type PlayerIntentProfile } from './player-intent-worker.ts'
 import { preparePlayerIntent } from './player-intent-preparation.ts'
-import { PlayerInputJobs, PLAYER_INPUT_TRANSITIONS, type PlayerInputJob, type PlayerInputStatus } from '@harness-world/store-sqlite'
+import { PlayerIntentWorker, type PlayerIntentProfile } from './player-intent-worker.ts'
 import {
   RoundCoordinator,
   type AcceptedRoundStep,
-  type RoundParticipant,
-  type SubmitCoordinatedRoundRequest,
+  type SubmitCoordinatedRoundRequest
 } from './round-coordinator.ts'
-import { SceneDecisionService } from './scene-decision.ts'
 import { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
-import { Phase8ContextPipeline } from './context-pipeline.ts'
-import {
-  ReactionScheduler,
-  type ReactionParticipantBinding,
-  type ReactionSchedulerOptions,
-  type ReactionWaveResult,
-  type ReactionWriterLeasePort,
-} from './reaction-scheduler.ts'
-import { ReactionCycleWorker, type ReactionDrainResult, type ReactionExecutionLane } from './reaction-worker.ts'
+import { SceneDecisionService } from './scene-decision.ts'
 
 function assertCompatibleContentPackVersion(
   existing: { readonly manifest: WorldJsonValue } | undefined,
@@ -146,16 +131,12 @@ const DEFAULT_INTERACTION_PACKAGES: readonly InteractionPackageImplementation[] 
 ])
 
 export interface WorldApplicationOptions {
-  /** Prototype Host owns bounded NPC activations after player commits; no legacy batch bindings. */
-  readonly externalCharacterActivations?: boolean
   readonly playerIntent?: {
     readonly profile: PlayerIntentProfile
     readonly dispatch: (request: WorldJsonValue, profile: PlayerIntentProfile, signal: AbortSignal) => Promise<WorldJsonValue>
   }
   readonly worldPath: string
   readonly sessionPath: string
-  readonly participants?: (address: WorldAddress) => readonly RoundParticipant[]
-  readonly reactionParticipants?: (address: WorldAddress) => readonly ReactionParticipantBinding[]
   readonly modelBudgetTokens?: number
   readonly outboxMaxAttempts?: number
   readonly runtimeOwnerId?: string
@@ -295,46 +276,30 @@ export class BranchStoreComponent {
   }
 }
 
+/** Branch-owned authorized memory capture used by player commits and explicit recall. */
 export class BranchAgentComponent {
-  constructor(
-    readonly participants: readonly RoundParticipant[],
-    readonly cognitiveMemory?: CognitiveMemoryService,
-    readonly contextPipeline?: Phase8ContextPipeline,
-    readonly providerCalls?: ProviderCallStore,
-    readonly providerQuality?: ProviderQualityStore,
-  ) {}
-
-  close(): void {
-    this.contextPipeline?.close()
-    this.providerCalls?.close()
-    this.providerQuality?.close()
-    this.cognitiveMemory?.close()
-  }
+  constructor(readonly cognitiveMemory?: CognitiveMemoryService) {}
+  close(): void { this.cognitiveMemory?.close() }
 }
 
-export class BranchDirectorComponent {
+/** Deterministic presentation for the retained session-rendering API; no Director model. */
+export class BranchPresentationComponent {
   readonly presenter = new DeterministicPresenter()
-
-  constructor(readonly participants: readonly RoundParticipant[]) {}
 }
 
 /** Application-owned factory that mounts real stateful components into each Cordis Branch Slot. */
 export class WorldBranchComponentFactory implements BranchComponentFactory {
   readonly #runtimeOwnerId: string
-  readonly #contextPath: string | undefined
 
   constructor(private readonly options: WorldApplicationOptions & {
     readonly rulebooks: RulebookRegistry
-    readonly runtimeMetrics: ApplicationRuntimeMetrics
   }) {
     const label = options.runtimeOwnerId ?? 'application'
     assertProtocolString(label, 'runtimeOwnerId diagnostic label')
     this.#runtimeOwnerId = `${label}:instance:${randomUUID()}`
-    this.#contextPath = contextPathFor(options)
   }
 
   create(scope: BranchExecutionLane) {
-    const participants = this.options.participants?.(scope.address) ?? []
     const store = new BranchStoreComponent(
       scope.address,
       this.options.worldPath,
@@ -343,13 +308,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       this.options.faultInjector,
     )
     let cognitiveMemory: CognitiveMemoryService | undefined
-    let contextPipeline: Phase8ContextPipeline | undefined
-    let providerCalls: ProviderCallStore | undefined
-    let providerQuality: ProviderQualityStore | undefined
     try {
-      if (participants.length > 0 && this.options.modelBudgetTokens === undefined) {
-        throw new TypeError('modelBudgetTokens must be configured when Round participants are enabled')
-      }
       const manifest = runtimeManifestFromStoredRecord(store.store.readManifest(scope.address))
       const policies = validateApplicationManifest(
         manifest, scope.address, `manifest-runtime:${worldAddressKey(scope.address)}`,
@@ -361,22 +320,8 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
           this.options.memoryPath!, store.store, this.options.faultInjector, policies.memoryVersion,
           this.options.recallTokenizer, this.options.recallDictionary ?? false,
         )
-      if (policies.contextEnabled) {
-        contextPipeline = new Phase8ContextPipeline({
-          path: this.#contextPath!, store: store.store, memory: cognitiveMemory!,
-          availability: store.availability, manifest, manifestHash: scope.manifestHash,
-          rulebook: this.options.rulebooks.resolve(
-            manifest.rulebook.rulebookId, manifest.rulebook.version,
-            `context-pipeline:${worldAddressKey(scope.address)}`, scope.address,
-          ),
-        })
-        providerCalls = new ProviderCallStore(this.#contextPath!)
-        providerQuality = new ProviderQualityStore(this.#contextPath!)
-      }
-      const agents = new BranchAgentComponent(
-        participants.filter(value => value.role === 'agent'), cognitiveMemory, contextPipeline, providerCalls, providerQuality,
-      )
-      const director = new BranchDirectorComponent(participants.filter(value => value.role === 'director'))
+      const agents = new BranchAgentComponent(cognitiveMemory)
+      const director = new BranchPresentationComponent()
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
       store.availability.initialize(scope.address, manifest.characters.map(character => ({
         characterId: character.characterId,
@@ -386,25 +331,6 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       })))
       const sceneDecision = policies.sceneVersion === undefined ? undefined
         : new SceneDecisionService(store.store, store.availability, policies.sceneVersion)
-      const reactionBindings = this.options.reactionParticipants?.(scope.address) ?? []
-      const reactionPolicy = manifest.reactionPolicy
-      if (reactionPolicy.mode === 'responsive' && !this.options.externalCharacterActivations) {
-        const requiredActors = manifest.characters
-          .filter(character => !players.has(character.characterId)
-            && character.lifecycle === 'active'
-            && character.controllerClass !== 'manual')
-          .map(character => character.characterId)
-          .sort(compareWorldText)
-        const registeredActors = reactionBindings.map(binding => binding.actorId).sort(compareWorldText)
-        if (requiredActors.length !== registeredActors.length
-          || requiredActors.some((actorId, index) => actorId !== registeredActors[index])) {
-          throw new TypeError('responsive/v1 requires one Reaction participant binding for every active non-manual NPC')
-        }
-      }
-      const reactionDraftBindings = reactionBindings.map(binding => ({
-        actorId: binding.actorId,
-        estimatedTokens: binding.estimatedTokens,
-      }))
       const kernel = new RoundCoordinator({
         store: store.store,
         inbox: store.inbox,
@@ -412,18 +338,11 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         availability: store.availability,
         runtimeLane: scope,
         ownerId: `${this.#runtimeOwnerId}:branch:${hashWorldJson('writer-owner-address', scope.address)}`,
-        participants: [...agents.participants, ...director.participants],
-        modelBudgetTokens: this.options.modelBudgetTokens ?? 0,
         rulebooks: this.options.rulebooks,
         ...(sceneDecision === undefined ? {} : { sceneDecision }),
         ...(cognitiveMemory === undefined ? {} : { cognitiveMemory }),
-        ...(contextPipeline === undefined ? {} : { contextPipeline }),
-        ...(providerCalls === undefined ? {} : { providerCalls }),
-        ...(providerQuality === undefined ? {} : { providerQuality }),
         ...(this.options.faultInjector === undefined ? {} : { faultInjector: this.options.faultInjector }),
-        runtimeMetrics: this.options.runtimeMetrics,
         ...(this.options.leaseTtlMs === undefined ? {} : { leaseTtlMs: this.options.leaseTtlMs }),
-        ...(reactionDraftBindings.length === 0 ? {} : { reactionParticipants: reactionDraftBindings }),
       })
       try {
         kernel.processCognitiveJobs()
@@ -431,34 +350,8 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         kernel.close()
         throw error
       }
-      let reactionWorker: ReactionCycleWorker | undefined
-      if (reactionPolicy.mode === 'responsive' && !this.options.externalCharacterActivations) {
-        const writerPort: ReactionWriterLeasePort = {
-          current: () => kernel.writerLease,
-          renew: () => { kernel.renewWriterLease(); return kernel.writerLease },
-        }
-        const schedulerOptions: ReactionSchedulerOptions = {
-          address: scope.address,
-          manifest,
-          manifestHash: scope.manifestHash,
-          store: store.store,
-          availability: store.availability,
-          sceneDecision: sceneDecision!,
-          contextPipeline: contextPipeline!,
-          providerCalls: providerCalls!,
-          rulebooks: this.options.rulebooks,
-          participants: reactionBindings,
-          writer: writerPort,
-          ...(this.options.faultInjector === undefined ? {} : { faultInjector: this.options.faultInjector }),
-        }
-        const scheduler = new ReactionScheduler(schedulerOptions)
-        reactionWorker = new ReactionCycleWorker(scope as ReactionExecutionLane, scheduler)
-      }
-      return { kernel, store, agents, director, ...(reactionWorker === undefined ? {} : { reactionWorker }) }
+      return { kernel, store, agents, director }
     } catch (error: unknown) {
-      contextPipeline?.close()
-      providerCalls?.close()
-      providerQuality?.close()
       cognitiveMemory?.close()
       store.close()
       throw error
@@ -471,35 +364,13 @@ interface MountedBranch {
   readonly kernel: RoundCoordinator
   readonly store: BranchStoreComponent
   readonly agents: BranchAgentComponent
-  readonly director: BranchDirectorComponent
-  readonly reactionWorker?: ReactionCycleWorker
+  readonly director: BranchPresentationComponent
 }
 
-/** One Reaction quantum (ADR-0079): whether the Branch may react, and the Wave it committed if it did. */
-export type ReactionWaveStep =
-  | { readonly status: 'unsupported' }
-  | { readonly status: 'idle' }
-  | ({ readonly status: 'wave' } & ReactionWaveResult)
-
-function reactionWaveOf(step: Extract<ReactionWaveStep, { readonly status: 'wave' }>): ReactionWaveResult {
-  return {
-    cycleId: step.cycleId,
-    rootRoundId: step.rootRoundId,
-    wave: step.wave,
-    roundId: step.roundId,
-    transactionId: step.transactionId,
-    headSeq: step.headSeq,
-    tick: step.tick,
-    terminalReason: step.terminalReason,
-    actionCount: step.actionCount,
-  }
-}
-
-/** One durable scheduling quantum: one accepted Player Input transition chain, one Wave, one player Round, or idle. */
+/** One durable player input transition chain, one player Round, or idle. */
 export type BranchWorkStep =
   | { readonly status: 'idle' }
   | { readonly status: 'player_input'; readonly inputId: string; readonly inputStatus: PlayerInputStatus; readonly round: PlayerRoundResult | null }
-  | ({ readonly status: 'reaction_wave' } & ReactionWaveResult)
   | ({ readonly status: 'player_round' } & AcceptedRoundStep)
 
 /** Local composition root and the only production entrypoint into branch-owned state. */
@@ -528,7 +399,6 @@ export class WorldApplication {
     this.runtimeRegistry = new WorldRuntimeRegistry(this.#root, new WorldBranchComponentFactory({
       ...options,
       rulebooks: this.#rulebooks,
-      runtimeMetrics: this.runtimeMetrics,
     }))
   }
 
@@ -631,17 +501,7 @@ export class WorldApplication {
         correlationId: request.correlationId, message: outcome.reason })
     }
     return this.#integrityGuard(address, 'round.submit', async (branch) => {
-      if (branch.reactionWorker === undefined) return branch.kernel.submit(request)
-      branch.kernel.accept(request)
-      const replay = branch.store.inbox.readCompleted(address, request.idempotencyKey)
-      if (replay !== undefined) return parsePlayerRoundResult(replay)
-      await branch.reactionWorker.drain()
-      while (true) {
-        await branch.kernel.processNextAccepted(request.correlationId)
-        const result = branch.store.inbox.readCompleted(address, request.idempotencyKey)
-        if (result !== undefined) return parsePlayerRoundResult(result)
-        await branch.reactionWorker.drain()
-      }
+      return branch.kernel.submit(request)
     })
   }
 
@@ -818,7 +678,6 @@ export class WorldApplication {
       },
       complete: async job => {
         while (branch.store.inbox.readCompleted(address, job.idempotencyKey) === undefined) {
-          await branch.reactionWorker?.drain()
           await branch.kernel.processNextAccepted(correlationId)
         }
         return branch.store.inbox.readCompleted(address, job.idempotencyKey)!
@@ -874,22 +733,11 @@ export class WorldApplication {
     })
   }
 
-  /** Run at most one frozen Wave; `unsupported` means this Manifest does not enable Reactions. */
-  async processNextReactionWave(address: WorldAddress): Promise<ReactionWaveStep> {
-    return this.#integrityGuard(address, 'reaction.process', async (branch) => {
-      if (branch.reactionWorker === undefined) return { status: 'unsupported' }
-      const wave = await branch.reactionWorker.runOneWave()
-      return wave === undefined ? { status: 'idle' } : { ...wave, status: 'wave' }
-    })
-  }
-
-  /** Execute one FIFO input item first, else one frozen Wave, else one accepted player Round, else idle. */
+  /** Execute one FIFO player input or accepted player Round, else return idle. */
   async processNextBranchWork(address: WorldAddress, correlationId: string): Promise<BranchWorkStep> {
     const input = await this.#queueNextPlayerInput(address, correlationId)
     if (input !== undefined) return { status: 'player_input', inputId: input.inputId, inputStatus: input.status,
       round: input.status === 'completed' ? parsePlayerRoundResult(input.records.completed!) : null }
-    const wave = await this.processNextReactionWave(address)
-    if (wave.status === 'wave') return { ...wave, status: 'reaction_wave' }
     return this.#integrityGuard(address, 'round.process', async (branch) => {
       const round = await branch.kernel.processNextAcceptedStep(correlationId)
       return round === undefined ? { status: 'idle' } : { ...round, status: 'player_round' }
@@ -987,17 +835,6 @@ export class WorldApplication {
       }
       return view
     })
-  }
-
-  async processReactionCycles(address: WorldAddress): Promise<ReactionDrainResult | null> {
-    const first = await this.processNextReactionWave(address)
-    if (first.status === 'unsupported') return null
-    const waves: ReactionWaveResult[] = first.status === 'wave' ? [reactionWaveOf(first)] : []
-    while (true) {
-      const step = await this.processNextReactionWave(address)
-      if (step.status !== 'wave') return { cycleId: waves[0]?.cycleId ?? null, waves }
-      waves.push(reactionWaveOf(step))
-    }
   }
 
   async head(address: WorldAddress) {
@@ -1292,44 +1129,23 @@ export class WorldApplication {
 
   async enterMaintenance(address: WorldAddress, reason: string, correlationId: string) {
     const branch = await this.#branch(address)
-    branch.store.administration.setAdmission(address, 'draining', reason, `${correlationId}:drain`)
-    let stoppedCycleId: string | null = null
-    let settledWaves = 0
-    let drainedRounds = 0
-    while (true) {
-      const stopped = branch.store.store.requestReactionCycleAdministrativeStop(address)
-      if (stopped !== undefined) stoppedCycleId = stopped
-      // A Root already running when the barrier closed may create its Cycle after the first stop request.
-      await branch.lease.slot.enqueueRound(async () => {
-        const opened = branch.store.store.requestReactionCycleAdministrativeStop(address)
-        if (opened !== undefined) stoppedCycleId = opened
-      })
-      settledWaves += await this.#settleStoppedCycle(branch)
-      const drained = await branch.kernel.processNextAcceptedStep(`${correlationId}:rounds`)
-      if (drained === undefined) break
-      drainedRounds += 1
+    if (branch.store.store.openReactionCycleId(address) !== undefined) {
+      failWorld({ errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime', retryable: false,
+        message: 'unfinished legacy NPC Reaction Cycles cannot be resumed by this runtime', correlationId, address })
     }
+    branch.store.administration.setAdmission(address, 'draining', reason, `${correlationId}:drain`)
+    const drainedRounds = await branch.kernel.drainAccepted(`${correlationId}:rounds`)
     await branch.store.drainCritical(`${correlationId}:outbox`)
     await this.release(address)
     const administration = new BranchAdministration(this.options.worldPath)
     try {
       return {
         drainedRounds,
-        stoppedCycleId,
-        settledWaves,
         state: administration.enterMaintenance(address, reason, `${correlationId}:enter`),
       }
     } finally {
       administration.close()
     }
-  }
-
-  /** Settle the frozen Wave of a stop-requested Cycle so maintenance never leaves it open (ADR-0079). */
-  async #settleStoppedCycle(branch: MountedBranch): Promise<number> {
-    if (branch.reactionWorker === undefined) return 0
-    let settledWaves = 0
-    while (await branch.reactionWorker.runOneWave() !== undefined) settledWaves += 1
-    return settledWaves
   }
 
   async exitMaintenance(address: WorldAddress, reason: string, correlationId: string) {
@@ -1392,16 +1208,7 @@ export class WorldApplication {
               memoryVerificationHash = memory.rebuildBranch(
                 address, manifest.characters.map(character => character.characterId), world.headSeq, correlationId,
               )
-              const contextPath = contextPathFor(this.options)!
-              const checkpoints = new ContinuityCheckpointService(contextPath, store, memory)
-              const receipts = new ContextReceiptStore(contextPath)
-              try {
-                receipts.reset(address)
-                for (const character of manifest.characters) checkpoints.reset(address, character.characterId)
-              } finally {
-                receipts.close()
-                checkpoints.close()
-              }
+
             } finally {
               memory.close()
             }
@@ -1566,8 +1373,7 @@ export class WorldApplication {
     if (!(components.kernel instanceof RoundCoordinator)
       || !(components.store instanceof BranchStoreComponent)
       || !(components.agents instanceof BranchAgentComponent)
-      || !(components.director instanceof BranchDirectorComponent)
-      || (components.reactionWorker !== undefined && !(components.reactionWorker instanceof ReactionCycleWorker))) {
+      || !(components.director instanceof BranchPresentationComponent)) {
       await lease.dispose()
       throw new Error('Branch Component Factory returned an incompatible component set')
     }
@@ -1577,7 +1383,6 @@ export class WorldApplication {
       store: components.store,
       agents: components.agents,
       director: components.director,
-      ...(components.reactionWorker === undefined ? {} : { reactionWorker: components.reactionWorker }),
     }
   }
 

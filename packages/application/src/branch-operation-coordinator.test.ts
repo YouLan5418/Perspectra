@@ -1,9 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
 import { brandId } from '@harness-world/contracts'
-import { FrozenInteractionRulebook, createCoreRulebookRegistry, WorldBootstrap, type CompiledWorldSpec, type RoundExecutionLane } from '@harness-world/kernel'
+import { createCoreRulebookRegistry, FrozenInteractionRulebook, WorldBootstrap, type CompiledWorldSpec, type RoundExecutionLane } from '@harness-world/kernel'
 import {
   BranchAdministration,
   CharacterRuntimeAvailabilityService,
@@ -14,9 +10,13 @@ import {
   WorldStore,
   WriterLeaseService,
 } from '@harness-world/store-sqlite'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { basicInteractionPackage, frozenInteractionWorld } from '../../../tests/fixtures/frozen-interaction-world.ts'
 import { BranchOperationCoordinator, type CriticalDeliveryDrainPort } from './branch-operation-coordinator.ts'
 import { RoundCoordinator } from './round-coordinator.ts'
-import { basicInteractionPackage, frozenInteractionWorld } from '../../../tests/fixtures/frozen-interaction-world.ts'
 
 const directories: string[] = []
 
@@ -61,8 +61,6 @@ function coordinator(path: string, world: CompiledWorldSpec) {
     runtimeLane: lane(world),
     ownerId: 'coordinator:operations',
     rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
-    participants: [],
-    modelBudgetTokens: 0,
   })
   return { store, inbox, leases, availability, rounds }
 }
@@ -173,8 +171,6 @@ describe('BranchOperationCoordinator', () => {
       runtimeLane: { ...lane(world), address: child },
       ownerId: 'coordinator:child',
       rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
-      participants: [],
-      modelBudgetTokens: 0,
     })
     await expect(childRounds.submit({
       idempotencyKey: 'child-round', principalId: 'principal:player',

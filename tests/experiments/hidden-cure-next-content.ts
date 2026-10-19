@@ -52,7 +52,7 @@ export async function prepareTakenRecord(packPath:string,dataDirectory:string) {
   const compiled=adaptCompiledWorldPack(pack,{address:{tenantId:brandId('tenant:web-playtest','TenantId'),
     worldId:brandId(`world:web-playtest:${pack.packHash.slice(7,23)}`,'WorldId'),branchId:brandId('branch:main','BranchId')},
     principalId:'principal:web-playtest',sessionId:brandId('session:web-playtest','SessionId')})
-  const app=new WorldApplication({externalCharacterActivations:true,interactionPackages:interactions,
+  const app=new WorldApplication({interactionPackages:interactions,
     worldPath:join(dataDirectory,'world.sqlite'),sessionPath:join(dataDirectory,'session.sqlite'),
     memoryPath:join(dataDirectory,'memory.sqlite'),contextPath:join(dataDirectory,'context.sqlite')})
   const results=[]

@@ -23,7 +23,7 @@
 | 包 | 通俗职责 | 阅读起点与注意事项 |
 | --- | --- | --- |
 | [contracts](../../../packages/contracts) | 共用数据类型、ID、动作与事件约定 | [ID](../../../packages/contracts/src/ids.ts)、[表达片段](../../../packages/contracts/src/expression.ts)；定义形状，不执行模型 |
-| [application](../../../packages/application) | 连接输入、上下文、角色处理和世界执行 | [单角色处理](../../../packages/application/src/prototype-character-turn.ts)、[有界调度](../../../packages/application/src/prototype-activation-cycle.ts)、[WorldApplication](../../../packages/application/src/world-application.ts)；同时保留旧 Round／Reaction 实现 |
+| [application](../../../packages/application) | 连接玩家输入、角色处理和世界执行 | [单角色处理](../../../packages/application/src/prototype-character-turn.ts)、[有界调度](../../../packages/application/src/prototype-activation-cycle.ts)、[WorldApplication](../../../packages/application/src/world-application.ts)；RoundCoordinator 仅负责玩家提交，旧 NPC Round／Reaction 执行已退役 |
 | [kernel](../../../packages/kernel) | 世界规则、行动裁定、场景事实读取与启动 | [规则注册](../../../packages/kernel/src/rulebook-registry.ts)、[WorldKernel](../../../packages/kernel/src/world-kernel.ts)；不负责角色写台词 |
 | [store-sqlite](../../../packages/store-sqlite) | 事件存取、原子提交、角色视图和相关持久化 | [WorldStore](../../../packages/store-sqlite/src/world-store.ts)、[CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts) |
 | [memory](../../../packages/memory) | 原生角色记忆与认知上下文 | [上下文服务](../../../packages/memory/src/cognitive-context.ts)、[本地记忆](../../../packages/memory/src/local-memory.ts)；Python Core 不在此包 |
@@ -32,7 +32,7 @@
 | [interaction-runtime](../../../packages/interaction-runtime) | 注册交互能力、校验定义与结果 | [注册](../../../packages/interaction-runtime/src/registry.ts)、[校验](../../../packages/interaction-runtime/src/validation.ts) |
 | [interactions-basic](../../../packages/interactions-basic) | 拿取、交接及独立小料理交互实现 | [基础定义](../../../packages/interactions-basic/src/basic.ts)、[料理扩展](../../../packages/interactions-basic/src/home.ts)、[晚宴物品状态转换](../../../packages/interactions-basic/src/dinner.ts)；宿主安装三者，世界包仍须显式绑定入口 |
 | [frontend](../../../packages/frontend) | 公共玩家视图、客户端接口、默认情景舞台、本地阅读进度与可选语音服务契约 | [公共数据](../../../packages/frontend/src/player-view.ts)、[客户端](../../../packages/frontend/src/client.ts)、[默认模板](../../../packages/frontend/src/default-template.ts)、[阅读游标](../../../packages/frontend/src/reading-playback.ts)、[语音接口](../../../packages/frontend/src/speech.ts) |
-| [agents](../../../packages/agents) | 共用 Agent 上下文、模型调用和旧阶段服务 | [导出入口](../../../packages/agents/src/index.ts)、[调用工具](../../../packages/agents/src/provider-call.ts)；当前 NPC 主循环在 application，不能仅凭包名定位 |
+| [agents](../../../packages/agents) | 玩家意图调用记录、共用库连接与历史玩家输入解析 | [导出入口](../../../packages/agents/src/index.ts)、[玩家调用记录](../../../packages/agents/src/player-intent-call.ts)、[连接](../../../packages/agents/src/context-database.ts)；旧 NPC Context、Reflection 和调用服务已移除，NPC 主循环在 application |
 | [presentation](../../../packages/presentation) | 把授权观察转成确定性的展示文本 | [Presenter](../../../packages/presentation/src/presenter.ts)；不是 Vue 界面或 NPC 决策器 |
 | [runtime-cordis](../../../packages/runtime-cordis) | Cordis 注册与分支资源生命周期 | [运行时](../../../packages/runtime-cordis/src/runtime.ts)；先了解游戏流程再读资源管理 |
 | [testkit](../../../packages/testkit) | 测试构造与辅助工具 | [测试工具](../../../packages/testkit/src/testkit.ts)；不是玩家运行入口 |

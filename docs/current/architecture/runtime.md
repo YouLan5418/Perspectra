@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-10-18：保留[原型遗留处理](../studies/phase8-prototype-transition-audit-20261018.md)的前两步。例如玩家说话后，RoundCoordinator 只裁定和提交玩家行动，NPC 由既有单角色循环处理；旧批量 participant、Reaction Worker、Director 模型、Context Pipeline、Reflection、Checkpoint 和 NPC Provider Call／Quality 已移除。保留玩家输入解释专用记录、授权 Source 捕获、原生认知任务及 Presenter；不改库结构或历史事件读取。已有未完成的旧 Reaction Cycle 可读取和请求取消，但取消请求不会结算旧工作，运行时也拒绝恢复或在其未结束时提交新行动；若确有这类数据需另行处理。当前模型请求内容保持改前版本：第三步心理呈现调整因对照中的行动选择退化迹象已撤回。宿主目录整理与 Source／摘要解耦仍延期。
+
 2026-10-18：源码网页默认改用 Core 记忆，与 Launcher 一致。此前直接运行源码时默认走原生记忆，history 只取最近 16 条观察的滑动窗口，花房真实试玩的结果和缓存命中率因此不能代表玩家体验。现在缺少 Python 或 E5 时，运行时在创建存档目录前直接报错说明；原生记忆须显式加 `--memory-native`，`--ollama` / `--deepseek` 入口必须同时带上它，旧 Electron 入口也显式传入以保持原行为。只改变入口默认值，记忆存储与召回路径不变；没有重跑真实模型。
 
 2026-10-18：源包明确登记的[按需设定](../guides/world-knowledge.md)接入默认宿主。模型请求在已有记忆交付后、预设准备前附加授权 `knowledge`，没有额外模型阶段。最初添加的角色信任数值、专用裁定与面板已撤销；态度变化依据人设、预设、记忆与对话历史，客观变量复用现有规则。知识受众、宿主私语、重开及候选重算有离线回归；移除分数后未重跑真实模型，发行包未更新。

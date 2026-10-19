@@ -1,5 +1,7 @@
 # 当前认知与记忆
 
+2026-10-18：[原型遗留处理](../studies/phase8-prototype-transition-audit-20261018.md)已移除旧 Reflection、Context Pipeline 和 Checkpoint 服务。作者七类初始材料的编译、读取及既有模型呈现保留，不存在旧 Reflection 持续写回。曾尝试把模型文本分为 initialCognition／recordedCognition，但改前对照发现行动选择退化迹象，已撤回该尝试及专属测试，现仍发送原有 cognition。来源捕获、Core 与显式原生模式保留；初始材料易被误作当前心理快照的限制尚未解决。
+
 2026-10-18：作者设定现在可通过[按需知识](../guides/world-knowledge.md)进入 `context.knowledge`，例如提到黑海岸时补充角色有权知道的背景，而不把它当成亲历。宿主在既有 Core／原生记忆交付之后筛选文档受众、匹配本人授权内容并按字符预算选整条正文；不扫描其他角色或全局转录，不将本次设定自动写成记忆。角色情感由人设、预设、记忆与对话历史动态形成，本轮已撤销外加的信任数值及门槛。原生与 Core 的存储／召回路径没有改变。原版知识交付有 DeepSeek 短试玩证据，移除分数后只做离线回归；Launcher Core 连续体验未验收。
 
 2026-10-17 核对物品 Context 提示：例如角色亲眼看到玩家拿走钥匙，最终模型文本会提醒“当前不由你保管”；若只有旧观察，则只提示当前归属与位置未确认。`characterRequestText` 在已授权的 `current/lastObserved` 物品行副本上添加 `narrativeBoundary`，不覆盖原有错认，不读取隐藏持有人，也不修改请求中的原始 Context、观察或记忆来源。提示随授权物品行刷新，长度进入既有最终上下文预算。实现与验证范围见 [Interaction](interaction.md#物品-context-边界提示)；自由叙事一致性仍需真实体验验收。
