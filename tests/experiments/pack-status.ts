@@ -486,8 +486,10 @@ export class PackStatus {
     await this.#commitRound(worldPath, address, 'status-round:' + randomUUID(), store => {
       const events = store.readEvents(address)
       const round = events.filter(e => e.eventType === 'status.updated' && statusData(e).source.kind === 'round').length + 1
+      // Folding stored events stays outside the catch: corrupt history must surface, not read as a hook failure.
+      const truth = this.truth(events)
       let data: StatusEventData | undefined
-      try { data = this.#roundResult(events, round) } catch (cause) {
+      try { data = this.#roundResult(events, truth, round) } catch (cause) {
         error = cause instanceof Error ? cause.message : String(cause)
         return undefined
       }
@@ -497,8 +499,8 @@ export class PackStatus {
     return error === undefined ? { ok: true } : { ok: false, error }
   }
 
-  #roundResult(events: readonly RulebookEvent[], round: number): StatusEventData | undefined {
-    const output = this.#call('onRoundEnd', [this.truth(events), round])
+  #roundResult(events: readonly RulebookEvent[], truth: StatusTruth, round: number): StatusEventData | undefined {
+    const output = this.#call('onRoundEnd', [truth, round])
     if (output === null) return undefined
     const result = object(output, '每轮结果')
     exact(result, ['changes', 'reveals'])

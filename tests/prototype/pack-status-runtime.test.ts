@@ -41,7 +41,7 @@ const scripts = { market: (s: string) => s, noHook: (s: string) => s.replace(HOO
     + ' value: truth.characters["character:player"].money - round }],'
     + ' reveals: [{ observerId: "character:player", holderId: "character:player", key: "money" }] } },\n') }
 
-async function fixture(provider: 'ollama' | 'local', script: keyof typeof scripts = 'market') {
+async function fixture(provider: 'ollama' | 'local', script: keyof typeof scripts = 'market', activity = false) {
   const root = mkdtempSync(join(tmpdir(), 'pack-status-runtime-')); roots.push(root)
   const packPath = join(root, 'pack'), data = join(root, 'data')
   cpSync(resolve('examples/world-packs/prototype-g1'), packPath, { recursive: true })
@@ -51,6 +51,11 @@ async function fixture(provider: 'ollama' | 'local', script: keyof typeof script
   writeFileSync(join(packPath, 'scripts/status.js'), variant)
   const source = JSON.parse(readFileSync(join(packPath, 'worldpack.source.json'), 'utf8'))
   source.assetFiles = ['scripts/status.js']
+  if (activity) {
+    writeFileSync(join(packPath, 'scripts/activity.js'), readFileSync(resolve('examples/world-packs/ai-girls-awaken-v10/scripts/activity.js'), 'utf8')
+      .replaceAll('character:gpt', 'character:companion'))
+    source.assetFiles.push('scripts/activity.js')
+  }
   writeFileSync(join(packPath, 'worldpack.source.json'), JSON.stringify(source))
   const pack = await compileWorldPackSource(packPath, createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5
   const requests: WorldJsonObject[] = []
@@ -323,3 +328,14 @@ it('story node fork restores status to the node', async () => {
   await child.submit(speak('分叉之后。'))
   expect(f.status.truth(f.statusEvents(child)).public.time).toBe(20)
 }, 90_000)
+
+it('speech during a running activity is an accepted input and ends one status round', async () => {
+  const f = await fixture('ollama', 'market', true)
+  const time = () => f.status.truth(f.statusEvents()).public.time
+  const started = await f.runtime.activityAction({ activityId: null, revision: 0, operation: 'start', parameters: {}, requestId: randomUUID() })
+  expect(started.activity?.id).toEqual(expect.any(String))
+  const before = Number(time())
+  await f.runtime.submit('活动中说一句。')
+  expect(JSON.stringify(f.events())).toContain('活动中说一句。')
+  expect(time()).toBe(before + 10)
+}, 60_000)

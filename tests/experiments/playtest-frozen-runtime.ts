@@ -581,8 +581,11 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
           const parameters = JSON.parse(match[2]!) as WorldJsonObject
           await this.#activity.worldAction({ actionType: match[1]!, parameters }, idempotencyKey ?? randomUUID())
         } else await this.#activity.speak(text, idempotencyKey ?? randomUUID())
+        // A retried key commits nothing; only a newly committed input ends a status round.
+        const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
         this.#notice = '操作已提交；单纯对白不消耗游戏行动回合。'
         await this.#activateCharacters(true)
+        if (committed) await this.#endStatusRound()
       } finally { try { await this.#refresh() } finally { this.#endWork() } }
       return this.state()
     }
