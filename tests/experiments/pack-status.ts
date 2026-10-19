@@ -405,24 +405,27 @@ export class PackStatus {
       description: result.description, observationScope, sceneIds }
   }
 
+  /** Adds the status operations this actor may currently perform to its affordances: the actors rule and
+   * activity scoping with the participant check. A running activity's policy filter is applied by its caller. */
+  withOperations(values: readonly ActionAffordance[], events: readonly RulebookEvent[], actor: string, playerId: string): ActionAffordance[] {
+    const activityKey = this.#activityKey(events, actor)
+    const choices: WorldJsonObject[] = this.operations
+      .filter(op => (!op.activities || (activityKey !== undefined && op.activities.includes(activityKey)))
+        && (op.actors === 'any' || (op.actors === 'player') === (actor === playerId)))
+      .map(op => ({ label: op.label, targetRef: { kind: 'character', id: actor }, bindingId: 'status',
+        definitionRef: { id: PREFIX + op.id, version: 1 }, arguments: {}, argumentSchema: op.schema }))
+    if (!choices.length) return [...values]
+    // One interact entry: wire builders select a single affordance per action type.
+    const interact = values.find(a => a.actionType === 'interact')
+    const merged: ActionAffordance = { ...interact ?? { actionType: 'interact', actionVersion: 2 },
+      interactions: [...interact?.interactions ?? [], ...choices] }
+    return [...values.filter(a => a.actionType !== 'interact'), merged]
+  }
+
   /** Wraps a rulebook: offers this actor's status operations and adjudicates `status:` interactions. */
   resolver(base: RulebookResolver, worldPath: string, address: WorldAddress, playerId: string): RulebookResolver {
     return {
-      affordances: context => {
-        const values = base.affordances(context), actor = String(context.characterId)
-        const activityKey = this.#activityKey(context.events, actor)
-        const choices: WorldJsonObject[] = this.operations
-          .filter(op => (!op.activities || (activityKey !== undefined && op.activities.includes(activityKey)))
-            && (op.actors === 'any' || (op.actors === 'player') === (actor === playerId)))
-          .map(op => ({ label: op.label, targetRef: { kind: 'character', id: actor }, bindingId: 'status',
-            definitionRef: { id: PREFIX + op.id, version: 1 }, arguments: {}, argumentSchema: op.schema }))
-        if (!choices.length) return values
-        // One interact entry: wire builders select a single affordance per action type.
-        const interact = values.find(a => a.actionType === 'interact')
-        const merged: ActionAffordance = { ...interact ?? { actionType: 'interact', actionVersion: 2 },
-          interactions: [...interact?.interactions ?? [], ...choices] }
-        return [...values.filter(a => a.actionType !== 'interact'), merged]
-      },
+      affordances: context => this.withOperations(base.affordances(context), context.events, String(context.characterId), playerId),
       resolve: context => {
         const p = record(context.action.parameters) ?? {}, definition = record(p.definitionRef)
         if (typeof definition?.id !== 'string' || !definition.id.startsWith(PREFIX)) return base.resolve(context)

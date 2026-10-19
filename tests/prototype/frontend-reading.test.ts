@@ -95,3 +95,28 @@ it('projects only the current player expression policy and patches permission ch
   const after = projectPlayerView({ ...state, activity: { ...state.activity, game: { active: false, public: {} } } })
   expect(playerViewPatch(before, after)).toHaveProperty('expression', { speech: 'free', speechChoices: [], narration: true })
 })
+/** A pure helper embedded in the default stage script, evaluated on its own like the reading controller. */
+const embedded = (name: string, next: string) => runInNewContext(DEFAULT_SCRIPT.slice(
+  DEFAULT_SCRIPT.indexOf(' const ' + name + '=') + (' const ' + name + '=').length, DEFAULT_SCRIPT.indexOf(';\n const ' + next + '=')))
+it('renders the status panel with labels and values and marks stale ones as last confirmed', () => {
+  const statusRows = embedded('statusRows', 'actionGroup') as (view: unknown) => { holder: string; items: { label: string; value: string; note: string }[] }[]
+  const rows = statusRows({ player: { name: '玩家' }, statusBar: [
+    { key: 'time', label: '时间', holderId: null, value: 10, current: true },
+    { key: 'money', label: '余额', holderId: 'character:player', holderName: '玩家', value: 100, current: false },
+    { key: 'hp', label: '生命', holderId: 'character:companion', holderName: '阿七', value: 15, current: true },
+    { key: 'armed', label: '持械', holderId: 'character:companion', holderName: '阿七', value: false, current: true } ] })
+  expect(rows).toEqual([
+    { holder: '世界', items: [{ label: '时间', value: '10', note: '' }] },
+    { holder: '你', items: [{ label: '余额', value: '100', note: '上次确认' }] },
+    { holder: '阿七', items: [{ label: '生命', value: '15', note: '' }, { label: '持械', value: '否', note: '' }] } ])
+  expect(statusRows({ player: { name: '玩家' } })).toEqual([])
+  expect(DEFAULT_SCRIPT).toContain("node('status-bar')")
+})
+it('groups status operations with items and interactions in the quick actions', () => {
+  const actionGroup = embedded('actionGroup', 'roundTools') as (option: unknown) => string
+  expect(actionGroup({ action: { actionType: 'interact', parameters: { targetRef: { kind: 'character', id: 'character:player' },
+    bindingId: 'status', definitionRef: { id: 'status:check-purse', version: 1 }, arguments: {} } } })).toBe('items')
+  expect(actionGroup({ action: { actionType: 'interact', parameters: { targetRef: { kind: 'character', id: 'character:a' },
+    definitionRef: { id: 'base:give', version: 1 }, arguments: {} } } })).toBe('people')
+  expect(actionGroup({ action: { actionType: 'move', parameters: {} } })).toBe('move')
+})

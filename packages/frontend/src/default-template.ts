@@ -6,7 +6,7 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
 <title>Perspectra 对话</title><link rel="stylesheet" href="/frontend/default.css"></head>
 <body><main>
   <div class="backdrop" aria-hidden="true"></div>
-  <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><button id="history-toggle" type="button" aria-expanded="false">文字记录</button><button id="actions-toggle" type="button" aria-expanded="false">行动 <span id="action-count">0</span></button></nav></header>
+  <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1><div id="status-bar" class="status-bar" role="group" aria-label="你知道的状态" hidden></div></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><button id="history-toggle" type="button" aria-expanded="false">文字记录</button><button id="actions-toggle" type="button" aria-expanded="false">行动 <span id="action-count">0</span></button></nav></header>
   <div id="characters" aria-label="当前可见角色"></div>
   <p id="movement-toast" class="movement-toast" role="status" hidden></p>
   <section class="stage-bottom" aria-label="故事与对话">
@@ -39,10 +39,34 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
 
 export const DEFAULT_STYLE = STAGE_STYLE;
 
+/** Status bar rows grouped by holder, in the order the view lists them; a stale value reads "上次确认". */
+function statusBarRows(view: { player: { name: string }; statusBar?: { label: string; holderId: string | null; holderName?: string; value: unknown; current: boolean }[] }) {
+  const groups: { holder: string; items: { label: string; value: string; note: string }[] }[] = []
+  for (const entry of view.statusBar || []) {
+    const holder = entry.holderId === null ? '世界' : entry.holderName === view.player.name ? '你' : entry.holderName || entry.holderId
+    let group = groups.find(item => item.holder === holder)
+    if (!group) { group = { holder, items: [] }; groups.push(group) }
+    group.items.push({ label: entry.label, value: entry.value === true ? '是' : entry.value === false ? '否' : String(entry.value),
+      note: entry.current ? '' : '上次确认' })
+  }
+  return groups
+}
+/** Quick-action group of one option; status operations belong with items and interactions. */
+function quickActionGroup(option: { action?: { actionType?: string; parameters?: { definitionRef?: { id?: unknown }; targetRef?: { kind?: unknown }; arguments?: { recipientId?: unknown } } } }) {
+  const action = option.action || {}, p = action.parameters || {}, definition = String(p.definitionRef?.id || '')
+  if (action.actionType === 'move') return 'move'
+  if (definition.startsWith('host:activity') || definition.startsWith('activity:')) return 'activity'
+  if (definition.startsWith('status:')) return 'items'
+  if (p.targetRef?.kind === 'character' || typeof p.arguments?.recipientId === 'string') return 'people'
+  return 'items'
+}
+
 export const DEFAULT_SCRIPT = String.raw`(() => {
  const playback=(${createReadingPlayback.toString()})();
  const api=window.Perspectra,node=id=>document.getElementById(id);
- let latest,posting=false,pending,connected=false,historyKey='',actionsKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
+ let latest,posting=false,pending,connected=false,historyKey='',actionsKey='',statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
+ const statusRows=(${statusBarRows.toString()});
+ const actionGroup=(${quickActionGroup.toString()});
  const roundTools=node('round-tools');
  const history=node('history');
  const QUOTE=/([“”"「『][^“”"」』\n]*[“”"」』])/;
@@ -127,6 +151,12 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    document.documentElement.style.setProperty('--fs-story',reading.fontSize+'px');document.documentElement.style.setProperty('--story-line-height',String(reading.lineHeight));
    node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
    node('title').textContent=view.game.title;node('player').textContent='你 · '+view.player.name;
+   const nextStatus=JSON.stringify([view.player.name,view.statusBar||[]]);
+   if(nextStatus!==statusKey){statusKey=nextStatus;const bar=node('status-bar'),rows=statusRows(view);bar.replaceChildren();bar.hidden=!rows.length;
+     for(const group of rows){const section=document.createElement('span');section.className='status-group';const holder=document.createElement('small');holder.textContent=group.holder;section.append(holder);
+       for(const item of group.items){const entry=document.createElement('span');entry.className='status-item';entry.append(item.label+' ');const value=document.createElement('strong');value.textContent=item.value;entry.append(value);
+         if(item.note){const note=document.createElement('span');note.className='hint';note.textContent=item.note;entry.append(' ',note)}section.append(entry)}
+       bar.append(section)}}
    node('status').textContent=({ready:playback.pending()?'阅读中':'可以回应',busy:view.responders?.length?view.responders.join('、')+' 正在回应':view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'角色正在回应',paused:'已暂停',error:'处理未完成'})[view.status];
    node('status').dataset.state=view.status;
    node('status').title=view.feedback?.phase||'';
@@ -176,11 +206,6 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  /* 回应时的右栏行动：每类一个按钮，按下后弹出该类可选行动（与发言受众相同的交互）；与当前说话者相关的排在前面。需要选人的行动打开「行动」面板完成。 */
  const QUICK_GROUPS={activity:'活动',people:'与角色',items:'物品与互动',move:'移动'};
  let quickOpen=null;
- function actionGroup(option){const action=option.action||{},p=action.parameters||{},definition=String(p.definitionRef?.id||'');
-   if(action.actionType==='move')return 'move';
-   if(definition.startsWith('host:activity')||definition.startsWith('activity:'))return 'activity';
-   if(p.targetRef?.kind==='character'||typeof p.arguments?.recipientId==='string')return 'people';
-   return 'items'}
  function relevance(option){const unit=playback.current(),p=option.action?.parameters||{};let score=0;
    if(unit?.speakerId&&(p.targetRef?.id===unit.speakerId||p.arguments?.recipientId===unit.speakerId))score+=3;
    if(unit?.speaker&&option.label.includes(unit.speaker))score+=2;return score}

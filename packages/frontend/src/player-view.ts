@@ -16,6 +16,8 @@ export interface PlayerView {
   feedback?: { phase: string; message: string }
   settings?: PlaytestState['playerSettings']
   tailRound?: PlaytestState['tailRound']
+  /** The player's own known status values; `current:false` is a last confirmed value. Never the true values. */
+  statusBar?: { key: string; label: string; holderId: string | null; holderName?: string; value: number | string | boolean; current: boolean }[]
   history: { seq: number; speaker: string; speakerId?: CharacterId; text: string; player: boolean; segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
   actions: { id: string; label: string; action: PlaytestAction; participantSelection?: { min: number; max: number; candidates: { id: string; name: string }[] } }[]
 }
@@ -35,6 +37,11 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
         const properties=schema?.properties as WorldJsonObject|undefined
         if(!properties || Object.keys(properties).some(key=>key!=='activityId'&&key!=='revision'))continue
       }
+      // Like activity operations, a status operation that needs player-supplied arguments is not a one-click option.
+      if(definition.id.startsWith('status:')){
+        const properties=(option.argumentSchema as WorldJsonObject|undefined)?.properties as WorldJsonObject|undefined
+        if(properties&&Object.keys(properties).length)continue
+      }
       const target = option.targetRef as WorldJsonObject
       const action: PlaytestAction = { actionType: 'interact', parameters: {
         targetRef: structuredClone(option.targetRef), definitionRef: structuredClone(option.definitionRef),
@@ -44,7 +51,7 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
       const recipient = typeof args.recipientId === 'string' ? state.actionNames?.[args.recipientId] ?? args.recipientId : undefined
       const verbs: Record<string, string> = { 'base:take': '拿取', 'base:drop': '放下', 'home:cook-rice': '煮白米饭', 'home:eat-rice': '吃完这锅饭',
         'dinner:repair': '修理', 'dinner:cook-cold': '做一桌凉拌冷盘', 'dinner:cook-home': '开火做家常菜', 'dinner:cook-feast': '用蒸馏器熬高汤做大餐' }
-      const label = definition.id.startsWith('activity:') ? String(option.label??definition.id) : definition.id === 'base:give' && recipient !== undefined
+      const label = definition.id.startsWith('activity:') || definition.id.startsWith('status:') ? String(option.label??definition.id) : definition.id === 'base:give' && recipient !== undefined
         ? '把 ' + targetName + ' 交给 ' + recipient
         : (verbs[String(definition.id)] ?? String(definition.id)) + ' · ' + targetName
       actions.push({ id: 'opt:' + createHash('sha256').update(canonicalizeWorldJson(action as unknown as WorldJsonObject)).digest('hex'), label, action })
@@ -105,13 +112,15 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
       ...(state.playerSettings.audio?{audio:{volume:state.playerSettings.audio.volume,muted:state.playerSettings.audio.muted,voiceEnabled:state.playerSettings.audio.voiceEnabled}}:{}),
       ...(state.playerSettings.palette?{palette:state.playerSettings.palette}:{})}}:{}),
     ...(state.tailRound ? {tailRound: state.tailRound} : {}),
+    ...(state.statusBar ? { statusBar: state.statusBar.map(({ key, label, holderId, holderName, value, current }) =>
+      ({ key, label, holderId, ...(holderName === undefined ? {} : { holderName }), value, current })) } : {}),
     history: state.transcript.map(line => ({ seq: line.seq, speaker: line.speaker, ...(line.speakerId === undefined ? {} : {speakerId:line.speakerId}), text: line.text, player: line.player, ...(line.segments === undefined ? {} : { segments: line.segments }) })),
     actions,
   }
 }
 export function playerViewPatch(before: PlayerView, after: PlayerView): Record<string, unknown> | null {
   const changes: Record<string, unknown> = {}
-  for (const key of ['game', 'player', 'scene', 'status', 'canInterrupt', 'responders', 'expression', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback'] as const) {
+  for (const key of ['game', 'player', 'scene', 'status', 'canInterrupt', 'responders', 'expression', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback', 'statusBar'] as const) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
   }
   if (JSON.stringify(before.history) !== JSON.stringify(after.history)) {

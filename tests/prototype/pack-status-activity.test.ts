@@ -12,6 +12,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import { PackActivities } from '../experiments/pack-activities.ts'
 import { PackStatus, type KnownStatus } from '../experiments/pack-status.ts'
+import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
 
 const roots: string[] = [], runtimes: FrozenWorldPlaytestRuntime[] = [], servers: Server[] = []
 afterEach(async () => {
@@ -65,7 +66,8 @@ async function fixture() {
     try { return store.readEvents(runtime.address) } finally { store.close() }
   }
   const status = PackStatus.load(packPath, pack)!
-  // The runtime's resolver chain, rebuilt here to ask what a non-player character would be offered.
+  // The runtime's resolver chain, rebuilt here to ask what a non-player character would be offered;
+  // the player's options are read from the runtime itself.
   const activities = PackActivities.load(packPath, pack, worldPath, runtime.address, PLAYER, status)!
   const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
     .resolve('builtin:speak-move', 2, 'test', runtime.address)
@@ -112,17 +114,23 @@ it('hp cannot change outside duel', async () => {
 
 it('drink-potion is offered only during duel to participants', async () => {
   const f = await fixture()
-  for (const id of [PLAYER, RIVAL, BYSTANDER]) expect(f.offered(id)).not.toContain('status:drink-potion')
+  // The player's options are the runtime's own: what state() serves and the player view turns into actions.
+  const player = async () => ids((await f.runtime.state()).availableActions!)
+  expect(await player()).not.toContain('status:drink-potion')
+  expect(await player()).toEqual(expect.arrayContaining(['status:buy', 'status:check-purse', 'status:set-time']))
+  for (const id of [RIVAL, BYSTANDER]) expect(f.offered(id)).not.toContain('status:drink-potion')
   expect(f.offered(RIVAL)).toContain('status:buy')
   await f.duel('start')
-  expect(f.offered(PLAYER)).toContain('status:drink-potion')
+  expect(await player()).toContain('status:drink-potion')
   expect(f.offered(RIVAL)).toContain('status:drink-potion')
   expect(f.offered(BYSTANDER)).not.toContain('status:drink-potion')
   // The duel's policy lists only drink-potion, so ordinary status operations are filtered out for fighters.
+  expect(await player()).not.toContain('status:buy')
   expect(f.offered(RIVAL)).not.toContain('status:buy')
   expect(f.offered(BYSTANDER)).toContain('status:buy')
-  // The player's menu maps a status operation to `/status`; during the duel it runs under the duel's rules.
-  await f.runtime.submit('/status drink-potion {}')
+  // The player's menu item maps the status operation to `/status`; during the duel it runs under the duel's rules.
+  const drinkOption = projectPlayerView(await f.runtime.state()).actions.find(a => a.label === '喝药水')!
+  await f.runtime.perform(drinkOption.action)
   const drink = f.statusEvents().find(e => source(e).operation === 'drink-potion')!
   expect(source(drink)).toEqual({ kind: 'operation', operation: 'drink-potion', actorId: PLAYER, activityKey: 'duel' })
   expect(f.status.known(f.statusEvents(), PLAYER)).toContainEqual({ key: 'hp', label: '生命', holderId: PLAYER, value: 25, current: true })

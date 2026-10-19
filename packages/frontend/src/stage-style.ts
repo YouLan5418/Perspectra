@@ -91,6 +91,11 @@ main[data-mode="activity"] .world-header{padding-right:400px}
 }
 h2{font:700 26px/1.25 var(--font-story);margin:0;letter-spacing:.08em;text-shadow:0 2px 18px rgba(0,0,0,.5)}
 h1{font-size:12.5px;font-weight:400;color:var(--muted);margin:4px 0 0;letter-spacing:.04em}
+/* 状态栏：玩家已知的状态值，跟在世界名之下 */
+.status-bar{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:8px;font-size:12.5px;color:var(--muted)}
+.status-group{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.status-group small{font-size:11.5px;letter-spacing:.14em;color:var(--lamp)}
+.status-item strong{font-weight:600;color:var(--text)}
 .stage-tools{display:flex;align-items:center;gap:8px}
 .stage-tools button{
   font-size:12.5px;padding:7px 14px;border-radius:999px;

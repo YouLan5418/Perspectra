@@ -4,9 +4,13 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { afterEach, expect, it, vi } from 'vitest'
-import { brandId } from '@harness-world/contracts'
+import { readFileSync } from 'node:fs'
+import { brandId, type WorldJsonObject } from '@harness-world/contracts'
+import type { RulebookEvent } from '@harness-world/kernel'
+import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { createPlaytestServer, type PlaytestRuntime, type PlaytestState } from '../experiments/playtest-server.ts'
 import { loadPackWeb } from '../experiments/playtest-pack-web.ts'
+import { PackStatus } from '../experiments/pack-status.ts'
 import { FrontendActions, projectPlayerView, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
 
 const token='c'.repeat(64),servers: ReturnType<typeof createPlaytestServer>[] = [], roots:string[]=[]
@@ -287,4 +291,41 @@ it('delivers explicit player feedback and pushes changes even while busy remains
  const end=projectPlayerView({...state,busy:false,error:true,playerFeedback:{phase:'可以输入',message:'玩家输入已提交；已经发表的回应保留，无需重发。'}});
  expect(end).toMatchObject({status:'error',feedback:{phase:'可以输入',message:expect.stringContaining('无需重发')}});
  expect(JSON.stringify(end)).not.toContain('PRIVATE_');
+})
+const PLAYER='character:player',THIEF='character:companion'
+function theft(){
+ const status=PackStatus.parse(readFileSync(resolve('tests/prototype/fixtures/status-market.js'),'utf8'),
+  {content:{characters:[{characterId:PLAYER},{characterId:THIEF}]}} as unknown as CompiledWorldPackV5)
+ // The thief takes 30 and only it learns the new balances; the player still holds the initial 100.
+ const stolen={eventType:'status.updated',eventVersion:1,data:{source:{kind:'operation',operation:'steal',actorId:THIEF},
+  changes:[{holderId:PLAYER,key:'money',value:70},{holderId:THIEF,key:'money',value:130}],
+  reveals:[{observerId:THIEF,holderId:THIEF,key:'money',value:130}],description:'偷到了30'}}
+ const events=[status.initialEvent(),stolen] as unknown as RulebookEvent[]
+ const names:Record<string,string>={[PLAYER]:'玩家',[THIEF]:'阿七'}
+ return status.known(events,PLAYER).map(entry=>({...entry,...(entry.holderId===null?{}:{holderName:names[entry.holderId]!})}))
+}
+it("player view carries only the player's known status, never truth",()=>{
+ const view=projectPlayerView({...privateState(),statusBar:theft()})
+ expect(view.statusBar).toContainEqual({key:'money',label:'余额',holderId:PLAYER,holderName:'玩家',value:100,current:false})
+ expect(view.statusBar).toContainEqual({key:'time',label:'时间',holderId:null,value:0,current:true})
+ // Neither the player's true balance nor anything about the thief's purse reaches the player.
+ expect(view.statusBar?.some(entry=>entry.holderId===THIEF)).toBe(false)
+ expect(JSON.stringify(view)).not.toMatch(/"value":(70|130)\b/u)
+ expect(JSON.stringify(view)).not.toContain('PRIVATE_')
+})
+it('statusBar changes appear in playerViewPatch',()=>{
+ const before=projectPlayerView({...privateState(),statusBar:theft()})
+ const known=theft().map(entry=>entry.key==='money'&&entry.holderId===PLAYER?{...entry,value:70,current:true}:entry)
+ const after=projectPlayerView({...privateState(),statusBar:known})
+ expect(playerViewPatch(before,after)).toEqual({statusBar:after.statusBar})
+ expect(playerViewPatch(after,projectPlayerView({...privateState(),statusBar:known}))).toBeNull()
+})
+it('offers parameterless status operations as performable actions and leaves parameterised ones out',()=>{
+ const option=(id:string,properties:WorldJsonObject)=>({label:id==='check-purse'?'查看钱包':'购买',targetRef:{kind:'character',id:PLAYER},bindingId:'status',
+  definitionRef:{id:'status:'+id,version:1},arguments:{},argumentSchema:{type:'object',additionalProperties:false,properties}})
+ const view=projectPlayerView({...privateState(),availableActions:[{actionType:'interact',actionVersion:2,
+  interactions:[option('check-purse',{}),option('buy',{price:{type:'integer'}})]}]})
+ const status=view.actions.filter(action=>String((action.action.parameters.definitionRef as {id?:string}).id).startsWith('status:'))
+ expect(status).toEqual([expect.objectContaining({label:'查看钱包',action:{actionType:'interact',parameters:{targetRef:{kind:'character',id:PLAYER},
+  definitionRef:{id:'status:check-purse',version:1},bindingId:'status',arguments:{}}}})])
 })

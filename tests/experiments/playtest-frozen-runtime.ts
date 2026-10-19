@@ -184,15 +184,18 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       })
       const selectedEvents = query.afterSeq === undefined ? events.slice(-limit) : events.filter(event => event.seq > query.afterSeq!).slice(0, limit)
       const nextAfterSeq = selectedEvents.at(-1)?.seq ?? query.afterSeq ?? head.headSeq
+      // The creator sees true status values; players and roles only ever get their own known values.
+      const truth = this.#status?.truth(events)
       const result: CreatorDebugSnapshot = { capturedAt: new Date().toISOString(), address: this.#address, worldVersion: this.#worldVersion,title:this.#title,
         headSeq: head.headSeq, tick: head.tick, packHash:this.#packHash,storyParentNodeId:this.#storyParentNodeId,busy: this.#busy, paused: this.#paused,
         captureEnabled: this.#inspector.enabled, characters, entities,
-        variables: this.#variables?.debugSnapshot() ?? null, activities: this.#activity?.debugStates(events) ?? [],
+        variables: truth ? { public: truth.public, characters: truth.characters } : this.#variables?.debugSnapshot() ?? null,
+        activities: this.#activity?.debugStates(events) ?? [],
         events: { items: selectedEvents, nextAfterSeq, hasMore: nextAfterSeq < head.headSeq },
         limitations: ['holderId 表示保管或携带，不证明法律所有权。', '物品随保管者的位置是推导值，不表示精确物理位置。',
           '事件中的 observation.upsert 记录实际信息接收者；对白的 addresseeIds 不等于全部观察者。',
           '调用状态是传输证据，lastActivation 是最近已完成周期结果；未采集或正在调度时不推测角色意图。',
-          '包变量为当前安装值，独立于事件日志；本接口不重建过去变量。'] }
+          truth ? '状态为事件日志中的当前真实值；玩家和角色只看到各自上次确认的值。' : '包变量为当前安装值，独立于事件日志；本接口不重建过去变量。'] }
       if (query.characterId !== undefined) {
         const id = query.characterId
         const archive = this.#memoryCore?.inspectArchive(id, query.memoryOffset ?? 0, limit)
@@ -251,6 +254,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   readonly #memoryShadowFile: string | undefined
   #transcript: PlaytestState['transcript'] = []
   #availableActions: NonNullable<PlaytestState['availableActions']> = []
+  #statusBar: PlaytestState['statusBar']
   #currentScene: NonNullable<PlaytestState['world']['currentScene']> | undefined
   #debug: Record<string, unknown> = {}
   #shadow: JevShadow | undefined
@@ -549,6 +553,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       ...(this.#activityView ? { activity: structuredClone(this.#activityView) } : {}),
       ...(this.#activityViews ? { activities: structuredClone(this.#activityViews) } : {}),
       ...(this.#variables ? { packVariables: this.#variables.getVariables(this.#playerId) } : {}),
+      ...(this.#statusBar ? { statusBar: structuredClone(this.#statusBar) } : {}),
       world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames,
         ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }) },
       debug: { ...this.#debug, worldVersion: this.#worldVersion, provider: this.#provider, model: this.#model, intentModel: this.#intentModel,
@@ -1115,9 +1120,16 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     try {
       const availability = new CharacterRuntimeAvailabilityService(worldPath)
       try {
+        const events = world.readEvents(this.#address, view.asOfWorldSeq)
         const scene = new SceneDecisionService(world, availability, this.#sceneVersion)
-          .decideFromEvents(this.#address, this.#playerId,
-            world.readEvents(this.#address, view.asOfWorldSeq), view.asOfWorldSeq)
+          .decideFromEvents(this.#address, this.#playerId, events, view.asOfWorldSeq)
+        if (this.#status) {
+          // The player is offered status operations under the same rules as an NPC; a running activity's
+          // policy filter below applies to them as to any other interaction.
+          this.#availableActions = this.#status.withOperations(this.#availableActions, events, this.#playerId, this.#playerId)
+          this.#statusBar = this.#status.known(events, this.#playerId).map(entry => entry.holderId === null ? entry
+            : { ...entry, holderName: this.#names.get(entry.holderId) ?? entry.holderId })
+        }
         this.#currentScene = {
           locationName: view.locationId === null ? '未知地点'
             : this.#locationNames.get(view.locationId) ?? view.locationId,

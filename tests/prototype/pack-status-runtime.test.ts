@@ -124,6 +124,13 @@ it.each(['ollama', 'local'] as const)('an NPC theft commits one status.updated a
   expect(f.status.truth(updates).characters[THIEF]!.money).toBe(130)
   expect(f.status.known(updates, PLAYER)).toContainEqual({ key: 'money', label: '余额', holderId: PLAYER, value: 100, current: false })
   expect(f.status.known(updates, THIEF)).toContainEqual({ key: 'money', label: '余额', holderId: THIEF, value: 130, current: true })
+  // The player's status bar is the player's known values only; the creator debug view shows the truth.
+  const bar = (await f.runtime.state()).statusBar!
+  expect(bar).toContainEqual(expect.objectContaining({ key: 'money', holderId: PLAYER, value: 100, current: false }))
+  expect(bar.find(entry => entry.holderId === PLAYER)).toHaveProperty('holderName')
+  expect(bar.some(entry => entry.holderId === THIEF)).toBe(false)
+  expect(f.runtime.creatorDebug().variables).toEqual({ public: { time: 10 },
+    characters: expect.objectContaining({ [PLAYER]: { money: 70, hp: 20 }, [THIEF]: { money: 130, hp: 20 } }) })
 
   // A later round reaches the bystander after the theft; it never learns either balance.
   const after = f.requests.length
