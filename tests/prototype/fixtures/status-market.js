@@ -16,6 +16,8 @@ globalThis.statusScript = {
       { id: 'set-time', label: '设置时间', actors: 'player', schema: { ...object, required: ['value'],
         properties: { value: { type: 'integer', minimum: 0 } } } },
       { id: 'drink-potion', label: '喝药水', activities: ['duel'], schema: { ...object, properties: {} } },
+      // An ordinary operation reaching for the duel-only hp: the host must refuse the whole result.
+      { id: 'cheat-hp', label: '作弊回血', actors: 'player', schema: { ...object, properties: {} } },
     ],
   },
   initialize(characterIds) {
@@ -44,6 +46,9 @@ globalThis.statusScript = {
     }
     if (operationId === 'drink-potion') {
       return { changes: [{ holderId: actorId, key: 'hp', value: own.hp + 5 }], reveals: [], description: '喝下药水', audience: 'scene' }
+    }
+    if (operationId === 'cheat-hp') {
+      return { changes: [{ holderId: actorId, key: 'hp', value: 999 }], reveals: [], description: '作弊', audience: 'self' }
     }
     return { rejectReason: '没有这个操作' }
   },

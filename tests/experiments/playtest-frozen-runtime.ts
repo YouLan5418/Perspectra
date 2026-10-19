@@ -479,7 +479,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       runtime.#status = PackStatus.load(options.packPath, pack)
       await runtime.#status?.ensureInitial(resolve(options.dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
       runtime.#knowledge = PackKnowledge.load(options.packPath, pack)
-      runtime.#activity = PackActivities.load(options.packPath, pack, resolve(options.dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
+      runtime.#activity = PackActivities.load(options.packPath, pack, resolve(options.dataDirectory, 'world.sqlite'), runtime.#address,
+        runtime.#playerId, runtime.#status)
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
       if (existsSync(rebuildPath)) {
@@ -570,7 +571,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       return this.state()
     }
     if (this.#activity?.current()?.game.active) {
-      if (text.startsWith('/') && !text.startsWith('/act ')) throw new TypeError('活动期间禁止变量调试与未声明命令。')
+      if (text.startsWith('/') && !text.startsWith('/act ') && !text.startsWith('/status ')) throw new TypeError('活动期间禁止变量调试与未声明命令。')
       this.#beginWork()
       try {
         this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
@@ -580,6 +581,13 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
           if (match === null) throw new TypeError('动作命令格式无效')
           const parameters = JSON.parse(match[2]!) as WorldJsonObject
           await this.#activity.worldAction({ actionType: match[1]!, parameters }, idempotencyKey ?? randomUUID())
+        } else if (text.startsWith('/status ')) {
+          // During an activity a status operation is an ordinary interaction under the activity's policy.
+          const match = /^\/status ([a-z][a-z0-9-]*) (.+)$/su.exec(text)
+          if (match === null) throw new TypeError('状态命令格式无效')
+          await this.#activity.worldAction({ actionType: 'interact', parameters: { targetRef: { kind: 'character', id: this.#playerId },
+            bindingId: 'status', definitionRef: { id: 'status:' + match[1]!, version: 1 }, arguments: JSON.parse(match[2]!) as WorldJsonObject } },
+          idempotencyKey ?? randomUUID())
         } else await this.#activity.speak(text, idempotencyKey ?? randomUUID())
         // A retried key commits nothing; only a newly committed input ends a status round.
         const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq

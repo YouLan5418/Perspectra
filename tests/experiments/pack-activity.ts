@@ -17,6 +17,7 @@ import { currentLocation, createCoreRulebookRegistry, RulebookRegistry, type Rul
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { PrototypeInvalidOutputError, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
+import type { PackStatus } from './pack-status.ts'
 
 /** Shared schema-only retry; ordinary turns reserve its call, activities retain their existing handling.
  * Execution and permissions are still validated by the turn. */
@@ -153,7 +154,8 @@ export class PackActivity {
   readonly title: string
   readonly npcIds: string[]
   readonly participantSelection?: { min: number; max: number; candidates?: string[] }
-  constructor(source: string, readonly worldPath: string, readonly address: WorldAddress, readonly playerId: string, readonly key='default') {
+  constructor(source: string, readonly worldPath: string, readonly address: WorldAddress, readonly playerId: string, readonly key='default',
+    readonly status?: PackStatus) {
     this.#script = new Script(source+'\nJSON.stringify(__method === "definition" ? activityScript.definition : __method === "hasResume" ? typeof activityScript.resume === "function" : (["simulate","onPublished","resume"].includes(__method) && activityScript[__method] === undefined) ? null : activityScript[__method](...JSON.parse(__args)))')
     const definition=object(this.#call('definition',[]))
     exact(definition,['title',Object.hasOwn(definition,'participants')?'participants':'npcIds','operations'])
@@ -191,7 +193,8 @@ export class PackActivity {
     // Validate restored committed state without publishing internal/private game data.
     this.current()
   }
-  static load(packPath:string, pack:CompiledWorldPackV5, worldPath:string,address:WorldAddress,playerId:string,entry='scripts/activity.js',key='default') {
+  static load(packPath:string, pack:CompiledWorldPackV5, worldPath:string,address:WorldAddress,playerId:string,entry='scripts/activity.js',key='default',
+    status?:PackStatus) {
     const lock=pack.assets.find(a=>a.path===entry)
     if(!lock)return undefined
     const file=resolve(packPath,entry)
@@ -201,7 +204,7 @@ export class PackActivity {
     const bytes=readFileSync(file)
     if(bytes.length>65536 || bytes.length!==lock.size
       || 'sha256:'+createHash('sha256').update(bytes).digest('hex')!==lock.contentHash) throw new TypeError('活动脚本与编译资产不一致')
-    return new PackActivity(bytes.toString('utf8'),worldPath,address,playerId,key)
+    return new PackActivity(bytes.toString('utf8'),worldPath,address,playerId,key,status)
   }
   #call(method:string,args:unknown[]):unknown {
     const input=JSON.stringify(args)
@@ -378,8 +381,10 @@ export class PackActivity {
         && !policy.speechChoices.includes(String(parameters.speech))))throw new TypeError('当前表达不在创作者许可内')
   }
   rulebooks(external?:RulebookResolver):RulebookRegistry {
-    const base=external??createCoreRulebookRegistry({interactionPackages:createInstalledInteractionPackages()})
+    const core=external??createCoreRulebookRegistry({interactionPackages:createInstalledInteractionPackages()})
       .resolve('builtin:speak-move',2,'activity',this.address)
+    // The host's own player actions get the same status operations as the runtime chain.
+    const base=external??this.status?.resolver(core,this.worldPath,this.address,this.playerId)??core
     const resolver:RulebookResolver={
       affordances:context=>{
         const values=base.affordances(context),state=this.state(context.events),actor=String(context.characterId)
@@ -403,17 +408,24 @@ export class PackActivity {
       if(!op || !policy.operations.includes(operation) || op.requiresTurn&&state.game.turn!==actor)throw new TypeError('尚未轮到你或操作未被允许')
       const {activityId:_id,revision:_revision,...parameters}=args
       if(!this.#validators.get(operation)!(parameters))throw new TypeError('游戏操作参数无效')
-      const resolved=object(this.#call('resolve',[state,actor,operation,parameters,this.#worldView(context.manifest,context.events,actor,context.asOfWorldSeq)]))
+      const world=this.#worldView(context.manifest,context.events,actor,context.asOfWorldSeq)
+      const resolved=object(this.#call('resolve',[state,actor,operation,parameters,world,this.status?.truth(context.events)??null]))
       if(Object.hasOwn(resolved,'rejectReason')){
         exact(resolved,['rejectReason'])
         if(typeof resolved.rejectReason!=='string'||!resolved.rejectReason.trim()||resolved.rejectReason.length>2000)throw new TypeError('活动拒绝说明无效')
         throw new TypeError(resolved.rejectReason)
       }
-      exact(resolved,['game','description','audience',...(Object.hasOwn(resolved,'playerExpression')?['playerExpression']:[])])
+      exact(resolved,['game','description','audience',...['playerExpression','status'].filter(k=>Object.hasOwn(resolved,k))])
       if(typeof resolved.description!=='string'||resolved.description.length>2000
         || !['participants','self'].includes(String(resolved.audience)))throw new TypeError('游戏结果无效')
       const next={...state,revision:state.revision+1,game:this.#game(resolved.game,state.participants)}
       const update=this.#event(next,resolved.description,actor,context.actionId??'',operation)
+      // Status changes commit with the activity update or not at all; reveals reach only the actor's scene.
+      const status:WorldEventDraft[]=[]
+      if(Object.hasOwn(resolved,'status')){
+        if(!this.status)throw new TypeError('本包没有状态脚本，活动不能改变状态')
+        status.push(this.status.activityEvent(context.events,this.key,actor,resolved.status,[...new Set([actor,...world.characterIds as string[]])]))
+      }
       const scripted:WorldEventDraft[]=[]
       if(Object.hasOwn(resolved,'playerExpression')){
         if(actor!==this.playerId)throw new TypeError('只有玩家活动操作可以提交脚本玩家表达')
@@ -431,10 +443,10 @@ export class PackActivity {
         const sourcedUpdate={...update,data:{...object(update.data),scriptedPlayerExpression:{[field]:content,source}}}
         scripted.push(...speech.events,...this.#speechObservations(context.events,actor,actionId,speech.events,context.asOfWorldSeq),
           {eventType:'action.resolved',eventVersion:1,data:{actorId:actor,actionId,actionType:'speak',accepted:true,sourceRole:'player'}})
-        return {status:'accepted' as const,events:[sourcedUpdate,...scripted],
+        return {status:'accepted' as const,events:[sourcedUpdate,...status,...scripted],
           observationScope:{scope:'direct' as const,recipientIds:resolved.audience==='self'?[actor]:state.participants}}
       }
-      return {status:'accepted' as const,events:[update],
+      return {status:'accepted' as const,events:[update,...status],
         observationScope:{scope:'direct' as const,recipientIds:resolved.audience==='self'?[actor]:state.participants}}
     }
     if(state?.game.active && state.participants.includes(actor)){
@@ -673,8 +685,9 @@ export class PackActivity {
       const audience=scene.audienceForAction(this.address,brandId(this.playerId,'CharacterId'),events,head.headSeq,
         {scope:scope?.scope ?? 'scene_public',...(scope?.recipientIds===undefined?{}:{recipientIds:scope.recipientIds.map(id=>brandId(id,'CharacterId'))})})
       const speech=action.actionType==='speak'?result.events.find(e=>e.eventType==='character.speak'):undefined
-      const description=this.executionResult({manifest:manifest.manifest as CompiledWorldManifest,events:[...events,...result.events],
-        actorId:brandId(this.playerId,'CharacterId'),action,status:result.status,reason:null}).description
+      const outcome={manifest:manifest.manifest as CompiledWorldManifest,events:[...events,...result.events],
+        actorId:brandId(this.playerId,'CharacterId'),action,status:result.status,reason:null}
+      const description=(this.status?.executionResult(outcome)??this.executionResult(outcome)).description
       for(const observerId of new Set([...audience.fullContentCharacterIds,this.playerId])){
         drafts.push({eventType:'observation.upsert',eventVersion:1,data:{id:owner+':'+observerId,value:{observerId,
           content:{actorId:this.playerId,status:'accepted',actionType:action.actionType,resultDescription:description!,

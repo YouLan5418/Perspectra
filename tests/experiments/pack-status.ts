@@ -9,7 +9,7 @@ import { rejectRulebookResolution, type ActionAffordance, type CompiledWorldMani
 import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
-import { actorWorldView } from './pack-activity.ts'
+import { activityProgress, actorWorldView } from './pack-activity.ts'
 
 export type StatusValue = number | string | boolean
 export interface StatusChange { holderId: string | null; key: string; value: StatusValue }
@@ -314,6 +314,46 @@ export class PackStatus {
       ({ observerId, holderId, key, value: after.get(slot(holderId as string | null, String(key))) }) as StatusReveal
   }
 
+  /** The foreground activity's key when this actor takes part in it; status operations scoped to that
+   * activity are offered and executed only then, and recorded with this key. */
+  #activityKey(events: readonly RulebookEvent[], actorId: string): string | undefined {
+    for (const [key, state] of activityProgress(events)) {
+      if (state.game.active) return state.participants.includes(actorId) ? key : undefined
+    }
+    return undefined
+  }
+
+  /** Author reveals name what to tell, never a value; the host fills the value as of this event. The actor
+   * always learns the new value of its own statuses that this result changed. */
+  #reveals(events: readonly RulebookEvent[], changes: readonly StatusChange[], values: readonly unknown[], actorId: string): StatusReveal[] {
+    const reveal = this.#revealAfter(events, changes)
+    const reveals = values.map(value => {
+      const r = object(value, '状态告知')
+      exact(r, ['observerId', 'holderId', 'key'])
+      return reveal(r.observerId, r.holderId, r.key)
+    })
+    for (const change of changes) {
+      if (change.holderId === actorId && !reveals.some(r => r.observerId === actorId && r.holderId === actorId && r.key === change.key)) {
+        reveals.push(reveal(actorId, actorId, change.key))
+      }
+    }
+    return reveals
+  }
+
+  /** An activity resolve's optional `status` result as one event, which the activity commits together with its
+   * `activity.updated`. A malformed or out-of-bounds result is the author's fault and throws. */
+  activityEvent(events: readonly RulebookEvent[], activityKey: string, actorId: string, value: unknown,
+    sceneIds: readonly string[]): WorldEventDraft {
+    const result = object(value, '活动状态结果')
+    exact(result, ['changes', 'reveals'])
+    if (!Array.isArray(result.changes) || !Array.isArray(result.reveals)) throw new TypeError('状态变化或告知必须是列表')
+    const changes = result.changes as StatusChange[]
+    const data: StatusEventData = { source: { kind: 'activity', activityKey, actorId }, changes,
+      reveals: this.#reveals(events, changes, result.reveals, actorId) }
+    this.validate(events, data, sceneIds)
+    return { eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }
+  }
+
   /** Host adjudication of one status operation on a commit prefix. NPC rulebook turns and player
    * operations share it; the caller commits the returned event, or nothing when this throws. */
   #adjudicate(input: { readonly worldPath: string; readonly address: WorldAddress; readonly playerId: string
@@ -322,8 +362,10 @@ export class PackStatus {
     const { events, actorId } = input
     const op = this.operations.find(o => o.id === input.operationId)
     if (!op) return { status: 'rejected', reason: '没有这个状态操作，什么都没有发生。' }
-    // Activity-scoped operations need activity-aware gating, which this host does not offer yet.
-    if (op.activities) return { status: 'rejected', reason: '这个操作只能在指定活动中进行，什么都没有发生。' }
+    const activityKey = op.activities ? this.#activityKey(events, actorId) : undefined
+    if (op.activities && (activityKey === undefined || !op.activities.includes(activityKey))) {
+      return { status: 'rejected', reason: '这个操作只能在指定活动中进行，什么都没有发生。' }
+    }
     if (!this.#validators.get(op.id)!(input.parameters)) return { status: 'rejected', reason: '操作缺少有效的必要信息，什么都没有发生。' }
     const parameters = input.parameters as Record<string, unknown>
     if (op.actors === 'player' ? actorId !== input.playerId : op.actors === 'npc' && actorId === input.playerId) {
@@ -345,20 +387,9 @@ export class PackStatus {
     exact(result, ['changes', 'reveals', 'description', 'audience'])
     if (typeof result.description !== 'string' || result.description.length > 2000) throw new TypeError('状态操作结果描述无效')
     if (!Array.isArray(result.changes) || !Array.isArray(result.reveals)) throw new TypeError('状态变化或告知必须是列表')
-    const changes = result.changes as StatusChange[], reveal = this.#revealAfter(events, changes)
-    const reveals = result.reveals.map(value => {
-      const r = object(value, '状态告知')
-      exact(r, ['observerId', 'holderId', 'key'])
-      return reveal(r.observerId, r.holderId, r.key)
-    })
-    // The actor always learns the new value of its own statuses that this operation changed.
-    for (const change of changes) {
-      if (change.holderId === actorId && !reveals.some(r => r.observerId === actorId && r.holderId === actorId && r.key === change.key)) {
-        reveals.push(reveal(actorId, actorId, change.key))
-      }
-    }
-    const data: StatusEventData = { source: { kind: 'operation', operation: op.id, actorId }, changes, reveals,
-      description: result.description }
+    const changes = result.changes as StatusChange[]
+    const data: StatusEventData = { source: { kind: 'operation', operation: op.id, actorId, ...activityKey ? { activityKey } : {} },
+      changes, reveals: this.#reveals(events, changes, result.reveals, actorId), description: result.description }
     this.validate(events, data, sceneIds)
     let observationScope: NonNullable<RulebookResolution['observationScope']>
     if (result.audience === 'self') observationScope = { scope: 'direct', recipientIds: [actorId] }
@@ -379,8 +410,10 @@ export class PackStatus {
     return {
       affordances: context => {
         const values = base.affordances(context), actor = String(context.characterId)
+        const activityKey = this.#activityKey(context.events, actor)
         const choices: WorldJsonObject[] = this.operations
-          .filter(op => !op.activities && (op.actors === 'any' || (op.actors === 'player') === (actor === playerId)))
+          .filter(op => (!op.activities || (activityKey !== undefined && op.activities.includes(activityKey)))
+            && (op.actors === 'any' || (op.actors === 'player') === (actor === playerId)))
           .map(op => ({ label: op.label, targetRef: { kind: 'character', id: actor }, bindingId: 'status',
             definitionRef: { id: PREFIX + op.id, version: 1 }, arguments: {}, argumentSchema: op.schema }))
         if (!choices.length) return values

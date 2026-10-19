@@ -44,7 +44,7 @@ describe('pack status', () => {
       ['money', 'number', 'character'], ['time', 'number', 'public'], ['hp', 'number', 'character']])
     expect(status.statuses[2]!.activities).toEqual(['duel'])
     expect(status.operations.map(o => [o.id, o.actors])).toEqual([
-      ['buy', 'any'], ['steal', 'npc'], ['check-purse', 'any'], ['set-time', 'player'], ['drink-potion', 'any']])
+      ['buy', 'any'], ['steal', 'npc'], ['check-purse', 'any'], ['set-time', 'player'], ['drink-potion', 'any'], ['cheat-hp', 'player']])
     expect(status.operations[1]!.characterParameters).toEqual(['targetId'])
     for (const broken of [
       withDefinition(d => d.replace("owner: 'character' },", "owner: 'character', color: 'red' },")),
@@ -148,5 +148,24 @@ describe('pack status', () => {
     // Unscoped statuses accept changes from activities too.
     expect(() => status.validate(events, { source: { kind: 'activity', activityKey: 'chess', actorId: 'character:gpt' },
       changes: [{ holderId: 'character:gpt', key: 'money', value: 1 }], reveals: [] }, scene)).not.toThrow()
+  })
+
+  it('an activity status result gets host-filled reveals and throws on author faults', () => {
+    const status = PackStatus.parse(market, pack), events = [status.initialEvent()], scene = ['character:gpt', 'character:claude']
+    const hit = { changes: [{ holderId: 'character:claude', key: 'hp', value: 15 }],
+      reveals: [{ observerId: 'character:gpt', holderId: 'character:claude', key: 'hp' }] }
+    expect(status.activityEvent(events, 'duel', 'character:gpt', hit, scene).data).toEqual({
+      source: { kind: 'activity', activityKey: 'duel', actorId: 'character:gpt' }, changes: hit.changes,
+      reveals: [{ observerId: 'character:gpt', holderId: 'character:claude', key: 'hp', value: 15 }] })
+    // The actor's own changed status is told to it without an author reveal.
+    expect(status.activityEvent(events, 'duel', 'character:gpt',
+      { changes: [{ holderId: 'character:gpt', key: 'hp', value: 10 }], reveals: [] }, scene).data).toMatchObject({
+      reveals: [{ observerId: 'character:gpt', holderId: 'character:gpt', key: 'hp', value: 10 }] })
+    expect(() => status.activityEvent(events, 'chess', 'character:gpt', hit, scene)).toThrow(/活动/u)
+    expect(() => status.activityEvent(events, 'duel', 'character:gpt',
+      { ...hit, reveals: [{ ...hit.reveals[0], observerId: 'character:claude' }] }, ['character:gpt'])).toThrow('告知对象不在当前场景')
+    expect(() => status.activityEvent(events, 'duel', 'character:gpt',
+      { ...hit, reveals: [{ ...hit.reveals[0], value: 99 }] }, scene)).toThrow('状态定义字段不合法')
+    expect(() => status.activityEvent(events, 'duel', 'character:gpt', { changes: hit.changes }, scene)).toThrow()
   })
 })

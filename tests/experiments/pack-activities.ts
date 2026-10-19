@@ -5,6 +5,7 @@ import { createInstalledInteractionPackages } from '@harness-world/interactions-
 import { createCoreRulebookRegistry, RulebookRegistry, type RulebookEvent, type RulebookResolver } from '@harness-world/kernel'
 import { PackActivity, activityProgress, type ActivityRequest } from './pack-activity.ts'
 import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
+import type { PackStatus } from './pack-status.ts'
 
 /** One foreground activity, with independent progress in the existing world event log. */
 export class PackActivities {
@@ -12,14 +13,14 @@ export class PackActivities {
   #snapshot:{headSeq:number;events:readonly RulebookEvent[]}|undefined
   #selection:{events:readonly RulebookEvent[];entry:PackActivity|undefined}|undefined
   private constructor(readonly worldPath:string,readonly address:WorldAddress,readonly playerId:string) {}
-  static load(packPath:string,pack:CompiledWorldPackV5,worldPath:string,address:WorldAddress,playerId:string):PackActivities|undefined {
+  static load(packPath:string,pack:CompiledWorldPackV5,worldPath:string,address:WorldAddress,playerId:string,status?:PackStatus):PackActivities|undefined {
     const catalog=new PackActivities(worldPath,address,playerId)
     for(const asset of pack.assets){
       const match=/^scripts\/activities\/([a-z][a-z0-9-]{0,40})\.js$/u.exec(asset.path)
       if(asset.path!=='scripts/activity.js'&&!match)continue
       const key=match?.[1]??'default'
       if(catalog.#entries.has(key))throw new TypeError('重复的活动标识：'+key)
-      const activity=PackActivity.load(packPath,pack,worldPath,address,playerId,asset.path,key)!
+      const activity=PackActivity.load(packPath,pack,worldPath,address,playerId,asset.path,key,status)!
       catalog.#entries.set(key,activity)
     }
     if(!catalog.#entries.size)return undefined
