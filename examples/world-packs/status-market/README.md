@@ -22,7 +22,11 @@ node --import tsx tests/experiments/status-market-offline.ts
 
 用本地假模型服务按脚本驱动：第一轮玩家说话、同行者偷窃；第二轮玩家查看钱包；第三轮买 20；第四轮再说一句。每次新建 `.tmp/status-market-<时间戳>`，保存玩家每步的状态栏和每次角色请求收到的 knownStatus。检查失窃后玩家余额为 100 且 current=false、查看后为 70 且 current=true、买后为 50、时间依次为 10/20/30/40、同行者和留守者的请求里从未出现别人的钱袋；任一项不满足则退出码为 1。它不调用真实模型，不证明角色表现。
 
-## 真实模型试玩（尚未做）
+## 真实模型试玩
+
+2026-10-19 已用 OpenCode DeepSeek v4.1 flash 和 Core 记忆跑过一次 14 轮试玩，记录见[真实试玩](../../../docs/current/studies/status-market-deepseek-playtest-20261019.md)；驱动为 [status-market-playtest.ts](../../../tests/experiments/status-market-playtest.ts)。那次同行者没有偷窃，下面的手动步骤仍可用于专门验收偷窃路径。
+
+### 手动试玩
 
 需要另行授权模型调用后再运行，走默认 Core 记忆，使用新的数据目录：
 
