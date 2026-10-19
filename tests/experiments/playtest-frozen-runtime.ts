@@ -22,6 +22,8 @@ import { assertCoreEnvironment, createCoreWorker, coreRunner, type CoreRunner } 
 import { decideActivityFormat, type ActivityRequest } from './pack-activity.ts'
 import { PackActivities } from './pack-activities.ts'
 import { PackVariables } from './pack-variables.ts'
+import { KNOWN_STATUS_NOTE, PackStatus } from './pack-status.ts'
+import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
 import { PackKnowledge } from './pack-knowledge.ts'
 import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
@@ -38,7 +40,7 @@ import { createInstalledInteractionPackages } from '@harness-world/interactions-
 import { createChatProvider, prototypeTurnCall, type ChatCallObservation } from '@harness-world/provider-chat'
 import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
 import { CharacterViewBuilder, CharacterRuntimeAvailabilityService, PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { createCoreRulebookRegistry, currentLocation } from '@harness-world/kernel'
+import { createCoreRulebookRegistry, currentLocation, RulebookRegistry } from '@harness-world/kernel'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { PrototypeCharacterTurn, type PrototypeRecallShadowObservation, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
@@ -231,6 +233,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #finishWork: (() => void) | undefined
   #escaping: Promise<PlaytestState> | undefined
   #variables: PackVariables | undefined
+  #status: PackStatus | undefined
   #knowledge: PackKnowledge | undefined
   #activationCycle: Awaited<ReturnType<typeof runPrototypeActivations>> | undefined
   readonly #provider: 'local' | 'deepseek' | 'ollama'
@@ -376,6 +379,13 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         packVariables: { public: variables.public, private: variables.private } } }
       const characterId=String(character.characterId)
       if (this.#knowledge) request = {...request, context: {...request.context, knowledge: this.#knowledge.select(request.context)}}
+      if (this.#status) {
+        const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
+        let updates
+        try { updates = store.readEventsRange(this.#address, 0, store.head(this.#address).headSeq, ['status.updated']) } finally { store.close() }
+        request = {...request, context: {...request.context,
+          knownStatus: this.#status.known(updates, characterId) as unknown as WorldJsonObject[], knownStatusNote: KNOWN_STATUS_NOTE}}
+      }
       this.#roleCalls.delete(characterId)
       const roleProvider=roleProviders.get(characterId)
       if(!roleProvider)throw new TypeError('当前角色没有可调用的预设配置。')
@@ -465,6 +475,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       runtime.#autonomy = PackAutonomy.load(options.packPath, pack, runtime.#playerId)
       runtime.#application.activate(compiled)
       runtime.#variables = PackVariables.load(options.packPath, options.dataDirectory, pack)
+      runtime.#status = PackStatus.load(options.packPath, pack)
+      await runtime.#status?.ensureInitial(resolve(options.dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
       runtime.#knowledge = PackKnowledge.load(options.packPath, pack)
       runtime.#activity = PackActivities.load(options.packPath, pack, resolve(options.dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
       await runtime.#refresh()
@@ -824,6 +836,15 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     await this.#application.close()
   }
 
+  /** Resolver chain: core, then status operations, then the running activity's permissions. */
+  #rulebooks(worldPath: string): RulebookRegistry {
+    const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
+    if (!this.#status) return this.#activity?.rulebooks() ?? core
+    const status = this.#status.resolver(core.resolve('builtin:speak-move', 2, 'status', this.#address), worldPath, this.#address, this.#playerId)
+    if (this.#activity) return this.#activity.rulebooks(status)
+    const registry = new RulebookRegistry(); registry.register('builtin:speak-move', 2, status); return registry
+  }
+
   async #activateCharacters(activityOnly = false): Promise<void> {
     await this.#application.release(this.#address)
     if (this.#escaping || this.#closing || this.#abortedWork) return
@@ -838,7 +859,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
       const shadowFile = this.#memoryShadowFile
       const createTurn = (autonomous = false) => {
-        const base = this.#activity?.rulebooks() ?? createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
+        const base = this.#rulebooks(path)
         return new PrototypeCharacterTurn({ publicationCharacters:this.#playSettings.publicationCharacters, activationTimeoutMs:this.#playSettings.activationTimeoutSeconds*1000, address: this.#address, store, leases, availability,
         ...(this.#memoryCore === undefined ? { memory: memory! } : {}),
         rulebooks: autonomous ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address)) : base,
@@ -859,7 +880,10 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         },
         ...(this.#activity === undefined ? {} : {
           validateDecision: (decision: WorldJsonObject, request: PrototypeTurnRequest) => this.#activity!.validateDecision(decision, request),
-          executionResult: this.#activity.executionResult,
+        }),
+        ...(this.#activity === undefined && this.#status === undefined ? {} : {
+          executionResult: (input: Parameters<typeof characterExecutionResult>[0]) => this.#status?.executionResult(input)
+            ?? (this.#activity?.executionResult ?? characterExecutionResult)(input),
         }),
         ...(this.#memoryCore === undefined ? {} : { shortTermAfterSeq: (actor: CharacterId) => this.#memoryCore!.shortTermAfterSeq(actor) }),
         recentObservations: this.#tuning.recentObservations,

@@ -90,4 +90,4 @@ export function characterRequestText(request: { readonly context: WorldJsonObjec
       instruction: '这是移动成功后的当前授权场景。离开不等于别人与你同行；不在此名单的人不能被描写成已经在身旁。历史谈话对象不代表现在在场。' } } : {}),
   })
 }
-export const characterContextNote = 'context.history 是你本人获授权的经历，按发生顺序排列；kind=observed 表示获得的观察，kind=self 表示你自己已发表的表达。当前刺激在 stimulus，当前地点在 context.locationId；历史里的地点不代表当前位置。历史与记忆中的 sourceKind/epistemicKind 表示来源性质：听到的话不证明事实成立。context.cognition 是你的主观认识、目标和情绪，不能视为他人的知识或权威世界事实。' + characterActionExplanationsNote
+export const characterContextNote = 'context.history 是你本人获授权的经历，按发生顺序排列；kind=observed 表示获得的观察，kind=self 表示你自己已发表的表达。当前刺激在 stimulus，当前地点在 context.locationId；历史里的地点不代表当前位置。历史与记忆中的 sourceKind/epistemicKind 表示来源性质：听到的话不证明事实成立。context.cognition 是你的主观认识、目标和情绪，不能视为他人的知识或权威世界事实。context.knownStatus 只列出你已确认过的状态值，未列出的状态你并不知道。' + characterActionExplanationsNote

@@ -79,6 +79,20 @@ export async function decideActivityFormat(call: ChatCall, decide: (call: ChatCa
   return second
 }
 
+/** Actor-scoped facts from the same candidate prefix; never a global inventory.
+ * Shared by activity and status script hooks as their `world` argument. */
+export function actorWorldView(worldPath:string,address:WorldAddress,manifest:CompiledWorldManifest,events:readonly RulebookEvent[],
+  actorId:string,asOfWorldSeq:number|undefined):WorldJsonObject {
+  if(asOfWorldSeq===undefined)throw new TypeError('活动世界视图缺少提交前缀')
+  const store=new WorldStore(worldPath),availability=new CharacterRuntimeAvailabilityService(worldPath)
+  try{
+    const actor=brandId(actorId,'CharacterId')
+    const scene=new SceneDecisionService(store,availability,2).decideFromEvents(address,actor,events,asOfWorldSeq)
+    return {locationId:currentLocation(events,actorId)??null,
+      characterIds:[...scene.observerIds],items:characterVisibleItems(manifest,events,actor,scene.observerIds)}
+  }finally{availability.close();store.close()}
+}
+
 type Game = WorldJsonObject & { active: boolean; phase: string; turn: string|null; round: number;
   public: WorldJsonObject; private: WorldJsonObject; internal: WorldJsonObject }
 export type ActivityState = WorldJsonObject & { id: string; revision: number; participants: string[]; game: Game; suspendedTurn?: string }
@@ -450,16 +464,8 @@ export class PackActivity {
   #event(state:ActivityState,description:string,actorId:string,actionId:string,operation:string):WorldEventDraft {
     return {eventType:'activity.updated',eventVersion:1,data:{activityKey:this.key,state,description,actorId,actionId,operation}}
   }
-  /** Actor-scoped facts from the same candidate prefix; never a global inventory. */
   #worldView(manifest:CompiledWorldManifest,events:readonly RulebookEvent[],actorId:string,asOfWorldSeq:number|undefined):WorldJsonObject {
-    if(asOfWorldSeq===undefined)throw new TypeError('活动世界视图缺少提交前缀')
-    const store=new WorldStore(this.worldPath),availability=new CharacterRuntimeAvailabilityService(this.worldPath)
-    try{
-      const actor=brandId(actorId,'CharacterId')
-      const scene=new SceneDecisionService(store,availability,2).decideFromEvents(this.address,actor,events,asOfWorldSeq)
-      return {locationId:currentLocation(events,actorId)??null,
-        characterIds:[...scene.observerIds],items:characterVisibleItems(manifest,events,actor,scene.observerIds)}
-    }finally{availability.close();store.close()}
+    return actorWorldView(this.worldPath,this.address,manifest,events,actorId,asOfWorldSeq)
   }
   #speechObservations(events:readonly RulebookEvent[],actorId:string,actionId:string,drafts:readonly WorldEventDraft[],asOfWorldSeq:number|undefined):WorldEventDraft[] {
     if(asOfWorldSeq===undefined)throw new TypeError('活动世界视图缺少提交前缀')

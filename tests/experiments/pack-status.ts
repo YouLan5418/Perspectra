@@ -1,18 +1,22 @@
-import Ajv from 'ajv'
-import { createHash } from 'node:crypto'
+import Ajv, { type ValidateFunction } from 'ajv'
+import { createHash, randomUUID } from 'node:crypto'
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { relative, resolve, sep } from 'node:path'
 import { createContext, Script } from 'node:vm'
-import type { WorldEventDraft, WorldJsonObject } from '@harness-world/contracts'
-import type { RulebookEvent } from '@harness-world/kernel'
+import { brandId, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
+import type { ActionAffordance, CompiledWorldManifest, RulebookEvent, RulebookResolution, RulebookResolver } from '@harness-world/kernel'
+import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
+import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
+import { actorWorldView } from './pack-activity.ts'
 
 export type StatusValue = number | string | boolean
 export interface StatusChange { holderId: string | null; key: string; value: StatusValue }
 export interface StatusReveal { observerId: string; holderId: string | null; key: string; value: StatusValue }
 export type StatusSource = { kind: 'initial' } | { kind: 'operation'; operation: string; actorId: string; activityKey?: string }
   | { kind: 'activity'; activityKey: string; actorId: string } | { kind: 'round'; round: number }
-export interface StatusEventData { source: StatusSource; changes: StatusChange[]; reveals: StatusReveal[] }
+/** `description` is the author's result text for an operation; round and initial events have none. */
+export interface StatusEventData { source: StatusSource; changes: StatusChange[]; reveals: StatusReveal[]; description?: string }
 export interface StatusTruth { public: Record<string, StatusValue>; characters: Record<string, Record<string, StatusValue>> }
 export interface KnownStatus { key: string; label: string; holderId: string | null; value: StatusValue; current: boolean }
 
@@ -26,7 +30,9 @@ export interface StatusOperation {
   readonly activities?: readonly string[]
 }
 
+export const KNOWN_STATUS_NOTE = '这是你上次确认的状态值；current=false 表示之后可能已经改变，你并不知道现在的值。'
 const ENTRY = 'scripts/status.js'
+const PREFIX = 'status:'
 const LIMIT = 64 * 1024
 const NAME = /^[a-z][a-z0-9-]{0,40}$/u
 // Activity control names are host-owned; a status operation may not shadow them.
@@ -48,10 +54,16 @@ function strings(value: unknown, what: string): string[] {
   }
   return value as string[]
 }
+function text(value: unknown, what: string): string {
+  if (typeof value !== 'string' || !value.trim() || value.length > 2000) throw new TypeError(what + '无效')
+  return value
+}
 function label(value: unknown): string {
   if (typeof value !== 'string' || !value.trim() || value.length > 80) throw new TypeError('状态显示名称无效')
   return value
 }
+const record = (value: unknown) =>
+  value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
 const slot = (holderId: string | null, key: string) => (holderId ?? '') + '\0' + key
 
 function statusData(event: RulebookEvent): StatusEventData {
@@ -65,6 +77,7 @@ function statusData(event: RulebookEvent): StatusEventData {
 export class PackStatus {
   readonly #script: Script
   readonly #characterIds: readonly string[]
+  readonly #validators = new Map<string, ValidateFunction>()
   readonly statuses: readonly StatusDefinition[]
   readonly operations: readonly StatusOperation[]
 
@@ -105,7 +118,7 @@ export class PackStatus {
       }
       const actors = op.actors ?? 'any'
       if (!['player', 'npc', 'any'].includes(String(actors))) throw new TypeError('操作执行者无效')
-      ajv.compile(schema)
+      this.#validators.set(op.id, ajv.compile(schema))
       return { id: op.id, label: label(op.label), schema: schema as WorldJsonObject, characterParameters,
         actors: actors as StatusOperation['actors'],
         ...(Object.hasOwn(op, 'activities') ? { activities: strings(op.activities, '操作适用活动') } : {}) }
@@ -235,10 +248,22 @@ export class PackStatus {
     return { eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }
   }
 
+  #slots(events: readonly RulebookEvent[]): Map<string, StatusValue> {
+    const truth = this.truth(events), values = new Map<string, StatusValue>()
+    for (const [key, v] of Object.entries(truth.public)) values.set(slot(null, key), v)
+    for (const [holderId, own] of Object.entries(truth.characters)) {
+      for (const [key, v] of Object.entries(own)) values.set(slot(holderId, key), v)
+    }
+    return values
+  }
+
   /** Rejects a whole candidate status event; nothing is partially accepted. */
   validate(events: readonly RulebookEvent[], data: StatusEventData, sceneIds: readonly string[]): void {
     const value = object(data)
-    exact(value, ['source', 'changes', 'reveals'])
+    exact(value, ['source', 'changes', 'reveals'], ['description'])
+    if (Object.hasOwn(value, 'description') && (typeof value.description !== 'string' || value.description.length > 2000)) {
+      throw new TypeError('状态结果描述无效')
+    }
     const source = object(data.source, '状态来源')
     if (source.kind === 'initial') exact(source, ['kind'])
     else if (source.kind === 'operation') exact(source, ['kind', 'operation', 'actorId'], ['activityKey'])
@@ -250,11 +275,7 @@ export class PackStatus {
       || (source.kind !== 'initial' && (data.changes.length > 64 || data.reveals.length > 64))) {
       throw new TypeError('状态变化或告知数量无效')
     }
-    const truth = this.truth(events), next = new Map<string, StatusValue>()
-    for (const [key, v] of Object.entries(truth.public)) next.set(slot(null, key), v)
-    for (const [holderId, values] of Object.entries(truth.characters)) {
-      for (const [key, v] of Object.entries(values)) next.set(slot(holderId, key), v)
-    }
+    const next = this.#slots(events)
     for (const change of data.changes) {
       exact(object(change, '状态变化'), ['holderId', 'key', 'value'])
       const status = this.#status(change.key), holderId = this.#holder(status, change.holderId)
@@ -274,5 +295,130 @@ export class PackStatus {
       // A reveal tells the observer the value as of this event, never an invented one.
       if (next.get(slot(holderId, status.key)) !== reveal.value) throw new TypeError('告知的值与真实值不一致：' + status.key)
     }
+  }
+
+  /** Host adjudication of one status operation on a commit prefix. NPC rulebook turns and player
+   * operations share it; the caller commits the returned event, or nothing when this throws. */
+  #adjudicate(input: { readonly worldPath: string; readonly address: WorldAddress; readonly playerId: string
+    readonly manifest: CompiledWorldManifest; readonly events: readonly RulebookEvent[]; readonly asOfWorldSeq: number | undefined
+    readonly actorId: string; readonly operationId: string; readonly parameters: unknown }): {
+    event: WorldEventDraft; description: string; observationScope: NonNullable<RulebookResolution['observationScope']> } {
+    const { events, actorId } = input
+    const op = this.operations.find(o => o.id === input.operationId)
+    if (!op) throw new TypeError('未声明的状态操作：' + input.operationId)
+    // Activity-scoped operations need activity-aware gating, which this host does not offer yet.
+    if (op.activities) throw new TypeError('这个状态操作只能在指定活动中执行')
+    if (!this.#validators.get(op.id)!(input.parameters)) throw new TypeError('状态操作参数无效')
+    const parameters = input.parameters as Record<string, unknown>
+    if (op.actors === 'player' ? actorId !== input.playerId : op.actors === 'npc' && actorId === input.playerId) {
+      throw new TypeError('当前角色不能执行这个状态操作')
+    }
+    const world = actorWorldView(input.worldPath, input.address, input.manifest, events, actorId, input.asOfWorldSeq)
+    const sceneIds = [...new Set([actorId, ...world.characterIds as string[]])]
+    for (const name of op.characterParameters) {
+      if (!Object.hasOwn(parameters, name)) continue
+      const id = parameters[name]
+      if (typeof id !== 'string' || !this.#characterIds.includes(id)) throw new TypeError('引用的角色不存在：' + String(id))
+      if (!sceneIds.includes(id)) throw new TypeError('引用的角色不在当前场景：' + id)
+    }
+    const result = object(this.#call('resolve', [this.truth(events), actorId, op.id, parameters, world]), '状态操作结果')
+    if (Object.hasOwn(result, 'rejectReason')) {
+      exact(result, ['rejectReason'])
+      throw new TypeError(text(result.rejectReason, '状态操作拒绝说明'))
+    }
+    exact(result, ['changes', 'reveals', 'description', 'audience'])
+    if (typeof result.description !== 'string' || result.description.length > 2000) throw new TypeError('状态操作结果描述无效')
+    if (!Array.isArray(result.changes) || !Array.isArray(result.reveals)) throw new TypeError('状态变化或告知必须是列表')
+    const changes = result.changes as StatusChange[]
+    // Reveals carry the value as of this event; the host fills it in and never trusts an author value.
+    const after = this.#slots(events)
+    for (const change of changes) after.set(slot(object(change, '状态变化').holderId as string | null, String(change.key)), change.value)
+    const reveal = (observerId: unknown, holderId: unknown, key: unknown) =>
+      ({ observerId, holderId, key, value: after.get(slot(holderId as string | null, String(key))) }) as StatusReveal
+    const reveals = result.reveals.map(value => {
+      const r = object(value, '状态告知')
+      exact(r, ['observerId', 'holderId', 'key'])
+      return reveal(r.observerId, r.holderId, r.key)
+    })
+    // The actor always learns the new value of its own statuses that this operation changed.
+    for (const change of changes) {
+      if (change.holderId === actorId && !reveals.some(r => r.observerId === actorId && r.holderId === actorId && r.key === change.key)) {
+        reveals.push(reveal(actorId, actorId, change.key))
+      }
+    }
+    const data: StatusEventData = { source: { kind: 'operation', operation: op.id, actorId }, changes, reveals,
+      description: result.description }
+    this.validate(events, data, sceneIds)
+    let observationScope: NonNullable<RulebookResolution['observationScope']>
+    if (result.audience === 'self') observationScope = { scope: 'direct', recipientIds: [actorId] }
+    else if (result.audience === 'scene') observationScope = { scope: 'scene_public' }
+    else {
+      const audience = object(result.audience, '结果接收者')
+      exact(audience, ['characters'])
+      const recipientIds = strings(audience.characters, '结果接收者')
+      if (recipientIds.some(id => !sceneIds.includes(id))) throw new TypeError('结果接收者不在当前场景')
+      observationScope = { scope: 'direct', recipientIds }
+    }
+    return { event: { eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject },
+      description: result.description, observationScope }
+  }
+
+  /** Wraps a rulebook: offers this actor's status operations and adjudicates `status:` interactions. */
+  resolver(base: RulebookResolver, worldPath: string, address: WorldAddress, playerId: string): RulebookResolver {
+    return {
+      affordances: context => {
+        const values = base.affordances(context), actor = String(context.characterId)
+        const choices: WorldJsonObject[] = this.operations
+          .filter(op => !op.activities && (op.actors === 'any' || (op.actors === 'player') === (actor === playerId)))
+          .map(op => ({ label: op.label, targetRef: { kind: 'character', id: actor }, bindingId: 'status',
+            definitionRef: { id: PREFIX + op.id, version: 1 }, arguments: {}, argumentSchema: op.schema }))
+        if (!choices.length) return values
+        // One interact entry: wire builders select a single affordance per action type.
+        const interact = values.find(a => a.actionType === 'interact')
+        const merged: ActionAffordance = { ...interact ?? { actionType: 'interact', actionVersion: 2 },
+          interactions: [...interact?.interactions ?? [], ...choices] }
+        return [...values.filter(a => a.actionType !== 'interact'), merged]
+      },
+      resolve: context => {
+        const p = record(context.action.parameters) ?? {}, definition = record(p.definitionRef)
+        if (typeof definition?.id !== 'string' || !definition.id.startsWith(PREFIX)) return base.resolve(context)
+        if (context.action.actionType !== 'interact') throw new TypeError('状态操作必须使用 interact')
+        exact(p, ['targetRef', 'bindingId', 'definitionRef', 'arguments'])
+        exact(definition, ['id', 'version'])
+        const actorId = String(context.characterId), target = object(p.targetRef, '状态操作目标')
+        exact(target, ['kind', 'id'])
+        if (p.bindingId !== 'status' || target.kind !== 'character' || target.id !== actorId || definition.version !== 1) {
+          throw new TypeError('状态操作绑定无效')
+        }
+        const result = this.#adjudicate({ worldPath, address, playerId, manifest: context.manifest, events: context.events,
+          asOfWorldSeq: context.asOfWorldSeq, actorId, operationId: definition.id.slice(PREFIX.length), parameters: p.arguments })
+        return { status: 'accepted', events: [result.event], observationScope: result.observationScope }
+      },
+    }
+  }
+
+  /** Result text for `status:` operations only; anything else is left to the next handler. */
+  executionResult = (input: Parameters<typeof characterExecutionResult>[0]): ReturnType<typeof characterExecutionResult> | undefined => {
+    const id = record(record(input.action.parameters)?.definitionRef)?.id
+    if (typeof id !== 'string' || !id.startsWith(PREFIX)) return undefined
+    const latest = input.status === 'accepted' ? input.events.findLast(e => e.eventType === 'status.updated') : undefined
+    const description = latest === undefined ? undefined : object(latest.data).description
+    return typeof description === 'string' ? { status: 'accepted', description } : characterExecutionResult(input)
+  }
+
+  /** Commits the initial values once, as their own round, when the world has no status event yet. */
+  async ensureInitial(worldPath: string, address: WorldAddress, playerId: string): Promise<void> {
+    const store = new WorldStore(worldPath), leases = new WriterLeaseService(worldPath), owner = 'status-initial:' + randomUUID()
+    let lease: ReturnType<WriterLeaseService['acquire']> | undefined
+    try {
+      lease = leases.acquire(address, owner, 180000)
+      const head = store.head(address)
+      if (store.readEventsRange(address, 0, head.headSeq, ['status.updated']).length) return
+      await store.commitRound({ address, transactionId: brandId(owner, 'TransactionId'), roundId: brandId(owner, 'InteractionRoundId'),
+        expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
+        events: [this.initialEvent(), { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1 } }],
+        outbox: [], writerFencingToken: lease.fencingToken, correlationId: owner,
+        authority: { actorId: playerId, source: 'status-initial', status: 'accepted' } })
+    } finally { if (lease) leases.release(address, owner, lease.fencingToken); leases.close(); store.close() }
   }
 }
