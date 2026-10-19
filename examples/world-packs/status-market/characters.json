@@ -19,7 +19,7 @@
       "pronouns": "ta",
       "initialLocationId": "location:front-room",
       "portrayal": {
-        "summary": "与玩家熟悉，手头拮据，眼睛总往别人的钱袋上瞟；会自己决定要不要下手、要不要回应。",
+        "summary": "与玩家熟悉。欠了一笔赌债，今晚收摊前必须凑出至少三十，否则债主会找上门；身上的钱不够。以前在人多的集市顺手摸过别人的钱袋，觉得只要没被当场看见就不算什么，对熟人下手会有些犹豫。会自己决定要不要下手、要不要回应。",
         "speakingStyle": "短句，少解释。"
       },
       "interactionBindings": [

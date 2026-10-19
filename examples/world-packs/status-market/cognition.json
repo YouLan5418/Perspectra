@@ -41,7 +41,7 @@
           "key": "goal:companion-short-of-money",
           "objective": {
             "kind": "narrative",
-            "value": "手头拮据，想办法让自己的钱包宽裕一点。"
+            "value": "今晚收摊前凑出至少三十还赌债。"
           },
           "priorityPermille": 600,
           "targetKeys": [],
