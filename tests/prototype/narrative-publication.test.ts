@@ -1,8 +1,7 @@
 import { resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { SpeakMoveRulebook, currentLocation, currentEntityState } from '../../packages/kernel/src/rulebook.ts'
-import { SubmitActionsValidator } from '../../packages/agents/src/submit-actions.ts'
-import { brandId, interactionPackageDescription } from '@harness-world/contracts'
+import { brandId, interactionPackageDescription, parseExpressionSegments } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
 import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
@@ -66,15 +65,7 @@ it('publishes silent expression without granting movement, possession, or a new 
 })
 
 it('accepts two expressions without requiring a world operation', () => {
-  const actor = brandId('character:npc', 'CharacterId')
-  const actions = ['抿住唇角。', '又忍不住笑出声。'].map((narration, index) => ({
-    actionId: `expression:${index}`, actorId: actor, actionType: 'speak', actionVersion: 1,
-    parameters: { text: '', narration },
-  }))
-  const auth = { actorId: actor, participantId: 'agent:npc', allowedActionTypes: ['speak', 'move', 'interact'],
-    maxActions: 2, maxReflectionOperations: 0, correlationId: 'two-expressions' }
-  const validate = (steps: unknown[]) => new SubmitActionsValidator().validateV7({ schemaVersion: 7, decision: 'act', actions: steps }, auth)
-  expect(validate(actions).proposal.actions).toEqual(actions)
-  expect(() => validate([...actions, { ...actions[0], actionId: 'third' }])).toThrow()
-  expect(() => validate(actions.map(action => ({ ...action, actionType: 'move', parameters: { locationId: 'elsewhere' } })))).toThrow('at most one world operation')
+  const segments = ['抿住唇角。', '又忍不住笑出声。'].map(text => ({ type: 'narration', text }))
+  expect(parseExpressionSegments(segments)).toEqual(segments)
+  expect(() => parseExpressionSegments([{ type: 'move', text: '走到后室。' }])).toThrow()
 })

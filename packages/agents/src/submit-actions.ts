@@ -1,46 +1,16 @@
 import {
-  ACTION_GROUP_CUES,
-  type ActionGroupCue,
-  type ActionGroupProposal,
-  type StepManifestation,
-  brandId,
-  canonicalizeWorldJson,
   compareWorldText,
-  failWorld,
-  type ActionRequest,
-  type CharacterId,
   type ManifestationChannel,
   type ManifestationCueProposal,
-  type ManifestationProposal,
-  type Proposal,
-  type ReflectionOperation,
-  type WorldJsonObject,
-  type WorldJsonValue,
+  type ManifestationProposal
 } from '@harness-world/contracts'
-
-export interface SubmitActionsAuthorization {
-  readonly participantId: string
-  readonly actorId: CharacterId
-  readonly allowedActionTypes: readonly string[]
-  readonly maxActions: number
-  readonly correlationId: string
-}
-
-export interface SubmitActionsV2Authorization extends SubmitActionsAuthorization {
-  readonly maxReflectionOperations: number
-}
-
-export interface ManifestationProposalEnvelope extends WorldJsonObject {
-  readonly participantId: string
-  readonly actions: readonly ActionRequest[]
-  readonly manifestation?: ManifestationProposal
-  readonly actionGroup?: import('@harness-world/contracts').ActionGroupBinding
-}
 
 const MANIFESTATION_CHANNELS = new Set<ManifestationChannel>([
   'facial', 'gaze', 'posture', 'gesture', 'voice', 'appearance',
 ])
+
 const PERSISTENT_MANIFESTATION_CHANNELS = new Set<ManifestationChannel>(['posture', 'appearance'])
+
 const utf8 = new TextEncoder()
 
 function record(value: unknown, path: string): Record<string, unknown> {
@@ -118,143 +88,5 @@ export function parseManifestationProposal(value: unknown): ManifestationProposa
   return {
     ...(root.description === undefined ? {} : { description: boundedText(root.description, 'submit_actions.manifestation.description', 2048) }),
     cues,
-  }
-}
-
-/**
- * The protocol supplies the exact version for each action type. A frozen interaction names a binding
- * and a definition lock at version 2, while speech and movement remain version 1; accepting a numeric
- * range would let either shape borrow the other's version.
- */
-function actions(
-  value: unknown,
-  authorization: SubmitActionsAuthorization,
-  expectedActionVersion: (actionType: string) => number = () => 1,
-): ActionRequest[] {
-  if (!Array.isArray(value)) throw new TypeError('submit_actions.actions must be an array')
-  if (!Number.isSafeInteger(authorization.maxActions) || authorization.maxActions < 0) throw new TypeError('maxActions must be a non-negative safe integer')
-  if (value.length > authorization.maxActions) throw new TypeError('submit_actions exceeds maxActions')
-  const parsed = value.map((entry, index): ActionRequest => {
-    const action = record(entry, `actions[${index}]`)
-    exact(action, ['actionId', 'actorId', 'actionType', 'actionVersion', 'parameters'], `actions[${index}]`)
-    const actionId = text(action.actionId, 'actionId')
-    const actorId = brandId(text(action.actorId, 'actorId'), 'CharacterId')
-    const actionType = text(action.actionType, 'actionType')
-    if (actorId !== authorization.actorId) throw new TypeError('action actorId is not authorized')
-    if (!authorization.allowedActionTypes.includes(actionType)) throw new TypeError('action type is not authorized')
-    const actionVersion = action.actionVersion
-    const expected = expectedActionVersion(actionType)
-    if (!Number.isSafeInteger(actionVersion) || actionVersion !== expected) {
-      throw new TypeError(`${actionType} actionVersion must be ${expected}`)
-    }
-    canonicalizeWorldJson(action.parameters as WorldJsonValue)
-    return { actionId, actorId, actionType, actionVersion: actionVersion as number, parameters: action.parameters as WorldJsonValue }
-  })
-  if (new Set(parsed.map(action => action.actionId)).size !== parsed.length) throw new TypeError('actionId values must be unique')
-  return parsed
-}
-
-function invalid(error: unknown, authorization: SubmitActionsAuthorization): never {
-  failWorld({
-    errorCode: 'MODEL_SCHEMA_INVALID',
-    category: 'provider',
-    message: error instanceof Error ? error.message : 'unknown submit_actions validation failure',
-    retryable: false,
-    correlationId: authorization.correlationId,
-  })
-}
-
-/** Strict parser for the only model output tool accepted by V0 Agents. */
-export class SubmitActionsValidator {
-  /** Validate the current grouped character output with frozen interaction steps. */
-  validateV7(payload: unknown, authorization: SubmitActionsV2Authorization): { readonly proposal: ActionGroupProposal; readonly reflectionOperations?: readonly ReflectionOperation[] } {
-    try {
-      canonicalizeWorldJson(payload as WorldJsonValue)
-      const root = record(payload, 'submit_actions')
-      exactWithOptional(root, ['schemaVersion', 'decision', 'actions'], ['reflection'], 'submit_actions')
-      if (root.schemaVersion !== 7) throw new TypeError('submit_actions.schemaVersion must be 7')
-      if (root.decision !== 'act' && root.decision !== 'abstain') throw new TypeError('invalid decision')
-      if (!Array.isArray(root.actions) || root.actions.length > 2) throw new TypeError('action group permits at most two steps')
-      const manifestations: (StepManifestation | null)[] = []
-      const rawActions = root.actions.map((entry, index) => {
-        const action = record(entry, `actions[${index}]`)
-        exactWithOptional(action, ['actionId', 'actorId', 'actionType', 'actionVersion', 'parameters'], ['manifestation'], 'action')
-        if (action.actionType === 'interact') {
-          const interaction = record(action.parameters, `actions[${index}].parameters`)
-          if (Object.hasOwn(interaction, 'performance')) {
-            throw new TypeError('submit_actions/v7 interaction performance belongs in action.manifestation')
-          }
-        }
-        let manifestation: StepManifestation | null = null
-        if (action.manifestation !== undefined) {
-          const value = record(action.manifestation, 'step manifestation')
-          exact(value, ['independent', 'onSuccess'], 'step manifestation')
-          const parse = (input: unknown, independent: boolean): ActionGroupCue[] => {
-            if (!Array.isArray(input) || input.length > 8) throw new TypeError('invalid cue list')
-            return input.map(cue => {
-              if (typeof cue !== 'string' || !Object.hasOwn(ACTION_GROUP_CUES, cue)) throw new TypeError('unknown cue')
-              const name = cue as ActionGroupCue
-              const required = ACTION_GROUP_CUES[name].actionType
-              if (required !== null && (independent || required !== action.actionType)) throw new TypeError('cue requires matching successful action')
-              return name
-            })
-          }
-          const independent = parse(value.independent, true)
-          const onSuccess = parse(value.onSuccess, false)
-          // The model-facing schema cannot forbid a repeat across the two lists: uniqueItems covers one list
-          // only, and onSuccess's enum is a superset of independent's, so a repeat is schema-legal. The only
-          // code that can repeat is a universal one, which independent already declares plays whatever the
-          // outcome, so the repeat is that one cue restated rather than a second cue: drop it and play the cue
-          // once instead of failing the whole group. An empty pair means no manifestation, which is how every
-          // consumer already reads it. Repeats inside one list stay fatal, because the schema does forbid them.
-          const alwaysOn = new Set(independent)
-          const distinctOnSuccess = onSuccess.filter(cue => !alwaysOn.has(cue))
-          if (independent.length === 0 && distinctOnSuccess.length === 0) {
-            manifestation = null
-          } else {
-            const all = [...independent, ...distinctOnSuccess]
-            if (all.length > 8 || new Set(all).size !== all.length) throw new TypeError('invalid or duplicate step cues')
-            manifestation = { independent, onSuccess: distinctOnSuccess }
-          }
-        }
-        manifestations.push(manifestation)
-        const { manifestation: _manifestation, ...bare } = action
-        return bare
-      })
-      const parsed = actions(rawActions, authorization,
-        actionType => actionType === 'interact' ? 2 : 1)
-      if ((root.decision === 'act') !== (parsed.length > 0)) throw new TypeError('inconsistent decision')
-      if (parsed.some(action => !['speak', 'move', 'interact'].includes(action.actionType))) throw new TypeError('unsupported group action')
-      if (parsed.filter(action => action.actionType !== 'speak').length > 1) throw new TypeError('group permits at most one world operation')
-      if (!Number.isSafeInteger(authorization.maxReflectionOperations) || authorization.maxReflectionOperations < 0) {
-        throw new TypeError('maxReflectionOperations must be a non-negative safe integer')
-      }
-      let reflectionOperations: readonly ReflectionOperation[] | undefined
-      if (root.reflection !== undefined) {
-        const reflection = record(root.reflection, 'submit_actions.reflection')
-        exact(reflection, ['operations'], 'submit_actions.reflection')
-        if (!Array.isArray(reflection.operations)) throw new TypeError('submit_actions.reflection.operations must be an array')
-        if (reflection.operations.length > authorization.maxReflectionOperations) throw new TypeError('submit_actions reflection exceeds maxReflectionOperations')
-        reflectionOperations = reflection.operations as unknown as readonly ReflectionOperation[]
-      }
-      return { proposal: { participantId: authorization.participantId, actions: parsed,
-        actionGroup: { version: 'bounded-action-group/v2', manifestations } },
-        ...(reflectionOperations === undefined ? {} : { reflectionOperations }) }
-    } catch (error: unknown) {
-      invalid(error, authorization)
-    }
-  }
-
-  validate(payload: unknown, authorization: SubmitActionsAuthorization): Proposal {
-    try {
-      canonicalizeWorldJson(payload as WorldJsonValue)
-      const root = record(payload, 'submit_actions')
-      exact(root, ['schemaVersion', 'participantId', 'actions'], 'submit_actions')
-      if (root.schemaVersion !== 1) throw new TypeError('submit_actions.schemaVersion must be 1')
-      if (root.participantId !== authorization.participantId) throw new TypeError('submit_actions participantId is not authorized')
-      return { participantId: authorization.participantId, actions: actions(root.actions, authorization) }
-    } catch (error: unknown) {
-      invalid(error, authorization)
-    }
   }
 }

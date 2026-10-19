@@ -1,5 +1,4 @@
-export { actionGroupCall, actionGroupDescription, actionGroupWireSchema, chatMessages, intentCall,
-  type ChatCall, type ChatMessage, type ExactProviderRequest } from './wire.ts'
+export { chatMessages, intentCall, operationSchemas, type ChatCall, type ChatMessage } from './wire.ts'
 export { ChatTransportError, createChatProvider,
   type ChatCallObservation, type ChatCallProfile, type ChatProvider, type ChatProviderOptions,
   type ChatStyle } from './provider.ts'

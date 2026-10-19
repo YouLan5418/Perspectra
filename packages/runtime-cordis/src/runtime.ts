@@ -38,7 +38,6 @@ export interface BranchRuntimeComponents {
   readonly store: BranchOwnedComponent
   readonly agents: BranchOwnedComponent
   readonly director: BranchOwnedComponent
-  readonly reactionWorker?: BranchOwnedComponent
 }
 
 export interface BranchExecutionLane {
@@ -161,7 +160,6 @@ export class BranchRuntimeSlot {
       services = { kernel, store, agents, director }
       ctx.effect(() => async () => {
         const allComponents = [
-          ...(components.reactionWorker === undefined ? [] : [components.reactionWorker]),
           components.kernel,
           components.director,
           components.agents,

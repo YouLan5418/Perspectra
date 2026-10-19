@@ -15,7 +15,7 @@ async function run(text: string, decide: (body: WorldJsonObject) => WorldJsonVal
   const root = mkdtempSync(join(tmpdir(), 'player-source-'))
   const world = frozenIntentWorld()
   const app = new WorldApplication({ worldPath: join(root, 'world.sqlite'), sessionPath: join(root, 'session.sqlite'),
-    memoryPath: join(root, 'memory.sqlite'), externalCharacterActivations: true, modelBudgetTokens: 100,
+    memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 100,
     playerIntent: { profile: intentFixtureProfile, dispatch: async raw => decide((raw as WorldJsonObject).body as WorldJsonObject) } })
   let store: WorldStore | undefined
   try {

@@ -260,16 +260,3 @@ export interface ProposalContext {
   readonly playerManifestation?: import('./cognition-projection.ts').ManifestationProposal
   readonly candidateHash: WorldHash
 }
-
-export interface AgentProvider {
-  propose(context: ProposalContext): Promise<Proposal>
-}
-
-/** Provider output is untrusted; participant identity and the active schema are bound by the host. */
-export interface Phase8AgentProvider {
-  propose(context: ProposalContext): Promise<WorldJsonObject>
-}
-
-export interface DirectorProvider {
-  propose(context: ProposalContext): Promise<Proposal>
-}

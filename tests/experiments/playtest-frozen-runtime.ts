@@ -439,7 +439,6 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     const intentProfile = { version: 'player-intent-profile/v1' as const, providerId: 'chat-completions',
       modelId: this.#intentModel, maxOutputTokens: 1_024, timeoutMs: Math.min(timeoutMs, 60_000) }
     this.#application = new WorldApplication({
-      externalCharacterActivations: true,
       interactionPackages:createInstalledInteractionPackages(),
       worldPath: resolve(options.dataDirectory, 'world.sqlite'),
       sessionPath: resolve(options.dataDirectory, 'session.sqlite'),

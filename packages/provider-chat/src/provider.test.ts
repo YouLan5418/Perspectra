@@ -1,27 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
-import { createStepManifestationSchema, type WorldJsonObject } from '@harness-world/contracts'
-import { ChatTransportError, createChatProvider, type ChatCallObservation } from './provider.ts'
+import { type WorldJsonObject } from '@harness-world/contracts'
+import { describe,expect,it,vi } from 'vitest'
+import { ChatTransportError,createChatProvider,type ChatCallObservation } from './provider.ts'
 
-/** A minimal frozen tool description: enough to render, with one interaction option offered. */
-const tools: WorldJsonObject = {
-  type: 'object', schemaVersion: 'submit_actions/v7', maximumExternalActions: 2, maximumReflectionOperations: 4,
-  actionGroup: { version: 'bounded-action-group/v2', allowedActionTypes: ['speak', 'interact'],
-    failure: 'stop_remaining_steps', manifestation: { optional: true, schemasByAction: {
-      speak: createStepManifestationSchema('speak'), interact: createStepManifestationSchema('interact') } } },
-  interact: { parameters: ['targetRef', 'bindingId', 'definitionRef', 'arguments'] },
-}
-
-const exact = {
-  messages: [
-    { role: 'developer', content: '{"role":"portray exactly one character"}' },
-    { role: 'user', content: JSON.stringify({ segmentKind: 'character_anchor', content: { characterId: 'character:companion' } }) },
-    { role: 'user', content: JSON.stringify({ segmentKind: 'affordances', content: [
-      { actionType: 'interact', actionVersion: 2, performances: [],
-        interactions: [{ targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:cup-take',
-          definitionRef: { id: 'base:take', version: 1 }, arguments: {} }] }] }) },
-  ],
-  tools,
-}
+const call = { messages: [{ role: 'system', content: '{"role":"portray exactly one character"}' }],
+  schema: { type: 'object', additionalProperties: false, required: ['decision'],
+    properties: { decision: { const: 'abstain' } } }, description: 'Decide whether to respond.' }
+const signal = () => new AbortController().signal
 
 const intentRequest: WorldJsonObject = { version: 'player-intent-request/v2', contract: 'Interpret only the player intent.',
   sourceText: '拿起杯子', affordances: [{ affordanceId: 'take' }],
@@ -43,14 +27,14 @@ function endpoint(answer: unknown, status = 200) {
 
 const toolAnswer = (payload: unknown) => ({ choices: [{ message: {
   tool_calls: [{ function: { name: 'submit_actions', arguments: JSON.stringify(payload) } }] } }] })
-const proposal = { schemaVersion: 7, decision: 'abstain', actions: [] }
+const proposal = { decision: 'abstain' }
 
 describe('the adapter a real endpoint is called through', () => {
   it('sends the Host’s request as a forced tool call and returns what the model stated', async () => {
     const { sent, fetchImpl } = endpoint(toolAnswer(proposal))
     const provider = createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'deepseek-flash',
       apiKey: 'secret-value', maxOutputTokens: 512, fetch: fetchImpl })
-    expect(await provider.propose({ exactProviderRequest: exact })).toEqual(proposal)
+    expect(await provider.decide(call, signal())).toEqual(proposal)
     const body = sent[0]!.body
     expect(body.model).toBe('deepseek-flash')
     expect(body.max_tokens).toBe(512)
@@ -60,8 +44,7 @@ describe('the adapter a real endpoint is called through', () => {
     const fn = ((body.tools as WorldJsonObject[])[0] as { function: WorldJsonObject }).function
     expect(fn.name).toBe('submit_actions')
     // The schema is derived from the Host's own description, and the developer message travels as system.
-    const schema = fn.parameters as { properties: { schemaVersion: { const: number } } }
-    expect(schema.properties.schemaVersion.const).toBe(7)
+    expect(fn.parameters).toEqual(call.schema)
     const messages = body.messages as { role: string; content: string }[]
     expect(messages[0]!.role).toBe('system')
     expect(messages[0]!.content).toBe('{"role":"portray exactly one character"}')
@@ -73,11 +56,11 @@ describe('the adapter a real endpoint is called through', () => {
   it('takes the payload whether the endpoint answered as content or already parsed', async () => {
     const content = endpoint({ choices: [{ message: { content: JSON.stringify(proposal) } }] })
     expect(await createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
-      fetch: content.fetchImpl }).propose({ exactProviderRequest: exact })).toEqual(proposal)
+      fetch: content.fetchImpl }).decide(call, signal())).toEqual(proposal)
     const parsed = endpoint({ choices: [{ message: { tool_calls: [{ function: { arguments: proposal } }] } }] })
     const provider = createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
       fetch: parsed.fetchImpl })
-    expect(await provider.propose({ exactProviderRequest: exact })).toEqual(proposal)
+    expect(await provider.decide(call, signal())).toEqual(proposal)
     // No credential configured: no authorization header is invented.
     expect(parsed.sent[0]!.headers.authorization).toBeUndefined()
   })
@@ -86,33 +69,32 @@ describe('the adapter a real endpoint is called through', () => {
     const prose = endpoint({ choices: [{ message: { content: 'I would rather not act.' } }] })
     const provider = createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
       fetch: prose.fetchImpl })
-    expect(await provider.propose({ exactProviderRequest: exact })).toBe('I would rather not act.')
+    expect(await provider.decide(call, signal())).toBe('I would rather not act.')
   })
 
   it('throws on an endpoint that failed, and on one that answered with nothing', async () => {
     const failed = endpoint({ error: 'rate limited' }, 429)
     const provider = createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
       fetch: failed.fetchImpl })
-    await expect(provider.propose({ exactProviderRequest: exact }))
+    await expect(provider.decide(call, signal()))
       .rejects.toThrow('chat endpoint returned HTTP 429')
     // An endpoint that refused without saying anything, as a proxy does: the status is all there is.
     const silent = (async () => new Response('', { status: 502 })) as unknown as typeof globalThis.fetch
     await expect(createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
-      fetch: silent }).propose({ exactProviderRequest: exact }))
+      fetch: silent }).decide(call, signal()))
       .rejects.toThrow('chat endpoint returned HTTP 502')
     const empty = endpoint({ choices: [{ message: {} }] })
     await expect(createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
-      fetch: empty.fetchImpl }).propose({ exactProviderRequest: exact }))
+      fetch: empty.fetchImpl }).decide(call, signal()))
       .rejects.toBeInstanceOf(ChatTransportError)
-    await expect(createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm' })
-      .propose({})).rejects.toThrow('carries no exact provider request')
+
   })
 
   it('reports the HTTP status of a refusal, and no status for an endpoint that never answered', async () => {
     const refused: ChatCallObservation[] = []
     await expect(createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
       fetch: endpoint({ error: 'Penalty is not enabled for this model' }, 400).fetchImpl,
-      onCall: observation => refused.push(observation) }).propose({ exactProviderRequest: exact }))
+      onCall: observation => refused.push(observation) }).decide(call, signal()))
       .rejects.toThrow('HTTP 400')
     expect(refused[0]).toMatchObject({ status: 'failed', httpStatus: 400 })
 
@@ -120,7 +102,7 @@ describe('the adapter a real endpoint is called through', () => {
     const dead = (async () => { throw new Error('connect ECONNREFUSED') }) as unknown as typeof globalThis.fetch
     await expect(createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
       fetch: dead, onCall: observation => unreachable.push(observation) })
-      .propose({ exactProviderRequest: exact })).rejects.toThrow('ECONNREFUSED')
+      .decide(call, signal())).rejects.toThrow('ECONNREFUSED')
     expect(unreachable[0]!.status).toBe('failed')
     expect(unreachable[0]!.httpStatus).toBeUndefined()
   })
@@ -132,13 +114,13 @@ describe('the adapter a real endpoint is called through', () => {
     })) as unknown as typeof globalThis.fetch
     const provider = createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
       timeoutMs: 20, fetch: stalling, onCall: observation => observed.push(observation) })
-    await expect(provider.propose({ exactProviderRequest: exact })).rejects.toThrow('aborted')
+    await expect(provider.decide(call, signal())).rejects.toThrow('aborted')
     expect(observed).toEqual([{ kind: 'character', model: 'm', durationMs: expect.any(Number), status: 'failed' }])
 
     const answered = endpoint(toolAnswer(proposal))
     const ok: ChatCallObservation[] = []
     await createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm', fetch: answered.fetchImpl,
-      onCall: observation => ok.push(observation) }).propose({ exactProviderRequest: exact })
+      onCall: observation => ok.push(observation) }).decide(call, signal())
     expect(ok[0]).toMatchObject({ kind: 'character', status: 'ok' })
     expect(ok[0]!.durationMs).toBeGreaterThanOrEqual(0)
   })
@@ -148,7 +130,7 @@ describe('the adapter a real endpoint is called through', () => {
     vi.stubGlobal('fetch', fetchImpl)
     try {
       const provider = createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm' })
-      expect(await provider.propose({ exactProviderRequest: exact })).toEqual(proposal)
+      expect(await provider.decide(call, signal())).toEqual(proposal)
     } finally { vi.unstubAllGlobals() }
   })
 })
@@ -194,7 +176,7 @@ describe('the interpretation call the Host dispatches', () => {
     const { sent, fetchImpl } = endpoint({ message: { content: JSON.stringify(proposal) } })
     const provider = createChatProvider({ endpoint: new URL('http://127.0.0.1:11434/api/chat'), model: 'local',
       style: 'format', temperature: 0.2, maxOutputTokens: 256, fetch: fetchImpl })
-    expect(await provider.propose({ exactProviderRequest: exact })).toEqual(proposal)
+    expect(await provider.decide(call, signal())).toEqual(proposal)
     const body = sent[0]!.body as { format: WorldJsonObject; options: WorldJsonObject }
     expect(body.format.properties?.toString).toBeDefined()
     expect(body.options).toMatchObject({ temperature: 0.2, num_predict: 256 })
@@ -204,21 +186,21 @@ describe('the interpretation call the Host dispatches', () => {
     // The sampling defaults are the adapter's own, and a caller that states one gets it.
     const defaults = endpoint({ message: { content: JSON.stringify(proposal) } })
     await createChatProvider({ endpoint: new URL('http://127.0.0.1:11434/api/chat'), model: 'local',
-      style: 'format', fetch: defaults.fetchImpl }).propose({ exactProviderRequest: exact })
+      style: 'format', fetch: defaults.fetchImpl }).decide(call, signal())
     expect((defaults.sent[0]!.body as { options: WorldJsonObject }).options).toMatchObject({ temperature: 0.3 })
     const toolSampling = endpoint(toolAnswer(proposal))
     await createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm', temperature: 0.9,
-      fetch: toolSampling.fetchImpl }).propose({ exactProviderRequest: exact })
+      fetch: toolSampling.fetchImpl }).decide(call, signal())
     expect(toolSampling.sent[0]!.body.temperature).toBe(0.9)
     // A caller that wants reasoning instead states so, and the adapter does not decide for it.
     const reasoning = endpoint(toolAnswer(proposal))
     await createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
-      thinking: 'unspecified', fetch: reasoning.fetchImpl }).propose({ exactProviderRequest: exact })
+      thinking: 'unspecified', fetch: reasoning.fetchImpl }).decide(call, signal())
     expect(reasoning.sent[0]!.body).not.toHaveProperty('thinking')
     // An endpoint that answered with no choices at all answered with no payload.
     const shapeless = endpoint({ choices: 'not an array' })
     await expect(createChatProvider({ endpoint: new URL('https://example.test/chat'), model: 'm',
-      fetch: shapeless.fetchImpl }).propose({ exactProviderRequest: exact }))
+      fetch: shapeless.fetchImpl }).decide(call, signal()))
       .rejects.toThrow('returned no payload')
   })
 })
