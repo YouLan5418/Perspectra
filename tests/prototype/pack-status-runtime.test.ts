@@ -107,22 +107,41 @@ it.each(['ollama', 'local'] as const)('an NPC theft commits one status.updated a
   expect(f.statusEvents()).toHaveLength(2)
 }, 60_000)
 
-it.each(['ollama', 'local'] as const)('a target that left the scene is rejected without any commit (%s)', async provider => {
-  const f = await fixture(provider)
-  let headAtRequest: number | undefined
-  f.setDecision(input => {
-    if (actor(input) !== THIEF || input.continuation) return { decision: 'abstain' }
-    const store = new WorldStore(join(f.runtime.dataDirectory, 'world.sqlite'))
-    try { headAtRequest = store.head(f.runtime.address).headSeq } finally { store.close() }
-    return steal
-  })
-  // The player leaves; the thief, still in the front room, reacts by stealing from someone who is gone.
-  await expect(f.runtime.submit('/act move {"locationId":"location:back-room"}')).rejects.toThrow('引用的角色不在当前场景')
-  expect(headAtRequest).toBeDefined()
-  const store = new WorldStore(join(f.runtime.dataDirectory, 'world.sqlite'))
-  try { expect(store.head(f.runtime.address).headSeq).toBe(headAtRequest) } finally { store.close() }
-  expect(f.statusEvents()).toHaveLength(1)
-}, 60_000)
+const rejections = [
+  { name: 'a target that left the scene', move: true, targetId: PLAYER, text: '操作指定的角色不在你当前的场景里，什么都没有发生。' },
+  { name: 'an author rejectReason', move: false, targetId: THIEF, text: '不能偷自己的钱袋' },
+] as const
+for (const provider of ['ollama', 'local'] as const) {
+  for (const c of rejections) {
+    it(`${c.name} is rejected back to the thief without any status commit (${provider})`, async () => {
+      const f = await fixture(provider)
+      let headAtRequest: number | undefined, attempted = false
+      const continuations: WorldJsonObject[] = []
+      f.setDecision(input => {
+        if (actor(input) !== THIEF) return { decision: 'abstain' }
+        if (input.continuation) { continuations.push(input); return { decision: 'abstain' } }
+        if (attempted) return { decision: 'abstain' }
+        attempted = true
+        const store = new WorldStore(join(f.runtime.dataDirectory, 'world.sqlite'))
+        try { headAtRequest = store.head(f.runtime.address).headSeq } finally { store.close() }
+        return { ...steal, parameters: { ...steal.parameters, arguments: { targetId: c.targetId } } }
+      })
+      const before = f.statusEvents()
+      // With `move`, the player leaves; the thief, still in the front room, tries to rob someone who is gone.
+      const state = await f.runtime.submit(c.move ? '/act move {"locationId":"location:back-room"}'
+        : '/act speak {"text":"看好你的钱袋。","scope":"scene_public"}')
+      expect(state.error, JSON.stringify(state.debug)).toBe(false)
+      expect(f.statusEvents()).toEqual(before)
+      // Only the rejected action's own round is committed after the thief's request.
+      const rejected = f.events().filter(e => e.seq > headAtRequest!)
+      expect(rejected.map(e => e.eventType)).toContain('action.rejected')
+      expect(new Set(rejected.map(e => e.tick)).size).toBe(1)
+      expect(continuations).toHaveLength(1)
+      expect(object(continuations[0]!.result)).toMatchObject({ status: 'rejected', description: c.text })
+      expect(JSON.stringify(continuations[0]!.result)).not.toMatch(/余额|money/u)
+    }, 60_000)
+  }
+}
 
 it.each(['ollama', 'local'] as const)('narration claiming a theft changes nothing (%s)', async provider => {
   const f = await fixture(provider)

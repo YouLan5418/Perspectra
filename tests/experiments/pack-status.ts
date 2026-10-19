@@ -4,7 +4,8 @@ import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { relative, resolve, sep } from 'node:path'
 import { createContext, Script } from 'node:vm'
 import { brandId, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
-import type { ActionAffordance, CompiledWorldManifest, RulebookEvent, RulebookResolution, RulebookResolver } from '@harness-world/kernel'
+import { rejectRulebookResolution, type ActionAffordance, type CompiledWorldManifest, type RulebookEvent, type RulebookResolution,
+  type RulebookResolver } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
@@ -30,9 +31,15 @@ export interface StatusOperation {
   readonly activities?: readonly string[]
 }
 
+/** One status operation's outcome. A rejection names the actor's own mistake or the author's
+ * `rejectReason`; it commits nothing and reveals no value. Author or host faults throw instead. */
+export type Adjudication = { status: 'rejected'; reason: string }
+  | { status: 'accepted'; event: WorldEventDraft; description: string; observationScope: NonNullable<RulebookResolution['observationScope']> }
+
 export const KNOWN_STATUS_NOTE = '这是你上次确认的状态值；current=false 表示之后可能已经改变，你并不知道现在的值。'
 const ENTRY = 'scripts/status.js'
 const PREFIX = 'status:'
+const REJECTED = 'STATUS_OPERATION_REJECTED'
 const LIMIT = 64 * 1024
 const NAME = /^[a-z][a-z0-9-]{0,40}$/u
 // Activity control names are host-owned; a status operation may not shadow them.
@@ -301,30 +308,29 @@ export class PackStatus {
    * operations share it; the caller commits the returned event, or nothing when this throws. */
   #adjudicate(input: { readonly worldPath: string; readonly address: WorldAddress; readonly playerId: string
     readonly manifest: CompiledWorldManifest; readonly events: readonly RulebookEvent[]; readonly asOfWorldSeq: number | undefined
-    readonly actorId: string; readonly operationId: string; readonly parameters: unknown }): {
-    event: WorldEventDraft; description: string; observationScope: NonNullable<RulebookResolution['observationScope']> } {
+    readonly actorId: string; readonly operationId: string; readonly parameters: unknown }): Adjudication {
     const { events, actorId } = input
     const op = this.operations.find(o => o.id === input.operationId)
-    if (!op) throw new TypeError('未声明的状态操作：' + input.operationId)
+    if (!op) return { status: 'rejected', reason: '没有这个状态操作，什么都没有发生。' }
     // Activity-scoped operations need activity-aware gating, which this host does not offer yet.
-    if (op.activities) throw new TypeError('这个状态操作只能在指定活动中执行')
-    if (!this.#validators.get(op.id)!(input.parameters)) throw new TypeError('状态操作参数无效')
+    if (op.activities) return { status: 'rejected', reason: '这个操作只能在指定活动中进行，什么都没有发生。' }
+    if (!this.#validators.get(op.id)!(input.parameters)) return { status: 'rejected', reason: '操作缺少有效的必要信息，什么都没有发生。' }
     const parameters = input.parameters as Record<string, unknown>
     if (op.actors === 'player' ? actorId !== input.playerId : op.actors === 'npc' && actorId === input.playerId) {
-      throw new TypeError('当前角色不能执行这个状态操作')
+      return { status: 'rejected', reason: '你不能进行这个操作，什么都没有发生。' }
     }
     const world = actorWorldView(input.worldPath, input.address, input.manifest, events, actorId, input.asOfWorldSeq)
     const sceneIds = [...new Set([actorId, ...world.characterIds as string[]])]
     for (const name of op.characterParameters) {
       if (!Object.hasOwn(parameters, name)) continue
       const id = parameters[name]
-      if (typeof id !== 'string' || !this.#characterIds.includes(id)) throw new TypeError('引用的角色不存在：' + String(id))
-      if (!sceneIds.includes(id)) throw new TypeError('引用的角色不在当前场景：' + id)
+      if (typeof id !== 'string' || !this.#characterIds.includes(id)) return { status: 'rejected', reason: '操作指定的角色不存在，什么都没有发生。' }
+      if (!sceneIds.includes(id)) return { status: 'rejected', reason: '操作指定的角色不在你当前的场景里，什么都没有发生。' }
     }
     const result = object(this.#call('resolve', [this.truth(events), actorId, op.id, parameters, world]), '状态操作结果')
     if (Object.hasOwn(result, 'rejectReason')) {
       exact(result, ['rejectReason'])
-      throw new TypeError(text(result.rejectReason, '状态操作拒绝说明'))
+      return { status: 'rejected', reason: text(result.rejectReason, '状态操作拒绝说明') }
     }
     exact(result, ['changes', 'reveals', 'description', 'audience'])
     if (typeof result.description !== 'string' || result.description.length > 2000) throw new TypeError('状态操作结果描述无效')
@@ -359,7 +365,7 @@ export class PackStatus {
       if (recipientIds.some(id => !sceneIds.includes(id))) throw new TypeError('结果接收者不在当前场景')
       observationScope = { scope: 'direct', recipientIds }
     }
-    return { event: { eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject },
+    return { status: 'accepted', event: { eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject },
       description: result.description, observationScope }
   }
 
@@ -392,7 +398,11 @@ export class PackStatus {
         }
         const result = this.#adjudicate({ worldPath, address, playerId, manifest: context.manifest, events: context.events,
           asOfWorldSeq: context.asOfWorldSeq, actorId, operationId: definition.id.slice(PREFIX.length), parameters: p.arguments })
-        return { status: 'accepted', events: [result.event], observationScope: result.observationScope }
+        if (result.status === 'accepted') return { status: 'accepted', events: [result.event], observationScope: result.observationScope }
+        // The actor's own attempt failed: it learns why, and nothing about any status value.
+        const rejected = rejectRulebookResolution(actorId, 'interact', REJECTED)
+        return { ...rejected, events: rejected.events.map(e => ({ ...e, data: { ...object(e.data), description: result.reason } })),
+          observationScope: { scope: 'direct', recipientIds: [actorId] } }
       },
     }
   }
@@ -401,7 +411,12 @@ export class PackStatus {
   executionResult = (input: Parameters<typeof characterExecutionResult>[0]): ReturnType<typeof characterExecutionResult> | undefined => {
     const id = record(record(input.action.parameters)?.definitionRef)?.id
     if (typeof id !== 'string' || !id.startsWith(PREFIX)) return undefined
-    const latest = input.status === 'accepted' ? input.events.findLast(e => e.eventType === 'status.updated') : undefined
+    if (input.status !== 'accepted') {
+      const latest = input.reason === REJECTED ? input.events.findLast(e => e.eventType === 'action.rejected') : undefined
+      const reason = latest === undefined ? undefined : object(latest.data).description
+      return typeof reason === 'string' ? { status: input.status, description: reason } : characterExecutionResult(input)
+    }
+    const latest = input.events.findLast(e => e.eventType === 'status.updated')
     const description = latest === undefined ? undefined : object(latest.data).description
     return typeof description === 'string' ? { status: 'accepted', description } : characterExecutionResult(input)
   }

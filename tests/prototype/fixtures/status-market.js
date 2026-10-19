@@ -31,6 +31,7 @@ globalThis.statusScript = {
         reveals: [purse], description: '购买成功', audience: 'scene' }
     }
     if (operationId === 'steal') {
+      if (parameters.targetId === actorId) return { rejectReason: '不能偷自己的钱袋' }
       const victim = truth.characters[parameters.targetId]
       const amount = Math.min(30, victim.money)
       return { changes: [{ holderId: parameters.targetId, key: 'money', value: victim.money - amount },
