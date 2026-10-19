@@ -109,7 +109,9 @@ it('renders the status panel with labels and values and marks stale ones as last
     { holder: '世界', items: [{ label: '时间', value: '10', note: '' }] },
     { holder: '你', items: [{ label: '余额', value: '100', note: '上次确认' }] },
     { holder: '阿七', items: [{ label: '生命', value: '15', note: '' }, { label: '持械', value: '否', note: '' }] } ])
-  expect(statusRows({ player: { name: '玩家' } })).toEqual([])
+    expect(statusRows({ player: { name: '玩家' } })).toEqual([])
+    expect(statusRows({ statusBar: [{ label: '委托', holderId: null, value: { stages: ['done'], reward: null }, current: true }] }))
+      .toEqual([{ holder: '世界', items: [{ label: '委托', value: '{"stages":["done"],"reward":null}', note: '' }] }])
   expect(DEFAULT_SCRIPT).toContain("node('status-bar')")
 })
 it('keeps an NPC that shares the player name apart from the player in the status panel', () => {

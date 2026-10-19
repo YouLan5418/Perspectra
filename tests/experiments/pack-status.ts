@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { relative, resolve, sep } from 'node:path'
 import { createContext, Script } from 'node:vm'
-import { brandId, canonicalizeWorldJson, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
+import { brandId, canonicalizeWorldJson, type WorldAddress, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { rejectRulebookResolution, type ActionAffordance, type CompiledWorldManifest, type RulebookEvent, type RulebookResolution,
   type RulebookResolver } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
@@ -11,7 +11,7 @@ import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
 import { activityProgress, actorWorldView } from './pack-activity.ts'
 
-export type StatusValue = number | string | boolean
+export type StatusValue = WorldJsonValue
 export interface StatusChange { holderId: string | null; key: string; value: StatusValue }
 export interface StatusReveal { observerId: string; holderId: string | null; key: string; value: StatusValue }
 export type StatusSource = { kind: 'initial' } | { kind: 'operation'; operation: string; actorId: string; activityKey?: string }
@@ -22,7 +22,8 @@ export interface StatusTruth { public: Record<string, StatusValue>; characters: 
 export interface KnownStatus { key: string; label: string; holderId: string | null; value: StatusValue; current: boolean }
 
 export interface StatusDefinition {
-  readonly key: string; readonly label: string; readonly type: 'number' | 'string' | 'boolean'
+  readonly key: string; readonly label: string; readonly type: 'number' | 'string' | 'boolean' | 'object' | 'array' | 'null'
+  readonly schema: WorldJsonObject
   readonly owner: 'public' | 'character'; readonly alwaysKnown: boolean; readonly activities?: readonly string[]
 }
 export interface StatusOperation {
@@ -43,6 +44,7 @@ const ENTRY = 'scripts/status.js'
 const PREFIX = 'status:'
 const REJECTED = 'STATUS_OPERATION_REJECTED'
 const LIMIT = 64 * 1024
+const CALL_LIMIT = 1024 * 1024, VALUE_LIMIT = 16 * 1024
 const NAME = /^[a-z][a-z0-9-]{0,40}$/u
 // Activity control names are host-owned; a status operation may not shadow them.
 const RESERVED = ['start', 'retry', 'suspend', 'resume', 'abandon']
@@ -81,12 +83,24 @@ function statusData(event: RulebookEvent): StatusEventData {
   return data as unknown as StatusEventData
 }
 
+/** Both author policy and knowledge conditions read this observer's known values, never global truth.
+ * A reveal covers a whole status key: split data with different audiences into different keys. */
+export function knownStatusView(entries: readonly KnownStatus[], actorId: string): StatusTruth & { self: Record<string, StatusValue> } {
+  const view: StatusTruth = { public: {}, characters: {} }
+  for (const entry of entries) {
+    const values = entry.holderId === null ? view.public : (view.characters[entry.holderId] ??= {})
+    values[entry.key] = structuredClone(entry.value)
+  }
+  return { ...view, self: view.characters[actorId] ?? {} }
+}
+
 /** Trusted author rules for adjudicated statuses. True values live only in `status.updated` events;
  * truth and known values are pure folds over the event list, never a separate store. */
 export class PackStatus {
   readonly #script: Script
   readonly #characterIds: readonly string[]
   readonly #validators = new Map<string, ValidateFunction>()
+  readonly #valueValidators = new Map<string, ValidateFunction>()
   readonly statuses: readonly StatusDefinition[]
   readonly operations: readonly StatusOperation[]
 
@@ -94,25 +108,32 @@ export class PackStatus {
     if (Buffer.byteLength(source) > LIMIT) throw new RangeError('状态脚本过长')
     this.#script = new Script(source + '\nJSON.stringify(__method === "definition" ? statusScript.definition'
       + ' : __method === "onRoundEnd" && typeof statusScript.onRoundEnd !== "function" ? null'
+      + ' : __method === "policy" && typeof statusScript.policy !== "function" ? null'
       + ' : statusScript[__method](...JSON.parse(__args)))', { filename: ENTRY })
     this.#characterIds = pack.content.characters.map(c => c.characterId)
     const definition = object(this.#call('definition', []), '状态定义')
     exact(definition, ['statuses', 'operations'])
     if (!Array.isArray(definition.statuses) || definition.statuses.length > 64
       || !Array.isArray(definition.operations) || definition.operations.length > 32) throw new TypeError('状态或操作数量无效')
+    const ajv = new Ajv({ strict: true, allErrors: false })
     this.statuses = definition.statuses.map(value => {
       const s = object(value, '状态声明')
-      exact(s, ['key', 'label', 'type', 'owner'], ['alwaysKnown', 'activities'])
+      exact(s, ['key', 'label', 'type', 'owner'], ['alwaysKnown', 'activities', 'schema'])
       if (typeof s.key !== 'string' || !NAME.test(s.key)) throw new TypeError('状态键无效')
-      if (!['number', 'string', 'boolean'].includes(String(s.type))) throw new TypeError('状态值类型无效：' + s.key)
+      if (!['number', 'string', 'boolean', 'object', 'array', 'null'].includes(String(s.type))) throw new TypeError('状态值类型无效：' + s.key)
+      if (['object', 'array'].includes(String(s.type)) && !Object.hasOwn(s, 'schema')) throw new TypeError('对象和数组状态必须声明 schema：' + s.key)
+      const schema = Object.hasOwn(s, 'schema') ? object(s.schema, '状态 schema')
+        : { type: s.type, ...(s.type === 'string' ? { maxLength: 200 } : {}) }
+      if (schema.type !== s.type) throw new TypeError('状态 schema 类型不匹配：' + s.key)
+      this.#valueValidators.set(s.key, ajv.compile(schema))
       if (!['public', 'character'].includes(String(s.owner))) throw new TypeError('状态归属无效：' + s.key)
       if (Object.hasOwn(s, 'alwaysKnown') && typeof s.alwaysKnown !== 'boolean') throw new TypeError('alwaysKnown 必须是布尔值')
       return { key: s.key, label: label(s.label), type: s.type as StatusDefinition['type'],
+        schema: schema as WorldJsonObject,
         owner: s.owner as StatusDefinition['owner'], alwaysKnown: s.alwaysKnown === true,
         ...(Object.hasOwn(s, 'activities') ? { activities: strings(s.activities, '状态适用活动') } : {}) }
     })
     if (new Set(this.statuses.map(s => s.key)).size !== this.statuses.length) throw new TypeError('重复的状态键')
-    const ajv = new Ajv({ strict: true, allErrors: false })
     this.operations = definition.operations.map(value => {
       const op = object(value, '操作声明')
       exact(op, ['id', 'label', 'schema'], ['characterParameters', 'actors', 'activities'])
@@ -152,15 +173,15 @@ export class PackStatus {
     return new PackStatus(bytes.toString('utf8'), pack)
   }
 
-  #call(method: 'definition' | 'initialize' | 'resolve' | 'onRoundEnd', args: unknown[]): unknown {
+  #call(method: 'definition' | 'initialize' | 'resolve' | 'onRoundEnd' | 'policy', args: unknown[]): unknown {
     const input = JSON.stringify(args)
-    if (input.length > LIMIT) throw new RangeError('状态脚本输入过长')
+    if (Buffer.byteLength(input) > CALL_LIMIT) throw new RangeError('状态脚本输入过长')
     const context = createContext(Object.assign(Object.create(null), { __method: method, __args: input }),
       { codeGeneration: { strings: false, wasm: false }, microtaskMode: 'afterEvaluate' })
     let output: unknown
     try { output = this.#script.runInContext(context, { timeout: 100 }) }
     catch (error) { throw new TypeError('状态脚本执行失败或超时：' + (error instanceof Error ? error.message : String(error))) }
-    if (typeof output !== 'string' || output.length > LIMIT) throw new TypeError('状态脚本必须返回有限 JSON')
+    if (typeof output !== 'string' || Buffer.byteLength(output) > CALL_LIMIT) throw new TypeError('状态脚本必须返回有限 JSON')
     return JSON.parse(output)
   }
 
@@ -171,8 +192,15 @@ export class PackStatus {
   }
 
   #value(status: StatusDefinition, value: unknown): StatusValue {
-    if (typeof value !== status.type || (typeof value === 'number' && !Number.isFinite(value))
-      || (typeof value === 'string' && value.length > 200)) throw new TypeError('状态值类型不匹配：' + status.key)
+    let nodes = 0
+    const visit = (part: unknown, depth: number): void => {
+      if (++nodes > 4096 || depth > 16) throw new RangeError('状态值嵌套或元素过多：' + status.key)
+      if (part !== null && typeof part === 'object') for (const child of Object.values(part)) visit(child, depth + 1)
+    }
+    visit(value, 0)
+    // Reuse the event log's JSON profile, including safe integer numbers, before anything is committed.
+    if (canonicalizeWorldJson(value as StatusValue).length > VALUE_LIMIT) throw new RangeError('状态值过长：' + status.key)
+    if (!this.#valueValidators.get(status.key)!(value)) throw new TypeError('状态值不符合类型或 schema：' + status.key)
     return value as StatusValue
   }
 
@@ -187,8 +215,8 @@ export class PackStatus {
     for (const event of events) {
       if (event.eventType !== 'status.updated') continue
       for (const { holderId, key, value } of statusData(event).changes) {
-        if (holderId === null) truth.public[key] = value
-        else (truth.characters[holderId] ??= {})[key] = value
+        if (holderId === null) truth.public[key] = structuredClone(value)
+        else (truth.characters[holderId] ??= {})[key] = structuredClone(value)
       }
     }
     return truth
@@ -210,12 +238,12 @@ export class PackStatus {
         const real = holderId === null ? truth.public[status.key] : truth.characters[holderId]?.[status.key]
         const base = { key: status.key, label: status.label, holderId }
         if (status.alwaysKnown) {
-          if (real !== undefined) result.push({ ...base, value: real, current: true })
+          if (real !== undefined) result.push({ ...base, value: structuredClone(real), current: true })
           continue
         }
         const reveal = lastReveal.get(slot(holderId, status.key))
         if (reveal === undefined) continue
-        result.push({ ...base, value: reveal.value, current: (lastChange.get(slot(holderId, status.key)) ?? -1) <= reveal.index })
+        result.push({ ...base, value: structuredClone(reveal.value), current: (lastChange.get(slot(holderId, status.key)) ?? -1) <= reveal.index })
       }
     }
     return result
@@ -302,7 +330,10 @@ export class PackStatus {
       this.#value(status, reveal.value)
       if (!sceneIds.includes(reveal.observerId)) throw new TypeError('告知对象不在当前场景：' + String(reveal.observerId))
       // A reveal tells the observer the value as of this event, never an invented one.
-      if (next.get(slot(holderId, status.key)) !== reveal.value) throw new TypeError('告知的值与真实值不一致：' + status.key)
+      const actual = next.get(slot(holderId, status.key))
+      if (actual === undefined || !Buffer.from(canonicalizeWorldJson(actual)).equals(Buffer.from(canonicalizeWorldJson(reveal.value)))) {
+        throw new TypeError('告知的值与真实值不一致：' + status.key)
+      }
     }
   }
 
@@ -321,6 +352,16 @@ export class PackStatus {
       if (state.game.active) return state.participants.includes(actorId) ? key : undefined
     }
     return undefined
+  }
+
+  #allowedOperations(events: readonly RulebookEvent[], actorId: string): readonly string[] {
+    const result = this.#call('policy', [knownStatusView(this.known(events, actorId), actorId), actorId])
+    if (result === null) return this.operations.map(op => op.id)
+    const policy = object(result, '状态操作许可')
+    exact(policy, ['operations'])
+    const operations = strings(policy.operations, '状态操作许可')
+    if (operations.some(id => !this.operations.some(op => op.id === id))) throw new TypeError('状态许可包含未声明的操作')
+    return operations
   }
 
   /** Author reveals name what to tell, never a value; the host fills the value as of this event. The actor
@@ -371,6 +412,9 @@ export class PackStatus {
     if (op.actors === 'player' ? actorId !== input.playerId : op.actors === 'npc' && actorId === input.playerId) {
       return { status: 'rejected', reason: '你不能进行这个操作，什么都没有发生。' }
     }
+    if (!this.#allowedOperations(events, actorId).includes(op.id)) {
+      return { status: 'rejected', reason: '当前已知条件不允许这个操作，什么都没有发生。' }
+    }
     const world = actorWorldView(input.worldPath, input.address, input.manifest, events, actorId, input.asOfWorldSeq)
     const sceneIds = [...new Set([actorId, ...world.characterIds as string[]])]
     for (const name of op.characterParameters) {
@@ -409,8 +453,9 @@ export class PackStatus {
    * activity scoping with the participant check. A running activity's policy filter is applied by its caller. */
   withOperations(values: readonly ActionAffordance[], events: readonly RulebookEvent[], actor: string, playerId: string): ActionAffordance[] {
     const activityKey = this.#activityKey(events, actor)
+    const allowed = this.#allowedOperations(events, actor)
     const choices: WorldJsonObject[] = this.operations
-      .filter(op => (!op.activities || (activityKey !== undefined && op.activities.includes(activityKey)))
+      .filter(op => allowed.includes(op.id) && (!op.activities || (activityKey !== undefined && op.activities.includes(activityKey)))
         && (op.actors === 'any' || (op.actors === 'player') === (actor === playerId)))
       .map(op => ({ label: op.label, targetRef: { kind: 'character', id: actor }, bindingId: 'status',
         definitionRef: { id: PREFIX + op.id, version: 1 }, arguments: {}, argumentSchema: op.schema }))
@@ -453,11 +498,16 @@ export class PackStatus {
     const id = record(record(input.action.parameters)?.definitionRef)?.id
     if (typeof id !== 'string' || !id.startsWith(PREFIX)) return undefined
     if (input.status !== 'accepted') {
-      const latest = input.reason === REJECTED ? input.events.findLast(e => e.eventType === 'action.rejected') : undefined
+      const latest = input.reason === REJECTED ? input.events.findLast(e => e.eventType === 'action.rejected'
+        && record(e.data)?.characterId === input.actorId && record(e.data)?.reason === REJECTED) : undefined
       const reason = latest === undefined ? undefined : object(latest.data).description
       return typeof reason === 'string' ? { status: input.status, description: reason } : characterExecutionResult(input)
     }
-    const latest = input.events.findLast(e => e.eventType === 'status.updated')
+    const latest = input.events.findLast(e => {
+      if (e.eventType !== 'status.updated') return false
+      const source = statusData(e).source
+      return source.kind === 'operation' && source.actorId === input.actorId && source.operation === id.slice(PREFIX.length)
+    })
     const description = latest === undefined ? undefined : object(latest.data).description
     return typeof description === 'string' ? { status: 'accepted', description } : characterExecutionResult(input)
   }
@@ -521,7 +571,23 @@ export class PackStatus {
     let error: string | undefined
     await this.#commitRound(worldPath, address, 'status-round:' + randomUUID(), store => {
       const events = store.readEvents(address)
-      const round = events.filter(e => e.eventType === 'status.updated' && statusData(e).source.kind === 'round').length + 1
+      // Count submitted player rounds even when a previous hook returned null or failed. Multiple
+      // player actions in one transaction are one input; NPC actions and hook commits do not count.
+      const playerRounds = new Set(events.filter(e => e.eventType === 'action.resolved'
+        && record(e.data)?.sourceRole === 'player').map(e => e.transactionId))
+      // A quick activity action starts and executes in two host commits for one player request.
+      const starts = new Map<string, typeof events[number]>()
+      for (const event of events) {
+        if (event.eventType !== 'activity.updated') continue
+        const data = object(event.data)
+        if (typeof data.requestId !== 'string') continue
+        if (data.operation === 'start') starts.set(data.requestId, event)
+        else {
+          const start = starts.get(data.requestId + ':start')
+          if (start && object(object(start.data).state).id === object(data.state).id) playerRounds.delete(start.transactionId)
+        }
+      }
+      const round = playerRounds.size
       // Folding stored events stays outside the catch: corrupt history must surface, not read as a hook failure.
       const truth = this.truth(events)
       let data: StatusEventData | undefined

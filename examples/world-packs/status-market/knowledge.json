@@ -1,0 +1,15 @@
+{
+  "maximumCharacters": 1000,
+  "entries": [{
+    "documentId": "document:task-reward", "keywords": [], "constant": true, "priority": 10,
+    "when": {
+      "type": "object", "required": ["self"], "properties": {
+        "self": { "type": "object", "required": ["quests"], "properties": {
+          "quests": { "type": "object", "required": ["market"], "properties": {
+            "market": { "type": "object", "required": ["stage"], "properties": { "stage": { "const": "done" } } }
+          } }
+        } }
+      }
+    }
+  }]
+}

@@ -300,8 +300,13 @@ export class PrototypeCharacterTurn {
         calls += 1
         modelFailure = 'provider_failed'
         const latestResult = publicationFailure ?? performResult
+        const resultEventRefs = latestResult?.eventRefs
+        const resultSeq = Array.isArray(resultEventRefs) ? resultEventRefs.at(-1) : undefined
+        // A continuation describes its own committed action, even if another actor has since committed
+        // a private result. Its scene/context above still uses the latest authorized world prefix.
         const visibleResult = latestResult === undefined ? undefined : (this.options.executionResult ?? characterExecutionResult)({
-          manifest: this.#manifest, events: history, actorId: characterId,
+          manifest: this.#manifest, events: typeof resultSeq === 'number' ? history.filter(event => event.seq <= resultSeq) : history,
+          actorId: characterId,
           action: object(latestResult.action) as { actionType: string; parameters: WorldJsonValue },
           status: String(latestResult.status), reason: typeof latestResult.reason === 'string' ? latestResult.reason : null })
         const canRecall = remaining >= 3 && this.options.memory !== undefined && !recalledThisActivation && performResult === undefined

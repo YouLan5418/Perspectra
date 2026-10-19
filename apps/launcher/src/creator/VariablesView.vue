@@ -35,7 +35,7 @@ function select(path: string, label: string) { store.select({ kind: 'variable', 
 
     <section class="cr-section">
       <h2>读取边界</h2>
-      <p class="cr-muted">变量来自当前安装状态；读取不运行作者脚本，也不重建历史值。包变量没有事件级变更历史，需要追踪变化时请查看轨迹页的相关事件。</p>
+      <p class="cr-muted">状态值从已提交的 status.updated 世界事件推导；读取不运行作者脚本。对象和数组按状态键整体记录，需要追踪变化时请查看轨迹页的相关事件。</p>
     </section>
   </div>
 </template>

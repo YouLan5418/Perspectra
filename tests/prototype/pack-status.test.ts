@@ -6,10 +6,11 @@ import { interactionPackageDescription } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import type { RulebookEvent } from '@harness-world/kernel'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { PackStatus, type StatusEventData } from '../experiments/pack-status.ts'
+import { knownStatusView, PackStatus, type StatusEventData } from '../experiments/pack-status.ts'
 
 const original = resolve('examples/world-packs/ai-girls-awaken-v10')
 const market = readFileSync(resolve('tests/prototype/fixtures/status-market.js'), 'utf8')
+const quests = readFileSync(resolve('examples/world-packs/status-market/scripts/status.js'), 'utf8')
 let root: string, packPath: string, pack: CompiledWorldPackV5, plain: CompiledWorldPackV5
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'pack-status-'))
@@ -30,6 +31,58 @@ const withDefinition = (edit: (definition: string) => string) =>
   market.replace(/definition: \{[\s\S]*?\n {2}\},\n {2}initialize/u, match => edit(match))
 
 describe('pack status', () => {
+  it('validates nested records and arrays, reveals whole values and preserves independent snapshots', () => {
+    const status = PackStatus.parse(quests, pack), initial = status.initialEvent()
+    const value = { market: { stage: 'done', notes: ['领取委托', '完成演示流程'] } }
+    const data: StatusEventData = { source: { kind: 'operation', operation: 'finish-task', actorId: 'character:gpt' },
+      changes: [{ holderId: 'character:claude', key: 'quests', value }], reveals: [] }
+    status.validate([initial], data, ['character:gpt', 'character:claude'])
+    const events = [initial, event(data)]
+    expect(status.truth(events).characters['character:claude']!.quests).toEqual(value)
+    expect(status.known(events, 'character:claude')).toContainEqual(expect.objectContaining({ key: 'quests', value: {}, current: false }))
+    expect(status.known(events, 'character:gpt').some(row => row.holderId === 'character:claude')).toBe(false)
+    const revealed: StatusEventData = { source: data.source, changes: [], reveals: [
+      { observerId: 'character:claude', holderId: 'character:claude', key: 'quests', value: JSON.parse(JSON.stringify(value)) } ] }
+    expect(() => status.validate(events, revealed, ['character:claude'])).not.toThrow()
+    events.push(event(revealed))
+    const view = knownStatusView(status.known(events, 'character:claude'), 'character:claude')
+    expect(view.self.quests).toEqual(value)
+    ;(view.self.quests as { market: { stage: string } }).market.stage = 'corrupted copy'
+    expect(status.truth(events).characters['character:claude']!.quests).toEqual(value)
+    for (const broken of [[], { market: { stage: 'unknown', notes: [] } }, { market: { stage: 'done', notes: [1] } }]) {
+      expect(() => status.validate([initial], { ...data, changes: [{ ...data.changes[0]!, value: broken }] }, ['character:gpt'])).toThrow()
+    }
+    expect(() => status.validate(events, { ...revealed, reveals: [{ ...revealed.reveals[0]!, value: {} }] }, ['character:claude'])).toThrow('真实值')
+  })
+
+  it('bounds composite values even if the author schema allows arbitrary nested data', () => {
+    const script = `globalThis.statusScript = { definition: { statuses: [
+      { key: 'data', label: '记录', type: 'object', owner: 'public', schema: { type: 'object' } }
+    ], operations: [] }, initialize(ids) { return { public: { data: {} }, characters: Object.fromEntries(ids.map(id => [id, {}])) } } }`
+    const status = PackStatus.parse(script, pack), initial = status.initialEvent()
+    let deep: Record<string, unknown> = {}
+    for (let i = 0; i < 18; i++) deep = { next: deep }
+    for (const value of [deep, { text: 'x'.repeat(17 * 1024) }, { rows: Array(4096).fill(0) }, { unsafe: 1.5 }]) {
+      expect(() => status.validate([initial], { source: { kind: 'round', round: 1 },
+        changes: [{ holderId: null, key: 'data', value: value as never }], reveals: [] }, [])).toThrow()
+    }
+  })
+
+  it('operation policy sees only known state, including last confirmed values', () => {
+    const status = PackStatus.parse(quests, pack), initial = status.initialEvent()
+    const ids = (events: RulebookEvent[]) => status.withOperations([], events, 'character:claude', 'character:player')
+      .flatMap(row => row.interactions ?? []).map(row => (row.definitionRef as { id: string }).id)
+    const value = { market: { stage: 'done', notes: [] } }
+    const hidden = event({ source: { kind: 'operation', operation: 'finish-task', actorId: 'character:gpt' },
+      changes: [{ holderId: 'character:claude', key: 'quests', value }], reveals: [] })
+    expect(ids([initial, hidden])).toContain('status:accept-task')
+    expect(ids([initial, hidden])).not.toContain('status:claim-reward')
+    const reveal = event({ source: { kind: 'operation', operation: 'check-purse', actorId: 'character:claude' }, changes: [],
+      reveals: [{ observerId: 'character:claude', holderId: 'character:claude', key: 'quests', value }] })
+    expect(ids([initial, hidden, reveal])).toContain('status:claim-reward')
+    expect(ids([initial, hidden, reveal])).not.toContain('status:accept-task')
+  })
+
   it('loads only a registered, unmodified status script', () => {
     expect(PackStatus.load(original, plain)).toBeUndefined()
     expect(PackStatus.load(packPath, pack)?.statuses.map(s => s.key)).toEqual(['money', 'time', 'hp'])

@@ -105,10 +105,11 @@ Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者�
 
 | 部分 | 职责 |
 | --- | --- |
-| definition.statuses | 每项 `{ key, label, type, owner, alwaysKnown?, activities? }`。type 为 `number`／`string`／`boolean`；owner 为 `public`（全世界一份）或 `character`（包里每个角色各一份，包括玩家和尚未登场的角色）；`alwaysKnown: true` 表示所有人始终知道真实值 |
+| definition.statuses | 每项 `{ key, label, type, owner, schema?, alwaysKnown?, activities? }`。type 为 `number`／`string`／`boolean`／`object`／`array`／`null`；对象、数组必须声明同类型 JSON Schema，其他类型可选；owner 为 `public`（全世界一份）或 `character`（包里每个角色各一份，包括玩家和尚未登场的角色）；`alwaysKnown: true` 表示所有人始终知道真实值 |
 | definition.operations | 每项 `{ id, label, schema, characterParameters?, actors?, activities? }`。schema 必须是封闭对象；`characterParameters` 列出指向角色的字符串参数，宿主在调用 resolve 前检查该角色存在且在行动者当前授权场景内；`actors` 为 `player`／`npc`／`any`（默认） |
 | initialize(characterIds) | 返回 `{ public, characters, reveals? }`，必须恰好包含声明的状态。新世界首次打开时提交为初始事件；角色私有状态默认告知归属者，公共状态除非 alwaysKnown 否则不告知任何人 |
 | resolve(truth, actorId, operationId, parameters, world) | 裁定一次操作。truth 是真实值，只在宿主内使用，不进入任何角色视图；world 与活动 resolve 的第五参数相同 |
+| policy(known, actorId)（可选） | 返回 `{ operations: ['操作ID', ...] }`，根据该角色已知状态筛选操作；省略或返回 null 表示不额外筛选。只读，不提交效果 |
 | onRoundEnd(truth, round)（可选） | 每次玩家输入被受理、本轮角色反应结束后调用一次，返回 `null` 或 `{ changes, reveals }` |
 
 resolve 返回两种结果之一：
@@ -119,6 +120,37 @@ resolve 返回两种结果之一：
 **失败不等于拒绝。** 余额不足、偷窃被发现这类玩法失败，应作为被接受的结果返回：changes 为空或只含部分变化，照常带上 reveals 和 description，角色才能通过失败得知真实值。
 
 reveals 每项只写 `{ observerId, holderId, key }`，**不写值**；宿主按本次结果之后的真实值填入，作者无法告知一个编造的值。本次改变了行动者自己的状态时，新值自动告知行动者，不必写 reveal；别人引起的变化（例如被偷）不会自动告知归属者。reveals 和 audience 只能指向行动者本人或其当前授权场景内的角色。
+
+### 对象、数组与条件操作
+
+例如委托记录为 `{ market: { stage: 'done', notes: ['领取委托', '完成演示流程'] } }`。作者可用对象记录按稳定 ID 索引的任务，用数组保存清单；嵌套内容由 `schema` 检查类型、必填字段、枚举和长度。数字沿用世界事件的安全整数格式。字符串未声明 schema 时仍限 200 字符，需要长文本可显式声明更大的 maxLength，但仍受单值上限约束。
+
+```js
+{ key: 'quests', label: '委托记录', type: 'object', owner: 'character', schema: {
+  type: 'object', additionalProperties: {
+    type: 'object', required: ['stage', 'notes'], additionalProperties: false,
+    properties: {
+      stage: { type: 'string', enum: ['active', 'done', 'claimed'] },
+      notes: { type: 'array', items: { type: 'string' }, maxItems: 16 }
+    }
+  }
+} }
+```
+
+变化仍用 `{ holderId, key, value }` **整体替换该键**，不解析模型的 JSON Patch。resolve 每次收到最新 truth，作者据此构建新值，避免拿模型提供的旧对象覆盖其他变化。一次结果中任何值不符合 schema 或范围，整次操作不提交；活动附带的状态也使用相同校验。reveal 告知该键的整个对象，不能单独隐藏其中某个子字段；公开目标与隐藏结局条件应拆成不同状态键。
+
+可选 policy 收到 `{ public, self, characters }`：公共已知值、本人已知值，以及其他角色已被告知给自己的值。未知的键不出现，已有值可能只是上次确认；它不包含全局 truth、其他角色的私密上下文或模型输出。
+
+```js
+policy(known) {
+  const stage = known.self.quests?.market?.stage
+  return { operations: ['check-purse', ...(stage === 'done' ? ['claim-reward'] : [])] }
+}
+```
+
+这里“完成后才出现领奖选项”与“实际允许领奖”分开检查：宿主在生成玩家／NPC 候选时调用 policy，执行前再次用最新已知状态检查，旧选项或伪造请求不能绕过；resolve 仍须检查最新 truth 中确实完成且尚未领奖，并一次提交加钱和 claimed 标志。状态、操作的活动范围及活动自身 policy 继续有效。
+
+这轮只增加条件筛选，不引入自动事件链：领奖等变化仍由显式操作／活动裁定或每轮钩子提交，不自动决定 NPC 是否行动。知识条目可用 `when` JSON Schema 按同一份已知状态筛选，见[世界设定指南](world-knowledge.md#按已知状态筛选)。完整的领取、完成、领奖和条件知识样例见[集市脚本](../../../examples/world-packs/status-market/scripts/status.js)。
 
 ### 谁怎样提出操作
 
@@ -134,14 +166,14 @@ reveals 每项只写 `{ observerId, holderId, key }`，**不写值**；宿主按
 
 ### 每轮钩子
 
-onRoundEnd 拿到真实值和轮次，拿不到角色上下文或模型输出；结果作为本轮最后一个 `status.updated` 提交。它没有行动者和场景，所以 reveals 只能告知被改状态的归属者本人；alwaysKnown 的状态（如游戏时间）不需要告知。不产生对白，不额外调度角色。钩子失败或超时时，本轮已提交内容保留、状态不变，错误记在宿主调试信息的 `debug.statusRoundError`，不重试。末端重新生成会连同这一轮一起重演。
+onRoundEnd 拿到真实值和轮次，拿不到角色上下文或模型输出；结果作为本轮最后一个 `status.updated` 提交。轮次从 1 开始，按已提交的玩家回合计算：钩子返回 null 或失败不阻止下一轮递增；同一输入的幂等重放和活动的 NPC 重试不新增轮次；快捷活动的开始与执行合算一轮。它没有行动者和场景，所以 reveals 只能告知被改状态的归属者本人；alwaysKnown 的状态（如游戏时间）不需要告知。不产生对白，不额外调度角色。钩子失败或超时时，本轮已提交内容保留、状态不变，错误记在宿主调试信息的 `debug.statusRoundError`，不重试。末端重新生成会连同这一轮一起重演。
 
 ### 显示、存档与上限
 
-- 玩家：PlayerView 新增 `statusBar`，每项 `{ key, label, holderId, holderName?, value, current, self? }`，只含玩家已知值；`self: true` 按 holderId 标出玩家自己的状态。默认舞台在世界标题下按归属者分组显示，玩家自己的一组标为“你”，过期值标“上次确认”。社区前端通过 SDK 读到同一字段，永远拿不到真实值。
+- 玩家：PlayerView 新增 `statusBar`，每项 `{ key, label, holderId, holderName?, value, current, self? }`，value 可为结构化 JSON，只含玩家已知值；`self: true` 按 holderId 标出玩家自己的状态。默认舞台在世界标题下按归属者分组显示，玩家自己的一组标为“你”，过期值标“上次确认”，对象和数组显示为 JSON。社区前端通过 SDK 读到同一字段，永远拿不到未授权的真实值。
 - 创作者：调试接口的 `variables` 显示全部真实值。
 - 存档：状态只在世界事件里，故事节点、分叉、末端重新生成随事件一起回滚，没有独立状态文件。
-- 上限：状态 64 个、操作 32 个，字符串值 200 字符，每次结果 changes 和 reveals 各 64 条；脚本 64 KiB，单次调用 100 ms，输入输出各 64 KiB。操作 ID 不能用 start、retry、suspend、resume、abandon。
+- 上限：状态定义 64 个、操作 32 个，每个状态值最多 16 KiB、嵌套深度 16、4096 个值节点，每次结果 changes 和 reveals 各 64 条；脚本 64 KiB，单次调用 100 ms，输入输出各 1 MiB。角色状态会按每个包角色各建一份，总体仍受调用大小约束。操作 ID 不能用 start、retry、suspend、resume、abandon。
 
 ### 已验证与已知限制
 
@@ -155,7 +187,7 @@ onRoundEnd 拿到真实值和轮次，拿不到角色上下文或模型输出；
 4. 不支持跨场景告知（短信、银行通知等）。
 5. `status.updated` 登记进全局事件清单，改变了所有世界的 manifest，**所有旧存档**打开时都会报错，需要新建存档；不提供迁移。
 6. `current:false` 是确定性信号：真实值一变，归属者马上看到“上次确认”。对“暗中偷窃”这类玩法，目前会让失主察觉到“有变化”（不含金额和来源）；想完全隐藏就要等后续设计，现在无法由作者关闭。
-7. 位置、剧情阶段等其他条件不做成声明，作者在 resolve 里自己检查并返回 rejectReason。
+7. 常驻状态条件可用 policy 筛选操作；位置、物品等实时执行条件仍在 resolve 中检查并返回 rejectReason。不自动生成递归事件链，也不从叙事解析状态变化。
 
 ## 4. 试玩要求
 

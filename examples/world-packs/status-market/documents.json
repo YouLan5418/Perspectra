@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "worldpack-documents/v2",
+  "documents": [
+    { "documentId": "document:task-reward", "contentRef": "task-reward.md", "usage": "world_context", "audience": "public" }
+  ]
+}

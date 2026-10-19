@@ -18,7 +18,7 @@ export interface PlayerView {
   tailRound?: PlaytestState['tailRound']
   /** The player's own known status values; `current:false` is a last confirmed value. Never the true values. */
   /** `self` marks the player's own statuses by holder ID; display names may collide. */
-  statusBar?: { key: string; label: string; holderId: string | null; holderName?: string; self?: boolean; value: number | string | boolean; current: boolean }[]
+  statusBar?: { key: string; label: string; holderId: string | null; holderName?: string; self?: boolean; value: import('@harness-world/contracts').WorldJsonValue; current: boolean }[]
   history: { seq: number; speaker: string; speakerId?: CharacterId; text: string; player: boolean; segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
   actions: { id: string; label: string; action: PlaytestAction; participantSelection?: { min: number; max: number; candidates: { id: string; name: string }[] } }[]
 }

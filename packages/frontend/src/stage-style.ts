@@ -96,6 +96,7 @@ h1{font-size:12.5px;font-weight:400;color:var(--muted);margin:4px 0 0;letter-spa
 .status-group{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
 .status-group small{font-size:11.5px;letter-spacing:.14em;color:var(--lamp)}
 .status-item strong{font-weight:600;color:var(--text)}
+.status-item{min-width:0;overflow-wrap:anywhere}
 .stage-tools{display:flex;align-items:center;gap:8px}
 .stage-tools button{
   font-size:12.5px;padding:7px 14px;border-radius:999px;

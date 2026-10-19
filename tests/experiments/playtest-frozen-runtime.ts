@@ -378,7 +378,6 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       if (options.recentExecutionEvidence === true) request = { ...request, context: recentExecutionContext(request.context) }
       const character = request.context.character as WorldJsonObject
       const characterId=String(character.characterId)
-      if (this.#knowledge) request = {...request, context: {...request.context, knowledge: this.#knowledge.select(request.context)}}
       if (this.#status) {
         const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
         let updates
@@ -386,6 +385,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         request = {...request, context: {...request.context,
           knownStatus: this.#status.known(updates, characterId) as unknown as WorldJsonObject[], knownStatusNote: KNOWN_STATUS_NOTE}}
       }
+      if (this.#knowledge) request = {...request, context: {...request.context, knowledge: this.#knowledge.select(request.context)}}
       this.#roleCalls.delete(characterId)
       const roleProvider=roleProviders.get(characterId)
       if(!roleProvider)throw new TypeError('当前角色没有可调用的预设配置。')
@@ -640,10 +640,11 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         this.#notice = `${result.reason}（这次命令没有提交；请检查命令参数，或用 /act 指定完整交互。）`
         this.#lastPlayerIntent = 'clarification'
       } else {
+        const committed = result.result.headSeq > this.#rootBeforeSeq
         const playerNotice = this.#playerResolutionNotice(key, result.result.headSeq)
         await this.#refresh()
         await this.#activateCharacters()
-        await this.#endStatusRound()
+        if (committed) await this.#endStatusRound()
         if (playerNotice !== undefined) this.#notice = [playerNotice, this.#notice].filter(Boolean).join(' ')
       }
     } catch (error: unknown) {
@@ -682,8 +683,12 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
       await this.#application.release(this.#address)
       const changed = await this.#activity.apply(request)
+      const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
       this.#notice = changed ? '游戏操作已提交。' : '已返回原提交结果，没有再次执行。'
-      if (changed) { await this.#activateCharacters(true); await this.#endStatusRound() }
+      if (changed) {
+        await this.#activateCharacters(true)
+        if (committed) await this.#endStatusRound()
+      }
     } finally { try { await this.#refresh() } finally { this.#endWork() } }
     return this.state()
   }

@@ -27,10 +27,11 @@
   "memoryFiles": [
     "memory.json"
   ],
-  "documentFiles": [],
-  "markdownFiles": [],
+  "documentFiles": ["documents.json"],
+  "markdownFiles": ["task-reward.md"],
   "assetFiles": [
-    "scripts/status.js"
+    "scripts/status.js",
+    "knowledge.json"
   ],
   "assertionFiles": [
     "assertions.json"

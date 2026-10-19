@@ -52,6 +52,23 @@ it('checks knowledge audience before matching and skips whole entries exceeding 
   expect(()=>PackKnowledge.load(f.path,f.pack)).toThrow('编译包不一致')
 })
 
+it('gates knowledge by the receiver known nested state without exposing another role secrets', async () => {
+  const f = await packFixture()
+  const when = JSON.parse(readFileSync(resolve('examples/world-packs/status-market/knowledge.json'), 'utf8')).entries[0].when
+  const knowledge = PackKnowledge.parse({ ...f.knowledgeConfig, entries: f.knowledgeConfig.entries.map(entry =>
+    ({ ...entry, constant: true, when })) }, f.pack)
+  const state = (actor: string, holderId: string, stage: string): WorldJsonObject => ({ ...context(actor), knownStatus: [
+    { key: 'quests', label: '委托', holderId, value: { market: { stage, notes: [] } }, current: false } ] })
+  expect(knowledge.select(context('character:friend')).entries).toEqual([])
+  expect(knowledge.select(state('character:friend', 'character:companion', 'done')).entries).toEqual([])
+  expect(knowledge.select(state('character:friend', 'character:friend', 'active')).entries).toEqual([])
+  const friend = JSON.stringify(knowledge.select(state('character:friend', 'character:friend', 'done')))
+  expect(friend).toContain('研究基地')
+  expect(friend).not.toContain('密约')
+  expect(JSON.stringify(knowledge.select(state('character:companion', 'character:companion', 'done')))).toContain('密约')
+  expect(() => PackKnowledge.parse({ ...f.knowledgeConfig, entries: [{ ...f.knowledgeConfig.entries[0], when: [] }] }, f.pack)).toThrow('条件')
+})
+
 it('accepts a lorebook-sized pack: 600 entries, long keyword lists and a single entry near 40k characters',async()=>{
   const root = mkdtempSync(join(tmpdir(),'pack-lorebook-scale-')); roots.push(root)
   const path = join(root,'pack'); cpSync(resolve('examples/world-packs/prototype-g1'),path,{recursive:true})

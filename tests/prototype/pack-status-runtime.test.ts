@@ -4,10 +4,13 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it } from 'vitest'
-import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
+import { brandId, interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { WorldStore } from '@harness-world/store-sqlite'
+import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import { createCoreRulebookRegistry, RulebookRegistry } from '@harness-world/kernel'
+import { PrototypeCharacterTurn, type PrototypeTurnResult } from '../../packages/application/src/prototype-character-turn.ts'
+import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
 import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
 import { PackStatus, type KnownStatus } from '../experiments/pack-status.ts'
 import type { CoreRunner } from '../experiments/hindsight-python.ts'
@@ -30,6 +33,16 @@ type Decide = (input: WorldJsonObject) => unknown
 const HOOK = /  onRoundEnd\(truth\) \{[\s\S]*?\n  \},\n/u
 /** Fixture script variants: the default market, without the round hook, or with a throwing one. */
 const scripts = { market: (s: string) => s, noHook: (s: string) => s.replace(HOOK, ''),
+  quests: () => readFileSync(resolve('examples/world-packs/status-market/scripts/status.js'), 'utf8'),
+  invalidQuests: () => readFileSync(resolve('examples/world-packs/status-market/scripts/status.js'), 'utf8')
+    .replace("notes: ['领取委托']", 'notes: [123]')
+    .replace("return { changes: [{ holderId: actorId, key: 'quests'", "return { changes: [{ holderId: actorId, key: 'money', value: 0 }, { holderId: actorId, key: 'quests'"),
+  privateResult: (s: string) => s.replace("description: '查看了钱包'", "description: actorId + ' 余额 ' + own.money")
+    .replace('money: 100, hp: 20', 'money: id === "character:friend" ? 7319 : 100, hp: 20'),
+  conditionalHook: (s: string) => s.replace(HOOK, '  onRoundEnd(truth, round) { if (round < 2) return null;'
+    + ' return { changes: [{ holderId: null, key: "time", value: round }], reveals: [] } },\n'),
+  failedFirstHook: (s: string) => s.replace(HOOK, '  onRoundEnd(truth, round) { if (round === 1) throw new Error("首轮故障");'
+    + ' return { changes: [{ holderId: null, key: "time", value: round }], reveals: [] } },\n'),
   throwingHook: (s: string) => s.replace(HOOK, '  onRoundEnd() { throw new Error("钟楼坏了") },\n'),
   // A round hook may not touch an activity-scoped status, nor tell anyone but the changed status's owner.
   scopedHook: (s: string) => s.replace(HOOK, '  onRoundEnd() { return { changes: [{ holderId: "character:player", key: "hp", value: 1 }],'
@@ -41,7 +54,7 @@ const scripts = { market: (s: string) => s, noHook: (s: string) => s.replace(HOO
     + ' value: truth.characters["character:player"].money - round }],'
     + ' reveals: [{ observerId: "character:player", holderId: "character:player", key: "money" }] } },\n') }
 
-async function fixture(provider: 'ollama' | 'local', script: keyof typeof scripts = 'market', activity = false) {
+async function fixture(provider: 'ollama' | 'local', script: keyof typeof scripts = 'market', activity: boolean | 'quick' = false) {
   const root = mkdtempSync(join(tmpdir(), 'pack-status-runtime-')); roots.push(root)
   const packPath = join(root, 'pack'), data = join(root, 'data')
   cpSync(resolve('examples/world-packs/prototype-g1'), packPath, { recursive: true })
@@ -51,9 +64,21 @@ async function fixture(provider: 'ollama' | 'local', script: keyof typeof script
   writeFileSync(join(packPath, 'scripts/status.js'), variant)
   const source = JSON.parse(readFileSync(join(packPath, 'worldpack.source.json'), 'utf8'))
   source.assetFiles = ['scripts/status.js']
+  if (script === 'quests' || script === 'invalidQuests') {
+    for (const file of ['knowledge.json', 'documents.json', 'task-reward.md']) {
+      writeFileSync(join(packPath, file), readFileSync(resolve('examples/world-packs/status-market', file)))
+    }
+    source.assetFiles.push('knowledge.json'); source.documentFiles = ['documents.json']; source.markdownFiles = ['task-reward.md']
+  }
   if (activity) {
-    writeFileSync(join(packPath, 'scripts/activity.js'), readFileSync(resolve('examples/world-packs/ai-girls-awaken-v10/scripts/activity.js'), 'utf8')
-      .replaceAll('character:gpt', 'character:companion'))
+    const activitySource = activity === 'quick'
+      ? readFileSync(resolve('tests/prototype/fixtures/status-duel.js'), 'utf8')
+        .replace("npcIds: ['character:companion']", 'npcIds: []')
+        .replace("id: 'yield', label: '认输'", "id: 'yield', label: '认输', quick: true")
+        .replace('private: { [playerId]: {}, [npcIds[0]]: {} }', 'private: { [playerId]: {} }')
+      : readFileSync(resolve('examples/world-packs/ai-girls-awaken-v10/scripts/activity.js'), 'utf8')
+        .replaceAll('character:gpt', 'character:companion')
+    writeFileSync(join(packPath, 'scripts/activity.js'), activitySource)
     source.assetFiles.push('scripts/activity.js')
   }
   writeFileSync(join(packPath, 'worldpack.source.json'), JSON.stringify(source))
@@ -98,6 +123,60 @@ async function fixture(provider: 'ollama' | 'local', script: keyof typeof script
     setDecision: (fn: Decide) => { decide = fn } }
 }
 const known = (input: WorldJsonObject) => object(input.context).knownStatus as unknown as KnownStatus[]
+
+it('interleaved private status operations keep each continuation bound to its own result', async () => {
+  const f = await fixture('ollama', 'privateResult')
+  const path = join(f.runtime.dataDirectory, 'world.sqlite'), address = f.runtime.address
+  await f.runtime.close(); runtimes.splice(runtimes.indexOf(f.runtime), 1)
+  const store = new WorldStore(path), leases = new WriterLeaseService(path)
+  const availability = new CharacterRuntimeAvailabilityService(path)
+  const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
+    .resolve('builtin:speak-move', 2, 'test', address)
+  const rules = new RulebookRegistry()
+  rules.register('builtin:speak-move', 2, f.status.resolver(core, path, address, PLAYER))
+  const continuations = new Map<string, WorldJsonObject>()
+  let operation = 'check-purse'
+  let follower: Promise<PrototypeTurnResult> | undefined
+  let started!: () => void
+  const followerStarted = new Promise<void>(done => { started = done })
+  const turn = new PrototypeCharacterTurn({ address, store, leases, availability, rulebooks: rules,
+    allowUnrelatedCommits: true, executionResult: input => f.status.executionResult(input) ?? characterExecutionResult(input),
+    decide: async request => {
+      const id = String(object(request.context.character).characterId)
+      if (request.continuation) {
+        continuations.set(id, request.result!)
+        return { decision: 'abstain' }
+      }
+      if (id === BYSTANDER) started()
+      return { decision: 'perform', actionType: 'interact', parameters: { targetRef: { kind: 'character', id },
+        bindingId: 'status', definitionRef: { id: 'status:' + operation, version: 1 },
+        arguments: operation === 'buy' ? { price: 1 } : {} } }
+    },
+    onCommitted: async () => {
+      if (!follower) {
+        // Queue the other actor's commit before the first actor builds its continuation.
+        follower = turn.run(brandId(BYSTANDER, 'CharacterId'))
+        await followerStarted
+      }
+    },
+  })
+  try {
+    const first = await turn.run(brandId(THIEF, 'CharacterId')); await follower
+    expect(continuations.get(THIEF)).toMatchObject({ description: THIEF + ' 余额 100' })
+    expect(continuations.get(BYSTANDER)).toMatchObject({ description: BYSTANDER + ' 余额 7319' })
+    expect(JSON.stringify(continuations.get(THIEF))).not.toContain('7319')
+    // Actor/operation matching alone is insufficient after the same actor performs that operation again.
+    operation = 'buy'
+    await turn.run(brandId(THIEF, 'CharacterId'))
+    operation = 'check-purse'
+    await turn.run(brandId(THIEF, 'CharacterId'))
+    expect(continuations.get(THIEF)).toMatchObject({ description: THIEF + ' 余额 99' })
+    const prior = first.performResult!, action = object(prior.action)
+    await turn.run(brandId(THIEF, 'CharacterId'), { continuationOf: { actionId: String(prior.operationId),
+      action: { actionType: String(action.actionType), parameters: action.parameters! } } })
+    expect(continuations.get(THIEF)).toMatchObject({ description: THIEF + ' 余额 100' })
+  } finally { availability.close(); leases.close(); store.close() }
+}, 60_000)
 
 it.each(['ollama', 'local'] as const)('an NPC theft commits one status.updated and only the thief learns the new balances (%s)', async provider => {
   const f = await fixture(provider)
@@ -210,6 +289,73 @@ it('initial event is committed once on first open and not again on reopen', asyn
 const source = (event: { data: unknown }) => object(object(event.data).source)
 const speak = (text: string) => '/act speak ' + JSON.stringify({ text, scope: 'scene_public' })
 
+it('structured quest state unlocks options, grants a reward once, and follows regeneration and story forks', async () => {
+  const f = await fixture('local', 'quests')
+  const offered = async () => (await f.runtime.state()).availableActions!.flatMap(a => a.interactions ?? [])
+    .map(option => object(option.definitionRef).id)
+  expect(await offered()).toContain('status:accept-task')
+  expect(await offered()).not.toContain('status:claim-reward')
+  const head = f.events().length
+  await expect(f.runtime.submit('/status claim-reward {}')).rejects.toThrow('已知条件')
+  expect(f.events()).toHaveLength(head)
+  await f.runtime.submit('/status accept-task {}')
+  expect(await offered()).toContain('status:finish-task')
+  await f.runtime.submit('/status finish-task {}')
+  expect(await offered()).toContain('status:claim-reward')
+  expect(f.status.truth(f.statusEvents()).characters[PLAYER]!.quests).toEqual({
+    market: { stage: 'done', notes: ['领取委托', '完成演示流程'] } })
+  const node = await f.runtime.saveNode('委托完成，尚未领奖')
+  await f.runtime.submit('/status claim-reward {}')
+  expect(f.status.truth(f.statusEvents()).characters[PLAYER]!.money).toBe(130)
+  expect(await offered()).not.toContain('status:claim-reward')
+  const tail = (await f.runtime.state()).tailRound!
+  await f.runtime.regenerate(tail.id!, randomUUID())
+  expect(f.status.truth(f.statusEvents()).characters[PLAYER]!.money).toBe(130)
+  const after = f.events().length
+  await expect(f.runtime.submit('/status claim-reward {}')).rejects.toThrow('已知条件')
+  expect(f.events()).toHaveLength(after)
+  await f.runtime.close(); runtimes.splice(runtimes.indexOf(f.runtime), 1)
+  const target = join(f.root, 'quest-fork')
+  restoreStoryNode(f.data, node.id, target, node.packHash)
+  const child = await f.create(target)
+  expect(f.status.truth(f.statusEvents(child)).characters[PLAYER]!.money).toBe(100)
+  await child.submit('/status claim-reward {}')
+  expect(f.status.truth(f.statusEvents(child)).characters[PLAYER]!.money).toBe(130)
+}, 90_000)
+
+it('invalid nested changes reject the entire operation without spending money or committing a round', async () => {
+  const f = await fixture('ollama', 'invalidQuests'), before = f.events()
+  await expect(f.runtime.submit('/status accept-task {}')).rejects.toThrow('schema')
+  expect(f.events()).toEqual(before)
+  expect(f.status.truth(f.statusEvents()).characters[PLAYER]!.money).toBe(100)
+}, 60_000)
+
+it.each(['ollama', 'local'] as const)('NPC nested-state conditions control both options and delivered knowledge (%s)', async provider => {
+  const f = await fixture(provider, 'quests')
+  f.setDecision(input => {
+    if (actor(input) !== THIEF || input.continuation) return { decision: 'abstain' }
+    const own = known(input).find(row => row.key === 'quests' && row.holderId === THIEF)?.value as WorldJsonObject
+    const stage = (own.market as WorldJsonObject | undefined)?.stage
+    const operation = stage === undefined ? 'accept-task' : stage === 'active' ? 'finish-task' : stage === 'done' ? 'claim-reward' : undefined
+    return operation === undefined ? { decision: 'abstain' } : { decision: 'perform', actionType: 'interact', parameters: {
+      targetRef: { kind: 'character', id: THIEF }, bindingId: 'status', definitionRef: { id: 'status:' + operation, version: 1 }, arguments: {} } }
+  })
+  await f.runtime.submit(speak('第一轮。'))
+  await f.runtime.submit(speak('第二轮。'))
+  const done = f.requests.findLast(input => actor(input) === THIEF && input.continuation)!
+  expect(JSON.stringify(object(done.context).knowledge)).toContain('你的演示委托已经完成')
+  const others = f.requests.filter(input => actor(input) === BYSTANDER)
+  expect(others.length).toBeGreaterThan(0)
+  for (const input of others) {
+    expect(JSON.stringify(object(input.context).knowledge)).not.toContain('你的演示委托已经完成')
+    expect(known(input).some(row => row.key === 'quests' && row.holderId === THIEF)).toBe(false)
+  }
+  await f.runtime.submit(speak('第三轮。'))
+  const claimed = f.requests.findLast(input => actor(input) === THIEF && input.continuation)!
+  expect(JSON.stringify(object(claimed.context).knowledge)).not.toContain('你的演示委托已经完成')
+  expect(f.status.truth(f.statusEvents()).characters[THIEF]!.money).toBe(130)
+}, 90_000)
+
 it('player buy with too little money is accepted, spends nothing and reveals the true balance', async () => {
   const f = await fixture('ollama')
   let stolen = false
@@ -278,6 +424,44 @@ it('a throwing onRoundEnd keeps the round and leaves status unchanged', async ()
   expect(f.statusEvents()).toHaveLength(1)
   expect(f.status.truth(f.statusEvents()).public.time).toBe(0)
   expect(String(state.debug.statusRoundError)).toContain('钟楼坏了')
+}, 60_000)
+
+it('replaying a committed speech does not run the round hook again', async () => {
+  const f = await fixture('ollama'), key = randomUUID(), input = speak('只说一次。')
+  await f.runtime.submit(input, key)
+  const before = f.statusEvents()
+  await f.runtime.submit(input, key)
+  expect(f.statusEvents()).toEqual(before)
+  expect(f.events().filter(e => e.eventType === 'character.speak')).toHaveLength(1)
+  expect(f.status.truth(f.statusEvents()).public.time).toBe(10)
+}, 60_000)
+
+it.each(['conditionalHook', 'failedFirstHook'] as const)('round numbers advance after a hook commits nothing (%s)', async script => {
+  const f = await fixture('ollama', script)
+  await f.runtime.submit(speak('第一轮。'))
+  expect(f.statusEvents()).toHaveLength(1)
+  await f.runtime.submit(speak('第二轮。'))
+  expect(f.status.truth(f.statusEvents()).public.time).toBe(2)
+  await f.runtime.submit('/status check-purse {}')
+  expect(f.status.truth(f.statusEvents()).public.time).toBe(3)
+  expect(f.statusEvents().filter(e => source(e).kind === 'round').map(e => source(e).round)).toEqual([2, 3])
+}, 60_000)
+
+it('a quick activity action counts its start and operation as one player round', async () => {
+  const f = await fixture('ollama', 'conditionalHook', 'quick')
+  await f.runtime.activityAction({ activityId: null, revision: 0, operation: 'yield', parameters: {}, requestId: randomUUID() })
+  expect(f.statusEvents()).toHaveLength(1)
+  await f.runtime.submit(speak('快捷行动之后的第二轮。'))
+  expect(f.status.truth(f.statusEvents()).public.time).toBe(2)
+}, 60_000)
+
+it('retrying NPC processing in an activity does not create another player status round', async () => {
+  const f = await fixture('ollama', 'market', true)
+  const started = await f.runtime.activityAction({ activityId: null, revision: 0, operation: 'start', parameters: {}, requestId: randomUUID() })
+  const before = f.statusEvents(), activity = started.activity!
+  await f.runtime.activityAction({ activityId: String(activity.id), revision: Number(activity.revision),
+    operation: 'retry', parameters: {}, requestId: randomUUID() })
+  expect(f.statusEvents()).toEqual(before)
 }, 60_000)
 
 it.each(['scopedHook', 'leakyHook'] as const)('a round hook breaking its limits commits nothing (%s)', async script => {
