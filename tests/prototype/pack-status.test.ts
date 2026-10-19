@@ -167,6 +167,25 @@ describe('pack status', () => {
     expect(status.known(events, 'character:gpt').some(k => k.holderId === 'character:claude')).toBe(false)
   })
 
+  it('playerTruth is off by default and, when declared, exposes only those statuses for every holder', () => {
+    expect(PackStatus.parse(market, pack).playerTruth([PackStatus.parse(market, pack).initialEvent()])).toEqual([])
+    expect(() => PackStatus.parse(market.replace("key: 'money', label: '余额',", "key: 'money', label: '余额', playerTruth: 'yes',"), pack))
+      .toThrow('playerTruth 必须是布尔值')
+    const opted = market.replace("key: 'money', label: '余额',", "key: 'money', label: '余额', playerTruth: true,")
+    expect(opted).not.toBe(market)
+    const status = PackStatus.parse(opted, pack)
+    const theft = event({ source: { kind: 'operation', operation: 'steal', actorId: 'character:gpt' },
+      changes: [{ holderId: 'character:claude', key: 'money', value: 70 }, { holderId: 'character:gpt', key: 'money', value: 130 }],
+      reveals: [{ observerId: 'character:gpt', holderId: 'character:gpt', key: 'money', value: 130 }] })
+    const rows = status.playerTruth([status.initialEvent(), theft])
+    expect(rows).toContainEqual({ key: 'money', label: '余额', holderId: 'character:claude', value: 70 })
+    expect(rows).toContainEqual({ key: 'money', label: '余额', holderId: 'character:gpt', value: 130 })
+    expect(rows.every(row => row.key === 'money')).toBe(true)
+    // Known values are untouched by the opt-in.
+    expect(status.known([status.initialEvent(), theft], 'character:claude')).toContainEqual(
+      { key: 'money', label: '余额', holderId: 'character:claude', value: 100, current: false })
+  })
+
   it('alwaysKnown time is visible to everyone without reveals', () => {
     const status = PackStatus.parse(market, pack)
     const events = [status.initialEvent(), event({ source: { kind: 'round', round: 1 },

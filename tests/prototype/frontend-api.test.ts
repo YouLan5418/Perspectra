@@ -313,6 +313,16 @@ it("player view carries only the player's known status, never truth",()=>{
  expect(JSON.stringify(view)).not.toMatch(/"value":(70|130)\b/u)
  expect(JSON.stringify(view)).not.toContain('PRIVATE_')
 })
+it('statusTruth is projected only when the runtime provides it, with whitelisted fields',()=>{
+ expect(projectPlayerView({...privateState(),statusBar:theft()})).not.toHaveProperty('statusTruth')
+ const truth=[{key:'money',label:'余额',holderId:PLAYER,holderName:'玩家',self:true,value:70},{key:'money',label:'余额',holderId:THIEF,holderName:'阿七',value:130}]
+ const view=projectPlayerView({...privateState(),statusBar:theft(),statusTruth:truth.map(row=>({...row,extra:'PRIVATE_FIELD'}))} as never)
+ expect(view.statusTruth).toEqual(truth)
+ expect(JSON.stringify(view.statusTruth)).not.toContain('PRIVATE_')
+ const before=projectPlayerView({...privateState(),statusTruth:truth})
+ const after=projectPlayerView({...privateState(),statusTruth:[{...truth[0]!,value:40},truth[1]!]})
+ expect(playerViewPatch(before,after)).toEqual({statusTruth:after.statusTruth})
+})
 it('statusBar changes appear in playerViewPatch',()=>{
  const before=projectPlayerView({...privateState(),statusBar:theft()})
  const known=theft().map(entry=>entry.key==='money'&&entry.holderId===PLAYER?{...entry,value:70,current:true}:entry)

@@ -19,6 +19,8 @@ export interface PlayerView {
   /** The player's own known status values; `current:false` is a last confirmed value. Never the true values. */
   /** `self` marks the player's own statuses by holder ID; display names may collide. */
   statusBar?: { key: string; label: string; holderId: string | null; holderName?: string; self?: boolean; value: import('@harness-world/contracts').WorldJsonValue; current: boolean }[]
+  /** True values of statuses the author declared `playerTruth`; absent otherwise. Showing them is the frontend's choice. */
+  statusTruth?: { key: string; label: string; holderId: string | null; holderName?: string; self?: boolean; value: import('@harness-world/contracts').WorldJsonValue }[]
   history: { seq: number; speaker: string; speakerId?: CharacterId; text: string; player: boolean; segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
   actions: { id: string; label: string; action: PlaytestAction; participantSelection?: { min: number; max: number; candidates: { id: string; name: string }[] } }[]
 }
@@ -115,13 +117,15 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
     ...(state.tailRound ? {tailRound: state.tailRound} : {}),
     ...(state.statusBar ? { statusBar: state.statusBar.map(({ key, label, holderId, holderName, self, value, current }) =>
       ({ key, label, holderId, ...(holderName === undefined ? {} : { holderName }), ...(self === true ? { self } : {}), value, current })) } : {}),
+    ...(state.statusTruth?.length ? { statusTruth: state.statusTruth.map(({ key, label, holderId, holderName, self, value }) =>
+      ({ key, label, holderId, ...(holderName === undefined ? {} : { holderName }), ...(self === true ? { self } : {}), value })) } : {}),
     history: state.transcript.map(line => ({ seq: line.seq, speaker: line.speaker, ...(line.speakerId === undefined ? {} : {speakerId:line.speakerId}), text: line.text, player: line.player, ...(line.segments === undefined ? {} : { segments: line.segments }) })),
     actions,
   }
 }
 export function playerViewPatch(before: PlayerView, after: PlayerView): Record<string, unknown> | null {
   const changes: Record<string, unknown> = {}
-  for (const key of ['game', 'player', 'scene', 'status', 'canInterrupt', 'responders', 'expression', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback', 'statusBar'] as const) {
+  for (const key of ['game', 'player', 'scene', 'status', 'canInterrupt', 'responders', 'expression', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback', 'statusBar', 'statusTruth'] as const) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
   }
   if (JSON.stringify(before.history) !== JSON.stringify(after.history)) {

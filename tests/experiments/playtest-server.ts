@@ -9,7 +9,7 @@ import { FRONTEND_CAPABILITIES } from './playtest-pack-web.ts'
 import { frontendSpeechInput, type FrontendHostServices, type FrontendSpeechAudio } from '../../packages/frontend/src/speech.ts'
 import { HOST_ACTIVITY_PAGE } from './playtest-host-page.ts'
 import type { ActivityRequest } from './pack-activity.ts'
-import type { KnownStatus } from './pack-status.ts'
+import type { KnownStatus, PlayerTruthStatus } from './pack-status.ts'
 import { timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { PackWeb } from './playtest-pack-web.ts'
@@ -38,6 +38,8 @@ export interface PlaytestState {
   /** Only the player's own known status values, never the true ones; holderName is the holder's display name and
    * `self` marks the player's own statuses by ID. */
   readonly statusBar?: readonly (KnownStatus & { readonly holderName?: string; readonly self?: boolean })[]
+  /** True values only for statuses the author declared `playerTruth`; the frontend decides whether to show them. */
+  readonly statusTruth?: readonly (PlayerTruthStatus & { readonly holderName?: string; readonly self?: boolean })[]
   readonly memoryMaintenance?: WorldJsonObject
   readonly activity?: WorldJsonObject
   readonly activities?: readonly WorldJsonObject[]

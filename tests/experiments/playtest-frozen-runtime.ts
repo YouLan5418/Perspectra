@@ -253,6 +253,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #transcript: PlaytestState['transcript'] = []
   #availableActions: NonNullable<PlaytestState['availableActions']> = []
   #statusBar: PlaytestState['statusBar']
+  #statusTruth: PlaytestState['statusTruth']
   #currentScene: NonNullable<PlaytestState['world']['currentScene']> | undefined
   #debug: Record<string, unknown> = {}
   #shadow: JevShadow | undefined
@@ -547,6 +548,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       ...(this.#activityView ? { activity: structuredClone(this.#activityView) } : {}),
       ...(this.#activityViews ? { activities: structuredClone(this.#activityViews) } : {}),
       ...(this.#statusBar ? { statusBar: structuredClone(this.#statusBar) } : {}),
+      ...(this.#statusTruth?.length ? { statusTruth: structuredClone(this.#statusTruth) } : {}),
       world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames,
         ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }) },
       debug: { ...this.#debug, worldVersion: this.#worldVersion, provider: this.#provider, model: this.#model, intentModel: this.#intentModel,
@@ -1121,9 +1123,12 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
           // The player is offered status operations under the same rules as an NPC; a running activity's
           // policy filter below applies to them as to any other interaction.
           this.#availableActions = this.#status.withOperations(this.#availableActions, events, this.#playerId, this.#playerId)
-          this.#statusBar = this.#status.known(events, this.#playerId).map(entry => entry.holderId === null ? entry
+          const named = <T extends { holderId: string | null }>(entry: T) => entry.holderId === null ? entry
             : { ...entry, holderName: this.#names.get(entry.holderId) ?? entry.holderId,
-              ...(entry.holderId === this.#playerId ? { self: true } : {}) })
+              ...(entry.holderId === this.#playerId ? { self: true } : {}) }
+          this.#statusBar = this.#status.known(events, this.#playerId).map(named)
+          // Author opt-in only: these never enter any character's context.
+          this.#statusTruth = this.#status.playerTruth(events).map(named)
         }
         this.#currentScene = {
           locationName: view.locationId === null ? '未知地点'

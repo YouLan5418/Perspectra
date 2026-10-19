@@ -20,11 +20,15 @@ export type StatusSource = { kind: 'initial' } | { kind: 'operation'; operation:
 export interface StatusEventData { source: StatusSource; changes: StatusChange[]; reveals: StatusReveal[]; description?: string }
 export interface StatusTruth { public: Record<string, StatusValue>; characters: Record<string, Record<string, StatusValue>> }
 export interface KnownStatus { key: string; label: string; holderId: string | null; value: StatusValue; current: boolean }
+/** True value the author chose to hand to the player's frontend; never part of any character's context. */
+export interface PlayerTruthStatus { key: string; label: string; holderId: string | null; value: StatusValue }
 
 export interface StatusDefinition {
   readonly key: string; readonly label: string; readonly type: 'number' | 'string' | 'boolean' | 'object' | 'array' | 'null'
   readonly schema: WorldJsonObject
   readonly owner: 'public' | 'character'; readonly alwaysKnown: boolean; readonly activities?: readonly string[]
+  /** Author opt-in: the true value is delivered to the player's frontend, which decides whether to show it. */
+  readonly playerTruth: boolean
 }
 export interface StatusOperation {
   readonly id: string; readonly label: string; readonly schema: WorldJsonObject
@@ -119,7 +123,7 @@ export class PackStatus {
     const ajv = new Ajv({ strict: true, allErrors: false })
     this.statuses = definition.statuses.map(value => {
       const s = object(value, '状态声明')
-      exact(s, ['key', 'label', 'type', 'owner'], ['alwaysKnown', 'activities', 'schema'])
+      exact(s, ['key', 'label', 'type', 'owner'], ['alwaysKnown', 'activities', 'schema', 'playerTruth'])
       if (typeof s.key !== 'string' || !NAME.test(s.key)) throw new TypeError('状态键无效')
       if (!['number', 'string', 'boolean', 'object', 'array', 'null'].includes(String(s.type))) throw new TypeError('状态值类型无效：' + s.key)
       if (['object', 'array'].includes(String(s.type)) && !Object.hasOwn(s, 'schema')) throw new TypeError('对象和数组状态必须声明 schema：' + s.key)
@@ -129,9 +133,10 @@ export class PackStatus {
       this.#valueValidators.set(s.key, ajv.compile(schema))
       if (!['public', 'character'].includes(String(s.owner))) throw new TypeError('状态归属无效：' + s.key)
       if (Object.hasOwn(s, 'alwaysKnown') && typeof s.alwaysKnown !== 'boolean') throw new TypeError('alwaysKnown 必须是布尔值')
+      if (Object.hasOwn(s, 'playerTruth') && typeof s.playerTruth !== 'boolean') throw new TypeError('playerTruth 必须是布尔值')
       return { key: s.key, label: label(s.label), type: s.type as StatusDefinition['type'],
         schema: schema as WorldJsonObject,
-        owner: s.owner as StatusDefinition['owner'], alwaysKnown: s.alwaysKnown === true,
+        owner: s.owner as StatusDefinition['owner'], alwaysKnown: s.alwaysKnown === true, playerTruth: s.playerTruth === true,
         ...(Object.hasOwn(s, 'activities') ? { activities: strings(s.activities, '状态适用活动') } : {}) }
     })
     if (new Set(this.statuses.map(s => s.key)).size !== this.statuses.length) throw new TypeError('重复的状态键')
@@ -224,6 +229,22 @@ export class PackStatus {
       }
     }
     return truth
+  }
+
+  /** Current true values of statuses declared `playerTruth`, for the player's frontend only. */
+  playerTruth(events: readonly RulebookEvent[]): PlayerTruthStatus[] {
+    const truth = this.truth(events), rows: PlayerTruthStatus[] = []
+    for (const status of this.statuses) {
+      if (!status.playerTruth) continue
+      if (status.owner === 'public') {
+        if (Object.hasOwn(truth.public, status.key)) rows.push({ key: status.key, label: status.label, holderId: null, value: truth.public[status.key]! })
+        continue
+      }
+      for (const [holderId, values] of Object.entries(truth.characters)) {
+        if (Object.hasOwn(values, status.key)) rows.push({ key: status.key, label: status.label, holderId, value: values[status.key]! })
+      }
+    }
+    return rows
   }
 
   known(events: readonly RulebookEvent[], observerId: string): KnownStatus[] {

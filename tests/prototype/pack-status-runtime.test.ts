@@ -15,6 +15,7 @@ import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runti
 import { PackStatus, type KnownStatus } from '../experiments/pack-status.ts'
 import type { CoreRunner } from '../experiments/hindsight-python.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
+import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
 
 const roots: string[] = [], runtimes: FrozenWorldPlaytestRuntime[] = [], servers: Server[] = []
 afterEach(async () => {
@@ -48,6 +49,8 @@ const scripts = { market: (s: string) => s, noHook: (s: string) => s.replace(HOO
   // The sample with every operation offered, so only resolve's check against the truth can stop a second claim.
   openQuests: () => readFileSync(resolve('examples/world-packs/status-market/scripts/status.js'), 'utf8')
     .replace('  policy(known) {', '  policy() { return null },\n  samplePolicy(known) {'),
+  // The author hands true balances to the player's frontend; characters still get only known values.
+  playerTruth: (s: string) => s.replace("key: 'money', label: '余额',", "key: 'money', label: '余额', playerTruth: true,"),
   throwingHook: (s: string) => s.replace(HOOK, '  onRoundEnd() { throw new Error("钟楼坏了") },\n'),
   // A round hook may not touch an activity-scoped status, nor tell anyone but the changed status's owner.
   scopedHook: (s: string) => s.replace(HOOK, '  onRoundEnd() { return { changes: [{ holderId: "character:player", key: "hp", value: 1 }],'
@@ -230,6 +233,34 @@ it.each(['ollama', 'local'] as const)('an NPC theft commits one status.updated a
   expect(thief.length).toBeGreaterThan(0)
   expect(known(thief.at(-1)!)).toContainEqual({ key: 'money', label: '余额', holderId: THIEF, value: 130, current: true })
   expect(f.statusEvents().filter(e => object(object(e.data).source).kind === 'operation')).toHaveLength(1)
+}, 60_000)
+
+it('a playerTruth status reaches the player state as truth while every character keeps only known values', async () => {
+  const plain = await fixture('local')
+  plain.setDecision(() => ({ decision: 'abstain' }))
+  await plain.runtime.submit('/act speak {"text":"开始。","scope":"scene_public"}')
+  expect((await plain.runtime.state()).statusTruth).toBeUndefined()
+
+  const f = await fixture('local', 'playerTruth')
+  let stolen = false
+  f.setDecision(input => {
+    if (actor(input) !== THIEF || stolen || input.continuation) return { decision: 'abstain' }
+    stolen = true; return steal
+  })
+  await f.runtime.submit('/act speak {"text":"今天集市人真多。","scope":"scene_public"}')
+  await f.runtime.submit('/act speak {"text":"大家注意钱包。","scope":"scene_public"}')
+  const state = await f.runtime.state()
+  expect(state.statusTruth).toContainEqual(expect.objectContaining({ key: 'money', holderId: PLAYER, value: 70, self: true }))
+  expect(state.statusTruth).toContainEqual(expect.objectContaining({ key: 'money', holderId: THIEF, value: 130 }))
+  expect(state.statusTruth?.some(row => row.key !== 'money')).toBe(false)
+  // The known bar is unchanged by the opt-in.
+  expect(state.statusBar).toContainEqual(expect.objectContaining({ key: 'money', holderId: PLAYER, value: 100, current: false }))
+  expect(projectPlayerView(state).statusTruth).toEqual(state.statusTruth)
+  // No character request carries a truth field or another holder's balance.
+  for (const input of f.requests) {
+    expect(object(input.context)).not.toHaveProperty('statusTruth')
+    expect(known(input).filter(k => k.key === 'money' && k.holderId !== actor(input))).toEqual([])
+  }
 }, 60_000)
 
 const rejections = [
