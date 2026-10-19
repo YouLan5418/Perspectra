@@ -283,7 +283,7 @@ const outcome = {
   packPath,
   scenario,
   model,
-  protocol: 'the web playtest runtime, submit_actions/v7 over Manifest v10',
+  protocol: 'the web playtest runtime, perform/publish/abstain over Manifest v10',
   playerInputMode,
   address,
   providerCalls: calls,

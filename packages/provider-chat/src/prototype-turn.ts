@@ -1,8 +1,8 @@
 // JSON Schema conditionals use a data property named `then`, not a Promise method.
 /* oxlint-disable unicorn/no-thenable */
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { actionGroupWireSchema, type ChatCall } from './wire.ts'
-import { characterRequestText, characterContextNote } from './character-context-text.ts'
+import { characterContextNote,characterRequestText } from './character-context-text.ts'
+import { operationSchemas,type ChatCall } from './wire.ts'
 
 export const characterActionIntentPrinciples = '当你已经决定立即采取某项行动，且当前存在可执行的对应操作时，应直接选择该操作，而不是仅仅表达自己即将行动。'
   + '但如果你只是提出建议、表达愿望、征求同意、等待他人、犹豫或尚未决定行动，那么正常表达是合理的。'
@@ -27,13 +27,7 @@ export function prototypeTurnCall(request: { readonly context: WorldJsonObject; 
   const narrationAllowed = expression?.narration !== false
   const speechSchema = { type: 'string', maxLength: maximum,
     ...(expression?.speech === 'choices' ? { enum: expression.speechChoices } : {}) }
-  const legacy = actionGroupWireSchema({ tools: { maximumExternalActions: 1,
-    actionGroup: { allowedActionTypes: ['move', 'interact'] } }, messages: [
-    { role: 'user', content: JSON.stringify({ segmentKind: 'affordances', content: request.context.affordances }) },
-  ] })
-  const actions = (legacy.properties as WorldJsonObject).actions as WorldJsonObject
-  const items = actions.items as WorldJsonObject | undefined
-  const variants = items === undefined ? [] : (items.oneOf as WorldJsonObject[] | undefined) ?? [items]
+  const variants = operationSchemas(request.context.affordances)
   const scene = request.context.scene as WorldJsonObject | undefined
   const actor = (request.context.character as WorldJsonObject | undefined)?.characterId
   const addressees = Array.isArray(scene?.people) ? scene.people
@@ -41,9 +35,8 @@ export function prototypeTurnCall(request: { readonly context: WorldJsonObject; 
     .filter((id): id is string => typeof id === 'string' && id !== actor) : []
   const canPerform = request.canPerform ?? !request.continuation
   const perform = canPerform ? variants.map(variant => {
-    const properties = variant.properties as WorldJsonObject
     return { type: 'object', additionalProperties: false, required: ['decision', 'actionType', 'parameters'],
-      properties: { decision: { const: 'perform' }, actionType: properties.actionType!, parameters: properties.parameters! } }
+      properties: { decision: { const: 'perform' }, actionType: { type: 'string', const: variant.actionType }, parameters: variant.parameters } }
   }) : []
   const prepared: ChatCall = {
     schema: { type: 'object', oneOf: [

@@ -1,10 +1,10 @@
+import { WorldApplication } from '@harness-world/application'
+import { type WorldJsonObject } from '@harness-world/contracts'
+import { WorldStore } from '@harness-world/store-sqlite'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { WorldApplication } from '@harness-world/application'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
 import { frozenIntentWorld, intentFixtureProfile, intentFixtureResponse } from './fixtures/player-intent-world.ts'
 it('takes an explicit command on a v10 world at the frozen version', async () => {
   // The explicit-command path states the action in the player's own text, so the version is not in the
@@ -18,11 +18,6 @@ it('takes an explicit command on a v10 world at the frozen version', async () =>
   let interpreted = 0
   const app = new WorldApplication({ worldPath: path, sessionPath: join(root, 'session.sqlite'),
     memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20,
-    reactionParticipants: () => ['character:npc', 'character:bob'].map(actorId => ({
-      participantId: `agent:${actorId}`, role: 'agent' as const, actorId: brandId(actorId, 'CharacterId'),
-      allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
-      provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'abstain' as const, actions: [] }) },
-    })),
     playerIntent: { profile: intentFixtureProfile, dispatch: async () => {
       interpreted++
       return intentFixtureResponse
@@ -67,11 +62,6 @@ it('submits all boundary phrases as intact speech without any intent call or con
   let calls = 0
   const app = new WorldApplication({ worldPath: path, sessionPath: join(root, 'session.sqlite'),
     memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 0,
-    reactionParticipants: () => ['character:npc', 'character:bob'].map(actorId => ({
-      participantId: `agent:${actorId}`, role: 'agent' as const, actorId: brandId(actorId, 'CharacterId'),
-      allowedActionTypes: ['speak', 'move', 'interact'], priority: 1, estimatedTokens: 1, timeoutMs: 1000,
-      provider: { propose: async () => ({ schemaVersion: 7 as const, decision: 'abstain' as const, actions: [] }) },
-    })),
     playerIntent: { profile: intentFixtureProfile, dispatch: async () => { calls++; throw new Error('must not interpret') } },
   })
   try {
@@ -97,7 +87,7 @@ it('executes exact custody commands, rejects unavailable targets, and keeps narr
   const world = frozenIntentWorld()
   const path = join(root, 'world.sqlite')
   const app = new WorldApplication({ worldPath: path, sessionPath: join(root, 'session.sqlite'),
-    memoryPath: join(root, 'memory.sqlite'), externalCharacterActivations: true })
+    memoryPath: join(root, 'memory.sqlite'), })
   let serial = 0
   const submit = (text: string) => app.submitText(world.manifest.address, { text, principalId: 'principal:player',
     idempotencyKey: `command:${serial}`, correlationId: `command:${serial++}` })

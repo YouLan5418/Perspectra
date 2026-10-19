@@ -14,6 +14,8 @@ package.json 的 experience:web 指向 [playtest-web-entry.ts](../../../tests/ex
 
 宿主组合 WorldApplication、模型适配、预设及可选 Core 桥。设定里的初始位置用于启动；之后的位置从当前事件前缀的视图读取。“前缀”就是截至某条已提交事件的世界记录，避免混用不同时间的状态。
 
+WorldApplication 负责玩家提交和授权记忆来源捕获，RoundCoordinator 只执行玩家行动。2026-10-18 已切除旧 NPC participant、Reaction Worker、Context Pipeline、Reflection、Checkpoint 和 NPC Provider Call／Quality；NPC 统一由下述单角色路径处理。玩家输入解释自己的调用记录仍按需使用 context.sqlite，保留原有库结构和历史事件读取，不能仅凭文件或旧表存在判断旧管线仍在运行。Cordis 的 worldDirector 服务名暂留，实际组件只持有确定性的 Presenter，不调用 Director 模型。
+
 ## 3. 输入如何到达提交路径
 
 | 位置 | 看什么 | 为什么 |

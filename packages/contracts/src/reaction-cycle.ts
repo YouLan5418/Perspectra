@@ -293,11 +293,6 @@ export interface ReactionProposalContext extends WorldJsonObject {
   readonly candidateHash: WorldHash
 }
 
-export interface ReactionAgentProvider {
-  /** Untrusted model output; the active runtime validates submit_actions/v7 before use. */
-  propose(context: ReactionProposalContext): Promise<WorldJsonObject>
-}
-
 /** One exact claimed Job outcome consumed by a Reaction Round transaction. */
 export interface ReactionJobSettlementDraft extends WorldJsonObject {
   readonly jobId: ReactionJobId

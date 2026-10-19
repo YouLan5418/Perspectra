@@ -31,7 +31,7 @@ const steal = { decision: 'perform', actionType: 'interact', parameters: { targe
   bindingId: 'status', definitionRef: { id: 'status:steal', version: 1 }, arguments: { targetId: PLAYER } } }
 type Decide = (input: WorldJsonObject) => unknown
 
-const HOOK = /  onRoundEnd\(truth\) \{[\s\S]*?\n  \},\n/u
+const HOOK = /  onRoundEnd\(truth\) \{[\s\S]*?\r?\n  \},\r?\n/u
 /** Fixture script variants: the default market, without the round hook, or with a throwing one. */
 const scripts = { market: (s: string) => s, noHook: (s: string) => s.replace(HOOK, ''),
   quests: () => readFileSync(resolve('examples/world-packs/status-market/scripts/status.js'), 'utf8'),
