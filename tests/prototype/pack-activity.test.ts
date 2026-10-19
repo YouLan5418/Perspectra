@@ -20,7 +20,7 @@ afterEach(async()=>{
   for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true,maxRetries:3,retryDelay:100})
 })
 type Decision=(input:WorldJsonObject)=>unknown|Promise<unknown>
-async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:string)=>s,packDirectory='examples/world-packs/ai-girls-awaken-v10',provider:'ollama'|'local'='ollama',extra:Partial<FrozenPlaytestOptions>={}) {
+async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:string)=>s,packDirectory='examples/world-packs/ai-girls-awaken-v10',provider:'ollama'|'local'='ollama',extra:Partial<FrozenPlaytestOptions>={},configurePack?:(pack:string)=>void) {
   const root=mkdtempSync(join(tmpdir(),'activity-test-'));roots.push(root)
   const pack=join(root,'pack'),data=join(root,'data');cpSync(resolve(packDirectory),pack,{recursive:true});mkdirSync(data)
   const file=join(pack,'scripts/activity.js')
@@ -44,6 +44,7 @@ async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:s
   if(!address||typeof address==='string')throw new Error('no endpoint')
   const options={packPath:pack,dataDirectory:data,provider,model:'fixture',
     utilityEndpoint:'http://127.0.0.1:'+address.port+'/api/chat',timeoutMs:5000,...extra}
+  configurePack?.(pack)
   const runtime=await FrozenWorldPlaytestRuntime.create(options);runtimes.push(runtime)
   const state=()=>{const store=new WorldStore(join(data,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
   return {runtime,options,inputs,schemas,events:state,data,pack}
@@ -59,6 +60,44 @@ function action(input:WorldJsonObject,operation='guess',value=50) {
     arguments:{activityId:activity.id,revision:activity.revision,...(operation==='guess'?{value}:{})}}}
 }
 describe('creator activity and host escape',()=>{
+  it('selects knowledge from only the active participant activity view, never internal or other private data', async () => {
+    const fields = (properties: WorldJsonObject): WorldJsonObject => ({ type: 'object', required: Object.keys(properties), properties })
+    const f = await fixture(() => ({ decision: 'abstain' }), s => s,
+      'examples/world-packs/ai-girls-awaken-v10', 'ollama', {}, pack => {
+        const source = JSON.parse(readFileSync(join(pack, 'worldpack.source.json'), 'utf8'))
+        const entries = [
+          { id: 'own', game: fields({ private: fields({ secret: { const: 'npc-only' } }) }) },
+          { id: 'foreign', game: fields({ private: fields({ secret: { const: 'player-only' } }) }) },
+          { id: 'internal', game: fields({ internal: fields({ answer: { const: 73 } }) }) },
+        ]
+        const documents = entries.map(({ id }) => ({ documentId: 'document:' + id, contentRef: id + '.md', usage: 'world_context', audience: 'public' }))
+        for (const { id } of entries) writeFileSync(join(pack, id + '.md'), '材料-' + id)
+        writeFileSync(join(pack, 'knowledge-conditions.documents.json'), JSON.stringify({ schemaVersion: 'worldpack-documents/v2', documents }))
+        writeFileSync(join(pack, 'knowledge.json'), JSON.stringify({ maximumCharacters: 1000,
+          entries: entries.map(({ id, game }) => ({ documentId: 'document:' + id, constant: true, keywords: [], priority: 10,
+            when: fields({ activity: fields({ activityKey: { const: 'default' }, game }) }) })) }))
+        source.documentFiles = [...(source.documentFiles ?? []), 'knowledge-conditions.documents.json']
+        source.markdownFiles = [...(source.markdownFiles ?? []), ...entries.map(({ id }) => id + '.md')]
+        source.assetFiles = [...(source.assetFiles ?? []), 'knowledge.json']
+        writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(source))
+      })
+    const start = await f.runtime.activityAction(request(await f.runtime.state(), 'start'))
+    await f.runtime.activityAction(request(start, 'pass'))
+    expect(f.inputs).toHaveLength(1)
+    const visible = f.inputs[0]!.context as WorldJsonObject
+    expect((visible.activity as WorldJsonObject).activityKey).toBe('default')
+    expect(((visible.knowledge as WorldJsonObject).entries as WorldJsonObject[]).map(row => row.documentId)).toEqual(['document:own'])
+    expect(JSON.stringify(visible)).not.toContain('player-only')
+    expect(JSON.stringify(visible)).not.toContain('材料-internal')
+    await f.runtime.activityAction(request(await f.runtime.state(), 'quit'))
+    await f.runtime.submit('继续聊聊。')
+    expect(f.inputs.length).toBeGreaterThan(1)
+    for (const input of f.inputs.slice(1)) {
+      const context = input.context as WorldJsonObject
+      expect(context.activity).toBeUndefined()
+      expect((context.knowledge as WorldJsonObject).entries).toEqual([])
+    }
+  })
   it.each(['ollama','local'] as const)('retries malformed activity output once with %s without executing or publishing it twice',async provider=>{
     let calls=0
     const f=await fixture(input=>input.continuation?{decision:'abstain'}:

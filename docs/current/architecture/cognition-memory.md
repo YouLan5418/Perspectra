@@ -1,5 +1,7 @@
 # 当前认知与记忆
 
+2026-10-19 知识条件扩展：角色离开前室后，前室限定的材料不再交付，但不会撤回它此前说过或记住的内容。知识选择器的 when 现在只从现有授权 Context 提取位置、场景、物品、本人活动、刺激与已知状态行，并保留原状态值条件；不读取他人私有材料、活动 internal 或全局真值，不扩大文档受众。已知状态行可检查 current，旧值条件本身仍允许匹配上次确认值。Core／原生记忆的来源、召回、持久化与调度不变；[Core／DeepSeek 短试玩](../studies/knowledge-conditions-deepseek-playtest-20261019.md)验证 39 次请求的条件交付与余额核实续写，退出活动后仍能回忆已讲过的材料；作者背景仍可能被说成“读到过”，长期来源语义未验收。用法及限制见[世界设定指南](../guides/world-knowledge.md)。
+
 2026-10-19：角色上下文新增 `knownStatus` 与 `knownStatusNote`。例如失主的钱被偷后，它的 knownStatus 仍是“余额 100”，但立刻变成 current=false，提示说明这是上次确认的值、之后可能已变。只要真实值在上次确认后被任何事件改过就会这样，所以失主知道有变化，但拿不到新值、来源或原因；对暗中偷窃这类玩法，这是已知限制。从未被告知的状态（例如别人的钱袋）完全不出现。已知值在每次构建请求时从 `status.updated` 事件的 reveals 推导，不另存，也不写进记忆。限制：knownStatus 不在过期重算（stale）的比较内容里，角色思考期间别人改了状态，它的台词可能沿用刚变化前的值，但操作仍在最新前缀上重新裁定。见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)。
 
 2026-10-18：[原型遗留处理](../studies/phase8-prototype-transition-audit-20261018.md)已移除旧 Reflection、Context Pipeline 和 Checkpoint 服务。作者七类初始材料的编译、读取及既有模型呈现保留，不存在旧 Reflection 持续写回。曾尝试把模型文本分为 initialCognition／recordedCognition，但改前对照发现行动选择退化迹象，已撤回该尝试及专属测试，现仍发送原有 cognition。来源捕获、Core 与显式原生模式保留；初始材料易被误作当前心理快照的限制尚未解决。

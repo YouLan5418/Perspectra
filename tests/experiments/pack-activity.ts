@@ -270,7 +270,7 @@ export class PackActivity {
   }
   scoped(state:ActivityState,actorId:string):WorldJsonObject {
     if(!state.participants.includes(actorId))throw new TypeError('不是活动参与者')
-    return {id:state.id,revision:state.revision,participants:state.participants,
+    return {activityKey:this.key,id:state.id,revision:state.revision,participants:state.participants,
       game:{active:state.game.active,phase:state.game.phase,turn:state.game.turn,round:state.game.round,
         public:state.game.public,private:object(state.game.private[actorId])}}
   }

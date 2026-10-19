@@ -36,6 +36,8 @@ async function packFixture() {
   return {root,path,pack,knowledgeConfig}
 }
 const context = (actor: string, speech = ''): WorldJsonObject => ({character:{characterId:actor},observations:[{value:{content:{speech}}}]})
+const fields = (properties: WorldJsonObject): WorldJsonObject => ({ type: 'object', required: Object.keys(properties), properties })
+const contains = (properties: WorldJsonObject): WorldJsonObject => ({ type: 'array', contains: fields(properties) })
 
 it('checks knowledge audience before matching and skips whole entries exceeding the budget',async()=>{
   const f=await packFixture(), knowledge=PackKnowledge.load(f.path,f.pack)!
@@ -69,6 +71,56 @@ it('gates knowledge by the receiver known nested state without exposing another 
   expect(() => PackKnowledge.parse({ ...f.knowledgeConfig, entries: [{ ...f.knowledgeConfig.entries[0], when: [] }] }, f.pack)).toThrow('条件')
 })
 
+it('selects setting by current scene, items, activity, stimulus and known status freshness', async () => {
+  const f = await packFixture(), actor = 'character:companion'
+  const visible: WorldJsonObject = { ...context(actor), character: { characterId: actor, locationId: 'location:front-room' },
+    scene: { people: [{ characterId: 'character:player' }] },
+    items: { current: [{ entityId: 'entity:brass-key', holderId: actor }], lastObserved: [] },
+    activity: { activityKey: 'market', game: { phase: 'reward', private: { clue: '本人线索' } } },
+    stimulus: [{ content: { actorId: 'character:player', speech: { segments: [{ type: 'speech', text: '徽章' }] } } }],
+    knownStatus: [{ key: 'money', holderId: actor, value: 100, current: true }] }
+  const predicates = {
+    characterId: { const: actor }, locationId: { const: 'location:front-room' },
+    scene: fields({ people: contains({ characterId: { const: 'character:player' } }) }),
+    items: fields({ current: contains({ entityId: { const: 'entity:brass-key' }, holderId: { const: actor } }) }),
+    activity: fields({ activityKey: { const: 'market' }, game: fields({ phase: { const: 'reward' }, private: fields({ clue: { const: '本人线索' } }) }) }),
+    stimulus: { type: 'array', contains: fields({ content: fields({ actorId: { const: 'character:player' },
+      speech: fields({ segments: contains({ type: { const: 'speech' }, text: { type: 'string', pattern: '徽章' } }) }) }) }) },
+    knownStatus: contains({ key: { const: 'money' }, holderId: { const: actor }, current: { const: true } }),
+  }
+  const knowledge = PackKnowledge.parse({ ...f.knowledgeConfig, entries: f.knowledgeConfig.entries.map(entry =>
+    ({ ...entry, constant: true, when: fields(predicates) })) }, f.pack)
+  const selected = (value: WorldJsonObject) => (knowledge.select(value).entries as WorldJsonObject[]).map(row => row.documentId)
+  expect(selected(visible)).toEqual(['document:secret', 'document:lore'])
+  // Each source must be current and authorized; old observations and past stimulus cannot fill missing inputs.
+  for (const change of [
+    { character: { characterId: actor, locationId: 'location:back-room' } }, { scene: { people: [] } },
+    { items: { current: [], lastObserved: [{ entityId: 'entity:brass-key', holderId: actor }] } },
+    { items: { current: [{ entityId: 'entity:brass-key', holderId: 'character:player' }] } },
+    { activity: null }, { activity: { activityKey: 'other', game: { phase: 'reward', private: { clue: '本人线索' } } } },
+    { stimulus: [], observations: visible.stimulus },
+    { knownStatus: [{ key: 'money', holderId: actor, value: 100, current: false }] },
+    { knownStatus: [] },
+  ] as WorldJsonObject[]) expect(selected({ ...visible, ...change }), JSON.stringify(change)).toEqual([])
+  expect(selected(context(actor))).toEqual([])
+})
+
+it('does not expose unrelated context or let scene predicates widen a private document audience', async () => {
+  const f = await packFixture()
+  const request: WorldJsonObject = { ...context('character:friend'),
+    character: { characterId: 'character:friend', locationId: 'location:front-room' },
+    truth: { answer: 73 }, cognition: { secret: 'private thought' }, knowledge: { entries: ['previous setting'] },
+    observations: [{ content: { locationId: 'location:back-room' } }] }
+  const select = (when: WorldJsonObject) => PackKnowledge.parse({ ...f.knowledgeConfig,
+    entries: f.knowledgeConfig.entries.map(entry => ({ ...entry, constant: true, when })) }, f.pack).select(request).entries
+  expect((select(fields({ locationId: { const: 'location:front-room' } })) as WorldJsonObject[])
+    .map(row => row.documentId)).toEqual(['document:lore'])
+  for (const key of ['truth', 'cognition', 'knowledge', 'observations']) {
+    expect(select(fields({ [key]: {} }))).toEqual([])
+  }
+  expect(select(fields({ locationId: { const: 'location:back-room' } }))).toEqual([])
+})
+
 it('accepts a lorebook-sized pack: 600 entries, long keyword lists and a single entry near 40k characters',async()=>{
   const root = mkdtempSync(join(tmpdir(),'pack-lorebook-scale-')); roots.push(root)
   const path = join(root,'pack'); cpSync(resolve('examples/world-packs/prototype-g1'),path,{recursive:true})
@@ -96,6 +148,15 @@ it('accepts a lorebook-sized pack: 600 entries, long keyword lists and a single 
 
 it.each(['ollama','local'] as const)('keeps private knowledge and direct speech isolated through the %s host, reopen and regeneration',async(provider)=>{
   const f=await packFixture(), data=join(f.root,'data'), requests:WorldJsonObject[]=[]
+  const when = fields({ locationId: { const: 'location:front-room' },
+    scene: fields({ people: contains({ characterId: { const: 'character:companion' } }) }),
+    items: fields({ current: contains({ entityId: { const: 'entity:brass-key' } }) }),
+    stimulus: { type: 'array', contains: fields({ content: fields({ actorId: { const: 'character:player' }, speech: {
+      anyOf: [fields({ text: { type: 'string', pattern: '黑海岸' } }),
+        fields({ segments: contains({ type: { const: 'speech' }, text: { type: 'string', pattern: '黑海岸' } }) })],
+    } }) }) } })
+  writeFileSync(join(f.path,'knowledge.json'), JSON.stringify({ ...f.knowledgeConfig,
+    entries: f.knowledgeConfig.entries.map(entry => entry.documentId === 'document:lore' ? { ...entry, when } : entry) }))
   const server=createServer((request,response)=>{
     let body='';request.on('data',chunk=>{body+=String(chunk)});request.on('end',()=>{
       try{

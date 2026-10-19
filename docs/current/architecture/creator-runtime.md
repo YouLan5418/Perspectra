@@ -1,5 +1,7 @@
 # 当前创作者运行时
 
+2026-10-19 知识条件扩展：例如同行者在前室、眼前能确认钥匙且本次刺激来自玩家时，才交付钥匙背景。`when` 继续使用 JSON Schema，保留 public／self／characters 的已知值条件，另可检查接收者、当前位置、授权场景、当前／旧物品、本人活动、刺激与 knownStatus 的 current。活动授权视图增加稳定 activityKey；不读取隐藏世界真值，也不新增状态副本或自动事件链。字段与示例见[世界设定指南](../guides/world-knowledge.md#按场景物品活动与本次刺激筛选)。[Core／DeepSeek 真实试玩](../studies/knowledge-conditions-deepseek-playtest-20261019.md)的 39 次请求交付均符合预期，角色查看钱包前后分别使用过时／有效材料；这是短样本，来源表达仍有扩写，发行包未重建。
+
 2026-10-19：作者可以用 `scripts/status.js` 声明金钱、HP、游戏时间这类常驻状态，以及带 JSON Schema 的对象、数组，例如按任务 ID 保存阶段和记录。操作 policy 按行动者已知状态决定哪些选项出现，执行前重查；知识条目的 when 用 Schema 判断同一份已知状态。实际变化仍由 resolve 或每轮钩子裁定，不自动启动递归事件链。真实值只在世界事件里，每个角色和玩家只知道告知过自己的值；活动 resolve 也可以在返回中附带 `status` 变化，并收到第六个参数 truth；状态和操作可用 `activities` 收窄到指定活动。它替代已删除的包变量。完整契约、上限与已知限制见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)，样例见[集市钱袋](../../../examples/world-packs/status-market/README.md)。源码与自动测试已接通，未做真实模型试玩，发行包未重建。
 
 2026-10-18：例如花房角色依据人设、预设、记忆和对话历史改变对玩家的看法，不另设好感度或信任分数。最初切片的关系数值、面板及门槛已撤销；变量优先承载玩法明确追踪的客观变化，沿已有活动、交互及规则维护。源包仍可登记 `knowledge.json`，由 [PackKnowledge](../../../tests/experiments/pack-knowledge.ts) 按权限和关键词交付背景设定，不占用活动。配置和预算见[作者指南](../guides/world-knowledge.md)。移除分数后已做离线验证，真实模型未重跑，发行包未更新。

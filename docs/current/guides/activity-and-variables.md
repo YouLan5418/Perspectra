@@ -68,6 +68,8 @@ resume 的 view 已恢复 active 与此前 turn，但尚未提交，也尚未重
 
 状态分为：
 
+角色的授权活动视图额外带 `activityKey`（单活动缺省为 default，多活动使用配置 key），便于[知识条件](world-knowledge.md#按场景物品活动与本次刺激筛选)识别活动；`id` 仍是每次活动的实例 ID。game.private 只含该角色自己的部分，不因此开放其他参与者的私有状态或 internal。
+
 | 字段 | 可见范围 |
 | --- | --- |
 | public | 活动参与者共同可见 |

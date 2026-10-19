@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-10-19 知识筛选扩展：每次角色请求装入已有授权活动与已知状态后，知识 when 除状态值外，还可检查接收者、当前位置、场景人物、当前／旧物品、本次激活刺激、本人活动与状态 current。活动视图增加稳定 activityKey；仍在 Core／原生记忆交付后、预设准备前选择材料，不新增模型阶段、世界读取或调度机会。[Core／DeepSeek 短试玩](../studies/knowledge-conditions-deepseek-playtest-20261019.md)的 39 次请求全部成功且交付符合预期；源码模式验证不代表 Launcher 人工操作或发行包已验收。字段、自动回归与未验收范围见[世界设定指南](../guides/world-knowledge.md)。
+
 2026-10-19：例如同行者偷走玩家 30 金币后，玩家状态栏仍显示“余额 100（上次确认）”，查看钱包后才变成 70。包可以登记 `scripts/status.js` 声明经裁定的常驻状态，[PackStatus](../../../tests/experiments/pack-status.ts) 在新世界首次打开时提交初始 `status.updated`；NPC 的状态操作作为 `interact` 候选经 Rulebook 裁定，玩家用 `/status <操作> <JSON>` 走同一裁定并单独成轮；每次玩家输入被受理且角色反应结束后运行一次可选的每轮钩子（活动中的输入同样）。包变量（`scripts/variables.js`、`pack-variables.json`、`/vars`）已删除，原先因包变量关闭的动态调度、continueAfterPublish 与 beforeActionExpression 门槛一并去掉，下文相应位置已注明。`status.updated` 登记进全局事件清单，所有旧存档打开时报错，需要新建。作者契约与限制见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)。源码与自动测试已接通，未做真实模型试玩，发行包未重建。
 
 例如两个角色先后私下查看钱包，先行动者的续写只能拿到自己那次查看的结果，不能拿到后行动者的余额。[角色回合](../../../packages/application/src/prototype-character-turn.ts)用该行动已有的事件引用限定结果读取前缀，当前场景和授权上下文仍按最新前缀生成；状态结果还核对行动者与操作。回合钩子只由新提交的玩家输入触发，同一输入的幂等重放或活动的 NPC 重试不触发。轮次从已有玩家提交推导，同次事务中的多个玩家动作只算一轮，快捷活动的开始与执行两次提交合算一轮；先前钩子返回 null 或失败仍计入已发生轮次，不写额外状态文件。自动回归覆盖并发私有结果隔离、输入重放和无状态提交后的轮次推进，尚未做这组修复的真实模型试玩。

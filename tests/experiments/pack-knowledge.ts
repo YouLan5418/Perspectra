@@ -7,7 +7,7 @@ import { knownStatusView, type KnownStatus } from './pack-status.ts'
 /** Sized for imported Tavern lorebooks: hundreds of entries, long keyword lists, and entries near 40k characters. */
 const MAX_ENTRIES = 4096, MAX_KEYWORDS = 256, MAX_KEYWORD_LENGTH = 512, MAX_CHARACTERS = 65536, MAX_CONFIG_BYTES = 1024 * 1024
 interface KnowledgeEntry { documentId: string; keywords: string[]; constant: boolean; priority: number; when?: WorldJsonObject }
-/** Author knowledge is separate from lived memory. Match only the receiver's authorized context. */
+/** Author knowledge is separate from lived memory. Conditions read only the receiver's authorized context. */
 export class PackKnowledge {
   private constructor(readonly pack: CompiledWorldPackV5, readonly entries: readonly KnowledgeEntry[], readonly maximumCharacters: number,
     readonly conditions: ReadonlyMap<string, ValidateFunction>) {}
@@ -27,7 +27,7 @@ export class PackKnowledge {
         throw new TypeError('知识只能引用公开或角色私有的设定文档')
       if (Object.hasOwn(entry, 'when')) {
         if (!entry.when || typeof entry.when !== 'object' || Array.isArray(entry.when) || entry.when.type !== 'object') {
-          throw new TypeError('知识条件必须是已知状态视图的对象 schema')
+          throw new TypeError('知识条件必须是授权上下文视图的对象 schema')
         }
         conditions.set(entry.documentId, ajv.compile(entry.when))
       }
@@ -41,7 +41,12 @@ export class PackKnowledge {
   }
   select(context: WorldJsonObject): WorldJsonObject {
     const actor = String((context.character as WorldJsonObject).characterId)
-    const status = knownStatusView((context.knownStatus ?? []) as unknown as readonly KnownStatus[], actor)
+    const knownStatus = (context.knownStatus ?? []) as unknown as readonly KnownStatus[]
+    // Explicit fields only: never spread the request, world truth or previously injected knowledge.
+    const conditionView = { ...knownStatusView(knownStatus, actor), characterId: actor,
+      locationId: (context.character as WorldJsonObject).locationId ?? null,
+      scene: context.scene ?? { people: [] }, items: context.items ?? { current: [], lastObserved: [] },
+      activity: context.activity ?? null, stimulus: context.stimulus ?? [], knownStatus }
     // No global transcript, other characters' cognition, or previous injected knowledge in scan text.
     const scan = JSON.stringify({character: context.character, scene: context.scene, locationId: context.locationId,
       observations: context.observations, selfObservations: context.selfObservations, stimulus: context.stimulus,
@@ -51,7 +56,7 @@ export class PackKnowledge {
     for (const entry of [...this.entries].sort((a, b) => b.priority - a.priority || a.documentId.localeCompare(b.documentId))) {
       const document = this.pack.content.documents.find(row => row.documentId === entry.documentId)!
       if (document.audience !== 'public' && !document.characterIds.some(id => id === actor)) continue
-      if (this.conditions.has(entry.documentId) && !this.conditions.get(entry.documentId)!(status)) continue
+      if (this.conditions.has(entry.documentId) && !this.conditions.get(entry.documentId)!(conditionView)) continue
       if (!entry.constant && !entry.keywords.some(key => scan.includes(key.toLocaleLowerCase()))) continue
       const text = this.pack.content.markdown.find(row => row.path === document.contentRef)!.text
       // Whole entries only: do not silently turn a truncated rule or secret into different content.
