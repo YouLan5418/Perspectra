@@ -677,7 +677,8 @@ export class PackActivity {
       const result=rules.resolve({manifest:manifest.manifest as CompiledWorldManifest,manifestHash:manifest.manifestHash,
         events,characterId:this.playerId,actionId:owner,asOfWorldSeq:head.headSeq,
         resolutionAuthority:resolutionAuthority('player','standard'),action})
-      if(result.status!=='accepted')throw new TypeError('这次操作未被规则接受')
+      // A rejected status operation tells the player its own reason; other rejections stay generic.
+      if(result.status!=='accepted')throw new TypeError(this.status?.rejectionReason(result.events,this.playerId,result.reason)??'这次操作未被规则接受')
       const scene=new SceneDecisionService(store,availability,2)
       const drafts:WorldEventDraft[]=[...result.events]
       if(action.actionType==='move')drafts.push(...scene.transitionForMove(this.address,events,brandId(this.playerId,'CharacterId'),String(action.parameters.locationId),head.headSeq))

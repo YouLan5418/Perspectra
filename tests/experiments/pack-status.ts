@@ -101,6 +101,7 @@ export class PackStatus {
   readonly #characterIds: readonly string[]
   readonly #validators = new Map<string, ValidateFunction>()
   readonly #valueValidators = new Map<string, ValidateFunction>()
+  readonly #policyErrors = new Map<string, string>()
   readonly statuses: readonly StatusDefinition[]
   readonly operations: readonly StatusOperation[]
 
@@ -155,6 +156,9 @@ export class PackStatus {
     })
     if (new Set(this.operations.map(o => o.id)).size !== this.operations.length) throw new TypeError('重复的操作 ID')
   }
+
+  /** The latest author policy failure per actor, cleared when that actor's policy next succeeds. */
+  get policyErrors(): Record<string, string> { return Object.fromEntries(this.#policyErrors) }
 
   static parse(source: string, pack: CompiledWorldPackV5): PackStatus { return new PackStatus(source, pack) }
 
@@ -324,6 +328,11 @@ export class PackStatus {
       }
       next.set(slot(holderId, status.key), this.#value(status, change.value))
     }
+    // Every later resolve, policy and hook call carries the truth: keep it well inside the call limit,
+    // or one accepted result would lock the world out of its own script.
+    let total = 0
+    for (const v of next.values()) total += canonicalizeWorldJson(v).length
+    if (total > CALL_LIMIT / 2) throw new RangeError('状态总量过长：所有状态值合计不能超过 ' + CALL_LIMIT / 2 / 1024 + ' KiB')
     for (const reveal of data.reveals) {
       exact(object(reveal, '状态告知'), ['observerId', 'holderId', 'key', 'value'])
       const status = this.#status(reveal.key), holderId = this.#holder(status, reveal.holderId)
@@ -355,7 +364,11 @@ export class PackStatus {
   }
 
   #allowedOperations(events: readonly RulebookEvent[], actorId: string): readonly string[] {
-    const result = this.#call('policy', [knownStatusView(this.known(events, actorId), actorId), actorId])
+    return this.#policy(knownStatusView(this.known(events, actorId), actorId), actorId)
+  }
+
+  #policy(view: ReturnType<typeof knownStatusView>, actorId: string): readonly string[] {
+    const result = this.#call('policy', [view, actorId])
     if (result === null) return this.operations.map(op => op.id)
     const policy = object(result, '状态操作许可')
     exact(policy, ['operations'])
@@ -453,7 +466,14 @@ export class PackStatus {
    * activity scoping with the participant check. A running activity's policy filter is applied by its caller. */
   withOperations(values: readonly ActionAffordance[], events: readonly RulebookEvent[], actor: string, playerId: string): ActionAffordance[] {
     const activityKey = this.#activityKey(events, actor)
-    const allowed = this.#allowedOperations(events, actor)
+    // Folding stored events stays outside the catch: corrupt history must surface, not read as a policy failure.
+    const view = knownStatusView(this.known(events, actor), actor)
+    let allowed: readonly string[]
+    // A failing author policy only hides this actor's status operations; executing one still throws.
+    try { allowed = this.#policy(view, actor); this.#policyErrors.delete(actor) } catch (cause) {
+      this.#policyErrors.set(actor, cause instanceof Error ? cause.message : String(cause))
+      return [...values]
+    }
     const choices: WorldJsonObject[] = this.operations
       .filter(op => allowed.includes(op.id) && (!op.activities || (activityKey !== undefined && op.activities.includes(activityKey)))
         && (op.actors === 'any' || (op.actors === 'player') === (actor === playerId)))
@@ -493,15 +513,22 @@ export class PackStatus {
     }
   }
 
+  /** The actor-facing reason of this actor's latest status rejection, when `reason` is the status rejection code. */
+  rejectionReason(events: readonly RulebookEvent[], actorId: string, reason: string | null | undefined): string | undefined {
+    if (reason !== REJECTED) return undefined
+    const latest = events.findLast(e => e.eventType === 'action.rejected'
+      && record(e.data)?.characterId === actorId && record(e.data)?.reason === REJECTED)
+    const description = latest === undefined ? undefined : object(latest.data).description
+    return typeof description === 'string' ? description : undefined
+  }
+
   /** Result text for `status:` operations only; anything else is left to the next handler. */
   executionResult = (input: Parameters<typeof characterExecutionResult>[0]): ReturnType<typeof characterExecutionResult> | undefined => {
     const id = record(record(input.action.parameters)?.definitionRef)?.id
     if (typeof id !== 'string' || !id.startsWith(PREFIX)) return undefined
     if (input.status !== 'accepted') {
-      const latest = input.reason === REJECTED ? input.events.findLast(e => e.eventType === 'action.rejected'
-        && record(e.data)?.characterId === input.actorId && record(e.data)?.reason === REJECTED) : undefined
-      const reason = latest === undefined ? undefined : object(latest.data).description
-      return typeof reason === 'string' ? { status: input.status, description: reason } : characterExecutionResult(input)
+      const reason = this.rejectionReason(input.events, input.actorId, input.reason)
+      return reason !== undefined ? { status: input.status, description: reason } : characterExecutionResult(input)
     }
     const latest = input.events.findLast(e => {
       if (e.eventType !== 'status.updated') return false

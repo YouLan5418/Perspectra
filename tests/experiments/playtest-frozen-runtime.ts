@@ -554,6 +554,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         playerInputMode: this.#intentEnabled ? 'command-controlled' : 'legacy-speech',
         lastProviderCall: this.#lastCall,
         ...(this.#statusRoundError === undefined ? {} : { statusRoundError: this.#statusRoundError }),
+        ...(this.#status && Object.keys(this.#status.policyErrors).length ? { statusPolicyError: this.#status.policyErrors } : {}),
         ...(this.#shadow === undefined ? {} : { shadowAudit: this.#shadow.stats() }) },
     }
   }
@@ -570,6 +571,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
     }
     if (this.#activity?.current()?.game.active) {
       if (text.startsWith('/') && !text.startsWith('/act ') && !text.startsWith('/status ')) throw new TypeError('活动期间禁止变量调试与未声明命令。')
+      if (text.startsWith('/status ') && !this.#status) throw new TypeError('本包没有状态脚本')
       this.#beginWork()
       try {
         this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq

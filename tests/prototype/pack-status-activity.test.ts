@@ -135,6 +135,10 @@ it('drink-potion is offered only during duel to participants', async () => {
   expect(source(drink)).toEqual({ kind: 'operation', operation: 'drink-potion', actorId: PLAYER, activityKey: 'duel' })
   expect(f.status.known(f.statusEvents(), PLAYER)).toContainEqual({ key: 'hp', label: '生命', holderId: PLAYER, value: 25, current: true })
   await expect(f.runtime.submit('/status cheat-hp {}')).rejects.toThrow('活动期间禁止此交互')
+  // An operation the duel allows but the status rules reject tells the player the status reason.
+  const head = f.events().length
+  await expect(f.runtime.submit('/status drink-potion {"extra":1}')).rejects.toThrow('操作缺少有效的必要信息，什么都没有发生。')
+  expect(f.events()).toHaveLength(head)
 }, 60_000)
 
 it('after duel ends hp keeps its last value and is shown as last confirmed to bystanders', async () => {

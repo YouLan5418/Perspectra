@@ -43,6 +43,11 @@ const scripts = { market: (s: string) => s, noHook: (s: string) => s.replace(HOO
     + ' return { changes: [{ holderId: null, key: "time", value: round }], reveals: [] } },\n'),
   failedFirstHook: (s: string) => s.replace(HOOK, '  onRoundEnd(truth, round) { if (round === 1) throw new Error("首轮故障");'
     + ' return { changes: [{ holderId: null, key: "time", value: round }], reveals: [] } },\n'),
+  // An author policy that breaks once the clock has moved: options vanish, the session keeps running.
+  throwingPolicy: (s: string) => s.replace('  resolve(truth,', '  policy(known) { if (known.public.time >= 10) throw new Error("告示牌坏了"); return null },\n  resolve(truth,'),
+  // The sample with every operation offered, so only resolve's check against the truth can stop a second claim.
+  openQuests: () => readFileSync(resolve('examples/world-packs/status-market/scripts/status.js'), 'utf8')
+    .replace('  policy(known) {', '  policy() { return null },\n  samplePolicy(known) {'),
   throwingHook: (s: string) => s.replace(HOOK, '  onRoundEnd() { throw new Error("钟楼坏了") },\n'),
   // A round hook may not touch an activity-scoped status, nor tell anyone but the changed status's owner.
   scopedHook: (s: string) => s.replace(HOOK, '  onRoundEnd() { return { changes: [{ holderId: "character:player", key: "hp", value: 1 }],'
@@ -64,7 +69,7 @@ async function fixture(provider: 'ollama' | 'local', script: keyof typeof script
   writeFileSync(join(packPath, 'scripts/status.js'), variant)
   const source = JSON.parse(readFileSync(join(packPath, 'worldpack.source.json'), 'utf8'))
   source.assetFiles = ['scripts/status.js']
-  if (script === 'quests' || script === 'invalidQuests') {
+  if (script === 'quests' || script === 'invalidQuests' || script === 'openQuests') {
     for (const file of ['knowledge.json', 'documents.json', 'task-reward.md']) {
       writeFileSync(join(packPath, file), readFileSync(resolve('examples/world-packs/status-market', file)))
     }
@@ -322,6 +327,46 @@ it('structured quest state unlocks options, grants a reward once, and follows re
   await child.submit('/status claim-reward {}')
   expect(f.status.truth(f.statusEvents(child)).characters[PLAYER]!.money).toBe(130)
 }, 90_000)
+
+it('a second reward claim is refused by the true quest stage when the policy offers it', async () => {
+  const f = await fixture('local', 'openQuests')
+  await f.runtime.submit('/status accept-task {}')
+  await f.runtime.submit('/status finish-task {}')
+  await f.runtime.submit('/status claim-reward {}')
+  expect(f.status.truth(f.statusEvents()).characters[PLAYER]!.money).toBe(130)
+  const offered = (await f.runtime.state()).availableActions!.flatMap(a => a.interactions ?? []).map(o => object(o.definitionRef).id)
+  expect(offered).toContain('status:claim-reward')
+  const head = f.events().length, updates = f.statusEvents().length
+  await expect(f.runtime.submit('/status claim-reward {}')).rejects.toThrow('委托未完成或已经领取过报酬')
+  expect(f.events()).toHaveLength(head)
+  expect(f.statusEvents()).toHaveLength(updates)
+  expect(f.status.truth(f.statusEvents()).characters[PLAYER]!.money).toBe(130)
+}, 60_000)
+
+it('a throwing author policy hides status options but keeps the session and NPC turns running', async () => {
+  const f = await fixture('ollama', 'throwingPolicy')
+  const ids = (affordances: unknown) => (affordances as WorldJsonObject[]).flatMap(a => (a.interactions as WorldJsonObject[] | undefined) ?? [])
+    .map(o => String(object(o.definitionRef).id)).filter(id => id.startsWith('status:'))
+  expect(ids((await f.runtime.state()).availableActions)).toContain('status:check-purse')
+  // The first round's hook moves the clock to 10; from then on the policy throws.
+  expect((await f.runtime.submit(speak('第一轮。'))).error).toBe(false)
+  const state = await f.runtime.state()
+  expect(ids(state.availableActions)).toEqual([])
+  expect(state.statusBar).toContainEqual(expect.objectContaining({ key: 'time', value: 10 }))
+  expect(String(object(state.debug.statusPolicyError)[PLAYER])).toContain('告示牌坏了')
+  const after = f.requests.length
+  const second = await f.runtime.submit(speak('第二轮。'))
+  expect(second.error, JSON.stringify(second.debug)).toBe(false)
+  const npc = f.requests.slice(after).filter(input => actor(input) === THIEF)
+  expect(npc.length).toBeGreaterThan(0)
+  for (const input of npc) expect(ids(object(input.context).affordances)).toEqual([])
+  expect(String(object(second.debug.statusPolicyError)[THIEF])).toContain('告示牌坏了')
+  expect(f.status.truth(f.statusEvents()).public.time).toBe(20)
+  // Executing an operation still runs the policy, and its failure stays the author's fault.
+  const head = f.events().length
+  await expect(f.runtime.submit('/status check-purse {}')).rejects.toThrow('告示牌坏了')
+  expect(f.events()).toHaveLength(head)
+}, 60_000)
 
 it('invalid nested changes reject the entire operation without spending money or committing a round', async () => {
   const f = await fixture('ollama', 'invalidQuests'), before = f.events()

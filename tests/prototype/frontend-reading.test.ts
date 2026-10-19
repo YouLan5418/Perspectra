@@ -112,6 +112,11 @@ it('renders the status panel with labels and values and marks stale ones as last
     expect(statusRows({ player: { name: '玩家' } })).toEqual([])
     expect(statusRows({ statusBar: [{ label: '委托', holderId: null, value: { stages: ['done'], reward: null }, current: true }] }))
       .toEqual([{ holder: '世界', items: [{ label: '委托', value: '{"stages":["done"],"reward":null}', note: '' }] }])
+  // A large composite value is shortened on the stage; the SDK view keeps the whole value.
+  const notes = { notes: Array.from({ length: 40 }, (_, i) => '记录' + i) }
+  const shown = statusRows({ statusBar: [{ label: '委托', holderId: null, value: notes, current: true }] })[0]!.items[0]!.value
+  expect(Array.from(shown)).toHaveLength(121)
+  expect(shown).toBe(Array.from(JSON.stringify(notes)).slice(0, 120).join('') + '…')
   expect(DEFAULT_SCRIPT).toContain("node('status-bar')")
 })
 it('keeps an NPC that shares the player name apart from the player in the status panel', () => {

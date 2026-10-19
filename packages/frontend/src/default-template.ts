@@ -49,8 +49,11 @@ function statusBarRows(view: { statusBar?: { label: string; holderId: string | n
       group = { id: entry.holderId, holder: entry.holderId === null ? '世界' : entry.self === true ? '你' : entry.holderName || entry.holderId, items: [] }
       groups.push(group)
     }
+    // A composite value is shortened for the panel only; the SDK view keeps the whole value.
+    const json = typeof entry.value === 'object' && entry.value !== null ? Array.from(JSON.stringify(entry.value)) : []
     group.items.push({ label: entry.label, value: entry.value === true ? '是' : entry.value === false ? '否'
-      : entry.value === null ? '空' : typeof entry.value === 'object' ? JSON.stringify(entry.value) : String(entry.value),
+      : entry.value === null ? '空' : json.length ? (json.length > 120 ? json.slice(0, 120).join('') + '…' : json.join(''))
+        : String(entry.value),
       note: entry.current ? '' : '上次确认' })
   }
   return groups.map(({ holder, items }) => ({ holder, items }))

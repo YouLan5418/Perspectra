@@ -68,6 +68,22 @@ describe('pack status', () => {
     }
   })
 
+  it('bounds the total truth so every later script call still fits its input limit', () => {
+    const keys = Array.from({ length: 40 }, (_, i) => 'data-' + i)
+    const script = `globalThis.statusScript = { definition: { statuses: ${JSON.stringify(keys.map(key =>
+      ({ key, label: key, type: 'object', owner: 'public', schema: { type: 'object' } })))}, operations: [] },
+      initialize(ids) { return { public: Object.fromEntries(${JSON.stringify(keys)}.map(key => [key, {}])),
+        characters: Object.fromEntries(ids.map(id => [id, {}])) } } }`
+    const status = PackStatus.parse(script, pack), initial = status.initialEvent()
+    const fill = (count: number): StatusEventData => ({ source: { kind: 'round', round: 1 },
+      changes: keys.slice(0, count).map(key => ({ holderId: null, key, value: { text: 'x'.repeat(15 * 1024) } })), reveals: [] })
+    // Each value is within its own limit; 30 of them fit, 40 together would lock the world out of its script.
+    expect(() => status.validate([initial], fill(30), [])).not.toThrow()
+    expect(() => status.validate([initial], fill(40), [])).toThrow('状态总量过长')
+    expect(() => status.validate([initial, event(fill(30))], { ...fill(40), changes: fill(40).changes.slice(30) }, []))
+      .toThrow('状态总量过长')
+  })
+
   it('operation policy sees only known state, including last confirmed values', () => {
     const status = PackStatus.parse(quests, pack), initial = status.initialEvent()
     const ids = (events: RulebookEvent[]) => status.withOperations([], events, 'character:claude', 'character:player')
