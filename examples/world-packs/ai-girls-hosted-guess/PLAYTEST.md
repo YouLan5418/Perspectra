@@ -32,7 +32,7 @@ Claude 开场 → 玩家猜数 → Claude 裁决 → GPT 猜数 → Claude 裁�
 
 模型只收到公开状态和自己的 private。答案只在 Claude.private，玩家与 GPT 不获得其他角色私有数据，非参与者不接收游戏操作的私密经历。作者应把私密结果放在对应 private 中：audience:self 限制结果观察的收件人，不会把已放在 public 的数据自动变私密。提交游戏状态与授权观察在同一世界事务中完成；未唤醒者仍拥有自己已授权的经历。重启恢复已提交阶段与轮次，不自动重跑未提交模型计算。
 
-原包的角色背景、地点、variables.js 和对话页面继续复用。系统不追踪日常物品，未参与的 DeepSeek 和 GLM 不继承游戏限制。变量脚本的说明见 [原包试玩说明](../ai-girls-awaken-v10/PLAYTEST.md)；活动期间禁止 /vars 调试。
+原包的角色背景、地点和对话页面继续复用。系统不追踪日常物品，未参与的 DeepSeek 和 GLM 不继承游戏限制。2026-10-19 起包变量 `variables.js` 与 `/vars` 命令已退役并从本包删除，见 [原包试玩说明](../ai-girls-awaken-v10/PLAYTEST.md)；活动期间除 /act 外的调试命令禁止。
 
 ## 启动
 

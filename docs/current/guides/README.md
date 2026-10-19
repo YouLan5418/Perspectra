@@ -11,7 +11,7 @@
 | 创作者 | 复制示例、修改角色与世界、校验 v5 包 | [v5 创作指南](world-pack-authoring.md) |
 | 创作者 | 用 Launcher 或源码进行真实模型验收 | [创作者试玩](creator-playtest.md) |
 | 创作者 | 在浏览器里只读查看对话、物品去向、模型请求与记忆 | [创作者调试接口](../creator-debug-api.md) |
-| 创作者 | 添加活动、公开和私有变量 | [活动与变量](activity-and-variables.md) |
+| 创作者 | 添加活动、经裁定的状态与状态栏 | [活动与状态](activity-and-variables.md) |
 | 创作者 | 按权限和关键词交付设定、区分角色态度与客观变量 | [世界设定](world-knowledge.md) |
 | 前端作者 | HTML/CSS/JS、公共接口、沙箱边界 | [自定义前端](web-ui.md) |
 | 源码使用者 | 安装、启动及检查命令 | [本机运行](local-runbook.md) |

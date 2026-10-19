@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "玩家",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "刚来到集市摊位前，身上带着钱，正在与同行者和留守者闲逛。",
+        "speakingStyle": "由玩家决定。"
+      }
+    },
+    {
+      "characterId": "character:companion",
+      "displayName": "同行者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "与玩家熟悉，手头拮据，眼睛总往别人的钱袋上瞟；会自己决定要不要下手、要不要回应。",
+        "speakingStyle": "短句，少解释。"
+      },
+      "interactionBindings": [
+        {
+          "bindingId": "binding:companion-hold",
+          "definition": {
+            "id": "base:hold-hand",
+            "version": 1
+          },
+          "config": {}
+        }
+      ]
+    },
+    {
+      "characterId": "character:friend",
+      "displayName": "留守者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "陪玩家逛集市，想买点小东西，但花钱前会先看看自己的钱包。",
+        "speakingStyle": "客气，偶尔简短直接。"
+      }
+    }
+  ]
+}

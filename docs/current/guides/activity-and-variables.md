@@ -1,10 +1,10 @@
-# 创作者：活动与包变量
+# 创作者：活动与状态
 
 当前玩法桥由实验宿主加载可信本地脚本。先复制 [launcher-demo](../../../examples/world-packs/launcher-demo) 或 [主持猜数字示例](../../../examples/world-packs/ai-girls-hosted-guess)，逐步修改并真实试玩。完整运行时边界见 [创作者运行时](../architecture/creator-runtime.md)。
 
 ## 1. 文件和信任范围
 
-`worldpack.source.json` 的 assetFiles 必须登记 `scripts/activity.js`、`scripts/variables.js` 或独立活动 `scripts/activities/<标识>.js`；仅把脚本放进目录不代表启用。独立活动标识为小写字母开头、后接小写字母／数字／连字符，最长 41 字符。固定入口的标识是 default，不能再登记同名独立活动。加载时核对编译资产内容和包内路径。脚本使用同步 JSON 输入/输出，执行时间和数据大小有界，不能把异步模型调用或任意数据库对象当成参数。
+`worldpack.source.json` 的 assetFiles 必须登记 `scripts/activity.js`、`scripts/status.js` 或独立活动 `scripts/activities/<标识>.js`；仅把脚本放进目录不代表启用。独立活动标识为小写字母开头、后接小写字母／数字／连字符，最长 41 字符。固定入口的标识是 default，不能再登记同名独立活动。加载时核对编译资产内容和包内路径。脚本使用同步 JSON 输入/输出，执行时间和数据大小有界，不能把异步模型调用或任意数据库对象当成参数。
 
 **这是可信作者的后端扩展，不是不可信脚本安全沙箱。** 浏览器社区前端的 iframe 与授权只约束前端，不为整个恶意游戏包提供安全保证。只加载可信来源的后端脚本，不放模型密钥或私有运行日志。
 
@@ -83,7 +83,7 @@ Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者�
 
 ### 可选固定演出输出
 
-可信作者可实现同步 `simulate(request)`。宿主仍按 schedule 激活已声明 NPC，构建该角色的授权 Context、Memory 与包变量并准备预设，随后以脚本返回值替代一次模型响应。脚本只收到当前角色的 request（context、continuation、canPerform、canRecall，以及已有的执行结果或 recallEvidence）；不收到完整活动状态、其他角色 private、internal、凭证或数据库句柄。没有 hook 或明确返回 `null` 时调用真实模型；返回 `abstain` 表示角色弃权，不等于使用模型。hook 每次在新脚本上下文中执行，不依靠脚本全局变量保存进度。
+可信作者可实现同步 `simulate(request)`。宿主仍按 schedule 激活已声明 NPC，构建该角色的授权 Context、Memory 与已知状态并准备预设，随后以脚本返回值替代一次模型响应。脚本只收到当前角色的 request（context、continuation、canPerform、canRecall，以及已有的执行结果或 recallEvidence）；不收到完整活动状态、其他角色 private、internal、凭证或数据库句柄。没有 hook 或明确返回 `null` 时调用真实模型；返回 `abstain` 表示角色弃权，不等于使用模型。hook 每次在新脚本上下文中执行，不依靠脚本全局变量保存进度。
 
 返回值继续经过现有预设输出处理、严格决策格式校验、活动许可、世界高水位检查、Rulebook、原子事件提交与观察分发；共享原有激活、动作与耗时预算。`perform` 不得混入对白；行动提交后的下一次 request 会带实际 result，作者须依据成功或拒绝选择后续 `publish` 或 `abstain`。格式错误沿用有界格式修正，使用同一个模拟响应再次校验，不自动切换到模型；脚本失败或超时也不回退到模型。模拟响应不会计作实际 provider 调用。
 
@@ -93,19 +93,72 @@ Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者�
 
 独立无模型实验：`node --import tsx tests/experiments/scripted-performance.ts`。默认创建新的 `.tmp/scripted-performance-<时间戳>` 数据目录，保存两个分支的转录、事件和 summary；模型地址故意不可用，任何误调用都会导致实验失败。人工试玩可将 `examples/world-packs/scripted-performance` 作为源包导入并创建新实例，开始活动，选择回应后恢复自由互动。
 
-## 3. 包变量
+## 3. 状态（2026-10-19，当前源码）
 
-固定入口为 `globalThis.packScript`，提供 initialize、getVariables、applyPatch。参照 [演示变量脚本](../../../examples/world-packs/launcher-demo/scripts/variables.js) 与 [变量桥](../../../tests/experiments/pack-variables.ts)。
+例如玩家钱袋里有 100。同行者趁人多执行“偷窃”，作者脚本裁定成功：真实余额变成 70，结果只告诉同行者。玩家的状态栏和角色上下文仍是“余额 100（上次确认）”；玩家执行“查看钱包”或付账后，才看到 70。旁边的留守者从头到尾不知道两人的余额。完整样例见 [集市钱袋](../../../examples/world-packs/status-market/README.md)。
 
-initialize 为各角色返回 public 和 private；所有角色初始化出的公共部分须一致。getVariables / applyPatch 接收公共值及当前角色自己的私有值，不能通过普通变量接口读取别人的 private。
+状态是作者用代码声明、经过裁定的常驻客观值：金钱、HP、游戏时间、剧情阶段等。真实值只以 `status.updated` 世界事件提交，和对话、行动走同一次原子提交；每个观察者（NPC 与玩家相同）只知道告知过自己的值。它替代了已退役的包变量（`scripts/variables.js`、`pack-variables.json`、`/vars` 已删除）。实现在 [状态桥](../../../tests/experiments/pack-status.ts)，设计见[状态栏设计](../../superpowers/specs/2026-10-18-status-bar-design.md)。
 
-变量适合玩法明确维护的计数、标签和角色私有值。脚本的补丁规则由示例实现：演示允许对已声明路径做 test / replace，不支持任意新增字段。不要假定所有作者脚本都有同一套补丁语义，更不要用变量冒充已经裁定的移动或物品转移。
+### 作者写什么
 
-变量保存在实例 `pack-variables.json`，绑定当前包内容。它是现有独立文件，不是 World Event Log 的通用事实事务；完整节点保存会一并保留变量。当前公共玩家 SDK 没有任意变量读写接口，不能把调试接口当成创作者前端 API。
+在 assetFiles 登记 `scripts/status.js`，入口为 `globalThis.statusScript`：
+
+| 部分 | 职责 |
+| --- | --- |
+| definition.statuses | 每项 `{ key, label, type, owner, alwaysKnown?, activities? }`。type 为 `number`／`string`／`boolean`；owner 为 `public`（全世界一份）或 `character`（包里每个角色各一份，包括玩家和尚未登场的角色）；`alwaysKnown: true` 表示所有人始终知道真实值 |
+| definition.operations | 每项 `{ id, label, schema, characterParameters?, actors?, activities? }`。schema 必须是封闭对象；`characterParameters` 列出指向角色的字符串参数，宿主在调用 resolve 前检查该角色存在且在行动者当前授权场景内；`actors` 为 `player`／`npc`／`any`（默认） |
+| initialize(characterIds) | 返回 `{ public, characters, reveals? }`，必须恰好包含声明的状态。新世界首次打开时提交为初始事件；角色私有状态默认告知归属者，公共状态除非 alwaysKnown 否则不告知任何人 |
+| resolve(truth, actorId, operationId, parameters, world) | 裁定一次操作。truth 是真实值，只在宿主内使用，不进入任何角色视图；world 与活动 resolve 的第五参数相同 |
+| onRoundEnd(truth, round)（可选） | 每次玩家输入被受理、本轮角色反应结束后调用一次，返回 `null` 或 `{ changes, reveals }` |
+
+resolve 返回两种结果之一：
+
+- `{ rejectReason }`：操作根本不成立（参数不对、目标不对）。什么都不提交，也不告知任何值。
+- `{ changes, reveals, description, audience }`：被接受的结果。changes 是 `{ holderId, key, value }`（公共状态 holderId 为 null）；description 是结果文字；audience 为 `'self'`、`'scene'` 或 `{ characters: [...] }`。
+
+**失败不等于拒绝。** 余额不足、偷窃被发现这类玩法失败，应作为被接受的结果返回：changes 为空或只含部分变化，照常带上 reveals 和 description，角色才能通过失败得知真实值。
+
+reveals 每项只写 `{ observerId, holderId, key }`，**不写值**；宿主按本次结果之后的真实值填入，作者无法告知一个编造的值。本次改变了行动者自己的状态时，新值自动告知行动者，不必写 reveal；别人引起的变化（例如被偷）不会自动告知归属者。reveals 和 audience 只能指向行动者本人或其当前授权场景内的角色。
+
+### 谁怎样提出操作
+
+- NPC：已声明且允许其执行的操作作为 `interact` 候选出现在角色 affordances 中，模型通过 perform 提出（bindingId `status`，definitionRef `status:<操作ID>`），经 Rulebook 裁定后与其他事件一起提交。被拒绝时只有该 NPC 收到带拒绝原因的执行结果，不告知任何值。叙事文本不改变任何状态。
+- 玩家：输入 `/status <操作ID> <JSON 参数>`，例如 `/status buy {"price":20}`、`/status check-purse {}`。宿主按与 NPC 相同的规则裁定，被拒绝时提示原因且不提交。没有参数的操作也作为一键选项出现在默认舞台和 SDK 的 view.actions 中；有参数的操作不在行动菜单里，只能用 `/status`。
+- 角色上下文新增 `knownStatus`（该角色已知的值，`current: false` 表示上次确认后可能已变）和 `knownStatusNote` 提示。从未被告知的状态完全不出现，而不是显示为空。
+
+### 与活动的配合
+
+- 活动 resolve 收到第六个参数 truth（没有状态脚本时为 null），可以在返回值中附加 `status: { changes, reveals }`，与 `activity.updated` 同一次提交。告知规则与操作相同，行动者自己的变化同样自动告知。
+- 状态声明加 `activities: ['duel']` 后，只有这些活动的 resolve，或在这些活动中执行的 status.js 操作才能改它；其他来源（包括每轮钩子）一旦改动它，整次结果被拒绝。读取不受限制：战斗外仍显示“上次确认”的 HP。
+- 操作加 `activities: [...]` 后，只在该活动运行且行动者是参与者时出现和可执行。活动运行期间，状态操作和其他交互一样须列入活动 policy 的 interactions（例如 `'status:drink-potion'`）。
+
+### 每轮钩子
+
+onRoundEnd 拿到真实值和轮次，拿不到角色上下文或模型输出；结果作为本轮最后一个 `status.updated` 提交。它没有行动者和场景，所以 reveals 只能告知被改状态的归属者本人；alwaysKnown 的状态（如游戏时间）不需要告知。不产生对白，不额外调度角色。钩子失败或超时时，本轮已提交内容保留、状态不变，错误记在宿主调试信息的 `debug.statusRoundError`，不重试。末端重新生成会连同这一轮一起重演。
+
+### 显示、存档与上限
+
+- 玩家：PlayerView 新增 `statusBar`，每项 `{ key, label, holderId, holderName?, value, current, self? }`，只含玩家已知值；`self: true` 按 holderId 标出玩家自己的状态。默认舞台在世界标题下按归属者分组显示，玩家自己的一组标为“你”，过期值标“上次确认”。社区前端通过 SDK 读到同一字段，永远拿不到真实值。
+- 创作者：调试接口的 `variables` 显示全部真实值。
+- 存档：状态只在世界事件里，故事节点、分叉、末端重新生成随事件一起回滚，没有独立状态文件。
+- 上限：状态 64 个、操作 32 个，字符串值 200 字符，每次结果 changes 和 reveals 各 64 条；脚本 64 KiB，单次调用 100 ms，输入输出各 64 KiB。操作 ID 不能用 start、retry、suspend、resume、abandon。
+
+### 已验证与已知限制
+
+源码已接通默认网页宿主；自动测试覆盖拒绝不提交、同事务提交、失主不知情、上次确认与重新确认、alwaysKnown 一致、分叉与重新生成回滚、Ollama 与本地 OpenAI 两种协议下私有值不进入其他角色请求、活动范围与每轮钩子规则。[无模型离线实验](../../../tests/experiments/status-market-offline.ts)驱动集市样例的偷窃、查看钱包、购买和时间推进。**尚未做真实模型试玩**，没有人工检查失主是否会凭空“察觉”失窃、角色是否把叙述当成数值变化；发行包未重建。
+
+有意接受的限制：
+
+1. 角色的 knownStatus 不在过期重算（stale）的比较内容里。角色思考期间另一角色改了状态，它的台词可能提到刚变的旧值；权威事实仍一致，操作总在最新前缀上重新裁定。
+2. 带参数的状态操作不是舞台上的行动选项，玩家需输入 `/status`。
+3. 活动运行中 `/status` 被拒绝时，只显示通用的“未被接受”提示，不显示作者的拒绝原因。
+4. 不支持跨场景告知（短信、银行通知等）。
+5. `status.updated` 登记进全局事件清单，改变了所有世界的 manifest，**所有旧存档**打开时都会报错，需要新建存档；不提供迁移。
+6. 位置、剧情阶段等其他条件不做成声明，作者在 resolve 里自己检查并返回 rejectReason。
 
 ## 4. 试玩要求
 
-校验包后创建新实例：检查开始条件、每个操作的合法/非法参数、轮转、结束、模型失败后的重试与逃生。分别让参与者知道不同秘密，检查角色上下文、结果描述和公开页面是否泄漏。再保存完整节点、改变状态并分叉，确认活动与变量回到节点时刻。
+校验包后创建新实例：检查开始条件、每个操作的合法/非法参数、轮转、结束、模型失败后的重试与逃生。分别让参与者知道不同秘密，检查角色上下文、结果描述和公开页面是否泄漏。再保存完整节点、改变状态并分叉，确认活动与状态回到节点时刻。
 
 自动化结构检查不证明自然度，也不能证明自由文本永不违背裁定。遇到玩法需求超出现有宿主支持，先记录具体体验缺口，不把任意新 JSON 字段当成已实现规则。
 

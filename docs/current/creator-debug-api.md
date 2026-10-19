@@ -52,7 +52,7 @@ const detail = await response.json()
 | busy / paused / captureEnabled | 当前宿主状态及实际请求采集开关 |
 | characters | 全部声明角色的位置、场景、生命周期和最近移动事件；processing.transport 是最近捕获请求的传输状态，lastActivation 是最近已完成反应周期中的角色结果 |
 | entities | 事件日志重建的受追踪实体状态、最近变更。holderId 表示保管或携带，未单独追踪法律所有权。effectiveLocationId 可以来自保管者位置，locationBasis 明示推导来源；不能据此宣称精确姿态或桌面位置 |
-| variables | 当前安装的公开变量及全部角色私有变量；未安装变量模块时为 null。读取不运行作者脚本，不重建历史值 |
+| variables | 2026-10-19 起为状态脚本的全部真实值 `{ public, characters }`，由事件日志推导；包没有 `scripts/status.js` 时为 null。读取不运行作者脚本。玩家和角色只看到各自上次确认的值 |
 | activities | 各活动最近提交状态，含参与者、game 的公开／私有／内部变量；未开始的 state 为 null。这些信息仅限创作者宿主 |
 | events | 事件页、nextAfterSeq 和 hasMore。后续用 nextAfterSeq 继续读取；完整记录保留事件类型、数据与序号 |
 | character.currentView | 当前 headSeq 的授权观察、认识、目标等；它不是过去某次模型的实际请求 |
@@ -141,6 +141,6 @@ request、decision、action、turn、recall 通过 decisionId 关联。格式重
 
 自动化覆盖宿主权限、Frontend API 拒绝访问、严格查询、跨页受众、物品转移／拒绝／随携带者移动、调用超过最近 4 条、预设快照、服务返回思考、重启、候选隔离与前缀继承、记录损坏和诊断写入失败；参见 [观测回归](../../tests/prototype/creator-observability.test.ts)、[候选回归](../../tests/prototype/tail-round.test.ts)、[请求回归](../../tests/prototype/request-inspector.test.ts)。既有 Core 来源校验与只读检查不触发 catch-up 的边界保持。
 
-不推测未发生的处理机会、角色意图或不可见记忆；lastActivation 与最新传输状态可能来自不同处理时刻。包变量没有事件级变更历史。没有过去世界任意时刻完整状态预览、原生完整记忆档案、逐条清洗规则轨迹、未进入执行器的失败输入完整日志或自动诊断。历史检索扫描本地文件，尚未做长会话容量与延迟验收；不自动淘汰持久记录。
+不推测未发生的处理机会、角色意图或不可见记忆；lastActivation 与最新传输状态可能来自不同处理时刻。状态的每次变更都是可在事件历史里查到的 `status.updated`。没有过去世界任意时刻完整状态预览、原生完整记忆档案、逐条清洗规则轨迹、未进入执行器的失败输入完整日志或自动诊断。历史检索扫描本地文件，尚未做长会话容量与延迟验收；不自动淘汰持久记录。
 
 控制台第一版已在浏览器 Mock 预览下核对布局、对话排版、轨迹表、详情分页、物品时间线和窄窗口抽屉，并用固定样例对纯函数合并规则加了单元测试；尚未在真实运行实例、真实模型长会话或发行包里验收。为定位记录与事件的对应关系，窗口内的记录会逐条读取正文并常驻内存缓存，长会话下的请求量尚未测量；更早历史逐页向前的翻页成本同样未验收。

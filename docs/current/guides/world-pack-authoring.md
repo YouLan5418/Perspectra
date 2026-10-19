@@ -39,7 +39,7 @@ my-world/
   manifestation.json
   interactions.json
   assertions.json
-  scripts/variables.js
+  scripts/status.js
   scripts/activity.js
   model-preset.json
   frontend/manifest.json
@@ -63,7 +63,7 @@ my-world/
 | reactionFile / manifestationFile | 连续反应与叙事表现配置；沿用 v5 示例当前版本 |
 | interactionFile | 宿主已安装的交互包、定义版本和绑定 |
 | assertionFiles | 断言声明；当前 `worldpack test` 仅编译计划，不执行断言 |
-| assetFiles | Core 资产；启用后端变量或活动脚本时登记固定脚本路径 |
+| assetFiles | Core 资产；启用状态脚本 `scripts/status.js` 或活动脚本时登记固定脚本路径 |
 | model-preset.json | 可选包推荐预设，独立读取；详见预设文档 |
 | frontend/ | 可选社区前端，独立 manifest 与内容授权；详见前端指南 |
 | cover.webp / cover.png / cover.jpg | 可选 Launcher 封面，放在包根目录，≤4 MB，建议 16:9。不参与编译，也不改变包 Hash；详见[创作者运行时](../architecture/creator-runtime.md) |
@@ -88,11 +88,11 @@ JSON 声明不能凭空安装新规则实现。超出现有交互包的玩法可
 
 ## 5. 扩展玩法和界面
 
-- [活动与变量](activity-and-variables.md)：固定后端脚本、public/private/internal 范围、有界角色机会。
+- [活动与状态](activity-and-variables.md)：固定后端脚本、public/private/internal 范围、有界角色机会；经裁定的常驻状态与状态栏。
 - [预设格式](../model-presets.md)：根目录可选 `model-preset.json`，附加提示、参数、原生节点和文本规则；模型凭证不属于预设。
 - [自定义前端](web-ui.md)：HTML/CSS/JS 与公共玩家 API。没有 frontend 时自动使用官方界面，存在但配置错误时明确失败。
 
-后端活动/变量脚本是可信本地代码，不能把浏览器 iframe 沙箱或“前端授权”理解为恶意后端包的安全保证。只加载信任来源的整个游戏包。
+后端活动/状态脚本是可信本地代码，不能把浏览器 iframe 沙箱或“前端授权”理解为恶意后端包的安全保证。只加载信任来源的整个游戏包。
 
 ## 6. 校验与试玩
 

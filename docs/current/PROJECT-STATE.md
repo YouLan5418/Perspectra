@@ -34,7 +34,7 @@
 - 行动被拒绝时，角色拿到的原因说明更清楚；行动后的续写调用次数有上限。
 
 **创作与预设。**
-- 新试玩包《赔罪晚宴》（`examples/world-packs/model-girls-dinner`）：四个室友、一场晚宴、没有预定结局。活动可以声明“一键操作”和旁白。见[活动与变量](guides/activity-and-variables.md)。
+- 新试玩包《赔罪晚宴》（`examples/world-packs/model-girls-dinner`）：四个室友、一场晚宴、没有预定结局。活动可以声明“一键操作”和旁白。见[活动与状态](guides/activity-and-variables.md)。
 - 世界包里的物品可以写显示名，界面不再只显示机器 ID。
 - 世界包根目录放 `cover.webp/png/jpg` 就会作为 Launcher 封面。
 - 酒馆（SillyTavern）预设可用 `preset:import` 命令离线转换成原生格式；Launcher 界面本身仍不能直接导入酒馆文件。另附一套原生写作预设 [native-writing-suite.json](../../preset/native-writing-suite.json)。见[预设说明](model-presets.md)。
