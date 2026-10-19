@@ -302,11 +302,11 @@ function theft(){
   reveals:[{observerId:THIEF,holderId:THIEF,key:'money',value:130}],description:'偷到了30'}}
  const events=[status.initialEvent(),stolen] as unknown as RulebookEvent[]
  const names:Record<string,string>={[PLAYER]:'玩家',[THIEF]:'阿七'}
- return status.known(events,PLAYER).map(entry=>({...entry,...(entry.holderId===null?{}:{holderName:names[entry.holderId]!})}))
+ return status.known(events,PLAYER).map(entry=>({...entry,...(entry.holderId===null?{}:{holderName:names[entry.holderId]!}),...(entry.holderId===PLAYER?{self:true}:{})}))
 }
 it("player view carries only the player's known status, never truth",()=>{
  const view=projectPlayerView({...privateState(),statusBar:theft()})
- expect(view.statusBar).toContainEqual({key:'money',label:'余额',holderId:PLAYER,holderName:'玩家',value:100,current:false})
+ expect(view.statusBar).toContainEqual({key:'money',label:'余额',holderId:PLAYER,holderName:'玩家',self:true,value:100,current:false})
  expect(view.statusBar).toContainEqual({key:'time',label:'时间',holderId:null,value:0,current:true})
  // Neither the player's true balance nor anything about the thief's purse reaches the player.
  expect(view.statusBar?.some(entry=>entry.holderId===THIEF)).toBe(false)

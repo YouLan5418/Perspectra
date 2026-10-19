@@ -17,7 +17,8 @@ export interface PlayerView {
   settings?: PlaytestState['playerSettings']
   tailRound?: PlaytestState['tailRound']
   /** The player's own known status values; `current:false` is a last confirmed value. Never the true values. */
-  statusBar?: { key: string; label: string; holderId: string | null; holderName?: string; value: number | string | boolean; current: boolean }[]
+  /** `self` marks the player's own statuses by holder ID; display names may collide. */
+  statusBar?: { key: string; label: string; holderId: string | null; holderName?: string; self?: boolean; value: number | string | boolean; current: boolean }[]
   history: { seq: number; speaker: string; speakerId?: CharacterId; text: string; player: boolean; segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
   actions: { id: string; label: string; action: PlaytestAction; participantSelection?: { min: number; max: number; candidates: { id: string; name: string }[] } }[]
 }
@@ -112,8 +113,8 @@ export function projectPlayerView(state: PlaytestState): PlayerView {
       ...(state.playerSettings.audio?{audio:{volume:state.playerSettings.audio.volume,muted:state.playerSettings.audio.muted,voiceEnabled:state.playerSettings.audio.voiceEnabled}}:{}),
       ...(state.playerSettings.palette?{palette:state.playerSettings.palette}:{})}}:{}),
     ...(state.tailRound ? {tailRound: state.tailRound} : {}),
-    ...(state.statusBar ? { statusBar: state.statusBar.map(({ key, label, holderId, holderName, value, current }) =>
-      ({ key, label, holderId, ...(holderName === undefined ? {} : { holderName }), value, current })) } : {}),
+    ...(state.statusBar ? { statusBar: state.statusBar.map(({ key, label, holderId, holderName, self, value, current }) =>
+      ({ key, label, holderId, ...(holderName === undefined ? {} : { holderName }), ...(self === true ? { self } : {}), value, current })) } : {}),
     history: state.transcript.map(line => ({ seq: line.seq, speaker: line.speaker, ...(line.speakerId === undefined ? {} : {speakerId:line.speakerId}), text: line.text, player: line.player, ...(line.segments === undefined ? {} : { segments: line.segments }) })),
     actions,
   }

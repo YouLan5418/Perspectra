@@ -40,16 +40,19 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
 export const DEFAULT_STYLE = STAGE_STYLE;
 
 /** Status bar rows grouped by holder, in the order the view lists them; a stale value reads "上次确认". */
-function statusBarRows(view: { player: { name: string }; statusBar?: { label: string; holderId: string | null; holderName?: string; value: unknown; current: boolean }[] }) {
-  const groups: { holder: string; items: { label: string; value: string; note: string }[] }[] = []
+function statusBarRows(view: { statusBar?: { label: string; holderId: string | null; holderName?: string; self?: boolean; value: unknown; current: boolean }[] }) {
+  // Grouped by holder ID, never by display name: two characters may share a name.
+  const groups: { id: string | null; holder: string; items: { label: string; value: string; note: string }[] }[] = []
   for (const entry of view.statusBar || []) {
-    const holder = entry.holderId === null ? '世界' : entry.holderName === view.player.name ? '你' : entry.holderName || entry.holderId
-    let group = groups.find(item => item.holder === holder)
-    if (!group) { group = { holder, items: [] }; groups.push(group) }
+    let group = groups.find(item => item.id === entry.holderId)
+    if (!group) {
+      group = { id: entry.holderId, holder: entry.holderId === null ? '世界' : entry.self === true ? '你' : entry.holderName || entry.holderId, items: [] }
+      groups.push(group)
+    }
     group.items.push({ label: entry.label, value: entry.value === true ? '是' : entry.value === false ? '否' : String(entry.value),
       note: entry.current ? '' : '上次确认' })
   }
-  return groups
+  return groups.map(({ holder, items }) => ({ holder, items }))
 }
 /** Quick-action group of one option; status operations belong with items and interactions. */
 function quickActionGroup(option: { action?: { actionType?: string; parameters?: { definitionRef?: { id?: unknown }; targetRef?: { kind?: unknown }; arguments?: { recipientId?: unknown } } } }) {
@@ -65,6 +68,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  const playback=(${createReadingPlayback.toString()})();
  const api=window.Perspectra,node=id=>document.getElementById(id);
  let latest,posting=false,pending,connected=false,historyKey='',actionsKey='',statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
+ // Keep statusRows, actionGroup and roundTools adjacent and in this order: frontend-reading tests extract the helpers by these markers.
  const statusRows=(${statusBarRows.toString()});
  const actionGroup=(${quickActionGroup.toString()});
  const roundTools=node('round-tools');
@@ -151,7 +155,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    document.documentElement.style.setProperty('--fs-story',reading.fontSize+'px');document.documentElement.style.setProperty('--story-line-height',String(reading.lineHeight));
    node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
    node('title').textContent=view.game.title;node('player').textContent='你 · '+view.player.name;
-   const nextStatus=JSON.stringify([view.player.name,view.statusBar||[]]);
+   const nextStatus=JSON.stringify(view.statusBar||[]);
    if(nextStatus!==statusKey){statusKey=nextStatus;const bar=node('status-bar'),rows=statusRows(view);bar.replaceChildren();bar.hidden=!rows.length;
      for(const group of rows){const section=document.createElement('span');section.className='status-group';const holder=document.createElement('small');holder.textContent=group.holder;section.append(holder);
        for(const item of group.items){const entry=document.createElement('span');entry.className='status-item';entry.append(item.label+' ');const value=document.createElement('strong');value.textContent=item.value;entry.append(value);

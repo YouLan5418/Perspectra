@@ -1128,7 +1128,8 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
           // policy filter below applies to them as to any other interaction.
           this.#availableActions = this.#status.withOperations(this.#availableActions, events, this.#playerId, this.#playerId)
           this.#statusBar = this.#status.known(events, this.#playerId).map(entry => entry.holderId === null ? entry
-            : { ...entry, holderName: this.#names.get(entry.holderId) ?? entry.holderId })
+            : { ...entry, holderName: this.#names.get(entry.holderId) ?? entry.holderId,
+              ...(entry.holderId === this.#playerId ? { self: true } : {}) })
         }
         this.#currentScene = {
           locationName: view.locationId === null ? '未知地点'

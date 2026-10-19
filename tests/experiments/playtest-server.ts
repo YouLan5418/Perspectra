@@ -36,8 +36,9 @@ export interface PlaytestState {
   readonly actionNames?: Readonly<Record<string, string>>
   readonly availableActions?: readonly ActionAffordance[]
   readonly packVariables?: { readonly public: WorldJsonObject; readonly private: WorldJsonObject }
-  /** Only the player's own known status values, never the true ones; holderName is the holder's display name. */
-  readonly statusBar?: readonly (KnownStatus & { readonly holderName?: string })[]
+  /** Only the player's own known status values, never the true ones; holderName is the holder's display name and
+   * `self` marks the player's own statuses by ID. */
+  readonly statusBar?: readonly (KnownStatus & { readonly holderName?: string; readonly self?: boolean })[]
   readonly memoryMaintenance?: WorldJsonObject
   readonly activity?: WorldJsonObject
   readonly activities?: readonly WorldJsonObject[]

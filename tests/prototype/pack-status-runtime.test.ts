@@ -127,7 +127,8 @@ it.each(['ollama', 'local'] as const)('an NPC theft commits one status.updated a
   // The player's status bar is the player's known values only; the creator debug view shows the truth.
   const bar = (await f.runtime.state()).statusBar!
   expect(bar).toContainEqual(expect.objectContaining({ key: 'money', holderId: PLAYER, value: 100, current: false }))
-  expect(bar.find(entry => entry.holderId === PLAYER)).toHaveProperty('holderName')
+  expect(bar.find(entry => entry.holderId === PLAYER)).toMatchObject({ holderName: expect.any(String), self: true })
+  expect(bar.filter(entry => entry.self).every(entry => entry.holderId === PLAYER)).toBe(true)
   expect(bar.some(entry => entry.holderId === THIEF)).toBe(false)
   expect(f.runtime.creatorDebug().variables).toEqual({ public: { time: 10 },
     characters: expect.objectContaining({ [PLAYER]: { money: 70, hp: 20 }, [THIEF]: { money: 130, hp: 20 } }) })

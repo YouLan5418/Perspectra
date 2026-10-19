@@ -102,7 +102,7 @@ it('renders the status panel with labels and values and marks stale ones as last
   const statusRows = embedded('statusRows', 'actionGroup') as (view: unknown) => { holder: string; items: { label: string; value: string; note: string }[] }[]
   const rows = statusRows({ player: { name: '玩家' }, statusBar: [
     { key: 'time', label: '时间', holderId: null, value: 10, current: true },
-    { key: 'money', label: '余额', holderId: 'character:player', holderName: '玩家', value: 100, current: false },
+    { key: 'money', label: '余额', holderId: 'character:player', holderName: '玩家', self: true, value: 100, current: false },
     { key: 'hp', label: '生命', holderId: 'character:companion', holderName: '阿七', value: 15, current: true },
     { key: 'armed', label: '持械', holderId: 'character:companion', holderName: '阿七', value: false, current: true } ] })
   expect(rows).toEqual([
@@ -111,6 +111,14 @@ it('renders the status panel with labels and values and marks stale ones as last
     { holder: '阿七', items: [{ label: '生命', value: '15', note: '' }, { label: '持械', value: '否', note: '' }] } ])
   expect(statusRows({ player: { name: '玩家' } })).toEqual([])
   expect(DEFAULT_SCRIPT).toContain("node('status-bar')")
+})
+it('keeps an NPC that shares the player name apart from the player in the status panel', () => {
+  const statusRows = embedded('statusRows', 'actionGroup') as (view: unknown) => { holder: string; items: { label: string; value: string; note: string }[] }[]
+  expect(statusRows({ player: { name: '小明' }, statusBar: [
+    { key: 'money', label: '余额', holderId: 'character:twin', holderName: '小明', value: 5, current: true },
+    { key: 'money', label: '余额', holderId: 'character:player', holderName: '小明', self: true, value: 100, current: true } ] })).toEqual([
+    { holder: '小明', items: [{ label: '余额', value: '5', note: '' }] },
+    { holder: '你', items: [{ label: '余额', value: '100', note: '' }] } ])
 })
 it('groups status operations with items and interactions in the quick actions', () => {
   const actionGroup = embedded('actionGroup', 'roundTools') as (option: unknown) => string
