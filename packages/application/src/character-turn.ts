@@ -184,7 +184,7 @@ export class CharacterTurn {
     parseExpressionSegments([{ type: 'speech', text: 'x' }], options.publicationCharacters ?? 2000)
     const stored = options.store.readManifest(options.address)
     if (stored === undefined || (stored.manifest as WorldJsonObject).schemaVersion !== 10) {
-      throw new TypeError('single-turn prototype requires an activated v10 world')
+      throw new TypeError('a single-turn activation requires an activated v10 world')
     }
     this.#manifest = stored.manifest as CompiledWorldManifest
     this.#manifestHash = stored.manifestHash
@@ -396,7 +396,7 @@ export class CharacterTurn {
           asOfWorldSeq: head.headSeq,
           stimulus: options.stimulus ?? [],
           sceneCharacterIds: scene.observerIds,
-          correlationId: `prototype-memory:${ownerId}:${attemptId}`,
+          correlationId: `character-turn-memory:${ownerId}:${attemptId}`,
         })
         const afterSeq = this.options.shortTermAfterSeq?.(characterId)
         const ordered = view.observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq)

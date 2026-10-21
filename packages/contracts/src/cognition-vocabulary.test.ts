@@ -109,7 +109,7 @@ describe('Basic v1 cognition vocabularies', () => {
     )
   })
 
-  it('exposes every Phase 8 failure as a canonical ErrorEnvelope code', () => {
+  it('exposes every cognition vocabulary failure as a canonical ErrorEnvelope code', () => {
     const codes = [
       'COGNITION_VOCABULARY_UNAVAILABLE',
       'COGNITION_STATE_LIMIT',

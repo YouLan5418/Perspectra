@@ -11,7 +11,7 @@ corepack pnpm@11.7.0 install --frozen-lockfile
 corepack pnpm@11.7.0 launcher:desktop
 ```
 
-当前桌面入口是 Tauri，开发还需 Rust/Cargo、Windows 构建工具和 [Python/E5 记忆准备](../../../desktop/host/memory/README.md)。`launcher:dev` 是 Mock 界面，不能用于真实 Core 验收。旧 Electron `desktop` / `desktop:release` 仍保留，显式使用原生记忆；开发时加载 `desktop/host/web-entry.ts`，打包后加载 `dist/backend/playtest.mjs`，它不是当前便携候选包主入口。依赖打包见 [Windows 构建说明](../../../scripts/release/BUILD.md)，源码变更不会自动更新已经冻结的 ZIP。
+当前桌面入口是 Tauri，开发还需 Rust/Cargo、Windows 构建工具和 [Python/E5 记忆准备](../../../desktop/host/memory/README.md)。`launcher:dev` 是 Mock 界面，不能用于真实 Core 验收。旧 Electron 入口及其 `desktop` / `desktop:release` 命令已于 2026-10-21 删除；开发时加载 `desktop/host/web-entry.ts`，打包后加载 `dist/backend/playtest.mjs`，它不是当前便携候选包主入口。依赖打包见 [Windows 构建说明](../../../scripts/release/BUILD.md)，源码变更不会自动更新已经冻结的 ZIP。
 
 仅启动源码网页可用：
 

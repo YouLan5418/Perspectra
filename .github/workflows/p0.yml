@@ -22,8 +22,12 @@ jobs:
         run: node scripts/check-host-boundaries.mjs
       - name: Lint runtime and desktop
         run: corepack pnpm@11.7.0 lint
+      - name: Check formatting
+        run: corepack pnpm@11.7.0 format:check
       - name: Check Launcher
         run: corepack pnpm@11.7.0 launcher:check
+      - name: Build Launcher
+        run: corepack pnpm@11.7.0 launcher:build
       - name: Run prototype tests
         # SQLite, local HTTP and crash suites compete for resources on hosted
         # Windows runners. Keep every test and its deadline; serialize files.

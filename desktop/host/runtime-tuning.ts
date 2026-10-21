@@ -1,4 +1,4 @@
-/** Per-launch prototype limits. They do not change the compiled World Pack or saved facts. */
+/** Per-launch runtime limits. They do not change the compiled World Pack or saved facts. */
 export interface RuntimeTuning {
   readonly maximumWaves: number
   readonly maximumNpcCalls: number

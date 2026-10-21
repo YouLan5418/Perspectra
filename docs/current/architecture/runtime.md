@@ -10,7 +10,7 @@
 
 2026-10-18：保留[原型遗留处理](../studies/phase8-prototype-transition-audit-20261018.md)的前两步。例如玩家说话后，RoundCoordinator 只裁定和提交玩家行动，NPC 由既有单角色循环处理；旧批量 participant、Reaction Worker、Director 模型、Context Pipeline、Reflection、Checkpoint 和 NPC Provider Call／Quality 已移除。保留玩家输入解释专用记录、授权 Source 捕获、原生认知任务及 Presenter；不改库结构或历史事件读取。2026-10-21 起旧 Reaction Cycle 的存储、门面 API 与提交拦截全部删除：world 库迁移 v20 删掉四张 Cycle 表。曾运行过 Cycle 的旧存档不再维护：其 bundle hash 覆盖了已删除的行，完整性检查会失败。Manifest 的 reactionPolicy 字段为保持哈希仍被编译和解析，运行时不读取。当前模型请求内容保持改前版本：第三步心理呈现调整因对照中的行动选择退化迹象已撤回。宿主目录整理与 Source／摘要解耦仍延期。
 
-2026-10-18：源码网页默认改用 Core 记忆，与 Launcher 一致。此前直接运行源码时默认走原生记忆，history 只取最近 16 条观察的滑动窗口，花房真实试玩的结果和缓存命中率因此不能代表玩家体验。现在缺少 Python 或 E5 时，运行时在创建存档目录前直接报错说明；原生记忆须显式加 `--memory-native`，`--ollama` / `--deepseek` 入口必须同时带上它，旧 Electron 入口也显式传入以保持原行为。只改变入口默认值，记忆存储与召回路径不变；没有重跑真实模型。
+2026-10-18：源码网页默认改用 Core 记忆，与 Launcher 一致。此前直接运行源码时默认走原生记忆，history 只取最近 16 条观察的滑动窗口，花房真实试玩的结果和缓存命中率因此不能代表玩家体验。现在缺少 Python 或 E5 时，运行时在创建存档目录前直接报错说明；原生记忆须显式加 `--memory-native`，`--ollama` / `--deepseek` 入口必须同时带上它，旧 Electron 入口（已于 2026-10-21 删除）也曾显式传入以保持原行为。只改变入口默认值，记忆存储与召回路径不变；没有重跑真实模型。
 
 2026-10-18：源包明确登记的[按需设定](../guides/world-knowledge.md)接入默认宿主。模型请求在已有记忆交付后、预设准备前附加授权 `knowledge`，没有额外模型阶段。最初添加的角色信任数值、专用裁定与面板已撤销；态度变化依据人设、预设、记忆与对话历史，客观变量复用现有规则。知识受众、宿主私语、重开及候选重算有离线回归；移除分数后未重跑真实模型，发行包未更新。
 
@@ -52,7 +52,7 @@
 
 ## 一次输入
 
-例如在源码仓库直接运行构建后的后端，宿主仍应找到源码 Python，而不是把 `.mjs` 扩展名当成安装包的证明。2026-10-21 核对：[游戏入口](../../../desktop/host/web-entry.ts)与 Electron 开发入口均已使用正式宿主目录；Python worker 和末端回合身份共用[目录选择](../../../desktop/host/memory/python-paths.ts)，只在设置 `PERSPECTRA_RUNTIME_ROOT` 时读取安装目录。Electron 构建和便携构建共用 Python 源码复制清单；具体布局与验证范围见 [Core 说明](../../../desktop/host/memory/README.md)。这次修复不改变角色协议、调度、记忆算法或世界提交。
+例如在源码仓库直接运行构建后的后端，宿主仍应找到源码 Python，而不是把 `.mjs` 扩展名当成安装包的证明。2026-10-21 核对：[游戏入口](../../../desktop/host/web-entry.ts)已使用正式宿主目录；Python worker 和末端回合身份共用[目录选择](../../../desktop/host/memory/python-paths.ts)，只在设置 `PERSPECTRA_RUNTIME_ROOT` 时读取安装目录。构建后端与便携包共用 Python 源码复制清单；具体布局与验证范围见 [Core 说明](../../../desktop/host/memory/README.md)。这次修复不改变角色协议、调度、记忆算法或世界提交。
 
 默认关闭的 recentExecutionEvidence 开关在已有记忆交付之后计算近期执行证据投影，再复用本次角色模型调用。没有新增规划阶段、调度机会、世界事件或持久化策略；关闭时不添加字段、提示或候选环境键。具体来源、预算和对照边界见[跨回合执行证据实验](../studies/goal-progress-context-20261013.md)。
 

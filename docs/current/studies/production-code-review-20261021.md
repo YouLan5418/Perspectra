@@ -401,3 +401,61 @@ P1-2 统一后的行为变化：NPC 观察 ID 由字符串拼接改为 determini
 | P3-2 | 已完成 | 新增 [协议与存储版本](../architecture/versions.md)，集中列出世界包、Manifest、运行时能力、规则、交互目录、Authority 与各 SQLite 库的当前值和旧值处理 |
 | P3-3 | 已完成 | 分支组件 director 槽位与 worldDirector 服务改名为 presentation；删除执行不到的 rulebook v3/v4 分支（Manifest 类型收窄为 v2）、未使用的 SubmitActionsV2–V7、SceneDecision.directorEligible 与 presenter 的 reaction-round 分支；去掉错误文案与注释里的 Phase 0/8、Manifest v4、prototype 等阶段词；在[文档维护规则](../architecture/maintenance.md)写明三类文案的语言约定。sourceRole 'director' 与运行时注册表中的 director-planning 锁属于已哈希数据，保留 |
 
+## 8. 独立复核与收尾（2026-10-21，HEAD 7078845）
+
+前文是 `414a164` 的审查快照。本节记录在 `7078845` 上的独立复核、逐项状态和本轮收尾修复；复核不依赖附录 C 的自述。
+
+### 8.1 复核验证
+
+| 检查 | 结果 |
+| --- | --- |
+| 类型检查 | 通过 |
+| Lint | 472 文件，0 error / 0 warning |
+| 格式检查 | 通过（复核开始时曾因 `action-group.ts` 失败，见 8.3） |
+| 生产边界 | 通过，261 个生产文件 |
+| 默认回归 | `144` 文件 / `1338` 用例全部通过，235.81s |
+| `pnpm check`（完整） | 通过：边界、类型、Lint、格式与 144 文件 / 1338 用例（83.74s） |
+| 文档链接 | 通过，94 页 / 1116 个链接 |
+| `launcher:check` | 通过，5 文件 / 44 用例 |
+| `launcher:build` | 通过（vue-tsc + 两次 vite build） |
+| `desktop:build` | 通过，后端 bundle 1.6 MB |
+
+### 8.2 原问题状态
+
+| 项 | 状态 | 复核依据 |
+| --- | --- | --- |
+| P1-1 死 WorldKernel | ✅ 已解决 | 源码与测试删除；`code-walkthrough`、`modules` 改指 RoundCoordinator；全仓 grep 为 0 |
+| P1-2 双提交管线 | ◐ 部分完成 | [action-observations.ts](../../../packages/application/src/action-observations.ts) 统一观察事件、观察 ID 与 Outbox；受众编排、Authority 与 `commitRound` 仍分两条 |
+| P1-3 Reaction Cycle | ✅ 已解决 | contracts、store 状态机、提交字段、门面 API、守卫全部删除；world schema v20 实际删除四张表；`reactionPolicy` 仅作哈希数据保留 |
+| P2-1 WorldApplication 门面 | ◐ 部分完成 | 主类降到 15 个游玩方法 + `read`（15 个查询）+ `admin`（13 个管理）；组合根仍在 application，`read/admin` 目前只有测试调用 |
+| P2-2 大文件/职责 | ◐ 部分完成 | `world-schema`、`memory-schema`、`memory-summaries` 已拆出，宿主激活拆为四个方法；`world-pack/schema.ts`、`WorldHostCore` 字段集合与 `local-memory.ts` 仍大 |
+| P2-3 校验工具重复 | ✅ 已解决 | `contracts/untrusted-json.ts` 被 Manifest、world-pack 源文件与冻结交互三处共用 |
+| P2-4 测试门禁 | ✅ 已解决 | 默认回归纳入全部 `packages/**/*.test.ts`；757→1338 项；coverage 已含 `desktop/**/*.ts` |
+| P2-5 格式与 lint | ✅ 已解决 | Prettier 3.6.2 + `format:check`；lint 扩到 launcher/scripts 且 0 warning；`action-group.ts` 收尾后通过 |
+| P2-6 Electron 三合一 | ✅ 已解决 | 外壳、依赖、脚本、`main` 字段删除；本轮补齐 4 处文档残留 |
+| P3-1 launcher 深导入 | ✅ 已解决 | `provider-chat` subpath exports；launcher 全部包名导入；边界白名单删除 |
+| P3-2 版本轴 | ✅ 已解决 | [versions.md](../architecture/versions.md) 与代码一致（world 20 / memory 8 / context 7 / session 2 / audit 2 / Manifest 10 / Authority 6） |
+| P3-3 命名与阶段词 | ✅ 已解决（收尾后） | director 槽位改为 presentation，worldDirector 改为 worldPresentation；Phase/Manifest v4/prototype 文案清理；`sourceRole 'director'` 作为协议值保留 |
+| P3-4 无消费者遗留物 | ✅ 已解决 | 示例配置、重复 script、死 flag、logical-transfer、save-preflight CLI 入口删除 |
+
+### 8.3 本轮修复
+
+1. **格式门禁**：删除 `packages/contracts/src/action-group.ts` 文件末尾多余空行；`format:check` 通过。CI 增加 `Check formatting` 步骤。
+2. **CI 构建覆盖**：CI 增加 `Build Launcher`（`launcher:build`），覆盖只有 Vite 构建才能发现的 Vue 模板错误。
+3. **死构建项**：删除 `desktop/save-preflight-entry.ts` 与 `desktop:build` 中的 save-preflight bundle；可复用的 `preflightSave` 仍由 LauncherCore 与 story-share 直接调用。
+4. **空导入**：删除 `packages/application/src/world-application.ts` 中拆 `admin` 后留下的 `import {}`。
+5. **命名收尾**：`character-turn.ts` 的 `single-turn prototype` 错误与 `prototype-memory:` correlationId、`runtime-tuning.ts` 注释、一个测试名称改为现行说法。
+6. **文档同步**：`guides/local-runbook.md`、`architecture/runtime.md`、`scripts/release/BUILD.md`、`architecture/code-walkthrough.md` 删除 Electron / worldDirector 残留；`AGENTS.md` 的 `check` 描述改为包含全部包内单测。
+7. **换行稳定**：新增 `.gitattributes`（`* text=auto eol=lf`），保证 Windows/CI 以 LF 检出，避免 `format:check` 因 CRLF 全仓误报。
+8. **本报告**：新增本节，保留前文作为 `414a164` 时点的历史审查记录。
+
+### 8.4 仍未处理
+
+- P1-2 的 Authority 构造与 `commitRound` 仍由玩家、NPC 两条路径分别实现；观察与投递已经统一，剩余风险低于原问题。
+- P2-1 的组合根仍在 `packages/application`；`read` / `admin` 是结构拆分，尚未形成真实消费者边界。
+- P2-2 的 `packages/world-pack/src/schema.ts`、`desktop/host/world-runtime.ts` 的字段集合与 `packages/memory/src/local-memory.ts` 仍大；本轮按"小问题"范围未继续拆分。
+- `check` 现在包含 1338 项测试；本机完整门禁 83.74s（默认并发），2 worker 回归 235.81s。`AGENTS.md` 已不再称其为"轻量"，如果日常需要更快入口，可另加只跑类型、Lint 与格式的组合。
+
+### 8.5 复核结论
+
+原报告的 P1 问题全部关闭；P2/P3 的主要项已完成或部分完成。复核未发现功能性回归：类型、Lint、格式、边界、文档、两处构建与 1338 项回归均通过。剩余项是可选的进一步结构收敛，不影响当前生产路径的正确性。

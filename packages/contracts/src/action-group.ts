@@ -61,4 +61,3 @@ export interface ActionGroupProposal extends WorldJsonObject {
   readonly actions: readonly ActionRequest[]
   readonly actionGroup?: ActionGroupBinding
 }
-
