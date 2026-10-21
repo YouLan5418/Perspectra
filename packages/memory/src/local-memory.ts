@@ -232,8 +232,6 @@ DELETE FROM cognitive_memory_v2_summaries;
 
 export const MEMORY_SCHEMA_VERSION = 8
 
-export const TENCENTDB_MEMORY_ENABLED = false
-
 export type MemorySourceKind = 'observation' | 'claim' | 'goal' | 'summary' | 'world_event'
 
 export interface MemorySourceRef extends WorldJsonObject {

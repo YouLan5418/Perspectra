@@ -13,7 +13,7 @@ import {
   type WorldEventDraft,
 } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { LocalMemoryStore, memorySourceRef, TENCENTDB_MEMORY_ENABLED, type MemorySourceRef } from './local-memory.ts'
+import { LocalMemoryStore, memorySourceRef, type MemorySourceRef } from './local-memory.ts'
 
 const directories: string[] = []
 
@@ -118,7 +118,6 @@ describe('LocalMemoryStore', () => {
   })
 
   it('captures and recalls only sources rebuilt from the authoritative WorldStore', async () => {
-    expect(TENCENTDB_MEMORY_ENABLED).toBe(false)
     const path = paths()
     const world = new WorldStore(path.world)
     world.createBranch(address())
