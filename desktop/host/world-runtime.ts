@@ -841,40 +841,7 @@ export class WorldHostCore implements HostRuntime {
       if (this.#paused) return
       memory = new CognitiveMemoryService(resolve(this.#dataDirectory, 'memory.sqlite'),
         store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
-      const shadowFile = this.#memoryShadowFile
-      const createTurn = (autonomous = false) => {
-        const base = this.#rulebooks(path)
-        return new CharacterTurn({ publicationCharacters:this.#playSettings.publicationCharacters, activationTimeoutMs:this.#playSettings.activationTimeoutSeconds*1000, address: this.#address, store, leases, availability,
-        ...(this.#memoryCore === undefined ? { memory: memory! } : {}),
-        rulebooks: autonomous ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address)) : base,
-        decide: (request, signal, reserveFormatRetry) => this.#decide(request, signal, reserveFormatRetry),
-        onTrace:(kind,characterId,decisionId,data) => { if(this.#inspector.enabled)this.#records.trace(kind,characterId,decisionId,data) },
-        continueAfterPublish: this.#options.continueAfterPublish===true
-          && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
-        beforeActionExpression: this.#options.beforeActionExpression===true
-          && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
-        onCommitted: async () => { await this.#projectCommitted(store) },
-        allowUnrelatedCommits: !this.#options.serialScheduling
-          && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
-        projectContext: (context: WorldJsonObject, canPerform: boolean) => {
-          const projected = this.#activity?.projectContext(context, canPerform) ?? context
-          return autonomous ? {...projected, autonomy: {
-            instruction: '现在是你自主处理自身目标的机会。依据自己的目标、经历和眼前情况决定是否行动；可以表达或 abstain。没有新消息不代表发生了你不知道的事。',
-          }} : projected
-        },
-        ...(this.#activity === undefined ? {} : {
-          validateDecision: (decision: WorldJsonObject, request: CharacterTurnRequest) => this.#activity!.validateDecision(decision, request),
-        }),
-        ...(this.#activity === undefined && this.#status === undefined ? {} : {
-          executionResult: (input: Parameters<typeof characterExecutionResult>[0]) => this.#status?.executionResult(input)
-            ?? (this.#activity?.executionResult ?? characterExecutionResult)(input),
-        }),
-        ...(this.#memoryCore === undefined ? {} : { shortTermAfterSeq: (actor: CharacterId) => this.#memoryCore!.shortTermAfterSeq(actor) }),
-        recentObservations: this.#tuning.recentObservations,
-        recentSelfObservations: this.#tuning.recentSelfObservations,
-        ...(shadowFile === undefined ? {} : { onRecallShadow: (observation: RecallShadowObservation) =>
-          appendFileSync(shadowFile, JSON.stringify(observation) + '\n') }), })
-      }
+      const createTurn = this.#turnFactory(path, store, leases, availability, memory)
       const turn = createTurn()
       this.#phaseLabel = '角色正在处理场景与行动结果'
       const active = this.#activity?.current()
@@ -882,85 +849,142 @@ export class WorldHostCore implements HostRuntime {
         this.#playerId, this.#rootBeforeSeq, store.head(this.#address).headSeq) ?? [])
         // Activity owns its participants' opportunities; autonomy never takes over its turn.
         .filter(role => !active?.game.active || !active.participants.includes(role.characterId))
-      let selected = this.#activity?.schedule()
-      // Creator selects the next participant; the host bounds the entire chain.
-      const activitySignal = AbortSignal.any([this.#continuationController.signal, AbortSignal.timeout(this.#playSettings.activityDeadlineSeconds*1000)])
-      for (let opportunity = 0; opportunity < this.#playSettings.activityOpportunities && selected !== undefined && !activitySignal.aborted && !this.#paused; opportunity++) {
-        const result = await turn.run(brandId(selected, 'CharacterId'), {
-          signal: activitySignal, maxCalls: 2,
-          stimulus: new CharacterViewBuilder(store)
-            .rebuildAt(this.#address, brandId(selected, 'CharacterId'), store.head(this.#address).headSeq)
-            .observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq)
-            .slice(-8).map(o => o.value as WorldJsonObject),
-        })
-        this.#error = result.failure !== undefined
-        this.#notice = result.failure === undefined ? (result.status === 'abstained'
-          ? '角色本次没有提交操作，当前轮次保留；可以再次请求处理或逃生。' : '角色处理已完成。')
-          : result.failure === 'invalid_output' ? '角色返回格式无效，当前轮次没有推进；可重试或逃生。'
-            : '角色决策处理未完成，当前轮次没有推进；可重试或逃生。'
-        selected = activitySignal.aborted ? undefined : this.#activity!.outcome(result as unknown as WorldJsonObject)
-        if (opportunity === this.#playSettings.activityOpportunities-1 && selected !== undefined) this.#notice = '本次活动处理达到宿主预算上限；已提交结果保留，可再次请求处理或逃生。'
-      }
-      if (activitySignal.aborted) {
-        this.#notice = '活动处理已取消或超时；已提交结果保留，未完成操作没有换手。'
-        this.#error = true
-      }
+      await this.#runActivityChain(store, turn)
       this.#allowInterruption=!this.#activity?.current()?.game.active
       if (activityOnly) {
         await this.#activateAutonomous(store, createTurn, due, new Map())
         return
       }
-      const dynamic = !this.#options.serialScheduling
-        && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined
-      const integratedAutonomy = dynamic && !this.#options.stagedAutonomy && due.length>0
-      const {autonomy, ...cycle} = await runCharacterActivations({ store, address: this.#address, turn: this.#track(turn),
-        afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds.filter(id => !due.some(role => role.characterId === id)
-          && (!active?.game.active || !active.participants.includes(id))), signal: this.#continuationController.signal,
-        presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
-        ...(dynamic ? {locationId:(id:CharacterId)=>currentLocation(store.readEvents(this.#address),id)??null}:{}),
-        ...(integratedAutonomy ? {autonomy:{turn:this.#track(createTurn(true)),
-          roles:due.map(role=>({characterId:role.characterId,opportunities:Math.min(role.opportunities,this.#playSettings.autonomyOpportunities)})),
-          maximumNpcCalls:this.#playSettings.autonomyNpcCalls,deadlineSeconds:this.#playSettings.autonomyDeadlineSeconds,
-          reactionLimits:{maximumWaves:this.#playSettings.autonomyReactionWaves,maximumNpcCalls:this.#playSettings.autonomyReactionCalls,
-            maximumCallsPerCharacter:this.#playSettings.maximumCallsPerCharacter}}}:{}),
-        strictCallBudget: true, limits: this.#tuning })
-      this.#activationCycle = cycle
-      this.#autonomyCycle = autonomy
-      const terminal = this.#activationCycle.terminalReason
-      if (terminal === 'failed' || terminal === 'interrupted') {
-        const failureStatus = terminal === 'interrupted' ? 'interrupted' : 'failed'
-        const activation = this.#activationCycle.activations.find(activation => activation.result.status === failureStatus)
-          ?? this.#activationCycle.activations.at(-1)
-        const relevant = activation?.result
-        const failedCall = activation === undefined ? undefined : this.#roleCalls.get(String(activation.characterId))
-        const committed = relevant?.performResult !== undefined
-        const cause = terminal === 'interrupted' ? '角色处理被打断或超时'
-          : relevant?.failure === 'invalid_output' ? '角色返回格式无效'
-            : relevant?.failure === 'preset_failed' ? '角色预设处理失败，请检查提示节点与文本规则'
-            : relevant?.failure === 'provider_failed'
-              ? providerFailureNotice(failedCall?.status === 'failed' ? failedCall.httpStatus : undefined)
-              : '角色处理失败'
-        this.#error = true
-        this.#notice = `玩家输入已提交；${cause}。${committed
-          ? '交互结果已提交，后续表达未完成；请看转录中的实际结果。可以继续行动，无需重发上一句。'
-          : '已经发表的回应保留；尚未完成的角色行动或表达没有提交。可以继续行动，无需重发上一句。'}`
-      } else if (terminal === 'call_limit' || terminal === 'wave_limit' || terminal === 'character_limit') {
-        this.#notice = '玩家输入已提交；本轮角色反应达到预算上限，剩余反应没有继续执行。可以继续行动，无需重发上一句。'
-      } else {
-        this.#notice = '本轮角色处理已结束，可以继续行动；角色也可以选择不回应。'
-      }
-      if (autonomy) this.#autonomyNotice(autonomy.terminalReason)
-      else if (!this.#continuationController.signal.aborted) {
-        const counts = new Map<CharacterId, number>()
-        for (const activation of this.#activationCycle.activations) counts.set(activation.characterId, (counts.get(activation.characterId) ?? 0) + 1)
-        await this.#activateAutonomous(store, createTurn, due, counts)
-      }
+      await this.#runSceneReactions(store, turn, createTurn, due, active)
     } finally {
       this.#allowInterruption=false
       memory?.close(); availability.close(); leases.close(); store.close()
       this.#continuationController = undefined
       this.#modelCallBudget = undefined
       if (!this.#paused && !this.#escaping) this.#memoryCore?.startPending()
+    }
+  }
+
+  /** Build CharacterTurns that share this activation's store handles; `autonomous` swaps in the autonomy rules and prompt. */
+  #turnFactory(path: string, store: WorldStore, leases: WriterLeaseService, availability: CharacterRuntimeAvailabilityService,
+    memory: CognitiveMemoryService): (autonomous?: boolean) => CharacterTurn {
+    const shadowFile = this.#memoryShadowFile
+    return (autonomous = false) => {
+      const base = this.#rulebooks(path)
+      return new CharacterTurn({ publicationCharacters:this.#playSettings.publicationCharacters, activationTimeoutMs:this.#playSettings.activationTimeoutSeconds*1000, address: this.#address, store, leases, availability,
+      ...(this.#memoryCore === undefined ? { memory } : {}),
+      rulebooks: autonomous ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address)) : base,
+      decide: (request, signal, reserveFormatRetry) => this.#decide(request, signal, reserveFormatRetry),
+      onTrace:(kind,characterId,decisionId,data) => { if(this.#inspector.enabled)this.#records.trace(kind,characterId,decisionId,data) },
+      continueAfterPublish: this.#options.continueAfterPublish===true
+        && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
+      beforeActionExpression: this.#options.beforeActionExpression===true
+        && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
+      onCommitted: async () => { await this.#projectCommitted(store) },
+      allowUnrelatedCommits: !this.#options.serialScheduling
+        && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
+      projectContext: (context: WorldJsonObject, canPerform: boolean) => {
+        const projected = this.#activity?.projectContext(context, canPerform) ?? context
+        return autonomous ? {...projected, autonomy: {
+          instruction: '现在是你自主处理自身目标的机会。依据自己的目标、经历和眼前情况决定是否行动；可以表达或 abstain。没有新消息不代表发生了你不知道的事。',
+        }} : projected
+      },
+      ...(this.#activity === undefined ? {} : {
+        validateDecision: (decision: WorldJsonObject, request: CharacterTurnRequest) => this.#activity!.validateDecision(decision, request),
+      }),
+      ...(this.#activity === undefined && this.#status === undefined ? {} : {
+        executionResult: (input: Parameters<typeof characterExecutionResult>[0]) => this.#status?.executionResult(input)
+          ?? (this.#activity?.executionResult ?? characterExecutionResult)(input),
+      }),
+      ...(this.#memoryCore === undefined ? {} : { shortTermAfterSeq: (actor: CharacterId) => this.#memoryCore!.shortTermAfterSeq(actor) }),
+      recentObservations: this.#tuning.recentObservations,
+      recentSelfObservations: this.#tuning.recentSelfObservations,
+      ...(shadowFile === undefined ? {} : { onRecallShadow: (observation: RecallShadowObservation) =>
+        appendFileSync(shadowFile, JSON.stringify(observation) + '\n') }), })
+    }
+  }
+
+  /** Let the running activity hand opportunities to its participants until it stops, its budget ends or it times out. */
+  async #runActivityChain(store: WorldStore, turn: CharacterTurn): Promise<void> {
+    const controller = this.#continuationController!
+    let selected = this.#activity?.schedule()
+    // Creator selects the next participant; the host bounds the entire chain.
+    const activitySignal = AbortSignal.any([controller.signal, AbortSignal.timeout(this.#playSettings.activityDeadlineSeconds*1000)])
+    for (let opportunity = 0; opportunity < this.#playSettings.activityOpportunities && selected !== undefined && !activitySignal.aborted && !this.#paused; opportunity++) {
+      const result = await turn.run(brandId(selected, 'CharacterId'), {
+        signal: activitySignal, maxCalls: 2,
+        stimulus: new CharacterViewBuilder(store)
+          .rebuildAt(this.#address, brandId(selected, 'CharacterId'), store.head(this.#address).headSeq)
+          .observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq)
+          .slice(-8).map(o => o.value as WorldJsonObject),
+      })
+      this.#error = result.failure !== undefined
+      this.#notice = result.failure === undefined ? (result.status === 'abstained'
+        ? '角色本次没有提交操作，当前轮次保留；可以再次请求处理或逃生。' : '角色处理已完成。')
+        : result.failure === 'invalid_output' ? '角色返回格式无效，当前轮次没有推进；可重试或逃生。'
+          : '角色决策处理未完成，当前轮次没有推进；可重试或逃生。'
+      selected = activitySignal.aborted ? undefined : this.#activity!.outcome(result as unknown as WorldJsonObject)
+      if (opportunity === this.#playSettings.activityOpportunities-1 && selected !== undefined) this.#notice = '本次活动处理达到宿主预算上限；已提交结果保留，可再次请求处理或逃生。'
+    }
+    if (activitySignal.aborted) {
+      this.#notice = '活动处理已取消或超时；已提交结果保留，未完成操作没有换手。'
+      this.#error = true
+    }
+  }
+
+  /** One bounded wave cycle for everyone who observed the committed input, then any autonomy left due. */
+  async #runSceneReactions(store: WorldStore, turn: CharacterTurn, createTurn: (autonomous?: boolean) => CharacterTurn,
+    due: AutonomousRole[], active: ReturnType<PackActivities['current']> | undefined): Promise<void> {
+    const controller = this.#continuationController!
+    const dynamic = !this.#options.serialScheduling
+      && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined
+    const integratedAutonomy = dynamic && !this.#options.stagedAutonomy && due.length>0
+    const {autonomy, ...cycle} = await runCharacterActivations({ store, address: this.#address, turn: this.#track(turn),
+      afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds.filter(id => !due.some(role => role.characterId === id)
+        && (!active?.game.active || !active.participants.includes(id))), signal: controller.signal,
+      presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
+      ...(dynamic ? {locationId:(id:CharacterId)=>currentLocation(store.readEvents(this.#address),id)??null}:{}),
+      ...(integratedAutonomy ? {autonomy:{turn:this.#track(createTurn(true)),
+        roles:due.map(role=>({characterId:role.characterId,opportunities:Math.min(role.opportunities,this.#playSettings.autonomyOpportunities)})),
+        maximumNpcCalls:this.#playSettings.autonomyNpcCalls,deadlineSeconds:this.#playSettings.autonomyDeadlineSeconds,
+        reactionLimits:{maximumWaves:this.#playSettings.autonomyReactionWaves,maximumNpcCalls:this.#playSettings.autonomyReactionCalls,
+          maximumCallsPerCharacter:this.#playSettings.maximumCallsPerCharacter}}}:{}),
+      strictCallBudget: true, limits: this.#tuning })
+    this.#activationCycle = cycle
+    this.#autonomyCycle = autonomy
+    this.#reactionNotice(cycle)
+    if (autonomy) this.#autonomyNotice(autonomy.terminalReason)
+    else if (!controller.signal.aborted) {
+      const counts = new Map<CharacterId, number>()
+      for (const activation of this.#activationCycle.activations) counts.set(activation.characterId, (counts.get(activation.characterId) ?? 0) + 1)
+      await this.#activateAutonomous(store, createTurn, due, counts)
+    }
+  }
+
+  /** Tell the player how the reaction cycle ended, without claiming more was committed than was. */
+  #reactionNotice(cycle: Awaited<ReturnType<typeof runCharacterActivations>>): void {
+    const terminal = cycle.terminalReason
+    if (terminal === 'failed' || terminal === 'interrupted') {
+      const failureStatus = terminal === 'interrupted' ? 'interrupted' : 'failed'
+      const activation = cycle.activations.find(activation => activation.result.status === failureStatus)
+        ?? cycle.activations.at(-1)
+      const relevant = activation?.result
+      const failedCall = activation === undefined ? undefined : this.#roleCalls.get(String(activation.characterId))
+      const committed = relevant?.performResult !== undefined
+      const cause = terminal === 'interrupted' ? '角色处理被打断或超时'
+        : relevant?.failure === 'invalid_output' ? '角色返回格式无效'
+          : relevant?.failure === 'preset_failed' ? '角色预设处理失败，请检查提示节点与文本规则'
+          : relevant?.failure === 'provider_failed'
+            ? providerFailureNotice(failedCall?.status === 'failed' ? failedCall.httpStatus : undefined)
+            : '角色处理失败'
+      this.#error = true
+      this.#notice = `玩家输入已提交；${cause}。${committed
+        ? '交互结果已提交，后续表达未完成；请看转录中的实际结果。可以继续行动，无需重发上一句。'
+        : '已经发表的回应保留；尚未完成的角色行动或表达没有提交。可以继续行动，无需重发上一句。'}`
+    } else if (terminal === 'call_limit' || terminal === 'wave_limit' || terminal === 'character_limit') {
+      this.#notice = '玩家输入已提交；本轮角色反应达到预算上限，剩余反应没有继续执行。可以继续行动，无需重发上一句。'
+    } else {
+      this.#notice = '本轮角色处理已结束，可以继续行动；角色也可以选择不回应。'
     }
   }
 
