@@ -99,7 +99,7 @@ node scripts/docs/check-links.mjs
 
 ## 第四轮：版本号命名、测试分层与宿主拆分（2026-10-21）
 
-基点为 `38b6487`，分三个提交，不改变角色协议、提示内容、调度顺序、规则裁定或存储格式。
+基点为 `ddcbe4a`（第三轮之后的试玩记录），分三个提交，不改变角色协议、提示内容、调度顺序、规则裁定或存储格式。
 
 **命名与退役契约**（`6559f47`）。`contracts/context-v2.ts` 中导演规划、上下文回执和各类上下文哈希约 360 行，生产代码零引用，只有自身测试在用，连同测试删除；仍在使用的 `ContextSourceRef` 移到 [context-source.ts](../../../packages/contracts/src/context-source.ts)。`memory-v2.ts`、`phase8-registries.ts` 改为 [cognitive-memory.ts](../../../packages/contracts/src/cognitive-memory.ts)、[runtime-registries.ts](../../../packages/contracts/src/runtime-registries.ts)；`PHASE8_*` 契约导出改为 `BASIC_VOCABULARY_*`、`RUNTIME_REGISTRY_*` 等。哈希域字符串与存档中的 ID 未改，词表与注册表 Golden 仍通过。
 
