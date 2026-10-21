@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { StoredWorldEvent, WorldAddress } from '../../../../packages/contracts/src/index.ts'
+import type { StoredWorldEvent, WorldAddress } from '@harness-world/contracts'
 import type { CreatorHistoryItem } from '../../../../desktop/host/creator-history.ts'
 import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
 import { buildConversation, buildTrace, type RecordSummary } from './model.ts'

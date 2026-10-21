@@ -42,18 +42,18 @@ function check(file) {
   }
   checkPackageImports(file, path, source)
 }
-// TypeScript sources reach another package only through its @harness-world entry. The launcher bundle
-// (aliases exist only for its type check) and plain-Node release scripts cannot resolve those entries at
-// runtime, so they may import type declarations and the browser-safe preset and template modules directly.
-const directModules =
-  /^packages\/(?:provider-chat\/src\/preset(?:|-library|-macros|-regex)|frontend\/src\/default-template)\.ts$/
+// Sources reach another package only through its @harness-world entry; the launcher resolves the
+// browser-safe @harness-world/provider-chat subpaths through its Vite and TypeScript aliases. Plain-Node
+// release scripts cannot resolve package names at all, so they alone may read type declarations and the
+// default frontend template directly.
+const releaseScriptModules = /^packages\/frontend\/src\/default-template\.ts$/
 function checkPackageImports(file, path, source) {
   const ownPackage = path.match(/^packages\/([^/]+)\//)?.[1]
-  const aliasFree = path.startsWith('apps/launcher/') || path.endsWith('.mjs')
+  const plainNode = path.endsWith('.mjs')
   for (const { typeOnly, target } of relativeImports(file, source)) {
     const targetPackage = target.match(/^packages\/([^/]+)\/src\//)?.[1]
     if (targetPackage === undefined || targetPackage === ownPackage) continue
-    if (aliasFree && (typeOnly || directModules.test(target))) continue
+    if (plainNode && (typeOnly || releaseScriptModules.test(target))) continue
     errors.push(file + ': imports ' + target + '; use @harness-world/' + targetPackage)
   }
 }

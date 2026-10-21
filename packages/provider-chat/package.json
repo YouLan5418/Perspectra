@@ -3,7 +3,13 @@
   "version": "0.3.1",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./preset": "./src/preset.ts",
+    "./preset-library": "./src/preset-library.ts",
+    "./preset-macros": "./src/preset-macros.ts",
+    "./preset-regex": "./src/preset-regex.ts"
+  },
   "dependencies": {
     "@harness-world/contracts": "workspace:*"
   }

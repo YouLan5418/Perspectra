@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, inject, onBeforeUnmount } from 'vue'
-import { characterPreset, rolePreset, type RolePreset } from '../../../../packages/provider-chat/src/preset.ts'
+import { characterPreset, rolePreset, type RolePreset } from '@harness-world/provider-chat/preset'
 import type { PresetChoice } from '../core-types.ts'
 import { useLauncherStore } from '../stores/launcher.ts'
 import DialogFrame from './DialogFrame.vue'

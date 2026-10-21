@@ -25,6 +25,9 @@
       "@/*": [
         "./src/*"
       ],
+      "@harness-world/provider-chat/*": [
+        "../../packages/provider-chat/src/*.ts"
+      ],
       "@harness-world/*": [
         "../../packages/*/src/index.ts"
       ]

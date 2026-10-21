@@ -1,4 +1,4 @@
-import type { StoredWorldEvent } from '../../../../packages/contracts/src/index.ts'
+import type { StoredWorldEvent } from '@harness-world/contracts'
 import type { CreatorHistoryItem } from '../../../../desktop/host/creator-history.ts'
 import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
 

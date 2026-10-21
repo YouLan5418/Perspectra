@@ -22,7 +22,16 @@ export default defineConfig({
   plugins: [vue(), tailwindcss(), indexEntry],
   base: '/creator/',
   publicDir: false,
-  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  resolve: {
+    alias: [
+      { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+      // Only the browser-safe subpaths provider-chat exports; its main entry pulls in Node modules.
+      {
+        find: /^@harness-world\/provider-chat\/(preset(?:-library|-macros|-regex)?)$/,
+        replacement: fileURLToPath(new URL('../../packages/provider-chat/src/$1.ts', import.meta.url)),
+      },
+    ],
+  },
   build: {
     outDir: 'dist-creator',
     emptyOutDir: true,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ArrowDownToLine } from '@lucide/vue'
-import type { InspectedRequest } from '../../../../packages/provider-chat/src/request-inspector.ts'
+import type { InspectedRequest } from '@harness-world/provider-chat'
 import { asRecord, durationLabel, KIND_LABEL, timeLabel } from './format.ts'
 import type { ConversationEntry, TraceNode } from './model.ts'
 import { useCreatorStore } from './store.ts'
@@ -10,6 +10,11 @@ const store = useCreatorStore()
 const scroller = ref<HTMLElement | null>(null)
 
 const entries = computed(() => store.conversation)
+
+function followLatest() {
+  store.follow = true
+  scrollToEnd()
+}
 
 function requestOf(node: TraceNode | undefined): InspectedRequest | null {
   if (!node?.recordId) return null
@@ -238,14 +243,7 @@ onMounted(() => {
     </div>
 
     <Transition name="notice-fade">
-      <button
-        v-if="!store.follow && store.added > 0"
-        class="cr-button primary cr-new"
-        @click="
-          store.follow = true
-          scrollToEnd()
-        "
-      >
+      <button v-if="!store.follow && store.added > 0" class="cr-button primary cr-new" @click="followLatest">
         <ArrowDownToLine :size="13" />新增 {{ store.added }} 条
       </button>
     </Transition>

@@ -77,6 +77,11 @@ watch(
     lastCount.value = count
   },
 )
+function followLatest() {
+  store.follow = true
+  scrollToEnd()
+}
+
 function jump(bucket: Bucket) {
   if (bucket.key) store.focus(bucket.key)
 }
@@ -174,14 +179,7 @@ function rowKey(node: TraceNode) {
     </div>
 
     <Transition name="notice-fade">
-      <button
-        v-if="!store.follow && store.added > 0"
-        class="cr-button primary cr-new"
-        @click="
-          store.follow = true
-          scrollToEnd()
-        "
-      >
+      <button v-if="!store.follow && store.added > 0" class="cr-button primary cr-new" @click="followLatest">
         <ArrowDownToLine :size="13" />新增 {{ store.added }} 条
       </button>
     </Transition>

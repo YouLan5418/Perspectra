@@ -1,6 +1,6 @@
 import type { PlaySettings, ReadingPreferences, AudioPreferences, Palette } from '../../../desktop/play-settings.ts'
 import type { HostPluginSettings } from '../../../desktop/host-plugin-settings.ts'
-import type { RolePreset, RolePresetMapping } from '../../../packages/provider-chat/src/preset.ts'
+import type { RolePreset, RolePresetMapping } from '@harness-world/provider-chat/preset'
 export type { RolePreset, RolePresetMapping }
 export interface PresetChoice extends RolePresetMapping {
   mode: 'auto' | 'global' | 'custom'
@@ -40,7 +40,7 @@ export interface CoreSnapshot {
     { kind: 'default' | 'custom'; mode: 'sandbox' | 'trusted'; digest: string; capabilities: string[] }
   >
   presets: {
-    library: import('../../../packages/provider-chat/src/preset-library.ts').LibraryPreset[]
+    library: import('@harness-world/provider-chat/preset-library').LibraryPreset[]
     characters: Record<string, { id: string; name: string }[]>
     global: RolePreset
     instances: Record<string, PresetChoice>

@@ -1,7 +1,7 @@
 import type { CreatorInspectionQuery, CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
 import type { CreatorHistoryQuery, CreatorHistorySnapshot } from '../../../../desktop/host/creator-history.ts'
 import type { CreatorRecordsQuery, CreatorRecordsSnapshot } from '../../../../desktop/host/creator-records.ts'
-import type { InspectorSnapshot } from '../../../../packages/provider-chat/src/request-inspector.ts'
+import type { InspectorSnapshot } from '@harness-world/provider-chat'
 import { MOCK_RECORDS, mockDebug, mockHistory } from './mock.ts'
 
 /** 创作者页面需要的只读元信息，由 playtest 服务器 `/api/creator-meta` 提供。 */

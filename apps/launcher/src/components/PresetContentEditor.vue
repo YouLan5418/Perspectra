@@ -1,13 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
-import {
-  rolePreset,
-  type RolePreset,
-  type PromptNode,
-  type TextRule,
-} from '../../../../packages/provider-chat/src/preset.ts'
-import { presetMacros } from '../../../../packages/provider-chat/src/preset-macros.ts'
-import { REGEX_WORKER_PROGRAM, type TextResult } from '../../../../packages/provider-chat/src/preset-regex.ts'
+import { rolePreset, type RolePreset, type PromptNode, type TextRule } from '@harness-world/provider-chat/preset'
+import { presetMacros } from '@harness-world/provider-chat/preset-macros'
+import { REGEX_WORKER_PROGRAM, type TextResult } from '@harness-world/provider-chat/preset-regex'
 const props = defineProps<{ modelValue: RolePreset }>()
 const emit = defineEmits<{ 'update:modelValue': [RolePreset] }>()
 const nodes = computed(() => props.modelValue.nodes ?? [])

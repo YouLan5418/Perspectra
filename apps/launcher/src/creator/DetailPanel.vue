@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ArrowLeft, Copy, ExternalLink, X } from '@lucide/vue'
-import type { InspectedRequest } from '../../../../packages/provider-chat/src/request-inspector.ts'
+import type { InspectedRequest } from '@harness-world/provider-chat'
 import type { CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
 import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
 import {

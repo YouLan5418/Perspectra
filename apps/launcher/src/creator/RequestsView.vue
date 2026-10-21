@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { InspectorSnapshot } from '../../../../packages/provider-chat/src/request-inspector.ts'
+import type { InspectorSnapshot } from '@harness-world/provider-chat'
 import { useCreatorStore } from './store.ts'
 
 /** 原启动器“请求探查”对话框，迁入创作者页面作为一个视图；读写都经过同一数据源。 */

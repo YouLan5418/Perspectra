@@ -45,6 +45,10 @@ const changes = computed(() => {
   for (const list of Object.values(table)) list.sort((a, b) => a.seq - b.seq)
   return table
 })
+function openTrace(seq: number) {
+  store.focus(`e${seq}`)
+  store.view = 'trace'
+}
 </script>
 
 <template>
@@ -86,15 +90,7 @@ const changes = computed(() => {
             {{ change.eventType }} · #{{ change.seq
             }}<span v-if="change.followsHolder"> · 随保管者移动，不是独立转移</span>
           </div>
-          <button
-            class="cr-button tiny"
-            @click="
-              store.focus(`e${change.seq}`)
-              store.view = 'trace'
-            "
-          >
-            在轨迹中查看
-          </button>
+          <button class="cr-button tiny" @click="openTrace(change.seq)">在轨迹中查看</button>
         </div>
         <p v-if="!(changes[entity.id] ?? []).length" class="cr-muted">
           当前已载入的历史里没有结构化流转记录；打开物品详情或在轨迹页按物品筛选可读取完整历史。

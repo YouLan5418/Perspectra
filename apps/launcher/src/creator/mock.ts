@@ -1,5 +1,5 @@
-import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '../../../../packages/contracts/src/index.ts'
-import type { InspectedRequest } from '../../../../packages/provider-chat/src/request-inspector.ts'
+import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
+import type { InspectedRequest } from '@harness-world/provider-chat'
 import type { CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
 import type { CreatorHistoryItem, CreatorHistorySnapshot } from '../../../../desktop/host/creator-history.ts'
 import type { CreatorRecord, CreatorRecordsSnapshot, CreatorScope } from '../../../../desktop/host/creator-records.ts'

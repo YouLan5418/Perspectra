@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { RolePreset } from '../../../../packages/provider-chat/src/preset.ts'
+import type { RolePreset } from '@harness-world/provider-chat/preset'
 import {
   namedPreset,
   importPresets,
   exportPresets,
   type NamedPreset,
-} from '../../../../packages/provider-chat/src/preset-library.ts'
+} from '@harness-world/provider-chat/preset-library'
 import { useLauncherStore } from '../stores/launcher.ts'
 import { savePresetFile } from '../services/desktop.ts'
 const props = defineProps<{ preset: RolePreset; canApply: boolean }>()
@@ -112,6 +112,11 @@ async function commitImport() {
     message.value = '导入完成；同名预设已另存。'
   }
 }
+function cancelImport() {
+  pending.value = []
+  importText.value = ''
+}
+
 async function download(all = false, current = false) {
   error.value = ''
   message.value = ''
@@ -180,14 +185,7 @@ async function download(all = false, current = false) {
       </p>
       <p>同名内容另存，不覆盖已有预设。</p>
       <button :disabled="store.busy" @click="commitImport">加入预设库</button
-      ><button
-        @click="
-          pending = []
-          importText = ''
-        "
-      >
-        取消导入
-      </button>
+      ><button @click="cancelImport">取消导入</button>
     </div>
     <p v-if="message" role="status">{{ message }}</p>
     <p v-if="error" role="alert">{{ error }}</p>

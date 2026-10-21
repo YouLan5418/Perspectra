@@ -54,20 +54,29 @@ it('rejects experiment dependencies and package internals while allowing current
     writeFileSync(
       join(root, 'apps/launcher/src/view.ts'),
       [
-        "import type { InspectedRequest } from '../../../packages/provider-chat/src/request-inspector.ts'",
-        "import { rolePreset } from '../../../packages/provider-chat/src/preset.ts'",
+        "import type { InspectedRequest } from '@harness-world/provider-chat'",
+        "import { rolePreset } from '@harness-world/provider-chat/preset'",
       ].join('\n'),
     )
     expect(
       spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).status,
     ).toBe(0)
+    // The launcher no longer reaches into package sources, not even for browser-safe modules.
     writeFileSync(
       join(root, 'apps/launcher/src/view.ts'),
-      "import { RequestInspector } from '../../../packages/provider-chat/src/request-inspector.ts'",
+      "import { rolePreset } from '../../../packages/provider-chat/src/preset.ts'",
     )
     expect(
       spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).status,
     ).toBe(1)
+    writeFileSync(join(root, 'apps/launcher/src/view.ts'), 'export {}')
+    writeFileSync(
+      join(root, 'scripts/release/verify.mjs'),
+      "import { DEFAULT_PAGE } from '../../packages/frontend/src/default-template.ts'",
+    )
+    expect(
+      spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).status,
+    ).toBe(0)
     writeFileSync(join(root, 'apps/launcher/src/view.ts'), 'export {}')
     writeFileSync(join(root, 'tests/experiments/live.ts'), "import { scenario } from '../support/scenario.ts'")
     // Concatenated so the checker does not read this fixture text as an import of the real repository.

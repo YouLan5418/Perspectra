@@ -19,6 +19,10 @@ const activation = computed(() => {
   }
   return table
 })
+function openConversation(id: string) {
+  store.focusCharacter(id)
+  store.view = 'conversation'
+}
 </script>
 
 <template>
@@ -81,15 +85,7 @@ const activation = computed(() => {
           <span>{{ character.locationName ?? '位置未知' }}</span>
           <span class="cr-spacer" style="margin-left: auto" />
           <button class="cr-button tiny" @click="store.selectCharacter(character.id)">查看档案</button>
-          <button
-            class="cr-button tiny"
-            @click="
-              store.focusCharacter(character.id)
-              store.view = 'conversation'
-            "
-          >
-            只看此角色
-          </button>
+          <button class="cr-button tiny" @click="openConversation(character.id)">只看此角色</button>
         </header>
         <div class="cr-kv">
           <dt>最近激活</dt>
