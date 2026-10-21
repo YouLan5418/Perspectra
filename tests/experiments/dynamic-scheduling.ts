@@ -1,11 +1,12 @@
+// 默认使用受控响应；只有 --live 才调用真实上游模型。
 import { createServer } from 'node:http'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
-import type { PlaytestState } from './playtest-server.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { HostState } from '../../desktop/host/http-server.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
 // A local, reproducible scheduling comparison. Only public player output and timings are saved.
 const live = process.argv.slice(2).includes('--live')
@@ -64,7 +65,7 @@ async function run(serialScheduling: boolean) {
     })() })
   })
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
-  const runtime = await FrozenWorldPlaytestRuntime.create({
+  const runtime = await WorldHostRuntime.create({
     dataDirectory: join(directory, serialScheduling ? 'serial' : 'dynamic'),
     packPath: resolve('examples/world-packs/dynamic-scheduling'),
     provider: live ? 'local' : 'ollama', model: live ? liveModel : 'controlled-fixture',
@@ -90,7 +91,7 @@ async function run(serialScheduling: boolean) {
     origin = performance.now()
     const first = runtime.submit('/act move {"locationId":"location:front-room"}')
     let interruptResult: Record<string, unknown> | undefined
-    let state: PlaytestState
+    let state: HostState
     if (interrupt) {
       // Cancel an actual in-flight gateway request, rather than merely its injected delay.
       let before

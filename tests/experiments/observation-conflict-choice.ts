@@ -9,7 +9,7 @@ import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const root = resolve(process.argv[2] ?? ''), input = resolve(process.argv[3] ?? '')
 if (!process.argv[2] || !process.argv[3] || existsSync(root)) throw new Error('provide fresh output and completed natural-choice directory')
@@ -66,7 +66,7 @@ for (let repeat = 0; repeat < 3; repeat++) {
           canonical = plain
           if (JSON.stringify(visible).includes('雪青密码')) throw new Error('private source leaked')
           save(join(dir, 'call.json'), { repeat, condition, request: visible, status: 'pending' }); transportPath = join(dir, 'transport.json')
-          const start = performance.now(), response = await provider.decide(localPrototypeTurnCall(visible), signal)
+          const start = performance.now(), response = await provider.decide(gatewayTurnCall(visible), signal)
           save(join(dir, 'call.json'), { repeat, condition, request: visible, status: 'returned', response, durationMs: Math.round(performance.now() - start) })
           return response
         } })

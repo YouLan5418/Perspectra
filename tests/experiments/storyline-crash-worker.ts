@@ -2,8 +2,8 @@ import fs from 'node:fs'
 import promises from 'node:fs/promises'
 import { syncBuiltinESMExports } from 'node:module'
 import { basename } from 'node:path'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
-import type { CoreRunner } from './hindsight-python.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 
 // Test-only fault injection: no hooks or recovery machinery in production code.
@@ -57,9 +57,9 @@ const options = { packPath: config.pack, dataDirectory: config.directory, provid
   model: 'fixture', memoryCore: true, memoryCoreRun: run, memoryCoreBuildRun: run }
 if (config.phase.startsWith('memory-')) {
   install()
-  await FrozenWorldPlaytestRuntime.create(options)
+  await WorldHostRuntime.create(options)
 } else if (config.phase.startsWith('save-')) {
-  const runtime = await FrozenWorldPlaytestRuntime.create(options)
+  const runtime = await WorldHostRuntime.create(options)
   install()
   await runtime.saveNode('强制终止中的节点')
 } else {

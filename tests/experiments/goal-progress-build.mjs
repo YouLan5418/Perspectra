@@ -12,11 +12,11 @@ await build({entryPoints:[entry],outfile:join(directory,'run.mjs'),bundle:true,p
   const path=relative(root,args.path).split('\\').join('/'),source=readFileSync(args.path,'utf8')
   sources[path]=createHash('sha256').update(source).digest('hex')
   if(path==='packages/interactions-basic/src/home.ts') {
-   const contents="import { goalProgressSearchPackage } from '../../../tests/experiments/goal-progress-search.ts'\n"+source.replace('createBasicInteractionPackage(),createHomeInteractionPackage()]','createBasicInteractionPackage(),createHomeInteractionPackage(),goalProgressSearchPackage()]')
+   const contents="import { goalProgressSearchPackage } from '../../../tests/experiments/goal-progress-inspection-fixture.ts'\n"+source.replace('createBasicInteractionPackage(),createHomeInteractionPackage()]','createBasicInteractionPackage(),createHomeInteractionPackage(),goalProgressSearchPackage()]')
    if(contents===source||!contents.includes('createHomeInteractionPackage(),goalProgressSearchPackage()]'))throw new Error('Author package injection failed')
    return {contents,loader:'ts',resolveDir:resolve(args.path,'..')}
   }
-  if(path==='tests/experiments/playtest-frozen-runtime.ts')return {contents:source.replace('const prepared = await prepare(request)',
+  if(path==='desktop/host/world-runtime.ts')return {contents:source.replace('const prepared = await prepare(request)',
    "(globalThis as unknown as {captureGoalRequest?:(request:PrototypeTurnRequest)=>void}).captureGoalRequest?.(request)\n      const prepared = await prepare(request)"),loader:'ts',resolveDir:resolve(args.path,'..')}
  })}}],logLevel:'silent'})
 writeFileSync(join(directory,'build.json'),JSON.stringify({sources,bundleHash:createHash('sha256').update(readFileSync(join(directory,'run.mjs'))).digest('hex'),

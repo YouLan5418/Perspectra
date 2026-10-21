@@ -22,10 +22,10 @@ packages/frontend/src/
   client.ts               iframe 使用的 window.Perspectra SDK
   default-template.ts    官方 HTML/CSS/JS
 tests/experiments/
-  playtest-server.ts      受保护的公共 HTTP 适配与静态素材、SSE
-  playtest-host-page.ts   持有令牌的 Host、MessageChannel 桥、回退按钮
-  playtest-pack-web.ts    frontend 目录与 manifest 加载
-  playtest-web-entry.ts   退出时关闭包含 SSE 的连接
+  http-server.ts      受保护的公共 HTTP 适配与静态素材、SSE
+  host-page.ts   持有令牌的 Host、MessageChannel 桥、回退按钮
+  pack-frontend.ts    frontend 目录与 manifest 加载
+  web-entry.ts   退出时关闭包含 SSE 的连接
 examples/world-packs/ai-girls-awaken-v10/frontend/
   manifest.json / index.html / app.js / style.css
 tests/fixtures/frontend-adversarial/frontend/
@@ -33,7 +33,7 @@ tests/fixtures/frontend-adversarial/frontend/
 tests/prototype/frontend-api.test.ts
 ```
 
-默认与社区前端均通过 SDK → MessagePort → Host → 公共接口 → 既有 Core；没有模板直接操作数据库的路径。公共 API 是现有 PlaytestRuntime 的小适配器，尚非独立发布的 SDK 包。
+默认与社区前端均通过 SDK → MessagePort → Host → 公共接口 → 既有 Core；没有模板直接操作数据库的路径。公共 API 是现有 HostRuntime 的小适配器，尚非独立发布的 SDK 包。
 
 ## 2. 数据与操作边界
 
@@ -105,9 +105,9 @@ SSE 初始发送公共快照，此后发送差异。当前每 500 ms 从现有 r
 | 验证 | 结果 |
 | --- | --- |
 | corepack pnpm@11.7.0 check | strict 类型与 Lint 通过；29 文件、210 测试通过 |
-| corepack pnpm@11.7.0 test:related tests/experiments/playtest-server.test.ts | 1 文件、7 测试通过 |
+| corepack pnpm@11.7.0 test:related tests/host/http-server.test.ts | 1 文件、7 测试通过 |
 | Chromium / Playwright 沙箱交互 | 默认、社区、受限能力、恶意探测、重载、回退、去重和 SSE 转录一致性通过 |
-| 真实 Core 网关集成 | FrozenWorldPlaytestRuntime + 临时 SQLite；受控模型夹具。虚构移动无事件，合法移动有事件，重复 actionId 不再提交，活动撤销移动能力后拒绝旧选项 |
+| 真实 Core 网关集成 | WorldHostRuntime + 临时 SQLite；受控模型夹具。虚构移动无事件，合法移动有事件，重复 actionId 不再提交，活动撤销移动能力后拒绝旧选项 |
 | 外部接收端 | fetch、图片和延迟观察的 iframe 自导航探测均无请求，networkHits = 0 |
 
 本轮没有追加真实模型调用，没有重新构建原生 Launcher 或运行长期负载测试。网页入口与资源由现有 Launcher 的 Node Core 子进程直接加载；本轮改动不涉及 Tauri/Rust。

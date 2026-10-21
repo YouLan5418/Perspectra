@@ -55,9 +55,9 @@ Launcher 只返回节点标题、来源、进度等公开元数据，不返回�
 | --- | --- |
 | desktop/story-nodes.ts | 静止检查、数据库备份、节点原子公布、白名单恢复 |
 | desktop/launcher-core.ts | 线路索引、可达节点检查、分叉/切换及新线启动等待 |
-| tests/experiments/playtest-frozen-runtime.ts | 冻结入口、关键投递、身份提取、启动时记忆快照恢复 |
-| tests/experiments/playtest-memory-core.ts | 已授权身份种子、既有档案快照、恢复完整性检查及正常阈值整理 |
-| tests/experiments/playtest-server.ts、playtest-host-page.ts | 鉴权后的 POST /api/story-save 与宿主页按钮；社区前端不获得节点目录能力 |
+| desktop/host/world-runtime.ts | 冻结入口、关键投递、身份提取、启动时记忆快照恢复 |
+| desktop/host/memory/core-memory.ts | 已授权身份种子、既有档案快照、恢复完整性检查及正常阈值整理 |
+| desktop/host/http-server.ts、host-page.ts | 鉴权后的 POST /api/story-save 与宿主页按钮；社区前端不获得节点目录能力 |
 | apps/launcher/src/ | 真实历史、线路切换和创建；新 UI 单独交付，不再通过保存 IPC 创建节点 |
 | tests/prototype/story-nodes.test.ts | 状态一致、未来隔离、失败重试及 Launcher 权限回归 |
 | tests/prototype/storyline-crash.test.ts | 实际子进程强制终止、索引原子选择、原线保护和档案恢复重试 |
@@ -135,7 +135,7 @@ Launcher 只返回节点标题、来源、进度等公开元数据，不返回�
 | 导入身份 | 本地实例与节点使用新 UUID，父节点置空；所导入节点作为新的历史起点，保留节点标题与时刻 |
 | 隐私含义 | 可续玩的存档包含角色私密状态与历史，接收文件的人能够检查这些数据；角色运行时仍按各自授权经历行动 |
 
-导出只读取不可变节点，在副本上校验后写同目录临时文件，最后原子替换目标；失败或进程中断不替换已有导出。导入只接受固定文件名和规范 Base64，检查大小、清单、SQLite integrity_check、游戏包、事件链与节点 head/tick、Session 完整性及世界投递绑定、世界静止、变量角色集合以及身份种子的角色／世界／前缀。有长期档案时，复用 PlaytestMemoryCore.restoreArchives 校验角色、世界、记忆前缀及完整授权来源；不符则在公布新实例前拒绝。验证使用可丢弃副本，不迁移或改写发送者节点；导入文件中不携带脚本。
+导出只读取不可变节点，在副本上校验后写同目录临时文件，最后原子替换目标；失败或进程中断不替换已有导出。导入只接受固定文件名和规范 Base64，检查大小、清单、SQLite integrity_check、游戏包、事件链与节点 head/tick、Session 完整性及世界投递绑定、世界静止、变量角色集合以及身份种子的角色／世界／前缀。有长期档案时，复用 CoreMemoryAdapter.restoreArchives 校验角色、世界、记忆前缀及完整授权来源；不符则在公布新实例前拒绝。验证使用可丢弃副本，不迁移或改写发送者节点；导入文件中不携带脚本。
 
 导入先写 `instances/.<新UUID>`，完成校验与运行目录准备后 rename 为正式目录，最后沿用 Launcher 原子索引写入；任何现有实例不被覆盖。中途终止可以留下隐藏临时目录或未索引的完整新目录，重试创建另一个独立实例，不自动认领或删除残留。
 

@@ -11,7 +11,7 @@ import { npc, playerText, priorText } from './notice-board-fixture.ts'
 import { noticeBoardContext, noticeBoardResult, boardText, privateText } from './notice-board-capability.ts'
 import { bringSecondBoard, openConflictingBoardWorld, secondBoardId, secondBoardText } from './notice-board-conflict-fixture.ts'
 import { inscriptionReadings } from './notice-board-evidence-delivery.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const root=resolve(process.argv[2]??''),mode=process.argv[3],updates=process.argv[4]?resolve(process.argv[4]):undefined
 if(!process.argv[2]||existsSync(root)||!['--prepare','--run','--delivery'].includes(mode??'')||((mode==='--run'||mode==='--delivery')&&!updates))
@@ -62,7 +62,7 @@ function buildTurn(f:ReturnType<typeof openConflictingBoardWorld>,dir:string,tag
       const index=calls++,path=join(dir,tag+'-call-'+index+'.json')
       transportPath=join(dir,tag+'-transport-'+index+'.json')
       save(path,{request:visible,status:'pending',head:f.store.head(f.address)})
-      const start=performance.now(),response=await provider.decide(localPrototypeTurnCall(visible),signal)
+      const start=performance.now(),response=await provider.decide(gatewayTurnCall(visible),signal)
       save(path,{request:visible,response,status:'returned',head:f.store.head(f.address),
         durationMs:Math.round(performance.now()-start)})
       return response

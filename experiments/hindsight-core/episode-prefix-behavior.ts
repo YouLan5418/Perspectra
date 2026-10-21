@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 import { Ajv } from 'ajv'
 import { createChatProvider } from '@harness-world/provider-chat'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { localPrototypeTurnCall } from '../../tests/experiments/local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 type Mode = 'native' | 'old' | 'new'
 type Json = Record<string, unknown>
@@ -80,7 +80,7 @@ async function worker() {
     const { comparison, mode, repetition } = jobs[cursor++]!
     const path = resolve(directory, comparison.traceId + '-' + mode + (repeatTrace === undefined ? '' : '-repeat-' + repetition) + '.json')
     const delivered = comparison.requests[mode]
-    const call = localPrototypeTurnCall(delivered)
+    const call = gatewayTurnCall(delivered)
     const inputHash = hash(call)
     if (existsSync(path)) {
       const saved = JSON.parse(readFileSync(path, 'utf8')) as Json

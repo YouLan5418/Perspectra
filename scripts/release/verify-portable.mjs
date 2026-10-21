@@ -3,11 +3,11 @@ import {randomUUID} from 'node:crypto'
 import {resolve,join} from 'node:path'
 import {mkdir,writeFile,readFile,access} from 'node:fs/promises'
 import {DEFAULT_PAGE,DEFAULT_STYLE,DEFAULT_SCRIPT} from '../../packages/frontend/src/default-template.ts'
-import {HOST_ACTIVITY_PAGE} from '../../tests/experiments/playtest-host-page.ts'
+import {HOST_ACTIVITY_PAGE} from '../../desktop/host/host-page.ts'
 const root=resolve(process.argv[2]),data=resolve(process.argv[3]);await mkdir(data,{recursive:true})
 const official=process.argv[4]==='official',packName=official?'大模型变成美少女了':'前室与后室'
 await access(join(root,'runtime/creator-assets/index.html'))
-const runtime=join(root,'runtime');const env={...process.env,PATH:'C:\\Windows\\System32;C:\\Windows\\System32\\WindowsPowerShell\\v1.0',PERSPECTRA_RUNTIME_ROOT:runtime,HCW_HINDSIGHT_PYTHON:join(runtime,'python/python.exe'),HCW_HINDSIGHT_CORE_DIR:join(runtime,'experiments/hindsight-core'),HCW_HINDSIGHT_ONNX_DIR:join(runtime,'models/e5-small'),HCW_HINDSIGHT_CACHE_DIR:join(data,'cache'),HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',PYTHONNOUSERSITE:'1',PYTHONDONTWRITEBYTECODE:'1',PYTHONHOME:undefined,PYTHONPATH:undefined}
+const runtime=join(root,'runtime');const env={...process.env,PATH:'C:\\Windows\\System32;C:\\Windows\\System32\\WindowsPowerShell\\v1.0',PERSPECTRA_RUNTIME_ROOT:runtime,HCW_HINDSIGHT_PYTHON:join(runtime,'python/python.exe'),HCW_HINDSIGHT_CORE_DIR:join(runtime,'memory-core/python/core'),HCW_HINDSIGHT_ONNX_DIR:join(runtime,'models/e5-small'),HCW_HINDSIGHT_CACHE_DIR:join(data,'cache'),HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1',PYTHONNOUSERSITE:'1',PYTHONDONTWRITEBYTECODE:'1',PYTHONHOME:undefined,PYTHONPATH:undefined}
 const child=spawn(join(runtime,'node.exe'),[join(runtime,'launcher.mjs'),join(data,'launcher')],{cwd:runtime,env,windowsHide:true,stdio:['pipe','pipe','pipe']})
 let buffer='';const queue=[];const next=()=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('IPC deadline')),60000);queue.push(v=>{clearTimeout(timer);resolve(v)})});child.stdout.setEncoding('utf8');child.stdout.on('data',chunk=>{buffer+=chunk;for(;;){const i=buffer.indexOf('\n');if(i<0)break;const line=buffer.slice(0,i);buffer=buffer.slice(i+1);queue.shift()?.(JSON.parse(line))}})
 let stderr='';child.stderr.on('data',chunk=>stderr+=chunk);child.on('error',e=>{throw e});child.on('exit',()=>{while(queue.length)queue.shift()({ok:false,error:'Portable bridge exited before reply'})})

@@ -12,10 +12,10 @@ import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider, type ChatCall } from '@harness-world/provider-chat'
 import { characterVisibleItems } from '../../packages/application/src/character-visible-items.ts'
-import { FrozenWorldPlaytestRuntime } from '../../tests/experiments/playtest-frozen-runtime.ts'
-import { localPrototypeTurnCall } from '../../tests/experiments/local-prototype-turn-call.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { ensureRoomScenes } from './continuous-scene.ts'
-import { identityEntry, restoreAliasHistory } from './alias-history.ts'
+import { identityEntry, restoreAliasHistory } from '../../desktop/host/memory/alias-history.ts'
 import { repeatedPlayerStimulus } from './play-warning.ts'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 
@@ -188,7 +188,7 @@ async function adapt(request:PrototypeTurnRequest):Promise<PrototypeTurnRequest>
    ? memories.some(u=>u.memoryLevel==='observation'):selected.results.some(u=>u.kind==='observation'),
   ...(separateProjections?{projection:result.projectionTrace}:{}),
   baselines:{nativeInitial:request.context.memories??[],nativeActiveRecall:request.recallEvidence??null,keyword},
-  hostRequest:request,deliveredRequest:visible,modelCall:localPrototypeTurnCall(visible),modelResponse:null,status:'awaiting_model',
+  hostRequest:request,deliveredRequest:visible,modelCall:gatewayTurnCall(visible),modelResponse:null,status:'awaiting_model',
   causality:'routes explain selection, not internal reasons for final behavior'}
  json(tracePath,record);pendingTraces.set(request,{path:tracePath,record});roundTraces.push(id)
  return visible
@@ -201,7 +201,7 @@ function response(record:{request:PrototypeTurnRequest;visible:PrototypeTurnRequ
  append(resolve(root,'trace-index.jsonl'),{id:trace.record.id,playerTurn:turnNumber,actorId:trace.record.actorId,
   tick:trace.record.tick,hasObservation:trace.record.hasObservation,response:record.response})
 }
-let runtime:FrozenWorldPlaytestRuntime|undefined
+let runtime:WorldHostRuntime|undefined
 async function checkpoint(n:number):Promise<void>{
  const store=new WorldStore(resolve(base,'world.sqlite'))
  const memory=new CognitiveMemoryService(resolve(base,'memory.sqlite'),store,undefined,2,RECALL_KEYWORD_TOKENIZER_ID)
@@ -307,7 +307,7 @@ async function playerNext():Promise<{input:string;intent:WorldJsonObject}>{
  }finally{store.close()}
 }
 try{
- runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:base,packPath:pack,provider:'local',model,
+ runtime=await WorldHostRuntime.create({dataDirectory:base,packPath:pack,provider:'local',model,
   utilityEndpoint:endpoint,timeoutMs:90_000,...(apiKey===undefined?{}:{apiKey}),
   experimentalCharacterRequest:async request=>{
    try{return await adapt(request)}catch(error){

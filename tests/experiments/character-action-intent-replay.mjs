@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import Ajv from 'ajv'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { characterActionIntentPrinciples, prototypeTurnCall } from '../../packages/provider-chat/src/prototype-turn.ts'
 import { characterActionExplanations, characterActionExplanationsNote } from '../../packages/provider-chat/src/character-action-explanations.ts'
 
@@ -30,7 +30,7 @@ persist()
 for(const [index,target] of selected.entries()) {
   const record=JSON.parse(readFileSync(join(base,target.record),'utf8'))
   const captured=record.calls[target.callIndex]
-  const call=localPrototypeTurnCall(captured.input)
+  const call=gatewayTurnCall(captured.input)
   if(!call.messages[0].content.includes(addedPrompt))throw new Error('Missing new prompt')
   if(!captured.schema.properties.decision.enum.includes('perform')||captured.input.canPerform!==true)throw new Error('Replay must offer perform')
   const validate=new Ajv({strict:false,allErrors:true}).compile(prototypeTurnCall(captured.input).schema)

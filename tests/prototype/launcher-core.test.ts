@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { modelConnection } from '../../desktop/model-connections.ts'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
 vi.mock('node:fs/promises', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
@@ -500,7 +500,7 @@ it('restores global audio preferences and rejects invalid updates without changi
  await core.handle({operation:'preferences',theme:'light',largeText:true})
  const restored=new LauncherCore(resolve('.'),core.root);await restored.initialize()
  expect(restored.snapshot().preferences.audio).toEqual(audio)
- const runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:join(core.root,'presentation-world'),
+ const runtime=await WorldHostRuntime.create({dataDirectory:join(core.root,'presentation-world'),
   packPath:resolve('examples/world-packs/prototype-g1'),provider:'local',model:'fixture',
   audio:restored.snapshot().preferences.audio!})
  try{expect(projectPlayerView(await runtime.state()).settings?.audio).toEqual(audio)}finally{await runtime.close()}

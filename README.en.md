@@ -44,7 +44,7 @@ The launcher uses Core memory. In test3, API keys are held only for the current 
 
 ### Run from source
 
-Requires Node.js 22.19+ or 24+ and the repository-pinned pnpm version. Native launcher development additionally requires Rust/Cargo, Windows build tools, and a [Python/E5 memory environment](experiments/activity-memory/README.md).
+Requires Node.js 22.19+ or 24+ and the repository-pinned pnpm version. Native launcher development additionally requires Rust/Cargo, Windows build tools, and a [Python/E5 memory environment](desktop/host/memory/README.md).
 
 ```powershell
 corepack pnpm@11.7.0 install --frozen-lockfile

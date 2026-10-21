@@ -14,8 +14,8 @@
 | --- | --- | --- |
 | 情景舞台 | [默认模板](../../packages/frontend/src/default-template.ts)、[舞台样式](../../packages/frontend/src/stage-style.ts) | 全屏占位背景、授权在场角色、GPT-6 占位立绘、其他角色名称占位；移动后检查地点与角色移除，窄屏检查按钮与文本 |
 | 阅读与历史 | [阅读游标](../../packages/frontend/src/reading-playback.ts)、默认模板 | 逐个显示已有 expression segments，点击、空格、自动、跳过；检查重复快照不重播、后续结果追加、候选替换、读完仍等待；独立历史面板暂停自动阅读，保留草稿 |
-| 普通操作与活动 | [玩家投影](../../packages/frontend/src/player-view.ts)、[宿主](../../tests/experiments/playtest-host-page.ts) | 保留四种发言范围、接收者、动态 optionId、参与者选择、重新生成；参数表单沿用宿主；检查三态切换、限制表达、参数提交、主动收起、暂停、恢复与逃生 |
-| 资源与打包 | [素材适配](../../tests/experiments/playtest-frontend-assets.ts)、[构建复制](../../scripts/build/copy-frontend-assets.mjs)、[便携构建](../../scripts/release/build-portable.mjs) | 固定公开 PNG 路径；源码与 bundle 均可读取。检查 PNG 成功返回且原沙箱 CSP 保留 |
+| 普通操作与活动 | [玩家投影](../../packages/frontend/src/player-view.ts)、[宿主](../../desktop/host/host-page.ts) | 保留四种发言范围、接收者、动态 optionId、参与者选择、重新生成；参数表单沿用宿主；检查三态切换、限制表达、参数提交、主动收起、暂停、恢复与逃生 |
+| 资源与打包 | [素材适配](../../desktop/host/frontend-server.ts)、[构建复制](../../scripts/build/copy-frontend-assets.mjs)、[便携构建](../../scripts/release/build-portable.mjs) | 固定公开 PNG 路径；源码与 bundle 均可读取。检查 PNG 成功返回且原沙箱 CSP 保留 |
 
 本轮先选择增量实现。没有修改世界提交、活动执行或角色输出协议。原聊天布局由情景舞台替代，原动态行动和发言控件保留；阅读游标替代主舞台中的整页聊天滚动，不新增世界进度。
 

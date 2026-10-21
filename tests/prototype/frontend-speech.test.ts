@@ -5,23 +5,23 @@ import { join } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { afterEach, expect, it, vi } from 'vitest'
 import { brandId } from '@harness-world/contracts'
-import { createPlaytestServer, type PlaytestState } from '../experiments/playtest-server.ts'
+import { createHostServer, type HostState } from '../../desktop/host/http-server.ts'
 import type { FrontendHostServices, FrontendSpeechAudio } from '../../packages/frontend/src/speech.ts'
 import { loadHostPlugins } from '../../desktop/host-plugins.ts'
 
-const servers: ReturnType<typeof createPlaytestServer>[] = [], token = 'c'.repeat(64)
+const servers: ReturnType<typeof createHostServer>[] = [], token = 'c'.repeat(64)
 const wav: FrontendSpeechAudio = {contentType:'audio/wav',bytes:new Uint8Array([82,73,70,70])}
 afterEach(async()=>{
   for(const server of servers.splice(0)){server.closeAllConnections();await new Promise<void>(done=>server.close(()=>done()))}
 })
 async function fixture(services:FrontendHostServices={}){
-  let state:PlaytestState={busy:false,paused:false,error:false,notice:'PRIVATE_NOTICE',phaseLabel:'',debug:{secret:'PRIVATE_DEBUG'},
+  let state:HostState={busy:false,paused:false,error:false,notice:'PRIVATE_NOTICE',phaseLabel:'',debug:{secret:'PRIVATE_DEBUG'},
     world:{title:'测试',playerName:'玩家',npcNames:['PRIVATE_NPC']},
     transcript:[{seq:7,speaker:'同名角色（电话）',speakerId:brandId('character:remote','CharacterId'),text:'你好。',player:false,
       segments:[{type:'narration',text:'轻轻开口。'},{type:'speech',text:'你好。'}]}]}
   const submit=vi.fn(async()=>state)
   const runtime={state:async()=>state,submit,pause:async()=>state,resume:async()=>state,close:async()=>{}}
-  const server=createPlaytestServer(runtime,token,undefined,undefined,services);servers.push(server)
+  const server=createHostServer(runtime,token,undefined,undefined,services);servers.push(server)
   let url=''
   for(let attempt=0;attempt<8;attempt++){
     server.listen(0,'127.0.0.1');await once(server,'listening')

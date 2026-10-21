@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { asRecord, inlineJson, readable } from './format.ts'
 import { useCreatorStore } from './store.ts'
-import type { CreatorHistoryItem } from '../../../../tests/experiments/creator-history.ts'
+import type { CreatorHistoryItem } from '../../../../desktop/host/creator-history.ts'
 
 const store = useCreatorStore()
 interface Change { seq: number; eventType: string; before: string; after: string; followsHolder: boolean }

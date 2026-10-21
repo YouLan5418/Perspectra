@@ -4,22 +4,22 @@ import { resolve, join } from 'node:path'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore, CharacterViewBuilder } from '@harness-world/store-sqlite'
 import { currentEntityState, currentLocation } from '@harness-world/kernel'
-import { FrozenWorldRuntimeCore } from './playtest-frozen-runtime.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
 // Real role provider; scripts substitute only the explicitly authored prologue/seed.
 const root=resolve('.tmp/official-live-'+Date.now());mkdirSync(root,{recursive:true})
 const options={packPath:resolve('examples/world-packs/model-girls-official'),provider:'local' as const,model:'gemini-3.7-flash',utilityEndpoint:'http://127.0.0.1:8046/v1/chat/completions',timeoutMs:60_000}
 const base=join(root,'base'),report:{name:string;directory:string;steps:unknown[]}[]=[]
 const save=()=>writeFileSync(join(root,'report.json'),JSON.stringify({root,model:options.model,endpoint:options.utilityEndpoint,sessions:report},null,2))
-const events=(runtime:FrozenWorldRuntimeCore,directory:string)=>{const store=new WorldStore(join(directory,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
-const choose=async(runtime:FrozenWorldRuntimeCore,label:string)=>{const option=projectPlayerView(await runtime.state()).actions.find(a=>a.label===label);assert.ok(option,'missing player option '+label);return runtime.perform(option.action)}
-const begin=async(runtime:FrozenWorldRuntimeCore)=>{const option=projectPlayerView(await runtime.state()).actions.find(a=>a.label.startsWith('开始 '));assert.ok(option);return runtime.perform(option.action)}
-const runtime=await FrozenWorldRuntimeCore.create({...options,dataDirectory:base})
+const events=(runtime:WorldHostCore,directory:string)=>{const store=new WorldStore(join(directory,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
+const choose=async(runtime:WorldHostCore,label:string)=>{const option=projectPlayerView(await runtime.state()).actions.find(a=>a.label===label);assert.ok(option,'missing player option '+label);return runtime.perform(option.action)}
+const begin=async(runtime:WorldHostCore)=>{const option=projectPlayerView(await runtime.state()).actions.find(a=>a.label.startsWith('开始 '));assert.ok(option);return runtime.perform(option.action)}
+const runtime=await WorldHostCore.create({...options,dataDirectory:base})
 try{await begin(runtime);for(let i=0;i<112;i++)await choose(runtime,'继续');const state=await runtime.state();assert.equal(state.debug.providerCalls,0);assert.equal(state.transcript.at(-1)?.text,'你愿意让我们暂时留下来吗？');console.log(JSON.stringify({root,stage:'prologue',expressions:112,providerCalls:0}))}finally{await runtime.close()}
-async function session(name:string,work:(r:FrozenWorldRuntimeCore,step:(name:string,run:()=>Promise<unknown>)=>Promise<void>,directory:string)=>Promise<void>,core=false){
+async function session(name:string,work:(r:WorldHostCore,step:(name:string,run:()=>Promise<unknown>)=>Promise<void>,directory:string)=>Promise<void>,core=false){
  const sessionName=name,directory=join(root,name);cpSync(base,directory,{recursive:true});const record={name,directory,steps:[] as unknown[]};report.push(record);save()
- const r=await FrozenWorldRuntimeCore.create({...options,dataDirectory:directory,...(core?{memoryCore:true,memoryContextBudget:{triggerTokens:6000,compactTokens:3500,minimumRecentTokens:100}}:{})});r.requestInspection(true)
+ const r=await WorldHostCore.create({...options,dataDirectory:directory,...(core?{memoryCore:true,memoryContextBudget:{triggerTokens:6000,compactTokens:3500,minimumRecentTokens:100}}:{})});r.requestInspection(true)
  const step=async(name:string,run:()=>Promise<unknown>)=>{const before=await r.state();const head=events(r,directory).at(-1)?.seq??0;let failure:string|undefined;try{await run()}catch(error){failure=error instanceof Error?error.message:String(error)}const state=await r.state();const fresh=events(r,directory).filter(e=>e.seq>head);const inspection=r.requestInspection();writeFileSync(join(directory,name+'-requests.json'),JSON.stringify(inspection,null,2));record.steps.push({name,failure,error:state.error,notice:state.notice,providerCalls:Number(state.debug.providerCalls)-Number(before.debug.providerCalls),transcript:state.transcript.filter(t=>t.seq>head),events:fresh,debug:state.debug,memoryMaintenance:state.memoryMaintenance});save();console.log(JSON.stringify({session:sessionName,directory,step:name,failure,error:state.error,providerCalls:Number(state.debug.providerCalls)-Number(before.debug.providerCalls),lines:state.transcript.filter(t=>t.seq>head).map(t=>({speaker:t.speaker,text:t.text}))}))}
  try{await work(r,step,directory)}finally{await r.close();save()}
 }

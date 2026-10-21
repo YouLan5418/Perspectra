@@ -9,7 +9,7 @@ import { openActionWorld, actionContext, actionResult } from './notice-board-act
 import { npc } from './notice-board-fixture.ts'
 import { inscriptionReadings } from './notice-board-evidence-delivery.ts'
 import { rawHistorySnapshot, historyBytes } from './raw-history-delivery.ts'
-import { hindsightPython } from './hindsight-python.ts'
+import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 const root = resolve(process.argv[2] ?? '')
 const previous = resolve('.tmp/notice-board-action-loop-20261005-v1')
 if (!process.argv[2] || existsSync(root)) throw new Error('fresh output root required')
@@ -18,7 +18,7 @@ const save = (p: string, v: unknown) => writeFileSync(p, JSON.stringify(v, null,
 const hash = (p: string) => createHash('sha256').update(readFileSync(p)).digest('hex')
 function current(doc: WorldJsonObject): Promise<WorldJsonObject> {
   return new Promise((yes, no) => {
-    const child = execFile(hindsightPython(), [resolve('experiments/activity-memory/immediate_delivery.py')], {
+    const child = execFile(corePythonExecutable(), [resolve('experiments/activity-memory/immediate_delivery.py')], {
       timeout: 60000, maxBuffer: 16*1024*1024, encoding: 'utf8', windowsHide: true,
       env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONHASHSEED: '0' },
     }, (error, out, err) => { if (error) no(new Error(err.slice(-1200))); else { try { yes(JSON.parse(out)) } catch (cause) { no(cause) } } })

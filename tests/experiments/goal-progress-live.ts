@@ -8,10 +8,10 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { prototypeTurnCall } from '@harness-world/provider-chat'
 import { recentExecutionContext } from '../../packages/application/src/recent-execution-context.ts'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { goalProgressPacks, goalProgressScenarios } from './goal-progress-content.ts'
-import { estimateContextTokens } from './playtest-memory-core.ts'
+import { estimateContextTokens } from '../../desktop/host/memory/core-memory.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
 
 const object=(v:unknown):Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>:{}
@@ -24,7 +24,7 @@ const move=(locationId:string)=>({decision:'perform',actionType:'move',parameter
 const settings=playSettings({maximumNpcCalls:8,maximumCallsPerCharacter:2,maximumWaves:3,reactionDeadlineSeconds:180,
  autonomyOpportunities:1,autonomyNpcCalls:8,autonomyReactionWaves:2,autonomyReactionCalls:6,autonomyDeadlineSeconds:180,publicationCharacters:900})
 
-function snapshot(runtime:FrozenWorldPlaytestRuntime) {
+function snapshot(runtime:WorldHostRuntime) {
  const store=new WorldStore(join(runtime.dataDirectory,'world.sqlite'))
  try {
   const head=store.head(runtime.address),events=store.readEvents(runtime.address)
@@ -69,7 +69,7 @@ async function main() {
  })
  await new Promise<void>(done=>server.listen(0,'127.0.0.1',done))
  const port=(server.address() as {port:number}).port
- const create=(packPath:string,dataDirectory:string,enabled=false)=>FrozenWorldPlaytestRuntime.create({packPath,dataDirectory,provider:'local',model,
+ const create=(packPath:string,dataDirectory:string,enabled=false)=>WorldHostRuntime.create({packPath,dataDirectory,provider:'local',model,
   utilityEndpoint:`http://127.0.0.1:${port}/v1/chat/completions`,thinkingLevel:'low',preset:{maxOutputTokens:32768},timeoutMs:60000,
   playSettings:settings,recentExecutionEvidence:enabled,continueAfterPublish:false,beforeActionExpression:false})
  const frozen:Record<string,{request:PrototypeTurnRequest;packPath:string;dataDirectory:string;initial:ReturnType<typeof snapshot>}>= {}
@@ -93,7 +93,7 @@ async function main() {
   for(const [index,scenario] of goalProgressScenarios.entries())for(let repetition=1;repetition<=3;repetition++) {
    for(const mode of (index+repetition)%2?['A','B']:['B','A']) {
     const original=frozen[scenario]!.request,request=mode==='B'?{...original,context:recentExecutionContext(original.context)}:original
-    const call=localPrototypeTurnCall(request),validate=new Ajv({strict:false}).compile(prototypeTurnCall(request).schema)
+    const call=gatewayTurnCall(request),validate=new Ajv({strict:false}).compile(prototypeTurnCall(request).schema)
     const row:Record<string,unknown>={scenario,repetition,mode,input:JSON.parse(call.messages.at(-1)!.content),hostRequest:request,schema:call.schema,
      estimatedEvidenceTokens:estimateContextTokens(JSON.stringify((request.context.recentExecutionEvidence??{})))}
     replays.push(row);const start=performance.now()

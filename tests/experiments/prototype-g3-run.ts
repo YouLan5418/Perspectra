@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 
 // One continuous world. Run in checkpoints with the same data directory; inspect each checkpoint before continuing.
 const inputs = [
@@ -55,7 +55,7 @@ globalThis.fetch = async (url, init) => {
     status: response.status, body: body.slice(0, 65_536), truncated: body.length > 65_536 }) + '\n')
   return response
 }
-const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory,
+const runtime = await WorldHostRuntime.create({ dataDirectory,
   packPath: resolve('examples/world-packs/prototype-g1'), provider: 'deepseek',
   apiKey: process.env.DEEPSEEK_API_KEY, timeoutMs: 45_000 })
 try {

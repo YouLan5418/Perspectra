@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest'
 import { playSettings, DEFAULT_PLAY_SETTINGS, readingPreferences, audioPreferences } from '../../desktop/play-settings.ts'
-import { parsePlaytestLaunchArguments } from '../experiments/playtest-launch.ts'
+import { parseHostLaunchArguments } from '../../desktop/host/launch-arguments.ts'
 import { prototypeTurnCall } from '@harness-world/provider-chat'
 import { parseExpressionSegments } from '@harness-world/contracts'
-import { localPrototypeTurnCall } from '../experiments/local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 it('validates local settings and rejects contradictory memory limits',()=>{
  expect(playSettings({})).toEqual(DEFAULT_PLAY_SETTINGS)
  expect(playSettings({maximumWaves:5}).maximumWaves).toBe(5)
@@ -12,8 +12,8 @@ it('validates local settings and rejects contradictory memory limits',()=>{
  for(const value of [{autonomyNpcCalls:1},{autonomyReactionCalls:1},{autonomyOpportunities:-1},{autonomyDeadlineSeconds:0}])expect(()=>playSettings(value)).toThrow()
  for(const value of [{maximumWaves:0},{maximumWaves:null},{maximumNpcCalls:1},{unknown:1},{memoryTriggerTokens:10000},{memoryRecentTokens:170000}])expect(()=>playSettings(value)).toThrow()
  const settings=playSettings({publicationCharacters:3000,playerInputCharacters:4000})
- expect(parsePlaytestLaunchArguments(['--play-settings',JSON.stringify(settings)]).playSettings).toEqual(settings)
- expect(()=>parsePlaytestLaunchArguments(['--play-settings','{}','--tuning','{}'])).toThrow()
+ expect(parseHostLaunchArguments(['--play-settings',JSON.stringify(settings)]).playSettings).toEqual(settings)
+ expect(()=>parseHostLaunchArguments(['--play-settings','{}','--tuning','{}'])).toThrow()
  expect(readingPreferences({fontSize:22,lineHeight:2,autoFollow:false})).toEqual({fontSize:22,lineHeight:2,autoFollow:false})
  expect(()=>readingPreferences({fontSize:100,lineHeight:2,autoFollow:false})).toThrow()
 })
@@ -24,7 +24,7 @@ it('validates presentation audio preferences without accepting arbitrary templat
 })
 it('uses the same publication limit in native/local schemas, instructions and aggregate validation',()=>{
  const request={continuation:false,context:{publicationCharacters:3000,character:{characterId:'npc'},affordances:[]}}
- for(const call of [prototypeTurnCall(request),localPrototypeTurnCall(request)]){
+ for(const call of [prototypeTurnCall(request),gatewayTurnCall(request)]){
   expect(JSON.stringify(call.schema)).toContain('"maxLength":3000')
   expect(call.messages[0]!.content).toContain('最多 3000 字符')
  }

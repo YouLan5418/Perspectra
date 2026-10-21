@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 import { brandId, worldAddressKey, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
-import { FrozenWorldPlaytestRuntime } from '../../tests/experiments/playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 
 export type Ref = { sourceId: string; sourceHash: string; epistemicKind: string;
   worldSeq: number; characterId: string; worldAddress: WorldAddress }
@@ -97,7 +97,7 @@ const started: { turns: Array<Record<string, unknown>>; address?: WorldAddress }
   : { turns: [] }
 let shadow: Shadow | undefined = existsSync(shadowPath) ? JSON.parse(readFileSync(shadowPath, 'utf8')) as Shadow : undefined
 function core(input: WorldJsonObject): Record<string, unknown> {
-  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('experiments/hindsight-core/core.py')], {
+  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('desktop/host/memory/python/core/core.py')], {
     input: JSON.stringify(input), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 180_000,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
   })
@@ -193,7 +193,7 @@ function adaptRequest(request: import('../../packages/application/src/prototype-
     selected: selected.results.map(unit => ({ id: unit.id, sourceRefs: unit.sourceRefs })) })+'\n', { flag: 'a' })
   return visible
 }
-const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: base,
+const runtime = await WorldHostRuntime.create({ dataDirectory: base,
   packPath: resolve('examples/world-packs/hand-in-hand'), provider: 'local', model,
   ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),
   ...(apiKey === undefined ? {} : { apiKey }), timeoutMs: 90_000,

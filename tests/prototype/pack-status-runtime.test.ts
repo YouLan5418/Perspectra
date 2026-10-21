@@ -11,13 +11,13 @@ import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } f
 import { createCoreRulebookRegistry, RulebookRegistry } from '@harness-world/kernel'
 import { PrototypeCharacterTurn, type PrototypeTurnResult } from '../../packages/application/src/prototype-character-turn.ts'
 import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import { PackStatus, type KnownStatus } from '../experiments/pack-status.ts'
-import type { CoreRunner } from '../experiments/hindsight-python.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { PackStatus, type KnownStatus } from '../../desktop/host/pack-status.ts'
+import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
-const roots: string[] = [], runtimes: FrozenWorldPlaytestRuntime[] = [], servers: Server[] = []
+const roots: string[] = [], runtimes: WorldHostRuntime[] = [], servers: Server[] = []
 afterEach(async () => {
   for (const runtime of runtimes.splice(0)) await runtime.close()
   for (const server of servers.splice(0)) { server.closeAllConnections(); await new Promise<void>(done => server.close(() => done())) }
@@ -117,7 +117,7 @@ async function fixture(provider: 'ollama' | 'local', script: keyof typeof script
     facts: [], episodes: [], observations: [] }, index: { scope: input.scope!, units: [], vectors: [] } }
     : { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } }
   const create = async (dataDirectory = data) => {
-    const runtime = await FrozenWorldPlaytestRuntime.create({ ...options, dataDirectory,
+    const runtime = await WorldHostRuntime.create({ ...options, dataDirectory,
       ...(dataDirectory === data ? {} : { memoryCore: true, memoryCoreRun: memory, memoryCoreBuildRun: memory }) })
     runtimes.push(runtime); return runtime
   }
@@ -217,7 +217,7 @@ it.each(['ollama', 'local'] as const)('an NPC theft commits one status.updated a
   expect(bar.find(entry => entry.holderId === PLAYER)).toMatchObject({ holderName: expect.any(String), self: true })
   expect(bar.filter(entry => entry.self).every(entry => entry.holderId === PLAYER)).toBe(true)
   expect(bar.some(entry => entry.holderId === THIEF)).toBe(false)
-  expect(f.runtime.creatorDebug().variables).toEqual({ public: { time: 10 },
+  expect(f.runtime.creatorInspection().statusTruth).toEqual({ public: { time: 10 },
     characters: expect.objectContaining({ [PLAYER]: { money: 70, hp: 20 }, [THIEF]: { money: 130, hp: 20 } }) })
 
   // A later round reaches the bystander after the theft; it never learns either balance.

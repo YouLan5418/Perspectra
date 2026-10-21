@@ -7,12 +7,12 @@ import { currentLocation } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { readTailSelection } from '../../desktop/tail-storage.ts'
-import { FrontendActions, projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { statusMarketWithoutRoundHook } from './fixtures/status-market-no-hook.ts'
 
-const roots:string[]=[], servers:Server[]=[], runtimes:FrozenWorldPlaytestRuntime[]=[], releases:(()=>void)[]=[]
+const roots:string[]=[], servers:Server[]=[], runtimes:WorldHostRuntime[]=[], releases:(()=>void)[]=[]
 afterEach(async()=>{
   for(const release of releases.splice(0))release()
   for(const runtime of runtimes.splice(0))await runtime.close()
@@ -53,7 +53,7 @@ async function fixture(witness=false, serialScheduling=false, continueAfterPubli
       catch{if(!response.destroyed){response.writeHead(503);response.end('fixture unavailable')}}
     })()})
   });servers.push(server);await new Promise<void>(done=>server.listen(0,'127.0.0.1',done))
-  const runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:data,packPath:pack,provider:'ollama',model:'fixture',
+  const runtime=await WorldHostRuntime.create({dataDirectory:data,packPath:pack,provider:'ollama',model:'fixture',
     utilityEndpoint:`http://127.0.0.1:${(server.address() as {port:number}).port}/api/chat`,timeoutMs:10000,serialScheduling,continueAfterPublish,
     tuning:{maximumWaves:3,maximumNpcCalls:12,maximumCallsPerCharacter:2,reactionDeadlineSeconds:30,recentObservations:16,recentSelfObservations:8}})
   runtimes.push(runtime)

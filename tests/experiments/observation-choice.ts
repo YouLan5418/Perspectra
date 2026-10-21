@@ -12,8 +12,8 @@ import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
-import { coreRunner, hindsightPython } from './hindsight-python.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { coreRunner, corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 
 const root=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(root))throw new Error('provide a fresh output directory')
@@ -78,7 +78,7 @@ const core=coreRunner({HCW_LOCAL_MODEL:model,HCW_HINDSIGHT_UTILITY_TRACE:join(ro
 let built:WorldJsonObject|undefined
 function facetWorker(input:WorldJsonObject,signal:AbortSignal):Promise<WorldJsonObject>{
  return new Promise((resolveResult,reject)=>{
-  const child=execFile(hindsightPython(),[resolve(bankMode?'experiments/activity-memory/observation_bank.py':'experiments/activity-memory/observation-facet-match.py')],{
+  const child=execFile(corePythonExecutable(),[resolve(bankMode?'experiments/activity-memory/observation_bank.py':'experiments/activity-memory/observation-facet-match.py')],{
    signal,timeout:bankMode?360000:120000,maxBuffer:32*1024*1024,windowsHide:true,encoding:'utf8',
    env:{...process.env,HCW_LOCAL_MODEL:model,HCW_JEV_APPLICABILITY_TRACE:join(root,'jev-applicability-calls.jsonl'),HCW_HINDSIGHT_UTILITY_TRACE:join(root,'facet-utility-calls.jsonl'),PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0'}},(error,stdout)=>{
     if(error){reject(new Error('facet retrieval failed',{cause:error}));return}
@@ -152,7 +152,7 @@ else{
   const allowedPeople=people.filter(p=>typeof p.characterId==='string'&&typeof p.name==='string').map(p=>({characterId:p.characterId,name:p.name}))
   const projectionInput={build:built!,targetObservation:targetId,allowedPeople}
   writeFileSync(join(root,'projection-input.json'),JSON.stringify(projectionInput,null,2))
-  const child=spawnSync(hindsightPython(),[resolve('experiments/activity-memory/observation-applicability.py')],{
+  const child=spawnSync(corePythonExecutable(),[resolve('experiments/activity-memory/observation-applicability.py')],{
    input:JSON.stringify(projectionInput),encoding:'utf8',timeout:180000,maxBuffer:16*1024*1024,windowsHide:true,
    env:{...process.env,HCW_LOCAL_MODEL:model,HCW_HINDSIGHT_UTILITY_TRACE:join(root,'projection-utility-calls.jsonl'),PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0'}})
   if(child.error||child.status!==0){writeFileSync(join(root,'projection-failure.json'),JSON.stringify({status:child.status,stderr:child.stderr,error:child.error?.message}));throw new Error('applicability projection failed')}
@@ -196,7 +196,7 @@ else{
   if(sourceRoot&&!applicability){
    const request=JSON.parse(readFileSync(join(root,probe.id+'-preview-request.json'),'utf8')) as WorldJsonObject
    const input={archive,request,tick:probeTick,targetObservation:targetId}
-   const child=spawnSync(hindsightPython(),[resolve('experiments/activity-memory/observation-choice-delivery.py')],{
+   const child=spawnSync(corePythonExecutable(),[resolve('experiments/activity-memory/observation-choice-delivery.py')],{
     input:JSON.stringify(input),encoding:'utf8',timeout:60000,maxBuffer:16*1024*1024,
     env:{...process.env,PYTHONIOENCODING:'utf-8'}})
    if(child.error||child.status!==0)throw new Error('explicit delivery intervention failed')
@@ -237,7 +237,7 @@ else{
        if(JSON.stringify(visible).includes('雪青密码'))throw new Error('private context leaked')
        const record:Record<string,unknown>={mode,repetition,probe:probe.id,request:visible,status:'pending'}
        const path=join(dir,'call-'+(++count)+'.json');writeFileSync(path,JSON.stringify(record,null,2))
-       const response=await provider.decide(localPrototypeTurnCall(visible),signal)
+       const response=await provider.decide(gatewayTurnCall(visible),signal)
        record.response=response;record.status='returned';writeFileSync(path,JSON.stringify(record,null,2));return response
       }})
      const result=await turn.run(npc,{stimulus,maxCalls:1,signal:AbortSignal.timeout(120000)})

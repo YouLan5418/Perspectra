@@ -6,15 +6,15 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { randomUUID } from 'node:crypto'
-import { FrozenWorldRuntimeCore, type FrozenPlaytestOptions } from '../experiments/playtest-frozen-runtime.ts'
-import { createPlaytestServer } from '../experiments/playtest-server.ts'
-import { CreatorRecords } from '../experiments/creator-records.ts'
+import { WorldHostCore, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
+import { createHostServer } from '../../desktop/host/http-server.ts'
+import { CreatorRecords } from '../../desktop/host/creator-records.ts'
 import { RequestInspector } from '../../packages/provider-chat/src/request-inspector.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async()=>{for(const close of cleanups.splice(0).reverse())await close()})
-async function fixture(extra: Partial<FrozenPlaytestOptions> = {}) {
+async function fixture(extra: Partial<WorldHostOptions> = {}) {
   const root = mkdtempSync(join(tmpdir(),'creator-observability-'))
   cleanups.push(async()=>{rmSync(root,{recursive:true,force:true})})
   const provider = createServer((request,response)=>{
@@ -26,9 +26,9 @@ async function fixture(extra: Partial<FrozenPlaytestOptions> = {}) {
   })
   provider.listen(0,'127.0.0.1');await once(provider,'listening')
   cleanups.push(async()=>{provider.closeAllConnections();await new Promise<void>(done=>provider.close(()=>done()))})
-  const options: FrozenPlaytestOptions = {packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:root,
+  const options: WorldHostOptions = {packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:root,
     provider:'local',model:'fixture',utilityEndpoint:'http://127.0.0.1:'+(provider.address() as AddressInfo).port+'/v1/chat/completions',...extra}
-  const runtime = await FrozenWorldRuntimeCore.create(options)
+  const runtime = await WorldHostCore.create(options)
   cleanups.push(()=>runtime.close())
   return {root,runtime,options}
 }
@@ -56,12 +56,12 @@ it('keeps complete captured requests after recent-call eviction, disable and res
   runtime.requestInspection(false)
   expect(runtime.creatorRecords({kind:'request'}).total).toBe(page.total)
   await runtime.close()
-  const restored=await FrozenWorldRuntimeCore.create({...options,dataDirectory:root})
+  const restored=await WorldHostCore.create({...options,dataDirectory:root})
   cleanups.push(()=>restored.close())
   expect(restored.requestInspection().enabled).toBe(false)
   expect(restored.creatorRecords({recordId:captured.id}).record).toEqual(captured)
   restored.requestInspection(true);await restored.close()
-  const enabled=await FrozenWorldRuntimeCore.create(options);cleanups.push(()=>enabled.close())
+  const enabled=await WorldHostCore.create(options);cleanups.push(()=>enabled.close())
   expect(enabled.requestInspection().enabled).toBe(true)
 })
 it('links custody changes, rejected attempts and holder movement without making dialogue a transfer',async()=>{
@@ -80,7 +80,7 @@ it('links custody changes, rejected attempts and holder movement without making 
   expect(rejected.entityChange).toBeNull()
   const movement=history.items.find(item=>item.entityChange?.followsHolder)!
   expect(movement.event.eventType).toBe('character.moved')
-  expect(runtime.creatorDebug().entities.find(item=>item.id==='entity:brass-key')?.state.holderId).toBe('character:player')
+  expect(runtime.creatorInspection().entities.find(item=>item.id==='entity:brass-key')?.state.holderId).toBe('character:player')
   const first=runtime.creatorHistory({entityId:'entity:brass-key',limit:1})
   expect(first.hasMore).toBe(true)
   expect(runtime.creatorHistory({entityId:'entity:brass-key',afterSeq:first.nextAfterSeq,limit:100}).items[0]!.event.seq).toBeGreaterThan(first.nextAfterSeq)
@@ -98,7 +98,7 @@ it('reports actual private recipients across page boundaries and does not confus
   expect(speech.relatedSeqs.length).toBeGreaterThan(1)
 })
 it('keeps record details and event history behind host authentication with bounded, strict queries',async()=>{
-  const {runtime}=await fixture(),token='a'.repeat(64),server=createPlaytestServer(runtime,token)
+  const {runtime}=await fixture(),token='a'.repeat(64),server=createHostServer(runtime,token)
   server.listen(0,'127.0.0.1');await once(server,'listening')
   cleanups.push(async()=>{server.closeAllConnections();await new Promise<void>(done=>server.close(()=>done()))})
   const base='http://127.0.0.1:'+(server.address() as AddressInfo).port,headers={'x-playtest-token':token}

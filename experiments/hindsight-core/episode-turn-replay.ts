@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { type WorldJsonObject } from '@harness-world/contracts'
-import { localPrototypeTurnCall } from '../../tests/experiments/local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 
 type Ref={sourceId:string;worldSeq:number;characterId:string;worldAddress:WorldJsonObject}
@@ -29,7 +29,7 @@ const positions=indexed.units.flatMap((u,i)=>u.sourceRefs.every(r=>recent.has(r.
 const units=positions.map(i=>indexed.units[i]!),ids=new Set(units.map(u=>u.id))
 const index={...indexed,units,vectors:positions.map(i=>indexed.vectors[i]!),links:indexed.links.filter(e=>ids.has(String(e[0]))&&ids.has(String(e[1])))}
 const run=spawnSync(process.env.HCW_HINDSIGHT_PYTHON||resolve('.tmp/hindsight-vector-venv/Scripts/python.exe'),
- [resolve('experiments/hindsight-core/vector_core.py')],{input:JSON.stringify({operation:'recall',scope:data.scope,index,query:trace.query,limit:8}),
+ [resolve('desktop/host/memory/python/core/vector_core.py')],{input:JSON.stringify({operation:'recall',scope:data.scope,index,query:trace.query,limit:8}),
  encoding:'utf8',env:{...process.env,PYTHONIOENCODING:'utf-8'},maxBuffer:64*1024*1024,timeout:120_000})
 if(run.error||run.status!==0)throw new Error(run.error?.message??run.stderr.slice(-2000))
 const recall=JSON.parse(run.stdout) as {results:Unit[]}
@@ -40,7 +40,7 @@ const memories=recall.results.map(u=>({...u,memoryId:u.id,sourceMaxSeq:Math.max(
  note:'本角色已授权来源的非权威记忆；Episode 内证据各自独立，Observation 是可修正的主观认识。'}))
 const delivered:PrototypeTurnRequest={...request,context:{...request.context,memories},
  ...(request.recallEvidence===undefined?{}:{recallEvidence:{query:trace.query,memories}})}
-const call=localPrototypeTurnCall(delivered)
+const call=gatewayTurnCall(delivered)
 const apiKey=process.env.HCW_LOCAL_API_KEY?.trim()
 const provider=createChatProvider({endpoint:new URL(process.env.HCW_LOCAL_ENDPOINT||'http://127.0.0.1:8045/v1/chat/completions'),
  model:process.env.HCW_LOCAL_MODEL||'gemini-3.7-flash',toolName:'prototype_turn',timeoutMs:90_000,maxOutputTokens:1400,

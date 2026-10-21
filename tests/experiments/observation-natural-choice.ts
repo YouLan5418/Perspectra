@@ -10,8 +10,8 @@ import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
-import { hindsightPython } from './hindsight-python.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 
 const root = resolve(process.argv[2] ?? ''), mode = process.argv[3] ?? '--prepare'
 if (!process.argv[2] || !['--prepare', '--run'].includes(mode)) throw new Error('provide fresh directory and --prepare or --run')
@@ -94,7 +94,7 @@ if (mode === '--prepare') {
   for (const probe of probes) {
     for (let repeat = 0; repeat < repeats; repeat++) {
       const queryRequest = load(join(root, probe.id + '-request.json'))
-      const child = spawnSync(hindsightPython(), [resolve('experiments/activity-memory/natural_choice_recall.py')], {
+      const child = spawnSync(corePythonExecutable(), [resolve('experiments/activity-memory/natural_choice_recall.py')], {
         input: JSON.stringify({ prepared: bank, authorized, request: queryRequest, target: protocol.target }),
         encoding: 'utf8', timeout: 120000, maxBuffer: 64 * 1024 * 1024, windowsHide: true,
         env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONHASHSEED: '0',
@@ -131,7 +131,7 @@ if (mode === '--prepare') {
               const record = { probe: probe.id, repeat, condition, request: visible, status: 'pending' }
               save(join(dir, 'call.json'), record); calls++; transportPath = join(dir, 'transport.json')
               const start = performance.now()
-              const response = await provider.decide(localPrototypeTurnCall(visible), signal)
+              const response = await provider.decide(gatewayTurnCall(visible), signal)
               returned = true
               save(join(dir, 'call.json'), { ...record, status: 'returned', durationMs: Math.round(performance.now() - start), response })
               return response

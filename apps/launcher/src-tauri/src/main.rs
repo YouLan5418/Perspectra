@@ -41,7 +41,7 @@ impl Bridge {
             command.current_dir(&portable).arg(portable.join("launcher.mjs"));
             command.env("PERSPECTRA_RUNTIME_ROOT", &portable)
                 .env("HCW_HINDSIGHT_PYTHON", portable.join("python/python.exe"))
-                .env("HCW_HINDSIGHT_CORE_DIR", portable.join("experiments/hindsight-core"))
+                .env("HCW_HINDSIGHT_CORE_DIR", portable.join("memory-core/python/core"))
                 .env("HCW_HINDSIGHT_ONNX_DIR", portable.join("models/e5-small"))
                 .env("HCW_HINDSIGHT_CACHE_DIR", root.join("memory-cache"))
                 .env("PYTHONNOUSERSITE", "1").env("PYTHONDONTWRITEBYTECODE", "1")

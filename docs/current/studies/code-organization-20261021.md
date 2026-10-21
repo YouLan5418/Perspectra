@@ -1,0 +1,59 @@
+# 宿主与记忆代码整理（2026-10-21）
+
+本次在独立分支 `codex/code-organization-20261021` 整理当前实现，起点为 `717ed6c`。原工作区已有文档、未跟踪文件与历史试玩目录保持原状；没有合并到 main、推送、调用真实模型或改写历史实验结果。
+
+例如玩家启动游戏、查看创作者状态、保存故事节点时，实际运行的文件现在集中于 `desktop/host`，不再需要从“测试／实验”目录寻找正式宿主。整理保持既有角色协议、提示内容、预算、规则裁定和存储格式；创作者检查响应的 `variables` 明确更名为 `statusTruth`，第一方页面同步调整，没有保留旧字段兼容层。
+
+## 改动与证据
+
+| 原问题与证据 | 本次处理 | 当前入口 |
+| --- | --- | --- |
+| 源码启动、桌面打包和便携脚本从 `tests/experiments` 加载宿主，生产相关静态导入集合为 27 个 TS 文件 | 迁移到现有 desktop 所有权下，统一修改源码、测试、构建与引用 | [宿主说明](../../../desktop/host/README.md)、[web-entry.ts](../../../desktop/host/web-entry.ts) |
+| 默认 Core 从 `experiments` 启动 Python，便携包复制其中实现 | 迁移 10 个运行模块、vendor、资产清单、准备脚本和依赖说明；Rust、worker、发行复制与校验同步 | [Core 说明](../../../desktop/host/memory/README.md)、[便携构建](../../../scripts/release/build-portable.mjs) |
+| frontend 的公共视图文件引用宿主状态与运行接口 | 将投影和操作执行适配移入宿主；公共数据、请求校验与补丁仍由 frontend 提供 | [frontend-adapter.ts](../../../desktop/host/frontend-adapter.ts)、[公共视图](../../../packages/frontend/src/player-view.ts) |
+| `decideActivityFormat` 实际服务全部角色决策 | 从活动运行时拆出通用重试，改名为 `decideWithFormatRetry`；重试内容和预算逻辑保持一致 | [decision-format.ts](../../../desktop/host/decision-format.ts) |
+| `frozen/playtest/hindsight` 混淆正式职责 | 内部入口、宿主、网关适配、解释器和检查类型按职责更名；既有品牌 ID、外部 HTTP 路由、token header 和发行 `playtest.mjs` 文件名保留 | [world-runtime.ts](../../../desktop/host/world-runtime.ts)、[gateway-turn-call.ts](../../../desktop/host/gateway-turn-call.ts)、[python-worker.ts](../../../desktop/host/memory/python-worker.ts) |
+| 创作者“变量”页展示状态真值，样例仍含情绪／信任值 | 改为状态导航与 `statusTruth`，样例使用客观状态，修正导出说明；活动内部变量保留 | [StatusView.vue](../../../apps/launcher/src/creator/StatusView.vue)、[接口文档](../creator-debug-api.md) |
+| 历史 JEV/Core 探针绑定固定记录，关系 spike 已退役 | 移入对应研究目录，注明外部调用／固定样本限制；冻结证据源码保持原样 | [JEV 历史脚本](../../../experiments/jev-narrative-auditor/scripts/README.md)、[Core 诊断](../../../experiments/activity-memory/scripts/README.md)、[关系原型](../../../experiments/character-relations/archive/README.md) |
+| 无引用的旧 `playtest-page.ts` 与实际宿主页并存 | 删除旧页；宿主测试移到 `tests/host`，零模型序章与专用角色卡切片准确命名 | [宿主页](../../../desktop/host/host-page.ts)、[宿主测试](../../../tests/host)、[离线序章](../../../tests/experiments/official-prologue-offline.ts) |
+
+没有引入新的 Host 框架、包、协议版本、数据库或通用脚本平台。`packages/memory` 仍提供原生记忆；Python Core 是宿主适配，不把宿主存档与发行职责塞进原生记忆包。
+
+## 路径与运行时身份
+
+源码 Python 实现在 `desktop/host/memory/python/{core,bridge}`，发行位置为 `runtime/memory-core/python/{core,bridge}`。Python 的源码根目录回退随层级调整；发行时继续通过既有环境变量指定模型与缓存。头像和创作者资产的源码相对位置也已核对。
+
+[运行时身份](../../../desktop/tail-runtime-identity.ts)同步跟随新路径，并包含拆出的格式重试、前端适配与授权名称模块。改路径会改变身份；旧末端回合不能因此绕过环境一致性检查重新生成或切换候选。本次不新增旧候选迁移。故事节点、原始经历与记忆授权边界按现有回归分别验证，不把“身份改变”泛化为所有存档损坏。
+
+## 验证方法与范围
+
+从仓库根目录运行；本机 Python/E5 环境准备见 [Core 说明](../../../desktop/host/memory/README.md)：
+
+```powershell
+node scripts/check-host-boundaries.mjs
+corepack pnpm@11.7.0 typecheck
+corepack pnpm@11.7.0 lint
+corepack pnpm@11.7.0 launcher:check
+corepack pnpm@11.7.0 test --maxWorkers=1
+corepack pnpm@11.7.0 test:related tests/host --maxWorkers=1
+corepack pnpm@11.7.0 launcher:build
+corepack pnpm@11.7.0 desktop:build
+node --import tsx scripts/release/verify-core-layout.mjs
+cargo check --offline --manifest-path apps/launcher/src-tauri/Cargo.toml
+node scripts/docs/check-links.mjs
+```
+
+生产路径检查只读扫描源码，默认 `check` 和 Windows CI 均调用它；它不做语义权限证明。Python 的候选准入、桥和原生协议三组离线回归为 38 项，通过。宿主测试 44 项与 Launcher 测试 44 项通过；源码两端构建、Rust 离线检查、文档链接检查通过。
+
+隔离布局检查在全新的 `.tmp/core-layout-*` 目录复制发行所需 Python 模块，验证源码／打包单次请求、两次常驻 worker 请求、本地 E5 编码（`[1,384]`）与默认 Core HTTP 启动。结果 JSON 仅保存检查结论，不含令牌、角色材料或模型凭据。它复用本机 Python/E5，不代表完整便携包或干净 Windows 已验收。
+
+首次默认测试执行了 72 个文件、651 项断言：632 项通过，19 项硬中断场景因沙箱 `taskkill` 权限失败；另出现一次活动 mock 空请求的未处理异常。没有为此跳过用例或修改断言：允许终止测试自建子进程后，两组相关测试 37 项通过；活动测试单独复跑 33 项通过。沙箱内 Rust 和 ONNX 的原生加载也失败，环境限制解除后的相同验证通过。
+
+最终在相同串行配置下完整重跑默认回归：**72 个文件、651 项全部通过，退出码 0，401.66 秒，无未处理错误**。这次完整运行也覆盖故事保存／分享、候选切换、授权记忆与硬中断恢复。初次活动 mock 异常未再次出现；没有据此声称修复了一个尚未稳定复现的缺陷。
+
+## 有意识保留的限制
+
+- 未做新的真实模型连续试玩，不宣称角色自然度、长期记忆收益或叙事一致性新增验收。
+- 未构建完整便携发行包；本机缺少 WebView2/CRT 等发行素材和 release Launcher EXE。没有下载替代素材，也没有把旧 EXE 当作新 Rust 桥的发行验证。
+- 历史脚本保留原记录绑定，不承诺全部可以在新环境复跑；固定证据副本不批量重写。活跃实验若要再次使用，先核对来源与新输出目录。
+- `tests/experiments` 仍保留研究驱动；已经移出的宿主不会继续从该目录加载实现。

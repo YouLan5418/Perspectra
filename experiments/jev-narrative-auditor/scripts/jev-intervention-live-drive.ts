@@ -1,0 +1,97 @@
+// 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { resolve } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
+import { currentEntityState } from '@harness-world/kernel'
+import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
+import { type ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
+import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
+
+const mode = process.argv.includes('--correct') ? 'correct' : 'baseline'
+const explicit = true, probe = true
+const placementScript=process.argv.includes('--placement-script')
+const directory = resolve(process.argv[2] ?? '')
+if (!process.argv[2] || process.argv[2]!.startsWith('--') || existsSync(resolve(directory,'jev-shadow.jsonl'))) throw new Error('choose a new output directory')
+mkdirSync(directory,{recursive:true})
+const classify = createClaimClassifier(process.env.OPENROUTER_JEV_KEY ?? '')
+const records: ShadowRecord[] = []
+const interventions: import('../../../desktop/host/jev-publication-intervention.ts').InterventionRecord[] = []
+const write = async (record: ShadowRecord) => { records.push(record);appendFileSync(resolve(directory,'jev-shadow.jsonl'),JSON.stringify(record)+'\n') }
+const items = [{entityId:'entity:brass-key',name:'黄铜钥匙',aliases:['钥匙']},{entityId:'entity:thermos',name:'保温杯'}]
+function rows(path: string) {
+  const db=new DatabaseSync(path,{readOnly:true})
+  try { return db.prepare('SELECT * FROM events ORDER BY seq').all() } finally {db.close()}
+}
+const digest = (input: unknown) => createHash('sha256').update(JSON.stringify(input)).digest('hex')
+let evidence: Record<string,unknown>
+{
+  const key=process.env.DEEPSEEK_API_KEY
+  if(!key)throw new Error('DEEPSEEK_API_KEY missing')
+  const runtime=await WorldHostRuntime.create({dataDirectory:directory,packPath:resolve('examples/world-packs/prototype-g1'),
+    provider:'deepseek',model:'deepseek-flash',apiKey:key,shadowAudit:{items,classify,write},publicationAudit:{mode,items,classify,write:r=>{interventions.push(r);appendFileSync(resolve(directory,'interventions.jsonl'),JSON.stringify(r)+'\n')}}})
+  const prompts=[
+    '桌上的黄铜钥匙看起来有什么特别？',
+    '同行者，请帮我拿起黄铜钥匙，先保管一下。',
+    '同行者，翻过来看看齿纹，你觉得这把钥匙旧吗？',
+    '同行者，把黄铜钥匙交给我吧。',
+    '同行者，回想你刚才拿着钥匙的时候，你看到了什么？我问的是刚才，不是让你现在拿。',
+    '留守者，你愿意凑近看看钥匙上的那道划痕吗？',
+    '好，靠近看看。我想听听你的判断。',
+    '留守者，摸摸那道划痕和边上的毛刺，感觉是什么样的？',
+    '钥匙现在在谁手里？刚才留守者是怎么看的？',
+    '你们都说说，刚才有没有人把钥匙递给留守者？',
+    '先不忙着动东西。你们为什么对后室好奇？',
+    '同行者，请回想最开始你从桌上拿起钥匙的那一次，只说那一次经过。',
+    '留守者，你还记得刚才查看钥匙的经过吗？是谁递给谁，又是谁还回去？',
+    '我把黄铜钥匙交给留守者，让她先保管。',
+    '留守者，现在请你仔细看看钥匙，再把黄铜钥匙交还给我。',
+    '留守者，回想你之前真正拿着钥匙的那一次，当时看到了什么？这次不用再拿。',
+    '保温杯先留在桌上，你们只看看它，不用拿。',
+    '留守者，再靠近看看我这边的钥匙，不用把它拿走。你觉得划痕有没有变化？',
+    '同行者，把两次查看钥匙的经过分别说说，别把之前保管的事和这次靠近看混在一起。',
+    '留守者，也说说你记得的经过：什么时候实际拿着钥匙，什么时候只是看？',
+  ]
+  if(placementScript){
+    prompts[5]='留守者，请拿起桌上的保温杯，看看盖子有没有损坏。'
+    prompts[6]='留守者，把保温杯放回桌上，给看钥匙留点位置。'
+    prompts[7]='如果杯子已经在桌上，就沿桌面往旁边挪一点，不用端起来。'
+    prompts[8]='保温杯现在在哪里？刚才谁拿起来过，谁放下的？'
+    prompts[14]='留守者，请把黄铜钥匙放回桌上，放下以后再说说你看到了什么。'
+    prompts[15]='留守者，回想刚才拿着钥匙、放下的经过。这次不用再拿。'
+    prompts[16]='留守者，保温杯也请放回桌上。同行者看看，不用拿。'
+    prompts[17]='同行者，看看钥匙和杯子，刚才谁放下了什么？如果没放下，也可以直接说。'
+    prompts[18]='你们分别说说，现在手里拿着什么，桌上放着什么？'
+    prompts[19]='留守者，说说你记得的拿起和放下的经过。'
+  }
+  writeFileSync(resolve(directory,'protocol.json'),JSON.stringify({mode,prompts,explicit,probe,placementScript,repairLimit:1,thresholdReduction:0.5,activationBudgetUnchanged:true},null,2)+'\n',{flag:'wx'})
+  const turns: unknown[]=[]
+  try {
+    const startSeq=Number((await runtime.state()).debug.headSeq)
+    for(const [index,input] of prompts.entries()) {
+      const effectiveInput = probe && !placementScript && index === 17 ? '留守者，你接过去看一眼钥匙上的划痕，再马上还给我，不用一直拿着。' : input
+      const submitted = explicit ? index === 13
+        ? '/act interact ' + JSON.stringify({targetRef:{kind:'entity',id:'entity:brass-key'},bindingId:'binding:key-give',definitionRef:{id:'base:give',version:1},arguments:{recipientId:'character:friend'}})
+        : '/act speak ' + JSON.stringify({text:effectiveInput}) : effectiveInput
+      const start=performance.now(),state=await runtime.submit(submitted)
+      const turn={round:index+1,input:effectiveInput,submitted,elapsedMs:Math.round(performance.now()-start),state:{error:state.error,notice:state.notice,transcript:state.transcript,debug:{headSeq:state.debug.headSeq,providerCalls:state.debug.providerCalls,activationCycle:state.debug.activationCycle}}}
+      turns.push(turn);appendFileSync(resolve(directory,'turns.jsonl'),JSON.stringify(turn)+'\n')
+      console.log(JSON.stringify({round:index+1,error:state.error,headSeq:state.debug.headSeq,providerCalls:state.debug.providerCalls,shadow:state.debug.shadowAudit}))
+    }
+    const state=await runtime.state(),before=rows(resolve(directory,'world.sqlite'))
+    await runtime.close()
+    const after=rows(resolve(directory,'world.sqlite'))
+    const expectedRecords=after.filter(r=>Number(r.seq)>startSeq&&r.event_type==='character.speak'&&(String(JSON.parse(String(r.data_json)).text??'').trim()||String(JSON.parse(String(r.data_json)).narration??'').trim())).length*items.length
+    const formal=after.map(r=>({eventType:String(r.event_type),eventVersion:Number(r.event_version),data:JSON.parse(String(r.data_json))}))
+    evidence={kind:'live',mode,repairCalls:interventions.filter(r=>r.repairAttempted).length,preAuditFailures:interventions.filter(r=>r.outcome==='audit_or_repair_failed_original_used').length,preAuditCostUsd:interventions.flatMap(r=>r.checks).reduce((s,c)=>s+(c.answer.costUsd??0),0),publicationsAudited:interventions.length,latencyMs:turns.map(t=>(t as {elapsedMs:number}).elapsedMs),activationTerminals:turns.map(t=>((t as {state:{debug:{activationCycle:{terminalReason:string}}}}).state.debug.activationCycle?.terminalReason)),explicitDialogue:explicit,temporaryReceiptProbe:probe,model:state.debug.model,rounds:turns.length,initialSeq:startSeq,headSeq:state.debug.headSeq,
+      providerCalls:state.debug.providerCalls,failedRounds:turns.filter(t=>(t as {state:{error:boolean}}).state.error).length,
+      statsBeforeDrain:state.debug.shadowAudit,expectedRecords,auditComplete:records.length===expectedRecords,unchangedDuringAuditDrain:digest(before)===digest(after),keyState:currentEntityState(formal,'entity:brass-key')}
+  } finally {await runtime.close()}
+}
+const summary={...evidence,records:records.length,statuses:Object.fromEntries([...new Set(records.map(r=>r.status))].map(s=>[s,records.filter(r=>r.status===s).length])),
+  jevCostUsd:records.reduce((s,r)=>s+(r.answer?.costUsd??0),0),jevModels:[...new Set(records.map(r=>r.answer?.model).filter(Boolean))],
+  placementFindings:records.filter(r=>r.placement?.status==='CONFLICT').map(r=>({publicationSeq:r.publication?.seq,item:r.item?.entityId,placement:r.placement})),
+  findings:records.flatMap(r=>r.claims.filter(c=>['CONFLICT','CHAIN_RECALL','SPEECH_UNBACKED','HISTORY_UNRESOLVED'].includes(c.status))
+    .map(c=>({publicationSeq:r.publication!.seq,item:r.item!.entityId,actorId:r.publication!.actorId,claim:c}))),directory}
+writeFileSync(resolve(directory,'summary.json'),JSON.stringify(summary,null,2)+'\n')
+console.log(JSON.stringify({kind:evidence.kind,records:summary.records,statuses:summary.statuses,costUsd:summary.jevCostUsd,directory}))

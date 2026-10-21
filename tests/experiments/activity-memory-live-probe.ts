@@ -1,4 +1,4 @@
-import { hindsightPython } from './hindsight-python.ts'
+import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 /** One cold question on three copies of a completed run, separate from natural play. */
 import { createHash } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -12,7 +12,7 @@ import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn } from '../../packages/application/src/prototype-character-turn.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 if(!process.argv[2]||!process.argv[3])throw new Error('provide completed live directory and fresh probe directory')
 const original=resolve(process.argv[2]),root=resolve(process.argv[3]),base=join(original,'base')
@@ -29,7 +29,7 @@ if(archive.scope.asOfWorldSeq!==completion.headSeq)throw new Error('final archiv
 const db=new DatabaseSync(join(base,'world.sqlite'),{readOnly:true})
 const head=db.prepare('SELECT MAX(seq) AS headSeq,MAX(tick) AS tick FROM events').get() as {headSeq:number;tick:number};db.close()
 if(head.headSeq!==completion.headSeq)throw new Error('completed prefix changed')
-const python=hindsightPython()
+const python=corePythonExecutable()
 const provider=createChatProvider({endpoint:new URL(process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8045/v1/chat/completions'),
  model:'gemini-3.7-flash',timeoutMs:50000,...(process.env.HCW_LOCAL_API_KEY?{apiKey:process.env.HCW_LOCAL_API_KEY}:{})})
 const question='我们之前在卧室玩过的那局猜数字，最后是怎么结束的？',outcomes:unknown[]=[]
@@ -59,7 +59,7 @@ for(const mode of ['native','core-plain','core-expanded']){
     }else{
      const input={operation:'recall',archive,index:load(join(original,'checkpoint-'+checkpoint,'claude-index.json')),
       request,tick:head.tick,observations:true,deliveryMode:mode==='core-plain'?'old':'expanded'}
-     const run=spawnSync(python,[resolve('experiments/activity-memory/core_bridge.py')],{input:JSON.stringify(input),encoding:'utf8',timeout:120000,
+     const run=spawnSync(python,[resolve('desktop/host/memory/python/bridge/core_bridge.py')],{input:JSON.stringify(input),encoding:'utf8',timeout:120000,
       maxBuffer:128*1024*1024,env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0'}})
      if(run.status!==0||run.error)throw new Error('core probe failed: '+(run.error?.message??run.stderr.slice(-1500)))
      const data=JSON.parse(run.stdout) as {delivery:WorldJsonObject[]};memories=data.delivery;retrieval=data
@@ -67,7 +67,7 @@ for(const mode of ['native','core-plain','core-expanded']){
     const visible={...request,context:{...request.context,memories},...(request.recallEvidence?{recallEvidence:{query,memories}}:{})}
     const path=join(dir,'call-'+(++count)+'.json'),record:{[key:string]:unknown}={mode,syntheticQuestion:true,request:visible,retrieval,status:'pending'}
     writeFileSync(path,JSON.stringify(record,null,2))
-    const response=await provider.decide(localPrototypeTurnCall(visible),signal)
+    const response=await provider.decide(gatewayTurnCall(visible),signal)
     record.response=response;record.status='returned';writeFileSync(path,JSON.stringify(record,null,2));return response
    }})
   const result=await turn.run(actor,{stimulus,maxCalls:1,signal:AbortSignal.timeout(90000)})

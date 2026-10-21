@@ -6,13 +6,13 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
-import { DEFAULT_PLAYTEST_TUNING, parsePlaytestTuning, type PlaytestTuning } from '../tests/experiments/playtest-tuning.ts'
+import { DEFAULT_RUNTIME_TUNING, parseRuntimeTuning, type RuntimeTuning } from './host/runtime-tuning.ts'
 
 interface PackInfo { readonly path: string; readonly id: string; readonly title: string }
 interface SaveInfo { readonly id: string; readonly name: string; readonly packPath: string; readonly createdAt: string }
 interface ModelChoice { readonly provider: 'local' | 'ollama' | 'deepseek'; readonly model: string; readonly endpoint: string }
-interface LaunchRequest extends ModelChoice { readonly packPath: string; readonly saveId?: string; readonly saveName?: string; readonly tuning: PlaytestTuning }
-interface Settings { readonly packs: readonly string[]; readonly saves: readonly SaveInfo[]; readonly model: ModelChoice; readonly tuning?: PlaytestTuning }
+interface LaunchRequest extends ModelChoice { readonly packPath: string; readonly saveId?: string; readonly saveName?: string; readonly tuning: RuntimeTuning }
+interface Settings { readonly packs: readonly string[]; readonly saves: readonly SaveInfo[]; readonly model: ModelChoice; readonly tuning?: RuntimeTuning }
 interface BackendReady { readonly type: 'ready'; readonly port: number; readonly token: string }
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -38,7 +38,7 @@ async function settings(): Promise<Settings> {
     return value as Settings
   } catch (error: unknown) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-      return { packs: [featuredPack], saves: [], model: defaultModel, tuning: DEFAULT_PLAYTEST_TUNING }
+      return { packs: [featuredPack], saves: [], model: defaultModel, tuning: DEFAULT_RUNTIME_TUNING }
     }
     throw new Error('启动器配置损坏，请检查 launcher.json。', { cause: error })
   }
@@ -101,7 +101,7 @@ async function preflight(packPath: string, dataDirectory: string): Promise<void>
   }
 }
 
-function launchBackend(packPath: string, dataDirectory: string, model: ModelChoice, tuning: PlaytestTuning): Promise<BackendReady> {
+function launchBackend(packPath: string, dataDirectory: string, model: ModelChoice, tuning: RuntimeTuning): Promise<BackendReady> {
   if (backend) throw new Error('已有游戏正在运行。')
   const entry = app.isPackaged
     ? join(repository, 'dist', 'backend', 'playtest.mjs')
@@ -179,7 +179,7 @@ async function startGame(request: LaunchRequest): Promise<void> {
   const current = await settings()
   const pack = packInfo(request.packPath)
   const model = modelChoice(request)
-  const tuning = parsePlaytestTuning(request.tuning)
+  const tuning = parseRuntimeTuning(request.tuning)
   const save = request.saveId ? current.saves.find(item => item.id === request.saveId) : undefined
   if (request.saveId && !save) throw new Error('所选存档不存在。')
   const id = save?.id ?? randomUUID()
@@ -237,7 +237,7 @@ async function main(): Promise<void> {
   ipcMain.handle('desktop:state', async event => {
     requireLauncher(event)
     const current = await settings()
-    return { packs: visiblePacks([featuredPack, ...current.packs.filter(path => path !== featuredPack)]), saves: current.saves, model: current.model, tuning: current.tuning ?? DEFAULT_PLAYTEST_TUNING, error: lastError, running: backend !== undefined && activeUrl !== undefined }
+    return { packs: visiblePacks([featuredPack, ...current.packs.filter(path => path !== featuredPack)]), saves: current.saves, model: current.model, tuning: current.tuning ?? DEFAULT_RUNTIME_TUNING, error: lastError, running: backend !== undefined && activeUrl !== undefined }
   })
   ipcMain.handle('desktop:choose-pack', async event => {
     requireLauncher(event)
@@ -271,7 +271,7 @@ async function main(): Promise<void> {
     await startGame({
       packPath: process.env.HCW_DESKTOP_SMOKE_PACK ? resolve(process.env.HCW_DESKTOP_SMOKE_PACK) : featuredPack,
       provider: 'ollama', model: 'qwen3:4b', endpoint: 'http://127.0.0.1:11434/api/chat',
-      saveName: '桌面冒烟', tuning: DEFAULT_PLAYTEST_TUNING,
+      saveName: '桌面冒烟', tuning: DEFAULT_RUNTIME_TUNING,
     })
     await writeFile(join(app.getPath('userData'), 'smoke-stage.txt'), 'game started')
     const gameUrl = new URL(activeUrl!)

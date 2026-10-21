@@ -1,6 +1,6 @@
-import type { CreatorDebugQuery, CreatorDebugSnapshot } from '../../../../tests/experiments/creator-debug.ts'
-import type { CreatorHistoryQuery, CreatorHistorySnapshot } from '../../../../tests/experiments/creator-history.ts'
-import type { CreatorRecordsQuery, CreatorRecordsSnapshot } from '../../../../tests/experiments/creator-records.ts'
+import type { CreatorInspectionQuery, CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
+import type { CreatorHistoryQuery, CreatorHistorySnapshot } from '../../../../desktop/host/creator-history.ts'
+import type { CreatorRecordsQuery, CreatorRecordsSnapshot } from '../../../../desktop/host/creator-records.ts'
 import type { InspectorSnapshot } from '../../../../packages/provider-chat/src/request-inspector.ts'
 import { MOCK_RECORDS, mockDebug, mockHistory } from './mock.ts'
 
@@ -12,7 +12,7 @@ export interface CreatorSource {
   readonly preview: boolean
   meta(): Promise<CreatorMeta>
   requests(enabled?: boolean): Promise<InspectorSnapshot>
-  debug(query?: CreatorDebugQuery): Promise<CreatorDebugSnapshot>
+  debug(query?: CreatorInspectionQuery): Promise<CreatorInspectionSnapshot>
   history(query?: CreatorHistoryQuery): Promise<CreatorHistorySnapshot>
   records(query?: CreatorRecordsQuery): Promise<CreatorRecordsSnapshot>
   setCapture(enabled: boolean): Promise<void>

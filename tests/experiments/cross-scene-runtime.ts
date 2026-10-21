@@ -11,11 +11,11 @@ import { runPrototypeActivations } from '../../packages/application/src/prototyp
 import { CrossSceneCommunication } from './cross-scene-communication.ts'
 import { CrossScenePhone, phoneCalls, type PhoneOperation } from './cross-scene-phone.ts'
 import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
-import { PackActivities } from './pack-activities.ts'
-import { playerTranscript } from './playtest-view.ts'
+import { PackActivities } from '../../desktop/host/pack-activities.ts'
+import { playerTranscript } from '../../desktop/host/player-transcript.ts'
 import { saveStoryNode } from '../../desktop/story-nodes.ts'
-import { PlaytestMemoryCore, type MemoryContextBudget } from './playtest-memory-core.ts'
-import type { CoreRunner } from './hindsight-python.ts'
+import { CoreMemoryAdapter, type MemoryContextBudget } from '../../desktop/host/memory/core-memory.ts'
+import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 
 export async function crossSceneRuntime(dataDirectory: string, decide: (request: PrototypeTurnRequest, signal: AbortSignal) => Promise<unknown>, options: { phone?: boolean; packPath?: string; activities?: boolean; storyNodes?: boolean; memoryCoreRun?: CoreRunner; memoryCoreBuildRun?: CoreRunner; memoryContextBudget?: MemoryContextBudget } = {}) {
   mkdirSync(dataDirectory, { recursive: true })
@@ -45,7 +45,7 @@ export async function crossSceneRuntime(dataDirectory: string, decide: (request:
   availability.initialize(address, manifest.characters.map(c => ({ characterId: c.characterId, state: 'ready' as const })))
   const memory = new CognitiveMemoryService(join(dataDirectory, 'memory.sqlite'), store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
   const session = options.storyNodes ? new SessionDeliveryAdapter(join(dataDirectory, 'session.sqlite')) : undefined
-  const memoryCore = options.memoryCoreRun ? new PlaytestMemoryCore(dataDirectory, address, options.memoryCoreRun,
+  const memoryCore = options.memoryCoreRun ? new CoreMemoryAdapter(dataDirectory, address, options.memoryCoreRun,
     options.memoryContextBudget, { run: options.memoryCoreBuildRun ?? options.memoryCoreRun }) : undefined
   // Core follows the ordinary host: only callable NPCs have archives and identity histories.
   const characterIds = manifest.characters.map(c => c.characterId).filter(id => id !== 'character:player')

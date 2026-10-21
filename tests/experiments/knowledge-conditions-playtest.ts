@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
 import { currentLocation } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 
 const PLAYER = 'character:player', COMPANION = 'character:companion'
 const MODEL = 'deepseek-v4.1-flash'
@@ -145,9 +145,9 @@ export async function playKnowledgeConditions(output: string) {
     })().catch(() => { response.writeHead(500); response.end('{"error":{"message":"playtest observer failed"}}') }) })
   })
   await new Promise<void>(ready => relay.listen(0, '127.0.0.1', ready))
-  let runtime: FrozenWorldPlaytestRuntime | undefined, credentialLeaks = 0
+  let runtime: WorldHostRuntime | undefined, credentialLeaks = 0
   try {
-    runtime = await FrozenWorldPlaytestRuntime.create({ packPath: pack, dataDirectory: resolve(run, 'world'), provider: 'local',
+    runtime = await WorldHostRuntime.create({ packPath: pack, dataDirectory: resolve(run, 'world'), provider: 'local',
       model: MODEL, memoryCore: true, timeoutMs: 90000, utilityEndpoint: 'http://127.0.0.1:' + (relay.address() as { port: number }).port + '/v1/chat/completions' })
     const step = async (name: string, action: () => ReturnType<NonNullable<typeof runtime>['state']>) => {
       stage = name; const before = await runtime!.state(), started = performance.now(), state = await action()

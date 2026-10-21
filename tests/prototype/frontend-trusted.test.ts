@@ -1,19 +1,19 @@
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
 import { afterEach, expect, it } from 'vitest'
-import { createTrustedFrontendServer, type FrontendPolicy } from '../experiments/playtest-frontend-assets.ts'
-import { loadPackWeb } from '../experiments/playtest-pack-web.ts'
-import { createPlaytestServer, type PlaytestState, type PlaytestRuntime } from '../experiments/playtest-server.ts'
+import { createTrustedFrontendServer, type FrontendPolicy } from '../../desktop/host/frontend-server.ts'
+import { loadPackWeb } from '../../desktop/host/pack-frontend.ts'
+import { createHostServer, type HostState, type HostRuntime } from '../../desktop/host/http-server.ts'
 import { resolve } from 'node:path'
-const servers:ReturnType<typeof createPlaytestServer>[]=[]
+const servers:ReturnType<typeof createHostServer>[]=[]
 afterEach(async()=>{for(const server of servers.splice(0)){server.closeAllConnections();await new Promise<void>(done=>server.close(()=>done()))}})
 it('keeps trusted static resources on a separate origin with no Core routes, and revokes in the live stream',async()=>{
  const web=(await loadPackWeb(resolve('tests/fixtures/frontend-adversarial')))!
- const state:PlaytestState={busy:false,paused:false,error:false,notice:'',phaseLabel:'',transcript:[],world:{title:'test',playerName:'player',npcNames:[]},debug:{canary:'PRIVATE_CORE'}}
- const runtime:PlaytestRuntime={state:async()=>state,submit:async()=>state,pause:async()=>state,resume:async()=>state,close:async()=>{}}
+ const state:HostState={busy:false,paused:false,error:false,notice:'',phaseLabel:'',transcript:[],world:{title:'test',playerName:'player',npcNames:[]},debug:{canary:'PRIVATE_CORE'}}
+ const runtime:HostRuntime={state:async()=>state,submit:async()=>state,pause:async()=>state,resume:async()=>state,close:async()=>{}}
  const policy:FrontendPolicy={mode:'trusted',origin:'',revision:0},token='f'.repeat(64)
  let hostOrigin=''
- const host=createPlaytestServer(runtime,token,web,policy),child=createTrustedFrontendServer(web,policy,()=>hostOrigin);servers.push(host,child)
+ const host=createHostServer(runtime,token,web,policy),child=createTrustedFrontendServer(web,policy,()=>hostOrigin);servers.push(host,child)
  host.listen(0,'127.0.0.1');await once(host,'listening');hostOrigin='http://127.0.0.1:'+(host.address() as AddressInfo).port
  child.listen(0,'127.0.0.1');await once(child,'listening');policy.origin='http://127.0.0.1:'+(child.address() as AddressInfo).port
  const headers={'x-playtest-token':token}

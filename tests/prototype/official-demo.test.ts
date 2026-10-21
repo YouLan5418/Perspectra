@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
-import { PackActivity } from '../experiments/pack-activity.ts'
-import { FrozenWorldRuntimeCore } from '../experiments/playtest-frozen-runtime.ts'
-import { FrontendActions, projectPlayerView } from '../../packages/frontend/src/player-view.ts'
-const roots:string[]=[],runtimes:FrozenWorldRuntimeCore[]=[]
+import { PackActivity } from '../../desktop/host/pack-activity.ts'
+import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
+import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+const roots:string[]=[],runtimes:WorldHostCore[]=[]
 afterEach(async()=>{vi.restoreAllMocks();for(const r of runtimes.splice(0))await r.close();for(const p of roots.splice(0))rmSync(p,{recursive:true,force:true})})
 async function fixture(menu=false,kitchen=false,noCooker=false){
  const root=mkdtempSync(join(tmpdir(),'official-demo-'));roots.push(root);const pack=join(root,'pack'),data=join(root,'data');cpSync(resolve('examples/world-packs/model-girls-official'),pack,{recursive:true})
@@ -16,7 +16,7 @@ async function fixture(menu=false,kitchen=false,noCooker=false){
  if(kitchen){for(const file of ['characters.json','scenes.json']){const p=join(pack,file);writeFileSync(p,readFileSync(p,'utf8').replaceAll('location:living-room','location:temporary').replaceAll('location:kitchen','location:living-room').replaceAll('location:temporary','location:kitchen'))}}
  if(noCooker){const p=join(pack,'entities.json');const e=JSON.parse(readFileSync(p,'utf8'));e.entities.find((e:{entityId:string})=>e.entityId==='entity:rice-cooker').locationId='location:workspace';writeFileSync(p,JSON.stringify(e))}
  const options={packPath:pack,dataDirectory:data,provider:'ollama' as const,model:'unused',utilityEndpoint:'http://127.0.0.1:1/api/chat',timeoutMs:1000}
- const runtime=await FrozenWorldRuntimeCore.create(options);runtimes.push(runtime)
+ const runtime=await WorldHostCore.create(options);runtimes.push(runtime)
  const events=()=>{const store=new WorldStore(join(data,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
  const activate=async()=>{const action=projectPlayerView(await runtime.state()).actions.find(a=>a.label.startsWith('开始 '))!;return runtime.perform(action.action)}
  const operation=async(label:string)=>{const action=projectPlayerView(await runtime.state()).actions.find(a=>a.label===label)!;expect(action).toBeDefined();return runtime.perform(action.action)}
@@ -45,7 +45,7 @@ it('atomically commits the scripted player question and cursor, hides its source
  expect(((sourced.data as WorldJsonObject).scriptedPlayerExpression as WorldJsonObject).source).toMatchObject({script:'scripts/activity.js',operation:'next'});
  expect(events.filter(e=>e.eventType==='observation.upsert'&&JSON.stringify(e.data).includes('scriptedPlayerExpression'))).toHaveLength(0);
  expect(first.history.filter(h=>h.player)).toHaveLength(1);await expect(f.runtime.perform(next.action)).rejects.toThrow('失效');
- const before=events.length;await f.runtime.close();const restored=await FrozenWorldRuntimeCore.create(f.options);runtimes.push(restored);expect(f.events()).toHaveLength(before);
+ const before=events.length;await f.runtime.close();const restored=await WorldHostCore.create(f.options);runtimes.push(restored);expect(f.events()).toHaveLength(before);
  expect(((await restored.state()).activity!.game as WorldJsonObject).public).toMatchObject({index:8});
 })
 it('does not advance the NPC cursor or publish when its transaction fails; retries the pending line once',async()=>{

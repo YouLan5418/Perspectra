@@ -4,10 +4,10 @@ import { resolve, join } from 'node:path'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { createChatProvider, prototypeTurnCall, type ChatCall } from '@harness-world/provider-chat'
 import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { crossSceneRuntime } from './cross-scene-runtime.ts'
 import { CrossScenePhone, phoneCalls } from './cross-scene-phone.ts'
-import { decideActivityFormat } from './pack-activity.ts'
+import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
 
 const directory = process.argv[2], medium = process.argv[3]
 if (!directory || !['sms', 'phone'].includes(medium ?? '')) throw new TypeError('用法：指定新目录与 sms 或 phone')
@@ -28,10 +28,10 @@ const runtime = await crossSceneRuntime(root, async (request, signal) => {
     appendFileSync(join(root, 'decisions.jsonl'), JSON.stringify({ actor, phase, continuation: request.continuation, output: JSON.stringify(raw).slice(0, 16000) }) + '\n')
     return raw
   }
-  const prepared = localPrototypeTurnCall(projected)
+  const prepared = gatewayTurnCall(projected)
   // Match the ordinary activity host's existing one-shot schema correction, without coercing values.
   return request.context.activity === undefined ? decide(prepared)
-    : decideActivityFormat(prepared, decide, signal, prototypeTurnCall(projected).schema)
+    : decideWithFormatRetry(prepared, decide, signal, prototypeTurnCall(projected).schema)
 }, { phone: medium === 'phone', activities: true, packPath: 'examples/world-packs/cross-scene-activity' })
 const results: unknown[] = []
 const run = async (actor: string) => {

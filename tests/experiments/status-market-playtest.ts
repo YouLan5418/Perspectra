@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { WorldJsonObject } from '@harness-world/contracts'
 
 // Player lines only; NPC choices (including whether to steal) are left to the model.
@@ -55,7 +55,7 @@ export async function playStatusMarket(output: string, model: string, set: keyof
   const dataDirectory = resolve(output), local = relative(resolve('.tmp'), dataDirectory)
   if (!local || local.startsWith('..') || isAbsolute(local) || existsSync(dataDirectory)) throw new TypeError('请使用 .tmp 内全新的数据目录')
   mkdirSync(dataDirectory, {recursive: true})
-  const runtime = await FrozenWorldPlaytestRuntime.create({packPath: resolve('examples/world-packs/status-market'), dataDirectory,
+  const runtime = await WorldHostRuntime.create({packPath: resolve('examples/world-packs/status-market'), dataDirectory,
     provider: 'local', model, memoryCore: true,
     utilityEndpoint: process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8045/v1/chat/completions',
     ...(process.env.HCW_LOCAL_API_KEY ? {apiKey: process.env.HCW_LOCAL_API_KEY} : {}), timeoutMs: 90000})

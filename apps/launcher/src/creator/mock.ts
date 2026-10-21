@@ -1,8 +1,8 @@
 import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '../../../../packages/contracts/src/index.ts'
 import type { InspectedRequest } from '../../../../packages/provider-chat/src/request-inspector.ts'
-import type { CreatorDebugSnapshot } from '../../../../tests/experiments/creator-debug.ts'
-import type { CreatorHistoryItem, CreatorHistorySnapshot } from '../../../../tests/experiments/creator-history.ts'
-import type { CreatorRecord, CreatorRecordsSnapshot, CreatorScope } from '../../../../tests/experiments/creator-records.ts'
+import type { CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
+import type { CreatorHistoryItem, CreatorHistorySnapshot } from '../../../../desktop/host/creator-history.ts'
+import type { CreatorRecord, CreatorRecordsSnapshot, CreatorScope } from '../../../../desktop/host/creator-records.ts'
 
 /** 浏览器预览用的固定样例：结构与真实接口一致，便于在没有运行实例时检查界面。 */
 const address = { tenantId: 'local', worldId: 'snow-inn', branchId: 'main' } as unknown as WorldAddress
@@ -185,7 +185,7 @@ export const MOCK_RECORDS: CreatorRecord[] = [
   record(uid(18), 'turn', 'character:player', null, '2026-10-15T20:15:00.000Z', { label: 'turn', status: 'silent' }, { status: 'silent', calls: 1 }),
 ]
 
-export function mockDebug(characterId?: string): CreatorDebugSnapshot {
+export function mockDebug(characterId?: string): CreatorInspectionSnapshot {
   const characters = [
     { id: 'character:lin', name: '林澄', locationId: 'location:front-room', locationName: '前室', sceneIds: ['scene:front'], lifecycle: 'active', lastMovementSeq: 41, processing: { transport: 'ok', lastActivation: { status: 'responded', calls: 2 } } },
     { id: 'character:lu', name: '陆遥', locationId: 'location:back-room', locationName: '后室', sceneIds: ['scene:front'], lifecycle: 'active', lastMovementSeq: 79, processing: { transport: 'ok', lastActivation: { status: 'responded', calls: 1 } } },
@@ -200,7 +200,7 @@ export function mockDebug(characterId?: string): CreatorDebugSnapshot {
     capturedAt: new Date().toISOString(), address, worldVersion: '0.1.0-preview', title: '雪夜旅店', headSeq: 80, tick: 44,
     packHash: 'sha256:preview', storyParentNodeId: null, busy: false, paused: false, captureEnabled: true,
     characters, entities,
-    variables: { public: { weather: '暴雪', timeOfDay: '深夜', keyLocation: '陆遥' }, characters: { 'character:lin': { mood: '警觉', trustInPlayer: 0.62 }, 'character:lu': { mood: '困惑' } } },
+    statusTruth: { public: { timeOfDay: '深夜', gateOpen: false }, characters: { 'character:lin': { energy: 74 }, 'character:lu': { energy: 52 } } },
     activities: [{ activityKey: 'default', state: 'active', description: '守夜', participantIds: ['character:lin', 'character:lu', 'character:player'], game: { public: { round: 2 }, private: { 'character:lin': { suspicion: 0.4 } }, internal: { seed: 91 } } }],
     events: { items: MOCK_EVENTS.slice(-6), nextAfterSeq: 80, hasMore: false },
     ...(selected ? {

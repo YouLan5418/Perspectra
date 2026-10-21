@@ -1,4 +1,4 @@
-import { hindsightPython } from './hindsight-python.ts'
+import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 import { createServer } from 'node:http'
 import { randomUUID, createHash } from 'node:crypto'
 import { existsSync, mkdirSync, writeFileSync, readFileSync, cpSync } from 'node:fs'
@@ -12,21 +12,21 @@ import { createChatProvider } from '@harness-world/provider-chat'
 import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const rootArg=process.argv[2],stage=process.argv[3]??'game'
 if(!rootArg||!['game','sources','build','probe'].includes(stage))throw new Error('provide output directory and game/sources/build/probe stage')
 const root=resolve(rootArg),base=join(root,'base'),pack=resolve('examples/world-packs/ai-girls-hosted-guess')
 const model='gemini-3.7-flash',endpoint=process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8045/v1/chat/completions'
-const python=hindsightPython()
+const python=corePythonExecutable()
 const actors=['character:gpt','character:claude','character:deepseek']
 function save(name:string,value:unknown){writeFileSync(join(root,name),JSON.stringify(value,null,2))}
 function append(name:string,value:unknown){writeFileSync(join(root,name),JSON.stringify(value)+'\n',{flag:'a'})}
 function load<T>(name:string):T{return JSON.parse(readFileSync(join(root,name),'utf8')) as T}
 function object(v:unknown):WorldJsonObject { if(!v||typeof v!=='object'||Array.isArray(v))throw new Error('expected object');return v as WorldJsonObject }
 function py(input:unknown):Record<string,unknown>{
- const run=spawnSync(python,[resolve('experiments/activity-memory/core_bridge.py')],{input:JSON.stringify(input),encoding:'utf8',timeout:240000,maxBuffer:96*1024*1024,env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0'}})
+ const run=spawnSync(python,[resolve('desktop/host/memory/python/bridge/core_bridge.py')],{input:JSON.stringify(input),encoding:'utf8',timeout:240000,maxBuffer:96*1024*1024,env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0'}})
  if(run.status!==0||run.error)throw new Error('memory core failed: '+(run.error?.message??run.stderr.slice(-2500)))
  return JSON.parse(run.stdout) as Record<string,unknown>
 }
@@ -45,7 +45,7 @@ if(stage==='game'){
   res.writeHead(response.status,{'content-type':'application/json'});res.end(text)
  }catch(error){append('errors.jsonl',{stage:'game-call',error:error instanceof Error?error.message:'unknown'});res.writeHead(502);res.end('{}')}})()})})
  await new Promise<void>(done=>proxy.listen(0,'127.0.0.1',done));const port=proxy.address();if(!port||typeof port==='string')throw new Error('no proxy')
- const runtime=await FrozenWorldPlaytestRuntime.create({packPath:pack,dataDirectory:base,provider:'local',model,utilityEndpoint:'http://127.0.0.1:'+port.port,timeoutMs:50000})
+ const runtime=await WorldHostRuntime.create({packPath:pack,dataDirectory:base,provider:'local',model,utilityEndpoint:'http://127.0.0.1:'+port.port,timeoutMs:50000})
  try{
   const command=async(operation:string,parameters:WorldJsonObject={})=>{const before=await runtime.state(),after=await runtime.activityAction({activityId:operation==='start'?null:String(before.activity!.id),revision:operation==='start'?0:Number(before.activity!.revision),operation,parameters,requestId:randomUUID()});save('game-state.json',after);append('game-steps.jsonl',{operation,parameters,headSeq:after.debug.headSeq,game:after.activity?.game,notice:after.notice,error:after.error});return after}
   let state=await command('start');let low=1,high=100
@@ -125,7 +125,7 @@ if(stage==='probe'){
      const visible:PrototypeTurnRequest={...request,context:{...request.context,memories:memories as WorldJsonObject[]},...(request.recallEvidence?{recallEvidence:{query,memories:memories as WorldJsonObject[]}}:{})}
      const record:{[key:string]:unknown}={id,mode,probe:probe.text,actor,sourceCutoff:summary.head.headSeq,recentGameContextRemoved:true,request:visible,retrieval,status:'pending'}
      const path=join(dir,'call-'+(++count)+'.json');writeFileSync(path,JSON.stringify(record,null,2))
-     const output=await provider.decide(localPrototypeTurnCall(visible),signal);record.response=output;record.status='returned';writeFileSync(path,JSON.stringify(record,null,2));return output
+     const output=await provider.decide(gatewayTurnCall(visible),signal);record.response=output;record.status='returned';writeFileSync(path,JSON.stringify(record,null,2));return output
     }})
    const result=await turn.run(brandId(actor,'CharacterId'),{stimulus,maxCalls:1,signal:AbortSignal.timeout(90000)})
    writeFileSync(join(dir,'result.json'),JSON.stringify({id,result,actualCalls:count,sourceSnapshotHash:createHash('sha256').update(readFileSync(join(base,'world.sqlite'))).digest('hex')},null,2))

@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { RequestInspector } from '../../packages/provider-chat/src/request-inspector.ts'
 import { createChatProvider } from '../../packages/provider-chat/src/provider.ts'
 import { presetCall } from '../../packages/provider-chat/src/preset-runtime.ts'
-import { createPlaytestServer, type PlaytestRuntime } from '../experiments/playtest-server.ts'
+import { createHostServer, type HostRuntime } from '../../desktop/host/http-server.ts'
 const info = { characterId: 'npc:a', continuation: false, sources: [{source:'core',name:'Core'}] }
 const body = {model:'test',messages:[{role:'system',content:'契约'}]}
 it('is opt-in, bounded, detached, and clears private requests on disable', () => {
@@ -64,8 +64,8 @@ it('retains returned thinking for invalid envelopes without persisting opaque re
 })
 it('requires the host token and exposes no Inspector in Frontend API', async () => {
  const inspector=new RequestInspector();inspector.configure(true);inspector.begin(body,info)
- const runtime={requestInspection:(enabled?:boolean)=>enabled===undefined?inspector.snapshot():inspector.configure(enabled)} as PlaytestRuntime
- const token='a'.repeat(64),server=createPlaytestServer(runtime,token)
+ const runtime={requestInspection:(enabled?:boolean)=>enabled===undefined?inspector.snapshot():inspector.configure(enabled)} as HostRuntime
+ const token='a'.repeat(64),server=createHostServer(runtime,token)
  server.listen(0,'127.0.0.1');await once(server,'listening')
  const url='http://127.0.0.1:'+(server.address() as AddressInfo).port
  try {

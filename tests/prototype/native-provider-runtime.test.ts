@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
 
@@ -39,9 +39,9 @@ for (const protocol of ['anthropic','google'] as const) {
   })
   await new Promise<void>(done=>server.listen(0,'127.0.0.1',done))
   const address=server.address() as {port:number}
-  let runtime:FrozenWorldPlaytestRuntime|undefined
+  let runtime:WorldHostRuntime|undefined
   try {
-   runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:root,packPath:resolve('examples/world-packs/prototype-g1'),
+   runtime=await WorldHostRuntime.create({dataDirectory:root,packPath:resolve('examples/world-packs/prototype-g1'),
     provider:'local',protocol,model:'fixture',utilityEndpoint:`http://127.0.0.1:${address.port}/${protocol==='google'?'v1beta/models/fixture:generateContent':'v1/messages'}`})
    const result=await runtime.submit('请看看钥匙。')
    expect(result.error).toBe(false)

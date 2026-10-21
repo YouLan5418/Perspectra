@@ -7,9 +7,9 @@ import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
 import { crossSceneRuntime } from './cross-scene-runtime.ts'
 import { CrossScenePhone } from './cross-scene-phone.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
-import { decideActivityFormat } from './pack-activity.ts'
-import { createCoreWorker, coreRunner } from './hindsight-python.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
+import { createCoreWorker, coreRunner } from '../../desktop/host/memory/python-worker.ts'
 
 const directory = process.argv[2], medium = process.argv[3]
 const core = process.argv[4] === 'core'
@@ -34,8 +34,8 @@ async function open(path: string, label: string) {
         continuation: request.continuation, output: JSON.stringify(raw).slice(0, 16000) }) + '\n')
       return raw
     }
-    const prepared = localPrototypeTurnCall(request)
-    return request.context.activity === undefined ? decide(prepared) : decideActivityFormat(prepared, decide, signal, prototypeTurnCall(request).schema)
+    const prepared = gatewayTurnCall(request)
+    return request.context.activity === undefined ? decide(prepared) : decideWithFormatRetry(prepared, decide, signal, prototypeTurnCall(request).schema)
   }, { phone: medium === 'phone', packPath, activities: true, storyNodes: true,
     ...(worker ? { memoryCoreRun: worker.run, memoryCoreBuildRun: coreRunner(environment),
       memoryContextBudget: { triggerTokens: 170000, compactTokens: 120000, minimumRecentTokens: 0 } } : {}) })

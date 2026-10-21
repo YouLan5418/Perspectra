@@ -7,7 +7,7 @@ import { brandId, resolutionAuthority } from '@harness-world/contracts'
 import { createCoreRulebookRegistry, currentCharacterRelations, currentEntityState, currentLocation, type CompiledWorldManifest } from '@harness-world/kernel'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 
 const keyAction = { decision: 'perform', actionType: 'interact', parameters: {
   targetRef: { kind: 'entity', id: 'entity:brass-key' }, bindingId: 'binding:key-take',
@@ -70,11 +70,11 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
       }
     })
   })
-  let runtime: FrozenWorldPlaytestRuntime | undefined
+  let runtime: WorldHostRuntime | undefined
   try {
     await new Promise<void>(ready => server.listen(0, '127.0.0.1', () => ready()))
     const port = (server.address() as { port: number }).port
-    runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
+    runtime = await WorldHostRuntime.create({ dataDirectory: root,
       packPath: resolve('examples/world-packs/prototype-g1'), provider: 'ollama', model: 'fixture',
       utilityEndpoint: `http://127.0.0.1:${port}/api/chat` })
     const submit = async (next: string, text: string) => {

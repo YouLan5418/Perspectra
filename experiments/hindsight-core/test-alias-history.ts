@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { WorldAddress, WorldJsonObject } from '@harness-world/contracts'
-import { identityEntry, restoreAliasHistory } from './alias-history.ts'
+import { identityEntry, restoreAliasHistory } from '../../desktop/host/memory/alias-history.ts'
 
 const address={tenantId:'tenant:test',worldId:'world:test',branchId:'branch:main'} as WorldAddress
 test('restore completed authorized views preserves historical names and rejects foreign or future views',()=>{

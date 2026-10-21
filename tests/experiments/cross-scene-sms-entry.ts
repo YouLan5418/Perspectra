@@ -3,7 +3,7 @@ import { appendFileSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { crossSceneRuntime, communicationContext } from './cross-scene-runtime.ts'
 
 const directory = process.argv[2]
@@ -12,7 +12,7 @@ const provider = createChatProvider({ endpoint: new URL(process.env.HCW_LOCAL_EN
   model: process.env.HCW_LOCAL_MODEL ?? 'gemini-3.8-flash', style: 'tool', timeoutMs: 60000,
   ...(process.env.HCW_LOCAL_API_KEY ? { apiKey: process.env.HCW_LOCAL_API_KEY } : {}) })
 const runtime = await crossSceneRuntime(resolve(directory), async (request, signal) => {
-  const raw = await provider.decide(localPrototypeTurnCall(communicationContext(request)), signal)
+  const raw = await provider.decide(gatewayTurnCall(communicationContext(request)), signal)
   appendFileSync(resolve(directory, 'decisions.jsonl'), JSON.stringify({ characterId: (request.context.character as { characterId: string }).characterId,
     continuation: request.continuation, output: JSON.stringify(raw).slice(0, 16000) }) + '\n')
   return raw

@@ -2,10 +2,11 @@ import { expect, it } from 'vitest'
 import { runInNewContext } from 'node:vm'
 import { createReadingPlayback } from '../../packages/frontend/src/reading-playback.ts'
 import { DEFAULT_SCRIPT } from '../../packages/frontend/src/default-template.ts'
-import { projectPlayerView, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
-import type { PlaytestState } from '../experiments/playtest-server.ts'
+import { playerViewPatch } from '../../packages/frontend/src/player-view.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import type { HostState } from '../../desktop/host/http-server.ts'
 import { brandId, type CharacterView } from '@harness-world/contracts'
-import { playerTranscript } from '../experiments/playtest-view.ts'
+import { playerTranscript } from '../../desktop/host/player-transcript.ts'
 
 const line = (seq: number, text: string) => ({ seq, speaker: 'GPT-6', text, player: false })
 it('keeps same-name and remote speaker identities from authorized observations through segmented reading',()=>{
@@ -16,7 +17,7 @@ it('keeps same-name and remote speaker identities from authorized observations t
     {sourceSeq:3,value:{content:{status:'accepted',actorId:local,actionType:'interact',activity:{},resultDescription:'活动结束。'}}},
   ]} as unknown as CharacterView
   const transcript=playerTranscript(view,new Map([[local,'同名角色'],[remote,'同名角色']]),player)
-  const state:PlaytestState={busy:false,paused:false,error:false,phaseLabel:'',notice:'',debug:{},transcript,
+  const state:HostState={busy:false,paused:false,error:false,phaseLabel:'',notice:'',debug:{},transcript,
     world:{title:'测试',playerName:'玩家',npcNames:[],currentScene:{locationName:'房间',presentNpcNames:['同名角色'],recipients:[{id:local,name:'同名角色'}]}}}
   const projected=projectPlayerView(state),reading=createReadingPlayback()
   expect(projected.history.map(row=>row.speakerId)).toEqual([local,remote,undefined])
@@ -85,7 +86,7 @@ it('can invalidate a candidate scene even when the visible dialogue is identical
   expect(reading.stageScene(b)).toEqual(b)
 })
 it('projects only the current player expression policy and patches permission changes', () => {
-  const state: PlaytestState = { busy: false, paused: false, error: false, phaseLabel: '', notice: '',
+  const state: HostState = { busy: false, paused: false, error: false, phaseLabel: '', notice: '',
     world: { title: '测试', playerName: '玩家', npcNames: [] }, transcript: [], debug: {},
     activity: { title: '活动', id: 'activity', revision: 1, participants: ['player'], game: { active: true, turn: 'player', public: {}, private: { answer: 42 } },
       policy: { speech: 'choices', speechChoices: ['接受', '拒绝'], narration: false, internalSecret: 'secret' } } }

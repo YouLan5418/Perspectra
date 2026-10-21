@@ -10,8 +10,8 @@ import { openActionWorld, actionContext, actionResult, askId, terminalId } from 
 import { npc } from './notice-board-fixture.ts'
 import { privateText } from './notice-board-capability.ts'
 import { rawHistorySnapshot, historyBytes } from './raw-history-delivery.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
-import { hindsightPython } from './hindsight-python.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 const object = (v: unknown): WorldJsonObject => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as WorldJsonObject : {}
 const root = resolve(process.argv[2] ?? ''), mode = process.argv[3] ?? '--prepare'
 if (!process.argv[2] || !['--prepare','--finalize'].includes(mode)) throw new Error('fresh root --prepare; shared runner --run; --finalize')
@@ -41,7 +41,7 @@ function evidence(f:F) {
 }
 async function python(doc: WorldJsonObject, tag: string): Promise<WorldJsonObject> {
   return new Promise((yes,no) => {
-    const child=execFile(hindsightPython(),[resolve('experiments/activity-memory/delayed_loop.py')],{
+    const child=execFile(corePythonExecutable(),[resolve('experiments/activity-memory/delayed_loop.py')],{
       timeout:180000,maxBuffer:128*1024*1024,encoding:'utf8',windowsHide:true,
       env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0',HCW_HINDSIGHT_UTILITY_TRACE:join(root,tag+'-utility.jsonl')},
     },(error,out,err) => { if(error) no(new Error('known-family operation failed: '+err.slice(-1400))); else { try { yes(JSON.parse(out)) } catch(cause) { no(cause) } } })
@@ -121,7 +121,7 @@ if (mode==='--finalize') {
           projectContext:context=>actionContext({character:context.character!,stimulus:context.stimulus!,memories:[],...context}),
           executionResult:actionResult,recentObservations:4,recentSelfObservations:4,
           validateDecision:d=>{if(d.decision==='recall')throw new Error('active recall forbidden')},
-          decide:async(r,signal)=>{const visible:PrototypeTurnRequest={...r,canRecall:false,context:{...r.context,memories:[]}},call=localPrototypeTurnCall(visible)
+          decide:async(r,signal)=>{const visible:PrototypeTurnRequest={...r,canRecall:false,context:{...r.context,memories:[]}},call=gatewayTurnCall(visible)
             if(JSON.stringify(visible).includes(privateText))throw new Error('private context leaked')
             transport=join(dir,'gap-'+i+'-transport.json');gapCalls++;const file=join(dir,'gap-'+i+'-call.json'),start=performance.now()
             save(file,{status:'pending',request:visible,prepared:call,requestBytes:historyBytes(call),head:f.store.head(f.address)})

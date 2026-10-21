@@ -4,12 +4,13 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { settings, command, object, snapshot } from './hidden-cure.ts'
 import { buildNextPacks, goals, nextRoot, prepareTakenRecord } from './hidden-cure-next-content.ts'
-import { projectPlayerView, type PlayerView } from '../../packages/frontend/src/player-view.ts'
+import { type PlayerView } from '../../packages/frontend/src/player-view.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 const array=(value:unknown):unknown[]=>Array.isArray(value)?value:[]
-function entityStates(runtime:FrozenWorldPlaytestRuntime) {
+function entityStates(runtime:WorldHostRuntime) {
   const store=new WorldStore(join(runtime.dataDirectory,'world.sqlite'))
   try {const events=store.readEvents(runtime.address)
     return Object.fromEntries(['entity:cure-record','entity:silver-kit','entity:reserve-kit'].map(id=>[id,currentEntityState(events,id)]))
@@ -103,7 +104,7 @@ async function run() {
       })().catch(() => {if (!response.destroyed) {response.writeHead(500); response.end('evidence proxy failed')}})})
     })
     await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
-    let runtime: FrozenWorldPlaytestRuntime | undefined
+    let runtime: WorldHostRuntime | undefined
     const caseDir = join(directory, name); mkdirSync(caseDir)
     const persist = (value: unknown) => writeFileSync(join(caseDir, 'record.json'), JSON.stringify(value, null, 2) + '\n')
     const meta = {name, model, thinkingLevel: 'low', settings, packPath, goal: goals[name], roundsPlanned:name==='E'?12:8,
@@ -111,7 +112,7 @@ async function run() {
       memoryMode: 'native', dynamicScheduling: true, activity: false, variables: false, authorEvidenceOnly: true}
     try {
       const setup = name==='D3'||name==='E' ? await prepareTakenRecord(packPath,join(caseDir,'world')) : []
-      runtime = await FrozenWorldPlaytestRuntime.create({dataDirectory: join(caseDir, 'world'), packPath, provider: 'local', model,
+      runtime = await WorldHostRuntime.create({dataDirectory: join(caseDir, 'world'), packPath, provider: 'local', model,
         thinkingLevel: 'low', utilityEndpoint: `http://127.0.0.1:${(server.address() as {port:number}).port}/v1/chat/completions`,
         timeoutMs: 60000, playSettings: settings})
       const initial = snapshot(runtime)

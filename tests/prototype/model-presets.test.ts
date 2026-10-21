@@ -1,4 +1,4 @@
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtemp, readFile, writeFile, rm, cp } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
@@ -117,7 +117,7 @@ it('routes each real Core character call to its selected preset without cross-ch
     return new Response(JSON.stringify({message:{content:JSON.stringify({decision:'abstain'})}}))
   }) as typeof fetch)
   const group=randomUUID(),dir=await root()
-  const runtime=await FrozenWorldPlaytestRuntime.create({
+  const runtime=await WorldHostRuntime.create({
     packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'world'),provider:'ollama',model:'fixture',
     preset:{prompt:'instance only',temperature:.2},
     presetMapping:{groups:{[group]:{name:'组',preset:{prompt:'group only',temperature:.5}}},
@@ -138,7 +138,7 @@ it('routes each real Core character call to its selected preset without cross-ch
     expect(second!.wire.options).toMatchObject({temperature:.5})
 
   }finally{await runtime.close()}
-  await expect(FrozenWorldPlaytestRuntime.create({packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'foreign'),provider:'ollama',
+  await expect(WorldHostRuntime.create({packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'foreign'),provider:'ollama',
     presetMapping:{characters:{'character:foreign':{prompt:'not allowed'}}}})).rejects.toThrow('此包之外')
 })
 it('routes each character\'s decision call to its own model and endpoint',async()=>{
@@ -157,7 +157,7 @@ it('routes each character\'s decision call to its own model and endpoint',async(
   }) as typeof fetch)
   const dir=await root()
   const other={protocol:'anthropic' as const,endpoint:'https://other.test/v1/messages',model:'strong',apiKey:'K2'}
-  const runtime=await FrozenWorldPlaytestRuntime.create({
+  const runtime=await WorldHostRuntime.create({
     packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'world'),provider:'local',
     model:'base',utilityEndpoint:'http://default.test/v1/chat/completions',apiKey:'K1',
     roleModels:{characters:{'character:companion':{decision:other,memory:other}}},
@@ -171,6 +171,6 @@ it('routes each character\'s decision call to its own model and endpoint',async(
     for(const call of friend)expect(call).toMatchObject({url:'http://default.test/v1/chat/completions',model:'base',key:'Bearer K1'})
     expect(JSON.stringify(friend)).not.toContain('K2')
   }finally{await runtime.close()}
-  await expect(FrozenWorldPlaytestRuntime.create({packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'foreign'),provider:'local',
+  await expect(WorldHostRuntime.create({packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:join(dir,'foreign'),provider:'local',
     roleModels:{characters:{'character:foreign':{decision:other,memory:other}}}})).rejects.toThrow('此包之外')
 })

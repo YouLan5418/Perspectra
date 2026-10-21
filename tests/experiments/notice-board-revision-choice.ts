@@ -7,7 +7,7 @@ import { createChatProvider } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { openCapabilityWorld, npc } from './notice-board-fixture.ts'
 import { noticeBoardContext, noticeBoardResult, privateText } from './notice-board-capability.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const root=resolve(process.argv[2]??''),revision=resolve(process.argv[3]??'')
 if(!process.argv[2]||!process.argv[3]||existsSync(root))throw new Error('fresh output directory + completed revision directory')
@@ -85,7 +85,7 @@ for(let repeat=0;repeat<2;repeat++)for(const probe of probes){
           const index=calls++,path=join(dir,'call-'+index+'.json')
           transportPath=join(dir,'transport-'+index+'.json')
           save(path,{repeat,probe:probe.id,condition,index,request:visible,status:'pending',head:f.store.head(f.address)})
-          const start=performance.now(),response=await provider.decide(localPrototypeTurnCall(visible),signal)
+          const start=performance.now(),response=await provider.decide(gatewayTurnCall(visible),signal)
           save(path,{repeat,probe:probe.id,condition,index,request:visible,response,status:'returned',
             durationMs:Math.round(performance.now()-start),head:f.store.head(f.address)})
           return response

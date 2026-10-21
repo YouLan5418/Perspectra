@@ -1,14 +1,14 @@
 import Ajv from 'ajv'
-import { localPrototypeTurnCall } from '../experiments/local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { DatabaseSync } from 'node:sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { CharacterViewBuilder } from '@harness-world/store-sqlite'
 import { publicationSourceText, checkExpressionPolicy, parseExpressionSegments, RECALL_KEYWORD_TOKENIZER_ID, type ExpressionSegment } from '@harness-world/contracts'
 import { DeterministicPresenter } from '@harness-world/presentation'
-import { playerTranscript } from '../experiments/playtest-view.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
-import type { PlaytestState } from '../experiments/playtest-server.ts'
-import { PlaytestMemoryCore } from '../experiments/playtest-memory-core.ts'
+import { playerTranscript } from '../../desktop/host/player-transcript.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import type { HostState } from '../../desktop/host/http-server.ts'
+import { CoreMemoryAdapter } from '../../desktop/host/memory/core-memory.ts'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -19,7 +19,7 @@ import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } f
 import { prototypeTurnCall } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
-import { decideActivityFormat } from '../experiments/pack-activity.ts'
+import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
 
 const cleanup: (() => void)[] = []
 afterEach(() => { vi.restoreAllMocks(); for (const close of cleanup.splice(0).reverse()) close() })
@@ -77,7 +77,7 @@ it('keeps the first expression and discards a cancelled post-publication action'
 
 it('does not continue when formatting the first publication consumes its remaining action budget',async()=>{
  let requests=0
- const f=fixture(async(request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>
+ const f=fixture(async(request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>
   ++requests===1?{...repairedSpeech,scope:'private'}:repairedSpeech,signal,prototypeTurnCall(request).schema,reserve),[],{continueAfterPublish:true})
  expect(await f.turn.run(npc,{maxModelCalls:3})).toMatchObject({status:'published',calls:2})
  expect(requests).toBe(2)
@@ -85,7 +85,7 @@ it('does not continue when formatting the first publication consumes its remaini
 
 it('preserves publication and action when the third output is malformed and there is no repair margin',async()=>{
  let calls=0
- const f=fixture(async(request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>{
+ const f=fixture(async(request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>{
   calls++
   if(calls===1)return repairedSpeech
   if(calls===2)return take
@@ -198,7 +198,7 @@ it('stops a cancelled recovery and does not expand the implicit call budget', as
 
 it('explains an out-of-scene recipient during the existing schema repair without publishing the rejected words', async () => {
   let requests = 0
-  const f = fixture(async (request, signal, reserve) => decideActivityFormat(prototypeTurnCall(request), async call => {
+  const f = fixture(async (request, signal, reserve) => decideWithFormatRetry(prototypeTurnCall(request), async call => {
     if (++requests === 1) return unreachableSpeech
     expect(JSON.stringify(call.messages)).toContain('上一次表达没有发表，也没有传达给对方')
     return repairedSpeech
@@ -214,7 +214,7 @@ it('commits a private pre-action expression, one action and a result-based expre
  const f=fixture(async request=>{
   if(++calls===1) {
    expect(request.canExpressBeforeAction).toBe(true)
-   for(const call of [prototypeTurnCall(request),localPrototypeTurnCall(request)]) {
+   for(const call of [prototypeTurnCall(request),gatewayTurnCall(request)]) {
     expect(new Ajv({strict:false}).compile(call.schema)({...take,before})).toBe(true)
     expect(new Ajv({strict:false}).compile(call.schema)({...take,before:{...before,scope:'scene_public'}})).toBe(false)
    }
@@ -261,7 +261,7 @@ it('retains the pre-action expression and committed operation when result expres
 it('rejects a pre-generated post-action expression before any commit',async()=>{
  const decision={...take,before:{segments:[{type:'speech',text:'我试试看。'}]},after:{segments:[{type:'speech',text:'拿到了。'}]}}
  const f=fixture(async request=>{
-  for(const call of [prototypeTurnCall(request),localPrototypeTurnCall(request)])expect(new Ajv({strict:false}).compile(call.schema)(decision)).toBe(false)
+  for(const call of [prototypeTurnCall(request),gatewayTurnCall(request)])expect(new Ajv({strict:false}).compile(call.schema)(decision)).toBe(false)
   return decision
  },[],{beforeActionExpression:true})
  const head=f.store.head(f.address)
@@ -297,7 +297,7 @@ it('stops after the committed pre-action expression when interrupted before exec
  expect(events.filter(e=>e.eventType==='entity.transferred')).toHaveLength(0)
 })
 
-it.each([prototypeTurnCall, localPrototypeTurnCall])('rejects audience contradictions and missing interaction arguments before execution', async call => {
+it.each([prototypeTurnCall, gatewayTurnCall])('rejects audience contradictions and missing interaction arguments before execution', async call => {
   const f = fixture(async request => {
     const validate = new Ajv({strict:false}).compile(call(request).schema)
     for (const value of [
@@ -315,7 +315,7 @@ it.each([prototypeTurnCall, localPrototypeTurnCall])('rejects audience contradic
 
 it('repairs ordinary output once, counts the call and never publishes the invalid expression', async () => {
   let requests=0
-  const f=fixture(async (request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>
+  const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>
     ++requests===1?{...repairedSpeech,scope:'direct'}:repairedSpeech,signal,prototypeTurnCall(request).schema,reserve))
   expect(await f.turn.run(npc,{maxModelCalls:2})).toMatchObject({status:'published',calls:2})
   expect(requests).toBe(2)
@@ -324,7 +324,7 @@ it('repairs ordinary output once, counts the call and never publishes the invali
 
 it('does not call a format repair beyond the activation budget', async () => {
   let requests=0
-  const f=fixture(async (request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>{
+  const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>{
     requests++;return {...repairedSpeech,scope:'direct'}
   },signal,prototypeTurnCall(request).schema,reserve))
   expect(await f.turn.run(npc,{maxModelCalls:1})).toMatchObject({status:'failed',failure:'invalid_output',calls:1})
@@ -335,7 +335,7 @@ it('does not call a format repair beyond the activation budget', async () => {
 it('reserves a result continuation after repairing an action, or leaves it uncommitted', async () => {
   for(const budget of [2,3]) {
     let requests=0
-    const f=fixture(async (request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>{
+    const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>{
       requests++
       if(request.continuation)return repairedSpeech
       return requests===1?{...take,parameters:{...take.parameters,arguments:undefined} as unknown as WorldJsonObject}:take
@@ -349,7 +349,7 @@ it('reserves a result continuation after repairing an action, or leaves it uncom
 
 it('keeps a committed action when both continuation outputs have invalid audiences', async () => {
   let requests=0
-  const f=fixture(async (request,signal,reserve)=>decideActivityFormat(prototypeTurnCall(request),async()=>{
+  const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>{
     requests++;return request.continuation?{...repairedSpeech,scope:'direct'}:take
   },signal,prototypeTurnCall(request).schema,reserve))
   expect(await f.turn.run(npc,{maxModelCalls:3})).toMatchObject({status:'failed',failure:'invalid_output',calls:3,performResult:{status:'accepted'}})
@@ -662,7 +662,7 @@ it('preserves speech/narration alternation in one atomic publication, authorized
   const f = fixture(async request => {
     calls++
     const decision = { decision: 'publish', segments, addresseeIds: [player] }
-    for (const call of [prototypeTurnCall(request), localPrototypeTurnCall(request)]) {
+    for (const call of [prototypeTurnCall(request), gatewayTurnCall(request)]) {
       const validate = new Ajv({ strict: false }).compile(call.schema)
       expect(validate(decision)).toBe(true)
     }
@@ -688,7 +688,7 @@ it('preserves speech/narration alternation in one atomic publication, authorized
   expect(JSON.stringify(builder.rebuildAt(f.address, bob, f.store.head(f.address).headSeq))).not.toContain('先说一句')
   const transcript = playerTranscript(playerView, new Map([[npc, 'NPC']]), player)
   expect(transcript.at(-1)).toMatchObject({ segments, text: '先说一句。\n（轻轻点头。）\n再补一句（这是对白中的括号）。\n（目光停在杯子上。）' })
-  const state = { transcript, world: { title: 'test', playerName: 'Player', npcNames: [] }, busy: false, paused: false, error: false } as unknown as PlaytestState
+  const state = { transcript, world: { title: 'test', playerName: 'Player', npcNames: [] }, busy: false, paused: false, error: false } as unknown as HostState
   expect(projectPlayerView(state).history.at(-1)?.segments).toEqual(segments)
   const rendered = new DeterministicPresenter().render({ observationId: String(observed.id), value: observed.value }, { locale: 'zh-CN' })
   expect(rendered.text).toContain(transcript.at(-1)!.text)
@@ -709,7 +709,7 @@ it('preserves speech/narration alternation in one atomic publication, authorized
   } finally { memory.close() }
   // Core receives the same authorized Source text, including the alternating order.
   const inputs: WorldJsonObject[] = []
-  const core = new PlaytestMemoryCore(f.directory, f.address, async input => {
+  const core = new CoreMemoryAdapter(f.directory, f.address, async input => {
     inputs.push(input)
     if (input.operation === 'build') return { archive: { scope: input.scope!, sources: input.sources!, facts: [], episodes: [], observations: [] }, index: { scope: input.scope!, units: [], vectors: [] } }
     return { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } }
@@ -779,7 +779,7 @@ it.each(['scene_public','direct','private','self'])('accepts NPC %s publication 
  const decision={decision:'publish',scope,addresseeIds,segments:[{type:'speech',text:'明确范围的对白'},{type:'narration',text:'轻轻点头'}]}
  const f=fixture(async request=>{
   if(!request.continuation)return take
-  for(const call of [prototypeTurnCall(request),localPrototypeTurnCall(request)]) {
+  for(const call of [prototypeTurnCall(request),gatewayTurnCall(request)]) {
    expect(new Ajv({strict:false}).compile(call.schema)(decision)).toBe(true)
    expect(JSON.stringify(call.schema)).toContain('private')
   }
@@ -804,7 +804,7 @@ it('keeps local interaction versions numeric without a singleton enum, while rej
  let calls=0;
  const f=fixture(async request=>{
   if(++calls>1)return {decision:'abstain'};
-  const call=localPrototypeTurnCall(request),validate=new Ajv({strict:false}).compile(call.schema);
+  const call=gatewayTurnCall(request),validate=new Ajv({strict:false}).compile(call.schema);
   const p=(call.schema.properties as WorldJsonObject).parameters as WorldJsonObject;
   const d=(p.properties as WorldJsonObject).definitionRef as WorldJsonObject;
   expect((d.properties as WorldJsonObject).version).toEqual({type:'integer',minimum:1,maximum:1});

@@ -10,7 +10,7 @@
 
 ## 2. 活动生命周期
 
-固定入口为 `globalThis.activityScript`。定义和 hook 的完整形式以 [演示脚本](../../../examples/world-packs/launcher-demo/scripts/activity.js) 与 [当前活动桥](../../../tests/experiments/pack-activity.ts) 为准。
+固定入口为 `globalThis.activityScript`。定义和 hook 的完整形式以 [演示脚本](../../../examples/world-packs/launcher-demo/scripts/activity.js) 与 [当前活动桥](../../../desktop/host/pack-activity.ts) 为准。
 
 | 部分 | 职责 |
 | --- | --- |
@@ -130,7 +130,7 @@ Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者�
 
 例如玩家钱袋里有 100。同行者趁人多执行“偷窃”，作者脚本裁定成功：真实余额变成 70，结果只告诉同行者。玩家的状态栏和角色上下文仍是 100，但立刻标为“上次确认”（current=false）：玩家知道钱袋有了变化，却不知道现在是多少、是谁动的。执行“查看钱包”或付账后，才看到 70。旁边的留守者从头到尾不知道两人的余额。完整样例见 [集市钱袋](../../../examples/world-packs/status-market/README.md)。
 
-状态是作者用代码声明、经过裁定的常驻客观值：金钱、HP、游戏时间、剧情阶段等。真实值只以 `status.updated` 世界事件提交，和对话、行动走同一次原子提交；每个观察者（NPC 与玩家相同）只知道告知过自己的值。它替代了已退役的包变量（`scripts/variables.js`、`pack-variables.json`、`/vars` 已删除）。实现在 [状态桥](../../../tests/experiments/pack-status.ts)，设计见[状态栏设计](../../superpowers/specs/2026-10-18-status-bar-design.md)。
+状态是作者用代码声明、经过裁定的常驻客观值：金钱、HP、游戏时间、剧情阶段等。真实值只以 `status.updated` 世界事件提交，和对话、行动走同一次原子提交；每个观察者（NPC 与玩家相同）只知道告知过自己的值。它替代了已退役的包变量（`scripts/variables.js`、`pack-variables.json`、`/vars` 已删除）。实现在 [状态桥](../../../desktop/host/pack-status.ts)，设计见[状态栏设计](../../superpowers/specs/2026-10-18-status-bar-design.md)。
 
 ### 作者写什么
 
@@ -243,4 +243,4 @@ onRoundEnd 拿到真实值和轮次，拿不到角色上下文或模型输出；
 
 公共 SDK 的 view.activity 只包含 title、active、phase、public。无额外参数的活动操作及绑定当前版本的开始／恢复节点选项进入 view.actions，可用普通 perform；不能伪造参数、读取 internal/private 或调用任意管理脚本。有额外输入参数的活动操作仍用宿主表单，退出、逃生和管理功能仍在宿主。
 
-快进和跳过须逐项执行同一正式路径，只压缩展示时间，不能省略角色经历。完整无角色模型序章实验：`node --import tsx tests/experiments/official-demo.ts`，新建独立 .tmp 数据，检查 112 条表达、5 条玩家输入、最后收留问题和自由交接。此实验不证明后续真实模型或长期记忆体验。
+快进和跳过须逐项执行同一正式路径，只压缩展示时间，不能省略角色经历。完整无角色模型序章实验：`node --import tsx tests/experiments/official-prologue-offline.ts`，新建独立 .tmp 数据，检查 112 条表达、5 条玩家输入、最后收留问题和自由交接。此实验不证明后续真实模型或长期记忆体验。

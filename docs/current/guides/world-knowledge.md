@@ -140,7 +140,7 @@ documentId 必须实际存在。最多 4096 条、每条最多 256 个关键词�
 
 先检查文档受众，再用该角色自己的授权场景、近期观察、自身发表、刺激及召回内容做忽略大小写的关键词匹配。任一词命中即可；不扫描全局转录，不从其他角色知识补齐，不扫描本次注入内容做递归触发。不因未命中追加模型调用。
 
-[PackKnowledge](../../../tests/experiments/pack-knowledge.ts)在现有 Core／原生记忆交付后、预设准备前，把正文放进 `context.knowledge`，标明 `author_setting`。它不伪装成新近亲历，也不直接写入角色记忆或情绪。作者笔记、导演文档不进入此通道。
+[PackKnowledge](../../../desktop/host/pack-knowledge.ts)在现有 Core／原生记忆交付后、预设准备前，把正文放进 `context.knowledge`，标明 `author_setting`。它不伪装成新近亲历，也不直接写入角色记忆或情绪。作者笔记、导演文档不进入此通道。
 
 ## 3. 客观变量与角色态度的边界
 

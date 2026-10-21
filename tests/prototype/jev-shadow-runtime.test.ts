@@ -5,9 +5,9 @@ import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import { type ShadowRecord } from '../experiments/jev-shadow.ts'
-import { claimCriteria, type ClaimQuestion, type ClaimKind } from '../experiments/jev-shadow-claims-client.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { type ShadowRecord } from '../../desktop/host/jev-shadow.ts'
+import { claimCriteria, type ClaimQuestion, type ClaimKind } from '../../desktop/host/jev-shadow-claims-client.ts'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -44,9 +44,9 @@ it.each([0, 0.999])('Jev stays nonblocking and preserves calls, transcript and w
     })
     await new Promise<void>(ready => server.listen(0, '127.0.0.1', () => ready()))
     const port = (server.address() as { port: number }).port
-    let runtime: FrozenWorldPlaytestRuntime | undefined
+    let runtime: WorldHostRuntime | undefined
     try {
-      runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: root,
+      runtime = await WorldHostRuntime.create({ dataDirectory: root,
         packPath: resolve('examples/world-packs/prototype-g1'), provider: 'ollama', model: 'fixture',
         utilityEndpoint: `http://127.0.0.1:${port}/api/chat`,
         ...(enabled ? { shadowAudit: {

@@ -7,12 +7,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { brandId, RECALL_KEYWORD_TOKENIZER_ID, type WorldJsonObject } from '@harness-world/contracts'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { FrozenWorldPlaytestRuntime, type FrozenPlaytestOptions } from '../experiments/playtest-frozen-runtime.ts'
-import { createPlaytestServer } from '../experiments/playtest-server.ts'
+import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
+import { createHostServer } from '../../desktop/host/http-server.ts'
 import { characterRequestText } from '../../packages/provider-chat/src/character-context-text.ts'
-import type { ActivityRequest } from '../experiments/pack-activity.ts'
+import type { ActivityRequest } from '../../desktop/host/pack-activity.ts'
 
-const roots:string[]=[],servers:Server[]=[],runtimes:FrozenWorldPlaytestRuntime[]=[]
+const roots:string[]=[],servers:Server[]=[],runtimes:WorldHostRuntime[]=[]
 afterEach(async()=>{
   vi.restoreAllMocks()
   for(const runtime of runtimes.splice(0))await runtime.close()
@@ -20,7 +20,7 @@ afterEach(async()=>{
   for(const root of roots.splice(0))rmSync(root,{recursive:true,force:true,maxRetries:3,retryDelay:100})
 })
 type Decision=(input:WorldJsonObject)=>unknown|Promise<unknown>
-async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:string)=>s,packDirectory='examples/world-packs/ai-girls-awaken-v10',provider:'ollama'|'local'='ollama',extra:Partial<FrozenPlaytestOptions>={},configurePack?:(pack:string)=>void) {
+async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:string)=>s,packDirectory='examples/world-packs/ai-girls-awaken-v10',provider:'ollama'|'local'='ollama',extra:Partial<WorldHostOptions>={},configurePack?:(pack:string)=>void) {
   const root=mkdtempSync(join(tmpdir(),'activity-test-'));roots.push(root)
   const pack=join(root,'pack'),data=join(root,'data');cpSync(resolve(packDirectory),pack,{recursive:true});mkdirSync(data)
   const file=join(pack,'scripts/activity.js')
@@ -45,7 +45,7 @@ async function fixture(decide:Decision=()=>({decision:'abstain'}),transform=(s:s
   const options={packPath:pack,dataDirectory:data,provider,model:'fixture',
     utilityEndpoint:'http://127.0.0.1:'+address.port+'/api/chat',timeoutMs:5000,...extra}
   configurePack?.(pack)
-  const runtime=await FrozenWorldPlaytestRuntime.create(options);runtimes.push(runtime)
+  const runtime=await WorldHostRuntime.create(options);runtimes.push(runtime)
   const state=()=>{const store=new WorldStore(join(data,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
   return {runtime,options,inputs,schemas,events:state,data,pack}
 }
@@ -219,7 +219,7 @@ describe('creator activity and host escape',()=>{
       expect(JSON.stringify(other.observations)).not.toContain('主动让出')
     }finally{store.close()}
     await f.runtime.close();runtimes.splice(runtimes.indexOf(f.runtime),1)
-    const restored=await FrozenWorldPlaytestRuntime.create(f.options);runtimes.push(restored)
+    const restored=await WorldHostRuntime.create(f.options);runtimes.push(restored)
     expect((await restored.state()).activity).toEqual(pending.activity)
     expect(f.inputs).toHaveLength(1)
     await restored.escape()
@@ -316,7 +316,7 @@ describe('creator activity and host escape',()=>{
   })
   it('routes the public gateway through the real Core and rejects invented moves without committing facts',async()=>{
     const f=await fixture(),token='d'.repeat(64)
-    const server=createPlaytestServer(f.runtime,token);servers.push(server)
+    const server=createHostServer(f.runtime,token);servers.push(server)
     await new Promise<void>(ready=>server.listen(0,'127.0.0.1',ready))
     const address=server.address();if(!address||typeof address==='string')throw new Error('no endpoint')
     const url='http://127.0.0.1:'+address.port
@@ -343,8 +343,8 @@ describe('creator activity and host escape',()=>{
   })
 
   it('serves escape in the host frame and protects the override endpoint',async()=>{
-    const f=await fixture(),token='b'.repeat(64),web=await import('../experiments/playtest-pack-web.ts')
-    const server=createPlaytestServer(f.runtime,token,await web.loadPackWeb(f.pack));servers.push(server)
+    const f=await fixture(),token='b'.repeat(64),web=await import('../../desktop/host/pack-frontend.ts')
+    const server=createHostServer(f.runtime,token,await web.loadPackWeb(f.pack));servers.push(server)
     await new Promise<void>(ready=>server.listen(0,'127.0.0.1',ready))
     const address=server.address();if(!address||typeof address==='string')throw new Error('no endpoint')
     const url='http://127.0.0.1:'+address.port
@@ -449,7 +449,7 @@ describe('script-defined participants and moderator judgement',()=>{
     const pending=await f.runtime.activityAction(request(start,'guess',{value:10}))
     expect((pending.activity!.game as WorldJsonObject)).toMatchObject({phase:'judging',turn:'character:claude',public:{pending:{value:10}}})
     await f.runtime.close();runtimes.splice(runtimes.indexOf(f.runtime),1)
-    const restored=await FrozenWorldPlaytestRuntime.create(f.options);runtimes.push(restored)
+    const restored=await WorldHostRuntime.create(f.options);runtimes.push(restored)
     expect((await restored.state()).activity).toEqual(pending.activity)
     const escaped=await restored.escape()
     expect((escaped.activity!.game as WorldJsonObject).phase).toBe('host-aborted')

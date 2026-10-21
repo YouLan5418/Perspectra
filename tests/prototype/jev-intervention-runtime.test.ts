@@ -5,8 +5,8 @@ import { join, resolve } from 'node:path'
 import { expect,it } from 'vitest'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import type { InterventionRecord } from '../experiments/jev-publication-intervention.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { InterventionRecord } from '../../desktop/host/jev-publication-intervention.ts'
 
 it('real runtime commits a performed take once, repairs false recipient hold before observations, and keeps recipient scope',async()=>{
   const root=mkdtempSync(join(tmpdir(),'jev-correct-runtime-')),records:InterventionRecord[]=[]
@@ -24,9 +24,9 @@ it('real runtime commits a performed take once, repairs false recipient hold bef
     })
   })
   await new Promise<void>(done=>server.listen(0,'127.0.0.1',done))
-  let runtime:FrozenWorldPlaytestRuntime|undefined
+  let runtime:WorldHostRuntime|undefined
   try{
-    runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:root,packPath:resolve('examples/world-packs/prototype-g1'),provider:'ollama',model:'fixture',utilityEndpoint:`http://127.0.0.1:${(server.address() as {port:number}).port}/api/chat`,
+    runtime=await WorldHostRuntime.create({dataDirectory:root,packPath:resolve('examples/world-packs/prototype-g1'),provider:'ollama',model:'fixture',utilityEndpoint:`http://127.0.0.1:${(server.address() as {port:number}).port}/api/chat`,
       publicationAudit:{mode:'correct',items:[{entityId:'entity:brass-key',name:'黄铜钥匙'}],write:r=>records.push(r),classify:async q=>({placement:{kind:'NONE',probabilities:{NONE:1},confidence:1},model:'fixture',inputTokens:1,outputTokens:1,costUsd:0,
         claims:q.characters.map(c=>({characterId:c.characterId,kind:c.characterId==='character:friend'?'OBJECTIVE_DURING':'NONE',referenceSeq:null,probabilities:{NONE:1},referenceProbabilities:{NONE:1},confidence:1}))})}})
     await runtime.submit('/act speak {"text":"请拿钥匙，再请留守者看看。"}')

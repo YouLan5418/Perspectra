@@ -6,11 +6,11 @@ import { afterEach, expect, it } from 'vitest'
 import { compileWorldPackSource } from '@harness-world/world-pack'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
-import { PackKnowledge } from '../experiments/pack-knowledge.ts'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { PackKnowledge } from '../../desktop/host/pack-knowledge.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
-const roots: string[] = [], runtimes: FrozenWorldPlaytestRuntime[] = [], servers: Server[] = []
+const roots: string[] = [], runtimes: WorldHostRuntime[] = [], servers: Server[] = []
 afterEach(async () => {
   for (const runtime of runtimes.splice(0)) await runtime.close()
   for (const server of servers.splice(0)) {server.closeAllConnections(); await new Promise<void>(done => server.close(() => done()))}
@@ -173,7 +173,7 @@ it.each(['ollama','local'] as const)('keeps private knowledge and direct speech 
   });servers.push(server);await new Promise<void>(done=>server.listen(0,'127.0.0.1',done))
   const options={packPath:f.path,dataDirectory:data,provider,model:'fixture',timeoutMs:5000,
     utilityEndpoint:'http://127.0.0.1:'+(server.address() as {port:number}).port+(provider==='ollama'?'/api/chat':'/v1/chat/completions')}
-  const runtime=await FrozenWorldPlaytestRuntime.create(options);runtimes.push(runtime)
+  const runtime=await WorldHostRuntime.create(options);runtimes.push(runtime)
   const result=await runtime.submit('/act speak {"text":"黑海岸的暗号是紫藤雨，只告诉你。","scope":"direct","addresseeIds":["character:companion"]}')
   expect(result.error,JSON.stringify(result.debug)).toBe(false)
   const view=projectPlayerView(result)
@@ -187,7 +187,7 @@ it.each(['ollama','local'] as const)('keeps private knowledge and direct speech 
   expect(JSON.stringify(companion)).toContain('密约')
   expect(JSON.stringify(companion)).toContain('研究基地')
   await runtime.close();runtimes.splice(runtimes.indexOf(runtime),1)
-  const reopened=await FrozenWorldPlaytestRuntime.create(options);runtimes.push(reopened)
+  const reopened=await WorldHostRuntime.create(options);runtimes.push(reopened)
   const tail=await reopened.state()
   expect(projectPlayerView(tail).history).toEqual(view.history)
   const regenerated=await reopened.regenerate(tail.tailRound!.id!,'offline-regeneration')

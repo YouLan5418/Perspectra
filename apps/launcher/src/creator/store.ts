@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
-import type { CreatorDebugSnapshot } from '../../../../tests/experiments/creator-debug.ts'
-import type { CreatorHistoryItem } from '../../../../tests/experiments/creator-history.ts'
-import type { CreatorRecord } from '../../../../tests/experiments/creator-records.ts'
+import type { CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
+import type { CreatorHistoryItem } from '../../../../desktop/host/creator-history.ts'
+import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
 import { buildConversation, buildTrace, type ConversationEntry, type RecordSummary } from './model.ts'
 import { KIND_LABEL } from './format.ts'
 import { creatorSource, type CreatorMeta, type CreatorSource } from './source.ts'
@@ -24,7 +24,7 @@ export const useCreatorStore = defineStore('creator', () => {
   const meta = ref<CreatorMeta>({ title: '', storyline: '', characters: [] })
 
   /** 快照含递归 JSON 结构；用 shallowRef 避免深层类型展开，替换时整体赋值。 */
-  const world = shallowRef<CreatorDebugSnapshot | null>(null)
+  const world = shallowRef<CreatorInspectionSnapshot | null>(null)
   const history = shallowRef<CreatorHistoryItem[]>([])
   const records = shallowRef<RecordSummary[]>([])
   const details = shallowRef<Record<string, CreatorRecord>>({})
@@ -45,7 +45,7 @@ export const useCreatorStore = defineStore('creator', () => {
   const view = ref<ConsoleView>('conversation')
   const entityHistory = shallowRef<Record<string, CreatorHistoryItem[]>>({})
   /** 角色详情：currentView、最近请求与已安装档案分层。 */
-  const characterDetails = shallowRef<Record<string, CreatorDebugSnapshot['character']>>({})
+  const characterDetails = shallowRef<Record<string, CreatorInspectionSnapshot['character']>>({})
   /** 关联跳转目标：对应视图把它滚动到可见位置。 */
   const focusKey = ref('')
   /** 已扫描到的历史下界；向前翻页从这里继续。 */

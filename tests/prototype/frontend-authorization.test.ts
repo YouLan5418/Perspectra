@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, expect, it } from 'vitest'
 import { FrontendAuthorizations, type FrontendIdentity } from '../../desktop/frontend-authorization.ts'
-import { loadPackWeb } from '../experiments/playtest-pack-web.ts'
+import { loadPackWeb } from '../../desktop/host/pack-frontend.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 const roots:string[]=[]
 afterEach(async()=>{for(const root of roots.splice(0))await rm(root,{recursive:true,force:true})})

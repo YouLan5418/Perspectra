@@ -4,9 +4,9 @@ import { resolve, join } from 'node:path'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
-import { createPlaytestServer } from './playtest-server.ts'
-import { DEFAULT_PLAYTEST_TUNING } from './playtest-tuning.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { createHostServer } from '../../desktop/host/http-server.ts'
+import { DEFAULT_RUNTIME_TUNING } from '../../desktop/host/runtime-tuning.ts'
 
 const root=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(root))throw new Error('provide a fresh output directory')
@@ -14,9 +14,9 @@ mkdirSync(root,{recursive:true})
 const dataDirectory=join(root,'data'),token=randomBytes(32).toString('hex')
 process.env.HCW_HINDSIGHT_UTILITY_TRACE=join(root,'utility-calls.jsonl')
 const options={dataDirectory,packPath:resolve('examples/world-packs/ai-girls-hosted-guess'),provider:'local' as const,
-  model:'gemini-3.7-flash',memoryCore:true,tuning:{...DEFAULT_PLAYTEST_TUNING,reactionDeadlineSeconds:120},
+  model:'gemini-3.7-flash',memoryCore:true,tuning:{...DEFAULT_RUNTIME_TUNING,reactionDeadlineSeconds:120},
   ...(process.env.HCW_LOCAL_API_KEY?{apiKey:process.env.HCW_LOCAL_API_KEY}:{})}
-let runtime=await FrozenWorldPlaytestRuntime.create(options),server=createPlaytestServer(runtime,token)
+let runtime=await WorldHostRuntime.create(options),server=createHostServer(runtime,token)
 const steps:unknown[]=[]
 async function listen(){server.listen(0,'127.0.0.1');await once(server,'listening')}
 await listen()
@@ -54,7 +54,7 @@ try{
  if(Number((state.debug as WorldJsonObject).headSeq)!==before)throw new Error('maintenance committed world events')
  await api('/api/submit',{text:'刚才那局猜数字是怎么结束的？接下来你想做什么？'})
  await close()
- runtime=await FrozenWorldPlaytestRuntime.create(options);server=createPlaytestServer(runtime,token);await listen()
+ runtime=await WorldHostRuntime.create(options);server=createHostServer(runtime,token);await listen()
  state=await api('/api/submit',{text:'我们接着聊吧，刚才那局已经结束了。'})
  const traces=readFileSync(join(dataDirectory,'memory-core/recall-trace.jsonl'),'utf8').trim().split('\n').map(s=>JSON.parse(s))
  const models=readFileSync(join(dataDirectory,'memory-core/model-trace.jsonl'),'utf8').trim().split('\n').map(s=>JSON.parse(s))

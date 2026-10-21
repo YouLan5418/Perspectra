@@ -1,10 +1,10 @@
 /** Sanitized, model-free preview. Never opens a save or calls a model provider. */
-import { createPlaytestServer, type PlaytestState, type PlaytestRuntime } from './playtest-server.ts'
+import { createHostServer, type HostState, type HostRuntime } from '../../desktop/host/http-server.ts'
 import { brandId } from '@harness-world/contracts'
 import { DEFAULT_READING, palettePreference } from '../../desktop/play-settings.ts'
 const token = 'f'.repeat(64)
 let seq = 2, submissions = 0
-let state: PlaytestState = {
+let state: HostState = {
   busy: false, error: false, paused: false, notice: '', phaseLabel: '', debug: {},
   world: { title: '黄昏之后 · 情景舞台预览', playerName: '旅人', npcNames: ['GPT-6'],
     currentScene: { locationName: '旧图书馆', presentNpcNames: ['GPT-6'], recipients: [{ id: 'gpt', name: 'GPT-6' }] } },
@@ -19,7 +19,7 @@ let state: PlaytestState = {
 const publish = (text: string, player = false) => {
   state = { ...state, transcript: [...state.transcript, { seq: ++seq, speaker: player ? '旅人' : 'GPT-6', speakerId:brandId(player?'player':'gpt','CharacterId'), text, player }] }
 }
-const runtime: PlaytestRuntime = {
+const runtime: HostRuntime = {
   state: async () => state,
   submit: async text => {
     submissions++; publish(text, true); state = { ...state, busy: true }
@@ -71,7 +71,7 @@ if (process.argv.includes('--many')) {
 /** --palette <sakura|lamp|moon|forest>：检查主题色。 */
 const paletteArg = process.argv[process.argv.indexOf('--palette') + 1] ?? ''
 if (process.argv.includes('--palette')) state = { ...state, playerSettings: { inputCharacters: 2000, reading: DEFAULT_READING, palette: palettePreference(paletteArg) } }
-const server = createPlaytestServer(runtime, token)
+const server = createHostServer(runtime, token)
 const port = process.argv.includes('--palette') ? 8071 + ['sakura', 'lamp', 'moon', 'forest'].indexOf(paletteArg) : process.argv.includes('--many') ? 8070 : process.argv.includes('--multi') ? 8069 : process.argv.includes('--activity') ? 8068 : 8067
 server.listen(port, '127.0.0.1', () => console.log('Preview: http://127.0.0.1:' + port + '/#token=' + token))
 process.on('SIGINT', () => { console.log('Preview submissions:', submissions); server.closeAllConnections(); server.close() })

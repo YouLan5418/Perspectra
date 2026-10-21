@@ -11,11 +11,11 @@ import { compileWorldPackSource } from '@harness-world/world-pack'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { playSettings } from '../../desktop/play-settings.ts'
-import { PackAutonomy } from '../experiments/pack-autonomy.ts'
-import { FrozenWorldPlaytestRuntime, type FrozenPlaytestOptions } from '../experiments/playtest-frozen-runtime.ts'
+import { PackAutonomy } from '../../desktop/host/pack-autonomy.ts'
+import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
 import type { PlaySettings } from '../../desktop/play-settings.ts'
 
-const roots: string[] = [], servers: Server[] = [], runtimes: FrozenWorldPlaytestRuntime[] = [], releases: (()=>void)[] = []
+const roots: string[] = [], servers: Server[] = [], runtimes: WorldHostRuntime[] = [], releases: (()=>void)[] = []
 afterEach(async () => {
   for (const release of releases.splice(0)) release()
   for (const runtime of runtimes.splice(0)) await runtime.close()
@@ -33,7 +33,7 @@ const take = () => ({decision: 'perform', actionType: 'interact', parameters: {
 }})
 const deferred = () => {let resolve!:()=>void;const promise=new Promise<void>(done=>{resolve=done});releases.push(resolve);return {promise,resolve}}
 async function fixture(change?: (role: {-readonly [K in keyof WorldJsonObject]: WorldJsonObject[K]}, pack: string,
-  config: {characters:WorldJsonObject[]}) => void, settings: Partial<PlaySettings> = {}, controls: Pick<FrozenPlaytestOptions,'stagedAutonomy'|'serialScheduling'> = {}) {
+  config: {characters:WorldJsonObject[]}) => void, settings: Partial<PlaySettings> = {}, controls: Pick<WorldHostOptions,'stagedAutonomy'|'serialScheduling'> = {}) {
   const root = mkdtempSync(join(tmpdir(), 'character-autonomy-')); roots.push(root)
   const pack = join(root, 'pack'), data = join(root, 'data')
   cpSync(resolve('examples/world-packs/character-autonomy'), pack, {recursive: true})
@@ -60,7 +60,7 @@ async function fixture(change?: (role: {-readonly [K in keyof WorldJsonObject]: 
   const options = {packPath: pack, dataDirectory: data, provider: 'ollama' as const, model: 'fixture',
     utilityEndpoint: 'http://127.0.0.1:' + (server.address() as {port: number}).port + '/api/chat', timeoutMs: 5000,
     playSettings: playSettings(settings), ...controls}
-  const create = async () => { const runtime = await FrozenWorldPlaytestRuntime.create(options); runtimes.push(runtime); return runtime }
+  const create = async () => { const runtime = await WorldHostRuntime.create(options); runtimes.push(runtime); return runtime }
   const runtime = await create()
   const events = (r = runtime) => {
     const store = new WorldStore(join(r.dataDirectory, 'world.sqlite'))

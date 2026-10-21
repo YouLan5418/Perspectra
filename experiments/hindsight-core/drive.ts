@@ -9,7 +9,7 @@ import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } f
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { localPrototypeTurnCall } from '../../tests/experiments/local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../../tests/fixtures/frozen-interaction-world.ts'
 
 type SourceRow = { source_id: string; source_seq: number; source_hash: string;
@@ -35,7 +35,7 @@ const npc = brandId('character:npc', 'CharacterId')
 const bob = brandId('character:bob', 'CharacterId')
 const player = brandId('character:player', 'CharacterId')
 const question = '那件喝水用的器皿最初是谁收走的？鲍勃后来怎么说？请区分你看到的事和他声称的事。'
-const corePath = resolve('experiments/hindsight-core/core.py')
+const corePath = resolve('desktop/host/memory/python/core/core.py')
 function core(input: WorldJsonObject): CoreResult {
   const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [corePath], {
     input: JSON.stringify(input), encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 180_000,
@@ -157,7 +157,7 @@ for (const mode of ['existing', 'core-recall', 'core-recall-observation'] as con
         }
         if (JSON.stringify(visible).includes('深海灯')) throw new Error('private phrase reached Character Turn')
         requests.push(visible)
-        const answer = await provider.decide(localPrototypeTurnCall(visible), signal)
+        const answer = await provider.decide(gatewayTurnCall(visible), signal)
         decisions.push(answer)
         return answer
       } })

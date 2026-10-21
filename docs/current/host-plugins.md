@@ -50,9 +50,9 @@ export default function speechPlugin(ctx) {
 ## 装载、授权与退出
 
 - [LauncherCore](../../desktop/launcher-core.ts)只保存和传递插件选择，不在启动器后端导入插件。每次启动用 `PERSPECTRA_HOST_PLUGINS` 覆盖传入当前保存的列表。
-- [游戏入口](../../tests/experiments/playtest-web-entry.ts)在创建世界运行时之前调用 [loadHostPlugins](../../desktop/host-plugins.ts)。装载器创建独立 Context，注册 `frontendServices`，再按列表顺序 `ctx.plugin()`；没有挂载世界内核、存储、记忆或角色服务。
+- [游戏入口](../../desktop/host/web-entry.ts)在创建世界运行时之前调用 [loadHostPlugins](../../desktop/host-plugins.ts)。装载器创建独立 Context，注册 `frontendServices`，再按列表顺序 `ctx.plugin()`；没有挂载世界内核、存储、记忆或角色服务。
 - 同时只允许一个合成服务。启用模块不存在、导出不合法、初始化失败或重复注册会使本次启动明确失败，并释放此前装载的插件；用户可停用该条目后重试。宿主返回插件 ID 与公开错误，不把模块异常正文交给前端。
-- 服务通过已有 `FrontendHostServices` 交给 [HTTP 宿主](../../tests/experiments/playtest-server.ts)。模板声明的能力与实际安装服务共同决定是否授予 `speech`；合成前校验授权文本，合成后重验段落，候选替换后返回 409。未安装服务返回 404，合成失败返回 502。
+- 服务通过已有 `FrontendHostServices` 交给 [HTTP 宿主](../../desktop/host/http-server.ts)。模板声明的能力与实际安装服务共同决定是否授予 `speech`；合成前校验授权文本，合成后重验段落，候选替换后返回 409。未安装服务返回 404，合成失败返回 502。
 - 前端请求断开或服务注销会触发 abort。插件应把信号传给实际请求；即使插件忽略取消，注销后晚到的音频也会被拒绝。关闭游戏时释放插件及其 `ctx.effect()`，不为未完成音频增加恢复机制。
 
 ## Live2D 与 BGM 的范围

@@ -4,9 +4,9 @@ import { join, resolve } from 'node:path'
 import { createChatProvider, prototypeTurnCall, type ChatCall } from '@harness-world/provider-chat'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { crossSceneRuntime } from './cross-scene-runtime.ts'
-import { coreRunner, createCoreWorker } from './hindsight-python.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
-import { decideActivityFormat } from './pack-activity.ts'
+import { coreRunner, createCoreWorker } from '../../desktop/host/memory/python-worker.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
 
 // Use only after the source experiment has stopped. Copy into a new directory, retaining its evidence.
 const source = process.argv[2], target = process.argv[3], medium = process.argv[4]
@@ -23,8 +23,8 @@ const requests: WorldJsonObject[] = [], decisions: unknown[] = []
 const runtime = await crossSceneRuntime(data, async (request, signal) => {
   requests.push(request.context)
   const decide = async (call: ChatCall) => { const decision = await provider.decide(call, signal); decisions.push(decision); return decision }
-  const call = localPrototypeTurnCall(request)
-  return request.context.activity === undefined ? decide(call) : decideActivityFormat(call, decide, signal, prototypeTurnCall(request).schema)
+  const call = gatewayTurnCall(request)
+  return request.context.activity === undefined ? decide(call) : decideWithFormatRetry(call, decide, signal, prototypeTurnCall(request).schema)
 }, { phone: medium === 'phone', packPath: resolve('examples/world-packs/cross-scene-activity'), activities: true, storyNodes: true,
   memoryCoreRun: worker.run, memoryCoreBuildRun: coreRunner(environment),
   memoryContextBudget: { triggerTokens: 170000, compactTokens: 120000, minimumRecentTokens: 0 } })

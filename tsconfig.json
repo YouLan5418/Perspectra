@@ -32,5 +32,5 @@
       "@harness-world/provider-chat": ["./packages/provider-chat/src/index.ts"]
     }
   },
-  "include": ["packages/**/*.ts", "tests/**/*.ts", "desktop/**/*.ts", "vitest*.config.ts"]
+  "include": ["packages/**/*.ts", "tests/**/*.ts", "desktop/**/*.ts", "experiments/jev-narrative-auditor/scripts/**/*.ts", "vitest*.config.ts"]
 }

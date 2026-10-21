@@ -12,8 +12,8 @@ import { bringSecondBoard, secondBoardId } from './notice-board-conflict-fixture
 import { npc, player, bob } from './notice-board-fixture.ts'
 import { privateText } from './notice-board-capability.ts'
 import { inscriptionReadings } from './notice-board-evidence-delivery.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
-import { hindsightPython } from './hindsight-python.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 
 const root=resolve(process.argv[2]??''),mode=process.argv[3]??'--prepare'
 if(!process.argv[2]||!['--prepare','--run','--finalize'].includes(mode))throw new Error('fresh root + --prepare then --run')
@@ -36,7 +36,7 @@ const gaps=['我把外套换成了浅灰色，这个颜色看起来怎么样？'
 type F=ReturnType<typeof openActionWorld>
 function python(doc:WorldJsonObject):Promise<WorldJsonObject>{
   return new Promise((yes,no)=>{
-    const child=execFile(hindsightPython(),[resolve('experiments/activity-memory/notice_board_action_loop.py')],{
+    const child=execFile(corePythonExecutable(),[resolve('experiments/activity-memory/notice_board_action_loop.py')],{
       timeout:180000,maxBuffer:128*1024*1024,encoding:'utf8',windowsHide:true,
       env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0',
         HCW_HINDSIGHT_UTILITY_TRACE:join(root,'utility-calls.jsonl'),
@@ -119,7 +119,7 @@ async function activate(f:F,dir:string,tag:string,stimulus:WorldJsonObject[],mem
       const index=calls++,path=join(dir,tag+'-call-'+index+'.json')
       totalCalls++;transport=join(dir,tag+'-transport-'+index+'.json')
       save(path,{status:'pending',request:visible,head:f.store.head(f.address)})
-      const start=performance.now(),response=await provider.decide(localPrototypeTurnCall(visible),signal)
+      const start=performance.now(),response=await provider.decide(gatewayTurnCall(visible),signal)
       save(path,{status:'returned',request:visible,response,durationMs:Math.round(performance.now()-start),head:f.store.head(f.address)})
       return response
     }})

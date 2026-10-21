@@ -5,11 +5,12 @@ import { type WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
 import { playSettings } from '../../desktop/play-settings.ts'
-import { FrozenWorldRuntimeCore } from './playtest-frozen-runtime.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
-const root=resolve(process.argv[2]!),directory=join(root,'cake-'+Date.now());mkdirSync(directory,{recursive:true});cpSync(join(root,'life'),directory,{recursive:true})
+import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+if (!process.argv[2]) throw new TypeError('用法：tests/experiments/official-demo-live-cake.ts <official-demo-live 的输出目录；其中须含 life/>')
+const root=resolve(process.argv[2]),directory=join(root,'cake-'+Date.now());mkdirSync(directory,{recursive:true});cpSync(join(root,'life'),directory,{recursive:true})
 const settings=playSettings({reactionDeadlineSeconds:120,publicationCharacters:600})
-const r=await FrozenWorldRuntimeCore.create({packPath:resolve('examples/world-packs/model-girls-official'),dataDirectory:directory,provider:'local',model:'gemini-3.7-flash',utilityEndpoint:'http://127.0.0.1:8046/v1/chat/completions',playSettings:settings});r.requestInspection(true)
+const r=await WorldHostCore.create({packPath:resolve('examples/world-packs/model-girls-official'),dataDirectory:directory,provider:'local',model:'gemini-3.7-flash',utilityEndpoint:'http://127.0.0.1:8046/v1/chat/completions',playSettings:settings});r.requestInspection(true)
 const record:unknown[]=[]
 const events=()=>{const s=new WorldStore(join(directory,'world.sqlite'));try{return s.readEvents(r.address)}finally{s.close()}}
 const save=()=>writeFileSync(join(directory,'report.json'),JSON.stringify({directory,settings,steps:record},null,2))

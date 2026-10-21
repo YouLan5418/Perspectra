@@ -2,7 +2,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { WorldAddress } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 
 /**
  * Manual: a real model plays the frozen world through **the page's own runtime**, turn after turn,
@@ -236,7 +236,7 @@ globalThis.fetch = async (input, init) => {
 }
 
 async function play(from: number, until: number, session: string): Promise<void> {
-  const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory, packPath, provider: 'local',
+  const runtime = await WorldHostRuntime.create({ dataDirectory, packPath, provider: 'local',
     model, ...(apiKey === undefined ? {} : { apiKey }),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }), timeoutMs: 90_000,
     memoryShadow: process.argv.includes('--memory-shadow') })

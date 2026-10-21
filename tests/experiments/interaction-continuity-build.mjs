@@ -20,10 +20,10 @@ const changed = [
   'packages/application/src/prototype-character-turn.ts',
   'packages/provider-chat/src/character-context-text.ts',
   'packages/provider-chat/src/prototype-turn.ts',
-  'tests/experiments/local-prototype-turn-call.ts',
-  'tests/experiments/pack-activity.ts',
-  'tests/experiments/playtest-frozen-runtime.ts',
-  'tests/experiments/playtest-tail-runtime.ts',
+  'desktop/host/gateway-turn-call.ts',
+  'desktop/host/pack-activity.ts',
+  'desktop/host/world-runtime.ts',
+  'desktop/host/tail-runtime.ts',
 ]
 const digest = value => createHash('sha256').update(value).digest('hex')
 const sources = Object.fromEntries(changed.map(path=>{

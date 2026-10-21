@@ -5,10 +5,10 @@ import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 
 const PLAYER = 'character:player'
-const roots: string[] = [], servers: Server[] = [], runtimes: FrozenWorldPlaytestRuntime[] = []
+const roots: string[] = [], servers: Server[] = [], runtimes: WorldHostRuntime[] = []
 afterEach(async () => {
   vi.restoreAllMocks()
   for (const runtime of runtimes.splice(0)) await runtime.close()
@@ -63,7 +63,7 @@ async function fixture(hooks: { guess?: string; other?: string }, dynamicOther =
   })
   servers.push(server); await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
   const port = (server.address() as { port: number }).port
-  const runtime = await FrozenWorldPlaytestRuntime.create({ packPath: pack, provider: 'local', model: 'fixture',
+  const runtime = await WorldHostRuntime.create({ packPath: pack, provider: 'local', model: 'fixture',
     utilityEndpoint: 'http://127.0.0.1:' + port + '/v1/chat/completions', timeoutMs: 5000, dataDirectory: data })
   runtimes.push(runtime)
   const events = () => { const store = new WorldStore(join(runtime.dataDirectory, 'world.sqlite')); try { return store.readEvents(runtime.address) } finally { store.close() } }

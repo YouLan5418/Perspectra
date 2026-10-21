@@ -1,6 +1,6 @@
 # 实验证据
 
-实验目录保存代码、fixture、输入输出、审计与报告；项目现行机制首选[当前架构](../docs/current/architecture/README.md)。
+实验目录保存研究脚本、fixture、输入输出、审计与报告。默认游戏宿主与 Python Core 已迁至 [desktop/host](../desktop/host/README.md)，这里不再提供生产运行实现；项目现行机制首选[当前架构](../docs/current/architecture/README.md)。
 
 | 实验线 | 入口 |
 | --- | --- |

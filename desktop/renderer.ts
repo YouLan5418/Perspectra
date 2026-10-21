@@ -1,9 +1,9 @@
 interface PackInfo { readonly path: string; readonly id: string; readonly title: string }
 interface SaveInfo { readonly id: string; readonly name: string; readonly packPath: string; readonly createdAt: string }
 interface ModelChoice { readonly provider: 'local' | 'ollama' | 'deepseek'; readonly model: string; readonly endpoint: string }
-import type { PlaytestTuning } from '../tests/experiments/playtest-tuning.ts'
-interface LaunchRequest extends ModelChoice { readonly packPath: string; readonly saveId?: string; readonly saveName?: string; readonly tuning: PlaytestTuning }
-interface LauncherState { readonly packs: readonly PackInfo[]; readonly saves: readonly SaveInfo[]; readonly model: ModelChoice; readonly tuning: PlaytestTuning; readonly error: string; readonly running: boolean }
+import type { RuntimeTuning } from './host/runtime-tuning.ts'
+interface LaunchRequest extends ModelChoice { readonly packPath: string; readonly saveId?: string; readonly saveName?: string; readonly tuning: RuntimeTuning }
+interface LauncherState { readonly packs: readonly PackInfo[]; readonly saves: readonly SaveInfo[]; readonly model: ModelChoice; readonly tuning: RuntimeTuning; readonly error: string; readonly running: boolean }
 
 declare global {
   interface Window {
@@ -36,7 +36,7 @@ const tuningInputs = {
   recentObservations: element<HTMLInputElement>('recent-observations'),
   recentSelfObservations: element<HTMLInputElement>('recent-self-observations'),
 } as const
-function readTuning(): PlaytestTuning {
+function readTuning(): RuntimeTuning {
   for (const input of Object.values(tuningInputs)) {
     if (input.value.trim() === '' || !input.checkValidity()) throw new Error('请填写有效的运行参数。')
   }
@@ -166,7 +166,7 @@ void window.desktopAPI.state().then(state => {
   modelInput.value = state.model.model
   endpointInput.value = state.model.endpoint
   endpointInput.disabled = state.model.provider === 'deepseek'
-  for (const key of Object.keys(tuningInputs) as (keyof PlaytestTuning)[]) tuningInputs[key].value = String(state.tuning[key])
+  for (const key of Object.keys(tuningInputs) as (keyof RuntimeTuning)[]) tuningInputs[key].value = String(state.tuning[key])
   renderSession(state)
 }).catch(error => showStatus(error instanceof Error ? error.message : '启动器配置读取失败。', true))
 setInterval(() => { if (!changing) void window.desktopAPI.state().then(renderSession).catch(() => {}) }, 1500)

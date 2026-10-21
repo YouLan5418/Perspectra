@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import { syncBuiltinESMExports } from 'node:module'
 import { basename } from 'node:path'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 
 const config=JSON.parse(process.argv[2]!) as { phase: string; dataDirectory:string; packPath:string; endpoint:string; tailId:string; candidateId?:string }
 const originalRename=fs.renameSync,originalCopy=fs.copyFileSync
@@ -10,7 +10,7 @@ function halt(path:string):never {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0)
   throw new Error('fault point resumed')
 }
-const runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:config.dataDirectory,packPath:config.packPath,
+const runtime=await WorldHostRuntime.create({dataDirectory:config.dataDirectory,packPath:config.packPath,
   provider:'ollama',model:'fixture',utilityEndpoint:config.endpoint,timeoutMs:5000})
 fs.copyFileSync=(...args:Parameters<typeof fs.copyFileSync>)=>{
   originalCopy(...args)

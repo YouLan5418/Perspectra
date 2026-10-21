@@ -9,8 +9,8 @@ import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../package
 import { openActionWorld, actionContext, actionResult, askId, terminalId } from './notice-board-action-fixture.ts'
 import { npc } from './notice-board-fixture.ts'
 import { privateText } from './notice-board-capability.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
-import { hindsightPython } from './hindsight-python.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 import { rawHistorySnapshot, historyBytes } from './raw-history-delivery.ts'
 const object = (v: unknown): WorldJsonObject => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as WorldJsonObject : {}
 const load = (p: string) => JSON.parse(readFileSync(p, 'utf8')) as WorldJsonObject
@@ -29,7 +29,7 @@ const clone = (from: string, to: string) => { mkdirSync(to, { recursive: true })
 const plain = (r: PrototypeTurnRequest) => JSON.stringify({ ...r, context: { ...r.context, memories: [] } })
 async function complexRecall(doc: WorldJsonObject, traceTag: string): Promise<WorldJsonObject> {
   return new Promise((yes, no) => {
-    const child = execFile(hindsightPython(), [resolve('experiments/activity-memory/minimal_delivery_contrast.py')], {
+    const child = execFile(corePythonExecutable(), [resolve('experiments/activity-memory/minimal_delivery_contrast.py')], {
       timeout: 180000, maxBuffer: 128 * 1024 * 1024, encoding: 'utf8', windowsHide: true,
       env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONHASHSEED: '0', HCW_JEV_APPLICABILITY_TRACE: join(root, traceTag + '-jev.jsonl'),
         HCW_HINDSIGHT_UTILITY_TRACE: join(root, 'utility-calls.jsonl') },
@@ -112,7 +112,7 @@ if (mode !== '--run') {
               if (plain(visible) !== plain(expected)) throw new Error('nonmemory context differs')
               firstRequest = JSON.stringify(visible)
             }
-            const index = callIndex++, file = join(dir, 'call-' + index + '.json'), call = localPrototypeTurnCall(visible)
+            const index = callIndex++, file = join(dir, 'call-' + index + '.json'), call = gatewayTurnCall(visible)
             transport = join(dir, 'transport-' + index + '.json'); calls++
             save(file, { status: 'pending', request: visible, prepared: call, requestBytes: historyBytes(call), head: f.store.head(f.address) })
             const start = performance.now(), response = await provider.decide(call, signal)

@@ -1,17 +1,17 @@
 # 创作者只读调试接口
 
-核对日期：2026-10-17。世界快照、完整事件历史、私有调用记录与预设快照接口已接通。后端改版将创作者入口移到同源浏览器页面；Launcher 前端改版独立交付，完整发行包尚未重建。
+核对日期：2026-10-21。本次核对状态字段与宿主迁移，原有原生点击和真实模型验收限制保留。世界快照、完整事件历史、私有调用记录与预设快照接口已接通。后端改版将创作者入口移到同源浏览器页面；Launcher 前端改版独立交付，完整发行包尚未重建。
 
 例如钥匙已经交给另一名角色，但角色仍说自己拿着：先查 entities 的保管关系和最近事件，再选中角色查 currentView 的授权观察、latestRequest 的清洗后历史与本次召回，最后检查长期记忆来源。工具只读已安装数据，不执行交互、召回、补齐来源或调用模型。
 
 ## 从浏览器创作者页读取
 
-例如创作者要检查晚餐时钥匙的去向：游戏启动后，由 Launcher 发出 `open-creator`，Rust 校验本机地址和令牌后用系统浏览器打开 `/creator/#token=…`。旧的 `creator-debug / creator-history / creator-records / request-inspector` Launcher operation 已删除；HTTP 接口保持原有数据形状。
+例如创作者要检查晚餐时钥匙的去向：游戏启动后，由 Launcher 发出 `open-creator`，Rust 校验本机地址和令牌后用系统浏览器打开 `/creator/#token=…`。旧的 `creator-debug / creator-history / creator-records / request-inspector` Launcher operation 已删除；HTTP 路由保持原样；2026-10-21 将检查响应的 variables 更名为 statusTruth，控制台已同步。
 
 | 路由 | 用途 |
 | --- | --- |
 | GET /api/creator-meta | `{ title, storyline, characters: [{ id, name }] }`；角色来自包中可调用角色列表，与预设选择同源 |
-| GET /api/creator-debug | 当前世界、角色视图、变量、活动和 Core 档案 |
+| GET /api/creator-debug | 当前世界、角色视图、状态真值、活动和 Core 档案 |
 | GET /api/creator-history | 对话事件、受众、行动参数、裁定与物品历史 |
 | GET /api/creator-records | 已保存请求、响应、思考、预设与执行关联 |
 | GET / POST /api/request-inspector | 读取采集状态，或用 `{ enabled: boolean }` 修改采集开关 |
@@ -43,7 +43,7 @@ const detail = await response.json()
 
 ## 返回内容与含义
 
-类型定义见 [CreatorDebugSnapshot](../../tests/experiments/creator-debug.ts)，实现见 [运行宿主](../../tests/experiments/playtest-frozen-runtime.ts)。
+类型定义见 [CreatorInspectionSnapshot](../../desktop/host/creator-inspection.ts)，实现见 [运行宿主](../../desktop/host/world-runtime.ts)。
 
 | 字段 | 内容与边界 |
 | --- | --- |
@@ -52,7 +52,7 @@ const detail = await response.json()
 | busy / paused / captureEnabled | 当前宿主状态及实际请求采集开关 |
 | characters | 全部声明角色的位置、场景、生命周期和最近移动事件；processing.transport 是最近捕获请求的传输状态，lastActivation 是最近已完成反应周期中的角色结果 |
 | entities | 事件日志重建的受追踪实体状态、最近变更。holderId 表示保管或携带，未单独追踪法律所有权。effectiveLocationId 可以来自保管者位置，locationBasis 明示推导来源；不能据此宣称精确姿态或桌面位置 |
-| variables | 2026-10-19 起为状态脚本的全部真实值 `{ public, characters }`，由事件日志推导；包没有 `scripts/status.js` 时为 null。读取不运行作者脚本。玩家和角色只看到各自上次确认的值 |
+| statusTruth | 2026-10-19 起为状态脚本的全部真实值 `{ public, characters }`，由事件日志推导；包没有 `scripts/status.js` 时为 null。读取不运行作者脚本。玩家和角色只看到各自上次确认的值 |
 | activities | 各活动最近提交状态，含参与者、game 的公开／私有／内部变量；未开始的 state 为 null。这些信息仅限创作者宿主 |
 | events | 事件页、nextAfterSeq 和 hasMore。后续用 nextAfterSeq 继续读取；完整记录保留事件类型、数据与序号 |
 | character.currentView | 当前 headSeq 的授权观察、认识、目标等；它不是过去某次模型的实际请求 |
@@ -71,7 +71,7 @@ const detail = await response.json()
 
 例如创作者检查“玩家声称交出了钥匙，但钥匙仍在自己手里”：先按物品查询取得、转交、随携带者移动和失败尝试，再打开相关对白及实际观察，最后用行动关联查询模型记录。发言不能单独证明转交成功。
 
-`GET /api/creator-history` 的类型及推导实现见 [creator-history.ts](../../tests/experiments/creator-history.ts)。读取完整已提交前缀后再分页，不受玩家 transcript 窗口限制，不执行预设、模型、召回或记忆整理。
+`GET /api/creator-history` 的类型及推导实现见 [creator-history.ts](../../desktop/host/creator-history.ts)。读取完整已提交前缀后再分页，不受玩家 transcript 窗口限制，不执行预设、模型、召回或记忆整理。
 
 | 参数 | 含义 |
 | --- | --- |
@@ -90,7 +90,7 @@ const detail = await response.json()
 
 ## 查看调用、思考和当时生效的预设
 
-`GET /api/creator-records` 的类型和本地记录实现见 [creator-records.ts](../../tests/experiments/creator-records.ts)。列表仅返回摘要，点击后以 recordId 读取正文。
+`GET /api/creator-records` 的类型和本地记录实现见 [creator-records.ts](../../desktop/host/creator-records.ts)。列表仅返回摘要，点击后以 recordId 读取正文。
 
 | 参数 | 含义 |
 | --- | --- |
@@ -119,7 +119,7 @@ request、decision、action、turn、recall 通过 decisionId 关联。格式重
 - 「对话」按连续阅读排版，正文最宽约 880px。已提交表达带头像、角色、序号和受众标签；模型思考默认折叠在对应回应上方，工具调用与召回作为紧凑条目穿插；被拒行动显示为行动行。NPC 发言按 `segments` 显示，旁白以括号斜体与对白区分；发言的受众已在消息头标出，对应的通过行动与逐人观察不再重复列出；其他行动分发给多位观察者时合并为一行；世界 tick 推进显示为分隔线。
 - 「轨迹」顶部是序号区间的概览条，下面是紧凑表格（类型／角色／摘要／结果／耗时或序号），支持角色、物品、类型、状态筛选与全文搜索。观察摘要依次取对白、移动和结果说明，不在列表里平铺原始 JSON；行动 ID、roundId 等内部标识只在右侧详情显示。点条目打开右侧详情。
 - 右侧详情按对象变化：模型调用有概览／上下文／预设／响应／思考／计时，行动有概览／参数／结果／Schema／计时，事件有正文／受众／来源／关联记录，物品有当前状态／流转历史／角色观察；原始 JSON 固定在最后一级。面板可拖动、可关闭，窄窗口改为覆盖式抽屉。
-- 世界总览、角色、物品、变量、活动页共用同一套紧凑列表框架，物品流转和角色处理过程使用纵向时间线。
+- 世界总览、角色、物品、状态、活动页共用同一套紧凑列表框架，物品流转和角色处理过程使用纵向时间线。
 
 前端的合并规则只使用接口已有证据：行动记录按 `eventRefs` 或匹配的 `action.resolved` 落位到对应已提交事件之前，并取代同一行动的裁定事件行；轮次落在所属回合的事件之后；读取不到正文的记录只显示「已记录」，不把未知状态写成未命中或失败。失败、取消与未发表的处理默认收在「显示处理过程」之后，状态栏给出计数。
 
@@ -133,7 +133,7 @@ request、decision、action、turn、recall 通过 decisionId 关联。格式重
 | 模型输入、返回、思考、预设 | creator-records 的 request；需事先启用采集 | 已接入 |
 | 行动、裁定、失败与关联跳转 | creator-history + creator-records 的 action / decision / turn | 已接入 |
 | 受控物品当前状态与流转 | creator-debug.entities + creator-history.entityId | 已接入，随携带者移动单独标注 |
-| 角色视图、Core 档案、变量与活动 | 现有 creator-debug；原生完整档案限制保持明确 | 已接入 |
+| 角色视图、Core 档案、状态与活动 | 现有 creator-debug；原生完整档案限制保持明确 | 已接入 |
 | 搜索、筛选、增量更新 | 事件游标、记录分页和筛选；前端定时读取，不新增推送协议 | 已接入，轮询间隔 3 秒 |
 | 书签、备注、片段导出 | 仍属后续需求 | 未实现 |
 

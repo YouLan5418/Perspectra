@@ -8,12 +8,22 @@
 - Python：现有 `.tmp/hindsight-vector-venv/pyvenv.cfg` 的 home 指向 uv 管理的独立 CPython 3.12，复制实际文件；再复制此 venv 的 site-packages。不要复制 junction 本身。可用 `PERSPECTRA_BUILD_PYTHON_HOME` 指定相同架构的安装目录。
 - WebView2：Microsoft Fixed Version 154.0.4258.62 x64，完整展开到 `.tmp/portable-release-assets/webview2`，目录中必须有 msedgewebview2.exe。保留发行包原有文件。
 - CRT：MSVC 14.50.35710 非调试 `x64/Microsoft.VC145.CRT` 的十个 DLL，缓存为 `.tmp/portable-release-assets/msvc-crt`，复制到 Launcher/Node/Python 目录。可用 `PERSPECTRA_BUILD_CRT_DIR` 指定目录，不从 System32 取文件。许可缓存为 `.tmp/portable-release-assets/MSVC-RUNTIME-LICENSE.docx`，来源 [运行库许可](https://visualstudio.microsoft.com/license-terms/vs2026-ga-visualcpp-v14-redist-runtime/)。
-- E5：`.tmp/hindsight-e5-small` 中六个资产；构建时按 experiments/hindsight-core/e5-assets.json 校验。资产实际仓库是 Xenova/multilingual-e5-small，原始模型是 intfloat/multilingual-e5-small。
+- E5：`.tmp/hindsight-e5-small` 中六个资产；构建时按 desktop/host/memory/python/core/e5-assets.json 校验。资产实际仓库是 Xenova/multilingual-e5-small，原始模型是 intfloat/multilingual-e5-small。
 - 模型说明缓存：`.tmp/portable-release-assets/E5-MODEL-CARD.md`、`E5-BASE-MODEL-CARD.md`。
 
 来源：[WebView2 分发](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)、[uv Python 发行说明](https://docs.astral.sh/uv/concepts/python-versions/)、[ONNX 模型](https://huggingface.co/Xenova/multilingual-e5-small/tree/761b726dd34fb83930e26aab4e9ac3899aa1fa78)、[Node 许可证](https://github.com/nodejs/node/blob/v24.14.1/LICENSE)。
 
 ## 命令
+
+只核对本次宿主与 Core 目录迁移时，可先构建源码，再运行隔离布局的离线检查。它在全新的 `.tmp/core-layout-*` 目录验证单次 Python 请求、常驻 worker、本地 E5 与默认 Core HTTP 启动，不调用外部模型，也不复制完整 Python/WebView2/CRT；通过不代表完整便携包或干净系统验收。
+
+```powershell
+corepack pnpm@11.7.0 launcher:build
+corepack pnpm@11.7.0 desktop:build
+node --import tsx scripts/release/verify-core-layout.mjs
+```
+
+完整便携包仍使用以下命令和上方所列全部素材：
 
 ```powershell
 corepack pnpm@11.7.0 check

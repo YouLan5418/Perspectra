@@ -21,16 +21,17 @@ export function tailRuntimeIdentity(): string {
   if (!bundled) {
     walk(join(root,'packages'))
     for (const name of ['desktop/tail-storage.ts','desktop/tail-runtime-identity.ts','desktop/story-nodes.ts',
-      'tests/experiments/playtest-tail-runtime.ts','tests/experiments/playtest-frozen-runtime.ts',
-      'tests/experiments/playtest-memory-core.ts','tests/experiments/playtest-tuning.ts',
-      'tests/experiments/pack-activity.ts','tests/experiments/pack-activities.ts','tests/experiments/pack-status.ts',
-      'tests/experiments/pack-autonomy.ts','desktop/play-settings.ts',
-      'tests/experiments/pack-knowledge.ts','tests/experiments/pack-json-asset.ts',
-      'tests/experiments/local-prototype-turn-call.ts','tests/experiments/hindsight-python.ts','package.json','pnpm-lock.yaml']) {
+      'desktop/host/tail-runtime.ts','desktop/host/world-runtime.ts','desktop/host/decision-format.ts','desktop/host/frontend-adapter.ts',
+      'desktop/host/memory/core-memory.ts','desktop/host/runtime-tuning.ts',
+      'desktop/host/pack-activity.ts','desktop/host/pack-activities.ts','desktop/host/pack-status.ts',
+      'desktop/host/pack-autonomy.ts','desktop/play-settings.ts',
+      'desktop/host/pack-knowledge.ts','desktop/host/pack-json-asset.ts',
+      'desktop/host/gateway-turn-call.ts','desktop/host/memory/python-worker.ts','desktop/host/memory/alias-history.ts','package.json','pnpm-lock.yaml']) {
       hash.update(name).update(readFileSync(join(root,name)))
     }
   }
-  for (const directory of ['experiments/activity-memory','experiments/hindsight-core']) {
+  const pythonRoot = bundled ? 'memory-core/python' : 'desktop/host/memory/python'
+  for (const directory of [pythonRoot + '/bridge', pythonRoot + '/core']) {
     const walkPython = (dir: string): void => {
       for (const item of readdirSync(dir,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name))) {
         if (item.isDirectory() && !['__pycache__','.venv','reports','assets','tests'].includes(item.name)) walkPython(join(dir,item.name))

@@ -8,8 +8,8 @@ import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { readStoryNodes } from '../../desktop/story-nodes.ts'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import type { CoreRunner } from '../experiments/hindsight-python.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 import { knownTime, statusMarketWithoutRoundHook } from './fixtures/status-market-no-hook.ts'
 
 const roots: string[] = [], children = new Set<ChildProcess>()
@@ -61,7 +61,7 @@ async function fixture() {
   const instanceId = core.snapshot().instances[0]!.id, directory = join(root, 'instances', instanceId)
   const options = { packPath: pack, provider: 'local' as const, model: 'fixture', memoryCore: true,
     memoryCoreRun: run, memoryCoreBuildRun: run }
-  const create = (dataDirectory = directory) => FrozenWorldPlaytestRuntime.create({ ...options, dataDirectory })
+  const create = (dataDirectory = directory) => WorldHostRuntime.create({ ...options, dataDirectory })
   const runtime = await create()
   let node
   try {

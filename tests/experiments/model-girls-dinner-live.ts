@@ -3,8 +3,8 @@ import { join, resolve } from 'node:path'
 import { currentEntityState, currentLocation } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { playSettings } from '../../desktop/play-settings.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 
 // 《赔罪晚宴》真实模型短试玩：固定玩家路线，NPC 全部由本机模型决定。只写作者证据到 .tmp，不写凭证。
 const packPath=resolve('examples/world-packs/model-girls-dinner-v2')
@@ -59,7 +59,7 @@ const route=process.argv.find(arg=>arg.startsWith('--route='))?.slice(8)??'A'
 const plan=plans[route]
 if(!plan)throw new TypeError('用法：node --import tsx tests/experiments/model-girls-dinner-live.ts [--route=A|B]')
 const people=['character:player','character:deepseek','character:claude','character:glm','character:gpt']
-function snapshot(runtime:FrozenWorldPlaytestRuntime){
+function snapshot(runtime:WorldHostRuntime){
   const store=new WorldStore(join(runtime.dataDirectory,'world.sqlite'))
   try{
     const events=store.readEvents(runtime.address)
@@ -72,7 +72,7 @@ function snapshot(runtime:FrozenWorldPlaytestRuntime){
 }
 const directory=mkdtempSync(join(resolve('.tmp/model-girls-dinner-live'),'run-').replace('run-','run-'))
 mkdirSync(directory,{recursive:true})
-const runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:join(directory,'world'),packPath,provider:'local',model:'gemini-3.8-flash',
+const runtime=await WorldHostRuntime.create({dataDirectory:join(directory,'world'),packPath,provider:'local',model:'gemini-3.8-flash',
   thinkingLevel:'low',utilityEndpoint:'http://127.0.0.1:8045/v1/chat/completions',timeoutMs:60000,playSettings:settings})
 const rounds:unknown[]=[]
 let shown=0,transcript=''

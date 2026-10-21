@@ -18,6 +18,8 @@ jobs:
         run: corepack pnpm@11.7.0 install --frozen-lockfile
       - name: Typecheck runtime and desktop
         run: corepack pnpm@11.7.0 typecheck
+      - name: Check production source boundaries
+        run: node scripts/check-host-boundaries.mjs
       - name: Lint runtime and desktop
         run: corepack pnpm@11.7.0 lint
       - name: Check Launcher

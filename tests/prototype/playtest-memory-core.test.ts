@@ -7,13 +7,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import { PlaytestMemoryCore, DEFAULT_MEMORY_CONTEXT_BUDGET, MEMORY_DELIVERY_BUDGET, estimateContextTokens, type MemoryContextBudget } from '../experiments/playtest-memory-core.ts'
-import { createPlaytestServer } from '../experiments/playtest-server.ts'
-import { parsePlaytestLaunchArguments } from '../experiments/playtest-launch.ts'
-import type { CoreRunner } from '../experiments/hindsight-python.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { CoreMemoryAdapter, DEFAULT_MEMORY_CONTEXT_BUDGET, MEMORY_DELIVERY_BUDGET, estimateContextTokens, type MemoryContextBudget } from '../../desktop/host/memory/core-memory.ts'
+import { createHostServer } from '../../desktop/host/http-server.ts'
+import { parseHostLaunchArguments } from '../../desktop/host/launch-arguments.ts'
+import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 
-const roots: string[] = [], runtimes: FrozenWorldPlaytestRuntime[] = [], servers: Server[] = []
+const roots: string[] = [], runtimes: WorldHostRuntime[] = [], servers: Server[] = []
 afterEach(async () => {
   vi.restoreAllMocks()
   for (const runtime of runtimes.splice(0)) await runtime.close()
@@ -39,7 +39,7 @@ async function fixture(run: CoreRunner, options: { playSettings?: import('../../
   })
   servers.push(provider); provider.listen(0, '127.0.0.1'); await once(provider, 'listening')
   const address = provider.address(); if (!address || typeof address === 'string') throw new Error('no port')
-  const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: data,
+  const runtime = await WorldHostRuntime.create({ dataDirectory: data,
     packPath: resolve('examples/world-packs/ai-girls-hosted-guess'), provider: 'local', model: 'fixture',
     utilityEndpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`, memoryCore: true, memoryCoreRun: run, memoryCoreBuildRun: run, ...(options.playSettings?{playSettings:options.playSettings}:{}), ...(options.memoryContextBudget ? { memoryContextBudget: options.memoryContextBudget } : {}) })
   runtimes.push(runtime)
@@ -58,7 +58,7 @@ const ref = (source: WorldJsonObject): WorldJsonObject => Object.fromEntries(
 describe('optional web Core memory', () => {
   it('projects a fresh authorized snapshot with one view build and propagates catch-up failure', async () => {
     const f = await fixture(async () => empty), before = f.head()
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async () => { throw new Error('no installed archive') })
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => { throw new Error('no installed archive') })
     try {
       const builds = vi.spyOn(CharacterViewBuilder.prototype, 'rebuildAt')
       const ticks = vi.spyOn(WorldStore.prototype, 'readEventTicks')
@@ -84,7 +84,7 @@ describe('optional web Core memory', () => {
     const f = await fixture(async input => { calls++; return input.operation === 'build' ? built(input) : empty })
     await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
     const actor = 'character:claude', before = f.head(), beforeCalls = calls
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async () => { throw new Error('inspection must not call Core') })
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => { throw new Error('inspection must not call Core') })
     const catchUp = vi.spyOn(CognitiveMemoryService.prototype, 'catchUp')
     const receipt = vi.spyOn(CognitiveMemoryService.prototype, 'catchUpReceipt')
     const snapshot = adapter.inspectArchive(actor, 0, 1)
@@ -104,7 +104,7 @@ describe('optional web Core memory', () => {
   })
   it('snapshots authorized names without rebuilding unarchived sources and protects its aliases from callers', async () => {
     const f = await fixture(async () => empty)
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async () => empty)
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => empty)
     const seq = f.head(), actor = 'character:claude'
     const entry = { scope: { worldAddress: { ...f.runtime.address }, characterId: actor, asOfWorldSeq: seq },
       worldSeq: seq, people: [{ characterId: actor, name: 'Claude' }] }
@@ -121,16 +121,16 @@ describe('optional web Core memory', () => {
     const entry = { scope: { worldAddress: { ...f.runtime.address }, characterId: kind === 'role' ? 'character:gpt' : actor,
       asOfWorldSeq: kind === 'future' ? seq + 1 : seq }, worldSeq: seq, people: [] }
     writeFileSync(join(f.data, 'memory-aliases.json'), JSON.stringify({ [actor]: [entry] }))
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async () => empty)
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => empty)
     expect(() => adapter.snapshotAliases([actor])).toThrow('authorized world or prefix')
     await adapter.close()
   })
   it('defaults to Core, takes native only explicitly, and rejects a duplicate', () => {
-    expect(parsePlaytestLaunchArguments(['--memory-core']).memoryCore).toBe(true)
-    expect(parsePlaytestLaunchArguments([]).memoryCore).toBe(true)
-    expect(parsePlaytestLaunchArguments(['--memory-native']).memoryCore).toBeUndefined()
-    expect(() => parsePlaytestLaunchArguments(['--memory-core','--memory-core'])).toThrow('once')
-    expect(() => parsePlaytestLaunchArguments(['--ollama'])).toThrow('--memory-native')
+    expect(parseHostLaunchArguments(['--memory-core']).memoryCore).toBe(true)
+    expect(parseHostLaunchArguments([]).memoryCore).toBe(true)
+    expect(parseHostLaunchArguments(['--memory-native']).memoryCore).toBeUndefined()
+    expect(() => parseHostLaunchArguments(['--memory-core','--memory-core'])).toThrow('once')
+    expect(() => parseHostLaunchArguments(['--ollama'])).toThrow('--memory-native')
   })
   it('refuses to start default Core without Python or E5, before creating the save directory', async () => {
     const root = mkdtempSync(join(tmpdir(), 'memory-web-test-core-env-')); roots.push(root)
@@ -138,10 +138,10 @@ describe('optional web Core memory', () => {
       provider: 'local' as const, model: 'fixture', memoryCore: true }
     vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'missing-python.exe'))
     try {
-      await expect(FrozenWorldPlaytestRuntime.create(options)).rejects.toThrow('Python 环境不存在')
+      await expect(WorldHostRuntime.create(options)).rejects.toThrow('Python 环境不存在')
       writeFileSync(join(root, 'python.exe'), ''); vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'python.exe'))
       vi.stubEnv('HCW_HINDSIGHT_ONNX_DIR', join(root, 'no-e5'))
-      await expect(FrozenWorldPlaytestRuntime.create(options)).rejects.toThrow('E5 编码器不存在')
+      await expect(WorldHostRuntime.create(options)).rejects.toThrow('E5 编码器不存在')
       expect(readdirSync(root)).not.toContain('data')
     } finally { vi.unstubAllEnvs() }
   })
@@ -155,7 +155,7 @@ describe('optional web Core memory', () => {
     expect(inputs.filter(i => i.operation === 'build')).toHaveLength(4)
     for (const input of inputs) for (const source of input.sources as WorldJsonObject[])
       expect(source.characterId).toBe((input.scope as WorldJsonObject).characterId)
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     await adapter.project({ context: { character: { characterId: 'character:claude', name: 'Claude' },
       scene: { people: [] }, stimulus: [], observations: [], selfObservations: [],
       activity: { private: 'private-answer' }, knownStatus: [{ key: 'money', label: '余额', holderId: 'character:claude', value: 'private-status', current: true }] }, continuation: false }, AbortSignal.timeout(2000))
@@ -170,7 +170,7 @@ describe('optional web Core memory', () => {
     expect(f.requests.every(r => Array.isArray((r.context as WorldJsonObject).memories))).toBe(true)
     expect(f.requests.every(r => r.canRecall === false && r.recallEvidence === undefined)).toBe(true)
     // A restart reuses the same archives and restores only previously authorized identity entries.
-    const restarted = new PlaytestMemoryCore(f.data, f.runtime.address, run)
+    const restarted = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     await restarted.refresh(['character:claude'], AbortSignal.timeout(2000), () => {})
     const refresh = inputs.at(-1)!
     expect(refresh.retainedPrefix).toBeDefined()
@@ -184,7 +184,7 @@ describe('optional web Core memory', () => {
     const cached = JSON.parse(readFileSync(path, 'utf8'))
     cached.archive.scope.characterId = 'character:gpt'; cached.index.scope.characterId = 'character:gpt'
     writeFileSync(path, JSON.stringify(cached)); const before = calls
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     await expect(adapter.project({ context: { character: { characterId: 'character:claude' }, scene: { people: [] } },
       continuation: false }, AbortSignal.timeout(2000))).rejects.toThrow('another role')
     expect(() => adapter.snapshotAliases(['character:claude'])).toThrow('another role')
@@ -198,7 +198,7 @@ describe('optional web Core memory', () => {
         delivered: [{ sourceRefs: [{ ...ref(source), characterId: 'character:gpt' }] }] } }
     }
     const f = await fixture(run); await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     await expect(adapter.project({ context: { character: { characterId: 'character:claude' }, scene: { people: [] } },
       continuation: false }, AbortSignal.timeout(2000))).rejects.toThrow('authorized evidence')
   })
@@ -215,7 +215,7 @@ describe('optional web Core memory', () => {
         deliveryTrace: { delivered: [{ sourceRefs: [ref(source)] }] } }
     }
     const f = await fixture(run); await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     const request = { context: { character: { characterId: 'character:claude' }, scene: { people: [] } }, continuation: false }
     const projected = await adapter.project(request, AbortSignal.timeout(2000))
     expect((projected.context.memories as WorldJsonObject[])[0]!.hasUnresolvedCounterEvidence).toBe(true)
@@ -231,7 +231,7 @@ describe('optional web Core memory', () => {
         deliveryTrace: { delivered: [{ sourceRefs: [ref(source)] }] } }
     }
     const f = await fixture(run); await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     const request = { context: { character: { characterId: 'character:claude' }, scene: { people: [] } }, continuation: false }
     expect((await adapter.project(request, AbortSignal.timeout(2000))).context.memories).toHaveLength(6)
     count = 7
@@ -265,7 +265,7 @@ describe('optional web Core memory', () => {
     await f.runtime.refreshMemory(); await f.runtime.close()
     expect((await f.runtime.state()).memoryMaintenance!.cancelled).toBe(4)
     expect(f.head()).toBe(before)
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     expect(adapter.archivePrefix('character:claude')).toBe(0)
   })
   it('keeps declared activity interaction usable while background builds are pending', async () => {
@@ -291,14 +291,14 @@ describe('optional web Core memory', () => {
     expect(state.memoryMaintenance!.completed).toBe(3)
     expect(state.memoryMaintenance!.failed).toBe(1)
     expect(readFileSync(path, 'utf8')).toBe('{broken')
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async () => empty)
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => empty)
     await expect(adapter.project({ context: { character: { characterId: 'character:claude' } }, continuation: false },
       AbortSignal.timeout(2000))).rejects.toThrow()
   })
   it('HTTP maintenance is authenticated and exposes no source archive in its response', async () => {
     let builds = 0
     const f = await fixture(async input => { if (input.operation === 'build') builds++; return built(input) })
-    const server = createPlaytestServer(f.runtime, 'a'.repeat(64)); servers.push(server)
+    const server = createHostServer(f.runtime, 'a'.repeat(64)); servers.push(server)
     server.listen(0, '127.0.0.1'); await once(server, 'listening')
     const address = server.address(); if (!address || typeof address === 'string') throw new Error('no port')
     const url = `http://127.0.0.1:${address.port}/api/memory/refresh`
@@ -331,7 +331,7 @@ describe('optional web Core memory', () => {
     const f = await fixture(run, { publish: true, memoryContextBudget: { triggerTokens: 200_000, compactTokens: 150_000, minimumRecentTokens: 0 } })
     await f.runtime.submit('第一条。'); await f.runtime.submit('第二条。')
     const request = hostRequest(f.data, 'character:claude')
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run, { triggerTokens: 200_000, compactTokens: 150_000, minimumRecentTokens: 0 })
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run, { triggerTokens: 200_000, compactTokens: 150_000, minimumRecentTokens: 0 })
     expect(DEFAULT_MEMORY_CONTEXT_BUDGET.triggerTokens).toBe(170_000)
     // Two complete event groups approximate a 150k older prefix and a 50k newer tail.
     const seqs = (request.context as WorldJsonObject).observations as WorldJsonObject[]
@@ -371,7 +371,7 @@ describe('optional web Core memory', () => {
     const f = await fixture(run)
     await f.runtime.submit('第一条。'); await f.runtime.submit('第二条。')
     const request = hostRequest(f.data)
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run, { triggerTokens: 1000, compactTokens: 100 })
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run, { triggerTokens: 1000, compactTokens: 100 })
     adapter.observeContext({ context: request.context as WorldJsonObject, continuation: false }, '旧'.repeat(1000))
     expect(adapter.hasPendingCompaction).toBe(true)
     await expect(adapter.compactPending(AbortSignal.timeout(2000), () => {})).rejects.toThrow('fixture failure')
@@ -408,7 +408,7 @@ describe('optional web Core memory', () => {
     await f.runtime.submit('后台整理时我仍然能说话。')
     expect(f.head()).toBeGreaterThan(before)
     await f.runtime.cancelMemory(); release(); await f.runtime.waitForMemory()
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     expect(adapter.archivePrefix(String((buildInput!.scope as WorldJsonObject).characterId))).toBe(0)
   })
   it('freezes queued roles immediately, installs independent successes and keeps post-freeze events raw', async () => {
@@ -439,7 +439,7 @@ describe('optional web Core memory', () => {
       expect(JSON.stringify(input)).not.toContain('紫杉七号')
       expect((input.sources as WorldJsonObject[]).every(s => s.characterId === (input.scope as WorldJsonObject).characterId && Number(s.worldSeq) <= frozen)).toBe(true)
     }
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, run)
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     expect(adapter.archivePrefix('character:claude')).toBe(frozen)
     expect(adapter.archivePrefix('character:glm')).toBe(0)
     expect((await f.runtime.state()).memoryMaintenance!.failed).toBe(1)
@@ -451,7 +451,7 @@ describe('optional web Core memory', () => {
   it('discards an older late result rather than replacing a newer archive', async () => {
     const gates = new Map<number, () => void>()
     const f = await fixture(async input => input.operation === 'recall' ? empty : built(input))
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async input => {
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async input => {
       const prefix = Number((input.scope as WorldJsonObject).asOfWorldSeq)
       await new Promise<void>(done => { gates.set(prefix, done) })
       return built(input)
@@ -473,7 +473,7 @@ describe('optional web Core memory', () => {
     await f.runtime.submit('旧档案之后的内容。')
     const context = f.requests.at(-1)!.context as WorldJsonObject
     const request = { context, continuation: false }
-    const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, async input => input.operation === 'recall' ? empty : built(input),
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async input => input.operation === 'recall' ? empty : built(input),
       { triggerTokens: 1000, compactTokens: 100 })
     // The already prepared foreground context predates this successful install.
     await adapter.refresh([String((context.character as WorldJsonObject).characterId)], AbortSignal.timeout(2000), () => {})
@@ -499,7 +499,7 @@ it('uses each character\'s own memory runner for recall and build', async () => 
   const runner = (inputs: WorldJsonObject[]): CoreRunner => async input => { inputs.push(input); return input.operation === 'build' ? built(input) : empty }
   const f = await fixture(runner(b))
   const own = runner(a)
-  const adapter = new PlaytestMemoryCore(f.data, f.runtime.address, runner(b), undefined,
+  const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, runner(b), undefined,
     { run: runner(b), runFor: actor => actor === 'character:claude' ? { recall: own, build: own } : undefined })
   await adapter.refresh(['character:claude', 'character:gpt'], AbortSignal.timeout(5000), () => {})
   await adapter.project({ context: { character: { characterId: 'character:claude', name: 'Claude' },
@@ -519,7 +519,7 @@ it('starts one Core runner per distinct memory model and never writes a key to t
   const port = (provider.address() as { port: number }).port, endpoint = `http://127.0.0.1:${port}/v1/chat/completions`
   const groups: { env: Record<string, string>; inputs: WorldJsonObject[]; closed: boolean }[] = []
   const strong = { protocol: 'openai' as const, endpoint, model: 'strong', apiKey: 'MEMORY_KEY_STRONG' }
-  const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory: data,
+  const runtime = await WorldHostRuntime.create({ dataDirectory: data,
     packPath: resolve('examples/world-packs/ai-girls-hosted-guess'), provider: 'local', model: 'fixture', utilityEndpoint: endpoint, apiKey: 'MEMORY_KEY_BASE',
     memoryCore: true, roleModels: { characters: {
       'character:claude': { decision: strong, memory: strong },

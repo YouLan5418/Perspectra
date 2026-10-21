@@ -10,7 +10,7 @@ import ConversationView from './ConversationView.vue'
 import EntitiesView from './EntitiesView.vue'
 import RequestsView from './RequestsView.vue'
 import TraceView from './TraceView.vue'
-import VariablesView from './VariablesView.vue'
+import StatusView from './StatusView.vue'
 import WorldView from './WorldView.vue'
 import { useCreatorStore, POLL_MS } from './store.ts'
 import './creator.css'
@@ -22,7 +22,7 @@ const gameTitle = computed(() => store.meta.title || '未命名世界')
 const storyline = computed(() => store.meta.storyline || '主故事线')
 watch(gameTitle, title => { document.title = title + ' · Perspectra 创作者' }, { immediate: true })
 
-const views = { conversation: ConversationView, trace: TraceView, requests: RequestsView, world: WorldView, characters: CharactersView, entities: EntitiesView, variables: VariablesView, activities: ActivitiesView }
+const views = { conversation: ConversationView, trace: TraceView, requests: RequestsView, world: WorldView, characters: CharactersView, entities: EntitiesView, statuses: StatusView, activities: ActivitiesView }
 const center = computed(() => views[store.view])
 const scroller = ref<{ scrollToEnd?: () => void } | null>(null)
 const candidateLabel = computed(() => {

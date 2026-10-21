@@ -16,7 +16,7 @@
 
 > 2026-10-10 的[短信实验](../studies/cross-scene-communication-20261010.md)保留通信媒介：带 medium 的 speech 在来源文本、metadata 和自身发表中注明媒介，仍是发送者陈述。通信观察不授予对方房间视野；[电话实验](../studies/cross-scene-phone-20261010.md)的本地旁观者只收到本端声音。原生与 Core 桥的授权来源边界有自动验证；没有 medium 的既有来源保持原渲染。Core 的新增验证范围见[通信 Core 记忆实验](../studies/cross-scene-core-memory-20261010.md)。
 
-> [节点实验](../studies/cross-scene-nodes-20261010.md)已验证通信的原生记忆回退、分享后按授权观察重建和真实模型续话。实验入口现在也可显式注入既有 PlaytestMemoryCore：本地回退恢复节点归档，分享保持不传 Core 缓存，导入后可按授权历史整理。未启用 Core 的入口仍明确拒绝非空 Core 快照或身份别名，默认宿主的恢复实现未修改。
+> [节点实验](../studies/cross-scene-nodes-20261010.md)已验证通信的原生记忆回退、分享后按授权观察重建和真实模型续话。实验入口现在也可显式注入既有 CoreMemoryAdapter：本地回退恢复节点归档，分享保持不传 Core 缓存，导入后可按授权历史整理。未启用 Core 的入口仍明确拒绝非空 Core 快照或身份别名，默认宿主的恢复实现未修改。
 
 > [工具耗时排查](../studies/core-utility-timing-20261010.md)确认 Python Core 的 thinking.disabled 未约束本机 Gemini 网关。按用户要求，当前 Gemini 的 OpenAI 兼容 Core 请求先发 reasoning_effort=low，仅超时后重试一次，移除该字段并改发 thinking.disabled；第二次失败停止。每次仍为 120 秒，并记录实际尝试的参数档位。非超时错误不触发这条回退；其他模型与原生协议沿用既有配置。客户端字段不证明网关真正关闭思考或执行输出上限。
 
@@ -26,7 +26,7 @@
 
 默认路径仍由 CognitiveMemoryService / LocalMemoryStore 从当前角色授权观察 catch-up 到指定世界前缀。prepareStimulus 按刺激及场景线索准备召回材料，角色也可在允许的决策阶段主动 recall 一次，再自行回应。来源类型和引用随结果保留；未命中不代表没有发生。近期观察／自身表达沿原生窗口，不套用 Core 的宽窗口或后台参数。
 
-实现见[原生上下文服务](../../../packages/memory/src/cognitive-context.ts)与[本地记忆](../../../packages/memory/src/local-memory.ts)。以下 Source / Atom / Episode / Observation 分层、候选准入和极简 Delivery 描述显式 Core 实验，而非默认模式的全面改造。
+实现见[原生上下文服务](../../../packages/memory/src/cognitive-context.ts)与[本地记忆](../../../packages/memory/src/local-memory.ts)。以下 Source / Atom / Episode / Observation 分层、候选准入和极简 Delivery 描述当前默认 Core 路径；显式原生记忆不使用这套 Python 流程。
 
 ## 授权材料与分层整理
 
@@ -34,7 +34,7 @@ Source 是角色获授权的原始经历，保留来源身份、类型和提交�
 
 构建沿 Retain → Group → Consolidate → 索引顺序推进，旧 Source / Atom 前缀可复用。每个角色档案独立，引用回到该角色授权 Source；宿主复核世界、角色、前缀和引用权限。角色 identity/设定来自 Manifest，当前位置来自同一调用前缀的当前 view。
 
-2026-10-14 核对的读取复用只减少重复计算：例如 Claude 的 Core 快照仍从它自己的授权经历捕获 Source，并完整同步到指定前缀；[宿主快照](../../../tests/experiments/playtest-memory-core.ts)改用已有 `catchUpReceipt()`，保留原有记忆提交、来源校验及失败传播，省去原 `catchUp()` 为返回值额外构建、随后未被宿主使用的 view。实际捕获仍需要角色视图，该视图内部的场景、自身经历与观察投影共用一次事件读取。删除事件、角色创建判断、角色隔离和前缀 Hash 有回归；[同数据前缀对照](../studies/prologue-performance-20261010.md#视图读取复用2026-10-14)验证角色视图 Hash 和捕获来源一致。已有档案继续完整验证来源，调试只读检查仍不执行 catch-up。
+2026-10-14 核对的读取复用只减少重复计算：例如 Claude 的 Core 快照仍从它自己的授权经历捕获 Source，并完整同步到指定前缀；[宿主快照](../../../desktop/host/memory/core-memory.ts)改用已有 `catchUpReceipt()`，保留原有记忆提交、来源校验及失败传播，省去原 `catchUp()` 为返回值额外构建、随后未被宿主使用的 view。实际捕获仍需要角色视图，该视图内部的场景、自身经历与观察投影共用一次事件读取。删除事件、角色创建判断、角色隔离和前缀 Hash 有回归；[同数据前缀对照](../studies/prologue-performance-20261010.md#视图读取复用2026-10-14)验证角色视图 Hash 和捕获来源一致。已有档案继续完整验证来源，调试只读检查仍不执行 catch-up。
 
 快照为 Claude 的已有授权来源补充知晓时间时，[WorldStore](../../../packages/store-sqlite/src/world-store.ts)的 `readEventTicks()` 只查询指定前缀的 `seq` 与 `tick`，替代原来为取时间戳而读取、解析全部事件正文的步骤。时间戳与完整事件查询共用分叉范围计算，父线未来不进入子线；调用拒绝未来或非法前缀，来源缺少对应时间戳仍报错。权限筛选与正文来源校验继续由原有记忆捕获及档案验证执行，这个时间戳接口本身不验证事件正文，也不把额外事件内容送给角色。嵌套分叉、缺失时间戳、来源篡改和同步失败已有回归；[分项实测与整体限制](../studies/prologue-performance-20261010.md#时间戳读取与动态准备复用2026-10-14)分别记录。
 
@@ -62,7 +62,9 @@ Core 不再按 16 条观察／8 条自身表达截断；首次整理前保留授
 
 宽准入仍可能交付无关认识，关键原因也可能未被选进 Delivery；持续目标牵引、人物自然度和长期认识更新收益未全面验收。一般认识家族发现和多分支更新未全面验收。当前便携候选包已包含 Python/Core/E5 资产；干净 Windows 环境及长期稳定性验收仍见[候选包记录](../studies/launcher-portable-test3-20261009.md)。程序隔离与自由文本语义一致性仍分别验收。
 
-运行与实验证据：[Activity Memory](../../../experiments/activity-memory/README.md)、[Hindsight Core](../../../experiments/hindsight-core/README.md)、[AI Girls 研究](../studies/ai-girls/README.md)。源码：[原生记忆](../../../packages/memory)、[宿主 Core](../../../tests/experiments/playtest-memory-core.ts)、[Python 桥](../../../experiments/activity-memory/core_bridge.py)、[候选准入](../../../experiments/activity-memory/candidate_admission.py)、[极简 Delivery](../../../experiments/activity-memory/minimal_delivery.py)。
+当前环境准备见 [Core 记忆说明](../../../desktop/host/memory/README.md)。2026-10-21 已核对宿主适配与 Python 文件迁移、源码和发行目录解析；这一整理没有重新验收角色长期记忆体验。
+
+历史运行与实验证据：[Activity Memory](../../../experiments/activity-memory/README.md)、[Hindsight Core](../../../experiments/hindsight-core/README.md)、[AI Girls 研究](../studies/ai-girls/README.md)。源码：[原生记忆](../../../packages/memory)、[宿主 Core](../../../desktop/host/memory/core-memory.ts)、[Python 桥](../../../desktop/host/memory/python/bridge/core_bridge.py)、[候选准入](../../../desktop/host/memory/python/bridge/candidate_admission.py)、[极简 Delivery](../../../desktop/host/memory/python/bridge/minimal_delivery.py)。
 
 ### 官方序章的经历边界
 

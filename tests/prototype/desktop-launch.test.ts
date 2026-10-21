@@ -34,7 +34,7 @@ describe('desktop launch boundary', () => {
     const pack = resolve('examples/world-packs/hand-in-hand')
     expect((await preflightSave(pack, directory)).kind).toBe('new')
     const bundled = process.env.HCW_TEST_DESKTOP_BUNDLE === '1'
-    const entry = bundled ? resolve('dist/backend/playtest.mjs') : resolve('tests/experiments/playtest-web-entry.ts')
+    const entry = bundled ? resolve('dist/backend/playtest.mjs') : resolve('desktop/host/web-entry.ts')
     const child = spawn(process.execPath, [
       ...(bundled ? [] : ['--import', 'tsx']), entry,
       '--ollama', '--memory-native', '--pack', pack, '--data-dir', directory,

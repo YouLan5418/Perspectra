@@ -1,3 +1,4 @@
+// 默认使用受控响应；只有 --live 才调用真实上游模型。
 import { createServer } from 'node:http'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -5,9 +6,9 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { currentEntityState, currentLocation } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { estimateRequestTokens } from '../../packages/provider-chat/src/request-inspector.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 
 // Author-side acceptance driver; retain no raw prompts, responses, reasoning or credentials.
 const args = process.argv.slice(2), live = args.includes('--live'), stagedAutonomy = args.includes('--staged-autonomy')
@@ -131,7 +132,7 @@ async function run(name: Case) {
     })()})
   })
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
-  const runtime = await FrozenWorldPlaytestRuntime.create({dataDirectory: join(directory, name),
+  const runtime = await WorldHostRuntime.create({dataDirectory: join(directory, name),
     packPath: resolve('examples/world-packs/autonomy-scheduling'), provider: live ? 'local' : 'ollama',
     model: live ? model : 'controlled-goal-fixture', ...(live ? {thinkingLevel: 'low' as const} : {}),
     utilityEndpoint: `http://127.0.0.1:${(server.address() as {port: number}).port}/v1/chat/completions`,

@@ -9,15 +9,16 @@ import { DatabaseSync } from 'node:sqlite'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import type { CoreRunner } from '../experiments/hindsight-python.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 import { knownTime, statusMarketWithoutRoundHook } from './fixtures/status-market-no-hook.ts'
 import { readTailSelection } from '../../desktop/tail-storage.ts'
 import { readStoryNodes } from '../../desktop/story-nodes.ts'
 import { preflightSave } from '../../desktop/save-preflight.ts'
-import { FrontendActions, frontendActionRequest, projectPlayerView, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
+import { frontendActionRequest, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
+import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
-const roots: string[] = [], servers: Server[] = [], runtimes: FrozenWorldPlaytestRuntime[] = []
+const roots: string[] = [], servers: Server[] = [], runtimes: WorldHostRuntime[] = []
 afterEach(async () => {
   for (const runtime of runtimes.splice(0)) await runtime.close()
   for (const server of servers.splice(0)) { server.closeAllConnections(); await new Promise<void>(done=>server.close(()=>done())) }
@@ -58,7 +59,7 @@ async function fixture(core = false, build?: CoreRunner) {
   const options={dataDirectory:data,packPath:pack,provider:core?'local' as const:'ollama' as const,model:'fixture',
     utilityEndpoint:'http://127.0.0.1:'+(server.address() as {port:number}).port+'/v1/chat/completions',timeoutMs:5000,
     ...(core?{memoryCore:true,memoryCoreRun:run,memoryCoreBuildRun:run}:{})}
-  const create=async()=>{const runtime=await FrozenWorldPlaytestRuntime.create(options);runtimes.push(runtime);return runtime}
+  const create=async()=>{const runtime=await WorldHostRuntime.create(options);runtimes.push(runtime);return runtime}
   const runtime=await create()
   const events=(directory=runtime.dataDirectory)=>{const store=new WorldStore(join(directory,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
   return {root,data,pack,options,runtime,create,events,requests,memoryRequests,setDecision:(fn:typeof decide)=>{decide=fn}}
@@ -68,8 +69,8 @@ function take() {
     definitionRef:{id:'base:take',version:1},arguments:{}}}
 }
 const actor=(input:WorldJsonObject)=>String(object(object(input.context).character).characterId)
-const tail=async(runtime:FrozenWorldPlaytestRuntime)=>(await runtime.state()).tailRound!.id!
-const regenerate=async(runtime:FrozenWorldPlaytestRuntime)=>runtime.regenerate(await tail(runtime),randomUUID())
+const tail=async(runtime:WorldHostRuntime)=>(await runtime.state()).tailRound!.id!
+const regenerate=async(runtime:WorldHostRuntime)=>runtime.regenerate(await tail(runtime),randomUUID())
 
 it('retains private creator records across candidate switches while keeping branches and exact action links separate',async()=>{
   const f=await fixture(),runtime=f.runtime
@@ -237,12 +238,12 @@ it('does not install a completed background archive during a round and discards 
   releaseModel();await work;await f.runtime.waitForMemory()
   expect(readdirSync(join(f.data,'memory-core')).filter(n=>n.endsWith('.json'))).toHaveLength(2)
 
-  const {PlaytestMemoryCore}=await import('../experiments/playtest-memory-core.ts')
+  const {CoreMemoryAdapter}=await import('../../desktop/host/memory/core-memory.ts')
   let valid=true,releaseExpired!:()=>void,expiredEntered!:()=>void
   const expiredGate=new Promise<void>(done=>{releaseExpired=done}),expiredStarted=new Promise<void>(done=>{expiredEntered=done})
   await f.runtime.submit('更新前缀。')
   const prior=readFileSync(join(f.data,'memory-core',Buffer.from('character:companion').toString('base64url')+'.json'),'utf8')
-  const adapter=new PlaytestMemoryCore(f.data,f.runtime.address,async input=>{expiredEntered();await expiredGate;return built(input)},
+  const adapter=new CoreMemoryAdapter(f.data,f.runtime.address,async input=>{expiredEntered();await expiredGate;return built(input)},
     undefined,{worldVersion:'retired-world',versionValid:()=>valid})
   adapter.startRefresh(['character:companion']);await expiredStarted
   valid=false;releaseExpired();await adapter.waitForBackground()

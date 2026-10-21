@@ -1,4 +1,4 @@
-import { hindsightPython } from './hindsight-python.ts'
+import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 /** Real Character Turns on fresh branches of the frozen game; no source regeneration. */
 import { randomUUID, createHash } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -11,7 +11,7 @@ import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 if(!process.argv[2])throw new Error('provide prepared replay directory')
 const root=resolve(process.argv[2])
@@ -19,11 +19,11 @@ const load=<T>(name:string):T=>JSON.parse(readFileSync(join(root,name),'utf8')) 
 const audit=load<{originalDirectory:string;frozenWorldHash:string}>('audit.json'),oldBase=join(audit.originalDirectory,'base')
 const address=load<WorldAddress>('address.json'),summary=load<{head:{headSeq:number;tick:number}}>('source-summary.json')
 const jobs=load<{actor:string;mode:string;repeat:number}[]>('jobs.json')
-const python=hindsightPython()
+const python=corePythonExecutable()
 const provider=createChatProvider({endpoint:new URL(process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8045/v1/chat/completions'),
  model:'gemini-3.7-flash',timeoutMs:45000,...(process.env.HCW_LOCAL_API_KEY?{apiKey:process.env.HCW_LOCAL_API_KEY}:{})})
 function py(input:unknown){
- const run=spawnSync(python,[resolve('experiments/activity-memory/core_bridge.py')],{input:JSON.stringify(input),encoding:'utf8',timeout:120000,
+ const run=spawnSync(python,[resolve('desktop/host/memory/python/bridge/core_bridge.py')],{input:JSON.stringify(input),encoding:'utf8',timeout:120000,
   maxBuffer:96*1024*1024,env:{...process.env,PYTHONIOENCODING:'utf-8'}})
  if(run.status!==0||run.error)throw new Error('core failed: '+(run.error?.message??run.stderr.slice(-1200)))
  return JSON.parse(run.stdout) as {delivery:WorldJsonObject[];deliveryTrace:unknown}
@@ -54,7 +54,7 @@ for(const job of jobs){
     const record:{[key:string]:unknown}={id,mode:job.mode,actor:job.actor,repeat:job.repeat,model:'gemini-3.7-flash',sourceCutoff:summary.head.headSeq,
      request:visible,deliveryTrace:selected.deliveryTrace,status:'pending'}
     writeFileSync(path,JSON.stringify(record,null,2))
-    const response=await provider.decide(localPrototypeTurnCall(visible),signal)
+    const response=await provider.decide(gatewayTurnCall(visible),signal)
     record.response=response;record.status='returned';writeFileSync(path,JSON.stringify(record,null,2));return response
    }})
   const result=await turn.run(brandId('character:'+job.actor,'CharacterId'),{stimulus:frozen.request.context.stimulus as WorldJsonObject[],

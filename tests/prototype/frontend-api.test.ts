@@ -8,25 +8,26 @@ import { readFileSync } from 'node:fs'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import type { RulebookEvent } from '@harness-world/kernel'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { createPlaytestServer, type PlaytestRuntime, type PlaytestState } from '../experiments/playtest-server.ts'
-import { loadPackWeb } from '../experiments/playtest-pack-web.ts'
-import { PackStatus } from '../experiments/pack-status.ts'
-import { FrontendActions, projectPlayerView, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
+import { createHostServer, type HostRuntime, type HostState } from '../../desktop/host/http-server.ts'
+import { loadPackWeb } from '../../desktop/host/pack-frontend.ts'
+import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { playerViewPatch } from '../../packages/frontend/src/player-view.ts'
+import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
-const token='c'.repeat(64),servers: ReturnType<typeof createPlaytestServer>[] = [], roots:string[]=[]
-const privateState = ():PlaytestState=>({
+const token='c'.repeat(64),servers: ReturnType<typeof createHostServer>[] = [], roots:string[]=[]
+const privateState = ():HostState=>({
  busy:false,paused:false,error:false,phaseLabel:'PRIVATE_PHASE',notice:'PRIVATE_NOTICE',
  world:{title:'实验世界',playerName:'玩家',npcNames:['visible','PRIVATE_NPC'],currentScene:{locationName:'前室',presentNpcNames:['visible']}},
  transcript:[Object.assign({seq:1,speaker:'visible',text:'你好',player:false},{context:'PRIVATE_CONTEXT'})],
  debug:{secret:'PRIVATE_DEBUG'},
  availableActions:[{actionType:'move',actionVersion:1,destinations:[{locationId:'room-2',name:'后室'}]}],
 })
-async function fixture(overrides:Partial<PlaytestRuntime>={}){
+async function fixture(overrides:Partial<HostRuntime>={}){
  let state=privateState()
- const runtime:PlaytestRuntime={state:async()=>state,submit:vi.fn(async text=>{state={...state,transcript:[...state.transcript,{seq:2,speaker:'玩家',text,player:true}]};return state}),
+ const runtime:HostRuntime={state:async()=>state,submit:vi.fn(async text=>{state={...state,transcript:[...state.transcript,{seq:2,speaker:'玩家',text,player:true}]};return state}),
  perform:vi.fn(async()=>state),pause:async()=>state,resume:async()=>state,close:async()=>{},...overrides}
  const web=await loadPackWeb(resolve('tests/fixtures/frontend-adversarial'))
- const server=createPlaytestServer(runtime,token,web);servers.push(server)
+ const server=createHostServer(runtime,token,web);servers.push(server)
  let url=''
  // Windows may assign an ephemeral port blocked by WHATWG fetch (for example 6000).
  for(let attempt=0;attempt<8;attempt++){
@@ -38,7 +39,7 @@ async function fixture(overrides:Partial<PlaytestRuntime>={}){
   }
  }
  const send=(operation:string,payload:unknown,actionId='action:test',requestId='request:test')=>fetch(url+'/frontend-api/v1/action',{method:'POST',headers:{'x-playtest-token':token,'content-type':'application/json'},body:JSON.stringify({operation,payload,actionId,requestId})})
- return {runtime,url,send,setState:(s:PlaytestState)=>{state=s}}
+ return {runtime,url,send,setState:(s:HostState)=>{state=s}}
 }
 afterEach(async()=>{
  for(const server of servers.splice(0)){server.closeAllConnections();await new Promise<void>(done=>server.close(()=>done()))}
@@ -186,7 +187,7 @@ it('canonicalizes full options, distinguishes recipients and executes the select
  const make=(recipient:string,reverse=false,version=1)=>({targetRef:{kind:'entity',id:'entity:brass-key'},
   definitionRef:{id:'base:give',version},bindingId:'binding:key-give',
   arguments:reverse?{nested:{b:2,a:1},recipientId:recipient}:{recipientId:recipient,nested:{a:1,b:2}}})
- const state:PlaytestState={...privateState(),actionNames:{'character:a':'艾莉','character:b':'莉娜','entity:brass-key':'黄铜钥匙'},
+ const state:HostState={...privateState(),actionNames:{'character:a':'艾莉','character:b':'莉娜','entity:brass-key':'黄铜钥匙'},
   availableActions:[{actionType:'interact',actionVersion:2,interactions:[make('character:a'),make('character:b')]}]}
  const options=projectPlayerView(state).actions
  expect(options[0]!.id).toMatch(/^opt:[a-f0-9]{64}$/u)
@@ -197,7 +198,7 @@ it('canonicalizes full options, distinguishes recipients and executes the select
  equivalent.availableActions[0]!.interactions=[make('character:a',false,2)]
  expect(projectPlayerView(equivalent).actions[0]!.id).not.toBe(options[0]!.id)
  const perform=vi.fn(async(_action:unknown)=>state)
- const runtime={state:async()=>state,perform} as unknown as PlaytestRuntime
+ const runtime={state:async()=>state,perform} as unknown as HostRuntime
  const actions=new FrontendActions(runtime)
  await actions.perform({requestId:'req:second',actionId:'act:second',operation:'perform',payload:{optionId:options[1]!.id}})
  expect(perform.mock.calls[0]![0]).toEqual(options[1]!.action)

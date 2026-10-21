@@ -5,7 +5,7 @@ import { createCoreRulebookRegistry, currentEntityState } from '@harness-world/k
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 
@@ -108,7 +108,7 @@ for (const [index, prompt] of prompts.entries()) {
         const visibleRequest = hideSourceAge ? JSON.parse(JSON.stringify(request, (key, value) =>
           key === 'sourceAgeTicks' ? undefined : value)) as PrototypeTurnRequest : request
         requests.push(visibleRequest)
-        const call = localPrototypeTurnCall(visibleRequest)
+        const call = gatewayTurnCall(visibleRequest)
         if (hideSourceAge && !call.messages[0]?.content.includes(sourceAgeInstruction)) throw new Error('missing source age instruction')
         const modelCall = hideSourceAge ? { ...call, messages: call.messages.map(message =>
           message.role === 'system' ? { ...message, content: message.content.replace(sourceAgeInstruction, '') } : message) } : call

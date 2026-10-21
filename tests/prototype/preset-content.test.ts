@@ -6,7 +6,7 @@ import { type CharacterView, type WorldJsonObject } from '@harness-world/contrac
 import { rolePreset, type RolePreset, type TextRule } from '../../packages/provider-chat/src/preset.ts'
 import { presetMacros } from '../../packages/provider-chat/src/preset-macros.ts'
 import { presetCall, presetContext, presetOutput, presetDisplay, processPresetText } from '../../packages/provider-chat/src/preset-runtime.ts'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { WorldStore } from '@harness-world/store-sqlite'
 const roots: string[] = []
 afterEach(async () => { vi.unstubAllGlobals(); for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
@@ -95,7 +95,7 @@ it('publishes cleaned text through the real Core, isolates role prompts, project
   }) as typeof fetch)
   const options = { packPath: resolve('examples/world-packs/prototype-g1'), dataDirectory: join(dir, 'world'), provider: 'ollama' as const, model: 'fixture',
     presetMapping: { characters: { 'character:companion': { nodes: [{ id: 'n', name: '表达', enabled: true, role: 'system' as const, position: 'afterContext' as const, content: '甲专属 {{char}}' }], textRules: [rule('output'), rule('display', { pattern: '已发布表达', replacement: '展示表达', target: 'speech' })] }, 'character:friend': { textRules: [rule('output')] } } } }
-  const runtime = await FrozenWorldPlaytestRuntime.create(options)
+  const runtime = await WorldHostRuntime.create(options)
   try {
     await runtime.submit('你好')
     expect((await runtime.state()).transcript.some(line => line.text.includes('展示表达'))).toBe(true)
@@ -115,7 +115,7 @@ it('publishes cleaned text through the real Core, isolates role prompts, project
     expect(friendCalls.length).toBeGreaterThan(0)
     expect(JSON.stringify(friendCalls)).not.toContain('甲专属')
   } finally { await runtime.close() }
-  const restored = await FrozenWorldPlaytestRuntime.create(options)
+  const restored = await WorldHostRuntime.create(options)
   try { expect((await restored.state()).transcript.some(line => line.text.includes('展示表达'))).toBe(true) } finally { await restored.close() }
 })
 
@@ -138,7 +138,7 @@ it('reports request-dependent preset expansion failure without calling the provi
  const node={name:'展开',enabled:true,role:'system' as const,position:'beforeContext' as const}
  const preset=rolePreset({nodes:[{...node,id:'set',content:'{{setvar::x::'+'字'.repeat(15000)+'}}'},{...node,id:'use',content:'{{getvar::x}}'.repeat(5)}]})
  const fetch=vi.fn();vi.stubGlobal('fetch',fetch)
- const runtime=await FrozenWorldPlaytestRuntime.create({packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:directory,provider:'local',model:'fixture',preset})
+ const runtime=await WorldHostRuntime.create({packPath:resolve('examples/world-packs/prototype-g1'),dataDirectory:directory,provider:'local',model:'fixture',preset})
  try{
   const state=await runtime.submit('/narrate 我抬手示意。')
   expect(state.error).toBe(true);expect(state.notice).toContain('角色预设处理失败');expect(state.notice).not.toContain('模型服务')

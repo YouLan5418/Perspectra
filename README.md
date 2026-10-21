@@ -44,7 +44,7 @@ Launcher 使用 Core 记忆。test3 中 API Key 只保留在当前会话，重�
 
 ### 从源码运行
 
-需要 Node.js 22.19+ 或 24+，使用仓库锁定的 pnpm。原生 Launcher 开发还需要 Rust/Cargo、Windows 构建工具和 [Python/E5 记忆环境](experiments/activity-memory/README.md)。
+需要 Node.js 22.19+ 或 24+，使用仓库锁定的 pnpm。原生 Launcher 开发还需要 Rust/Cargo、Windows 构建工具和 [Python/E5 记忆环境](desktop/host/memory/README.md)。
 
 ```powershell
 corepack pnpm@11.7.0 install --frozen-lockfile

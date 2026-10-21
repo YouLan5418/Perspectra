@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { StoredWorldEvent, WorldAddress } from '../../../../packages/contracts/src/index.ts'
-import type { CreatorHistoryItem } from '../../../../tests/experiments/creator-history.ts'
-import type { CreatorRecord } from '../../../../tests/experiments/creator-records.ts'
+import type { CreatorHistoryItem } from '../../../../desktop/host/creator-history.ts'
+import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
 import { buildConversation, buildTrace, type RecordSummary } from './model.ts'
 import type { NameTables } from './types.ts'
 

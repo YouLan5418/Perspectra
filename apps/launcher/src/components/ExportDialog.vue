@@ -40,7 +40,7 @@ async function save() {
     <div class="form-field"><label for="export-story-node">选择完整节点</label><select id="export-story-node" v-model="nodeId" :disabled="store.busy || choosing"><option v-for="node in store.currentHistory" :key="node.id" :value="node.id">时刻 {{ node.turn }} · {{ node.title }}</option></select></div>
     <p v-if="selectedNode" class="muted">{{ selectedNode.title }} · 时刻 {{ selectedNode.turn }} · {{ new Date(selectedNode.createdAt).toLocaleString('zh-CN') }}</p>
     <p class="muted">导出的是所选节点当时的进度，可能早于当前游玩进度；运行中也可导出。想导出最新进度，先在游戏页面工具栏“保存进度”。</p>
-  <p class="inline-info">文件包含截至节点的世界历史、角色私密状态、长期记忆和包变量，接收者能够查看这些内容。需要内容完全相同的游戏包，并使用对方自己的模型配置继续。</p>
+  <p class="inline-info">文件包含截至节点的世界历史、角色私密状态、长期记忆和已提交的玩法状态，接收者能够查看这些内容。需要内容完全相同的游戏包，并使用对方自己的模型配置继续。</p>
   <p class="muted">仅导出所选节点，其他节点与线路不随文件传递。不携带游戏包、模型配置、密钥或请求记录。</p>
   <p v-if="unavailable" role="status">{{ unavailable }}</p>
   <p v-if="error" role="alert">{{ error }}</p><p v-if="store.notice && !error" role="status">{{ store.notice }}</p>

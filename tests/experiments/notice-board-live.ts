@@ -7,7 +7,7 @@ import { createChatProvider } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { npc, playerText, priorText, openCapabilityWorld } from './notice-board-fixture.ts'
 import { noticeBoardContext, noticeBoardResult, boardText, privateText, inspectId } from './notice-board-capability.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const root=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(root))throw new Error('provide a fresh output directory')
@@ -74,7 +74,7 @@ for(let repeat=0;repeat<3;repeat++){
         const index=callIndex++,path=join(dir,'call-'+index+'.json')
         transportPath=join(dir,'transport-'+index+'.json')
         save(path,{stage,index,request:visible,status:'pending',head:f.store.head(f.address)})
-        const start=performance.now(),response=await provider.decide(localPrototypeTurnCall(visible),signal)
+        const start=performance.now(),response=await provider.decide(gatewayTurnCall(visible),signal)
         save(path,{stage,index,request:visible,response,status:'returned',
           durationMs:Math.round(performance.now()-start),head:f.store.head(f.address)})
         return response

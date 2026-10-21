@@ -8,7 +8,7 @@ import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { CognitionProjectionRebuilder } from '../../packages/store-sqlite/src/cognition-projection.ts'
 import { characterVisibleItems } from '../../packages/application/src/character-visible-items.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 
 export const packPath = resolve('examples/world-packs/hidden-cure')
 export const settings = playSettings({publicationCharacters: 900, maximumWaves: 3, maximumNpcCalls: 8,
@@ -50,7 +50,7 @@ export const object = (value: unknown): Record<string, unknown> => value !== nul
 const array = (value: unknown): unknown[] => Array.isArray(value) ? value : []
 
 /** Author-only evidence. These records must never be injected into character requests or the player UI. */
-export function snapshot(runtime: FrozenWorldPlaytestRuntime) {
+export function snapshot(runtime: WorldHostRuntime) {
   const store = new WorldStore(join(runtime.dataDirectory, 'world.sqlite'))
   try {
     const events = store.readEvents(runtime.address), seq = store.head(runtime.address).headSeq
@@ -112,13 +112,13 @@ async function run() {
       })().catch(() => {if (!response.destroyed) {response.writeHead(500); response.end('evidence proxy failed')}})})
     })
     await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
-    let runtime: FrozenWorldPlaytestRuntime | undefined
+    let runtime: WorldHostRuntime | undefined
     const caseDir = join(directory, name); mkdirSync(caseDir)
     const persist = (value: unknown) => writeFileSync(join(caseDir, 'record.json'), JSON.stringify(value, null, 2) + '\n')
     const meta = {name, model, thinkingLevel: 'low', settings, packPath, plan: plans[name],
       memoryMode: 'native', dynamicScheduling: true, activity: false, variables: false, authorEvidenceOnly: true}
     try {
-      runtime = await FrozenWorldPlaytestRuntime.create({dataDirectory: join(caseDir, 'world'), packPath, provider: 'local', model,
+      runtime = await WorldHostRuntime.create({dataDirectory: join(caseDir, 'world'), packPath, provider: 'local', model,
         thinkingLevel: 'low', utilityEndpoint: `http://127.0.0.1:${(server.address() as {port:number}).port}/v1/chat/completions`,
         timeoutMs: 60000, playSettings: settings})
       const initial = snapshot(runtime)

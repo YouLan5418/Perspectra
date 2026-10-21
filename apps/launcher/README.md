@@ -13,7 +13,7 @@ corepack pnpm@11.7.0 launcher:check
 corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --no-bundle
 ```
 
-开发机需要 Node、仓库依赖、Rust/Cargo、Windows 构建工具，以及 [Core 记忆环境](../../experiments/activity-memory/README.md) 的 Python/E5。`launcher:dev` 仅运行浏览器 Mock 展示，不能启动真实 Core。
+开发机需要 Node、仓库依赖、Rust/Cargo、Windows 构建工具，以及 [Core 记忆环境](../../desktop/host/memory/README.md) 的 Python/E5。`launcher:dev` 仅运行浏览器 Mock 展示，不能启动真实 Core。
 
 ## Windows x64 便携候选版
 

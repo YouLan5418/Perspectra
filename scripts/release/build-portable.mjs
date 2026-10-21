@@ -23,15 +23,15 @@ await cp(resolve('.tmp/hindsight-vector-venv/Lib/site-packages'),join(runtime,'p
 const inputs=new Set()
 await cp(resolve('packages/frontend/assets'),join(runtime,'frontend-assets'),{recursive:true})
 await cp(resolve('apps/launcher/dist-creator'),join(runtime,'creator-assets'),{recursive:true})
-for(const [entry,file] of [['desktop/launcher-entry.ts','launcher.mjs'],['tests/experiments/playtest-web-entry.ts','playtest.mjs']]){
+for(const [entry,file] of [['desktop/launcher-entry.ts','launcher.mjs'],['desktop/host/web-entry.ts','playtest.mjs']]){
 const result=await build({entryPoints:[entry],outfile:join(runtime,file),bundle:true,platform:'node',target:'node24',format:'esm',external:['jieba-wasm'],legalComments:'eof',metafile:true,banner:{js:"import {createRequire as __createRequire} from 'node:module'; const require=__createRequire(import.meta.url);"}})
 for(const path of Object.keys(result.metafile.inputs))inputs.add(resolve(path))
 }
 await cp(resolve('node_modules/jieba-wasm'),join(runtime,'node_modules/jieba-wasm'),{recursive:true,dereference:true})
-for(const [folder,files] of [ ['hindsight-core',['core.py','episode_core.py','projections.py','queries.py','retrieval_text.py','vector_core.py','vendor']],['activity-memory',['core_bridge.py','activity_delivery.py','candidate_admission.py','minimal_delivery.py']] ]){
-await mkdir(join(runtime,'experiments',folder),{recursive:true});for(const file of files)await cp(resolve('experiments',folder,file),join(runtime,'experiments',folder,file),{recursive:true,dereference:true,filter})
+for(const [folder,files] of [ ['core',['core.py','episode_core.py','projections.py','queries.py','retrieval_text.py','vector_core.py','vendor']],['bridge',['core_bridge.py','activity_delivery.py','candidate_admission.py','minimal_delivery.py']] ]){
+await mkdir(join(runtime,'memory-core/python',folder),{recursive:true});for(const file of files)await cp(resolve('desktop/host/memory/python',folder,file),join(runtime,'memory-core/python',folder,file),{recursive:true,dereference:true,filter})
 }
-const assets=JSON.parse(await readFile('experiments/hindsight-core/e5-assets.json','utf8'))
+const assets=JSON.parse(await readFile('desktop/host/memory/python/core/e5-assets.json','utf8'))
 for(const [file,expected]of Object.entries(assets.files)){
 const source=resolve('.tmp/hindsight-e5-small',file),bytes=await readFile(source)
 if(createHash('sha256').update(bytes).digest('hex')!==expected)throw Error('Model asset hash mismatch: '+file)
@@ -41,7 +41,7 @@ await mkdir(join(output,'licenses'),{recursive:true})
 await cp(resolve('.tmp/portable-release-assets/MSVC-RUNTIME-LICENSE.docx'),join(output,'licenses/MSVC-RUNTIME-LICENSE.docx'))
 await cp(resolve('.tmp/portable-release-assets/E5-MODEL-CARD.md'),join(output,'licenses/E5-MODEL-CARD.md'))
 await cp(resolve('.tmp/portable-release-assets/E5-BASE-MODEL-CARD.md'),join(output,'licenses/E5-BASE-MODEL-CARD.md'))
-await cp(resolve('experiments/hindsight-core/vendor/LICENSE'),join(output,'licenses/HINDSIGHT-LICENSE.txt'))
+await cp(resolve('desktop/host/memory/python/core/vendor/LICENSE'),join(output,'licenses/HINDSIGHT-LICENSE.txt'))
 const packages=new Map()
 for(const file of inputs){if(!file.includes('node_modules'))continue;let folder=dirname(file);for(;;){try{const data=JSON.parse(await readFile(join(folder,'package.json'),'utf8'));packages.set(data.name,{folder,name:data.name,version:data.version,license:data.license});break}catch{}const parent=dirname(folder);if(parent===folder)break;folder=parent}}
 for(const data of packages.values()){

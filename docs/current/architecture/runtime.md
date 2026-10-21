@@ -2,11 +2,11 @@
 
 2026-10-19 知识筛选扩展：每次角色请求装入已有授权活动与已知状态后，知识 when 除状态值外，还可检查接收者、当前位置、场景人物、当前／旧物品、本次激活刺激、本人活动与状态 current。活动视图增加稳定 activityKey；仍在 Core／原生记忆交付后、预设准备前选择材料，不新增模型阶段、世界读取或调度机会。[Core／DeepSeek 短试玩](../studies/knowledge-conditions-deepseek-playtest-20261019.md)的 39 次请求全部成功且交付符合预期；源码模式验证不代表 Launcher 人工操作或发行包已验收。字段、自动回归与未验收范围见[世界设定指南](../guides/world-knowledge.md)。
 
-2026-10-19：例如同行者偷走玩家 30 金币后，玩家状态栏仍显示“余额 100（上次确认）”，查看钱包后才变成 70。包可以登记 `scripts/status.js` 声明经裁定的常驻状态，[PackStatus](../../../tests/experiments/pack-status.ts) 在新世界首次打开时提交初始 `status.updated`；NPC 的状态操作作为 `interact` 候选经 Rulebook 裁定，玩家用 `/status <操作> <JSON>` 走同一裁定并单独成轮；每次玩家输入被受理且角色反应结束后运行一次可选的每轮钩子（活动中的输入同样）。包变量（`scripts/variables.js`、`pack-variables.json`、`/vars`）已删除，原先因包变量关闭的动态调度、continueAfterPublish 与 beforeActionExpression 门槛一并去掉，下文相应位置已注明。`status.updated` 登记进全局事件清单，所有旧存档打开时报错，需要新建。作者契约与限制见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)。源码与自动测试已接通，未做真实模型试玩，发行包未重建。
+2026-10-19：例如同行者偷走玩家 30 金币后，玩家状态栏仍显示“余额 100（上次确认）”，查看钱包后才变成 70。包可以登记 `scripts/status.js` 声明经裁定的常驻状态，[PackStatus](../../../desktop/host/pack-status.ts) 在新世界首次打开时提交初始 `status.updated`；NPC 的状态操作作为 `interact` 候选经 Rulebook 裁定，玩家用 `/status <操作> <JSON>` 走同一裁定并单独成轮；每次玩家输入被受理且角色反应结束后运行一次可选的每轮钩子（活动中的输入同样）。包变量（`scripts/variables.js`、`pack-variables.json`、`/vars`）已删除，原先因包变量关闭的动态调度、continueAfterPublish 与 beforeActionExpression 门槛一并去掉，下文相应位置已注明。`status.updated` 登记进全局事件清单，所有旧存档打开时报错，需要新建。作者契约与限制见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)。源码与自动测试已接通，未做真实模型试玩，发行包未重建。
 
 例如两个角色先后私下查看钱包，先行动者的续写只能拿到自己那次查看的结果，不能拿到后行动者的余额。[角色回合](../../../packages/application/src/prototype-character-turn.ts)用该行动已有的事件引用限定结果读取前缀，当前场景和授权上下文仍按最新前缀生成；状态结果还核对行动者与操作。回合钩子只由新提交的玩家输入触发，同一输入的幂等重放或活动的 NPC 重试不触发。轮次从已有玩家提交推导，同次事务中的多个玩家动作只算一轮，快捷活动的开始与执行两次提交合算一轮；先前钩子返回 null 或失败仍计入已发生轮次，不写额外状态文件。自动回归覆盖并发私有结果隔离、输入重放和无状态提交后的轮次推进，尚未做这组修复的真实模型试玩。
 
-例如角色自己的委托记录进入 done 后，出现领奖选项，并收到领奖说明；其他角色没有观察到这份记录，就不会因此获得说明。状态值现支持带 Schema 的对象、数组，仍按状态键整体更新和告知。状态 policy 只收到由 knownStatus 生成的 `{ public, self, characters }`，在候选生成及提交前检查；resolve 才读取最新 truth 并裁定加钱与已领取标志。角色请求先装入 knownStatus，再由[知识选择器](../../../tests/experiments/pack-knowledge.ts)按受众、when Schema、关键词和预算选择材料。条件不会直接调度角色或启动自动事件链。相关自动回归覆盖嵌套校验失败无提交、领奖去重、私有条件隔离，以及结构化状态随分叉和重新生成回滚；未做这组扩展的真实模型试玩，发行包未重建。
+例如角色自己的委托记录进入 done 后，出现领奖选项，并收到领奖说明；其他角色没有观察到这份记录，就不会因此获得说明。状态值现支持带 Schema 的对象、数组，仍按状态键整体更新和告知。状态 policy 只收到由 knownStatus 生成的 `{ public, self, characters }`，在候选生成及提交前检查；resolve 才读取最新 truth 并裁定加钱与已领取标志。角色请求先装入 knownStatus，再由[知识选择器](../../../desktop/host/pack-knowledge.ts)按受众、when Schema、关键词和预算选择材料。条件不会直接调度角色或启动自动事件链。相关自动回归覆盖嵌套校验失败无提交、领奖去重、私有条件隔离，以及结构化状态随分叉和重新生成回滚；未做这组扩展的真实模型试玩，发行包未重建。
 
 2026-10-18：保留[原型遗留处理](../studies/phase8-prototype-transition-audit-20261018.md)的前两步。例如玩家说话后，RoundCoordinator 只裁定和提交玩家行动，NPC 由既有单角色循环处理；旧批量 participant、Reaction Worker、Director 模型、Context Pipeline、Reflection、Checkpoint 和 NPC Provider Call／Quality 已移除。保留玩家输入解释专用记录、授权 Source 捕获、原生认知任务及 Presenter；不改库结构或历史事件读取。已有未完成的旧 Reaction Cycle 可读取和请求取消，但取消请求不会结算旧工作，运行时也拒绝恢复或在其未结束时提交新行动；若确有这类数据需另行处理。当前模型请求内容保持改前版本：第三步心理呈现调整因对照中的行动选择退化迹象已撤回。宿主目录整理与 Source／摘要解耦仍延期。
 
@@ -36,7 +36,7 @@
 
 > [通信 Core 记忆实验](../studies/cross-scene-core-memory-20261010.md)复用普通宿主的记忆桥与节点归档接口，加入显式整理、按 Core 边界截断短期上下文及调用前召回。只为独立实验入口增加选择，不改变普通宿主的默认记忆配置。
 
-当前源码网页通过 v5 World Pack 编译并创建 `FrozenWorldPlaytestRuntime`。玩家推动世界；一次输入可以触发有界 NPC 连锁回应，周期结束后停止自主推进。
+当前源码网页通过 v5 World Pack 编译并创建 `WorldHostRuntime`。玩家推动世界；一次输入可以触发有界 NPC 连锁回应，周期结束后停止自主推进。
 
 2026-10-15 核对前端表现通路：例如同名角色从电话发言，玩家转录和逐段阅读保留来自授权观察的 `speakerId`，默认舞台只按场景成员 ID 标记说话者，不从发言推断在场。Launcher 全局声音偏好保存在 `launcher.json`，下次启动经 `PERSPECTRA_AUDIO` 交给运行时，再白名单投影到 `PlayerView.settings.audio`；不进入世界事实、记忆或故事节点。字段、模板接法及未实现部分见[前端能力边界](../studies/frontend-plugin-capability-boundary.md)。源码和相关自动化已验证，尚未验证真实模型音频体验，未重建发行包。
 
@@ -104,11 +104,11 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 2026-10-17 保存入口改为游戏宿主页工具栏：例如晚餐后点“保存进度”，再由 Launcher 导出该节点。宿主的 `POST /api/story-save` 校验 token、标题和现有静止条件，复用原保存机制；删除 Launcher 的 `story-save` 和子进程保存 IPC。历史节点导出仍只读副本，切换、分叉与导入要求停止游戏，见[故事线](../storylines.md)。本轮未改变世界事实或存档格式。
 
-同日后端新增 `open-creator`，返回当前宿主的 `/creator/#token=…`，Rust 只允许 `http://127.0.0.1:<有效端口>` 和指定页面路径。创作者静态资源由 [creator assets](../../../tests/experiments/playtest-creator-assets.ts) 提供，私有数据仍只由鉴权 HTTP 接口返回；旧 Launcher 创作者透传已删除，见[接口说明](../creator-debug-api.md)。
+同日后端新增 `open-creator`，返回当前宿主的 `/creator/#token=…`，Rust 只允许 `http://127.0.0.1:<有效端口>` 和指定页面路径。创作者静态资源由 [creator assets](../../../desktop/host/creator-assets.ts) 提供，私有数据仍只由鉴权 HTTP 接口返回；旧 Launcher 创作者透传已删除，见[接口说明](../creator-debug-api.md)。
 
 运行中可保存连接、实例模型、预设、阅读／声音与游玩参数；当前子进程使用启动快照，下次启动才采用新设置。模型 Key 在 Rust 的启动／连接测试请求中读取，游戏入口启动时构造模型与记忆 runner，没有发现运行中的游戏重新读取连接或 Key。危险操作继续拒绝；撤销前端信任仍通过 IPC 立即生效。相关 HTTP、子进程与 Rust 校验测试通过，打包后无模型接口冒烟通过；新 Launcher UI 由另一分支交付，原生点击、真实模型体验与完整便携发行包尚未验收。
 
-核心实现入口：[网页宿主](../../../tests/experiments/playtest-frozen-runtime.ts)、[Character Turn](../../../packages/application/src/prototype-character-turn.ts)、[网页玩家视图](../../../tests/experiments/playtest-view.ts)、[Core 桥](../../../tests/experiments/playtest-memory-core.ts)。性能证据见[研究索引](../studies/ai-girls/README.md)。一次真实轨迹仍出现普通反应约 30 秒中断；增量显示没有消除整轮等待。
+核心实现入口：[网页宿主](../../../desktop/host/world-runtime.ts)、[Character Turn](../../../packages/application/src/prototype-character-turn.ts)、[网页玩家视图](../../../desktop/host/player-transcript.ts)、[Core 桥](../../../desktop/host/memory/core-memory.ts)。性能证据见[研究索引](../studies/ai-girls/README.md)。一次真实轨迹仍出现普通反应约 30 秒中断；增量显示没有消除整轮等待。
 
 ## 玩家等待提示（2026-10-09）
 
@@ -116,14 +116,14 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 例：玩家离开 B、C 所在的客厅去厨房找 A。A 回应后也走去客厅，厨房只剩玩家。此时 B、C 对“玩家离开”“A 到来”的反应仍在计算，但都发生在玩家场景之外。宿主据此把玩家视图显示为“可以回应”，不点名场外角色；玩家这时发言、点行动按钮或保存节点，会先取消这些未提交的场外计算再执行，已提交的观察和行动保留。若玩家场景内有角色正在处理，状态显示“A 正在回应”，玩家可以等，也可以照常插话。
 
-实现上，运行时把交给 `runPrototypeActivations` 的 `turn` 包一层，记录正在运行的角色，在 `state()` 中与当前场景成员比对，得到 `responders`（场内正在处理的角色名）和 `background`（只剩场外处理且允许插话）。`projectPlayerView` 在 `background` 时输出 `ready`，不再透出 `canInterrupt` 和处理阶段文案。[TailRoundRuntime](../../../tests/experiments/playtest-tail-runtime.ts) 的 `perform` 现在和发言共用同一中止入口；`background` 时保存节点也会先中止。中止信号会传到模型 HTTP 请求，取消不需要等模型返回。自动测试见 [dynamic-scheduling.test.ts](../../../tests/prototype/dynamic-scheduling.test.ts)；2026-10-17 晚宴包真实模型试玩中，玩家反馈离场后等待明显缩短，未做计时对照；发行包未更新。已知限制：玩家行动较快时，场外连锁会被截短；刚完成一个场内角色、下一个尚未派发的瞬间，状态可能短暂显示为可回应。
+实现上，运行时把交给 `runPrototypeActivations` 的 `turn` 包一层，记录正在运行的角色，在 `state()` 中与当前场景成员比对，得到 `responders`（场内正在处理的角色名）和 `background`（只剩场外处理且允许插话）。`projectPlayerView` 在 `background` 时输出 `ready`，不再透出 `canInterrupt` 和处理阶段文案。[TailRoundRuntime](../../../desktop/host/tail-runtime.ts) 的 `perform` 现在和发言共用同一中止入口；`background` 时保存节点也会先中止。中止信号会传到模型 HTTP 请求，取消不需要等模型返回。自动测试见 [dynamic-scheduling.test.ts](../../../tests/prototype/dynamic-scheduling.test.ts)；2026-10-17 晚宴包真实模型试玩中，玩家反馈离场后等待明显缩短，未做计时对照；发行包未更新。已知限制：玩家行动较快时，场外连锁会被截短；刚完成一个场内角色、下一个尚未派发的瞬间，状态可能短暂显示为可回应。
 
 
 ## 角色思考强度
 
 例如默认角色用 Flash、Claude 用强模型时，玩家在启动器“模型 → 修改”设置默认模型，再在“按角色单独设置”为 Claude 选择另一连接、模型和思考强度。记忆整理可跟随同层决策或单独选择。未覆盖角色使用默认层；新实例仅沿用最近保存的默认决策和默认记忆选择，不复制旧实例的角色覆盖。
 
-2026-10-17 核对：[modelEnvironment](../../../desktop/model-connections.ts) 用 `PERSPECTRA_ROLE_MODELS` 传递无 Key 的解析目标，`PERSPECTRA_MODEL_KEYS` 传递被引用的连接 Key；[游戏入口](../../../tests/experiments/playtest-web-entry.ts)合并后立即删除后一个环境变量。运行时为各角色建立自己的 provider，整体替换协议、地址、模型、思考强度与 Key。记忆按不同配置复用 runner 组，每组 Python 只接收该组的连接 Key，档案与授权 scope 仍按角色隔离。具体传递和进程边界见[Launcher 接入](../launcher-core-integration.md#3-数据与进程)。
+2026-10-17 核对：[modelEnvironment](../../../desktop/model-connections.ts) 用 `PERSPECTRA_ROLE_MODELS` 传递无 Key 的解析目标，`PERSPECTRA_MODEL_KEYS` 传递被引用的连接 Key；[游戏入口](../../../desktop/host/web-entry.ts)合并后立即删除后一个环境变量。运行时为各角色建立自己的 provider，整体替换协议、地址、模型、思考强度与 Key。记忆按不同配置复用 runner 组，每组 Python 只接收该组的连接 Key，档案与授权 scope 仍按角色隔离。具体传递和进程边界见[Launcher 接入](../launcher-core-integration.md#3-数据与进程)。
 
 玩家可选择关闭、低、中、高思考强度，保存后在下一次启动生效，仅影响角色决策及行动结果续写。玩家输入解析不新增模型配置；记忆 Utility 使用角色生效的记忆模型和既有参数，不沿用决策思考档位。模型选择不会重写存档事件。源码已接通，发行包尚未重建。
 

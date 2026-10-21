@@ -4,8 +4,8 @@ import { resolve, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
-import type { PlaytestState } from './playtest-server.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { HostState } from '../../desktop/host/http-server.ts'
 
 const root=resolve('.tmp','multiple-activities-live-'+Date.now()),pack=join(root,'pack'),data=join(root,'data')
 mkdirSync(root,{recursive:true});cpSync(resolve('examples/world-packs/multiple-activities'),pack,{recursive:true})
@@ -25,10 +25,10 @@ globalThis.fetch=async(input,init)=>{
     throw error
   }
 }
-const runtime=await FrozenWorldPlaytestRuntime.create({packPath:pack,dataDirectory:data,provider:'local',
+const runtime=await WorldHostRuntime.create({packPath:pack,dataDirectory:data,provider:'local',
   model:process.env.HCW_LOCAL_MODEL??'gemini-3.8-flash',utilityEndpoint:process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8046/v1/chat/completions',timeoutMs:45_000})
 const steps:{label:string;elapsedMs:number;error:boolean;notice:string;activities:unknown;lastProviderCall:unknown}[]=[]
-async function act(key:string,operation:string,parameters:WorldJsonObject={}):Promise<PlaytestState>{
+async function act(key:string,operation:string,parameters:WorldJsonObject={}):Promise<HostState>{
   const activity=(await runtime.state()).activities!.find(value=>value.activityKey===key)!,started=Date.now()
   const state=await runtime.activityAction({activityKey:key,activityId:operation==='start'?null:String(activity.id),revision:operation==='start'?0:Number(activity.revision),operation,parameters,requestId:randomUUID()})
   steps.push({label:key+':'+operation,elapsedMs:Date.now()-started,error:state.error,notice:state.notice,activities:state.activities,lastProviderCall:state.debug?.lastProviderCall})

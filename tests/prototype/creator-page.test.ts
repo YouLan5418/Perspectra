@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createPlaytestServer, type PlaytestRuntime } from '../experiments/playtest-server.ts'
+import { createHostServer, type HostRuntime } from '../../desktop/host/http-server.ts'
 
 const token = 'a'.repeat(64)
 const meta = { title: '晚餐', storyline: '支线', characters: [{ id: 'npc:a', name: '甲' }] }
@@ -27,7 +27,7 @@ async function fixture(missing = false) {
   await writeFile(join(root, 'secret.js'), 'PRIVATE')
   // Windows junctions need no symlink privilege; real paths must still stay in the build.
   await symlink(root, join(directory, 'assets/outside'), process.platform === 'win32' ? 'junction' : 'dir')
-  const server = createPlaytestServer({ creatorMeta: () => meta } as PlaytestRuntime, token, undefined, undefined, undefined, missing ? null : pathToFileURL(directory + '/'))
+  const server = createHostServer({ creatorMeta: () => meta } as HostRuntime, token, undefined, undefined, undefined, missing ? null : pathToFileURL(directory + '/'))
   servers.push(server); server.listen(0, '127.0.0.1'); await once(server, 'listening')
   const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port
   return { origin, get: (path: string, headers: Record<string, string> = {}) => fetch(origin + path, { headers, redirect: 'manual' }) }

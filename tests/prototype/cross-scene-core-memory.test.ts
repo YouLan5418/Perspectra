@@ -7,7 +7,7 @@ import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
 import { crossSceneRuntime } from '../experiments/cross-scene-runtime.ts'
 import { CrossScenePhone } from '../experiments/cross-scene-phone.ts'
-import type { CoreRunner } from '../experiments/hindsight-python.ts'
+import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 
 const packPath = resolve('examples/world-packs/cross-scene-activity'), friend = 'character:friend', player = 'character:player'
 const roots: string[] = [], runtimes: Awaited<ReturnType<typeof crossSceneRuntime>>[] = []

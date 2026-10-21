@@ -9,12 +9,12 @@ import { createInstalledInteractionPackages } from '@harness-world/interactions-
 import { createCoreRulebookRegistry, type CompiledWorldManifest } from '@harness-world/kernel'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import { PackActivities } from '../experiments/pack-activities.ts'
-import { PackStatus, type KnownStatus } from '../experiments/pack-status.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { PackActivities } from '../../desktop/host/pack-activities.ts'
+import { PackStatus, type KnownStatus } from '../../desktop/host/pack-status.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
-const roots: string[] = [], runtimes: FrozenWorldPlaytestRuntime[] = [], servers: Server[] = []
+const roots: string[] = [], runtimes: WorldHostRuntime[] = [], servers: Server[] = []
 afterEach(async () => {
   for (const runtime of runtimes.splice(0)) await runtime.close()
   for (const server of servers.splice(0)) { server.closeAllConnections(); await new Promise<void>(done => server.close(() => done())) }
@@ -57,7 +57,7 @@ async function fixture() {
     })
   })
   servers.push(server); await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
-  const runtime = await FrozenWorldPlaytestRuntime.create({ packPath, dataDirectory: data, provider: 'ollama', model: 'fixture',
+  const runtime = await WorldHostRuntime.create({ packPath, dataDirectory: data, provider: 'ollama', model: 'fixture',
     timeoutMs: 5000, utilityEndpoint: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat' })
   runtimes.push(runtime)
   const worldPath = join(runtime.dataDirectory, 'world.sqlite')

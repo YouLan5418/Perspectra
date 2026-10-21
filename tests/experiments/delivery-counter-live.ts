@@ -12,8 +12,8 @@ import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
-import { hindsightPython } from './hindsight-python.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 
 const root = resolve(process.argv[2] ?? '')
 const mode = process.argv[3] ?? '--prepare'
@@ -108,7 +108,7 @@ if (mode === '--prepare') {
         decide: async request => {
           save(join(root, probe.id + '-request.json'), request)
           const input = { authorized, request, tick, stimulus: probe.text, probe: probe.id }
-          const child = spawnSync(hindsightPython(), [resolve('experiments/activity-memory/prepare_counter_live.py')], {
+          const child = spawnSync(corePythonExecutable(), [resolve('experiments/activity-memory/prepare_counter_live.py')], {
             input: JSON.stringify(input), encoding: 'utf8', timeout: 60000, maxBuffer: 32 * 1024 * 1024,
             windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
           })
@@ -168,7 +168,7 @@ if (mode === '--prepare') {
               save(join(dir, 'call.json'), record); calls++
               const start = performance.now()
               transportPath = join(dir, 'transport.json')
-              const response = await provider.decide(localPrototypeTurnCall(visible), signal)
+              const response = await provider.decide(gatewayTurnCall(visible), signal)
               returned = true
               save(join(dir, 'call.json'), { ...record, status: 'returned', durationMs: Math.round(performance.now() - start), response })
               return response

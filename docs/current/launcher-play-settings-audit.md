@@ -6,12 +6,12 @@
 | --- | --- |
 | 日期 | 2026-10-08 |
 | 状态 | 已实现包级运行参数和默认前端阅读偏好；下文排查章节保留实施前基线 |
-| 范围 | 当前 Launcher → playtest-web-entry → FrozenWorldPlaytestRuntime → PrototypeCharacterTurn 路径 |
+| 范围 | 当前 Launcher → playtest-web-entry → WorldHostRuntime → PrototypeCharacterTurn 路径 |
 | 目标 | 在游戏详情的“游玩配置”下，为当前游戏包调整运行参数 |
 
 ## 1. 已有可调参数，但 Launcher 没有接入
 
-`tests/experiments/playtest-tuning.ts` 已有完整校验，`playtest-launch.ts` 接受 `--tuning` JSON，网页入口将其交给运行时。`desktop/launcher-core.ts` 的启动命令没有传入 `--tuning`，因此桌面游玩一直采用默认值。
+`desktop/host/runtime-tuning.ts` 已有完整校验，`launch-arguments.ts` 接受 `--tuning` JSON，网页入口将其交给运行时。`desktop/launcher-core.ts` 的启动命令没有传入 `--tuning`，因此桌面游玩一直采用默认值。
 
 | 参数 | 默认值 | 现有允许范围 | 实际含义 |
 | --- | --- | --- | --- |
@@ -32,8 +32,8 @@
 | --- | --- | --- | --- |
 | 模型输出 Token | 默认 2048；预设支持 1–32768 | `packages/provider-chat/src/provider.ts:193`、`preset.ts:38`、`apps/launcher/src/components/PresetDialog.vue:164` | 已有预设入口，应明确与游玩参数的优先级，避免两个入口互相覆盖 |
 | 一次角色发布的文字合计 | 2000 字符 | `packages/contracts/src/expression.ts:18`、`packages/provider-chat/src/prototype-turn.ts:11` | 提高 Token 上限仍不能超过该文字限制；改成可配时，必须同时修改模型可见 Schema、说明和实际发布校验 |
-| 玩家输入文字合计 | 2000 字符 | `tests/experiments/playtest-server.ts:113` | 独立于角色输出，不应随角色输出限制一起改变 |
-| 玩家意图解释输出 | 1024 Token | `tests/experiments/playtest-frozen-runtime.ts:239` | 属于内部结构化解释，建议首版保持内部默认值 |
+| 玩家输入文字合计 | 2000 字符 | `desktop/host/http-server.ts:113` | 独立于角色输出，不应随角色输出限制一起改变 |
+| 玩家意图解释输出 | 1024 Token | `desktop/host/world-runtime.ts:239` | 属于内部结构化解释，建议首版保持内部默认值 |
 
 Token 上限包含模型协议输出，不是角色对白字符数，也不是整个反应周期的累计 Token 预算。
 
@@ -41,20 +41,20 @@ Token 上限包含模型协议输出，不是角色对白字符数，也不是�
 
 | 限制 | 当前值 | 位置/影响 |
 | --- | --- | --- |
-| 单次模型请求 | local/deepseek 默认 60 秒；ollama 默认 120 秒 | `playtest-frozen-runtime.ts:161`；创建选项已有 timeoutMs，但网页命令及 Launcher 未接入 |
+| 单次模型请求 | local/deepseek 默认 60 秒；ollama 默认 120 秒 | `world-runtime.ts:161`；创建选项已有 timeoutMs，但网页命令及 Launcher 未接入 |
 | 一次角色激活 | 最多 120 秒 | `prototype-character-turn.ts:114`；包括激活内的执行与续写，外层更短的截止时间会先触发 |
 | 普通反应周期 | 默认 30 秒 | `prototype-activation-cycle.ts:13`；只放宽请求超时不会放宽整个周期 |
-| Activity 连续处理 | 最多 4 次机会、总计 90 秒 | `playtest-frozen-runtime.ts:615`；独立于普通反应周期，每次激活最多两次模型调用 |
+| Activity 连续处理 | 最多 4 次机会、总计 90 秒 | `world-runtime.ts:615`；独立于普通反应周期，每次激活最多两次模型调用 |
 | 写入租约 | 180 秒 | `prototype-character-turn.ts:124`、`:227`、`:259`；是内部一致性机制，应随激活超时协调，不作为玩家独立旋钮 |
-| 玩家意图解释 | 最多 60 秒 | `playtest-frozen-runtime.ts:239`；另有 Host profile 校验上限，不能直接跟随无限增大的模型超时 |
+| 玩家意图解释 | 最多 60 秒 | `world-runtime.ts:239`；另有 Host profile 校验上限，不能直接跟随无限增大的模型超时 |
 | 普通 Core 启动 | 60 秒 | `desktop/launcher-core.ts:420`；不同于游玩中的模型请求 |
-| 分叉记忆重建启动 | 3660 秒；重建自身 3600 秒 | `launcher-core.ts:420`、`playtest-frozen-runtime.ts:285`；首版建议保持内部默认值 |
+| 分叉记忆重建启动 | 3660 秒；重建自身 3600 秒 | `launcher-core.ts:420`、`world-runtime.ts:285`；首版建议保持内部默认值 |
 
 Activity 处理之后可能再运行普通反应周期，因此普通反应周期的调用预算和截止时间不是整次玩家操作的统一预算。
 
 ## 4. Core 记忆的其他可配置候选
 
-`tests/experiments/playtest-memory-core.ts` 已有创建选项，但 Launcher/网页 CLI 没有暴露：
+`desktop/host/memory/core-memory.ts` 已有创建选项，但 Launcher/网页 CLI 没有暴露：
 
 - 上下文整理触发阈值：估算 170000 Token。
 - 一次整理的前缀目标：估算 120000 Token。
@@ -73,7 +73,7 @@ Activity 处理之后可能再运行普通反应周期，因此普通反应周�
 
 模型输出 Token 继续复用角色预设配置。若需要包级默认值，须明确“角色有效预设中显式值 > 包级默认 > Core 默认”，并在界面显示有效值；不要默默把它变成覆盖所有角色预设的硬上限。
 
-优先复用现有 PlaytestTuning 校验与 --tuning 启动路径。新增参数只补当前缺口；文字上限需沿模型 Schema 和发布校验传递。超时必须明确各层作用，租约长度由程序协调。
+优先复用现有 RuntimeTuning 校验与 --tuning 启动路径。新增参数只补当前缺口；文字上限需沿模型 Schema 和发布校验传递。超时必须明确各层作用，租约长度由程序协调。
 
 旧 `round-coordinator.ts` 中的 responsive/v1 3 波/8 次调用，以及持久 Reaction Cycle 的 3 波校验，不是当前普通 NPC 激活的配置入口。不能为了本轮设置功能修改那套旧流程。
 
@@ -90,8 +90,8 @@ Activity 处理之后可能再运行普通反应周期，因此普通反应周�
 | 整理触发阈值与单批目标 | 170000 / 120000 估算 Token | 影响长聊连续性、模型容量适配与后台费用；适合包级“高级：记忆” |
 | 长期记忆交付数量与体积 | 最多 6 条、12000 JSON 字符 | 影响回忆丰富度与上下文噪声；需同时更新 Python 交付及 Host 校验，不改变授权来源检查 |
 | 后台整理并发 | 角色并发 2、retain 并发 2；已有范围 1–4 | 影响完成速度、本机负载与接口限流；更适合全局资源设置，首版无须包级重复 |
-| 玩家意图解释模型 | FrozenPlaytestOptions 已有 intentModel；默认与角色模型相同 | 能将解析意图与角色扮演分别适配；目前共享协议、地址和认证，独立提供商需要额外接线 |
-| Activity 格式修正次数 | decideActivityFormat 固定最多额外修正一次 | 在等待/费用与合法输出成功率间取舍；只针对结构格式，不能跳过规则裁定或重试已提交动作 |
+| 玩家意图解释模型 | WorldHostOptions 已有 intentModel；默认与角色模型相同 | 能将解析意图与角色扮演分别适配；目前共享协议、地址和认证，独立提供商需要额外接线 |
+| Activity 格式修正次数 | decideWithFormatRetry 固定最多额外修正一次 | 在等待/费用与合法输出成功率间取舍；只针对结构格式，不能跳过规则裁定或重试已提交动作 |
 | 记忆内部请求超时及尝试次数 | core_bridge.py 每次 HTTP 120 秒，最多 3 次尝试；另有 worker 总超时 | 影响慢接口下的等待与稳定性；应限定到记忆请求并协调外层超时，不能作为全局“失败自动重试” |
 | 预设生成参数与文本处理 | 已支持 temperature、topP、频率/存在惩罚、stop、提示节点、文本规则 | 已有预设入口，沿用即可；协议支持范围不同，stop 会截断 JSON，不宜放进普通游玩设置 |
 | 默认前端阅读偏好 | 故事字号/行高在 CSS 中；自动跟随最新内容以距离底部 70px 判断 | 可增加字号、行距和跟随最新消息开关；属于玩家界面偏好，不改变 Core 规则，社区前端可自行支持 |

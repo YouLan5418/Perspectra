@@ -1,6 +1,6 @@
 # 目录与模块地图
 
-核对日期：2026-10-18。目录位置是导航线索，不代表其中的全部代码都由当前入口运行。从入口沿 import 和调用向下查；导出清单不等于调用清单。
+核对日期：2026-10-21。本次核对宿主迁移、Core 资源和前端适配归属；其他机制的验证限制仍见对应章节。目录位置是导航线索，不代表其中的全部代码都由当前入口运行。从入口沿 import 和调用向下查；导出清单不等于调用清单。
 
 ## 1. 先看这些目录
 
@@ -8,10 +8,12 @@
 | --- | --- | --- |
 | [apps/launcher](../../../apps/launcher) | Vue 启动器、Tauri 桌面外壳，以及在系统浏览器打开的创作者页面（独立 Vite 入口） | [界面状态](../../../apps/launcher/src/stores/launcher.ts)、[主界面](../../../apps/launcher/src/components/LauncherShell.vue)、[桌面请求](../../../apps/launcher/src/services/desktop.ts)、[创作者页面](../../../apps/launcher/src/creator/main.ts)、[Rust 桥](../../../apps/launcher/src-tauri/src/main.rs) |
 | [desktop](../../../desktop) | Launcher 的 Node 后端、实例数据、模型连接、预设、故事节点，以及游戏宿主的可选 Cordis 插件装载；也保留 Electron 入口 | [LauncherCore](../../../desktop/launcher-core.ts)、[模型连接](../../../desktop/model-connections.ts)、[宿主插件](../../../desktop/host-plugins.ts)、[Node 入口](../../../desktop/launcher-entry.ts) |
-| [tests/experiments](../../../tests/experiments) | **当前网页宿主与实验驱动混放于此**，不能整体当成闲置测试 | [网页入口](../../../tests/experiments/playtest-web-entry.ts)、[实际宿主](../../../tests/experiments/playtest-frozen-runtime.ts) |
-| [experiments](../../../experiments) | Python 记忆实现、实验工具、数据和报告 | [记忆实验](../../../experiments/activity-memory/README.md) |
+| [desktop/host](../../../desktop/host) | 当前网页宿主、HTTP、角色装配、Core 记忆和创作者接口 | [宿主说明](../../../desktop/host/README.md)、[网页入口](../../../desktop/host/web-entry.ts)、[实际宿主](../../../desktop/host/world-runtime.ts) |
+| [tests/experiments](../../../tests/experiments) | 研究驱动、测试夹具及尚有诊断价值的旧测试；生产代码不依赖此目录 | [受控调度对照](../../../tests/experiments/dynamic-scheduling.ts) |
+| [experiments](../../../experiments) | 历史工具、冻结证据、数据和报告；默认 Python Core 已迁出 | [实验索引](../../../experiments/README.md)、[历史 JEV 脚本](../../../experiments/jev-narrative-auditor/scripts/README.md) |
 | [examples/world-packs](../../../examples/world-packs) | 可运行世界包和创作样例 | [Launcher 示例](../../../examples/world-packs/launcher-demo/worldpack.source.json) |
 | [tests/prototype](../../../tests/prototype) | 当前原型回归测试 | [角色执行结果](../../../tests/prototype/character-execution-result.test.ts)、[原始经历交付](../../../tests/prototype/raw-history-delivery.test.ts) |
+| [tests/host](../../../tests/host) | 宿主 HTTP、启动参数、转录与 Python worker 回归；按路径显式运行 | [HTTP 服务](../../../tests/host/http-server.test.ts)、[Core worker](../../../tests/host/core-worker.test.ts) |
 | [scripts/release](../../../scripts/release) | 便携包构建、资产收集与发行检查 | [构建说明](../../../scripts/release/BUILD.md) |
 | [docs/current](..) | 当前说明、操作指南和研究结论 | [架构入口](README.md) |
 | [docs/archive](../../archive) | 历史方案与过程证据 | 需要解释旧设计时再读 |
@@ -42,15 +44,15 @@
 | 要改或排查什么 | 先查哪里 | 再查哪里 |
 | --- | --- | --- |
 | Launcher 按钮、列表与设置 | apps/launcher 组件与 store | desktop/launcher-core.ts 与 Rust 桥 |
-| 创作者页面的对话、轨迹、模型请求与详情 | apps/launcher/src/creator/store.ts、model.ts、source.ts | tests/experiments/creator-debug.ts、creator-history.ts、creator-records.ts；页面静态托管见 playtest-creator-assets.ts |
+| 创作者页面的对话、轨迹、模型请求与详情 | apps/launcher/src/creator/store.ts、model.ts、source.ts | desktop/host/creator-inspection.ts、creator-history.ts、creator-records.ts；页面静态托管见 creator-assets.ts |
 | 模型连接、Key 与按角色模型 | desktop/model-connections.ts、apps/launcher 的 ModelSettingsDialog / ModelPicker | Rust 桥读取凭据；游戏进程启动时按角色构造决策与记忆调用 |
-| 游戏内对白与状态显示 | frontend/default-template.ts、playtest-view.ts | playtest-server.ts；社区模板另查包内 frontend/ |
-| 角色知道了秘密 | character-view.ts、prototype-character-turn.ts | 原生记忆或 playtest-memory-core.ts 的来源和交付 |
-| 模型格式错误 | provider-chat/prototype-turn.ts、local-prototype-turn-call.ts | prototype-character-turn.ts；活动另查 pack-activity.ts |
+| 游戏内对白与状态显示 | frontend/default-template.ts、player-transcript.ts | http-server.ts；社区模板另查包内 frontend/ |
+| 角色知道了秘密 | character-view.ts、prototype-character-turn.ts | 原生记忆或 core-memory.ts 的来源和交付 |
+| 模型格式错误 | provider-chat/prototype-turn.ts、gateway-turn-call.ts | prototype-character-turn.ts；活动另查 pack-activity.ts |
 | 移动或物品操作被拒绝 | kernel 裁定与交互定义 | 世界包绑定、当前视图、实际参数 |
 | 角色重复回应或没回应 | prototype-activation-cycle.ts | 宿主预算、刺激与活动调度 |
-| 长期记忆遗漏或整理慢 | playtest-memory-core.ts、hindsight-python.ts | experiments/activity-memory 与 hindsight-core |
+| 长期记忆遗漏或整理慢 | core-memory.ts、python-worker.ts | experiments/activity-memory 与 hindsight-core |
 | 节点、分叉与分享 | desktop/story-nodes.ts、story-share.ts | LauncherCore 与节点记忆快照恢复 |
-| 末端回合重新生成 | playtest-tail-runtime.ts、desktop/tail-storage.ts | 宿主世界版本与后台任务取消 |
+| 末端回合重新生成 | tail-runtime.ts、desktop/tail-storage.ts | 宿主世界版本与后台任务取消 |
 
 入口可在[代码路线](code-walkthrough.md)中点击。历史 ADR 与旧测试可解释文件为什么存在，不能独立证明它仍是当前必经路径。

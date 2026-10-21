@@ -8,14 +8,15 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { brandId, resolutionAuthority } from '@harness-world/contracts'
 import type { CompiledWorldManifest } from '@harness-world/kernel'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import type { PlaytestState } from '../experiments/playtest-server.ts'
-import { projectPlayerView, FrontendActions, frontendActionRequest } from '../../packages/frontend/src/player-view.ts'
-import { PackActivity } from '../experiments/pack-activity.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { HostState } from '../../desktop/host/http-server.ts'
+import { frontendActionRequest } from '../../packages/frontend/src/player-view.ts'
+import { projectPlayerView, FrontendActions } from '../../desktop/host/frontend-adapter.ts'
+import { PackActivity } from '../../desktop/host/pack-activity.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
-import type { CoreRunner } from '../experiments/hindsight-python.ts'
+import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 
-const roots:string[]=[],servers:Server[]=[],runtimes:FrozenWorldPlaytestRuntime[]=[]
+const roots:string[]=[],servers:Server[]=[],runtimes:WorldHostRuntime[]=[]
 afterEach(async()=>{
   vi.restoreAllMocks()
   for(const runtime of runtimes.splice(0))await runtime.close()
@@ -56,19 +57,19 @@ async function fixture(secondHook='',dynamic?:{min:number;max:number;candidates?
     archive:{scope:input.scope!,sources:input.sources!,facts:[],episodes:[],observations:[]},index:{scope:input.scope!,units:[],vectors:[]},
   }:{delivery:[],deliveryTrace:{delivered:[],activityCoverage:[]}}
   const create=async(directory=data)=>{
-    const runtime=await FrozenWorldPlaytestRuntime.create({...options,dataDirectory:directory,
+    const runtime=await WorldHostRuntime.create({...options,dataDirectory:directory,
       ...(directory===data?{}:{memoryCore:true,memoryCoreRun:memoryRun,memoryCoreBuildRun:memoryRun})});runtimes.push(runtime);return runtime
   }
   const runtime=await create()
   const events=()=>{const store=new WorldStore(join(runtime.dataDirectory,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
   return {runtime,root,pack,data,inputs,create,events}
 }
-function progress(state:PlaytestState,key:string):WorldJsonObject {return state.activities!.find(activity=>activity.activityKey===key)!}
-function request(state:PlaytestState,key:string,operation:string,parameters:WorldJsonObject={}){
+function progress(state:HostState,key:string):WorldJsonObject {return state.activities!.find(activity=>activity.activityKey===key)!}
+function request(state:HostState,key:string,operation:string,parameters:WorldJsonObject={}){
   const activity=progress(state,key)
   return {activityKey:key,activityId:operation==='start'?null:activity.id as string,revision:operation==='start'?0:Number(activity.revision),operation,parameters,requestId:randomUUID()}
 }
-async function choose(runtime:FrozenWorldPlaytestRuntime,label:string){
+async function choose(runtime:WorldHostRuntime,label:string){
   const action=projectPlayerView(await runtime.state()).actions.find(action=>action.label===label)!
   expect(action).toBeDefined();return runtime.perform(action.action)
 }
@@ -85,7 +86,7 @@ it('selects independent activities, pauses both, isolates secrets, rejects old a
   expect(JSON.stringify(f.inputs)).toContain('guess-npc-secret')
   expect(JSON.stringify(f.inputs)).not.toContain('other-npc-secret')
   expect(JSON.stringify(f.inputs)).not.toContain('internal-secret')
-  const debug = f.runtime.creatorDebug()
+  const debug = f.runtime.creatorInspection()
   expect(JSON.stringify(debug.activities)).toContain('guess-internal-secret')
   expect(JSON.stringify(debug.activities)).toContain('guess-npc-secret')
   expect(JSON.stringify(projectPlayerView(state))).not.toContain('guess-internal-secret')

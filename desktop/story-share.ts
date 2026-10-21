@@ -7,8 +7,8 @@ import { SessionDeliveryAdapter, WorldOutbox, WorldStore } from '@harness-world/
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { interactionPackageDescription } from '@harness-world/contracts'
-import { PlaytestMemoryCore } from '../tests/experiments/playtest-memory-core.ts'
-import { PackStatus } from '../tests/experiments/pack-status.ts'
+import { CoreMemoryAdapter } from './host/memory/core-memory.ts'
+import { PackStatus } from './host/pack-status.ts'
 import { preflightSave } from './save-preflight.ts'
 import { readStoryNodes, restoreStoryNode, storyId, type StoryNode } from './story-nodes.ts'
 
@@ -110,7 +110,7 @@ async function validate(directory: string, node: StoryNode, packPath: string): P
   const actors = pack.content.characters.filter(character => character.controllerClass !== 'manual'
     && (character.lifecycle ?? 'active') === 'active').map(character => character.characterId)
   if (Object.keys(aliases).some(actor => !actors.includes(actor as typeof actors[number]))) throw new Error('身份历史包含游戏包之外的角色。')
-  const memory = new PlaytestMemoryCore(directory, address, async () => { throw new Error('import must not call a model') })
+  const memory = new CoreMemoryAdapter(directory, address, async () => { throw new Error('import must not call a model') })
   try {
     if (node.files.includes('core-memory.json')) {
       const archives = object(JSON.parse(readFileSync(join(directory, 'core-memory.json'), 'utf8')))

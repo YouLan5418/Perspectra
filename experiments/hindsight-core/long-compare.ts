@@ -3,7 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFi
 import { resolve } from 'node:path'
 import { brandId, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { FrozenWorldPlaytestRuntime } from '../../tests/experiments/playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 
 type Ref = { sourceId: string; sourceHash: string; epistemicKind: string;
@@ -45,7 +45,7 @@ writeFileSync(resolve(root, exploratory ? 'protocol-exploratory.json' : 'protoco
   exploratory, assessment: ['old reminder remembered', 'latest reminder remembered', 'old/current distinction',
     'private-source isolation', 'source traceability'] }, null, 2))
 function core(input: WorldJsonObject): Recall {
-  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('experiments/hindsight-core/core.py')], {
+  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('desktop/host/memory/python/core/core.py')], {
     input: JSON.stringify(input), encoding:'utf8', maxBuffer:32*1024*1024, timeout:180_000,
     env:{...process.env, PYTHONIOENCODING:'utf-8'},
   })
@@ -104,7 +104,7 @@ for (const probe of probes) {
         note:'角色来源的非权威派生记忆；转述和约定不证明相应行动已经发生。' }
     })
     const requests: PrototypeTurnRequest[] = []
-    const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory:dir,
+    const runtime = await WorldHostRuntime.create({ dataDirectory:dir,
       packPath:resolve('examples/world-packs/hand-in-hand'), provider:'local', model,
       ...(endpoint === undefined ? {} : { utilityEndpoint:endpoint }),
       ...(apiKey === undefined ? {} : { apiKey }), timeoutMs:90_000,

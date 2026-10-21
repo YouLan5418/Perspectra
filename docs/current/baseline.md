@@ -50,7 +50,7 @@ corepack pnpm@11.7.0 test:related tests/p2.integration.test.ts
 
 `vitest.config.ts` 保留广泛测试发现，供 `test:related` 与显式诊断使用。覆盖率不再作为门槛；已移除旧阶段与硬终止专属命令。`test:related` 不带路径会选择全量，日常必须明确路径。
 
-GitHub CI（[流水线](../../.github/workflows/p0.yml)）只在 Windows / Node 24 上跑，分四步：根类型检查、Lint、`launcher:check`（Vue 类型检查和 Launcher 单元测试）、原型测试。几点说明：
+GitHub CI（[流水线](../../.github/workflows/p0.yml)）只在 Windows / Node 24 上跑，分五步：根类型检查、生产路径检查、Lint、`launcher:check`（Vue 类型检查和 Launcher 单元测试）、原型测试。几点说明：
 
 - 原型测试在 CI 上用 `corepack pnpm@11.7.0 test --maxWorkers=1` 逐个文件串行跑，避免托管机器上 SQLite、HTTP 和子进程互相抢资源。本地 `check` 仍用默认并发；想复现 CI 就按流水线一步步跑。
 - 少数在托管机器上超时过的场景（多轮对话、HTTP 逃离、故事节点）单独放宽到 60–120 秒的测试时限；运行时本身的模型、角色、活动时限和断言都没改。

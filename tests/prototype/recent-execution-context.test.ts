@@ -5,10 +5,10 @@ import { join,resolve } from 'node:path'
 import { expect,it } from 'vitest'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
-import type { CoreRunner } from '../experiments/hindsight-python.ts'
+import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 
 it('keeps disabled requests unchanged and isolates private evidence across a real saved-node fork',async()=>{
  const root=mkdtempSync(join(tmpdir(),'execution-context-')),requests:Record<string,any>[]=[]
@@ -38,16 +38,16 @@ it('keeps disabled requests unchanged and isolates private evidence across a rea
  }:{delivery:[],deliveryTrace:{delivered:[],activityCoverage:[]}}
  const options={packPath,dataDirectory:data,provider:'local' as const,model:'fixture',
   utilityEndpoint:`http://127.0.0.1:${port}/v1/chat/completions`,playSettings:settings,storyNodes:true,memoryCore:true,memoryCoreRun:core,memoryCoreBuildRun:core}
- let runtime:FrozenWorldPlaytestRuntime|undefined
+ let runtime:WorldHostRuntime|undefined
  try {
-  runtime=await FrozenWorldPlaytestRuntime.create(options)
+  runtime=await WorldHostRuntime.create(options)
   action='move';await runtime.submit('/act speak {"text":"普通基线机会","scope":"self"}')
   expect(requests.every(r=>r.input.context.recentExecutionEvidence===undefined)).toBe(true)
   expect(requests.every(r=>!r.wire.messages[0].content.includes('recentExecutionEvidence 是'))).toBe(true)
   const node=await runtime.saveNode('执行证据分叉前')
   const store=new WorldStore(join(data,'world.sqlite'));const prefix=store.head(runtime.address).headSeq;store.close()
   await runtime.close()
-  runtime=await FrozenWorldPlaytestRuntime.create({...options,recentExecutionEvidence:true})
+  runtime=await WorldHostRuntime.create({...options,recentExecutionEvidence:true})
   // The fixture author permits take; this remains a real Rulebook commit, not an injected possession event.
   action='take';await runtime.submit('/act speak {"text":"请自行处理眼前的物品。","scope":"scene_public"}')
   const futureStore=new WorldStore(join(data,'world.sqlite'))
@@ -56,7 +56,7 @@ it('keeps disabled requests unchanged and isolates private evidence across a rea
   expect(future.some(e=>e.seq>prefix&&e.eventType==='entity.transferred')).toBe(true)
   await runtime.close();runtime=undefined
   const child=join(root,'child');restoreStoryNode(data,node.id,child,node.packHash)
-  runtime=await FrozenWorldPlaytestRuntime.create({...options,dataDirectory:child,recentExecutionEvidence:true})
+  runtime=await WorldHostRuntime.create({...options,dataDirectory:child,recentExecutionEvidence:true})
   requests.length=0
   await runtime.submit('/act speak {"text":"私语隔离青松","scope":"private","addresseeIds":["character:companion"]}')
   const friend=requests.filter(r=>r.input.context.character.characterId==='character:friend')

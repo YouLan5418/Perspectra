@@ -6,8 +6,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { brandId, resolutionAuthority, type WorldJsonObject } from '@harness-world/contracts'
 import { currentLocation } from '@harness-world/kernel'
 import { crossSceneRuntime } from '../experiments/cross-scene-runtime.ts'
-import { PlaytestMemoryCore } from '../experiments/playtest-memory-core.ts'
-import { localPrototypeTurnCall } from '../experiments/local-prototype-turn-call.ts'
+import { CoreMemoryAdapter } from '../../desktop/host/memory/core-memory.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const directories: string[] = [], runtimes: Awaited<ReturnType<typeof crossSceneRuntime>>[] = []
 afterEach(async () => { vi.restoreAllMocks(); for (const r of runtimes.splice(0)) await r.close(); for (const d of directories.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -19,7 +19,7 @@ const companion = 'character:companion', friend = 'character:friend', player = '
 
 it('renders free message arguments without requiring unrelated activity fields', async () => {
   const { runtime: r } = await fixture()
-  const call = localPrototypeTurnCall({ continuation: false, canPerform: true, context: {
+  const call = gatewayTurnCall({ continuation: false, canPerform: true, context: {
     character: { characterId: companion }, scene: { people: [] }, affordances: [{ actionType: 'interact', interactions: [{
       ...r.communication.parameters(player, ''), argumentSchema: { type: 'object', additionalProperties: false,
         required: ['text'], properties: { text: { type: 'string', minLength: 1, maxLength: 2000 } } },
@@ -113,7 +113,7 @@ it('Core query sources preserve the medium and exclude unaddressed scene bystand
       ? { archive: { scope: input.scope!, sources: input.sources!, facts: [], episodes: [], observations: [] }, index: { scope: input.scope!, units: [], vectors: [] } }
       : { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } }
   }
-  const core = new PlaytestMemoryCore(directory, r.address, run, undefined, { run })
+  const core = new CoreMemoryAdapter(directory, r.address, run, undefined, { run })
   try {
     for (const id of [companion, friend]) r.memory.catchUp(r.address, brandId(id, 'CharacterId'), r.store.head(r.address).headSeq, 'sms-core')
     await core.refresh([companion, friend], new AbortController().signal, () => {})

@@ -1,5 +1,5 @@
-import type { CreatorHistoryItem } from '../../../../tests/experiments/creator-history.ts'
-import type { CreatorRecord } from '../../../../tests/experiments/creator-records.ts'
+import type { CreatorHistoryItem } from '../../../../desktop/host/creator-history.ts'
+import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
 import { asArray, asRecord, expressionSegments, inlineJson, readable, requestStatus, segmentsText, text, turnStatus } from './format.ts'
 import type { NameTables, TraceNode } from './types.ts'
 

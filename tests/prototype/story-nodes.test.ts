@@ -8,14 +8,14 @@ import { afterEach, expect, it } from 'vitest'
 import { currentEntityState, currentLocation } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
-import type { CoreRunner } from '../experiments/hindsight-python.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 import { readStoryNodes, restoreStoryNode, saveStoryNode } from '../../desktop/story-nodes.ts'
 import { exportStoryNode } from '../../desktop/story-share.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { knownTime, statusMarketWithoutRoundHook } from './fixtures/status-market-no-hook.ts'
 
-const roots: string[] = [], servers: Server[] = [], runtimes: FrozenWorldPlaytestRuntime[] = []
+const roots: string[] = [], servers: Server[] = [], runtimes: WorldHostRuntime[] = []
 afterEach(async () => {
   for (const runtime of runtimes.splice(0)) await runtime.close()
   for (const server of servers.splice(0)) await new Promise<void>(done=>server.close(()=>done()))
@@ -62,7 +62,7 @@ async function fixture() {
   const options={packPath:pack,provider:'local' as const,model:'fixture',utilityEndpoint:'http://127.0.0.1:'+port+'/v1/chat/completions',
     memoryCore:true,memoryCoreRun:run,memoryCoreBuildRun:run}
   const create=async(directory=data, extra:Partial<typeof options>={})=>{
-    const runtime=await FrozenWorldPlaytestRuntime.create({...options,...extra,dataDirectory:directory})
+    const runtime=await WorldHostRuntime.create({...options,...extra,dataDirectory:directory})
     runtimes.push(runtime);return runtime
   }
   const runtime=await create()

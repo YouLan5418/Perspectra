@@ -1,3 +1,5 @@
+> 历史研究记录。默认 Core 记忆实现已迁至 `desktop/host/memory/`；当前安装、源码与发行路径见[Core 记忆说明](../../desktop/host/memory/README.md)。下文保留当时的实验状态与命令，不能作为现行入口说明。
+
 # 记忆与认知实验
 
 | 属性 | 内容 |

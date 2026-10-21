@@ -5,9 +5,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
-import { createPlaytestServer } from './playtest-server.ts'
-import { coreRunner } from './hindsight-python.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { createHostServer } from '../../desktop/host/http-server.ts'
+import { coreRunner } from '../../desktop/host/memory/python-worker.ts'
 const root = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(root)) throw new Error('specify a new data directory')
 mkdirSync(root, { recursive:true })
@@ -28,19 +28,19 @@ save('protocol.json',{ phase:'6.5',model,pack:'examples/world-packs/prototype-g1
   limits:['one continuous trajectory, no randomized control; page UI not automated',
     'manual refresh rebuilds generic observations; no known-family lineage update in this path'] })
 const run = coreRunner({HCW_LOCAL_MODEL:model,HCW_HINDSIGHT_UTILITY_TRACE:join(root,'utility.jsonl')})
-const measuredRun: import('./hindsight-python.ts').CoreRunner = async(input,signal)=>{
+const measuredRun: import('../../desktop/host/memory/python-worker.ts').CoreRunner = async(input,signal)=>{
     const start=performance.now(), result=await run(input,signal)
     const path=join(root,'bridge.jsonl')
     const {appendFileSync}=await import('node:fs')
     appendFileSync(path,JSON.stringify({input,result,durationMs:performance.now()-start})+'\n')
     return result
 }
-const runtime = await FrozenWorldPlaytestRuntime.create({ dataDirectory:root,
+const runtime = await WorldHostRuntime.create({ dataDirectory:root,
   packPath:resolve('examples/world-packs/prototype-g1'),provider:'local',model,
   ...(process.env.HCW_LOCAL_ENDPOINT ? { utilityEndpoint:process.env.HCW_LOCAL_ENDPOINT } : {}),
   ...(process.env.HCW_LOCAL_API_KEY ? { apiKey:process.env.HCW_LOCAL_API_KEY } : {}),
   timeoutMs:90000,tuning,memoryCore:true,memoryCoreRun:measuredRun,memoryCoreBuildRun:measuredRun })
-const token=randomBytes(32).toString('hex'), server=createPlaytestServer(runtime,token)
+const token=randomBytes(32).toString('hex'), server=createHostServer(runtime,token)
 server.listen(0,'127.0.0.1'); await once(server,'listening')
 const address=server.address();if(!address || typeof address==='string')throw new Error('no HTTP port')
 const base='http://127.0.0.1:'+address.port

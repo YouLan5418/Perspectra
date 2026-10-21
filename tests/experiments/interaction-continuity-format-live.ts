@@ -3,8 +3,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { createChatProvider, prototypeTurnCall } from '@harness-world/provider-chat'
 import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
-import { decideActivityFormat } from './pack-activity.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 
 const directory=resolve(process.argv[2]??'output/interaction-continuity/format-live')
@@ -38,7 +38,7 @@ for(const entry of cases) {
   let invocations=0,repairs=0
   const started=performance.now(),signal=AbortSignal.timeout(60000)
   try {
-    const output=await decideActivityFormat(localPrototypeTurnCall(request),async call=>{
+    const output=await decideWithFormatRetry(gatewayTurnCall(request),async call=>{
       if(++invocations===1)return entry.invalid as unknown as WorldJsonValue
       return provider.decide(call,signal)
     },signal,prototypeTurnCall(request).schema,()=>++repairs===1)

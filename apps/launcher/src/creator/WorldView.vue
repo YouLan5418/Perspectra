@@ -5,7 +5,7 @@ import { useCreatorStore } from './store.ts'
 
 const store = useCreatorStore()
 const recent = computed(() => [...store.trace].reverse().filter(node => !node.processing).slice(0, 12))
-const publicVariables = computed(() => Object.entries(asRecord(store.world?.variables?.public)))
+const publicStatuses = computed(() => Object.entries(asRecord(store.world?.statusTruth?.public)))
 </script>
 
 <template>
@@ -51,13 +51,13 @@ const publicVariables = computed(() => Object.entries(asRecord(store.world?.vari
     </section>
 
     <section class="cr-section">
-      <h2>公开变量</h2>
+      <h2>公开状态</h2>
       <div class="cr-grid">
-        <div v-for="[key, value] in publicVariables" :key="key" class="cr-field-card" @click="store.select({ kind: 'variable', id: `public.${key}`, label: `变量 · ${key}` })">
+        <div v-for="[key, value] in publicStatuses" :key="key" class="cr-field-card" @click="store.select({ kind: 'status', id: `public.${key}`, label: `状态 · ${key}` })">
           <small>{{ key }}</small><span class="cr-mono">{{ inlineJson(value, 80) }}</span>
         </div>
       </div>
-      <p v-if="!publicVariables.length" class="cr-muted">当前没有安装公开变量，或未安装变量模块。</p>
+      <p v-if="!publicStatuses.length" class="cr-muted">当前没有安装公开状态，或未安装状态模块。</p>
     </section>
 
     <section class="cr-section">

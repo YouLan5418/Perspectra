@@ -5,17 +5,17 @@ import { tmpdir } from 'node:os'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
-import { FrozenWorldRuntimeCore } from '../experiments/playtest-frozen-runtime.ts'
-import { projectPlayerView } from '../../packages/frontend/src/player-view.ts'
+import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
-const roots:string[]=[],runtimes:FrozenWorldRuntimeCore[]=[]
+const roots:string[]=[],runtimes:WorldHostCore[]=[]
 afterEach(async()=>{for(const r of runtimes.splice(0))await r.close();for(const p of roots.splice(0))rmSync(p,{recursive:true,force:true})})
 
 async function fixture(){
   const root=mkdtempSync(join(tmpdir(),'model-girls-dinner-'));roots.push(root)
   const pack=join(root,'pack'),data=join(root,'data');cpSync(resolve('examples/world-packs/model-girls-dinner-v2'),pack,{recursive:true})
   // No usable provider: NPC turns fail fast, so only the player's adjudicated actions change the world.
-  const runtime=await FrozenWorldRuntimeCore.create({packPath:pack,dataDirectory:data,provider:'ollama',model:'unused',
+  const runtime=await WorldHostCore.create({packPath:pack,dataDirectory:data,provider:'ollama',model:'unused',
     utilityEndpoint:'http://127.0.0.1:1/api/chat',timeoutMs:1000});runtimes.push(runtime)
   const events=()=>{const store=new WorldStore(join(data,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
   const actions=async()=>projectPlayerView(await runtime.state()).actions

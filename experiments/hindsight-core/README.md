@@ -1,3 +1,5 @@
+> 历史研究记录。默认 Core 记忆实现已迁至 `desktop/host/memory/`；当前安装、源码与发行路径见[Core 记忆说明](../../desktop/host/memory/README.md)。下文保留当时的实验状态与命令，不能作为现行入口说明。
+
 # Hindsight Core 实验
 
 验证分层提炼、组织、认识整合和召回能否改善角色长期体验，同时维持角色授权隔离。实验现已保存在本仓库；旧独立分支说明属于历史。源码网页的当前简化接入见[Activity Memory](../activity-memory/README.md)，项目机制见[认知与记忆](../../docs/current/architecture/cognition-memory.md)。

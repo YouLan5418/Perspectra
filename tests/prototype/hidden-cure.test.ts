@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { FrozenWorldPlaytestRuntime } from '../experiments/playtest-frozen-runtime.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { command, object, packPath, settings, snapshot, takeRecord } from '../experiments/hidden-cure.ts'
 
 it('compiles the experiment and preserves private knowledge and exclusive document custody', async () => {
@@ -18,9 +18,9 @@ it('compiles the experiment and preserves private knowledge and exclusive docume
     })
   })
   await new Promise<void>(done=>server.listen(0,'127.0.0.1',done))
-  let runtime: FrozenWorldPlaytestRuntime | undefined
+  let runtime: WorldHostRuntime | undefined
   try {
-    runtime=await FrozenWorldPlaytestRuntime.create({dataDirectory:directory,packPath,
+    runtime=await WorldHostRuntime.create({dataDirectory:directory,packPath,
       provider:'ollama',model:'mechanical-abstention',playSettings:settings,
       utilityEndpoint:`http://127.0.0.1:${(server.address() as {port:number}).port}/api/chat`,timeoutMs:5000})
     const initial=snapshot(runtime)

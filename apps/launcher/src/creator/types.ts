@@ -1,6 +1,6 @@
 import type { StoredWorldEvent } from '../../../../packages/contracts/src/index.ts'
-import type { CreatorHistoryItem } from '../../../../tests/experiments/creator-history.ts'
-import type { CreatorRecord } from '../../../../tests/experiments/creator-records.ts'
+import type { CreatorHistoryItem } from '../../../../desktop/host/creator-history.ts'
+import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
 
 /** 轨迹条目类型。颜色与文字标签同时表示，不依赖单一色相。 */
 export type TraceKind =
@@ -10,7 +10,7 @@ export type TraceKind =
 export type StatusTone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent'
 
 /** 右侧详情面板的形态。 */
-export type SelectionKind = 'record' | 'event' | 'entity' | 'character' | 'world' | 'variable' | 'activity'
+export type SelectionKind = 'record' | 'event' | 'entity' | 'character' | 'world' | 'status' | 'activity'
 
 export interface TraceNode {
   /** 稳定键：事件用 seq，记录用 recordId。 */
@@ -58,4 +58,4 @@ export interface Selection {
 }
 
 /** 控制台里的页面；与左侧导航一一对应。 */
-export type ConsoleView = 'conversation' | 'trace' | 'requests' | 'world' | 'characters' | 'entities' | 'variables' | 'activities'
+export type ConsoleView = 'conversation' | 'trace' | 'requests' | 'world' | 'characters' | 'entities' | 'statuses' | 'activities'

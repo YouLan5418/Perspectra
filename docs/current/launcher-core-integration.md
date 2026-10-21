@@ -80,7 +80,7 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 | [launcher-core.test.ts](../../tests/prototype/launcher-core.test.ts) | 5 项实例索引、配置损坏、无效包、权限及认证字段回归 |
 | [launcher.test.ts](../../apps/launcher/src/stores/launcher.test.ts) | 2 项原生初始化和跨接口密钥隔离回归 |
 
-没有修改 Core 的 Action、Rulebook、Event 提交、角色权限或记忆算法；继续调用现有 `tests/experiments/playtest-web-entry.ts`。旧 Electron 桌面入口仍保留，但其存档和设置不迁移到新 Launcher。
+没有修改 Core 的 Action、Rulebook、Event 提交、角色权限或记忆算法；继续调用现有 `desktop/host/web-entry.ts`。旧 Electron 桌面入口仍保留，但其存档和设置不迁移到新 Launcher。
 
 ## 3. 数据与进程
 

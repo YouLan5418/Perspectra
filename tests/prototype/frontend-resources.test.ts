@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile, open, rm } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, expect, it } from 'vitest'
-import { FRONTEND_RESOURCE_LIMITS, loadPackWeb } from '../experiments/playtest-pack-web.ts'
+import { FRONTEND_RESOURCE_LIMITS, loadPackWeb } from '../../desktop/host/pack-frontend.ts'
 
 const roots:string[]=[]
 afterEach(async()=>{

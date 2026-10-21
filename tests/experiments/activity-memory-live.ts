@@ -1,4 +1,4 @@
-import { hindsightPython } from './hindsight-python.ts'
+import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 /** Continuous play through the actual host; experimental memory is injected at the provider boundary. */
 import { createServer } from 'node:http'
 import { randomUUID, createHash } from 'node:crypto'
@@ -10,9 +10,9 @@ import { brandId, worldAddressKey, RECALL_KEYWORD_TOKENIZER_ID, type WorldJsonOb
 import { WorldStore } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { FrozenWorldPlaytestRuntime } from './playtest-frozen-runtime.ts'
-import type { PlaytestState } from './playtest-server.ts'
-import { DEFAULT_PLAYTEST_TUNING } from './playtest-tuning.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { HostState } from '../../desktop/host/http-server.ts'
+import { DEFAULT_RUNTIME_TUNING } from '../../desktop/host/runtime-tuning.ts'
 
 const root=resolve(process.argv[2]??'.tmp/hosted-memory-live-20261003-'+randomUUID().slice(0,6))
 const resume=process.argv.includes('--resume')
@@ -21,7 +21,7 @@ if(resume&&!existsSync(join(root,'failure.json')))throw new Error('resume requir
 if(resume&&(existsSync(join(root,'completion.json'))||existsSync(join(root,'stopped.json'))))throw new Error('completed or deliberately stopped experiment is frozen; use a new directory')
 mkdirSync(root,{recursive:true})
 const base=join(root,'base'),endpoint=process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8045/v1/chat/completions'
-const python=hindsightPython()
+const python=corePythonExecutable()
 const packPath=resolve('examples/world-packs/ai-girls-hosted-guess'),model='gemini-3.7-flash'
 const actors=(JSON.parse(readFileSync(join(packPath,'characters.json'),'utf8')).characters as {characterId:string;controllerClass:string;lifecycle?:string}[])
  .filter(c=>c.controllerClass==='scripted'&&c.lifecycle!=='inactive').map(c=>c.characterId)
@@ -30,7 +30,7 @@ const append=(name:string,value:unknown)=>writeFileSync(join(root,name),JSON.str
 const jsonLines=(name:string):Record<string,unknown>[]=>existsSync(join(root,name))?readFileSync(join(root,name),'utf8').split(/\r?\n/u).filter(Boolean).map(s=>JSON.parse(s)):[]
 const object=(v:unknown):WorldJsonObject=>{if(!v||typeof v!=='object'||Array.isArray(v))throw new Error('expected object');return v as WorldJsonObject}
 function py(input:unknown,utilityTrace?:string):Record<string,unknown>{
- const run=spawnSync(python,[resolve('experiments/activity-memory/core_bridge.py')],{input:JSON.stringify(input),encoding:'utf8',timeout:utilityTrace?600000:240000,
+ const run=spawnSync(python,[resolve('desktop/host/memory/python/bridge/core_bridge.py')],{input:JSON.stringify(input),encoding:'utf8',timeout:utilityTrace?600000:240000,
   maxBuffer:128*1024*1024,env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONHASHSEED:'0',...(utilityTrace?{HCW_HINDSIGHT_UTILITY_TRACE:utilityTrace}:{})}})
  if(run.status!==0||run.error)throw new Error('memory core failed: '+(run.error?.message??run.stderr.slice(-1800)))
  return JSON.parse(run.stdout) as Record<string,unknown>
@@ -41,7 +41,7 @@ async function gateway(body:unknown,signal:AbortSignal){
  if(!response.ok)throw new Error('gateway HTTP '+response.status)
  return {text,value:JSON.parse(text) as {choices:{message:{content?:string;tool_calls?:{function:{arguments:string}}[]}}[]}}
 }
-let runtime!:FrozenWorldPlaytestRuntime, calls=0,roots=0,playerCalls=0,checkpoint=0,emptyAudienceInputs=0
+let runtime!:WorldHostRuntime, calls=0,roots=0,playerCalls=0,checkpoint=0,emptyAudienceInputs=0
 let resumeFreePlay=false,executionPhase='initial'
 const caches=new Map<string,{archive:unknown;index:unknown;headSeq:number;sourceCount:number}>(),people=new Map<string,unknown>()
 if(resume){
@@ -62,7 +62,7 @@ if(resume){
    error:true,rejection:failure.error,committed:false})
  }
  append('resumes.jsonl',{afterRootInput:roots,afterCharacterCall:calls,afterCheckpoint:checkpoint,
-  tuning:{...DEFAULT_PLAYTEST_TUNING,reactionDeadlineSeconds:120},reason:'resume same save after recorded failure',failure:failure.error,phase:resumeFreePlay?'free':'games',
+  tuning:{...DEFAULT_RUNTIME_TUNING,reactionDeadlineSeconds:120},reason:'resume same save after recorded failure',failure:failure.error,phase:resumeFreePlay?'free':'games',
   memoryInitialization:process.argv.includes('--reuse-complete-memory')?'reuse latest complete checkpoint':'full-prefix rebuild',
   skipMidRefresh:process.argv.includes('--skip-mid-refresh')})
 }
@@ -129,7 +129,7 @@ async function refreshMemory(label:string){
   append('checkpoints.jsonl',{checkpoint,label,headSeq:head.headSeq,tick:head.tick})
  }finally{memory.close();store.close()}
 }
-function recordInput(kind:string,input:unknown,state:PlaytestState,submittedText?:string){
+function recordInput(kind:string,input:unknown,state:HostState,submittedText?:string){
  save('latest-state.json',state)
  append('inputs.jsonl',{rootInput:roots,kind,input,...(submittedText===undefined?{}:{submittedText}),headSeq:state.debug.headSeq,error:state.error,notice:state.notice,
   activity:state.activity,transcript:state.transcript.slice(-12)})
@@ -147,7 +147,7 @@ async function action(operation:string,parameters:WorldJsonObject={}){
   operation,parameters,requestId:randomUUID()})
  recordInput('game',{operation,parameters},state);return state
 }
-async function player(state:PlaytestState,instruction:string){
+async function player(state:HostState,instruction:string){
  const visible={playerName:state.world.playerName,world:state.world,transcript:state.transcript.slice(-24),activity:state.activity,
   moves:state.availableActions?.flatMap(a=>a.actionType==='move'?a.destinations??[]:[])}
  const id=++playerCalls
@@ -205,9 +205,9 @@ async function reunite(){
  return false
 }
 try{
- runtime=await FrozenWorldPlaytestRuntime.create({packPath,dataDirectory:base,
+ runtime=await WorldHostRuntime.create({packPath,dataDirectory:base,
   provider:'local',model,utilityEndpoint:'http://127.0.0.1:'+port.port,timeoutMs:55000,
-  tuning:{...DEFAULT_PLAYTEST_TUNING,reactionDeadlineSeconds:120}})
+  tuning:{...DEFAULT_RUNTIME_TUNING,reactionDeadlineSeconds:120}})
  save('address.json',runtime.address)
  if(!resume)save('protocol.json',{model,experiment:'three hosted games plus continuous free interaction',limits:{rootInputs:80,targetRootInputs:60,gameInputs:[12,8,12],retryPerStall:2,reactionDeadlineSeconds:120},
   memory:'actual Character Turns receive experimental Core Recall + Observation with ending anchors; recent context retained',

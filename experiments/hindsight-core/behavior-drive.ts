@@ -9,7 +9,7 @@ import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService, Ch
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { localPrototypeTurnCall } from '../../tests/experiments/local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../../tests/fixtures/frozen-interaction-world.ts'
 import { behaviorCases, roundContent, type BehaviorCase } from './behavior-cases.ts'
 
@@ -275,7 +275,7 @@ for(const test of selectedCases) {
                 }
                 if(JSON.stringify(visible).includes('霜叶钥')) throw new Error('private information reached NPC request')
                 requests.push(visible)
-                const answer=await provider.decide(localPrototypeTurnCall(visible),signal)
+                const answer=await provider.decide(gatewayTurnCall(visible),signal)
                 decisions.push(answer)
                 return answer
               }})

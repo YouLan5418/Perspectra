@@ -16,8 +16,8 @@ import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { preflightSave } from './save-preflight.ts'
-import { loadPackWeb } from '../tests/experiments/playtest-pack-web.ts'
-import { hindsightPython } from '../tests/experiments/hindsight-python.ts'
+import { loadPackWeb } from './host/pack-frontend.ts'
+import { corePythonExecutable } from './host/memory/python-worker.ts'
 
 interface Pack { id: string; version: string; title: string; path: string; hash: string }
 interface Storyline { id: string; name: string; parentStorylineId: string | null; parentNodeId: string | null }
@@ -447,7 +447,7 @@ export class LauncherCore {
         const directory = this.#storyDirectory(instance)
         const preflight = await preflightSave(pack.path, directory)
         if (preflight.packHash !== instance.packHash) throw new Error('世界包内容与创建实例时不同，请恢复原包。')
-        try { await access(hindsightPython()) }
+        try { await access(corePythonExecutable()) }
         catch (error) {
           const code = (error as NodeJS.ErrnoException).code
           if (code === 'ENOENT') throw new Error('本机记忆所需的 Python 环境不存在。请准备开发环境，或设置 HCW_HINDSIGHT_PYTHON 后重启启动器。')
@@ -468,7 +468,7 @@ export class LauncherCore {
         const choice=this.#presets.instances[instance.id]
         if(choice)this.#validMapping(instance,choice)
         const child = spawn(process.execPath,
-          [...(process.env.PERSPECTRA_RUNTIME_ROOT ? [join(process.env.PERSPECTRA_RUNTIME_ROOT,'playtest.mjs')] : ['--import','tsx',join(this.repository,'tests/experiments/playtest-web-entry.ts')]), '--pack', pack.path, '--data-dir', directory, '--memory-core', '--play-settings', JSON.stringify(this.#index.playSettings?.[pack.id]??playSettings({}))], {
+          [...(process.env.PERSPECTRA_RUNTIME_ROOT ? [join(process.env.PERSPECTRA_RUNTIME_ROOT,'playtest.mjs')] : ['--import','tsx',join(this.repository,'desktop/host/web-entry.ts')]), '--pack', pack.path, '--data-dir', directory, '--memory-core', '--play-settings', JSON.stringify(this.#index.playSettings?.[pack.id]??playSettings({}))], {
             cwd: this.repository, windowsHide: true,
             env: { ...process.env, HCW_THINKING_LEVEL: undefined, ...modelEnv,
               PERSPECTRA_STORY_PARENT_NODE: instance.storylines.find(l=>l.id===instance.currentStorylineId)?.parentNodeId??'',

@@ -10,7 +10,7 @@ import { createChatProvider } from '@harness-world/provider-chat'
 import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
 import { basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
-import { localPrototypeTurnCall } from './local-prototype-turn-call.ts'
+import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const root=resolve(process.argv[2]??''),mode=process.argv[3]??'--prepare'
 const input=resolve(process.argv[4]??'.tmp/observation-natural-choice-20261004-v1')
@@ -112,7 +112,7 @@ async function episode(dir:string,protocol:WorldJsonObject,reply:typeof replies[
        const response=dry?(request.continuation?{ decision:'publish', segments: [{ type: 'speech', text: '到了，先看现场指引。' }] }:
          stage===1?{decision:'perform',actionType:'move',parameters:{locationId:'location:next'}}:
          { decision:'publish', addresseeIds:[player], segments: [{ type: 'speech', text: stage===0?'指引是今天更新的吗？':'我先看看现场。' }] }):
-         await provider!.decide(localPrototypeTurnCall(visible),signal)
+         await provider!.decide(gatewayTurnCall(visible),signal)
        save(path,{stage,index,dry,request:visible,status:'returned',headSeq:head.headSeq,tick:head.tick,
          response,durationMs:Math.round(performance.now()-start)})
        return response

@@ -2,13 +2,13 @@
 import { computed, ref, watch } from 'vue'
 import { ArrowLeft, Copy, ExternalLink, X } from '@lucide/vue'
 import type { InspectedRequest } from '../../../../packages/provider-chat/src/request-inspector.ts'
-import type { CreatorDebugSnapshot } from '../../../../tests/experiments/creator-debug.ts'
-import type { CreatorRecord } from '../../../../tests/experiments/creator-records.ts'
+import type { CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
+import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
 import { asArray, asRecord, dateTimeLabel, durationLabel, inlineJson, KIND_LABEL, readable, timeLabel, tokenLabel, truncate } from './format.ts'
 import { useCreatorStore } from './store.ts'
 import type { TraceNode } from './types.ts'
 
-type CharacterDetail = NonNullable<CreatorDebugSnapshot['character']>
+type CharacterDetail = NonNullable<CreatorInspectionSnapshot['character']>
 
 const store = useCreatorStore()
 const tab = ref('')
@@ -40,7 +40,7 @@ function tabsFor(): string[] {
   if (current.kind === 'entity') return ['当前状态', '流转历史', '角色观察', '原始 JSON']
   if (current.kind === 'character') return ['概览', '授权观察', '最近请求', '记忆分层', '原始 JSON']
   if (current.kind === 'activity') return ['活动状态']
-  if (current.kind === 'variable') return ['变量值']
+  if (current.kind === 'status') return ['状态值']
   return ['概览', '原始数据']
 }
 
@@ -87,17 +87,17 @@ const memorySections = computed(() => character.value ? Object.entries(character
 const activityIndex = computed<Record<string, Record<string, unknown>>>(() =>
   Object.fromEntries(store.activities.map(item => [String(asRecord(item).activityKey ?? ''), asRecord(item)])))
 
-/** 变量路径形如 public.weather 或 characters.<id>.mood。 */
-const variableValue = computed(() => {
+/** 状态路径形如 public.gateOpen 或 characters.<id>.energy。 */
+const statusValue = computed(() => {
   const current = selection.value
-  if (!current || current.kind !== 'variable') return null
+  if (!current || current.kind !== 'status') return null
   const [scope, ...rest] = current.id.split('.')
-  const variables = store.world?.variables
-  if (!variables) return null
-  if (scope === 'public') return rest.reduce<unknown>((value, key) => asRecord(value)[key], variables.public)
+  const statusTruth = store.world?.statusTruth
+  if (!statusTruth) return null
+  if (scope === 'public') return rest.reduce<unknown>((value, key) => asRecord(value)[key], statusTruth.public)
   if (scope === 'characters') {
     const [characterId, ...keys] = rest
-    return keys.reduce<unknown>((value, key) => asRecord(value)[key], asRecord(variables.characters)[characterId ?? ''])
+    return keys.reduce<unknown>((value, key) => asRecord(value)[key], asRecord(statusTruth.characters)[characterId ?? ''])
   }
   return null
 })
@@ -450,15 +450,15 @@ function toneOf(value: boolean): string { return value ? 'ok' : 'danger' }
         </template>
       </template>
 
-      <!-- 世界 / 变量 / 活动 -->
+      <!-- 世界 / 状态 / 活动 -->
       <template v-else>
-        <section v-if="selection.kind === 'variable'">
+        <section v-if="selection.kind === 'status'">
           <div class="cr-kv">
-            <dt>变量路径</dt><dd class="cr-mono">{{ selection.id }}</dd>
-            <dt>当前值</dt><dd class="cr-mono">{{ inlineJson(variableValue, 400) }}</dd>
+            <dt>状态路径</dt><dd class="cr-mono">{{ selection.id }}</dd>
+            <dt>当前值</dt><dd class="cr-mono">{{ inlineJson(statusValue, 400) }}</dd>
           </div>
-          <pre class="cr-pre">{{ JSON.stringify(variableValue, null, 2) }}</pre>
-          <p class="cr-muted">公开变量与角色私有变量分别在 概览 与 原始数据 中查看；读取不运行作者脚本，不重建历史值。</p>
+          <pre class="cr-pre">{{ JSON.stringify(statusValue, null, 2) }}</pre>
+          <p class="cr-muted">公开状态与角色私有状态分别在 概览 与 原始数据 中查看；读取不运行作者脚本，不重建历史值。</p>
         </section>
         <section v-else-if="selection.kind === 'activity'">
           <h2>概览</h2>
@@ -483,8 +483,8 @@ function toneOf(value: boolean): string { return value ? 'ok' : 'danger' }
           </ul>
         </section>
         <section v-else>
-          <button class="cr-button tiny" @click="copy(store.world?.variables ?? {})">复制变量 JSON</button>
-          <pre class="cr-pre">{{ JSON.stringify(store.world?.variables ?? {}, null, 2) }}</pre>
+          <button class="cr-button tiny" @click="copy(store.world?.statusTruth ?? {})">复制状态 JSON</button>
+          <pre class="cr-pre">{{ JSON.stringify(store.world?.statusTruth ?? {}, null, 2) }}</pre>
         </section>
       </template>
     </div>
