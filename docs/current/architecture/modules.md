@@ -7,7 +7,7 @@
 | 目录 | 负责什么 | 推荐先读 |
 | --- | --- | --- |
 | [apps/launcher](../../../apps/launcher) | Vue 启动器、Tauri 桌面外壳，以及在系统浏览器打开的创作者页面（独立 Vite 入口） | [界面状态](../../../apps/launcher/src/stores/launcher.ts)、[主界面](../../../apps/launcher/src/components/LauncherShell.vue)、[桌面请求](../../../apps/launcher/src/services/desktop.ts)、[创作者页面](../../../apps/launcher/src/creator/main.ts)、[Rust 桥](../../../apps/launcher/src-tauri/src/main.rs) |
-| [desktop](../../../desktop) | Launcher 的 Node 后端、实例数据、模型连接、预设、故事节点，以及游戏宿主的可选 Cordis 插件装载；也保留 Electron 入口 | [LauncherCore](../../../desktop/launcher-core.ts)、[模型连接](../../../desktop/model-connections.ts)、[宿主插件](../../../desktop/host-plugins.ts)、[Node 入口](../../../desktop/launcher-entry.ts) |
+| [desktop](../../../desktop) | Launcher 的 Node 后端、实例数据、模型连接、预设、故事节点，以及游戏宿主的可选 Cordis 插件装载 | [LauncherCore](../../../desktop/launcher-core.ts)、[模型连接](../../../desktop/model-connections.ts)、[宿主插件](../../../desktop/host-plugins.ts)、[Node 入口](../../../desktop/launcher-entry.ts) |
 | [desktop/host](../../../desktop/host) | 当前网页宿主、HTTP、角色装配、Core 记忆和创作者接口 | [宿主说明](../../../desktop/host/README.md)、[网页入口](../../../desktop/host/web-entry.ts)、[实际宿主](../../../desktop/host/world-runtime.ts) |
 | [tests/support](../../../tests/support) | 默认回归与研究驱动共用的场景装配、夹具和崩溃子进程 | [说明](../../../tests/support/README.md)、[跨场景装配](../../../tests/support/cross-scene-runtime.ts) |
 | [tests/experiments](../../../tests/experiments) | 研究驱动和真实模型探针；生产代码与默认回归都不依赖此目录 | [受控调度对照](../../../tests/experiments/dynamic-scheduling.ts) |

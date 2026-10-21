@@ -21,6 +21,7 @@
 | 自由表达与重要状态如何共存 | [Interaction](interaction.md) |
 | 原生记忆与 Core 记忆有什么不同 | [认知与记忆](cognition-memory.md) |
 | 特定玩法怎样限制行为 | [受控交互](controlled-interaction.md) |
+| 各协议与数据库当前是哪个版本、旧值怎么处理 | [协议与存储版本](versions.md) |
 | 创作者怎样定义世界与活动 | [创作者运行时](creator-runtime.md) |
 | 如何按权限交付设定、区分角色态度与客观变量 | [世界设定](../guides/world-knowledge.md) |
 | 创作者怎样检查位置、物品、私有上下文与记忆 | [创作者调试接口](../creator-debug-api.md)（浏览器里的只读创作者页面） |
