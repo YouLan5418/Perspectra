@@ -25,6 +25,7 @@ WorldApplication 负责玩家提交和授权记忆来源捕获；RoundCoordinato
 | [world-runtime.ts](../../../desktop/host/world-runtime.ts) | WorldHostCore.submit、活动与 /act 分支 | 普通表达、明确操作、活动输入走不同分支 |
 | [world-application.ts](../../../packages/application/src/world-application.ts) | 玩家输入与世界应用组合 | 宿主复用裁定和提交机制 |
 | [round-coordinator.ts](../../../packages/application/src/round-coordinator.ts)、[world-store.ts](../../../packages/store-sqlite/src/world-store.ts) | 玩家行动裁定、观察生成与事务提交 | 重要状态在这里成为已提交事实 |
+| [action-observations.ts](../../../packages/application/src/action-observations.ts) | 受众 → 观察事件与玩家投递 | 玩家与 NPC 两条提交路径共用，谁看到什么只在这里拼装 |
 
 普通场景提交玩家输入后，宿主刷新视图并调用 #activateCharacters。活动输入先检查活动策略，不能把普通场景分支套到所有活动上。
 

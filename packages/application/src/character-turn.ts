@@ -6,6 +6,7 @@ import { characterRelationObservations, currentCharacterLifecycle,
   type CompiledWorldManifest, type RulebookRegistry } from '@harness-world/kernel'
 import { CognitionProjectionRebuilder, CharacterViewBuilder, CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import type { CognitiveMemoryService, RecalledMemory } from '@harness-world/memory'
+import { actionObservations, movementRoute } from './action-observations.ts'
 import { SceneDecisionService } from './scene-decision.ts'
 import { characterExecutionResult, expressionAfterExecution } from './character-execution-result.ts'
 
@@ -455,47 +456,33 @@ export class CharacterTurn {
         const speech = resolution.events.find(event => event.eventType === 'character.speak')
         const transfer = resolution.events.find(event => event.eventType === 'entity.transferred')
         const relations = characterRelationObservations(history, resolution.events)
-        const movement = resolution.events.find(event => event.eventType === 'character.moved')
-        const movementData = movement?.data as { readonly characterId: CharacterId;
-          readonly fromLocationId: string | null; readonly toLocationId: string } | undefined
         // The same move reaches both scenes, but neither scene alone grants the whole route.
-        const departureObservers = movement === undefined ? undefined : new Set(this.#scene
-          .decideFromEvents(this.options.address, characterId, history, head.headSeq).observerIds)
-        const arrivalObservers = movement === undefined ? undefined : new Set(this.#scene
-          .decideFromEvents(this.options.address, characterId, [...history, ...events],
-            head.headSeq + events.length).observerIds)
-        const arrived = movement === undefined ? [] : this.#scene.audienceForAction(this.options.address,
+        const route = movementRoute(this.#scene, this.options.address,
+          resolution.events.find(event => event.eventType === 'character.moved'),
+          { events: history, asOfSeq: head.headSeq },
+          { events: [...history, ...events], asOfSeq: head.headSeq + events.length })
+        const arrived = route === undefined ? [] : this.#scene.audienceForAction(this.options.address,
           characterId, [...history, ...events], head.headSeq + events.length).fullContentCharacterIds
-        const full = new Set([...audience.fullContentCharacterIds, ...arrived, characterId])
         const feedback = (this.options.executionResult ?? characterExecutionResult)({ manifest: this.#manifest,
           events: [...history, ...resolution.events], actorId: characterId, action,
           status: resolution.status, reason: resolution.reason ?? null })
-        const outbox = []
-        for (const observerId of new Set([...full, ...audience.occurrenceOnlyCharacterIds])) {
-          const seesDeparture = observerId === characterId || departureObservers?.has(observerId) === true
-          const seesArrival = observerId === characterId || arrivalObservers?.has(observerId) === true
-          const id = `${actionId}:observer:${observerId}`
-          const content: WorldJsonObject = full.has(observerId) ? {
-            actorId: characterId, actionType: action.actionType, status: resolution.status,
-            resultDescription: String(feedback.description)
-              .replaceAll('你', observerId === characterId ? '你' : '行动者'),
+        const observed = actionObservations({ roundId, actionId, actorId: characterId, actionType: action.actionType,
+          status: resolution.status,
+          audience: { fullContentCharacterIds: [...audience.fullContentCharacterIds, ...arrived, characterId],
+            occurrenceOnlyCharacterIds: audience.occurrenceOnlyCharacterIds },
+          ...(route === undefined ? {} : { route }),
+          shared: {
             ...('observationMetadata' in feedback && feedback.observationMetadata !== undefined
               ? { resultMetadata: feedback.observationMetadata } : {}),
             ...(speech === undefined ? {} : { speech: speech.data }),
             ...(transfer === undefined ? {} : { interaction: transfer.data }),
-            ...(movementData === undefined || (!seesDeparture && !seesArrival) ? {} : { movement: {
-              characterId: movementData.characterId,
-              ...(seesDeparture ? { fromLocationId: movementData.fromLocationId } : {}),
-              ...(seesArrival ? { toLocationId: movementData.toLocationId } : {}),
-            } }),
             ...(relations.length === 0 ? {} : { relations }),
-          } : { actorId: characterId, actionType: 'private_interaction', status: resolution.status, contentVisibility: 'occurrence_only' }
-          const value = { observerId, actionId, content }
-          events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id, value } })
-          const player = this.#manifest.playerBindings.find(binding => binding.characterId === observerId)
-          if (player !== undefined) outbox.push({ deliveryId: brandId(`${id}:delivery`, 'DeliveryId'),
-            sessionId: player.sessionId, payload: { observationType: 'character-turn', observationId: id, value }, critical: true })
-        }
+          },
+          perObserver: observerId => ({ resultDescription: String(feedback.description)
+            .replaceAll('你', observerId === characterId ? '你' : '行动者') }),
+          playerBindings: this.#manifest.playerBindings })
+        events.push(...observed.events)
+        const outbox = observed.outbox
         events.push({ eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } })
         await this.options.store.commitRound({ address: this.options.address,
           transactionId: brandId(`${roundId}:commit`, 'TransactionId'), roundId,

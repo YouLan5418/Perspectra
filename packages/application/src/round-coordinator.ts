@@ -49,6 +49,7 @@ import {
   type WriterLease,
 } from '@harness-world/store-sqlite'
 import { bindFrozenInteractionPerformance, resolveGroupAction, stepManifestation } from './action-groups.ts'
+import { actionObservations, movementRoute } from './action-observations.ts'
 import { bindPlayerProvisional, verifyPlayerProvisional } from './player-provisional.ts'
 import type { SceneDecisionService } from './scene-decision.ts'
 
@@ -660,79 +661,49 @@ export class RoundCoordinator {
       const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
       const publicInteraction = resolution.events.find(event => event.eventType === 'entity.transferred')
       const relations = characterRelationObservations(actionPrefix, resolution.events)
-      const playerMovement = item.sourceRole === 'player' && resolution.status === 'accepted'
-        && this.options.sceneDecision !== undefined
-        ? resolvedEvents.find(event => event.eventType === 'character.moved') : undefined
-      const playerMovementData = playerMovement?.data as {
-        readonly characterId: CharacterId
-        readonly fromLocationId: string | null
-        readonly toLocationId: string
-      } | undefined
-      // Arrival witnesses learn the destination; departure witnesses learn the origin. Only the actor gets both.
-      const departureObservers = playerMovement === undefined ? undefined : new Set(this.options.sceneDecision!
-        .decideFromEvents(this.#address, item.action.actorId, actionPrefix, head.headSeq + events.length).observerIds)
-      const arrivalObservers = playerMovement === undefined ? undefined : new Set(this.options.sceneDecision!
-        .decideFromEvents(this.#address, item.action.actorId, [...actionPrefix, ...resolvedEvents],
-          head.headSeq + events.length + resolvedEvents.length).observerIds)
-      const occurrenceOnly = new Set(actionAudience?.occurrenceOnlyCharacterIds ?? [])
-      const observerIds = actionAudience === undefined
-        ? this.options.sceneDecision?.decideFromEvents(
+      const route = item.sourceRole === 'player' && resolution.status === 'accepted' && this.options.sceneDecision !== undefined
+        ? movementRoute(this.options.sceneDecision, this.#address,
+          resolvedEvents.find(event => event.eventType === 'character.moved'),
+          { events: actionPrefix, asOfSeq: head.headSeq + events.length },
+          { events: [...actionPrefix, ...resolvedEvents], asOfSeq: head.headSeq + events.length + resolvedEvents.length })
+        : undefined
+      const audience = actionAudience ?? {
+        fullContentCharacterIds: this.options.sceneDecision?.decideFromEvents(
           this.#address, binding.characterId, [...history, ...events], head.headSeq,
-        ).visibleResultCharacterIds ?? [binding.characterId]
-        : [...actionAudience.fullContentCharacterIds, ...actionAudience.occurrenceOnlyCharacterIds]
-      for (const observerId of observerIds) {
-        const seesDeparture = observerId === item.action.actorId || departureObservers?.has(observerId) === true
-        const seesArrival = observerId === item.action.actorId || arrivalObservers?.has(observerId) === true
-        const observationId = this.options.sceneDecision === undefined
-          ? deterministicId('observation:coordinated-round', { roundId, actionId: item.action.actionId })
-          : deterministicId('observation:scene-result', { roundId, actionId: item.action.actionId, observerId })
-        const observation = {
-          observerId,
-          actionId: item.action.actionId,
-          content: occurrenceOnly.has(observerId) ? {
-            actionType: 'private_interaction',
-            actorId: item.action.actorId,
-            status: resolution.status,
-            contentVisibility: 'occurrence_only',
-          } : {
-            actionType: item.action.actionType,
-            actorId: item.action.actorId,
-            status: skipped ? 'skipped' : resolution.status,
-            reason: resolution.reason ?? null,
-            // Keep the complete source distinct from the extracted expression and adjudicated facts.
-            // A partial audience must never receive a private sibling clause or a move destination.
-            ...(item.sourceRole !== 'player' || intentSubmission === undefined
-              || (observerId !== binding.characterId && !playerSteps.every(step =>
-                step.resolution.status === 'accepted' && step.action.actionType !== 'move'
-                && step.audience?.fullContentCharacterIds.includes(observerId))) ? {} : {
-                playerInput: { actorId: binding.characterId, sourceText: intentSubmission.sourceText,
-                  sourceSpans: intentSubmission.sourceSpans,
-                  note: '原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。' },
-              }),
-            ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
-            ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
-            ...(publicInteraction === undefined ? {} : { interaction: publicInteraction.data }),
-            ...(playerMovementData === undefined || (!seesDeparture && !seesArrival) ? {} : {
-              movement: {
-                characterId: playerMovementData.characterId,
-                ...(seesDeparture ? { fromLocationId: playerMovementData.fromLocationId } : {}),
-                ...(seesArrival ? { toLocationId: playerMovementData.toLocationId } : {}),
-              },
-            }),
-            ...(relations.length === 0 ? {} : { relations }),
-          },
-        }
-        observedCharacters.add(observerId)
-        events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id: observationId, value: observation } })
-        if (observerId === binding.characterId) {
-          outbox.push({
-            deliveryId: brandId(deterministicId('delivery:coordinated-round', { roundId, observationId }), 'DeliveryId'),
-            sessionId: binding.sessionId,
-            payload: { observationId, value: observation },
-            critical: true,
-          })
-        }
+        ).visibleResultCharacterIds ?? [binding.characterId],
+        occurrenceOnlyCharacterIds: [],
       }
+      const observed = actionObservations({
+        roundId,
+        actionId: item.action.actionId,
+        actorId: item.action.actorId,
+        actionType: item.action.actionType,
+        status: resolution.status,
+        skipped,
+        audience,
+        ...(route === undefined ? {} : { route }),
+        shared: {
+          reason: resolution.reason ?? null,
+          ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
+          ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
+          ...(publicInteraction === undefined ? {} : { interaction: publicInteraction.data }),
+          ...(relations.length === 0 ? {} : { relations }),
+        },
+        // Keep the complete source distinct from the extracted expression and adjudicated facts.
+        // A partial audience must never receive a private sibling clause or a move destination.
+        perObserver: observerId => item.sourceRole !== 'player' || intentSubmission === undefined
+          || (observerId !== binding.characterId && !playerSteps.every(step =>
+            step.resolution.status === 'accepted' && step.action.actionType !== 'move'
+            && step.audience?.fullContentCharacterIds.includes(observerId))) ? {} : {
+            playerInput: { actorId: binding.characterId, sourceText: intentSubmission.sourceText,
+              sourceSpans: intentSubmission.sourceSpans,
+              note: '原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。' },
+          },
+        playerBindings: this.#manifest.playerBindings,
+      })
+      for (const observerId of observed.observerIds) observedCharacters.add(observerId)
+      events.push(...observed.events)
+      outbox.push(...observed.outbox)
     }
     events.push({ eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } })
     const cognitiveCharacters = new Set<CharacterId>()
