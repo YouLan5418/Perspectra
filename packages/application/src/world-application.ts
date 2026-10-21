@@ -32,14 +32,12 @@ import {
   WorldBootstrap,
   createCoreRulebookRegistry,
   parsePlayerActionInput,
-  parsePlayerRoundResult,
   runtimeManifestFromStored,
   runtimeManifestFromStoredRecord,
   type ActionAffordance,
   type CompiledWorldManifest,
   type CompiledWorldSpec,
   type PlayerActionInput,
-  type PlayerRoundResult,
   type RulebookRegistry,
 } from '@harness-world/kernel'
 import {
@@ -90,7 +88,9 @@ import { preparePlayerIntent } from './player-intent-preparation.ts'
 import { PlayerIntentWorker, type PlayerIntentProfile } from './player-intent-worker.ts'
 import {
   RoundCoordinator,
+  parsePlayerRoundResult,
   type AcceptedRoundStep,
+  type PlayerRoundResult,
   type SubmitCoordinatedRoundRequest
 } from './round-coordinator.ts'
 import { ApplicationRuntimeMetrics } from './runtime-metrics.ts'

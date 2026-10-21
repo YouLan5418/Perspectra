@@ -1,5 +1,5 @@
 import { brandId } from '@harness-world/contracts'
-import { createCoreRulebookRegistry, FrozenInteractionRulebook, WorldBootstrap, type CompiledWorldSpec, type RoundExecutionLane } from '@harness-world/kernel'
+import { createCoreRulebookRegistry, FrozenInteractionRulebook, WorldBootstrap, type CompiledWorldSpec } from '@harness-world/kernel'
 import {
   BranchAdministration,
   CharacterRuntimeAvailabilityService,
@@ -16,7 +16,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { basicInteractionPackage, frozenInteractionWorld } from '../../../tests/fixtures/frozen-interaction-world.ts'
 import { BranchOperationCoordinator, type CriticalDeliveryDrainPort } from './branch-operation-coordinator.ts'
-import { RoundCoordinator } from './round-coordinator.ts'
+import { RoundCoordinator, type RoundExecutionLane } from './round-coordinator.ts'
 
 const directories: string[] = []
 

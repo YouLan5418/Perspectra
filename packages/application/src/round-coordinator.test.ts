@@ -1,11 +1,11 @@
-import { FrozenInteractionRulebook, WorldBootstrap, createCoreRulebookRegistry, type RoundExecutionLane } from '@harness-world/kernel'
+import { FrozenInteractionRulebook, WorldBootstrap, createCoreRulebookRegistry } from '@harness-world/kernel'
 import { CharacterRuntimeAvailabilityService, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { basicInteractionPackage, frozenInteractionWorld } from '../../../tests/fixtures/frozen-interaction-world.ts'
-import { RoundCoordinator } from './round-coordinator.ts'
+import { RoundCoordinator, parsePlayerRoundResult, type RoundExecutionLane } from './round-coordinator.ts'
 
 it('commits player actions without synthesizing a legacy Cycle', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-responsive-no-bindings-'))
@@ -46,4 +46,29 @@ it('commits player actions without synthesizing a legacy Cycle', async () => {
     store.close()
     rmSync(directory, { recursive: true, force: true })
   }
+})
+
+it('strictly parses durable completed Round results', () => {
+  const valid = {
+    status: 'accepted',
+    reason: null,
+    headSeq: 1,
+    tick: 1,
+    bundleHash: `sha256:${'a'.repeat(64)}`,
+  } as const
+  expect(parsePlayerRoundResult(valid)).toEqual(valid)
+  for (const invalid of [
+    null,
+    [],
+    'result',
+    { ...valid, extra: true },
+    { ...valid, status: 'committed' },
+    { ...valid, reason: 1 },
+    { ...valid, headSeq: 1.5 },
+    { ...valid, headSeq: -1 },
+    { ...valid, tick: 1.5 },
+    { ...valid, tick: -1 },
+    { ...valid, bundleHash: null },
+    { ...valid, bundleHash: 'sha256:short' },
+  ]) expect(() => parsePlayerRoundResult(invalid as never)).toThrow(TypeError)
 })

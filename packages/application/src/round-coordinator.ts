@@ -30,13 +30,10 @@ import {
   characterRelationObservations,
   createCoreRulebookRegistry,
   parsePlayerActionInput,
-  parsePlayerRoundResult,
   resolveManifestation,
   runtimeManifestFromStored,
   type CompiledWorldManifestV10,
   type PlayerActionInput,
-  type PlayerRoundResult,
-  type RoundExecutionLane,
   type RulebookRegistry,
   type RulebookResolution,
   type RulebookResolver
@@ -54,6 +51,37 @@ import {
 import { bindFrozenInteractionPerformance, resolveGroupAction, stepManifestation } from './action-groups.ts'
 import { bindPlayerProvisional, verifyPlayerProvisional } from './player-provisional.ts'
 import type { SceneDecisionService } from './scene-decision.ts'
+
+/** Minimal execution capability the coordinator needs from the runtime lane. */
+export interface RoundExecutionLane {
+  readonly address: WorldAddress
+  readonly manifestHash: WorldHash
+  enqueueRound<T>(work: () => Promise<T>): Promise<T>
+}
+
+export interface PlayerRoundResult extends WorldJsonObject {
+  readonly status: 'accepted' | 'rejected'
+  readonly reason: string | null
+  readonly headSeq: number
+  readonly tick: number
+  readonly bundleHash: WorldHash
+}
+
+/** Revalidate the durable idempotency result before exposing it to a caller. */
+export function parsePlayerRoundResult(value: WorldJsonValue): PlayerRoundResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('completed Round result must be an object')
+  const result = value as Record<string, WorldJsonValue>
+  const keys = Object.keys(result).sort(compareWorldText)
+  if (keys.join(',') !== 'bundleHash,headSeq,reason,status,tick') throw new TypeError('completed Round result has an invalid shape')
+  if (result.status !== 'accepted' && result.status !== 'rejected') throw new TypeError('completed Round status is invalid')
+  if (result.reason !== null && typeof result.reason !== 'string') throw new TypeError('completed Round reason is invalid')
+  if (!Number.isSafeInteger(result.headSeq) || (result.headSeq as number) < 0) throw new TypeError('completed Round headSeq is invalid')
+  if (!Number.isSafeInteger(result.tick) || (result.tick as number) < 0) throw new TypeError('completed Round tick is invalid')
+  if (typeof result.bundleHash !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(result.bundleHash)) {
+    throw new TypeError('completed Round bundleHash is invalid')
+  }
+  return result as unknown as PlayerRoundResult
+}
 
 /** Durable effect of committing exactly one accepted player Round; the Host scheduling quantum. */
 export interface AcceptedRoundStep {
