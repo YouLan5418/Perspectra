@@ -24,13 +24,13 @@ function participantsOf(value: Record<string, WorldJsonValue> | undefined): read
   return value.participantIds as CharacterId[]
 }
 
-function phase8ParticipantsOf(value: Record<string, WorldJsonValue>): readonly CharacterId[] {
+function sortedUniqueParticipants(value: Record<string, WorldJsonValue>): readonly CharacterId[] {
   const participants = participantsOf(value)
   if (new Set(participants).size !== participants.length) throw new TypeError('scene participantIds must be unique')
   return [...participants].sort(compareText)
 }
 
-export function phase8SceneState(events: readonly RulebookEvent[]): readonly SceneState[] {
+export function currentSceneDecisionStates(events: readonly RulebookEvent[]): readonly SceneState[] {
   const scenes = new Map<string, SceneState>()
   for (const event of events) {
     if (event.eventType === 'scene.upsert') {
@@ -43,7 +43,7 @@ export function phase8SceneState(events: readonly RulebookEvent[]): readonly Sce
       }
       scenes.set(sceneId, {
         sceneId,
-        participantIds: phase8ParticipantsOf(value),
+        participantIds: sortedUniqueParticipants(value),
         lifecycle: value.lifecycle,
         locationId: value.locationId,
       })

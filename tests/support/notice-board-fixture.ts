@@ -81,7 +81,7 @@ export function openCapabilityWorld(directory: string, fault?: FaultInjector, re
     roundId: brandId('genesis','InteractionRoundId'), correlationId: 'capability-experiment' })
   const memory = new CognitiveMemoryService(join(directory, 'memory.sqlite'), store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
   const rules = createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage, createNoticeBoardPackage(), ...extraPackages] })
-  const scene = new SceneDecisionService(store, availability, 2)
+  const scene = new SceneDecisionService(store, availability)
   const sources = (characterId = npc) => {
     memory.catchUp(address, characterId, store.head(address).headSeq, 'capability-source-audit')
     const db = new DatabaseSync(join(directory, 'memory.sqlite'), { readOnly: true })

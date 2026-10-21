@@ -21,7 +21,7 @@ export function actorWorldView(worldPath:string,address:WorldAddress,manifest:Co
   const store=new WorldStore(worldPath),availability=new CharacterRuntimeAvailabilityService(worldPath)
   try{
     const actor=brandId(actorId,'CharacterId')
-    const scene=new SceneDecisionService(store,availability,2).decideFromEvents(address,actor,events,asOfWorldSeq)
+    const scene=new SceneDecisionService(store,availability).decideFromEvents(address,actor,events,asOfWorldSeq)
     return {locationId:currentLocation(events,actorId)??null,
       characterIds:[...scene.observerIds],items:characterVisibleItems(manifest,events,actor,scene.observerIds)}
   }finally{availability.close();store.close()}
@@ -424,7 +424,7 @@ export class PackActivity {
     if(asOfWorldSeq===undefined)throw new TypeError('活动世界视图缺少提交前缀')
     const store=new WorldStore(this.worldPath),availability=new CharacterRuntimeAvailabilityService(this.worldPath)
     try{
-      const audience=new SceneDecisionService(store,availability,2).audienceForAction(this.address,brandId(actorId,'CharacterId'),events,asOfWorldSeq,{scope:'scene_public'})
+      const audience=new SceneDecisionService(store,availability).audienceForAction(this.address,brandId(actorId,'CharacterId'),events,asOfWorldSeq,{scope:'scene_public'})
       const speech=drafts.find(e=>e.eventType==='character.speak')
       if(!speech)throw new TypeError('表达裁定未生成发言事件')
       return [...new Set([...audience.fullContentCharacterIds,actorId])].map(observerId=>({eventType:'observation.upsert',eventVersion:1,data:{
@@ -536,7 +536,7 @@ export class PackActivity {
         if(!this.#validParticipants([this.playerId,...npcIds]))throw new TypeError('选择的活动参与者不符合人数或候选限制')
         const manifest=store.readManifest(this.address)!.manifest as CompiledWorldManifest
         if(npcIds.some(id=>!manifest.characters.some(c=>c.characterId===id) || manifest.playerBindings.some(b=>b.characterId===id)))throw new TypeError('活动 NPC 未声明')
-        const scene=new SceneDecisionService(store,availability,2).decideFromEvents(this.address,brandId(this.playerId,'CharacterId'),events,head.headSeq)
+        const scene=new SceneDecisionService(store,availability).decideFromEvents(this.address,brandId(this.playerId,'CharacterId'),events,head.headSeq)
         if(npcIds.some(id=>!scene.observerIds.includes(brandId(id,'CharacterId'))))throw new TypeError('需要与游戏参与者在同一场景')
         const participants=[this.playerId,...npcIds]
         state={id:'activity:'+randomUUID(),revision:1,participants,game:this.#game(this.#call('initialize',[{
@@ -652,7 +652,7 @@ export class PackActivity {
         resolutionAuthority:resolutionAuthority('player','standard'),action})
       // A rejected status operation tells the player its own reason; other rejections stay generic.
       if(result.status!=='accepted')throw new TypeError(this.status?.rejectionReason(result.events,this.playerId,result.reason)??'这次操作未被规则接受')
-      const scene=new SceneDecisionService(store,availability,2)
+      const scene=new SceneDecisionService(store,availability)
       const drafts:WorldEventDraft[]=[...result.events]
       if(action.actionType==='move')drafts.push(...scene.transitionForMove(this.address,events,brandId(this.playerId,'CharacterId'),String(action.parameters.locationId),head.headSeq))
       const scope=result.observationScope

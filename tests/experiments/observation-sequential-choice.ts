@@ -35,7 +35,7 @@ async function episode(dir:string,protocol:WorldJsonObject,reply:typeof replies[
  const leases=new WriterLeaseService(join(dir,'world.sqlite')),availability=new CharacterRuntimeAvailabilityService(join(dir,'world.sqlite'))
  const rules=createCoreRulebookRegistry({interactionPackages:[basicInteractionPackage]})
  const stored=store.readManifest(address)!,manifest=stored.manifest as CompiledWorldManifest
- const scene=new SceneDecisionService(store,availability,2)
+ const scene=new SceneDecisionService(store,availability)
  const prefix=Number(protocol.prefixSeq),startSeq=store.head(address).headSeq
  const full=(load(join(root,'reading-'+repeat+'.json')).delivery as WorldJsonObject).memories as WorldJsonObject[]
  const selected=full.filter(m=>condition==='full'||(m.memoryId!=='bank:10'&&(condition!=='atom-only'||m.memoryId!==protocol.target)))

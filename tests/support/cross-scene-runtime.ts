@@ -71,7 +71,7 @@ export async function crossSceneRuntime(dataDirectory: string, decide: (request:
   }
   const base = createCoreRulebookRegistry({ interactionPackages: installed }).resolve('builtin:speak-move', 2, 'sms', address)
   const config: unknown = JSON.parse(readFileSync(join(packPath, 'communication.json'), 'utf8'))
-  const scenes = new SceneDecisionService(store, availability, 2)
+  const scenes = new SceneDecisionService(store, availability)
   const communication = options.phone ? new CrossScenePhone(config, manifest, base,
     (events, actor) => scenes.decideFromEvents(address, brandId(actor, 'CharacterId'), events, events.length).observerIds)
     : new CrossSceneCommunication(config, manifest, base)

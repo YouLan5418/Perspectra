@@ -186,18 +186,13 @@ function validateApplicationManifest(
   address: WorldAddress,
   correlationId: string,
   memoryPath: string | undefined,
-): { readonly sceneVersion?: 1 | 2; readonly contextEnabled: boolean; readonly memoryVersion: 1 | 2 } {
+): { readonly sceneEnabled: boolean; readonly contextEnabled: boolean; readonly memoryVersion: 1 | 2 } {
   const scenePolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:scene-decision')
   const contextPolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:agent-context')
-  const requiredSceneVersion = manifest.contentPack?.runtimeCapabilities.sceneDecisionVersion === 2 ? 2 : 1
-  const sceneVersion = scenePolicy === undefined ? undefined
-    : scenePolicy.version === '1.0.0' ? 1
-    : scenePolicy.version === '2.0.0' ? 2
-    : undefined
-  const unsupported = scenePolicy !== undefined && sceneVersion === undefined
+  const unsupported = scenePolicy !== undefined && scenePolicy.version !== '2.0.0'
     ? `unsupported Scene decision policy ${scenePolicy.version}`
-    : scenePolicy !== undefined && sceneVersion !== requiredSceneVersion
-    ? `Scene decision policy ${scenePolicy.version} does not match runtime capability version ${requiredSceneVersion}`
+    : scenePolicy !== undefined && manifest.contentPack?.runtimeCapabilities.sceneDecisionVersion !== 2
+    ? `Scene decision policy ${scenePolicy.version} requires runtime capability sceneDecisionVersion 2`
     : contextPolicy !== undefined && contextPolicy.version !== '2.0.0'
     ? `unsupported Agent Context policy ${contextPolicy.version}`
     : contextPolicy !== undefined && scenePolicy === undefined
@@ -213,7 +208,7 @@ function validateApplicationManifest(
   }
   const contextEnabled = contextPolicy !== undefined
   const memoryVersion = manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? 2 as const : 1 as const
-  return { ...(sceneVersion === undefined ? {} : { sceneVersion }), contextEnabled, memoryVersion }
+  return { sceneEnabled: scenePolicy !== undefined, contextEnabled, memoryVersion }
 }
 
 /** Real branch-owned Store aggregate; all handles close with its Cordis Fiber. */
@@ -329,8 +324,8 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
           ? manifest.runtimePolicy.playerInitialAvailability
           : manifest.runtimePolicy.npcInitialAvailability,
       })))
-      const sceneDecision = policies.sceneVersion === undefined ? undefined
-        : new SceneDecisionService(store.store, store.availability, policies.sceneVersion)
+      const sceneDecision = policies.sceneEnabled
+        ? new SceneDecisionService(store.store, store.availability) : undefined
       const kernel = new RoundCoordinator({
         store: store.store,
         inbox: store.inbox,

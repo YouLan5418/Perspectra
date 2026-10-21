@@ -188,7 +188,6 @@ export class WorldHostCore implements HostRuntime {
   readonly #playerName: string
   readonly #npcNames: readonly string[]
   readonly #locationNames: ReadonlyMap<string, string>
-  readonly #sceneVersion: 1 | 2
   readonly #model: string
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
@@ -269,7 +268,6 @@ export class WorldHostCore implements HostRuntime {
     this.#locationNames = new Map(compiled.manifest.locations.map(location => [location.locationId, location.name]))
     this.#entityNames = new Map(compiled.manifest.entities.flatMap(entity =>
       typeof (entity as { name?: unknown }).name === 'string' ? [[entity.entityId, (entity as { name: string }).name]] : []))
-    this.#sceneVersion = compiled.manifest.contentPack?.runtimeCapabilities.sceneDecisionVersion === 2 ? 2 : 1
     this.#title = compiled.manifest.metadata.title
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
     this.#provider = options.provider
@@ -1034,7 +1032,7 @@ export class WorldHostCore implements HostRuntime {
     const view = new CharacterViewBuilder(store).rebuildAt(this.#address, this.#playerId, head.headSeq)
     const availability = new CharacterRuntimeAvailabilityService(resolve(this.#dataDirectory, 'world.sqlite'))
     try {
-      const scene = new SceneDecisionService(store, availability, this.#sceneVersion)
+      const scene = new SceneDecisionService(store, availability)
         .decideFromEvents(this.#address, this.#playerId, store.readEvents(this.#address, head.headSeq), head.headSeq)
       this.#transcript = playerTranscript(await presetDisplay(view, this.#effectivePresets), this.#names, this.#playerId,
         { entityNames: this.#entityNames, locationNames: this.#locationNames })
@@ -1064,7 +1062,7 @@ export class WorldHostCore implements HostRuntime {
       const availability = new CharacterRuntimeAvailabilityService(worldPath)
       try {
         const events = world.readEvents(this.#address, view.asOfWorldSeq)
-        const scene = new SceneDecisionService(world, availability, this.#sceneVersion)
+        const scene = new SceneDecisionService(world, availability)
           .decideFromEvents(this.#address, this.#playerId, events, view.asOfWorldSeq)
         if (this.#status) {
           // The player is offered status operations under the same rules as an NPC; a running activity's

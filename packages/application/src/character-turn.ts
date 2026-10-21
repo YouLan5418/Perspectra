@@ -138,7 +138,7 @@ export class CharacterTurn {
     }
     this.#manifest = stored.manifest as CompiledWorldManifest
     this.#manifestHash = stored.manifestHash
-    this.#scene = new SceneDecisionService(options.store, options.availability, 2)
+    this.#scene = new SceneDecisionService(options.store, options.availability)
     this.#view = new CharacterViewBuilder(options.store)
   }
 

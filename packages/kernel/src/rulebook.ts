@@ -1,7 +1,7 @@
 import { parseExpressionSegments } from '@harness-world/contracts'
 import { compareWorldText, type ManifestationProposal, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import type { ManifestationResolution } from './manifestation.ts'
-import { phase8SceneState, sceneObserverIds } from './scene-state.ts'
+import { currentSceneDecisionStates, sceneObserverIds } from './scene-state.ts'
 import { manifestUsesFrozenInteractions, type CompiledWorldManifest } from './world-spec.ts'
 
 export interface PlayerActionInput extends WorldJsonObject {
@@ -143,7 +143,7 @@ export function rejectRulebookResolution(characterId: string, actionType: string
   }
 }
 
-function phase8Speech(
+function resolveSpeech(
   manifest: CompiledWorldManifest,
   events: readonly RulebookEvent[],
   characterId: string,
@@ -189,7 +189,7 @@ function phase8Speech(
     return rejectRulebookResolution(characterId, 'speak', 'speak parameters are invalid for Manifest v4')
   }
   if (scope === 'direct' || scope === 'private') {
-    const scene = phase8SceneState(events).find(value => value.lifecycle === 'active'
+    const scene = currentSceneDecisionStates(events).find(value => value.lifecycle === 'active'
       && value.participantIds.some(id => id === characterId))
     const present = new Set<string>(scene === undefined ? [] : sceneObserverIds(events, scene))
     if (recipients.some(id => typeof id !== 'string' || !present.has(id))) {
@@ -230,7 +230,7 @@ export class SpeakMoveRulebook {
     }
     const parameters = worldJsonObject(action.parameters)
     if (action.actionType === 'speak') {
-      return phase8Speech(manifest, events, characterId, parameters,maximumCharacters)
+      return resolveSpeech(manifest, events, characterId, parameters,maximumCharacters)
     }
     if (action.actionType === 'move') {
       const target = parameters?.locationId

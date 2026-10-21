@@ -382,7 +382,7 @@ export class RoundCoordinator {
       action: { actionType: playerAction.actionType, parameters: playerAction.parameters },
     })
     const playerObservationScope = playerBaseResolution.observationScope ?? { scope: 'scene_public' as const }
-    let playerAudience = this.options.sceneDecision?.version === 2
+    let playerAudience = this.options.sceneDecision !== undefined
       ? this.options.sceneDecision.audienceForAction(
         this.#address,
         playerAction.actorId,
@@ -402,7 +402,7 @@ export class RoundCoordinator {
         ...playerBaseResolution,
         events: [
           ...playerBaseResolution.events,
-          ...(playerBaseResolution.status === 'accepted' && typeof provisionalMoveTarget === 'string' && this.options.sceneDecision?.version === 2
+          ...(playerBaseResolution.status === 'accepted' && typeof provisionalMoveTarget === 'string' && this.options.sceneDecision !== undefined
             ? this.options.sceneDecision.transitionForMove(this.#address, history, playerAction.actorId, provisionalMoveTarget, head.headSeq) : []),
         ],
       },
@@ -421,10 +421,10 @@ export class RoundCoordinator {
         }))
         const target = (extra.parameters as WorldJsonObject).locationId
         const events = [...resolution.events, ...(resolution.status === 'accepted' && extra.actionType === 'move'
-          && typeof target === 'string' && this.options.sceneDecision?.version === 2
+          && typeof target === 'string' && this.options.sceneDecision !== undefined
           ? this.options.sceneDecision.transitionForMove(this.#address, prefix, extra.actorId, target, head.headSeq) : [])]
         const scope = resolution.observationScope ?? { scope: 'scene_public' as const }
-        const audience = this.options.sceneDecision?.version === 2 ? this.options.sceneDecision.audienceForAction(
+        const audience = this.options.sceneDecision !== undefined ? this.options.sceneDecision.audienceForAction(
           this.#address, extra.actorId, prefix, head.headSeq, { scope: scope.scope,
             ...(scope.recipientIds === undefined ? {} : { recipientIds: scope.recipientIds.map(id => brandId(id, 'CharacterId')) }) }) : undefined
         playerSteps.push({ action: extra, resolution, audience,
@@ -540,7 +540,7 @@ export class RoundCoordinator {
         : undefined
       const resolution: RulebookResolution = baseResolution.status === 'accepted'
         && typeof moveTarget === 'string'
-        && this.options.sceneDecision?.version === 2
+        && this.options.sceneDecision !== undefined
         ? {
           ...baseResolution,
           events: [
@@ -573,7 +573,7 @@ export class RoundCoordinator {
       if (item.sourceRole === 'player' && provisional !== undefined) {
         verifyPlayerProvisional(playerSteps.find(step => step.action.actionId === item.action.actionId)!.provisional!, item.action, { ...resolution, events: resolvedEvents })
       }
-      const phase8Audience = item.sourceRole === 'player' && provisional !== undefined ? playerSteps.find(step => step.action.actionId === item.action.actionId)!.audience : this.options.sceneDecision?.version === 2
+      const actionAudience = item.sourceRole === 'player' && provisional !== undefined ? playerSteps.find(step => step.action.actionId === item.action.actionId)!.audience : this.options.sceneDecision !== undefined
         ? this.options.sceneDecision.audienceForAction(
           this.#address,
           item.action.actorId,
@@ -596,7 +596,7 @@ export class RoundCoordinator {
         reason: resolution.reason ?? null,
         events: resolvedEvents,
         ...(manifestation === undefined ? {} : { manifestation }),
-        ...(this.options.sceneDecision?.version !== 2 ? {} : {
+        ...(this.options.sceneDecision === undefined ? {} : {
           observationScope: resolution.observationScope ?? { scope: 'scene_public' },
         }),
       })
@@ -645,7 +645,7 @@ export class RoundCoordinator {
       const publicInteraction = resolution.events.find(event => event.eventType === 'entity.transferred')
       const relations = characterRelationObservations(actionPrefix, resolution.events)
       const playerMovement = item.sourceRole === 'player' && resolution.status === 'accepted'
-        && this.options.sceneDecision?.version === 2
+        && this.options.sceneDecision !== undefined
         ? resolvedEvents.find(event => event.eventType === 'character.moved') : undefined
       const playerMovementData = playerMovement?.data as {
         readonly characterId: CharacterId
@@ -658,12 +658,12 @@ export class RoundCoordinator {
       const arrivalObservers = playerMovement === undefined ? undefined : new Set(this.options.sceneDecision!
         .decideFromEvents(this.#address, item.action.actorId, [...actionPrefix, ...resolvedEvents],
           head.headSeq + events.length + resolvedEvents.length).observerIds)
-      const occurrenceOnly = new Set(phase8Audience?.occurrenceOnlyCharacterIds ?? [])
-      const observerIds = phase8Audience === undefined
+      const occurrenceOnly = new Set(actionAudience?.occurrenceOnlyCharacterIds ?? [])
+      const observerIds = actionAudience === undefined
         ? this.options.sceneDecision?.decideFromEvents(
           this.#address, binding.characterId, [...history, ...events], head.headSeq,
         ).visibleResultCharacterIds ?? [binding.characterId]
-        : [...phase8Audience.fullContentCharacterIds, ...phase8Audience.occurrenceOnlyCharacterIds]
+        : [...actionAudience.fullContentCharacterIds, ...actionAudience.occurrenceOnlyCharacterIds]
       for (const observerId of observerIds) {
         const seesDeparture = observerId === item.action.actorId || departureObservers?.has(observerId) === true
         const seesArrival = observerId === item.action.actorId || arrivalObservers?.has(observerId) === true

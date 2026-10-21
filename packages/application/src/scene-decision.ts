@@ -7,21 +7,15 @@ import {
   type WorldEventDraft,
   type WorldHash,
   type WorldJsonObject,
-  type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
-  phase8SceneState,
-  hiddenObservers,
+  currentSceneDecisionStates,
   sceneObserverIds,
-  currentCharacterLifecycle,
-  currentLocation,
-  worldJsonObject,
   type RulebookEvent,
 } from '@harness-world/kernel'
 import { CharacterRuntimeAvailabilityService, WorldStore } from '@harness-world/store-sqlite'
 import { SCHEDULABLE_AVAILABILITY_STATES } from './runtime-availability.ts'
 
-export type SceneDecisionVersion = 1 | 2
 export type SceneObservationScope = 'scene_public' | 'direct' | 'private' | 'self'
 
 export interface SceneObservationPolicy extends WorldJsonObject {
@@ -40,55 +34,14 @@ export interface SceneDecision extends WorldJsonObject {
   readonly schedulableCharacterIds: readonly CharacterId[]
   readonly visibleResultCharacterIds: readonly CharacterId[]
   readonly asOfSeq: number
-  readonly schemaVersion?: 'scene-decision/v2'
-  readonly memberIds?: readonly CharacterId[]
-  readonly directorEligible?: boolean
-  readonly decisionHash?: WorldHash
-}
-
-type SceneLifecycle = 'created' | 'active' | 'closed'
-
-interface SceneState {
-  readonly sceneId: string
-  readonly participantIds: readonly CharacterId[]
-  readonly lifecycle: SceneLifecycle
-  readonly locationId: string | null
-}
-
-const compareText = compareWorldText
-
-function sceneIdOf(event: RulebookEvent): { readonly sceneId: string; readonly data: Record<string, WorldJsonValue> } {
-  const data = worldJsonObject(event.data)
-  if (typeof data?.sceneId !== 'string') throw new TypeError(`${event.eventType} requires sceneId`)
-  return { sceneId: data.sceneId, data }
-}
-
-function participantsOf(value: Record<string, WorldJsonValue> | undefined): readonly CharacterId[] {
-  if (!Array.isArray(value?.participantIds)
-    || value.participantIds.some(participantId => typeof participantId !== 'string')) {
-    throw new TypeError('scene.upsert requires string participantIds')
-  }
-  return value.participantIds as CharacterId[]
-}
-
-function legacySceneState(events: readonly RulebookEvent[]): readonly SceneState[] {
-  const scenes = new Map<string, SceneState>()
-  for (const event of events) {
-    if (event.eventType !== 'scene.upsert' && event.eventType !== 'scene.remove') continue
-    const { sceneId } = sceneIdOf(event)
-    if (event.eventType === 'scene.remove') {
-      scenes.delete(sceneId)
-      continue
-    }
-    const data = worldJsonObject(event.data)!
-    const value = worldJsonObject(data.value as WorldJsonValue)
-    scenes.set(sceneId, { sceneId, participantIds: participantsOf(value), lifecycle: 'active', locationId: null })
-  }
-  return [...scenes.values()].sort((left, right) => compareWorldText(left.sceneId, right.sceneId))
+  readonly schemaVersion: 'scene-decision/v2'
+  readonly memberIds: readonly CharacterId[]
+  readonly directorEligible: boolean
+  readonly decisionHash: WorldHash
 }
 
 function sortedUnique(values: readonly CharacterId[]): readonly CharacterId[] {
-  return [...new Set(values)].sort(compareText)
+  return [...new Set(values)].sort(compareWorldText)
 }
 
 /** Authoritative scene selection derived only from an exact durable Event prefix plus runtime availability. */
@@ -96,7 +49,6 @@ export class SceneDecisionService {
   constructor(
     private readonly store: WorldStore,
     private readonly availability: CharacterRuntimeAvailabilityService,
-    readonly version: SceneDecisionVersion = 1,
   ) {}
 
   decide(address: WorldAddress, player: CharacterId, asOfSeq: number): SceneDecision {
@@ -115,9 +67,8 @@ export class SceneDecisionService {
     targetLocationId: string,
     asOfSeq: number,
   ): readonly WorldEventDraft[] {
-    if (this.version !== 2) throw new TypeError('move-driven Scene transitions require Scene Decision v2')
     try {
-      const scenes = phase8SceneState(events)
+      const scenes = currentSceneDecisionStates(events)
       const sources = scenes.filter(scene => scene.lifecycle === 'active' && scene.participantIds.includes(characterId))
       if (sources.length > 1) throw new TypeError(`${characterId} belongs to multiple active Scenes before move`)
       const destinations = scenes.filter(scene => scene.lifecycle !== 'closed' && scene.locationId === targetLocationId)
@@ -164,9 +115,8 @@ export class SceneDecisionService {
     events: readonly RulebookEvent[],
     asOfSeq: number,
   ): SceneDecision {
-    if (this.version === 1) return this.#legacyDecision(address, player, events, asOfSeq)
     try {
-      return this.#phase8Decision(address, player, events, asOfSeq)
+      return this.#decide(address, player, events, asOfSeq)
     } catch (error: unknown) {
       if (error instanceof TypeError) {
         failWorld({
@@ -187,7 +137,6 @@ export class SceneDecisionService {
     asOfSeq: number,
     policy: SceneObservationPolicy = { scope: 'scene_public' },
   ): SceneActionAudience {
-    if (this.version !== 2) throw new TypeError('action-scoped Scene audiences require Scene Decision v2')
     const recipients = policy.recipientIds ?? []
     if (!Array.isArray(recipients) || recipients.some(value => typeof value !== 'string')
       || new Set(recipients).size !== recipients.length
@@ -209,38 +158,8 @@ export class SceneDecisionService {
     return { fullContentCharacterIds: full, occurrenceOnlyCharacterIds: occurrence }
   }
 
-  #legacyDecision(address: WorldAddress, player: CharacterId, events: readonly RulebookEvent[], asOfSeq: number): SceneDecision {
-    const active = legacySceneState(events).filter(scene => scene.participantIds.includes(player))
-    if (active.length !== 1) {
-      failWorld({
-        errorCode: 'PROJECTION_INVARIANT_FAILED', category: 'integrity',
-        message: `player must belong to exactly one active Scene; found ${active.length}`,
-        retryable: false, correlationId: `scene-decision:${player}:${asOfSeq}`, address,
-        details: { player, asOfSeq, sceneIds: active.map(scene => scene.sceneId) },
-      })
-    }
-    const scene = active[0]!
-    const hidden = hiddenObservers(events, scene.sceneId)
-    const playerLocation = currentLocation(events, player)
-    const observerIds = scene.participantIds.filter(characterId =>
-      !hidden.has(characterId)
-      && currentCharacterLifecycle(events, characterId) === 'active'
-      && currentLocation(events, characterId) === playerLocation)
-    const schedulableCharacterIds = observerIds.filter(characterId => {
-      const state = this.availability.get(address, characterId)?.state
-      return characterId !== player && state !== undefined && SCHEDULABLE_AVAILABILITY_STATES.includes(state)
-    })
-    return {
-      sceneId: scene.sceneId,
-      observerIds,
-      schedulableCharacterIds,
-      visibleResultCharacterIds: observerIds,
-      asOfSeq,
-    }
-  }
-
-  #phase8Decision(address: WorldAddress, player: CharacterId, events: readonly RulebookEvent[], asOfSeq: number): SceneDecision {
-    const scenes = phase8SceneState(events)
+  #decide(address: WorldAddress, player: CharacterId, events: readonly RulebookEvent[], asOfSeq: number): SceneDecision {
+    const scenes = currentSceneDecisionStates(events)
     const membership = new Map<CharacterId, string[]>()
     for (const scene of scenes.filter(value => value.lifecycle === 'active')) {
       for (const characterId of scene.participantIds) {
@@ -255,7 +174,7 @@ export class SceneDecisionService {
         errorCode: 'SCENE_MEMBERSHIP_INVARIANT', category: 'integrity',
         message: `character ${overlap[0]} belongs to multiple active Scenes`, retryable: false,
         correlationId: `scene-membership:${overlap[0]}:${asOfSeq}`, address,
-        details: { characterId: overlap[0], asOfSeq, sceneIds: overlap[1].sort(compareText) },
+        details: { characterId: overlap[0], asOfSeq, sceneIds: overlap[1].sort(compareWorldText) },
       })
     }
     const sceneId = membership.get(player)?.[0]
