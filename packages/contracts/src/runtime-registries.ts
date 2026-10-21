@@ -98,6 +98,7 @@ export const CONTEXT_PROFILES: readonly ContextProfile[] = Object.freeze([
   }),
 ])
 
+// The 'phase8-*' hash domains are frozen: compiled packs and stored Manifests carry these lock hashes.
 function member(id: string, version: string, contract: WorldJsonValue): RuntimeRegistryMember {
   return Object.freeze({ id, version, contractHash: hashWorldJson('phase8-registry-member-contract/v1', contract) })
 }

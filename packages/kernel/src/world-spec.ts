@@ -433,85 +433,35 @@ function registry(kind: string, names: readonly string[]): FrozenRegistry {
   return { definitions, registryHash: hashWorldJson(`compiled-${kind}-registry`, definitions) }
 }
 
-function registries(rulebookVersion: 1 | 2 | 3 | 4): ManifestRegistries {
-  const entityEvents = rulebookVersion >= 2 ? ['entity.taken'] : []
-  const entityActions = rulebookVersion >= 2 ? ['take'] : []
-  const investigationEvents = rulebookVersion >= 3
-    ? ['character.asked', 'entity.inspected', 'evidence.presented', 'investigation.accusation-resolved', 'investigation.case-closed']
-    : []
-  const authorEvents = rulebookVersion >= 4 ? ['investigation.culprit-seeded'] : []
-  const investigationActions = rulebookVersion >= 3 ? ['accuse', 'ask', 'inspect', 'present_evidence'] : []
+/**
+ * The frozen execution vocabulary every current Manifest locks. Each registry hash covers the sorted
+ * names, so adding or removing a name changes the Manifest hash of newly compiled worlds; the grouping
+ * below is only for reading and has no effect on the hash.
+ */
+export function characterInteractionManifestRegistries(): ManifestRegistries {
   return {
     events: registry('event', [
+      // World, character, scene and knowledge records.
       'action.rejected', 'action.resolved', 'character.created', 'character.lifecycle-changed', 'character.moved',
       'character.speak', 'claim.remove', 'claim.upsert', 'entity.upsert', 'goal.remove', 'goal.upsert', 'location.upsert',
       'observation.remove', 'observation.upsert', 'player.binding.upsert', 'round.participant-terminal', 'scene.remove',
       'scene.upsert', 'visibility.remove', 'visibility.upsert', 'world.created',
-      'world.lifecycle-changed', 'world.manifest-locked', 'world.tick-advanced', ...entityEvents, ...investigationEvents,
-      ...authorEvents,
-    ]),
-    actions: registry('action', ['move', 'speak', ...entityActions, ...investigationActions]),
-    projections: registry('projection', ['character', 'claim', 'goal', 'observation', 'scene', 'visibility']),
-    rules: registry('rule', [rulebookVersion === 1 ? 'builtin:speak-move' : `builtin:speak-move/v${rulebookVersion}`]),
-  }
-}
-
-/** Frozen execution registries for explicit Manifest V4 worlds; legacy compiler output is unchanged. */
-export function phase8ManifestRegistries(): ManifestRegistries {
-  const core = registries(2)
-  return {
-    events: registry('event', [
-      ...core.events.definitions.map(value => value.name),
+      'world.lifecycle-changed', 'world.manifest-locked', 'world.tick-advanced', 'entity.taken',
+      // Character cognition and Scene lifecycle.
       'affect-episode.upsert', 'character-goal.upsert', 'character.reflect', 'commitment.upsert',
       'inner-tension.upsert', 'open-loop.upsert', 'relationship-attitude.upsert', 'subjective-claim.upsert',
       'scene.activated', 'scene.closed', 'scene.created', 'scene.member_joined', 'scene.member_left',
+      // Visible manifestation.
+      'character.manifested', 'character.visible-state-removed', 'character.visible-state-upserted',
+      // Frozen interactions, relations and creator activity state.
+      'entity.transferred', 'character.relation-ended', 'character.relation-started', 'activity.updated', 'status.updated',
     ]),
-    actions: core.actions,
+    actions: registry('action', ['speak', 'move', 'interact']),
     projections: registry('projection', [
-      ...core.projections.definitions.map(value => value.name),
+      'character', 'claim', 'goal', 'observation', 'scene', 'visibility',
       'affect-episode', 'character-goal', 'commitment', 'inner-tension', 'open-loop',
-      'relationship-attitude', 'subjective-claim',
+      'relationship-attitude', 'subjective-claim', 'character-visible-state',
     ]),
-    rules: core.rules,
-  }
-}
-
-/** Manifest V6 registries extend the frozen Phase 8 set without rewriting any V4/V5 hash. */
-export function manifestationManifestRegistries(): ManifestRegistries {
-  const phase8 = phase8ManifestRegistries()
-  return {
-    events: registry('event', [
-      ...phase8.events.definitions.map(value => value.name),
-      'character.manifested',
-      'character.visible-state-removed',
-      'character.visible-state-upserted',
-    ]),
-    actions: phase8.actions,
-    projections: registry('projection', [
-      ...phase8.projections.definitions.map(value => value.name),
-      'character-visible-state',
-    ]),
-    rules: phase8.rules,
-  }
-}
-
-export function interactionManifestRegistries(): ManifestRegistries {
-  const base = manifestationManifestRegistries()
-  return { ...base, events: registry('event', [...base.events.definitions.map(value => value.name), 'entity.transferred']),
-    actions: registry('action', ['speak', 'move', 'interact']) }
-}
-
-/** Prototype interaction vocabulary, including committed creator activity state. */
-export function characterInteractionManifestRegistries(): ManifestRegistries {
-  const base = interactionManifestRegistries()
-  return {
-    ...base,
-    events: registry('event', [
-      ...base.events.definitions.map(value => value.name),
-      'character.relation-ended',
-      'character.relation-started',
-      'activity.updated',
-      'status.updated',
-    ]),
+    rules: registry('rule', ['builtin:speak-move/v2']),
   }
 }

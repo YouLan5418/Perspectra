@@ -92,6 +92,7 @@ export const BASIC_VOCABULARIES = Object.freeze([
   }),
 ])
 
+// The 'phase8-*' hash domains are frozen: compiled packs and stored Manifests carry these lock hashes.
 export const BASIC_VOCABULARY_LOCKS: readonly VocabularyLock[] = Object.freeze(
   BASIC_VOCABULARIES.map(entry => Object.freeze({
     vocabularyId: entry.vocabularyId,
