@@ -64,7 +64,7 @@ if (unit && info.capabilities.includes('speech')) {
 
 ## 2. 硬约束（读取自当前源码）
 
-沙箱 iframe 的 CSP 见[前端素材服务](../../../tests/experiments/playtest-frontend-assets.ts)中的 `sandbox` 常量：
+沙箱 iframe 的 CSP 见[前端素材服务](../../../desktop/host/frontend-server.ts)中的 `sandbox` 常量：
 
 | 指令 | 沙箱值 | 对表现插件的影响 |
 | --- | --- | --- |
@@ -76,9 +76,9 @@ if (unit && info.capabilities.includes('speech')) {
 
 另外三处同样决定可行性：
 
-- iframe 是 `<iframe sandbox="allow-scripts">`，**没有 `allow="autoplay"`**（[宿主页](../../../tests/experiments/playtest-host-page.ts)）。沙箱 iframe 是不透明来源，自动播放被浏览器策略挡住，音频必须由玩家第一次点击解锁。
-- 宿主外壳页的 CSP 没有 `media-src`（[网页服务](../../../tests/experiments/playtest-server.ts)），所以**音频只能在 iframe 内播放**，不能在宿主页里做播放器。
-- 包前端资源额度：最多 2048 个文件、单文件 64 MiB、合计 512 MiB，扩展名必须在白名单内（[包前端加载](../../../tests/experiments/playtest-pack-web.ts)）。BGM、固定语音与立绘共用总量；当前仍整包读入内存并计算内容摘要。
+- iframe 是 `<iframe sandbox="allow-scripts">`，**没有 `allow="autoplay"`**（[宿主页](../../../desktop/host/host-page.ts)）。沙箱 iframe 是不透明来源，自动播放被浏览器策略挡住，音频必须由玩家第一次点击解锁。
+- 宿主外壳页的 CSP 没有 `media-src`（[网页服务](../../../desktop/host/http-server.ts)），所以**音频只能在 iframe 内播放**，不能在宿主页里做播放器。
+- 包前端资源额度：最多 2048 个文件、单文件 64 MiB、合计 512 MiB，扩展名必须在白名单内（[包前端加载](../../../desktop/host/pack-frontend.ts)）。BGM、固定语音与立绘共用总量；当前仍整包读入内存并计算内容摘要。
 
 受信任模式（[前端授权](../frontend-authorization.md)）放宽网络、存储、`unsafe-eval`，但仍是 `worker-src 'none'`、`frame-src 'none'`，并且要求玩家逐实例确认。
 
@@ -104,7 +104,7 @@ if (unit && info.capabilities.includes('speech')) {
 
 ### P1-1 转录行没有逐段场景快照
 
-- **现象**：`history` 每行提供 `seq / speaker / speakerId? / text / player / segments?`（[宿主状态类型](../../../tests/experiments/playtest-server.ts)）。没有“这条发表发生时谁在场”，也没有当时的活动公开状态。
+- **现象**：`history` 每行提供 `seq / speaker / speakerId? / text / player / segments?`（[宿主状态类型](../../../desktop/host/http-server.ts)）。没有“这条发表发生时谁在场”，也没有当时的活动公开状态。
 - **影响**：发言者 ID 已解决同名和通信后缀的身份匹配；中途入场、离场的精确演出仍缺少对应阅读时点的数据。
 - **根因**：公共 SSE 是最终视图补丁，场景成员只在读完或跳过时更新，见[默认情景舞台](../frontend-stage.md)的“有意识接受的缺口”。
 - **候选做法**：确认入场、离场演出需求后，以玩家已授权的观察序号提供最小场景变化；活动历史状态按玩法需要再接，不默认给每段复制完整快照。
@@ -147,7 +147,7 @@ if (unit && info.capabilities.includes('speech')) {
 
 ### P3-2 官方舞台既不读包内美术，也不受插件影响
 
-- **现象**：官方默认舞台是内核内建页面，立绘只尝试内建的 `/frontend/assets/gpt-6.png`，包内美术位于 `/frontend/custom/**`，没有接给默认页（[默认舞台](../../../packages/frontend/src/default-template.ts)、[素材服务](../../../tests/experiments/playtest-frontend-assets.ts)）。
+- **现象**：官方默认舞台是内核内建页面，立绘只尝试内建的 `/frontend/assets/gpt-6.png`，包内美术位于 `/frontend/custom/**`，没有接给默认页（[默认舞台](../../../packages/frontend/src/default-template.ts)、[素材服务](../../../desktop/host/frontend-server.ts)）。
 - **影响**：玩家不切到作者提供的模板，就看不到任何差分、音乐或语音；作者想让“官方舞台也有差分”，必须改内核。
 - **候选做法**：把差分与音频做成插件形态先验证；确认要通用后再考虑官方舞台的内置通道。
 - **代价**：官方舞台的内置通道会动到阅读游标与默认模板两个内核文件。
@@ -184,3 +184,14 @@ if (unit && info.capabilities.includes('speech')) {
 - 新额度下满额 512 MiB 世界包的启动延迟与内存峰值尚未实测；自动化只验证约 21 MiB 的可加载包及部分上限拒绝。
 - Web Audio 在该沙箱下的 `AudioContext` 解锁与恢复行为，未核对。
 - 第一批基础字段已运行相关自动化；音频播放、阅读节奏与真实模型体验仍未验收。
+
+## 源码导航迁移（2026-10-21）
+
+本次只更新源码导航，未重新验证上文历史结论。迁移前快照为提交 `717ed6c1a662e5e55e534c7cf7e2651d405b46f1`；原路径与当前实现的对应关系如下。
+
+| 迁移前路径（上述提交） | 当前源码 |
+| --- | --- |
+| `tests/experiments/playtest-frontend-assets.ts` | [frontend-server.ts](../../../desktop/host/frontend-server.ts) |
+| `tests/experiments/playtest-host-page.ts` | [host-page.ts](../../../desktop/host/host-page.ts) |
+| `tests/experiments/playtest-server.ts` | [http-server.ts](../../../desktop/host/http-server.ts) |
+| `tests/experiments/playtest-pack-web.ts` | [pack-frontend.ts](../../../desktop/host/pack-frontend.ts) |

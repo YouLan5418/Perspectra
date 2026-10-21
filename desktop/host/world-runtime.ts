@@ -293,7 +293,7 @@ export class WorldHostCore implements HostRuntime {
     this.#manifestVersion = compiled.manifest.schemaVersion
     this.#intentEnabled = intentEnabled
     const binding = compiled.manifest.playerBindings[0]
-    if (binding === undefined) throw new TypeError('playtest Pack has no PlayerBinding')
+    if (binding === undefined) throw new TypeError('world Pack has no PlayerBinding')
     this.#principalId = binding.principalId
     this.#playerId = binding.characterId
     this.#names = new Map(compiled.manifest.characters.map(character => [character.characterId, character.name]))

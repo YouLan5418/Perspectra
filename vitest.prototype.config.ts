@@ -10,6 +10,7 @@ export default defineConfig({
       'packages/store-sqlite/src/character-view.test.ts',
       'packages/world-pack/src/compiler-v5.test.ts',
       'tests/prototype/**/*.test.ts',
+      'tests/host/**/*.test.ts',
     ],
   },
 })

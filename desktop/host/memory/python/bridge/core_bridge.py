@@ -1,4 +1,4 @@
-"""Disposable glue over the existing experimental core. Input is an authorized archive, never a world path."""
+"""Host bridge over the Core memory implementation. Input is an authorized archive, never a world path."""
 import copy
 import re
 import json

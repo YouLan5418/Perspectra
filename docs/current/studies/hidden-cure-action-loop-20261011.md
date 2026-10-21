@@ -80,7 +80,7 @@ r6 玩家驱动又问了一次已实际完成的交付。两位 NPC 都正确指
 
 ## 格式失败的独立结论
 
-重放原 B6：缺少 addresseeIds 的 direct 输出通过 local 和 generic Schema；现有 `decideActivityFormat` 只调用一次便返回，因为 AJV 判合法。普通场景默认也没有接入活动修正器。[发送端](../../../tests/experiments/local-prototype-turn-call.ts)的字段大多可选，[通用 Schema](../../../packages/provider-chat/src/prototype-turn.ts)也没有 direct/private 对非空接收者的条件约束；宿主随后严格拒绝，保护了信息范围。
+重放原 B6：缺少 addresseeIds 的 direct 输出通过 local 和 generic Schema；现有 `decideActivityFormat` 只调用一次便返回，因为 AJV 判合法。普通场景默认也没有接入活动修正器。[发送端](../../../desktop/host/gateway-turn-call.ts)的字段大多可选，[通用 Schema](../../../packages/provider-chat/src/prototype-turn.ts)也没有 direct/private 对非空接收者的条件约束；宿主随后严格拒绝，保护了信息范围。
 
 本轮两次遗漏 arguments 被 Rulebook 拒绝；D3 第二次 r4 和 E 第二次 r4 则把 scene_public 与非空 addresseeIds 混用，被宿主拒绝。它们不是同一种失败：前者留下 rejected 行动及反馈，后者没有提交非法表达。模型错误有偶发性，Schema 的结构性宽松也有可复现证据，不能只归咎模型或只靠现有 AJV 修正器解决。
 
@@ -127,3 +127,11 @@ r6 玩家驱动又问了一次已实际完成的交付。两位 NPC 都正确指
 3. **能否形成自由行动推动的持续博弈？** 已观察到一段完整的最小资源攻防：玩家取得和披露原件，竞争者控制材料，玩家现场交涉，竞争者实际交付一份、保留备用，女主依据经历坚持参与并拒绝单独定流程，双方继续实际移动。没有固定分支或 NPC 动作脚本。但一个成功链条加上尚未解决的 D3/格式/叙事错误，不足以宣布稳定游戏体验已全部通过。
 
 因此，不需要重构底层，也没有启动额外规划器或关系系统；现有包已经可以继续作为原创动态内容小样。先完成上述有具体复现的最小格式与移动续写对照，再决定进入完整动态剧情原型制作。此轮不把条件性的“D/E 全部充分通过”宣布为达成，也不在实验之后擅自扩展游戏架构。
+
+## 源码导航迁移（2026-10-21）
+
+本次只更新源码导航，未重新验证上文历史结论。迁移前快照为提交 `717ed6c1a662e5e55e534c7cf7e2651d405b46f1`；原路径与当前实现的对应关系如下。
+
+| 迁移前路径（上述提交） | 当前源码 |
+| --- | --- |
+| `tests/experiments/local-prototype-turn-call.ts` | [gateway-turn-call.ts](../../../desktop/host/gateway-turn-call.ts) |

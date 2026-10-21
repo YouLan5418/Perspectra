@@ -2,6 +2,7 @@ import { execFile, spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { WorldJsonObject } from '@harness-world/contracts'
+import { corePythonRoot } from './python-paths.ts'
 
 export type CoreRunner = (input: WorldJsonObject, signal: AbortSignal) => Promise<WorldJsonObject>
 
@@ -11,9 +12,7 @@ export function corePythonExecutable(): string {
 }
 
 function coreBridgePath(): string {
-  return process.env.PERSPECTRA_RUNTIME_ROOT
-    ? resolve(process.env.PERSPECTRA_RUNTIME_ROOT, 'memory-core/python/bridge/core_bridge.py')
-    : resolve('desktop/host/memory/python/bridge/core_bridge.py')
+  return join(corePythonRoot(), 'bridge/core_bridge.py')
 }
 
 /**

@@ -8,7 +8,7 @@
 
 组合前，独立通信规则直接裁定自己的绑定，活动 Context 又会过滤交互；如果直接拼接，可能出现模型看不到通信选项但直接提交却绕过活动限制的情况。组合入口将活动规则置于通信规则外层：活动先验证参与者及操作许可，通过后才执行通信。普通活动操作仍由活动脚本裁定。
 
-[PackActivity](../../../tests/experiments/pack-activity.ts)与[PackActivities](../../../tests/experiments/pack-activities.ts)的 rulebooks 允许实验入口传入已有通信 resolver；默认调用不传该参数，沿用原来的基础规则。手动玩家通信与 NPC 行动使用同一组合规则。手动入口补充提交前缀 asOfWorldSeq，供原有活动世界视图检查使用。
+[PackActivity](../../../desktop/host/pack-activity.ts)与[PackActivities](../../../desktop/host/pack-activities.ts)的 rulebooks 允许实验入口传入已有通信 resolver；默认调用不传该参数，沿用原来的基础规则。手动玩家通信与 NPC 行动使用同一组合规则。手动入口补充提交前缀 asOfWorldSeq，供原有活动世界视图检查使用。
 
 | 情况 | 已验证行为 |
 | --- | --- |
@@ -53,3 +53,12 @@ node --import tsx tests/experiments/cross-scene-activity-live.ts output/experime
 现有活动白名单可以限制发送／接听，但没有免打扰、来电排队、自动超时或活动结束后自动重试未处理消息。活动禁止通信时，响铃可能保留到活动暂停或有权一方结束。尚未验证活动规则动态改变后如何处理现有连接，以及故事节点、分享或默认宿主调度的通信集成。
 
 后续独立[节点实验](cross-scene-nodes-20261010.md)已验证活动与通信的完整回退、单节点分享和原生记忆续玩；默认宿主集成及活动策略动态改变的边界仍未完成。
+
+## 源码导航迁移（2026-10-21）
+
+本次只更新源码导航，未重新验证上文历史结论。迁移前快照为提交 `717ed6c1a662e5e55e534c7cf7e2651d405b46f1`；原路径与当前实现的对应关系如下。
+
+| 迁移前路径（上述提交） | 当前源码 |
+| --- | --- |
+| `tests/experiments/pack-activity.ts` | [pack-activity.ts](../../../desktop/host/pack-activity.ts) |
+| `tests/experiments/pack-activities.ts` | [pack-activities.ts](../../../desktop/host/pack-activities.ts) |

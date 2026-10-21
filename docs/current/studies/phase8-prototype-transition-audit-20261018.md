@@ -42,12 +42,12 @@
 
 主要源码：
 
-- [宿主装配与激活](../../../tests/experiments/playtest-frozen-runtime.ts)：WorldApplication 的选项、角色请求回调、#activateCharacters。
+- [宿主装配与激活](../../../desktop/host/world-runtime.ts)：WorldApplication 的选项、角色请求回调、#activateCharacters。
 - [WorldApplication](../../../packages/application/src/world-application.ts)：WorldBranchComponentFactory.create、externalCharacterActivations、分支组件和保留 API。
 - [RoundCoordinator](../../../packages/application/src/round-coordinator.ts)：processCognitiveJobs、participant 模型处理、Reflection 与提交。
 - [新角色循环](../../../packages/application/src/prototype-character-turn.ts)、[新调度](../../../packages/application/src/prototype-activation-cycle.ts)：实际 NPC 决策与结果提交。
 - 旧 `packages/application/src/context-pipeline.ts`、`reaction-scheduler.ts`（第二步已删除，见 Git 调查基点）。
-- [Core 桥](../../../tests/experiments/playtest-memory-core.ts)：#snapshot、授权 Source 查询与 catchUpReceipt。
+- [Core 桥](../../../desktop/host/memory/core-memory.ts)：#snapshot、授权 Source 查询与 catchUpReceipt。
 - [角色请求协议](../../../packages/provider-chat/src/prototype-turn.ts)、[认知初始事件编译](../../../packages/world-pack/src/compiler.ts)、旧 `packages/agents/src/reflection.ts`（第二步已删除）。
 
 ## 用运行追踪验证“装配但没用”和“确实还在运行”
@@ -90,7 +90,7 @@ Get-Content .tmp/phase8-prototype-audit/result.json
 
 Evidence E3：[原型契约](../prototype-contract.md) 顶部仍保留 Proposed、首次交付未实现等起始文字，后面又追加多轮进展，末段还保留旧的 G0～G4 未通过状态；[G1/G2 记录](../../archive/prototype-g1-g4/PROTOTYPE-G1-G2-ACCEPTANCE.md) 仍列 G2-1 格式修正待办。
 
-Evidence E4：当前 PrototypeCharacterTurn 已提供 reserveFormatRetry，宿主调用 [decideActivityFormat](../../../tests/experiments/pack-activity.ts) 在预算内进行格式修正；[当前架构入口](../architecture/README.md) 已解释新的实际调用链与发行范围。
+Evidence E4：当前 PrototypeCharacterTurn 已提供 reserveFormatRetry，宿主调用 [decideActivityFormat](../../../desktop/host/pack-activity.ts) 在预算内进行格式修正；[当前架构入口](../architecture/README.md) 已解释新的实际调用链与发行范围。
 
 Finding F2（E3、E4）：一些历史“未完成”只是记录没有跟随实现收口，不能继续作为当前待办；另一些确实是更新回路或默认入口没接上。仅按旧清单补功能，会误把已经改道的设计重新装回当前运行时。有界非法输出诊断的完整 G2 验收本次未逐项复核，不在此宣布通过。
 
@@ -340,3 +340,13 @@ Path P6（当时结论，已被第四步修正）：第三步短试玩不足以�
 - 定向回归 11 个文件、40 项通过，覆盖协调器、分支管理、Provider、消息与工具 Schema、角色上下文、Cordis 生命周期，以及玩家输入／包内交互集成。
 - 最终类型检查、Lint、文档导航通过（12 页、381 个本地链接，模块地图完整）；LF／CRLF 两种钩子夹具变体检查通过，暂存差异检查通过。
 - 28 组请求等价对照通过。本次未重新做真实模型连续试玩、Launcher 原生点击验收或发行打包；保留上述长期体验与旧未完成 Cycle 的限制。
+
+## 源码导航迁移（2026-10-21）
+
+本次只更新源码导航，未重新验证上文历史结论。迁移前快照为提交 `717ed6c1a662e5e55e534c7cf7e2651d405b46f1`；原路径与当前实现的对应关系如下。
+
+| 迁移前路径（上述提交） | 当前源码 |
+| --- | --- |
+| `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../desktop/host/world-runtime.ts) |
+| `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../desktop/host/memory/core-memory.ts) |
+| `tests/experiments/pack-activity.ts` | [pack-activity.ts](../../../desktop/host/pack-activity.ts) |

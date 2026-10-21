@@ -3,6 +3,7 @@ import {cp,mkdir,readFile,writeFile,readdir,stat,access} from 'node:fs/promises'
 import {resolve,join,dirname} from 'node:path'
 import {execFileSync} from 'node:child_process'
 import {createHash} from 'node:crypto'
+import {copyMemoryRuntime} from '../build/copy-memory-runtime.mjs'
 const version='0.1.0-test3'
 const output=resolve(process.argv[2]??'dist/portable/Perspectra-'+version+'-win-x64')
 try{await access(output);throw Error('Output already exists; choose a new directory.')}catch(error){if(error.code!=='ENOENT')throw error}
@@ -28,9 +29,7 @@ const result=await build({entryPoints:[entry],outfile:join(runtime,file),bundle:
 for(const path of Object.keys(result.metafile.inputs))inputs.add(resolve(path))
 }
 await cp(resolve('node_modules/jieba-wasm'),join(runtime,'node_modules/jieba-wasm'),{recursive:true,dereference:true})
-for(const [folder,files] of [ ['core',['core.py','episode_core.py','projections.py','queries.py','retrieval_text.py','vector_core.py','vendor']],['bridge',['core_bridge.py','activity_delivery.py','candidate_admission.py','minimal_delivery.py']] ]){
-await mkdir(join(runtime,'memory-core/python',folder),{recursive:true});for(const file of files)await cp(resolve('desktop/host/memory/python',folder,file),join(runtime,'memory-core/python',folder,file),{recursive:true,dereference:true,filter})
-}
+await copyMemoryRuntime(runtime)
 const assets=JSON.parse(await readFile('desktop/host/memory/python/core/e5-assets.json','utf8'))
 for(const [file,expected]of Object.entries(assets.files)){
 const source=resolve('.tmp/hindsight-e5-small',file),bytes=await readFile(source)

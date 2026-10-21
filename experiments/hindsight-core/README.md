@@ -27,18 +27,11 @@
 
 后续向量、语义边、图扩展与 tick 适配的具体复用范围、来源片段及限制见[历史记录](HISTORY.md)及[行为报告](reports/behavior-report.md)。vendor 的许可与来源保持原样。
 
-## 运行
+## 历史执行记录
 
-在仓库根目录执行，输出目录必须是新的；最后一条会调用真实模型：
+此目录的 TypeScript 驱动绑定旧实验 API，当前不再维护或提供可执行命令；旧类型配置已移除，不恢复 `experimentalCharacterRequest`、`releaseForExperimentalHost` 等退役接口。原命令与参数只在 [HISTORY](HISTORY.md) 中作为历史证据保存。
 
-```powershell
-corepack pnpm@11.7.0 install --frozen-lockfile
-python -m unittest discover -s experiments/hindsight-core -p test_core.py
-corepack pnpm@11.7.0 exec tsc -p experiments/hindsight-core/tsconfig.json --noEmit
-node --import tsx experiments/hindsight-core/drive.ts .tmp/hindsight-core-my-run
-```
-
-本机接口使用 `HCW_LOCAL_ENDPOINT`、`HCW_LOCAL_MODEL`，认证仅通过 `HCW_LOCAL_API_KEY`。向量环境准备见[Activity Memory](../activity-memory/README.md)。原始结果包含私有角色材料，仅本机审阅。
+当前安装、Core Python 回归与启动步骤统一见 [Core 记忆说明](../../desktop/host/memory/README.md)。`test_core.py` 等旧测试保留用于研究，不能直接作为现行默认验收。
 
 ## 报告与历史
 

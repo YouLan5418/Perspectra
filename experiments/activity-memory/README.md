@@ -10,24 +10,11 @@
 | 证据范围 | 有真实双角色、跨房间与浏览器实测；单轨迹不证明稳定收益或完整产品验收 |
 | 历史 | [历史命令与记录](HISTORY.md)，保留此前的配置、失败与对照 |
 
-## 1. 独立环境与网页试玩
+## 1. 当前入口
 
-在仓库根目录准备 Python 3.12 环境。依赖、E5 revision和资产校验描述位于仓库；环境和模型权重放在忽略的`.tmp`中。本机已有便携包时，也可把其中的 Python 3.12（依赖版本与下方要求一致）复制到 `.tmp/hindsight-python312`，再用它 `-m venv --system-site-packages .tmp/hindsight-vector-venv`，并复制 E5 到 `.tmp/hindsight-e5-small` 后运行 `setup-vector.py` 校验哈希。
+当前 Python/E5 安装、环境变量、源码与发行目录以及离线回归命令统一见 [Core 记忆说明](../../desktop/host/memory/README.md)。从仓库根目录使用 `corepack pnpm@11.7.0 experience:web` 启动；历史实验输出仍使用新目录，私有 trace 只在本机审阅。
 
-```powershell
-corepack pnpm@11.7.0 install --frozen-lockfile
-python -m venv .tmp/hindsight-vector-venv
-& .tmp/hindsight-vector-venv/Scripts/python.exe -m pip install -r experiments/hindsight-core/requirements-vector.txt
-& .tmp/hindsight-vector-venv/Scripts/python.exe experiments/hindsight-core/setup-vector.py
-
-# 本次本机网关使用8046；服务端口不同时调整此值
-$env:HCW_LOCAL_ENDPOINT = 'http://127.0.0.1:8046/v1/chat/completions'
-corepack pnpm@11.7.0 experience:web --memory-core --pack examples/world-packs/prototype-g1 --data-dir .tmp/my-simple-core-web
-```
-
-每个新实验使用未占用的数据目录。打开终端打印的带token本机地址；需要API认证时只通过`HCW_LOCAL_API_KEY`传入，不写进文件。`HCW_HINDSIGHT_PYTHON`、`HCW_HINDSIGHT_CORE_DIR`和`HCW_HINDSIGHT_ONNX_DIR`可显式覆盖本地路径。默认模型为`gemini-3.7-flash`，网关别名不证明底层模型身份。
-
-Core 开关支持 local 配置入口下的 OpenAI、Anthropic 和 Google 协议；选择方式见[模型接口协议](../../docs/current/model-protocols.md)。Ollama/DeepSeek 独立入口不能启用 Core，须显式加 `--memory-native`。桌面发布目录尚未打包Python、Core和E5资产。
+以下第 2—5 节描述当时实验状态与证据，保留其原始语境，不作为当前能力或发行验收承诺。
 
 ## 2. 当前运行路径
 
@@ -62,21 +49,17 @@ Core取消16/8截断；实验默认约170k估算上下文软触发，按完整�
 
 | 位置 | 职责 |
 | --- | --- |
-| `tests/experiments/playtest-memory-core.ts` | 网页角色授权、缓存、交付与引用检查 |
-| `tests/experiments/playtest-frozen-runtime.ts` | 正常角色激活与Core开关接线 |
-| `experiments/hindsight-core` | 随仓库保存的分层核心、本地编码器资产描述 |
-| `core_bridge.py`、`candidate_admission.py`、`minimal_delivery.py` | 当前Python桥、候选准入及极简交付 |
-| `tests/experiments/memory-*.ts` | 独立对照的准备、执行和闭环驱动 |
+| `desktop/host/memory/core-memory.ts` | 网页角色授权、缓存、交付与引用检查 |
+| `desktop/host/world-runtime.ts` | 正常角色激活与Core开关接线 |
+| `desktop/host/memory/python/core` | 当前分层核心、本地编码器资产描述 |
+| `desktop/host/memory/python/bridge` | 当前Python桥、候选准入及极简交付 |
+| `scripts/memory-*.ts` | 独立对照的准备、执行和闭环驱动 |
 | `audit_*.py`、`test_*.py`、`reports/report-*.md` | 离线审计、回归及实验报告 |
 | `.tmp/<实验目录>` | 新世界、角色缓存、私有trace、实际模型返回与审计结果 |
 
-```powershell
-# 不调用模型：候选准入、极简交付、认识谱系的相关回归
-& .tmp/hindsight-vector-venv/Scripts/python.exe -m unittest discover -s experiments/activity-memory -p test_candidate_admission.py
-& .tmp/hindsight-vector-venv/Scripts/python.exe -m unittest discover -s experiments/activity-memory -p test_minimal_delivery.py
-& .tmp/hindsight-vector-venv/Scripts/python.exe -m unittest discover -s experiments/activity-memory -p test_cognition_lineage.py
+现行离线回归命令及必需的 `PYTHONPATH` 见 [Core 记忆说明](../../desktop/host/memory/README.md)。下列历史审计只复核已有记录，不调用模型：
 
-# 复核既有真实试玩记录；会写本地审计结果，不再调用模型
+```powershell
 & .tmp/hindsight-vector-venv/Scripts/python.exe experiments/activity-memory/audit_normal_playtest.py .tmp/simple-memory-playtest-20261005-v3
 ```
 

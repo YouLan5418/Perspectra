@@ -105,14 +105,15 @@ function launchBackend(packPath: string, dataDirectory: string, model: ModelChoi
   if (backend) throw new Error('已有游戏正在运行。')
   const entry = app.isPackaged
     ? join(repository, 'dist', 'backend', 'playtest.mjs')
-    : join(repository, 'tests', 'experiments', 'playtest-web-entry.ts')
+    : join(repository, 'desktop', 'host', 'web-entry.ts')
   const arguments_ = [...(app.isPackaged ? [] : ['--import', 'tsx']), entry,
     '--pack', packPath, '--data-dir', dataDirectory, '--tuning', JSON.stringify(tuning),
     // The legacy Electron shell never prepared Core's Python environment; keep its native memory explicit.
     '--memory-native']
   if (model.provider === 'ollama') arguments_.push('--ollama')
   if (model.provider === 'deepseek') arguments_.push('--deepseek')
-  const env: NodeJS.ProcessEnv = { ...process.env, ...(app.isPackaged ? { ELECTRON_RUN_AS_NODE: '1' } : {}) }
+  const env: NodeJS.ProcessEnv = { ...process.env, PERSPECTRA_RUNTIME_ROOT: app.isPackaged ? join(repository, 'dist', 'backend') : undefined,
+    ...(app.isPackaged ? { ELECTRON_RUN_AS_NODE: '1' } : {}) }
   if (model.provider === 'local') { env.HCW_LOCAL_MODEL = model.model; env.HCW_LOCAL_ENDPOINT = model.endpoint }
   if (model.provider === 'ollama') { env.HCW_OLLAMA_MODEL = model.model; env.HCW_OLLAMA_ENDPOINT = model.endpoint }
   if (model.provider === 'deepseek') env.HCW_DEEPSEEK_MODEL = model.model

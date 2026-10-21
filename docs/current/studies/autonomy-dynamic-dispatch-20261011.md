@@ -14,7 +14,7 @@
 - 已提交行动与结果续写连续。续写过期时保留 `continuationOf` 和原预算归属，只补写真实结果，不重放操作；提交依旧串行、短租约、原子性，授权投影变化时不提交旧模型输出。
 - Activity 入口或仍有活动参与者排程、变量脚本、`publicationAudit`、`--serial-scheduling` 时继续分段处理。内部测量控制 `stagedAutonomy` 仅延后自主启动，普通处理保持动态，不加入 Launcher 参数。
 
-实现：[调度器](../../../packages/application/src/prototype-activation-cycle.ts)、[宿主](../../../tests/experiments/playtest-frozen-runtime.ts)、[末端候选环境](../../../tests/experiments/playtest-tail-runtime.ts)。原包声明和启动器设置未变，现有发行包尚未更新。
+实现：[调度器](../../../packages/application/src/prototype-activation-cycle.ts)、[宿主](../../../desktop/host/world-runtime.ts)、[末端候选环境](../../../desktop/host/tail-runtime.ts)。原包声明和启动器设置未变，现有发行包尚未更新。
 
 ## 对照方式
 
@@ -61,3 +61,12 @@ node --import tsx tests/experiments/autonomy-scheduling.ts --live --case=mixed-d
 场外最多一个任务，故离场观察者与场外自主角色仍可能互相等待；接入不会让所有后台角色同时运行。多个自主角色不保证都能在预算内轮到。目标完成后没有自动停用机会，`abstain` 仍消耗调用。玩家停止输入后没有常驻自治。
 
 移动冲突、插话与多自主角色预算通过受控回归；真实对照不人为制造这些冲突。短目标和一次对照不能证明长期目标质量、复杂世界公平性、真实冲突额外成本、Core 长聊或 GUI 体验，也不代表发行包已经包含。
+
+## 源码导航迁移（2026-10-21）
+
+本次只更新源码导航，未重新验证上文历史结论。迁移前快照为提交 `717ed6c1a662e5e55e534c7cf7e2651d405b46f1`；原路径与当前实现的对应关系如下。
+
+| 迁移前路径（上述提交） | 当前源码 |
+| --- | --- |
+| `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../desktop/host/world-runtime.ts) |
+| `tests/experiments/playtest-tail-runtime.ts` | [tail-runtime.ts](../../../desktop/host/tail-runtime.ts) |

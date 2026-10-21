@@ -40,7 +40,7 @@ node scripts/docs/check-links.mjs
 
 ## 4. 自动检查的边界
 
-[check-links.mjs](../../../scripts/docs/check-links.mjs)检查当前架构目录、根 README 和 docs/README 中本地链接目标，并核对模块地图涵盖 packages 的直接子目录。它不访问外网、不读取角色数据、不调用模型。
+[check-links.mjs](../../../scripts/docs/check-links.mjs)检查整个 `docs/current`（含指南和研究页）、根 README 和 docs/README 中本地链接目标，并核对模块地图涵盖 packages 的直接子目录。指向 `.tmp`、`output` 的本地实验产物可能未随仓库保存，缺失时单独报告数量，不作为源码导航失败。它不访问外网、不读取角色数据、不调用模型。
 
 它能发现文件移动后的断链，以及新增包后遗漏地图；不核对标题锚点、函数语义或自然语言准确性，也不能保证新功能都被写进文档。修改者仍需核对正文。
 

@@ -18,7 +18,7 @@
 node --import tsx tests/experiments/tavern-card-slice.ts 'C:/Users/Administrator/Desktop/QQ图片20261018140202.png' '.tmp/tavern-slice-local-new'
 ```
 
-输出目录必须是 `.tmp` 下尚不存在的新目录，不覆盖旧实例。[生成器](../../../tests/experiments/tavern-card-slice.ts)当前输出为 `.tmp/tavern-slice-20261018-v3`，含 3 个主体、2 个地点、7 条文档、4 条关键词背景知识，没有信任数值或情感门槛。每名 NPC 的人设只有本人可读。`slice-source.json` 记录原文选择与改编限制；原测试世界的人设、认知、记忆关注主题及物品被替换，保留现有角色 ID 复用基础包结构。旧 v2 及真实试玩目录原样保留，不能继续将其当成当前包使用。
+输出目录必须是 `.tmp` 下尚不存在的新目录，不覆盖旧实例。[生成器](../../../tests/experiments/tavern-black-shores-slice.ts)当前输出为 `.tmp/tavern-slice-20261018-v3`，含 3 个主体、2 个地点、7 条文档、4 条关键词背景知识，没有信任数值或情感门槛。每名 NPC 的人设只有本人可读。`slice-source.json` 记录原文选择与改编限制；原测试世界的人设、认知、记忆关注主题及物品被替换，保留现有角色 ID 复用基础包结构。旧 v2 及真实试玩目录原样保留，不能继续将其当成当前包使用。
 
 生成器依赖这张卡的固定开局和人物名称，不是通用迁移器。创作者无需为每一句对白写分支；包内没有新增作者 JavaScript。通用声明见[世界设定](../guides/world-knowledge.md)。
 
@@ -50,3 +50,11 @@ node --import tsx tests/experiments/tavern-card-slice.ts 'C:/Users/Administrator
 当前 v3 包有 7 条文档，只登记 `knowledge.json`。在默认宿主实际打开后，花房当前角色为守岸人，没有数值面板字段，模型调用数为 0。旧 v2 包与 OpenCode 数据只保留作历史研究，不覆盖、不迁移；新实验从 v3 创建新实例。
 
 本次 TypeScript strict、Lint、文档导航检查通过；知识与公共前端相关 2 个测试文件、25 项通过，其中模拟 Ollama／OpenAI HTTP 路径验证私有设定和定向发言不会触发其他角色的知识，重开和末端候选重算仍可用。本次未再调用真实模型，旧 DeepSeek 结果不能直接当作 v3 的真实体验验收。
+
+## 源码导航迁移（2026-10-21）
+
+本次只更新源码导航，未重新验证上文历史结论。迁移前快照为提交 `717ed6c1a662e5e55e534c7cf7e2651d405b46f1`；原路径与当前实现的对应关系如下。
+
+| 迁移前路径（上述提交） | 当前源码 |
+| --- | --- |
+| `tests/experiments/tavern-card-slice.ts` | [tavern-black-shores-slice.ts](../../../tests/experiments/tavern-black-shores-slice.ts) |

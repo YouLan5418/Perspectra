@@ -14,7 +14,7 @@ const outcome=(c:InteractionExecutionContext):WorldEventDraft[]=>{
  return [{eventType:'observation.upsert',eventVersion:1,data:{id:`${c.host.actionId}:inspection`,value:{observerId:c.roles.actor!.id,
   actionId:c.host.actionId,content:{actorId:c.roles.actor!.id,actionType:'interact',status:'accepted',resultDescription:description,resultMetadata:metadata}}}}]
 }
-export function goalProgressSearchPackage():InteractionPackageImplementation {
+export function goalProgressInspectionPackage():InteractionPackageImplementation {
  const spec:InteractionDefinitionSpec={versionTag:'interaction-definition/v1',id:'experiment:inspect-shelf',version:1,
   participantRoles:[{name:'actor',kind:'character',source:{kind:'hostActor'},distinctFrom:[]},{name:'item',kind:'entity',source:{kind:'primaryTarget'},distinctFrom:[]}],
   argumentSchema:{fields:[]},bindingConfigSchema:{fields:[]},authorityPolicyRef:ref('base:actor-active'),observationPolicyRef:ref('base:public-outcome'),

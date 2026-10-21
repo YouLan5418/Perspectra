@@ -21,7 +21,7 @@ before 可省略；只有表达仍用 publish，没有要做或说的事情用 a
 
 before 与 publish 共用 segments/scope/addresseeIds、预设 output 文本处理及原有公开、定向、私语和自语投递。主操作不绕过作者交互定义或权限。所有实际模型调用仍计入现有预算，至少保留执行后续写的调用余量；before 不单独调用模型，也不增加自主动作上限。前后表达各自按当时场景裁定受众；移动不使谈话对象自动随行。
 
-`beforeActionExpression` 是默认关闭的宿主实验选项，[普通宿主](../../../tests/experiments/playtest-frozen-runtime.ts)只在没有活动、变量和外部发布审计时接通；活动请求另外排除，末端候选记录开关。不增加 Launcher 设置，不改变默认实例和发行包。与 continueAfterPublish 独立，真实对照关闭后者。
+`beforeActionExpression` 是默认关闭的宿主实验选项，[普通宿主](../../../desktop/host/world-runtime.ts)只在没有活动、变量和外部发布审计时接通；活动请求另外排除，末端候选记录开关。不增加 Launcher 设置，不改变默认实例和发行包。与 continueAfterPublish 独立，真实对照关闭后者。
 
 ## 验证方法
 
@@ -61,3 +61,11 @@ E r4 与竞争者 r10 把第三人称行动前叙述标成 speech，格式合法
 ## 有意识保留的限制
 
 行动前文本不得提前声称成功，但这仍是模型语义约束，程序不证明任意自由文本都真实。两次模型调用也不意味着全过程零等待；调用超时和格式修正仍消耗当前预算。表达与行动分开提交，所以可能只说了话而因中断未完成行动，这是保留真实已提交表达的结果。活动、变量、外部审计、GUI、长线稳定性和发行包均未在本轮扩展验收。
+
+## 源码导航迁移（2026-10-21）
+
+本次只更新源码导航，未重新验证上文历史结论。迁移前快照为提交 `717ed6c1a662e5e55e534c7cf7e2651d405b46f1`；原路径与当前实现的对应关系如下。
+
+| 迁移前路径（上述提交） | 当前源码 |
+| --- | --- |
+| `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../desktop/host/world-runtime.ts) |

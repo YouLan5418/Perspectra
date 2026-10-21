@@ -4,7 +4,7 @@
 
 ## 已确认的问题
 
-Core 的 [utility_request](../../../experiments/activity-memory/core_bridge.py) 对 OpenAI 兼容入口统一发送 `thinking: {type: disabled}`。普通角色 Provider 已有 Gemini 型号的思考强度映射，但 Python Core 未使用它。此请求对本机 Gemini 网关没有实现关闭思考。
+Core 的 [utility_request](../../../desktop/host/memory/python/bridge/core_bridge.py) 对 OpenAI 兼容入口统一发送 `thinking: {type: disabled}`。普通角色 Provider 已有 Gemini 型号的思考强度映射，但 Python Core 未使用它。此请求对本机 Gemini 网关没有实现关闭思考。
 
 只读网关配置与实际 request_logs 表明：本机 thinking_budget.control_source 是 gateway，flash_tiered=-1。没有 reasoning_effort 的 Core 请求映射为 gemini-3.8-flash-tiered，上游 thinkingBudget=-1、includeThoughts=true，maxOutputTokens=65536。客户端发送的 max_tokens=2500 并未成为实际输出上限。不能把客户端参数已发送或已有单测通过当作服务端预算生效。
 
@@ -14,7 +14,7 @@ Core 的 [utility_request](../../../experiments/activity-memory/core_bridge.py) 
 
 ## 同输入实测
 
-[传输探针](../../../tests/experiments/core-utility-timing-probe.py)从同一份真实授权归档产生 813 字符的 Retain 输入，只改变思考字段，使用既有 JSON 解析方式。最终有效样本为 `output/experiments/core-timing-probe-20261010-02/report.json`。
+[传输探针](../../../experiments/activity-memory/scripts/core-utility-timing-probe.py)从同一份真实授权归档产生 813 字符的 Retain 输入，只改变思考字段，使用既有 JSON 解析方式。最终有效样本为 `output/experiments/core-timing-probe-20261010-02/report.json`。
 
 | 调用条件 | 客户端耗时 | 结果 |
 | --- | --- | --- |
@@ -25,11 +25,11 @@ Core 的 [utility_request](../../../experiments/activity-memory/core_bridge.py) 
 
 网关实际将 low 请求映射为 gemini-3.8-flash-low，thinkingBudget=1024；maxOutputTokens 仍为 65536。low 确实控制了思考层级，仍不能宣称客户端输出上限生效。旧参数的 60 秒超时只是此诊断探针的有界等待，产品原预算仍为 120 秒。第一次探针直接 json.loads(text)，没有使用 Core 既有的 Markdown 外壳处理，误报了低思考响应解析失败；最终探针已使用同一解析方式，此早期样本不计协议失败。
 
-[完整构建探针](../../../tests/experiments/core-utility-build-probe.py)只在自身进程把 Core 请求切到 low，实际完成 Retain → Group → Consolidate → E5 索引，约 17.43 秒得到 4 个 Atom、2 个 Episode、2 个 Observation、8 个索引单元。既有来源与归档验证全部通过，没有伪造模型结果。报告位于 `output/experiments/core-low-build-probe-20261010-01/report.json`。这证明该单角色样本可以完整构建，不等于多角色长会话或全部节点分享已验收。
+[完整构建探针](../../../experiments/activity-memory/scripts/core-utility-build-probe.py)只在自身进程把 Core 请求切到 low，实际完成 Retain → Group → Consolidate → E5 索引，约 17.43 秒得到 4 个 Atom、2 个 Episode、2 个 Observation、8 个索引单元。既有来源与归档验证全部通过，没有伪造模型结果。报告位于 `output/experiments/core-low-build-probe-20261010-01/report.json`。这证明该单角色样本可以完整构建，不等于多角色长会话或全部节点分享已验收。
 
 ## 并发条件与边界
 
-[Core 宿主](../../../tests/experiments/playtest-memory-core.ts)默认 roleConcurrency=2，[Python Retain](../../../experiments/activity-memory/core_bridge.py)默认 retainConcurrency=2。当每角色有多个批次时，单实例可同时发出最多 4 个 Retain HTTP 请求；Group 与 Consolidate 每角色顺序执行。这些限制按实例／进程管理，没有共享的网关总限额，普通角色请求也不在这个 Core 限额中。
+[Core 宿主](../../../desktop/host/memory/core-memory.ts)默认 roleConcurrency=2，[Python Retain](../../../desktop/host/memory/python/bridge/core_bridge.py)默认 retainConcurrency=2。当每角色有多个批次时，单实例可同时发出最多 4 个 Retain HTTP 请求；Group 与 Consolidate 每角色顺序执行。这些限制按实例／进程管理，没有共享的网关总限额，普通角色请求也不在这个 Core 限额中。
 
 上一轮实验由本次调查者重叠启动了多个宿主，汇总已记录的 Core 请求实际峰值为 4。不能把这一组结果解释为“默认单实例双并发必然失败”。本轮双并发低思考小样本通过，说明降低到串行不是当前首要修正；没有证明高并发不会排队，也没有验证客户端超时后网关一定取消上游工作。
 
@@ -46,3 +46,14 @@ Core 的 [utility_request](../../../experiments/activity-memory/core_bridge.py) 
 DeepSeek 的关闭思考请求与其他模型、原生协议的既有重试不变。不会改角色思考设置、网关配置、授权验证或世界事务。回退发送 disabled 是用户指定的尝试策略，不能据此声称本机网关真正关闭了 Gemini 思考。
 
 [桥回归](../../../experiments/activity-memory/test_core_bridge.py)28 项通过，包括两种超时形式、两次请求上限、换参后原证据一致、非超时失败不回退、DeepSeek 保持原参数和已有 JSON／来源校验。24 项宿主／Core 集成测试通过，类型、Lint 和文档检查通过。使用 8046 / gemini-3.8-flash 串行重跑了[短信与电话完整 Core 节点流程](cross-scene-core-memory-20261010.md)，两者均通过；节点回退与分享后实际 Core Delivery 交付青灯，活动一致、原未来独立。真实请求未触发回退，换参路径由模拟超时测试验收；未重跑全仓检查或重新制作发行包。
+
+## 源码导航迁移（2026-10-21）
+
+本次只更新源码导航，未重新验证上文历史结论。迁移前快照为提交 `717ed6c1a662e5e55e534c7cf7e2651d405b46f1`；原路径与当前实现的对应关系如下。
+
+| 迁移前路径（上述提交） | 当前源码 |
+| --- | --- |
+| `experiments/activity-memory/core_bridge.py` | [core_bridge.py](../../../desktop/host/memory/python/bridge/core_bridge.py) |
+| `tests/experiments/core-utility-timing-probe.py` | [core-utility-timing-probe.py](../../../experiments/activity-memory/scripts/core-utility-timing-probe.py) |
+| `tests/experiments/core-utility-build-probe.py` | [core-utility-build-probe.py](../../../experiments/activity-memory/scripts/core-utility-build-probe.py) |
+| `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../desktop/host/memory/core-memory.ts) |

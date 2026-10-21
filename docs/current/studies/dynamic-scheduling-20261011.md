@@ -37,9 +37,9 @@
 
 - 动态角色候选、优先级、预算预留、因果深度和任务收束：[prototype-activation-cycle.ts](../../../packages/application/src/prototype-activation-cycle.ts)
 - 角色视图比较、模型调用、串行提交队列和写租约：[prototype-character-turn.ts](../../../packages/application/src/prototype-character-turn.ts)
-- 普通入口启用条件、活动与自主阶段：[playtest-frozen-runtime.ts](../../../tests/experiments/playtest-frozen-runtime.ts)
-- 插话中止、等待末端回合收束：[playtest-tail-runtime.ts](../../../tests/experiments/playtest-tail-runtime.ts)
-- 命令行对照开关：[playtest-launch.ts](../../../tests/experiments/playtest-launch.ts)
+- 普通入口启用条件、活动与自主阶段：[playtest-frozen-runtime.ts](../../../desktop/host/world-runtime.ts)
+- 插话中止、等待末端回合收束：[playtest-tail-runtime.ts](../../../desktop/host/tail-runtime.ts)
+- 命令行对照开关：[playtest-launch.ts](../../../desktop/host/launch-arguments.ts)
 - 一次输入与调度概述：[当前运行时](../architecture/runtime.md)、[代码路线](../architecture/code-walkthrough.md)
 
 ## 对照驱动与样例包
@@ -98,3 +98,13 @@
 | 干净系统、跨机器与发行包 | 待验收；现有发行包未更新 |
 
 自动回归、合成 DOM 验证和真实模型短测分别提供对应边界的证据，不代表长试玩或发行包验收。后续应在同一包、预算及模型配置下测量真实串行／动态对照、长对话接续和 stale 重算成本，并检查自由阶段的实际体感。
+
+## 源码导航迁移（2026-10-21）
+
+本次只更新源码导航，未重新验证上文历史结论。迁移前快照为提交 `717ed6c1a662e5e55e534c7cf7e2651d405b46f1`；原路径与当前实现的对应关系如下。
+
+| 迁移前路径（上述提交） | 当前源码 |
+| --- | --- |
+| `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../desktop/host/world-runtime.ts) |
+| `tests/experiments/playtest-tail-runtime.ts` | [tail-runtime.ts](../../../desktop/host/tail-runtime.ts) |
+| `tests/experiments/playtest-launch.ts` | [launch-arguments.ts](../../../desktop/host/launch-arguments.ts) |

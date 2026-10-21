@@ -20,7 +20,9 @@ python -m venv .tmp/hindsight-vector-venv
 
 `setup-vector.py` 会下载并校验固定 revision 的模型资产。`HCW_HINDSIGHT_PYTHON` 与 `HCW_HINDSIGHT_ONNX_DIR` 仍可指定现有环境和权重。游戏默认使用 Core；`--memory-native` 是显式的原生记忆选择。
 
-便携包在 `runtime/memory-core/python/core` 与 `runtime/memory-core/python/bridge` 放置所需实现。Rust 桥和发行验证设置该包自己的 Python、模型与缓存目录；Node worker 根据 `PERSPECTRA_RUNTIME_ROOT` 选择发行桥路径。Python 模块内的仓库根目录回退只用于源码布局，发行路径由这些既有环境变量指定。
+在源码仓库根目录运行 TypeScript 入口或构建后的 `dist/backend/playtest.mjs` 时，不设置 `PERSPECTRA_RUNTIME_ROOT`，两者均使用源码 Python 目录。便携包设置该变量为 `runtime` 的绝对路径，Python 位于其下 `memory-core/python/{core,bridge}`；Rust 桥和发行验证另行设置包内 Python、模型与缓存目录。运行时身份与 Node worker 共用 [python-paths.ts](python-paths.ts)，缺失 Python 源文件仍直接失败，不因选择原生记忆跳过身份检查。
+
+Electron 的 `desktop:build` 也复制这份 Python 源码到 `dist/backend/memory-core/python`，打包后显式将 `PERSPECTRA_RUNTIME_ROOT` 设置为 `dist/backend`。旧 Electron 入口仍显式使用原生记忆；这一步不打包解释器或 E5，也不表示 Electron 已支持默认 Core 发行。Python 模块内的仓库根目录回退只用于源码布局。
 
 历史对照与 Python 回归仍保存在 `experiments/activity-memory`、`experiments/hindsight-core`。从仓库根目录运行其中的离线测试时，显式给出当前实现和历史研究辅助模块的搜索路径：
 

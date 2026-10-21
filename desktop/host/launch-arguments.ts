@@ -34,7 +34,7 @@ export function parseHostLaunchArguments(args: readonly string[]): HostLaunchArg
       continue
     }
     if (argument !== '--pack' && argument !== '--data-dir' && argument !== '--jev-shadow' && argument !== '--tuning' && argument !== '--play-settings') {
-      throw new Error(`unsupported playtest argument: ${argument}`)
+      throw new Error(`unsupported host argument: ${argument}`)
     }
     const value = args[++index]
     if (value === undefined || value.startsWith('--')) throw new Error(`${argument} requires a path`)

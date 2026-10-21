@@ -8,7 +8,9 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'experiments' / 'activity-memory'))
+repository = Path(__file__).resolve().parents[3]
+for directory in ['experiments/activity-memory', 'desktop/host/memory/python/core', 'desktop/host/memory/python/bridge']:
+    sys.path.insert(0, str(repository / directory))
 import core_bridge as bridge
 
 root = Path(sys.argv[1])

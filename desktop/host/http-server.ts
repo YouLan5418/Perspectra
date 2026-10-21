@@ -84,7 +84,7 @@ async function runtimeCall(work: () => Promise<HostState>): Promise<HostState> {
     return await work()
   } catch (error: unknown) {
     if (error instanceof HostBusyError || error instanceof TypeError || error instanceof RangeError || error instanceof SyntaxError) throw error
-    throw new Error('playtest runtime failure', { cause: error })
+    throw new Error('host runtime failure', { cause: error })
   }
 }
 

@@ -52,7 +52,7 @@
 | MVU/JSONPatch | 存在变量更新模式，但该提示在当前组合未启用 | 不能直接写权威状态；须映射声明交互并裁定 |
 | 父页面/远程脚本 | 助手依赖酒馆对象、DOM和外部脚本 | 默认沙箱不可原样运行；受信任模式也不提供酒馆API或角色私有权限 |
 
-实现证据：[RolePreset](../../../packages/provider-chat/src/preset.ts)、[Provider](../../../packages/provider-chat/src/provider.ts)、[角色输出契约](../../../packages/provider-chat/src/prototype-turn.ts)、[实际入口](../../../tests/experiments/playtest-frozen-runtime.ts)。文档：[预设](../model-presets.md)、[认知与记忆](../architecture/cognition-memory.md)、[前端](../frontend-v1.md)、[前端授权](../frontend-authorization.md)。
+实现证据：[RolePreset](../../../packages/provider-chat/src/preset.ts)、[Provider](../../../packages/provider-chat/src/provider.ts)、[角色输出契约](../../../packages/provider-chat/src/prototype-turn.ts)、[实际入口](../../../desktop/host/world-runtime.ts)。文档：[预设](../model-presets.md)、[认知与记忆](../architecture/cognition-memory.md)、[前端](../frontend-v1.md)、[前端授权](../frontend-authorization.md)。
 
 RolePreset只有7类字段，提示最多16000字符。Provider把附加提示放在首消息后，tool路径强制指定工具，当前stream=false，默认发送关闭thinking的参数。预设仅影响角色请求，不接管记忆整理或事实裁定。
 
@@ -128,3 +128,11 @@ RolePreset只有7类字段，提示最多16000字符。Provider把附加提示�
 - 调用当前rolePreset：原JSON报“不支持的字段”；65535输出预算报“超出范围”；映射temperature=1、topP=0.88、两个penalty=0通过。
 - 未改运行时代码、未迁移存档、未执行附带脚本或远程资源、未调用付费模型。
 - 仅新增调查文档，未跑完整check；没有完成原预设的真实兼容/体验验收。
+
+## 源码导航迁移（2026-10-21）
+
+本次只更新源码导航，未重新验证上文历史结论。迁移前快照为提交 `717ed6c1a662e5e55e534c7cf7e2651d405b46f1`；原路径与当前实现的对应关系如下。
+
+| 迁移前路径（上述提交） | 当前源码 |
+| --- | --- |
+| `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../desktop/host/world-runtime.ts) |

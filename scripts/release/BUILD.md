@@ -15,7 +15,7 @@
 
 ## 命令
 
-只核对本次宿主与 Core 目录迁移时，可先构建源码，再运行隔离布局的离线检查。它在全新的 `.tmp/core-layout-*` 目录验证单次 Python 请求、常驻 worker、本地 E5 与默认 Core HTTP 启动，不调用外部模型，也不复制完整 Python/WebView2/CRT；通过不代表完整便携包或干净系统验收。
+只核对本次宿主与 Core 目录迁移时，可先构建源码，再运行隔离布局的离线检查。它在全新的 `.tmp/core-layout-*` 目录验证单次 Python 请求、常驻 worker、本地 E5，以及构建后端在源码仓库、Electron 资源目录和隔离便携目录三种布局下的默认 Core HTTP 启动。不调用外部模型，也不复制完整 Python/WebView2/CRT；通过不代表 Electron 界面、完整便携包或干净系统验收。
 
 ```powershell
 corepack pnpm@11.7.0 launcher:build

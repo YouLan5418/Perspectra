@@ -25,9 +25,9 @@
 
 同一个 actionId 的作者领域反馈和通用反馈去重，优先保留领域结果，避免通用“成功”覆盖有限查找未发现。内部保留 observationId/sourceSeq/actionId 供审计，[模型呈现](../../../packages/provider-chat/src/character-context-text.ts)复用原有证据清理规则去除 bookkeeping 字段。原始历史不删除，目标不重复复制到新字段，不新增事件、任务库或持久化策略。
 
-[普通宿主](../../../tests/experiments/playtest-frozen-runtime.ts)增加 recentExecutionEvidence?: boolean，默认关闭。在现有 Core 交付完成之后、预设和 Provider 准备之前计算。没有条目时不添加字段或提示。非空时，[角色提示](../../../packages/provider-chat/src/prototype-turn.ts)增加简短原则：移动不等于搜索，成功不等于目标完成；可以继续、换办法、求助、等待或放弃，但没有进展不必然需要换策略，日常交流和休息仍合理。没有新的模型阶段或规划输出。
+[普通宿主](../../../desktop/host/world-runtime.ts)增加 recentExecutionEvidence?: boolean，默认关闭。在现有 Core 交付完成之后、预设和 Provider 准备之前计算。没有条目时不添加字段或提示。非空时，[角色提示](../../../packages/provider-chat/src/prototype-turn.ts)增加简短原则：移动不等于搜索，成功不等于目标完成；可以继续、换办法、求助、等待或放弃，但没有进展不必然需要换策略，日常交流和休息仍合理。没有新的模型阶段或规划输出。
 
-[末端候选环境](../../../tests/experiments/playtest-tail-runtime.ts)仅在开关为 true 时记录它，关闭时不添加 false 键，从而保留旧环境对象。Launcher 与发行包未更新。新增回归位于 [纯投影测试](../../../packages/application/src/recent-execution-context.test.ts)和[宿主节点测试](../../../tests/prototype/recent-execution-context.test.ts)。
+[末端候选环境](../../../desktop/host/tail-runtime.ts)仅在开关为 true 时记录它，关闭时不添加 false 键，从而保留旧环境对象。Launcher 与发行包未更新。新增回归位于 [纯投影测试](../../../packages/application/src/recent-execution-context.test.ts)和[宿主节点测试](../../../tests/prototype/recent-execution-context.test.ts)。
 
 ## 权限、来源与预算
 
@@ -39,7 +39,7 @@
 
 ## 实验方法
 
-[作者调查包](../../../tests/experiments/goal-progress-search.ts)只在[隔离构建](../../../tests/experiments/goal-progress-build.mjs)中安装。experiment:inspect-shelf 经过现有权限和同地规则，通过既有 observation.upsert 返回有限结果：西侧目录架摘要分栏未发现原件；借阅索引的一条登记提供前室桌上的待核实线索。前者不表示全档案室不存在目标，后者不表示已经取得原件。
+[作者调查包](../../../tests/experiments/goal-progress-inspection-fixture.ts)只在[隔离构建](../../../tests/experiments/goal-progress-build.mjs)中安装。experiment:inspect-shelf 经过现有权限和同地规则，通过既有 observation.upsert 返回有限结果：西侧目录架摘要分栏未发现原件；借阅索引的一条登记提供前室桌上的待核实线索。前者不表示全档案室不存在目标，后者不表示已经取得原件。
 
 三种条件：已执行有限查找、仅移动抵达、前室休息社交。作者准备阶段通过正常受控提交建立有限前史，使用确定性的测试响应，不统计为自然模型策略。随后冻结真实授权请求，A/B 每条件三次配对重放，不提交提案。再从同一关闭后的准备快照复制独立世界，A/B 每条件两条四回合轨迹，共 48 正式回合。玩家输入固定且完全相同，交替 A/B 顺序，调度和预算一致。
 
@@ -99,3 +99,13 @@ A 的 arrival-only 第二条轨迹第 3 回合，同场同行者请求约 60.3 �
 ## 是否需要持久化策略
 
 只有大量回合、场景切换与记忆压缩后，角色反复失去当前策略的连续理解，才进一步调查复用 CharacterGoal、主观认识和已有来源链。本轮短轨迹不验证这种情况。若已有原文足以支持策略调整，投影只是重复信息，继续增加策略库或第二个模型没有证据基础。若根因是缺少可执行调查、反馈没有范围或包内事实矛盾，应先修作者能力与反馈。
+
+## 源码导航迁移（2026-10-21）
+
+本次只更新源码导航，未重新验证上文历史结论。迁移前快照为提交 `717ed6c1a662e5e55e534c7cf7e2651d405b46f1`；原路径与当前实现的对应关系如下。
+
+| 迁移前路径（上述提交） | 当前源码 |
+| --- | --- |
+| `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../desktop/host/world-runtime.ts) |
+| `tests/experiments/playtest-tail-runtime.ts` | [tail-runtime.ts](../../../desktop/host/tail-runtime.ts) |
+| `tests/experiments/goal-progress-search.ts` | [goal-progress-inspection-fixture.ts](../../../tests/experiments/goal-progress-inspection-fixture.ts) |

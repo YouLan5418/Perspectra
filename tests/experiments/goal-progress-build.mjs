@@ -12,8 +12,8 @@ await build({entryPoints:[entry],outfile:join(directory,'run.mjs'),bundle:true,p
   const path=relative(root,args.path).split('\\').join('/'),source=readFileSync(args.path,'utf8')
   sources[path]=createHash('sha256').update(source).digest('hex')
   if(path==='packages/interactions-basic/src/home.ts') {
-   const contents="import { goalProgressSearchPackage } from '../../../tests/experiments/goal-progress-inspection-fixture.ts'\n"+source.replace('createBasicInteractionPackage(),createHomeInteractionPackage()]','createBasicInteractionPackage(),createHomeInteractionPackage(),goalProgressSearchPackage()]')
-   if(contents===source||!contents.includes('createHomeInteractionPackage(),goalProgressSearchPackage()]'))throw new Error('Author package injection failed')
+   const contents="import { goalProgressInspectionPackage } from '../../../tests/experiments/goal-progress-inspection-fixture.ts'\n"+source.replace('createBasicInteractionPackage(),createHomeInteractionPackage()]','createBasicInteractionPackage(),createHomeInteractionPackage(),goalProgressInspectionPackage()]')
+   if(contents===source||!contents.includes('createHomeInteractionPackage(),goalProgressInspectionPackage()]'))throw new Error('Author package injection failed')
    return {contents,loader:'ts',resolveDir:resolve(args.path,'..')}
   }
   if(path==='desktop/host/world-runtime.ts')return {contents:source.replace('const prepared = await prepare(request)',

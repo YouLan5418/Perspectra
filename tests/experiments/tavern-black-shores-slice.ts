@@ -27,7 +27,7 @@ export function readTavernCard(path: string): Card {
 }
 
 /** This study's source card is kept local. Generated source text is confined to ignored .tmp. */
-export function createTavernSlice(cardPath: string, output: string): {packPath: string; documents: number} {
+export function createBlackShoresSlice(cardPath: string, output: string): {packPath: string; documents: number} {
   const root = resolve('.tmp'), packPath = resolve(output), local = relative(root, packPath)
   if (!local || local.startsWith('..') || isAbsolute(local) || existsSync(packPath)) throw new TypeError('请使用 .tmp 内尚不存在的新实验目录')
   const card = readTavernCard(cardPath), entries = card.character_book?.entries ?? []
@@ -91,6 +91,6 @@ export function createTavernSlice(cardPath: string, output: string): {packPath: 
   return {packPath, documents:documents.length}
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (!process.argv[2] || !process.argv[3]) throw new TypeError('用法：tavern-card-slice.ts <原卡.png/json> <.tmp/新目录>')
-  console.log(JSON.stringify(createTavernSlice(process.argv[2], process.argv[3])))
+  if (!process.argv[2] || !process.argv[3]) throw new TypeError('用法：tavern-black-shores-slice.ts <原卡.png/json> <.tmp/新目录>')
+  console.log(JSON.stringify(createBlackShoresSlice(process.argv[2], process.argv[3])))
 }
